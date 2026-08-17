@@ -327,8 +327,6 @@ def test_adr_review_policy_blocks_stale_debate_reference(
     # A debate log exists in the correct dir (.agents/critique/) but references
     # a DIFFERENT ADR (ADR-042), not the staged ADR (ADR-062). This exercises
     # the stale-reference branch, not the missing-log branch.
-    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
-    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     _write_lf(critique / "adr-042-debate.md", "ADR-042 review")
@@ -346,8 +344,6 @@ def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
-    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     _write_lf(critique / "adr-062-debate.md", "ADR-062 review")
@@ -363,7 +359,6 @@ def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(
 
 
 def test_adr_review_policy_matches_complete_adr_ids(tmp_path: Path) -> None:
-    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     _write_lf(critique / "adr-0620-debate.md", "ADR-0620 review")
@@ -380,7 +375,6 @@ def test_adr_review_policy_matches_complete_adr_ids(tmp_path: Path) -> None:
 def test_adr_review_policy_rejects_symlinked_debate_evidence(tmp_path: Path) -> None:
     if os.name == "nt":
         pytest.skip("Symlink creation requires elevated Windows privileges")
-    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     evidence = tmp_path / "evidence.md"
@@ -402,8 +396,6 @@ def test_adr_review_policy_missing_critique_dir_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """No .agents/critique/ directory at all means no debate logs: gate fails."""
-    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
-    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
     # Only the old wrong dir exists; critique dir is absent.
     wrong = tmp_path / ".agents" / "analysis"
     wrong.mkdir(parents=True)
@@ -696,7 +688,6 @@ def test_configuration_uses_named_native_jobs() -> None:
         "hook-anchoring-e2e",
         "plugin-load-e2e",
         "review-axis-drift",
-        "session-json-validation",
         "observation-sync-advisory",
         "bot-cascade-advisory",
     }
@@ -877,11 +868,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     assert pre_push_jobs["push-ref-policy"]["use_stdin"] is True
     assert pre_push_jobs["security-scan"]["use_stdin"] is True
     assert pre_push_jobs["security-suppression-policy"]["use_stdin"] is True
-    assert pre_push_jobs["session-json-validation"]["use_stdin"] is True
-    session_validation_run = pre_push_jobs["session-json-validation"]["run"]
-    assert isinstance(session_validation_run, str)
-    assert "{push_files}" not in session_validation_run
-    assert "glob" not in pre_push_jobs["session-json-validation"]
     piped_stdin_groups = [
         item["group"]
         for item in pre_push["jobs"]
@@ -896,7 +882,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "push-ref-policy",
         "security-suppression-policy",
         "placeholder-identity",
-        "session-json-validation",
     ]
     # Issue #5066: security-scan (semgrep) left the cheap stdin group so a
     # fast-stage failure no longer waits on it. It stays a top-level job
@@ -2221,15 +2206,18 @@ def test_root_hygiene_skips_merge_state(tmp_path: Path) -> None:
     assert policy.check_root_hygiene(["scratch-notes.txt"], repo) == 0
 
 
-def test_session_policy_requires_and_validates_session(
+def test_session_policy_is_validate_if_present(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # The committed session-log gate is retired: a non-session .agents change
+    # needs no session log (returns 0), while a present session log is still
+    # validated by shelling out to the validator.
     monkeypatch.setattr(policy, "_merge_in_progress", lambda _root: False)
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(0))
     monkeypatch.setattr(policy, "added_session_paths_in_index", lambda paths, repo_root: set(paths))
 
-    assert policy.check_sessions([".agents/planning/plan.md"], tmp_path) == 1
+    assert policy.check_sessions([".agents/planning/plan.md"], tmp_path) == 0
     assert (
         policy.check_sessions(
             [".agents/sessions/2026-07-19-session-1-test.json"],
