@@ -1,3 +1,9 @@
+---
+qaVerdict: PASS
+qaSessionLog: .agents/sessions/2026-08-17-session-99917-b41b3bf39-critical-review-open-issues-backlog.json
+qaCommit: 04a2f9621dacc07bf93c4c3abca8f0eba8d66a24
+---
+
 # QA Report: check_sessions --existing-log fix
 
 ## Objective
@@ -52,8 +58,3 @@ None identified for this narrow scope. The fix is additive (one branch's flag se
 ## Verdict
 
 PASS
-
-<!-- machine-readable QA evidence -->
-qaVerdict: PASS
-qaSessionLog: .agents/sessions/2026-08-17-session-99917-b41b3bf39-critical-review-open-issues-backlog.json
-qaCommit: 04a2f9621dacc07bf93c4c3abca8f0eba8d66a24

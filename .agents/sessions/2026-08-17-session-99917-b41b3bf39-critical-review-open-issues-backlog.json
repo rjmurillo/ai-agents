@@ -147,6 +147,7 @@
   "endingCommit": "7ea9fc59e39c58caeb812a7fe270754b599f498d",
   "nextSteps": [
     "File the retrospective-policy {push_files}-empty-on-new-branch defect as its own issue",
+    "File a third small defect: the QA report frontmatter requirement (strict leading --- YAML block) was undiscoverable from existing .agents/qa/ examples, which use free prose headers instead; the schema/format is enforced but not documented anywhere a QA-report author would find it before hitting the error",
     "Real P0/P1 blocker fixes (#5111, #5090, #5099) as dedicated PRs",
     "Delegate one well-scoped issue to GitHub Copilot's coding agent as a live throughput test",
     "SESSION-PROTOCOL.md trim coordinated with its enforcement scripts (git_hook_policy.py, validate_session_json.py), as its own careful pass"
