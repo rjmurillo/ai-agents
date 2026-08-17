@@ -111,7 +111,6 @@ Set up GitHub billing alerts at:
 
 | Workflow | Est. Monthly Cost | Optimization Status |
 |----------|------------------|---------------------|
-| ai-pr-quality-gate | $30-40 | ✅ ARM, concurrency, internal path filter |
 | pester-tests | $20-30 | ✅ ARM (check-paths only), concurrency, path filter |
 | ai-issue-triage | $15-20 | ✅ ARM, concurrency |
 | ai-session-protocol | $10-15 | ✅ ARM, concurrency, path filter |
@@ -172,7 +171,6 @@ If monthly costs exceed $100:
 
 ### Critical Workflows (Never Disable)
 
-- ai-pr-quality-gate (blocks merge)
 - pester-tests (blocks merge)
 - validate-generated-agents (blocks merge)
 - ai-session-protocol (blocks merge)
