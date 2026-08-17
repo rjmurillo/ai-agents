@@ -12,6 +12,7 @@
 
 [Decision Records]
 |decision records rationale evidence implementation choices review findings: [skills-decision-index](skills-decision-index.md) (2275)
+|governance bureaucracy audit open issues PR churn session log redundancy critical review: [audits/2026-08-17-governance-bureaucracy-critical-review](audits/2026-08-17-governance-bureaucracy-critical-review.md) (677)
 
 [GitHub and PR Operations]
 |self-assessment ready-to-push refuted independent review negative control inert: [decision-agent-self-assessment-does-not-survive-review](decision-agent-self-assessment-does-not-survive-review.md) (1149)
