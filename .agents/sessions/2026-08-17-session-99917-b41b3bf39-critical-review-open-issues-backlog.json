@@ -144,7 +144,7 @@
       "outcome": "Root-caused it precisely: check_sessions() in scripts/validation/git_hook_policy.py never passed --existing-log, unlike the sibling validate_branch_sessions() in the same file, which already does this correctly. Fixed check_sessions() to pass --existing-log for edits to already-committed session logs (commit 04a2f9621), verified against 388 targeted tests (all pass) plus ruff/mypy, documented in .agents/qa/2026-08-17-check-sessions-existing-log-flag.md. This also demonstrated the QA investigation-only scope check working correctly: it rejected the stale investigation-only claim once real code entered the commit range, which is correct behavior, not a third bug"
     }
   ],
-  "endingCommit": "7ea9fc59e39c58caeb812a7fe270754b599f498d",
+  "endingCommit": "6e70352b3e4a8b151922cab6b1cc294120c1dc8d",
   "nextSteps": [
     "File the retrospective-policy {push_files}-empty-on-new-branch defect as its own issue",
     "File a third small defect: the QA report frontmatter requirement (strict leading --- YAML block) was undiscoverable from existing .agents/qa/ examples, which use free prose headers instead; the schema/format is enforced but not documented anywhere a QA-report author would find it before hitting the error",
