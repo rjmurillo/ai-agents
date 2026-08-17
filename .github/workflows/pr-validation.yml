@@ -121,13 +121,6 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: python3 .github/scripts/parse_pr_standards.py
 
-      - name: Check QA Report Exists
-        if: steps.should-run.outputs.skip != 'true'
-        id: check-qa
-        env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: python3 scripts/ci/check_pr_qa_report.py
-
       - name: Generate Validation Report
         if: steps.should-run.outputs.skip != 'true'
         id: report
@@ -136,9 +129,6 @@ jobs:
           BYPASS_USED: ${{ steps.validate-description.outputs.bypass_used }}
           BYPASS_LABEL: ${{ steps.validate-description.outputs.bypass_label }}
           BYPASS_COUNT: ${{ steps.validate-description.outputs.bypass_count }}
-          HAS_CODE_CHANGES: ${{ steps.check-qa.outputs.has_code_changes }}
-          QA_EXISTS: ${{ steps.check-qa.outputs.qa_report_exists }}
-          QA_REPORT: ${{ steps.check-qa.outputs.qa_report }}
           KEYWORDS_STATUS: ${{ steps.validate-standards.outputs.keywords_status }}
           TEMPLATE_STATUS: ${{ steps.validate-standards.outputs.template_status }}
           TEMPLATE_MESSAGE: ${{ steps.validate-standards.outputs.template_message }}
