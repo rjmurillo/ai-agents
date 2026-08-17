@@ -14,7 +14,7 @@
       "content": "Cherry-picked the shared container unblock commit before any other work",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e018"
       ],
       "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
     },
@@ -25,7 +25,7 @@
       "content": "Established the GitHub Actions contract from the vendor docs rather than memory",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e018"
       ],
       "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
     },
@@ -36,7 +36,7 @@
       "content": "Audited every workflow for the aggregator shape with a parsed-YAML detector",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e018"
       ],
       "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
     },
@@ -47,7 +47,7 @@
       "content": "Replaced always() with !cancelled() in the five unguarded aggregators",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e018"
       ],
       "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
     },
@@ -58,7 +58,7 @@
       "content": "Flipped the two existing tests that pinned the old always() contract",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e018"
       ],
       "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
     },
@@ -69,7 +69,7 @@
       "content": "Added the parsed-structure regression guard with a negative control",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e018"
       ],
       "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
     },
@@ -80,7 +80,7 @@
       "content": "Corrected the Serena memory that prescribed the defect",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e018"
       ],
       "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
     },
@@ -89,18 +89,7 @@
       "timestamp": "2026-08-15T15:15:45+00:00",
       "type": "commit",
       "content": "Commit: c0d7bf451",
-      "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
-        "e005",
-        "e006",
-        "e007",
-        "e012",
-        "e013",
-        "e015"
-      ],
+      "caused_by": [],
       "leads_to": [
         "e009"
       ],
@@ -152,7 +141,7 @@
       "content": "Removed a def-less duplicate of the Windows-runner assertions glued onto the vanilla-rows test",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e018"
       ],
       "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
     },
@@ -163,7 +152,7 @@
       "content": "Clamped each observation-sync child's subprocess timeout to the remaining budget",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e018"
       ],
       "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
     },
@@ -187,7 +176,7 @@
       "content": "Merged origin/main again after PR #5087's squash landed the cherry-picked hunks",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e018"
       ],
       "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
     },
@@ -199,6 +188,41 @@
       "caused_by": [
         "e014"
       ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main a third time after further trunk churn",
+      "caused_by": [],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-17T01:30:55+00:00",
+      "type": "commit",
+      "content": "Commit: 0a92c02ede13a9cef9b03db30d180fec2666bc3a",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e012",
+        "e013",
+        "e015",
+        "e016",
+        "e017"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
     }
@@ -208,7 +232,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
+    "commits": 7,
     "files_changed": 17
   },
   "lessons": []

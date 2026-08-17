@@ -158,9 +158,13 @@
     {
       "step": "Merged origin/main again after PR #5087's squash landed the cherry-picked hunks",
       "evidence": "merge commit 3b2428fa0: conflicts confined to the clamp additions in scripts/validation/git_hook_policy.py and tests/test_lefthook_integration.py; ours side kept (main's content plus the clamp); verified diff vs origin/main is clamp-only; 4 sync tests, 55 guard tests, merge-tree-ratchet OK post-merge"
+    },
+    {
+      "step": "Merged origin/main a third time after further trunk churn",
+      "evidence": "merge commit 0a92c02ed: origin/main had advanced through PR #5089 (security config trust boundary) and several unrelated fixes; no conflicts against this branch's aggregator or git_hook_policy.py changes; merge-tree-ratchet OK post-merge"
     }
   ],
-  "endingCommit": "3b2428fa06cd0d2f26462c07d6741a4aedd51a49",
+  "endingCommit": "0a92c02ede13a9cef9b03db30d180fec2666bc3a",
   "nextSteps": [
     "Follow-up: codeql-analysis.yml check-blocking-issues carries if: always() and downloads SARIF artifacts from a cancelled analyze job. It never reads needs.<job>.result, so it is outside this fix's shape, but a cancelled run can still leave it red on missing artifacts. Worth its own issue.",
     "Follow-up: ai-pr-quality-gate.yml aggregate and ai-session-protocol.yml aggregate still carry the redundant always() && !cancelled() spelling from the #2347 fix. The always() term is dead weight under the vendor recommendation; a cosmetic cleanup would leave one spelling in the repo.",
