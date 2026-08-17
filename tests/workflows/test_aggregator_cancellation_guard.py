@@ -124,8 +124,28 @@ def _triggers(workflow: Mapping[Any, Any]) -> set[str]:
     return {on}
 
 
+# Control-only keys: `needs` lists job ids (never `.result` text, so scanning
+# it cannot produce a false match) and `if` decides whether the job runs at
+# all rather than consuming a result as part of its own execution. Excluding
+# them keeps "does this job operationally consume a dependency result" a
+# distinct question from "does its guard condition mention one", which
+# `cancellation_guard_violations` already answers by reading `if` directly.
+_CONTROL_ONLY_KEYS = frozenset({"if", "needs"})
+
+
 def _consumes_dependency_results(job: Mapping[str, Any]) -> bool:
-    return any(CONSUMES_NEEDS_RESULT.search(text) for text in _strings(job.get("steps") or []))
+    """True if the job's own execution payload reads a dependency result.
+
+    Scans every field except `if` and `needs`. A normal job carries the
+    reference inside `steps` (an `env:` value or a `run:` line); a
+    reusable-workflow call job (`uses: ./.github/workflows/x.yml`) has no
+    `steps` at all and instead passes dependency-derived values through
+    `with:`. Scanning only `steps` misses that second shape entirely, so an
+    unguarded reusable-workflow aggregator would pass through the sweep
+    unexamined instead of failing it.
+    """
+    payload = {key: value for key, value in job.items() if key not in _CONTROL_ONLY_KEYS}
+    return any(CONSUMES_NEEDS_RESULT.search(text) for text in _strings(payload))
 
 
 def cancellation_guard_violations(job: Mapping[str, Any]) -> list[str]:
@@ -311,6 +331,33 @@ class TestRepositoryWideSweep:
         }
 
         assert unguarded_pr_head_aggregators(document) == ([], 0)
+
+    def test_sweep_catches_a_reusable_workflow_call_aggregator(self) -> None:
+        """A `uses:` job has no `steps`; the payload scan must still see `with`.
+
+        Regression for a Copilot review finding on PR #5103: the classifier
+        originally scanned only `job.get("steps")`, so a reusable-workflow
+        call job that passes a dependency result through `with:` (its only
+        execution payload) was invisible to `_consumes_dependency_results`
+        and never counted as examined, let alone flagged when unguarded.
+        """
+        document = {
+            "on": {"pull_request": None},
+            "jobs": {
+                "build": {"runs-on": "ubuntu-latest", "steps": []},
+                "result": {
+                    "needs": ["build"],
+                    "if": "always()",
+                    "uses": "./.github/workflows/report-status.yml",
+                    "with": {"build_status": "${{ needs.build.result }}"},
+                },
+            },
+        }
+
+        violations, examined = unguarded_pr_head_aggregators(document)
+
+        assert examined == 1
+        assert violations == ["result"]
 
     def test_sweep_reads_the_boolean_on_key(self) -> None:
         """PyYAML resolves an unquoted `on:` to True; the sweep must still see it."""

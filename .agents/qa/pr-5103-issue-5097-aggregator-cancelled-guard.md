@@ -193,6 +193,9 @@ agent is still recommended by protocol.
    Confirm on the pull request by pushing twice in quick succession and
    checking that the cancelled run's aggregate jobs report skipped rather than
    failure.
-4. Serena and Forgetful MCP were unreachable in this container, so no memory
-   was written. The durable finding lives in the new test module's docstring
-   and in this report.
+4. Forgetful MCP was unreachable in this container, so no Forgetful entry was
+   written for this finding. Serena MCP was reachable: the corrected memory
+   `ci/ci-infrastructure-aggregate-job-always-pattern` was read and updated
+   (session log `serenaMemoryUpdated` evidence), stopping it from teaching
+   `always()` on PR-head aggregators. The durable finding lives in that
+   memory, the new test module's docstring, and this report.

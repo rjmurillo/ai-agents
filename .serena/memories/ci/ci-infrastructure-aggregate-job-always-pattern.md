@@ -92,11 +92,11 @@ When `validate` job failed:
 ## Correct Pattern
 
 ```yaml
-# Correct: Use always() condition
+# Correct: Use !cancelled() condition, not always() (Issue #5097 correction above)
 aggregate:
   name: Aggregate Results
   needs: [detect-changes, validate]
-  if: always() && needs.detect-changes.outputs.has_sessions == 'true'
+  if: ${{ !cancelled() && needs.detect-changes.outputs.has_sessions == 'true' }}
   steps:
     - name: Collect Results
       run: |
@@ -111,10 +111,13 @@ aggregate:
 ```
 
 **Why This Works**:
-- `always()` runs job even when dependencies fail
+- `!cancelled()` runs the job even when dependencies fail, and skips only
+  when the run itself is being cancelled (superseded by a newer push), so a
+  cancelled run does not publish a red check for work nobody is waiting on
 - Still respects other conditions (e.g., `has_sessions`)
 - Enforcement step executes and can block PR
-- Clear intent: "always aggregate results, regardless of individual failures"
+- Clear intent: "aggregate results whenever the run reaches a real verdict,
+  not only when everything upstream reports the same status"
 
 ## When to Use
 
@@ -139,7 +142,7 @@ Apply this pattern when:
 
 - [ ] Matrix validation jobs can fail independently
 - [ ] Aggregate job has `needs: [validate]`
-- [ ] Aggregate job uses `if: always() && <other-conditions>`
+- [ ] Aggregate job uses `if: ${{ !cancelled() && <other-conditions> }}` (not `always()`, see Correction above)
 - [ ] Aggregate job collects results from all matrix jobs
 - [ ] Aggregate job enforces blocking conditions
 - [ ] Test: Verify aggregate runs when validation fails

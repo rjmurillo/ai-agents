@@ -222,7 +222,8 @@
         "e015",
         "e016",
         "e017",
-        "e019"
+        "e019",
+        "e021"
       ],
       "leads_to": [
         "e020"
@@ -249,6 +250,17 @@
         "e018"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed three Copilot review findings on PR #5103",
+      "caused_by": [],
+      "leads_to": [
+        "e018"
+      ],
       "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
     }
   ],

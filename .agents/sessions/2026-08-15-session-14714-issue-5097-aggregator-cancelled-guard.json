@@ -166,6 +166,10 @@
     {
       "step": "Recorded a retrospective classifying the defect as FM-10",
       "evidence": ".agents/retrospective/2026-08-17-issue-5097-aggregator-cancelled-guard.md (commit 1ef5ad6e6); always() laundering a cancelled run into a published failure check is a guard-clause suppression per .agents/governance/FAILURE-MODES.md FM-10, distinct from the FM-4 symptom it produces on the PR head; satisfies the pre-push retrospective-evidence gate"
+    },
+    {
+      "step": "Fixed three Copilot review findings on PR #5103",
+      "evidence": "(1) tests/workflows/test_aggregator_cancellation_guard.py: _consumes_dependency_results scanned only job.get('steps'), missing a reusable-workflow-call job that passes needs.<job>.result via with: instead of steps:, which would have passed the sweep unexamined and unguarded; broadened to scan the whole job payload excluding if/needs, added test_sweep_catches_a_reusable_workflow_call_aggregator; mutation-verified (reverting the fix fails exactly that test, 33 others stay green). (2) .serena/memories/ci/ci-infrastructure-aggregate-job-always-pattern.md: the 'Correct Pattern' code block, its 'Why This Works' bullets, and the Implementation Checklist still prescribed always() despite the Issue #5097 correction at the top of the same file; corrected all three to !cancelled(). (3) .agents/qa/pr-5103-issue-5097-aggregator-cancelled-guard.md Known Gaps item 4 claimed both Serena and Forgetful MCP were unreachable; the session log's own serenaMemoryUpdated evidence (this same log) shows Serena was reachable and the memory above was in fact updated, only Forgetful was unreachable; corrected the QA report to match."
     }
   ],
   "endingCommit": "1ef5ad6e6241196e7c2422c828aaa43ef9873fc7",
