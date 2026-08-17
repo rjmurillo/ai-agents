@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/2026-08-17-check-sessions-existing-log-flag.md"
+        "Evidence": ".agents/qa/2026-08-17-check-sessions-existing-log-flag-pr-5127.md"
       },
       "changesCommitted": {
         "level": "MUST",
