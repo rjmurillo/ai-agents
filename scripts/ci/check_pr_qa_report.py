@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -27,6 +28,23 @@ CONFIG_ERROR = 2
 EXTERNAL_ERROR = 3
 LOGIC_ERROR = 1
 CODE_EXTENSIONS = {".ps1", ".cs", ".ts", ".js", ".py", ".yml", ".yaml", ".json"}
+
+# The closing and reference keywords a PR body uses to link an issue. A bare
+# "#123" is not a link under this pattern: an issue number is only read from a
+# keyword, so a passing mention of another issue cannot pull in its QA report.
+LINKED_ISSUE = re.compile(r"(?i)\b(?:close[sd]?|fixe?[sd]?|fix|resolve[sd]?|refs?)\s+#(\d+)")
+
+# Closing keywords, matched against the start of a LINKED_ISSUE match's full
+# text, to split closing links from bare `Refs #n` links. A PR that closes an
+# issue is authoritative about that issue's scope; a PR that merely refs one
+# is not, so closing links must be tried first (issue #5096, criterion 6).
+_CLOSING_KEYWORD = re.compile(r"(?i)\A(?:close[sd]?|fixe?[sd]?|fix|resolve[sd]?)\s+#\d+\Z")
+
+# A `pr-<digits>` token inside a QA report filename, used to reject an
+# issue-named report that was actually written for a different PR (issue
+# #5096, criterion 7). Requires a non-alnum boundary before "pr-" so a
+# filename like "expression-5.md" cannot false-positive.
+PR_TOKEN = re.compile(r"(?<![0-9a-zA-Z])pr-(\d+)")
 
 
 def _append_output(name: str, value: str) -> int:
@@ -87,6 +105,99 @@ def _find_qa_report(pr_number: str) -> Path | None:
         artifact_dir("qa", base=Path.cwd()).glob(f"*pr-{pr_number}*.md")
     )
     return reports[0] if reports else None
+
+
+def _pr_body(repository: str, pr_number: str) -> str | None:
+    """The PR body text, or None when the API call failed.
+
+    Mirrors ``_pr_head_sha`` above: same ``gh api`` shape, same ``check=False``,
+    same read of ``returncode`` before the output is trusted. It returns None
+    instead of raising because the caller reports a failed lookup as
+    EXTERNAL_ERROR, the way ``_changed_files`` does, rather than as an invalid
+    report.
+    """
+    result = subprocess.run(
+        [
+            "gh",
+            "api",
+            f"repos/{repository}/pulls/{pr_number}",
+            "--jq",
+            ".body",
+        ],
+        check=False,
+        stdout=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
+def _linked_issues(body: str) -> list[str]:
+    """Issue numbers the body links: closing keywords first, then bare refs.
+
+    Order is body appearance within each tier; a number seen twice keeps only
+    its first (highest-priority) occurrence. A closing link is authoritative
+    about an issue's scope, so it is tried before a `Refs #n` link that only
+    mentions the issue without claiming to resolve it (issue #5096).
+    """
+    closing: list[str] = []
+    refs: list[str] = []
+    seen: set[str] = set()
+    for match in LINKED_ISSUE.finditer(body):
+        number = match.group(1)
+        if number in seen:
+            continue
+        seen.add(number)
+        bucket = closing if _CLOSING_KEYWORD.fullmatch(match.group(0)) else refs
+        bucket.append(number)
+    return closing + refs
+
+
+def _find_issue_qa_report(issue_numbers: list[str], pr_number: str) -> Path | None:
+    """The first issue-named report not bound to a different PR by filename.
+
+    A report carrying a `pr-<digits>` token in its filename was written for
+    that PR, not this one; resolving it here would validate this PR against
+    another PR's QA evidence and ancestry (issue #5096, criterion 7).
+    """
+    qa_dir: Path = artifact_dir("qa", base=Path.cwd())
+    for issue_number in issue_numbers:
+        reports: list[Path] = sorted(qa_dir.glob(f"*issue-{issue_number}*.md"))
+        for report in reports:
+            token = PR_TOKEN.search(report.name)
+            if token is not None and token.group(1) != pr_number:
+                continue
+            return report
+    return None
+
+
+def _resolve_qa_report(
+    repository: str,
+    pr_number: str,
+) -> tuple[Path | None, int | None]:
+    """The QA report for this PR, plus an exit code when the lookup itself failed.
+
+    Issue #5096: a report named for the PR number cannot be written before the
+    PR exists, so the first push of every code PR failed this gate and paid a
+    rename commit plus a second full push cycle. A report named for an issue the
+    PR body links can be written up front, so it is accepted when no PR-numbered
+    report exists. The PR-numbered name stays preferred, and whichever report
+    resolves goes through ``_validate_report`` unchanged.
+    """
+    report = _find_qa_report(pr_number)
+    if report is not None:
+        return report, None
+    body = _pr_body(repository, pr_number)
+    if body is None:
+        print(
+            f"::error::gh api failed for repos/{repository}/pulls/{pr_number}",
+            file=sys.stderr,
+        )
+        return None, EXTERNAL_ERROR
+    return _find_issue_qa_report(_linked_issues(body), pr_number), None
 
 
 def _resolve_commit(commit: str) -> str | None:
@@ -241,7 +352,9 @@ def main(argv: list[str] | None = None) -> int:
         return output_error
     if not has_code_changes:
         return _record_no_qa_required()
-    qa_report = _find_qa_report(pr_number)
+    qa_report, lookup_error = _resolve_qa_report(repository, pr_number)
+    if lookup_error is not None:
+        return lookup_error
     if qa_report:
         try:
             _validate_report(repository, pr_number, qa_report)
