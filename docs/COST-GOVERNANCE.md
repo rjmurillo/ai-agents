@@ -112,7 +112,6 @@ Set up GitHub billing alerts at:
 | Workflow | Est. Monthly Cost | Optimization Status |
 |----------|------------------|---------------------|
 | pester-tests | $20-30 | ✅ ARM (check-paths only), concurrency, path filter |
-| ai-session-protocol | $10-15 | ✅ ARM, concurrency, path filter |
 
 ### Medium-Cost Workflows
 
@@ -170,7 +169,6 @@ If monthly costs exceed $100:
 
 - pester-tests (blocks merge)
 - validate-generated-agents (blocks merge)
-- ai-session-protocol (blocks merge)
 - ai-spec-validation (blocks merge)
 
 ## Best Practices

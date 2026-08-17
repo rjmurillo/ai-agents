@@ -137,19 +137,6 @@ def _run_mutations(repo_root: Path) -> int:
                 "tests/ci/test_validation_scripts_are_reachable.py",
             ],
         ),
-        # Issue #4194: _session_log_for_current_branch in check_adr_review_policy
-        (
-            "#4194 adr-uses-branch-log",
-            repo_root / "scripts/validation/git_hook_policy.py",
-            "_session_log_for_current_branch(repo_root / \".agents\" / \"sessions\", repo_root)\n"
-            "    if session_log is None or not _session_has_adr_review(session_log):",
-            "_today_session_log(repo_root / \".agents\" / \"sessions\")\n"
-            "    if session_log is None or not _session_has_adr_review(session_log):",
-            [
-                "tests/validation/test_session_log_branch_aware.py",
-                "tests/validation/test_git_hook_policy_causal_restore.py",
-            ],
-        ),
         # Issue #4194: _session_log_for_current_branch in check_retrospective_evidence
         (
             "#4194 retro-uses-branch-log",

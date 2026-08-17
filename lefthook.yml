@@ -447,11 +447,6 @@ pre-push:
             run: uv run --frozen python scripts/validation/git_hook_policy.py placeholder-identity
             use_stdin: true
 
-          - name: session-json-validation
-            timeout: 10m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py sessions
-            use_stdin: true
-
     # Fast stage, parallel half (issue #5066). Blocking gates that finish in
     # seconds. A failure here skips semgrep and the expensive stage below, so
     # a ratchet or policy miss costs seconds, not a full pytest run.

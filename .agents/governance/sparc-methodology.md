@@ -148,7 +148,7 @@ Each gate defines blocking criteria. Progression requires all MUST items to pass
 |-------|-----------|----------|
 | MUST | Full test suite passes | Test output |
 | MUST | Documentation updated | File paths |
-| MUST | Session log complete | Validation passes |
+| MUST | Continuity recorded for open work | Per-issue handoff or Serena memory |
 | SHOULD | Retrospective captured (significant work) | Memory written |
 
 ## Mode Selection
@@ -165,7 +165,8 @@ The orchestrator selects the entry phase based on task complexity.
 
 ## Phase Tracking
 
-Sessions track the current development phase in the session log.
+Track the current development phase in the plan or per-issue handoff. An
+optional session log may duplicate it.
 
 ```json
 {

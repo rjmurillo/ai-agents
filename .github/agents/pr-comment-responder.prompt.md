@@ -213,28 +213,20 @@ Verify fix and assess regression test needs...
 
 These gates implement RFC 2119 MUST requirements. Proceeding without passing causes artifact drift.
 
-### Gate 0: Session Log Creation
+### Gate 0: Continuity
 
-**Before any work**: Create session log with protocol compliance checklist.
+Before work, read the current per-issue handoff when one exists. A session log
+is optional.
 
 ```bash
-# Create session log
-SESSION_FILE=".agents/sessions/$(date +%Y-%m-%d)-session-XX.md"
-cat > "$SESSION_FILE" << 'EOF'
-# PR Comment Responder Session
-
-## Protocol Compliance Checklist
-
-- [ ] Gate 0: Session log created
-- [ ] Gate 1: Eyes reactions = comment count
-- [ ] Gate 2: Artifact files created
-- [ ] Gate 3: All tasks tracked in tasks.md
-- [ ] Gate 4: Artifact state matches API state
-- [ ] Gate 5: All threads resolved
-EOF
+# Create the PR comment run log consumed by later gates.
+PR_COMMENT_LOG=".agents/pr-comments/PR-[number]/session.log"
+mkdir -p "$(dirname "$PR_COMMENT_LOG")"
+: > "$PR_COMMENT_LOG"
 ```
 
-**Evidence required**: Session log file exists with checkboxes.
+**Evidence required**: PR comment run log exists. Transcript identifies any
+loaded handoff.
 
 ### Gate 1: Acknowledgment Verification
 
@@ -357,7 +349,7 @@ Before proceeding, confirm `pr-review/pr-comment-responder-skills` is loaded:
 - [ ] Reviewer signal quality table visible
 - [ ] Triage heuristics available
 
-**If memory load fails**: Proceed with default heuristics but flag in session log.
+**If memory load fails**: Proceed with default heuristics and flag it in the transcript.
 
 #### Step 0.3: Note on Reviewer-Specific Memories
 
@@ -472,7 +464,7 @@ fi
 
 3. **Provide split recommendations**: Suggest how the work could be divided
 
-4. **Document in session log**: Record the analysis and recommendations
+4. **Document in the transcript**: Record the analysis and recommendations
 
 **Continue with normal workflow** after completing needs-split handling. The label does not block comment processing.
 

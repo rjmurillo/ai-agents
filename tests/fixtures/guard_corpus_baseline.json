@@ -374,20 +374,6 @@
         0
       ]
     ],
-    "session-log-fixer/scripts/get_validation_errors.py": [
-      [
-        "log_result = subprocess.run(",
-        0
-      ],
-      [
-        "pr_result = subprocess.run(",
-        0
-      ],
-      [
-        "runs_result = subprocess.run(",
-        0
-      ]
-    ],
     "session/scripts/test_investigation_eligibility.py": [
       [
         "result = subprocess.run(",

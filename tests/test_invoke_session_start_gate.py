@@ -63,15 +63,18 @@ class TestCheckSessionLogGate:
 
         assert check_session_log_gate(tmp_path) is True
 
-    def test_fail_when_no_sessions_dir(self, tmp_path: Path) -> None:
-        assert check_session_log_gate(tmp_path) is False
+    def test_advisory_when_no_sessions_dir(self, tmp_path: Path) -> None:
+        # The committed session-log gate is retired: a missing sessions
+        # directory is advisory (WARN), not a blocking failure.
+        assert check_session_log_gate(tmp_path) is True
 
-    def test_fail_when_no_today_sessions(self, tmp_path: Path) -> None:
+    def test_advisory_when_no_today_sessions(self, tmp_path: Path) -> None:
         sessions = tmp_path / ".agents" / "sessions"
         sessions.mkdir(parents=True)
         # Create a session from yesterday
         (sessions / "2020-01-01-session-1.json").write_text("{}", encoding="utf-8")
-        assert check_session_log_gate(tmp_path) is False
+        # No session log for today is advisory (WARN), not a blocking failure.
+        assert check_session_log_gate(tmp_path) is True
 
 
 class TestCheckBranchGate:

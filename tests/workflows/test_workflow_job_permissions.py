@@ -1,6 +1,6 @@
 """A job with no ``permissions:`` block silently inherits the workflow-level one.
 
-30 jobs hold a write scope they never asked for. A ``debounce`` job that only
+24 jobs hold a write scope they never asked for. A ``debounce`` job that only
 computes an output carries ``pull-requests: write``; ``claude.yml``'s
 authorization check carries seven write scopes including ``id-token``. Nothing
 in the job body says so, so a reviewer reading the job cannot see it (CWE-269).
@@ -20,7 +20,7 @@ give an over-granted job attacker-reachable code. That happened once already:
 (PR #3967) and scoped it to ``contents: read``. Manual review is the only
 control this repository has for it.
 
-The 30 stay frozen below rather than scoped by hand: each needs per-job
+The 24 stay frozen below rather than scoped by hand: each needs per-job
 knowledge of what it calls, and a wrong guess breaks CI. The gate stops the
 bleeding, and the burn-down rides the extraction PRs.
 
@@ -47,12 +47,7 @@ WORKFLOW_DIR = Path(__file__).resolve().parents[2] / ".github/workflows"
 _GRANDFATHERED: frozenset[tuple[str, str]] = frozenset(
     {
         ("ai-metrics-analysis.yml", "analyze-metrics"),
-        ("ai-session-protocol.yml", "aggregate"),
-        ("ai-session-protocol.yml", "check-changes"),
-        ("ai-session-protocol.yml", "detect-changes"),
-        ("ai-session-protocol.yml", "skip-validation"),
-        ("ai-session-protocol.yml", "validate"),
-        ("ai-session-protocol.yml", "validate-investigation-claims"),
+
         ("ai-spec-validation.yml", "check-paths"),
         ("ai-spec-validation.yml", "debounce"),
         ("ai-spec-validation.yml", "validate-spec"),

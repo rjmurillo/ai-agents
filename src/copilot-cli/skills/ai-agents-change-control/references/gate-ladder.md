@@ -13,7 +13,7 @@ The ladder is ordered by feedback cost. Catching a violation at rung 1 costs sec
 | 1 | Shift-left runner | `uv run python scripts/validation/pre_pr.py` (`--quick` skips slow checks) | Roughly 30 validations: session end, tests, scoped markdownlint, workflow YAML, dash prohibition, plugin version field, install parity, hook anchoring. Exit codes per ADR-035: 0 pass, 1 logic failure, 2 config error (`scripts/validation/pre_pr.py` docstring) |
 | 2 | Pre-commit hook | Automatic on `git commit` through Lefthook | Lefthook filters staged files and runs the named validators in `lefthook.yml` |
 | 3 | Pre-push hook | Automatic on `git push` through Lefthook | Lefthook filters files in the push range and runs the named validators in `lefthook.yml` |
-| 4 | CI required checks | Push and PR events | `pytest.yml`; `pr-validation.yml` (20-commit cap); `ai-spec-validation.yml`; `ai-session-protocol.yml` (deterministic); CodeQL, drift, and plugin-bump workflows. Nine deterministic contexts are pinned in `scripts/ci/ruleset_required_contexts.py:REQUIRED_CONTEXTS`. No LLM verdict blocks merge: `ai-pr-quality-gate.yml` and its ten parallel reviewers were deleted |
+| 4 | CI required checks | Push and PR events | `pytest.yml`; `pr-validation.yml` (20 commits, or 40 after merging main); `ai-spec-validation.yml`; CodeQL, drift, and plugin-bump workflows. Nine deterministic contexts are pinned in `scripts/ci/ruleset_required_contexts.py:REQUIRED_CONTEXTS`. Neither AI specialist verdicts nor committed session logs block merge; their workflows were deleted |
 
 Local Git hooks only run after Lefthook is installed. Run
 `uv run --frozen lefthook install --reset-hooks-path`, then verify with

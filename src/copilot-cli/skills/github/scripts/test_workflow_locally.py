@@ -417,7 +417,6 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  - {key}")
         print()
         print("Unsupported workflows (require AI infrastructure or Copilot CLI):")
-        print("  - ai-session-protocol (requires Copilot CLI with BOT_PAT)")
         print("  - ai-spec-validation (requires Copilot CLI with BOT_PAT)")
         return 1
 
