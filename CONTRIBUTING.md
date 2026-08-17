@@ -681,11 +681,14 @@ if __name__ == "__main__":
 
 ## Session Protocol
 
-This project uses a session-based workflow for tracking work. Session logs are required for all significant work.
+This project preserves continuity through per-issue handoffs and Serena memory.
+Committed session logs are optional.
 
 ### Session Logs
 
-Create session logs at `.agents/sessions/YYYY-MM-DD-session-NN.json` to document work done during a session.
+Create a log at `.agents/sessions/YYYY-MM-DD-session-NN.json` only when you
+want an explicit committed record. Any staged or explicitly supplied log must
+pass `scripts/validate_session_json.py`.
 
 ### QA Validation
 
@@ -698,7 +701,7 @@ The pre-commit hook validates that QA has been performed for sessions involving 
 
 **Investigation artifacts** (allowlist for investigation-only exemption):
 
-- `.agents/sessions/` - Session logs
+- `.agents/sessions/` - Optional session logs and per-issue handoffs
 - `.agents/analysis/` - Research findings
 - `.agents/retrospective/` - Learning extractions
 - `.serena/memories/` - AI memory updates
