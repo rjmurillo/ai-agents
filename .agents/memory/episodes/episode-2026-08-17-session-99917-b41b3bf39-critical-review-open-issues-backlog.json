@@ -1,0 +1,65 @@
+{
+  "id": "episode-2026-08-17-session-99917-b41b3bf39-critical-review-open-issues-backlog",
+  "session": "2026-08-17-session-99917-b41b3bf39-critical-review-open-issues-backlog",
+  "timestamp": "2026-08-17T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Critical review of open issues, PR backlog, and governance overhead",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a 3-agent parallel audit (issue taxonomy, PR churn, bureaucracy-cost) against live GitHub state across 92 open issues and 11 open PRs",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-17-session-99917-b41b3bf39-critical-review-open-issues-backlog"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed 9 issues confirmed safe to deprioritize (#5117, #5118, #5115, #5121, #5070, #5043, #4962, #5068, #5014) with evidence-linked comments",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-17-session-99917-b41b3bf39-critical-review-open-issues-backlog"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Flagged PR #4846 (close_and_restart recommendation) and #4954 (needs_human_call) rather than acting unilaterally on pre-existing owner PRs; handed PR #5036 the exact fix for a 4x-reported unanchored regex",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-17-session-99917-b41b3bf39-critical-review-open-issues-backlog"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Consolidated the generated-artifacts.md / canonical-source-mirror.md duplicated anti-pattern paragraph into a pointer, regenerated both instruction mirrors, verified push-lock and scoped markdown-lint pass",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-17-session-99917-b41b3bf39-critical-review-open-issues-backlog"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Hit a live gate defect while pushing: retrospective-policy's {push_files} lefthook template resolves empty on this branch's first push, defeating its own documentation-only bypass",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-17-session-99917-b41b3bf39-critical-review-open-issues-backlog"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}
