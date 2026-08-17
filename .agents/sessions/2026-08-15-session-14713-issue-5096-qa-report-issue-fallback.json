@@ -178,6 +178,14 @@
     {
       "step": "Fixed the pre-existing timezone bug blocking the push gate, on a path never touched by this branch before",
       "evidence": "commit 15476b5e5. git diff origin/main HEAD on the test file and its implementation (extract_session_episode.py, repair_episode_causal_links.py) was empty before this commit, confirming the bug predates this branch and traces to PR #5058 (8bc289fc1) already merged into main. The test built its UTC fixture date from git show --format=%cI sliced to 10 characters, which keeps the commit's local offset; on this host (-07:00) a late commit crosses the UTC day boundary and the fixture landed on the wrong day. Fixed by parsing with datetime.fromisoformat(...).astimezone(UTC).date(), matching how production code (_parse_causal_timestamp) already normalizes. 12/12 tests in the file pass; reverting the fix reproduces the original failure."
+    },
+    {
+      "step": "Corrected the Serena memory that documented the pre-tiering contract",
+      "evidence": ".serena/memories/ci/ci-qa-report-may-be-named-for-the-issue-not-the-pr.md line 38 still read 'deduplicated and sorted numerically' after commit 2bf7e4268 replaced numeric order with closing-keyword-then-refs tiering, and never mentioned the PR_TOKEN foreign-PR filter at all. Flagged by spec-validation run 31985055511 as FM-9 (Confident-Incorrectness Recurrence): a canonical-source-mirror claim that was true when written and false by the time it shipped. Corrected 'The contract now' and 'Known sharp edge' sections to describe the tiered order and the PR_TOKEN filter, citing check_pr_qa_report.py:_linked_issues/_find_issue_qa_report and the live #5107 failure that motivated the change."
+    },
+    {
+      "step": "Recorded a retrospective classifying the stale-memory defect as FM-9",
+      "evidence": ".agents/retrospective/2026-08-17-issue-5096-qa-report-issue-fallback.md; satisfies the pre-push retrospective-evidence gate for this session"
     }
   ],
   "endingCommit": "15476b5e5c2c99cdbdfdf2fdac69f34ddfd7bb7f",

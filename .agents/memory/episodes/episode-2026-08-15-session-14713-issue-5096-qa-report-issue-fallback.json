@@ -298,7 +298,9 @@
         "e021",
         "e022",
         "e026",
-        "e027"
+        "e027",
+        "e030",
+        "e031"
       ],
       "leads_to": [
         "e025"
@@ -362,6 +364,28 @@
         "e028"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the Serena memory that documented the pre-tiering contract",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e031",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded a retrospective classifying the stale-memory defect as FM-9",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
       "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
     }
   ],

@@ -35,8 +35,25 @@ Resolution order, in `_resolve_qa_report`:
    (?i)\b(?:close[sd]?|fixe?[sd]?|fix|resolve[sd]?|refs?)\s+#(\d+)
    ```
 
-   deduplicated and sorted numerically, and glob `.agents/qa/*issue-{n}*.md`
-   for each in that order.
+   and try them **tiered, not numeric**: every closing keyword (`Closes`,
+   `Fixes`, `Resolves`) before any bare `Refs`, body-appearance order within
+   each tier, deduplicated across both (`check_pr_qa_report.py:_linked_issues`,
+   `_CLOSING_KEYWORD` and `LINKED_ISSUE`). For each candidate issue number, in
+   that order, glob `.agents/qa/*issue-{n}*.md` and skip any match whose
+   filename carries a `pr-<digits>` token for a *different* PR
+   (`PR_TOKEN`, `_find_issue_qa_report`): that report belongs to another pull
+   request, and resolving it here would validate this PR against another
+   PR's QA evidence and ancestry.
+
+   Numeric order was the original design and is wrong: a PR that fixes one
+   issue and also refs an older, lower-numbered one would try the referenced
+   issue first. Measured live on PR #5107 (this issue, #5096): its body carried
+   both `Refs #5074` and `Fixes #5096`, numeric order tried `#5074` first, and
+   that matched `pr-5087-issue-5074-merge-resolver-rename-rule.md`, a report
+   PR #5087 left on `main` after its squash merge. That report's `qaCommit` was
+   a branch commit unreachable from `main`, so the ancestry check failed a PR
+   whose own report was valid. The `PR_TOKEN` filter and the closing-keyword
+   tiering both come from that failure, not from the original design.
 
 Three consequences worth knowing before you name a file.
 
@@ -64,6 +81,11 @@ Both globs match on a numeric prefix, so `*issue-5096*.md` would also match a
 hypothetical `issue-50960-...md`. The PR-numbered glob has carried the same
 weakness since it was written. Do not read the issue fallback as the newer or
 looser of the two.
+
+The `PR_TOKEN` filter only rejects a filename token for a *different* PR
+number; a report that happens to name this PR (`issue-5096-pr-42-qa.md` when
+the gate runs as PR 42) is still accepted. It is not a "no PR token allowed"
+rule, only a "not somebody else's" rule.
 
 ## Related
 
