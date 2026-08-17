@@ -71,26 +71,51 @@ def _by_type(events, event_type):
 
 
 class TestPreserveKeepsCausalEdges:
-    """Positive: the milestone-to-commit chain survives regeneration."""
+    """Positive: real-timestamped milestones keep edges; midnight ones do not.
 
-    def test_preserve_keeps_milestone_to_commit_edges(self, tmp_path, monkeypatch):
+    Issue #4071 required that regeneration not flatten edges when the commit
+    has a real timestamp.  Issue #4847 refined this: milestones at synthetic
+    midnight are incomparable to commits because their true time is unknown.
+    Only milestones with real (non-midnight) timestamps produce edges.
+    """
+
+    def test_preserve_drops_midnight_milestone_to_commit_edges(self, tmp_path, monkeypatch):
+        """Milestones at midnight are incomparable to commits (issue #4847)."""
         merged = _regenerate(_flat_episode(), monkeypatch, COMMIT_TIME)
 
         commit = _by_type(merged["events"], "commit")[0]
         milestones = _by_type(merged["events"], "milestone")
 
         assert commit["timestamp"] == COMMIT_TIME
-        assert all(commit["id"] in m["leads_to"] for m in milestones)
-        assert commit["caused_by"] == [m["id"] for m in milestones]
+        # Midnight milestones have no edge to the commit (issue #4847).
+        assert all(commit["id"] not in m.get("leads_to", []) for m in milestones)
+        assert commit.get("caused_by", []) == []
 
-    def test_preserve_restores_edges_lost_by_an_earlier_run(self, monkeypatch):
+    def test_preserve_keeps_real_timestamped_milestone_edges(self, monkeypatch):
+        """Milestones with real timestamps still produce causal edges."""
+        real_milestone_time = "2026-07-30T21:00:00+00:00"
+        episode = _flat_episode()
+        # Give the first milestone a real timestamp
+        episode["events"][0]["timestamp"] = real_milestone_time
+
+        merged = _regenerate(episode, monkeypatch, COMMIT_TIME)
+
+        commit = _by_type(merged["events"], "commit")[0]
+        first_milestone = merged["events"][0]
+
+        # Real-timestamped milestone (21:00) is before commit (22:16), edge exists
+        assert commit["id"] in first_milestone.get("leads_to", [])
+
+    def test_preserve_restores_commit_edges_lost_by_an_earlier_run(self, monkeypatch):
         damaged = _flat_episode()
         before = extract_session_episode._total_causal_edges(damaged["events"])
 
         merged = _regenerate(damaged, monkeypatch, COMMIT_TIME)
 
         assert before == 0
-        assert extract_session_episode._total_causal_edges(merged["events"]) == 3
+        # Midnight milestones on the same date are incomparable to commits
+        # (issue #4847), so no edges are created between them.
+        assert extract_session_episode._total_causal_edges(merged["events"]) == 0
 
 
 class TestPreserveFailsClosed:
@@ -130,7 +155,9 @@ class TestPreserveEdgeCases:
 
         commit = _by_type(merged["events"], "commit")[0]
         assert commit["timestamp"] == COMMIT_TIME
-        assert extract_session_episode._total_causal_edges(merged["events"]) == 3
+        # Midnight milestones are incomparable to commits (issue #4847),
+        # so no causal edges are created between them.
+        assert extract_session_episode._total_causal_edges(merged["events"]) == 0
 
 
 class TestTotalCausalEdges:
@@ -190,7 +217,9 @@ class TestPreserveCliEdgeWarning:
 
         written = json.loads((out / f"episode-{SESSION_ID}.json").read_text(encoding="utf-8"))
         assert rc == 0
-        assert extract_session_episode._total_causal_edges(written["events"]) >= 3
+        # Midnight milestones are incomparable to commits (issue #4847),
+        # so no false causal edges are created.
+        assert extract_session_episode._total_causal_edges(written["events"]) == 0
         assert "causal edge count decreased" not in capsys.readouterr().err
 
     def test_preserve_cli_warns_on_stderr_when_edge_count_drops(

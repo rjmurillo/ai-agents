@@ -147,3 +147,28 @@ def test_cli_unreadable_body_is_config_error(tmp_path: Path):
     with pytest.raises(SystemExit) as exc:
         ac.main(["--body", str(missing)])
     assert exc.value.code == 2
+
+
+def test_pr_template_acceptance_section_parses() -> None:
+    """The shipped PR template must stay parseable by this module.
+
+    push-pr.md requires an ``## Acceptance criteria`` section that the
+    Validate Spec Coverage job reads through parse_criteria. The template
+    gained that section in PR 5095 after drifting apart from the validator
+    (issue 5068); this test pins the contract so a template edit that
+    renames or drops the section fails here instead of silently reviving
+    the drift.
+    """
+    template = (
+        Path(__file__).resolve().parents[2] / ".github" / "PULL_REQUEST_TEMPLATE.md"
+    )
+    body = template.read_text(encoding="utf-8")
+
+    section = ac.extract_acceptance_section(body)
+    criteria = ac.parse_criteria(body)
+
+    assert section.strip(), "template lost its ## Acceptance criteria section"
+    assert len(criteria) >= 1
+    # The placeholder must be visible prose, not an HTML comment: a rendered
+    # empty checkbox with no text hides the fill-me-in signal from authors.
+    assert all("<!--" not in c.text for c in criteria)

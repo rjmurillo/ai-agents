@@ -15,7 +15,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -58,6 +57,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 from paths import resolve_artifact_root  # noqa: E402
+from session_init.allocation import max_session_in_names, remote_max_session  # noqa: E402
 from session_init.date_helpers import host_session_date  # noqa: E402
 from session_init.session_structure import build_session_log  # noqa: E402
 
@@ -153,24 +153,20 @@ def main(argv: list[str] | None = None) -> int:
     branch = _get_branch()
     commit = _get_commit()
 
-    # Auto-detect session number
+    # Auto-detect session number across the local tree and remote-tracking
+    # refs (sibling branches, falling back to origin/main on probe failure)
+    # so parallel branches do not reuse a number (issues #2379, #4751).
+    local_names = os.listdir(sessions_dir) if os.path.isdir(sessions_dir) else []
+    local_max = max_session_in_names(local_names)
+    remote_max = remote_max_session(repo_root)
+    combined_max = max(local_max, remote_max)
     session_number = args.session_number
     if session_number == 0:
-        max_num = 0
-        for name in os.listdir(sessions_dir) if os.path.isdir(sessions_dir) else []:
-            m = re.search(r"session-(\d+)", name)
-            if m and name.endswith(".json"):
-                max_num = max(max_num, int(m.group(1)))
-        session_number = max_num + 1 if max_num else 1
+        session_number = combined_max + 1 if combined_max else 1
 
     # CWE-400: Reject session number jumps larger than 10 above max existing
-    max_existing = 0
-    found_existing = False
-    for name in os.listdir(sessions_dir) if os.path.isdir(sessions_dir) else []:
-        m = re.search(r"session-(\d+)", name)
-        if m and name.endswith(".json"):
-            max_existing = max(max_existing, int(m.group(1)))
-            found_existing = True
+    max_existing = combined_max
+    found_existing = combined_max > 0
     if found_existing and session_number > max_existing + 10:
         print(
             f"ERROR: Session number {session_number} exceeds ceiling "

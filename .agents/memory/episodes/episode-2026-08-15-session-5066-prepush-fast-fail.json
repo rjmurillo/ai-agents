@@ -1,0 +1,255 @@
+{
+  "id": "episode-2026-08-15-session-5066-prepush-fast-fail",
+  "session": "2026-08-15-session-5066-prepush-fast-fail",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Issue #5066: restructure lefthook pre-push so cheap gates fail before the expensive ones start",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue #5066, lefthook.yml, ci-scripts.md MUST-16/17/21, and every test pinning lefthook wiring",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Empirically verified lefthook 2.1.10 scheduling semantics in a throwaway fixture repo",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Timed every Stage A candidate standalone",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Restructured lefthook.yml pre-push into fast-fail and expensive stages, job bodies untouched",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated the piped-stdin-group pin and added tests/ci/test_lefthook_prepush_fast_fail.py",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the seven lefthook-pinning test modules",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "test",
+      "content": "941 passed, 2 skipped, 1 pre-existing environment failure (test_the_tracked_scan_fails_config_on_an_unreadable_file, reproduces on unmodified tree)",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T14:32:55+00:00",
+      "type": "commit",
+      "content": "Commit: f89f4c6e219480e6737db0f9672aebbe4c1b9617",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e017",
+        "e018"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T14:32:55+00:00",
+      "type": "commit",
+      "content": "Commit: f89f4c6",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T14:34:54+00:00",
+      "type": "commit",
+      "content": "Commit: 3b51153bed8767e3055f3dca8e9d794261bb63f4",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T15:00:56+00:00",
+      "type": "commit",
+      "content": "Commit: dc76248fb1d0d9560a36af5521e2c98d1cf98a90",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-15T15:26:26+00:00",
+      "type": "commit",
+      "content": "Commit: 6a120a6d024271ceb31856c6313d9ea19b633d98",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-15T15:31:17+00:00",
+      "type": "commit",
+      "content": "Commit: de9f106ebcc5ae3bd39ad856bea4cbdbaf422644",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-15T16:07:00+00:00",
+      "type": "commit",
+      "content": "Commit: 57ef6bf85b36a375c2efea4d00663e4a36323b43",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-15T16:54:08+00:00",
+      "type": "commit",
+      "content": "Commit: f0538c821813901e0d582b39f89e4dd0df0693dd",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-15T22:22:26+00:00",
+      "type": "commit",
+      "content": "Commit: 903277d166cbe2f4751ef63c86f7c53eb8ed53aa",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main (round 5, through d76f21dec, PR #5039 placeholder-identity re-pin) with git merge --no-edit; ort strategy resolved cleanly, zero conflicts",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "test",
+      "content": "a5c1c5ede90699a5f9e45946730c591e3835ad78; job-name-set diff between merged lefthook.yml pre-push and origin/main:lefthook.yml is empty in both directions (35/35); 997 passed, 1 skipped across the ten lefthook/worktree-identity test modules",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-15T22:35:46+00:00",
+      "type": "commit",
+      "content": "Commit: a5c1c5ede90699a5f9e45946730c591e3835ad78",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 10,
+    "files_changed": 13
+  },
+  "lessons": []
+}

@@ -20,14 +20,15 @@ import new_session_log
 
 @pytest.fixture
 def no_origin_sessions():
-    """Isolate local-only tests from the runner's real origin/main history.
+    """Isolate local-only tests from the runner's real remote-tracking refs.
 
-    `_auto_detect_session_number` / `_get_max_existing_session` now also read
-    origin/main via `_origin_main_max_session`. Stub it to 0 so these tests
-    exercise the local-scan path deterministically regardless of the repo the
-    suite runs in.
+    `_auto_detect_session_number` / `_get_max_existing_session` also read
+    remote refs via `_remote_max_session` (sibling branches, falling back to
+    origin/main; issues #2379, #4751). Stub it to 0 so these tests exercise
+    the local-scan path deterministically regardless of the repo the suite
+    runs in.
     """
-    with patch.object(new_session_log, "_origin_main_max_session", return_value=0):
+    with patch.object(new_session_log, "_remote_max_session", return_value=0):
         yield
 
 
@@ -72,43 +73,45 @@ class TestCrossBranchSessionAllocation:
             ".agents/sessions/2026-06-04-session-2335-pr-2353-autofix.json\n"
             ".agents/sessions/2026-06-04-session-2340-pr-2360-autofix.json\n"
         )
-        with patch.object(new_session_log.subprocess, "run") as mock_run:
+        with patch.object(new_session_log.allocation.subprocess, "run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0, stdout=ls_tree)
             assert new_session_log._origin_main_max_session("/repo") == 2340
             assert mock_run.call_args.kwargs["cwd"] == "/repo"
 
     def test_origin_main_max_zero_when_ref_missing(self):
-        with patch.object(new_session_log.subprocess, "run") as mock_run:
+        with patch.object(new_session_log.allocation.subprocess, "run") as mock_run:
             mock_run.return_value = MagicMock(returncode=128, stdout="")
             assert new_session_log._origin_main_max_session() == 0
 
     def test_origin_main_max_zero_on_subprocess_error(self):
-        with patch.object(new_session_log.subprocess, "run", side_effect=OSError("git missing")):
+        with patch.object(
+            new_session_log.allocation.subprocess, "run", side_effect=OSError("git missing")
+        ):
             assert new_session_log._origin_main_max_session() == 0
 
     def test_origin_main_max_zero_on_timeout(self):
         import subprocess as _sp
 
         with patch.object(
-            new_session_log.subprocess,
+            new_session_log.allocation.subprocess,
             "run",
             side_effect=_sp.TimeoutExpired(cmd="git", timeout=10),
         ):
             assert new_session_log._origin_main_max_session() == 0
 
-    def test_auto_detect_uses_origin_when_higher_than_local(self, tmp_path):
-        # Local branch only knows session 5; a sibling committed 2340 to main.
+    def test_auto_detect_uses_remote_when_higher_than_local(self, tmp_path):
+        # Local branch only knows session 5; a sibling pushed 2340.
         (tmp_path / "2026-01-01-session-5-test.json").write_text("{}")
-        with patch.object(new_session_log, "_origin_main_max_session", return_value=2340):
+        with patch.object(new_session_log, "_remote_max_session", return_value=2340):
             assert new_session_log._auto_detect_session_number(str(tmp_path)) == 2341
 
-    def test_auto_detect_uses_local_when_higher_than_origin(self, tmp_path):
+    def test_auto_detect_uses_local_when_higher_than_remote(self, tmp_path):
         (tmp_path / "2026-01-01-session-99-test.json").write_text("{}")
-        with patch.object(new_session_log, "_origin_main_max_session", return_value=40):
+        with patch.object(new_session_log, "_remote_max_session", return_value=40):
             assert new_session_log._auto_detect_session_number(str(tmp_path)) == 100
 
-    def test_auto_detect_origin_only_when_no_local_dir(self, tmp_path):
-        with patch.object(new_session_log, "_origin_main_max_session", return_value=2340):
+    def test_auto_detect_remote_only_when_no_local_dir(self, tmp_path):
+        with patch.object(new_session_log, "_remote_max_session", return_value=2340):
             result = new_session_log._auto_detect_session_number(str(tmp_path / "missing"))
             assert result == 2341
 
@@ -117,19 +120,19 @@ class TestCrossBranchSessionAllocation:
         artifact_sessions.mkdir(parents=True)
         repo_root = str(tmp_path / "repo")
         with patch.object(
-            new_session_log, "_origin_main_max_session", return_value=2340
-        ) as mock_origin:
+            new_session_log, "_remote_max_session", return_value=2340
+        ) as mock_remote:
             result = new_session_log._auto_detect_session_number(str(artifact_sessions), repo_root)
         assert result == 2341
-        mock_origin.assert_called_once_with(repo_root)
+        mock_remote.assert_called_once_with(repo_root)
 
-    def test_max_existing_includes_origin(self, tmp_path):
+    def test_max_existing_includes_remote(self, tmp_path):
         (tmp_path / "2026-01-01-session-5.json").write_text("{}")
-        with patch.object(new_session_log, "_origin_main_max_session", return_value=2340):
+        with patch.object(new_session_log, "_remote_max_session", return_value=2340):
             assert new_session_log._get_max_existing_session(str(tmp_path)) == 2340
 
-    def test_max_existing_origin_only(self, tmp_path):
-        with patch.object(new_session_log, "_origin_main_max_session", return_value=2340):
+    def test_max_existing_remote_only(self, tmp_path):
+        with patch.object(new_session_log, "_remote_max_session", return_value=2340):
             assert new_session_log._get_max_existing_session(str(tmp_path / "missing")) == 2340
 
 
@@ -314,7 +317,7 @@ class TestGetDescriptiveKeywords:
 class TestMain:
     """Tests for main entry point."""
 
-    @patch("new_session_log._origin_main_max_session", return_value=0)
+    @patch("new_session_log._remote_max_session", return_value=0)
     @patch("new_session_log.get_git_info")
     def test_main_skip_validation(self, mock_git, _mock_origin, tmp_path):
         mock_git.return_value = {
@@ -337,7 +340,7 @@ class TestMain:
         assert exit_code == 0
 
     @patch("new_session_log._run_validation")
-    @patch("new_session_log._origin_main_max_session", return_value=0)
+    @patch("new_session_log._remote_max_session", return_value=0)
     @patch("new_session_log.get_git_info")
     def test_main_validation_exits_0_on_fresh_creation(
         self, mock_git, _mock_origin, mock_validate, tmp_path
@@ -367,7 +370,7 @@ class TestMain:
         assert exit_code == 0
         mock_validate.assert_called_once()
 
-    @patch("new_session_log._origin_main_max_session", return_value=0)
+    @patch("new_session_log._remote_max_session", return_value=0)
     @patch("new_session_log.get_git_info")
     @patch("new_session_log.host_session_date", return_value="2026-08-15")
     def test_main_filename_and_date_use_host_session_date(

@@ -6973,24 +6973,39 @@ def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
 # be held under the cap from the inside. Each file costs up to ~10s when the
 # Forgetful MCP handshake times out (memory_sync.mcp_client.DEFAULT_TIMEOUT is
 # 10.0 seconds per request), and the first push of a new branch sweeps every
-# tracked observation file into {push_files}, so an unreachable MCP server
-# overruns the cap and blocks the push. 240s leaves 60s of headroom, and each
-# child's subprocess timeout is clamped to the remaining budget: the deadline
-# check runs between spawns, so an unclamped child started just under the
-# deadline would keep the DEFAULT_SUBPROCESS_TIMEOUT_SECONDS (90s) cap and
-# carry the job to ~330s, past the lefthook kill this budget exists to avoid.
-_OBSERVATION_SYNC_BUDGET_SECONDS = 240.0
+# tracked observation file into the job, so an unreachable MCP server
+# overruns the cap and blocks the push. Invariant, pinned by
+# test_observation_sync_budget_sits_below_the_lefthook_cap: this budget plus
+# one worst-case child (DEFAULT_SUBPROCESS_TIMEOUT_SECONDS) stays at or
+# under the lefthook cap, so even an unclamped straggler cannot outlive it;
+# the remainder is headroom for uv startup on a loaded machine. Each child is
+# additionally clamped to the remaining budget inside the loop.
+_OBSERVATION_SYNC_BUDGET_SECONDS = 200.0
 
 
 def sync_observations(paths: Sequence[str], repo_root: Path) -> int:
+    """Import pushed observation files into forgetful, best-effort.
+
+    The job is advisory by contract: every per-file failure is a WARNING and
+    the return value is always 0. The one failure mode that contract cannot
+    absorb is lefthook's own ``timeout:`` kill (a killed job exits non-zero
+    before any guard runs), so the loop holds an internal budget below the
+    configured 5m cap. When forgetful is unreachable, each import burns one
+    ~10s MCP-call timeout per observation entry, up to the 90s child cap, so
+    a push whose file set carries 30+ observation files otherwise outlives
+    the lefthook cap deterministically. Skipped files are named per the
+    no-silent-caps rule; they import on the next push that carries them.
+    """
     deadline = time.monotonic() + _OBSERVATION_SYNC_BUDGET_SECONDS
     for index, path in enumerate(paths):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
+            skipped = len(paths) - index
             print(
-                "WARNING: observation sync budget "
-                f"({int(_OBSERVATION_SYNC_BUDGET_SECONDS)}s) exhausted; "
-                f"skipped {len(paths) - index} of {len(paths)} file(s)",
+                f"WARNING: observation sync budget "
+                f"({_OBSERVATION_SYNC_BUDGET_SECONDS:g}s) exhausted after "
+                f"{index} of {len(paths)} file(s); skipped {skipped} of "
+                f"{len(paths)}: " + ", ".join(repr(p) for p in paths[index:]),
                 file=sys.stderr,
             )
             break
@@ -7005,11 +7020,15 @@ def sync_observations(paths: Sequence[str], repo_root: Path) -> int:
                 "MED",
             ],
             repo_root,
+            # Clamp the child to the remaining budget so total wall clock is
+            # bounded by the budget, not budget plus one full child timeout.
+            # A clamped kill returns 3 and lands in the WARNING below, which
+            # keeps the advisory contract intact.
             timeout_seconds=min(DEFAULT_SUBPROCESS_TIMEOUT_SECONDS, remaining),
         )
         _print_process_output(result)
         if result.returncode != 0:
-            print(f"WARNING: observation sync failed for {path}", file=sys.stderr)
+            print(f"WARNING: observation sync failed for {path!r}", file=sys.stderr)
     return 0
 
 
