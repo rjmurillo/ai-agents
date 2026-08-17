@@ -115,11 +115,11 @@ as load-bearing as the artifact's bytes.
 
 ### MUST NOT
 
-1. **Self-referential tests do not count.** A test that asserts the generator
-   produces a specific string, then checks the generator produced that string,
-   proves nothing about runtime behavior and cannot catch a wrong contract. This
-   is the canonical-source-mirror anti-pattern at the test layer. See
-   `.claude/rules/canonical-source-mirror.md`.
+1. **Self-referential tests do not count.** See `.claude/rules/canonical-source-mirror.md`
+   Anti-patterns ("Self-referential test that mirrors the producer's own output")
+   for the full rule and the PR #2205 example. Applied here: a test asserting the
+   generator produces a specific string, then checking the generator produced that
+   string, proves nothing about runtime behavior.
 
 2. **Do not ship an artifact you never executed in its target runtime.** "It
    regenerated cleanly" and "the schema validates" are not evidence the artifact
