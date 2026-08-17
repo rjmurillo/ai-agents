@@ -309,7 +309,7 @@ def test_the_scan_reaches_the_files_it_claims_to_cover() -> None:
         ".claude-mem/scripts/export_claude_mem_direct.py",
         ".codeql/scripts/install_codeql_integration.py",
         ".github/scripts/run_with_retry.py",
-        "scripts/quality_gate/post_pr_comment.py",
+        "scripts/quality_gate/run_pytest.py",
     ):
         assert expected in covered, f"{expected} escaped the scan"
 
