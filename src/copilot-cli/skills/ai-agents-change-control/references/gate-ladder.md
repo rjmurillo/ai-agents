@@ -13,7 +13,7 @@ The ladder is ordered by feedback cost. Catching a violation at rung 1 costs sec
 | 1 | Shift-left runner | `uv run python scripts/validation/pre_pr.py` (`--quick` skips slow checks) | Roughly 30 validations: session end, tests, scoped markdownlint, workflow YAML, dash prohibition, plugin version field, install parity, hook anchoring. Exit codes per ADR-035: 0 pass, 1 logic failure, 2 config error (`scripts/validation/pre_pr.py` docstring) |
 | 2 | Pre-commit hook | Automatic on `git commit` through Lefthook | Lefthook filters staged files and runs the named validators in `lefthook.yml` |
 | 3 | Pre-push hook | Automatic on `git push` through Lefthook | Lefthook filters files in the push range and runs the named validators in `lefthook.yml` |
-| 4 | CI required checks | Push and PR events | `pytest.yml`; `pr-validation.yml` (20-commit cap); `ai-pr-quality-gate.yml` (10 parallel LLM reviewers; the authoritative blocker is `scripts/quality_gate/check_critical_failures.py`, wired at `ai-pr-quality-gate.yml:735`); `ai-session-protocol.yml` (deterministic); drift and plugin-bump workflows |
+| 4 | CI required checks | Push and PR events | `pytest.yml`; `pr-validation.yml` (20-commit cap); `ai-pr-quality-gate.yml` (10 parallel LLM reviewers; the authoritative blocker is `scripts/quality_gate/check_critical_failures.py`, wired at `ai-pr-quality-gate.yml:735`); drift and plugin-bump workflows |
 
 Local Git hooks only run after Lefthook is installed. Run
 `uv run --frozen lefthook install --reset-hooks-path`, then verify with

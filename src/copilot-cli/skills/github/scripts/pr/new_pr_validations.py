@@ -102,8 +102,8 @@ def _extract_validatable_session_logs(
     if legacy_md:
         print(
             f"  WARNING: legacy .md session log(s) staged ({legacy_md}); "
-            "CI workflow will migrate to JSON before validation. Local "
-            "pre-PR validation only runs against JSON session logs.",
+            "these are not validated. A session log is optional; if you "
+            "keep one, use the JSON format that validate_session_json.py checks.",
             file=sys.stderr,
         )
     return [path for path in matched if path.endswith(".json")], bool(legacy_md)

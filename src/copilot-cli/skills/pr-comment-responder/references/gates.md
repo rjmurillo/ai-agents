@@ -2,15 +2,12 @@
 
 These gates implement RFC 2119 MUST requirements. Proceeding without passing causes artifact drift.
 
-## Gate 0: Session Log Creation
+## Gate 0: Continuity
 
-**Before any work**: Create session log with protocol compliance checklist.
+Before work, read the current per-issue handoff when one exists. Keep PR comment
+state in `.agents/pr-comments/PR-[number]/`. A session log is optional.
 
-```bash
-SESSION_FILE=".agents/sessions/$(date +%Y-%m-%d)-session-XX.md"
-```
-
-**Evidence required**: Session log file exists with checkboxes.
+**Evidence required**: Transcript or PR artifact identifies the loaded state.
 
 ## Gate 1: Acknowledgment Verification
 

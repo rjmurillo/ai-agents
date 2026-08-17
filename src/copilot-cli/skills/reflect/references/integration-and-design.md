@@ -65,18 +65,18 @@ mcp__serena__write_memory(memory_file_name="github/github-observations", memory_
 - `reflect` = targeted retrospective that feeds those artifacts with new learnings.
 - When a sidecar accumulates conflicting guidance, route the file to `curating-memories` for cleanup.
 
-### Session Protocol Integration
+### Durable Continuity Integration
 
-- Add "Run skill reflection if ≥3 distinct skills used" to the Session End checklist.
-- Document any manual sidecar edits (when Serena MCP is unavailable) in the session log before completion.
-- Invoke reflect immediately after the Stop hook highlights high-confidence learnings so the session log and sidecar stay in sync.
+- Add "Run skill reflection if ≥3 distinct skills used" to the optional Session End checklist.
+- Manual sidecar edits are self-recording in Git; preserve non-obvious rationale in the commit or PR.
+- Invoke reflect immediately after the Stop hook highlights high-confidence learnings so the sidecar is durable before the session ends.
 
 ## Extension Points
 
 1. **Curating memories**: route conflicting or stale learnings to `curating-memories` for consolidation.
 2. **Memory skill**: use `memory` skill for search/recall before proposing redundant learnings.
 3. **Forgetful**: optionally mirror high-confidence learnings into Forgetful with `skill-{name}` tags for semantic recall.
-4. **Session log fixer**: after reflection, ensure the session log captures the learning summary via `session-log-fixer`.
+4. **Git and PR history**: preserve non-obvious rationale for manual sidecar edits in the change that carries them.
 
 ## Related
 
