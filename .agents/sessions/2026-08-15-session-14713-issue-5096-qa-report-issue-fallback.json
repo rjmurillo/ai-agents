@@ -186,9 +186,13 @@
     {
       "step": "Recorded a retrospective classifying the stale-memory defect as FM-9",
       "evidence": ".agents/retrospective/2026-08-17-issue-5096-qa-report-issue-fallback.md; satisfies the pre-push retrospective-evidence gate for this session"
+    },
+    {
+      "step": "Merged origin/main again; main had already landed the same UTC-normalization fix under different names",
+      "evidence": "merge commit d95972998: conflict confined to tests/skills/memory/test_repair_episode_causal_links.py (raw_commit_ts/UTC vs commit_timestamp/timezone.utc, same semantics); took origin/main's version wholesale to converge naming; 12/12 tests in the file pass; merge-tree-ratchet OK post-merge"
     }
   ],
-  "endingCommit": "3d1f72c69bda7a1f59d4b72593b2634434aa4b69",
+  "endingCommit": "d95972998d3cc4915afb2a9178c2423e7f14f9ef",
   "nextSteps": [
     "Orchestrator opens the PR for this branch and links issue #5096",
     "Follow-up: both globs match a numeric prefix, so *issue-509* style collisions are possible (issue-5096 also matches a hypothetical issue-50960 report). The PR-numbered glob has carried the same weakness since it was written; tightening both belongs in one change, not this one.",

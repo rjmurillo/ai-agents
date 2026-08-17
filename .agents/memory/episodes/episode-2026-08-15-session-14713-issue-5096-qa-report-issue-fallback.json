@@ -300,7 +300,8 @@
         "e026",
         "e027",
         "e030",
-        "e031"
+        "e031",
+        "e034"
       ],
       "leads_to": [
         "e025"
@@ -411,6 +412,30 @@
       "caused_by": [
         "e032"
       ],
+      "leads_to": [
+        "e035"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e034",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main again; main had already landed the same UTC-normalization fix under different names",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e035",
+      "timestamp": "2026-08-17T01:56:28+00:00",
+      "type": "commit",
+      "content": "Commit: d95972998d3cc4915afb2a9178c2423e7f14f9ef",
+      "caused_by": [
+        "e033"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
     }
@@ -420,7 +445,7 @@
     "tool_calls": null,
     "errors": 7,
     "recoveries": 0,
-    "commits": 14,
+    "commits": 15,
     "files_changed": 14
   },
   "lessons": []
