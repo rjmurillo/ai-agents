@@ -175,8 +175,8 @@ as an implementer.
 ## Where this repo stands
 
 Measured on this branch after the universal rule gained the same-checker item. Two numbers, and they are not interchangeable. The
-**always-on corpus is 7 rules, 70,233 bytes**: the ones that load regardless
-of what you touch. The **effective context on a `.py` edit is 98,162 bytes
+**always-on corpus is 7 rules, 70,354 bytes**: the ones that load regardless
+of what you touch. The **effective context on a `.py` edit is 98,283 bytes
 across 11 files**, which is the always-on corpus plus the path-scoped rules
 that a Python file activates. Use the first when arguing about what every
 session pays. Use the second when arguing about what a specific edit pays.
@@ -190,7 +190,7 @@ uv run --frozen python scripts/validation/instruction_budget.py --format table
 
 **State the basis whenever you quote a number.** That command measures the
 generated `.github/instructions/` mirrors. The `.claude/rules/` sources are
-116 bytes larger in total (70,349 always-on) because `generate_rules.py`
+116 bytes larger in total (70,470 always-on) because `generate_rules.py`
 strips the `priority:` frontmatter key that the Copilot tree does not use.
 An earlier draft of this document mixed the two bases in one paragraph and
 published a corpus size that matched neither. If a figure here disagrees with
@@ -210,7 +210,7 @@ always-on file.
 | `unified-software-engineering.md` | 7,469 | code files only | 3 positive, 1 negative | yes |
 
 That leaves 14,152 always-on bytes of book-derived rule, 20.1% of the
-70,349-byte always-on corpus measured at source. `code-quality` and
+70,470-byte always-on corpus measured at source. `code-quality` and
 `pragmatic-programmer` had no scenario file at all until PR #4017 added one to
 each on 2026-08-03, which is how they grew unchallenged for four months.
 
@@ -258,7 +258,7 @@ product, which is the worst direction for a scope error to fail.
 
 The generator now skips an all-internal rule for any tree outside
 `keepInternalGlobsFor` and prunes the artifact it previously emitted, so
-`src/copilot-cli/instructions` carries 7 rules and 70,233 bytes, matching
+`src/copilot-cli/instructions` carries 7 rules and 70,354 bytes, matching
 `.github/instructions` exactly. Every figure in this document is now both
 numbers. That convergence is the invariant worth guarding: a future remap that
 re-widens an internal glob would show up here as the plugin tree growing past

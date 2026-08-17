@@ -5,7 +5,7 @@ These gates implement RFC 2119 MUST requirements. Proceeding without passing cau
 ## Gate 0: Continuity
 
 Before work, read the current per-issue handoff when one exists. Keep PR comment
-state in `.agents/pr-comments/PR-[number]/`. A session log is optional.
+state in the working artifact directory created by the skill. A session log is optional.
 
 **Evidence required**: Transcript or PR artifact identifies the loaded state.
 

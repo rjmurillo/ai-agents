@@ -1,6 +1,6 @@
 ---
 name: session-log-fixer
-description: Repair an existing JSON session log locally. Use when `validate_session_json.py` rejects a staged or explicitly supplied log, when an opted-in log has invalid schema fields, or when existing log evidence is incomplete. Do NOT use to create a required log, because logs are optional. Do NOT use for CI workflow or job-summary failures.
+description: Repair an existing JSON session log locally. Use when `validate_session_json.py` rejects a staged or explicitly supplied log, when an opted-in log has invalid schema fields, or when existing log evidence is incomplete. Do NOT use to complete an opted-in log at session end (use `session-end`). Do NOT use for CI workflow or job-summary failures.
 version: 4.0.0
 license: MIT
 metadata:
@@ -104,7 +104,7 @@ The repaired file is complete only when this exact command passes.
 
 ## Vendored Install
 
-<!-- vendor-portability: declared. This skill repairs an existing consumer-owned .agents/sessions JSON record when the consumer provides the path. The upstream schema and validator are repository-local references and may not exist in a vendored install. Issue #2050. -->
+<!-- vendor-portability: declared. This skill repairs an existing consumer-owned .agents/sessions JSON record. The repository-local .agents/schemas/session-log.schema.json, .agents/SESSION-PROTOCOL.md, and scripts/validate_session_json.py references may not exist in a vendored install. Issue #2050. -->
 
 When the upstream schema or validator is absent, require the consumer's schema
 and validation command. Do not assume the ai-agents contract applies.
