@@ -5,7 +5,6 @@ name: PR Validation
 #
 # Related Required Checks (configured in branch protection):
 #   - PR Validation (this workflow)
-#   - AI Quality Gate (ai-pr-quality-gate.yml)
 #   - CodeQL Analysis (codeql-analysis.yml) - Security scanning
 
 on:

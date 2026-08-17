@@ -12,9 +12,9 @@ This document provides recommendations for GitHub branch protection rules to enf
 The repository currently has:
 
 - ✅ Pre-commit hooks (session-log validation if present, skill detection, test coverage)
-- ✅ CI validation (PR description, QA reports)
-- ⚠️ No branch protection enforcement at merge gate
-- ⚠️ PRs can be merged with failing validations using admin override
+- ✅ CI validation (PR description, tests, CodeQL, and deterministic validators)
+- ✅ Active ruleset with nine required contexts
+- ✅ Required review-thread resolution and squash-only merging
 
 ## Recommended Branch Protection Rules
 
@@ -25,18 +25,13 @@ The repository currently has:
 Configure these CI checks as **required** before merge:
 
 1. **PR Validation** (`.github/workflows/pr-validation.yml`)
-   - Blocks: PR description mismatches (CRITICAL)
-   - Warns: Missing QA reports
+   - Blocks: PR description and commit-count violations
 
 2. **Pester Tests** (`.github/workflows/pester-tests.yml`)
    - Blocks: PowerShell test failures
    - Required: For PRs changing `scripts/**`
 
-3. **AI Quality Gate** (`.github/workflows/ai-pr-quality-gate.yml`)
-   - Blocks: Analyst/QA/Security CRITICAL_FAIL verdicts
-   - Required: For PRs changing code
-
-4. **CodeQL Analysis** (`.github/workflows/codeql-analysis.yml`)
+3. **CodeQL Analysis** (`.github/workflows/codeql-analysis.yml`)
    - Blocks: Critical/high severity security findings
    - Required: For PRs changing code files (PowerShell, Python, GitHub Actions)
    - Matrix: powershell, actions, python
@@ -90,7 +85,6 @@ Configure these CI checks as **required** before merge:
 4. Add status checks:
    - `PR Validation / Validate PR`
    - `Pester Tests / test`
-   - `AI Quality Gate / aggregate`
 5. Save changes
 
 #### Via GitHub CLI
@@ -99,7 +93,7 @@ Configure these CI checks as **required** before merge:
 # Create branch protection rule
 gh api repos/:owner/:repo/branches/main/protection \
   --method PUT \
-  --field required_status_checks='{"strict":true,"contexts":["PR Validation / Validate PR","Pester Tests / test","AI Quality Gate / aggregate","CodeQL Analysis / Analyze (powershell)","CodeQL Analysis / Analyze (actions)","CodeQL Analysis / Analyze (python)"]}' \
+  --field required_status_checks='{"strict":true,"contexts":["Validate Path Normalization","Validate Generated Files","Validate Spec Coverage","Validate PR","Validate PR title","Analyze (actions)","Analyze (python)","Run Python Tests","Validate Plugin Version Bump"]}' \
   --field enforce_admins=true \
   --field required_pull_request_reviews='{"required_approving_review_count":1,"dismiss_stale_reviews":true}' \
   --field restrictions=null \
@@ -118,7 +112,6 @@ resource "github_branch_protection" "main" {
     contexts = [
       "PR Validation / Validate PR",
       "Pester Tests / test",
-      "AI Quality Gate / aggregate",
       "CodeQL Analysis / Analyze (powershell)",
       "CodeQL Analysis / Analyze (actions)",
       "CodeQL Analysis / Analyze (python)"

@@ -1957,13 +1957,13 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
         )
         return 1
     for session in sessions:
-        mode = "--creation-mode" if session in new_logs else "--pre-commit"
+        flags = ["--creation-mode"] if session in new_logs else ["--pre-commit", "--existing-log"]
         result = _run_command(
             [
                 sys.executable,
                 "scripts/validate_session_json.py",
                 session,
-                mode,
+                *flags,
             ],
             repo_root,
         )
@@ -6788,16 +6788,25 @@ def _pushed_workflow_paths(
 
 
 def _select_pushed_workflows(paths: Sequence[str], repo_root: Path) -> list[str]:
+    existing = [
+        path
+        for path in paths
+        if (repo_root / _normalize_ratchet_path(path)).is_file()
+    ]
     base_ref = _workflow_local_base_ref()
     changed = _pushed_workflow_paths(paths, repo_root, base_ref)
     if changed is None:
         print(
             f"WARNING: workflow-local could not resolve {base_ref}; "
-            "validating all provided workflows",
+            "validating all provided workflows that still exist",
             file=sys.stderr,
         )
-        return list(paths)
-    return [path for path in paths if _normalize_ratchet_path(path) in changed]
+        return existing
+    return [
+        path
+        for path in existing
+        if _normalize_ratchet_path(path) in changed
+    ]
 
 
 def run_workflow_local(paths: Sequence[str], repo_root: Path) -> int:

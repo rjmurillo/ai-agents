@@ -3663,8 +3663,12 @@ class TestCheckSessionsCreationMode:
 
     The session-policy hook calls git_hook_policy session (singular), which
     routes to check_sessions. Only the staged add that creates the session log
-    should get --creation-mode. A later commit that edits the same file must
-    run the full pre-commit validation.
+    should get --creation-mode. A later commit that edits the same file gets
+    --pre-commit --existing-log instead, which validates record shape and
+    structure for an already-committed log but skips the protocol-compliance,
+    evidence-agreement, and QA-evidence checks that --pre-commit alone runs,
+    since those items cannot be made true retroactively for a session that
+    already happened (e.g. a tool unavailable in the original session).
     """
 
     _stub = staticmethod(TestSessionScopeIsDecidedOnceForBothCallSites._stub)
@@ -3700,7 +3704,11 @@ class TestCheckSessionsCreationMode:
         )
 
     def test_check_sessions_no_creation_mode_for_existing_log(self) -> None:
-        """A staged edit must NOT keep getting creation-mode forever."""
+        """A staged edit must NOT keep getting creation-mode forever, and must
+        get --existing-log so a refinement of an already-committed log is not
+        held to protocol-compliance items that cannot be made true
+        retroactively (e.g. a tool unavailable in the original session).
+        """
         from scripts.validation import git_hook_policy
 
         existing = ".agents/sessions/2026-01-01-session-1.json"
@@ -3723,6 +3731,10 @@ class TestCheckSessionsCreationMode:
         assert validate_commands
         assert "--creation-mode" not in validate_commands[0], (
             "existing log must not get --creation-mode"
+        )
+        assert "--existing-log" in validate_commands[0], (
+            "existing log must get --existing-log so protocol-compliance is not "
+            "re-enforced on every edit to an already-committed log"
         )
 
     def test_the_hook_passes_creation_mode_for_a_new_log(self) -> None:

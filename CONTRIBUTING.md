@@ -788,13 +788,13 @@ gh extension install nektos/gh-act
 docker pull catthehacker/ubuntu:act-latest
 
 # Dry run (validate workflow structure)
-gh act pull_request -n -W .github/workflows/ai-pr-quality-gate.yml
+gh act pull_request -n -W .github/workflows/ai-spec-validation.yml
 
 # Full run (single job)
 TOKEN=$(gh auth token)
 gh act pull_request \
-  -j "analyst-review" \
-  -W .github/workflows/ai-pr-quality-gate.yml \
+  -j "validate-spec" \
+  -W .github/workflows/ai-spec-validation.yml \
   -s "GITHUB_TOKEN=$TOKEN" \
   -s "BOT_PAT=$TOKEN" \
   -P ubuntu-latest=catthehacker/ubuntu:act-latest

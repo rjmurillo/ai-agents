@@ -15,17 +15,11 @@ from scripts.ci.ruleset_required_contexts import REQUIRED_CONTEXTS
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 
-# Measured 2026-08-10: 16 contexts. The earlier 17th, "Aggregate Results", was
-# dropped from the ruleset after three workflows produced a check run under that
-# one name. Only the workflows that produce a context in this set need a
-# merge_group trigger, so test-codeql-integration.yml is deliberately absent
-# from REQUIRED_WORKFLOWS: its aggregate job is the renamed producer of the
-# retired context and gates nothing in the queue.
+# Only workflows that produce a required context need a merge_group trigger.
+# AI PR reviews and memory citation validation are advisory and therefore absent.
 REQUIRED_WORKFLOWS = {
-    "ai-pr-quality-gate.yml",
     "ai-spec-validation.yml",
     "codeql-analysis.yml",
-    "memory-validation.yml",
     "pr-validation.yml",
     "pytest.yml",
     "semantic-pr-title-check.yml",
@@ -35,20 +29,9 @@ REQUIRED_WORKFLOWS = {
 }
 
 REQUIRED_PRODUCERS = {
-    "ai-pr-quality-gate.yml": {
-        "analyst-review": {"Analyst Review"},
-        "architect-review": {"Architect Review"},
-        "devops-review": {"DevOps Review"},
-        "qa-review": {"QA Review"},
-        "roadmap-review": {"Roadmap Review"},
-        "security-review": {"Security Review"},
-    },
     "ai-spec-validation.yml": {"validate-spec": {"Validate Spec Coverage"}},
     "codeql-analysis.yml": {
         "analyze": {"Analyze (actions)", "Analyze (python)"},
-    },
-    "memory-validation.yml": {
-        "validate-memories": {"Validate memory citations"},
     },
     "pr-validation.yml": {"validate-pr": {"Validate PR"}},
     "pytest.yml": {"test-result": {"Run Python Tests"}},
@@ -64,7 +47,6 @@ REQUIRED_PRODUCERS = {
 
 FILTERED_REAL_WORKFLOWS = {
     "codeql-analysis.yml": ("check-paths", "should-run-analysis"),
-    "memory-validation.yml": ("check-paths", "should-run-validation"),
     "pytest.yml": ("check-paths", "python-changed"),
     "validate-generated-agents.yml": ("check-paths", "should-run-agents"),
     "validate-paths.yml": ("check-paths", "should-run-validation"),
@@ -82,18 +64,6 @@ class SkipPolicy(TypedDict):
 
 
 SKIPPED_PRODUCERS: dict[str, SkipPolicy] = {
-    "ai-pr-quality-gate.yml": {
-        "gate": "check-changes",
-        "indirect": {
-            "analyst-review",
-            "architect-review",
-            "devops-review",
-            "qa-review",
-            "roadmap-review",
-            "security-review",
-        },
-        "direct": {"aggregate"},
-    },
     "ai-spec-validation.yml": {
         "gate": None,
         "indirect": set(),
@@ -107,15 +77,6 @@ IN_JOB_BYPASS = {
 }
 
 PR_REAL_JOBS = {
-    "ai-pr-quality-gate.yml": {
-        "aggregate",
-        "analyst-review",
-        "architect-review",
-        "devops-review",
-        "qa-review",
-        "roadmap-review",
-        "security-review",
-    },
     "ai-spec-validation.yml": {"validate-spec"},
     "pr-validation.yml": {"validate-pr"},
     "pytest.yml": {"test-result"},
@@ -123,15 +84,6 @@ PR_REAL_JOBS = {
 }
 
 PR_REAL_JOB_MARKERS = {
-    "ai-pr-quality-gate.yml": {
-        "aggregate": "scripts/quality_gate/check_failed_agents.py",
-        "analyst-review": "./.github/actions/agent-review",
-        "architect-review": "./.github/actions/agent-review",
-        "devops-review": "./.github/actions/agent-review",
-        "qa-review": "./.github/actions/agent-review",
-        "roadmap-review": "./.github/actions/agent-review",
-        "security-review": "./.github/actions/agent-review",
-    },
     "ai-spec-validation.yml": {
         "validate-spec": "scripts/ci/spec_extract_refs.py",
     },
@@ -379,12 +331,6 @@ def test_required_checks_are_merge_group_ready() -> None:
             None,
         ),
         (
-            "ai-pr-quality-gate.yml",
-            "erase-required-marker",
-            "real job analyst-review lost its required action",
-            "analyst-review",
-        ),
-        (
             "ai-spec-validation.yml",
             "erase-required-marker",
             "real job validate-spec lost its required action",
@@ -407,12 +353,6 @@ def test_required_checks_are_merge_group_ready() -> None:
             "erase-required-marker",
             "real job main lost its required action",
             "main",
-        ),
-        (
-            "ai-pr-quality-gate.yml",
-            "drop-ref",
-            "concurrency omits github.ref",
-            None,
         ),
         (
             "pytest.yml",

@@ -221,16 +221,6 @@ module = [
 disable_error_code = ["arg-type", "return-value"]
 
 [[tool.mypy.overrides]]
-# Pre-existing try/except ImportError fallback pattern (from .path_utils / from
-# path_utils) reads as a redefinition under standalone mypy; used across
-# scripts/quality_gate/*. Not a real redefinition.
-module = [
-    "scripts.quality_gate.load_review_results",
-    "scripts.quality_gate.check_infrastructure_failures",
-]
-disable_error_code = ["no-redef"]
-
-[[tool.mypy.overrides]]
 # Pre-existing type debt surfaced by the pre-push per-file mypy gate (#2876).
 # This test dynamically loads the eval scripts via importlib (their filenames
 # are hyphenated, e.g. eval-agent-vs-baseline.py, so they cannot be imported

@@ -49,7 +49,7 @@ DEFAULT_WORKFLOWS = _mod.DEFAULT_WORKFLOWS
 
 def _make_run(
     id: int = 1,
-    name: str = "ai-pr-quality-gate",
+    name: str = "ai-spec-validation",
     created_at: str = "2026-01-01T10:00:00Z",
     updated_at: str = "2026-01-01T10:05:00Z",
     conclusion: str | None = "success",
@@ -231,14 +231,6 @@ class TestMetricsCalculation:
 
 
 class TestConcurrencyGroupExtraction:
-    def test_quality_workflow_pr(self):
-        run = _make_run(
-            name="ai-pr-quality-gate",
-            event="pull_request",
-            pull_requests=[{"number": 123}],
-        )
-        assert get_concurrency_group(run) == "ai-quality-123"
-
     def test_spec_validation_pr(self):
         run = _make_run(
             name="ai-spec-validation",
@@ -249,12 +241,12 @@ class TestConcurrencyGroupExtraction:
 
     def test_non_pr_fallback(self):
         run = _make_run(
-            name="ai-pr-quality-gate",
+            name="ai-spec-validation",
             event="push",
             pull_requests=[],
             head_branch="main",
         )
-        assert get_concurrency_group(run) == "ai-pr-quality-gate-main"
+        assert get_concurrency_group(run) == "ai-spec-validation-main"
 
     def test_session_workflow_pr(self):
         run = _make_run(
@@ -318,7 +310,7 @@ class TestReportGeneration:
 
         runs = [
             _make_run(
-                name="ai-pr-quality-gate",
+                name="ai-spec-validation",
                 conclusion="success",
                 created_at="2026-01-01T10:00:00Z",
                 updated_at="2026-01-01T10:05:00Z",
@@ -326,7 +318,7 @@ class TestReportGeneration:
         ]
 
         overlaps: list[Any] = []
-        workflows = ["ai-pr-quality-gate", "ai-spec-validation"]
+        workflows = ["ai-spec-validation", "ai-session-protocol"]
         start_date = datetime(2026, 1, 1, tzinfo=UTC)
         end_date = datetime(2026, 1, 31, tzinfo=UTC)
 
@@ -590,12 +582,12 @@ class TestMain:
 
 class TestDefaultWorkflows:
     def test_default_workflows_contains_expected(self):
-        assert "ai-pr-quality-gate" in DEFAULT_WORKFLOWS
+        assert "ai-pr-quality-gate" not in DEFAULT_WORKFLOWS
         assert "ai-spec-validation" in DEFAULT_WORKFLOWS
         assert "codeql-analysis" in DEFAULT_WORKFLOWS
 
     def test_default_workflows_count(self):
-        assert len(DEFAULT_WORKFLOWS) == 8
+        assert len(DEFAULT_WORKFLOWS) == 7
 
 
 # ---------------------------------------------------------------------------

@@ -324,12 +324,15 @@ def test_adr_review_policy_blocks_stale_debate_reference(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _init_repo(tmp_path)
     # A debate log exists in the correct dir (.agents/critique/) but references
     # a DIFFERENT ADR (ADR-042), not the staged ADR (ADR-062). This exercises
     # the stale-reference branch, not the missing-log branch.
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
-    _write_lf(critique / "adr-042-debate.md", "ADR-042 review")
+    debate = critique / "adr-042-debate.md"
+    _write_lf(debate, "ADR-042 review")
+    _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     result = policy.check_adr_review_policy(
         [".agents/architecture/ADR-062-navigation.md"],
@@ -344,9 +347,12 @@ def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _init_repo(tmp_path)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
-    _write_lf(critique / "adr-062-debate.md", "ADR-062 review")
+    debate = critique / "adr-062-debate.md"
+    _write_lf(debate, "ADR-062 review")
+    _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     assert (
         policy.check_adr_review_policy(
@@ -2297,7 +2303,13 @@ def test_pre_commit_session_policy_validates_changed_upstream_content(
         assert policy.check_sessions([relative], repo) == 1
 
     assert commands == [
-        [sys.executable, "scripts/validate_session_json.py", relative, "--pre-commit"]
+        [
+            sys.executable,
+            "scripts/validate_session_json.py",
+            relative,
+            "--pre-commit",
+            "--existing-log",
+        ]
     ]
 
 
@@ -7205,6 +7217,7 @@ def test_workflow_local_maps_secret_skip_but_blocks_tool_gap(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _write_file(tmp_path, ".github/workflows/test.yml", "name: test\n")
     monkeypatch.setattr(
         policy,
         "_run_command",
@@ -8563,6 +8576,19 @@ def test_pushed_workflow_paths_selects_only_branch_delta(tmp_path: Path) -> None
     )
 
     assert changed == {".github/workflows/mine.yml"}
+
+
+def test_select_pushed_workflows_excludes_deleted_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, base = _workflow_repo_with_base(tmp_path)
+    deleted = ".github/workflows/imported.yml"
+    _git(repo, "rm", "--", deleted)
+    _git(repo, "commit", "-qm", "test: delete imported workflow")
+    monkeypatch.setenv(policy.WORKFLOW_LOCAL_BASE_REF_ENV, base)
+
+    assert policy._select_pushed_workflows([deleted], repo) == []
 
 
 def test_pushed_workflow_paths_returns_none_when_base_unresolved(

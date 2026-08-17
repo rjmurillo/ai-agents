@@ -43,10 +43,6 @@ _WORKFLOW_DIRS = (
 # non-empty reason, so that adding one is a decision rather than a way to
 # silence this test.
 _NOT_WORKFLOW_INVOKED: dict[str, str] = {
-    "build_triage_summary_comment.py": (
-        "Library entrypoint invoked by post_issue_triage_summary_comment.py; "
-        "tests/ci/test_ai_issue_triage_workflow.py verifies the wrapper calls it."
-    ),
     "cli_exit_contract_coverage.py": (
         "Library holding the test-coverage analysis for "
         "cli_exit_contract_ratchet.py, which is workflow-invoked from "
