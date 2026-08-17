@@ -133,7 +133,7 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 - **Quality gates** with pre-PR validation, session protocol enforcement, and automated CI checks
 - **Reusable skills** for common development workflows (git, PR management, testing, linting)
 - **One-step plugin install** through Claude Code's `/install-plugin` or Copilot CLI's `/plugin marketplace add` flow
-- **AI-powered CI/CD** with issue triage, PR quality gates, and spec validation
+- **CI/CD safeguards** with CodeQL, deterministic validators, and spec validation
 
 ### Key Concepts
 
