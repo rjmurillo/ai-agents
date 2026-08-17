@@ -144,7 +144,7 @@
       "outcome": "Root-caused it precisely: check_sessions() in scripts/validation/git_hook_policy.py never passed --existing-log, unlike the sibling validate_branch_sessions() in the same file, which already does this correctly. Fixed check_sessions() to pass --existing-log for edits to already-committed session logs (commit 04a2f9621), verified against 388 targeted tests (all pass) plus ruff/mypy, documented in .agents/qa/2026-08-17-check-sessions-existing-log-flag.md. This also demonstrated the QA investigation-only scope check working correctly: it rejected the stale investigation-only claim once real code entered the commit range, which is correct behavior, not a third bug"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "7ea9fc59e39c58caeb812a7fe270754b599f498d",
   "nextSteps": [
     "File the retrospective-policy {push_files}-empty-on-new-branch defect as its own issue",
     "Real P0/P1 blocker fixes (#5111, #5090, #5099) as dedicated PRs",

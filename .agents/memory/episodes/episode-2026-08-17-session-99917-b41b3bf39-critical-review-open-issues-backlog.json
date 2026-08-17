@@ -67,6 +67,19 @@
       "type": "commit",
       "content": "Commit: c7d9900c7",
       "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-17-session-99917-b41b3bf39-critical-review-open-issues-backlog"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-17T03:36:47+00:00",
+      "type": "commit",
+      "content": "Commit: 7ea9fc59e39c58caeb812a7fe270754b599f498d",
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-17-session-99917-b41b3bf39-critical-review-open-issues-backlog"
     }
@@ -76,8 +89,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 5
+    "commits": 2,
+    "files_changed": 9
   },
   "lessons": []
 }
