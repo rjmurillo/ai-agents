@@ -67,6 +67,7 @@ _CANONICAL_CONTRACT_PATHS = (
     ".claude/agents/retrospective.md",
     ".claude/rules/universal.md",
     ".claude/commands/build.md",
+    ".claude/skills/session-init/SKILL.md",
     ".claude/skills/session-end/SKILL.md",
     ".claude/skills/reflect/references/integration-and-design.md",
     ".claude/skills/research-and-incorporate/references/workflow.md",
@@ -99,6 +100,8 @@ _CANONICAL_CONTRACT_PATHS = (
     "src/copilot-cli/agents/pr-comment-responder.agent.md",
     "src/copilot-cli/agents/retrospective.agent.md",
     "src/copilot-cli/skills/build/SKILL.md",
+    "src/copilot-cli/skills/session-init/SKILL.md",
+    "src/copilot-cli/skills/session-end/SKILL.md",
     "src/copilot-cli/skills/reflect/references/integration-and-design.md",
     "src/copilot-cli/skills/research-and-incorporate/references/workflow.md",
     "src/vs-code-agents/critic.agent.md",
@@ -120,6 +123,10 @@ _MANDATORY_LOG_PATTERNS = (
     re.compile(r"\bsession log present and complete\b", re.I),
     re.compile(r"\bgate 0:\s*session log creation\b", re.I),
     re.compile(r"\bsession gate\s*\(blocking\)", re.I),
+    re.compile(r"\bstarting any new work session\b", re.I),
+    re.compile(r"\brun `/session-end` before every commit\b", re.I),
+    re.compile(r"\bsession will fail CI validation\b", re.I),
+    re.compile(r"\bevery PR starts with malformed session logs\b", re.I),
 )
 
 _GENERAL_WORKFLOW_PATHS = (

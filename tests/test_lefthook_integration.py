@@ -365,9 +365,12 @@ def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(
 
 
 def test_adr_review_policy_matches_complete_adr_ids(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
-    _write_lf(critique / "adr-0620-debate.md", "ADR-0620 review")
+    debate = critique / "adr-0620-debate.md"
+    _write_lf(debate, "ADR-0620 review")
+    _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     assert (
         policy.check_adr_review_policy(
@@ -381,11 +384,14 @@ def test_adr_review_policy_matches_complete_adr_ids(tmp_path: Path) -> None:
 def test_adr_review_policy_rejects_symlinked_debate_evidence(tmp_path: Path) -> None:
     if os.name == "nt":
         pytest.skip("Symlink creation requires elevated Windows privileges")
+    _init_repo(tmp_path)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     evidence = tmp_path / "evidence.md"
     _write_lf(evidence, "ADR-062 review")
-    (critique / "adr-062-debate.md").symlink_to(evidence)
+    debate = critique / "adr-062-debate.md"
+    debate.symlink_to(evidence)
+    _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     assert (
         policy.check_adr_review_policy(

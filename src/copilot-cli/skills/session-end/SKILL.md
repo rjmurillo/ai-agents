@@ -242,10 +242,10 @@ Before reporting success, the script verifies:
 
 | Avoid | Why | Instead |
 |-------|-----|---------|
-| Skipping session-end before commit | Validation only catches errors at CI time | Run `/session-end` before every commit |
+| Treating `/session-end` as a commit prerequisite | Recreates mandatory evidence bureaucracy | Run it only for an existing opted-in log |
 | Manually editing session end fields | Error-prone, misses evidence | Let the script auto-populate |
-| Running without committing first | changesCommitted will fail | Commit work, then run session-end |
-| Ignoring TODO warnings | Session will fail CI validation | Address each TODO before final commit |
+| Running without an existing log | The skill must not create mandatory evidence | Stop or use `/session-init` only after explicit opt-in |
+| Ignoring validation errors in an opted-in log | An explicitly supplied log must validate | Address each error before committing that log |
 
 ---
 
