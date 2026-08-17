@@ -36,11 +36,7 @@ Configure these CI checks as **required** before merge:
    - Blocks: PowerShell test failures
    - Required: For PRs changing `scripts/**`
 
-4. **AI Quality Gate** (`.github/workflows/ai-pr-quality-gate.yml`)
-   - Blocks: Analyst/QA/Security CRITICAL_FAIL verdicts
-   - Required: For PRs changing code
-
-5. **CodeQL Analysis** (`.github/workflows/codeql-analysis.yml`)
+4. **CodeQL Analysis** (`.github/workflows/codeql-analysis.yml`)
    - Blocks: Critical/high severity security findings
    - Required: For PRs changing code files (PowerShell, Python, GitHub Actions)
    - Matrix: powershell, actions, python
@@ -95,7 +91,6 @@ Configure these CI checks as **required** before merge:
    - `PR Validation / Validate PR`
    - `Session Protocol Validation / validate` (matrix jobs)
    - `Pester Tests / test`
-   - `AI Quality Gate / aggregate`
 5. Save changes
 
 #### Via GitHub CLI
@@ -104,7 +99,7 @@ Configure these CI checks as **required** before merge:
 # Create branch protection rule
 gh api repos/:owner/:repo/branches/main/protection \
   --method PUT \
-  --field required_status_checks='{"strict":true,"contexts":["PR Validation / Validate PR","Session Protocol Validation / validate","Pester Tests / test","AI Quality Gate / aggregate","CodeQL Analysis / Analyze (powershell)","CodeQL Analysis / Analyze (actions)","CodeQL Analysis / Analyze (python)"]}' \
+  --field required_status_checks='{"strict":true,"contexts":["PR Validation / Validate PR","Session Protocol Validation / validate","Pester Tests / test","CodeQL Analysis / Analyze (powershell)","CodeQL Analysis / Analyze (actions)","CodeQL Analysis / Analyze (python)"]}' \
   --field enforce_admins=true \
   --field required_pull_request_reviews='{"required_approving_review_count":1,"dismiss_stale_reviews":true}' \
   --field restrictions=null \
@@ -124,7 +119,6 @@ resource "github_branch_protection" "main" {
       "PR Validation / Validate PR",
       "Session Protocol Validation / validate",
       "Pester Tests / test",
-      "AI Quality Gate / aggregate",
       "CodeQL Analysis / Analyze (powershell)",
       "CodeQL Analysis / Analyze (actions)",
       "CodeQL Analysis / Analyze (python)"
