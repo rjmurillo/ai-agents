@@ -95,7 +95,9 @@
       "caused_by": [
         "e008"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e014"
+      ],
       "_source_session": "2026-08-17-session-99917-b41b3bf39-critical-review-open-issues-backlog"
     },
     {
@@ -135,6 +137,17 @@
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-17-session-99917-b41b3bf39-critical-review-open-issues-backlog"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-17T04:47:26+00:00",
+      "type": "commit",
+      "content": "Commit: db7ab7cef08b1560b888c27dfda7040789146780",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-17-session-99917-b41b3bf39-critical-review-open-issues-backlog"
     }
   ],
   "metrics": {
@@ -142,8 +155,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 4
+    "commits": 5,
+    "files_changed": 13
   },
   "lessons": []
 }

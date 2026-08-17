@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-17-session-99917-b41b3bf39-critical-review-open-issues-backlog.json
-qaCommit: 6e70352b3e4a8b151922cab6b1cc294120c1dc8d
+qaCommit: db7ab7cef08b1560b888c27dfda7040789146780
 ---
 
 # QA Report: check_sessions --existing-log fix
