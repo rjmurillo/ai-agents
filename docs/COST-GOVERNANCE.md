@@ -112,7 +112,6 @@ Set up GitHub billing alerts at:
 | Workflow | Est. Monthly Cost | Optimization Status |
 |----------|------------------|---------------------|
 | pester-tests | $20-30 | ✅ ARM (check-paths only), concurrency, path filter |
-| ai-issue-triage | $15-20 | ✅ ARM, concurrency |
 | ai-session-protocol | $10-15 | ✅ ARM, concurrency, path filter |
 
 ### Medium-Cost Workflows
@@ -130,7 +129,6 @@ Set up GitHub billing alerts at:
 |----------|------------------|---------------------|
 | agent-metrics | $2-3 | ✅ ARM, concurrency, path filter |
 | copilot-setup-steps | $1-2 | ✅ ARM, concurrency, path filter |
-| label-issues | $1-2 | ✅ ARM, concurrency |
 | label-pr | $1-2 | ✅ ARM, concurrency |
 | validate-paths | $1-2 | ✅ ARM, concurrency |
 | validate-planning-artifacts | $1-2 | ✅ ARM, concurrency, path filter |
@@ -167,7 +165,6 @@ If monthly costs exceed $100:
 - agent-metrics (weekly)
 - drift-detection (weekly)
 - copilot-context-synthesis (hourly sweep)
-- ai-issue-triage (hourly sweep)
 
 ### Critical Workflows (Never Disable)
 
