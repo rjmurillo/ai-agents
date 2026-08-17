@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -189,13 +190,19 @@ class TestFalseEdgeRemoval:
         # the commit so the fixture cannot drift cross-date and turn the
         # pair comparable again.
         sha = _resolvable_sha()
-        commit_date = subprocess.run(
+        commit_timestamp = subprocess.run(
             ["git", "-C", str(REPO_ROOT), "show", "-s", "--format=%cI", sha],
             capture_output=True,
             encoding="utf-8",
             errors="replace",
             check=True,
-        ).stdout.strip()[:10]
+        ).stdout.strip()
+        commit_date = (
+            datetime.fromisoformat(commit_timestamp)
+            .astimezone(timezone.utc)
+            .date()
+            .isoformat()
+        )
         midnight = f"{commit_date}T00:00:00+00:00"
         episode = _flat_episode(sha)
         for evt in episode["events"]:
