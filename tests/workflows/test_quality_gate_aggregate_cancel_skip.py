@@ -26,9 +26,6 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ai-pr-quality-gate.yml"
-SESSION_WORKFLOW_PATH = (
-    REPO_ROOT / ".github" / "workflows" / "ai-session-protocol.yml"
-)
 
 
 @pytest.fixture(scope="module")
@@ -48,7 +45,6 @@ class TestAggregateCancelSkip:
     def test_required_result_contexts_are_unique(self) -> None:
         locations: dict[str, list[tuple[str, str]]] = {
             "AI Quality Gate Results": [],
-            "Session Protocol Results": [],
         }
         workflows_dir = REPO_ROOT / ".github" / "workflows"
         for path in sorted(workflows_dir.glob("*.y*ml")):
@@ -59,7 +55,6 @@ class TestAggregateCancelSkip:
 
         assert locations == {
             "AI Quality Gate Results": [("ai-pr-quality-gate.yml", "aggregate")],
-            "Session Protocol Results": [("ai-session-protocol.yml", "aggregate")],
         }
 
     def test_aggregate_job_gate_skips_on_cancellation(self, aggregate_job: dict) -> None:
@@ -80,52 +75,6 @@ class TestAggregateCancelSkip:
         ), (
             "aggregate gate must guard on !cancelled() to prevent #2347 "
             f"(stale BLOCKED status from concurrency-cancelled runs): {gate!r}"
-        )
-
-    def test_session_protocol_result_skips_on_cancellation(self) -> None:
-        session_workflow = yaml.safe_load(
-            SESSION_WORKFLOW_PATH.read_text(encoding="utf-8")
-        )
-        gate = session_workflow["jobs"]["aggregate"].get("if", "")
-        assert "always()" in gate
-        assert "!cancelled()" in gate or "cancelled() == false" in gate
-
-    def test_session_prerequisite_script_runs_after_checkout(self) -> None:
-        session_workflow = yaml.safe_load(
-            SESSION_WORKFLOW_PATH.read_text(encoding="utf-8")
-        )
-        steps = session_workflow["jobs"]["aggregate"]["steps"]
-        names = [step.get("name") for step in steps]
-        assert names.index("Checkout repository") < names.index(
-            "Check if aggregation needed"
-        )
-        checkout = next(step for step in steps if step.get("name") == "Checkout repository")
-        assert checkout["with"]["ref"] == "${{ github.event.pull_request.head.sha || github.ref }}"
-
-    def test_session_prerequisite_outputs_are_wired(self) -> None:
-        session_workflow = yaml.safe_load(
-            SESSION_WORKFLOW_PATH.read_text(encoding="utf-8")
-        )
-        steps = session_workflow["jobs"]["aggregate"]["steps"]
-        prerequisite = next(
-            step for step in steps if step.get("name") == "Check if aggregation needed"
-        )
-        aggregate = next(
-            step for step in steps if step.get("name") == "Aggregate Verdicts"
-        )
-
-        assert prerequisite["env"]["VALIDATE_RESULT"] == "${{ needs.validate.result }}"
-        assert (
-            prerequisite["env"]["SESSION_FILES"]
-            == "${{ needs.detect-changes.outputs.session_files }}"
-        )
-        assert (
-            aggregate["env"]["EXPECTED_RESULTS"]
-            == "${{ steps.should-run-protocol.outputs.expected_results }}"
-        )
-        assert (
-            aggregate["env"]["EXPECTED_ARTIFACTS"]
-            == "${{ steps.should-run-protocol.outputs.expected_artifacts }}"
         )
 
     def test_concurrency_still_cancels_in_progress(self, workflow: dict) -> None:
