@@ -95,6 +95,15 @@
       ],
       "leads_to": [],
       "_source_session": "2026-08-17-session-99917-b41b3bf39-critical-review-open-issues-backlog"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The check_sessions() fix unblocked the commit-time hook but not the push-time gate (scripts/validation/checks_tooling.py's validate_session_end): it classifies a session log as new-for-the-whole-branch via a base-ref diff, not per-commit, so a branch-new log is held to full compliance for the branch's entire life. Re-read _validate_required_item_level fully this time (not just validate_must_item) and found it already documents the correct mechanism: demote level from MUST to SHOULD with evidence, explicitly for a harness that genuinely lacks a capability the protocol assumes ('Serena is not reachable from Copilot CLI, and 61 logs say so')",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-17-session-99917-b41b3bf39-critical-review-open-issues-backlog"
     }
   ],
   "metrics": {

@@ -10,14 +10,14 @@
   "protocolCompliance": {
     "sessionStart": {
       "serenaActivated": {
-        "level": "MUST",
+        "level": "SHOULD",
         "Complete": false,
-        "Evidence": "Serena MCP tools not present in this session's tool list at all (verified via ToolSearch); cannot call a tool that does not exist. Used documented .serena/memories/ file fallback instead (see AGENTS.md 'Serena Init' row)."
+        "Evidence": "Demoted per scripts/validate_session_json.py _validate_required_item_level's documented rationale: Serena MCP tools absent from this session's tool list entirely (verified via ToolSearch), not merely unreachable. Used the documented .serena/memories/ file fallback instead (AGENTS.md 'Serena Init' row)."
       },
       "serenaInstructions": {
-        "level": "MUST",
+        "level": "SHOULD",
         "Complete": false,
-        "Evidence": "Same as serenaActivated: mcp__serena__initial_instructions not present in this session's tool list."
+        "Evidence": "Same demotion and reason as serenaActivated: mcp__serena__initial_instructions absent from this session's tool list."
       },
       "handoffRead": {
         "level": "MUST",
@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All MUST items complete except serenaActivated/serenaInstructions in sessionStart, honestly incomplete because Serena MCP was not present in this session's tool list; documented file-based fallback used where the underlying action (memory read/write) was still possible"
+        "Evidence": "All MUST items complete. serenaActivated/serenaInstructions in sessionStart demoted to SHOULD per validate_session_json.py's own documented rationale (Serena MCP absent from this session's tool list, not merely unreachable); documented file-based fallback used for the underlying action (memory read/write) where possible"
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -142,6 +142,10 @@
     {
       "action": "Hit a second live gate defect while honestly completing this session's own sessionEnd checklist: serenaActivated/serenaInstructions are unconditional MUST items with no accommodation for Serena MCP being unavailable, despite AGENTS.md documenting a .serena/memories/ file fallback for exactly this case",
       "outcome": "Root-caused it precisely: check_sessions() in scripts/validation/git_hook_policy.py never passed --existing-log, unlike the sibling validate_branch_sessions() in the same file, which already does this correctly. Fixed check_sessions() to pass --existing-log for edits to already-committed session logs (commit 04a2f9621), verified against 388 targeted tests (all pass) plus ruff/mypy, documented in .agents/qa/2026-08-17-check-sessions-existing-log-flag.md. This also demonstrated the QA investigation-only scope check working correctly: it rejected the stale investigation-only claim once real code entered the commit range, which is correct behavior, not a third bug"
+    },
+    {
+      "action": "The check_sessions() fix unblocked the commit-time hook but not the push-time gate (scripts/validation/checks_tooling.py's validate_session_end): it classifies a session log as new-for-the-whole-branch via a base-ref diff, not per-commit, so a branch-new log is held to full compliance for the branch's entire life. Re-read _validate_required_item_level fully this time (not just validate_must_item) and found it already documents the correct mechanism: demote level from MUST to SHOULD with evidence, explicitly for a harness that genuinely lacks a capability the protocol assumes ('Serena is not reachable from Copilot CLI, and 61 logs say so')",
+      "outcome": "No further code change needed. Demoted serenaActivated/serenaInstructions to level SHOULD with clear evidence in this file, which is the intended, already-supported, already-tested escape hatch. The QA-frontmatter and check_sessions fixes remain independently valuable regardless"
     }
   ],
   "endingCommit": "6e70352b3e4a8b151922cab6b1cc294120c1dc8d",
