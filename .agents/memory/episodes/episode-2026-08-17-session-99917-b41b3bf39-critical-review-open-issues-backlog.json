@@ -66,7 +66,9 @@
       "timestamp": "2026-08-17T03:04:50+00:00",
       "type": "commit",
       "content": "Commit: c7d9900c7",
-      "caused_by": [],
+      "caused_by": [
+        "e012"
+      ],
       "leads_to": [
         "e008"
       ],
@@ -113,6 +115,26 @@
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-17-session-99917-b41b3bf39-critical-review-open-issues-backlog"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-17T03:00:08+00:00",
+      "type": "commit",
+      "content": "Commit: 12051c261",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-17-session-99917-b41b3bf39-critical-review-open-issues-backlog"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "PR #5127's Copilot review left 7 comments and its 'Validate PR' check failed a third time on real findings, not process noise: startingCommit in this log named a commit (12051c261) that this session itself produced (so it could not be the session's starting point); the QA report's mypy line examined 0 of 1 files (a scoped wrapper subcommand reported a no-diff-from-origin/main short-circuit, not a real mypy run) so it supported no verdict; the retrospective's session-log inventory (62 + 1436 = 1498) did not match its own stated total of 1492; the retrospective never classified against FAILURE-MODES.md per retros.md MUST-2; three follow-up items in the retrospective had no linked issue per retros.md MUST-4; generated-artifacts.md's fix for the earlier duplication pointed at a `.claude/rules/` path that dangles in the shipped Copilot plugin tree, which ships the sibling `.instructions.md` mirror under a different path, not the source path; and a test class docstring claimed an already-committed session-log edit runs 'the full pre-commit validation', which is now false since --existing-log skips protocol-compliance, evidence-agreement, and QA-evidence checks (confirmed by reading validate_session_json.py:1170-1188 directly rather than trusting the old docstring)",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-17-session-99917-b41b3bf39-critical-review-open-issues-backlog"
     }
   ],
   "metrics": {
@@ -120,8 +142,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 9
+    "commits": 4,
+    "files_changed": 4
   },
   "lessons": []
 }

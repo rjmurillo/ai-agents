@@ -28,7 +28,7 @@ Validate the fix to `check_sessions()` in `scripts/validation/git_hook_policy.py
 |--------|-------|--------|--------|
 | Targeted session/lefthook-integration tests | 388 | 388 | [PASS] |
 | ruff (changed files) | 0 violations | 0 | [PASS] |
-| mypy (changed files) | 0 findings | 0 | [PASS] |
+| mypy (changed files, direct invocation) | 0 findings across 3 examined files | 0 | [PASS] |
 | Existing test needing update for correct behavior | 1 (`test_pre_commit_session_policy_validates_changed_upstream_content`) | - | Updated |
 
 ### Test commands and output
@@ -41,9 +41,14 @@ $ uv run --frozen python -m pytest tests/test_validate_session_json.py -k "check
 $ uv run --frozen --extra dev ruff check scripts/validation/git_hook_policy.py tests/test_lefthook_integration.py tests/test_validate_session_json.py
 All checks passed!
 
-$ uv run --frozen python scripts/validation/git_hook_policy.py mypy scripts/validation/git_hook_policy.py
-mypy scope: 0 of 1 pushed file(s) differ from origin/main; dropped 1 round-trip file(s)
+$ uv run --frozen mypy scripts/validation/git_hook_policy.py
+Success: no issues found in 1 source file
+
+$ uv run --frozen mypy tests/test_lefthook_integration.py tests/test_validate_session_json.py
+Success: no issues found in 2 source files
 ```
+
+The `git_hook_policy.py mypy` wrapper subcommand reported "0 of 1 pushed file(s) differ from origin/main; dropped 1 round-trip file(s)" on an earlier invocation, which examined zero files and therefore supports no verdict either way (`git diff --stat origin/main -- scripts/validation/git_hook_policy.py` confirms the file does differ: 2 insertions, 2 deletions). Replaced with a direct `mypy` invocation on the three changed files above, which is what the table's "3 examined files" figure reports.
 
 ### Behavior verified
 
