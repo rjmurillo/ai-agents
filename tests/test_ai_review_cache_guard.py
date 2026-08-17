@@ -1,11 +1,14 @@
 """Regression tests for #2195: malformed verdicts must not be cached.
 
-When the AI review pipeline produces an empty verdict or one the parser cannot
-recognize (returned as ``NEEDS_REVIEW``), the composite action previously saved
-that result to the SHA keyed cache. Subsequent reruns served the bad result
-from cache, so a transient truncation or network blip became a sticky failing
-check that could only be cleared by pushing a new commit or setting
-``bypass-cache``.
+When an AI review produces an empty verdict or one the parser cannot recognize
+(returned as ``NEEDS_REVIEW``), the caller previously saved that result to the
+SHA keyed cache. Subsequent reruns served the bad result from cache, so a
+transient truncation or network blip became a sticky failing check that could
+only be cleared by pushing a new commit or bypassing the cache.
+
+The composite action that held the caching steps was deleted with the AI PR
+Quality Gate; ``scripts/ai_review_common/cache_guard.py`` survives because the
+plugin lib sync ships it, so its policy stays covered here.
 """
 
 from __future__ import annotations
@@ -15,7 +18,6 @@ import tempfile
 from pathlib import Path
 
 import pytest
-import yaml
 
 import scripts.ai_review_common.cache_guard as cache_guard
 from scripts.ai_review_common.cache_guard import (
@@ -24,26 +26,8 @@ from scripts.ai_review_common.cache_guard import (
     skip_cache_reason,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-ACTION_PATH = REPO_ROOT / ".github" / "actions" / "agent-review" / "action.yml"
-SCRATCH_ROOT = REPO_ROOT / ".pytest_cache" / "agent_review_cache_guards"
-
-
-@pytest.fixture(scope="module")
-def action_yaml() -> dict:
-    assert ACTION_PATH.is_file(), f"missing action file: {ACTION_PATH}"
-    return yaml.safe_load(ACTION_PATH.read_text(encoding="utf-8"))
-
-
-@pytest.fixture(scope="module")
-def populate_cache_step(action_yaml: dict) -> dict:
-    steps = action_yaml["runs"]["steps"]
-    matches = [s for s in steps if s.get("name") == "Populate cache directory"]
-    assert len(matches) == 1, (
-        "expected exactly one 'Populate cache directory' step; "
-        f"found {len(matches)}"
-    )
-    return matches[0]
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SCRATCH_ROOT = REPO_ROOT / ".pytest_cache" / "ai_review_cache_guard"
 
 
 @pytest.fixture
@@ -111,11 +95,6 @@ def test_populate_cache_does_not_write_skipped_review(scratch_dir: Path) -> None
     assert github_output.read_text(encoding="utf-8") == "cache_populated=false\n"
 
 
-def test_populate_cache_step_delegates_to_python_script(populate_cache_step: dict) -> None:
-    run = populate_cache_step.get("run")
-    assert run == "python3 scripts/ai_review_common/cache_guard.py"
-
-
 def test_get_repo_root_resolves_to_marker_ancestor() -> None:
     """get_repo_root walks up to an ancestor that holds .git or .claude."""
     root = get_repo_root()
@@ -158,11 +137,3 @@ def test_default_cache_root_anchors_to_repo_not_cwd(
         anchored_root / "ai-review-cache" / "qa" / "verdict.txt"
     ).read_text(encoding="utf-8") == "PASS"
     assert not (elsewhere / "ai-review-cache").exists()
-
-
-def test_no_save_cache_when_populate_skipped(action_yaml: dict) -> None:
-    steps = action_yaml["runs"]["steps"]
-    save = [s for s in steps if s.get("name") == "Save cache"]
-    assert len(save) == 1
-    cond = save[0].get("if", "")
-    assert "steps.populate-cache.outputs.cache_populated == 'true'" in cond
