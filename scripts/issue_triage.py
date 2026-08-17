@@ -24,13 +24,6 @@ since the last run (``updated:>TIMESTAMP``). ``--full-scan`` ignores the
 state file. ``--since`` overrides both. This keeps repeated runs cheap and
 lets multiple scanners process disjoint issue sets in parallel.
 
-The ``--ai`` flag drives Phase 2 (LLM triage). It emits a GitHub Actions
-matrix of open issues that a scheduled workflow (.github/workflows/
-backlog-triage.yml) fans out to .github/actions/ai-review, one invocation
-per issue, for structured complexity, area routing, dependency, scope, and
-evidence classification. The model call lives in the workflow; this script
-only produces the work list. Phase 3 (recommendation execution / auto-close)
-remains out of scope and read-only.
 
 Exit codes follow ADR-035:
     0 - Success: scan completed (findings may exist)
@@ -592,45 +585,6 @@ def save_scan_state(path: str, timestamp: str) -> None:
     )
 
 
-def split_github_repository(value: str) -> tuple[str, str]:
-    """Return owner and repo from a GitHub repository slug, or blank values."""
-
-    parts = value.split("/")
-    if len(parts) != 2 or not parts[0] or not parts[1]:
-        return "", ""
-    return parts[0], parts[1]
-
-
-def build_ai_matrix(issues: list[IssueRecord]) -> dict[str, object]:
-    """Build the Phase 2 AI-triage discovery payload.
-
-    The ``--ai`` flag drives Phase 2 of the ClawSweeper pattern (issue #1799):
-    a scheduled workflow fans this matrix out to ``.github/actions/ai-review``,
-    one invocation per open issue, for structured complexity, area routing,
-    dependency, scope, and evidence classification. The mechanical scan stays
-    Python-side; YAML only fans out (ADR-006). This function does not call the
-    model; it produces the work list the workflow consumes.
-
-    Returns a dict with ``include`` (the matrix rows) and ``count`` so the
-    caller can gate the matrix job on whether any issues exist.
-    """
-
-    include = [{"number": issue.number, "title": issue.title} for issue in issues]
-    return {"include": include, "count": len(include)}
-
-
-def write_ai_github_outputs(matrix: dict[str, object], output_path: str) -> None:
-    """Write matrix metadata to GitHub Actions output format."""
-
-    include = matrix.get("include")
-    count_value = matrix.get("count")
-    count = int(count_value) if isinstance(count_value, int | str) else 0
-    github_matrix = {"include": include if isinstance(include, list) else []}
-    with Path(output_path).open("a", encoding="utf-8") as handle:
-        handle.write(f"matrix={json.dumps(github_matrix)}\n")
-        handle.write(f"has-issues={str(count > 0).lower()}\n")
-        handle.write(f"count={count}\n")
-
 
 def format_human(report: TriageReport) -> str:
     """Render a short human-readable summary of the report."""
@@ -700,12 +654,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--format", choices=["json", "human"], default="human",
         help="Output format (default: human).",
     )
-    parser.add_argument(
-        "--ai", action="store_true",
-        help="Emit a GitHub Actions matrix of open issues for Phase 2 AI triage "
-             "(structured classification via .github/actions/ai-review). "
-             "Overrides --format; prints a JSON matrix payload.",
-    )
+
     parser.add_argument(
         "--input", default="",
         help="Path to a JSON file with prefetched issues (skips gh call). "
@@ -731,11 +680,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Fetch each issue's timeline to detect merged/closed linked PRs. "
              "Adds one API call per issue; off by default to keep scans fast.",
     )
-    parser.add_argument(
-        "--github-output",
-        default="",
-        help="Optional GitHub output file for matrix, has-issues, and count values.",
-    )
+
     return parser.parse_args(argv)
 
 
@@ -820,8 +765,7 @@ def _obtain_raw_issues(
 
     owner = args.owner
     repo = args.repo
-    if args.ai and (not owner or not repo):
-        owner, repo = split_github_repository(os.environ.get("GITHUB_REPOSITORY", ""))
+
     if not owner or not repo:
         raise _InputError(
             2, "--owner and --repo are required when --input is not set"
@@ -882,12 +826,6 @@ def main(argv: list[str] | None = None) -> int:
             print(exc.message, file=sys.stderr)
             return exc.code
 
-    if args.ai:
-        matrix = build_ai_matrix(issues)
-        if args.github_output:
-            write_ai_github_outputs(matrix, args.github_output)
-        print(json.dumps(matrix))
-        return 0
 
     report = build_report(
         issues,
