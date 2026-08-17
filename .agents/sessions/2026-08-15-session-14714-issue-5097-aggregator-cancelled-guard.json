@@ -165,10 +165,10 @@
     },
     {
       "step": "Recorded a retrospective classifying the defect as FM-10",
-      "evidence": ".agents/retrospective/2026-08-17-issue-5097-aggregator-cancelled-guard.md; always() laundering a cancelled run into a published failure check is a guard-clause suppression per .agents/governance/FAILURE-MODES.md FM-10, distinct from the FM-4 symptom it produces on the PR head; satisfies the pre-push retrospective-evidence gate"
+      "evidence": ".agents/retrospective/2026-08-17-issue-5097-aggregator-cancelled-guard.md (commit 1ef5ad6e6); always() laundering a cancelled run into a published failure check is a guard-clause suppression per .agents/governance/FAILURE-MODES.md FM-10, distinct from the FM-4 symptom it produces on the PR head; satisfies the pre-push retrospective-evidence gate"
     }
   ],
-  "endingCommit": "0a92c02ede13a9cef9b03db30d180fec2666bc3a",
+  "endingCommit": "1ef5ad6e6241196e7c2422c828aaa43ef9873fc7",
   "nextSteps": [
     "Follow-up: codeql-analysis.yml check-blocking-issues carries if: always() and downloads SARIF artifacts from a cancelled analyze job. It never reads needs.<job>.result, so it is outside this fix's shape, but a cancelled run can still leave it red on missing artifacts. Worth its own issue.",
     "Follow-up: ai-pr-quality-gate.yml aggregate and ai-session-protocol.yml aggregate still carry the redundant always() && !cancelled() spelling from the #2347 fix. The always() term is dead weight under the vendor recommendation; a cosmetic cleanup would leave one spelling in the repo.",
