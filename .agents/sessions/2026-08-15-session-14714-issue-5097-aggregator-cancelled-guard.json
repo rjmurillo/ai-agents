@@ -162,6 +162,10 @@
     {
       "step": "Merged origin/main a third time after further trunk churn",
       "evidence": "merge commit 0a92c02ed: origin/main had advanced through PR #5089 (security config trust boundary) and several unrelated fixes; no conflicts against this branch's aggregator or git_hook_policy.py changes; merge-tree-ratchet OK post-merge"
+    },
+    {
+      "step": "Recorded a retrospective classifying the defect as FM-10",
+      "evidence": ".agents/retrospective/2026-08-17-issue-5097-aggregator-cancelled-guard.md; always() laundering a cancelled run into a published failure check is a guard-clause suppression per .agents/governance/FAILURE-MODES.md FM-10, distinct from the FM-4 symptom it produces on the PR head; satisfies the pre-push retrospective-evidence gate"
     }
   ],
   "endingCommit": "0a92c02ede13a9cef9b03db30d180fec2666bc3a",

@@ -221,9 +221,21 @@
         "e013",
         "e015",
         "e016",
-        "e017"
+        "e017",
+        "e019"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded a retrospective classifying the defect as FM-10",
+      "caused_by": [],
+      "leads_to": [
+        "e018"
+      ],
       "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
     }
   ],
