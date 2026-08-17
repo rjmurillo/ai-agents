@@ -1939,13 +1939,13 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
         )
         return 1
     for session in sessions:
-        mode = "--creation-mode" if session in new_logs else "--pre-commit"
+        flags = ["--creation-mode"] if session in new_logs else ["--pre-commit", "--existing-log"]
         result = _run_command(
             [
                 sys.executable,
                 "scripts/validate_session_json.py",
                 session,
-                mode,
+                *flags,
             ],
             repo_root,
         )

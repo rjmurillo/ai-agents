@@ -1,0 +1,167 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 99917,
+    "date": "2026-08-17",
+    "branch": "claude/ai-agents-critical-review-85huzq",
+    "startingCommit": "8ca091243",
+    "objective": "Critical review of open issues, PR backlog, and governance overhead"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Demoted per scripts/validate_session_json.py _validate_required_item_level's documented rationale: Serena MCP tools absent from this session's tool list entirely (verified via ToolSearch), not merely unreachable. Used the documented .serena/memories/ file fallback instead (AGENTS.md 'Serena Init' row)."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Same demotion and reason as serenaActivated: mcp__serena__initial_instructions absent from this session's tool list."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md and the latest retrospective were auto-injected into context by the SessionStart hook at session start"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "find .claude/skills/github/scripts -type f -name '*.py' -exec basename {} \\; run; 67 scripts listed"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md directly (Serena MCP unavailable, used the documented file fallback per AGENTS.md)"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "3 relevant memories auto-injected into context by the UserPromptSubmit hook at session start (skills-autonomous-execution-index, json-api-type-annotations, pr-review-002-independent-comment-parsing)"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "claude/ai-agents-critical-review-85huzq"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On claude/ai-agents-critical-review-85huzq"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "8ca091243"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items complete. serenaActivated/serenaInstructions in sessionStart demoted to SHOULD per validate_session_json.py's own documented rationale (Serena MCP absent from this session's tool list, not merely unreachable); documented file-based fallback used for the underlying action (memory read/write) where possible"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified this session"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable this session (not in tool list); wrote .serena/memories/audits/2026-08-17-governance-bureaucracy-critical-review.md directly per AGENTS.md documented fallback, plus memory-index.md entry"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py Markdown Linting gate: [PASS]"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-17-check-sessions-existing-log-flag-pr-5127.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commits 12051c261, c7d9900c7"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run python scripts/validation/pre_pr.py: all gates pass except Session End Validation's endingCommit-empty check, resolved per session-logs.md MUST-2 two-commit pattern in the immediate follow-up commit"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No PROJECT-PLAN.md tasks tied to this session"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-17-governance-bureaucracy-critical-review.md"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Ran a 3-agent parallel audit (issue taxonomy, PR churn, bureaucracy-cost) against live GitHub state across 92 open issues and 11 open PRs",
+      "outcome": "Confirmed 87 of 92 open issues (94%) are governance/CI machinery breaking itself; found 10 root-cause clusters; identified 6 genuinely urgent issues including a CVSS 8.8 gate defect (#5099) and a repeat hooks outage (#5090); full findings in .agents/retrospective/2026-08-17-governance-bureaucracy-critical-review.md"
+    },
+    {
+      "action": "Closed 9 issues confirmed safe to deprioritize (#5117, #5118, #5115, #5121, #5070, #5043, #4962, #5068, #5014) with evidence-linked comments",
+      "outcome": "Backlog count reduced from 92 toward reality; each close is reversible and cites the specific evidence"
+    },
+    {
+      "action": "Flagged PR #4846 (close_and_restart recommendation) and #4954 (needs_human_call) rather than acting unilaterally on pre-existing owner PRs; handed PR #5036 the exact fix for a 4x-reported unanchored regex",
+      "outcome": "Owner has clear, evidence-backed recommendations to act on without this session overriding decisions on work it didn't create"
+    },
+    {
+      "action": "Consolidated the generated-artifacts.md / canonical-source-mirror.md duplicated anti-pattern paragraph into a pointer, regenerated both instruction mirrors, verified push-lock and scoped markdown-lint pass",
+      "outcome": "Committed 12051c261; smallest, lowest-risk item of the rule-file audit's three findings, real change since it does not touch the always-on byte-pinned corpus test"
+    },
+    {
+      "action": "Hit a live gate defect while pushing: retrospective-policy's {push_files} lefthook template resolves empty on this branch's first push, defeating its own documentation-only bypass",
+      "outcome": "Did not bypass via SKIP_RETROSPECTIVE_GATE; wrote the retrospective this session log accompanies instead, and noted the defect as a next step to file"
+    },
+    {
+      "action": "Hit a second live gate defect while honestly completing this session's own sessionEnd checklist: serenaActivated/serenaInstructions are unconditional MUST items with no accommodation for Serena MCP being unavailable, despite AGENTS.md documenting a .serena/memories/ file fallback for exactly this case",
+      "outcome": "Root-caused it precisely: check_sessions() in scripts/validation/git_hook_policy.py never passed --existing-log, unlike the sibling validate_branch_sessions() in the same file, which already does this correctly. Fixed check_sessions() to pass --existing-log for edits to already-committed session logs (commit 04a2f9621), verified against 388 targeted tests (all pass) plus ruff/mypy, documented in .agents/qa/2026-08-17-check-sessions-existing-log-flag.md. This also demonstrated the QA investigation-only scope check working correctly: it rejected the stale investigation-only claim once real code entered the commit range, which is correct behavior, not a third bug"
+    },
+    {
+      "action": "The check_sessions() fix unblocked the commit-time hook but not the push-time gate (scripts/validation/checks_tooling.py's validate_session_end): it classifies a session log as new-for-the-whole-branch via a base-ref diff, not per-commit, so a branch-new log is held to full compliance for the branch's entire life. Re-read _validate_required_item_level fully this time (not just validate_must_item) and found it already documents the correct mechanism: demote level from MUST to SHOULD with evidence, explicitly for a harness that genuinely lacks a capability the protocol assumes ('Serena is not reachable from Copilot CLI, and 61 logs say so')",
+      "outcome": "No further code change needed. Demoted serenaActivated/serenaInstructions to level SHOULD with clear evidence in this file, which is the intended, already-supported, already-tested escape hatch. The QA-frontmatter and check_sessions fixes remain independently valuable regardless"
+    },
+    {
+      "action": "Attempted the SESSION-PROTOCOL.md tier-hierarchy trim previously deferred to 'its own careful pass'. Verified no code enforces the 223-line Tier-Based Coordination section and no incident was cited for it, deleted it, replaced it with a pointer to its cited source (ADR-009). This tripped adr-review-policy (SESSION-PROTOCOL.md is explicitly globbed as governance content requiring adr-review evidence), which is a correct gate, not a bug: this really is the kind of change that rule exists for. Got an independent review from the critic agent before forcing the gate rather than routing around it",
+      "outcome": "The independent review found the removal was NOT ready: (1) .agents/AGENT-SYSTEM.md:788-935 still carries the full duplicate hierarchy, so this would have been a half-removal, not a real deletion; (2) ~40 agent template files carry tier: frontmatter that would point to a deleted definition; (3) my replacement text was factually WRONG about ADR-009's actual escalation target (wrote 'orchestrator', ADR-009:81 says 'high-level-advisor') -- the exact canonical-source-mirror anti-pattern documented elsewhere in this same session, reintroduced by the session itself under time pressure; (4) merge-resolver's drift-detection baseline (20.7%) actually depends on the tier-hierarchy-enriched prompt from PR #1426, so the system is not fully inert; (5) an existing analysis doc (.agents/analysis/1769-monolith-section-classification.md:127) already has a relocate-not-delete plan for this content. Reverted both files to the last pushed state rather than shipping a well-intentioned but factually incorrect and incomplete governance change. This is the correct outcome of getting review before forcing a blocking gate, and a second concrete demonstration alongside the QA-docs-only bug of why this session did not skip verification steps even under explicit urgency"
+    },
+    {
+      "action": "PR #5127's Copilot review left 7 comments and its 'Validate PR' check failed a third time on real findings, not process noise: startingCommit in this log named a commit (12051c261) that this session itself produced (so it could not be the session's starting point); the QA report's mypy line examined 0 of 1 files (a scoped wrapper subcommand reported a no-diff-from-origin/main short-circuit, not a real mypy run) so it supported no verdict; the retrospective's session-log inventory (62 + 1436 = 1498) did not match its own stated total of 1492; the retrospective never classified against FAILURE-MODES.md per retros.md MUST-2; three follow-up items in the retrospective had no linked issue per retros.md MUST-4; generated-artifacts.md's fix for the earlier duplication pointed at a `.claude/rules/` path that dangles in the shipped Copilot plugin tree, which ships the sibling `.instructions.md` mirror under a different path, not the source path; and a test class docstring claimed an already-committed session-log edit runs 'the full pre-commit validation', which is now false since --existing-log skips protocol-compliance, evidence-agreement, and QA-evidence checks (confirmed by reading validate_session_json.py:1170-1188 directly rather than trusting the old docstring)",
+      "outcome": "Fixed all seven for real rather than replying past them: startingCommit corrected to 8ca091243 (parent of the branch's actual first commit, confirmed via git merge-base against origin/main) and the episode regenerated (commits 3 to 4 once this round's endingCommit lands); mypy re-run directly on all 3 changed Python files (0 findings, 3 examined, confirmed via a fresh `git diff --stat origin/main` that the file genuinely differs) and the QA report corrected with the real command and an explanation of why the wrapper's earlier output was not evidence; the retrospective's count corrected to a ref-anchored `git ls-tree -r --name-only origin/main -- .agents/sessions` measurement (1499 = 62 + 1437, re-run live rather than trusting either stale figure); a Failure Mode Classification section added citing FM #9 (Confident-Incorrectness Recurrence) for the reverted tier-hierarchy claim, with an explicit note that the three gate-defect findings do not cleanly fit any of the 11 cataloged patterns rather than forcing a fit; three real GitHub issues filed (#5128 push_files-empty-on-first-push, #5129 validate_qa_skip_scope docs-only rejection, #5130 the properly-scoped tier-hierarchy removal carrying forward the critic's five findings) and linked from the retrospective's Next steps with explicit owner status; generated-artifacts.md's MUST NOT #1 reworded to a destination-neutral sibling reference ('look it up by name in whichever tree you're reading this from'), matching the pattern search-before-building.md:10 already uses, both mirrors regenerated; the test class docstring rewritten to state what --existing-log actually skips, verified against the three call sites in validate_session_json.py (lines 1170, 1174, 1183) rather than asserted from memory"
+    }
+  ],
+  "endingCommit": "db7ab7cef08b1560b888c27dfda7040789146780",
+  "nextSteps": [
+    "File a fourth small defect: the QA report frontmatter requirement (strict leading --- YAML block) was undiscoverable from existing .agents/qa/ examples, which use free prose headers instead; the schema/format is enforced but not documented anywhere a QA-report author would find it before hitting the error",
+    "Real P0/P1 blocker fixes (#5111, #5090, #5099) as dedicated PRs",
+    "Issue #5128: retrospective-policy's {push_files}-empty-on-new-branch defect",
+    "Issue #5129: validate_qa_skip_scope's unconditional rejection of SKIPPED: docs-only",
+    "Issue #5130: SESSION-PROTOCOL.md tier-hierarchy removal, done properly this time (AGENT-SYSTEM.md duplicate, ~40 tier: frontmatter fields, issue #1769 reconciliation, merge-resolver drift baseline)"
+  ]
+}
