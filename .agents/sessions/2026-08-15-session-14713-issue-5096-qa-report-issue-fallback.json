@@ -188,7 +188,7 @@
       "evidence": ".agents/retrospective/2026-08-17-issue-5096-qa-report-issue-fallback.md; satisfies the pre-push retrospective-evidence gate for this session"
     }
   ],
-  "endingCommit": "15476b5e5c2c99cdbdfdf2fdac69f34ddfd7bb7f",
+  "endingCommit": "3d1f72c69bda7a1f59d4b72593b2634434aa4b69",
   "nextSteps": [
     "Orchestrator opens the PR for this branch and links issue #5096",
     "Follow-up: both globs match a numeric prefix, so *issue-509* style collisions are possible (issue-5096 also matches a hypothetical issue-50960 report). The PR-numbered glob has carried the same weakness since it was written; tightening both belongs in one change, not this one.",
