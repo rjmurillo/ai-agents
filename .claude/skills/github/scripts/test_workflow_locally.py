@@ -223,7 +223,7 @@ def build_pull_request_event(
     head_ref: str,
     base_ref: str,
     repo_full_name: str,
-) -> dict:
+) -> dict[str, object]:
     """Build a minimal ``pull_request`` event payload for act.
 
     Populates the fields PR workflows commonly read from
@@ -252,7 +252,7 @@ def build_pull_request_event(
     }
 
 
-def _write_event_payload(payload: dict) -> str:
+def _write_event_payload(payload: dict[str, object]) -> str:
     """Write an event payload to a temp JSON file and return its path."""
     with tempfile.NamedTemporaryFile(
         mode="w",

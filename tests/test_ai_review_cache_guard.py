@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import shutil
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
@@ -31,7 +32,7 @@ SCRATCH_ROOT = REPO_ROOT / ".pytest_cache" / "ai_review_cache_guard"
 
 
 @pytest.fixture
-def scratch_dir() -> Path:
+def scratch_dir() -> Generator[Path, None, None]:
     SCRATCH_ROOT.mkdir(parents=True, exist_ok=True)
     path = Path(tempfile.mkdtemp(prefix="case-", dir=SCRATCH_ROOT))
     try:
