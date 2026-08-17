@@ -249,7 +249,9 @@
       "caused_by": [
         "e018"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e022"
+      ],
       "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
     },
     {
@@ -262,6 +264,17 @@
         "e018"
       ],
       "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-17T03:03:33+00:00",
+      "type": "commit",
+      "content": "Commit: 731ee336b692807cdb3c0a4d518aefa65a0bba7c",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
     }
   ],
   "metrics": {
@@ -269,7 +282,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 8,
+    "commits": 9,
     "files_changed": 18
   },
   "lessons": []

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard.json
-qaCommit: 1ef5ad6e6241196e7c2422c828aaa43ef9873fc7
+qaCommit: 731ee336b692807cdb3c0a4d518aefa65a0bba7c
 ---
 # QA Report: Aggregator Cancellation Guard (Issue #5097)
 
