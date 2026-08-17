@@ -20,7 +20,7 @@ Verified against the working tree on 2026-07-30. Volatile facts and their re-ver
 | FM-9 and FM-10 sections; "neutral default" quote | `.agents/governance/FAILURE-MODES.md:284,315,387` | `sed -n '280,325p;383,390p' .agents/governance/FAILURE-MODES.md` |
 | Incident retro paths (908, 1187, 1887, 1965, 2205) | `.agents/retrospective/` | `find .agents/retrospective -maxdepth 1 \( -name "*908*" -o -name "*1187*" -o -name "*1887*" -o -name "*1965*" -o -name "*2205*" \)` |
 | `[skip-drift-check]` bypass contract | `.github/workflows/agent-drift-detection.yml:17,65-69` | `grep -n "skip-drift-check" .github/workflows/agent-drift-detection.yml` |
-| ai-pr-quality-gate authoritative blocker | `.github/workflows/ai-pr-quality-gate.yml:735` | `grep -n "check_critical_failures" .github/workflows/ai-pr-quality-gate.yml` |
+| Pinned required contexts (no LLM blocker) | `scripts/ci/ruleset_required_contexts.py:REQUIRED_CONTEXTS`, `RETIRED_AI_REVIEW_CONTEXTS` | `grep -n "CONTEXTS" scripts/ci/ruleset_required_contexts.py` |
 | ADR-006 amendment scope and conditions | `.agents/architecture/ADR-006-thin-workflows-testable-modules.md:255-309` | `grep -n "Amendment 2026-04-28" .agents/architecture/ADR-006-thin-workflows-testable-modules.md` |
 | Hook-install check rationale | `scripts/validation/checks_plugin.py:174-180` | `grep -n "def validate_lefthook_installed" scripts/validation/checks_plugin.py` |
 
