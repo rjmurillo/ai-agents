@@ -18,14 +18,20 @@ def _capture(target: list[str], item: str) -> int:
     return 0
 
 from scripts.ci import ruleset_context_drift as drift  # noqa: E402
-from scripts.ci.ruleset_required_contexts import (  # noqa: E402
-    RETIRED_AI_REVIEW_CONTEXTS,
-    RETIRED_CONTEXTS,
-)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = (
     REPO_ROOT / ".github" / "workflows" / "ruleset-context-drift.yml"
+)
+RETIRED_AI_REVIEW_CONTEXTS = frozenset(
+    {
+        "Analyst Review",
+        "Architect Review",
+        "DevOps Review",
+        "QA Review",
+        "Roadmap Review",
+        "Security Review",
+    }
 )
 
 
@@ -282,9 +288,18 @@ def test_retired_review_contexts_are_not_pinned() -> None:
     Pinning one would make the merge queue wait forever on a check run that no
     workflow produces.
     """
-    assert RETIRED_CONTEXTS.isdisjoint(drift.REQUIRED_CONTEXTS)
-    assert len(drift.REQUIRED_CONTEXTS) == 9
-    assert "Validate PR" in drift.REQUIRED_CONTEXTS
+    assert RETIRED_AI_REVIEW_CONTEXTS.isdisjoint(drift.REQUIRED_CONTEXTS)
+    assert drift.REQUIRED_CONTEXTS == {
+        "Analyze (actions)",
+        "Analyze (python)",
+        "Run Python Tests",
+        "Validate Generated Files",
+        "Validate Path Normalization",
+        "Validate PR",
+        "Validate PR title",
+        "Validate Plugin Version Bump",
+        "Validate Spec Coverage",
+    }
 
 
 def test_no_workflow_produces_a_retired_ai_review_context() -> None:
