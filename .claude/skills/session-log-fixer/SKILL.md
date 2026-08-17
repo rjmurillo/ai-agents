@@ -1,331 +1,115 @@
 ---
 name: session-log-fixer
-description: Fix session protocol validation failures in GitHub Actions. Use when
-  a PR fails with "Session protocol validation failed", "MUST requirement(s) not met",
-  "NON_COMPLIANT" verdict, or "Session Protocol Results" job failure in the Session Protocol
-  Validation workflow. With deterministic validation, failures show exact missing
-  requirements directly in Job Summary - no artifact downloads needed.
-  Do NOT use to complete a session log locally before commit (use session-end).
-version: 3.0.0
+description: Repair an existing JSON session log locally. Use when `validate_session_json.py` rejects a staged or explicitly supplied log, when an opted-in log has invalid schema fields, or when existing log evidence is incomplete. Do NOT use to create a required log, because logs are optional. Do NOT use for CI workflow or job-summary failures.
+version: 4.0.0
 license: MIT
 metadata:
   domains:
-  - ci
   - session-protocol
-  - compliance
-  - github-actions
-  type: diagnostic-fixer
+  - validation
+  type: local-fixer
   inputs:
-  - run-id
-  - pr-number
+  - session-log-path
   outputs:
-  - fixed-session-file
-  - commit
+  - repaired-session-file
 ---
+
 # Session Log Fixer
 
-Fix session protocol validation failures using deterministic validation feedback from Job Summary.
-
----
-
-## Quick Start
-
-Just tell me what failed:
-
-```text
-session-log-fixer: fix run 20548622722
-```
-
-or
-
-```text
-my PR failed session validation, please fix it
-```
-
-The skill will read the Job Summary from the failed run, identify the non-compliant session file, and apply the necessary fixes.
-
----
+Repair an existing opted-in JSON session log. A session log is optional. This
+skill never creates one to satisfy a start, end, commit, push, or pull request
+gate.
 
 ## Triggers
 
-| Trigger Phrase | Operation |
-|----------------|-----------|
-| `fix session validation failure` | Detect and fix session log issues |
-| `session protocol failed in CI` | Read Job Summary and apply fixes |
-| `fix the failing session check` | Context-aware CI failure resolution |
-| `NON_COMPLIANT session log` | Direct from CI validation output |
-| `my PR failed session validation` | Natural language activation |
+- `fix this session log`
+- `repair existing session JSON`
+- `validate_session_json.py failed`
+- `fix malformed opted-in session log`
 
-| Input | Output | Quality Gate |
-|-------|--------|--------------|
-| Run ID or PR number | Fixed session file with commit | CI re-run passes |
+## Process
 
----
+### Phase 1: Confirm the target
 
-## When to Use
+Require an explicit `.agents/sessions/*.json` path or a staged JSON session log.
+If no log exists, stop successfully and report that no repair is needed.
 
-Use this skill when:
+### Phase 2: Read retained contracts
 
-- A PR fails the "Session Protocol Validation" GitHub Actions workflow
-- Job Summary shows NON_COMPLIANT verdict or MUST requirement failures
-- You need to fix session log structure to pass CI validation
+Read:
 
-Use `session-init` instead when:
+1. The supplied log.
+2. `.agents/schemas/session-log.schema.json`.
+3. `scripts/validate_session_json.py`.
+4. The optional appendix in `.agents/SESSION-PROTOCOL.md`.
 
-- Starting a new session (prevents needing this skill at all)
-- Creating a session log from scratch rather than fixing an existing one
+Do not infer required fields from historical logs.
 
-## Process Overview
-
-```text
-GitHub Actions Failure
-        │
-        ▼
-┌───────────────────────────────────────────────────┐
-│ Phase 1: READ JOB SUMMARY                         │
-│ • Extract run ID from URL or PR                   │
-│ • Read Job Summary from GitHub Actions            │
-│ • Identify NON_COMPLIANT session files            │
-│ • Parse specific missing requirements             │
-│ • View detailed validation results                │
-├───────────────────────────────────────────────────┤
-│ Phase 2: ANALYZE                                  │
-│ • Read failing session file                       │
-│ • Read SESSION-PROTOCOL.md template               │
-│ • Diff current vs required structure              │
-│ • Identify specific missing elements              │
-├───────────────────────────────────────────────────┤
-│ Phase 3: FIX                                      │
-│ • Apply fixes based on Job Summary details        │
-│ • Copy template sections exactly                  │
-│ • Add evidence to verification steps              │
-│ • Validate fix locally with validate_session_json.py │
-├───────────────────────────────────────────────────┤
-│ Phase 4: VERIFY                                   │
-│ • Commit and push changes                         │
-│ • Monitor re-run status                           │
-│ • Confirm COMPLIANT verdict in new Job Summary    │
-└───────────────────────────────────────────────────┘
-        │
-        ▼
-   Passing CI
-```
-
----
-
-## Workflow
-
-### Step 1: Read Job Summary
-
-#### Option A: Use the script (recommended)
+### Phase 3: Validate locally
 
 ```bash
-# By run ID
-python3 .claude/skills/session-log-fixer/scripts/get_validation_errors.py --run-id 20548622722
-
-# By PR number
-python3 .claude/skills/session-log-fixer/scripts/get_validation_errors.py --pull-request 799
+uv run python scripts/validate_session_json.py \
+  .agents/sessions/<existing-log>.json
 ```
 
-#### Option B: Manual (web UI)
+Use the validator output to identify exact schema or evidence failures.
 
-Navigate to the failed GitHub Actions run and click the **Summary** tab. The Session Protocol Compliance Report shows:
+### Phase 4: Repair only the existing record
 
-1. **Overall Verdict** - PASS or CRITICAL_FAIL
-2. **Compliance Summary** - Table with each session file, verdict, and MUST failure count
-3. **Detailed Validation Results** - Expandable sections showing exact failures
+Correct malformed JSON, schema mismatches, invalid branch or commit metadata,
+and incomplete protocol fields. Preserve accurate historical content. Never
+fabricate evidence, tool output, commit SHAs, or completed work.
 
-Example Job Summary output:
+If accurate evidence is unavailable, keep the conservative value accepted by
+the schema or report the unresolved validation error. Do not convert missing
+evidence into a success-shaped record.
 
-```markdown
-## Session Protocol Compliance Report
+### Phase 5: Revalidate
 
-> [!CAUTION]
-> ❌ **Overall Verdict: CRITICAL_FAIL**
->
-> 1 MUST requirement(s) not met. These must be addressed before merge.
-
-### Compliance Summary
-
-| Session File | Verdict | MUST Failures |
-|:-------------|:--------|:-------------:|
-| `2025-12-29-session-11.md` | ❌ NON_COMPLIANT | 1 |
-
-### Detailed Validation Results
-
-Click each session to see the complete validation report with specific requirement failures.
-
-<details>
-<summary>📄 2025-12-29-session-11</summary>
-
-| Check | Level | Status | Issues |
-|-------|-------|--------|--------|
-| SessionLogExists | MUST | PASS | - |
-| ProtocolComplianceSection | MUST | FAIL | Missing 'Protocol Compliance' section |
-| MustRequirements | MUST | PASS | - |
-| HandoffUpdated | MUST | PASS | - |
-...
-</details>
-```
-
-The detailed results tell you **exactly** which MUST requirements failed.
-
-### Step 2: Local Validation (Optional)
-
-Validate locally before pushing:
+Run the same validator until it exits 0:
 
 ```bash
-uv run python scripts/validate_session_json.py ".agents/sessions/<session-file>.json"
+uv run python scripts/validate_session_json.py \
+  .agents/sessions/<existing-log>.json
 ```
 
-This uses the **same script** as CI, so results match exactly.
+The repaired file is complete only when this exact command passes.
 
-### Step 3: Read Failing Session
+## Verification
 
-Session files are at `.agents/sessions/YYYY-MM-DD-session-NN-*.md`
+- [ ] The target was an existing, explicitly selected session log.
+- [ ] The repair introduced no invented evidence or unverified metadata.
+- [ ] `scripts/validate_session_json.py` exits 0 for the repaired path.
+- [ ] The final diff changes only the intended existing log.
 
-Identify what's missing by comparing against the Protocol Compliance section structure.
+## Common Repairs
 
-### Step 4: Read Protocol Template
-
-Read `.agents/SESSION-PROTOCOL.md` to get the canonical checklist templates for:
-
-- Session Start (COMPLETE ALL before work)
-- Session End (COMPLETE ALL before closing)
-
-**CRITICAL**: Copy the exact table structure. Do not recreate from memory.
-
-### Step 5: Apply Fixes
-
-Common fixes by failure type:
-
-| Failure | Fix |
-|---------|-----|
-| Missing Session Start table | Copy template from SESSION-PROTOCOL.md |
-| Missing Session End table | Copy template from SESSION-PROTOCOL.md |
-| "Pending commit" | Replace with actual commit SHA from `gh pr view` |
-| Empty evidence column | Add evidence text: "Tool output present", "Content in context", or "Commit SHA: abc1234" |
-| Unchecked MUST | Mark `[x]` with evidence, or mark `[N/A]` with justification if truly not applicable |
-
-**For SHOULD requirements**: Use `[N/A]` when not applicable. Use `[x]` with evidence when completed.
-
-**For MUST requirements**: Never leave unchecked without explanation.
-
-### Step 6: Commit
-
-```powershell
-git add ".agents/sessions/<session-file>.md"
-git commit -m "docs: fix session protocol compliance for <session-name>
-
-Add missing <what was missing> to satisfy session protocol validation."
-git push
-```
-
-### Step 7: Verify
-
-```powershell
-gh run list --branch (git branch --show-current) --limit 3
-gh run view <new-run-id> --json conclusion
-```
-
-Check the Job Summary tab again. If validation still fails, the detailed results show what's still missing.
-
----
-
-## Verification Checklist
-
-After applying fixes, run the bundled validator and require exit 2 (no errors found):
-
-```bash
-python3 .claude/skills/session-log-fixer/scripts/get_validation_errors.py --run-id "$RUN_ID"
-echo "exit=$?"   # must be 2 (no errors found = validation passed); exit 1 = run not found; exit 0 = errors still present
-```
-
-- [ ] `get_validation_errors.py` exited 2 (no validation errors found in the new run); any other exit code means validation is not yet passing
-- [ ] Session file has Session Start Protocol table
-- [ ] Session file has Session End Protocol table
-- [ ] All MUST requirements are marked `[x]` with evidence
-- [ ] No "pending" or placeholder text in evidence column
-- [ ] Commit SHA is real (not "pending commit")
-- [ ] Push succeeded without conflicts
-- [ ] New workflow run triggered
-- [ ] Job Summary shows COMPLIANT verdict
-
----
+| Failure | Repair |
+|---------|--------|
+| Invalid JSON | Correct syntax without changing factual content |
+| Missing schema field | Add the field from authoritative session evidence |
+| Placeholder evidence | Replace with real evidence or report the blocker |
+| Invalid branch or SHA | Read the repository state and record the verified value |
+| Incomplete required item | Complete only when supporting evidence exists |
 
 ## Anti-Patterns
 
-| Avoid | Why | Instead |
-|-------|-----|---------|
-| Recreating tables from memory | Will miss exact structure | Copy from SESSION-PROTOCOL.md |
-| Marking MUST as N/A without justification | Validation will fail | Provide specific justification |
-| Using placeholder evidence | Validators detect these | Use real evidence text |
-| Fixing without checking Job Summary | May miss actual failure | Always check Job Summary first |
-| Ignoring SHOULD requirements | Creates future tech debt | Mark appropriately |
+| Avoid | Reason |
+|-------|--------|
+| Creating a log because none exists | Logs are optional |
+| Fetching a deleted CI job summary | The session workflow is retired |
+| Repairing from memory | The retained schema and validator are authoritative |
+| Inventing evidence | Produces a false historical record |
+| Editing generated skill mirrors | Regeneration owns those files |
 
----
+## Vendored Install
 
-## Troubleshooting
+<!-- vendor-portability: declared. This skill repairs an existing consumer-owned .agents/sessions JSON record when the consumer provides the path. The upstream schema and validator are repository-local references and may not exist in a vendored install. Issue #2050. -->
 
-| Problem | Solution |
-|---------|----------|
-| `gh run view` fails | Verify run ID is correct, check authentication |
-| Can't find Job Summary | Click "Summary" tab at top of workflow run page |
-| Job Summary unclear | Expand detailed validation results for specifics |
-| Fix didn't work | Check new Job Summary for remaining issues |
-| Wrong session file | Verify branch matches PR, check for multiple session files |
-| Local validation differs from CI | Ensure you're using latest SESSION-PROTOCOL.md |
-
----
-
-## Scripts
-
-| Script | Purpose | Exit Codes |
-|--------|---------|------------|
-| [get_validation_errors.py](scripts/get_validation_errors.py) | Extract validation errors from GitHub Actions Job Summary | 0=success, 1=run not found, 2=no errors found |
-
-### Example Usage
-
-```bash
-# Get errors by run ID
-python3 .claude/skills/session-log-fixer/scripts/get_validation_errors.py --run-id 20548622722
-
-# Get errors by PR number
-python3 .claude/skills/session-log-fixer/scripts/get_validation_errors.py --pull-request 799
-```
-
----
-
-## Related Skills
-
-| Skill | Relationship |
-|-------|--------------|
-| [session-init](../session-init/) | Prevents need for this skill by correct initialization |
-| analyze | Deep investigation when fixes aren't obvious |
-
----
-
-## Vendored install
-
-<!-- vendor-portability: declared. This skill documents repair patterns for session logs under .agents/sessions/ and template sections from .agents/SESSION-PROTOCOL.md. Its shipped helper fetches validation errors from CI; missing upstream paths mean the referenced artifacts/templates are unavailable to the operator, not that the helper detects them. It also cites scripts/validate_session_json.py as the deterministic validator. Issue #2050. -->
-
-This skill depends on upstream-only paths. In a vendored install (a consumer
-repo that is not `rjmurillo/ai-agents`) these paths do not exist:
-
-| Path | Direction | Behavior when absent |
-|------|-----------|----------------------|
-| `.agents/sessions/` | reference target (session logs being fixed) | No upstream session logs are available to repair; provide the affected log path/content from the consumer repo. |
-| `.agents/SESSION-PROTOCOL.md` | reference source (template sections) | Copy-paste template sections come from the protocol file; without it, supply the template content explicitly. |
-
-The HTML comment above is the machine-readable declaration the
-`check_skill_md_portability.py` validator (Issue #2050) reads to confirm this
-skill has disclosed its path dependencies instead of hiding them in prose.
-
----
+When the upstream schema or validator is absent, require the consumer's schema
+and validation command. Do not assume the ai-agents contract applies.
 
 ## References
 
-- [Common Fixes](references/common-fixes.md) - Fix patterns for common failures
-- [Template Sections](references/template-sections.md) - Copy-paste ready templates
-- [CI Debugging Patterns](references/ci-debugging-patterns.md) - Advanced job-level diagnostics
-- `scripts/validate_session_json.py` - Deterministic validation script. In the `rjmurillo/ai-agents` repository; it does not ship with this skill.
+- `.agents/schemas/session-log.schema.json`
+- `scripts/validate_session_json.py`
