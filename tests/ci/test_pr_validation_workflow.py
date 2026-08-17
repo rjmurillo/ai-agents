@@ -239,18 +239,28 @@ def test_argv_rejection_still_precedes_every_write(
 
 
 def test_workflow_delegates_first_pr_validation_blocks():
-    workflow = WORKFLOW.read_text(encoding="utf-8")
+    steps = _pr_validation_steps()
+    steps_by_name = {step.get("name"): step for step in steps}
+    run_values = [str(step.get("run", "")) for step in steps]
 
-    assert "python3 scripts/ci/map_pr_description_result.py" in workflow
-    assert "python3 scripts/ci/build_pr_validation_report.py" in workflow
-    assert "Check QA Report Exists" not in workflow
-    assert "scripts/ci/check_pr_qa_report.py" not in workflow
-    assert "steps.check-qa.outputs" not in workflow
-    assert "HAS_CODE_CHANGES:" not in workflow
-    assert "QA_EXISTS:" not in workflow
-    assert "QA_REPORT:" not in workflow
-    assert "python3 scripts/validation/pr_description.py --pr-number" not in workflow
-    assert "Write-Host \"Checking for QA report...\"" not in workflow
+    assert steps_by_name["Validate PR Description vs Diff"]["run"] == (
+        "python3 scripts/ci/map_pr_description_result.py"
+    )
+    report_step = steps_by_name["Generate Validation Report"]
+    assert report_step["run"] == "python3 scripts/ci/build_pr_validation_report.py"
+    assert "Check QA Report Exists" not in steps_by_name
+    assert all("scripts/ci/check_pr_qa_report.py" not in run for run in run_values)
+    assert all(
+        "python3 scripts/validation/pr_description.py --pr-number" not in run
+        for run in run_values
+    )
+    assert all('Write-Host "Checking for QA report..."' not in run for run in run_values)
+
+    report_env = report_step.get("env", {})
+    assert "HAS_CODE_CHANGES" not in report_env
+    assert "QA_EXISTS" not in report_env
+    assert "QA_REPORT" not in report_env
+    assert all("steps.check-qa.outputs" not in str(value) for value in report_env.values())
 
 
 def test_add_needs_split_label_posts_when_missing(monkeypatch: pytest.MonkeyPatch):
