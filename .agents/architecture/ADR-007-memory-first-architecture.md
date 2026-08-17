@@ -4,6 +4,13 @@
 
 Accepted (Revised 2026-01-01)
 
+### Current-State Amendment (2026-08-16)
+
+Session logs are optional. Memory retrieval evidence may live in the
+transcript, pull request, per-issue handoff, Serena memory, or an opted-in log.
+The memory-first decision remains active; committed log evidence is retired.
+This amendment supersedes original log-specific confirmation statements below.
+
 ## Date
 
 2025-12-20 (Original) | 2026-01-01 (Augmented + Revised per ADR Review)
