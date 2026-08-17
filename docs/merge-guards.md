@@ -11,8 +11,8 @@ This document provides recommendations for GitHub branch protection rules to enf
 
 The repository currently has:
 
-- ✅ Pre-commit hooks (session log, skill detection, test coverage)
-- ✅ CI validation (PR description, QA reports, session protocol)
+- ✅ Pre-commit hooks (session-log validation if present, skill detection, test coverage)
+- ✅ CI validation (PR description, QA reports)
 - ⚠️ No branch protection enforcement at merge gate
 - ⚠️ PRs can be merged with failing validations using admin override
 
@@ -28,19 +28,15 @@ Configure these CI checks as **required** before merge:
    - Blocks: PR description mismatches (CRITICAL)
    - Warns: Missing QA reports
 
-2. **Session Protocol Validation** (`.github/workflows/ai-session-protocol.yml`)
-   - Blocks: Session End protocol violations (MUST requirements)
-   - Required: For PRs changing `.agents/sessions/*.md`
-
-3. **Pester Tests** (`.github/workflows/pester-tests.yml`)
+2. **Pester Tests** (`.github/workflows/pester-tests.yml`)
    - Blocks: PowerShell test failures
    - Required: For PRs changing `scripts/**`
 
-4. **AI Quality Gate** (`.github/workflows/ai-pr-quality-gate.yml`)
+3. **AI Quality Gate** (`.github/workflows/ai-pr-quality-gate.yml`)
    - Blocks: Analyst/QA/Security CRITICAL_FAIL verdicts
    - Required: For PRs changing code
 
-5. **CodeQL Analysis** (`.github/workflows/codeql-analysis.yml`)
+4. **CodeQL Analysis** (`.github/workflows/codeql-analysis.yml`)
    - Blocks: Critical/high severity security findings
    - Required: For PRs changing code files (PowerShell, Python, GitHub Actions)
    - Matrix: powershell, actions, python
@@ -93,7 +89,6 @@ Configure these CI checks as **required** before merge:
    - ✅ Do not allow bypassing the above settings (for admins)
 4. Add status checks:
    - `PR Validation / Validate PR`
-   - `Session Protocol Validation / validate` (matrix jobs)
    - `Pester Tests / test`
    - `AI Quality Gate / aggregate`
 5. Save changes
@@ -104,7 +99,7 @@ Configure these CI checks as **required** before merge:
 # Create branch protection rule
 gh api repos/:owner/:repo/branches/main/protection \
   --method PUT \
-  --field required_status_checks='{"strict":true,"contexts":["PR Validation / Validate PR","Session Protocol Validation / validate","Pester Tests / test","AI Quality Gate / aggregate","CodeQL Analysis / Analyze (powershell)","CodeQL Analysis / Analyze (actions)","CodeQL Analysis / Analyze (python)"]}' \
+  --field required_status_checks='{"strict":true,"contexts":["PR Validation / Validate PR","Pester Tests / test","AI Quality Gate / aggregate","CodeQL Analysis / Analyze (powershell)","CodeQL Analysis / Analyze (actions)","CodeQL Analysis / Analyze (python)"]}' \
   --field enforce_admins=true \
   --field required_pull_request_reviews='{"required_approving_review_count":1,"dismiss_stale_reviews":true}' \
   --field restrictions=null \
@@ -122,7 +117,6 @@ resource "github_branch_protection" "main" {
     strict   = true
     contexts = [
       "PR Validation / Validate PR",
-      "Session Protocol Validation / validate",
       "Pester Tests / test",
       "AI Quality Gate / aggregate",
       "CodeQL Analysis / Analyze (powershell)",
@@ -201,15 +195,7 @@ Enhance `.github/workflows/pr-validation.yml` to detect security dismissals:
 
 **Verify**: PR cannot be merged until description is fixed
 
-#### Scenario 2: Missing Session Log
-
-**Setup**: Create PR with `.agents/` changes but no session log
-
-**Expected**: Pre-commit hook blocks, or if bypassed, CI fails
-
-**Verify**: Merge blocked until session log is added and validated
-
-#### Scenario 3: Unresolved Review Comments
+#### Scenario 2: Unresolved Review Comments
 
 **Setup**: Create PR, add review comment, leave unresolved
 
@@ -217,7 +203,7 @@ Enhance `.github/workflows/pr-validation.yml` to detect security dismissals:
 
 **Verify**: Must resolve or dismiss comment to merge
 
-#### Scenario 4: Security Dismissal
+#### Scenario 3: Security Dismissal
 
 **Setup**: Create PR, add security comment, dismiss without approval
 
@@ -321,7 +307,6 @@ When merge is blocked but code is correct:
 | False positive rate | <1% | >5% |
 | Override usage | <5% | >10% |
 | Security dismissals without review | 0 | >0 |
-| Session protocol violations | <5% | >10% |
 | Time to merge (P50) | <4 hours | >24 hours |
 
 ### Dashboard Queries
