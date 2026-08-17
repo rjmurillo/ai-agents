@@ -309,7 +309,10 @@ per-issue handoff.
 3. Hand the remaining route plan to the next session through the per-issue handoff only when the open delegations and their dependencies show the plan is blocked, and name which ones. A claim about your own capacity is not a reason and will not be accepted as one.
 
 **Duplicate routing is a defect.** Check the task tracker and handoff before
-routing. Do not re-delegate unchanged work.
+routing. Do not re-delegate work that is still in flight, or work whose return
+you already hold and still trust.
+A failed delegation may be retried once you change the approach or the context
+it carries.
 
 **Weak synthesis is a defect, not evidence about context.** Output collapsing into "analyst said X, architect said Y" without resolving the conflict is a synthesis you have not finished. Finish it.
 
