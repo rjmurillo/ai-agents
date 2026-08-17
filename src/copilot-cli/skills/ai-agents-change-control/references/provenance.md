@@ -2,7 +2,7 @@
 
 A selected index of the drift-prone volatile facts for `ai-agents-change-control`. SKILL.md keeps the maintenance rule and the verified date; the per-fact re-verify commands live here because they are consulted only when editing the skill, not when using it to classify a change.
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/, scripts/ci/ruleset_required_contexts.py) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 
 Verified against the working tree on 2026-07-30. Volatile facts and their re-verification commands:
 
