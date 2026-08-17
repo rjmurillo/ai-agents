@@ -3697,8 +3697,12 @@ class TestCheckSessionsCreationMode:
 
     The session-policy hook calls git_hook_policy session (singular), which
     routes to check_sessions. Only the staged add that creates the session log
-    should get --creation-mode. A later commit that edits the same file must
-    run the full pre-commit validation.
+    should get --creation-mode. A later commit that edits the same file gets
+    --pre-commit --existing-log instead, which validates record shape and
+    structure for an already-committed log but skips the protocol-compliance,
+    evidence-agreement, and QA-evidence checks that --pre-commit alone runs,
+    since those items cannot be made true retroactively for a session that
+    already happened (e.g. a tool unavailable in the original session).
     """
 
     _stub = staticmethod(TestSessionScopeIsDecidedOnceForBothCallSites._stub)

@@ -100,9 +100,11 @@ as load-bearing as the artifact's bytes.
 
 ### MUST NOT
 
-1. **Self-referential tests do not count.** See `.claude/rules/canonical-source-mirror.md`
-   Anti-patterns ("Self-referential test that mirrors the producer's own output")
-   for the full rule and the PR #2205 example. Applied here: a test asserting the
+1. **Self-referential tests do not count.** See the sibling rule file
+   `canonical-source-mirror.md` (mirrored across trees under different names;
+   look it up by name in whichever tree you're reading this from), Anti-patterns
+   section ("Self-referential test that mirrors the producer's own output"), for
+   the full rule and the PR #2205 example. Applied here: a test asserting the
    generator produces a specific string, then checking the generator produced that
    string, proves nothing about runtime behavior.
 
