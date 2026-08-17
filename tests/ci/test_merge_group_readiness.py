@@ -18,9 +18,9 @@ WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 # Measured 2026-08-10: 16 contexts. The earlier 17th, "Aggregate Results", was
 # dropped from the ruleset after three workflows produced a check run under that
 # one name. Only the workflows that produce a context in this set need a
-# merge_group trigger, so ai-session-protocol.yml and test-codeql-integration.yml
-# are deliberately absent from REQUIRED_WORKFLOWS: their aggregate jobs are the
-# renamed producers of the retired context and gate nothing in the queue.
+# merge_group trigger, so test-codeql-integration.yml is deliberately absent
+# from REQUIRED_WORKFLOWS: its aggregate job is the renamed producer of the
+# retired context and gates nothing in the queue.
 REQUIRED_WORKFLOWS = {
     "ai-pr-quality-gate.yml",
     "ai-spec-validation.yml",
