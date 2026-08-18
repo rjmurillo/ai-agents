@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import stat
 import sys
 from pathlib import Path
@@ -61,6 +62,7 @@ from _push_pr_guard_commands import (  # noqa: E402
     _execution_target,
     _is_python_interpreter,
     _python_arguments,
+    _resolved_command,
     _resolves_to_installed_command,
 )
 from _push_pr_guard_evaluators import (  # noqa: E402
@@ -72,6 +74,7 @@ from _push_pr_guard_identity import (  # noqa: E402
     _SCRIPT_RELATIVE_PATH,
     _regular_resolved_file,
     _runtime_script,
+    _same_executable_content,
     _validate_runtime_bundle,
 )
 from _push_pr_guard_lex import (  # noqa: E402
@@ -252,6 +255,30 @@ def _validated_chdir_length(
     return prefix_length
 
 
+def _resolves_to_trusted_env(tokens: list[ShellToken], cwd: Path) -> bool:
+    """Verify token 0 resolves, by content, to the real system ``env``.
+
+    Comparing against ``shutil.which("env")`` with no explicit ``path``
+    argument resolves the trusted baseline from the SAME ambient ``PATH`` as
+    the candidate token. If that ambient ``PATH`` were ever compromised ahead
+    of this process (independent of anything in the command string being
+    parsed), both resolutions would land on the same attacker binary and the
+    content comparison would trivially pass, comparing that file with itself
+    (PR #5106 review r3805395290). ``os.defpath`` is the interpreter's
+    hardcoded OS default search path, not read from the environment, so it
+    is the one baseline an ambient-PATH compromise cannot steer. This mirrors
+    ``_command_search_path``'s own use of ``os.defpath`` for ``env -i`` a few
+    lines away in ``_push_pr_guard_commands.py``.
+    """
+    resolved = _resolved_command(tokens, 0, cwd)
+    if resolved is None:
+        return False
+    known = shutil.which("env", path=os.defpath)
+    if known is None:
+        return False
+    return _same_executable_content(resolved, Path(known).resolve())
+
+
 def _env_chdir_prefix_length(tokens: list[ShellToken], cwd: Path) -> int | None:
     """Return the token count of a trusted ``env --chdir``/``-C`` prefix, or ``None``.
 
@@ -264,15 +291,16 @@ def _env_chdir_prefix_length(tokens: list[ShellToken], cwd: Path) -> int | None:
     index as an allowlist offset let ``PATH=./attacker python3 -I ...`` and a
     locally planted ``./env`` lookalike both pass as if the offset were
     trusted (PR #5106 review r3789851488). This helper instead requires
-    ``env`` to resolve, by content, to the real system ``env`` binary and
-    accepts exactly one ``--chdir``/``-C`` option, targeting exactly ``cwd``
-    (see ``_validated_chdir_length``), with no other env flags, no leading
-    assignment, and no other wrapper. Any other shape returns ``None`` so the
-    caller falls back to requiring no prefix at all.
+    ``env`` to resolve, by content, to the real system ``env`` binary (see
+    ``_resolves_to_trusted_env``) and accepts exactly one ``--chdir``/``-C``
+    option, targeting exactly ``cwd`` (see ``_validated_chdir_length``), with
+    no other env flags, no leading assignment, and no other wrapper. Any
+    other shape returns ``None`` so the caller falls back to requiring no
+    prefix at all.
     """
     if not tokens or _command_name(tokens[0].value) not in _ENV_COMMANDS:
         return None
-    if not _resolves_to_installed_command(tokens, 0, cwd, _ENV_COMMANDS):
+    if not _resolves_to_trusted_env(tokens, cwd):
         return None
     if len(tokens) < 2:
         return None

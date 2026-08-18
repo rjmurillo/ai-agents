@@ -8,10 +8,14 @@ token positions 0-1 (breaking env --chdir prefix).
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
 
+from tests.hooks.push_pr_guard_harness import (
+    CLAUDE_PLUGIN_ROOT as _CLAUDE_PLUGIN_ROOT,
+)
 from tests.hooks.push_pr_guard_harness import (
     PLUGIN_SCRIPT_REFERENCE,
 )
@@ -20,6 +24,9 @@ from tests.hooks.push_pr_guard_harness import (
 )
 from tests.hooks.push_pr_guard_harness import (
     body_file as _body_file,
+)
+from tests.hooks.push_pr_guard_harness import (
+    environment as _environment,
 )
 from tests.hooks.push_pr_guard_harness import (
     repository as _repository,
@@ -86,12 +93,23 @@ def test_prepare_body_file_mixed_with_title_denied(runner, tmp_path: Path) -> No
 
 @pytest.mark.parametrize("runner", _RUNNERS)
 def test_denial_includes_remediation(runner, tmp_path: Path) -> None:
-    """Denials must include the matched rule and remediation guidance."""
+    """Denials must include the matched rule and the exact canonical command.
+
+    A bare ``"Remediation" in result.stderr`` check passes even if the
+    matched rule or the documented command text were deleted, so this
+    asserts both pieces the acceptance criterion actually requires.
+    """
     root, _script = _repository(tmp_path)
     command = f'python3 -I "{PLUGIN_SCRIPT_REFERENCE}" --bad-option'
     result = runner(command, root)
     assert result.returncode == 2
-    assert "Remediation" in result.stderr
+    assert "new_pr.py accepts only --title, --body-file, or --prepare-body-file here" in (
+        result.stderr
+    )
+    assert (
+        'python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}'
+        '/skills/github/scripts/pr/new_pr.py" --prepare-body-file' in result.stderr
+    )
 
 
 # -- Negative: the env prefix offset cannot be used to smuggle an untrusted
@@ -188,6 +206,34 @@ def test_env_chdir_target_other_than_cwd_denied(runner, tmp_path: Path) -> None:
     (evil_root / ".git").mkdir(parents=True, exist_ok=True)
     command = f'env --chdir={evil_root} python3 -I "{PLUGIN_SCRIPT_REFERENCE}" --prepare-body-file'
     result = runner(command, root)
+    assert result.returncode == 2
+
+
+@pytest.mark.parametrize("runner", _RUNNERS)
+def test_env_path_poisoned_with_fake_env_denied(runner, tmp_path: Path) -> None:
+    """A fake ``env`` placed first on PATH must not pass as the trusted system env.
+
+    Regression for PR #5106 review r3805395290: comparing the resolved
+    ``env`` candidate against ``shutil.which("env")`` using the SAME ambient
+    PATH degenerates to comparing a file with itself once that PATH is
+    poisoned. The trusted baseline must resolve via a search path
+    independent of the ambient one, so a fake ``env`` first on PATH is
+    still denied.
+    """
+    root, _script = _repository(tmp_path)
+    fake_bin = tmp_path / "fakebin"
+    fake_bin.mkdir()
+    fake_env = fake_bin / "env"
+    fake_env.write_text('#!/bin/sh\nexec "$@"\n', encoding="utf-8")
+    fake_env.chmod(0o755)
+    poisoned_path = f"{fake_bin}{os.pathsep}{os.environ.get('PATH', '')}"
+    poisoned_environment = _environment(
+        CLAUDE_PROJECT_DIR=str(root),
+        CLAUDE_PLUGIN_ROOT=str(_CLAUDE_PLUGIN_ROOT),
+        PATH=poisoned_path,
+    )
+    command = f'env --chdir={root} python3 -I "{PLUGIN_SCRIPT_REFERENCE}" --prepare-body-file'
+    result = runner(command, root, env=poisoned_environment)
     assert result.returncode == 2
 
 
