@@ -1,0 +1,19 @@
+{
+  "id": "episode-2026-08-18-session-99918-b6aa4aa72-fix-issue-5128-retrospective-policy-stdin",
+  "session": "2026-08-18-session-99918-b6aa4aa72-fix-issue-5128-retrospective-policy-stdin",
+  "timestamp": "2026-08-18T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Fix issue #5128: retrospective-policy stdin push-range",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 6
+  },
+  "lessons": []
+}
