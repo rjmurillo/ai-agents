@@ -1,0 +1,159 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14695,
+    "date": "2026-08-12",
+    "branch": "fix/2840-adr-080-amendment",
+    "startingCommit": "d938b9c132",
+    "objective": "Amend ADR-080 with measured Copilot model resolution and commit the probe evidence (issue 2840)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena toolset acknowledged; MCP session initialized"
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Demoted from MUST per validate_session_json.py's documented level-deviation mechanism (SESSION-PROTOCOL.md RFC-2119 table): no Serena initial_instructions tool output was retained for session 14695, and this session's own live window closed on 2026-08-12. The 2026-08-15 repair pass cannot retroactively fabricate Aug-12 Serena evidence; genuine serenaInstructions evidence for the repair itself is instead recorded in the 2026-08-15 session-15001 log."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/skills/ enumerated"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory loaded"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2840-adr-080-amendment"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2840-adr-080-amendment"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "d938b9c132"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items are Complete except two Serena tool-evidence items, which are honestly demoted to SHOULD (see sessionStart.serenaInstructions and sessionEnd.serenaMemoryUpdated) because this Aug-12 session's live window is closed and no retroactive Serena evidence can be fabricated; the repair itself is instead recorded in the 2026-08-15 session-15001 log."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Demoted from MUST per validate_session_json.py's documented level-deviation mechanism: no Serena memory write was retained for session 14695, and an episode companion is not a memory operation. The session's live window is closed on 2026-08-15; genuine serenaMemoryUpdated evidence for the repair itself is instead recorded in the 2026-08-15 session-15001 log."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Docs-only session; lint clean"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/000-session-14695-adr-080-amendment-qa.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-080 amendment initially committed at c803be2e8, then repaired at 1e0a6a775, then the model_tier override fix committed at 0edf6e063. A subsequent dash-only debate-log punctuation fix (required by the repository's authored-text dash ban) was run and committed by session 15001, not this session; see session 15001's own log and episode for that round's full repair work and its commit hash. This session's own last produced commit is 0edf6e063, recorded in episodeMetrics.commitHead; this episode's commit-event list ends there. Rounds 3 through 6 of PR 4954's autofix work (a round-3 content fix narrowing two overclaiming analysis-file sentences, a round-4 content fix plus evidence corrections, a round-5 episode-event correction, and a round-6 main-branch merge to relieve the PR's 20-commit block) each rebound endingCommit/episodeMetrics.comparison.head and this QA report's qaCommit purely for QA-freshness reasons; none of those rounds is a commit this session produced. See this QA report's revision-history table for the exact commit SHA of each round. This episode's own event list intentionally excludes every rebind-target commit and every other session's commit; episodeMetrics.commitHead is the authoritative marker separating this session's own commit tip from any later QA-freshness rebind of comparison.head."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Full 6-agent ADR review reached 6 of 6 (3 ACCEPT, 3 ACCEPT_WITH_CHANGES resolved by tie-break) with no P0 or P1 findings on the finding-4 fix; a second full 6-agent review (6 of 6 ACCEPT) covered the subsequent dash-only punctuation fix to the same debate log, run and committed by session 15001, not this session. Neither the round-3 (9996e0905) nor round-4 (e8b9229b9) analysis-file wording fixes changed any measurement, citation, or finding, so no new ADR-review pass was required for either (detect_adr_changes.py does not flag .agents/analysis/ paths). QA report binds to e8b9229b9 (episodeMetrics.comparison.head/endingCommit) for freshness purposes; the episode's own commit-event list and metrics.commits (3) reflect only this session's actually-produced commits (c803be2e8, 1e0a6a775, 0edf6e063), not the rebind target and not session 15001's dash-fix commit. Round 6 rebinds the same fields to 1a841d53d (the origin/main merge commit); re-verified PR_HEAD_SHA=1a841d53d resolves both QA reports as COMPLIANT."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Ran a SCOPED adr-review on the draft Amendment 2026-08-12 to ADR-080: two independent reviewers, one round, given the artifact only and not the reasoning behind it. Critic lens covered contradiction with the Decision, citation accuracy, overstatement, and completeness. Contrarian lens steelmanned the opposite of every claim and argued supersede over amend. This is a deliberate deviation from the skill's 6-agent 10-round protocol, justified because the change corrects rationale and edits none of the six Decision rules, and it is recorded as a deviation rather than claimed as a full run. Debate log: .agents/critique/ADR-080-amendment-2026-08-12-debate-log.md",
+      "result": "Both returned NEEDS_REVISION with ten findings, four of them factual errors in the draft. Accepted eight, rejected the supersede recommendation with reasoning, deferred the stale implemented:false flag. Amendment cut from 117 lines to a focused correction."
+    },
+    {
+      "action": "Re-probed Copilot CLI 1.0.79 after the critic showed the retirement probe used claude-opus-9-9-retired, a string that never existed rather than a retired id.",
+      "result": "claude-opus-4.5 (the id the ADR Context names) also warns and falls back, so the behaviour holds, but the claim is now stated as narrowed on this surface rather than falsified everywhere. The same run also killed a draft claim: 'Claude Opus 4.6 (copilot)' is accepted, and only the '(anthropic)' spelling falls back."
+    },
+    {
+      "action": "Verified the contrarian's ground-truth claim that the de-versioning migration has already run.",
+      "result": "Confirmed: the source tree holds zero versioned pins (20 sonnet, 18 opus, 8 haiku, all bare aliases) against 75 versioned at ADR acceptance. The draft's 'removal is mandated' section was arguing about an empty set and was deleted."
+    },
+    {
+      "action": "Committed the probe evidence so the amendment's claims are reproducible, which rule 4 of this same ADR requires of a weaker claim.",
+      "result": "Method, full result table, delegation transcript with negative control, and an explicit not-measured section written to .agents/analysis/2026-08-12-adr-080-copilot-model-resolution.md"
+    },
+    {
+      "action": "Repaired final review findings against the ADR, QA report, episode, and protocol evidence.",
+      "result": "Restored the #2840 issue link, rebound QA to commit 1e0a6a775 after the episode repair, corrected files_changed evidence to 5, and marked two session MUST items incomplete where no Serena tool evidence exists."
+    },
+    {
+      "action": "Resolved the remaining active Copilot review finding: finding 4 called model_tier-to-versioned-id translation for generated plugin agents 'harmless', contradicting finding 1's measured override of an operator's explicit session model. Ran the full 6-agent adr-review protocol (architect, critic, independent-thinker, security, analyst, high-level-advisor) against the corrected text, not a scoped deviation.",
+      "result": "6 of 6: 3 ACCEPT, 3 ACCEPT_WITH_CHANGES resolved by the high-level-advisor tie-break in favor of the proposed text verbatim (a prescriptive migration item and a line-number correction were both rejected, the latter on direct re-verification of the source file). Finding 4 now states the override is inferred from finding 1's mechanism, not separately measured for the model_tier path, and records whether it is acceptable as an open gap. Committed at 0edf6e063. Debate log updated with the full round.",
+      "timestamp": "2026-08-15T07:09:54Z"
+    }
+  ],
+  "endingCommit": "36071d57374619430daa8a73b06b4b0f2a11ad84",
+  "nextSteps": [],
+  "episodeMetrics": {
+    "filesChanged": 5,
+    "commitHead": "0edf6e0630ea141e7fdcacae9583fcd57695b345",
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "90be321b3bfad576e3c1d440402d4333a87326c9",
+      "head": "36071d57374619430daa8a73b06b4b0f2a11ad84"
+    }
+  }
+}

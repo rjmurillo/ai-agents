@@ -137,11 +137,13 @@ jobs:
   # because its dependencies never ran is the exact false-green this guard
   # exists to prevent.
   #
-  # !cancelled() rather than always(): when the whole run is superseded this
-  # job skips instead of reporting, and a skipped check is not a success, so
-  # the false-green above is still impossible. always() would instead publish
-  # a red check for a run nobody is waiting on (Issue #5097). A dependency
-  # that reports 'cancelled' while the run continues still fails the assert.
+  # !cancelled() rather than always(): GitHub re-evaluates this job's `if`
+  # when the run is cancelled, so a superseded run flips it to false and the
+  # job concludes 'cancelled' (docs.github.com, workflow cancellation
+  # reference). 'cancelled' is not a success, so the false-green above is
+  # still impossible. always() would instead publish a red check for a run
+  # nobody is waiting on (Issue #5097). A dependency that reports 'cancelled'
+  # while the run continues still fails the assert.
   guard-result:
     name: Plugin Hook Guard Result
     if: ${{ !cancelled() }}
