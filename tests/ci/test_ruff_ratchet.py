@@ -362,11 +362,12 @@ def test_main_builds_the_line_map_from_the_ref_that_resolved(
     )
     monkeypatch.setattr(ruff_ratchet.subprocess, "run", recorder)
     seen: list[str] = []
-    monkeypatch.setattr(
-        ruff_ratchet,
-        "changed_line_map",
-        lambda base_ref, _root, _paths: seen.append(base_ref) or {},
-    )
+
+    def record_base_ref(base_ref: str, _root: Path, _paths: object) -> dict[str, set[int]]:
+        seen.append(base_ref)
+        return {}
+
+    monkeypatch.setattr(ruff_ratchet, "changed_line_map", record_base_ref)
 
     exit_code = ruff_ratchet.main(["--base-ref", "stale-sha", "--repo-root", str(tmp_path)])
 
