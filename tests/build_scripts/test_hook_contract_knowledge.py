@@ -1161,7 +1161,18 @@ def test_adr_085_decision_eight_complies_with_the_adr_084_carve_out() -> None:
         "**ADR-084's carve-out, and why this decision does not invoke the ROI bar.**"
         in decision_eight
     )
-    assert "ADR-084-vendored-hook-roi-bar.md:145-148" in decision_eight
+    # The citation must resolve, so it names the durable section anchor rather
+    # than a line range. The 2026-08-18 rule 6 amendment moved the carve-out
+    # from line 145 to 169 and orphaned 11 line-range citations across ADR-068,
+    # ADR-071, and ADR-085; a range pins a number the next amendment shifts
+    # again, which is the wrong-citation failure canonical-source-mirror.md
+    # blocks on. The verbatim quote below is what actually proves the pointer
+    # lands on the carve-out.
+    assert "ADR-084-vendored-hook-roi-bar.md" in decision_eight
+    assert '"What this ADR does NOT do"' in decision_eight
+    assert "145-148" not in decision_eight, (
+        "line-range citation reintroduced; cite the section anchor instead"
+    )
     assert quoted in decision_eight
     assert "That carve-out binds." in decision_eight
     assert (
@@ -1341,7 +1352,13 @@ def test_derived_adrs_do_not_name_the_roi_bar_as_the_deletion_driver() -> None:
             "The vendored-hook ROI bar that drove the 2026-08-18 deletion.",
             source=path,
         )
-        assert "ADR-084-vendored-hook-roi-bar.md:145-148" in text, path
+        # Section anchor, not a line range: see the note in
+        # test_adr_085_decision_eight_complies_with_the_adr_084_carve_out.
+        assert "ADR-084-vendored-hook-roi-bar.md" in text, path
+        assert '"What this ADR does NOT do"' in text, path
+        assert "145-148" not in text, (
+            f"{path}: line-range citation reintroduced; cite the section anchor"
+        )
         assert "not ADR-084's ROI bar" in text, path
 
 
