@@ -37,9 +37,24 @@ Two consequences the fix depends on:
    preserves the cli-smoke pass-through for the no-CLI-change case (#1168) and
    the plugin-hook guard's refusal to report success when its matrix never ran
    (#4672).
-2. A guarded job skips while the run is being cancelled. A skipped job
-   publishes no check run, and a skipped check is not a success, so branch
-   protection keeps waiting instead of merging on a false green.
+2. GitHub re-evaluates a job's `if:` condition for every currently running
+   job when the run is cancelled (docs.github.com, workflow cancellation
+   reference: "To cancel the workflow run, the server re-evaluates `if`
+   conditions for all currently running jobs. If the condition evaluates to
+   `true`, the job will not get canceled."). A guarded job already running
+   has `!cancelled()` flip to false on that re-evaluation and is cancelled
+   as a result, concluding `cancelled`. Verified against a real superseded
+   run on this PR (`actions_get get_workflow_run` on run `31896264033`):
+   overall conclusion `cancelled`, with its "Run Python Tests" and "Main
+   failure alert" jobs both `cancelled`. This report makes no claim about
+   the exact conclusion a not-yet-started job reports. Either way the
+   observed conclusion is a non-success, so branch protection keeps waiting
+   instead of merging on a false green. Corrected twice, issue #5139: this
+   report first said the job "skips" and "publishes no check run" in every
+   case, then (2026-08-18, a Copilot review finding on PR #5141) wrongly
+   attributed the corrected `cancelled` conclusion to `if:` being "evaluated
+   once, before a job starts" instead of the actual re-evaluation mechanism
+   quoted above.
 
 YAML note: a plain scalar beginning with `!` parses as a YAML tag, so each
 condition uses either the existing `>-` block scalar or `${{ }}`. All 64
@@ -78,7 +93,7 @@ not touched. Those are correct uses.
 
 | Suite | Tests | Result |
 |---|---|---|
-| tests/workflows/test_aggregator_cancellation_guard.py | 33 | PASS |
+| tests/workflows/test_aggregator_cancellation_guard.py | 34 | PASS |
 | tests/workflows/test_pytest_xdist_parallelism.py | 45 | PASS |
 | tests/test_plugin_hook_guard_aggregate.py | 22 | PASS |
 | tests/workflows/test_quality_gate_aggregate_cancel_skip.py | 6 | PASS |
@@ -124,9 +139,12 @@ tests, all naming that job:
 - `TestFixedAggregators::test_aggregator_drops_bare_always[cli-smoke.yml::smoke-result]`
 - `TestRepositoryWideSweep::test_every_pr_head_aggregator_is_guarded`
 
-The remaining 30 tests passed, so the failure is attributable to the mutated
+The remaining 31 tests passed, so the failure is attributable to the mutated
 job rather than to a harness that fails unconditionally. The mutation was
-reverted and the suite returned to 33 passed.
+reverted and the suite returned to 34 passed. (Corrected 2026-08-18, issue
+#5139: this section originally read 30/33, undercounting by one test the
+"Post-review fixes" section below had already added by this report's
+`qaCommit`; re-run against `qaCommit` confirms 34 total, 3 failed, 31 passed.)
 
 ## Post-review fixes on this branch
 
@@ -176,23 +194,30 @@ carry the reason in their docstrings so the next reader does not re-add
 pre-commit job) flagged all four workflow files CRITICAL and asked for a
 security agent review. The change alters no permission block, no action pin, no
 secret handling, and no `run:` body. It narrows when four jobs execute. The
-`installed-plugin-hook-guard.yml` false-green protection is preserved because a
-skipped job is not a success for branch protection. Routing to the security
+`installed-plugin-hook-guard.yml` false-green protection is preserved because
+neither a skipped nor a cancelled job is a success for branch protection.
+Routing to the security
 agent is still recommended by protocol.
 
 ## Known gaps
 
 1. `codeql-analysis.yml::check-blocking-issues` keeps `always()`. It is outside
    the fixed shape (it reads SARIF, not `needs.<job>.result`), but a cancelled
-   run can still leave it red on missing artifacts. Worth its own issue.
+   run can still leave it red on missing artifacts. Tracked in issue #5104.
 2. `ai-pr-quality-gate.yml::aggregate` and `ai-session-protocol.yml::aggregate`
    keep the redundant `always() && !cancelled()` spelling, so the repository
    now carries two spellings of one guard. Cosmetic, deliberately out of scope.
-3. The fix cannot be exercised end to end from this container: proving a
-   cancelled run publishes no check requires a real superseded run on GitHub.
-   Confirm on the pull request by pushing twice in quick succession and
-   checking that the cancelled run's aggregate jobs report skipped rather than
-   failure.
+3. Resolved, issue #5139: a real superseded run on this PR (`31896264033`)
+   showed the aggregate jobs concluding `cancelled` rather than `failure`,
+   confirming the fix. This report originally predicted `skipped`; the
+   observed conclusion for an already-running job is `cancelled` instead,
+   because GitHub re-evaluates `if:` for currently running jobs when a run
+   is cancelled and `!cancelled()` then flips to false (docs.github.com,
+   workflow cancellation reference; a Copilot review finding on PR #5141
+   caught this report's earlier, wrong "evaluated once, before a job
+   starts" claim). Both `cancelled` and `failure` are distinct conclusions,
+   and only `cancelled` is observed here, so the fix's actual guarantee, no
+   false-red for a superseded run, holds.
 4. Forgetful MCP was unreachable in this container, so no Forgetful entry was
    written for this finding. Serena MCP was reachable: the corrected memory
    `ci/ci-infrastructure-aggregate-job-always-pattern` was read and updated
