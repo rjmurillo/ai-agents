@@ -84,9 +84,12 @@ PRE_FIX_CONDITIONS: dict[tuple[str, str], str] = {
 # Lower bound on what the repository-wide sweep must examine. Without it a
 # broken classifier that matches nothing reports a clean sweep
 # (`.claude/rules/testing.md` MUST 10: report the scope size, not only the
-# finding count). Measured at 7 on this branch: the five above plus the two
-# already guarded for #2347.
-MINIMUM_AGGREGATORS_EXAMINED = 7
+# finding count). Measured at 5 on this branch: the five in FIXED_AGGREGATORS
+# above. Previously 7 (the five above plus ai-pr-quality-gate.yml::aggregate
+# and ai-session-protocol.yml::aggregate, guarded for #2347); both of those
+# workflows were deleted in full by #5132 and #5135, a legitimate cleanup,
+# not a classifier regression (issue #5142).
+MINIMUM_AGGREGATORS_EXAMINED = 5
 
 
 def _load_workflow(name: str) -> Mapping[Any, Any]:
