@@ -188,17 +188,42 @@ def test_a_git_failure_is_disclosed_and_does_not_suppress_the_filesystem_half(
     assert "git worktree list failed" in checker.format_report(report)
 
 
-def test_the_free_space_floor_boundary_is_exclusive(tmp_path: Path) -> None:
-    report = checker.scan_temp_root(tmp_path, 0, [], git_listing_failed=False)
-    assert report.free_bytes is not None
-
-    at_floor = checker.scan_temp_root(tmp_path, report.free_bytes, [], git_listing_failed=False)
-    below_floor = checker.scan_temp_root(
-        tmp_path, report.free_bytes + 1, [], git_listing_failed=False
+def _report_with(free: int | None, floor: int) -> checker.TempReport:
+    """A report carrying fixed space numbers, with no filesystem read."""
+    return checker.TempReport(
+        temp_root="/tmp",
+        temp_root_present=True,
+        examined=0,
+        free_bytes=free,
+        min_free_bytes=floor,
     )
 
-    assert at_floor.free_space_low is False, "free == floor is not below the floor"
-    assert below_floor.free_space_low is True
+
+@pytest.mark.parametrize(
+    ("free", "floor", "expected"),
+    [
+        (2 * _GIB, 2 * _GIB, False),  # equal is not below
+        (2 * _GIB - 1, 2 * _GIB, True),  # one byte under is below
+        (2 * _GIB + 1, 2 * _GIB, False),
+        (0, 1, True),  # a full filesystem
+        (10 * _GIB, 2 * _GIB, False),
+        (0, 0, False),  # a floor of zero can never fire
+        (None, 2 * _GIB, False),  # unknown is not low
+    ],
+)
+def test_the_free_space_floor_boundary_is_exclusive(
+    free: int | None, floor: int, expected: bool
+) -> None:
+    """The comparison is arithmetic, so the test supplies both numbers.
+
+    An earlier version read live free space from ``scan_temp_root`` three
+    times and compared the readings. Free space is shared mutable state
+    across pytest-xdist workers (``testing.md`` MUST 5): one disk block
+    consumed between two calls made ``free < floor`` true and failed the
+    run. Measured on a pre-push suite: floor 25185472512, free 25185468416,
+    a 4096-byte drift.
+    """
+    assert _report_with(free, floor).free_space_low is expected
 
 
 # --- error branches -------------------------------------------------------
