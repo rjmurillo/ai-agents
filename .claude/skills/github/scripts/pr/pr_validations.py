@@ -8,9 +8,8 @@ and the escaped-newline guard.
 
 Loaded by absolute path, never by name
 --------------------------------------
-``new_pr.py`` runs under ``python3 -I``. The push-pr identity guard requires
-that flag, and isolated mode removes the script's own directory from
-``sys.path``. Measured on CPython 3.14.6:
+``new_pr.py`` runs under ``python3 -I``. Isolated mode removes the script's own
+directory from ``sys.path``. Measured on CPython 3.14.6:
 
     $ python3 -I main.py
     ModuleNotFoundError: No module named 'sibling'
@@ -22,9 +21,11 @@ provide: putting the directory on ``sys.path`` instead would let anyone who can
 write into the script directory shadow a stdlib module for this process, which
 is a strictly worse position than the one before the split.
 
-The identity guard pins this file's SHA-256 alongside ``new_pr.py`` and
-``validate_pr_description.py``, so the bundle is verified as a unit and this
-module cannot be swapped independently.
+A PreToolUse guard used to pin this file's SHA-256 alongside ``new_pr.py`` and
+``validate_pr_description.py``, verifying the bundle as a unit. Issue #5154
+deleted that guard, so no run-time check now stops this module being swapped
+independently. Code review and the server-side gate in
+``.github/workflows/pr-validation.yml`` are what catch it.
 """
 
 from __future__ import annotations
