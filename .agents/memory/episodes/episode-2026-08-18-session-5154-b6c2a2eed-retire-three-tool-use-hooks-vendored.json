@@ -1,0 +1,19 @@
+{
+  "id": "episode-2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored",
+  "session": "2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored",
+  "timestamp": "2026-08-18T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Retire three tool-use hooks from the vendored plugin surface per the ADR-084 ROI bar, amend ADR-068 071 085, sweep stale citations",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 7
+  },
+  "lessons": []
+}
