@@ -41,9 +41,7 @@ def test_prepare_body_file_bare(runner, tmp_path: Path) -> None:
 def test_prepare_body_file_with_env_chdir(runner, tmp_path: Path) -> None:
     """External worktrees using env --chdir must be allowed."""
     root, _script = _repository(tmp_path)
-    command = (
-        f'env --chdir={root} python3 -I "{PLUGIN_SCRIPT_REFERENCE}" --prepare-body-file'
-    )
+    command = f'env --chdir={root} python3 -I "{PLUGIN_SCRIPT_REFERENCE}" --prepare-body-file'
     result = runner(command, root)
     assert result.returncode == 0, result.stderr
 
@@ -52,9 +50,7 @@ def test_prepare_body_file_with_env_chdir(runner, tmp_path: Path) -> None:
 def test_prepare_body_file_with_env_c_short(runner, tmp_path: Path) -> None:
     """env -C <dir> is the short form of --chdir."""
     root, _script = _repository(tmp_path)
-    command = (
-        f'env -C {root} python3 -I "{PLUGIN_SCRIPT_REFERENCE}" --prepare-body-file'
-    )
+    command = f'env -C {root} python3 -I "{PLUGIN_SCRIPT_REFERENCE}" --prepare-body-file'
     result = runner(command, root)
     assert result.returncode == 0, result.stderr
 
@@ -96,6 +92,112 @@ def test_denial_includes_remediation(runner, tmp_path: Path) -> None:
     result = runner(command, root)
     assert result.returncode == 2
     assert "Remediation" in result.stderr
+
+
+# -- Negative: the env prefix offset cannot be used to smuggle an untrusted
+# -- interpreter or wrapper (PR #5106 review r3789851488).
+
+
+@pytest.mark.parametrize("runner", _RUNNERS)
+def test_leading_path_assignment_denied(runner, tmp_path: Path) -> None:
+    """A leading PATH= assignment must not shift the python3 -I offset.
+
+    Regression for the bypass this fix must not reopen: reusing a relevance
+    classifier that skips leading assignments as the allowlist offset would
+    let ``PATH=<attacker dir> python3 -I <trusted script>`` pass as if
+    ``python3`` were still the offset-0 token the guard verified.
+    """
+    root, _script = _repository(tmp_path)
+    command = f'PATH=/nonexistent python3 -I "{PLUGIN_SCRIPT_REFERENCE}" --prepare-body-file'
+    result = runner(command, root)
+    assert result.returncode == 2
+
+
+@pytest.mark.parametrize("runner", _RUNNERS)
+def test_local_env_lookalike_denied(runner, tmp_path: Path) -> None:
+    """A locally planted ``./env`` that is not the real system env is denied.
+
+    ``env`` is matched by resolved content, not by the literal name ``env``,
+    so a same-named script sitting in the worktree cannot stand in for the
+    trusted system binary.
+    """
+    root, _script = _repository(tmp_path)
+    fake_env = root / "env"
+    fake_env.write_text('#!/bin/sh\nexec "$@"\n', encoding="utf-8")
+    fake_env.chmod(0o755)
+    command = f'./env --chdir={root} python3 -I "{PLUGIN_SCRIPT_REFERENCE}" --prepare-body-file'
+    result = runner(command, root)
+    assert result.returncode == 2
+
+
+@pytest.mark.parametrize("runner", _RUNNERS)
+def test_env_with_extra_option_denied(runner, tmp_path: Path) -> None:
+    """env --chdir combined with any other env option must be denied."""
+    root, _script = _repository(tmp_path)
+    command = (
+        f'env --chdir={root} --unset=FOO python3 -I "{PLUGIN_SCRIPT_REFERENCE}" --prepare-body-file'
+    )
+    result = runner(command, root)
+    assert result.returncode == 2
+
+
+@pytest.mark.parametrize("runner", _RUNNERS)
+def test_env_ignore_environment_denied(runner, tmp_path: Path) -> None:
+    """env -i before --chdir must be denied; only a bare --chdir/-C is allowed."""
+    root, _script = _repository(tmp_path)
+    command = f'env -i --chdir={root} python3 -I "{PLUGIN_SCRIPT_REFERENCE}" --prepare-body-file'
+    result = runner(command, root)
+    assert result.returncode == 2
+
+
+@pytest.mark.parametrize("runner", _RUNNERS)
+def test_wrapper_before_env_denied(runner, tmp_path: Path) -> None:
+    """A wrapper preceding env (sudo, nice, ...) must be denied."""
+    root, _script = _repository(tmp_path)
+    command = f'sudo env --chdir={root} python3 -I "{PLUGIN_SCRIPT_REFERENCE}" --prepare-body-file'
+    result = runner(command, root)
+    assert result.returncode == 2
+
+
+@pytest.mark.parametrize("runner", _RUNNERS)
+def test_env_chdir_shell_expansion_denied(runner, tmp_path: Path) -> None:
+    """A --chdir value carrying shell expansion markers must be denied."""
+    root, _script = _repository(tmp_path)
+    command = f'env --chdir=$HOME python3 -I "{PLUGIN_SCRIPT_REFERENCE}" --prepare-body-file'
+    result = runner(command, root)
+    assert result.returncode == 2
+
+
+@pytest.mark.parametrize("runner", _RUNNERS)
+def test_env_chdir_target_other_than_cwd_denied(runner, tmp_path: Path) -> None:
+    """A --chdir target other than the hook's own cwd must be denied.
+
+    Regression for the CWE-367 finding on PR #5106's automated security
+    review: this guard resolves the relative plugin script reference
+    against its own ``cwd``, while the real shell resolves the same
+    relative operand against wherever ``env --chdir`` actually moved to.
+    A directory carrying an attacker-controlled ``new_pr.py`` lookalike at
+    the identical relative path must not be reachable by chdir-ing there.
+    """
+    root, _script = _repository(tmp_path)
+    evil_root = tmp_path / "evil"
+    evil_script = evil_root / ".claude" / "skills" / "github" / "scripts" / "pr" / "new_pr.py"
+    evil_script.parent.mkdir(parents=True, exist_ok=True)
+    evil_script.write_text("#!/usr/bin/env python3\nprint('PWNED')\n", encoding="utf-8")
+    evil_script.chmod(0o755)
+    (evil_root / ".git").mkdir(parents=True, exist_ok=True)
+    command = f'env --chdir={evil_root} python3 -I "{PLUGIN_SCRIPT_REFERENCE}" --prepare-body-file'
+    result = runner(command, root)
+    assert result.returncode == 2
+
+
+@pytest.mark.parametrize("runner", _RUNNERS)
+def test_prepare_body_file_duplicate_denied(runner, tmp_path: Path) -> None:
+    """Repeating --prepare-body-file must be denied, not silently accepted."""
+    root, _script = _repository(tmp_path)
+    command = f'python3 -I "{PLUGIN_SCRIPT_REFERENCE}" --prepare-body-file --prepare-body-file'
+    result = runner(command, root)
+    assert result.returncode == 2
 
 
 # -- Negative: gh pr create is out of scope (stays allowed=0 by this guard) --

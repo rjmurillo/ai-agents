@@ -85,7 +85,11 @@ from _push_pr_guard_lex import (  # noqa: E402
     _split_command,
 )
 from _push_pr_guard_scope import _command_is_in_scope  # noqa: E402
-from _push_pr_guard_tables import _EXPANSION_SAFE_COMMANDS, _SHELL_EVALUATORS  # noqa: E402
+from _push_pr_guard_tables import (  # noqa: E402
+    _ENV_COMMANDS,
+    _EXPANSION_SAFE_COMMANDS,
+    _SHELL_EVALUATORS,
+)
 
 # The entry is removed only when this file added it. Every module above
 # imports its own dependencies at module scope, so nothing else needs to
@@ -211,16 +215,101 @@ def _targets_new_pr(tokens: list[ShellToken], cwd: Path) -> bool:
     return target_mentioned and (python_mentioned or dynamic_command or direct_command)
 
 
+def _validated_chdir_length(
+    directory_raw: str, directory_value: str, prefix_length: int, cwd: Path
+) -> int | None:
+    """Reject a ``--chdir``/``-C`` operand this guard cannot vouch for.
+
+    Three independent checks, any of which denies the prefix:
+
+    1. Empty or shell-expansion-bearing (``$``, backtick, a glob marker):
+       the value is not a literal path this guard can resolve.
+    2. Does not resolve to an existing directory.
+    3. Resolves to a directory other than the guard's own ``cwd``.
+
+    Check 3 is the one that is easy to miss. This guard, and ``new_pr.py``
+    itself, resolve the (often relative) plugin script reference and any
+    ``.agents/scratch`` body file against ``cwd``. The real shell resolves
+    those same relative operands against wherever ``env`` actually chdirs
+    to. Accepting a ``--chdir`` target that differs from ``cwd`` would let
+    the file this guard validates and the file the shell executes diverge:
+    a Critical CWE-367 finding from PR #5106's automated security review.
+    Pinning the target to ``cwd`` makes ``--chdir`` a verified no-op, which
+    is sufficient for issue #4930 (the documented recipe chdirs to the
+    worktree the hook already reports as ``cwd``) and closes the divergence.
+    """
+    if not directory_value or _contains_active_shell_expansion(directory_raw):
+        return None
+    candidate = Path(directory_value)
+    if not candidate.is_absolute():
+        candidate = cwd / candidate
+    try:
+        resolved = candidate.resolve(strict=True)
+    except OSError:
+        return None
+    if resolved != cwd:
+        return None
+    return prefix_length
+
+
+def _env_chdir_prefix_length(tokens: list[ShellToken], cwd: Path) -> int | None:
+    """Return the token count of a trusted ``env --chdir``/``-C`` prefix, or ``None``.
+
+    Scoped narrowly to the one prefix issue #4930 needs: an external worktree
+    selecting its working directory with GNU env's ``--chdir``/``-C`` before
+    invoking ``python3``. Deliberately does not reuse
+    ``_effective_command_index``/``_env_command_index``: those are relevance
+    classifiers that admit any leading assignment and any option ``env``
+    supports, matched by NAME rather than resolved identity. Reusing that
+    index as an allowlist offset let ``PATH=./attacker python3 -I ...`` and a
+    locally planted ``./env`` lookalike both pass as if the offset were
+    trusted (PR #5106 review r3789851488). This helper instead requires
+    ``env`` to resolve, by content, to the real system ``env`` binary and
+    accepts exactly one ``--chdir``/``-C`` option, targeting exactly ``cwd``
+    (see ``_validated_chdir_length``), with no other env flags, no leading
+    assignment, and no other wrapper. Any other shape returns ``None`` so the
+    caller falls back to requiring no prefix at all.
+    """
+    if not tokens or _command_name(tokens[0].value) not in _ENV_COMMANDS:
+        return None
+    if not _resolves_to_installed_command(tokens, 0, cwd, _ENV_COMMANDS):
+        return None
+    if len(tokens) < 2:
+        return None
+    option_token = tokens[1]
+    option = option_token.value
+    if option.startswith("--chdir="):
+        return _validated_chdir_length(option_token.raw, option.partition("=")[2], 2, cwd)
+    if option in {"-C", "--chdir"}:
+        if len(tokens) < 3:
+            return None
+        return _validated_chdir_length(tokens[2].raw, tokens[2].value, 3, cwd)
+    if option.startswith("-C") and len(option) > 2:
+        return _validated_chdir_length(option_token.raw, option[2:], 2, cwd)
+    return None
+
+
 def _interpreter_offset(tokens: list[ShellToken], cwd: Path) -> int:
-    """Return the token index of ``python3`` after skipping env/wrappers."""
-    index = _effective_command_index(tokens)
-    if index is None:
-        raise GuardViolationError("new_pr.py must run with python3 -I")
-    return index
+    """Return the token index of ``python3``, after an optional trusted env prefix.
+
+    The only admitted prefix is the one ``_env_chdir_prefix_length`` verifies
+    (a content-trusted ``env`` running exactly ``--chdir``/``-C``). Any other
+    shape, including a bare invocation, falls back to offset 0; a wrong
+    literal at that position is caught by the ``python3 -I`` check in
+    ``_script_reference``.
+    """
+    prefix_length = _env_chdir_prefix_length(tokens, cwd)
+    return prefix_length if prefix_length is not None else 0
 
 
-def _script_reference(tokens: list[ShellToken], cwd: Path) -> ShellToken:
-    offset = _interpreter_offset(tokens, cwd)
+def _script_reference(tokens: list[ShellToken], offset: int) -> ShellToken:
+    """Validate and return the ``new_pr.py`` script token at ``offset + 2``.
+
+    ``offset`` is computed once by the caller (``_interpreter_offset``) and
+    passed in here and to ``_validate_new_pr_arguments``, rather than each
+    recomputing it, so the two validation passes cannot silently disagree on
+    where the interpreter starts (PR #5106 review, CWE-1164 finding).
+    """
     values = [token.value for token in tokens]
     if len(tokens) < offset + 3 or values[offset : offset + 2] != ["python3", "-I"]:
         raise GuardViolationError("new_pr.py must run with python3 -I")
@@ -248,8 +337,7 @@ def _validate_new_pr_arguments(tokens: list[ShellToken], cwd: Path, offset: int)
         return
     if option_keys != {"--title", "--body-file"}:
         raise GuardViolationError(
-            "new_pr.py requires exactly --title and --body-file, "
-            "or --prepare-body-file alone"
+            "new_pr.py requires exactly --title and --body-file, or --prepare-body-file alone"
         )
     if not values["--title"].strip():
         raise GuardViolationError("new_pr.py title cannot be empty")
@@ -265,10 +353,11 @@ def _new_pr_option_values(tokens: list[ShellToken], args_start: int) -> dict[str
         option = tokens[index].value
         if option not in allowed_options:
             raise GuardViolationError(
-                "new_pr.py accepts only --title, --body-file, "
-                "or --prepare-body-file here"
+                "new_pr.py accepts only --title, --body-file, or --prepare-body-file here"
             )
         if option == "--prepare-body-file":
+            if option in values:
+                raise GuardViolationError(f"new_pr.py option {option} is duplicate")
             values[option] = ""
             index += 1
             continue
@@ -384,11 +473,11 @@ def _verify_new_pr_invocation(command: str, tokens: list[ShellToken], cwd: Path)
         if arguments is not None:
             raise GuardViolationError("Python execution is limited to the approved new_pr.py")
         raise GuardViolationError("command references new_pr.py through an unsupported launcher")
-    script = _script_path(_script_reference(tokens, cwd), cwd)
+    offset = _interpreter_offset(tokens, cwd)
+    script = _script_path(_script_reference(tokens, offset), cwd)
     if script != _runtime_script():
         raise GuardViolationError("resolved script is not an approved new_pr.py")
     _validate_runtime_bundle(script)
-    offset = _interpreter_offset(tokens, cwd)
     _validate_new_pr_arguments(tokens, cwd, offset)
 
 
