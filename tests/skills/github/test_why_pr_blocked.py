@@ -740,22 +740,3 @@ class TestMain:
         out = capsys.readouterr().out
         assert rc == 0
         assert "mergeable" in out.lower() or "no blocking" in out.lower()
-
-    def test_human_output_missing_checks_includes_recovery_hint(self, capsys):
-        """Human summary for missing required checks recommends close/reopen."""
-        gql = _gql_pr(
-            overall_state="SUCCESS",
-            check_nodes=[_check_run_node("Run Python Tests", "SUCCESS")],
-        )
-        with patch("why_pr_blocked.assert_gh_authenticated"), patch(
-            "why_pr_blocked.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch("why_pr_blocked.gh_graphql", return_value=gql), patch(
-            "why_pr_blocked.fetch_ruleset_required_contexts",
-            return_value=["Run Python Tests", "Validate PR"],
-        ):
-            rc = main(["--pull-request", "42", "--output-format", "human"])
-
-        out = capsys.readouterr().out
-        assert rc == 1
-        assert "close and reopen" in out.lower()

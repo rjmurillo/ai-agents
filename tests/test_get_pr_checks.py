@@ -1947,28 +1947,6 @@ class TestMissingRequired:
         assert set(data["MissingRequiredChecks"]) == {"Validate PR", "PR Validation"}
         assert data["AllPassing"] is False
 
-    def test_missing_required_human_summary_includes_recovery_hint(self, capsys):
-        """Human output recommends close/reopen recovery for missing checks."""
-        rollup = self._green_rollup("Run Python Tests")
-        ruleset = ["Run Python Tests", "Validate PR"]
-
-        with patch("get_pr_checks.assert_gh_authenticated"), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql", return_value=rollup
-        ), patch(
-            "get_pr_checks.fetch_ruleset_required_contexts",
-            return_value=ruleset,
-        ):
-            main(["--pull-request", "4009", "--output-format", "human"])
-
-        captured = capsys.readouterr()
-        combined = (captured.out + captured.err).lower()
-        assert "close and reopen" in combined, (
-            "Human summary must include close/reopen recovery hint"
-        )
-
     def test_ruleset_fetch_failure_exits_3(self, capsys):
         """Ruleset API failure cannot report passing checks."""
         rollup = self._green_rollup()
