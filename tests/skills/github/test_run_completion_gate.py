@@ -645,6 +645,42 @@ class TestPassWhenDslNegativeBranches:
             )
 
 
+class TestRepositoryConfigContract:
+    """Keep the trusted repository config inside the safe evaluator subset."""
+
+    def test_ready_criterion_expression_is_evaluable(self):
+        # src/copilot-cli/commands/pr-review-config.yaml is the production
+        # contract consumed by /pr-autofix before it enables auto-merge.
+        config_path = (
+            _REPO_ROOT
+            / "src"
+            / "copilot-cli"
+            / "commands"
+            / "pr-review-config.yaml"
+        )
+        config = _dispatcher.yaml.safe_load(
+            config_path.read_text(encoding="utf-8"),
+        )
+        criterion = next(
+            item
+            for item in config["completion_criteria"]
+            if item["name"] == "PR is ready to merge (CI green, no conflicts)"
+        )
+        data = {
+            "CanMerge": True,
+            "CIPassing": True,
+            "fetched_pages_complete": True,
+            "UnresolvedThreads": 0,
+            "MergeStateStatus": "CLEAN",
+            "UndisposedNonRequiredFailures": [],
+        }
+
+        assert _dispatcher._eval_pass_when_python(
+            data,
+            criterion["pass_when_python"],
+        ) is True
+
+
 class TestPassWhenPythonNegativeBranches:
     """Cover the AST-rejection paths in _eval_pass_when_python.
 
