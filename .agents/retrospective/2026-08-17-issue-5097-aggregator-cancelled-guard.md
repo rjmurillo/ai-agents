@@ -142,3 +142,34 @@ MUST-1, this landed retro is not edited in place; this section corrects it.
 4. **Unowned follow-up (Remediation section) is now owned.** The
    `codeql-analysis.yml::check-blocking-issues` follow-up, listed as "Worth
    its own issue," is tracked by issue #5104.
+
+## Correction 2026-08-18, round 2 (PR #5141 review)
+
+A Copilot review round on PR #5141, the fix for the four items above, found
+that item 1 was left without an owner and that item 2's replacement claim
+was itself wrong. Per retros.md MUST-1, this appends rather than edits the
+round-1 correction above.
+
+1. **FM-10 replacement is now tracked.** Round 1 said "filing that ADR is a
+   follow-up, not completed here" with no issue number, which a reviewer
+   correctly read as leaving the retrospective's MUST-2 obligation
+   unresolved and unowned. Issue #5145 tracks proposing a new
+   `FAILURE-MODES.md` class (or an explicit decision that none is
+   warranted) for this failure's shape: a boolean guard conflating two
+   non-equivalent upstream states, with the result surfaced loudly rather
+   than suppressed.
+
+2. **Round 1's "cancelled-vs-skipped" replacement mechanism was itself
+   wrong.** Round 1 wrote: "`if:` is evaluated once, before a job starts; a
+   job already running when the whole-run cancellation lands is
+   force-terminated with conclusion `cancelled`, not `skipped`, since `if:`
+   is not re-evaluated mid-run." That is backwards. GitHub's workflow
+   cancellation reference states directly: "To cancel the workflow run, the
+   server re-evaluates `if` conditions for all currently running jobs. If
+   the condition evaluates to `true`, the job will not get canceled." A
+   running job's `!cancelled()` flips to false under that re-evaluation,
+   and the job is cancelled BECAUSE of the re-evaluation, not despite `if:`
+   never being re-evaluated. The observed conclusion (`cancelled`, verified
+   on run `31896264033`) and the practical guarantee (a guarded job never
+   concludes the red `failure` `always()` produced) are unchanged; only the
+   stated mechanism was wrong, twice in a row, before this correction.

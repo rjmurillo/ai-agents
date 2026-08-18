@@ -29,17 +29,23 @@ check function, so it keeps the enforcement gap in Issue #856 closed: the job
 still runs when a dependency failed or was skipped.
 
 **Correction 2026-08-18 (Issue #5139): the guarded job does not always "skip"
-during cancellation.** `if:` is evaluated once, before the job starts. A job
-that had not yet started when the whole run is cancelled gets conclusion
-`skipped`. A job that HAD already started gets force-terminated with
-conclusion `cancelled`, regardless of its `if:` condition. Verified against a
-real superseded run on this repository (`actions_get get_workflow_run` on run
-`31896264033`): overall conclusion `cancelled`, with its "Run Python Tests"
-and "Main failure alert" jobs both reporting `cancelled`, not `skipped`.
-Either way the guard still does its job: `cancelled` and `skipped` are both
-non-`success` and non-`failure`, so branch protection keeps waiting on a
-superseded run rather than merging on a false green, and neither is the red
-`failure` that `always()` produced.
+during cancellation.** GitHub re-evaluates a job's `if:` condition for every
+currently running job when the run is cancelled (docs.github.com, workflow
+cancellation reference): "To cancel the workflow run, the server re-evaluates
+`if` conditions for all currently running jobs. If the condition evaluates to
+`true`, the job will not get canceled." A job already running when
+cancellation lands has `!cancelled()` flip to false on that re-evaluation and
+is itself cancelled as a result, concluding `cancelled`, not the earlier
+"`if:` is evaluated once, before the job starts" mechanism this correction
+originally stated (a Copilot review finding on PR #5141 caught the error).
+Verified against a real superseded run on this repository (`actions_get
+get_workflow_run` on run `31896264033`): overall conclusion `cancelled`, with
+its "Run Python Tests" and "Main failure alert" jobs both reporting
+`cancelled`, not `skipped`. This memory makes no claim about the exact
+conclusion a not-yet-started job reports; the guard still does its job either
+way, because `cancelled` is (like `skipped`) neither `success` nor `failure`,
+so branch protection keeps waiting on a superseded run rather than merging on
+a false green, and neither is the red `failure` that `always()` produced.
 
 Read every `if: always() && ...` example below as `if: !cancelled() && ...`.
 Mind the YAML: a plain scalar beginning with `!` parses as a tag, so use a `>-`

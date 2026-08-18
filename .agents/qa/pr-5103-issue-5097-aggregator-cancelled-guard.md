@@ -37,16 +37,24 @@ Two consequences the fix depends on:
    preserves the cli-smoke pass-through for the no-CLI-change case (#1168) and
    the plugin-hook guard's refusal to report success when its matrix never ran
    (#4672).
-2. When the run itself is being cancelled, `if:` is evaluated once, before a
-   job starts: a not-yet-started guarded job concludes `skipped`, while one
-   already running is force-terminated and concludes `cancelled`. Verified
-   against a real superseded run on this PR (`actions_get get_workflow_run`
-   on run `31896264033`): overall conclusion `cancelled`, with its "Run
-   Python Tests" and "Main failure alert" jobs both `cancelled`, not
-   `skipped`. Either conclusion is a non-success, so branch protection keeps
-   waiting instead of merging on a false green. Correction 2026-08-18,
-   issue #5139: this report originally said the job "skips" and "publishes
-   no check run" in every case.
+2. GitHub re-evaluates a job's `if:` condition for every currently running
+   job when the run is cancelled (docs.github.com, workflow cancellation
+   reference: "To cancel the workflow run, the server re-evaluates `if`
+   conditions for all currently running jobs. If the condition evaluates to
+   `true`, the job will not get canceled."). A guarded job already running
+   has `!cancelled()` flip to false on that re-evaluation and is cancelled
+   as a result, concluding `cancelled`. Verified against a real superseded
+   run on this PR (`actions_get get_workflow_run` on run `31896264033`):
+   overall conclusion `cancelled`, with its "Run Python Tests" and "Main
+   failure alert" jobs both `cancelled`. This report makes no claim about
+   the exact conclusion a not-yet-started job reports. Either way the
+   observed conclusion is a non-success, so branch protection keeps waiting
+   instead of merging on a false green. Corrected twice, issue #5139: this
+   report first said the job "skips" and "publishes no check run" in every
+   case, then (2026-08-18, a Copilot review finding on PR #5141) wrongly
+   attributed the corrected `cancelled` conclusion to `if:` being "evaluated
+   once, before a job starts" instead of the actual re-evaluation mechanism
+   quoted above.
 
 YAML note: a plain scalar beginning with `!` parses as a YAML tag, so each
 condition uses either the existing `>-` block scalar or `${{ }}`. All 64
@@ -195,18 +203,21 @@ agent is still recommended by protocol.
 
 1. `codeql-analysis.yml::check-blocking-issues` keeps `always()`. It is outside
    the fixed shape (it reads SARIF, not `needs.<job>.result`), but a cancelled
-   run can still leave it red on missing artifacts. Worth its own issue.
+   run can still leave it red on missing artifacts. Tracked in issue #5104.
 2. `ai-pr-quality-gate.yml::aggregate` and `ai-session-protocol.yml::aggregate`
    keep the redundant `always() && !cancelled()` spelling, so the repository
    now carries two spellings of one guard. Cosmetic, deliberately out of scope.
 3. Resolved, issue #5139: a real superseded run on this PR (`31896264033`)
    showed the aggregate jobs concluding `cancelled` rather than `failure`,
    confirming the fix. This report originally predicted `skipped`; the
-   observed conclusion for an already-running job is `cancelled` instead
-   (`if:` is evaluated once, before a job starts, so a cancellation mid-run
-   force-terminates rather than skips). Both are non-`failure`, so the
-   fix's actual guarantee, no false-red for a superseded run, holds either
-   way.
+   observed conclusion for an already-running job is `cancelled` instead,
+   because GitHub re-evaluates `if:` for currently running jobs when a run
+   is cancelled and `!cancelled()` then flips to false (docs.github.com,
+   workflow cancellation reference; a Copilot review finding on PR #5141
+   caught this report's earlier, wrong "evaluated once, before a job
+   starts" claim). Both `cancelled` and `failure` are distinct conclusions,
+   and only `cancelled` is observed here, so the fix's actual guarantee, no
+   false-red for a superseded run, holds.
 4. Forgetful MCP was unreachable in this container, so no Forgetful entry was
    written for this finding. Serena MCP was reachable: the corrected memory
    `ci/ci-infrastructure-aggregate-job-always-pattern` was read and updated
