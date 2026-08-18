@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import runpy
 import subprocess
 import sys
 from pathlib import Path
@@ -58,3 +59,43 @@ def test_git_pins_the_diagnostic_locale(
 
     with pytest.raises(check_git_hook_health.NotGitRepositoryError):
         check_git_hook_health._git(tmp_path, "rev-parse", "--git-path", "hooks")
+
+
+def test_scratch_git_helpers_isolate_host_configuration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    helpers = runpy.run_path(str(Path(__file__).with_name("test_check_git_hook_health.py")))
+    observed: list[object] = []
+
+    def fake_run(*_args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        observed.append(kwargs.get("env"))
+        return subprocess.CompletedProcess(args=["git"], returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    helpers["_git"](tmp_path, "status")
+    helpers["_run_cli"](tmp_path)
+
+    assert all(
+        isinstance(env, dict) and env.get("GIT_CONFIG_NOSYSTEM") == "1"
+        for env in observed
+    )
+    assert all(
+        isinstance(env, dict) and env.get("GIT_CONFIG_GLOBAL") == os.devnull
+        for env in observed
+    )
+
+
+def test_non_directory_hooks_path_is_reported_accurately(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hooks_path = tmp_path / "hooks-file"
+    hooks_path.write_text("disabled\n", encoding="utf-8")
+    monkeypatch.setattr(
+        check_git_hook_health,
+        "_configured_hooks_path",
+        lambda _repo_root: (str(hooks_path), "local"),
+    )
+
+    reason = check_git_hook_health._failed_condition(tmp_path, hooks_path)
+
+    assert "exists but is not a directory" in reason

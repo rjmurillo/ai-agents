@@ -186,10 +186,15 @@ def _failed_condition(repo_root: Path, hooks_dir: Path) -> str:
     if configured is None:
         return f"{hook} is missing and core.hooksPath is unset"
     scope_text = f" in {scope} scope" if scope is not None else ""
-    if not hooks_dir.is_dir():
+    if not hooks_dir.exists():
         return (
             f"core.hooksPath is set to '{configured}'{scope_text} "
             "and that directory does not exist"
+        )
+    if not hooks_dir.is_dir():
+        return (
+            f"core.hooksPath is set to '{configured}'{scope_text} "
+            "and that path exists but is not a directory"
         )
     return (
         f"core.hooksPath is set to '{configured}'{scope_text} "

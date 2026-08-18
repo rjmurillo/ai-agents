@@ -58,6 +58,15 @@ GUARD = _VALIDATION_DIR / "check_git_hook_health.py"
 LEFTHOOK_CONFIG = "pre-push:\n  commands:\n    noop:\n      run: true\n"
 
 
+def _git_test_env() -> dict[str, str]:
+    """Return a host-independent environment for scratch Git repositories."""
+    return {
+        "PATH": os.environ.get("PATH", ""),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+    }
+
+
 @pytest.fixture(autouse=True)
 def _exercise_local_clone_contract(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep local-clone tests independent of the runner's ambient CI state."""
@@ -67,7 +76,12 @@ def _exercise_local_clone_contract(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(
-        ["git", *args], cwd=str(cwd), capture_output=True, text=True, check=False
+        ["git", *args],
+        cwd=str(cwd),
+        env=_git_test_env(),
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert result.returncode == 0, f"git {args} failed: {result.stderr}"
     return result
@@ -102,7 +116,7 @@ def _run_cli(repo: Path, guard: Path = GUARD) -> subprocess.CompletedProcess[str
     return subprocess.run(
         [sys.executable, str(guard), str(repo)],
         cwd=str(repo),
-        env={"PATH": os.environ.get("PATH", "")},
+        env=_git_test_env(),
         capture_output=True,
         text=True,
         check=False,
