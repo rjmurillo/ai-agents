@@ -43,11 +43,15 @@ def _code_block_lines(markdown: str) -> list[str]:
     """Return every line this scan attributes to a fenced or indented code block.
 
     Fenced blocks are tracked by opening marker character (backtick or
-    tilde); the closing fence must repeat that same character at least
-    three times, matching CommonMark's requirement, with up to three
-    leading spaces. An indented line (four spaces or a tab) outside a
-    fence is also treated as code, which over-flags list-continuation
-    prose but never under-flags an actual indented code block.
+    tilde); per CommonMark, the closing fence must repeat that same
+    character at least as many times as the opening fence (not merely
+    three), with up to three leading spaces. A closer shorter than the
+    opener does not close the block: an unrelated three-backtick line
+    inside a four-or-more-backtick-opened fence is still code, not a
+    closer, so it must not end the scan's "in code" state early. An
+    indented line (four spaces or a tab) outside a fence is also treated
+    as code, which over-flags list-continuation prose but never
+    under-flags an actual indented code block.
     """
     lines = markdown.split("\n")
     result: list[str] = []
@@ -64,7 +68,8 @@ def _code_block_lines(markdown: str) -> list[str]:
         if fence_match:
             in_fence = True
             fence_char = fence_match.group(1)[0]
-            close_pattern = re.compile(rf"^ {{0,3}}{re.escape(fence_char)}{{3,}}\s*$")
+            fence_length = len(fence_match.group(1))
+            close_pattern = re.compile(rf"^ {{0,3}}{re.escape(fence_char)}{{{fence_length},}}\s*$")
             result.append(line)
             continue
         if _INDENTED_CODE_PATTERN.match(line):

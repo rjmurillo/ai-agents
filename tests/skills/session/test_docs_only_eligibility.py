@@ -108,6 +108,20 @@ class TestUnitCodeBlockDetection:
         # extracted content, not a defect.
         assert lines == ["```", "code forever", ""]
 
+    def test_four_backtick_fence_is_not_closed_by_a_shorter_run(self):
+        """A closer must be at least as long as the opener (CommonMark).
+
+        Without tracking the opening fence's length, a bare three-backtick
+        line inside a four-backtick-opened fence would prematurely end the
+        scan's "in code" state, letting real code after that point escape
+        detection. The showcased-fence line here is exactly that trap: it
+        is code content (an example of Markdown syntax), not a closer.
+        """
+        mod = _load_module()
+        markdown = "````\nshowing a fence: ```\nstill code\n````\n"
+        lines = mod._code_block_lines(markdown)
+        assert lines == ["````", "showing a fence: ```", "still code", "````"]
+
 
 class TestEligibleEditorialChange:
     """Positive: a pure prose edit to a Markdown file is eligible."""
@@ -184,6 +198,36 @@ class TestIneligibleChanges:
 
         payload = _run_script(start, head, repo)
         assert payload["Eligible"] is True
+
+    def test_code_change_inside_a_four_backtick_fence_is_a_violation(self, repo: Path):
+        """Regression: a bare 3-backtick line inside the fence must not close it early.
+
+        Pre-fix, the closer only required 3+ backticks regardless of the
+        opener's length, so this fence would close on the "showing a
+        fence" line and the real code change on the following line would
+        fall outside the scan's "in code" state and go undetected,
+        letting an ineligible commit range pass as eligible.
+        """
+        (repo / "README.md").write_text(
+            "# Title\n\n````\nshowing a fence: ```\nx = 1\n````\n"
+        )
+        _git(["add", "."], repo)
+        _git(["commit", "-m", "add nested-fence example"], repo)
+        start = _git(["rev-parse", "HEAD"], repo)
+
+        (repo / "README.md").write_text(
+            "# Title\n\n````\nshowing a fence: ```\nx = 2\n````\n"
+        )
+        _git(["add", "."], repo)
+        _git(["commit", "-m", "docs: edit example"], repo)
+        head = _git(["rev-parse", "HEAD"], repo)
+
+        payload = _run_script(start, head, repo)
+        assert payload["Eligible"] is False
+        assert any(
+            "README.md" in v and "code block content changed" in v
+            for v in payload["Violations"]
+        )
 
     def test_new_markdown_file_with_code_is_ineligible(self, repo: Path):
         start = _git(["rev-parse", "HEAD"], repo)
