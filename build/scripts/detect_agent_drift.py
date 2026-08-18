@@ -16,6 +16,26 @@ The install copies are hand-maintained: no generator writes them
 already enforces that they move together in a diff; this script adds the
 semantic-similarity check that parity enforcement omits.
 
+Issue #4852 asks the gate to cover "all six maintained/generated surfaces or
+document why a surface is not a runtime input." The six are src/claude,
+src/vs-code-agents, src/copilot-cli/agents, .claude/agents, .github/agents,
+and templates/agents/*.shared.md (per build/AGENTS.md, "Hand-Maintained Agent
+Copies"). Two of those six (src/copilot-cli/agents and templates/agents) are
+intentionally NOT drift-compared here: src/copilot-cli/agents and
+src/vs-code-agents are both generated from templates/agents/*.shared.md by
+``build/generate_agents.py``, whose ``--validate`` flag (see
+``_handle_validate`` in that script) already holds src/copilot-cli/agents to
+an exact string match (normalized only for line endings) against its
+template source, not a similarity threshold; a generator bug there fails
+that check outright rather than drifting silently. templates/agents itself
+is the shared source both generated trees derive from, so it has no
+independent counterpart to drift against. The two comparisons this script
+does run (vendored src/claude vs src/vs-code-agents, and the hand-maintained
+.claude/agents vs .github/agents) cover the pairs where two independently
+maintained or independently editable copies can diverge without any
+generator or validator catching it, which is exactly the failure mode #4852
+reported.
+
 Claude agents have unique content and are NOT generated from templates.
 This script detects when Claude agents diverge significantly from the
 shared content that VS Code/Copilot agents are generated from.
@@ -90,19 +110,28 @@ REQUIRED_AGENT_SECTIONS = {
 }
 
 # Sections that legitimately exist on only one platform side.
-# Key: (agent_name, section_name) -> rationale string.
-# A section listed here is reported as "declared adapter" and does not fail.
-PLATFORM_ONLY_SECTIONS: dict[tuple[str, str], str] = {
-    # Claude Code Tools is Claude-specific runtime surface
-    ("implementer", "Claude Code Tools"): "Claude-specific runtime; no Copilot equivalent.",
-    ("architect", "Claude Code Tools"): "Claude-specific runtime; no Copilot equivalent.",
-    ("analyst", "Claude Code Tools"): "Claude-specific runtime; no Copilot equivalent.",
-    ("qa", "Claude Code Tools"): "Claude-specific runtime; no Copilot equivalent.",
-    ("critic", "Claude Code Tools"): "Claude-specific runtime; no Copilot equivalent.",
-    ("orchestrator", "Claude Code Tools"): "Claude-specific runtime; no Copilot equivalent.",
-    ("merge-resolver", "Claude Code Tools"): "Claude-specific runtime; no Copilot equivalent.",
-    ("security", "Claude Code Tools"): "Claude-specific runtime; no Copilot equivalent.",
-    ("retrospective", "Claude Code Tools"): "Claude-specific runtime; no Copilot equivalent.",
+# Key: (agent_name, section_name) -> (expected_side, rationale).
+# expected_side is "claude" or "vscode": the side the section is declared to
+# live on. A section listed here is reported as "declared adapter" and does
+# not fail ONLY when it is actually missing from the declared side (i.e. it is
+# present on the OTHER side and absent on `expected_side`). If the same
+# section name shows up missing in the opposite direction instead (present on
+# `expected_side`, absent from the other), that is undeclared drift and still
+# fails: the exception does not cover an inverted gap. See Issue #4852 review.
+_CLAUDE_TOOLS_RATIONALE = "Claude-specific runtime; no Copilot equivalent."
+
+PLATFORM_ONLY_SECTIONS: dict[tuple[str, str], tuple[str, str]] = {
+    # Claude Code Tools is Claude-specific runtime surface: declared present
+    # on the Claude side, absent on the VS Code/Copilot side.
+    ("implementer", "Claude Code Tools"): ("claude", _CLAUDE_TOOLS_RATIONALE),
+    ("architect", "Claude Code Tools"): ("claude", _CLAUDE_TOOLS_RATIONALE),
+    ("analyst", "Claude Code Tools"): ("claude", _CLAUDE_TOOLS_RATIONALE),
+    ("qa", "Claude Code Tools"): ("claude", _CLAUDE_TOOLS_RATIONALE),
+    ("critic", "Claude Code Tools"): ("claude", _CLAUDE_TOOLS_RATIONALE),
+    ("orchestrator", "Claude Code Tools"): ("claude", _CLAUDE_TOOLS_RATIONALE),
+    ("merge-resolver", "Claude Code Tools"): ("claude", _CLAUDE_TOOLS_RATIONALE),
+    ("security", "Claude Code Tools"): ("claude", _CLAUDE_TOOLS_RATIONALE),
+    ("retrospective", "Claude Code Tools"): ("claude", _CLAUDE_TOOLS_RATIONALE),
 }
 
 # Shared-template install-copy comparison label.
@@ -291,25 +320,53 @@ def remove_yaml_frontmatter(content: str) -> str:
     return content
 
 
+# CommonMark fenced code block opener/closer: 0-3 leading spaces, then three
+# or more of the SAME fence character (backtick or tilde). A closing fence
+# must reuse the opening character and be at least as long as the opener, so
+# a 4-backtick outer fence tolerates a 3-backtick line as ordinary content
+# (see .github/agents/task-decomposer.agent.md for a real example) and a
+# tilde fence never closes on a backtick line or vice versa.
+_FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+
+
 def get_markdown_sections(content: str) -> dict[str, str]:
     """Extract sections from markdown content based on ## headers.
 
-    Headings inside fenced code blocks (``` ... ```) are ignored so that
-    sample output templates do not pollute the section inventory.
+    Headings inside fenced code blocks are ignored so that sample output
+    templates do not pollute the section inventory. Fence detection follows
+    CommonMark: backtick (```) and tilde (~~~) fences, up to 3 leading spaces
+    of indentation (list-nested fences), and a closing fence must match the
+    opening fence's character and be at least as long.
     """
     sections: dict[str, str] = {}
     current_section = "preamble"
     current_lines: list[str] = []
-    in_fence = False
+    fence_char: str | None = None
+    fence_len = 0
 
     for line in content.splitlines():
-        # Track fenced code blocks (``` with optional language tag)
-        if re.match(r"^```", line):
-            in_fence = not in_fence
+        fence_match = _FENCE_RE.match(line)
+        if fence_match:
+            marker = fence_match.group(1)
+            char, length = marker[0], len(marker)
+            if fence_char is None:
+                # Opening a new fence.
+                fence_char = char
+                fence_len = length
+                current_lines.append(line)
+                continue
+            if char == fence_char and length >= fence_len:
+                # Closing the open fence: same character, at least as long.
+                fence_char = None
+                fence_len = 0
+                current_lines.append(line)
+                continue
+            # A different fence character, or a shorter same-character run,
+            # is ordinary content inside the still-open outer fence.
             current_lines.append(line)
             continue
 
-        if in_fence:
+        if fence_char is not None:
             current_lines.append(line)
             continue
 
@@ -468,7 +525,12 @@ def compare_agent(
     for section in sorted(only_in_claude | only_in_vscode):
         key = (agent_name, section)
         baseline_key = (agent_name, section, comparison)
-        if key in PLATFORM_ONLY_SECTIONS:
+        adapter_entry = PLATFORM_ONLY_SECTIONS.get(key)
+        actual_side = "claude" if section in only_in_claude else "vscode"
+        # The exception only covers the declared side. A section that is
+        # missing from its declared side but shows up unexplained on the
+        # OTHER side (an inverted gap) is not exempted by this entry.
+        if adapter_entry is not None and adapter_entry[0] == actual_side:
             adapter_sections.append(section)
         elif baseline_key in KNOWN_MISSING_SECTIONS:
             baselined_missing.append(section)
@@ -496,13 +558,17 @@ def compare_agent(
     overall = round(total_similarity / compared_count, 1) if compared_count > 0 else 100.0
     drifting = [r.section for r in section_results if r.status == "DRIFT"]
     has_missing = len(missing_sections) > 0
-    # A baselined agent pair accepts structural divergence; missing sections
-    # there do not override the baseline classification.
-    pair_is_baselined = (agent_name, comparison) in KNOWN_BASELINE_DRIFT
     required_section_drift = any(section in required_sections for section in drifting)
+    # A missing section (not covered by KNOWN_MISSING_SECTIONS or
+    # PLATFORM_ONLY_SECTIONS above) always fails, even for an agent pair
+    # baselined in KNOWN_BASELINE_DRIFT. That baseline exists to accept a
+    # measured *content-similarity floor* for pre-existing structural
+    # divergence; it must not silently swallow a brand-new missing section,
+    # or the gate cannot catch new drift on a baselined pair (Issue #4852 AC:
+    # "Existing baselines cannot suppress a newly missing section").
     overall_status = (
         "DRIFT DETECTED"
-        if required_section_drift or (has_missing and not pair_is_baselined)
+        if required_section_drift or has_missing
         else _classify_overall(agent_name, overall, threshold, comparison)
     )
 
@@ -592,7 +658,19 @@ def format_json(
     ok_count: int,
     no_counterpart_count: int,
 ) -> str:
-    """Format results as JSON output."""
+    """Format results as JSON output.
+
+    Carries the same three separated counts as ``format_text``: missing
+    sections, content-drift sections, and declared adapters, both per-agent
+    (``missingSections``/``adapterSections`` lists) and totalled in
+    ``summary`` (``missingSections``/``contentDriftSections``/``adapterSections``).
+    Consumers of this JSON (``scripts/ci/parse_drift_results.py``) read these
+    fields to name a missing heading in the drift alert, not only content drift.
+    """
+    total_missing = sum(len(r.missing_sections) for r in results)
+    total_adapters = sum(len(r.adapter_sections) for r in results)
+    total_content_drift = sum(1 for r in results for s in r.sections if s.status == "DRIFT")
+
     output = {
         "duration": duration,
         "threshold": threshold,
@@ -601,6 +679,9 @@ def format_json(
             "ok": ok_count,
             "driftDetected": drift_count,
             "noCounterpart": no_counterpart_count,
+            "missingSections": total_missing,
+            "contentDriftSections": total_content_drift,
+            "adapterSections": total_adapters,
         },
         "results": [
             {
@@ -619,6 +700,8 @@ def format_json(
                     for s in r.sections
                 ],
                 "driftingSections": r.drifting_sections,
+                "missingSections": r.missing_sections,
+                "adapterSections": r.adapter_sections,
             }
             for r in results
         ],
@@ -643,17 +726,26 @@ def format_markdown(
     lines.append("")
     lines.append("## Summary")
     lines.append("")
+    total_missing = sum(len(r.missing_sections) for r in results)
+    total_adapters = sum(len(r.adapter_sections) for r in results)
+    total_content_drift = sum(1 for r in results for s in r.sections if s.status == "DRIFT")
+
     lines.append("| Metric | Count |")
     lines.append("|--------|-------|")
     lines.append(f"| Agents Compared | {len(results)} |")
     lines.append(f"| OK | {ok_count} |")
     lines.append(f"| Drift Detected | {drift_count} |")
     lines.append(f"| No Counterpart | {no_counterpart_count} |")
+    lines.append(f"| Missing Sections | {total_missing} |")
+    lines.append(f"| Content Drift Sections | {total_content_drift} |")
+    lines.append(f"| Declared Adapters | {total_adapters} |")
     lines.append("")
     lines.append("## Results")
     lines.append("")
-    lines.append("| Agent | Comparison | Status | Similarity | Drifting Sections |")
-    lines.append("|-------|------------|--------|------------|-------------------|")
+    lines.append(
+        "| Agent | Comparison | Status | Similarity | Drifting Sections | Missing Sections |"
+    )
+    lines.append("|-------|------------|--------|------------|-------------------|-------------------|")
 
     for result in sorted(results, key=lambda r: (r.comparison, r.agent_name)):
         if result.overall_similarity is not None:
@@ -661,9 +753,10 @@ def format_markdown(
         else:
             similarity = "N/A"
         drifting = ", ".join(result.drifting_sections) if result.drifting_sections else "-"
+        missing = ", ".join(result.missing_sections) if result.missing_sections else "-"
         lines.append(
             f"| {result.agent_name} | {result.comparison} | {result.status} "
-            f"| {similarity} | {drifting} |"
+            f"| {similarity} | {drifting} | {missing} |"
         )
 
     return "\n".join(lines)
@@ -926,10 +1019,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Exit non-zero when the .claude/agents vs .github/agents install "
-            "comparison finds drift. Default: install drift is advisory "
+            "comparison finds CONTENT drift (an existing shared section whose "
+            "text diverged). Default: install content drift is advisory "
             "(reported but does not change the exit code), because the two "
             "self-host copies have large pre-existing structural differences "
-            "(Issue #2267). The vendored src comparison always affects the exit "
+            "(Issue #2267). A MISSING section (an H2 present on only one "
+            "side) always fails the install comparison too, with or without "
+            "this flag. The vendored src comparison always affects the exit "
             "code."
         ),
     )
@@ -1075,11 +1171,22 @@ def _exit_code(
 
     Vendored (src) drift blocks except for agents listed in
     ``_ADVISORY_VENDORED_DRIFT``. Install (.claude/agents vs .github/agents)
-    drift is advisory by default because the two self-host copies carry large
-    pre-existing structural differences (Issue #2267). Required agent sections
-    are always blocking, including in the install comparison;
-    ``--fail-on-install-drift`` promotes it to blocking once those are
-    reconciled.
+    CONTENT drift (an existing shared section whose text diverged) is
+    advisory by default, because the two self-host copies carry large
+    pre-existing structural differences (Issue #2267); ``--fail-on-install-drift``
+    promotes it to blocking once those are reconciled.
+
+    A MISSING section (an H2 present on only one side, not covered by
+    ``PLATFORM_ONLY_SECTIONS`` or ``KNOWN_MISSING_SECTIONS``) is always
+    blocking in both comparisons, install included, and does not need
+    ``--fail-on-install-drift``. Issue #4852's acceptance criterion is "a
+    missing H2 section fails by default"; it names no install-copy carve-out,
+    and the local pre-PR caller (``validate_agent_drift`` in
+    ``scripts/validation/checks_tooling.py``) never passes
+    ``--fail-on-install-drift``, so gating a new install-side missing section
+    behind that flag would make it invisible to the local gate that everyone
+    actually runs. Required agent sections are always blocking too, in both
+    comparisons.
     """
     blocking_drift = any(
         (
@@ -1089,10 +1196,7 @@ def _exit_code(
                     REQUIRED_AGENT_SECTIONS.get(r.agent_name, frozenset())
                     & set(r.drifting_sections)
                 )
-                or (
-                    bool(r.missing_sections)
-                    and (r.comparison != _INSTALL_COMPARISON_LABEL or fail_on_install)
-                )
+                or bool(r.missing_sections)
                 or fail_on_install
                 or r.comparison != _INSTALL_COMPARISON_LABEL
             )
