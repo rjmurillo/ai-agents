@@ -1,13 +1,13 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored.json
-qaCommit: 30dda08e11d634e074aa445f26fbe2e2ab40f062
+qaCommit: 5714d60e9e54039426caf5f62a6fcb9218e6b031
 ---
 
 # QA report: issue #5154 tool-use hook retirement
 
 **Branch**: `claude/remove-tool-use-hooks-ii1fob`
-**Base**: `599b9ee` (origin/main)
+**Base**: `21a986b` (origin/main, merged into this branch)
 **Scope**: retirement of three tool-use hooks from the vendored plugin surface,
 the guard-maturity classifier stack, the ADR-068/071/082/085 amendments, and the
 citation sweep that follows from them.
@@ -26,6 +26,39 @@ citation sweep that follows from them.
 | Skill size budgets | `uv run --frozen python scripts/validation/skill_size.py --ci` | "All skill files within size limits." |
 | Markdown portability ratchet | `uv run --frozen python scripts/validation/check_skill_md_portability.py` | "No Markdown vendor-portability drift. 240 grandfathered refs across 95 files (baseline 240)." |
 | Orphan references | `.claude/skills/orphan-ref-validator/scripts/scan.py` | 6 findings, 0 attributable to this change (see below) |
+
+## Second scope: ADR-084 rule 6 and the tool-use hook bar
+
+Added after the owner lifted the 20-commit ceiling. Rule 3 of ADR-084 is
+restored to its original text; the new bar is rule 6, so no existing citation to
+rule 3 changes meaning.
+
+| Check | Command | Result |
+|---|---|---|
+| Full pre-PR gate, merged tree | `uv run --frozen python scripts/validation/pre_pr.py` | exit 0, `RESULT: All validations passed` |
+| Rule activation coverage | `scripts/validation/check_rule_activation_coverage.py` | OK, within baseline |
+| Always-on corpus claims | `pytest tests/validation/test_always_on_corpus_claims.py` | 37 passed |
+| Generator drift | `build/scripts/generate_rules.py` then `build_all.py --check` | exit 0 |
+
+adr-review round 1 returned 3 Block, 2 Disagree-and-Commit, 1 conditional
+Accept. Every blocking finding is resolved and recorded in
+`.agents/critique/ADR-084-rule-6-tool-use-bar-debate-log.md`. Four were defects
+in the first draft that I verified against source before fixing:
+
+- The amendment moved ADR-084's security carve-out from line 145 to 169 and
+  orphaned 11 live citations to it. All 11 now cite the section anchor.
+- The claim that the two tool-use events are the only per-call ones is false.
+  `.claude/settings.json` registers `PostToolUseFailure` with no matcher, and
+  `generate_dispatcher.py:517` omits it from `_MATCHER_EVENTS`, so it cannot be
+  narrowed. The bar now covers every per-call event.
+- The one-command-per-event union was attributed to Copilot. It is ours (#2342).
+- The 498 ms figure is not a spawn cost: 4.9x the bare-`Bash` figure for a
+  strictly narrower matcher, so it measures the guard's own work.
+
+Known-not-fixed: no mechanical gate ships with the bar. ADR-084 rule 5's own
+planned CI check is unbuilt 29 days on, measured as zero occurrences of
+`Customer value:` in `scripts/`, `build/`, or `.github/workflows/`. Recorded as
+an open item in the debate log rather than silently deferred.
 
 ## Behavior changes worth a reviewer's attention
 
