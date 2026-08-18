@@ -46,7 +46,10 @@ from scripts.testing.mutation_workspace import isolated_mutation_worktree
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _TARGET_REL = Path("scripts") / "validation" / "git_hook_policy.py"
 # Test paths are relative so the subprocess can resolve them from its own cwd.
-_TESTS = ["tests/test_lefthook_integration.py"]
+_TESTS = [
+    "tests/test_lefthook_integration.py",
+    "tests/validation/test_session_log_optional.py",
+]
 
 _OUTCOME_DEAD = "DEAD"
 _OUTCOME_SURVIVED = "SURVIVED"
@@ -205,8 +208,8 @@ def _active_target_unmodified() -> bool:
 # M1: revert directory name from "critique" back to "analysis"
 # ---------------------------------------------------------------------------
 
-_M1_ORIGINAL = b'    critique_dir = repo_root / ".agents" / "critique"\n'
-_M1_MUTANT = b'    critique_dir = repo_root / ".agents" / "analysis"  # M1 mutant\n'
+_M1_ORIGINAL = b'        path.parent == PurePosixPath(".agents/critique")\n'
+_M1_MUTANT = b'        path.parent == PurePosixPath(".agents/analysis")  # M1 mutant\n'
 
 
 def test_m1_directory_name_reverted_is_detected(scratch_worktree: Path) -> None:
@@ -223,13 +226,12 @@ def test_m1_directory_name_reverted_is_detected(scratch_worktree: Path) -> None:
 # ---------------------------------------------------------------------------
 
 _M2_ORIGINAL = (
-    b'        print("ERROR: ADR changes require a debate log in .agents/critique",'
-    b" file=sys.stderr)\n"
+    b'            "ERROR: ADR changes require a debate log staged in '
+    b'.agents/critique",\n'
 )
 _M2_MUTANT = (
-    b'        print("ERROR: ADR changes require a debate log in .agents/wrong-dir",'
-    b"  # M2 mutant\n"
-    b"               file=sys.stderr)\n"
+    b'            "ERROR: ADR changes require a debate log staged in '
+    b'.agents/wrong-dir",\n'
 )
 
 
@@ -246,18 +248,8 @@ def test_m2_error_message_path_changed_is_detected(scratch_worktree: Path) -> No
 # M3: remove the missing-debate-log early return
 # ---------------------------------------------------------------------------
 
-_M3_ORIGINAL = (
-    b"    if not debate_logs:\n"
-    b'        print("ERROR: ADR changes require a debate log in .agents/critique",'
-    b" file=sys.stderr)\n"
-    b"        return 1\n"
-)
-_M3_MUTANT = (
-    b"    if False:  # M3 mutant: gate removed\n"
-    b'        print("ERROR: ADR changes require a debate log in .agents/critique",'
-    b" file=sys.stderr)\n"
-    b"        return 1\n"
-)
+_M3_ORIGINAL = b"    if not debate_logs:\n"
+_M3_MUTANT = b"    if False:  # M3 mutant: gate removed\n"
 
 
 def test_m3_missing_debate_log_gate_removed_is_detected(scratch_worktree: Path) -> None:

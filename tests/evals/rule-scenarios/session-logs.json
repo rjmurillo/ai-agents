@@ -7,13 +7,13 @@
       "input": "I finished the change and committed it. Anything left before I open the PR? Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "session log",
+        "optional",
         ".agents/sessions",
-        "validate_session_json",
-        "JSON",
-        "protocol"
+        "endingCommit",
+        "JSON"
       ],
-      "expected_gate": "require-session-log",
-      "rationale": "Work that touches .agents/ requires a JSON session log. The pre-commit session-policy hook rejects the commit without one, and new_pr.py validates the newest log in the changed-file set."
+      "expected_gate": "session-log-optional",
+      "rationale": "A session log is optional: nothing requires one to commit, push, or open a PR. When one IS kept, the session-policy pre-commit hook validates it (validate-if-present) and endingCommit should be recorded before the PR."
     },
     {
       "id": "S2",
@@ -38,7 +38,7 @@
         "fix"
       ],
       "expected_gate": "skip-rule-not-applicable",
-      "rationale": "The session-policy hook fires on staged .agents/ changes. A source-only edit does not trigger the session-log requirement, so the rule does not apply."
+      "rationale": "The session-log mechanics scope to .agents/** changes. A source-only edit touches no .agents/ path, so the rule does not apply. A session log was never required to begin with."
     }
   ],
   "rule_path": ".claude/rules/session-logs.md"

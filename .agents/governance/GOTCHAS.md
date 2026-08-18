@@ -79,28 +79,13 @@ found" reads identically either way.
 
 Authored file size is a **hard error at 501 lines** and a warning from 301 to
 500, so a file that silently skipped the check can block a later commit.
-## A commit touching `.agents/` must carry the session log
+## Session logs validate only when present
 
-`session-policy` rejects any commit that stages a file under `.agents/` unless
-the JSON session log is staged in that **same** commit. Splitting the work into
-"content commit, then log commit" fails on the first one.
+Commits under `.agents/` do not require a session log. The `session-policy`
+hook returns success when no log is staged. If a JSON log is staged, the
+retained validator still rejects malformed or incomplete content.
 
-Symptom: a commit touching `.agents/analysis/` or `.agents/architecture/` is
-rejected while the identical change under any other path commits fine. See also
-"Session log ordering" below, which governs when the log may first be staged.
-## Session log ordering
-
-Create the session log **untracked in the worktree before the first commit**,
-and stage it only at session end.
-
-`branch-context-policy` reads the worktree and wants the log present.
-`session-policy` rejects a *staged* log whose `sessionEnd` is incomplete. A
-session log cannot be both staged early and complete early, so following the
-protocol literally (create and stage at start) cannot pass both gates.
-
-Symptom: a commit is rejected by one of the two policies no matter which order
-you try. Refs #3904.
-## Never record `endingCommit` and then amend
+## If you opt into a log, never record `endingCommit` and then amend
 
 `endingCommit` must name a commit that is still reachable:
 `scripts/validation/session_scope.py` runs `git merge-base --is-ancestor <sha>
@@ -128,7 +113,7 @@ endingCommit '<sha>' names a commit that is not an ancestor of HEAD
 
 Refs #3618.
 
-## A session log cannot name the commit that carries it
+## An opted-in session log cannot name the commit that carries it
 
 The follow-up-commit remedy above has a missing first step, and without it the
 first commit of a session is unreachable.
@@ -975,11 +960,8 @@ uv run --frozen python .claude/skills/memory/scripts/extract_session_episode.py 
 value stays derived rather than hand-set. Commit the log and the regenerated
 episode together as the follow-up commit the section above already requires.
 
-Watch for the interaction: `session-policy` forces any `.agents/` change to
-stage a session log, so a governance or architecture edit cannot avoid creating
-an episode, and the first such commit on a branch always produces a violating
-one. The follow-up commit is not optional bookkeeping; it is what keeps the
-branch pushable.
+This trap applies only when a contributor opts into a session log. Governance
+and architecture changes do not create logs or episodes by default.
 ## Two green PRs can merge into a red main, and the count ratchets will not warn
 
 The count ratchets compare one scalar baseline against a count taken over the

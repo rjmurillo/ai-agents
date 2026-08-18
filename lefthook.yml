@@ -447,9 +447,16 @@ pre-push:
             run: uv run --frozen python scripts/validation/git_hook_policy.py placeholder-identity
             use_stdin: true
 
-          - name: session-json-validation
-            timeout: 10m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py sessions
+          # Reads the ref-update payload (issue #5128) to derive the real
+          # push range independently of lefthook's own {push_files}
+          # substitution, which resolves empty on a branch's first push and
+          # silently defeats the documentation-only bypass. Stays in this
+          # piped group, not the parallel one below, per ci-scripts.md
+          # MUST-21: a stdin consumer in a parallel group races the shared
+          # stream under Lefthook 2.1.10.
+          - name: retrospective-policy
+            timeout: 2m
+            run: uv run --frozen python scripts/validation/git_hook_policy.py retrospective
             use_stdin: true
 
     # Fast stage, parallel half (issue #5066). Blocking gates that finish in
@@ -458,10 +465,6 @@ pre-push:
     - group:
         parallel: true
         jobs:
-          - name: retrospective-policy
-            timeout: 2m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py retrospective {push_files}
-
           - name: python-lint-ratchet
             timeout: 5m
             run: uv run --frozen --extra dev python scripts/ci/ruff_ratchet.py

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import ast
 import io
 import json
@@ -324,14 +325,15 @@ def test_adr_review_policy_blocks_stale_debate_reference(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _init_repo(tmp_path)
     # A debate log exists in the correct dir (.agents/critique/) but references
     # a DIFFERENT ADR (ADR-042), not the staged ADR (ADR-062). This exercises
     # the stale-reference branch, not the missing-log branch.
-    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
-    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
-    _write_lf(critique / "adr-042-debate.md", "ADR-042 review")
+    debate = critique / "adr-042-debate.md"
+    _write_lf(debate, "ADR-042 review")
+    _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     result = policy.check_adr_review_policy(
         [".agents/architecture/ADR-062-navigation.md"],
@@ -346,11 +348,12 @@ def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
-    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
+    _init_repo(tmp_path)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
-    _write_lf(critique / "adr-062-debate.md", "ADR-062 review")
+    debate = critique / "adr-062-debate.md"
+    _write_lf(debate, "ADR-062 review")
+    _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     assert (
         policy.check_adr_review_policy(
@@ -363,10 +366,12 @@ def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(
 
 
 def test_adr_review_policy_matches_complete_adr_ids(tmp_path: Path) -> None:
-    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    _init_repo(tmp_path)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
-    _write_lf(critique / "adr-0620-debate.md", "ADR-0620 review")
+    debate = critique / "adr-0620-debate.md"
+    _write_lf(debate, "ADR-0620 review")
+    _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     assert (
         policy.check_adr_review_policy(
@@ -380,12 +385,14 @@ def test_adr_review_policy_matches_complete_adr_ids(tmp_path: Path) -> None:
 def test_adr_review_policy_rejects_symlinked_debate_evidence(tmp_path: Path) -> None:
     if os.name == "nt":
         pytest.skip("Symlink creation requires elevated Windows privileges")
-    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    _init_repo(tmp_path)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     evidence = tmp_path / "evidence.md"
     _write_lf(evidence, "ADR-062 review")
-    (critique / "adr-062-debate.md").symlink_to(evidence)
+    debate = critique / "adr-062-debate.md"
+    debate.symlink_to(evidence)
+    _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     assert (
         policy.check_adr_review_policy(
@@ -402,8 +409,6 @@ def test_adr_review_policy_missing_critique_dir_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """No .agents/critique/ directory at all means no debate logs: gate fails."""
-    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
-    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
     # Only the old wrong dir exists; critique dir is absent.
     wrong = tmp_path / ".agents" / "analysis"
     wrong.mkdir(parents=True)
@@ -627,6 +632,57 @@ def test_retrospective_policy_blocks_evidence_older_than_grace_window(
     )
 
 
+def test_handle_retrospective_uses_stdin_derived_paths_when_available(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #5128: {push_files} resolves empty on a branch's first push.
+
+    _handle_retrospective must derive the real push range independently via
+    _push_range_changed_files instead of trusting args.paths (which lefthook
+    leaves empty once {push_files} is dropped from the job), so the
+    documentation-only bypass can still fire for a genuinely docs-only push.
+    """
+    monkeypatch.setattr(
+        policy, "_push_range_changed_files", lambda _stream, _root: {"README.md"}
+    )
+    args = argparse.Namespace(paths=[], repo_root=str(tmp_path))
+
+    assert policy._handle_retrospective(args) == 0
+
+
+def test_handle_retrospective_stdin_range_blocks_non_doc_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A stdin-derived range that includes code still requires evidence."""
+    monkeypatch.setattr(
+        policy,
+        "_push_range_changed_files",
+        lambda _stream, _root: {"scripts/one.py", "tests/test_one.py"},
+    )
+    args = argparse.Namespace(paths=[], repo_root=str(tmp_path))
+
+    assert policy._handle_retrospective(args) == 1
+    assert "retrospective evidence" in capsys.readouterr().err
+
+
+def test_handle_retrospective_falls_back_to_args_paths_when_stdin_unresolvable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An unresolvable push range (None) preserves the old args.paths behavior."""
+    monkeypatch.setattr(
+        policy, "_push_range_changed_files", lambda _stream, _root: None
+    )
+    args = argparse.Namespace(paths=[], repo_root=str(tmp_path))
+
+    assert policy._handle_retrospective(args) == 1
+    assert "retrospective evidence" in capsys.readouterr().err
+
+
 def test_configuration_uses_named_native_jobs() -> None:
     config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
 
@@ -696,7 +752,6 @@ def test_configuration_uses_named_native_jobs() -> None:
         "hook-anchoring-e2e",
         "plugin-load-e2e",
         "review-axis-drift",
-        "session-json-validation",
         "observation-sync-advisory",
         "bot-cascade-advisory",
     }
@@ -711,8 +766,9 @@ def test_configuration_uses_named_native_jobs() -> None:
         "git_hook_policy.py root-hygiene {staged_files}"
     )
     assert str(pre_push["retrospective-policy"]["run"]).endswith(
-        "git_hook_policy.py retrospective {push_files}"
+        "git_hook_policy.py retrospective"
     )
+    assert pre_push["retrospective-policy"]["use_stdin"] is True
     pre_commit_names = [str(job["name"]) for job in _flatten_jobs(config["pre-commit"]["jobs"])]
     assert pre_commit_names.index("memory-token-update") < pre_commit_names.index("memory-size")
     assert pre_commit_names.index("memory-size") < pre_commit_names.index("memory-cross-reference")
@@ -877,11 +933,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     assert pre_push_jobs["push-ref-policy"]["use_stdin"] is True
     assert pre_push_jobs["security-scan"]["use_stdin"] is True
     assert pre_push_jobs["security-suppression-policy"]["use_stdin"] is True
-    assert pre_push_jobs["session-json-validation"]["use_stdin"] is True
-    session_validation_run = pre_push_jobs["session-json-validation"]["run"]
-    assert isinstance(session_validation_run, str)
-    assert "{push_files}" not in session_validation_run
-    assert "glob" not in pre_push_jobs["session-json-validation"]
     piped_stdin_groups = [
         item["group"]
         for item in pre_push["jobs"]
@@ -896,7 +947,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "push-ref-policy",
         "security-suppression-policy",
         "placeholder-identity",
-        "session-json-validation",
+        "retrospective-policy",
     ]
     # Issue #5066: security-scan (semgrep) left the cheap stdin group so a
     # fast-stage failure no longer waits on it. It stays a top-level job
@@ -2221,15 +2272,18 @@ def test_root_hygiene_skips_merge_state(tmp_path: Path) -> None:
     assert policy.check_root_hygiene(["scratch-notes.txt"], repo) == 0
 
 
-def test_session_policy_requires_and_validates_session(
+def test_session_policy_is_validate_if_present(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # The committed session-log gate is retired: a non-session .agents change
+    # needs no session log (returns 0), while a present session log is still
+    # validated by shelling out to the validator.
     monkeypatch.setattr(policy, "_merge_in_progress", lambda _root: False)
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(0))
     monkeypatch.setattr(policy, "added_session_paths_in_index", lambda paths, repo_root: set(paths))
 
-    assert policy.check_sessions([".agents/planning/plan.md"], tmp_path) == 1
+    assert policy.check_sessions([".agents/planning/plan.md"], tmp_path) == 0
     assert (
         policy.check_sessions(
             [".agents/sessions/2026-07-19-session-1-test.json"],
@@ -7223,6 +7277,7 @@ def test_workflow_local_maps_secret_skip_but_blocks_tool_gap(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _write_file(tmp_path, ".github/workflows/test.yml", "name: test\n")
     monkeypatch.setattr(
         policy,
         "_run_command",
@@ -7460,6 +7515,33 @@ def test_sync_observations_stops_at_its_internal_budget(
 
     assert synced == ["a.md"]
     assert "skipped 1 of 2" in capsys.readouterr().err
+
+
+def test_sync_observations_clamps_the_child_timeout_to_the_remaining_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A child spawned near the deadline must not outlive the budget.
+
+    The deadline check runs between spawns, so without a clamp a child started
+    just under the deadline keeps the 90s subprocess default and carries the
+    job past the lefthook cap whose kill cannot be absorbed by a shell guard.
+    """
+    seen: list[float] = []
+
+    def _record(command: list[str], _root: Path, *, timeout_seconds: float) -> object:
+        seen.append(timeout_seconds)
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", _record)
+    monkeypatch.setattr(policy, "_OBSERVATION_SYNC_BUDGET_SECONDS", 200.0)
+    clock = iter([0.0, 150.0, 199.0, 250.0])
+    monkeypatch.setattr(policy.time, "monotonic", lambda: next(clock))
+
+    assert policy.sync_observations(["a.md", "b.md", "c.md"], tmp_path) == 0
+
+    # 50s left at the first spawn, 1s at the second; both beat the 90s default.
+    assert seen == [50.0, 1.0]
 
 
 def test_sync_observations_reports_a_fully_exhausted_budget(
@@ -8581,6 +8663,19 @@ def test_pushed_workflow_paths_selects_only_branch_delta(tmp_path: Path) -> None
     )
 
     assert changed == {".github/workflows/mine.yml"}
+
+
+def test_select_pushed_workflows_excludes_deleted_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, base = _workflow_repo_with_base(tmp_path)
+    deleted = ".github/workflows/imported.yml"
+    _git(repo, "rm", "--", deleted)
+    _git(repo, "commit", "-qm", "test: delete imported workflow")
+    monkeypatch.setenv(policy.WORKFLOW_LOCAL_BASE_REF_ENV, base)
+
+    assert policy._select_pushed_workflows([deleted], repo) == []
 
 
 def test_pushed_workflow_paths_returns_none_when_base_unresolved(

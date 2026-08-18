@@ -1086,7 +1086,7 @@ class TestAdrReviewPolicyMergeScope:
         )
 
         assert result == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_merge_in_progress_with_staged_adr_from_main_is_allowed(self, tmp_path, monkeypatch):
         path = ".agents/architecture/ADR-120-reviewed-on-main.md"
@@ -1147,7 +1147,7 @@ class TestAdrReviewPolicyMergeScope:
         )
 
         assert result == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_merge_in_progress_with_conflicted_adr_is_gated_when_stage_zero_is_absent(
         self,
@@ -1169,7 +1169,7 @@ class TestAdrReviewPolicyMergeScope:
         )
 
         assert result == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_blob_readers_preserve_raw_git_bytes(self, tmp_path):
         repo = tmp_path / "repo"
@@ -1320,7 +1320,7 @@ class TestAdrReviewPolicyMergeScope:
             policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
         )
         assert policy.check_adr_review_policy([relative], repo) == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_an_adr_a_collaborator_wrote_on_the_shared_branch_is_still_gated(
         self,
@@ -1368,7 +1368,7 @@ class TestAdrReviewPolicyMergeScope:
             policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
         )
         assert policy.check_adr_review_policy([relative], repo) == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_an_approved_merge_parent_exempts_content_origin_main_does_not_carry(
         self,
@@ -1467,7 +1467,7 @@ class TestAdrReviewPolicyMergeScope:
             policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
         )
         assert policy.check_adr_review_policy([relative], repo) == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_a_synthetic_merge_head_that_head_already_contains_is_not_a_merge(
         self,
@@ -1518,7 +1518,7 @@ class TestAdrReviewPolicyMergeScope:
             policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
         )
         assert policy.check_adr_review_policy([relative], repo) == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_a_real_merge_of_a_shared_branch_tip_exempts_the_adr_main_contributed(
         self,
@@ -1636,7 +1636,7 @@ class TestAdrReviewPolicyMergeScope:
             policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
         )
         assert policy.check_adr_review_policy([relative], repo) == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_merge_of_a_shared_branch_tip_still_gates_content_main_does_not_have(
         self,
@@ -1680,7 +1680,7 @@ class TestAdrReviewPolicyMergeScope:
         )
 
         assert policy.check_adr_review_policy([path], tmp_path) == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_line_endings_alone_do_not_make_a_staged_adr_mains_content(
         self,
@@ -1713,7 +1713,7 @@ class TestAdrReviewPolicyMergeScope:
             policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
         )
         assert policy.check_adr_review_policy([relative], repo) == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_two_different_undecodable_blobs_are_not_one_blob(
         self,
@@ -1745,7 +1745,7 @@ class TestAdrReviewPolicyMergeScope:
             policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
         )
         assert policy.check_adr_review_policy([relative], repo) == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_a_merge_that_carries_crlf_content_keeps_mains_exemption(
         self,
@@ -1873,7 +1873,7 @@ class TestAdrReviewPolicyMergeScope:
             policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
         )
         assert policy.check_adr_review_policy([relative], repo) == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_a_rename_does_not_hide_the_history_the_head_copy_came_from(
         self,

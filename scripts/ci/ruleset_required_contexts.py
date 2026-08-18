@@ -12,20 +12,13 @@ REQUIRED_CONTEXTS: frozenset[str] = frozenset(
     {
         "Analyze (actions)",
         "Analyze (python)",
-        "Analyst Review",
-        "Architect Review",
-        "DevOps Review",
-        "QA Review",
-        "Roadmap Review",
         "Run Python Tests",
-        "Security Review",
         "Validate Generated Files",
         "Validate Path Normalization",
         "Validate PR",
         "Validate PR title",
         "Validate Plugin Version Bump",
         "Validate Spec Coverage",
-        "Validate memory citations",
     }
 )
 

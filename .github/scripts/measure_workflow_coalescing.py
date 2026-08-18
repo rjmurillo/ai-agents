@@ -43,7 +43,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 DEFAULT_WORKFLOWS: list[str] = [
-    "ai-pr-quality-gate",
     "ai-spec-validation",
     "ai-session-protocol",
     "pr-validation",
@@ -293,9 +292,7 @@ def get_concurrency_group(run: WorkflowRun) -> str:
 
     if pr_number is not None:
         name = run.name
-        if "quality" in name:
-            prefix = "ai-quality"
-        elif "spec" in name:
+        if "spec" in name:
             prefix = "spec-validation"
         elif "session" in name:
             prefix = "session-protocol"

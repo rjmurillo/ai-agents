@@ -41,11 +41,10 @@ FAST_STDIN_GATES = (
     "push-ref-policy",
     "security-suppression-policy",
     "placeholder-identity",
-    "session-json-validation",
+    "retrospective-policy",
 )
 FAST_PARALLEL_GATES = frozenset(
     {
-        "retrospective-policy",
         "python-lint-ratchet",
         "python-lint-count-ratchet",
         "taste-count-ratchet",
@@ -107,12 +106,12 @@ PARALLEL_STDIN_EXCEPTIONS = frozenset(
 )
 
 # Ceilings for jobs scheduled ahead of the expensive stage, set to the
-# largest cap each stage half already carries (session-json-validation holds
-# 10m in the piped stdin group; every fast parallel gate holds 5m or less).
-# Job caps are sized for a loaded machine (ci-scripts.md MUST-16), so the
+# largest cap each stage half already carries. After the session-json-validation
+# gate retired, every piped stdin job and every fast parallel gate holds 5m or
+# less. Job caps are sized for a loaded machine (ci-scripts.md MUST-16), so the
 # ceiling pins "no slower job class enters the fast stage" rather than the
 # stage's 60s wall-clock target, which caps cannot express.
-_FAST_STDIN_TIMEOUT_CEILING_SECONDS = 600.0
+_FAST_STDIN_TIMEOUT_CEILING_SECONDS = 300.0
 _FAST_PARALLEL_TIMEOUT_CEILING_SECONDS = 300.0
 
 
@@ -342,8 +341,8 @@ class TestFastStageStaysFast:
                     offenders.append((str(job.get("name")), str(job.get("timeout"))))
         assert offenders == [], (
             f"{offenders} sit ahead of security-scan with timeouts above their "
-            "stage-half ceiling (5m for the fast parallel group, 10m for the "
-            "piped stdin group). The fast stage exists so failures surface in "
+            "stage-half ceiling (5m for the fast parallel group and the piped "
+            "stdin group). The fast stage exists so failures surface in "
             "seconds; move slow jobs into the expensive group (issue #5066)."
         )
 

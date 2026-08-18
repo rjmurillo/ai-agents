@@ -109,8 +109,8 @@ Read these files in order:
 - If `.agents/SESSION-PROTOCOL.md` exists but `.agents/HANDOFF.md` is missing: stop and report `[BLOCKED] No prior session context available`. Do not proceed.
 - If `.agents/SESSION-PROTOCOL.md` exists but `.agents/AGENT-INSTRUCTIONS.md` is missing: stop and report `[BLOCKED] Project configuration incomplete`.
 - If `.agents/SESSION-PROTOCOL.md` exists but the root `AGENTS.md` is missing: stop and report `[BLOCKED] Missing root agent instructions`.
-- If `.agents/` exists but `.agents/CLAUDE.md` is missing: note in the session log and proceed using the root `CLAUDE.md` as fallback.
-- If `.agents/` exists but `.agents/architecture/` is missing: note in the session log and proceed; ADRs are binding when present, not required to exist.
+- If `.agents/` exists but `.agents/CLAUDE.md` is missing: note it in the transcript, and in the session log only if one exists, then proceed using the root `CLAUDE.md` as fallback.
+- If `.agents/` exists but `.agents/architecture/` is missing: note it in the transcript, and in the session log only if one exists, then proceed; ADRs are binding when present.
 - If two files give conflicting guidance → stop and report `[BLOCKED] Conflicting requirements: <file A> vs <file B> on <topic>` and request resolution before coding.
 
 **Success definition**: When `.agents/SESSION-PROTOCOL.md` exists, you can state four things in one sentence each. They are: (a) inherited session context, (b) project constraints, (c) Claude-specific requirements, and (d) any binding ADRs. If you cannot, this step is NOT complete and you MUST return to it before writing code. When the ai-agents session scaffold is absent, this section is satisfied by the skip note above plus any root docs you read.
@@ -866,7 +866,8 @@ Your context window is finite, and you cannot see how much of it is left. Both h
 **Checkpoint protocol** (runs on every atomic unit, never on a self-assessed trigger):
 
 1. Commit each atomic unit as soon as it verifies. An atomic unit is the smallest change you can run a test or validation command against. Do not batch verified units to commit later, and do not wait for a file-count threshold.
-2. Record progress in the session log: what is done, what remains, the next concrete step. That is the state the next session inherits.
+2. Record progress in the task tracker and per-issue handoff. If an optional
+   session log exists, update it too.
 3. Return `[NEEDS_DECOMPOSITION]` when the task is XL complexity or touches more than five files. List the remaining steps and their dependencies so the orchestrator can check the split against that list. A claim about your own capacity is not a reason and will not be accepted as one.
 
 **A placeholder is a correctness defect, not a signal about context.** `TODO`, `pass`, an empty body, or "left as an exercise" where real code belongs means you have not finished that unit. Finish it, or return `[BLOCKED]` naming what blocks it. Re-reading a file you already read is verification, which this repository requires; it is never a reason to stop.
