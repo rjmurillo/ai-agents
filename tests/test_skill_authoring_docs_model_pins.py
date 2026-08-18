@@ -24,9 +24,20 @@ because a fenced example is not frontmatter. This guard scans only the five
 documents listed in ``TRACKED_DOCS`` and only inside fenced ``yaml`` blocks. It
 deliberately allows a versioned id that is labelled as a counter-example
 (``MARKER_WORDS`` / ``PROSE_LABELS``), because showing the rejected shape next
-to the correct one is how the docs teach the rule. It says nothing about
-``subagent_model``: the gate collects nested pins with ``if key == "model"``
-(``_collect_nested_pins``), so that key is outside both contracts.
+to the correct one is how the docs teach the rule.
+
+It says nothing about ``subagent_model`` (``_PIN_LINE_RE`` is anchored on the
+literal ``model`` key, so a ``subagent_model:`` line never matches), and that
+narrower coverage is now a real gap rather than a deliberate exemption: as of
+issue #4936, ``check_model_pins.py`` collects nested pins with
+``key in MODEL_BEARING_KEYS`` (``_collect_nested_pins``, ``_nested_pins``),
+where ``MODEL_BEARING_KEYS = frozenset({"model", "subagent_model"})``, so a
+nested ``subagent_model`` pin *is* inside the canonical gate's contract even
+though this doc-level guard cannot see it. The tracked docs were updated in
+the same change (issue #4936) to stop teaching ``subagent_model: <versioned
+id>`` as a copyable example; this guard was not widened to check that,
+because its regex targets one literal key and widening it to a set is a
+separate, larger change than the doc fix it accompanies.
 """
 
 from __future__ import annotations

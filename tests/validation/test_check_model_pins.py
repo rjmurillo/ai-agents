@@ -773,22 +773,28 @@ class TestSubagentModelDetection:
         )
 
     def test_subagent_model_bare_alias_is_detected(self, tmp_path: Path) -> None:
-        """Edge: a bare alias under subagent_model is still seen as a pin."""
+        """Edge: a bare alias under subagent_model is still seen as a pin.
+
+        Nested pins never reach the baseline/backlog path (``run_check`` calls
+        ``report.fail`` unconditionally whenever ``unit.nested_pins`` is
+        non-empty, before the baseline lookup that could defer it), so this
+        must be a hard violation with an empty backlog, not either-or.
+        """
         _skill(
             tmp_path,
             "orchestrator",
             "metadata:\n  subagent_model: opus",
         )
         report = _run(tmp_path, {}, [])
-        # Bare alias under subagent_model is a nested pin, not top-level,
-        # so it's flagged as a nested pin violation.
-        assert report.violations or report.backlog
+        assert report.violations, "bare alias under subagent_model must be flagged"
+        assert not report.backlog, "a nested pin must never be merely grandfathered"
 
     def test_no_subagent_model_passes(self, tmp_path: Path) -> None:
         """Negative control: skill without subagent_model passes cleanly."""
         _skill(tmp_path, "clean", "metadata:\n  version: 1.0")
         report = _run(tmp_path, {}, [])
         assert not report.violations
+        assert not report.backlog
 
     def test_model_bearing_keys_constant_is_authoritative(self) -> None:
         """Edge: the constant contains both known model keys."""
@@ -796,9 +802,32 @@ class TestSubagentModelDetection:
         assert "subagent_model" in cmp.MODEL_BEARING_KEYS
 
     def test_top_level_subagent_model_also_detected(self, tmp_path: Path) -> None:
-        """Edge: subagent_model at frontmatter top level is also caught."""
+        """Edge: subagent_model at frontmatter top level is also caught.
+
+        Same reasoning as the bare-alias case above: a nested pin is always a
+        hard violation, never backlog.
+        """
         _skill(tmp_path, "flat", "subagent_model: claude-opus-4-6")
         report = _run(tmp_path, {}, [])
-        # The _nested_pins function skips top-level 'model' scalars (alias
-        # rules handle those), but subagent_model should still be walked.
-        assert report.violations or report.backlog
+        assert report.violations, "top-level subagent_model must be flagged"
+        assert not report.backlog
+
+    def test_top_level_subagent_model_list_is_detected(self, tmp_path: Path) -> None:
+        """Regression: a list-valued model-bearing key must not bypass detection.
+
+        Before this guard, ``_nested_pins`` handled only the scalar-string
+        shape for a model-bearing key at the frontmatter top level and fell
+        through to an untyped recursive walk for anything else, including a
+        list. That walk has no key context left, so each list entry reached
+        ``_collect_nested_pins`` as a bare string with no enclosing
+        model-bearing key to match, and the pin went unrecorded while the
+        enforcing gate reported the unit clean.
+        """
+        _skill(
+            tmp_path,
+            "listed",
+            'subagent_model: ["claude-opus-4-6"]',
+        )
+        report = _run(tmp_path, {}, [])
+        assert report.violations, "list-valued subagent_model pin must be flagged"
+        assert any("subagent_model[0]" in v for v in report.violations)

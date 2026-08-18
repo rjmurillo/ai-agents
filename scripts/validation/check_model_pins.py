@@ -182,6 +182,37 @@ def alias_prices_below_default(
     return alias_price < default_price
 
 
+def _record_bearing_key_pins(
+    path: str, value: object, seen: set[int], out: list[tuple[str, str]]
+) -> bool:
+    """Record pins for a model-bearing key's value; report whether it was handled.
+
+    A model-bearing key's value is either a scalar pin, a list of pins (each
+    entry recorded at its own indexed path), or something else that still
+    needs walking (a mapping, for example). Only the first two shapes are
+    "handled" here; the third returns ``False`` so the caller keeps recursing.
+
+    Shared by both call sites so a list-valued key (``subagent_model: [id]``)
+    is recognised the same way whether the key sits at the frontmatter top
+    level or nested under a container. Before this helper existed, only the
+    nested site handled the list shape: a top-level list bypassed detection
+    because the top-level loop fell straight into an untyped recursive walk
+    that has no key context left to match against ``MODEL_BEARING_KEYS``.
+    """
+    if isinstance(value, str) and value.strip():
+        out.append((path, value.strip()))
+        return True
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            item_path = f"{path}[{index}]"
+            if isinstance(item, str) and item.strip():
+                out.append((item_path, item.strip()))
+            else:
+                _collect_nested_pins(item, item_path, seen, out)
+        return True
+    return False
+
+
 def _collect_nested_pins(
     node: object, prefix: str, seen: set[int], out: list[tuple[str, str]]
 ) -> None:
@@ -208,18 +239,8 @@ def _collect_nested_pins(
     if isinstance(node, dict):
         for key, value in node.items():
             path = f"{prefix}.{key}" if prefix else str(key)
-            if key in MODEL_BEARING_KEYS:
-                if isinstance(value, str) and value.strip():
-                    out.append((path, value.strip()))
-                    continue
-                elif isinstance(value, list):
-                    for index, item in enumerate(value):
-                        item_path = f"{path}[{index}]"
-                        if isinstance(item, str) and item.strip():
-                            out.append((item_path, item.strip()))
-                        else:
-                            _collect_nested_pins(item, item_path, seen, out)
-                    continue
+            if key in MODEL_BEARING_KEYS and _record_bearing_key_pins(path, value, seen, out):
+                continue
             _collect_nested_pins(value, path, seen, out)
     elif isinstance(node, list):
         for index, item in enumerate(node):
@@ -286,11 +307,11 @@ def _nested_pins(typed: dict[object, object]) -> tuple[tuple[str, str], ...]:
         # A scalar top-level model is the compliant shape and is judged by the
         # alias rules instead. A structured one is not, so walk into it.
         # NOTE: only 'model' has alias-rule coverage; other MODEL_BEARING_KEYS
-        # (e.g. subagent_model) are collected directly as pins.
+        # (e.g. subagent_model), and any non-scalar 'model' (e.g. a list),
+        # are collected directly as pins via the shared helper below.
         if key == "model" and isinstance(value, str):
             continue
-        if key in MODEL_BEARING_KEYS and isinstance(value, str) and value.strip():
-            out.append((str(key), value.strip()))
+        if key in MODEL_BEARING_KEYS and _record_bearing_key_pins(str(key), value, seen, out):
             continue
         _collect_nested_pins(value, str(key), seen, out)
     return tuple(sorted(out))
