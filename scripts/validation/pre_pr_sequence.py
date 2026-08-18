@@ -45,6 +45,7 @@ from check_doc_interpreter_portability import (
 )
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
 from check_generated_staleness import validate_generated_staleness
+from check_git_hook_health import validate_git_hook_health
 from check_nested_tests import validate_no_nested_tests
 from check_push_lock_paths import validate_push_lock_paths
 from check_subprocess_encoding import validate_subprocess_encoding
@@ -345,6 +346,14 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # This local check calls validate_argument_hint() over the same default scan
     # surface.
     _Gate("Argument-Hint Frontmatter", _root_only(validate_argument_hint)),
+    # Deeper than the gate below, and adjacent so neither reads as covering the
+    # other. "Lefthook Installed" asks whether lefthook considers itself
+    # installed; this asks whether git will read those shims at all. A
+    # core.hooksPath pointing at a missing directory makes git run no hook and
+    # print no warning, which is how the PR #5059 hand-edit reached CI instead
+    # of being refused at push time. Issue #5090; the same repair already
+    # drifted back once after 2026-07-19.
+    _Gate("Git Hook Health (core.hooksPath)", _root_only(validate_git_hook_health)),
     # Local clones must dispatch repository guardrails. Skipped under CI, where
     # workflows invoke validation directly.
     _Gate("Lefthook Installed", _root_only(validate_lefthook_installed)),
