@@ -4,6 +4,14 @@
 
 Accepted (amended 2026-07-19: the dedicated PreToolUse hook implementing Gates 2, 3, and 4 was retired as structurally dead. See the "Amendment (2026-07-19)" section below. Refs #3194, #3246, #3248.)
 
+### Current-State Amendment (2026-08-16)
+
+The committed session-log routing gate is retired. No session-start,
+session-end, commit, push, or pull request action requires a log. A staged or
+explicitly supplied JSON log still validates. The historical gate design below
+remains as accepted decision history. This amendment supersedes every earlier
+statement that Gate 1 requires a session log or session-log evidence.
+
 ## Date
 
 2025-12-30

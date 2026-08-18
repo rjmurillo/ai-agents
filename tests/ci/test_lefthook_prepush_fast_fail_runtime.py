@@ -191,7 +191,7 @@ class TestRuntimeFastFail:
 
     def test_a_stdin_gate_failure_skips_the_later_entries(self, tmp_path: Path) -> None:
         # The other fast-stage half: the piped stdin group (push-ref-policy,
-        # session-json-validation and friends in the real config) must also
+        # security-suppression-policy and friends in the real config) must also
         # abort everything downstream when it fails.
         repo = tmp_path / "repo"
         _write_fixture_repo(repo, fail_fast_stage=False, fail_stdin_gate=True)

@@ -144,14 +144,15 @@ When creating a new AI-powered workflow with concurrency control:
 |------------|--------|--------------|
 | MUST initialize Serena before any other action | SESSION-PROTOCOL | Tool output in transcript |
 | MUST read .agents/HANDOFF.md before starting work | SESSION-PROTOCOL | Content in context |
-| MUST create session log early in session | SESSION-PROTOCOL | File exists |
 | MUST NOT modify HANDOFF.md during session | SESSION-PROTOCOL, ADR-014 | HANDOFF.md unchanged |
-| MUST update session log at session end | SESSION-PROTOCOL | Session log complete |
-| MUST commit all changes before ending | SESSION-PROTOCOL | Git status clean |
+| MUST preserve incomplete issue state | SESSION-PROTOCOL, ADR-014 | Per-issue handoff |
+| MUST validate a staged or supplied session log | SESSION-PROTOCOL | Validator output |
+| MAY create and complete a session log | SESSION-PROTOCOL | Valid JSON when opted in |
 
 **Reference**: [SESSION-PROTOCOL.md](../SESSION-PROTOCOL.md)
 
-**Rationale Summary**: Verification-based enforcement (tool output required) succeeds where trust-based compliance ("agent should remember") fails.
+**Rationale Summary**: Transcript, pull request, handoff, and Serena evidence
+replace mandatory committed logs. Supplied logs remain validate-if-present.
 
 ---
 

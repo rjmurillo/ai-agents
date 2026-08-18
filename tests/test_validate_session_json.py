@@ -2500,18 +2500,6 @@ class TestHistoricalLogsAreExemptByConstruction:
         assert result == 0
         assert seen == [new_path]
 
-    def test_workflow_validates_one_file_per_invocation(self) -> None:
-        """One log per invocation, never a glob (ADR-006: logic lives in the script).
-
-        A glob would hand the validator all 131 historical logs at once and
-        fail the job on files no one in this PR touched.
-        """
-        script = (
-            Path(__file__).resolve().parents[1] / "scripts/ci/validate_session_protocol.py"
-        ).read_text(encoding="utf-8")
-        assert "./scripts/validate_session_json.py" in script
-        assert ".agents/sessions/*" not in script
-
 
 class TestMainNarrowsOnThePayload:
     """`main` branches on `error is not None`, not on `data is None` (issue #3346).
@@ -3193,28 +3181,6 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
 
         return _git, seen
 
-    def test_the_workflow_reads_head_adds_from_the_shared_scope_helper(self) -> None:
-        """The workflow must choose creation-mode outside the validator.
-
-        A branch-added log needs --creation-mode, while a later edit to the
-        same path must validate as an existing record. Keeping
-        --scope-from-git here pins the broken in-between state where neither
-        mode is selected for a branch-added log.
-        """
-        script = (
-            Path(__file__).resolve().parents[1] / "scripts/ci/validate_session_protocol.py"
-        ).read_text(encoding="utf-8")
-        assert "committed_session_validation_modes" in script
-        assert "--creation-mode" in script
-        assert "--existing-log" in script
-        assert "--scope-from-git" not in script
-
-    # Issue #3806 retired the whole-file `"uv run" not in workflow` assertion
-    # that used to sit here. The validate job now installs uv on purpose, and a
-    # substring over the whole file cannot tell that job from the three that
-    # still install nothing. The per-job successor lives in
-    # tests/ci/test_validate_session_protocol_wiring.py::TestEachJobInstallsWhatItsScriptsNeed.
-
     def test_the_shared_module_imports_no_third_party_package(self) -> None:
         """It runs under the workflow's bare python3, which has no PyYAML."""
         source = (
@@ -3855,13 +3821,17 @@ class TestCheckSessionsCreationMode:
         assert rc == 1
         assert validate_commands == []
 
-    def test_check_sessions_rejects_commit_without_session_log(self) -> None:
-        """If no session JSON is staged, the hook must fail with an error."""
+    def test_check_sessions_allows_commit_without_session_log(self) -> None:
+        """The committed session-log gate is retired: no staged log is fine.
+
+        Staging a .agents change with no session JSON must pass. check_sessions
+        is validate-if-present, so an absent log returns 0 and emits no mandate.
+        """
         from scripts.validation import git_hook_policy
 
         with mock.patch.object(git_hook_policy, "_merge_in_progress", return_value=False):
             rc = git_hook_policy.check_sessions([".agents/governance/GOTCHAS.md"], Path.cwd())
-        assert rc == 1
+        assert rc == 0
 
     def test_the_hook_fully_validates_when_head_presence_is_unknown(self) -> None:
         from scripts.validation import git_hook_policy, session_scope

@@ -8,7 +8,9 @@ license: MIT
 # AI Agents Change Control
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
-How a change moves through this repository, and the rules that never bend. This repo runs verification-based enforcement, not trust-based. The protocol states it directly: "Labels like 'MANDATORY' or 'NON-NEGOTIABLE' are insufficient. Each requirement MUST have a verification mechanism" (`.agents/SESSION-PROTOCOL.md:36`). Every rule below therefore names two things: the gate that enforces it, and the incident that created it. If you are tempted to argue with a rule, read its incident first.
+How a change moves through this repository, and the rules that never bend. This
+repo runs verification-based enforcement. Evidence may live in the transcript,
+pull request, per-issue handoff, Serena memory, or an optional session log.
 
 Jargon used once: a "gate" is an automated check that blocks progress (commit, push, or merge) until satisfied. A "drift gate" compares generated output trees against their canonical sources. A "canonical source" is the single tree you are allowed to edit; everything generated from it is read-only output.
 
@@ -57,7 +59,7 @@ Special case, generated trees. `src/vs-code-agents/` and `src/copilot-cli/agents
 
 | Class | Extra gates it triggers |
 |-------|-------------------------|
-| Docs-only | Scoped markdownlint on changed files; dash prohibition; session log still required |
+| Docs-only | Scoped markdownlint on changed files; dash prohibition |
 | Investigation-only | Staged-file allowlist check in the pre-commit QA validator (ADR-034) |
 | Code | Full test rigor: positive, negative, edge, branch coverage, mocked I/O; coverage floors 100 security / 80 business / 60 docs (AGENTS.md Standards) |
 | Plugin content | Version-field gate at two layers: `pre_pr.py` wrapping `build/scripts/validate_plugin_version_bump.py` at pre-push, CI `.github/workflows/validate-plugin-version-bump.yml` |
@@ -91,7 +93,7 @@ Check this table before any push. The incident column is the answer to "why"; do
 | Memory-first: retrieval precedes reasoning | AGENTS.md Retrieval section; session-start gates | ADR-007: Serena memories are canonical, Forgetful supplementary. Search before building; do not re-derive settled decisions |
 | "Matches/mirrors" claims must quote the canonical source verbatim | `.claude/rules/canonical-source-mirror.md`; heuristic citation check in `pre_pr.py` | FM-9 confident-incorrectness; PR #1887 in the incident history |
 | No silent defaults | FM-10 detection table (`.agents/governance/FAILURE-MODES.md:315-399`); `taste-lints` and pre-push scans | PR #1965 verdict-parser; incident history |
-| Session-file merge immutability | Retro rule; session-protocol validation | Session 1187 (incident history): take `--theirs` for main's session file, rename yours to the next number |
+| Opted-in session-file merge immutability | Retro rule; validate-if-present session validation | Session 1187 (incident history): preserve both historical files and rename the local record |
 | No secrets, no force-push, no `--no-verify`, no direct commits to main | `.claude/rules/universal.md` MUST 1, MUST 5, MUST NOT 1, MUST NOT 2 | Hooks are the enforcement surface; skipping them is self-disarming |
 
 Escape hatches (env vars, commit markers, skip semantics) exist for several gates. They are deliberately narrow after session 1187, and each is cataloged with its abuse story in `ai-agents-config-catalog`. Do not invent a new one inline; a new flag is itself a governance change.

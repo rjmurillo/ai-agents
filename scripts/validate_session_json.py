@@ -10,9 +10,9 @@ Two layers run, and they own different questions:
   complete, that its evidence is not an empty string, that a branch name and a
   commit SHA look like one. A JSON Schema cannot express those.
 
-Scope: this validates the one file it is handed. Both call sites
-(``git_hook_policy.validate_branch_sessions`` and the ai-session-protocol
-workflow) pass only session logs changed on the branch, so enabling schema
+Scope: this validates the one file it is handed. Its call site
+(``git_hook_policy.validate_branch_sessions``) passes only session logs changed
+on the branch, so enabling schema
 enforcement binds new and edited logs. Logs written before enforcement are not
 re-validated; editing one surfaces its violations, which is the intended signal.
 

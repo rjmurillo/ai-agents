@@ -43,7 +43,7 @@ Without the correct token, Copilot CLI exits with code 1 and produces no output.
 
 ### Step 3: Verify Workflow Configuration
 
-The AI PR Quality Gate workflow should have:
+Any workflow that invokes the AI review action should have:
 
 ```yaml
 env:
