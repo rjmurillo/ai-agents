@@ -71,6 +71,7 @@ LEFTHOOK_CONFIG_NAMES = (
 PROBE_HOOK = "pre-push"
 
 REMEDY = "uv run --frozen lefthook install --reset-hooks-path"
+WORKTREE_REMEDY = f"git config --worktree --unset-all core.hooksPath && {REMEDY}"
 
 # A hung git must not stall the pre-PR run. A local rev-parse answers in
 # milliseconds, so this only trips on a genuine hang, where degrading to a
@@ -118,9 +119,28 @@ def _hooks_dir(repo_root: Path) -> Path | None:
     return path
 
 
-def _configured_hooks_path(repo_root: Path) -> str | None:
-    """Return the ``core.hooksPath`` value, or None when it is unset."""
-    return _git(repo_root, "config", "--get", "core.hooksPath") or None
+def _configured_hooks_path(repo_root: Path) -> tuple[str | None, str | None]:
+    """Return the effective ``core.hooksPath`` value and its config scope."""
+    value = _git(repo_root, "config", "--get", "core.hooksPath") or None
+    scoped = _git(
+        repo_root,
+        "config",
+        "--show-scope",
+        "--get",
+        "core.hooksPath",
+    )
+    if value is None or scoped is None:
+        return value, None
+    scope, separator, scoped_value = scoped.partition("\t")
+    if not separator or scoped_value != value:
+        return value, None
+    return value, scope
+
+
+def _remedy(repo_root: Path) -> str:
+    """Return a repair that clears the authoritative hooks-path scope."""
+    _configured, scope = _configured_hooks_path(repo_root)
+    return WORKTREE_REMEDY if scope == "worktree" else REMEDY
 
 
 def _failed_condition(repo_root: Path, hooks_dir: Path) -> str:
@@ -129,16 +149,17 @@ def _failed_condition(repo_root: Path, hooks_dir: Path) -> str:
     if hook.is_file():
         return f"{hook} exists but is not executable, so git will ignore it"
 
-    configured = _configured_hooks_path(repo_root)
+    configured, scope = _configured_hooks_path(repo_root)
     if configured is None:
         return f"{hook} is missing and core.hooksPath is unset"
+    scope_text = f" in {scope} scope" if scope is not None else ""
     if not hooks_dir.is_dir():
         return (
-            f"core.hooksPath is set to '{configured}' "
+            f"core.hooksPath is set to '{configured}'{scope_text} "
             "and that directory does not exist"
         )
     return (
-        f"core.hooksPath is set to '{configured}' "
+        f"core.hooksPath is set to '{configured}'{scope_text} "
         f"but that directory has no {PROBE_HOOK} hook"
     )
 
@@ -211,7 +232,7 @@ def _root_only(validator: Callable[[Path], bool]) -> Callable[[Path, argparse.Na
         "and pre-push do not run.",
         file=sys.stderr,
     )
-    print(f"Fix: {REMEDY}", file=sys.stderr)
+    print(f"Fix: {_remedy(repo_root)}", file=sys.stderr)
     return False
 
 

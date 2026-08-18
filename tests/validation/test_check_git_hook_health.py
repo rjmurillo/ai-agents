@@ -235,6 +235,35 @@ class TestLinkedWorktrees:
         assert result.returncode == 1
         assert "does not exist" in result.stderr
 
+    def test_a_worktree_scoped_override_reports_a_repair_that_clears_it(
+        self, tmp_path: Path
+    ) -> None:
+        repo = _make_repo(tmp_path, "wt_main_scoped")
+        _install_prepush(repo / ".git" / "hooks")
+        _git(repo, "config", "extensions.worktreeConfig", "true")
+        worktree = tmp_path / "wt_linked_scoped"
+        _git(repo, "worktree", "add", "-q", str(worktree), "-b", "feature-scoped")
+        (worktree / "lefthook.yml").write_text(LEFTHOOK_CONFIG, encoding="utf-8")
+        _git(
+            worktree,
+            "config",
+            "--worktree",
+            "core.hooksPath",
+            str(worktree / ".dead-hooks"),
+        )
+
+        broken = _run_cli(worktree)
+
+        assert broken.returncode == 1
+        assert "worktree scope" in broken.stderr
+        assert check_git_hook_health.WORKTREE_REMEDY in broken.stderr
+
+        _git(worktree, "config", "--worktree", "--unset-all", "core.hooksPath")
+
+        repaired = _run_cli(worktree)
+        assert repaired.returncode == 0
+        assert "pre-push present" in repaired.stdout
+
 
 class TestOutOfScope:
     """States the gate cannot read, or has no business judging, pass."""
