@@ -259,6 +259,7 @@ def test_module_runs_as_a_script_and_exits_zero() -> None:
         ["python3", str(REPO_ROOT / "scripts" / "validation" / "check_worktree_recipes.py")],
         capture_output=True,
         encoding="utf-8",
+        errors="replace",
         check=False,
     )
 

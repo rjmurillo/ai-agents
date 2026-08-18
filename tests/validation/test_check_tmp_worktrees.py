@@ -419,6 +419,7 @@ def test_module_runs_as_a_script(tmp_path: Path) -> None:
         ["python3", str(script), "--temp-root", str(tmp_path), "--min-free-gib", "0"],
         capture_output=True,
         encoding="utf-8",
+        errors="replace",
         check=False,
     )
 
