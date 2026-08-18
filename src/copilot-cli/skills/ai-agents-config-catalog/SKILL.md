@@ -129,7 +129,7 @@ parity between them:
 | Surface | Consumer | Shape re-verified 2026-08-14 |
 |---|---|---|
 | `.claude/settings.json` | Claude Code direct in this repository | 6 events, 7 groups |
-| `.claude/hooks/hooks.json` | Vendored plugin source for both harness packages | 2 events, 4 groups |
+| `.claude/hooks/hooks.json` | Vendored plugin source for both harness packages | 2 events, 5 groups |
 | `.github/hooks/require-subagent-model.json` | Copilot CLI in this repository (cloud agent from the default branch) | native `preToolUse`, matcher `task`, direct registration |
 
 The Copilot generator reads `.claude/hooks/hooks.json`, not local settings. A
