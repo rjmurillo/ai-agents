@@ -450,7 +450,7 @@ def test_nested_pin_not_grandfathered_by_baseline(tmp_path: Path) -> None:
         "name: legacy\nmetadata:\n  model: haiku",
     )
     report = _run(tmp_path, baseline={unit: "haiku"}, manifest=[])
-    assert any("[nested pin]" in v for v in report.violations)
+    assert any("[unsupported model-bearing value]" in v for v in report.violations)
     assert report.backlog == []
 
 
@@ -831,3 +831,50 @@ class TestSubagentModelDetection:
         report = _run(tmp_path, {}, [])
         assert report.violations, "list-valued subagent_model pin must be flagged"
         assert any("subagent_model[0]" in v for v in report.violations)
+
+    @pytest.mark.parametrize(
+        "frontmatter, expected_path",
+        (
+            ("subagent_model:\n  id: claude-opus-4-6", "subagent_model.id"),
+            (
+                "metadata:\n  subagent_model:\n    id: claude-opus-4-6",
+                "metadata.subagent_model.id",
+            ),
+        ),
+    )
+    def test_mapping_valued_subagent_model_is_detected(
+        self, tmp_path: Path, frontmatter: str, expected_path: str
+    ) -> None:
+        """Regression: mappings preserve their model-bearing key context."""
+        _skill(tmp_path, "mapped", frontmatter)
+
+        report = _run(tmp_path, {}, [])
+
+        assert report.violations, "mapping-valued subagent_model pin must be flagged"
+        assert any(expected_path in violation for violation in report.violations)
+        assert any(
+            "unsupported model-bearing key value(s)" in violation
+            for violation in report.violations
+        )
+        assert all("nested below the top level" not in violation for violation in report.violations)
+
+    def test_model_bearing_alias_is_detected_after_non_model_alias(
+        self, tmp_path: Path
+    ) -> None:
+        """Regression: generic traversal order must not suppress model context."""
+        _skill(
+            tmp_path,
+            "aliased",
+            "shared: &candidate\n"
+            "  id: claude-opus-4-6\n"
+            "metadata:\n"
+            "  ordinary: *candidate\n"
+            "  subagent_model: *candidate",
+        )
+
+        report = _run(tmp_path, {}, [])
+
+        assert any(
+            "metadata.subagent_model.id" in violation
+            for violation in report.violations
+        )

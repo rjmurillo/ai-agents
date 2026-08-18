@@ -183,34 +183,42 @@ def alias_prices_below_default(
 
 
 def _record_bearing_key_pins(
-    path: str, value: object, seen: set[int], out: list[tuple[str, str]]
+    path: str, value: object, out: list[tuple[str, str]]
 ) -> bool:
     """Record pins for a model-bearing key's value; report whether it was handled.
 
-    A model-bearing key's value is either a scalar pin, a list of pins (each
-    entry recorded at its own indexed path), or something else that still
-    needs walking (a mapping, for example). Only the first two shapes are
-    "handled" here; the third returns ``False`` so the caller keeps recursing.
+    Preserve model-bearing context through lists and mappings. A generic YAML
+    walk cannot infer that ``id`` in ``subagent_model: {id: ...}`` is a model
+    value after it descends past ``subagent_model``; every non-blank string
+    leaf below that key must therefore be collected here.
 
-    Shared by both call sites so a list-valued key (``subagent_model: [id]``)
-    is recognised the same way whether the key sits at the frontmatter top
-    level or nested under a container. Before this helper existed, only the
-    nested site handled the list shape: a top-level list bypassed detection
-    because the top-level loop fell straight into an untyped recursive walk
-    that has no key context left to match against ``MODEL_BEARING_KEYS``.
+    The traversal has its own visited set because a mapping may first appear
+    through a non-model alias and later through a model-bearing key. Reusing
+    the generic walk's visited set would make detection depend on YAML key
+    order and restore the bypass for that alias shape.
     """
-    if isinstance(value, str) and value.strip():
-        out.append((path, value.strip()))
-        return True
-    if isinstance(value, list):
-        for index, item in enumerate(value):
-            item_path = f"{path}[{index}]"
-            if isinstance(item, str) and item.strip():
-                out.append((item_path, item.strip()))
-            else:
-                _collect_nested_pins(item, item_path, seen, out)
-        return True
-    return False
+    if not isinstance(value, (str, dict, list)):
+        return False
+
+    bearing_seen: set[int] = set()
+
+    def collect(node: object, node_path: str) -> None:
+        if isinstance(node, str):
+            if node.strip():
+                out.append((node_path, node.strip()))
+            return
+        if not isinstance(node, (dict, list)) or id(node) in bearing_seen:
+            return
+        bearing_seen.add(id(node))
+        if isinstance(node, dict):
+            for key, item in node.items():
+                collect(item, f"{node_path}.{key}")
+        else:
+            for index, item in enumerate(node):
+                collect(item, f"{node_path}[{index}]")
+
+    collect(value, path)
+    return True
 
 
 def _collect_nested_pins(
@@ -239,7 +247,7 @@ def _collect_nested_pins(
     if isinstance(node, dict):
         for key, value in node.items():
             path = f"{prefix}.{key}" if prefix else str(key)
-            if key in MODEL_BEARING_KEYS and _record_bearing_key_pins(path, value, seen, out):
+            if key in MODEL_BEARING_KEYS and _record_bearing_key_pins(path, value, out):
                 continue
             _collect_nested_pins(value, path, seen, out)
     elif isinstance(node, list):
@@ -311,7 +319,7 @@ def _nested_pins(typed: dict[object, object]) -> tuple[tuple[str, str], ...]:
         # are collected directly as pins via the shared helper below.
         if key == "model" and isinstance(value, str):
             continue
-        if key in MODEL_BEARING_KEYS and _record_bearing_key_pins(str(key), value, seen, out):
+        if key in MODEL_BEARING_KEYS and _record_bearing_key_pins(str(key), value, out):
             continue
         _collect_nested_pins(value, str(key), seen, out)
     return tuple(sorted(out))
@@ -419,7 +427,7 @@ def _unit_rule_failure(
             f"{_display(value)} under {_display(key)}" for key, value in unit.nested_pins
         )
         return (
-            f"model pin(s) nested below the top level: {listed}; no harness "
+            f"unsupported model-bearing key value(s): {listed}; no harness "
             f"reads them, so they are drift with no effect (ADR-080)"
         )
     if model in ROLLING_ALIASES:
@@ -520,7 +528,7 @@ def run_check(
             continue
         model = unit.model or ""
         if unit.nested_pins:
-            report.fail(unit.path, f"[nested pin] {failure}")
+            report.fail(unit.path, f"[unsupported model-bearing value] {failure}")
         elif unit.path not in baseline:
             report.fail(unit.path, f"[new pin] {failure}")
         elif _normalize_id(baseline[unit.path]) != _normalize_id(model):
