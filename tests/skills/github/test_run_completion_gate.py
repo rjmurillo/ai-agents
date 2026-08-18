@@ -67,10 +67,11 @@ def repo_root(tmp_path, monkeypatch):
     in tmp_path; monkeypatching the resolved root preserves the
     production guard while keeping the tests hermetic.
 
-    The CWE-829 config trust check is stubbed to "trusted" here because
-    tmp_path is not a git repository and these tests exercise dispatch,
-    DSL, and schema logic, not the trust boundary. The trust boundary
-    has its own dedicated tests (TestConfigTrustBoundary) that drive
+    Both CWE-829 trust checks (the config file and the files its
+    commands name) are stubbed to "trusted" here because tmp_path is not
+    a git repository and these tests exercise dispatch, DSL, and schema
+    logic, not the trust boundary. Each boundary has its own dedicated
+    tests (TestConfigTrustBoundary, TestCommandTrustBoundary) that drive
     ``main`` against a real git repository with NO stubbing, which
     proves the wiring this fixture bypasses.
     """
@@ -79,6 +80,13 @@ def repo_root(tmp_path, monkeypatch):
         _dispatcher,
         "_verify_config_trust",
         lambda *_a, **_k: _dispatcher.TrustCheck(_dispatcher.TRUST_TRUSTED, ""),
+    )
+    monkeypatch.setattr(
+        _dispatcher,
+        "_verify_command_trust",
+        lambda *_a, **_k: _dispatcher.CommandTrustCheck(
+            _dispatcher.COMMAND_TRUST_TRUSTED, [], [], [], [], "",
+        ),
     )
     return tmp_path
 
@@ -1455,6 +1463,16 @@ def _commit_as_trusted(repo: Path, *paths: Path) -> None:
     _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
 
 
+def _verifier_path(tmp_path: Path) -> Path:
+    """The script `_marker_criterion` writes and its command names.
+
+    The command trust boundary byte-compares every work-tree file an
+    argv names, so any test that expects dispatch must commit this file
+    to the trusted ref alongside the config.
+    """
+    return tmp_path / "verifier.py"
+
+
 def _marker_criterion(tmp_path: Path, marker: Path) -> list[dict]:
     """A criterion whose command PROVABLY executed: it writes a marker file.
 
@@ -1462,7 +1480,7 @@ def _marker_criterion(tmp_path: Path, marker: Path) -> list[dict]:
     the dispatcher executes the command, the marker exists; a halt that
     happened only after execution cannot hide.
     """
-    verifier = tmp_path / "verifier.py"
+    verifier = _verifier_path(tmp_path)
     verifier.write_text(
         "import json, pathlib, sys\n"
         f"pathlib.Path({str(marker)!r}).write_text('ran')\n"
@@ -1490,7 +1508,7 @@ class TestConfigTrustBoundary:
     ):
         marker = tmp_path / "ran.txt"
         config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
-        _commit_as_trusted(git_repo, config_path)
+        _commit_as_trusted(git_repo, config_path, _verifier_path(tmp_path))
 
         rc = _dispatcher.main(
             ["--config", str(config_path), "--pull-request", "1", "--json"],
@@ -1504,6 +1522,9 @@ class TestConfigTrustBoundary:
             "trusted_ref": "origin/main",
             "approved": False,
         }
+        assert payload["command_trust"]["status"] == "trusted"
+        assert payload["command_trust"]["checked_files"] == ["verifier.py"]
+        assert payload["command_trust"]["untrusted_files"] == []
 
     def test_tampered_config_halts_without_executing_command(
         self, git_repo, tmp_path, capsys,
@@ -1806,6 +1827,7 @@ class TestConfigTrustBoundary:
         marker = tmp_path / "ran.txt"
         config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
         _git(git_repo, "add", str(config_path.relative_to(git_repo)))
+        _git(git_repo, "add", str(_verifier_path(tmp_path).relative_to(git_repo)))
         _git(git_repo, "commit", "-q", "-m", "trusted on a custom ref")
         _git(git_repo, "update-ref", "refs/remotes/upstream/release", "HEAD")
 
@@ -1987,11 +2009,15 @@ class TestTrustBoundaryHardening:
         # divergence and the gate does not train operators to bypass.
         marker = tmp_path / "ran.txt"
         config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
-        _commit_as_trusted(git_repo, config_path)
+        verifier = _verifier_path(tmp_path)
+        _commit_as_trusted(git_repo, config_path, verifier)
         _git(git_repo, "config", "core.autocrlf", "true")
-        lf_bytes = config_path.read_bytes()
-        assert b"\r\n" not in lf_bytes
-        config_path.write_bytes(lf_bytes.replace(b"\n", b"\r\n"))
+        # A CRLF checkout converts every text file, not just the config,
+        # so the verifier the command names gets the same treatment.
+        for path in (config_path, verifier):
+            lf_bytes = path.read_bytes()
+            assert b"\r\n" not in lf_bytes
+            path.write_bytes(lf_bytes.replace(b"\n", b"\r\n"))
 
         rc = _dispatcher.main(
             ["--config", str(config_path), "--pull-request", "1"],
@@ -2051,7 +2077,7 @@ class TestTrustBoundaryHardening:
         # bytes that are parsed and dispatched. One read, one buffer.
         marker = tmp_path / "ran.txt"
         config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
-        _commit_as_trusted(git_repo, config_path)
+        _commit_as_trusted(git_repo, config_path, _verifier_path(tmp_path))
 
         reads: list[Path] = []
         original_read_bytes = Path.read_bytes
@@ -2182,3 +2208,595 @@ class TestApprovalDoesNotCoverGitError:
 
         assert rc == 3
         assert not marker.exists()
+
+
+def _write_marker_script(script: Path, marker: Path) -> Path:
+    """Write a verifier that PROVES execution by creating ``marker``."""
+    script.write_text(
+        "import json, pathlib\n"
+        f"pathlib.Path({str(marker)!r}).write_text('ran')\n"
+        "print(json.dumps({'ok': True}))\n",
+        encoding="utf-8",
+    )
+    return script
+
+
+def _benign_script(script: Path) -> Path:
+    """Write a verifier that passes and leaves no trace."""
+    script.write_text(
+        "import json\nprint(json.dumps({'ok': True}))\n", encoding="utf-8",
+    )
+    return script
+
+
+def _script_criterion(name: str, script: Path, *extra_args: str) -> dict:
+    return {
+        "name": name,
+        "verification": "command",
+        "command": " ".join([sys.executable, str(script), *extra_args]),
+        "pass_when": "stdout-json.ok == true",
+    }
+
+
+class TestCommandTrustBoundary:
+    """The dispatcher must not execute a verifier file that differs from
+    the trusted ref, even when the config itself is byte-identical
+    (CWE-829 / CWE-494, issue #5099). No subprocess stubbing: real git,
+    real dispatch, marker files proving execution or its absence.
+    """
+
+    def test_untouched_verifier_and_data_file_dispatch(
+        self, git_repo, tmp_path, capsys,
+    ):
+        marker = tmp_path / "ran.txt"
+        script = _write_marker_script(tmp_path / "verify.py", marker)
+        data = tmp_path / "fixture.json"
+        data.write_text("{}", encoding="utf-8")
+        config_path = _write_config(
+            tmp_path, [_script_criterion("Ok", script, str(data))],
+        )
+        _commit_as_trusted(git_repo, config_path, script, data)
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1", "--json"],
+        )
+
+        assert rc == 0
+        assert marker.exists(), "trusted verifier files must dispatch"
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["command_trust"]["status"] == "trusted"
+        assert payload["command_trust"]["checked_files"] == [
+            "verify.py", "fixture.json",
+        ]
+        assert payload["command_trust"]["untrusted_files"] == []
+
+    def test_modified_verifier_script_halts_without_executing(
+        self, git_repo, tmp_path, capsys,
+    ):
+        # The exact attack from issue #5099: the config is left untouched
+        # (so config_trust stays "trusted") while the verifier script the
+        # config names is rewritten. The marker is the negative control.
+        script = _benign_script(tmp_path / "verify.py")
+        config_path = _write_config(tmp_path, [_script_criterion("Ok", script)])
+        _commit_as_trusted(git_repo, config_path, script)
+
+        marker = tmp_path / "pwned.txt"
+        _write_marker_script(script, marker)
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not marker.exists(), (
+            "a rewritten verifier script must never execute"
+        )
+        err = capsys.readouterr().err
+        assert "HALT" in err
+        assert "verify.py" in err
+        assert "--approve-untrusted-config" in err
+
+    def test_verifier_added_by_the_pr_and_absent_at_base_halts(
+        self, git_repo, tmp_path, capsys,
+    ):
+        # A tracked verifier the base branch does not have is PR-supplied
+        # code with nothing to compare against: untrusted, not "no
+        # opinion". The PR commit lands after the trusted ref is set, so
+        # origin/main does not carry the script.
+        marker = tmp_path / "pwned.txt"
+        script = _write_marker_script(tmp_path / "new_verify.py", marker)
+        config_path = _write_config(tmp_path, [_script_criterion("New", script)])
+        _commit_as_trusted(git_repo, config_path)
+        _git(git_repo, "add", str(script.relative_to(git_repo)))
+        _git(git_repo, "commit", "-q", "-m", "PR adds a verifier")
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not marker.exists()
+        assert "new_verify.py" in capsys.readouterr().err
+
+    def test_untracked_operator_file_is_recorded_not_compared(
+        self, git_repo, tmp_path, capsys,
+    ):
+        # The shipped config passes --dispositions-file, a JSON file the
+        # reviewer writes during the review. It is untracked, so it has
+        # no trusted-ref copy; comparing it would halt every real run.
+        marker = tmp_path / "ran.txt"
+        script = _write_marker_script(tmp_path / "verify.py", marker)
+        dispositions = tmp_path / "dispositions.json"
+        config_path = _write_config(
+            tmp_path, [_script_criterion("Ok", script, str(dispositions))],
+        )
+        _commit_as_trusted(git_repo, config_path, script)
+        dispositions.write_text("{}", encoding="utf-8")
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1", "--json"],
+        )
+
+        assert rc == 0
+        assert marker.exists(), "an untracked operator file must not halt"
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["command_trust"]["status"] == "trusted"
+        assert payload["command_trust"]["checked_files"] == ["verify.py"]
+        assert payload["command_trust"]["skipped_untracked_files"] == [
+            "dispositions.json",
+        ]
+
+    def test_untracked_script_does_not_mask_a_tampered_tracked_one(
+        self, git_repo, tmp_path,
+    ):
+        # Negative control for the untracked carve-out: skipping an
+        # untracked path must not stop a tracked, tampered script from
+        # halting the gate.
+        script = _benign_script(tmp_path / "verify.py")
+        scratch = tmp_path / "scratch.json"
+        config_path = _write_config(
+            tmp_path, [_script_criterion("Ok", script, str(scratch))],
+        )
+        _commit_as_trusted(git_repo, config_path, script)
+        scratch.write_text("{}", encoding="utf-8")
+        marker = tmp_path / "pwned.txt"
+        _write_marker_script(script, marker)
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not marker.exists()
+
+    def test_no_criterion_runs_when_a_later_one_is_untrusted(
+        self, git_repo, tmp_path,
+    ):
+        # FR-3.1: every trust check precedes every dispatch. A trusted
+        # first criterion must not run when a later one is untrusted.
+        first_marker = tmp_path / "first.txt"
+        first = _write_marker_script(tmp_path / "first.py", first_marker)
+        second = _benign_script(tmp_path / "second.py")
+        config_path = _write_config(
+            tmp_path,
+            [
+                _script_criterion("First", first),
+                _script_criterion("Second", second),
+            ],
+        )
+        _commit_as_trusted(git_repo, config_path, first, second)
+
+        second_marker = tmp_path / "pwned.txt"
+        _write_marker_script(second, second_marker)
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not second_marker.exists()
+        assert not first_marker.exists(), (
+            "a trusted criterion must not dispatch when a later one halts"
+        )
+
+    def test_approval_flag_allows_modified_verifier_with_warning(
+        self, git_repo, tmp_path, capsys,
+    ):
+        script = _benign_script(tmp_path / "verify.py")
+        config_path = _write_config(tmp_path, [_script_criterion("Ok", script)])
+        _commit_as_trusted(git_repo, config_path, script)
+        marker = tmp_path / "approved.txt"
+        _write_marker_script(script, marker)
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config_path),
+                "--pull-request", "1",
+                "--json",
+                "--approve-untrusted-config",
+            ],
+        )
+
+        assert rc == 0
+        assert marker.exists(), "explicit approval must allow dispatch"
+        captured = capsys.readouterr()
+        assert "WARNING" in captured.err
+        payload = json.loads(captured.out)
+        assert payload["command_trust"]["status"] == "untrusted"
+        assert payload["command_trust"]["untrusted_files"] == ["verify.py"]
+        assert payload["command_trust"]["approved"] is True
+
+    def test_git_error_during_file_verification_is_not_approvable(
+        self, git_repo, tmp_path, monkeypatch, capsys,
+    ):
+        marker = tmp_path / "ran.txt"
+        script = _write_marker_script(tmp_path / "verify.py", marker)
+        config_path = _write_config(tmp_path, [_script_criterion("Ok", script)])
+        _commit_as_trusted(git_repo, config_path, script)
+
+        original = _dispatcher._run_git
+
+        def _fail_verifier_lookup(args, cwd):
+            if args[0] == "ls-tree" and args[-1] == "verify.py":
+                return subprocess.CompletedProcess(
+                    args=args, returncode=128, stdout=b"",
+                    stderr=b"fatal: object store is broken",
+                )
+            return original(args, cwd)
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _fail_verifier_lookup)
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config_path),
+                "--pull-request", "1",
+                "--approve-untrusted-config",
+            ],
+        )
+
+        assert rc == 3
+        assert not marker.exists(), (
+            "approval must not unlock dispatch when verification is impossible"
+        )
+        assert (
+            "does not apply when verification is impossible"
+            in capsys.readouterr().err
+        )
+
+    def test_script_outside_the_work_tree_is_recorded_not_checked(
+        self, git_repo, tmp_path, tmp_path_factory, capsys,
+    ):
+        # An installed-plugin script lives outside the consumer's work
+        # tree. A PR to that repository cannot rewrite it and it has no
+        # trusted-ref copy, so it is recorded and skipped, not halted on.
+        plugin_root = tmp_path_factory.mktemp("installed-plugin")
+        marker = tmp_path / "ran.txt"
+        script = _write_marker_script(plugin_root / "verify.py", marker)
+        config_path = _write_config(
+            tmp_path, [_script_criterion("Plugin", script)],
+        )
+        _commit_as_trusted(git_repo, config_path)
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1", "--json"],
+        )
+
+        assert rc == 0
+        assert marker.exists()
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["command_trust"]["status"] == "trusted"
+        assert payload["command_trust"]["checked_files"] == []
+        assert str(script.resolve()) in (
+            payload["command_trust"]["skipped_external_files"]
+        )
+
+    def test_interpreter_and_flags_are_not_compared(
+        self, git_repo, tmp_path, capsys,
+    ):
+        marker = tmp_path / "ran.txt"
+        script = _write_marker_script(tmp_path / "verify.py", marker)
+        config_path = _write_config(
+            tmp_path,
+            [_script_criterion("Flags", script, "--pull-request", "{pr}")],
+        )
+        _commit_as_trusted(git_repo, config_path, script)
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "77", "--json"],
+        )
+
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        checked = payload["command_trust"]["checked_files"]
+        assert checked == ["verify.py"], (
+            "only the work-tree script is compared; the interpreter, the "
+            "flag, and the substituted PR number are not paths to verify"
+        )
+        assert "77" not in checked
+        assert "--pull-request" not in checked
+
+    def test_repo_local_symlink_escaping_the_work_tree_halts(
+        self, git_repo, tmp_path, tmp_path_factory, capsys,
+    ):
+        # CWE-59: a PR-committed symlink lets the argv name a repo-local
+        # path whose content has no trusted-ref copy. Fail closed.
+        outside = tmp_path_factory.mktemp("outside")
+        marker = tmp_path / "pwned.txt"
+        target = _write_marker_script(outside / "target.py", marker)
+        link = tmp_path / "verify.py"
+        link.symlink_to(target)
+        config_path = _write_config(tmp_path, [_script_criterion("Linked", link)])
+        _commit_as_trusted(git_repo, config_path, link)
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not marker.exists()
+        assert str(link) in capsys.readouterr().err
+
+    def test_unparseable_command_line_exits_config_error(
+        self, git_repo, tmp_path, capsys,
+    ):
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "Unbalanced",
+                    "verification": "command",
+                    "command": 'echo "unterminated',
+                    "pass_when": "stdout-json.ok == true",
+                },
+            ],
+        )
+        _commit_as_trusted(git_repo, config_path)
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert "not a parseable command line" in capsys.readouterr().err
+
+
+class TestClassifyArgvToken:
+    """Unit coverage for argv classification (100% branch requirement for
+    security-critical code).
+    """
+
+    def test_flags_and_empty_tokens_are_skipped(self, tmp_path):
+        for token in ("--pull-request", "-v", ""):
+            assert _dispatcher._classify_argv_token(token, tmp_path) == (
+                _dispatcher._ARGV_SKIP, "",
+            )
+
+    def test_bare_interpreter_name_is_not_a_path(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        assert _dispatcher._classify_argv_token("python3", tmp_path) == (
+            _dispatcher._ARGV_SKIP, "",
+        )
+
+    def test_directory_inside_work_tree_is_skipped(self, tmp_path):
+        (tmp_path / "sub").mkdir()
+        assert _dispatcher._classify_argv_token(
+            str(tmp_path / "sub"), tmp_path,
+        ) == (_dispatcher._ARGV_SKIP, "")
+
+    def test_relative_token_resolves_against_cwd(self, tmp_path, monkeypatch):
+        (tmp_path / "pkg").mkdir()
+        (tmp_path / "pkg" / "verify.py").write_text("x", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+
+        assert _dispatcher._classify_argv_token("pkg/verify.py", tmp_path) == (
+            _dispatcher._ARGV_VERIFY, "pkg/verify.py",
+        )
+
+    def test_lexical_parent_escape_is_not_treated_as_inside(
+        self, tmp_path, tmp_path_factory,
+    ):
+        # Path.relative_to is lexical, so "<root>/../x" would otherwise
+        # pass containment; normpath collapses it first.
+        outside = tmp_path_factory.mktemp("outside")
+        target = outside / "verify.py"
+        target.write_text("x", encoding="utf-8")
+
+        kind, value = _dispatcher._classify_argv_token(
+            str(tmp_path / ".." / outside.name / "verify.py"), tmp_path,
+        )
+
+        assert kind == _dispatcher._ARGV_EXTERNAL
+        assert value == str(target.resolve())
+
+    def test_nonexistent_path_outside_work_tree_is_skipped(self, tmp_path):
+        assert _dispatcher._classify_argv_token(
+            "/nonexistent/x.py", tmp_path,
+        ) == (_dispatcher._ARGV_SKIP, "")
+
+    def test_unresolvable_repo_local_path_fails_closed(
+        self, tmp_path, monkeypatch,
+    ):
+        def _boom(self, strict=False):
+            raise OSError("symlink loop")
+
+        monkeypatch.setattr(Path, "resolve", _boom)
+        token = str(tmp_path / "loop.py")
+
+        assert _dispatcher._classify_argv_token(token, tmp_path) == (
+            _dispatcher._ARGV_ESCAPES, token,
+        )
+
+    def test_unresolvable_external_path_is_skipped(self, tmp_path, monkeypatch):
+        def _boom(self, strict=False):
+            raise OSError("symlink loop")
+
+        monkeypatch.setattr(Path, "resolve", _boom)
+
+        assert _dispatcher._classify_argv_token(
+            "/elsewhere/x.py", tmp_path,
+        ) == (_dispatcher._ARGV_SKIP, "")
+
+
+class TestVerifyWorktreeFileTrustBranches:
+    """Fault injection for the per-file comparison helper."""
+
+    def test_cat_file_failure_reports_error(self, tmp_path, monkeypatch):
+        def _fake(args, cwd):
+            if args[0] == "ls-tree":
+                return subprocess.CompletedProcess(
+                    args=args, returncode=0,
+                    stdout=b"blob deadbeef\tv.py\n", stderr=b"",
+                )
+            return subprocess.CompletedProcess(
+                args=args, returncode=128, stdout=b"", stderr=b"boom",
+            )
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _fake)
+
+        is_trusted, error = _dispatcher._verify_worktree_file_trust(
+            "v.py", tmp_path, "origin/main",
+        )
+
+        assert is_trusted is False
+        assert "cat-file" in error
+
+    def test_unreadable_worktree_file_reports_error(self, tmp_path, monkeypatch):
+        def _fake(args, cwd):
+            if args[0] == "ls-tree":
+                return subprocess.CompletedProcess(
+                    args=args, returncode=0,
+                    stdout=b"blob deadbeef\tv.py\n", stderr=b"",
+                )
+            return subprocess.CompletedProcess(
+                args=args, returncode=0, stdout=b"trusted", stderr=b"",
+            )
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _fake)
+
+        is_trusted, error = _dispatcher._verify_worktree_file_trust(
+            "v.py", tmp_path, "origin/main",
+        )
+
+        assert is_trusted is False
+        assert "cannot read work-tree file" in error
+
+
+class TestVerifyCommandTrustErrorBranches:
+    """Unit coverage for the aggregate verifier's failure paths."""
+
+    def test_not_a_git_work_tree_reports_git_error(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(_dispatcher, "_PROJECT_ROOT", tmp_path)
+        monkeypatch.setattr(
+            _dispatcher,
+            "_run_git",
+            lambda args, cwd: subprocess.CompletedProcess(
+                args=args, returncode=128, stdout=b"",
+                stderr=b"not a git repository",
+            ),
+        )
+
+        result = _dispatcher._verify_command_trust([], 1, "origin/main")
+
+        assert result.status == _dispatcher.COMMAND_TRUST_GIT_ERROR
+        assert "not inside a git work tree" in result.detail
+
+    def test_git_timeout_reports_git_error(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(_dispatcher, "_PROJECT_ROOT", tmp_path)
+
+        def _boom(args, cwd):
+            raise subprocess.TimeoutExpired(cmd=["git", *args], timeout=30)
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _boom)
+
+        result = _dispatcher._verify_command_trust([], 1, "origin/main")
+
+        assert result.status == _dispatcher.COMMAND_TRUST_GIT_ERROR
+        assert "command trust verification failed" in result.detail
+
+    def test_schema_violation_raises_config_error(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(_dispatcher, "_PROJECT_ROOT", tmp_path)
+        monkeypatch.setattr(
+            _dispatcher,
+            "_run_git",
+            lambda args, cwd: subprocess.CompletedProcess(
+                args=args, returncode=0,
+                stdout=str(tmp_path).encode() + b"\n", stderr=b"",
+            ),
+        )
+
+        with pytest.raises(_dispatcher.ConfigError, match="verification kind"):
+            _dispatcher._verify_command_trust(
+                [{"name": "X", "verification": "manual"}], 1, "origin/main",
+            )
+
+    def test_tracked_probe_failure_halts_as_git_error(
+        self, git_repo, tmp_path, monkeypatch, capsys,
+    ):
+        marker = tmp_path / "ran.txt"
+        script = _write_marker_script(tmp_path / "verify.py", marker)
+        config_path = _write_config(tmp_path, [_script_criterion("Ok", script)])
+        _commit_as_trusted(git_repo, config_path, script)
+
+        original = _dispatcher._run_git
+
+        def _fail_ls_files(args, cwd):
+            if args[0] == "ls-files":
+                return subprocess.CompletedProcess(
+                    args=args, returncode=128, stdout=b"",
+                    stderr=b"fatal: index is corrupt",
+                )
+            return original(args, cwd)
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _fail_ls_files)
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 3
+        assert not marker.exists(), (
+            "an unusable tracked-file probe must fail closed, not skip"
+        )
+        assert "cannot be verified" in capsys.readouterr().err
+
+
+class TestTrackedSubset:
+    """Unit coverage for the batched tracked-file probe."""
+
+    def test_empty_input_runs_no_git(self, tmp_path, monkeypatch):
+        def _unexpected(args, cwd):
+            raise AssertionError(f"git must not run for an empty set: {args}")
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _unexpected)
+
+        assert _dispatcher._tracked_subset([], tmp_path) == (set(), "")
+
+    def test_returns_only_the_tracked_paths(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            _dispatcher,
+            "_run_git",
+            lambda args, cwd: subprocess.CompletedProcess(
+                args=args, returncode=0, stdout=b"a.py\x00", stderr=b"",
+            ),
+        )
+
+        tracked, error = _dispatcher._tracked_subset(
+            ["a.py", "b.json"], tmp_path,
+        )
+
+        assert tracked == {"a.py"}
+        assert error == ""
+
+    def test_probe_failure_reports_error(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            _dispatcher,
+            "_run_git",
+            lambda args, cwd: subprocess.CompletedProcess(
+                args=args, returncode=128, stdout=b"", stderr=b"index corrupt",
+            ),
+        )
+
+        tracked, error = _dispatcher._tracked_subset(["a.py"], tmp_path)
+
+        assert tracked == set()
+        assert "git ls-files failed" in error
