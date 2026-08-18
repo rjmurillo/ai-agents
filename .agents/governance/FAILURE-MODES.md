@@ -41,22 +41,22 @@ Session protocol requires reading N files at session start. The instruction live
 
 ### Evidence
 
-- `2025-12-20-session-protocol-mass-failure.md`: 95.8% session-start non-compliance across a sample of sessions. Required Serena init, memory search, and session log creation were skipped.
+- `2025-12-20-session-protocol-mass-failure.md`: 95.8% session-start non-compliance across a sample of sessions. Required Serena init and memory search were skipped. Session log creation was part of the historical workflow.
 - `2025-12-17-protocol-compliance-failure.md`: Protocol files present and discoverable, yet not referenced in the first 20 turns.
 
 ### Detection
 
-- Session log missing required fields at end of session.
 - No `mcp__serena__activate_project` call in the transcript.
 - No memory query on the task topic before first edit.
+- Incomplete issue work has no per-issue handoff.
 
 ### Enforcement Pattern
 
 | Gate | Mechanism | Blocking |
 |------|-----------|----------|
-| Session start | `SessionStart` hook prints protocol reminder | Yes |
-| Session end | `Validate-Session.ps1` checks required artifacts | Yes |
-| Pre-commit | Hook verifies session log exists and is complete | Yes |
+| Session start | Transcript and repository instructions | Yes |
+| Session end | Per-issue handoff and Serena continuity | Conditional |
+| Pre-commit | Validates a staged session log | Validate-if-present |
 
 See `.agents/SESSION-PROTOCOL.md` and ADR-007 (memory-first architecture).
 
@@ -81,13 +81,13 @@ Context window approaches its limit. The harness compacts prior messages. Compre
 
 - Planned task count resets without completion.
 - Re-reads of files already consulted earlier in the session.
-- HANDOFF.md or session log contains stale state at next resume.
+- Per-issue handoff or Serena memory contains stale state at next resume.
 
 ### Enforcement Pattern
 
-- Persist task and decision state to `.agents/sessions/*.json` on a durable cadence, not only at session end.
+- Persist task and decision state to the task tracker, per-issue handoff, or Serena memory.
 - Display `Commit X/20`, or `X/40` once the branch merges main, every turn so the counter survives compaction visibly. Thresholds live in `scripts/validation/pr_commit_count.py`.
-- On resume, require the agent to read the session log before taking any mutating action.
+- On resume, require the agent to read the latest per-issue handoff before taking any mutating action.
 
 See ADR-008 (protocol automation lifecycle hooks) and `.agents/SESSION-PROTOCOL.md`.
 

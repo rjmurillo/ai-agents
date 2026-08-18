@@ -47,6 +47,7 @@ Need GitHub data?
 ├─ List PRs (filtered) → get_pull_requests.py
 ├─ PR info/diff → get_pr_context.py
 ├─ CI check status → get_pr_checks.py
+├─ Failing check also red on main? → triage_red_check.py
 ├─ CI failure logs → get_pr_check_logs.py
 ├─ Review comments → get_pr_review_comments.py
 ├─ Review threads → get_pr_review_threads.py
@@ -124,6 +125,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `get_pr_context.py` | PR metadata, diff, files | `--pull-request`, `--include-changed-files`, `--include-diff` |
 | `get_pr_checks.py` | CI check status, polling | `--pull-request`, `--wait`, `--timeout-seconds`, `--required-only`, `--output-format {json,human,auto}` |
 | `get_pr_check_logs.py` | Fetch logs from failing CI checks | `--pull-request`, `--max-lines`, `--context-lines` |
+| `triage_red_check.py` | CI-failure triage step 1: is a failing PR check also red on main's latest run? Exit 0 green on main, exit 1 red on main (EvidenceUrl cites the main run), exit 3 cannot determine (never reported as green) | `--check-name`, `--branch`, `--history-depth`, `--pull-request` |
 | `get_pr_review_comments.py` | Paginated review comments with stale detection | `--pull-request`, `--include-issue-comments`, `--detect-stale`, `--exclude-stale`, `--only-stale` |
 | `get_pr_review_threads.py` | Thread-level review data | `--pull-request`, `--unresolved-only` |
 | `get_pr_reviews.py` | Review submissions (verdict state and body) | `--pull-request`, `--state`, `--output-format {json,human,auto}` |
@@ -154,7 +156,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `get_issue_context.py` | Issue metadata (no comments) | `--issue` |
 | `get_issue_comments.py` | Issue comment thread (discourse) | `--issue`, `--limit` |
 | `new_issue.py` | Create new issue | `--title`, `--body`, `--labels` |
-| `close_issue.py` | Close with optional comment (`--verify-claims` aborts when a cited commit/PR does not resolve on the remote) | `--issue`, `--reason`, `--comment`, `--verify-claims` |
+| `close_issue.py` | Close with optional comment (`--verify-claims` aborts on a cited commit/PR the remote disproves, exit 1, and separately on one it could not check, exit 3 or 4) | `--issue`, `--reason`, `--comment`, `--verify-claims` |
 | `reopen_issue.py` | Reopen with optional comment | `--issue`, `--comment` |
 | `set_issue_labels.py` | Apply labels (auto-create) | `--issue`, `--labels`, `--priority` |
 | `set_issue_milestone.py` | Assign milestone | `--issue`, `--milestone` |

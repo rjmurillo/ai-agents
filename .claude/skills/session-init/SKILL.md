@@ -1,6 +1,6 @@
 ---
 name: session-init
-description: Create protocol-compliant JSON session logs with verification-based enforcement. Autonomous operation with auto-incremented session numbers and objective derivation from git state. Use when starting any new session. Use when you say "start a session", "create the session log". Do NOT use for mid-session protocol checks (use session), or to complete and validate a log at the end of a session (use session-end).
+description: Create an optional protocol-compliant JSON session log. Use only when an operator explicitly asks to keep a committed session record, says "create the session log", or opts into session logging. Do NOT use merely because a session started. Do NOT use for mid-session protocol checks (use session), or to complete and validate an existing log (use session-end).
 version: 1.0.0
 license: MIT
 metadata:
@@ -13,7 +13,7 @@ metadata:
 
 # Session Init
 
-Create protocol-compliant session logs with verification-based enforcement.
+Create an optional protocol-compliant session log after explicit opt-in.
 
 ---
 
@@ -61,28 +61,28 @@ Follow the manual workflow below if the automated script doesn't meet your needs
 
 ## When to Use
 
-Use this skill when:
+Use this skill only when a contributor explicitly opts into an optional
+committed session record.
 
-- Starting any new work session
-- Need a protocol-compliant session log
-- Previous session log failed CI validation and need a fresh start
+Examples:
+
+- The operator asks to create a session log
+- A migration or compatibility exercise needs a schema-valid fixture
+- A contributor wants an additional chronological record alongside the issue handoff
 
 Use [session-log-fixer](../session-log-fixer/SKILL.md) instead when:
 
-- An existing session log has validation errors that need repair
-- CI failed with "Session protocol validation failed"
+- An existing opted-in session log has validation errors that need repair
+- An explicitly supplied log failed validation
 
 ## Why This Skill Exists
 
-**Problem**: Every PR starts with malformed session logs that fail CI validation.
+**Problem**: An opted-in session log can drift from the retained schema and
+canonical template when created manually.
 
-**Root Cause**: Agents generate session logs from LLM memory instead of copying the canonical template from SESSION-PROTOCOL.md. This causes variations like:
-
-- Missing `(COMPLETE ALL before closing)` text in Session End header
-- Wrong heading levels (`##` vs `###`)
-- Missing sections
-
-**Solution**: Verification-based enforcement following the proven Serena initialization pattern.
+**Solution**: Copy the canonical template, populate observed values, and validate
+the optional artifact immediately. This skill does not make the artifact a
+start, commit, push, PR, or CI prerequisite.
 
 ---
 

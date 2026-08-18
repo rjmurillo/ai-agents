@@ -24,7 +24,6 @@ from scripts.hook_utilities import (
     is_git_commit_command,
     is_git_push_command,
     is_pr_create_command,
-    is_session_logged_command,
     lock_file,
     unlock_file,
 )
@@ -140,32 +139,6 @@ class TestIsPrCreateCommand:
 
     def test_returns_false_for_none(self) -> None:
         assert is_pr_create_command(None) is False
-
-
-class TestIsSessionLoggedCommand:
-    """M7-T3: aggregate predicate for hooks registered under git commit + pr create."""
-
-    def test_true_for_git_commit(self) -> None:
-        assert is_session_logged_command("git commit -m x") is True
-
-    def test_true_for_git_ci(self) -> None:
-        assert is_session_logged_command("git ci -m x") is True
-
-    def test_true_for_pr_create(self) -> None:
-        assert is_session_logged_command("gh pr create --title x") is True
-
-    def test_false_for_git_status(self) -> None:
-        assert is_session_logged_command("git status") is False
-
-    def test_false_for_git_push(self) -> None:
-        # push is a different matcher's concern (branch_*_guard)
-        assert is_session_logged_command("git push origin main") is False
-
-    def test_false_for_pr_view(self) -> None:
-        assert is_session_logged_command("gh pr view 123") is False
-
-    def test_false_for_none(self) -> None:
-        assert is_session_logged_command(None) is False
 
 
 class TestGetTodaySessionLog:
@@ -471,7 +444,6 @@ class TestModuleExports:
             "is_git_push_command",
             "is_pr_create_command",
             "is_project_repo",
-            "is_session_logged_command",
             "lock_file",
             "skip_if_consumer_repo",
             "unlock_file",

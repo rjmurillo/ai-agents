@@ -11,7 +11,6 @@ import sys
 from pathlib import Path
 
 import pytest
-import yaml
 
 _SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts/ci/build_ai_review_context.py"
 
@@ -367,47 +366,6 @@ def test_rate_limit_reset_beyond_context_budget_fails_without_sleeping(
     assert sleeps == []
     assert context.infrastructure_failure is True
     assert "retry budget exhausted" in context.text
-
-
-def test_context_budget_preserves_full_model_invocation_window():
-    """Context retry cannot consume the downstream five-minute model budget."""
-    finalization_reserve_seconds = 60
-    repo_root = Path(__file__).resolve().parents[1]
-    workflow = yaml.safe_load(
-        (repo_root / ".github/workflows/ai-pr-quality-gate.yml").read_text(encoding="utf-8")
-    )
-    action = yaml.safe_load(
-        (repo_root / ".github/actions/agent-review/action.yml").read_text(encoding="utf-8")
-    )
-    review_job_seconds = min(
-        int(job["timeout-minutes"]) * 60
-        for job in workflow["jobs"].values()
-        if any(
-            step.get("uses") == "./.github/actions/agent-review" for step in job.get("steps", [])
-        )
-    )
-    invocation_seconds = next(
-        int(step["with"]["timeout-minutes"]) * 60
-        for step in action["runs"]["steps"]
-        if step.get("uses") == "./.github/actions/ai-review"
-    )
-    review_jobs = [
-        job
-        for job in workflow["jobs"].values()
-        if any(
-            step.get("uses") == "./.github/actions/agent-review" for step in job.get("steps", [])
-        )
-    ]
-
-    assert all(
-        job["steps"][0]["name"] == "Establish review job deadline"
-        and f"+ {int(job['timeout-minutes']) * 60 - 30}" in job["steps"][0]["run"]
-        for job in review_jobs
-    )
-    assert (
-        _mod.GH_CONTEXT_RETRY_BUDGET_SECONDS + invocation_seconds + finalization_reserve_seconds
-        < review_job_seconds
-    )
 
 
 def test_context_deadline_subtracts_elapsed_action_setup(

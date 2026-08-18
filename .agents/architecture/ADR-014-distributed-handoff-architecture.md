@@ -4,6 +4,13 @@
 
 Accepted
 
+### Current-State Amendment (2026-08-16)
+
+Committed session logs are optional. Per-issue handoffs and Serena memory now
+carry active continuity. Historical logs and this ADR's original rationale
+remain preserved. HANDOFF.md remains read-only. Log-specific authority,
+requirements, and success metrics below apply only to opted-in logs.
+
 ## Date
 
 2025-12-22

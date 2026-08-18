@@ -1,6 +1,6 @@
 ---
 name: merge-resolver
-version: 2.2.0
+version: 2.3.0
 description: Resolve merge conflicts by analyzing git history and commit intent. Handles PR conflicts, branch conflicts, and session file conflicts with automated resolution for known patterns. Use when you say "resolve merge conflicts", "fix conflicts on this branch", "PR has conflicts with main", "can't merge due to conflicts", or "resolve PR conflicts". Do NOT use for rebasing, cherry-picking, or complex history rewrites (use git-advanced-workflows).
 license: MIT
 metadata:
@@ -114,14 +114,18 @@ Priority is a strict priority hierarchy: Security (1) > Bugfix (2) > Feature/Ref
 
 | Action | Correct | Wrong |
 |--------|---------|-------|
-| Session file conflict | Accept `--theirs`, rename ours to next number | Accept `--ours` (alters main's record) |
-| Same-numbered session | Keep both with different numbers | Overwrite one version |
+| Session file conflict | Accept `--theirs`, rename ours with a distinguishing suffix | Accept `--ours` (alters main's record) |
+| Same-numbered session (add/add) | Keep both; rename ours with a suffix, keep the number | Merge both contents into one file |
+
+**Rename, never content-merge.** An add/add conflict on an append-only evidence artifact (session logs `.agents/sessions/*`, QA reports `.agents/qa/*`, retrospectives `.agents/retrospective/*`) means two branches wrote different records to the same filename. Keep both files: accept the base branch version at the original name, rename the head branch version with a distinguishing suffix (keep the session number, append an issue or topic slug), and update any index or report that references the renamed file. Never merge the two contents into one file. PR #4856 proved the anti-pattern: merging both sessions' prose into one file would have destroyed two accurate records to produce one false one (`.agents/retrospective/2026-08-10-pr-4856-session-log-collision.md`). Issue #4751 tracks preventing the collision at allocation time.
 
 See `references/strategies.md` for the full session file resolution workflow.
 
 ## Auto-Resolvable Patterns
 
 The script auto-resolves these by accepting the target branch version.
+
+**Add/add caveat**: accept-theirs alone is wrong for an add/add conflict on an append-only evidence artifact (`.agents/sessions/*`, `.agents/qa/*`, `.agents/retrospective/*`), because it silently discards the head branch's own record. After accepting theirs, restore the head branch version under a renamed path per the Session File Rules above. The script does not do the rename half; handle it manually.
 
 | Pattern | Rationale |
 |---------|-----------|
@@ -215,7 +219,8 @@ Uses `git diff --cached --check MERGE_HEAD` when a merge is in progress (MERGE_H
 
 | Anti-Pattern | Why It Fails | Instead |
 |--------------|--------------|---------|
-| Alter session files from main | Breaks audit trail (immutable records) | Accept `--theirs`, then rename our session file to the next available number |
+| Alter session files from main | Breaks audit trail (immutable records) | Accept `--theirs`, then rename our session file with a distinguishing suffix |
+| Content-merge an add/add session-log conflict | Destroys two accurate records to produce one false one (PR #4856) | Keep both files; rename ours with a suffix; update references |
 | Push without session validation | CI blocks with MUST violations | Run `validate_session_json.py` first |
 | Manual edit of generated files | Lost on regeneration | Edit template, run generator |
 | Accept `--ours` for HANDOFF.md | Branch version often stale | Accept `--theirs` (main is canonical) |
@@ -232,7 +237,7 @@ Uses `git diff --cached --check MERGE_HEAD` when a merge is in progress (MERGE_H
 |-----------|----------|
 | All conflicts resolved | `python3 -c "import subprocess, sys; r=subprocess.run(['git','status','--porcelain'],capture_output=True,text=True,encoding='utf-8',errors='replace'); sys.exit(r.returncode) if r.returncode else print(sum(1 for l in r.stdout.splitlines() if l.startswith('UU')))"` returns 0 |
 | No merge markers remain | `python3 .claude/skills/merge-resolver/scripts/verify_no_conflict_markers.py` exits 0 (during merge: checks staged vs MERGE_HEAD AND working tree vs index; outside merge: checks working tree+index vs HEAD; ignores intentional fenced examples in committed docs -- issues #2424, #4058) |
-| Session protocol valid | `validate_session_json.py` exits 0 |
+| Any opted-in session log valid | `validate_session_json.py` exits 0 |
 | Markdown lint passes | `npx markdownlint-cli2` exits 0 |
 | Push successful | Remote ref updated |
 
@@ -240,8 +245,8 @@ Uses `git diff --cached --check MERGE_HEAD` when a merge is in progress (MERGE_H
 
 - [ ] All conflicted files staged (`git add`)
 - [ ] No UU status in `git status --porcelain`
-- [ ] Session log exists at `.agents/sessions/`
-- [ ] Session end checklist completed
+- [ ] Any conflicted session logs preserved as separate valid records
+- [ ] Per-issue handoff updated when work remains
 - [ ] Serena memory updated
 - [ ] Merge commit created
 - [ ] Branch pushed to origin
@@ -274,7 +279,7 @@ Add entries in `references/strategies.md` for domain-specific conflicts.
 ## Related
 
 - **Security**: Branch name and path validation prevent injection and traversal
-- **SESSION-PROTOCOL.md**: Session end requirements (blocking gate)
+- **SESSION-PROTOCOL.md**: Optional log and continuity requirements
 - **strategies.md**: Detailed resolution patterns for edge cases
 - **merge-resolver-session-protocol-gap**: Memory documenting root cause analysis
 
@@ -283,41 +288,33 @@ Add entries in `references/strategies.md` for domain-specific conflicts.
 
 ### Why This Matters
 
-Session protocol validation is a CI blocking gate. Pushing without completing session requirements causes CI failures with "MUST requirement(s) not met" errors.
+Session logs are historical records once created. A malformed staged or
+explicitly supplied log still fails validation.
 
 ### Validation Commands
 
 ```bash
-# 1. Ensure session log exists
-SESSION_LOG=$(ls -t -- .agents/sessions/*.json 2>/dev/null | head -1)
-if [ -z "$SESSION_LOG" ]; then
-    echo "ERROR: No session log found."
-    exit 1
-fi
-
-# 2. Run session protocol validator
-uv run python scripts/validate_session_json.py "$SESSION_LOG"
+# Validate an existing log only when one is part of the merge.
+uv run python scripts/validate_session_json.py ".agents/sessions/<log>.json"
 ```
 
-### Session End Checklist (REQUIRED)
+### Session End Checklist
 
 | Req | Step | Status |
 |-----|------|--------|
-| MUST | Complete session log (all sections filled) | [ ] |
 | MUST | Update Serena memory (cross-session context) | [ ] |
 | MUST | Run markdown lint | [ ] |
 | MUST | Route to qa agent (feature implementation) | [ ] |
-| MUST | Commit all changes (including .serena/memories) | [ ] |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [ ] |
 
 ### Common Failures
 
 | Error | Cause | Fix |
 |-------|-------|-----|
-| `E_TEMPLATE_DRIFT` | Session checklist outdated | Copy canonical checklist from SESSION-PROTOCOL.md |
+| `E_TEMPLATE_DRIFT` | Existing log checklist outdated | Repair from the retained schema and optional appendix |
 | `E_QA_EVIDENCE` | QA row checked but no report path | Add QA report or use "SKIPPED: docs-only" |
 | `E_DIRTY_WORKTREE` | Uncommitted changes | Stage and commit all files including `.agents/` |
 
 </details>
 
-<!-- vendor-portability: declared. This skill reasons about consumer git state under .agents/ (sessions/*.json immutability, HANDOFF.md, staging the .agents/ tree). The references describe how to treat whatever .agents/ content the consumer repo has; an install without that tree simply has nothing to stage there. Issue #2050. -->
+<!-- vendor-portability: declared. This skill reasons about consumer git state under .agents/ (sessions/*.json immutability, QA reports under .agents/qa/, retrospectives under .agents/retrospective/, HANDOFF.md, staging the .agents/ tree). The references describe how to treat whatever .agents/ content the consumer repo has; an install without that tree simply has nothing to stage there. The PR #4856 citation (.agents/retrospective/2026-08-10-pr-4856-session-log-collision.md) is upstream evidence in the rjmurillo/ai-agents repository. Issue #2050. -->

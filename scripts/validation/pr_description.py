@@ -310,11 +310,22 @@ def fetch_pr_data(pr_number: int, owner: str, repo: str) -> dict[str, Any]:
     raw_files: list[dict[str, Any]] = json.loads(result.stdout)
     files = [{"path": f["filename"]} for f in raw_files]
 
-    # 3. Labels (paginated for safety)
+    # 3. Labels (paginated for safety). The pull payload already carries the
+    # same labels, so retain it as a fallback when the issues endpoint rejects
+    # an otherwise valid workflow token (observed as HTTP 422 on PR #5135).
     result = _run(["gh", "api", f"repos/{owner}/{repo}/issues/{pr_number}/labels", "--paginate"])
     if result.returncode != 0:
-        raise RuntimeError(f"Failed to fetch PR #{pr_number} labels: {result.stderr}")
-    labels: list[dict[str, Any]] = json.loads(result.stdout)
+        embedded_labels = pr_info.get("labels")
+        if not isinstance(embedded_labels, list):
+            raise RuntimeError(f"Failed to fetch PR #{pr_number} labels: {result.stderr}")
+        labels = [label for label in embedded_labels if isinstance(label, dict)]
+        print(
+            f"Warning: labels endpoint failed for PR #{pr_number}; "
+            "using labels embedded in the pull response.",
+            file=sys.stderr,
+        )
+    else:
+        labels = json.loads(result.stdout)
 
     base_info: dict[str, Any] = pr_info.get("base") or {}
     base_repo: dict[str, Any] = base_info.get("repo") or {}
@@ -839,8 +850,24 @@ def validate_pr_description(
                         "`## Changed Files` are informational. Move the path "
                         "under one of those headings, use a bullet (`- path.ext`) "
                         "or bold (`**path.ext**`), or wrap it in a code fence. "
-                        f"For unrecoverable cases, apply the "
-                        f"'{DEFAULT_BYPASS_LABEL}' label to the PR."
+                        # CONTRIBUTING.md:912, section "Bypassing Description
+                        # Validation", reads verbatim: "1. A human maintainer
+                        # MUST add the `description-validation-bypass` label
+                        # (case-insensitive match)". Naming it as the reader's
+                        # own next step tells an agent to grant itself a
+                        # permission it does not hold (issue #4782).
+                        #
+                        # Stricter/looser/different than canonical:
+                        # CONTRIBUTING.md:912 states only who MAY add the
+                        # label. This message additionally states who may NOT
+                        # (the reader), because the load-bearing half for an
+                        # autonomous reader is the prohibition, not the
+                        # permission alone.
+                        f"For unrecoverable cases the '{DEFAULT_BYPASS_LABEL}' "
+                        "label clears this CRITICAL, but CONTRIBUTING.md "
+                        '("Bypassing Description Validation") requires a human '
+                        "maintainer to add it: ask a maintainer to decide, and "
+                        "do not apply it yourself."
                     ),
                 )
             )

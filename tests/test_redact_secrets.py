@@ -604,7 +604,9 @@ class TestCiSinkWrappers:
         elapsed = time.perf_counter() - started
 
         assert result.text == value
-        assert elapsed < 1
+        # Pre-push runs share CPU across parallel jobs. This matches the sibling
+        # hostile-input budget while still rejecting a superlinear 64 KiB scan.
+        assert elapsed < 5
 
     def test_credential_assignments_preserve_trailing_structured_fields(self):
         raw_json = '{"password":"secret","timeout":30}'

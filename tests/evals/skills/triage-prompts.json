@@ -37,11 +37,11 @@
       },
       {
         "prompt": "List the session protocol gates that fire at session start, mid, pre-PR, and end.",
-        "expected": "Start: Serena init, HANDOFF.md, session log. Mid: commit count budget. Pre-PR: pre_pr.py, security scan. End: complete log, preserve HANDOFF, lint, commit, validate JSON."
+        "expected": "Start: Serena init, HANDOFF.md, branch check. Mid: commit count budget. Pre-PR: pre_pr.py and security scan. End: preserve HANDOFF, update per-issue handoff and Serena memory, lint, commit. Session logs are optional and validate only when staged or supplied."
       },
       {
         "prompt": "Do I create the session log at session start or end?",
-        "expected": "At start. Use session-init skill to create JSON under .agents/sessions/YYYY-MM-DD-session-NN.json. Update through session, validate at end with session-end."
+        "expected": "Neither by default. Session logs are optional. Use session-init only after explicit opt-in, then validate the existing log with session-end or validate_session_json.py."
       },
       {
         "prompt": "What command runs Test-InvestigationEligibility for ADR-034 compliance?",
@@ -49,7 +49,7 @@
       },
       {
         "prompt": "Where do session protocol rules live in this repo?",
-        "expected": ".agents/SESSION-PROTOCOL.md is canonical. AGENTS.md > Session Protocol Gates summarizes. ADR-007 governs session log requirement."
+        "expected": ".agents/SESSION-PROTOCOL.md is canonical. AGENTS.md summarizes active gates. ADR-007 records the current amendment: logs are optional, while memory retrieval and continuity remain required."
       }
     ],
     "session-qa-eligibility": [
@@ -99,27 +99,27 @@
     "session-log-fixer": [
       {
         "prompt": "GitHub Actions failed with verdict NON_COMPLIANT on Session Protocol Validation. How do I diagnose?",
-        "expected": "Use session-log-fixer skill. With deterministic validation, Job Summary lists exact MUST requirements that failed. No artifact downloads needed."
+        "expected": "The Session Protocol Validation workflow is retired. For an existing staged or supplied log, run validate_session_json.py locally and use session-log-fixer to repair exact validator failures."
       },
       {
         "prompt": "Session Protocol Results job failed for session validation. What does the skill recommend?",
-        "expected": "Read the Job Summary from the failed run. Each missing requirement is named explicitly. Fix the session JSON locally, push, rerun."
+        "expected": "That deleted job no longer provides a repair path. Run validate_session_json.py against the existing log locally, repair its reported fields, and revalidate."
       },
       {
         "prompt": "Session JSON missing 'end' evidence. Skill guidance?",
-        "expected": "Fixer guides adding end-of-session evidence: commit SHA, lint results, memory updates, validator pass. Use session-end skill to populate then commit."
+        "expected": "For an existing optional log, session-log-fixer repairs only evidence supported by the transcript, handoff, repository state, or PR. Never fabricate missing evidence."
       },
       {
         "prompt": "How does session-log-fixer differ from session-end?",
-        "expected": "session-end populates end-of-session evidence pre-commit. session-log-fixer triages and repairs CI failures after the fact when validation fails server-side."
+        "expected": "session-end completes an existing optional log. session-log-fixer repairs an existing log rejected by local validate_session_json.py. Neither creates a required gate artifact."
       },
       {
         "prompt": "Do I need to download the workflow artifact to fix session validation?",
-        "expected": "No. Deterministic validation surfaces failures directly in Job Summary. Read summary, edit JSON, push."
+        "expected": "No. The workflow and job summary are retired. Run validate_session_json.py locally against the existing optional log."
       },
       {
         "prompt": "What error pattern does the fixer recognize?",
-        "expected": "MUST requirement(s) not met, NON_COMPLIANT verdict, Session Protocol Results job failure in Session Protocol Validation workflow."
+        "expected": "Local validate_session_json.py failures for malformed JSON, schema mismatch, invalid branch or commit metadata, or unsupported evidence."
       }
     ],
     "memory": [
@@ -145,7 +145,7 @@
       },
       {
         "prompt": "What is the memory-first rule from ADR-007?",
-        "expected": "Query memory before reasoning. Pre-training is last resort. Read first, reason second. Evidence in session log."
+        "expected": "Query memory before reasoning. Pre-training is last resort. Read first, reason second. Record continuity in Serena memory and the per-issue handoff."
       }
     ],
     "memory-search": [

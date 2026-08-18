@@ -141,13 +141,6 @@ ADR_REVIEW_PATH_RE = re.compile(
 )
 ADR_ID_RE = re.compile(r"ADR-\d+", re.IGNORECASE)
 FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
-ADR_REVIEW_PATTERNS = (
-    # Matches /adr-review, adr-review, adr review, ADR Review Protocol, etc.
-    # Case-insensitive; dot matches the hyphen or space separator (Issue #4135).
-    re.compile(r"\badr.review\b", re.IGNORECASE),
-    re.compile(r"multi-agent consensus.{0,200}\bADR\b", re.DOTALL | re.IGNORECASE),
-    re.compile(r"\barchitect\b.{0,80}\bplanner\b.{0,80}\bqa\b", re.DOTALL | re.IGNORECASE),
-)
 RETROSPECTIVE_EVIDENCE_PATTERNS = (
     re.compile(r"(?i)(##\s*retrospective|retrospective\s*section|learnings?\s*captured)"),
     re.compile(r"(?i)(\.agents/retrospective/|retrospective[-_]?file|retro[-_]?\d{4})"),
@@ -575,6 +568,13 @@ _GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
     ("src/copilot-cli/lib/", ".claude/lib/", None),
     ("src/copilot-cli/skills/", ".claude/skills/", None),
     ("src/copilot-cli/hooks/", ".claude/hooks/", None),
+)
+# Matcher-shim suffix appended by generate_hooks_emit._matcher_suffix.
+# Format: __{sanitized}_{6-hex-digest} or just __{6-hex-digest} before .py.
+# The sanitized segment never contains __ (non-alnum runs collapse to single _),
+# so the last __ in a stem always marks the suffix boundary. Refs #4857.
+_HOOK_MATCHER_SUFFIX_RE = re.compile(
+    r"__(?:(?!__)[A-Za-z0-9_])*[0-9a-f]{6}(?=\.py$)"
 )
 _PROMPT_OUTPUT_PREFIX = ".github/prompts/pr-quality-gate-"
 _PROMPT_SOURCE_PREFIX = ".claude/skills/review/references/"
@@ -1340,25 +1340,49 @@ def _extract_adr_ids(paths: Sequence[str]) -> set[str]:
     }
 
 
-def _debate_references_adr(debate_path: Path, adr_ids: set[str]) -> bool:
-    if debate_path.is_symlink():
+def _is_debate_log_path(relative_path: str) -> bool:
+    safe_path = _safe_relative_path(relative_path)
+    if safe_path is None:
         return False
-    try:
-        content = debate_path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
+    path = PurePosixPath(safe_path)
+    return (
+        path.parent == PurePosixPath(".agents/critique")
+        and path.suffix == ".md"
+        and "debate" in path.name
+    )
+
+
+def _staged_debate_log_paths(repo_root: Path) -> list[str]:
+    result = _run_git(
+        repo_root,
+        [
+            "diff",
+            "--cached",
+            "--name-only",
+            "--diff-filter=ACMR",
+            "-z",
+            "--",
+            ".agents/critique",
+        ],
+    )
+    if result.returncode != 0:
+        return []
+    return [path for path in result.stdout.split("\0") if _is_debate_log_path(path)]
+
+
+def _staged_debate_references_adr(
+    relative_path: str,
+    repo_root: Path,
+    adr_ids: set[str],
+) -> bool:
+    if not _is_staged_regular_file(repo_root, relative_path):
         return False
+    blob = _read_index_blob(repo_root, relative_path)
+    if blob is None:
+        return False
+    content = blob.decode("utf-8", errors="replace")
     referenced = {match.group(0).upper() for match in ADR_ID_RE.finditer(content)}
     return bool(referenced & adr_ids)
-
-
-def _session_has_adr_review(session_log: Path) -> bool:
-    if session_log.is_symlink():
-        return False
-    try:
-        content = session_log.read_text(encoding="utf-8")
-    except OSError:
-        return False
-    return any(pattern.search(content) for pattern in ADR_REVIEW_PATTERNS)
 
 
 def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
@@ -1370,14 +1394,6 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
         if not gated_paths:
             return 0
 
-    session_log = _session_log_for_current_branch(repo_root / ".agents" / "sessions", repo_root)
-    if session_log is None or not _session_has_adr_review(session_log):
-        print(
-            "ERROR: ADR changes require adr-review evidence in today's session log",
-            file=sys.stderr,
-        )
-        return 1
-
     # Canonical debate-log directory per:
     #   .claude/skills/adr-review/references/artifacts.md line 3:
     #     "Save debate artifacts to `.agents/critique/`."
@@ -1385,17 +1401,24 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
     #     "Save to: `.agents/critique/ADR-NNN-debate-log.md`"
     # Issue #4250: the hook previously searched .agents/analysis/ but the
     # skill writes to .agents/critique/.
-    critique_dir = repo_root / ".agents" / "critique"
-    try:
-        debate_logs = list(critique_dir.glob("*debate*.md"))
-    except OSError:
-        debate_logs = []
+    # Only stage-zero regular files in the caller's staged path set can satisfy
+    # the gate. Working-tree-only evidence must not authorize an ADR commit.
+    debate_logs = [
+        path
+        for path in _staged_debate_log_paths(repo_root)
+        if _is_staged_regular_file(repo_root, path)
+    ]
     if not debate_logs:
-        print("ERROR: ADR changes require a debate log in .agents/critique", file=sys.stderr)
+        print(
+            "ERROR: ADR changes require a debate log staged in .agents/critique",
+            file=sys.stderr,
+        )
         return 1
 
     adr_ids = _extract_adr_ids(gated_paths)
-    if adr_ids and not any(_debate_references_adr(path, adr_ids) for path in debate_logs):
+    if adr_ids and not any(
+        _staged_debate_references_adr(path, repo_root, adr_ids) for path in debate_logs
+    ):
         names = ", ".join(sorted(adr_ids))
         print(f"ERROR: no debate log references the staged ADR IDs: {names}", file=sys.stderr)
         return 1
@@ -1919,10 +1942,12 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
         if not _is_staged_session_on_upstream_default(repo_root, path)
     ]
     if not sessions:
-        if session_paths:
-            return 0
-        print("ERROR: staged .agents changes require a JSON session log", file=sys.stderr)
-        return 1
+        # The committed session-log gate is retired: staging a .agents change no
+        # longer requires a JSON session log. When no session log is present to
+        # validate, pass. This keeps check_sessions as a validate-if-present
+        # gate (the session-policy pre-commit job still runs it), so an existing
+        # staged log below is still validated in full.
+        return 0
     new_logs = added_session_paths_in_index(sessions, repo_root)
     if new_logs is None:
         print(
@@ -1932,13 +1957,13 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
         )
         return 1
     for session in sessions:
-        mode = "--creation-mode" if session in new_logs else "--pre-commit"
+        flags = ["--creation-mode"] if session in new_logs else ["--pre-commit", "--existing-log"]
         result = _run_command(
             [
                 sys.executable,
                 "scripts/validate_session_json.py",
                 session,
-                mode,
+                *flags,
             ],
             repo_root,
         )
@@ -2479,6 +2504,11 @@ def _mirror_source(relative_path: str) -> str | None:
             if not remainder.endswith(output_suffix):
                 continue
             remainder = remainder[: -len(output_suffix)] + source_suffix
+        # Strip matcher-shim suffix for hook shims only: generate_hooks_emit
+        # appends __{sanitized}_{6hex} to hook shims. The canonical source has
+        # no suffix, so strip before lookup. No-op when absent. Refs #4857.
+        if source_prefix == ".claude/hooks/":
+            remainder = _HOOK_MATCHER_SUFFIX_RE.sub("", remainder)
         return source_prefix + remainder
     return None
 
@@ -2747,6 +2777,45 @@ def _changed_line_map(
     return _parse_changed_lines(result.stdout)
 
 
+def _merge_base_scope(
+    paths: Sequence[str],
+    repo_root: Path,
+    base_ref: str,
+) -> set[str] | None:
+    """Return the subset of ``paths`` that still differ from the merge base.
+
+    Lefthook's ``{push_files}`` names every file any pushed commit touched, so
+    a commit-then-revert round trip on a file with pre-existing type debt kept
+    that file in the mypy scope even though the push ships no change to it
+    (issue #5071). ``git diff --name-only base...HEAD`` names exactly what the
+    push ships: a round trip produces no entry, a rename names the post-image
+    path, and a deletion names the removed path (dropped earlier by the
+    file-existence check in ``run_mypy``).
+
+    ``None`` signals the base could not be resolved; callers then keep the
+    full pushed set so the gate is never weaker than before, mirroring the
+    ``_changed_line_map`` fallback.
+
+    Path identity uses ``_normalize_ratchet_path`` on both sides of the
+    comparison, so a pathological name that differs only by surrounding
+    whitespace can collide. Collisions only ADD names to the returned set,
+    never remove them: a file that differs from the merge base always
+    contributes its own normalized name, so a modified file can never be
+    dropped. The worst case is retaining a round-tripped file whose name
+    collides with a modified one, which merely scans it; the diff-line
+    ratchet still ignores its unchanged lines.
+    """
+    if not paths:
+        return set()
+    result = _run_git(
+        repo_root,
+        ["diff", "--name-only", "-z", "--no-color", f"{base_ref}...HEAD", "--", *paths],
+    )
+    if result.returncode != 0:
+        return None
+    return {_normalize_ratchet_path(name) for name in result.stdout.split("\0") if name.strip()}
+
+
 def _parse_mypy_error_locations(stdout: str) -> list[tuple[str, int]]:
     locations: list[tuple[str, int]] = []
     for line in stdout.splitlines():
@@ -2779,6 +2848,34 @@ def _mypy_result_blocks(
     )
 
 
+def _filter_to_merge_base_scope(
+    paths: list[str],
+    repo_root: Path,
+    base_ref: str,
+) -> list[str]:
+    """Drop files that no longer differ from the merge base (issue #5071).
+
+    An unresolvable base keeps the full set so the gate is never weaker. The
+    scope report prints both counts so a run that kept nothing is
+    distinguishable from a run that examined nothing.
+    """
+    if not paths:
+        return paths
+    scope = _merge_base_scope(paths, repo_root, base_ref)
+    if scope is None:
+        print(
+            f"mypy scope: merge base {base_ref} unresolvable; "
+            f"scanning all {len(paths)} pushed file(s)"
+        )
+        return paths
+    kept = [path for path in paths if _normalize_ratchet_path(path) in scope]
+    print(
+        f"mypy scope: {len(kept)} of {len(paths)} pushed file(s) "
+        f"differ from {base_ref}; dropped {len(paths) - len(kept)} round-trip file(s)"
+    )
+    return kept
+
+
 def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
     if not paths:
         print(
@@ -2799,10 +2896,12 @@ def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
             print(f"ERROR: refusing to type-check symlink: {path}", file=sys.stderr)
             return 2
         checked_paths.append(path)
+    base_ref = _mypy_ratchet_base_ref()
+    checked_paths = _filter_to_merge_base_scope(checked_paths, repo_root, base_ref)
     if not checked_paths:
         return 0
     pushed = {_normalize_ratchet_path(path) for path in checked_paths}
-    changed_lines = _changed_line_map(checked_paths, repo_root, _mypy_ratchet_base_ref())
+    changed_lines = _changed_line_map(checked_paths, repo_root, base_ref)
     failed = False
     for invocation, needs_validation_path in _mypy_invocations(checked_paths):
         result = _invoke_mypy(invocation, repo_root, needs_validation_path)
@@ -4109,6 +4208,10 @@ def _semgrep_command(
         "--exclude-rule",
         "python.lang.compatibility.python37.python37-compatibility-Popen2",
     ]
+    # Semgrep's default 7 jobs can fail before scanning when io_uring cannot
+    # allocate its worker queues. One job scanned 100 files in 93 seconds.
+    # Its default 5-second rule timeout also rejected this validator; 30 seconds
+    # scanned the seven-file push set within the 840-second child budget.
     return [
         _resolve_semgrep_executable(repo_root),
         "scan",
@@ -4123,6 +4226,8 @@ def _semgrep_command(
         "--max-target-bytes=0",
         "--no-exclude-binary-files",
         "--json",
+        "--jobs=1",
+        "--timeout=30",
         *exclude_compat_rules,
         "--",
         *targets,
@@ -5986,6 +6091,30 @@ _NEEDS_SPLIT_NEW_COMMIT_CAP = 5
 
 _NEEDS_SPLIT_LABEL = "needs-split"
 
+# Every message that names `commit-limit-bypass` carries this clause with it.
+# CONTRIBUTING.md, section "Bypassing the Limit", is the canonical authority;
+# CONTRIBUTING.md:883 reads, verbatim:
+#     1. A human maintainer MUST add the `commit-limit-bypass` label
+# Naming the label as the reader's next step tells whoever tripped the gate to
+# grant themselves a permission they do not hold. An agent reads that as
+# sanctioned remediation because it arrives from the enforcement mechanism
+# itself, and one did: an agent applied the label to PR #4735 on 2026-08-08
+# after this gate suggested it (issue #4782). Same shape as the atomic-commit
+# message, which states the local remedy and then closes the bypass door
+# ("Split this commit. This local pre-commit check has no PR-label bypass.",
+# added in commit e1fbc5a7a, PR #4245).
+#
+# Stricter/looser/different than canonical: CONTRIBUTING.md:883 states only
+# who MAY add the label (a human maintainer). This message additionally
+# states who may NOT (the reader), because the load-bearing half for an
+# autonomous reader is the prohibition, not the permission; the canonical
+# line alone did not stop the PR #4735 agent from self-applying the label.
+_COMMIT_LIMIT_BYPASS_IS_HUMAN_ONLY = (
+    "The 'commit-limit-bypass' label lifts the ceiling, but CONTRIBUTING.md "
+    '("Bypassing the Limit") requires a human maintainer to add it: ask a '
+    "maintainer to decide, and do not apply it yourself."
+)
+
 
 def _check_needs_split_bypass(
     update: PushUpdate, branch: str | None, repo_root: Path
@@ -6020,8 +6149,9 @@ def _check_needs_split_bypass(
         else "could not count new commits"
     )
     print(
-        f"NOTE: PR has {_NEEDS_SPLIT_LABEL!r} but {cap_msg}; "
-        "use commit-limit-bypass to override the ceiling entirely.",
+        f"NOTE: PR has {_NEEDS_SPLIT_LABEL!r} but {cap_msg}. "
+        "Split the branch and push the parts separately. "
+        f"{_COMMIT_LIMIT_BYPASS_IS_HUMAN_ONLY}",
         file=sys.stderr,
     )
     return None
@@ -6658,16 +6788,25 @@ def _pushed_workflow_paths(
 
 
 def _select_pushed_workflows(paths: Sequence[str], repo_root: Path) -> list[str]:
+    existing = [
+        path
+        for path in paths
+        if (repo_root / _normalize_ratchet_path(path)).is_file()
+    ]
     base_ref = _workflow_local_base_ref()
     changed = _pushed_workflow_paths(paths, repo_root, base_ref)
     if changed is None:
         print(
             f"WARNING: workflow-local could not resolve {base_ref}; "
-            "validating all provided workflows",
+            "validating all provided workflows that still exist",
             file=sys.stderr,
         )
-        return list(paths)
-    return [path for path in paths if _normalize_ratchet_path(path) in changed]
+        return existing
+    return [
+        path
+        for path in existing
+        if _normalize_ratchet_path(path) in changed
+    ]
 
 
 def run_workflow_local(paths: Sequence[str], repo_root: Path) -> int:
@@ -6855,8 +6994,48 @@ def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
     return 1 if failed else 0
 
 
+# The observation-sync-advisory lefthook job carries a 5m timeout, and a
+# lefthook timeout kill cannot be absorbed by a shell guard (ci-scripts rule:
+# the kill lands before any || branch runs), so this advisory's worst case must
+# be held under the cap from the inside. Each file costs up to ~10s when the
+# Forgetful MCP handshake times out (memory_sync.mcp_client.DEFAULT_TIMEOUT is
+# 10.0 seconds per request), and the first push of a new branch sweeps every
+# tracked observation file into the job, so an unreachable MCP server
+# overruns the cap and blocks the push. Invariant, pinned by
+# test_observation_sync_budget_sits_below_the_lefthook_cap: this budget plus
+# one worst-case child (DEFAULT_SUBPROCESS_TIMEOUT_SECONDS) stays at or
+# under the lefthook cap, so even an unclamped straggler cannot outlive it;
+# the remainder is headroom for uv startup on a loaded machine. Each child is
+# additionally clamped to the remaining budget inside the loop.
+_OBSERVATION_SYNC_BUDGET_SECONDS = 200.0
+
+
 def sync_observations(paths: Sequence[str], repo_root: Path) -> int:
-    for path in paths:
+    """Import pushed observation files into forgetful, best-effort.
+
+    The job is advisory by contract: every per-file failure is a WARNING and
+    the return value is always 0. The one failure mode that contract cannot
+    absorb is lefthook's own ``timeout:`` kill (a killed job exits non-zero
+    before any guard runs), so the loop holds an internal budget below the
+    configured 5m cap. When forgetful is unreachable, each import burns one
+    ~10s MCP-call timeout per observation entry, up to the 90s child cap, so
+    a push whose file set carries 30+ observation files otherwise outlives
+    the lefthook cap deterministically. Skipped files are named per the
+    no-silent-caps rule; they import on the next push that carries them.
+    """
+    deadline = time.monotonic() + _OBSERVATION_SYNC_BUDGET_SECONDS
+    for index, path in enumerate(paths):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            skipped = len(paths) - index
+            print(
+                f"WARNING: observation sync budget "
+                f"({_OBSERVATION_SYNC_BUDGET_SECONDS:g}s) exhausted after "
+                f"{index} of {len(paths)} file(s); skipped {skipped} of "
+                f"{len(paths)}: " + ", ".join(repr(p) for p in paths[index:]),
+                file=sys.stderr,
+            )
+            break
         result = _run_command(
             [
                 sys.executable,
@@ -6868,10 +7047,15 @@ def sync_observations(paths: Sequence[str], repo_root: Path) -> int:
                 "MED",
             ],
             repo_root,
+            # Clamp the child to the remaining budget so total wall clock is
+            # bounded by the budget, not budget plus one full child timeout.
+            # A clamped kill returns 3 and lands in the WARNING below, which
+            # keeps the advisory contract intact.
+            timeout_seconds=min(DEFAULT_SUBPROCESS_TIMEOUT_SECONDS, remaining),
         )
         _print_process_output(result)
         if result.returncode != 0:
-            print(f"WARNING: observation sync failed for {path}", file=sys.stderr)
+            print(f"WARNING: observation sync failed for {path!r}", file=sys.stderr)
     return 0
 
 
@@ -7047,7 +7231,20 @@ def _handle_adr_review(args: argparse.Namespace) -> int:
 
 
 def _handle_retrospective(args: argparse.Namespace) -> int:
-    return check_retrospective_evidence(args.paths, _repo_root(args))
+    # {push_files} resolves empty on a branch's first push: lefthook's own
+    # diff-against-previous-remote-ref substitution has nothing to diff
+    # against, which silently defeats the documentation-only bypass below
+    # regardless of what the push actually contains (issue #5128). Derive
+    # the real push range independently via _push_range_changed_files, the
+    # same stdin-based mechanism the glob-triggered advisory jobs already
+    # use for this exact class of bug (see the comment above
+    # _push_range_changed_files). Fall back to args.paths, which is empty
+    # under the lefthook job's use_stdin wiring but keeps direct/manual
+    # invocation with explicit paths working.
+    repo_root = _repo_root(args)
+    changed = _push_range_changed_files(sys.stdin, repo_root)
+    paths = sorted(changed) if changed is not None else list(args.paths)
+    return check_retrospective_evidence(paths, repo_root)
 
 
 def _handle_taste(args: argparse.Namespace) -> int:
@@ -7226,6 +7423,44 @@ def _handle_cli_plugin_e2e(args: argparse.Namespace) -> int:
     return run_cli_e2e("tests/e2e/test_plugin_load_smoke.py", repo_root)
 
 
+def _handle_observations_push(args: argparse.Namespace) -> int:
+    # Mirrors the glob for observation-sync-advisory in lefthook.yml:
+    #     glob: ".serena/memories/**/*-observations.md"
+    # plus the top-level spelling, because fnmatch requires the "**/" segment
+    # while lefthook's glob does not. Lefthook's glob is a secondary filter
+    # only (ADR-006); the guard logic lives here.
+    #
+    # Stricter/looser/different than the e2e handlers above: on an
+    # unresolvable push range this handler SKIPS instead of failing open.
+    # The job is advisory (sync_observations always returns 0), and failing
+    # open means syncing every tracked observation file; without a reachable
+    # Forgetful service each file burns a 10s MCP timeout, so the full corpus
+    # (50 files when this landed) overruns the job's 5m lefthook cap and the
+    # timeout kill blocks the push (issue #5071 push evidence; same class as
+    # issue #4492).
+    observation_globs = (
+        ".serena/memories/*-observations.md",
+        ".serena/memories/**/*-observations.md",
+    )
+    repo_root = _repo_root(args)
+    changed = _push_range_changed_files(sys.stdin, repo_root)
+    if changed is None:
+        print("observation-sync advisory skipped: push range unresolvable")
+        return 0
+    targets = sorted(
+        path
+        for path in changed
+        if _any_glob_match({path}, observation_globs) and (repo_root / path).is_file()
+    )
+    print(
+        f"observation-sync: {len(targets)} observation file(s) among "
+        f"{len(changed)} changed in push range"
+    )
+    if not targets:
+        return 0
+    return sync_observations(targets, repo_root)
+
+
 def _handle_sessions(args: argparse.Namespace) -> int:
     repo_root = _repo_root(args)
     if args.paths:
@@ -7339,6 +7574,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("semgrep", _handle_semgrep),
         ("semgrep-push", _handle_semgrep_push),
         ("security-suppressions-push", _handle_suppressions_push),
+        ("observations-push", _handle_observations_push),
         ("security-suppressions-staged", _handle_staged_suppressions),
         ("pre-push", _handle_pre_push),
         ("tracked-conflict-markers", _handle_tracked_conflict_markers),

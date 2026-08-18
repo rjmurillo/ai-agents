@@ -29,7 +29,8 @@ install_uv() {
 echo "=== System Prerequisites ==="
 sudo apt-get update -qq
 sudo apt-get install -y -qq curl wget git jq unzip zstd apt-transport-https \
-    ca-certificates gnupg software-properties-common build-essential
+    ca-certificates gnupg software-properties-common build-essential \
+    sqlite3 openssh-client
 
 echo "=== Node.js LTS ==="
 if ! command -v node &>/dev/null; then

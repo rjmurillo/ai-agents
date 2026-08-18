@@ -1,0 +1,42 @@
+{
+  "id": "episode-2026-08-14-session-14711-b3c55bf92-fix-5002-github-url-routing",
+  "session": "2026-08-14-session-14711-b3c55bf92-fix-5002-github-url-routing",
+  "timestamp": "2026-08-14T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix PR #5002 GitHub URL routing failures and publish the branch",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T06:44:33+00:00",
+      "type": "commit",
+      "content": "Commit: 0426b91b50b0ce1d467005da311d0bedb0b1aa81",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-14-session-14711-b3c55bf92-fix-5002-github-url-routing"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T06:52:30+00:00",
+      "type": "commit",
+      "content": "Commit: 1a9eb76c3c2d13dd5c7dfc9b017c944771806b7b",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14711-b3c55bf92-fix-5002-github-url-routing"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 6
+  },
+  "lessons": []
+}

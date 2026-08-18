@@ -1,0 +1,79 @@
+{
+  "id": "episode-2026-08-15-session-4857-matcher-shim-atomic-count",
+  "session": "2026-08-15-session-4857-matcher-shim-atomic-count",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix atomic-commit counter treating generated Copilot hook shims as authored files",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "reproduce",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-4857-matcher-shim-atomic-count"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "implement",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-4857-matcher-shim-atomic-count"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "test",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-4857-matcher-shim-atomic-count"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T08:09:32+00:00",
+      "type": "commit",
+      "content": "Commit: 9f69eec1dc1bdc81ae6b2b0ad232189d71df0d59",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-4857-matcher-shim-atomic-count"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T09:00:28+00:00",
+      "type": "commit",
+      "content": "Commit: f2afec898b455e7fad5769acfb2f3c5535b2e5f1",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-4857-matcher-shim-atomic-count"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 6
+  },
+  "lessons": []
+}

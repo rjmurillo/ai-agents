@@ -27,6 +27,8 @@ tier: builder
 
 # Merge Resolver Agent
 
+<!-- vendor-portability: declared. This agent resolves conflicts in the consumer's own .agents/ evidence tree (.agents/sessions/, .agents/qa/, .agents/retrospective/); an install without that tree has no such conflicts to classify. The PR #4856 citation (.agents/retrospective/2026-08-10-pr-4856-session-log-collision.md) is upstream evidence in the rjmurillo/ai-agents repository. Issue #2050. -->
+
 ## Style Guide Compliance
 
 Key requirements:
@@ -64,16 +66,24 @@ Completion rule for every execution phase below (create worktree, merge, stage, 
 
 ### Phase 2: Conflict Classification
 
-Classify each conflicted file as auto-resolvable or manual:
+Classify each conflicted file as auto-resolvable, rename-both, or manual:
 
 **Auto-resolvable** (accept base branch version):
 
-- Session artifacts (`.agents/*`)
+- Session artifacts (`.agents/*`), modify/modify only; add/add on evidence artifacts uses the rename class below
 - Memory files (`.serena/*`)
 - Template files (`templates/*`)
 - Lock files (`package-lock.json`, `yarn.lock`)
 - Agent/skill definitions (`.claude/*`)
 - Generated platform agents (`src/copilot-cli/*`, `src/vs-code-agents/*`)
+
+**Rename, never content-merge** (add/add on append-only evidence artifacts):
+
+- Session logs (`.agents/sessions/*`)
+- QA reports (`.agents/qa/*`)
+- Retrospectives (`.agents/retrospective/*`)
+
+An add/add conflict here means two branches wrote different records to the same filename. Keep both files: accept the base branch version at the original name, rename the head branch version with a distinguishing suffix (keep the session number, append an issue or topic slug), and update any index or report that references the renamed file. Never merge the two contents into one file. PR #4856 proved the anti-pattern: merging both sessions' prose into one file would have destroyed two accurate records to produce one false one (`.agents/retrospective/2026-08-10-pr-4856-session-log-collision.md`). Issue #4751 tracks preventing the collision at allocation time.
 
 **Manual resolution required**:
 
@@ -105,6 +115,7 @@ For each manually-resolved conflict, analyze git blame and commit messages:
 | Bugfix vs feature | Bugfix wins |
 | Conflicting logic | Prefer more tested |
 | Style conflicts | Prefer consistency |
+| Add/add on evidence artifacts | Keep both, rename ours, update references |
 
 ### Phase 5: Verification
 
@@ -135,6 +146,7 @@ After shell-backed conflict resolution completes, generate a report with:
 | Anti-Pattern | Correction |
 |--------------|------------|
 | Accept --ours for session files | Accept --theirs, rename ours |
+| Content-merge an add/add session-log conflict | Keep both files, rename ours with a suffix (PR #4856) |
 | Skip git blame analysis | Always check commit messages |
 | Resolve before fetching PR context | Get PR metadata first |
 | Manual edit of generated files | Edit template, regenerate |

@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 """CI wrapper around generate_pr_quality_prompts.py --dry-run (REQ-008-03).
 
-Replaces the inline bash logic in the ``review-axes-drift-check`` job of
-``ai-pr-quality-gate.yml`` per ADR-006 (logic in testable modules, not YAML).
+Invoked by the "Review-axes drift check" step of
+``.github/workflows/validate-generated-agents.yml`` per ADR-006 (logic in
+testable modules, not YAML). It originally backed the ``review-axes-drift-check``
+job of ``ai-pr-quality-gate.yml``; when that workflow was deleted this check
+moved rather than going with it, because its subject survives: the canonical
+prompts under ``.github/prompts/pr-quality-gate-*.md`` and the generated copies
+under ``.claude/skills/review/references/`` that the local ``/review`` skill
+reads.
 
 The wrapper:
 1. Runs the generator in --dry-run mode.

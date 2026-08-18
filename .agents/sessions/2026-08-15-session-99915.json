@@ -1,0 +1,140 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 99915,
+    "date": "2026-08-15",
+    "branch": "fix/4915-investigation-scope-merge-base",
+    "startingCommit": "57b3107f6a",
+    "objective": "Fix issue #4915: investigation scope gate rejects merges from main"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project active"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read initial instructions"
+      },
+      "handoffRead": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Read HANDOFF.md"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "session skill scripts used"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read usage mandatory"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read constraints"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded memories"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4915-investigation-scope-merge-base"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4915-investigation-scope-merge-base"
+      }
+    },
+    "sessionEnd": {
+      "sessionLogCompleted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "retrospectiveWritten": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Learnings in workLog"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-5027-investigation-scope-qa.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git status clean"
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No new memories needed for this fix"
+      },
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All items verified"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ruff check passed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md unchanged"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All tests pass"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Identified root cause: two-dot tree diff includes merge-from-main files"
+    },
+    {
+      "action": "Replaced git diff with git log --first-parent --no-merges for CI path"
+    },
+    {
+      "action": "Added 7 tests covering positive, negative, and edge cases"
+    },
+    {
+      "action": "Updated co-located test assertion for new command shape"
+    },
+    {
+      "action": "Regenerated src/copilot-cli/ copy via build_all.py"
+    }
+  ],
+  "nextSteps": [
+    "Monitor CI for regressions in investigation-only sessions"
+  ],
+  "endingCommit": "af3c7288805c7f6cbc937066557d3549773b783c",
+  "episodeMetrics": {
+    "filesChanged": 5,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "57b3107f6a",
+      "head": "af3c7288805c7f6cbc937066557d3549773b783c"
+    }
+  }
+}

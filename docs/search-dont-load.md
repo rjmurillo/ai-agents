@@ -50,10 +50,10 @@ python3 .claude/skills/memory/scripts/search_memory.py --query "pr review patter
 
 Unified search across Serena and Forgetful with token budget warnings per ADR-037.
 
-## Recording Evidence in Session Logs
+## Recording Retrieval Evidence
 
-The Session Start checklist requires evidence that memories were loaded. In your
-session log's Protocol Compliance table, fill the Evidence column:
+Record loaded memory names in the transcript, pull request, per-issue handoff,
+Serena memory, or an optional session log:
 
 ```markdown
 | MUST | Read memory-index, load task-relevant memories | [x] | Loaded: skills-pr-review-index, ci-observations |
@@ -76,9 +76,8 @@ and loaded.
 
 ## When to Use This Pattern
 
-Every session start. The SESSION-PROTOCOL.md Phase 2 marks this as a **MUST**
-requirement. Agents must read `memory-index` and load task-relevant memories
-before modifying any code or files.
+Every session start. SESSION-PROTOCOL.md Phase 2 requires agents to search the
+memory index and load task-relevant memories before modifying files.
 
 ## References
 

@@ -415,6 +415,49 @@ def _missing_siblings_already_current(
     return True
 
 
+
+
+def _diff_is_frontmatter_only(root: Path, base: str, members: Iterable[str]) -> bool:
+    """True when every member's diff touches only YAML frontmatter.
+
+    The invariant this validator protects is H2 body-section agreement.
+    When every touched file's body text (everything after the YAML
+    frontmatter block) is identical between base and HEAD, the diff can
+    only have changed YAML frontmatter. Frontmatter parity was never an
+    invariant -- sibling copies legitimately carry different name/model
+    keys -- so co-change is the wrong requirement for this diff shape.
+
+    Compares the raw body text (not parsed dicts) so that section
+    reordering is correctly detected as a body change.
+
+    Returns False whenever the answer cannot be established (file missing,
+    unreadable, or has a body change), so the gate fails closed.
+    Issue #4922, #5043.
+    """
+    for member in members:
+        try:
+            after_text = (root / member).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return False
+        before_text = _git_show(base, member, root)
+        if before_text is None:
+            return False
+        # Strip frontmatter and compare remaining body text directly.
+        # Using _split_document's dict would miss section reordering
+        # because Python dict equality ignores insertion order.
+        if _strip_frontmatter(before_text) != _strip_frontmatter(after_text):
+            return False
+    return True
+
+
+def _strip_frontmatter(text: str) -> str:
+    """Remove YAML frontmatter block, return remaining body text."""
+    if text.startswith("---\n"):
+        end = text.find("\n---\n", 4)
+        if end != -1:
+            return text[end + 5:]
+    return text
+
 # --- Path normalization -------------------------------------------------
 
 
@@ -612,6 +655,19 @@ def find_violations(
         if kind == "SHARED_AGENT" and _missing_siblings_already_current(
             root, base, members_touched, missing
         ):
+            continue
+
+        # Frontmatter-only change in generated members (Issue #4922).
+        # The validator protects H2 body-section agreement. When every
+        # touched member's preamble and sections are unchanged from base,
+        # the diff can only have edited YAML frontmatter (e.g. removing a
+        # model: key). That metadata never had parity across siblings, so
+        # co-change is the wrong requirement for this diff shape. Fail
+        # closed when the frontmatter-only property cannot be established.
+        if kind == "SHARED_AGENT" and base is not None and all(
+            m.startswith(("src/copilot-cli/", "src/vs-code-agents/"))
+            for m in members_touched
+        ) and _diff_is_frontmatter_only(root, base, members_touched):
             continue
         violations.append(
             Violation(

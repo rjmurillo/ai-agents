@@ -322,18 +322,18 @@ def build_mutations(repo_root: Path | None = None) -> list[Mutation]:
 
     return [
         Mutation(
-            description="M1: drop ai-issue-triage from _GRANDFATHERED (new offender path)",
+            description="M1: drop ai-metrics-analysis from _GRANDFATHERED (new offender path)",
             target_file=wf_perms_test,
-            old_bytes=b'        ("ai-issue-triage.yml", "ai-issue-triage"),\n',
+            old_bytes=b'        ("ai-metrics-analysis.yml", "analyze-metrics"),\n',
             new_bytes=b"",
             test_filter=perms_gate,
         ),
         Mutation(
             description="M2: add non-existent job to _GRANDFATHERED (unrecorded-fix path)",
             target_file=wf_perms_test,
-            old_bytes=b'        ("ai-issue-triage.yml", "ai-issue-triage"),\n',
+            old_bytes=b'        ("ai-metrics-analysis.yml", "analyze-metrics"),\n',
             new_bytes=(
-                b'        ("ai-issue-triage.yml", "ai-issue-triage"),\n'
+                b'        ("ai-metrics-analysis.yml", "analyze-metrics"),\n'
                 b'        ("fake-workflow.yml", "fake-job"),\n'
             ),
             test_filter=perms_gate,
