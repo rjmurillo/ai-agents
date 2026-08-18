@@ -136,9 +136,15 @@ jobs:
   # fails OR is skipped or cancelled: a required check that reports success
   # because its dependencies never ran is the exact false-green this guard
   # exists to prevent.
+  #
+  # !cancelled() rather than always(): when the whole run is superseded this
+  # job skips instead of reporting, and a skipped check is not a success, so
+  # the false-green above is still impossible. always() would instead publish
+  # a red check for a run nobody is waiting on (Issue #5097). A dependency
+  # that reports 'cancelled' while the run continues still fails the assert.
   guard-result:
     name: Plugin Hook Guard Result
-    if: always()
+    if: ${{ !cancelled() }}
     needs:
       - hook-positive
       - hook-negative-env

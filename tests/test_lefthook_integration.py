@@ -7463,6 +7463,33 @@ def test_sync_observations_stops_at_its_internal_budget(
     assert "skipped 1 of 2" in capsys.readouterr().err
 
 
+def test_sync_observations_clamps_the_child_timeout_to_the_remaining_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A child spawned near the deadline must not outlive the budget.
+
+    The deadline check runs between spawns, so without a clamp a child started
+    just under the deadline keeps the 90s subprocess default and carries the
+    job past the lefthook cap whose kill cannot be absorbed by a shell guard.
+    """
+    seen: list[float] = []
+
+    def _record(command: list[str], _root: Path, *, timeout_seconds: float) -> object:
+        seen.append(timeout_seconds)
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", _record)
+    monkeypatch.setattr(policy, "_OBSERVATION_SYNC_BUDGET_SECONDS", 200.0)
+    clock = iter([0.0, 150.0, 199.0, 250.0])
+    monkeypatch.setattr(policy.time, "monotonic", lambda: next(clock))
+
+    assert policy.sync_observations(["a.md", "b.md", "c.md"], tmp_path) == 0
+
+    # 50s left at the first spawn, 1s at the second; both beat the 90s default.
+    assert seen == [50.0, 1.0]
+
+
 def test_sync_observations_reports_a_fully_exhausted_budget(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
