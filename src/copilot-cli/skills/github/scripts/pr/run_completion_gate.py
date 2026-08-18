@@ -1209,6 +1209,10 @@ def _classify_argv_token(token: str, toplevel: Path) -> tuple[str, str]:
         )
 
     if not _is_within(resolved, toplevel):
+        # Defense in depth. The symlink pre-check above already refuses
+        # every repo-local link, so reaching here means resolution left
+        # the tree by some route that check did not see, such as a link
+        # created between the two calls. Fail closed either way.
         if _is_within(literal, toplevel):
             return _ARGV_ESCAPES, token
         return (_ARGV_EXTERNAL, str(resolved)) if resolved_is_file else (
@@ -1277,7 +1281,7 @@ def _import_roots(script: Path, toplevel: Path) -> list[Path]:
     roots = [script.parent]
     for ancestor in script.parents:
         if not _is_within(ancestor, toplevel):
-            break
+            continue
         lib = ancestor / "lib"
         if lib.is_dir():
             roots.append(lib)
