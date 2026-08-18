@@ -130,7 +130,8 @@ if ($prs.Count -gt 0) {
 **Purpose:** Ensure the PR exists and has a meaningful description before triggering pipelines.
 
 **Argument scope:** `az repos pr show` is scoped by pull request ID, so it accepts only
-`--id`, `--detect`, `--open`, and `--org` (plus global parameters). Passing `--project` or
+`--id`, `--detect`, `--open`, and `--org`/`--organization` (plus global parameters). The
+example below uses the `--organization` spelling of that one flag. Passing `--project` or
 `--repository` fails the whole call with `ERROR: unrecognized arguments`. Do not add them
 back. The same restriction applies to `az repos pr policy list`, `az repos pr policy queue`,
 `az repos pr update`, `az repos pr set-vote`, and `az repos pr checkout`. Only the
