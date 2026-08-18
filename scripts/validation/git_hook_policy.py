@@ -41,6 +41,7 @@ if str(_VALIDATION_DIR) not in sys.path:
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
+from scripts.ci import diff_line_scope
 from scripts.hook_utilities.utilities import recent_host_session_dates
 from scripts.validation.object_id import ZERO_SHA_LENGTHS, is_full_object_id
 from scripts.validation.pr_commit_count import (
@@ -2703,22 +2704,14 @@ MYPY_RATCHET_DEFAULT_BASE = "origin/main"
 # absent in this repo's config but tolerated. Only ``error`` severity blocks;
 # ``note`` lines are advisory and ignored.
 MYPY_ERROR_RE = re.compile(r"^(?P<path>.+?):(?P<line>\d+):(?:\d+:)?\s*error:")
-# Unified diff (``--unified=0``) markers. ``+++ b/<path>`` names the file with
-# stable prefixes; the optional prefix keeps parser tests honest against
-# diff.noprefix drift. The ``+c,d`` field of each hunk header is the changed-line
-# span (post-image).
-DIFF_ADDED_FILE_RE = re.compile(r"^\+\+\+ (?:b/)?(?P<path>.+)$")
-DIFF_HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(?P<start>\d+)(?:,(?P<count>\d+))? @@")
-
-
-def _normalize_ratchet_path(path: str) -> str:
-    # mypy on Windows can echo OS-native backslash separators, while git diff
-    # names and command-line inputs are forward-slash; normalize so the pushed
-    # set, the changed-line map, and parsed mypy paths compare equal.
-    cleaned = path.strip().replace("\\", "/")
-    if cleaned.startswith("./"):
-        cleaned = cleaned[2:]
-    return cleaned
+# Unified diff (``--unified=0``) markers and post-image line-span parsing live
+# in ``scripts/ci/diff_line_scope.py`` so the mypy gate here and the ruff gate
+# in ``scripts/ci/ruff_ratchet.py`` cannot drift apart (issue #2993). These
+# aliases keep the local call sites and their tests reading as before.
+DIFF_ADDED_FILE_RE = diff_line_scope.DIFF_ADDED_FILE_RE
+DIFF_HUNK_RE = diff_line_scope.DIFF_HUNK_RE
+_normalize_ratchet_path = diff_line_scope.normalize_path
+_parse_changed_lines = diff_line_scope.parse_changed_lines
 
 
 def _mypy_ratchet_base_ref() -> str:
@@ -2726,34 +2719,6 @@ def _mypy_ratchet_base_ref() -> str:
     if raw and not _is_zero_sha(raw):
         return raw
     return MYPY_RATCHET_DEFAULT_BASE
-
-
-def _parse_changed_lines(diff_text: str) -> dict[str, set[int]]:
-    # Post-image line numbers touched per file: both added and modified lines
-    # land in the ``+start,count`` span. Two hunk shapes intentionally
-    # contribute nothing, so the ratchet never blocks mypy errors on them:
-    #   * Deletion-only hunks (``+N,0``) touch no post-image line. Adding
-    #     ``start`` here would flag errors on an unchanged neighboring line,
-    #     reintroducing the false positives on untouched code that the
-    #     per-file gate produced before this ratchet (issue #2993).
-    #   * Pure renames carry no ``+++ b/`` hunk, so the renamed path stays
-    #     absent from the map; unchanged content cannot add new type debt.
-    changed: dict[str, set[int]] = {}
-    current: str | None = None
-    for line in diff_text.splitlines():
-        file_match = DIFF_ADDED_FILE_RE.match(line)
-        if file_match is not None:
-            current = _normalize_ratchet_path(file_match.group("path"))
-            changed.setdefault(current, set())
-            continue
-        hunk_match = DIFF_HUNK_RE.match(line)
-        if hunk_match is None or current is None:
-            continue
-        start = int(hunk_match.group("start"))
-        count_raw = hunk_match.group("count")
-        count = int(count_raw) if count_raw is not None else 1
-        changed[current].update(range(start, start + count))
-    return changed
 
 
 def _changed_line_map(

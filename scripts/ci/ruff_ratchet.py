@@ -1,15 +1,46 @@
 #!/usr/bin/env python3
-"""Fail on ruff violations in changed Python files only."""
+"""Fail on ruff violations that land on lines this change added or modified.
+
+Issue #2993. This gate used to lint whole changed files, so editing one clean
+line of a file that already carried debt inherited every pre-existing finding
+in it and blocked the push. Measured on ``origin/main`` at 4f5a12c: 27 tracked
+violations across 11 files, every one of which was a tripwire for unrelated
+work. The gate now reports those findings but blocks only when a finding's
+reported row range intersects an added or modified line.
+
+The whole-tree ceiling still lives in ``scripts/ci/ruff_count_ratchet.py``:
+this gate stops new authored debt, that one stops the total from growing by any
+other route. Neither can be dropped for the other.
+
+Fail-closed behavior: an unresolvable diff base, a git failure, or ruff output
+that will not parse all block on every finding, so the gate is never weaker
+than the whole-file check it replaces.
+
+Exit codes (AGENTS.md contract):
+    0 - ok (no findings, or only findings outside the change)
+    1 - a finding intersects an added or modified line
+    2 - config error (repo root is not a git worktree, bad args)
+    3 - external error (git or ruff could not run, unparseable ruff output)
+"""
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.ci.diff_line_scope import (
+    changed_line_map,
+    intersects_changed_lines,
+    normalize_path,
+)
 
 EXIT_OK = 0
 EXIT_VIOLATIONS = 1
@@ -31,6 +62,9 @@ def default_base_ref() -> str:
 
 
 def git_diff_name_only(base_ref: str, repo_root: Path) -> subprocess.CompletedProcess[str]:
+    # ``-z`` emits NUL-separated raw names. Without it git C-quotes any path
+    # holding a quote, a backslash, or a control character, and the quoted form
+    # never matches the path ruff reports, so the file silently left the scope.
     return subprocess.run(
         [
             "git",
@@ -38,6 +72,7 @@ def git_diff_name_only(base_ref: str, repo_root: Path) -> subprocess.CompletedPr
             str(repo_root),
             "diff",
             "--name-only",
+            "-z",
             "--diff-filter=ACMR",
             f"{base_ref}...HEAD",
         ],
@@ -58,20 +93,89 @@ def changed_python_files(base_ref: str, repo_root: Path) -> tuple[int, list[str]
         return EXIT_EXTERNAL, []
 
     files = [
-        line
-        for line in result.stdout.splitlines()
-        if line.endswith(".py") and (repo_root / line).is_file()
+        name
+        for name in result.stdout.split("\0")
+        if name.endswith(".py") and (repo_root / name).is_file()
     ]
     return EXIT_OK, files
 
 
-def run_ruff(files: Sequence[str], repo_root: Path) -> int:
+def relative_finding_path(filename: str, repo_root: Path) -> str:
+    """Map a ruff-reported filename onto a repo-relative, forward-slash path."""
+    candidate = Path(filename)
+    if candidate.is_absolute():
+        try:
+            return normalize_path(str(candidate.relative_to(repo_root)))
+        except ValueError:
+            return normalize_path(filename)
+    return normalize_path(filename)
+
+
+def finding_rows(finding: dict[str, object]) -> tuple[int, int]:
+    """Return the inclusive ``(start_row, end_row)`` a ruff finding covers.
+
+    ``end_location`` is absent on some ruff diagnostics; the start row then
+    stands for the whole range.
+    """
+    location = finding.get("location")
+    start_row = location["row"] if isinstance(location, dict) else 1
+    end_location = finding.get("end_location")
+    end_row = end_location["row"] if isinstance(end_location, dict) else start_row
+    return int(start_row), int(end_row)
+
+
+def describe(finding: dict[str, object], path: str, start_row: int) -> str:
+    location = finding.get("location")
+    column = location.get("column", 1) if isinstance(location, dict) else 1
+    code = finding.get("code") or "RUFF"
+    message = finding.get("message", "")
+    return f"{path}:{start_row}:{column}: {code} {message}"
+
+
+def report(
+    findings: Sequence[dict[str, object]],
+    repo_root: Path,
+    changed_lines: dict[str, set[int]] | None,
+) -> list[str]:
+    """Print every finding and return the ones that block.
+
+    Pre-existing findings stay visible so the debt is never hidden; only the
+    blocking ones are emitted as GitHub annotations, which is what turns a CI
+    run red.
+    """
+    blocking: list[str] = []
+    pre_existing: list[str] = []
+    for finding in findings:
+        path = relative_finding_path(str(finding.get("filename", "")), repo_root)
+        start_row, end_row = finding_rows(finding)
+        line = describe(finding, path, start_row)
+        if intersects_changed_lines(changed_lines, path, start_row, end_row):
+            blocking.append(line)
+            print(f"::error file={path},line={start_row}::{line}")
+        else:
+            pre_existing.append(line)
+
+    if pre_existing:
+        print(
+            f"Pre-existing ruff findings outside this change "
+            f"({len(pre_existing)}, not blocking):"
+        )
+        for line in pre_existing:
+            print(f"  {line}")
+    return blocking
+
+
+def run_ruff(
+    files: Sequence[str],
+    repo_root: Path,
+    changed_lines: dict[str, set[int]] | None,
+) -> int:
     if not files:
         print("No changed Python files found. Ruff ratchet passed.")
         return EXIT_OK
 
     result = subprocess.run(
-        ["ruff", "check", "--output-format=github", "--", *files],
+        ["ruff", "check", "--output-format=json", "--", *files],
         check=False,
         capture_output=True,
         cwd=repo_root,
@@ -79,23 +183,43 @@ def run_ruff(files: Sequence[str], repo_root: Path) -> int:
         errors="replace",
         encoding="utf-8",
     )
-    if result.stdout:
-        print(result.stdout, end="")
     if result.stderr:
         print(result.stderr, file=sys.stderr, end="")
 
+    if result.returncode not in (0, 1):
+        return EXIT_EXTERNAL
     if result.returncode == 0:
         print(f"Ruff ratchet passed for {len(files)} changed Python file(s).")
         return EXIT_OK
-    if result.returncode == 1:
-        print(f"Ruff ratchet failed for {len(files)} changed Python file(s).", file=sys.stderr)
+
+    try:
+        findings = json.loads(result.stdout or "[]")
+    except json.JSONDecodeError as error:
+        print(f"error: could not parse ruff JSON output: {error}", file=sys.stderr)
+        return EXIT_EXTERNAL
+    if not isinstance(findings, list):
+        print("error: ruff JSON output was not a list of findings", file=sys.stderr)
+        return EXIT_EXTERNAL
+
+    parsed = [item for item in findings if isinstance(item, dict)]
+    blocking = report(parsed, repo_root, changed_lines)
+    if blocking:
+        print(
+            f"Ruff ratchet failed: {len(blocking)} finding(s) on lines this change "
+            f"added or modified across {len(files)} changed Python file(s).",
+            file=sys.stderr,
+        )
         return EXIT_VIOLATIONS
-    return EXIT_EXTERNAL
+    print(
+        f"Ruff ratchet passed for {len(files)} changed Python file(s): "
+        "no findings on added or modified lines."
+    )
+    return EXIT_OK
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run ruff only on Python files changed since a base ref."
+        description="Run ruff only on lines changed since a base ref."
     )
     parser.add_argument(
         "--base-ref",
@@ -121,7 +245,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     status, files = changed_python_files(args.base_ref, repo_root)
     if status != EXIT_OK:
         return status
-    return run_ruff(files, repo_root)
+    changed_lines = changed_line_map(args.base_ref, repo_root, files)
+    if changed_lines is None:
+        print(
+            f"warning: diff base {args.base_ref} unresolvable; "
+            "blocking on every ruff finding in the changed files",
+            file=sys.stderr,
+        )
+    return run_ruff(files, repo_root, changed_lines)
 
 
 if __name__ == "__main__":
