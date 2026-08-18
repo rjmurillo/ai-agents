@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+PLUGIN_ROOT_EXPR = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+
 CANONICAL_SCRIPT = (
     Path(__file__).parents[3]
     / ".claude"
@@ -40,12 +42,12 @@ spec.loader.exec_module(repository_url_routing)
     [
         (
             "https://github.com/owner/repo/pull/123",
-            'python3 ".claude/skills/github/scripts/pr/get_pr_context.py" '
+            f'python3 "{PLUGIN_ROOT_EXPR}/skills/github/scripts/pr/get_pr_context.py" '
             '--pull-request "123" --owner "owner" --repo "repo"',
         ),
         (
             "https://github.com/owner/repo/issues/456",
-            'python3 ".claude/skills/github/scripts/issue/get_issue_context.py" '
+            f'python3 "{PLUGIN_ROOT_EXPR}/skills/github/scripts/issue/get_issue_context.py" '
             '--issue "456" --owner "owner" --repo "repo"',
         ),
         (
@@ -57,8 +59,8 @@ spec.loader.exec_module(repository_url_routing)
             'gh api "repos/owner/repo/contents/src?ref=main"',
         ),
         (
-            "https://github.com/owner/repo/commit/abcdef",
-            'gh api "repos/owner/repo/commits/abcdef"',
+            "https://github.com/owner/repo/commit/abcdef1",
+            'gh api "repos/owner/repo/commits/abcdef1"',
         ),
         (
             "https://github.com/owner/repo/compare/main...feat",
@@ -94,6 +96,7 @@ def test_existing_github_routes_remain_unchanged(
         ("owner", repository_url_routing.SAFE_OWNER_REPO_RE, False, False, True),
         ("owner\n", repository_url_routing.SAFE_OWNER_REPO_RE, False, False, False),
         ("", repository_url_routing.SAFE_PATH_RE, True, False, True),
+        (".claude/settings.json", repository_url_routing.SAFE_PATH_RE, False, False, True),
         ("../file", repository_url_routing.SAFE_PATH_RE, False, False, False),
         ("main...feat", repository_url_routing.SAFE_REF_RE, False, True, True),
         ("owner;whoami", repository_url_routing.SAFE_REF_RE, False, False, False),
@@ -119,6 +122,30 @@ def test_safe_input_contract(
 
 
 @pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (".claude/settings.json", True),
+        ("%2e%2e/settings.json", False),
+        (".%2e/settings.json", False),
+        ("..%2fsettings.json", False),
+        ("file..name.txt", True),
+    ],
+)
+def test_safe_path_traversal_segments(
+    value: str,
+    expected: bool,
+) -> None:
+    assert (
+        repository_url_routing.is_safe_input(
+            value,
+            repository_url_routing.SAFE_PATH_RE,
+            reject_path_traversal=True,
+        )
+        is expected
+    )
+
+
+@pytest.mark.parametrize(
     "url",
     [
         "https://gitlab.com/owner/repo/pull/1",
@@ -126,6 +153,8 @@ def test_safe_input_contract(
         "https://github.com/owner/repo\n/pull/1",
         "https://github.com/owner/repo/blob/../file.py",
         "https://github.com/owner/repo/blob/main/src/../file.py",
+        "https://github.com/owner/repo/blob/main/.%2e/file.py",
+        "https://github.com/owner/repo/blob/main/%2e%2e/file.py",
         "https://github.com/owner/repo/tree/../src",
         "https://github.com/owner/repo/tree/main/src/../file.py",
         "https://github.com/owner/repo/compare/main..feat",
@@ -168,6 +197,42 @@ def test_main_returns_structured_success(capsys: pytest.CaptureFixture[str]) -> 
     assert json.loads(capsys.readouterr().out)["success"] is True
 
 
+def test_main_returns_structured_dotfile_blob(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    result = repository_url_routing.main(
+        ["--url", "https://github.com/owner/repo/blob/main/.claude/settings.json"]
+    )
+
+    assert result == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["success"] is True
+    assert output["parsed_url"]["path"] == ".claude/settings.json"
+    assert output["recommended_route"]["command"] == (
+        'gh api "repos/owner/repo/contents/.claude/settings.json?ref=main"'
+    )
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://github.com/owner/repo/blob/main/.%2e/file.py",
+        "https://github.com/owner/repo/blob/main/%2e%2e/file.py",
+    ],
+)
+def test_main_rejects_encoded_path_traversal(
+    capsys: pytest.CaptureFixture[str],
+    url: str,
+) -> None:
+    result = repository_url_routing.main(["--url", url])
+
+    assert result == 1
+    output = json.loads(capsys.readouterr().out)
+    assert output["success"] is False
+    assert output["parsed_url"] is None
+    assert output["recommended_route"] is None
+
+
 def test_main_returns_structured_invalid_url(capsys: pytest.CaptureFixture[str]) -> None:
     result = repository_url_routing.main(["--url", "https://gist.github.com/invalid"])
 
@@ -179,13 +244,12 @@ def test_main_returns_structured_unknown_route(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     result = repository_url_routing.main(
-        ["--url", "https://github.com/owner/repo/discussions/1"]
+        ["--url", "https://github.com/owner/repo/unknown-route/1"]
     )
 
     assert result == 1
     output = json.loads(capsys.readouterr().out)
-    assert output["parsed_url"]["url_type"] == "Unknown"
-    assert output["recommended_route"] is None
+    assert output["parsed_url"] is None
 
 
 def test_module_entrypoint_exits_with_main_result(

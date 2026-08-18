@@ -15,9 +15,32 @@ The 2026-07-19 amendment review reached consensus with 3 Accept,
 3 Disagree-and-Commit, and 0 Block. Its durable record is the dated amendment
 section in the same debate log.
 
+Amended 2026-08-11 (issue #4874): the require-subagent-model gate joined the
+consolidated PreToolUse path. The dated amendment section below records the
+matcher, fail-open, and fail-closed contract for that gate (debate log:
+`.agents/critique/ADR-068-071-085-metric-refresh-debate-log.md`).
+
+Amended 2026-08-14 (issue #5013): ADR-085 Decision 7 is the policy authority
+for excluding `push_pr_script_identity_guard` from the generated Copilot
+inventory only. It records the containment incident, the eligibility test
+applied to it, and the eight reintroduction gates. This ADR records only the
+derived runtime-contract metrics that follow from that decision: Claude Code
+keeps running the guard unchanged in its own canonical dispatch group, and
+Copilot excludes it from generation. The dated amendment section below records
+the corrected shim count and timeout sum. Debate log:
+`.agents/critique/ADR-068-071-085-5013-debate-log.md`.
+
+Amended 2026-08-18 (issue #4917): the Serena worktree scope guard's matcher
+was unanchored (`^serena-`) from its first commit and never fired on either
+harness; this amendment records the anchoring fix (`^mcp__serena__.*$` on
+Claude, `^serena-.*$` on Copilot) and the resulting derived shim inventory.
+The dated amendment section below records the corrected contract and
+metrics. This bug-fix increment did not receive a fresh six-role adr-review;
+see the corresponding ADR-068 amendment for the same scoping note.
+
 ## Date
 
-2026-06-02
+2026-06-02; amended 2026-07-19, 2026-08-11, 2026-08-14, and 2026-08-18
 
 ## Context
 
@@ -194,8 +217,8 @@ after a timeout. Since issue #4706 each timed gate shim runs in a child
 process and a shim timeout denies, so the unbounded-hang residual is limited
 to the dispatcher process itself. After the 2026-07-22 hook purge, the issue
 #4764 identity gate, and the issue #4874 sub-agent model gate, the active
-manifest contains four shims with 120 seconds of configured timeout. The
-generated host entry requests 125 seconds, including five seconds of
+manifest contains three shims with 110 seconds of configured timeout. The
+generated host entry requests 115 seconds, including five seconds of
 dispatcher headroom. The require-subagent-model script fails open on its own
 internal errors (issue #4672 rationale, recorded in the script header), and
 that guarantee holds end to end on the repository-local `.github/hooks` path
@@ -223,6 +246,68 @@ has observed and the documented contract forbids. The probe tested only 2
 seconds. No evidence shows whether the host grants, caps, or enforces 115
 seconds.
 
+### 2026-08-14 amendment: push-pr identity guard excluded from Copilot generation (issue #5013)
+
+ADR-085 Decision 7 is the policy authority for this exclusion. It records the
+containment incident, 127 unrelated Bash denials over more than 21 minutes
+caused by the guard's broad `Bash` registration combined with the Copilot
+dispatcher's timed child-process deny, the eligibility test applied to the
+exclusion, and the eight reintroduction gates. This ADR records only the
+derived runtime-contract metrics that follow from that decision.
+
+Issue #5013 excluded `push_pr_script_identity_guard` from the generated
+Copilot inventory only. `.claude/hooks/dispatch_groups.json` marks that
+group `copilotExclude: true`. The same file still lists the guard in Claude
+Code's canonical dispatch group, and `.claude/hooks/hooks.json` still
+registers that group. Copilot excludes the guard from generation entirely;
+no replacement producer runs there. The active Copilot PreToolUse manifest
+now contains two
+shims, `markdownlint_guard` and `require_subagent_model`, summing to 100
+seconds of configured timeout. The generated host entry requests 105 seconds,
+the same five seconds of dispatcher headroom as before. The
+require-subagent-model fail-open and fail-closed behavior recorded in the
+prior amendment is unchanged; only the Copilot-side shim count and timeout sum
+moved. The dispatcher, its matcher union, and its per-event mode contract are
+unchanged. This is a scoped runtime-contract update that follows from ADR-085
+Decision 7, not a re-evaluation of the verified runtime contract established
+above. Debate log: `.agents/critique/ADR-068-071-085-5013-debate-log.md`.
+
+### 2026-08-18 amendment: Serena worktree scope guard anchoring fix (issue #4917)
+
+The guard was registered from its first commit with an unanchored matcher,
+`^serena-`. A native PreToolUse matcher compiles as `^(?:PATTERN)$`, so the
+unanchored form matched only the literal string "serena-" and never fired
+for a real tool name on either harness; the Copilot shim generator likewise
+classifies a pattern lacking a trailing `$` as a bare literal tool name, not
+a regex, so it never fired there either. The guard's blocking property
+(deny a Serena write when the active worktree differs from the session's
+project root) did not exist in the field until this amendment. The fix
+anchors both matchers: `^mcp__serena__.*$` on the Claude side and
+`^serena-.*$` on the Copilot side, matching each harness's actual Serena
+MCP tool-name convention (`mcp__serena__<tool>` versus `serena-<tool>`,
+confirmed against this repository's existing `mcp__serena__write_memory`
+PostToolUse registration and against session-log evidence of Copilot's
+`serena-*` naming), and adds `_normalize_tool_name()` so one script body
+resolves either prefix to the same bare-name write-tool check.
+
+Because the guard is not excluded from Copilot generation, this amendment
+also moves the derived shim inventory: the active Copilot PreToolUse
+manifest now contains three shims, `markdownlint_guard`,
+`require_subagent_model`, and `serena_worktree_scope`, summing to 110
+seconds of configured timeout. The generated host entry requests 115
+seconds, the same five seconds of dispatcher headroom as before. The
+require-subagent-model and markdownlint_guard fail-open and fail-closed
+behavior recorded in the prior amendments is unchanged; only the
+Copilot-side shim count and timeout sum moved, and the Serena guard itself
+now has a real (previously nonexistent) fail-closed contract: it denies
+(exit 2) on scope mismatch and on an undeterminable Serena project root,
+and allows (exit 0) on scope match, on a read-only tool, and when the CWD
+git toplevel cannot be determined. The dispatcher, its matcher union, and
+its per-event mode contract are unchanged. This is a bug fix to the
+verified runtime contract, not a change to it: the contract described in
+the 2026-08-11 amendment for `markdownlint_guard` and
+`require_subagent_model` still holds; only the Serena guard's own
+previously-nonfunctional contract is now real. Fixes #4917.
 
 ## Decision
 
@@ -401,4 +486,11 @@ item 5.)
   Official DOCS-SAY event and behavior contract.
 - Issues #2205 (fix), #2223 (module-size/complexity debt), #2230 (launcher
   fail-open, closed: rejected, addressed-by-prevention), #2231 (closed:
-  Windows contract simulation, artifact discovery, authenticated smoke).
+  Windows contract simulation, artifact discovery, authenticated smoke),
+  #4874 (require-subagent-model gate), #5013 (Copilot-only
+  `push_pr_script_identity_guard` exclusion; policy owned by ADR-085
+  Decision 7).
+- ADR-085. Cross-harness permission-surface asymmetry; owns the security
+  judgment behind the 2026-08-14 amendment above.
+- `.agents/critique/ADR-068-071-085-5013-debate-log.md`. Issue #5013
+  containment and exclusion review.

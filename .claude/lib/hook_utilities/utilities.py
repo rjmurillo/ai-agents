@@ -153,16 +153,6 @@ def is_pr_create_command(command: str | None) -> bool:
     return _GH_PR_CREATE_PATTERN.search(command) is not None
 
 
-def is_session_logged_command(command: str | None) -> bool:
-    """True for any command that requires a session log to exist (git commit or pr create).
-
-    Aggregates :func:`is_git_commit_command` and :func:`is_pr_create_command`
-    so multi-matcher hooks have a single predicate to call regardless of
-    which matcher fired the shim.
-    """
-    return is_git_commit_command(command) or is_pr_create_command(command)
-
-
 def get_today_session_log(sessions_dir: str, date: str | None = None) -> Path | None:
     """Find the most recent session log for the given date.
 

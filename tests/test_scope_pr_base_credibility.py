@@ -189,7 +189,7 @@ class TestDocstringCitationStaysAccurate:
         'f"git diff --cached against {base_ref} failed (rc={result.returncode}): "',
     )
     CITED_PATH = "scripts/detect_scope_explosion.py"
-    CITED_LINES = (196, 198)
+    CITED_LINES = (201, 203)
 
     def _source_lines(self) -> list[str]:
         root = Path(__file__).resolve().parents[1]
@@ -221,6 +221,6 @@ class TestDocstringCitationStaysAccurate:
     def test_docstring_contains_the_citation(self) -> None:
         """The docstring actually carries the path, the lines, and the quote."""
         doc = is_credible_rescope.__doc__ or ""
-        assert f"{self.CITED_PATH}:196-198" in doc
+        assert f"{self.CITED_PATH}:201-203" in doc
         for fragment in self.QUOTED:
             assert fragment in doc, f"docstring lost the quoted line {fragment!r}"

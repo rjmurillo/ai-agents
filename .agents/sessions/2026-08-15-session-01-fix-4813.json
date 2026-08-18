@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 1,
+    "date": "2026-08-15",
+    "branch": "fix/4813-references-not-agents",
+    "startingCommit": "3532ac5c0a",
+    "objective": "Exclude references/ from agent path classifier (issue #4813)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Evidence": "serena tools available",
+        "Complete": true
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Evidence": "initial instructions read",
+        "Complete": true
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Evidence": "no prior handoff",
+        "Complete": true
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Evidence": "session log created",
+        "Complete": true
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Evidence": "scripts/validation/ reviewed",
+        "Complete": true
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Evidence": "issue #4813 read",
+        "Complete": true
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Evidence": "CLAUDE.md read",
+        "Complete": true
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Evidence": "core memories loaded",
+        "Complete": true
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Evidence": "fix/4813-references-not-agents",
+        "Complete": true
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Evidence": "fix/4813-references-not-agents",
+        "Complete": true
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Evidence": "all items checked",
+        "Complete": true
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Evidence": "no handoff needed",
+        "Complete": true
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Evidence": "no memory update needed",
+        "Complete": true
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Evidence": "no markdown changes",
+        "Complete": true
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Evidence": ".agents/qa/2026-08-15-pr-5048-references-exclusion.md",
+        "Complete": true
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Evidence": "all changes committed",
+        "Complete": true
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Evidence": "33 tests pass, ruff clean",
+        "Complete": true
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "investigate",
+      "description": "Read issue, traced is_agent_path() classifier"
+    },
+    {
+      "action": "implement",
+      "description": "Added /references/ exclusion to is_agent_path()"
+    },
+    {
+      "action": "test",
+      "description": "Added 4 assertions for references exclusion"
+    }
+  ],
+  "endingCommit": "8c2ffaad25",
+  "nextSteps": [
+    "Monitor for other non-agent subdirectories under agents/"
+  ]
+}

@@ -11,7 +11,6 @@ import yaml
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _WORKFLOWS = _REPO_ROOT / ".github" / "workflows"
 _CLOSE_ONLY_WORKFLOWS = {
-    "homework-scanner.yml": frozenset({"closed"}),
     "milestone-tracking.yml": frozenset({"closed"}),
     "post-pr-retrospective.yml": frozenset({"closed"}),
 }

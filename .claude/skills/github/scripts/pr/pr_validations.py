@@ -121,9 +121,9 @@ def _extract_validatable_session_logs(
     Filename pattern requires YYYY-MM-DD-session-NN prefix to exclude
     tally files like STEP-0-METRICS.md and STEP-0.5-METRICS.md.
     validate_session_json.py only accepts JSON. Legacy .md session logs
-    require migration (handled by the CI workflow at
-    .github/workflows/ai-session-protocol.yml). Local pre-PR validation
-    only checks JSON; warn the author so they know CI will migrate.
+    are not validated here and are not migrated by any workflow: the
+    ai-session-protocol.yml CI check that once migrated them was retired.
+    A session log is optional, so warn the author and move on.
 
     Returns a tuple so callers can distinguish "no session log at all"
     (both empty) from "legacy .md staged, no JSON to validate locally"
@@ -134,8 +134,8 @@ def _extract_validatable_session_logs(
     if legacy_md:
         print(
             f"  WARNING: legacy .md session log(s) staged ({legacy_md}); "
-            "CI workflow will migrate to JSON before validation. Local "
-            "pre-PR validation only runs against JSON session logs.",
+            "these are not validated. A session log is optional; if you "
+            "keep one, use the JSON format that validate_session_json.py checks.",
             file=sys.stderr,
         )
     return [f for f in matched if f.endswith(".json")], bool(legacy_md)

@@ -684,3 +684,68 @@ class TestDisplayBound:
         # change must not reintroduce one by slicing after the escape.
         assert "\n" not in cmp._display("a\nb")
         assert "\\n" in cmp._display("a\nb")
+
+
+class TestGitHubAgentsGlobCoverage:
+    """Issue #4938: .github/agents/ must be under _UNIT_GLOBS so model drift is gated."""
+
+    def test_github_agents_glob_is_present(self) -> None:
+        """Positive: the glob tuple includes .github/agents/*.md."""
+        patterns = [g for _, g in cmp._UNIT_GLOBS]
+        assert ".github/agents/*.md" in patterns
+
+    def test_github_agents_file_without_model_passes(self, tmp_path: Path) -> None:
+        """Positive: agent file with no model: line is valid (inherit state)."""
+        agents_dir = tmp_path / ".github" / "agents"
+        agents_dir.mkdir(parents=True)
+        (agents_dir / "clean.agent.md").write_text(
+            "---\nname: clean\ndescription: no model\n---\n# Clean\n"
+        )
+        units = cmp.scan_units(tmp_path)
+        # No model means not collected as a pin
+        assert not any(u.path.endswith("clean.agent.md") for u in units)
+
+    def test_github_agents_file_with_display_name_model_violates(self, tmp_path: Path) -> None:
+        """Negative: display-name format is not a valid versioned id or alias."""
+        agents_dir = tmp_path / ".github" / "agents"
+        agents_dir.mkdir(parents=True)
+        (agents_dir / "bad.agent.md").write_text(
+            "---\nname: bad\ndescription: x\nmodel: Claude Opus 4.6 (copilot)\n---\n# Bad\n"
+        )
+        units = cmp.scan_units(tmp_path)
+        assert any(u.path.endswith("bad.agent.md") for u in units)
+        unit = next(u for u in units if u.path.endswith("bad.agent.md"))
+        tier_map: dict[str, str] = {}
+        msg = cmp._unit_rule_failure(unit, {}, tier_map, tmp_path, TODAY, cmp.DEFAULT_MODEL)
+        assert msg is not None
+        assert "neither a rolling alias nor a versioned id" in msg
+
+    def test_github_agents_file_with_bare_alias_without_rationale_violates(
+        self, tmp_path: Path
+    ) -> None:
+        """Edge: bare alias without model-rationale is a violation."""
+        agents_dir = tmp_path / ".github" / "agents"
+        agents_dir.mkdir(parents=True)
+        (agents_dir / "cheap.agent.md").write_text(
+            "---\nname: cheap\ndescription: x\nmodel: sonnet\n---\n# Cheap\n"
+        )
+        units = cmp.scan_units(tmp_path)
+        unit = next(u for u in units if u.path.endswith("cheap.agent.md"))
+        msg = cmp._unit_rule_failure(unit, {}, {}, tmp_path, TODAY, cmp.DEFAULT_MODEL)
+        assert msg is not None
+        assert "lacks a model-rationale field" in msg
+
+
+class TestNoModelLinesInGitHubAgents:
+    """Issue #4938: regression gate ensuring no model: lines exist in .github/agents/."""
+
+    def test_no_model_lines_in_shipped_github_agents(self) -> None:
+        """Positive: all .github/agents/ files on disk have no model: line."""
+        repo_root = Path(__file__).resolve().parents[2]
+        agents_dir = repo_root / ".github" / "agents"
+        violations = []
+        for f in sorted(agents_dir.glob("*.md")):
+            for i, line in enumerate(f.read_text().splitlines(), 1):
+                if line.startswith("model:"):
+                    violations.append(f"{f.name}:{i}: {line}")
+        assert violations == [], "model: lines found:\n" + "\n".join(violations)

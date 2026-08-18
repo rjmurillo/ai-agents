@@ -2,15 +2,12 @@
 
 These gates implement RFC 2119 MUST requirements. Proceeding without passing causes artifact drift.
 
-## Gate 0: Session Log Creation
+## Gate 0: Continuity
 
-**Before any work**: Create session log with protocol compliance checklist.
+Before work, read the current per-issue handoff when one exists. Keep PR comment
+state in the working artifact directory created by the skill. A session log is optional.
 
-```bash
-SESSION_FILE=".agents/sessions/$(date +%Y-%m-%d)-session-XX.md"
-```
-
-**Evidence required**: Session log file exists with checkboxes.
+**Evidence required**: Transcript or PR artifact identifies the loaded state.
 
 ## Gate 1: Acknowledgment Verification
 
@@ -127,6 +124,20 @@ fi
 ```
 
 ### Phase 8.4: CI Check Verification
+
+**CI-failure triage step 1 (issue #5073)**: when any check is failing, run
+`triage_red_check.py` for that check name BEFORE reading logs or starting any
+local investigation. The cause frequently lives on main, and each missed
+attribution costs a full investigation.
+
+```bash
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
+python3 "$SCRIPTS_DIR/pr/triage_red_check.py" --check-name "[failing check name]" --pull-request [number]
+# Exit 0 = GREEN_ON_MAIN: the PR introduced the failure; investigate the PR.
+# Exit 1 = RED_ON_MAIN: inherited from main; cite Data.EvidenceUrl (the main
+#          run) in the thread instead of debugging the PR.
+# Exit 3 = UNKNOWN: probe failure is not absence; never treat as green.
+```
 
 ```bash
 SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"

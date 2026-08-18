@@ -1,0 +1,301 @@
+{
+  "id": "episode-2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder",
+  "session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder",
+  "timestamp": "2026-08-14T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Resolve issue 4897: scope every pr-comment-responder Serena memory reference and add the narrowest durable validator",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue 4897 discourse (body, AI-triage comment, CodeRabbit planner comment), checked for a competing PR, and claimed the issue through the github skill scripts.",
+      "caused_by": [],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Prepared the external worktree at ai-agents-worktrees/issue-4897 from origin/main.",
+      "caused_by": [],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the defect surface before choosing a validator rule, to keep the gate as narrow as the issue.",
+      "caused_by": [],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Commit 1: scoped the memory names in the pr-comment-responder skill (SKILL.md, references/bots.md, references/workflow.md).",
+      "caused_by": [],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Commit 2: scoped the same names in templates/agents/pr-comment-responder.shared.md and its four hand-maintained siblings.",
+      "caused_by": [],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Commit 3: pointed update_reviewer_signal_stats.py and .github/workflows/update-reviewer-stats.yml at the scoped path and replaced a tautological test that asserted the constant against its own literal.",
+      "caused_by": [],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Commit 4: fixed the two remaining corpus references that resolved nowhere.",
+      "caused_by": [],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Commit 5: regenerated the copilot skill mirrors with build/scripts/build_all.py.",
+      "caused_by": [],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Commit 6: added scripts/validation/check_skill_memory_references.py plus 32 fixture tests, and registered it in checks_spec.py and pre_pr_sequence.py.",
+      "caused_by": [],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran discriminating evidence for the new gate rather than asserting that it works.",
+      "caused_by": [],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Commit 7: split the test module, which had landed at 497 lines against the taste-lints 500-line hard error.",
+      "caused_by": [],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Commit 8: recorded the naming constraint and the new gate in the pr-review/pr-comment-responder-skills memory.",
+      "caused_by": [],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the full gate set.",
+      "caused_by": [],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "test",
+      "content": "pytest tests/validation plus stats tests: 3090 passed, 1 skipped. pre_pr.py: 52 of 52 PASS, exit 0, including the new Skill Memory References gate. ruff clean, mypy clean, golden-principles no violations, taste-lints 0 errors, actionlint PASS on the changed workflow with the act run skipped for absent secrets, which the gate treats as non-blocking.",
+      "caused_by": [],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-14T21:38:27+00:00",
+      "type": "commit",
+      "content": "Commit: 4bfdfbdcc9",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011",
+        "e012",
+        "e013",
+        "e014",
+        "e017"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-14T21:49:22+00:00",
+      "type": "commit",
+      "content": "Commit: 344a95b7bb",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Commit 8 appended a naming-constraint decision record to the pr-review/pr-comment-responder-skills memory; commit 12 reverted it.",
+      "caused_by": [],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-14T22:16:07+00:00",
+      "type": "commit",
+      "content": "Commit: c6eb9b9b35",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-15T06:53:15+00:00",
+      "type": "commit",
+      "content": "Commit: ae9a033827",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e020"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-15T07:01:04+00:00",
+      "type": "commit",
+      "content": "Commit: 98561cd0c7",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-15T07:02:15+00:00",
+      "type": "commit",
+      "content": "Commit: 42f3866a39",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-15T07:14:43+00:00",
+      "type": "commit",
+      "content": "Commit: d1af9b6646",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": [
+        "e023"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-15T07:42:16+00:00",
+      "type": "commit",
+      "content": "Commit: 7cb644c542",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 8,
+    "files_changed": 10
+  },
+  "lessons": []
+}

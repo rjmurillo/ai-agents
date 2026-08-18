@@ -5,11 +5,14 @@
 
 ## Problem
 
-Two CI workflows — `ai-pr-quality-gate.yml` and `ai-spec-validation.yml` —
-currently produce their final verdict from LLM agent output alone. README
-badges that read those workflows therefore advertise "verified" status that
-was decided by a model judging another model's work. That is a single closed
+`ai-spec-validation.yml` produces its final verdict from LLM agent output
+alone. A README badge that reads that workflow therefore advertises "verified"
+status decided by a model judging another model's work. That is a single closed
 loop: a ghost grading a ghost.
+
+`ai-pr-quality-gate.yml` had the same shape and was deleted rather than fixed:
+its ten-agent fan-out cost more than the closed loop was worth. The contract
+below still binds every gate that remains.
 
 The repo's own SOUL.md says "distrust your own artifacts." A test you wrote
 validating code you wrote is one loop. The same critique applies when the
@@ -19,8 +22,8 @@ test *is* an LLM judgment over LLM output.
 
 Every quality gate **MUST** produce its block / allow decision from at least
 one **externally-grounded signal**: a deterministic tool whose verdict does
-not depend on a language model. LLM agents **MAY** still post reviews — they
-remain valuable for explaining *why* a finding matters — but their verdicts
+not depend on a language model. LLM agents **MAY** still post reviews. They
+remain valuable for explaining *why* a finding matters, but their verdicts
 are advisory, never gating.
 
 External signals (non-exhaustive):
@@ -41,9 +44,9 @@ network-free, and unit-tested.
 ### `acceptance_criteria.py`
 
 Parses `## Acceptance` / `## Acceptance Criteria` Markdown checkboxes out of
-an issue or PR body. Exits non-zero if any criterion is unchecked, or — when
-a unified diff is supplied — if a criterion's keywords are entirely absent
-from the diff (a coarse smoke-grep).
+an issue or PR body. Exits non-zero if any criterion is unchecked. When a
+unified diff is supplied, it also exits non-zero if a criterion's keywords are
+entirely absent from the diff (a coarse smoke-grep).
 
 ```bash
 python3 scripts/external_signals/acceptance_criteria.py \
@@ -56,7 +59,7 @@ Exit codes (ADR-035): 0 pass, 1 logic failure, 2 config error.
 
 Combines signal verdicts produced by external tools and LLM agents and emits
 the final gate verdict. **Refuses to return `PASS` when every signal is an
-LLM judgment** — the rule that closes issue #1855.
+LLM judgment**, the rule that closes issue #1855.
 
 ```bash
 python3 scripts/external_signals/gate_aggregator.py \
@@ -77,9 +80,9 @@ Aggregation rules:
 
 `agent-can-edit-workflows` is not on issue #1855. Per the repo's bot safety
 rails, this PR ships the *deterministic helpers and the contract document*
-only; the workflow wiring that calls them in `ai-pr-quality-gate.yml` and
-`ai-spec-validation.yml` is split into a follow-up issue so a maintainer can
-review the workflow change explicitly.
+only; the workflow wiring that calls them in `ai-spec-validation.yml` is split
+into a follow-up issue so a maintainer can review the workflow change
+explicitly.
 
 Acceptance items from #1855 map as:
 

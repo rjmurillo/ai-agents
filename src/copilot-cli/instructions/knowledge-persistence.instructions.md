@@ -8,7 +8,7 @@ When you learn a durable fact, convention, or decision procedure that future ses
 
 ## Decision procedure
 
-1. **Ephemeral, this-task-only**: do not persist as a rule. Record it in the session log if it matters for the handoff.
+1. **Ephemeral, this-task-only**: do not persist as a rule. Record unfinished issue state in the per-issue handoff. An optional session log may duplicate it.
 2. **Retrieval aid, non-binding**: Serena memory (`.serena/memories/`, committed but MCP-gated) or Copilot Memory (the `store_memory` tool, GitHub-scoped and per-user). Use these for "useful to recall," never as the binding for a convention other harnesses must follow. Serena is not guaranteed loaded on every harness; Copilot Memory does not reach Claude or Codex at all.
 3. **Durable convention that binds every contributor and every harness**: a rule file under `.claude/rules/<name>.md`. This is the canonical surface.
 

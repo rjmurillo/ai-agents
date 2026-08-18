@@ -21,7 +21,8 @@ When given autonomy ("work independently", "get this merged"), AI agents:
 
 Before ANY merge during autonomous execution:
 
-- Session log exists with Protocol Compliance section
+- Per-issue handoff is current when issue work remains
+- Any opted-in session log passes the retained validator
 - Orchestrator was invoked for task coordination
 - Critic validated the plan/changes
 - QA verified the implementation

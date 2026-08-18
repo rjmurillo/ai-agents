@@ -1509,15 +1509,106 @@ class TestSequentialEventLinks:
         assert exc_info.value.exit_code == 2
 
     def test_timestamp_dominates_lifecycle_rank(self):
-        # A commit with a later timestamp must not be reordered before an earlier
-        # milestone; lifecycle rank only breaks ties within one timestamp.
+        # A milestone with a *real* (non-midnight) timestamp earlier than a
+        # commit creates a causal edge.  The midnight case is tested separately
+        # (test_untimestamped_milestone_incomparable_to_commit) per issue #4847.
         early = self._evt("e001", "milestone", "early")
+        early["timestamp"] = "2026-07-19T08:00:00+00:00"  # real timestamp
         late = self._evt("e002", "commit", "late")
         late["timestamp"] = "2026-07-19T09:00:00+00:00"  # after the milestone
         events = [early, late]
         extract_session_episode._link_sequential_events(events)
         assert events[0]["caused_by"] == [] and events[0]["leads_to"] == ["e002"]
         assert events[1]["caused_by"] == ["e001"] and events[1]["leads_to"] == []
+
+    def test_untimestamped_milestone_incomparable_to_commit(self):
+        """Issue #4847: midnight-fallback milestone has no edge to a commit."""
+        milestone = self._evt("e001", "milestone", "merged main")
+        # e001 has default midnight timestamp from _evt helper
+        commit = self._evt("e002", "commit", "Commit: 51a03ff77")
+        commit["timestamp"] = "2026-07-19T14:30:00+00:00"
+        events = [milestone, commit]
+        extract_session_episode._link_sequential_events(events)
+        assert events[0]["caused_by"] == [] and events[0]["leads_to"] == []
+        assert events[1]["caused_by"] == [] and events[1]["leads_to"] == []
+
+    def test_untimestamped_milestone_incomparable_reversed_order(self):
+        """Issue #4847: symmetric - commit before milestone in list."""
+        commit = self._evt("e001", "commit", "Commit: abc1234")
+        commit["timestamp"] = "2026-07-19T14:30:00+00:00"
+        milestone = self._evt("e002", "milestone", "did review")
+        # e002 has midnight fallback
+        events = [commit, milestone]
+        extract_session_episode._link_sequential_events(events)
+        assert events[0]["caused_by"] == [] and events[0]["leads_to"] == []
+        assert events[1]["caused_by"] == [] and events[1]["leads_to"] == []
+
+    def test_real_timestamped_milestone_still_creates_edge(self):
+        """Non-midnight milestone retains causal edge to later commit."""
+        milestone = self._evt("e001", "milestone", "filed issue")
+        milestone["timestamp"] = "2026-07-19T08:15:00+00:00"
+        commit = self._evt("e002", "commit", "Commit: def5678")
+        commit["timestamp"] = "2026-07-19T09:00:00+00:00"
+        events = [milestone, commit]
+        extract_session_episode._link_sequential_events(events)
+        assert events[0]["leads_to"] == ["e002"]
+        assert events[1]["caused_by"] == ["e001"]
+
+    def test_error_at_midnight_still_post_commit(self):
+        """Error/test types at midnight retain post-commit ordering."""
+        commit = self._evt("e001", "commit", "Commit: aaa1111")
+        # commit also at midnight (same timestamp)
+        error = self._evt("e002", "error", "build failed")
+        # error also at midnight
+        events = [commit, error]
+        extract_session_episode._link_sequential_events(events)
+        assert events[0]["leads_to"] == ["e002"]
+        assert events[1]["caused_by"] == ["e001"]
+
+    def test_handoff_at_midnight_incomparable_to_commit(self):
+        """Handoff type is midnight-incomparable like milestone."""
+        handoff = self._evt("e001", "handoff", "handed off")
+        commit = self._evt("e002", "commit", "Commit: bbb2222")
+        commit["timestamp"] = "2026-07-19T10:00:00+00:00"
+        events = [handoff, commit]
+        extract_session_episode._link_sequential_events(events)
+        assert events[0]["caused_by"] == [] and events[0]["leads_to"] == []
+        assert events[1]["caused_by"] == [] and events[1]["leads_to"] == []
+
+    @pytest.mark.parametrize("event_type", ["handoff", "tool_call"])
+    def test_nonmilestone_midnight_type_incomparable_to_commit(self, event_type):
+        """Each _MIDNIGHT_INCOMPARABLE_TYPES member is guarded, not only milestone."""
+        other = self._evt("e001", event_type, "pre-commit work")
+        commit = self._evt("e002", "commit", "Commit: ccc3333")
+        commit["timestamp"] = "2026-07-19T10:00:00+00:00"
+        events = [other, commit]
+        extract_session_episode._link_sequential_events(events)
+        assert events[0]["caused_by"] == [] and events[0]["leads_to"] == []
+        assert events[1]["caused_by"] == [] and events[1]["leads_to"] == []
+
+    @pytest.mark.parametrize("event_type", ["handoff", "tool_call"])
+    def test_nonmilestone_midnight_type_incomparable_reversed_order(self, event_type):
+        """Symmetric direction for the non-milestone incomparable types."""
+        commit = self._evt("e001", "commit", "Commit: ddd4444")
+        commit["timestamp"] = "2026-07-19T10:00:00+00:00"
+        other = self._evt("e002", event_type, "post-commit work")
+        events = [commit, other]
+        extract_session_episode._link_sequential_events(events)
+        assert events[0]["caused_by"] == [] and events[0]["leads_to"] == []
+        assert events[1]["caused_by"] == [] and events[1]["leads_to"] == []
+
+    def test_midnight_in_nonzero_offset_normalizes_to_comparable(self):
+        """Midnight in non-UTC offset normalizes to non-midnight UTC; edge kept."""
+        milestone = self._evt("e001", "milestone", "work")
+        # 00:00:00+05:00 normalizes to 19:00:00 UTC previous day - NOT midnight
+        milestone["timestamp"] = "2026-07-19T00:00:00+05:00"
+        commit = self._evt("e002", "commit", "Commit: ccc3333")
+        commit["timestamp"] = "2026-07-19T20:00:00+00:00"
+        events = [milestone, commit]
+        extract_session_episode._link_sequential_events(events)
+        # 19:00 UTC < 20:00 UTC, so edge exists (real ordering)
+        assert events[0]["leads_to"] == ["e002"]
+        assert events[1]["caused_by"] == ["e001"]
 
     def test_offset_timestamps_are_ordered_by_utc_time(self):
         actual_later = self._evt("e001", "milestone", "later")

@@ -113,12 +113,12 @@ The two destination trees now agree, measured on this branch after the universal
 
 | Tree | Consumer | Always-on |
 |---|---|---|
-| `.github/instructions` | Copilot working in this repository | 7 rules, 70,233 bytes |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 7 rules, 70,233 bytes |
+| `.github/instructions` | Copilot working in this repository | 7 rules, 70,354 bytes |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 7 rules, 70,354 bytes |
 
 The membership is identical: `builder-ethos`, `claude-model-patches`, `code-quality`, `knowledge-persistence`, `search-before-building`, `universal`, `voice`.
 
-Those byte figures are whole generated files, frontmatter included, which is what a consumer actually loads. State the basis whenever you quote one. The same seven rules measure 70,349 bytes at `.claude/rules/`, 116 more, because the generator rewrites the frontmatter on the way out: it drops `priority:` and turns `paths:` or `alwaysApply:` into `applyTo:`. A figure that disagrees with a fresh measurement by roughly that much is a basis mismatch rather than staleness.
+Those byte figures are whole generated files, frontmatter included, which is what a consumer actually loads. State the basis whenever you quote one. The same seven rules measure 70,470 bytes at `.claude/rules/`, 116 more, because the generator rewrites the frontmatter on the way out: it drops `priority:` and turns `paths:` or `alwaysApply:` into `applyTo:`. A figure that disagrees with a fresh measurement by roughly that much is a basis mismatch rather than staleness.
 
 That agreement is recent and it is load bearing, so keep naming the tree with the number. Until issue #4317 closed, the generator universalized a rule whose scope was entirely internal, which made `governance`, `secret-redaction`, and `session-logs` always-on in the plugin and cost a vendor install 7,532 bytes a turn on three rules pointing at `.agents/` paths the installing repository does not have. PR #4426 replaced that fallback with an explicit skip, so those rules are now absent from the plugin tree rather than universalized in it. The plugin ships 23 instruction files against 27 in `.github/instructions`, and that gap is the fix rather than drift.
 

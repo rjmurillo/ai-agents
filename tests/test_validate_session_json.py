@@ -1718,10 +1718,10 @@ class TestValidateSessionLog:
 
 
 class TestValidateQaSkipScope:
-    """Tests for blocking investigation-only claim verification."""
+    """Tests for blocking docs-only and investigation-only claim verification."""
 
     @staticmethod
-    def _log() -> dict[str, Any]:
+    def _log(evidence: str = "SKIPPED: investigation-only") -> dict[str, Any]:
         return {
             "session": {"startingCommit": "a" * 40},
             "endingCommit": "b" * 40,
@@ -1729,7 +1729,7 @@ class TestValidateQaSkipScope:
                 "sessionEnd": {
                     "qaValidation": {
                         "Complete": True,
-                        "Evidence": "SKIPPED: investigation-only",
+                        "Evidence": evidence,
                         "level": "MUST",
                     }
                 }
@@ -1795,7 +1795,7 @@ class TestValidateQaSkipScope:
             validate_qa_skip_scope(self._log(), result)
 
         assert result.errors == [
-            "QA investigation-only scope includes non-investigation files: "
+            "QA investigation-only scope includes disqualifying changes: "
             "scripts/main.py"
         ]
 
@@ -1817,18 +1817,64 @@ class TestValidateQaSkipScope:
             "QA investigation-only scope cannot be verified: bad ref"
         ]
 
-    def test_docs_only_skip_requires_qa_report(self) -> None:
-        log = self._log()
-        log["protocolCompliance"]["sessionEnd"]["qaValidation"]["Evidence"] = (
-            "SKIPPED: docs-only"
+    def test_docs_only_eligible_range_passes(self) -> None:
+        completed = subprocess.CompletedProcess(
+            [],
+            0,
+            stdout=json.dumps({"Eligible": True, "Violations": []}),
+            stderr="",
         )
         result = ValidationResult()
 
-        validate_qa_skip_scope(log, result)
+        with mock.patch("subprocess.run", return_value=completed) as run:
+            validate_qa_skip_scope(self._log("SKIPPED: docs-only"), result)
+
+        assert result.errors == []
+        assert run.call_args.args[0][-4:] == [
+            "--base-ref",
+            "a" * 40,
+            "--head-ref",
+            "b" * 40,
+        ]
+        assert "test_docs_only_eligibility.py" in run.call_args.args[0][1]
+
+    def test_docs_only_ineligible_range_fails(self) -> None:
+        completed = subprocess.CompletedProcess(
+            [],
+            0,
+            stdout=json.dumps(
+                {
+                    "Eligible": False,
+                    "Violations": ["scripts/main.py: not a documentation file"],
+                }
+            ),
+            stderr="",
+        )
+        result = ValidationResult()
+
+        with mock.patch("subprocess.run", return_value=completed):
+            validate_qa_skip_scope(self._log("SKIPPED: docs-only"), result)
 
         assert result.errors == [
-            "QA docs-only scope cannot be verified automatically; provide a QA report"
+            "QA docs-only scope includes disqualifying changes: "
+            "scripts/main.py: not a documentation file"
         ]
+
+    def test_docs_only_checker_error_fails_closed(self) -> None:
+        completed = subprocess.CompletedProcess(
+            [],
+            0,
+            stdout=json.dumps(
+                {"Eligible": False, "Violations": [], "Error": "bad ref"}
+            ),
+            stderr="",
+        )
+        result = ValidationResult()
+
+        with mock.patch("subprocess.run", return_value=completed):
+            validate_qa_skip_scope(self._log("SKIPPED: docs-only"), result)
+
+        assert result.errors == ["QA docs-only scope cannot be verified: bad ref"]
 
 
 class TestLoadSessionFile:
@@ -2500,18 +2546,6 @@ class TestHistoricalLogsAreExemptByConstruction:
         assert result == 0
         assert seen == [new_path]
 
-    def test_workflow_validates_one_file_per_invocation(self) -> None:
-        """One log per invocation, never a glob (ADR-006: logic lives in the script).
-
-        A glob would hand the validator all 131 historical logs at once and
-        fail the job on files no one in this PR touched.
-        """
-        script = (
-            Path(__file__).resolve().parents[1] / "scripts/ci/validate_session_protocol.py"
-        ).read_text(encoding="utf-8")
-        assert "./scripts/validate_session_json.py" in script
-        assert ".agents/sessions/*" not in script
-
 
 class TestMainNarrowsOnThePayload:
     """`main` branches on `error is not None`, not on `data is None` (issue #3346).
@@ -3089,6 +3123,7 @@ class TestAMalformedChecklistItemIsReportedNotFatal:
         ).errors
         assert not [e for e in errors if "Malformed item" in e]
 
+    @pytest.mark.timeout(300)
     def test_every_committed_log_can_be_validated_without_crashing(self) -> None:
         """The corpus is the reason this guard exists."""
         sessions = Path(__file__).resolve().parents[1] / ".agents" / "sessions"
@@ -3191,28 +3226,6 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
             return subprocess.CompletedProcess([], 0, "", "")
 
         return _git, seen
-
-    def test_the_workflow_reads_head_adds_from_the_shared_scope_helper(self) -> None:
-        """The workflow must choose creation-mode outside the validator.
-
-        A branch-added log needs --creation-mode, while a later edit to the
-        same path must validate as an existing record. Keeping
-        --scope-from-git here pins the broken in-between state where neither
-        mode is selected for a branch-added log.
-        """
-        script = (
-            Path(__file__).resolve().parents[1] / "scripts/ci/validate_session_protocol.py"
-        ).read_text(encoding="utf-8")
-        assert "committed_session_validation_modes" in script
-        assert "--creation-mode" in script
-        assert "--existing-log" in script
-        assert "--scope-from-git" not in script
-
-    # Issue #3806 retired the whole-file `"uv run" not in workflow` assertion
-    # that used to sit here. The validate job now installs uv on purpose, and a
-    # substring over the whole file cannot tell that job from the three that
-    # still install nothing. The per-job successor lives in
-    # tests/ci/test_validate_session_protocol_wiring.py::TestEachJobInstallsWhatItsScriptsNeed.
 
     def test_the_shared_module_imports_no_third_party_package(self) -> None:
         """It runs under the workflow's bare python3, which has no PyYAML."""
@@ -3696,8 +3709,12 @@ class TestCheckSessionsCreationMode:
 
     The session-policy hook calls git_hook_policy session (singular), which
     routes to check_sessions. Only the staged add that creates the session log
-    should get --creation-mode. A later commit that edits the same file must
-    run the full pre-commit validation.
+    should get --creation-mode. A later commit that edits the same file gets
+    --pre-commit --existing-log instead, which validates record shape and
+    structure for an already-committed log but skips the protocol-compliance,
+    evidence-agreement, and QA-evidence checks that --pre-commit alone runs,
+    since those items cannot be made true retroactively for a session that
+    already happened (e.g. a tool unavailable in the original session).
     """
 
     _stub = staticmethod(TestSessionScopeIsDecidedOnceForBothCallSites._stub)
@@ -3733,7 +3750,11 @@ class TestCheckSessionsCreationMode:
         )
 
     def test_check_sessions_no_creation_mode_for_existing_log(self) -> None:
-        """A staged edit must NOT keep getting creation-mode forever."""
+        """A staged edit must NOT keep getting creation-mode forever, and must
+        get --existing-log so a refinement of an already-committed log is not
+        held to protocol-compliance items that cannot be made true
+        retroactively (e.g. a tool unavailable in the original session).
+        """
         from scripts.validation import git_hook_policy
 
         existing = ".agents/sessions/2026-01-01-session-1.json"
@@ -3756,6 +3777,10 @@ class TestCheckSessionsCreationMode:
         assert validate_commands
         assert "--creation-mode" not in validate_commands[0], (
             "existing log must not get --creation-mode"
+        )
+        assert "--existing-log" in validate_commands[0], (
+            "existing log must get --existing-log so protocol-compliance is not "
+            "re-enforced on every edit to an already-committed log"
         )
 
     def test_the_hook_passes_creation_mode_for_a_new_log(self) -> None:
@@ -3842,13 +3867,17 @@ class TestCheckSessionsCreationMode:
         assert rc == 1
         assert validate_commands == []
 
-    def test_check_sessions_rejects_commit_without_session_log(self) -> None:
-        """If no session JSON is staged, the hook must fail with an error."""
+    def test_check_sessions_allows_commit_without_session_log(self) -> None:
+        """The committed session-log gate is retired: no staged log is fine.
+
+        Staging a .agents change with no session JSON must pass. check_sessions
+        is validate-if-present, so an absent log returns 0 and emits no mandate.
+        """
         from scripts.validation import git_hook_policy
 
         with mock.patch.object(git_hook_policy, "_merge_in_progress", return_value=False):
             rc = git_hook_policy.check_sessions([".agents/governance/GOTCHAS.md"], Path.cwd())
-        assert rc == 1
+        assert rc == 0
 
     def test_the_hook_fully_validates_when_head_presence_is_unknown(self) -> None:
         from scripts.validation import git_hook_policy, session_scope

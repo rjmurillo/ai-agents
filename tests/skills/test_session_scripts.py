@@ -3,7 +3,6 @@
 Covers:
 - new_session_log_json.py
 - complete_session_log.py
-- get_validation_errors.py
 
 The session skill's test_investigation_eligibility.py is covered by its
 co-located suite at .claude/skills/session/tests/test_session_eligibility.py.
@@ -21,12 +20,10 @@ import pytest
 _project_root = Path(__file__).resolve().parents[2]
 _session_init = _project_root / ".claude" / "skills" / "session-init" / "scripts"
 _session_end = _project_root / ".claude" / "skills" / "session-end" / "scripts"
-_log_fixer = _project_root / ".claude" / "skills" / "session-log-fixer" / "scripts"
 
 for _p in (
     str(_session_init),
     str(_session_end),
-    str(_log_fixer),
 ):
     if _p not in sys.path:
         sys.path.insert(0, _p)
@@ -405,114 +402,6 @@ class TestCompleteSessionLog:
         with pytest.raises(SystemExit) as exc:
             sys.argv = ["complete_session_log.py", "--help"]
             import complete_session_log as mod
-            mod.main()
-        assert exc.value.code == 0
-
-
-# ---------------------------------------------------------------------------
-# get_validation_errors
-# ---------------------------------------------------------------------------
-
-class TestGetValidationErrors:
-    """Tests for get_validation_errors module.
-
-    Functions were renamed to private:
-    - parse_job_summary -> _parse_job_summary (keys now snake_case)
-    - run_gh removed (subprocess.run used directly)
-    - get_run_id_from_pr -> _get_run_id_from_pr
-    """
-
-    def _import(self):
-        import importlib
-
-        import get_validation_errors as mod
-        importlib.reload(mod)
-        return mod
-
-    def test_parse_job_summary_overall_verdict(self):
-        mod = self._import()
-        summary = "Overall Verdict: **NON_COMPLIANT**\n"
-        result = mod._parse_job_summary(summary)
-        assert result["overall_verdict"] == "NON_COMPLIANT"
-
-    def test_parse_job_summary_must_failure_count(self):
-        mod = self._import()
-        summary = "3 MUST requirement(s) not met\n"
-        result = mod._parse_job_summary(summary)
-        assert result["must_failure_count"] == 3
-
-    def test_parse_job_summary_non_compliant_sessions(self):
-        mod = self._import()
-        summary = (
-            "| Session File | Status | Failures |\n"
-            "| `2024-01-01-session-1.json` | NON_COMPLIANT | 2 |\n"
-        )
-        result = mod._parse_job_summary(summary)
-        assert len(result["non_compliant_sessions"]) == 1
-        assert result["non_compliant_sessions"][0]["file"] == "2024-01-01-session-1.json"
-        assert result["non_compliant_sessions"][0]["must_failures"] == 2
-
-    def test_parse_job_summary_empty(self):
-        mod = self._import()
-        result = mod._parse_job_summary("")
-        assert result["overall_verdict"] is None
-        assert result["must_failure_count"] == 0
-        assert result["non_compliant_sessions"] == []
-
-    def test_get_run_id_from_pr_happy_path(self):
-        mod = self._import()
-        pr_proc = make_proc(
-            stdout=json.dumps({"headRefName": "feat/test"}), returncode=0,
-        )
-        runs_proc = make_proc(
-            stdout=json.dumps([
-                {"databaseId": 100, "conclusion": "success"},
-                {"databaseId": 200, "conclusion": "failure"},
-            ]),
-            returncode=0,
-        )
-        with patch("subprocess.run", side_effect=[pr_proc, runs_proc]):
-            run_id = mod._get_run_id_from_pr(10)
-        assert run_id == "200"
-
-    def test_get_run_id_from_pr_no_failure(self):
-        mod = self._import()
-        pr_proc = make_proc(
-            stdout=json.dumps({"headRefName": "feat/test"}), returncode=0,
-        )
-        runs_proc = make_proc(
-            stdout=json.dumps([{"databaseId": 100, "conclusion": "success"}]),
-            returncode=0,
-        )
-        with patch("subprocess.run", side_effect=[pr_proc, runs_proc]):
-            with pytest.raises(RuntimeError):
-                mod._get_run_id_from_pr(10)
-
-    def test_main_run_id_no_errors_exits_2(self):
-        import importlib
-
-        import get_validation_errors as mod
-        importlib.reload(mod)
-        # Mock the subprocess.run call that fetches log
-        log_proc = make_proc(stdout="no relevant content", returncode=0)
-        with patch("subprocess.run", return_value=log_proc):
-            rc = mod.main(["--run-id", "12345"])
-        assert rc == 2
-
-    def test_main_run_fetch_failure_exits_1(self):
-        import importlib
-
-        import get_validation_errors as mod
-        importlib.reload(mod)
-        log_proc = make_proc(returncode=1, stderr="error")
-        with patch("subprocess.run", return_value=log_proc):
-            rc = mod.main(["--run-id", "999"])
-        assert rc == 1
-
-    def test_help_does_not_crash(self):
-        with pytest.raises(SystemExit) as exc:
-            sys.argv = ["get_validation_errors.py", "--help"]
-            import get_validation_errors as mod
             mod.main()
         assert exc.value.code == 0
 

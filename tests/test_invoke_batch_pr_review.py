@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -13,6 +14,7 @@ from scripts.invoke_batch_pr_review import (
     get_worktree_status,
     main,
     print_status_table,
+    push_worktree_changes,
     run_gh,
     run_git,
 )
@@ -65,6 +67,44 @@ class TestGetWorktreeStatus:
         assert status.pr == 42
 
 
+def _git(args: list[str], cwd: Path, check: bool = True) -> subprocess.CompletedProcess[str]:
+    """Run a git command, isolated from the caller's locale.
+
+    Signature and body are identical to
+    ``tests/test_pr_autofix_worktree_identity.py::_git`` (verified this
+    session by reading that file), the closest existing analog: both files
+    build throwaway git repos to exercise
+    ``scripts.github_core.worktree_identity``. No divergence.
+    """
+    env = os.environ.copy()
+    env["LC_ALL"] = "C"
+    return subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        check=check,
+    )
+
+
+def _prepare_pushable_worktree(root: Path) -> Path:
+    """Create a pushable worktree with bot identity and an upstream remote."""
+    origin = root / "origin.git"
+    worktree = root / "worktree-pr-1"
+
+    _git(["init", "--bare", "--initial-branch=main", str(origin)], root)
+    _git(["clone", str(origin), str(worktree)], root)
+    _git(["config", "user.name", "rjmurillo-bot"], worktree)
+    _git(["config", "user.email", "rjmurillo-bot@users.noreply.github.com"], worktree)
+    (worktree / "README.md").write_text("base\n")
+    _git(["add", "README.md"], worktree)
+    _git(["commit", "-m", "base"], worktree)
+    _git(["push", "origin", "main"], worktree)
+    return worktree
+
+
 class TestPrintStatusTable:
     def test_prints_without_error(self) -> None:
         statuses = [
@@ -95,3 +135,62 @@ class TestMain:
             "--worktree-root", "/tmp",
         ])
         assert result == 3
+
+
+class TestPushWorktreeChanges:
+    def test_repins_leaked_identity_before_cleanup_commit(self, tmp_path: Path) -> None:
+        """A leaked Test <test@test.com> identity must not reach the cleanup commit."""
+        worktree = _prepare_pushable_worktree(tmp_path)
+
+        _git(["config", "user.name", "Test"], worktree)
+        _git(["config", "user.email", "test@test.com"], worktree)
+        (worktree / "README.md").write_text("base\nchange\n")
+
+        assert push_worktree_changes(1, tmp_path) is True
+
+        author = _git(["log", "-1", "--format=%an <%ae>"], worktree).stdout.strip()
+        assert author == "rjmurillo-bot <rjmurillo-bot@users.noreply.github.com>"
+        local_email = _git(["config", "--local", "user.email"], worktree).stdout.strip()
+        assert local_email == "rjmurillo-bot@users.noreply.github.com"
+
+    def test_clean_and_pushed_worktree_skips_identity_reset(self, tmp_path: Path) -> None:
+        """A clean, already-pushed worktree must not need a reset or commit."""
+        _prepare_pushable_worktree(tmp_path)
+
+        from scripts import invoke_batch_pr_review
+
+        with patch.object(invoke_batch_pr_review, "reset_worktree_identity") as mock_reset:
+            result = push_worktree_changes(1, tmp_path)
+
+        assert result is True
+        mock_reset.assert_not_called()
+
+    def test_operator_identity_is_forwarded_to_reset(self, tmp_path: Path) -> None:
+        """The CLI must forward human operator mode through the cleanup path."""
+        from scripts import invoke_batch_pr_review
+
+        status = WorktreeStatus(
+            pr=1,
+            path=tmp_path / "worktree-pr-1",
+            exists=True,
+            clean=False,
+            branch="main",
+            commit=None,
+            unpushed=True,
+        )
+        with (
+            patch.object(invoke_batch_pr_review, "get_worktree_status", return_value=status),
+            patch.object(invoke_batch_pr_review, "reset_worktree_identity") as mock_reset,
+            patch.object(invoke_batch_pr_review, "run_git") as mock_run_git,
+            patch.object(invoke_batch_pr_review, "remove_worktree", return_value=True),
+        ):
+            mock_run_git.return_value = MagicMock(returncode=0, stdout="", stderr="")
+            result = main([
+                "--pr-numbers", "1",
+                "--operation", "cleanup",
+                "--worktree-root", str(tmp_path),
+                "--operator-identity", "rjmurillo",
+            ])
+
+        assert result == 0
+        mock_reset.assert_called_once_with(status.path, operator="rjmurillo")

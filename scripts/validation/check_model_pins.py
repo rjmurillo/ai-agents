@@ -74,11 +74,11 @@ _BASELINE_PATH = _SCRIPT_DIR / "model_pin_baseline.json"
 _MANIFEST_PATH = _REPO_ROOT / ".agents" / "governance" / "model-pin-evidence.json"
 _TIERS_PATH = _REPO_ROOT / "templates" / "platforms" / "copilot-cli.yaml"
 
-# Source unit trees. Generated mirrors (src/copilot-cli, .github/agents) are
-# handled by regeneration in the migration, not scanned here.
+# Source unit trees and self-host copies scanned for model-pin policy.
 _UNIT_GLOBS: tuple[tuple[str, str], ...] = (
     ("skill", ".claude/skills/*/SKILL.md"),
     ("agent", ".claude/agents/*.md"),
+    ("agent", ".github/agents/*.md"),
     ("agent", "templates/agents/*.shared.md"),
     ("command", ".claude/commands/**/*.md"),
 )

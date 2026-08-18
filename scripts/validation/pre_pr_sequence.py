@@ -44,11 +44,14 @@ from check_doc_interpreter_portability import (
     validate_doc_interpreter_portability,
 )
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
+from check_generated_staleness import validate_generated_staleness
 from check_nested_tests import validate_no_nested_tests
 from check_push_lock_paths import validate_push_lock_paths
 from check_subprocess_encoding import validate_subprocess_encoding
 from check_test_tree_writes import validate_test_tree_writes
+from check_tmp_worktrees import validate_tmp_worktrees
 from check_unreachable_code import validate_unreachable_code
+from check_worktree_recipes import validate_worktree_recipes
 from checks_coverage import (
     validate_review_marker,
 )
@@ -56,6 +59,7 @@ from checks_dash import validate_dash_prohibition
 from checks_mypy import validate_mypy_changed_files
 from checks_plugin import (
     validate_agent_content_parity,
+    validate_colocated_skill_tests,
     validate_copilot_agent_frontmatter,
     validate_hook_anchoring,
     validate_install_parity,
@@ -73,6 +77,7 @@ from checks_spec import (
     validate_orchestrator_citations,
     validate_rule_activation_coverage,
     validate_skill_md_portability,
+    validate_skill_memory_references,
     validate_skill_shells,
     validate_skill_skip_clauses,
     validate_spec_contradiction,
@@ -168,9 +173,11 @@ def _run_orphaned_build_deferrals(repo_root: Path, _args: argparse.Namespace) ->
     override is passed positionally only when the environment supplies one.
     """
     deferral_repo = os.environ.get("GH_REPO")
-    return validate_no_orphaned_build_deferrals(
-        repo_root / "build" / "scripts" / "build_all.py",
-        *([deferral_repo] if deferral_repo else []),
+    return bool(
+        validate_no_orphaned_build_deferrals(
+            repo_root / "build" / "scripts" / "build_all.py",
+            *([deferral_repo] if deferral_repo else []),
+        )
     )
 
 
@@ -185,7 +192,7 @@ def _run_copilot_routing_exclusions(repo_root: Path, _args: argparse.Namespace) 
     """
     from checks_copilot import validate_copilot_routing_exclusions
 
-    return validate_copilot_routing_exclusions(repo_root)
+    return bool(validate_copilot_routing_exclusions(repo_root))
 
 
 _SEQUENCE: tuple[_Gate, ...] = (
@@ -204,6 +211,18 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Subprocess Encoding Convention", _root_only(validate_subprocess_encoding)),
     _Gate("Test Working Tree Writes", _root_only(validate_test_tree_writes)),
     _Gate("Push Lock Path Agreement", _root_only(validate_push_lock_paths)),
+    # Blocks a tracked prescription that tells a reader to create a worktree
+    # under /tmp or inside the checkout, against universal.md MUST NOT 7. Issue
+    # #5111: the rule, a Serena memory, and a prior incident all already
+    # existed, and six violations still accumulated, because nothing read the
+    # recipes.
+    _Gate("Worktree Recipe Destinations", _root_only(validate_worktree_recipes)),
+    # Advisory companion to the gate above: the same rule measured against the
+    # machine rather than the tree. Reports worktrees sitting under /tmp
+    # (including orphans git no longer lists) and a low /tmp free-space floor.
+    # Never fails; see the validator's docstring for why machine state does not
+    # get to block a push. Issue #5111.
+    _Gate("Temp-filesystem Worktrees (advisory)", _root_only(validate_tmp_worktrees)),
     _Gate("Session End Validation", _root_only(validate_session_end)),
     # Type-check changed Python files with ratchet semantics (issue #4674).
     # Surfaces regressions at pre-PR time rather than waiting for push CI.
@@ -232,6 +251,14 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # tracking issue, the orphan signature that hid stale mirrors before #2780.
     # Issue #2770.
     _Gate("Orphaned Build Deferrals", _run_orphaned_build_deferrals),
+    # The gate above reads deferral comments inside build_all.py's source. This
+    # one asks the separate question CI asks: is the generated tree stale
+    # against its inputs. Runs sync_plugin_lib.py --check then
+    # build/scripts/build_all.py --check, in the order
+    # .claude/rules/generated-artifacts.md requires. Both are read-only.
+    # Issue #5079: without it, a hand-edit to a generated file cleared every
+    # local gate and the generator silently reverted it in CI (PR #5059).
+    _Gate("Generated Artifact Staleness", _root_only(validate_generated_staleness)),
     _Gate("Spec ID Uniqueness", _root_only(validate_spec_id_uniqueness)),  # Issue #2068
     _Gate("Traceability", _root_only(validate_traceability)),
     # No new hard-coded upstream-only paths (issue #2050).
@@ -245,6 +272,13 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Fails when a multi-member leading-token skill family lacks a well-formed
     # route to a real sibling. Issue #3484.
     _Gate("Skill SKIP Clause Routing", _root_only(validate_skill_skip_clauses)),
+    # Fails when a skill or agent instruction commands read_memory or
+    # edit_memory on a name that resolves to no tracked memory. Issue #4897:
+    # pr-comment-responder's BLOCKING Phase 0 named an unscoped memory, so the
+    # blocking step failed for any agent that ran the instruction literally.
+    _Gate("Skill Memory References", _root_only(validate_skill_memory_references)),
+    # Block new test files colocated in customer-shipped skill dirs. Issue #4838.
+    _Gate("Colocated Skill Tests", _root_only(validate_colocated_skill_tests)),
     # Ratchet (issue #3457). Fails when a rule or skill has no activation
     # scenario and is not baselined, or when a scenario points at a deleted
     # artifact. Fail-closed on any config or structural fault so an unmeasured

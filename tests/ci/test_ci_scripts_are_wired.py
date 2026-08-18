@@ -43,10 +43,6 @@ _WORKFLOW_DIRS = (
 # non-empty reason, so that adding one is a decision rather than a way to
 # silence this test.
 _NOT_WORKFLOW_INVOKED: dict[str, str] = {
-    "build_triage_summary_comment.py": (
-        "Library entrypoint invoked by post_issue_triage_summary_comment.py; "
-        "tests/ci/test_ai_issue_triage_workflow.py verifies the wrapper calls it."
-    ),
     "cli_exit_contract_coverage.py": (
         "Library holding the test-coverage analysis for "
         "cli_exit_contract_ratchet.py, which is workflow-invoked from "
@@ -89,6 +85,12 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "Subprocess helper called by drift_collect_details.py (ADR-006 extraction "
         "batch 6). drift_collect_details.py is the workflow-invoked entry point; "
         "parse_drift_results.py is its implementation detail."
+    ),
+    "ruleset_required_contexts.py": (
+        "Library holding the required-context contract shared by "
+        "ruleset_context_drift.py and test_merge_group_readiness.py. The "
+        "scheduled workflow invokes the detector, while both test files verify "
+        "the shared contract."
     ),
 }
 

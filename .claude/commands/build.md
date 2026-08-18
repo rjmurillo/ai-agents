@@ -33,7 +33,7 @@ Before implementation, Task(subagent_type="analyst"): Read `.claude/skills/analy
 
 ## Pre-Mortem (Risk Identification)
 
-Before any code changes, invoke Skill(skill="pre-mortem") on the task as briefed. Capture the top 2-3 critical risks and their mitigations into the session log. Risks surfaced by reviewers late in the cycle are usually knowable up front. A 5-minute pre-mortem is cheaper than a 10-round bot review.
+Before any code changes, invoke Skill(skill="pre-mortem") on the task as briefed. Capture the top 2-3 critical risks and their mitigations in the active plan or issue handoff. Risks surfaced by reviewers late in the cycle are usually knowable up front. A 5-minute pre-mortem is cheaper than a 10-round bot review.
 
 ## Agent
 
@@ -69,7 +69,7 @@ Run, in order:
 3. Skill(skill="doc-accuracy") with `--diff-base main` so it audits changed comments, docstrings, and prose. Reject the build on any critical or high finding in code or docs you authored.
 4. Skill(skill="orphan-ref-validator"). Reject the build on `VERDICT: CRITICAL_FAIL` or `VERDICT: ERROR`. Catches references to deleted skills and missing script paths before they reach review. Manifest count claims are not validated by anything: the marketplace count validator was retired in #2187 and orphan-ref-validator never took the work over. Its scanner emits only skill_name, script_path, and scan_truncated findings. To diagnose a failure, re-run the skill with `--output human`; each finding shows `path:line` plus a one-line recommendation. The skill invocation is platform-agnostic; each platform mirror runs its own copy of `scan.py`. The first three gates run in `--changed-only` mode and ignore preexisting drift; gate 4 scans the default targets across the repo because skill-name and script-path orphans are repo-state global, not per-PR. If pre-existing drift outside the PR's scope blocks the gate, fix it in the same PR (the directives at `<!-- orphan-ref-ignore -->` and `<!-- orphan-ref-ignore-file -->` are documented in the skill's SKILL.md).
 
-If a gate flags an item that is genuinely out of scope for this build, document the rationale in the session log and link to the follow-up issue. "I will fix it in review" is not an acceptable rationale.
+If a gate flags an item that is genuinely out of scope for this build, document the rationale in the PR body or issue handoff and link to the follow-up issue. "I will fix it in review" is not an acceptable rationale.
 
 ## Guardrails
 
@@ -78,7 +78,7 @@ If a gate flags an item that is genuinely out of scope for this build, document 
 - Before modifying an existing system (changing behavior of a validator, hook, ADR constraint,
   or shared infrastructure component), invoke Skill(skill="memory-gate") to surface the "why"
   behind the existing design. This is a soft BLOCKING check: if the gate returns findings, address
-  or explicitly acknowledge them in the session log before proceeding.
+  or explicitly acknowledge them in the active plan or issue handoff before proceeding.
 - Favor delegation over inheritance. A makes B, or A uses B. Never both.
 - Three similar lines beat a premature abstraction.
 - Verify CLI flags and argparse patterns against live output before committing. Run the command, observe the actual behavior, confirm it matches intent.

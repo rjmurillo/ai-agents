@@ -69,8 +69,8 @@ def test_run_writes_outputs_and_summary(tmp_path: Path) -> None:
     ticks = iter([1609459200.0, 1609459207.0])
     env = {
         "DELAY_SECONDS": "7",
-        "WORKFLOW_NAME": "AI PR Quality Gate",
-        "CONCURRENCY_GROUP": "ai-quality-42",
+        "WORKFLOW_NAME": "AI Spec Validation",
+        "CONCURRENCY_GROUP": "ai-spec-42",
         "GITHUB_OUTPUT": str(out),
         "GITHUB_STEP_SUMMARY": str(summary),
     }

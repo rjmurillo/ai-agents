@@ -1,0 +1,216 @@
+{
+  "id": "episode-2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version",
+  "session": "2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Process issue 4939 ADR-044 version pin conflict",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rechecked issue 4939 context, existing PR state, and claim state.",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the contradiction with the validator.",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Amended ADR-044 to point readers at the live validator.",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded session state, QA evidence, and the per-issue handoff.",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran ADR-044 amendment review Round 1 with architect, critic, independent-thinker, security, analyst, and high-level-advisor.",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced the in-place amendment with ADR-094 and corrected dependent guidance.",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran ADR review Round 2 against the revised artifacts.",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran targeted validation.",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "test",
+      "content": "Ran targeted validation.      15 validator tests passed; repository pin 1.0.63 passed; ADR numbers were unique; CONTRIBUTING markdown passed; diff check and stale-guidance searches passed.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T07:42:31+00:00",
+      "type": "commit",
+      "content": "Commit: 66eea82edc2bc82639ea5d513c149a27e6f47cd0",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T13:16:07+00:00",
+      "type": "milestone",
+      "content": "Addressed PR #5024 review threads: corrected ADR-064 cross-references, completed handoff inventory, added debate log correction entry.",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-15T13:16:08+00:00",
+      "type": "commit",
+      "content": "Commit: b66a37b977f7ce93013dcfea6ba4ea0dde8590de",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-15T14:19:37+00:00",
+      "type": "commit",
+      "content": "Commit: 4f1bdb2a118facd8656d2b07274d63e83c5359eb",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-15T16:37:58+00:00",
+      "type": "commit",
+      "content": "Commit: 1882564ef8c1a9ec5e017186928caede2a0ab82d",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-15T23:51:55+00:00",
+      "type": "commit",
+      "content": "Commit: 605bd8d2c94d02c53d459b75ccaaa0a31814233d",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-16T00:07:31+00:00",
+      "type": "commit",
+      "content": "Commit: c1dcea5a51e92268663aba1f528079528009377d",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 6,
+    "files_changed": 431
+  },
+  "lessons": []
+}

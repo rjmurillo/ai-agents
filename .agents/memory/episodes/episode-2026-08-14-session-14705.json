@@ -1,0 +1,120 @@
+{
+  "id": "episode-2026-08-14-session-14705",
+  "session": "2026-08-14-session-14705",
+  "timestamp": "2026-08-14T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Create dx-review skill and move its attribution to third-party notices",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-14T02:49:00+00:00",
+      "type": "milestone",
+      "content": "fix-dx-review-findings",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-14-session-14705"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-14T10:06:00+00:00",
+      "type": "milestone",
+      "content": "fix-dx-review-findings-content",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-14-session-14705"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix-dx-review-findings",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-14-session-14705"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-14T11:17:00+00:00",
+      "type": "milestone",
+      "content": "close-dx-review-session",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14705"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-14T11:41:00+00:00",
+      "type": "milestone",
+      "content": "move-dx-attribution",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-14-session-14705"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-14T21:30:00+00:00",
+      "type": "milestone",
+      "content": "finalize-dx-review",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-14-session-14705"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-14T21:45:00+00:00",
+      "type": "milestone",
+      "content": "retrospective",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14705"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T05:44:26+00:00",
+      "type": "commit",
+      "content": "Commit: 186c49540dfe0436e7ca8cbb96db64aa2dbb9f94",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14705"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 1136,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 14
+  },
+  "lessons": []
+}

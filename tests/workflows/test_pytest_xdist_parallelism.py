@@ -332,8 +332,17 @@ class TestAggregateJob:
         assert _job("test-result")["name"] == "Run Python Tests"
 
     def test_aggregate_runs_when_path_detection_fails(self) -> None:
+        """The gate must survive a failed dependency but not a cancelled run.
+
+        `!cancelled()` replaced `always()` for #5097: both run when a
+        dependency failed or was skipped, but `always()` also ran during
+        cancellation and published a red required check for a superseded run.
+        `tests/workflows/test_aggregator_cancellation_guard.py` carries the
+        full contract.
+        """
         condition = _job("test-result")["if"]
-        assert "always()" in condition
+        assert "!cancelled()" in condition
+        assert "always()" not in condition
         assert "needs.check-paths.result != 'success'" in condition
         assert "needs.check-paths.outputs.python-changed == 'true'" in condition
 

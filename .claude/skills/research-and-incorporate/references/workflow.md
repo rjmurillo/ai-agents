@@ -484,10 +484,10 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/sc
 ```
 
 The script exits 0 on success and prints the new issue number. A non-zero exit means
-the issue was not created: record the failure in the session log and do not claim an
-issue number you did not receive.
+the issue was not created: record the failure in the active handoff when one exists,
+and do not claim an issue number you did not receive.
 
-### Document in Session Log
+### Document in Durable Handoff
 
 ```markdown
 ## Action Items Created

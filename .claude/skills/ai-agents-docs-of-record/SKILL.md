@@ -8,13 +8,9 @@ description: Runbook for this repo's documents of record. Session logs, ADRs, re
 # ai-agents-docs-of-record
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
-This repo runs on verification-based governance: work that is not recorded in a
-document of record did not happen (SESSION-PROTOCOL.md, "Trust-Based vs
-Verification-Based"). This skill is the operating manual for the five record
-systems, the house style they share, and the decision table for which record a
-given fact belongs in. Jargon: a "document of record" is an artifact a later
-session or CI gate treats as authoritative evidence, as opposed to chat output,
-which evaporates.
+This repo runs on verification-based governance. Continuity lives in per-issue
+handoffs and Serena memory. Session logs are optional records, while transcript
+and pull request evidence remain valid.
 
 ## Triggers
 
@@ -28,7 +24,7 @@ which evaporates.
 
 | Record | Location | Create with | Validated by |
 |--------|----------|-------------|--------------|
-| Session log | `.agents/sessions/YYYY-MM-DD-session-NN[-slug].json` | `session-init` skill | `scripts/validate_session_json.py`; CI `ai-session-protocol.yml` |
+| Session log | `.agents/sessions/YYYY-MM-DD-session-NN[-slug].json` | `session-init` skill | `scripts/validate_session_json.py`, validate-if-present via the `session-policy` pre-commit hook or on demand (a session log is optional) |
 | Per-issue handoff | `.agents/sessions/handoffs/{YYYY-MM-DD}-{ISSUE}-handoff.md` | copy `.agents/templates/HANDOFF.md` | resume-verification checklist at next session start |
 | ADR | `.agents/architecture/ADR-NNN-slug.md` | `adr-generator` skill | `scripts/validation/check_adr_uniqueness.py`; `adr-review` debate gate |
 | Retrospective | `.agents/retrospective/` | auto-retro skeleton + `/retro fill`, or `retrospective` skill | `INDEX.md` row (auto-appended, incomplete; see Phase 4) |
@@ -41,7 +37,7 @@ which evaporates.
 
 | Situation | Record | Why |
 |-----------|--------|-----|
-| Any session doing real work | Session log, always | Protocol MUST; CI validates |
+| Operator requests a committed session record | Optional session log | Retained schema and validator |
 | Issue spans multiple sessions | Per-issue handoff | Cold-start continuity (Issue #1725: 95.8% protocol failure without file-based gates) |
 | Architectural or irreversible decision | ADR | Fires `adr-review` multi-agent debate |
 | Incident, failure, or "what went wrong" | Retrospective | Feeds the failure canon; see `ai-agents-failure-archaeology` |
@@ -59,8 +55,8 @@ Session logs are JSON, schema at `.agents/schemas/session-log.schema.json`
 (top-level required: `session`, `protocolCompliance` with `sessionStart` and
 `sessionEnd` subsections).
 
-Create early. SESSION-PROTOCOL.md Phase 5: the log SHOULD exist within the
-first 5 tool calls and MUST NOT be deferred to session end.
+Create a log only when the operator opts in. No start, end, commit, push, or
+pull request gate requires one.
 
 ```bash
 uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/session-init/scripts/new_session_log.py" \
@@ -74,12 +70,11 @@ Hard requirements enforced by `scripts/validate_session_json.py`:
 - Branch must match `^(feat|fix|docs|chore|refactor|test|ci)/`.
 - `startingCommit` must be a 7-40 char lowercase hex SHA.
 
-Naming in current practice (as of 2026-07-03) appends a slug:
+Naming in current practice may append a slug:
 `2026-06-30-session-2600-skill-tooling-hygiene-taste-lints-naming.json`. Let
-the `session-init` script produce the name; do not hand-roll it. If the CI
-session-protocol gate goes red, use `session-log-fixer`. Session end duties
-(complete the log, write handoff if an issue stays open, update Serena) belong
-to `session-end`. Never resolve a session-log merge conflict with
+the `session-init` script produce the name; do not hand-roll it. Use
+`session-log-fixer` to repair an existing local log. Use `session-end` only to
+complete an existing log. Never resolve a session-log merge conflict with
 `git checkout --ours`; the settled rule from the session 1187 incident is take
 `--theirs` and rename your own log to the next free number (see
 `ai-agents-failure-archaeology`).
@@ -167,7 +162,7 @@ Tier model per ADR-014 and `.agents/sessions/handoffs/README.md`:
 
 | Tier | Location | Scope |
 |------|----------|-------|
-| Session log | `.agents/sessions/*.json` | Single session, canonical record |
+| Session log | `.agents/sessions/*.json` | Optional single-session record |
 | Per-issue handoff | `.agents/sessions/handoffs/{date}-{issue}-handoff.md` | One issue across sessions; rewritten each session |
 | Per-branch handoff | `.agents/handoffs/{branch}/{session}.md` | Multi-session branch coordination |
 | Dashboard | `.agents/HANDOFF.md` | Project-wide, READ-ONLY, 5K hard cap |
@@ -225,7 +220,7 @@ into) the rest. Behavioral claims in docs are verified with `doc-accuracy`.
 | Anti-pattern | Why it burns you | Evidence |
 |--------------|------------------|----------|
 | Editing `.agents/HANDOFF.md` | Read-only per ADR-014; push guards and reviewers reject it | AGENTS.md "Never" list |
-| Deferring the session log to session end | Incomplete records when sessions die; protocol MUST NOT | SESSION-PROTOCOL.md Phase 5 |
+| Creating a log only to satisfy a gate | Reintroduces the retired workflow | SESSION-PROTOCOL.md Phase 5 |
 | Trusting an ADR number without reading the file | Numbers collided (058/062/063 dupes; 024 vs 055 same slug) | `check_adr_uniqueness.py` docstring |
 | Repo-wide `markdownlint --fix` | Reformatted 53 unrelated memory files in PR #908 | PR #908 retro Five Whys |
 | Bundling memory changes with skill code in one PR | Violates `claude-agents.md` MUST NOT 2; scope explosion | PR #908 retro |
@@ -239,7 +234,7 @@ into) the rest. Behavioral claims in docs are verified with `doc-accuracy`.
 
 Before ending any session that produced records:
 
-- [ ] Session log exists, created early, and `uv run python3 scripts/validate_session_json.py <log>` exits 0.
+- [ ] Any staged or supplied session log passes `uv run python scripts/validate_session_json.py <log>`.
 - [ ] Any new ADR number came from `check_adr_uniqueness.py --print-next` and the `adr-review` gate ran.
 - [ ] Retro learnings are persisted as Serena memories, not just prose in the retro file.
 - [ ] New memories follow `[domain]-[name].md` naming and their index row sits after the last data row.
@@ -254,7 +249,7 @@ relying on them:
 
 | Fact | Source | Re-verify |
 |------|--------|-----------|
-| Session log MUSTs, blocking phases | `.agents/SESSION-PROTOCOL.md` (Phases 0-5, 2.5) | `grep -n "MUST NOT defer" .agents/SESSION-PROTOCOL.md` |
+| Optional session-log contract | `.agents/SESSION-PROTOCOL.md` Phase 5 | `grep -n "validate-if-present" .agents/SESSION-PROTOCOL.md` |
 | Branch naming pattern | `scripts/validate_session_json.py` (`BRANCH_PATTERN`) | `grep -n "^BRANCH_PATTERN = re.compile" scripts/validate_session_json.py` |
 | Schema required keys, top level and nested session | `.agents/schemas/session-log.schema.json` | `python3 -c "import json;s=json.load(open('.agents/schemas/session-log.schema.json'));print(s['required'], s['properties']['session']['required'])"` |
 | ADR collision history, next-number helper | `scripts/validation/check_adr_uniqueness.py` docstring | `python3 scripts/validation/check_adr_uniqueness.py --print-next` |
