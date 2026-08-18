@@ -41,10 +41,10 @@ FAST_STDIN_GATES = (
     "push-ref-policy",
     "security-suppression-policy",
     "placeholder-identity",
+    "retrospective-policy",
 )
 FAST_PARALLEL_GATES = frozenset(
     {
-        "retrospective-policy",
         "python-lint-ratchet",
         "python-lint-count-ratchet",
         "taste-count-ratchet",
