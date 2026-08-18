@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from scripts.validate_workspace_budget import (
+    FILE_CEILING_BYTES,
     PER_FILE_BUDGET_BYTES,
     TOTAL_BUDGET_BYTES,
     WORKSPACE_FILES,
@@ -129,3 +130,109 @@ class TestMain:
         assert result == 0, (
             "Workspace files exceed budget. Run: python scripts/validate_workspace_budget.py"
         )
+
+
+class TestCustomCeilingDisplay:
+    """Tests for issue #4883: display uses effective ceilings."""
+
+    def test_custom_ceiling_file_above_generic_below_ratchet_passes(self) -> None:
+        """A file above PER_FILE_BUDGET_BYTES but below its custom ceiling passes."""
+        metrics = [
+            FileMetric(path="special.md", size_bytes=4000, exists=True),
+        ]
+        # Custom ceiling of 5000 > 4000 > generic 3000
+        result = validate_budget(
+            metrics, per_file_budget=3000, file_ceilings={"special.md": 5000}
+        )
+        assert result.is_valid
+
+    def test_custom_ceiling_file_above_ratchet_fails(self) -> None:
+        """A file above its custom ceiling fails."""
+        metrics = [
+            FileMetric(path="special.md", size_bytes=6000, exists=True),
+        ]
+        result = validate_budget(
+            metrics, per_file_budget=3000, file_ceilings={"special.md": 5000}
+        )
+        assert not result.is_valid
+
+    def test_custom_ceiling_file_excluded_from_pool_total(self) -> None:
+        """Custom-ceiling files do not count toward the shared pool budget."""
+        metrics = [
+            FileMetric(path="a.md", size_bytes=3000, exists=True),
+            FileMetric(path="b.md", size_bytes=3000, exists=True),
+            FileMetric(path="custom.md", size_bytes=4000, exists=True),
+        ]
+        # a + b = 6000 <= 6600 pool; custom excluded from pool
+        result = validate_budget(
+            metrics,
+            total_budget=6600,
+            per_file_budget=3000,
+            file_ceilings={"custom.md": 5000},
+        )
+        assert result.is_valid
+
+    def test_pool_exceeds_budget_when_custom_excluded(self) -> None:
+        """Pool files alone can exceed budget even when custom file is fine."""
+        metrics = [
+            FileMetric(path="a.md", size_bytes=3000, exists=True),
+            FileMetric(path="b.md", size_bytes=3000, exists=True),
+            FileMetric(path="c.md", size_bytes=2000, exists=True),
+            FileMetric(path="custom.md", size_bytes=4000, exists=True),
+        ]
+        # a + b + c = 8000 > 6600; custom excluded
+        result = validate_budget(
+            metrics,
+            total_budget=6600,
+            per_file_budget=3000,
+            file_ceilings={"custom.md": 5000},
+        )
+        assert not result.is_valid
+        assert any("Total" in e for e in result.errors)
+
+
+class TestMainDisplayOutput:
+    """Tests for issue #4883: main() output matches validation semantics."""
+
+    def test_no_over_with_successful_validation(self, tmp_path: Path, capsys) -> None:
+        """AC: cannot produce [OVER] followed by pass unless it names advisory threshold."""
+        (tmp_path / "CLAUDE.md").write_text("x" * 100, encoding="utf-8")
+        (tmp_path / "AGENTS.md").write_text("x" * 100, encoding="utf-8")
+        (tmp_path / ".claude").mkdir()
+        (tmp_path / ".claude" / "CLAUDE.md").write_text("x" * 100, encoding="utf-8")
+        (tmp_path / ".github").mkdir()
+        (tmp_path / ".github" / "copilot-instructions.md").write_text(
+            "x" * 4000, encoding="utf-8"
+        )
+        rc = main(["--path", str(tmp_path)])
+        out = capsys.readouterr().out
+        assert rc == 0, out
+        assert "[OVER]" not in out
+        # The displayed effective ceiling is the contract (PR #5100 review):
+        # the custom-ceiling file must show its own limit, and a regression
+        # to the generic per-file label must fail here, not pass vacuously.
+        copilot_line = next(
+            line for line in out.splitlines()
+            if line.strip().startswith(".github/copilot-instructions.md:")
+        )
+        custom_ceiling = FILE_CEILING_BYTES[".github/copilot-instructions.md"]
+        assert f"(limit {custom_ceiling:,})" in copilot_line
+        assert "(limit 3,000)" not in copilot_line
+
+    def test_pool_total_excludes_custom_ceiling_files(
+        self, tmp_path: Path, capsys
+    ) -> None:
+        """AC: displayed aggregate uses same membership as pass/fail."""
+        (tmp_path / "CLAUDE.md").write_text("x" * 2000, encoding="utf-8")
+        (tmp_path / "AGENTS.md").write_text("x" * 2000, encoding="utf-8")
+        (tmp_path / ".claude").mkdir()
+        (tmp_path / ".claude" / "CLAUDE.md").write_text("x" * 100, encoding="utf-8")
+        (tmp_path / ".github").mkdir()
+        (tmp_path / ".github" / "copilot-instructions.md").write_text(
+            "x" * 5000, encoding="utf-8"
+        )
+        rc = main(["--path", str(tmp_path)])
+        out = capsys.readouterr().out
+        assert rc == 0
+        # Pool total should be 2000+2000+100 = 4100, not include the 5000
+        assert "Pool total: 4,100 / 6,600 bytes" in out

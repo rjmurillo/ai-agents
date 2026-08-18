@@ -402,9 +402,8 @@ A prompt change passes when all three criteria hold:
 
 ### Enforcement
 
-- **Claude Code hook**: Blocks `git commit` when prompt/skill/agent files are staged without eval evidence
-- **Git pre-commit hook**: Non-blocking warning for human developers
-- **Bypass**: Set `SKIP_PROMPT_EVAL=1` and document justification in the PR
+- **CI gate**: The `/spec` eval in `.github/workflows/slash-command-quality.yml` blocks merge on regression (see ADR-057 Amendment 2026-07-22 for advisory vs blocking scope).
+- **PR review**: For prompt files without a blocking CI leg, the gate is advisory and PR review carries judgment.
 
 ### References
 
@@ -424,7 +423,7 @@ outputDir: src/vs-code-agents
 fileExtension: .agent.md
 
 frontmatter:
-  model: "Claude Opus 4.5 (copilot)"
+  model: "Claude Opus 4.6 (copilot)"
   includeNameField: false
 
 handoffSyntax: "#runSubagent"
@@ -439,7 +438,7 @@ fileExtension: .agent.md
 
 frontmatter:
   # Copilot CLI model: use CLI model identifiers (not VS Code display names)
-  model: "claude-opus-4.5"
+  model: "claude-opus-4.6"
   includeNameField: true
 
 handoffSyntax: "/agent"
@@ -449,13 +448,13 @@ handoffSyntax: "/agent"
 
 | Feature | VS Code | Copilot CLI |
 |---------|---------|-------------|
-| Model field | `Claude Opus 4.5 (copilot)` | `claude-opus-4.5` |
+| Model field | `Claude Opus 4.6 (copilot)` | `claude-opus-4.6` |
 | Name field | Not included | Required |
 | Handoff syntax | `#runSubagent` | `/agent` |
 | Tools prefix | `tools_vscode` | `tools_copilot` |
 | `argument-hint` | Included | Included |
 
-> **Note:** The Copilot CLI `model` frontmatter field is accepted but does not control runtime model selection on version 0.0.397. The `--model` CLI flag is required. See ADR-044 for details.
+> **Note:** These model values reflect the current platform configuration, not durable policy. ADR-080 governs model-pin evidence. Runtime model selection follows the current Copilot CLI contract and action inputs.
 
 ## Important: Do Not Edit Generated Files
 
@@ -682,11 +681,14 @@ if __name__ == "__main__":
 
 ## Session Protocol
 
-This project uses a session-based workflow for tracking work. Session logs are required for all significant work.
+This project preserves continuity through per-issue handoffs and Serena memory.
+Committed session logs are optional.
 
 ### Session Logs
 
-Create session logs at `.agents/sessions/YYYY-MM-DD-session-NN.json` to document work done during a session.
+Create a log at `.agents/sessions/YYYY-MM-DD-session-NN.json` only when you
+want an explicit committed record. Any staged or explicitly supplied log must
+pass `scripts/validate_session_json.py`.
 
 ### QA Validation
 
@@ -699,7 +701,7 @@ The pre-commit hook validates that QA has been performed for sessions involving 
 
 **Investigation artifacts** (allowlist for investigation-only exemption):
 
-- `.agents/sessions/` - Session logs
+- `.agents/sessions/` - Optional session logs and per-issue handoffs
 - `.agents/analysis/` - Research findings
 - `.agents/retrospective/` - Learning extractions
 - `.serena/memories/` - AI memory updates
@@ -749,7 +751,9 @@ The CI pipeline uses GitHub Copilot CLI to run agent reviews. The CLI version is
 
 ### Current Pin
 
-The CI action (`.github/actions/ai-review/action.yml`) pins `@github/copilot@0.0.397` with `--no-auto-update` on all invocations. This is documented in [ADR-044](.agents/architecture/ADR-044-copilot-cli-frontmatter-compatibility.md).
+The required review path reads `COPILOT_VERSION` from `.github/actions/ai-review/action.yml`. The fallback in `scripts/ci/install_copilot_cli.py` must match it. The nightly smoke workflow carries an independent, Renovate-managed version.
+
+`scripts/validation/check_copilot_version_pin.py` rejects known-bad required-review pins. It is a denylist guard, not the version source or proof of runtime compatibility. See [ADR-094](.agents/architecture/ADR-094-govern-copilot-cli-compatibility.md).
 
 ### Why Version Pinning
 
@@ -784,13 +788,13 @@ gh extension install nektos/gh-act
 docker pull catthehacker/ubuntu:act-latest
 
 # Dry run (validate workflow structure)
-gh act pull_request -n -W .github/workflows/ai-pr-quality-gate.yml
+gh act pull_request -n -W .github/workflows/ai-spec-validation.yml
 
 # Full run (single job)
 TOKEN=$(gh auth token)
 gh act pull_request \
-  -j "analyst-review" \
-  -W .github/workflows/ai-pr-quality-gate.yml \
+  -j "validate-spec" \
+  -W .github/workflows/ai-spec-validation.yml \
   -s "GITHUB_TOKEN=$TOKEN" \
   -s "BOT_PAT=$TOKEN" \
   -P ubuntu-latest=catthehacker/ubuntu:act-latest
@@ -798,17 +802,18 @@ gh act pull_request \
 
 **Known limitation:** PowerShell composite action steps fail with "Exec format error" in `act`. This is a known `act` limitation, not a workflow bug. The Copilot CLI install and agent invocation steps run correctly.
 
-### Upgrading the Copilot CLI Pin
+### Upgrading the Required Review Pin
 
-When the upstream regression ([github/copilot-cli#1195](https://github.com/github/copilot-cli/issues/1195)) is fixed:
+When changing the required review path's Copilot CLI version:
 
 1. Install the new version locally: `npm install -g @github/copilot@X.Y.Z`
 2. Run the agent validation loop above
-3. Update the version in `.github/actions/ai-review/action.yml`
+3. Update `.github/actions/ai-review/action.yml` and `scripts/ci/install_copilot_cli.py` together
 4. Run `gh act` dry-run to validate workflow structure
-5. Update ADR-044 with the new version and test results
+5. Run `uv run pytest tests/test_check_copilot_version_pin.py`
+6. Run `uv run python scripts/validation/check_copilot_version_pin.py`
 
-See `.serena/memories/copilot-cli-frontmatter-regression-runbook.md` for the full diagnostic runbook.
+Routine version bumps do not require an ADR edit. See `.serena/memories/copilot/copilot-cli-frontmatter-regression-runbook.md` for the diagnostic runbook.
 
 ## ADR-to-Protocol Sync Process
 

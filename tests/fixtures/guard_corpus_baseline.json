@@ -352,10 +352,6 @@
       [
         "result = subprocess.run(",
         0
-      ],
-      [
-        "result = subprocess.run(",
-        1
       ]
     ],
     "session-init/scripts/new_session_log_json.py": [
@@ -375,20 +371,6 @@
     "session-init/session_init/git_helpers.py": [
       [
         "result = subprocess.run(",
-        0
-      ]
-    ],
-    "session-log-fixer/scripts/get_validation_errors.py": [
-      [
-        "log_result = subprocess.run(",
-        0
-      ],
-      [
-        "pr_result = subprocess.run(",
-        0
-      ],
-      [
-        "runs_result = subprocess.run(",
         0
       ]
     ],

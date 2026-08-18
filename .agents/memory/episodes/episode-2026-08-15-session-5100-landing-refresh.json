@@ -1,0 +1,65 @@
+{
+  "id": "episode-2026-08-15-session-5100-landing-refresh",
+  "session": "2026-08-15-session-5100-landing-refresh",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Landing refresh for PR #5100: merge main, harden the vacuous no-OVER test, verify the workspace-budget display reconciliation",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main into the branch (clean) to re-run required checks against current main",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5100-landing-refresh"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Hardened test_no_over_with_successful_validation: unconditional rc == 0, no [OVER], effective-ceiling label pinned against FILE_CEILING_BYTES, negative assertion on the generic 3,000-byte label (review round)",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5100-landing-refresh"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Downgraded the PR body's closing keyword to Refs #4883 with reason: the validator-ownership criterion remains open on the issue",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5100-landing-refresh"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified 25/25 tests, all four count ratchets at baseline, and the generated-staleness gate on the merged tree",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5100-landing-refresh"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T23:08:59+00:00",
+      "type": "commit",
+      "content": "Commit: 08875fedf04f0c25740fa77226e7333122ffe457",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5100-landing-refresh"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 1
+  },
+  "lessons": []
+}

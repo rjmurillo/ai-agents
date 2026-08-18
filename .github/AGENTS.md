@@ -17,15 +17,11 @@ surfaces shared by Claude Code and Copilot CLI, load
 flowchart TD
     subgraph Triggers["Event Triggers"]
         PR[Pull Request]
-        ISS[Issue Created]
         SCH[Schedule]
         MAN[Manual Dispatch]
     end
 
     subgraph AIWorkflows["AI-Powered Workflows"]
-        QG[ai-pr-quality-gate.yml]
-        IT[ai-issue-triage.yml]
-        SP[ai-session-protocol.yml]
         SV[ai-spec-validation.yml]
     end
 
@@ -40,14 +36,10 @@ flowchart TD
     end
 
     subgraph Outputs["Outputs"]
-        CMT[PR Comments]
-        LBL[Issue Labels]
         ISS2[GitHub Issues]
         CHK[Status Checks]
     end
 
-    PR --> QG
-    PR --> SP
     PR --> SV
     PR --> VG
     PR --> VP
@@ -56,17 +48,10 @@ flowchart TD
     PR --> PT
     PR --> CQ
 
-    ISS --> IT
-
     SCH --> DD
 
-    MAN --> QG
-    MAN --> IT
     MAN --> DD
 
-    QG --> CMT
-    IT --> LBL
-    SP --> CMT
     DD --> ISS2
     VG --> CHK
     VP --> CHK
@@ -90,109 +75,6 @@ flowchart TD
 > 3. Document the workflow in this file
 >
 > This ensures the workflow is included in coalescing effectiveness monitoring.
-
-### ai-pr-quality-gate.yml
-
-**Role**: AI-powered parallel PR review using 10 specialist agents
-
-| Attribute | Value |
-|-----------|-------|
-| **Trigger** | PR to `main`, manual dispatch |
-| **Agents** | security, qa, analyst, architect, devops, roadmap, reliability, observability, agent-safety, decision-rigor |
-| **Exit Behavior** | Blocks on code failures and missing security review |
-| **Dependencies** | Copilot CLI, `ai-review` composite action |
-
-**Agent Responsibilities**:
-
-| Agent | Focus | Emoji |
-|-------|-------|-------|
-| Security | OWASP vulnerabilities, secrets, CWE patterns | 🔒 |
-| QA | Test coverage, error handling, regression risks | 🧪 |
-| Analyst | Code quality, impact analysis, maintainability | 📊 |
-| Architect | Design patterns, system boundaries, breaking changes | 📐 |
-| DevOps | CI/CD, GitHub Actions, shell scripts, pipelines | ⚙️ |
-| Roadmap | Strategic alignment, feature scope, user value | 🗺️ |
-| Reliability | Failure handling, recovery, operational risk | 🛡️ |
-| Observability | Logging, metrics, and diagnostics | 🔭 |
-| Agent Safety | Agent boundaries and guardrails | 🤖 |
-| Decision Rigor | Trade-offs, evidence, and decision quality | ⚖️ |
-
-**Architecture**:
-
-```mermaid
-flowchart LR
-    subgraph Jobs
-        CC[check-changes]
-        R1[security review]
-        R2[qa review]
-        R3[analyst review]
-        R4[architect review]
-        R5[devops review]
-        R6[roadmap review]
-        R7[reliability review]
-        R8[observability review]
-        R9[agent safety review]
-        R10[decision rigor review]
-        AG[aggregate]
-    end
-
-    CC --> R1 & R2 & R3 & R4 & R5 & R6 & R7 & R8 & R9 & R10
-    R1 & R2 & R3 & R4 & R5 & R6 & R7 & R8 & R9 & R10 --> AG
-    AG --> CMT[PR Comment]
-```
-
-**Verdict Tokens**:
-
-| Token | Meaning | Action |
-|-------|---------|--------|
-| `PASS` | No issues found | Continue |
-| `WARN` | Minor issues | Log warning |
-| `CRITICAL_FAIL` | Security/critical issue | Block merge |
-
----
-
-### ai-issue-triage.yml
-
-**Role**: AI-powered issue categorization and labeling
-
-| Attribute | Value |
-|-----------|-------|
-| **Trigger** | Issue opened |
-| **Agents** | analyst, roadmap |
-| **Output** | Labels, priority, milestone assignment |
-| **Dependencies** | Copilot CLI, `ai-review` composite action |
-
-**Triage Process**:
-
-1. Analyst categorizes issue type (bug, feature, documentation, etc.)
-2. Roadmap agent assesses priority and strategic alignment
-3. Labels applied automatically
-4. Milestone assigned based on roadmap fit
-
----
-
-### ai-session-protocol.yml
-
-**Role**: Session protocol compliance validator
-
-| Attribute | Value |
-|-----------|-------|
-| **Trigger** | PR modifying `.agents/**` |
-| **Agent** | qa |
-| **Output** | Protocol compliance report |
-| **Exit Behavior** | Fails on MUST violations |
-
-**Validations**:
-
-| Check | RFC Level | Description |
-|-------|-----------|-------------|
-| Serena initialization | MUST | Evidence in session log |
-| HANDOFF.md read | MUST | Content referenced |
-| Session log created | MUST | File exists with correct naming |
-| HANDOFF.md unchanged | MUST | Read-only per ADR-014 |
-| Markdown lint clean | MUST | No linting errors |
-
----
 
 ### ai-spec-validation.yml
 
@@ -220,7 +102,7 @@ flowchart LR
 
 ```bash
 # Manual workflow dispatch with debouncing
-gh workflow run ai-pr-quality-gate.yml \
+gh workflow run ai-spec-validation.yml \
   --ref main \
   -f pr_number=123 \
   -f enable_debouncing=true
@@ -447,15 +329,6 @@ Located in `.github/prompts/`:
 
 | Template | Used By | Purpose |
 |----------|---------|---------|
-| `pr-quality-gate-security.md` | ai-pr-quality-gate | Security review prompt |
-| `pr-quality-gate-qa.md` | ai-pr-quality-gate | QA review prompt |
-| `pr-quality-gate-analyst.md` | ai-pr-quality-gate | Code quality prompt |
-| `pr-quality-gate-architect.md` | ai-pr-quality-gate | Design review prompt |
-| `pr-quality-gate-devops.md` | ai-pr-quality-gate | DevOps review prompt |
-| `pr-quality-gate-roadmap.md` | ai-pr-quality-gate | Strategic alignment prompt |
-| `issue-triage-categorize.md` | ai-issue-triage | Issue categorization |
-| `issue-triage-roadmap.md` | ai-issue-triage | Roadmap alignment |
-| `session-protocol-check.md` | ai-session-protocol | Protocol compliance |
 | `spec-check-completeness.md` | ai-spec-validation | Spec completeness |
 | `spec-trace-requirements.md` | ai-spec-validation | Requirement tracing |
 
@@ -498,8 +371,6 @@ sequenceDiagram
 
 | Workflow | Error Scenario | Behavior |
 |----------|---------------|----------|
-| ai-pr-quality-gate | Non-security infrastructure failure | Log error, continue with available results |
-| ai-pr-quality-gate | Security review does not run | Post infrastructure summary and block |
 | drift-detection | Detection error | Exit 2, no issue created |
 | validate-* | Script failure | Fail workflow, block merge |
 | pytest | Test failure | Report details, fail workflow |
@@ -523,8 +394,6 @@ All AI-powered and validation workflows use GitHub Actions `concurrency` groups 
 
 | Workflow | Concurrency Group | Behavior |
 |----------|------------------|----------|
-| ai-pr-quality-gate | `ai-quality-${{ github.event.pull_request.number &#124;&#124; inputs.pr_number }}` | Cancels in-progress runs for same PR |
-| ai-session-protocol | `session-protocol-${{ github.event.pull_request.number }}` | Cancels in-progress runs for same PR |
 | ai-spec-validation | `spec-validation-${{ github.event.pull_request.number &#124;&#124; inputs.pr_number }}` | Cancels in-progress runs for same PR |
 | pr-validation | `pr-validation-${{ github.event.pull_request.number }}` | Cancels in-progress runs for same PR |
 | label-pr | `pr-labeler-${{ github.event.pull_request.number }}` | Cancels in-progress runs for same PR |
@@ -561,16 +430,14 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant PR as PR Event
-    participant QG as ai-pr-quality-gate
     participant SV as ai-spec-validation
     participant PV as pr-validation
 
-    PR->>QG: Trigger (t=0)
     PR->>SV: Trigger (t=0)
     PR->>PV: Trigger (t=0)
-    Note over QG,PV: All start simultaneously
-    Note over QG,PV: Concurrency groups are per-workflow
-    Note over QG,PV: No cross-workflow coordination
+    Note over SV,PV: Both start simultaneously
+    Note over SV,PV: Concurrency groups are per-workflow
+    Note over SV,PV: No cross-workflow coordination
 ```
 
 ### Mitigation Strategies
@@ -594,13 +461,6 @@ The repository implements several strategies to reduce the impact of race condit
 - ARM runners (ADR-025): 37.5% cost savings vs x64
 - Path filtering: Skips 60-80% of potential runs
 - Timeouts: Caps maximum cost per run
-
-**Example**: ai-pr-quality-gate workflow
-
-- 6 parallel agents × 10 minutes = 60 agent-minutes per run
-- 10% duplicate rate = 6 extra agent-minutes per PR
-- ARM runners reduce cost by 37.5%
-- **Net impact**: Acceptable given merge velocity benefits
 
 ### When to Worry
 
@@ -642,21 +502,16 @@ returns exit 0), so the merged tree above is green and concurrent cleanup PRs
 never conflict on the shared line. Arming
 `strict_required_status_checks_policy` on ruleset `11104075` so the second PR
 had to be current before merging is not needed for this race: with the ratchet
-tolerating the drift there is no red `main` to prevent. Note that strict was
-nonetheless armed on 2026-08-04 (ruleset version `45433643`) for a different
-reason, as remediation for the red-`main` incident of that date. As of
-2026-08-15 it has been returned to `false`; the count ratchets block behind
-branches only when main lowers a relevant baseline. See
-`docs/landing-workflow.md` and
-`.serena/memories/decision-every-merge-invalidates-every-open-pr.md`.
+tolerating the drift there is no red `main` to prevent. Strict was armed on
+2026-08-04 (ruleset version `45433643`) as remediation for the red-`main`
+incident of that date, then reverted to `false` on 2026-08-10 (ruleset last
+updated). The ratchet tolerance alone prevents the race.
 
-**Status note, measured 2026-08-15.** That policy reads `false` on ruleset
-`11104075`. The paragraph above stays accurate on its own terms: strict checks
-are not what resolves this particular race, and the ratchet tolerance is. The
-count ratchets block a behind branch only when main has lowered a relevant
-baseline; they do not enforce universal freshness. There is still no merge
-queue (user-owned repo ineligible). See `docs/landing-workflow.md` for the full
-serial one-front landing protocol.
+**Status note, measured 2026-08-14.** That policy reads `false` on ruleset
+`11104075`. Being behind `main` does not block merge via the ruleset. The count
+ratchets still enforce practical freshness for PRs touching ratcheted counts.
+There is still no merge queue. Issue #4608 records an unverified hypothesis
+about how a future merge group would behave. See issue #4646.
 
 **Residual cost.** The baseline sits above the true count until someone records
 it, and that gap absorbs one later regression without firing. `--update` closes
@@ -694,7 +549,7 @@ python3 .github/scripts/measure_workflow_coalescing.py
 python3 .github/scripts/measure_workflow_coalescing.py --since 90 --output json
 
 # Analyze specific workflows
-python3 .github/scripts/measure_workflow_coalescing.py --workflows ai-pr-quality-gate --workflows ai-spec-validation
+python3 .github/scripts/measure_workflow_coalescing.py --workflows ai-spec-validation
 ```
 
 **Metrics Collected**:
@@ -712,8 +567,6 @@ python3 .github/scripts/measure_workflow_coalescing.py --workflows ai-pr-quality
 
 | Workflow | Success Indicator | Failure Indicator |
 |----------|-------------------|-------------------|
-| ai-pr-quality-gate | PR comment with verdicts | Missing comment or CRITICAL_FAIL |
-| ai-issue-triage | Labels applied | No labels or error |
 | drift-detection | No issue created | New drift alert issue |
 | validate-* | Green check | Red X on PR |
 | pytest | All tests pass | Test failures reported |

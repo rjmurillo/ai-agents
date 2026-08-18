@@ -34,10 +34,10 @@ are template/example content, are excluded):
 
 | Monolith | Top-level `##` sections | Lines |
 |----------|-------------------------|-------|
-| `AGENT-SYSTEM.md` | 13 | 1989 |
-| `AGENT-INSTRUCTIONS.md` | 18 | 824 |
-| `SESSION-PROTOCOL.md` | 16 | 1191 |
-| **Total** | **47** | **4004** |
+| `AGENT-SYSTEM.md` | 13 | 1990 |
+| `AGENT-INSTRUCTIONS.md` | 18 | 822 |
+| `SESSION-PROTOCOL.md` | 10 | 324 |
+| **Total** | **41** | **3136** |
 
 ## Target Rule Files (Phase 2)
 
@@ -115,24 +115,18 @@ owner. The steering files and their scopes:
 | Related Documents | KEEP-IN-STEERING | Pointer list; stays as a pointer block in the slimmed monolith |
 | Lessons Learned | PATH-SCOPED-RULE | `memory-handoff.md`; feeds memory/retro, scope to `.agents/**` |
 
-## SESSION-PROTOCOL.md (16 sections, 1191 lines)
+## SESSION-PROTOCOL.md (10 sections, 324 lines)
 
 | `##` Section | Classification | Target / glob |
 |--------------|----------------|---------------|
 | RFC 2119 Key Words | ALWAYS-LOAD-RULE | `agent-boundaries.md`; requirement-keyword definitions bind every session |
 | Protocol Enforcement Model | PATH-SCOPED-RULE | `session-protocol.md` (`.agents/sessions/**`); trust vs verification model |
 | Session Start Protocol | PATH-SCOPED-RULE | `session-protocol.md` |
-| Session Start Checklist | PATH-SCOPED-RULE | `session-protocol.md` |
 | Session Mid Protocol | PATH-SCOPED-RULE | `session-protocol.md`; commit-count monitoring |
-| Tier-Based Coordination (BLOCKING for multi-agent sessions) | PATH-SCOPED-RULE | `workflow-routing.md`; multi-agent tier coordination per ADR-009 |
 | Session End Protocol | PATH-SCOPED-RULE | `session-protocol.md` |
-| Session End Checklist | PATH-SCOPED-RULE | `session-protocol.md` |
-| Session Log Template | PATH-SCOPED-RULE | `session-protocol.md`; JSON schema at `.agents/schemas/session-log.schema.json` |
 | Unattended Execution Protocol | PATH-SCOPED-RULE | `session-protocol.md`; autonomous-operation rules |
-| Violation Handling | PATH-SCOPED-RULE | `session-protocol.md` |
 | Validation Tooling | PATH-SCOPED-RULE | `session-protocol.md`; `scripts/validation/` + validator commands |
-| Cross-Reference: Other Documents | KEEP-IN-STEERING | Pointer block; stays in slimmed monolith |
-| Rationale for RFC 2119 | KEEP-IN-STEERING | Rationale prose; collapse into a pointer, not a rule directive |
+| Optional Appendix: JSON Session Log Template | PATH-SCOPED-RULE | `session-protocol.md`; optional JSON schema and validator usage |
 | ADR Cross-Reference | KEEP-IN-STEERING | Pointer to governing ADRs; stays in slimmed monolith |
 | Related Documents | KEEP-IN-STEERING | Pointer block; stays in slimmed monolith |
 
@@ -141,9 +135,9 @@ owner. The steering files and their scopes:
 | Classification | Count |
 |----------------|-------|
 | ALWAYS-LOAD-RULE | 4 |
-| PATH-SCOPED-RULE | 33 |
+| PATH-SCOPED-RULE | 27 |
 | KEEP-IN-STEERING | 10 |
-| **Total sections** | **47** |
+| **Total sections** | **41** |
 
 ALWAYS-LOAD sections (the only content entering `agent-boundaries.md`):
 

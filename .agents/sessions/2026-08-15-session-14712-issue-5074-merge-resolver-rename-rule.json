@@ -1,0 +1,180 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14712,
+    "date": "2026-08-15",
+    "branch": "claude/issue-5074-merge-resolver-rename-rule",
+    "startingCommit": "430c206d21425c178f783daf84c7a7c48591160c",
+    "objective": "Issue #5074: encode rename-never-content-merge for session-log add/add conflicts in merge-resolver guidance"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools available; project ai-agents active in remote session"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions read this session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md auto-loaded at session start (read-only reference; not modified)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/skills/merge-resolver/ inventory read: SKILL.md, references/strategies.md, scripts/resolve_pr_conflicts.py, scripts/verify_no_conflict_markers.py"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and CLAUDE.md loaded; .claude/rules/templates.md and .claude/rules/claude-agents.md read before editing"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/rules/templates.md, claude-agents.md, session-logs.md, universal.md read; generator scope (only src/copilot-cli and src/vs-code-agents) confirmed"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Auto-recalled memories reviewed, including process/process-001-templatefirst-pattern (template-first pattern)"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "claude/issue-5074-merge-resolver-rename-rule"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On claude/issue-5074-merge-resolver-rename-rule"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean at session start; branch even with origin/main 430c206"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "430c206d21425c178f783daf84c7a7c48591160c"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "sessionStart and sessionEnd items recorded with per-item evidence in this file"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md left unmodified; this branch carries no handoff edit"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory tasks/issue-5074-merge-resolver-rename-rule written with the edit-surface map and drift-baseline finding"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 on all six changed markdown files -> Summary: 0 issues"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-5087-issue-5074-merge-resolver-rename-rule.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "581fabb template, three hand-maintained copies, regenerated outputs, agent catalog; 7240341 skill docs and drift baseline re-measure; this session log and the QA report follow in their own commit"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pytest tests/test_detect_agent_drift.py 52 passed; ruff check and format clean on detect_agent_drift.py; detect_agent_drift.py reports OK (baselined) at 20.7; pre_pr.py run before push"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #5074 referenced with Fixes keyword in commit and PR body"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Findings captured in Serena memory; no failure incident this session"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Read issue #5074 and the PR #4856 retrospective evidence",
+      "evidence": "issue_read 5074; .agents/retrospective/2026-08-10-pr-4856-session-log-collision.md read in full"
+    },
+    {
+      "step": "Read the template rules and confirmed the asymmetric generation seam",
+      "evidence": ".claude/rules/templates.md: generator writes only src/copilot-cli/agents and src/vs-code-agents; src/claude, .claude/agents, .github/agents are hand-maintained"
+    },
+    {
+      "step": "Added the rename-never-content-merge conflict class to the template and all three hand-maintained copies with identical wording",
+      "evidence": "templates/agents/merge-resolver.shared.md, src/claude/merge-resolver.md, .claude/agents/merge-resolver.md, .github/agents/merge-resolver.agent.md: new Phase 2 class for .agents/sessions/*, .agents/qa/*, .agents/retrospective/*; Phase 4 row; anti-pattern row citing PR #4856"
+    },
+    {
+      "step": "Fixed the wrong classification that listed session artifacts as blanket accept-base",
+      "evidence": "Phase 2 auto-resolvable entry now scoped to modify/modify; add/add on evidence artifacts routes to the rename class; rename-to-next-number replaced with distinguishing-suffix rename in constraints and skill tables"
+    },
+    {
+      "step": "Regenerated platform agents and re-measured the merge-resolver drift baseline",
+      "evidence": "uv run python build/generate_agents.py: 93 files; detect_agent_drift.py measured 20.7 vs recorded 20.9 floor; KNOWN_BASELINE_DRIFT updated to 20.7 with comment citing issue #5074; re-run prints OK (baselined) 20.7 for both comparisons"
+    },
+    {
+      "step": "Extended the merge-resolver skill guidance with the same rule",
+      "evidence": ".claude/skills/merge-resolver/SKILL.md (version 2.3.0): Session File Rules rename guidance, add/add caveat on the auto-resolvable table, anti-pattern row; references/strategies.md: append-only evidence artifacts section with the suffix-rename recipe from the 4856 resolution"
+    },
+    {
+      "step": "Flagged the resolve_pr_conflicts.py behavior gap without changing the script",
+      "evidence": "AUTO_RESOLVABLE_PATTERNS includes .agents/sessions/*; accept-theirs alone discards the branch's record on add/add; documented as manual step in SKILL.md and flagged in the PR description as follow-up scope"
+    },
+    {
+      "step": "Validated before push",
+      "evidence": "pytest tests/test_detect_agent_drift.py -x: 52 passed; ruff clean; markdownlint-cli2 0 issues on changed files; pre_pr.py run"
+    },
+    {
+      "step": "Diagnosed the blocked push: observation-sync-advisory overruns its 5m cap when the Forgetful MCP handshake times out",
+      "evidence": "each file costs 10.155s (McpError Timeout >10.0s, memory_sync.mcp_client DEFAULT_TIMEOUT); first push of a new branch sweeps all 43 tracked observation files into {push_files}; 43 x 10.2s exceeds the 300s cap; job timed out at 302s in two consecutive pushes"
+    },
+    {
+      "step": "Added a 240s internal budget to sync_observations per the ci-scripts advisory-budget rule",
+      "evidence": "scripts/validation/git_hook_policy.py _OBSERVATION_SYNC_BUDGET_SECONDS; skip count reported per the no-silent-caps rule; tests test_sync_observations_stops_at_its_internal_budget and test_sync_observations_reports_a_fully_exhausted_budget in tests/test_lefthook_integration.py"
+    },
+    {
+      "step": "Added a rebase-semantics warning to the suffix-rename recipe after spec validation flagged the side inversion",
+      "evidence": "strategies.md: the recipe assumes merge sides; during rebase --theirs is the replayed commit, so the warning points to git show REBASE_HEAD: and the rebase section; commit 1eeaf0126"
+    },
+    {
+      "step": "Merged origin/main and resolved four root-guard conflicts by taking main's superseding fixes, then re-ran QA on the merged tree and rebound",
+      "evidence": "merge commit 31482e962: main's combined nt-or-root skipif and directory-as-database sqlite probe replace this branch's guards; sync_observations budget auto-merged; verify_no_conflict_markers exit 0; detect_agent_drift OK (baselined) 20.7 both comparisons; 52 drift tests, 7 lefthook-scoped tests, 227 orphan-ref tests passed post-merge"
+    },
+    {
+      "step": "Guarded three permission-denial tests against running as root and repaired the container environment",
+      "evidence": "chmod 0 cannot deny root: root-skipif added in tests/test_lefthook_integration.py, tests/test_claude_mem_scripts.py, and both orphan-ref-validator test_scan.py mirrors; installed sqlite3 and openssh-client which tests require; hook pytest job reproduction went from 5 failed to green on affected files"
+    }
+  ],
+  "endingCommit": "31482e962bad85a131110e972e945ed08d1ee398",
+  "nextSteps": [
+    "Follow-up: resolve_pr_conflicts.py auto-resolves .agents/sessions/* by accept-theirs, which discards the branch's own log on add/add; the rename half is manual until the script learns it",
+    "Follow-up: issue #4751 remains the allocation-time prevention for same-number session collisions"
+  ]
+}

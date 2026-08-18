@@ -1554,6 +1554,26 @@ class TestFetchPRData:
         assert any("issues/1/labels" in " ".join(argv) for argv in all_calls)
 
     @patch("scripts.validation.pr_description.subprocess.run")
+    def test_falls_back_to_pull_labels_when_labels_endpoint_rejects(
+        self,
+        mock_run: MagicMock,
+    ) -> None:
+        """The pull payload keeps bypass labels available when labels GET fails."""
+        pr_json = json.dumps(
+            {"title": "T", "body": "", "labels": [{"name": "bypass"}]}
+        )
+        files_json = json.dumps([])
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout=pr_json),
+            MagicMock(returncode=0, stdout=files_json),
+            MagicMock(returncode=1, stdout="", stderr="HTTP 422"),
+        ]
+
+        data = fetch_pr_data(1, "owner", "repo")
+
+        assert data["labels"] == [{"name": "bypass"}]
+
+    @patch("scripts.validation.pr_description.subprocess.run")
     def test_does_not_invoke_gh_pr_view_json(self, mock_run: MagicMock) -> None:
         """Regression: fetch_pr_data must never call gh pr view --json (GraphQL 401)."""
         pr_json = json.dumps({"title": "T", "body": ""})

@@ -1,17 +1,22 @@
-# The count ratchets block behind branches when main lowers a baseline
+# The count ratchets make "behind main" a practical merge blocker even though the ruleset does not
 
 ## Question
 
-The count ratchets make stale branches fail in practice. Does branch freshness
-matter even when `strict_required_status_checks_policy` is `false` (current
-state as of 2026-08-15)?
+`main`'s branch ruleset sets `strict_required_status_checks_policy: false` (measured 2026-08-14; reverted 2026-08-10), so
+being behind `main` does not formally block a merge. Nevertheless the count
+ratchets still make stale branches fail in practice. Does branch freshness
+matter even without the ruleset requiring it?
 
-## Answer
+## Conventional answer
 
-Conditionally. The ratchets block a behind branch only when main has lowered a
-relevant baseline. If main changes code without lowering a baseline, a behind
-branch whose recorded baseline still matches main's can pass and merge. The
-ratchets are not a universal freshness gate; strict mode was that mechanism.
+No, if `strict` is off, GitHub does not demand that the branch be current.
+Merging `main` into a feature branch just to satisfy the ruleset would add a
+merge commit for nothing.
+
+## First-principles position
+
+Yes. The ruleset is one gate; the count ratchets are another, and they enforced
+freshness on their own even while `strict` was false.
 `scripts/ci/count_ratchet.py::_base_ref_verdict` blocks whenever the branch's
 recorded baseline is above the base ref's:
 

@@ -15,7 +15,7 @@ literal below was captured from the pre-refactor implementation at
 
 Coverage:
 
-- positive: the default run emits all 47 gates in order with no skips.
+- positive: the default run emits every gate in order with no skips.
 - negative: a reorder, an added gate, or a dropped gate fails the order
   assertion; ``--quick`` marks exactly four gates skipped and no others.
 - edge: ``--skip-tests`` drops Pester from the record list entirely (rather
@@ -51,6 +51,8 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Subprocess Encoding Convention',
     'Test Working Tree Writes',
     'Push Lock Path Agreement',
+    'Worktree Recipe Destinations',
+    'Temp-filesystem Worktrees (advisory)',
     'Session End Validation',
     'Mypy Changed Files (ratchet)',
     'Markdown Linting',
@@ -62,6 +64,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Stale Script References',
     'Documented Interpreter Portability',
     'Orphaned Build Deferrals',
+    'Generated Artifact Staleness',
     'Spec ID Uniqueness',
     'Traceability',
     'Vendor Portability',

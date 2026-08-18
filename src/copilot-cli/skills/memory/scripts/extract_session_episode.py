@@ -1993,6 +1993,23 @@ def _git_commit_timestamp(sha: str) -> str | None:
         return None
 
 
+def _is_synthetic_midnight(ts: datetime) -> bool:
+    """True when a timestamp has the midnight fallback shape (issue #4847).
+
+    Untimestamped milestones receive ``{date}T00:00:00+00:00`` from
+    ``_preserved_timestamp``.  Their position relative to commits is unknown,
+    so ``_event_order_relation`` must treat them as incomparable rather than
+    asserting they preceded every same-day commit.
+    """
+    return ts.hour == 0 and ts.minute == 0 and ts.second == 0 and ts.microsecond == 0
+
+
+# Event types whose midnight timestamp signals unknown order relative to
+# commits.  Error and test events at midnight still sort after a same-timestamp
+# commit because they report on code execution (_POST_COMMIT_SAME_TIMESTAMP_TYPES).
+_MIDNIGHT_INCOMPARABLE_TYPES = frozenset({"milestone", "handoff", "tool_call"})
+
+
 def _event_order_relation(
     left: dict[str, Any],
     right: dict[str, Any],
@@ -2003,13 +2020,34 @@ def _event_order_relation(
     right_id = str(right["id"])
     left_time = timestamps[left_id]
     right_time = timestamps[right_id]
+
+    left_type = left["type"]
+    right_type = right["type"]
+
+    # Issue #4847: an untimestamped non-commit event that fell back to midnight
+    # has unknown order relative to same-day commits.  Return incomparable so
+    # no false causal edge is emitted.  Cross-date ordering is still valid
+    # because unknown time-of-day cannot reverse a date boundary.
+    if (
+        left_type in _MIDNIGHT_INCOMPARABLE_TYPES
+        and right_type == "commit"
+        and _is_synthetic_midnight(left_time)
+        and left_time.date() == right_time.date()
+    ):
+        return None
+    if (
+        right_type in _MIDNIGHT_INCOMPARABLE_TYPES
+        and left_type == "commit"
+        and _is_synthetic_midnight(right_time)
+        and right_time.date() == left_time.date()
+    ):
+        return None
+
     if left_time < right_time:
         return -1
     if right_time < left_time:
         return 1
 
-    left_type = left["type"]
-    right_type = right["type"]
     if left_type == "commit" and right_type == "commit":
         left_sha = _commit_sha(left)
         right_sha = _commit_sha(right)
@@ -2373,6 +2411,27 @@ def _edge_count(events: list) -> int:
     return sum(len(_as_list(_as_dict(evt).get("leads_to"))) for evt in events)
 
 
+def _real_edge_count(events: list) -> int:
+    """Edge count excluding false edges from synthetic-midnight incomparable events.
+
+    Edges originating from milestone/handoff/tool_call events at midnight are
+    false causal claims (issue #4847).  The repair guard must not protect them.
+    """
+    count = 0
+    for evt in events:
+        entry = _as_dict(evt)
+        if entry.get("type") in _MIDNIGHT_INCOMPARABLE_TYPES:
+            ts_str = entry.get("timestamp", "")
+            try:
+                ts = datetime.fromisoformat(ts_str)
+            except (ValueError, TypeError):
+                ts = None
+            if ts is not None and _is_synthetic_midnight(ts):
+                continue
+        count += len(_as_list(entry.get("leads_to")))
+    return count
+
+
 def repair_commit_order(events: list) -> str | None:
     """Restamp commit events from git and rebuild the chain. Return a refusal.
 
@@ -2402,10 +2461,10 @@ def repair_commit_order(events: list) -> str | None:
     except EpisodeValidationError as exc:
         events[:] = before
         return f"relink failed: {exc}"
-    lost = _edge_count(before) - _edge_count(events)
+    lost = _real_edge_count(before) - _real_edge_count(events)
     if lost > 0:
         events[:] = before
-        return f"refused: relink would drop {lost} of {_edge_count(before)} edges"
+        return f"refused: relink would drop {lost} of {_real_edge_count(before)} edges"
     return None
 
 

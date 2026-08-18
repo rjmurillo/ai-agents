@@ -1,8 +1,21 @@
+---
+id: ADR-044
+status: superseded
+date: 2026-08-15
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: ADR-094
+explainer: null
+implemented: true
+---
+
 # ADR-044: Copilot CLI Frontmatter Compatibility
 
 ## Status
 
-Accepted
+Superseded by ADR-094 (2026-08-15). ADR-094 replaces this record's version-pin and frontmatter policy with current executable sources.
+
+Accepted (2026-02-01). The original decision remains below as historical evidence.
 
 ## Date
 

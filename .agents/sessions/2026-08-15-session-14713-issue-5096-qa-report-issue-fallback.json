@@ -1,0 +1,201 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14713,
+    "date": "2026-08-15",
+    "branch": "fix/issue-5096-qa-report-issue-fallback",
+    "startingCommit": "5440a3bfd9e9e4929bd61783dcdf597045ce369e",
+    "objective": "Issue #5096: let the Validate PR QA-report gate accept an issue-named QA report so a first push does not need a rename commit"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools reachable; list_memories returned the full corpus for project ai-agents"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions read this session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md present and read-only; this branch carries no edit to it"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file, written untracked before the first commit so branch-context-policy resolves to this branch"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No skill script covers this edit; scripts/validation/pre_pr.py is the sanctioned gate and was run"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md, CLAUDE.md, and the path-scoped rules ci-scripts.md, python.md, testing.md, session-logs.md read before editing"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/ci/check_pr_qa_report.py and .claude/lib/qa_report.py read in full; .github/workflows/pr-validation.yml line 129 confirms the bare python3 invocation, so the fallback uses stdlib re only"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read ci/ci-validate-pr-is-many-gates-only-some-read-the-body, which maps this gate to step 8 of Validate PR, and git/git-rebase-after-push-costs-two-cycles, which prices the second push cycle this change removes"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/issue-5096-qa-report-issue-fallback created from origin/main 5440a3bfd"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/issue-5096-qa-report-issue-fallback"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean at branch creation"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "5440a3bfd"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "sessionStart and sessionEnd items recorded with per-item evidence in this file, including the three unmet MUST items"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unmodified on this branch"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote ci/ci-qa-report-may-be-named-for-the-issue-not-the-pr and indexed it in memory-index.md per .claude/rules/knowledge-persistence.md MUST 5"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/** is excluded by .markdownlint-cli2.yaml and this change adds no markdown outside .agents/qa"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/issue-5096-qa-report-issue-fallback.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "d00ca216c cherry-picked container unblock, fdb34a279 fallback plus tests, b495930a5 mypy annotation, b22fa729b QA report and session log, 15100b3d2 second main merge, 2bf7e4268 tiered ordering plus foreign-PR filter, 15476b5e5 pre-push blocker fix"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pytest tests/ci/test_pr_validation_workflow.py and scripts/validation/pre_pr.py results recorded in the QA report"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "This agent has no GitHub API access; the orchestrator opens the PR and claims issue #5096"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Residual risks recorded in this log's nextSteps and in the QA report's known-gaps section"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Cherry-picked the shared container unblock commit",
+      "evidence": "c0d7bf451 from claude/issue-5074-merge-resolver-rename-rule landed as d00ca216c; it bounds the observation-sync advisory under its lefthook cap and fixes three root-only permission tests. It becomes empty once PR #5087 merges."
+    },
+    {
+      "step": "Established the gate's canonical contract from source",
+      "evidence": "scripts/ci/check_pr_qa_report.py _find_qa_report globs .agents/qa/*pr-{pr_number}*.md; .github/workflows/pr-validation.yml line 129 runs it with bare python3, so only stdlib imports are safe"
+    },
+    {
+      "step": "Added the linked-issue fallback",
+      "evidence": "_pr_body, _linked_issues, _find_issue_qa_report, and _resolve_qa_report in scripts/ci/check_pr_qa_report.py; the PR-numbered report stays preferred and _validate_report runs unchanged on whichever report resolves"
+    },
+    {
+      "step": "Extended the existing test module rather than creating a new one",
+      "evidence": "tests/ci/test_pr_validation_workflow.py already binds the script as qa_mod via _load_module; added positive, negative, and edge cases driving qa_mod.main()"
+    },
+    {
+      "step": "Named this session's QA report for the issue, not the PR",
+      "evidence": ".agents/qa/issue-5096-qa-report-issue-fallback.md exercises the new fallback path on the PR that introduces it"
+    },
+    {
+      "step": "Corrected three sessionStart MUST items that an earlier draft of this log recorded as unmet",
+      "evidence": "The draft asserted Serena was unreachable in this container without probing it. Serena answered initial_instructions and list_memories on first call, so the items are recorded as met and the memory was written."
+    },
+    {
+      "step": "Re-bound qaCommit and endingCommit after the Serena memory commit",
+      "evidence": ".serena/ is absent from QA_EVIDENCE_PREFIXES in .claude/lib/qa_report.py, so commit e93af5c82 (memory plus index) counted as post-QA work and made the b22fa729b binding stale. Re-bound both to e93af5c82; every commit after it touches only .agents/qa, .agents/sessions, and .agents/memory/episodes, which are evidence."
+    },
+    {
+      "step": "Drove the shipped gate end to end against this branch, with a negative control",
+      "evidence": "With only gh api stubbed and PR_NUMBER set to a number no report names, main() returned 0 and resolved .agents/qa/issue-5096-qa-report-issue-fallback.md through the body keyword; the same driver with the keyword removed returned 1 and printed 'No QA report found for code changes'."
+    },
+    {
+      "step": "First push rejected by a load-sensitive test unrelated to this diff",
+      "evidence": "Every pre-push job passed except python-tests (779.03s), which failed only tests/test_mutation_workspace_signals.py::test_catchable_signal_removes_marker_and_scratch[15] on a hardcoded process.wait(timeout=30). Three 30-run samples on this container: this branch with 7 concurrent git push processes running, 7 failed of 30; origin/main detached with load falling, 0 of 30; this branch with 1 push process, 0 of 30. Load is the variable that moves it, not branch content, and neither this diff nor the cherry-picked d00ca216c touches scripts/testing/mutation_workspace.py. Matches .claude/rules/ci-scripts.md MUST 16: a cap sized on an idle run is a cap a real push can exceed."
+    },
+    {
+      "step": "Merged origin/main a second time after the PR sat open; resolved the git_hook_policy.py and test_lefthook_integration.py conflicts on their merits",
+      "evidence": "Local main was 85 commits behind origin/main. Both conflicts were the observation-sync budget function this branch had cherry-picked from PR #5087 (d00ca216c) against main's own later, fuller version (docstring, per-child clamp, the test_observation_sync_budget_sits_below_the_lefthook_cap invariant). Took main's side in full for both hunks in both files; post-body code in sync_observations already referenced the `remaining` variable main's version defines. git diff origin/main HEAD confirms zero remaining diff in either file, so they no longer appear in the Changes list."
+    },
+    {
+      "step": "Diagnosed the two failing required checks against the merged head, not the stale pre-merge run",
+      "evidence": "Validate PR's failure (run 31907921830) cited 'fatal: Not a valid commit name 31482e962bad85...' for _pr_head_sha's ancestry check; that SHA does not exist anywhere in this repository's history, local or remote, and is unrelated to qaCommit (2989ad94e, confirmed an ancestor of HEAD). The run predates this session's merge and rebind; not reproducible against current state, expected to clear once CI re-runs against the new head."
+    },
+    {
+      "step": "Found Validate Spec Coverage's failure was real, not stale: the PR body claimed behavior the code never implemented",
+      "evidence": "Run 31907921910 graded criterion 6 (closing keywords outrank refs) PARTIAL and criterion 7 (foreign-PR filename filter) NOT SATISFIED. git log --follow on scripts/ci/check_pr_qa_report.py confirms only fdb34a279 (fallback) and b495930a5 (mypy annotation) ever touched the file; no commit implemented tiering or a PR_TOKEN filter. Confirmed check_pr_qa_report.py was byte-identical to the pre-merge head (git diff empty), so this predates the merge."
+    },
+    {
+      "step": "Implemented tiered issue ordering and the foreign-PR filename filter, matching the PR body's existing claims",
+      "evidence": "commit 2bf7e4268. _linked_issues buckets LINKED_ISSUE matches by a new _CLOSING_KEYWORD fullmatch on each match's full text, preserving body order per tier and deduping on first occurrence. _find_issue_qa_report takes pr_number and skips a candidate whose filename's PR_TOKEN names a different PR. Four new tests plus two renamed/updated existing tests; 96 -> 100 passed. Six mutation controls (up from four) each match the PR body's pre-existing claimed counts exactly: ordering-reverted-to-numeric fails 3, foreign-PR-filter-removed fails 1."
+    },
+    {
+      "step": "Push blocked twice with an opaque local pre-push hook rejection; GIT_TRACE=1 on a third attempt isolated the cause to a real test failure, not a server rejection",
+      "evidence": "error: failed to push some refs to '...' with no hint text is the local-hook-nonzero-exit shape, not a server rejection: no git-receive-pack POST ever appears in the GIT_TRACE log, only the initial info/refs GET. The lefthook python-tests job's own pytest output showed FAILED tests/skills/memory/test_repair_episode_causal_links.py::TestFalseEdgeRemoval::test_false_milestone_to_commit_edge_is_removed, reproduced standalone (not a load-induced flake)."
+    },
+    {
+      "step": "Fixed the pre-existing timezone bug blocking the push gate, on a path never touched by this branch before",
+      "evidence": "commit 15476b5e5. git diff origin/main HEAD on the test file and its implementation (extract_session_episode.py, repair_episode_causal_links.py) was empty before this commit, confirming the bug predates this branch and traces to PR #5058 (8bc289fc1) already merged into main. The test built its UTC fixture date from git show --format=%cI sliced to 10 characters, which keeps the commit's local offset; on this host (-07:00) a late commit crosses the UTC day boundary and the fixture landed on the wrong day. Fixed by parsing with datetime.fromisoformat(...).astimezone(UTC).date(), matching how production code (_parse_causal_timestamp) already normalizes. 12/12 tests in the file pass; reverting the fix reproduces the original failure."
+    },
+    {
+      "step": "Corrected the Serena memory that documented the pre-tiering contract",
+      "evidence": ".serena/memories/ci/ci-qa-report-may-be-named-for-the-issue-not-the-pr.md line 38 still read 'deduplicated and sorted numerically' after commit 2bf7e4268 replaced numeric order with closing-keyword-then-refs tiering, and never mentioned the PR_TOKEN foreign-PR filter at all. Flagged by spec-validation run 31985055511 as FM-9 (Confident-Incorrectness Recurrence): a canonical-source-mirror claim that was true when written and false by the time it shipped. Corrected 'The contract now' and 'Known sharp edge' sections to describe the tiered order and the PR_TOKEN filter, citing check_pr_qa_report.py:_linked_issues/_find_issue_qa_report and the live #5107 failure that motivated the change."
+    },
+    {
+      "step": "Recorded a retrospective classifying the stale-memory defect as FM-9",
+      "evidence": ".agents/retrospective/2026-08-17-issue-5096-qa-report-issue-fallback.md; satisfies the pre-push retrospective-evidence gate for this session"
+    },
+    {
+      "step": "Merged origin/main again; main had already landed the same UTC-normalization fix under different names",
+      "evidence": "merge commit d95972998: conflict confined to tests/skills/memory/test_repair_episode_causal_links.py (raw_commit_ts/UTC vs commit_timestamp/timezone.utc, same semantics); took origin/main's version wholesale to converge naming; 12/12 tests in the file pass; merge-tree-ratchet OK post-merge"
+    }
+  ],
+  "endingCommit": "d95972998d3cc4915afb2a9178c2423e7f14f9ef",
+  "nextSteps": [
+    "Orchestrator opens the PR for this branch and links issue #5096",
+    "Follow-up: both globs match a numeric prefix, so *issue-509* style collisions are possible (issue-5096 also matches a hypothetical issue-50960 report). The PR-numbered glob has carried the same weakness since it was written; tightening both belongs in one change, not this one.",
+    "Follow-up: the cherry-picked container unblock commit d00ca216c dropped out on the second main merge; PR #5087's own version is now what main carries"
+  ]
+}

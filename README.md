@@ -8,8 +8,6 @@ For platform teams, engineering managers, and orgs that want AI-assisted develop
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/w/rjmurillo/ai-agents)
 ![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/rjmurillo/ai-agents)
 
-![AI Issue Triage](https://github.com/rjmurillo/ai-agents/actions/workflows/ai-issue-triage.yml/badge.svg)
-![AI PR Quality Gate](https://github.com/rjmurillo/ai-agents/actions/workflows/ai-pr-quality-gate.yml/badge.svg)
 ![Spec-to-Implementation Validation](https://github.com/rjmurillo/ai-agents/actions/workflows/ai-spec-validation.yml/badge.svg)
 ![Pester Tests](https://github.com/rjmurillo/ai-agents/actions/workflows/pester-tests.yml/badge.svg)
 ![CodeQL Analysis](https://github.com/rjmurillo/ai-agents/actions/workflows/codeql-analysis.yml/badge.svg)
@@ -135,7 +133,7 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 - **Quality gates** with pre-PR validation, session protocol enforcement, and automated CI checks
 - **Reusable skills** for common development workflows (git, PR management, testing, linting)
 - **One-step plugin install** through Claude Code's `/install-plugin` or Copilot CLI's `/plugin marketplace add` flow
-- **AI-powered CI/CD** with issue triage, PR quality gates, and spec validation
+- **CI/CD safeguards** with CodeQL, deterministic validators, and spec validation
 
 ### Key Concepts
 
@@ -214,7 +212,7 @@ The output should include `project-toolkit@ai-agents` (or whichever component yo
 |----------|---------------|-------|
 | **Claude Code CLI** | `src/claude/` | Use `Task(subagent_type="...")` |
 | **GitHub Copilot CLI** | `src/copilot-cli/` | Use `--agent` flag, `/agent` to select, or call out agent by name |
-| **VS Code / GitHub Copilot** | `src/vs-code-agents/` | Use `@agent` syntax in Copilot Chat |
+| **VS Code / GitHub Copilot** | `.github/agents/` | Use `@agent` syntax in Copilot Chat |
 
 See [docs/installation.md](docs/installation.md) for complete installation documentation, including platform-specific paths, troubleshooting, and post-installation steps.
 
