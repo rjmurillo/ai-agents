@@ -113,20 +113,69 @@ Two properties of the anchor and the surfaced text:
     config. Fetch the base branch before running when freshness
     matters.
 
+Dispatched-file trust boundary (CWE-829 / CWE-494)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A trusted config still NAMES files, and those files live in the same
+checked-out PR tree. So once the config passes, and before any
+criterion runs, :func:`_verify_command_trust` renders every criterion's
+command with the same :func:`_format_command` the dispatcher uses and
+byte-compares each argv element that resolves to a git-tracked file
+inside the work tree against its copy at ``--trusted-ref``. The
+outcomes mirror the config check: **trusted** proceeds, **untrusted**
+(bytes differ, or the file is absent at the trusted ref) halts with
+exit 2 and lists the files, and **git-error** halts with exit 3 and is
+never overridable. ``--approve-untrusted-config`` covers the untrusted
+case as well; there is one approval model, not two.
+
+What is classified, and why:
+
+  * Option flags (leading ``-``), option values, the substituted PR
+    number, and bare interpreter names that are not paths (``python3``
+    resolves under the cwd but no such file exists) are skipped: there
+    is nothing to compare.
+  * Files OUTSIDE the git work tree are recorded in
+    ``command_trust.skipped_external_files`` and not compared. An
+    absolute interpreter path or an installed-plugin script cannot be
+    rewritten by a PR to the consumer repository, and it has no
+    trusted-ref copy to compare against.
+  * UNTRACKED work-tree files are recorded in
+    ``command_trust.skipped_untracked_files`` and not compared. PR
+    content arrives through a checkout, so it is always tracked; an
+    untracked file is the operator's own state, such as the
+    ``--dispositions-file`` JSON a reviewer writes during the review.
+    Comparing those would halt every real run against a trusted-ref
+    copy that cannot exist.
+  * A repo-local path whose resolution leaves the work tree (a
+    PR-committed symlink) or cannot be resolved fails closed as
+    untrusted: the link is PR content and its target has no trusted-ref
+    copy (CWE-59).
+
 Scope of the guarantee
 ~~~~~~~~~~~~~~~~~~~~~~
 
-``config_trust: trusted`` asserts the CONFIG is the trusted ref's copy.
-It does NOT assert the verifier scripts the config's commands name
-(e.g. ``.claude/skills/github/scripts/pr/*.py``) are unmodified, and it
-does not vouch for THIS DISPATCHER either: both live in the same
-checked-out PR tree and are outside this check. A PR that leaves the
-config untouched but rewrites a verifier script, or rewrites
-``run_completion_gate.py`` itself to skip the check, still executes
-attacker code while printing a "trusted" verdict. That is the same
-exposure as running any test or lint on a PR branch, but do not read
-this field as covering it. Widening verification to the scripts is
-tracked as follow-up work in issue #5099.
+``config_trust: trusted`` plus ``command_trust: trusted`` asserts that
+the config AND every tracked work-tree file its commands name are the
+trusted ref's copies. Three things remain outside the boundary, and
+none is covered by either field:
+
+  * **Transitive imports.** The check covers files NAMED in argv, not
+    what those files import at runtime. A verified verifier script that
+    imports a sibling module from the PR work tree still executes that
+    module's PR-controlled code. Verifying the import graph (or the
+    whole containing directory) was considered and deliberately not
+    done: the named-file boundary is the one that can be stated
+    precisely and enforced without blocking unrelated PRs.
+  * **Untracked work-tree files.** Recorded, not compared, for the
+    reason above. A PR cannot deliver one, so this is a scoping
+    decision rather than a gap in coverage of PR content.
+  * **This dispatcher.** ``run_completion_gate.py`` lives in the same
+    PR tree; a PR that rewrites it to skip the check executes attacker
+    code while printing a trusted verdict. Nothing a script asserts
+    about itself can close that.
+
+Both residuals are the same exposure as running any test or lint on a
+PR branch. Do not read these fields as covering them.
 
 Substitution
 ------------
@@ -153,6 +202,7 @@ import argparse
 import ast
 import difflib
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -998,6 +1048,361 @@ def _validate_criterion_schema(criterion: dict) -> tuple[str, str, str | None, s
     return name, cmd_template, pass_when, pass_when_python
 
 
+# ---------------------------------------------------------------------------
+# Dispatched-command trust verification (CWE-829 / CWE-494)
+# ---------------------------------------------------------------------------
+
+
+# Statuses returned by _verify_command_trust. Kept distinct from the
+# TRUST_* config constants: the config check has a missing-base outcome
+# that this check folds into "untrusted" (a verifier file absent from the
+# trusted ref is PR-supplied code, and there is no separate approvable
+# state for it).
+COMMAND_TRUST_TRUSTED = "trusted"
+COMMAND_TRUST_UNTRUSTED = "untrusted"
+COMMAND_TRUST_GIT_ERROR = "git-error"
+
+# Classification of a single argv element by _classify_argv_token.
+_ARGV_SKIP = "skip"
+_ARGV_VERIFY = "verify"
+_ARGV_EXTERNAL = "external"
+_ARGV_ESCAPES = "escapes"
+
+
+class CommandTrustCheck(NamedTuple):
+    """Outcome of verifying the files a config's commands name.
+
+    ``checked_files`` and ``untrusted_files`` hold work-tree-relative
+    POSIX paths (``untrusted_files`` also carries the raw token of any
+    repo-local path that escapes the work tree). ``skipped_external_files``
+    holds absolute paths outside the work tree and
+    ``skipped_untracked_files`` work-tree paths git does not track;
+    both are recorded but never compared. ``detail`` carries the error
+    description when ``status`` is :data:`COMMAND_TRUST_GIT_ERROR`.
+    """
+
+    status: str
+    checked_files: list[str]
+    untrusted_files: list[str]
+    skipped_external_files: list[str]
+    skipped_untracked_files: list[str]
+    detail: str
+
+
+def _is_within(path: Path, root: Path) -> bool:
+    """True when ``path`` is ``root`` or lies under it."""
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def _classify_argv_token(token: str, toplevel: Path) -> tuple[str, str]:
+    """Classify one argv element for trust verification.
+
+    Returns ``(kind, value)`` where kind is one of the ``_ARGV_*``
+    constants:
+
+      * ``_ARGV_SKIP`` -- nothing to verify: an option flag, an option
+        value, a PR number, a bare interpreter name that is not a path
+        (``python3`` resolves under the cwd but no such file exists), or
+        a directory.
+      * ``_ARGV_VERIFY`` -- an existing file inside the work tree; the
+        value is its work-tree-relative POSIX path. Whether git tracks
+        it is decided later, in one batched probe
+        (:func:`_tracked_subset`), because this function runs no
+        subprocess.
+      * ``_ARGV_EXTERNAL`` -- an existing file outside the work tree (an
+        absolute interpreter path, an installed-plugin script). The
+        value is its absolute path. PR content cannot rewrite it through
+        the consumer repository, so it is recorded and not compared.
+      * ``_ARGV_ESCAPES`` -- a repo-local path whose resolution leaves
+        the work tree (a PR-committed symlink) or cannot be resolved at
+        all. Fail closed: the link is PR content and its target has no
+        trusted-ref copy to compare against.
+
+    Relative tokens resolve against the current working directory
+    because that is what ``subprocess.run`` in :func:`_evaluate_criterion`
+    inherits, so the path classified here is the path executed.
+    """
+    if not token or token.startswith("-"):
+        return _ARGV_SKIP, ""
+
+    candidate = Path(token)
+    if not candidate.is_absolute():
+        candidate = Path.cwd() / candidate
+    # normpath collapses ".." lexically without following symlinks.
+    # Path.relative_to is purely lexical, so it would otherwise accept
+    # "<toplevel>/../etc/passwd" as living inside the work tree.
+    literal = Path(os.path.normpath(candidate))
+
+    try:
+        resolved = candidate.resolve()
+        resolved_is_file = resolved.is_file()
+    except OSError:
+        return (_ARGV_ESCAPES, token) if _is_within(literal, toplevel) else (
+            _ARGV_SKIP,
+            "",
+        )
+
+    if not _is_within(resolved, toplevel):
+        if _is_within(literal, toplevel):
+            return _ARGV_ESCAPES, token
+        return (_ARGV_EXTERNAL, str(resolved)) if resolved_is_file else (
+            _ARGV_SKIP,
+            "",
+        )
+
+    if not resolved_is_file:
+        return _ARGV_SKIP, ""
+    return _ARGV_VERIFY, resolved.relative_to(toplevel).as_posix()
+
+
+def _collect_command_paths(
+    criteria: list[Any],
+    pr_number: int,
+    toplevel: Path,
+) -> tuple[list[str], list[str], list[str]]:
+    """Resolve every criterion command into the paths trust must cover.
+
+    Returns ``(to_verify, external, escaping)``, each de-duplicated and
+    in first-seen order. Commands are rendered with the same
+    :func:`_format_command` the dispatcher uses, so the argv classified
+    here is the argv executed.
+
+    Raises :class:`ConfigError` on a schema violation or an unparseable
+    command line; the caller exits 2 per ADR-035.
+    """
+    to_verify: list[str] = []
+    external: list[str] = []
+    escaping: list[str] = []
+    buckets = {
+        _ARGV_VERIFY: to_verify,
+        _ARGV_EXTERNAL: external,
+        _ARGV_ESCAPES: escaping,
+    }
+
+    for criterion in criteria:
+        _, cmd_template, _, _ = _validate_criterion_schema(criterion)
+        try:
+            argv = _format_command(cmd_template, pr_number)
+        except ValueError as exc:
+            raise ConfigError(
+                f"command is not a parseable command line: {exc}",
+            ) from exc
+        for token in argv:
+            kind, value = _classify_argv_token(token, toplevel)
+            bucket = buckets.get(kind)
+            if bucket is not None and value not in bucket:
+                bucket.append(value)
+
+    return to_verify, external, escaping
+
+
+def _tracked_subset(rel_paths: list[str], toplevel: Path) -> tuple[set[str], str]:
+    """Which of ``rel_paths`` git tracks; ``(tracked, error)``.
+
+    Trust is scoped to tracked files because the threat is PR content,
+    and PR content arrives through a checkout, so it is always tracked.
+    An untracked work-tree file is the operator's own state (the
+    ``--dispositions-file`` a reviewer writes during the review, a local
+    scratch fixture); comparing it would halt every real run against a
+    trusted-ref copy that cannot exist, which trains operators to pass
+    the approval flag by reflex. A non-empty ``error`` means the probe
+    itself failed and the caller must halt.
+
+    ``-z`` because paths are not newline-safe and ``core.quotePath``
+    would otherwise escape non-ASCII names out of alignment with the
+    paths passed in.
+    """
+    if not rel_paths:
+        return set(), ""
+    proc = _run_git(["ls-files", "-z", "--", *rel_paths], toplevel)
+    if proc.returncode != 0:
+        return set(), (
+            f"git ls-files failed: "
+            f"{proc.stderr.decode(errors='replace').strip()}"
+        )
+    listed = proc.stdout.decode(errors="replace").split("\0")
+    return {path for path in listed if path}, ""
+
+
+def _verify_worktree_file_trust(
+    rel_path: str,
+    toplevel: Path,
+    trusted_ref: str,
+) -> tuple[bool, str]:
+    """Compare one work-tree file byte for byte against the trusted ref.
+
+    Returns ``(is_trusted, error)``. A non-empty ``error`` means
+    verification itself was impossible and ``is_trusted`` carries no
+    meaning; the caller halts with exit 3.
+
+    Mirrors :func:`_verify_config_trust`: existence is probed with
+    ``git ls-tree`` (whose nonzero exit is structurally an error, unlike
+    ``cat-file -e``), and the trusted bytes come from
+    ``git cat-file --filters`` so checkout conversion (EOL,
+    working-tree-encoding) is applied to the trusted side too. Divergence
+    from that function: a path absent at the trusted ref is untrusted
+    rather than a separate missing-base status, because a verifier script
+    the base branch does not have is PR-supplied code with nothing to
+    compare against.
+    """
+    spec = f"{trusted_ref}:{rel_path}"
+    proc = _run_git(["ls-tree", trusted_ref, "--", rel_path], toplevel)
+    if proc.returncode != 0:
+        return False, (
+            f"git ls-tree {trusted_ref} -- {rel_path} failed: "
+            f"{proc.stderr.decode(errors='replace').strip()}"
+        )
+    if not proc.stdout.strip():
+        return False, ""
+
+    proc = _run_git(["cat-file", "--filters", spec], toplevel)
+    if proc.returncode != 0:
+        return False, (
+            f"git cat-file --filters {spec} failed: "
+            f"{proc.stderr.decode(errors='replace').strip()}"
+        )
+    trusted_bytes = proc.stdout
+
+    try:
+        current_bytes = (toplevel / rel_path).read_bytes()
+    except OSError as exc:
+        return False, f"cannot read work-tree file {rel_path}: {exc}"
+
+    return trusted_bytes == current_bytes, ""
+
+
+def _verify_command_trust(
+    criteria: list[Any],
+    pr_number: int,
+    trusted_ref: str,
+) -> CommandTrustCheck:
+    """Verify every work-tree file the criterion commands name.
+
+    Runs after the config passes its own trust check and before any
+    criterion is dispatched, so a PR that leaves the config untouched
+    while rewriting a verifier script cannot reach execution.
+
+    Never raises except :class:`ConfigError` (schema violation in a
+    criterion); git failures become :data:`COMMAND_TRUST_GIT_ERROR`.
+    """
+    try:
+        proc = _run_git(["rev-parse", "--show-toplevel"], _PROJECT_ROOT)
+        if proc.returncode != 0:
+            return CommandTrustCheck(
+                COMMAND_TRUST_GIT_ERROR, [], [], [], [],
+                f"project root {_PROJECT_ROOT} is not inside a git work "
+                f"tree: {proc.stderr.decode(errors='replace').strip()}",
+            )
+        toplevel = Path(proc.stdout.decode(errors="replace").strip()).resolve()
+
+        candidates, external, escaping = _collect_command_paths(
+            criteria, pr_number, toplevel,
+        )
+        tracked, probe_error = _tracked_subset(candidates, toplevel)
+        if probe_error:
+            return CommandTrustCheck(
+                COMMAND_TRUST_GIT_ERROR, [], [], external, [], probe_error,
+            )
+        checked = [path for path in candidates if path in tracked]
+        untracked = [path for path in candidates if path not in tracked]
+
+        untrusted = list(escaping)
+        errors: list[str] = []
+        for rel_path in checked:
+            is_trusted, error = _verify_worktree_file_trust(
+                rel_path, toplevel, trusted_ref,
+            )
+            if error:
+                errors.append(error)
+            elif not is_trusted:
+                untrusted.append(rel_path)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return CommandTrustCheck(
+            COMMAND_TRUST_GIT_ERROR, [], [], [], [],
+            f"command trust verification failed: {exc}",
+        )
+
+    if errors:
+        return CommandTrustCheck(
+            COMMAND_TRUST_GIT_ERROR, checked, untrusted, external, untracked,
+            "\n".join(errors),
+        )
+    if untrusted:
+        return CommandTrustCheck(
+            COMMAND_TRUST_UNTRUSTED, checked, untrusted, external, untracked, "",
+        )
+    return CommandTrustCheck(
+        COMMAND_TRUST_TRUSTED, checked, [], external, untracked, "",
+    )
+
+
+def _enforce_command_trust(
+    criteria: list[Any],
+    pr_number: int,
+    trusted_ref: str,
+    approved: bool,
+) -> tuple[CommandTrustCheck, int | None]:
+    """Gate dispatch on verifier-file trust; ``(check, exit_code_or_None)``.
+
+    ``None`` means dispatch may proceed. Exit codes match
+    :func:`_enforce_config_trust`: 2 for untrusted files, 3 when
+    verification itself is impossible. ``approved`` is the same
+    ``--approve-untrusted-config`` flag the config check honors (one
+    approval model, not two) and, as there, it does not cover git-error.
+    """
+    trust = _verify_command_trust(criteria, pr_number, trusted_ref)
+    if trust.status == COMMAND_TRUST_TRUSTED:
+        return trust, None
+
+    if trust.status == COMMAND_TRUST_GIT_ERROR:
+        print(
+            f"HALT: completion-gate verifier files cannot be verified "
+            f"against {trusted_ref}; no criterion command was executed.",
+            file=sys.stderr,
+        )
+        # Every COMMAND_TRUST_GIT_ERROR constructed above carries a
+        # detail, so this needs no emptiness guard.
+        print(_escape_terminal_controls(trust.detail), file=sys.stderr)
+        print(
+            "--approve-untrusted-config does not apply when verification "
+            "is impossible: there is no trustworthy file listing to "
+            "inspect. Fix the environment or fetch the trusted ref.",
+            file=sys.stderr,
+        )
+        return trust, 3
+
+    # Paths come from the PR-controlled config, so escape them before
+    # printing (Trojan Source, CVE-2021-42574), same as the config diff.
+    listing = _escape_terminal_controls(
+        "\n".join(f"  {path}" for path in trust.untrusted_files),
+    )
+    if not approved:
+        print(
+            f"HALT: completion-gate verifier files differ from "
+            f"{trusted_ref} or are absent there; no criterion command was "
+            f"executed. Untrusted files:\n{listing}",
+            file=sys.stderr,
+        )
+        print(
+            "If a human has inspected these files and approves executing "
+            "them, re-run with --approve-untrusted-config.",
+            file=sys.stderr,
+        )
+        return trust, 2
+
+    print(
+        f"WARNING: executing completion-gate verifier files that are not "
+        f"trusted against {trusted_ref} (--approve-untrusted-config "
+        f"given). Untrusted files:\n{listing}",
+        file=sys.stderr,
+    )
+    return trust, None
+
+
 def _evaluate_criterion(criterion: dict, pr_number: int) -> dict:
     """Run one criterion's command and evaluate its pass_when expression.
 
@@ -1179,17 +1584,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--trusted-ref",
         default="origin/main",
         help=(
-            "Git ref holding the trusted copy of the config; the working-tree "
-            "config must be byte-identical to it before any criterion runs"
+            "Git ref holding the trusted copies; the working-tree config and "
+            "every work-tree file its commands name must be byte-identical "
+            "to it before any criterion runs"
         ),
     )
     parser.add_argument(
         "--approve-untrusted-config",
         action="store_true",
         help=(
-            "Proceed although the config diverges from or is absent at the "
-            "trusted ref. Pass ONLY after a human has inspected the surfaced "
-            "diff and explicitly approved it. Does NOT apply when "
+            "Proceed although the config, or a verifier file its commands "
+            "name, diverges from or is absent at the trusted ref. Pass ONLY "
+            "after a human has inspected the surfaced diff and file list and "
+            "explicitly approved them. Does NOT apply when "
             "verification itself is impossible (git-error exits 3 "
             "regardless): with nothing to inspect there is nothing a human "
             "could have approved"
@@ -1347,6 +1754,24 @@ def main(argv: list[str] | None = None) -> int:
     if criteria is None:
         return 2
 
+    # CWE-829/CWE-494 second boundary: the config is trusted, but the
+    # FILES its commands name live in the same checked-out PR tree.
+    # Verify each work-tree file the argv resolves to before any command
+    # runs, so a PR that leaves the config untouched and rewrites a
+    # verifier script cannot reach execution.
+    try:
+        command_trust, halt_code = _enforce_command_trust(
+            criteria,
+            args.pull_request,
+            args.trusted_ref,
+            args.approve_untrusted_config,
+        )
+    except ConfigError as exc:
+        print(f"Config error in completion_criteria: {exc}", file=sys.stderr)
+        return 2
+    if halt_code is not None:
+        return halt_code
+
     rows: list[dict[str, Any]] = []
     try:
         for criterion in criteria:
@@ -1365,6 +1790,15 @@ def main(argv: list[str] | None = None) -> int:
             "status": trust.status,
             "trusted_ref": args.trusted_ref,
             "approved": args.approve_untrusted_config,
+        },
+        "command_trust": {
+            "status": command_trust.status,
+            "trusted_ref": args.trusted_ref,
+            "approved": args.approve_untrusted_config,
+            "checked_files": command_trust.checked_files,
+            "untrusted_files": command_trust.untrusted_files,
+            "skipped_external_files": command_trust.skipped_external_files,
+            "skipped_untracked_files": command_trust.skipped_untracked_files,
         },
         "criteria": rows,
     }
