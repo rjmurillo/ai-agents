@@ -165,6 +165,15 @@ _COPILOT_ANALYST_TOOLS = frozenset(
 # argument-hint; the schema check passes but the real loader rejects it.
 _ARGUMENT_HINT_WARNING = "argument-hint"
 
+# Claude CLI auth-failure markers (issue #4861). The CLI emits these in its
+# stream-json output or stderr when the local OAuth session is expired or absent.
+# Keep lowercased for case-insensitive matching (same pattern as Copilot markers).
+_CLAUDE_AUTH_EXPIRED_MARKERS: tuple[str, ...] = (
+    "oauth session expired",
+    "failed to authenticate",
+    "could not be refreshed",
+)
+
 _CLI_TIMEOUT_SECONDS = 240
 _PLUGIN_ROOT_ENV_KEYS = {"CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJECT_DIR", "COPILOT_PLUGIN_ROOT"}
 
@@ -248,10 +257,17 @@ def _claude_init_tools(agent: str) -> set[str]:
         cwd=REPO_ROOT,
         timeout=_CLI_TIMEOUT_SECONDS,
     )
-    assert run.returncode == 0, (
-        f"claude agent probe failed for {agent} (rc={run.returncode}). "
-        f"stdout={run.stdout[-600:]!r} stderr={run.stderr[-600:]!r}"
-    )
+    if run.returncode != 0:
+        haystack = f"{run.stderr or ''}\n{run.stdout or ''}".lower()
+        if any(marker in haystack for marker in _CLAUDE_AUTH_EXPIRED_MARKERS):
+            pytest.skip(
+                f"Claude OAuth session expired or could not authenticate for "
+                f"agent {agent!r}; re-run after `claude auth login`."
+            )
+        raise AssertionError(
+            f"claude agent probe failed for {agent} (rc={run.returncode}). "
+            f"stdout={run.stdout[-600:]!r} stderr={run.stderr[-600:]!r}"
+        )
     init_events = [
         event
         for event in _json_events(run)
@@ -981,6 +997,66 @@ def test_empty_plugin_negative_control_skips_classified_block(
 
     with pytest.raises(pytest.skip.Exception):
         test_copilot_empty_plugin_dir_does_not_fire_probe_hook(tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# Claude probe auth-skip tests (issue #4861, always-on, no runtime needed)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "auth_error_text",
+    [
+        '"result":"Failed to authenticate: OAuth session expired and could not be refreshed"',
+        '"result":"Failed to authenticate: token invalid"',
+        "oauth session expired",
+    ],
+    ids=["expired-oauth-json", "failed-auth-generic", "bare-marker"],
+)
+def test_claude_probe_skips_on_expired_oauth(
+    monkeypatch: pytest.MonkeyPatch, auth_error_text: str
+) -> None:
+    """Claude probe skips (not fails) when auth is expired or cannot
+    authenticate (issue #4861); markers match on stdout or stderr."""
+    expired = subprocess.CompletedProcess(
+        ["claude"], 1, stdout=auth_error_text, stderr=""
+    )
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: expired
+    )
+    with pytest.raises(pytest.skip.Exception, match="OAuth session expired"):
+        _claude_init_tools("analyst")
+
+
+def test_claude_probe_fails_on_non_auth_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Claude probe still raises AssertionError on non-auth failures."""
+    non_auth = subprocess.CompletedProcess(
+        ["claude"], 1, stdout="some unknown error", stderr=""
+    )
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: non_auth
+    )
+    with pytest.raises(AssertionError, match="claude agent probe failed"):
+        _claude_init_tools("analyst")
+
+
+def test_claude_probe_succeeds_when_rc_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Claude probe does NOT skip when the CLI succeeds, even if auth words appear."""
+    init_event = json.dumps(
+        {"type": "system", "subtype": "init", "tools": ["Bash"]}
+    )
+    success = subprocess.CompletedProcess(
+        ["claude"], 0, stdout=init_event, stderr="oauth session expired"
+    )
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: success
+    )
+    tools = _claude_init_tools("analyst")
+    assert tools == {"Bash"}
 
 
 # ---------------------------------------------------------------------------

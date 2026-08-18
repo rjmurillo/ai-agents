@@ -27,7 +27,6 @@ from scripts.issue_triage import (
     IssueRecord,
     LinkedPrFetchError,
     TriageReport,
-    build_ai_matrix,
     build_report,
     check_state_consistency,
     classify,
@@ -49,8 +48,6 @@ from scripts.issue_triage import (
     parse_iso_timestamp,
     parse_issue_record,
     save_scan_state,
-    split_github_repository,
-    write_ai_github_outputs,
 )
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -385,57 +382,6 @@ class TestFormatHuman:
         assert text.count("(none)") == 7
 
 
-class TestBuildAiMatrix:
-    def test_empty_input_yields_empty_matrix(self):
-        matrix = build_ai_matrix([])
-        assert matrix == {"include": [], "count": 0}
-
-    def test_rows_carry_number_and_title(self, now):
-        issues = [
-            make_issue(number=10, title="add backlog triage", base=now),
-            make_issue(number=11, title="route by area", base=now),
-        ]
-        matrix = build_ai_matrix(issues)
-        assert matrix["count"] == 2
-        assert matrix["include"] == [
-            {"number": 10, "title": "add backlog triage"},
-            {"number": 11, "title": "route by area"},
-        ]
-
-    def test_matrix_round_trips_to_json(self, now):
-        matrix = build_ai_matrix([make_issue(number=7, title="t", base=now)])
-        payload = json.loads(json.dumps(matrix))
-        assert payload["count"] == 1
-        assert payload["include"][0]["number"] == 7
-
-    def test_matrix_omits_labels_and_timestamps(self, now):
-        issue = make_issue(
-            number=5, title="t", base=now, labels=("priority:P0", "area-x"),
-        )
-        matrix = build_ai_matrix([issue])
-        row = matrix["include"][0]
-        assert set(row.keys()) == {"number", "title"}
-
-    def test_github_outputs_strip_non_matrix_count(self, tmp_path: Path, now):
-        output_path = tmp_path / "github-output.txt"
-        matrix = build_ai_matrix([make_issue(number=7, title="t", base=now)])
-        write_ai_github_outputs(matrix, str(output_path))
-        lines = output_path.read_text().splitlines()
-        assert json.loads(lines[0].removeprefix("matrix=")) == {
-            "include": [{"number": 7, "title": "t"}],
-        }
-        assert "has-issues=true" in lines
-        assert "count=1" in lines
-
-
-class TestGitHubRepositoryDefaults:
-    def test_split_github_repository_accepts_owner_repo(self):
-        assert split_github_repository("octo/repo") == ("octo", "repo")
-
-    @pytest.mark.parametrize("value", ["not-a-slug", "owner/", "/repo", "owner/repo/extra"])
-    def test_split_github_repository_rejects_invalid_slug(self, value):
-        assert split_github_repository(value) == ("", "")
-
 
 class TestFetchOpenIssues:
     def test_zero_limit_returns_empty_without_gh_call(self):
@@ -630,53 +576,11 @@ class TestMain:
         args = parse_args(["--owner", "o", "--repo", "r"])
         assert args.stale_days == DEFAULT_STALE_DAYS
 
-    def test_ai_flag_emits_matrix(self, tmp_path: Path, capsys):
-        path = tmp_path / "issues.json"
-        path.write_text(
-            json.dumps(
-                [
-                    {
-                        "number": 42,
-                        "title": "needs triage",
-                        "updatedAt": "2026-04-27T00:00:00Z",
-                        "labels": [],
-                    },
-                ]
-            )
-        )
-        rc = main(["--input", str(path), "--ai"])
-        assert rc == 0
-        payload = json.loads(capsys.readouterr().out)
-        assert payload["count"] == 1
-        assert payload["include"] == [{"number": 42, "title": "needs triage"}]
-
-    def test_ai_flag_overrides_format(self, tmp_path: Path, capsys):
-        path = tmp_path / "issues.json"
-        path.write_text(json.dumps([]))
-        rc = main(["--input", str(path), "--ai", "--format", "human"])
-        assert rc == 0
-        payload = json.loads(capsys.readouterr().out)
-        assert payload == {"include": [], "count": 0}
-
-    def test_ai_flag_uses_github_repository_default(self, monkeypatch, capsys):
-        monkeypatch.setenv("GITHUB_REPOSITORY", "octo/repo")
-        with patch("scripts.issue_triage.fetch_open_issues", return_value=[]):
-            rc = main(["--ai"])
-        assert rc == 0
-        assert json.loads(capsys.readouterr().out) == {"include": [], "count": 0}
-
-    def test_ai_github_output_still_prints_json(self, tmp_path: Path, capsys):
-        issues_path = tmp_path / "issues.json"
-        output_path = tmp_path / "github-output.txt"
-        issues_path.write_text(json.dumps([{
-            "number": 1,
-            "title": "needs triage",
-            "updatedAt": "2026-04-27T00:00:00Z",
-        }]))
-        rc = main(["--input", str(issues_path), "--ai", "--github-output", str(output_path)])
-        assert rc == 0
-        assert json.loads(capsys.readouterr().out)["count"] == 1
-        assert "has-issues=true" in output_path.read_text()
+    @pytest.mark.parametrize("retired_flag", ["--ai", "--github-output"])
+    def test_retired_ai_pipeline_flags_are_rejected(self, retired_flag):
+        with pytest.raises(SystemExit) as exc_info:
+            parse_args([retired_flag])
+        assert exc_info.value.code == 2
 
 
 class TestTriageReportDataclass:

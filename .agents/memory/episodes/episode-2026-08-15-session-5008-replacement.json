@@ -1,0 +1,132 @@
+{
+  "id": "episode-2026-08-15-session-5008-replacement",
+  "session": "2026-08-15-session-5008-replacement",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix placeholder identity leak in pr-autofix cleanup commits",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "reproduce",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-5008-replacement"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "implement",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-5008-replacement"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "test",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-5008-replacement"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T11:35:29+00:00",
+      "type": "commit",
+      "content": "Commit: 969117290bd4acf3f25b58ca6a33012715e2a8a7",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e008"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-5008-replacement"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T12:58:48+00:00",
+      "type": "commit",
+      "content": "Commit: 67f2f3c3e7edf8840bd2d0f0dfcca2098d9e6124",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-5008-replacement"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T13:12:08+00:00",
+      "type": "commit",
+      "content": "Commit: d384e914db6a126b9c612eb47c4bda21f34d8662",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-5008-replacement"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T13:39:52+00:00",
+      "type": "commit",
+      "content": "Commit: 3c0887008538f3a7b6e80b92318ac11705755b67",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-15-session-5008-replacement"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Landing refresh: merged origin/main cleanly, verified the outdated exit-swallowing thread fixed on head, re-ran targeted suites, staleness gate, and ratchets",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-5008-replacement"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T22:06:17+00:00",
+      "type": "commit",
+      "content": "Commit: 35d11889de7ad65a9123987fde36523abfb3344c",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5008-replacement"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 5,
+    "files_changed": 12,
+    "filesChanged": 4,
+    "testsAdded": 4
+  },
+  "lessons": []
+}

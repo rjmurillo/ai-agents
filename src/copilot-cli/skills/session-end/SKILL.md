@@ -1,10 +1,9 @@
 ---
 name: session-end
-description: Validate and complete session logs before commit. Auto-populates session
-  end evidence (commit SHA, lint results, memory updates) and runs validation. Use
-  when finishing a session, before committing, or when session validation fails.
-  Do NOT use to create a new session log (use session-init) or to repair a session
-  protocol failure reported by CI (use session-log-fixer).
+description: Validate and complete an existing optional session log. Auto-populates
+  end evidence and runs validation. Use only when an opted-in log exists. Do NOT
+  use merely because a session is ending or a commit is pending. Do NOT use to
+  create a new log (use session-init) or repair a rejected log (use session-log-fixer).
 version: 1.0.0
 license: MIT
 metadata:
@@ -17,7 +16,7 @@ metadata:
 
 # Session End
 
-Validate and complete session logs before commit. Complements `session-init` (which handles creation).
+Validate and complete an existing optional session log.
 
 ---
 
@@ -63,24 +62,24 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ses
 
 ## When to Use
 
-**REQUIRED** before closing any session. The `validate_session_end` pre-push and
-CI policy blocks delivery until `protocolCompliance.sessionEnd` MUST items are
-complete.
+Use this skill only after a contributor explicitly opted into a session log and
+wants to complete or validate that artifact. Ending work, committing, pushing,
+or opening a PR does not require a session log.
 
 Specifically:
 
-- Finishing a work session and ready to commit
-- Session log needs end-of-session evidence populated
-- Want to verify session compliance before pushing
+- An opted-in session log needs end evidence populated
+- An existing log should be validated before it is committed
+- A previously committed log needs a targeted correction
 
 Use [session-init](../session-init/SKILL.md) instead when:
 
-- Starting a new session (creating a session log from scratch)
+- A contributor explicitly chooses to create a new optional session log
 
 Use [session-log-fixer](../session-log-fixer/SKILL.md) instead when:
 
-- CI already failed and you need to fix a specific validation error
-- Working with a session log from a previous PR
+- Validation of an existing log failed with a specific error
+- Working with an opted-in log from a previous PR
 
 ---
 
@@ -243,10 +242,10 @@ Before reporting success, the script verifies:
 
 | Avoid | Why | Instead |
 |-------|-----|---------|
-| Skipping session-end before commit | Validation only catches errors at CI time | Run `/session-end` before every commit |
+| Treating `/session-end` as a commit prerequisite | Recreates mandatory evidence bureaucracy | Run it only for an existing opted-in log |
 | Manually editing session end fields | Error-prone, misses evidence | Let the script auto-populate |
-| Running without committing first | changesCommitted will fail | Commit work, then run session-end |
-| Ignoring TODO warnings | Session will fail CI validation | Address each TODO before final commit |
+| Running without an existing log | The skill must not create mandatory evidence | Stop or use `/session-init` only after explicit opt-in |
+| Ignoring validation errors in an opted-in log | An explicitly supplied log must validate | Address each error before committing that log |
 
 ---
 

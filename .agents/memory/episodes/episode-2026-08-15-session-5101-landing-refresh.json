@@ -1,0 +1,56 @@
+{
+  "id": "episode-2026-08-15-session-5101-landing-refresh",
+  "session": "2026-08-15-session-5101-landing-refresh",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Landing refresh for PR #5101: merge main, apply the two review renames, verify the auth-skip tests",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main into the branch (clean) to re-run required checks against current main",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5101-landing-refresh"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Applied review renames: _CLAUDE_AUTH_EXPIRED_MARKERS underscore prefix per module convention; stdout_fragment renamed to auth_error_text with a docstring covering non-expiry auth failures and stdout-or-stderr matching",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5101-landing-refresh"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the five targeted claude-probe auth tests pass and ruff is clean",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5101-landing-refresh"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T23:33:31+00:00",
+      "type": "commit",
+      "content": "Commit: dc396bfc9dab0766342a0de4282ab802f3218dd9",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5101-landing-refresh"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 1
+  },
+  "lessons": []
+}

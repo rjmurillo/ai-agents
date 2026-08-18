@@ -165,7 +165,7 @@ Check the conversation history above for these specific indicators:
 - Did you already call `mcp__serena__activate_project`?
 - Did you already call `mcp__serena__initial_instructions`?
 - Is `.agents/HANDOFF.md` content already present in the conversation?
-- Are there references to session logs already created in this conversation?
+- Is there a per-issue handoff or optional session log already in context?
 
 If you cannot find evidence of these elements in the conversation history, this IS a new session.
 
@@ -185,9 +185,10 @@ Read the file `.agents/HANDOFF.md` before starting any work.
 
 Verify that the content appears in your context and reference prior decisions from it. Without this phase, you will repeat completed work or contradict prior decisions.
 
-**Phase 3: Session Log (REQUIRED)**
+**Phase 3: Continuity**
 
-Create a session log at `.agents/sessions/YYYY-MM-DD-session-NN.json` early in the session. Include a Protocol Compliance section documenting that you completed Phases 1 and 2.
+Read the latest per-issue handoff when issue context exists. Create a JSON
+session log only when the operator explicitly opts into one.
 
 ## Memory Usage Workflow (USE AGGRESSIVELY)
 
@@ -276,7 +277,7 @@ Systematically check for these specific indicators in the conversation history b
 - Look for evidence that `mcp__serena__activate_project` was already called - write down what you find or "NONE FOUND"
 - Look for evidence that `mcp__serena__initial_instructions` was already called - write down what you find or "NONE FOUND"
 - Look for evidence that `.agents/HANDOFF.md` content is already in context - write down what you find or "NONE FOUND"
-- Look for references to session logs already created - write down what you find or "NONE FOUND"
+- Look for a per-issue handoff or optional session log already in context
 
 After examining each indicator, explicitly state: **This IS a new session** or **This IS NOT a new session**
 
@@ -504,7 +505,7 @@ The agent will:
 
 4. **Enforce ADR-014** - HANDOFF.md is read-only on feature branches:
    - Revert any HANDOFF.md changes to match main
-   - Ensure session context is preserved in session log files
+   - Ensure unfinished issue context is preserved in the per-issue handoff
 
 5. **Create fix PRs** - For infrastructure issues that need broader fixes:
    - Create a feature branch
@@ -744,7 +745,8 @@ Do not use the GitHub web "Update branch" button when an agent has local work to
 
 ## Force-Push Safety (Pre-Push Audit)
 
-Force-push is in the project MUST NOT list (`AGENTS.md`). The agent must NEVER force-push without explicit user authorization captured in the session log.
+Force-push is in the project MUST NOT list (`AGENTS.md`). The agent must NEVER
+force-push without explicit user authorization in the transcript.
 
 Before any push (force or not):
 

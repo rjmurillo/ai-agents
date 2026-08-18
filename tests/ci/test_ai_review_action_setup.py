@@ -31,6 +31,28 @@ def test_install_copilot_cli_writes_version_output(tmp_path):
     assert output_path.read_text(encoding="utf-8") == "copilot_version=1.0.63\n"
 
 
+def test_install_copilot_cli_warns_with_runbook_on_version_drift(tmp_path, capsys):
+    def runner(argv: Sequence[str]) -> install.CommandResult:
+        if argv[0] == "npm":
+            return install.CommandResult(0, "installed\n", "")
+        return install.CommandResult(0, "9.9.9\n", "")
+
+    exit_code = install.install_copilot_cli(
+        output_path=tmp_path / "github-output.txt",
+        runner=runner,
+        which=lambda name: "/usr/bin/copilot" if name == "copilot" else None,
+    )
+
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "::warning::Expected version" in out
+    assert (
+        ".serena/memories/copilot/copilot-cli-frontmatter-regression-runbook.md" in out
+    )
+    assert "ADR-094" in out
+    assert "ADR-044" not in out
+
+
 def test_install_copilot_cli_returns_logic_error_when_binary_missing(tmp_path):
     exit_code = install.install_copilot_cli(
         output_path=tmp_path / "github-output.txt",

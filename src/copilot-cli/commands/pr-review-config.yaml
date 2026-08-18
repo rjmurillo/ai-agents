@@ -126,7 +126,7 @@ completion_criteria:
     # fetched_pages_complete is a separate data-integrity guard: a truncated
     # GraphQL page can hide a failing required check, so the gate fails closed
     # on partial fetches per the PR #1887 retrospective.
-    pass_when_python: "lambda d: d.get('CanMerge') is True and d.get('CIPassing') is True and d.get('fetched_pages_complete') is True and d.get('UnresolvedThreads') == 0 and d.get('MergeStateStatus') in ('CLEAN', 'UNSTABLE') and len(d.get('UndisposedNonRequiredFailures', ['x'])) == 0"
+    pass_when_python: "lambda d: d.get('CanMerge') is True and d.get('CIPassing') is True and d.get('fetched_pages_complete') is True and d.get('UnresolvedThreads') == 0 and d.get('MergeStateStatus') in ('CLEAN', 'UNSTABLE') and d.get('UndisposedNonRequiredFailures', ['x']) == []"
     fail_open: false
   - name: "PR is not already merged"
     verification: "command"

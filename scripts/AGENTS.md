@@ -239,24 +239,23 @@ python3 scripts/check_skill_exists.py --list-available
 
 ### validate_session_json.py
 
-**Role**: Session protocol compliance checker
+**Role**: Session log validator (schema shape + protocol meaning)
 
 | Attribute | Value |
 |-----------|-------|
-| **Input** | Session logs in `.agents/sessions/` |
+| **Input** | A session log JSON handed to it (the call site passes logs changed on the branch) |
 | **Output** | Protocol compliance report |
-| **Trigger** | CI on session log changes |
+| **Trigger** | `session-policy` pre-commit hook (validate-if-present), on demand |
 | **Dependencies** | Python 3.10+ |
 
-**Checks Performed**:
+**Checks Performed** (only against a staged or handed log; a log is optional):
 
 | Check | Level | Description |
 |-------|-------|-------------|
-| Session log exists | MUST | File at correct path with naming |
-| Protocol Compliance section | MUST | Section present in log |
-| MUST requirements completed | MUST | All mandatory items checked |
-| HANDOFF.md updated | MUST | Modified timestamp recent |
-| SHOULD requirements | SHOULD | Warnings (not errors) |
+| Schema shape | MUST | Fields, types, ranges per `.agents/schemas/session-log.schema.json` |
+| MUST checklist complete | MUST | Each MUST item marked done with non-empty evidence |
+| Branch and SHA format | MUST | Branch name and commit SHA look valid |
+| `endingCommit` reachable | SHOULD | Warning, not an error |
 
 **Invocation**:
 
@@ -312,7 +311,7 @@ uv run pytest -vv
 | Agent | CI Workflow | Trigger |
 |-------|------------|---------|
 | sync_mcp_config.py | `pytest.yml` | PR to `scripts/**` |
-| validate_session_json.py | `ai-session-protocol.yml` | PR to `.agents/**` |
+| validate_session_json.py | `session-policy` pre-commit (`git_hook_policy.py session`), on demand | Staged session log (validate-if-present) |
 
 ## Related Documentation
 

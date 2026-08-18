@@ -66,7 +66,7 @@ This document describes the unified memory management workflow across three memo
 ### Phase 2.1: Import Shared Memories (RECOMMENDED)
 1. Check `.claude-mem/memories/imports/` for new exports
 2. Import: `npx tsx scripts/import-memories.ts [file].json`
-3. Document import count in session log
+3. Document import count in the transcript or per-issue handoff
 ```
 
 ### During Session
@@ -104,11 +104,11 @@ mcp__serena__write_memory(
 
 2. Security review runs automatically (mandatory gate)
 3. Commit export to git if review passes
-4. Document export path in session log
+4. Document export path in the transcript or per-issue handoff
 
 ### Phase 1: Documentation Update (REQUIRED)
 1. Update Serena memory for cross-session context
-2. Complete session log
+2. Complete an optional session log when one exists
 3. DO NOT modify HANDOFF.md (read-only reference)
 ```
 

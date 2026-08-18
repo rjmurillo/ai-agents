@@ -54,15 +54,16 @@ Intercepts GitHub URLs in user input and routes them to the appropriate skill or
 
 ### session-init
 
-Creates protocol-compliant JSON session logs with verification gates. Run at the start of every session.
+Creates an optional, protocol-compliant JSON session log when explicitly
+requested.
 
 ### session-end
 
-Validates and completes session logs before commit. Auto-populates required fields and runs validation checks.
+Validates and completes an existing optional session log.
 
 ### session-log-fixer
 
-Fixes session protocol validation failures in GitHub Actions. Diagnoses and repairs malformed session log JSON.
+Repairs an existing local JSON session log that fails the retained validator.
 
 ### session
 
