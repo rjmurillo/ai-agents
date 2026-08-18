@@ -309,11 +309,23 @@ def test_subprocess_exit_code_matches_in_process(main_checkout, external_worktre
     assert "#5061" in result.stderr
 
 
-def test_hook_is_registered_in_settings_json():
-    settings = json.loads((REPO_ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
-    entries = settings["hooks"]["PreToolUse"]
-    commands = [hook["command"] for entry in entries for hook in entry.get("hooks", [])]
-    assert any("invoke_serena_memory_scope_guard.py" in c for c in commands)
+def test_hook_is_registered_on_the_plugin_surface():
+    """ADR-085: PreToolUse gates register in hooks.json, never settings.json."""
+    groups = json.loads(
+        (REPO_ROOT / ".claude" / "hooks" / "dispatch_groups.json").read_text(encoding="utf-8")
+    )["groups"]
+    group = groups["plugin-pretooluse-11-serena_memory_scope"]
+    assert group["event"] == "PreToolUse"
+    assert group["mode"] == "gate"
+    assert group["surface"] == "plugin"
+    assert "mcp__serena__" in group["matcher"]
+    assert "serena-" in group["matcher"]
+    assert group["shims"][0]["file"] == "PreToolUse/invoke_serena_memory_scope_guard.py"
 
-    matchers = [entry.get("matcher", "") for entry in entries]
-    assert any("mcp__serena__" in matcher and "serena-" in matcher for matcher in matchers)
+    settings = json.loads((REPO_ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    assert "PreToolUse" not in settings["hooks"]
+
+    registered = json.dumps(
+        json.loads((REPO_ROOT / ".claude" / "hooks" / "hooks.json").read_text(encoding="utf-8"))
+    )
+    assert "plugin-pretooluse-11-serena_memory_scope" in registered
