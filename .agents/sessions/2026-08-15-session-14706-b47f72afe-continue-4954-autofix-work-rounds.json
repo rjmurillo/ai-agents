@@ -1,0 +1,237 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14706,
+    "date": "2026-08-15",
+    "branch": "fix/2840-adr-080-amendment",
+    "startingCommit": "aeaa13f1c",
+    "objective": "Continue PR 4954 autofix work (rounds 8 onward): resolve active Copilot review findings, rebind QA/session evidence, keep CI green"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP toolset available and used this session (find_symbol, read_memory, edit_memory)"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena manual reviewed in an earlier turn of this session (rounds 1-8, prior to this log's creation)"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read (read-only dashboard, points to session logs/Serena memory as the live context channel); .agents/sessions/handoffs/2026-08-15-2840-handoff.md read and rewritten for rounds 8-9"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/skills/ enumerated (102 skill directories); used github/scripts/pr/*.py (run_completion_gate.py, get_unresolved_review_threads.py, get_pr_checks.py), session/scripts/new_session_log.py, memory/scripts/extract_session_episode.py this session"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory loaded; pr-autofix/fleet-operations loaded (lease discipline, two-commit rebind mechanics, atomic-commit cap on Commit B, QA-skip-string rejection)"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2840-adr-080-amendment"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2840-adr-080-amendment"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short reviewed before each staging/commit step"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "aeaa13f1c"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUST items are Complete with genuine, non-fabricated evidence gathered live this session."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified this session; only the per-issue handoff at .agents/sessions/handoffs/2026-08-15-2840-handoff.md was rewritten as part of commit a959d4506 (explicitly excluded from the read-only constraint)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-write_memory called this session: pr-autofix/pre-pr-quick-check-session-end-discrepancy, documenting that pre_pr.py --quick's Session End Validation gate (checks_tooling.py's _prepr_session_command()) computes branch-relative newness via new_session_logs(compare_ref=\"HEAD\") but then passes --validation-head (not --creation-mode), so validate_session_json.py runs full compliance with no leniency regardless; the actual CI check (scripts/ci/validate_session_protocol.py, via committed_session_validation_modes()) grants creation-mode leniency only while the exact validated head commit is the one that added the path, and permanently loses that leniency the instant any further commit lands on top, even one that never touches the log."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Docs-only session; .agents/** is excluded from markdownlint per .markdownlint-cli2.yaml (ignores: list), so 0 files linted is expected for every .agents/ path touched this session, not a gap."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/000-session-14706-pr-4954-round3-coordination-qa.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This session's own commits, in order, as the review continues to surface new active findings across rounds: a959d4506 (round-9 content fix: session-14695 dual-attribution correction, probe log-dir separation, handoff rewrite, this session log created), ee57202b8 (round-10a rebind), 49ea48f0d (round-10b: completed this log's sessionEnd fields honestly and added this session's own QA report, .agents/qa/000-session-14706-pr-4954-round3-coordination-qa.md), ae927ffc7 (round-11 content fix), fd8fa1522 (round-11a rebind of session-14695/session-15001), 7de4606b2 (round-11b rebind of this session's own log/QA report), 391d0f99d (round-12 content fix), a1f0a638a (round-12a rebind of session-14695/session-15001), 09222ab35 (round-12b rebind of this session's own log/QA report), e3af5bcc7 (round-13 content fix: analysis-file wording, handoff rewrite, this log's Evidence corrections), a85ace032 (round-13a rebind of session-14695/session-15001), eb1a89e7e (round-13b rebind of this session's own log/QA report), 36071d573 (round-14 content fix: ADR time-qualification, analysis-file transcript label, handoff rewrite, session-15001 nextSteps trim, this log's Evidence corrections), 2c103ec4f (round-14a rebind of session-14695/session-15001), and 3c8bbce2f (round-14b rebind of this session's own log/QA report, the pushed head as of this entry). Round-10b was not this session's actual closing commit: this session log continues past it as long as further review rounds keep raising active findings against this session's own artifacts. endingCommit is bound to the last-known content-fix commit that stales this report (36071d573 as of the round-14b rebind), never to a not-yet-known rebind commit's own SHA, matching established precedent. This round's fix (round 15) touches only paths under QA_EVIDENCE_PREFIXES (this log, its own QA report, the handoff, and both sibling QA reports), so it does not restale this binding and endingCommit stays at 36071d573; the PR's authored-commit count reaches 40 of the MAIN_MERGE_BLOCK_THRESHOLD ceiling with this commit, the last one this session can make."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git_hook_policy.py atomic-commit/staged-dashes/session/handoff/root-hygiene/staged-conflict-markers/adr-review all PASS for the round-10a and round-10b staged sets, and for every round since. validate_session_json.py --pre-commit PASS for every touched session log at each commit. pytest tests/test_validate_session_json.py tests/skills/memory/test_extract_session_episode.py tests/ci/test_validate_session_protocol.py: 720 passed at round 10; 2516 passed, 1 skipped for the broader targeted suite at rounds 12 through 14. PR_HEAD_SHA=49ea48f0d scripts/ci/validate_session_protocol.py --session-file <this log> was re-verified COMPLIANT once 49ea48f0d landed, resolving the future-tense placeholder this field previously carried. Subsequent rounds repeated the same re-verification at each new head: COMPLIANT at 7de4606b2 (round-11b), at 09222ab35 (round-12b, confirmed via PR_HEAD_SHA=09222ab35213bcffe373b3c7dc41a65e2818e06b), and at eb1a89e7e (round-13b, confirmed via PR_HEAD_SHA=eb1a89e7e90f2ae0cda53f68eb3fd6709e1e81b6, matching the GitHub Actions Session Protocol Results check's own SUCCESS conclusion at that head). This field was re-verified again once round 14's fix landed: COMPLIANT at 3c8bbce2f (round-14b, confirmed via PR_HEAD_SHA=3c8bbce2fab59f2935d9c3007e1a278e3abd7b17), matching the GitHub Actions Session Protocol Results check's own SUCCESS conclusion at that head."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Retrospective section below documents the genuine learning captured this session (the pre_pr.py-vs-CI session-end discrepancy, distinct from the previously-documented lefthook-vs-CI discrepancy)."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Ran run_completion_gate.py --pull-request 4954 for the first time this task",
+      "result": "FAIL: 5 unresolved review threads, 5 active suppressed Copilot findings. PASS: resolved-thread-commit-refs, not-already-merged. FAIL: PR-ready-to-merge (blocked by missing reviewDecision + the 5 unresolved threads)."
+    },
+    {
+      "action": "Ran get_unresolved_review_threads.py",
+      "result": "5 threads, all copilot-pull-request-reviewer. 3 is_outdated:true (already fixed by rounds 5/7 content, thread stale). 2 is_outdated:false, both about commit c860ae452 being claimed by both session-14695's and session-15001's episodes (dual attribution)."
+    },
+    {
+      "action": "Diffed session-14695 vs session-15001 workLogs/episodes to determine true owner of c860ae452",
+      "result": "session-15001 workLog entries 138-140 narrate running the second 6-agent review and committing the dash fix at c860ae452; session-14695's own workLog ends at 0edf6e063 with no dash-fix entry. session-15001 is the true owner (its commitHead ac53f680... plus 3 other SHAs already matches metrics.commits:4 correctly)."
+    },
+    {
+      "action": "Fixed session-14695's session log and episode to remove the c860ae452 misattribution",
+      "result": "episodeMetrics.commitHead corrected to 0edf6e0630ea141e7fdcacae9583fcd57695b345 (git rev-parse verified); Evidence text reworded to name session 15001 without a bare SHA (avoids _collect_shas() re-detecting it on regeneration); episode event e010 removed, e007/e009 leads_to cleaned, metrics.commits 4->3. Validated: validate_session_json.py PASS, extract_session_episode.py --validate PASS, fresh non-preserve regeneration to /tmp/episode-check matches modulo ID renumbering, jsonschema.validate against episode.schema.json VALID."
+    },
+    {
+      "action": "Reproduced the delegation-probe log-dir collision fix in a fresh scratch repo (/tmp/adr080-probe-repro2)",
+      "result": "Ran treatment with --log-dir ./logs-treatment and control (worker model: line deleted) with --log-dir ./logs-control; each directory holds exactly one separable transcript (GitHub Copilot CLI 1.0.81-0). Rewrote the analysis file's probe section with the real re-captured transcripts."
+    },
+    {
+      "action": "Rewrote .agents/sessions/handoffs/2026-08-15-2840-handoff.md",
+      "result": "Covers rounds 7-9 (Status/Files Modified/Decisions Made/Next Steps/Context/Verification/Related); removed the false 'rounds 3-7 intentionally have no session log' claim; references this new session-14706 log."
+    },
+    {
+      "action": "Staged all 7 touched files and ran git_hook_policy.py atomic-commit",
+      "result": "FAIL: 6 authored files (episode exempt as generated) exceeds MAX_AUTHORED_FILES_PER_COMMIT=5. Both QA reports (000-session-14695 and 000-session-15001) were part of the over-cap staged set."
+    },
+    {
+      "action": "Reverted the two QA report files to their committed (aeaa13f1c) state via git checkout --, re-planned as a two-commit split per pr-autofix/fleet-operations precedent (content fix now, QA/session rebind next once the content commit's SHA is known)",
+      "result": "5 remaining staged files (4 authored + 1 generated episode) pass atomic-commit."
+    },
+    {
+      "action": "Re-ran git_hook_policy.py session/staged-dashes/handoff/root-hygiene/staged-conflict-markers/adr-review/stage-generated episodes against the round-9 staged file set",
+      "result": "All PASS (exit 0)."
+    },
+    {
+      "action": "Renewed the branch lease and re-confirmed live-state (PR still OPEN, head aeaa13f1c, auto-merge not armed) immediately before committing the round-9 staged set",
+      "result": "Committed as a959d4506. git_hook_policy.py commit-message and git interpret-trailers --parse both confirmed the Refs: PR #4954 and Co-authored-by: Copilot trailers parse correctly."
+    },
+    {
+      "action": "Began round-10 rebind: confirmed staleness via PR_HEAD_SHA=a959d4506 validate_session_protocol.py (NON_COMPLIANT, QA report is stale). Rebound endingCommit/episodeMetrics.comparison.head in session-14695's and session-15001's logs to a959d45063acd46e0ba1f3999a7f96989e2bd698 (full 40-char SHA)",
+      "result": "While editing, found a NEW previously-unfixed bug: both QA reports' revision-history tables still literally read \"(this commit)\" for the aeaa13f1c row instead of naming it, identical in class to the a573e0f32 fix in round 8 but never applied to aeaa13f1c. Fixed both. Also found and fixed an equivalent stale \"(this commit)\" placeholder in session-15001's report for the round-5 (e2f487797) row, removing a redundant duplicate line that had worked around the bug."
+    },
+    {
+      "action": "Updated both QA reports' qaCommit front matter, fixed the stale \"current-state\" Evidence bullets (previously citing 1a841d53d), added round-9/round-10 revision-history rows and Evidence bullets, rewrote both Verdict sections. Staged all 4 round-10 files, cleaned stray untracked scratch files (validation-result.md, validation-results/, validation-summary.json left by manual validate_session_protocol.py runs), re-ran the full validation suite",
+      "result": "atomic-commit (4 files) PASS, staged-dashes/handoff/root-hygiene/staged-conflict-markers/adr-review PASS, session hook PASS, validate_session_json.py --pre-commit PASS individually for both rebound logs, pytest 720 passed."
+    },
+    {
+      "action": "Renewed the lease, re-confirmed live-state (still OPEN, action ACT, auto-merge not armed), drafted and validated the round-10a commit message (git_hook_policy.py commit-message PASS), committed",
+      "result": "Committed as ee57202b8. Immediately re-ran PR_HEAD_SHA=ee57202b8 scripts/ci/validate_session_protocol.py --session-file <this session's own log> to test the theory that this log would lose creation-mode leniency once a further commit landed on top of a959d4506: confirmed NON_COMPLIANT, 7 MUST failures, exit 1, exactly as predicted by reading committed_session_validation_modes()'s added_session_paths_in_head() (diff-tree --diff-filter=A against the exact head's parent only, not branch-relative). This session's own log would fail the real required CI check if pushed as-is."
+    },
+    {
+      "action": "Wrote Serena memory pr-autofix/pre-pr-quick-check-session-end-discrepancy documenting the root cause (three inconsistent 'is this session log new' classifiers) and the practical implication (a new log's creation-mode leniency evaporates the instant any further commit lands on top, per CI's exact-head-commit-only definition)",
+      "result": "Memory written. Decided this session's own sessionEnd must be completed honestly now, in this same round-10b commit, together with a genuine QA report for this session (no SKIPPED: string is valid since this session itself edits .agents/qa/ files, which are excluded from the SKIPPED: investigation-only allowlist)."
+    },
+    {
+      "action": "Completed this session log's sessionEnd fields with genuine evidence, set endingCommit to a959d4506 (this session's last actually-produced content commit, not this closing commit's own not-yet-known SHA, matching the established backward-only-reference pattern already used by session-15001's own endingCommit history), wrote .agents/qa/000-session-14706-pr-4954-round3-coordination-qa.md",
+      "result": "Staged 2 files (this log + the new QA report); atomic-commit PASS (2 authored files, well within the 5-file cap); validate_session_json.py --pre-commit PASS for this log; markdownlint not applicable (.agents/** excluded)."
+    },
+    {
+      "action": "Pushed commits a959d4506, ee57202b8, and 49ea48f0d under lease renewal and a fresh live-state check; confirmed PR_HEAD_SHA=49ea48f0d scripts/ci/validate_session_protocol.py reports COMPLIANT for this session's own log, and for session-14695's/session-15001's logs, at the pushed head. Waited for CI (renewing the lease every 2-3 minutes): get_pr_checks.py reported AllPassing:true, FailedCount:0, PendingCount:0, 0 missing/failed required checks (114 checks total, 87 SUCCESS, 26 SKIPPED, 1 NEUTRAL)",
+      "result": "CI green at 49ea48f0d. Ran check_suppressed_review_findings.py: a round-11 review (id 4944771245, commit 49ea48f0db) reported active_state:active with 5 declared/parsed findings, as every prior round has."
+    },
+    {
+      "action": "Read round-11's 5 findings: (1) the analysis file's Method-section summary sentence still described the delegation probe writing to a single shared --log-dir ./logs, contradicting the separated treatment/control commands documented further down in the same file; (2) QA-14695's aeaa13f1c-through-ee57202b8 revision-history row still literally reads \"(this commit)\" for the ee57202b8 row; (3) QA-15001's report has the same stale \"(this commit)\" for its ee57202b8 row; (4) QA-14706's own report has a stale \"(this commit)\" for its round-10b row, now known to be 49ea48f0d; (5) this handoff was stale, still describing round 9 as local/uncommitted after a959d4506/ee57202b8/49ea48f0d were all already pushed",
+      "result": "Planned round-11 as a content-fix commit (analysis file wording, this handoff rewrite, this workLog entry) followed by a rebind split into two commits by the atomic-commit cap (session-14695+session-15001+their 2 QA reports; session-14706's own log+its own QA report), mirroring the round-10a/round-10b precedent, since the analysis-file edit is again outside QA_EVIDENCE_PREFIXES and restales all three bindings."
+    },
+    {
+      "action": "Committed the round-11 content fix as ae927ffc7 (analysis file wording, handoff rewrite, this workLog entry above). Built and committed the round-11a rebind as fd8fa1522 (session-14695/session-15001 logs' endingCommit/episodeMetrics.comparison.head, both QA reports' qaCommit, all rebound from a959d4506 to ae927ffc7; fixed both QA reports' stale ee57202b8 self-reference). Confirmed PR_HEAD_SHA=ae927ffc7 scripts/ci/validate_session_protocol.py reports COMPLIANT for session-14695 and session-15001 at that head. This same head reports NON_COMPLIANT (QA report is stale, analysis file) for this session's own log, expected until this log's own endingCommit/QA report are rebound in this same round-11b closing commit",
+      "result": "Rebinding this session's own endingCommit from a959d4506 to ae927ffc7 and this session's own QA report's qaCommit to match, fixing the round-11 finding-4 placeholder (this report's stale \"(this commit)\" for the round-10b row, now naming 49ea48f0d), in this same commit."
+    },
+    {
+      "action": "Pushed ae927ffc7, fd8fa1522, and 7de4606b2 (this session's round-11b closing commit) via plain git push, confirmed local/remote SHA match at 7de4606b24f420d8b2d4ee3ff1067291dc6bfe65. Polled CI with lease renewals every ~90-150s; final result AllPassing: true, FailedCount: 0, PendingCount: 0, 114 checks (86 SUCCESS, 27 SKIPPED, 1 NEUTRAL). Re-ran check_suppressed_review_findings.py: a new active review (id 4944834575, commit 7de4606b24f420d8b2d4ee3ff1067291dc6bfe65) raised 7 findings: (1) analysis file's \"Other CLI versions. 1.0.79 only\" sentence contradicts the documented second delegation measurement on CLI 1.0.81-0, needs scoping to the candidate-value matrix specifically; (2) session-14695's episodeMetrics.filesChanged reads 10 but its 3 actually-produced commits (c803be2e8, 1e0a6a775, 0edf6e063) touch only 5 unique files (verified via git show --stat on each), its episode's metrics.files_changed has the same error; (3) QA-14695's fd8fa1522 revision-history row still reads the literal placeholder \"(this commit)\"; (4) QA-15001's report has the same stale placeholder for fd8fa1522; (5) QA-14706's own report has a stale \"(this commit)\" for its round-11b row, now known to be 7de4606b2; (6) the handoff was stale, still describing round 11 as \"being fixed now\"; (7) this session's own nextSteps still listed the already-completed \"push commits\" instruction. Review explicitly instructed: name the known commit directly in cleanup/rebind commits and do not add a new self-referential \"(this commit)\" placeholder row for the rebind commit itself, ending the cycle where rounds 8 through 11 each added a placeholder later corrected by the following round.",
+      "result": "Fixed findings 1, 2, 6, 7 directly in this workLog update (nextSteps cleaned above; episodeMetrics.filesChanged corrected 10 to 5 in session-14695's log and its episode; analysis file reworded; handoff rewritten). Planned a round-12 content-fix commit (analysis file, session-14695 log+episode, handoff, this session log) followed by a rebind split into two commits by the atomic-commit cap (session-14695+session-15001+their 2 QA reports naming fd8fa1522 directly; session-14706's own log+its own QA report naming 7de4606b2 directly), neither rebind commit adding a new self-referential placeholder row for itself, per the round-12 review's explicit instruction."
+    },
+    {
+      "action": "Pushed 391d0f99d, a1f0a638a, and 09222ab35 (round-12 content fix and its two-commit rebind split) via plain git push, confirmed local/remote SHA match at 09222ab35213bcffe373b3c7dc41a65e2818e06b. Waited for CI: get_pr_checks.py reported OverallState FAILURE, 1 failed check (\"Check placeholder identity\", a newly-introduced repo-wide backstop for issue #2466 that scans every commit in the PR's base..head range, not just newly-pushed ones), 0 pending, 114 other checks passing. Confirmed via git log that the 8 flagged commits (8f1cb1177cc1, 5f0b54233b69, 0edf6e0630ea, 861eedc622142, 1e0a6a77500e, 92ed93c32c03, 9aa098e5d35d, 2908f07c5a2c) all predate this session's own work (authored/committed Aug 14-15 under the placeholder identity 'Test <test@test.com>', a pytest-fixture leak per issue #2466), and confirmed via gh api repos/.../rules/branches/main that \"Check placeholder identity\" is not in the 16 required_status_checks contexts, so it does not block merge. Fixing it would require rewriting the identity of already-pushed historical commits and force-pushing the result, both explicitly out of scope (no force-push, no hook bypass); recorded as a known non-blocking CI failure, out of this session's authority, analogous to the pre-existing reviewDecision human-approval gap.",
+      "result": "Re-ran check_suppressed_review_findings.py: a new active review (id 4944912705, commit 09222ab35213bcffe373b3c7dc41a65e2818e06b) raised 6 findings, down from 7: (1) the PR body's acceptance-criteria claim \"Each probe includes a negative control and reproducible transcript\" overstates the candidate-value probe, which records only a summarized outcome table and an exit-code assertion, not per-candidate raw transcripts; (2) round-12's own analysis-file fix left \"(the four model-tier/threshold resolutions)\" describing the candidate-value matrix, but that count belongs to the delegation probe's control transcript below, not the matrix (which has seven explicit values plus the absent control); (3) the handoff is stale again, still describing round 12 as in-progress; (4) this log's changesCommitted.Evidence still called round-10b \"this session's own closing commit\" even though the session continued through rounds 11 and 12; (5) this log's validationPassed.Evidence still carried a future-tense \"must be re-verified\" placeholder even though the workLog later recorded the concrete 49ea48f0d COMPLIANT result; (6) the PR body's Changes section still listed only the original 6 artifacts, not the current 12-file diff. No self-referential-placeholder-row finding this round, confirming the round-12 process change (naming known commits directly, no new placeholder rows for rebind commits) did break that specific cycle."
+    },
+    {
+      "action": "Fixed round-13's 6 findings: narrowed the PR body's acceptance-criteria claim to distinguish the delegation probe (negative control plus reproducible transcript) from the candidate-value probe (per-candidate outcomes and exit-code assertions, including the absent-model control, not full transcripts); corrected the analysis file's \"Other CLI versions\" bullet to say \"seven explicit values plus the absent control\" instead of the wrong \"four model-tier/threshold resolutions\"; rewrote the handoff to cover round 12 as pushed/CI-checked and round 13's 6 findings; corrected this log's changesCommitted.Evidence to list the session's actual full commit set through 09222ab35 and removed the obsolete \"closing commit\" framing; corrected this log's validationPassed.Evidence to replace the future-tense placeholder with the observed COMPLIANT results at 49ea48f0d, 7de4606b2, and 09222ab35; updated the PR body's Changes section to list all 12 files in the current diff.",
+      "result": "The PR-body edits (Acceptance Criteria, Changes section) are applied directly via gh pr edit, outside git history, so they need no commit or rebind. The analysis-file wording fix and this log's own two Evidence corrections land in one content commit alongside the handoff rewrite; because the analysis file is evidence session-14695's and session-15001's QA reports cover, that again stales their endingCommit/qaCommit bindings, requiring the same rebind split as prior rounds (session-14695+session-15001+their 2 QA reports naming the new content commit directly; session-14706's own log+its own QA report doing the same), with no new self-referential placeholder row for either rebind commit, per the still-standing round-12 convention."
+    },
+    {
+      "action": "Pushed e3af5bcc7, a85ace032, and eb1a89e7e (round-13 content fix and its two-commit rebind split) via plain git push, confirmed local/remote SHA match at eb1a89e7e90f2ae0cda53f68eb3fd6709e1e81b6. Renewed the lease every ~2-3 minutes while polling get_pr_checks.py: final result OverallState FAILURE, MergeStateStatus BLOCKED, 1 failed check (\"Check placeholder identity\", the same known non-required historical-commit gap), 0 pending, 114 other checks passing (all required checks SUCCESS, including \"Session Protocol Results\" and the direct per-session-log validation check for session-14706). Re-ran check_suppressed_review_findings.py: a new active review (id 4944994593, commit eb1a89e7e90f2ae0cda53f68eb3fd6709e1e81b6) raised 6 findings (round 14): (1) the ADR still called the .github/agents/quality-auditor.agent.md bare-alias gap open, but #5040 (2026-08-15, already merged into this branch) removed that model: sonnet line, resolving this specific instance; (2) the handoff was stale, still describing round 13 as pending; (3) session-15001's nextSteps still instructed an already-completed handoff rewrite and a stale \"did not push\" claim; (4) this log's validationPassed.Evidence still read a future-tense promise to validate round 13b; (5) QA-14706's report made the same future-tense promise; (6) the analysis file's alias-resolution transcript needed a measurement-date label and a note that the quality-auditor.agent.md drift it shows is no longer present.",
+      "result": "Confirmed via git log and a live grep of .github/agents that #5040 (commit 63b94de85, 2026-08-15) removed the model: sonnet line from .github/agents/quality-auditor.agent.md and is already an ancestor of this branch's HEAD (pulled in via the round-6 origin/main relief merge), and that no other bare sonnet/opus/haiku model value remains under .github/agents. This confirms finding 1 is accurate and time-qualifies rather than contests the ADR text."
+    },
+    {
+      "action": "Fixed round-14's 6 findings: time-qualified the ADR's repository-level-agents bare-alias gap as the 2026-08-12 probe's observed state, and recorded that #5040 (2026-08-15) has since resolved this specific instance for quality-auditor.agent.md; rewrote the handoff to cover rounds 13/13a/13b as complete/pushed and round 14's 6 findings; trimmed session-15001's nextSteps from 3 entries to 1, removing the already-completed handoff-rewrite instruction and the stale \"did not push\" claim, retaining only the still-open model-tier probe follow-up; corrected this log's validationPassed.Evidence to replace the future-tense round-13b promise with the observed COMPLIANT result at eb1a89e7e, matching the GitHub Actions Session Protocol Results check's own SUCCESS conclusion at that head; corrected this log's changesCommitted.Evidence to list the full commit chain through eb1a89e7e; extended QA-14706's Evidence with the same observed eb1a89e7e result in place of its own future-tense promise; labeled the analysis file's alias-resolution console transcript with its 2026-08-12 measurement date and noted the quality-auditor.agent.md hand-copy drift it shows is no longer present since #5040.",
+      "result": "The ADR and analysis-file fixes touch evidence paths outside QA_EVIDENCE_PREFIXES, restaling session-14695's, session-15001's, and session-14706's own QA/session bindings (all currently bound to e3af5bcc7). This content fix and the session-15001 nextSteps trim land in one round-14 commit alongside the handoff rewrite; the QA-14706 report's own Evidence correction, this log's Evidence corrections, and the ADR/analysis-file rebind land in the same two-commit split pattern as prior rounds (session-14695+session-15001+their 2 QA reports; session-14706's own log+its own QA report), with no new self-referential placeholder row for either rebind commit, per the still-standing round-12 convention."
+    },
+    {
+      "action": "Pushed 36071d573, 2c103ec4f, and 3c8bbce2f (round-14 content fix and its two-commit rebind split) via plain git push, confirmed local/remote SHA match at 3c8bbce2fab59f2935d9c3007e1a278e3abd7b17. Renewed the lease every ~2-3 minutes while polling get_pr_checks.py across 4 cycles: final result OverallState FAILURE, 1 failed check (\"Check placeholder identity\", the same known non-required historical-commit gap), 114 other checks passing (all required checks SUCCESS, including CodeRabbit's legacy-format status context and Session Protocol Results).",
+      "result": "Re-ran check_suppressed_review_findings.py: a new active review (commit 3c8bbce2fab59f2935d9c3007e1a278e3abd7b17) raised 9 findings (round 15): (1) this log's own nextSteps still listed 3 already-completed actions (the round-14 content commit and both rebinds); (2) this session's own QA report's Evidence still cited endingCommit e3af5bcc7 (after the round-13b rebind) instead of 36071d573 (after round-14b); (3) session-14695's log's endingCommit was flagged as false historical session provenance, since its own Evidence text names 0edf6e063 as its real last commit while endingCommit holds a later QA-freshness rebind target, and the schema defines endingCommit as the session's own final commit; (4) session-15001's log's endingCommit was flagged with the identical complaint (its own real last commit is ac53f6802); (5) this log's own validationPassed.Evidence still carried a future-tense placeholder despite round 14/14a/14b already landing; (6) the handoff still claimed the round-14 rebind was pending; (7) this session's own QA report retained a literal \"this commit\" self-reference for round-14b (3c8bbce2f); (8) QA-15001's report's Evidence cited a stale present-tense binding claim naming e3af5bcc7 instead of 36071d573; (9) QA-14695's report's Evidence made the identical stale present-tense claim. Also ran pr_commit_count.py --pr-number 4954: 39 authored commits, status ALERT against MAIN_MERGE_BLOCK_THRESHOLD=40 (a strict count > limit comparison), meaning exactly ONE further authored commit is possible before the branch would BLOCK. This invalidates the established 3-way commit-split-per-round pattern used through round 14; everything remaining must land in a single final commit, itself capped at MAX_AUTHORED_FILES_PER_COMMIT=5 authored files."
+    },
+    {
+      "action": "Investigated whether findings 3 and 4 (session-14695's and session-15001's own endingCommit fields flagged as false historical session provenance) require a session_qa_binding() schema or library change. Confirmed post_qa_code_changes()'s QA_EVIDENCE_PREFIXES already exempts .agents/sessions/, .agents/qa/, and .agents/memory/episodes/ from staleness, and that episodeMetrics.commitHead already holds each session's true own final commit (0edf6e063 for session-14695, ac53f6802 for session-15001), never rebound by any endingCommit rebind. Genuinely satisfying the reviewer's specific remedy (restore the session-owned endingCommit, use a separate field for the moving QA-freshness binding) would require relaxing session_qa_binding()'s enforced endingCommit/comparison.head equality, an intentional, tested design decision asserted by tests/test_validate_session_json.py::test_rejects_qa_commit_disagreement, across both qa_report.py mirrors plus that test at minimum, leaving no budget in the single remaining commit for the other 7 findings across 5 different files. A prose-only edit inside session-14695's/session-15001's own logs would not resolve the complaint either, since a near-identical disclaimer already exists there (changesCommitted.Evidence) and the reviewer flagged the field's value as false regardless of it.",
+      "result": "Chose to fix the 7 non-architectural findings (1, 2, 5, 6, 7, 8, 9) in this round's single commit across exactly 5 authored files (this log, this session's own QA report, the handoff, QA-15001's report, QA-14695's report), and to resolve findings 3 and 4 via an author-owned PR reply citing episodeMetrics.commitHead as the pre-existing dedicated field, rather than attempting a squeeze-fix that would either exhaust the single remaining commit's file budget without resolving either category, or risk breaking session_qa_binding()'s validation for two other sessions' logs. This is expected to leave check_suppressed_review_findings.py's active_suppressed_count at 2 (findings 3 and 4) after this round's push, since no further commit is possible to address them; documented as a known, reported blocker rather than a silent gate bypass."
+    }
+  ],
+  "endingCommit": "36071d57374619430daa8a73b06b4b0f2a11ad84",
+  "nextSteps": [
+    "Renew the lease and confirm fresh live-state (OPEN, ACT) immediately before staging round 15's fix commit; run the full validation suite (git_hook_policy.py checks, targeted pytest, pre_pr.py --quick) beforehand.",
+    "Push round 15's fix commit under lease renewal. This is the PR's 40th authored commit, the MAIN_MERGE_BLOCK_THRESHOLD ceiling; no further autofix commit is possible on this branch without a maintainer-approved commit-limit-bypass label or a squash, so this commit must be the session's last.",
+    "Re-run check_suppressed_review_findings.py against the new head; the 2 architectural findings on session-14695's/session-15001's endingCommit field are expected to remain active (they need a session_qa_binding() schema change, out of scope and out of commit budget) and are documented via PR reply rather than a further commit.",
+    "Resolve the known bot-authored unresolved review threads via resolve_pr_review_thread.py once fixes are confirmed live.",
+    "Run run_completion_gate.py --pull-request 4954 for a final result and release the lease unconditionally, documenting the placeholder-identity CI failure, the reviewDecision human-approval gap, and the 2 reply-only architectural findings as out-of-session-authority blockers."
+  ],
+  "retrospective": {
+    "summary": "Retrospective section: one durable learning captured this session, distinct from the previously-documented lefthook-vs-CI discrepancy.",
+    "learningsCaptured": [
+      "Three independent functions in this codebase decide whether a session log gets creation-mode leniency, and they disagree: git_hook_policy.py session's git-index check, pre_pr.py --quick's branch-relative new_session_logs() (which never actually reaches --creation-mode due to a latent bug in _prepr_session_command()), and the real CI check's committed_session_validation_modes() (exact-head-commit-only). A new session log's leniency window under the real CI check closes permanently the instant any further commit lands on top of the commit that created it, even one that never touches the log. Any session that spans more than one commit must complete its own sessionEnd honestly within the commit that creates the log, or fold that completion into whatever commit becomes the new tip before pushing, never leave it dangling across a later commit while assuming the leniency will persist. Captured to Serena memory at pr-autofix/pre-pr-quick-check-session-end-discrepancy."
+    ]
+  }
+}

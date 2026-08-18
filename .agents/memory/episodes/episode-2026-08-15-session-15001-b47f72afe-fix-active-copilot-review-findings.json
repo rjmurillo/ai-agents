@@ -1,0 +1,148 @@
+{
+  "id": "episode-2026-08-15-session-15001-b47f72afe-fix-active-copilot-review-findings",
+  "session": "2026-08-15-session-15001-b47f72afe-fix-active-copilot-review-findings",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix 21 active Copilot review findings for PR 4954 round 2: dash guard, session-protocol honesty, checklistComplete inconsistency, retrospective evidence, template placeholder, reciprocal handoff link, episode causal order, QA revision-history split",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T09:30:00+00:00",
+      "type": "milestone",
+      "content": "Fetched and merged the current remote branch (origin/fix/2840-adr-080-amendment) into the worktree, no rebase or force, ahead of resolving PR 4954's second Copilot review round of 21 active findings.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-15001-b47f72afe-fix-active-copilot-review-findings"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T09:55:00+00:00",
+      "type": "milestone",
+      "content": "Root-caused the session-protocol honesty finding: compared the local lefthook pre-push gate (git_hook_policy.py sessions, backing validate_branch_sessions()/session_change_scope()) against the actual CI workflow (.github/workflows/ai-session-protocol.yml running scripts/ci/validate_session_protocol.py, which calls the different committed_session_validation_modes() function).",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-15-session-15001-b47f72afe-fix-active-copilot-review-findings"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T10:10:00+00:00",
+      "type": "milestone",
+      "content": "Investigated the MUST-to-SHOULD demotion mechanism in scripts/validate_session_json.py (_validate_required_item_level) and found strong repo-wide precedent: 122 other logs demote sessionStart.serenaInstructions and 138 demote sessionEnd.serenaMemoryUpdated to SHOULD, typically for Serena-unreachable reasons. Applied this honestly to session-14695's two Incomplete MUST items, using a different but equally honest justification: that session's live window is closed, so no Aug-12 Serena evidence can be retroactively fabricated.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004",
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-15001-b47f72afe-fix-active-copilot-review-findings"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T10:33:10+00:00",
+      "type": "milestone",
+      "content": "Ran a full six-agent adr-review (architect, critic, independent-thinker, security, analyst, high-level-advisor) against the debate log's dash-only diff, required because the file matches the ADR-review path gate even for a punctuation-only change.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-15001-b47f72afe-fix-active-copilot-review-findings"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T10:40:00+00:00",
+      "type": "milestone",
+      "content": "Added a real commit timestamp (2026-08-15T07:09:54Z, sourced from 0edf6e063's own committer date) to the session-14695 workLog entry that the episode's e007 milestone maps to, fixing the missing-timestamp causal-order bug (extract_session_episode.py's _entry_timestamp() had fallen back to the session's nominal 2026-08-12 date). Regenerated the episode via extract_session_episode.py --preserve, not hand-edited.",
+      "caused_by": [
+        "e004",
+        "e007"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-15001-b47f72afe-fix-active-copilot-review-findings"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T10:45:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote the QA report (.agents/qa/000-session-14695-adr-080-amendment-qa.md): split the single revision-history row that had misattributed the episode regen and QA rebind to commit 0edf6e063 into separate rows for 0edf6e063 (finding-4 fix only) and 5f0b54233 (the actual rebind commit), added rows for c860ae452 and this session's own commit, corrected the CI-mode evidence paragraph to accurately describe the full-mode/creation-mode discrepancy and its resolution, and rebound qaCommit to c860ae452. Also created a new QA report (.agents/qa/000-session-15001-pr-4954-round2-findings-qa.md) bound to this session log and endingCommit, since session_qa_binding() requires a QA report's qaSessionLog to match the session referencing it, and the historical report is already correctly bound to session-14695.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-15001-b47f72afe-fix-active-copilot-review-findings"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T10:33:10+00:00",
+      "type": "commit",
+      "content": "Commit: c860ae452",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-15001-b47f72afe-fix-active-copilot-review-findings"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T11:05:10+00:00",
+      "type": "commit",
+      "content": "Commit: 1301b4c09",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-15-session-15001-b47f72afe-fix-active-copilot-review-findings"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T11:41:59+00:00",
+      "type": "commit",
+      "content": "Commit: db7ead33f56e534b4b7aa06537a42e01a954c352",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-15001-b47f72afe-fix-active-copilot-review-findings"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T11:58:45+00:00",
+      "type": "commit",
+      "content": "Commit: ac53f68020f20ed320ee4c61e79b3d9b1ed1f445",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-15001-b47f72afe-fix-active-copilot-review-findings"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 75,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 4,
+    "files_changed": 7
+  },
+  "lessons": []
+}
