@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gate: git is configured to run no hooks at all.
+"""Gate: local pushes have an executable ``pre-push`` hook.
 
 A git hook cannot detect its own absence. When ``core.hooksPath`` names a
 directory that does not exist, git runs no hook and prints no warning, and
@@ -33,7 +33,9 @@ path, to name which condition failed.
 
 Scope: the remedy is a lefthook command, so this gate passes silently in any
 repository that does not configure lefthook. A repository with no hooks and no
-lefthook config has chosen that, and is not broken.
+lefthook config has chosen that, and is not broken. CI also skips this
+local-clone check because workflows invoke validation directly without
+installing the checkout's local ``pre-push`` hook.
 
 Exit codes (ADR-035):
     0 - Success (hooks live, or the question does not apply here)
@@ -75,8 +77,8 @@ GLOBAL_REMEDY = f"git config --global --unset-all core.hooksPath && {REMEDY}"
 SYSTEM_REMEDY = f"git config --system --unset-all core.hooksPath && {REMEDY}"
 
 # A hung git must not stall the pre-PR run. A local rev-parse answers in
-# milliseconds, so this only trips on a genuine hang, where degrading to a
-# pass is the right move: a timeout is not evidence that hooks are dead.
+# milliseconds, so this only trips on a genuine hang. The gate fails closed
+# with ADR-035 exit 3 because an unreadable hook state is not a verified pass.
 GIT_TIMEOUT_SECONDS = 5
 
 
@@ -93,10 +95,13 @@ def _git(repo_root: Path, *args: str, missing_ok: bool = False) -> str | None:
     git = shutil.which("git")
     if git is None:
         raise GitExecutionError("git executable not found")
+    env = os.environ.copy()
+    env["LC_ALL"] = "C"
     try:
         result = subprocess.run(
             [git, *args],
             cwd=str(repo_root),
+            env=env,
             capture_output=True,
             encoding="utf-8",
             errors="replace",
@@ -213,6 +218,12 @@ def diagnose(repo_root: Path) -> str | None:
 
 def _evaluate(repo_root: Path) -> int:
     """Evaluate once and return the ADR-035 exit code."""
+    if (
+        os.environ.get("GITHUB_ACTIONS", "").lower() in ("true", "1")
+        or os.environ.get("CI", "").lower() in ("true", "1")
+    ):
+        print("git hook health: skipped under CI (0 hooks probed)")
+        return 0
     if not _uses_lefthook(repo_root):
         print(
             "git hook health: skipped, no lefthook config in "

@@ -2,10 +2,10 @@
 
 Two claims, separable, both pinned.
 
-The gate's own logic: a ``core.hooksPath`` that git cannot read hooks from
-exits 1 and names the failed condition and the repair; a healthy repository
-exits 0 and says what it probed and where; every indeterminate state exits 0,
-because a state the gate cannot read is not evidence that hooks are dead.
+The gate's own logic: a ``core.hooksPath`` that git cannot read ``pre-push``
+from exits 1 and names the failed condition and repair; a healthy repository
+exits 0 and says what it probed and where. Missing Git, timeouts, and unexpected
+Git failures exit 3 because an unreadable hook state is not a verified pass.
 
 The wiring: ``pre_pr_sequence`` reaches that logic. A validator nothing calls
 is the shape that let ``check_skill_md_portability.py`` ship unwired (#4252),
@@ -25,8 +25,8 @@ Coverage:
 - negative: a missing hooksPath directory, a directory with no pre-push, and an
   unset hooksPath with no pre-push all exit 1 and name the remedy; a linked
   worktree inherits the broken config; removing the gate fails the wiring test.
-- edge: no lefthook config, not a git repository, and no git binary all exit 0;
-  the failure report stays inside a line budget.
+- edge: no lefthook config, non-repositories, and CI exit 0; missing Git and
+  timeouts exit 3; the failure report stays inside a line budget.
 """
 
 from __future__ import annotations
