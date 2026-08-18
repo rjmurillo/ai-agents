@@ -1450,9 +1450,15 @@ def git_repo(tmp_path, monkeypatch):
     Unlike ``repo_root``, this fixture does NOT stub
     ``_verify_config_trust``: tests using it drive ``main`` through the
     real trust check, proving the wiring end to end.
+
+    The cwd moves into the work tree because that is where the gate runs
+    in production: relative command paths resolve against the cwd, and
+    ``_verify_command_trust`` refuses to classify them when the cwd sits
+    outside the tree it is verifying.
     """
     monkeypatch.setattr(_dispatcher, "_PROJECT_ROOT", tmp_path)
     _git(tmp_path, "init", "-q")
+    monkeypatch.chdir(tmp_path)
     return tmp_path
 
 
@@ -2437,7 +2443,7 @@ class TestCommandTrustBoundary:
         original = _dispatcher._run_git
 
         def _fail_verifier_lookup(args, cwd):
-            if args[0] == "ls-tree" and args[-1] == "verify.py":
+            if args[0] == "ls-tree" and args[-1] == ":(literal)verify.py":
                 return subprocess.CompletedProcess(
                     args=args, returncode=128, stdout=b"",
                     stderr=b"fatal: object store is broken",
@@ -2558,6 +2564,280 @@ class TestCommandTrustBoundary:
 
         assert rc == 2
         assert "not a parseable command line" in capsys.readouterr().err
+
+
+class TestCommandTrustBypassRegressions:
+    """Executed bypasses found by adversarial security review of PR #5146.
+
+    Every test here reproduces a path the reviewer actually ran to get
+    code execution with ``command_trust: trusted``. Each keeps the
+    marker-file negative control, so a regression shows up as the
+    payload running, not merely as a changed status string.
+    """
+
+    def test_pathspec_magic_filename_cannot_evade_the_tracked_check(
+        self, git_repo, tmp_path, capsys,
+    ):
+        # F-2: git reads pathspec magic from a leading ":" even after
+        # "--", so a tracked file named ":(glob)evil.py" never matched
+        # its own path, came back absent, and was classified untracked,
+        # which SKIPS verification entirely.
+        marker = tmp_path / "pwned.txt"
+        script = _write_marker_script(tmp_path / ":(glob)evil.py", marker)
+        config_path = _write_config(tmp_path, [_script_criterion("Magic", script)])
+        _commit_as_trusted(git_repo, config_path)
+        _git(git_repo, "add", "--", ":(literal):(glob)evil.py")
+        _git(git_repo, "commit", "-q", "-m", "PR adds a magic-named payload")
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not marker.exists(), (
+            "a pathspec-magic filename must not skip verification"
+        )
+        assert ":(glob)evil.py" in capsys.readouterr().err
+
+    def test_tracked_pathspec_magic_filename_is_verified_not_skipped(
+        self, git_repo, tmp_path, capsys,
+    ):
+        # Positive control for the fix: the same adversarial filename,
+        # unmodified since the trusted ref, must be CHECKED (not merely
+        # skipped into a passing run) and must dispatch.
+        marker = tmp_path / "ran.txt"
+        script = _write_marker_script(tmp_path / ":(glob)ok.py", marker)
+        config_path = _write_config(tmp_path, [_script_criterion("Magic", script)])
+        _git(git_repo, "add", "--", ":(literal)pr-review-config.yaml")
+        _git(git_repo, "add", "--", ":(literal):(glob)ok.py")
+        _git(git_repo, "commit", "-q", "-m", "trusted")
+        _git(git_repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1", "--json"],
+        )
+
+        assert rc == 0
+        assert marker.exists()
+        payload = json.loads(capsys.readouterr().out)
+        assert ":(glob)ok.py" in payload["command_trust"]["checked_files"], (
+            "the adversarial filename must be verified, not skipped"
+        )
+        assert payload["command_trust"]["skipped_untracked_files"] == []
+
+    def test_intra_work_tree_symlink_halts(self, git_repo, tmp_path, capsys):
+        # F-3: a symlink whose target stays INSIDE the work tree used to
+        # pass through as a normal path, and the resolved target was
+        # compared instead of the path the config named. The reviewer
+        # pointed a config-named verifier at a different, untouched,
+        # trusted script and got command_trust: trusted.
+        marker = tmp_path / "pwned.txt"
+        real = _write_marker_script(tmp_path / "payload.py", marker)
+        link = tmp_path / "verify.py"
+        link.symlink_to(real)
+        config_path = _write_config(tmp_path, [_script_criterion("Linked", link)])
+        _commit_as_trusted(git_repo, config_path, real, link)
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not marker.exists(), (
+            "an in-tree symlink must not execute unverified"
+        )
+        assert "verify.py" in capsys.readouterr().err
+
+    def test_symlinked_parent_directory_halts(self, git_repo, tmp_path):
+        # Same hazard one level up: the named file is ordinary but a
+        # parent component is a link, so the resolved path differs from
+        # the path the config named.
+        marker = tmp_path / "pwned.txt"
+        real_dir = tmp_path / "real"
+        real_dir.mkdir()
+        _write_marker_script(real_dir / "verify.py", marker)
+        (tmp_path / "linked").symlink_to(real_dir, target_is_directory=True)
+        config_path = _write_config(
+            tmp_path, [_script_criterion("Dir", tmp_path / "linked" / "verify.py")],
+        )
+        _commit_as_trusted(
+            git_repo, config_path, real_dir / "verify.py", tmp_path / "linked",
+        )
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not marker.exists()
+
+    def test_nested_repository_path_halts_instead_of_skipping(
+        self, git_repo, tmp_path, capsys,
+    ):
+        # F-4: git ls-files does not descend into a gitlink, so every
+        # file inside a submodule reads as untracked in the superproject
+        # and was skipped rather than verified.
+        marker = tmp_path / "pwned.txt"
+        nested = tmp_path / "vendored"
+        nested.mkdir()
+        script = _write_marker_script(nested / "verify.py", marker)
+        config_path = _write_config(tmp_path, [_script_criterion("Nested", script)])
+        _commit_as_trusted(git_repo, config_path)
+        _git(nested, "init", "-q")
+        _git(nested, "add", "verify.py")
+        _git(nested, "commit", "-q", "-m", "payload in a nested repo")
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not marker.exists(), (
+            "a nested-repository path must not skip verification"
+        )
+        assert "vendored/verify.py" in capsys.readouterr().err
+
+    def test_cwd_outside_the_work_tree_fails_closed(
+        self, git_repo, tmp_path, tmp_path_factory, monkeypatch, capsys,
+    ):
+        # F-5: relative argv resolves against the cwd, so running the
+        # gate from a different tree silently routed work-tree scripts
+        # into the external carve-out and skipped them.
+        marker = tmp_path / "ran.txt"
+        script = _write_marker_script(tmp_path / "verify.py", marker)
+        config_path = _write_config(tmp_path, [_script_criterion("Ok", script)])
+        _commit_as_trusted(git_repo, config_path, script)
+        monkeypatch.chdir(tmp_path_factory.mktemp("elsewhere"))
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 3
+        assert not marker.exists()
+        assert "outside the git work tree" in capsys.readouterr().err
+
+    def test_transitive_import_of_a_work_tree_module_is_verified(
+        self, git_repo, tmp_path, capsys,
+    ):
+        # F-1: every shipped verifier imports github_core.api from the
+        # work tree's plugin lib directory at module load, so a PR could
+        # rewrite that module and get execution with every named script
+        # byte-identical to the trusted ref.
+        lib = tmp_path / "lib" / "helperpkg"
+        lib.mkdir(parents=True)
+        (lib / "__init__.py").write_text("", encoding="utf-8")
+        helper = lib / "api.py"
+        helper.write_text("VALUE = 'clean'\n", encoding="utf-8")
+        script = tmp_path / "verify.py"
+        script.write_text(
+            "import json, sys, pathlib\n"
+            f"sys.path.insert(0, {str(tmp_path / 'lib')!r})\n"
+            "from helperpkg.api import VALUE\n"
+            "print(json.dumps({'ok': True}))\n",
+            encoding="utf-8",
+        )
+        config_path = _write_config(tmp_path, [_script_criterion("Ok", script)])
+        _commit_as_trusted(
+            git_repo, config_path, script, helper, lib / "__init__.py",
+        )
+
+        marker = tmp_path / "pwned.txt"
+        helper.write_text(
+            f"import pathlib\npathlib.Path({str(marker)!r}).write_text('ran')\n"
+            "VALUE = 'evil'\n",
+            encoding="utf-8",
+        )
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not marker.exists(), (
+            "a rewritten imported module must never be loaded"
+        )
+        assert "lib/helperpkg/api.py" in capsys.readouterr().err
+
+    def test_relative_import_inside_a_package_is_verified(
+        self, git_repo, tmp_path, capsys,
+    ):
+        # The shipped github_core.api reaches its siblings with
+        # "from .log_safety import ...". An absolute-only resolver walks
+        # the closure, reports success, and silently leaves most of the
+        # library unverified.
+        pkg = tmp_path / "lib" / "helperpkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("", encoding="utf-8")
+        (pkg / "api.py").write_text(
+            "from .sibling import VALUE\n", encoding="utf-8",
+        )
+        sibling = pkg / "sibling.py"
+        sibling.write_text("VALUE = 'clean'\n", encoding="utf-8")
+        script = tmp_path / "verify.py"
+        script.write_text(
+            "import json, sys\n"
+            f"sys.path.insert(0, {str(tmp_path / 'lib')!r})\n"
+            "from helperpkg.api import VALUE\n"
+            "print(json.dumps({'ok': True}))\n",
+            encoding="utf-8",
+        )
+        config_path = _write_config(tmp_path, [_script_criterion("Ok", script)])
+        _commit_as_trusted(
+            git_repo, config_path, script,
+            pkg / "__init__.py", pkg / "api.py", sibling,
+        )
+
+        marker = tmp_path / "pwned.txt"
+        sibling.write_text(
+            f"import pathlib\npathlib.Path({str(marker)!r}).write_text('ran')\n"
+            "VALUE = 'evil'\n",
+            encoding="utf-8",
+        )
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not marker.exists(), (
+            "a relative-imported module must never be loaded unverified"
+        )
+        assert "lib/helperpkg/sibling.py" in capsys.readouterr().err
+
+    def test_relative_import_cannot_climb_out_of_the_work_tree(self, tmp_path):
+        # A crafted "from ..... import x" must not resolve above the
+        # work tree, where there is no trusted-ref copy to compare.
+        script = tmp_path / "deep" / "pkg" / "mod.py"
+        script.parent.mkdir(parents=True)
+        script.write_text("", encoding="utf-8")
+
+        assert _dispatcher._relative_import_root(script, 9, tmp_path) == []
+        assert _dispatcher._relative_import_root(script, 1, tmp_path) == [
+            script.parent,
+        ]
+
+    def test_unrelated_sibling_change_does_not_halt(
+        self, git_repo, tmp_path, capsys,
+    ):
+        # The import closure must stay narrower than a directory rule:
+        # editing a sibling script nothing imports must not halt, or
+        # operators learn to pass --approve-untrusted-config by reflex.
+        marker = tmp_path / "ran.txt"
+        script = _write_marker_script(tmp_path / "verify.py", marker)
+        sibling = _benign_script(tmp_path / "unrelated.py")
+        config_path = _write_config(tmp_path, [_script_criterion("Ok", script)])
+        _commit_as_trusted(git_repo, config_path, script, sibling)
+        sibling.write_text("# edited by this PR\n", encoding="utf-8")
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1", "--json"],
+        )
+
+        assert rc == 0
+        assert marker.exists()
+        payload = json.loads(capsys.readouterr().out)
+        assert "unrelated.py" not in payload["command_trust"]["checked_files"]
 
 
 class TestClassifyArgvToken:
@@ -2715,6 +2995,7 @@ class TestVerifyCommandTrustErrorBranches:
 
     def test_schema_violation_raises_config_error(self, tmp_path, monkeypatch):
         monkeypatch.setattr(_dispatcher, "_PROJECT_ROOT", tmp_path)
+        monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(
             _dispatcher,
             "_run_git",
