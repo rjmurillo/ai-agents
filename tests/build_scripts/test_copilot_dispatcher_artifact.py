@@ -24,13 +24,12 @@ _REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO / "build" / "scripts"))
 
 from generate_hooks_body import is_shimmed  # noqa: E402
-from generate_hooks_events import _COMPANIONS_BY_OWNER  # noqa: E402
 from regen_guard import detect_reason_strict  # noqa: E402
 
 _COPILOT = _REPO / "src" / "copilot-cli"
 _HOOKS_JSON = _COPILOT / "hooks" / "hooks.json"
 _GATING = "PreToolUse"
-_OBSERVE_EVENTS = ("PostToolUse",)
+_OBSERVE_EVENTS: tuple[str, ...] = ()
 _ALL_EVENTS = (_GATING, *_OBSERVE_EVENTS)
 _DISPATCH_TEST_TIMEOUT_CAP_SEC = 60
 _DISPATCHER_TIMEOUT_HEADROOM_SEC = 5
@@ -133,10 +132,7 @@ class TestDispatcherArtifacts:
             "invoke_topical_memory_injection.py",
             "invoke_user_prompt_memory_check.py",
         )
-        plugin_keepers = (
-            "invoke_markdown_auto_lint.py",
-            "invoke_markdownlint_guard.py",
-        )
+        plugin_keepers = ("invoke_require_subagent_model.py",)
         # invoke_auto_retrospective.py left this list in #3349: it was the
         # last shim in the Stop group and was deleted, not relocated.
         internal_keepers = ("invoke_context_loader.py",)
@@ -163,19 +159,12 @@ class TestDispatcherArtifacts:
             script.removesuffix(".py") not in serialized_generated
             for script in removed
         )
-        assert "invoke_markdownlint_guard" in serialized_generated
+        assert "invoke_require_subagent_model" in serialized_generated
 
-        posttooluse_manifest = json.loads(
-            (_COPILOT / "hooks" / "PostToolUse" / "_manifest.json").read_text(
-                encoding="utf-8"
-            )
-        )
-        assert {
-            f"{shim.split('__', 1)[0]}.py"
-            for shim in posttooluse_manifest["shims"]
-        } == {
-            "invoke_markdown_auto_lint.py",
-        }
+        # Issue #5154 retired the last PostToolUse plugin group, so the
+        # generator prunes the whole event directory instead of shipping an
+        # empty one.
+        assert not (_COPILOT / "hooks" / "PostToolUse").exists()
 
         generated_events = {
             path.parent.name
@@ -233,78 +222,24 @@ class TestDispatcherArtifacts:
         # Each observational dispatcher runs its real shim set end to end and
         # returns 0 (observe mode never gates). This exercises the committed
         # artifact under the real plugin-root contract, not a string match.
+        #
+        # Issue #5154 left the plugin surface with no observe event, so the
+        # loop below is empty today. The generated tree is asserted against
+        # that state first: adding an observe group without updating
+        # _OBSERVE_EVENTS fails here instead of silently losing coverage.
+        on_disk = {
+            path.parent.name
+            for path in (_COPILOT / "hooks").glob("*/_manifest.json")
+            if path.is_file()
+        }
+        assert on_disk - {_GATING} == set(_OBSERVE_EVENTS), (
+            f"observe events on disk do not match _OBSERVE_EVENTS: {sorted(on_disk)}"
+        )
         for event in _OBSERVE_EVENTS:
             proc = _run_entry(event, {"tool_name": "Read", "tool_input": {}})
             assert proc.returncode == 0, (
                 f"{event}: observe dispatcher returned {proc.returncode}\n"
                 f"{proc.stderr.decode()[:600]}"
-            )
-
-    def test_push_pr_identity_guard_excluded_from_pretooluse_manifest_and_hooks(self):
-        """Issue #5013: the push-pr identity guard must not ship to Copilot.
-
-        dispatch_groups.json marks the guard's shim entry
-        ``copilotExclude: true``; generate_hooks_expand.py drops any such
-        shim before it reaches the Copilot tree (#5013). This asserts the
-        COMMITTED artifact reflects that: no shim file, no timeout entry, and
-        no mention in the hooks.json dispatcher registration strings, while
-        the other active PreToolUse shims are still registered.
-        """
-        guard_marker = "push_pr_script_identity_guard"
-        event_dir = _COPILOT / "hooks" / _GATING
-        manifest = json.loads((event_dir / "_manifest.json").read_text(encoding="utf-8"))
-
-        assert not any(guard_marker in shim for shim in manifest["shims"]), manifest["shims"]
-        assert not any(guard_marker in shim for shim in manifest["timeouts"]), (
-            manifest["timeouts"]
-        )
-
-        # Other active PreToolUse shims remain registered; the guard's
-        # exclusion must not have taken a sibling down with it.
-        assert any("invoke_markdownlint_guard" in shim for shim in manifest["shims"])
-        assert any("invoke_require_subagent_model" in shim for shim in manifest["shims"])
-
-        for entry in _hooks()[_GATING]:
-            assert guard_marker not in entry.get("bash", "")
-            assert guard_marker not in entry.get("powershell", "")
-
-        # The shim file itself must not be shipped either; a generator
-        # omission that left a stray copy on disk would still be a partial
-        # decommission Copilot's file-scan in _dispatch.py could pick back up.
-        stale = [p.name for p in event_dir.glob("*.py") if guard_marker in p.name]
-        assert stale == [], f"guard file still shipped despite exclusion: {stale}"
-
-    def test_push_pr_identity_guard_companions_absent_from_copilot_but_kept_for_claude(self):
-        """Issue #5013: the guard's runtime companions must not ship either.
-
-        The guard's own shim file not containing ``push_pr_script_identity_guard``
-        in its name (the previous test's ``stale`` check) does NOT prove its
-        NINE companion modules (``_push_pr_guard_commands.py`` and siblings,
-        looked up here from the OWNERSHIP TABLE
-        ``generate_hooks_events._COMPANIONS_BY_OWNER`` -- an "ownership table
-        that already names its companions" -- not a hardcoded list) are gone
-        too: none of their filenames contain that marker, so a generator that
-        dropped only the owner and left every companion behind would still
-        pass that check. ``find_stale_matcher_shims`` only recognizes
-        shim-WRAPPED files (``is_shimmed``); a companion is a plain,
-        never-shimmed module, so this is the one test that would catch that
-        specific miss. The canonical Claude source companions must remain
-        untouched: Claude Code keeps running the guard unchanged.
-        """
-        owner_key = "PreToolUse/invoke_push_pr_script_identity_guard.py"
-        companions = _COMPANIONS_BY_OWNER[owner_key]
-        assert len(companions) == 9, companions
-
-        claude_dir = _REPO / ".claude" / "hooks" / "PreToolUse"
-        for companion_name in companions:
-            assert (claude_dir / companion_name).is_file(), (
-                f"canonical Claude companion missing: {companion_name}"
-            )
-
-        copilot_event_dir = _COPILOT / "hooks" / _GATING
-        for companion_name in companions:
-            assert not (copilot_event_dir / companion_name).exists(), (
-                f"companion still shipped to Copilot despite owner exclusion: {companion_name}"
             )
 
     @pytest.mark.parametrize(

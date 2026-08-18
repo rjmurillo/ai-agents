@@ -52,14 +52,19 @@ def _run_shim(
     )
 
 
-def _run_committed_git_push_shim(raw_input: bytes) -> subprocess.CompletedProcess[bytes]:
-    matches = list(
-        (REPO_ROOT / "src" / "copilot-cli" / "hooks" / "PreToolUse").glob(
-            "invoke_markdownlint_guard__Bash_git_push_*.py"
-        )
+def _run_committed_shim(raw_input: bytes) -> subprocess.CompletedProcess[bytes]:
+    """Run the shipped PreToolUse matcher shim against raw stdin.
+
+    This used to name the ``Bash(git push*)`` markdownlint shim. Issue #5154
+    retired it, so the target is now whatever matcher shim the tree actually
+    ships. Globbing rather than naming keeps these tests pointed at the real
+    artifact instead of at a filename that goes stale on the next retirement.
+    """
+    matches = sorted(
+        (REPO_ROOT / "src" / "copilot-cli" / "hooks" / "PreToolUse").glob("invoke_*__*.py")
     )
     if len(matches) != 1:
-        raise AssertionError(f"expected one committed git-push shim, found {matches}")
+        raise AssertionError(f"expected exactly one committed matcher shim, found {matches}")
     env = dict(os.environ)
     env["COPILOT_PLUGIN_ROOT"] = str(REPO_ROOT / "src" / "copilot-cli")
     return subprocess.run(
@@ -230,10 +235,18 @@ def test_committed_shim_rejects_conflicting_input_aliases():
         separators=(",", ":"),
     ).encode("utf-8")
 
-    proc = _run_committed_git_push_shim(raw)
+    proc = _run_committed_shim(raw)
 
-    assert proc.returncode == 2
+    # The shipped shim detects the conflict and refuses to hand it to the guard.
+    # It exits 0 rather than 2 because the surviving shim matches on tool NAME:
+    # an unusable payload cannot be shown to be an Agent spawn, so the shim
+    # skips instead of denying (#4672 fail-open policy, and the guard's own
+    # docstring: it bounds model spend and is not a security boundary). The
+    # fail-closed path for a command-scoped matcher, which cannot rule out a
+    # push, is covered by test_shim_rejects_conflicting_input_aliases above.
+    assert proc.returncode == 0, proc.stderr.decode()
     assert b"conflicting top-level tool_input/toolArgs values" in proc.stderr
+    assert b"Traceback" not in proc.stderr
 
 
 def test_committed_shim_rejects_duplicate_toolcalls_keys():
@@ -242,10 +255,12 @@ def test_committed_shim_rejects_duplicate_toolcalls_keys():
         b'"toolCalls":[]}'
     )
 
-    proc = _run_committed_git_push_shim(raw)
+    proc = _run_committed_shim(raw)
 
-    assert proc.returncode == 2
+    # Exit 0 for the same reason as the aliases case above (#5154, #4672).
+    assert proc.returncode == 0, proc.stderr.decode()
     assert b"duplicate JSON object key" in proc.stderr
+    assert b"Traceback" not in proc.stderr
 
 
 def _nested_json_overflowing_stdin() -> bytes:
@@ -357,11 +372,15 @@ def test_shallow_json_still_parses_direct_shim():
 
 
 def test_committed_shim_rejects_deeply_nested_json():
-    proc = _run_committed_git_push_shim(_nested_json_overflowing_stdin())
+    proc = _run_committed_shim(_nested_json_overflowing_stdin())
 
-    assert proc.returncode == 2, proc.stderr.decode()
+    # The property under test is that the SHIPPED artifact catches the
+    # RecursionError, says so in a bounded message, and leaks no traceback.
+    # Exit 0 is the surviving tool-name matcher's policy (see the aliases test).
+    assert proc.returncode == 0, proc.stderr.decode()
     assert b"stdin JSON nesting too deep" in proc.stderr
     assert b"Traceback" not in proc.stderr
+    assert b"RecursionError" not in proc.stderr
     assert len(proc.stderr) < 4096
 
 
@@ -371,5 +390,9 @@ def test_committed_dispatcher_rejects_deeply_nested_json():
     # the standalone shim (issue #3169).
     proc = _run_committed_pretooluse_dispatcher(_nested_json_overflowing_stdin())
 
-    assert proc.returncode == 2, proc.stderr.decode()
+    # The dispatcher propagates its shims' verdicts. With only the tool-name
+    # matcher left after #5154, that verdict is 0, so this now asserts the
+    # detection message and the absence of a traceback rather than a denial.
+    assert proc.returncode == 0, proc.stderr.decode()
+    assert b"stdin JSON nesting too deep" in proc.stderr
     assert b"Traceback" not in proc.stderr
