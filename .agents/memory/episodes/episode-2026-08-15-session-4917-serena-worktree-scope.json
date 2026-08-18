@@ -12,10 +12,7 @@
       "timestamp": "2026-08-15T09:24:16+00:00",
       "type": "commit",
       "content": "Commit: cd273f463bf4670bb4864a718e43f76e3c6312d5",
-      "caused_by": [
-        "e005",
-        "e006"
-      ],
+      "caused_by": [],
       "leads_to": [
         "e002"
       ],
@@ -67,7 +64,7 @@
       "content": "fix",
       "caused_by": [],
       "leads_to": [
-        "e001"
+        "e016"
       ],
       "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
     },
@@ -78,7 +75,7 @@
       "content": "adr-review",
       "caused_by": [],
       "leads_to": [
-        "e001"
+        "e016"
       ],
       "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
     },
@@ -168,6 +165,45 @@
       "caused_by": [
         "e012"
       ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "test",
+      "caused_by": [],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "revert",
+      "caused_by": [],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-18T11:23:44+00:00",
+      "type": "commit",
+      "content": "Commit: 173a13381bb640d1be2c1cea33abdae378007b6c",
+      "caused_by": [
+        "e005",
+        "e006",
+        "e013",
+        "e014",
+        "e015"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
     }
@@ -177,8 +213,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 11,
-    "files_changed": 24
+    "commits": 12,
+    "files_changed": 32
   },
   "lessons": []
 }

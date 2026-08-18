@@ -98,7 +98,7 @@
       }
     }
   },
-  "endingCommit": "ffdbb011c82491b18ae25f122f7c0497a925bb1f",
+  "endingCommit": "173a13381bb640d1be2c1cea33abdae378007b6c",
   "workLog": [
     {
       "action": "fix",
@@ -119,11 +119,26 @@
     {
       "action": "adr-review",
       "description": "Reviewed ADR-068, ADR-071, ADR-085 metrics-only amendments"
+    },
+    {
+      "action": "fix",
+      "description": "Root-caused the recurring reviewer complaint: both matchers ('^serena-') were unanchored on both harnesses and never fired since the guard was added. Anchored to mcp__serena__.*$ (Claude) and serena-.*$ (Copilot), added _normalize_tool_name() for harness tool-name normalization, and expanded the write-tool inventory from 7 to 16 bare names sourced from oraios/serena's editing-tool classes."
+    },
+    {
+      "action": "test",
+      "description": "Added TestMatcherRegressionGuard and TestGeneratedShimIntegration, which drive the live manifest and the actual generated Copilot shim rather than mocked functions. Verified both fail against the original unanchored pattern and pass against the fix."
+    },
+    {
+      "action": "fix",
+      "description": "Merged origin/main to pick up issue #5013's Copilot inventory exclusion and updated ADR-068/071/085 derived metrics for the resulting 3-shim, 110s Copilot PreToolUse manifest."
+    },
+    {
+      "action": "revert",
+      "description": "Reverted the unrelated issue #4359 CI-recovery content (fix-ci.md, get_pr_checks.py, why_pr_blocked.py) flagged as scope creep in review; verified the reverted files match origin/main exactly."
     }
   ],
   "nextSteps": [
-    "Push and verify CI passes",
-    "Merge PR #5036"
+    "Merge PR #5036 once CI is green"
   ],
   "adrReview": {
     "adrs": [
