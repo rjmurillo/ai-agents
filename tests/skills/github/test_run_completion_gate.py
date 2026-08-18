@@ -671,6 +671,27 @@ class TestRepositoryConfigContract:
                 "",
             ),
         )
+        # _verify_command_trust makes its own real `git` subprocess calls
+        # (rev-parse, ls-files, ls-tree, cat-file) to verify the verifier
+        # scripts named by the config's criteria. Those calls would
+        # otherwise consume entries from `responses` below, which are
+        # canned JSON meant for the criterion dispatch that follows this
+        # check. The command-trust boundary itself has dedicated coverage
+        # in TestCommandTrustBoundary; this test's scope is criterion
+        # evaluation and dispatch, so mock it trusted the same way the
+        # config check above is mocked trusted.
+        monkeypatch.setattr(
+            _dispatcher,
+            "_verify_command_trust",
+            lambda *_a, **_k: _dispatcher.CommandTrustCheck(
+                _dispatcher.COMMAND_TRUST_TRUSTED,
+                [],
+                [],
+                [],
+                [],
+                "",
+            ),
+        )
         responses = [
             _make_proc(
                 stdout=json.dumps(
