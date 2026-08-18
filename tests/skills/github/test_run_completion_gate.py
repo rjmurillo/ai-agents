@@ -649,15 +649,9 @@ class TestRepositoryConfigContract:
     """Keep the trusted repository config inside the safe evaluator subset."""
 
     def test_ready_criterion_expression_is_evaluable(self):
-        # src/copilot-cli/commands/pr-review-config.yaml is the production
-        # contract consumed by /pr-autofix before it enables auto-merge.
-        config_path = (
-            _REPO_ROOT
-            / "src"
-            / "copilot-cli"
-            / "commands"
-            / "pr-review-config.yaml"
-        )
+        # .claude/commands/pr-review-config.yaml is the live configuration
+        # consumed by /pr-autofix before it enables auto-merge.
+        config_path = _REPO_ROOT / ".claude" / "commands" / "pr-review-config.yaml"
         config = _dispatcher.yaml.safe_load(
             config_path.read_text(encoding="utf-8"),
         )
