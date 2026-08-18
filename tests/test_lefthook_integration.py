@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import ast
 import io
 import json
@@ -631,6 +632,57 @@ def test_retrospective_policy_blocks_evidence_older_than_grace_window(
     )
 
 
+def test_handle_retrospective_uses_stdin_derived_paths_when_available(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #5128: {push_files} resolves empty on a branch's first push.
+
+    _handle_retrospective must derive the real push range independently via
+    _push_range_changed_files instead of trusting args.paths (which lefthook
+    leaves empty once {push_files} is dropped from the job), so the
+    documentation-only bypass can still fire for a genuinely docs-only push.
+    """
+    monkeypatch.setattr(
+        policy, "_push_range_changed_files", lambda _stream, _root: {"README.md"}
+    )
+    args = argparse.Namespace(paths=[], repo_root=str(tmp_path))
+
+    assert policy._handle_retrospective(args) == 0
+
+
+def test_handle_retrospective_stdin_range_blocks_non_doc_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A stdin-derived range that includes code still requires evidence."""
+    monkeypatch.setattr(
+        policy,
+        "_push_range_changed_files",
+        lambda _stream, _root: {"scripts/one.py", "tests/test_one.py"},
+    )
+    args = argparse.Namespace(paths=[], repo_root=str(tmp_path))
+
+    assert policy._handle_retrospective(args) == 1
+    assert "retrospective evidence" in capsys.readouterr().err
+
+
+def test_handle_retrospective_falls_back_to_args_paths_when_stdin_unresolvable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An unresolvable push range (None) preserves the old args.paths behavior."""
+    monkeypatch.setattr(
+        policy, "_push_range_changed_files", lambda _stream, _root: None
+    )
+    args = argparse.Namespace(paths=[], repo_root=str(tmp_path))
+
+    assert policy._handle_retrospective(args) == 1
+    assert "retrospective evidence" in capsys.readouterr().err
+
+
 def test_configuration_uses_named_native_jobs() -> None:
     config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
 
@@ -714,8 +766,9 @@ def test_configuration_uses_named_native_jobs() -> None:
         "git_hook_policy.py root-hygiene {staged_files}"
     )
     assert str(pre_push["retrospective-policy"]["run"]).endswith(
-        "git_hook_policy.py retrospective {push_files}"
+        "git_hook_policy.py retrospective"
     )
+    assert pre_push["retrospective-policy"]["use_stdin"] is True
     pre_commit_names = [str(job["name"]) for job in _flatten_jobs(config["pre-commit"]["jobs"])]
     assert pre_commit_names.index("memory-token-update") < pre_commit_names.index("memory-size")
     assert pre_commit_names.index("memory-size") < pre_commit_names.index("memory-cross-reference")
@@ -894,6 +947,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "push-ref-policy",
         "security-suppression-policy",
         "placeholder-identity",
+        "retrospective-policy",
     ]
     # Issue #5066: security-scan (semgrep) left the cheap stdin group so a
     # fast-stage failure no longer waits on it. It stays a top-level job

@@ -7231,7 +7231,20 @@ def _handle_adr_review(args: argparse.Namespace) -> int:
 
 
 def _handle_retrospective(args: argparse.Namespace) -> int:
-    return check_retrospective_evidence(args.paths, _repo_root(args))
+    # {push_files} resolves empty on a branch's first push: lefthook's own
+    # diff-against-previous-remote-ref substitution has nothing to diff
+    # against, which silently defeats the documentation-only bypass below
+    # regardless of what the push actually contains (issue #5128). Derive
+    # the real push range independently via _push_range_changed_files, the
+    # same stdin-based mechanism the glob-triggered advisory jobs already
+    # use for this exact class of bug (see the comment above
+    # _push_range_changed_files). Fall back to args.paths, which is empty
+    # under the lefthook job's use_stdin wiring but keeps direct/manual
+    # invocation with explicit paths working.
+    repo_root = _repo_root(args)
+    changed = _push_range_changed_files(sys.stdin, repo_root)
+    paths = sorted(changed) if changed is not None else list(args.paths)
+    return check_retrospective_evidence(paths, repo_root)
 
 
 def _handle_taste(args: argparse.Namespace) -> int:

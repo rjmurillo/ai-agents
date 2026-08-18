@@ -93,11 +93,12 @@ PRE_FIX_CONDITIONS: dict[tuple[str, str], str] = {
 # broken classifier that matches nothing reports a clean sweep
 # (`.claude/rules/testing.md` MUST 10: report the scope size, not only the
 # finding count). Measured at 5: the five aggregators in FIXED_AGGREGATORS.
-# Two more (`ai-pr-quality-gate.yml`, `ai-session-protocol.yml`, guarded for
-# #2347) counted toward this bound until #5132 and #5135 deleted them; drop
-# this count again if a future PR removes one of the five that remain,
-# rather than raising MINIMUM_AGGREGATORS_EXAMINED to paper over a
-# classifier regression.
+# Two more (`ai-pr-quality-gate.yml::aggregate`, `ai-session-protocol.yml::aggregate`,
+# guarded for #2347) counted toward this bound until #5132 and #5135 deleted
+# those workflows in full, a legitimate cleanup and not a classifier
+# regression (issue #5142). Drop this count again if a future PR removes one
+# of the five that remain, rather than raising MINIMUM_AGGREGATORS_EXAMINED
+# to paper over a real regression.
 MINIMUM_AGGREGATORS_EXAMINED = 5
 
 
