@@ -93,3 +93,52 @@ were flipped in the same diff, not deleted, per the mirror obligation.
   `ai-session-protocol.yml::aggregate` keep the redundant
   `always() && !cancelled()` spelling from #2347. Cosmetic, deliberately out
   of scope here.
+
+## Correction 2026-08-18 (Issue #5139)
+
+A second Copilot review round on PR #5103, raised after this retrospective
+landed, found four factual errors below. Per `.claude/rules/retros.md`
+MUST-1, this landed retro is not edited in place; this section corrects it.
+
+1. **FM-10 classification (Root Cause section) was wrong.** FM-10
+   (`.agents/governance/FAILURE-MODES.md` lines 315-330) is defined by "the
+   execution succeeds; the failure is invisible" and "the call site has no
+   way to know the operation didn't actually do what its name claims." The
+   `always()` bug is the opposite shape: the aggregator's failure is loudly
+   VISIBLE, as a required red check run on the PR head. Nothing was
+   suppressed or hidden; a real signal (cancellation) was misclassified as a
+   different real signal (failure), and both were surfaced. None of the 11
+   classes currently in `FAILURE-MODES.md` describes "two non-equivalent
+   upstream states collapsed onto one boolean guard, each surfaced
+   correctly as far as the guard can tell." Per retros.md MUST-2, a class
+   that does not exist requires a linked ADR proposing it; that is an
+   architecture decision needing sign-off per `AGENTS.md`'s "Ask First:
+   Architecture | New ADRs" boundary, not something this documentation-only
+   PR does unilaterally. Filing that ADR is a follow-up, not completed here.
+   The closest existing class, FM-4 (False Completion Markers), also does
+   not fit: FM-4 is about an agent's own success narration, not a CI gate's
+   verdict logic. Read the Root Cause section's FM-10 citation as retracted;
+   the mechanism it describes (a guard clause conflating two distinct
+   states) is still accurate, only the taxonomy citation was wrong.
+
+2. **Cancelled-vs-skipped conclusion (Fix section) was wrong.** "it skips
+   when the run itself is cancelled. A skipped job publishes no check run"
+   is true only for a job that has not yet started. `if:` is evaluated
+   once, before a job starts; a job already running when the whole-run
+   cancellation lands is force-terminated with conclusion `cancelled`, not
+   `skipped`. Verified against a real superseded run on PR #5103 (run
+   `31896264033`): overall conclusion `cancelled`, both its "Run Python
+   Tests" and "Main failure alert" jobs `cancelled`, not `skipped`. The
+   fix's actual guarantee holds either way: `cancelled` and `skipped` are
+   both non-`success`/non-`failure`, so branch protection still does not
+   merge on a false green, and neither is the red `failure` `always()`
+   produced.
+
+3. **Test count (Fix section, "33 tests") was stale.** The suite gained a
+   test (`test_sweep_catches_a_reusable_workflow_call_aggregator`, added in
+   an earlier review-fix round) before this retro was written; the count at
+   the retro's own reference point was 34, not 33.
+
+4. **Unowned follow-up (Remediation section) is now owned.** The
+   `codeql-analysis.yml::check-blocking-issues` follow-up, listed as "Worth
+   its own issue," is tracked by issue #5104.
