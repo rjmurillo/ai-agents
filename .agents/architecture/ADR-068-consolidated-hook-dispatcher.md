@@ -103,9 +103,41 @@ consolidated-dispatcher decision, and the manifest shrank rather than grew, so
 re-evaluation trigger 2 does not fire. Debate log:
 `.agents/critique/ADR-068-071-085-5013-debate-log.md`.
 
+Amended 2026-08-18 (issue #5061): a new PreToolUse gate,
+`serena_memory_scope_guard`, joined the consolidated path to block Serena
+memory writes aimed at a git worktree other than the calling agent's own.
+Its matcher, `mcp__serena__(write|delete)_memory|serena-(write|delete)_memory`,
+does not reduce to a documented Claude core tool name, so
+`event_matcher_union` fails open for `PreToolUse` per Decision point 2: the
+generated host entry now carries no `matcher` field at all, where it
+previously carried `Bash|Agent|Task`. The active Copilot PreToolUse manifest
+now contains three shims, `markdownlint_guard`, `require_subagent_model`, and
+`serena_memory_scope_guard`, summing to 110 seconds of configured timeout, so
+the generated host entry requests 115 seconds. The vendored Claude plugin
+source now contains five registrations across two events: four PreToolUse
+shims and one PostToolUse shim. This growth from two to three Copilot
+PreToolUse shims meets re-evaluation trigger 2 below, and a new blocking gate
+joining the consolidated path meets re-evaluation trigger 3. Before this
+amendment, a supporting host spawned the Copilot dispatcher only on a Bash,
+Agent, or Task call; after it, every PreToolUse-eligible tool call spawns the
+dispatcher, since no host matcher is emitted at all. No current measurement
+in this repository quantifies that frequency multiplier or the per-spawn
+latency it costs; the "246 ms Windows cold start" figure elsewhere in this
+ADR is explicitly a HISTORICAL, superseded number. ADR-071's 2026-08-18
+amendment records why a direct, non-consolidated host entry and full
+exclusion from the generated Copilot inventory were both considered and set
+aside rather than adopted. A six-role adr-review re-affirmation of the
+consolidated-dispatcher decision under this new load, and under the loss of
+the PreToolUse host matcher union, is not recorded as part of this amendment;
+issue #5151 tracks it, including the unquantified regression above, rather
+than asserting the review happened here. Unlike the 2026-08-11 (#4874) and
+2026-08-14 (#5013) firings of the same triggers, which each closed with a
+same-change re-affirmation, this amendment defers it to #5151 instead.
+
 ## Date
 
-2026-06-02; amended 2026-07-22, 2026-07-31, 2026-08-11, and 2026-08-14
+2026-06-02; amended 2026-07-22, 2026-07-31, 2026-08-11, 2026-08-14, and
+2026-08-18
 
 ## Context
 
@@ -124,13 +156,14 @@ The proposal-era measurements were:
 
 Those numbers explain the original decision but do not describe the current
 tree. PR #3295 completed the hook purge on 2026-07-22. Issue #4764 later added
-the push-pr script identity gate. The vendored Claude plugin source now contains
-four registrations across two events: three PreToolUse shims and one PostToolUse
-shim. Issue #4874 added the require-subagent-model gate. Issue #5013
-(2026-08-14) then excluded `push_pr_script_identity_guard` from the generated
-Copilot inventory only: the vendored Claude plugin source above is unchanged at
-four registrations, and the generated Copilot manifest now contains three
-registrations across two events: two PreToolUse shims and one PostToolUse
+the push-pr script identity gate. Issue #4874 added the require-subagent-model
+gate. Issue #5013 (2026-08-14) then excluded `push_pr_script_identity_guard`
+from the generated Copilot inventory only, and issue #5061 (2026-08-18) added
+the Serena memory worktree-scope guard to both the vendored Claude source and
+the generated Copilot inventory. The vendored Claude plugin source now
+contains five registrations across two events: four PreToolUse shims and one
+PostToolUse shim. The generated Copilot manifest now contains four
+registrations across two events: three PreToolUse shims and one PostToolUse
 shim. The generated Copilot plugin exposes one dispatcher entry for each event.
 On the Copilot dispatcher, consolidation now costs interpreter starts on
 matched calls (#4706 child processes); its retained value is registration
@@ -248,15 +281,15 @@ events and execute those shims in process through
 4. **No in-process budget watchdog.** The manifest records positive,
    non-boolean integer timeout metadata. The consolidated host entry uses the
    sum of per-shim timeout values plus five seconds of dispatcher headroom. The
-   current PreToolUse manifest has two shims with 100 seconds of configured
-   timeout, so the generated host entry requests 105 seconds. The sum spans all
+   current PreToolUse manifest has three shims with 110 seconds of configured
+   timeout, so the generated host entry requests 115 seconds. The sum spans all
    shims because the dispatcher spawns every timed shim before the shim's own
    matcher check runs, so any matched call can consume the full configured sum.
    The Copilot dispatcher enforces per-shim bounds in child processes (#4706);
    the Claude-side dispatcher drops per-shim timeouts and each group's host
    entry bounds it. The host owns the
    aggregate process timeout. The 1.0.72-1 probe tested only a 2-second timeout.
-   No evidence proves the host grants, caps, or enforces the requested 105
+   No evidence proves the host grants, caps, or enforces the requested 115
    seconds.
    There is no `COPILOT_HOOK_DISPATCH_BUDGET_MS`, 1500 ms default, `SIGALRM`,
    watchdog thread, or structured `budget_exceeded` result.
@@ -326,7 +359,7 @@ untimed shims keep the in-process path.
 
 The remaining timeout boundary is therefore the host process. On the measured
 Copilot CLI 1.0.72-1 behavior, a host timeout fails open. The current
-PreToolUse manifest has two shims. On the Copilot dispatcher a shim carrying
+PreToolUse manifest has three shims. On the Copilot dispatcher a shim carrying
 timeout metadata runs in a child process and a timeout denies (issue #4706), so
 a hung timed shim cannot bypass later gates there. On the Claude side each
 PreToolUse group holds exactly one shim and registers its own host entry, so no
@@ -364,7 +397,7 @@ The current reasons to keep the dispatcher are:
 | Keep PreCompact direct with shell suppression | Rejected as the normal mode when a vendored source exists because it restores repeated startup. Retained as a tested rollback shape. |
 | Keep UserPromptSubmit direct | Rejected when a vendored source exists because plaintext output has no documented host field and direct entries restore repeated startup. |
 | Discard observer stdout by default | Rejected. Dormant SessionStart, PreCompact, and UserPromptSubmit adapters have reviewed discard policies. Active PostToolUse uses `additionalContext`, and unclassified events stay direct. |
-| Consolidate observers but direct-register every PreToolUse gate | The current PreToolUse inventory is two shims, every one timed, so on Copilot direct registration would start fewer interpreters per matched call than the dispatcher plus its children (#4706). The dispatcher remains on the live generation path; simplification requires a new architecture decision. |
+| Consolidate observers but direct-register every PreToolUse gate | The current PreToolUse inventory is three shims, every one timed, so on Copilot direct registration would start fewer interpreters per matched call than the dispatcher plus its children (#4706). The dispatcher remains on the live generation path; simplification requires a new architecture decision. |
 | Reorder guards by perceived risk, or split selected critical gates | No stable criticality contract exists, and reordering only changes which later guards a hang bypasses. A split is a narrower form of the hybrid and needs the same measurement. |
 | Tighten test-runner command matching | Rejected because a narrower pattern keeps the same trust flaw. A command name cannot prove the code executed by the runner is safe. |
 | Replace the hook with `permissions.allow` (#3192, #3217) | Rejected for test runners because it recreates the same trust flaw on a declarative surface. |
@@ -413,20 +446,31 @@ The current reasons to keep the dispatcher are:
   fail-open source policy for pre-dispatch input errors (malformed stdin,
   missing tool name). The dispatcher still fails closed on nonzero shim
   results and timed-shim timeouts.
-- The generated Copilot host matcher union includes Agent and Task alongside
-  Bash, so that dispatcher entry spawns on every sub-agent call, not only on
-  Bash calls. The repository-local lowercase `task` registration stays direct,
-  outside the plugin dispatcher. Issue #5013 excluded
-  `push_pr_script_identity_guard` from the generated Copilot inventory only,
-  so every matched Copilot call, Bash or Agent/Task, now spawns the same two
-  remaining timed children: the dispatcher plus two children, three starts
-  total, with no separate fourth start for a sub-agent call.
+- Issue #5061 (2026-08-18) added a PreToolUse gate whose matcher
+  (`mcp__serena__(write|delete)_memory|...`) does not reduce to a known Claude
+  core tool name, so `event_matcher_union` now fails open for `PreToolUse` and
+  the generated host entry carries no `matcher` field at all. Before this
+  change, the generated Copilot host matcher union included Agent and Task
+  alongside Bash, so a supporting host could skip the dispatcher spawn for a
+  nonmatching call. That host-side filtering is now lost for PreToolUse: every
+  tool call, not only Bash and Agent/Task, spawns the dispatcher on a
+  supporting host, per Decision point 2's no-matcher fallback. Per Decision
+  point 2, each shim self-filters in process regardless of the host union,
+  and `markdownlint_guard` and `require_subagent_model`'s own code is
+  unchanged by this amendment, so only the host-side dispatcher-spawn
+  optimization is lost, not any shim's guard decision.
+  The repository-local lowercase `task` registration stays direct, outside the
+  plugin dispatcher. Issue #5013 excluded `push_pr_script_identity_guard` from
+  the generated Copilot inventory only, so a matched call that previously
+  spawned the dispatcher plus two children (three starts total) now spawns the
+  dispatcher plus three children, four starts total, on every PreToolUse-
+  eligible tool call rather than only Bash and Agent/Task calls.
   The Claude side registers the gate as its own host entry, so Bash calls gain
   no spawn there.
-- The current PreToolUse manifest sums to 100 seconds. The generated host entry
-  requests 105 seconds after five seconds of dispatcher headroom. The dispatcher
+- The current PreToolUse manifest sums to 110 seconds. The generated host entry
+  requests 115 seconds after five seconds of dispatcher headroom. The dispatcher
   spawns every timed shim before the shim's own matcher check runs, so any
-  matched call can consume up to the 100-second sum: five seconds of real
+  matched call can consume up to the 110-second sum: five seconds of real
   headroom. On the Claude side per-shim timeouts are dropped and each group's
   own host entry (300, 60, and 60 seconds) bounds it. No
   current evidence shows whether the host grants, caps, or enforces it.
@@ -495,21 +539,27 @@ Reopen this decision when any of these occurs:
 
 1. A material Copilot CLI version changes matcher, timeout, nonzero-exit, or
    structured-output behavior.
-2. The active PreToolUse manifest grows beyond two shims or its summed
-   configured shim timeout grows beyond 100 seconds (the host entry requests
-   105), or in any state grows beyond five shims or 150 configured seconds.
+2. The active PreToolUse manifest grows beyond three shims or its summed
+   configured shim timeout grows beyond 110 seconds (the host entry requests
+   115), or in any state grows beyond five shims or 150 configured seconds.
    The five-shim, 150-second ceiling is absolute; amendments re-baseline the
    per-increment thresholds, never the ceiling. Issue #5013 (2026-08-14)
    re-baselined this per-increment threshold down from three shims and 110
    seconds after excluding `push_pr_script_identity_guard` from the generated
-   Copilot inventory only.
+   Copilot inventory only. Issue #5061 (2026-08-18) re-baselined it back up to
+   three shims and 110 seconds after adding `serena_memory_scope_guard`.
 3. A new PermissionRequest producer or a new blocking gate joins the
    consolidated path.
    Relative to the 2026-08-11 baseline (Copilot `git push` four starts versus
    two direct, measured; sub-agent call four versus one, derived from the
    documented task-to-Agent mapping, not probed; union `Bash|Agent|Task`):
    interpreter starts per matched call grow further, or the union widens to
-   additional tool names.
+   additional tool names or collapses to no host matcher at all. Issue #5061
+   (2026-08-18) fired this trigger: `serena_memory_scope_guard` joined the
+   consolidated PreToolUse path and its matcher does not reduce to a known
+   Claude core tool name, so the union collapsed from `Bash|Agent|Task` to no
+   matcher, and every matched call now starts the dispatcher plus three
+   children instead of two.
 4. A PostToolUseFailure producer emits repository-controlled or other untrusted
    content. Its direct exit-2 stdout becomes model recovery context and requires
    security review.

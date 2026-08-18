@@ -30,9 +30,19 @@ Copilot excludes it from generation. The dated amendment section below records
 the corrected shim count and timeout sum. Debate log:
 `.agents/critique/ADR-068-071-085-5013-debate-log.md`.
 
+Amended 2026-08-18 (issue #5061): `serena_memory_scope_guard` joined the
+consolidated PreToolUse path to block a Serena memory write or delete aimed
+at a git worktree other than the calling agent's own. The dated amendment
+section below records the corrected shim count and timeout sum, and the
+host-side matcher union collapsing to no matcher for `PreToolUse`. This
+growth meets ADR-068's re-evaluation triggers 2 and 3; issue #5151 tracks
+the six-role re-affirmation of the consolidated-dispatcher decision under
+this new load, not asserted here. Debate log:
+`.agents/critique/ADR-068-071-5061-debate-log.md`.
+
 ## Date
 
-2026-06-02; amended 2026-07-19, 2026-08-11, and 2026-08-14
+2026-06-02; amended 2026-07-19, 2026-08-11, 2026-08-14, and 2026-08-18
 
 ## Context
 
@@ -263,6 +273,60 @@ moved. The dispatcher, its matcher union, and its per-event mode contract are
 unchanged. This is a scoped runtime-contract update that follows from ADR-085
 Decision 7, not a re-evaluation of the verified runtime contract established
 above. Debate log: `.agents/critique/ADR-068-071-085-5013-debate-log.md`.
+
+### 2026-08-18 amendment: Serena memory worktree-scope guard (issue #5061)
+
+Issue #5061 added `serena_memory_scope_guard` to the consolidated PreToolUse
+path, to block a Serena memory write or delete aimed at a git worktree other
+than the calling agent's own. The active Copilot PreToolUse manifest now
+contains three shims, `markdownlint_guard`, `require_subagent_model`, and
+`serena_memory_scope_guard`, summing to 110 seconds of configured timeout.
+The generated host entry requests 115 seconds, the same five seconds of
+dispatcher headroom as before.
+
+The new gate's matcher,
+`mcp__serena__(write|delete)_memory|serena-(write|delete)_memory`, is a
+runtime-name token the generator cannot reduce to a documented Claude core
+tool name. Per the residual named in the 2026-08-11 amendment above, this
+drops the host-level matcher entirely: this is the #3075 regression the
+lowercase-`task` variant was rejected to avoid, now occurring for a different
+reason. The generated host entry for `PreToolUse` therefore carries no
+`matcher` field, where it previously carried `Bash|Agent|Task`. The
+dispatcher now spawns on every Copilot tool call, not only Bash and
+Agent/Task calls, and every matched call starts the dispatcher plus three
+children instead of two. `require_subagent_model` and `markdownlint_guard`
+carry their own in-process matcher check independent of the host union
+(Decision point 2: "the retained generated shims remain the final matcher
+authority and self-filter in process"), and neither shim's code changed in
+this amendment, so that self-filtering is unaffected by this diff; this
+amendment is not a new verification of it. Only the host-side
+spawn-avoidance optimization is lost. The require-subagent-model and
+markdownlint-guard fail-open and fail-closed behavior recorded in the prior
+amendments is unchanged; only the Copilot-side shim count, matcher union,
+and timeout sum moved. This is a scoped runtime-contract update, not a new
+verification of `serena_memory_scope_guard`'s own gate decisions, which
+belong to the guard's own tests.
+
+Two alternatives to consolidating this gate were considered and set aside.
+A direct, non-consolidated Copilot host entry for `serena_memory_scope_guard`
+alone was not adopted: Decision point 2's reducibility rule applies to any
+matcher regardless of consolidation, so a standalone entry would also emit no
+host matcher for this MCP-tool pattern and would not avoid the regression it
+was meant to solve. Full exclusion from the generated Copilot inventory,
+matching the issue #5013 precedent for `push_pr_script_identity_guard`, was
+also not adopted: that guard has no in-repo direct-registration fallback and
+#5013 accepted zero Copilot coverage for it after a specific containment
+incident (ADR-085 Decision 7); excluding `serena_memory_scope_guard` the same
+way would leave Copilot sessions with no protection against the exact
+cross-worktree write bug issue #5061 fixes, which this ADR does not treat as
+an acceptable trade for the spawn-cost regression. A six-role adr-review
+re-affirmation of the consolidated-dispatcher decision under the lost host
+matcher union is not recorded as part of this amendment; issue #5151 tracks
+it, including a from-scratch quantification of the frequency and latency
+cost, which this amendment states qualitatively but does not measure. Unlike
+the 2026-08-11 (#4874) and 2026-08-14 (#5013) firings of the same triggers,
+which each closed with a same-change re-affirmation, this amendment defers
+it to #5151 instead.
 
 ## Decision
 

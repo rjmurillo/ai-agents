@@ -25,10 +25,7 @@ RUNTIME_ADR = (
 )
 DISPATCHER_ADR = REPO_ROOT / ".agents" / "architecture" / "ADR-068-consolidated-hook-dispatcher.md"
 PERMISSION_ADR = (
-    REPO_ROOT
-    / ".agents"
-    / "architecture"
-    / "ADR-085-cross-harness-permission-surface-asymmetry.md"
+    REPO_ROOT / ".agents" / "architecture" / "ADR-085-cross-harness-permission-surface-asymmetry.md"
 )
 PLATFORM_TEMPLATE = REPO_ROOT / "templates" / "platforms" / "copilot-cli.yaml"
 
@@ -665,33 +662,36 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
         / "ADR-071-plugin-hook-runtime-contract-verification.md"
     )
 
-    # Issue #5013 (2026-08-14) excluded `push_pr_script_identity_guard` from
-    # the generated Copilot inventory only. The dynamic reads above now see
-    # two PreToolUse shims, not three; the expected values below are the
+    # Issue #5061 (2026-08-18) added the Serena memory worktree-scope guard
+    # to the consolidated PreToolUse path. Its matcher
+    # (`mcp__serena__(write|delete)_memory|...`) does not reduce to a known
+    # Claude core tool name, so the host-side matcher union now fails open
+    # for PreToolUse (see test_committed_matcher_capable_entries_have_matchers
+    # in test_dispatcher_matcher_union.py). The dynamic reads above now see
+    # three PreToolUse shims, not two; the expected values below are the
     # independently reviewed current facts, not a self-confirming echo of
     # whatever the generator happens to emit.
-    assert source_counts == {"PreToolUse": 2, "PostToolUse": 1}
-    assert source_total == 3
+    assert source_counts == {"PreToolUse": 3, "PostToolUse": 1}
+    assert source_total == 4
     assert host_total == 2
-    assert round(reduction, 1) == 33.3
-    assert "four registrations across two events" in adr_068
-    assert "three PreToolUse shims and one PostToolUse shim" in adr_068
+    assert round(reduction, 1) == 50.0
+    assert "five registrations across two events" in adr_068
+    assert "four PreToolUse shims and one PostToolUse shim" in adr_068
     assert (
-        "three registrations across two events: two PreToolUse shims and "
+        "four registrations across two events: three PreToolUse shims and "
         "one PostToolUse shim" in adr_068
     )
     assert "not for matched-call process savings" in adr_068
-    assert len(pretool_manifest["shims"]) == 2
-    assert timeout_total == 100
-    assert "current PreToolUse manifest has two shims" in adr_068
-    assert "100 seconds of configured timeout" in adr_068
+    assert len(pretool_manifest["shims"]) == 3
+    assert timeout_total == 110
+    assert "current PreToolUse manifest has three shims" in adr_068
+    assert "110 seconds of configured timeout" in adr_068
     assert f"host entry requests {host_timeout} seconds" in adr_068
     assert "five seconds of dispatcher headroom" in adr_068
     assert "the in-process bypass is latent" in adr_068
     assert "four registrations across two events" in adr_085
     containment_note = (
-        "excluded `push_pr_script_identity_guard` from the generated "
-        "Copilot inventory only"
+        "excluded `push_pr_script_identity_guard` from the generated Copilot inventory only"
     )
     assert containment_note in adr_068
     assert containment_note in adr_071
@@ -699,14 +699,14 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
     # The 2026-08-11 baseline (issue #4874) is a dated historical record, not
     # a live claim, and stays pinned in both ADRs precisely because it was
     # true then and the amendment paragraphs say so explicitly.
-    assert (
-        "growing the active manifest to three shims and 110 seconds of "
-        "summed timeout" in adr_068
-    )
+    assert "growing the active manifest to three shims and 110 seconds of summed timeout" in adr_068
     assert "active manifest contains three shims" in adr_071
     assert "110 seconds of configured timeout" in adr_071
     for stale in (
-        "115 seconds",
+        # "115 seconds" is intentionally absent from this list: issue #5061
+        # (2026-08-18) grew the manifest back to three shims, so 115 is the
+        # current live host-entry timeout again, not the retracted #4874-era
+        # value #5053 banned it for. See the 2026-08-18 amendment above.
         "four starts on a `git push` today",
         "direct registration would start at most two",
         "two-shim PreToolUse",
@@ -865,12 +865,9 @@ def test_adr_085_decision_seven_records_the_eight_reintroduction_gates() -> None
         "A prompt-injected repository lookalike `new_pr.py` is denied.",
         "A dynamic launcher, `python -c`, `eval`, or shell substitution, "
         "targeting `new_pr.py` is denied.",
-        "A Windows load test of 32 calls across 8 workers completes without "
-        "a false denial.",
-        "Latency stays under a 500ms p95 and a 1 second maximum across that "
-        "load test.",
-        "The measurement runs against a real Copilot CLI probe, not a "
-        "simulated harness.",
+        "A Windows load test of 32 calls across 8 workers completes without a false denial.",
+        "Latency stays under a 500ms p95 and a 1 second maximum across that load test.",
+        "The measurement runs against a real Copilot CLI probe, not a simulated harness.",
         "The owner classifies the guard's disposition as deleted or "
         "essential before it returns to the generated inventory.",
     )
@@ -906,8 +903,7 @@ def test_issue_5013_adrs_refute_stale_framing_and_incomplete_lists() -> None:
 def test_issue_5013_adrs_state_claude_retention_and_copilot_exclusion() -> None:
     """Every affected ADR must say, in its own words, who keeps the guard."""
     exclusion_note = (
-        "excluded `push_pr_script_identity_guard` from the generated Copilot "
-        "inventory only"
+        "excluded `push_pr_script_identity_guard` from the generated Copilot inventory only"
     )
 
     for path in (DISPATCHER_ADR, RUNTIME_ADR, PERMISSION_ADR):

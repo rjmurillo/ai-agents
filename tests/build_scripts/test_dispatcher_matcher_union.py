@@ -74,23 +74,23 @@ def test_dispatcher_entry_carries_matcher_when_given():
 
 def test_committed_matcher_capable_entries_have_matchers():
     hooks = json.loads(
-        (REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json").read_text(
-            encoding="utf-8"
-        )
+        (REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json").read_text(encoding="utf-8")
     )["hooks"]
-    expected = {
-        "PreToolUse": {"Bash", "Agent", "Task"},
-        "PostToolUse": {"Write", "Edit"},
-    }
+    assert set(hooks) == {"PreToolUse", "PostToolUse"}
 
-    assert set(hooks) == set(expected)
-    for event, tokens in expected.items():
-        entry = hooks[event][0]
-        assert set(entry["matcher"].split("|")) == tokens
+    # Issue #5061 added a PreToolUse shim whose matcher
+    # (mcp__serena__(write|delete)_memory|...) does not reduce to a
+    # documented Claude core tool name, so event_matcher_union now fails
+    # open for PreToolUse and the generated entry carries no "matcher"
+    # field at all (see dispatcher_entry: it omits the key when the union
+    # is None). This follows directly from _matcher_tool_tokens returning
+    # None for an mcp__ pattern, asserted in test_matcher_tool_tokens above.
+    assert "matcher" not in hooks["PreToolUse"][0]
+
+    post_entry = hooks["PostToolUse"][0]
+    assert set(post_entry["matcher"].split("|")) == {"Write", "Edit"}
 
 
 def test_internal_claude_matcher_key_never_reaches_committed_artifact():
-    text = (REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json").read_text(
-        encoding="utf-8"
-    )
+    text = (REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json").read_text(encoding="utf-8")
     assert "claudeMatcher" not in text
