@@ -84,44 +84,68 @@ def git_diff_name_only(base_ref: str, repo_root: Path) -> subprocess.CompletedPr
     )
 
 
-def changed_python_files(base_ref: str, repo_root: Path) -> tuple[int, list[str]]:
+def changed_python_files(base_ref: str, repo_root: Path) -> tuple[int, list[str], str]:
+    """Return the status, the changed Python files, and the base ref that worked.
+
+    The resolved ref is returned, not assumed: when the requested ref is stale
+    the file list comes from the fallback, and building the line map from the
+    stale ref would fail, drop the map to ``None``, and block on every finding
+    in every changed file. That is the whole-file behavior this gate replaces.
+    """
+    resolved = base_ref
     result = git_diff_name_only(base_ref, repo_root)
     if result.returncode != 0 and base_ref != _FALLBACK_BASE_REF:
+        resolved = _FALLBACK_BASE_REF
         result = git_diff_name_only(_FALLBACK_BASE_REF, repo_root)
     if result.returncode != 0:
         print(result.stderr.strip(), file=sys.stderr)
-        return EXIT_EXTERNAL, []
+        return EXIT_EXTERNAL, [], resolved
 
     files = [
         name
         for name in result.stdout.split("\0")
         if name.endswith(".py") and (repo_root / name).is_file()
     ]
-    return EXIT_OK, files
+    return EXIT_OK, files, resolved
 
 
-def relative_finding_path(filename: str, repo_root: Path) -> str:
-    """Map a ruff-reported filename onto a repo-relative, forward-slash path."""
+def relative_finding_path(filename: str, repo_root: Path) -> str | None:
+    """Map a ruff-reported filename onto a repo-relative, forward-slash path.
+
+    Ruff reports absolute filenames in JSON, so this mapping is load-bearing.
+    ``None`` means the path could not be placed inside the repository; callers
+    block on that finding rather than passing it, because a key that can never
+    match the changed-line map would silently make every finding in that file
+    non-blocking.
+    """
     candidate = Path(filename)
-    if candidate.is_absolute():
-        try:
-            return normalize_path(str(candidate.relative_to(repo_root)))
-        except ValueError:
-            return normalize_path(filename)
-    return normalize_path(filename)
+    if not candidate.is_absolute():
+        return normalize_path(filename)
+    try:
+        return normalize_path(str(candidate.relative_to(repo_root)))
+    except ValueError:
+        return None
+
+
+def _row_of(payload: object, fallback: int) -> int:
+    """Read a ``row`` out of a ruff location, defaulting when it is absent."""
+    if not isinstance(payload, dict):
+        return fallback
+    row = payload.get("row")
+    return row if isinstance(row, int) else fallback
 
 
 def finding_rows(finding: dict[str, object]) -> tuple[int, int]:
     """Return the inclusive ``(start_row, end_row)`` a ruff finding covers.
 
-    ``end_location`` is absent on some ruff diagnostics; the start row then
-    stands for the whole range.
+    ``end_location`` is absent on some ruff diagnostics, and ruff already emits
+    a null ``row`` on others (``noqa_row``); the start row then stands for the
+    whole range. Reading these defensively keeps a malformed payload from
+    raising out of ``main``, where the interpreter's exit 1 would be
+    indistinguishable from ``EXIT_VIOLATIONS``.
     """
-    location = finding.get("location")
-    start_row = location["row"] if isinstance(location, dict) else 1
-    end_location = finding.get("end_location")
-    end_row = end_location["row"] if isinstance(end_location, dict) else start_row
-    return int(start_row), int(end_row)
+    start_row = _row_of(finding.get("location"), 1)
+    return start_row, _row_of(finding.get("end_location"), start_row)
 
 
 def describe(finding: dict[str, object], path: str, start_row: int) -> str:
@@ -146,12 +170,13 @@ def report(
     blocking: list[str] = []
     pre_existing: list[str] = []
     for finding in findings:
-        path = relative_finding_path(str(finding.get("filename", "")), repo_root)
+        raw_filename = str(finding.get("filename", ""))
+        path = relative_finding_path(raw_filename, repo_root)
         start_row, end_row = finding_rows(finding)
-        line = describe(finding, path, start_row)
-        if intersects_changed_lines(changed_lines, path, start_row, end_row):
+        line = describe(finding, path or raw_filename, start_row)
+        if path is None or intersects_changed_lines(changed_lines, path, start_row, end_row):
             blocking.append(line)
-            print(f"::error file={path},line={start_row}::{line}")
+            print(f"::error file={path or raw_filename},line={start_row}::{line}")
         else:
             pre_existing.append(line)
 
@@ -242,13 +267,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"error: {repo_root} is not a git worktree", file=sys.stderr)
         return EXIT_CONFIG
 
-    status, files = changed_python_files(args.base_ref, repo_root)
+    status, files, resolved_base_ref = changed_python_files(args.base_ref, repo_root)
     if status != EXIT_OK:
         return status
-    changed_lines = changed_line_map(args.base_ref, repo_root, files)
+    changed_lines = changed_line_map(resolved_base_ref, repo_root, files)
     if changed_lines is None:
         print(
-            f"warning: diff base {args.base_ref} unresolvable; "
+            f"warning: diff base {resolved_base_ref} unresolvable; "
             "blocking on every ruff finding in the changed files",
             file=sys.stderr,
         )

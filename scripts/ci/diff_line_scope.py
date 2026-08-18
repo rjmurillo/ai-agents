@@ -24,12 +24,15 @@ Canonical contract, quoted verbatim from
 
 Stricter/looser/different than canonical:
     * Different: ``parse_changed_lines`` unquotes C-style quoted paths in the
-      ``+++ b/"..."`` header. The mypy copy did not, so a filename containing a
+      ``+++ "b/..."`` header. The mypy copy did not, so a filename containing a
       quote, a backslash, or a control character produced a map key that never
       matched the tool-reported path, silently blocking on every finding in
-      that file. Callers pass ``-c core.quotePath=false`` (see
-      ``git_diff_unified_zero``) so non-ASCII stays raw and only genuinely
-      special characters are escaped.
+      that file. Git quotes the ``b/`` prefix inside the quotes, so the prefix
+      is stripped after unquoting, not by the header pattern.
+    * Different: ``changed_line_map`` runs the diff with no pathspec and
+      filters the parsed result. A pathspec defeats rename detection, which
+      turns a renamed file into a full-file add and blocks on every latent
+      finding in it. See ``git_diff_unified_zero``.
     * Same: everything else. Hunk-span semantics, the deletion-only and
       pure-rename carve-outs, and ``normalize_path`` are byte-identical to the
       canonical source, which now imports them from here.
@@ -45,11 +48,13 @@ import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 
-# Unified diff (``--unified=0``) markers. ``+++ b/<path>`` names the file with
-# stable prefixes; the optional prefix keeps parser tests honest against
-# diff.noprefix drift. The ``+c,d`` field of each hunk header is the changed-line
-# span (post-image).
-DIFF_ADDED_FILE_RE = re.compile(r"^\+\+\+ (?:b/)?(?P<path>.+)$")
+# Unified diff (``--unified=0``) markers. ``+++ b/<path>`` names the file. The
+# ``b/`` prefix is NOT stripped here: git quotes the prefix together with the
+# path (``+++ "b/od\"d.py"``), so a pattern that strips it before unquoting
+# leaves ``b/`` embedded in the key for exactly the names that need unquoting.
+# ``file_header_path`` unquotes first, then strips. The ``+c,d`` field of each
+# hunk header is the changed-line span (post-image).
+DIFF_ADDED_FILE_RE = re.compile(r"^\+\+\+ (?P<path>.+)$")
 DIFF_HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(?P<start>\d+)(?:,(?P<count>\d+))? @@")
 
 
@@ -96,9 +101,10 @@ def unquote_diff_path(path: str) -> str:
 
     Git wraps a path in double quotes and C-escapes it when the name carries a
     quote, a backslash, or a control character (``quote_c_style`` in git's
-    ``quote.c``). Callers set ``core.quotePath=false`` so non-ASCII stays raw;
-    git's own output encoding already decoded it, so only the backslash escapes
-    need undoing here.
+    ``quote.c``). ``git_diff_unified_zero`` sets ``core.quotePath=false`` so
+    non-ASCII stays raw and git's own output encoding has already decoded it.
+    Octal escapes are still decoded here, because a caller running with the
+    default ``core.quotePath=true`` gets every non-ASCII byte escaped.
 
     An unquoted path is returned unchanged, so this is safe to call on every
     header line. An escape git does not emit is kept literally rather than
@@ -131,6 +137,21 @@ def unquote_diff_path(path: str) -> str:
     return "".join(out)
 
 
+def file_header_path(raw: str) -> str | None:
+    """Turn a ``+++`` header payload into a repo-relative path.
+
+    Unquoting runs before the ``b/`` prefix is stripped because git quotes the
+    prefix and the path as one unit. ``None`` marks ``/dev/null``, the
+    post-image of a deletion, which owns no post-image line.
+    """
+    unquoted = unquote_diff_path(raw)
+    if unquoted.strip() == "/dev/null":
+        return None
+    if unquoted.startswith("b/"):
+        unquoted = unquoted[2:]
+    return normalize_path(unquoted)
+
+
 def parse_changed_lines(diff_text: str) -> dict[str, set[int]]:
     """Return post-image line numbers touched per path in ``diff_text``.
 
@@ -141,7 +162,9 @@ def parse_changed_lines(diff_text: str) -> dict[str, set[int]]:
     for line in diff_text.splitlines():
         file_match = DIFF_ADDED_FILE_RE.match(line)
         if file_match is not None:
-            current = normalize_path(unquote_diff_path(file_match.group("path")))
+            current = file_header_path(file_match.group("path"))
+            if current is None:
+                continue
             changed.setdefault(current, set())
             continue
         hunk_match = DIFF_HUNK_RE.match(line)
@@ -157,9 +180,16 @@ def parse_changed_lines(diff_text: str) -> dict[str, set[int]]:
 def git_diff_unified_zero(
     base_ref: str,
     repo_root: Path,
-    paths: Sequence[str],
 ) -> subprocess.CompletedProcess[str]:
-    """Run the zero-context diff the line map is parsed from."""
+    """Run the zero-context diff the line map is parsed from.
+
+    No pathspec is passed. A pathspec drops the delete half of a rename pair
+    before ``diffcore_rename`` runs, so git reports the post-image as a new
+    file with a full ``@@ -0,0 +1,N @@`` hunk. Every latent finding in a
+    renamed file would then look like an authored line and block the push,
+    which is the defect this module exists to stop. Callers filter the parsed
+    map instead.
+    """
     return subprocess.run(
         [
             "git",
@@ -170,9 +200,8 @@ def git_diff_unified_zero(
             "diff",
             "--unified=0",
             "--no-color",
+            "--find-renames",
             f"{base_ref}...HEAD",
-            "--",
-            *paths,
         ],
         check=False,
         capture_output=True,
@@ -195,10 +224,13 @@ def changed_line_map(
     """
     if not paths:
         return {}
-    result = git_diff_unified_zero(base_ref, repo_root, paths)
+    result = git_diff_unified_zero(base_ref, repo_root)
     if result.returncode != 0:
         return None
-    return parse_changed_lines(result.stdout)
+    wanted = {normalize_path(path) for path in paths}
+    return {
+        path: rows for path, rows in parse_changed_lines(result.stdout).items() if path in wanted
+    }
 
 
 def intersects_changed_lines(

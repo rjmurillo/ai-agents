@@ -75,7 +75,7 @@ def test_passes_without_changed_python_files(
     recorder = RunRecorder([completed(0, names("README.md", "scripts/example.txt"))])
     monkeypatch.setattr(ruff_ratchet.subprocess, "run", recorder)
 
-    status, files = ruff_ratchet.changed_python_files("origin/main", tmp_path)
+    status, files, _base = ruff_ratchet.changed_python_files("origin/main", tmp_path)
     exit_code = ruff_ratchet.run_ruff(files, tmp_path, {})
 
     assert status == ruff_ratchet.EXIT_OK
@@ -107,7 +107,7 @@ def test_changed_python_files_keeps_quotable_path_raw(
     recorder = RunRecorder([completed(0, names("scripts/od'd.py"))])
     monkeypatch.setattr(ruff_ratchet.subprocess, "run", recorder)
 
-    status, files = ruff_ratchet.changed_python_files("origin/main", tmp_path)
+    status, files, _base = ruff_ratchet.changed_python_files("origin/main", tmp_path)
 
     assert status == ruff_ratchet.EXIT_OK
     assert files == ["scripts/od'd.py"]
@@ -122,7 +122,7 @@ def test_changed_python_files_includes_renamed_python_files(
     recorder = RunRecorder([completed(0, names("scripts/renamed.py"))])
     monkeypatch.setattr(ruff_ratchet.subprocess, "run", recorder)
 
-    status, files = ruff_ratchet.changed_python_files("origin/main", tmp_path)
+    status, files, _base = ruff_ratchet.changed_python_files("origin/main", tmp_path)
 
     assert status == ruff_ratchet.EXIT_OK
     assert files == ["scripts/renamed.py"]
@@ -142,7 +142,7 @@ def test_changed_python_files_falls_back_when_base_ref_is_stale(
     )
     monkeypatch.setattr(ruff_ratchet.subprocess, "run", recorder)
 
-    status, files = ruff_ratchet.changed_python_files("stale-before-sha", tmp_path)
+    status, files, _base = ruff_ratchet.changed_python_files("stale-before-sha", tmp_path)
 
     assert status == ruff_ratchet.EXIT_OK
     assert files == ["scripts/fallback.py"]
@@ -158,7 +158,7 @@ def test_passes_when_changed_python_files_are_clean(
     recorder = RunRecorder([completed(0, names("scripts/clean.py")), completed(0, "[]")])
     monkeypatch.setattr(ruff_ratchet.subprocess, "run", recorder)
 
-    status, files = ruff_ratchet.changed_python_files("origin/main", tmp_path)
+    status, files, _base = ruff_ratchet.changed_python_files("origin/main", tmp_path)
     exit_code = ruff_ratchet.run_ruff(files, tmp_path, {"scripts/clean.py": {1}})
 
     assert status == ruff_ratchet.EXIT_OK
@@ -332,7 +332,7 @@ def test_git_diff_failure_is_external_error(
     )
     monkeypatch.setattr(ruff_ratchet.subprocess, "run", recorder)
 
-    status, files = ruff_ratchet.changed_python_files("missing-ref", tmp_path)
+    status, files, _base = ruff_ratchet.changed_python_files("missing-ref", tmp_path)
 
     assert status == ruff_ratchet.EXIT_EXTERNAL
     assert files == []
@@ -341,3 +341,65 @@ def test_git_diff_failure_is_external_error(
 
 def test_main_rejects_a_non_git_repo_root(tmp_path: Path) -> None:
     assert ruff_ratchet.main(["--repo-root", str(tmp_path)]) == ruff_ratchet.EXIT_CONFIG
+
+
+def test_main_builds_the_line_map_from_the_ref_that_resolved(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Regression: main used to pass the requested ref to changed_line_map even
+    # when the file list came from the origin/main fallback. The stale ref
+    # failed, the map dropped to None, and the gate blocked on every finding.
+    (tmp_path / ".git").mkdir()
+    changed_file = tmp_path / "scripts" / "fallback.py"
+    changed_file.parent.mkdir()
+    changed_file.write_text("print('ok')\n", encoding="utf-8")
+    recorder = RunRecorder(
+        [
+            completed(128, stderr="fatal: bad revision\n"),
+            completed(0, names("scripts/fallback.py")),
+            completed(0, "[]"),
+        ]
+    )
+    monkeypatch.setattr(ruff_ratchet.subprocess, "run", recorder)
+    seen: list[str] = []
+    monkeypatch.setattr(
+        ruff_ratchet,
+        "changed_line_map",
+        lambda base_ref, _root, _paths: seen.append(base_ref) or {},
+    )
+
+    exit_code = ruff_ratchet.main(["--base-ref", "stale-sha", "--repo-root", str(tmp_path)])
+
+    assert exit_code == ruff_ratchet.EXIT_OK
+    assert seen == ["origin/main"]
+
+
+def test_finding_outside_the_repo_root_blocks(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # A path that cannot be placed inside the repo can never match the map, so
+    # passing it would make every finding in that file silently non-blocking.
+    payload = json.dumps([finding("/elsewhere/outside.py", 3)])
+    recorder = RunRecorder([completed(1, payload)])
+    monkeypatch.setattr(ruff_ratchet.subprocess, "run", recorder)
+
+    exit_code = ruff_ratchet.run_ruff(["scripts/a.py"], tmp_path, {})
+
+    assert exit_code == ruff_ratchet.EXIT_VIOLATIONS
+
+
+def test_finding_with_a_null_row_does_not_raise(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    malformed = {
+        "code": "E501",
+        "message": "Line too long",
+        "filename": "scripts/a.py",
+        "location": {"row": None, "column": 1},
+    }
+    recorder = RunRecorder([completed(1, json.dumps([malformed]))])
+    monkeypatch.setattr(ruff_ratchet.subprocess, "run", recorder)
+
+    exit_code = ruff_ratchet.run_ruff(["scripts/a.py"], tmp_path, {"scripts/a.py": {1}})
+
+    assert exit_code == ruff_ratchet.EXIT_VIOLATIONS
