@@ -55,7 +55,9 @@ is repaired.
 
 from __future__ import annotations
 
+import functools
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -129,19 +131,43 @@ KNOWN_ADO_DOC_PATHS = (
     Path("src/copilot-cli/skills/ship/SKILL.md"),
 )
 
-# Directories with no authored documentation to guard.
-_SCAN_EXCLUDED_DIRS = frozenset({".git", "node_modules", "tests", ".venv", "dist"})
+# The test tree carries deliberate offender strings as fixtures, so it is never scanned.
+_SCAN_EXCLUDED_DIRS = frozenset({"tests"})
+
+
+@functools.lru_cache(maxsize=1)
+def _tracked_markdown() -> tuple[Path, ...]:
+    """Return every git-tracked markdown path, relative to the repo root.
+
+    Tracked files rather than a filesystem walk, because a walk is not hermetic here. The
+    mutation-test harness materializes whole copies of the repo under
+    ``.pytest_cache/mutation-worktrees/<hash>/``, and those copies appear and disappear
+    while the suite runs. Under ``pytest -n 4`` this module scanned another test's scratch
+    tree mid-write: the guard passed in isolation and failed the full parallel suite at the
+    pre-push gate. Asking git for tracked files sees authored documentation only, which is
+    what this guard is about, and cannot race a temporary directory.
+    """
+    result = subprocess.run(
+        ["git", "ls-files", "-z", "*.md"],
+        capture_output=True,
+        check=True,
+        cwd=REPO_ROOT,
+        encoding="utf-8",
+    )
+    return tuple(Path(name) for name in result.stdout.split("\0") if name)
 
 
 def ado_doc_paths() -> list[Path]:
-    """Return every markdown file in the repo that invokes `az repos pr`.
+    """Return every tracked markdown file that mentions `az repos pr`.
 
     Repo-wide rather than a fixed list so a new skill, command, or runbook that documents
     the command is guarded the day it lands, with nobody needing to remember this module.
     """
     found: list[Path] = []
-    for absolute in sorted(REPO_ROOT.rglob("*.md")):
-        relative = absolute.relative_to(REPO_ROOT)
+    for relative in _tracked_markdown():
+        absolute = REPO_ROOT / relative
+        if not absolute.is_file():
+            continue
         if _SCAN_EXCLUDED_DIRS.intersection(relative.parts):
             continue
         if "az repos pr" in absolute.read_text(encoding="utf-8"):
@@ -236,6 +262,22 @@ class TestIdScopedCommandsRejectProjectFlags:
             "project/repository flags passed to an ID-scoped `az repos pr` subcommand; "
             f"the Azure CLI rejects the whole call: {offenders}"
         )
+
+    def test_scan_is_hermetic_under_parallel_runs(self) -> None:
+        """The scan must never reach a scratch tree another test is writing.
+
+        Regression: a filesystem walk picked up `.pytest_cache/mutation-worktrees/<hash>/`
+        copies of the whole repo, so this module passed alone and failed the full
+        `pytest -n 4` suite at the pre-push gate. Every scanned path must be tracked.
+        """
+        scanned = ado_doc_paths()
+        assert scanned, "scan must find the documents that exist"
+        tracked = set(_tracked_markdown())
+        assert set(scanned) <= tracked, (
+            f"scan reached untracked paths: {sorted(set(scanned) - tracked)}"
+        )
+        volatile = [p for p in scanned if any(part.startswith(".pytest") for part in p.parts)]
+        assert volatile == [], f"scan reached pytest scratch trees: {volatile}"
 
     def test_scan_still_covers_the_known_documents(self) -> None:
         """A rename that drops a file out of the scan must not pass silently."""
