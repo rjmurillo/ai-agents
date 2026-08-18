@@ -116,6 +116,28 @@ def _run_hook(
     )
 
 
+def _registered_events(install_root: Path) -> list[str]:
+    """Read the events the installed plugin actually registers.
+
+    Hardcoding the list went stale the moment an event lost its last group:
+    issue #5154 retired the only PostToolUse group, and a fixed
+    ``["PreToolUse", "PostToolUse"]`` then reported a missing dispatcher for an
+    event the plugin no longer ships. Reading ``hooks.json`` keeps the #4672
+    property that matters, which is that a missing dispatcher for a REGISTERED
+    event is a failure and never a skip. An empty or unreadable manifest is
+    itself a failure in the caller, so this never certifies an empty run.
+    """
+    manifest = install_root / "hooks" / "hooks.json"
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return []
+    hooks = data.get("hooks") if isinstance(data, dict) else None
+    if not isinstance(hooks, dict):
+        return []
+    return [event for event, entries in hooks.items() if isinstance(entries, list) and entries]
+
+
 def _find_dispatcher(install_root: Path, event: str) -> Path | None:
     """Find the _dispatch.py for an event, refusing anything outside the root.
 
@@ -174,7 +196,10 @@ def main() -> int:
     _create_consumer_repo(args.consumer_cwd)
 
     payload = _bash_payload()
-    events_to_test = ["PreToolUse", "PostToolUse"]
+    events_to_test = _registered_events(args.install_root)
+    if not events_to_test:
+        print(f"ERROR: no hook events registered in {args.install_root}", file=sys.stderr)
+        return 1
     failures = 0
 
     for event in events_to_test:
