@@ -3,16 +3,26 @@
   "session": "2026-08-18-session-99918-b3a3fed1d-fix-issue-5142-minimum_aggregators_examined-stale",
   "timestamp": "2026-08-18T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Fix issue #5142: MINIMUM_AGGREGATORS_EXAMINED stale after #5132/#5135 workflow deletions",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-18T01:46:17+00:00",
+      "type": "commit",
+      "content": "Commit: f7e201b516",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-18-session-99918-b3a3fed1d-fix-issue-5142-minimum_aggregators_examined-stale"
+    }
+  ],
   "metrics": {
     "duration_minutes": null,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 3
   },
   "lessons": []
