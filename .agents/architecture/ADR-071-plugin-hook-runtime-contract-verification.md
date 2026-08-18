@@ -33,7 +33,7 @@ the corrected shim count and timeout sum. Debate log:
 Amended 2026-08-18 (issue #5154): ADR-085 section 8 is the policy authority
 for deleting `push_pr_script_identity_guard` from both harnesses. Its warrant
 is the owner's security judgment about what the guard bounded, not ADR-084's
-ROI bar, which `.agents/architecture/ADR-084-vendored-hook-roi-bar.md:145-148`
+ROI bar, which `.agents/architecture/ADR-084-vendored-hook-roi-bar.md ("What this ADR does NOT do")`
 forbids using to retire a security control. That deletion supersedes the
 2026-08-14 Copilot-only exclusion, so the exclusion is moot on both sides.
 This ADR records only the derived runtime-contract metrics that follow. The
@@ -280,7 +280,7 @@ ADR-085 section 8 is the policy authority for the deletion. It records the
 owner's classification of the disposition as deleted under section 7's
 reintroduction gate 8, and it rests that classification on the owner's
 security judgment about the guard's threat model, not on ADR-084's ROI bar:
-`.agents/architecture/ADR-084-vendored-hook-roi-bar.md:145-148` forbids using
+`.agents/architecture/ADR-084-vendored-hook-roi-bar.md ("What this ADR does NOT do")` forbids using
 that bar to retire a security control, and section 8 complies by changing the
 warrant. Section 8 also records the measured 102 ms per-Bash-call cost as
 context, notes that the figure is not reproducible once the dispatch group is
@@ -506,7 +506,7 @@ item 5.)
   harnesses; policy owned by ADR-085 section 8).
 - ADR-085. Cross-harness permission-surface asymmetry; owns the security
   judgment behind the 2026-08-14 and 2026-08-18 amendments above.
-- `.agents/architecture/ADR-084-vendored-hook-roi-bar.md:145-148`. The
+- `.agents/architecture/ADR-084-vendored-hook-roi-bar.md ("What this ADR does NOT do")`. The
   security-control carve-out that ADR-085 section 8 complies with by not
   invoking the ROI bar. ADR-084 is not the driver for the 2026-08-18 deletion.
 - `.agents/critique/ADR-068-071-085-5013-debate-log.md`. Issue #5013

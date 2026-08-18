@@ -19,9 +19,19 @@ of the issue #3197 vendored-hook ROI review. adr-review consensus recorded
 that #3197 authorizes needs a written bar so the vendored surface does not
 re-accrete.
 
+Amended 2026-08-18 (repo-owner @rjmurillo) to add rule 6, a bar on the per-call
+events. Rule 3 is unchanged. The amendment's adr-review reached round 1 with 3
+Block, 2 Disagree-and-Commit, and 1 conditional Accept; the record and the
+resolution of every blocking finding are at
+`.agents/critique/ADR-084-rule-6-tool-use-bar-debate-log.md`. See the Amendment
+Record below. The
+security carve-out under "What this ADR does NOT do" is unchanged and still
+binds: this amendment tightens an ROI preference, and neither it nor the
+original bar authorizes retiring a genuine security control.
+
 ## Date
 
-2026-07-20
+2026-07-20; amended 2026-08-18
 
 ## Context
 
@@ -70,7 +80,7 @@ Internal enforcement already has a home that costs the consumer nothing:
 A hook may ship in a vendored plugin surface only if it delivers value in a
 consumer's own repository. Internal dev-protocol enforcement stays in
 Lefthook and CI. Prefer host-native declarations over process-spawning
-hooks. Concretely, the bar is five rules:
+hooks. Concretely, the bar is six rules:
 
 1. **Consumer-repo value is required.** A vendored hook MUST state the value it
    delivers in a consumer's own repo. "Enforces our protocol" is disqualifying:
@@ -88,7 +98,9 @@ hooks. Concretely, the bar is five rules:
    arguments or file content, or conditional branching a static declaration
    cannot encode), a spawning hook is the right tool and this rule does not
    apply. The preference is for the declarative surface where it achieves the
-   same effect, not a ban on hooks that do work no declaration can.
+   same effect, not a ban on hooks that do work no declaration can. For
+   `PreToolUse` and `PostToolUse`, clearing this rule is necessary but not
+   sufficient; rule 6 adds the tool-use bar.
 4. **Self-neutering hooks are banned from the vendored surface.** A hook that
    no-ops in consumer repos because it gates on the git origin
    (`skip_if_consumer_repo`) or on repo-root paths the plugin does not vendor
@@ -105,6 +117,44 @@ hooks. Concretely, the bar is five rules:
    surface, so a new hook cannot land without stating who it helps. Until then,
    human review at ADR and PR time enforces the rule and judges whether the
    stated value is real.
+6. **Tool-use events clear an additional bar (added 2026-08-18).** For
+   `PreToolUse` and `PostToolUse`, inability to express the check declaratively
+   is where the analysis starts, not where it ends. Their cost scales with how
+   hard the agent is working, which the session-boundary events do not. They are
+   not the only per-call events (`PermissionRequest` shares both the per-call
+   cost and the tool-name-only matcher, and
+   `build/scripts/generate_dispatcher.py:517` already groups all three in
+   `_MATCHER_EVENTS`), but they are where vendored hooks are registered today;
+   this rule applies unchanged to `PermissionRequest` if one is registered
+   there. Such a hook requires BOTH:
+
+   a. An outcome that far outweighs the per-call spawn cost: a costly mistake,
+      an irrecoverable loss, or a security property enforced by denial at agent
+      time. A shorter feedback loop is not on its own a justification.
+
+   b. No other placement that would work CORRECTLY. A Git hook, a lefthook job,
+      a CI check, and a server-side gate must each be ruled out on the record.
+      "Correctly" is load-bearing: a check whose subject never reaches a commit
+      (an executed command, a sub-agent spawn, a tool argument), or whose value
+      is prevention where the later surface only detects, is not covered by
+      those surfaces merely because they exist.
+
+   **Rule 1 constrains (b), and this limit is load-bearing.** For a VENDORED
+   hook whose value is consumer-facing, none of those four placements is a valid
+   alternative, because a consumer installs this repository's Lefthook, CI, and
+   server-side gates not at all. Re-homing such a check there does not relocate
+   consumer coverage, it removes it. Deleting a consumer-facing hook on that
+   reasoning drops consumer coverage to zero and MUST be recorded as such, per
+   ADR-085 Decision 10. A placement that catches the outcome rather than the
+   execution, or that does not travel with the plugin, does not count as ruling
+   out a security control; the carve-out under "What this ADR does NOT do"
+   binds this rule exactly as it binds the ROI bar, and rule 6 is a cost test,
+   not a route around it.
+
+   The worked cost model lives in `.claude/rules/tool-use-hook-bar.md`. The
+   per-event matcher union that makes the cost larger than a Claude-side matcher
+   suggests is ADR-068's consolidation decision, not a host property; see
+   ADR-068 "Decision" and its re-evaluation trigger on union widening.
 
 ## Consequences
 
@@ -161,9 +211,76 @@ hooks. Concretely, the bar is five rules:
   under #3214. This ADR is the general bar; the ADR-062 amendment is the first
   application of it.
 
+## Amendment Record
+
+**2026-08-18, rule 3, tool-use events only.** The original rule 3 treated
+"the host cannot express this declaratively" as sufficient warrant for a
+spawning hook. Two measured properties of the Copilot surface show that is too
+weak for `PreToolUse` and `PostToolUse`.
+
+Copilot's native matcher targets are tool names. For `preToolUse` and
+`postToolUse` the target is `toolName`, per the hook reference recorded in
+`.claude/skills/agent-harness-reference/references/official-hook-contracts.md`.
+There is no argument-scoped form, so a Claude-side `Bash(git push*)` matcher
+has no Copilot equivalent and degrades to bare `Bash`. The generated matcher
+shim re-reads the payload and skips, after the interpreter has already started.
+
+Copilot also registers one command per event, so the host matcher is the union
+of every registered group's matcher. Measured on `origin/main` before the issue
+#5154 retirements, `src/copilot-cli/hooks/hooks.json` carried
+`"PreToolUse" -> "Bash|Agent|Task"` and `"PostToolUse" -> "Write|Edit"`. One
+markdownlint guard scoped to `Bash(git push*)` therefore put bare `Bash` into
+that union and cost a consumer a process spawn on every Bash call in the
+session. A badly scoped tool-use hook does not only cost what it does; it taxes
+every unrelated call that shares its event.
+
+**The primary evidence is blast radius, not latency.** ADR-085 lines 428 to 431
+record issue #5013: `push_pr_script_identity_guard` on a bare `Bash` matcher,
+combined with the Copilot dispatcher's timed child-process deny (#4706), denied
+127 unrelated Bash commands over more than 21 minutes before the owner contained
+it. A wrong deny on a hot tool takes out unrelated work; that is the failure
+mode rule 6 exists to price.
+
+A third mechanism sets the ceiling above union widening.
+`event_matcher_union` (`build/scripts/generate_dispatcher.py:556`) returns
+`None` when ANY registered matcher fails to reduce to a known tool name, and its
+docstring states the consequence: "emit no matcher; the dispatcher fires on
+every call and filters in-process". One unreducible matcher, such as an MCP tool
+name, therefore deletes the matcher for every hook on that event.
+
+The latency figures are supporting evidence and are weaker than they look. The
+owner's stated platform cost is 50 to 100 ms per spawn on Windows, worse on
+a loaded machine. That figure is owner-recalled and is measured nowhere in this
+repository. The one Windows figure on record is not the same measurement:
+ADR-068 line 150 records a "HISTORICAL Windows cold start of about 246 ms for
+`py -3 -u <shim>`", a cold start of the older per-shim launcher rather than a
+warm per-spawn cost under the current dispatcher. Measured clean-path dispatcher
+cost on Linux under Python 3.14.6, median of 3 to 5 runs (issue #5154): 102 ms
+for a bare-`Bash` guard, 74 ms on `Write|Edit`, 71 ms on `Agent|Task`, 498 ms on
+`Bash(git push*)`. Quote the platform and the measurement basis with any figure;
+none of these are interchangeable. Two caveats the #5154 debate log records and
+this ADR carries forward: the three retired figures are not reproducible from
+the tree once their dispatch groups are deleted, and the 498 ms figure is not a
+spawn cost at all. It is 4.9x the bare-`Bash` figure for a strictly narrower
+matcher, so it measures the guard's own work (subprocess, git, markdownlint),
+not interpreter start. An independent run on other Linux hardware measured the
+surviving dispatcher at 132 ms against the 71 ms recorded here, a 1.9x spread on
+one platform.
+
+The amendment does not rest on the Windows figure. The Linux measurements and
+the matcher-union mechanism above are sufficient on their own.
+
+What the amendment does not change: rules 1, 2, 4, and 5; the security
+carve-out; and rule 3's original reading for every event other than the two
+tool-use events.
+
 ## References
 
 - Issue #3215 (this ADR request), issue #3197 (vendored-hook ROI review).
+- Issue #5154 and ADR-085 Decisions 8, 9, 10 (the retirements rule 6 generalizes).
+- Issue #5013 and ADR-085 lines 428 to 431 (127 wrong denials; rule 6's primary evidence).
+- ADR-068 (consolidated dispatcher), which owns the one-entry-per-event invariant.
+- `.agents/critique/ADR-084-rule-6-tool-use-bar-debate-log.md` (rule 6 debate).
 - Issue #3216, issue #3217, issue #3218 (the elimination this bar governs).
 - Issue #3219 (portable auth-edit hook, rebuilt on consumer demand).
 - The ADR-062 amendment under issue #3214 (first application of this bar).

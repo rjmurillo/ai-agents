@@ -75,7 +75,7 @@ arbitrary code never needed `new_pr.py` to open a pull request. The owner
 judged that residual slice not worth a 102 ms tax on every Bash call. Cost is
 context for that judgment, not its authority. This decision does not invoke
 ADR-084's ROI bar, because
-`.agents/architecture/ADR-084-vendored-hook-roi-bar.md:145-148` forbids it:
+`.agents/architecture/ADR-084-vendored-hook-roi-bar.md ("What this ADR does NOT do")` forbids it:
 "It does not authorize retiring an actual security control... a future
 reviewer must not use this ADR's ROI bar to retire it." Section 8 complies by
 changing the warrant rather than arguing the carve-out away. The 102 ms figure
@@ -559,7 +559,7 @@ number is not reproducible from the tree afterward. It is recorded here as
 measured-then evidence, not as a figure a later reader can re-derive.
 
 **ADR-084's carve-out, and why this decision does not invoke the ROI bar.**
-`.agents/architecture/ADR-084-vendored-hook-roi-bar.md:145-148` states: "It
+`.agents/architecture/ADR-084-vendored-hook-roi-bar.md ("What this ADR does NOT do")` states: "It
 does not authorize retiring an actual security control. A hook that enforces a
 security property in consumer repos earns its place by that property, not by
 an ROI cost-benefit veto, and a future reviewer must not use this ADR's ROI
@@ -616,7 +616,7 @@ model issues.
 **Rationale: placement, not ROI.** This is a judgment about where a check
 belongs, not a cost-benefit veto on whether the check is worth running. The
 check keeps running; it moves to the scheduler whose trigger matches its
-subject. ADR-084's carve-out at lines 145 to 148 governs retiring an actual
+subject. ADR-084's carve-out under "What this ADR does NOT do" governs retiring an actual
 security control by ROI. Markdown lint is a formatting gate, no ROI argument
 is offered here, so the carve-out does not arise. ADR-086 makes Lefthook the
 sole Git-hook scheduler in this repository, which is the surface that receives
@@ -668,7 +668,7 @@ Write and every Edit. The per-tool-call trigger is the thing being rejected,
 not the linting.
 
 **Rationale: placement, not ROI.** As in section 9, no ROI argument is offered
-and ADR-084's carve-out at lines 145 to 148 does not arise, because a markdown
+and ADR-084's carve-out under "What this ADR does NOT do" does not arise, because a markdown
 auto-fixer is not a security control. A file-by-file auto-fix on every edit
 also does work a single pre-commit pass does once, so the commit-time
 scheduler is the cheaper and more predictable home for it.
@@ -859,7 +859,7 @@ retirement or replacement requires a new architecture decision.
   unfaithful carrier: D-A retires one guard, while D-B deletes the unsafe
   approval goal.
 - ADR-084 (#3215): the vendored-hook ROI bar and the no-self-neuter rule that D-A
-  applies. Its lines 145 to 148 carve security controls out of the ROI bar.
+  applies. Its "What this ADR does NOT do" section carves security controls out of the ROI bar.
   Decisions 8, 9, and 10 do not invoke the bar: section 8 rests on the owner's
   security judgment, and sections 9 and 10 rest on a placement judgment. Rule
   4, the no-self-neuter rule, is what section 9's settled fact shows the
@@ -885,7 +885,7 @@ retirement or replacement requires a new architecture decision.
   outcome, not the execution, that Decision 8's deleted guard used to bound
   locally. It is not part of the vendored plugin surface, so it reaches no
   plugin consumer.
-- `.agents/architecture/ADR-084-vendored-hook-roi-bar.md:145-148`, the
+- `.agents/architecture/ADR-084-vendored-hook-roi-bar.md ("What this ADR does NOT do")`, the
   carve-out that Decision 8 complies with by not invoking the ROI bar.
 - `.agents/critique/ADR-084-debate-log.md:17`, the reviewer verification that
   Decision 9 corrects with the source.

@@ -111,7 +111,7 @@ Amended 2026-08-18 (issue #5154): ADR-085 section 8 is the policy authority
 for deleting `push_pr_script_identity_guard` from both harnesses, superseding
 the 2026-08-14 Copilot-only exclusion. Its warrant is the owner's security
 judgment about what the guard bounded, not ADR-084's ROI bar, which
-`.agents/architecture/ADR-084-vendored-hook-roi-bar.md:145-148` forbids using
+`.agents/architecture/ADR-084-vendored-hook-roi-bar.md ("What this ADR does NOT do")` forbids using
 to retire a security control. Section 8 also records that the server-side
 `.github/workflows/pr-validation.yml` gate catches the outcome, not the
 execution, and reaches no plugin consumer because `.github/workflows/` is
@@ -678,7 +678,7 @@ important ways:
 - `.github/workflows/pr-validation.yml`: server-side gate that catches the
   outcome, not the execution, that the deleted identity guard bounded locally.
   Outside the vendored plugin surface, so no plugin consumer receives it.
-- `.agents/architecture/ADR-084-vendored-hook-roi-bar.md:145-148`: the
+- `.agents/architecture/ADR-084-vendored-hook-roi-bar.md ("What this ADR does NOT do")`: the
   security-control carve-out that keeps the ROI bar out of ADR-085 section 8's
   warrant.
 - `build/scripts/generate_dispatcher.py`: dispatcher artifact owner.
