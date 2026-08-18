@@ -2888,6 +2888,25 @@ class TestClassifyArgvToken:
         assert kind == _dispatcher._ARGV_EXTERNAL
         assert value == str(target.resolve())
 
+    def test_escaping_symlink_missed_by_the_precheck_still_fails_closed(
+        self, tmp_path, tmp_path_factory, monkeypatch,
+    ):
+        # Defense in depth: if the symlink pre-check misses a link (for
+        # example one created between the check and the resolve), the
+        # containment comparison must still refuse it.
+        outside = tmp_path_factory.mktemp("outside")
+        target = outside / "real.py"
+        target.write_text("x", encoding="utf-8")
+        link = tmp_path / "verify.py"
+        link.symlink_to(target)
+        monkeypatch.setattr(
+            _dispatcher, "_first_symlinked_component", lambda *_a: None,
+        )
+
+        assert _dispatcher._classify_argv_token(str(link), tmp_path) == (
+            _dispatcher._ARGV_ESCAPES, str(link),
+        )
+
     def test_nonexistent_path_outside_work_tree_is_skipped(self, tmp_path):
         assert _dispatcher._classify_argv_token(
             "/nonexistent/x.py", tmp_path,
@@ -2915,6 +2934,164 @@ class TestClassifyArgvToken:
         assert _dispatcher._classify_argv_token(
             "/elsewhere/x.py", tmp_path,
         ) == (_dispatcher._ARGV_SKIP, "")
+
+
+class TestImportClosureBranches:
+    """Unit coverage for the closure helpers, including the defensive
+    branches the end-to-end tests cannot reach (100% requirement for
+    security-critical code).
+    """
+
+    def test_unparseable_source_yields_no_imports(self):
+        assert _dispatcher._imported_module_names(b"def (:\n") == []
+
+    def test_source_with_null_byte_yields_no_imports(self):
+        # ast.parse raises ValueError, not SyntaxError, on embedded nulls.
+        assert _dispatcher._imported_module_names(b"x = '\x00'\n") == []
+
+    def test_absolute_and_relative_imports_are_reported_with_levels(self):
+        found = _dispatcher._imported_module_names(
+            b"import os\nfrom pkg import a\nfrom . import b\nfrom ..up import c\n",
+        )
+
+        assert (0, "os") in found
+        assert (0, "pkg") in found and (0, "pkg.a") in found
+        assert (1, "b") in found
+        assert (2, "up") in found and (2, "up.c") in found
+
+    def test_import_roots_stop_at_the_work_tree(self, tmp_path):
+        (tmp_path / "lib").mkdir()
+        script = tmp_path / "skills" / "pr" / "verify.py"
+        script.parent.mkdir(parents=True)
+        script.write_text("", encoding="utf-8")
+
+        roots = _dispatcher._import_roots(script, tmp_path)
+
+        assert roots[0] == script.parent
+        assert tmp_path / "lib" in roots
+        assert roots[-1] == tmp_path
+        assert all(_dispatcher._is_within(r, tmp_path) for r in roots)
+
+    def test_package_init_resolves_when_module_file_is_absent(self, tmp_path):
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("", encoding="utf-8")
+
+        assert _dispatcher._resolve_module_file("pkg", [tmp_path], tmp_path) == (
+            "pkg/__init__.py"
+        )
+
+    def test_empty_dotted_name_resolves_to_nothing(self, tmp_path):
+        assert _dispatcher._resolve_module_file("", [tmp_path], tmp_path) is None
+
+    def test_stdlib_name_resolves_to_nothing(self, tmp_path):
+        assert _dispatcher._resolve_module_file("json", [tmp_path], tmp_path) is None
+
+    def test_symlinked_module_is_not_resolved_as_a_closure_member(
+        self, tmp_path, tmp_path_factory,
+    ):
+        # A module reached through a symlink must not be silently
+        # verified at its target; _classify_argv_token fails those
+        # closed and the closure simply declines to follow one.
+        outside = tmp_path_factory.mktemp("outside")
+        target = outside / "real.py"
+        target.write_text("", encoding="utf-8")
+        (tmp_path / "mod.py").symlink_to(target)
+
+        assert _dispatcher._resolve_module_file("mod", [tmp_path], tmp_path) is None
+
+    def test_unreadable_script_is_skipped_by_the_closure(self, tmp_path, monkeypatch):
+        (tmp_path / "verify.py").write_text("import os\n", encoding="utf-8")
+
+        def _boom(self: Path) -> bytes:
+            raise OSError("io broke")
+
+        monkeypatch.setattr(Path, "read_bytes", _boom)
+
+        assert _dispatcher._expand_import_closure(["verify.py"], tmp_path) == [
+            "verify.py",
+        ]
+
+    def test_non_python_named_file_is_not_walked(self, tmp_path):
+        assert _dispatcher._expand_import_closure(["data.json"], tmp_path) == [
+            "data.json",
+        ]
+
+
+class TestFirstSymlinkedComponentBranches:
+    """Unit coverage for the shared symlink-component helper."""
+
+    def test_unstattable_component_fails_closed(self, tmp_path, monkeypatch):
+        def _boom(self: Path) -> bool:
+            raise OSError("stat broke")
+
+        monkeypatch.setattr(Path, "is_symlink", _boom)
+
+        # The first component at or below the root is the root itself,
+        # and an unstattable component is reported rather than skipped.
+        assert _dispatcher._first_symlinked_component(
+            tmp_path / "x.py", tmp_path,
+        ) == tmp_path
+
+    def test_component_above_the_root_is_ignored(self, tmp_path, tmp_path_factory):
+        # A symlink above the work tree is the operator's environment,
+        # not PR content, and must not false-halt the gate.
+        outside = tmp_path_factory.mktemp("outside")
+        real = outside / "real"
+        real.mkdir()
+        link = outside / "linked"
+        link.symlink_to(real, target_is_directory=True)
+
+        assert _dispatcher._first_symlinked_component(link / "x.py", tmp_path) is None
+
+
+class TestNestedRepositoryProbeBranches:
+    """Unit coverage for the submodule / nested-repository probe."""
+
+    def test_missing_parent_directory_is_not_nested(self, tmp_path):
+        assert _dispatcher._is_in_nested_repository("gone/x.py", tmp_path) is False
+
+    def test_git_failure_fails_closed(self, tmp_path, monkeypatch):
+        (tmp_path / "sub").mkdir()
+        monkeypatch.setattr(
+            _dispatcher,
+            "_run_git",
+            lambda args, cwd: subprocess.CompletedProcess(
+                args=args, returncode=128, stdout=b"", stderr=b"boom",
+            ),
+        )
+
+        assert _dispatcher._is_in_nested_repository("sub/x.py", tmp_path) is True
+
+    def test_same_toplevel_is_not_nested(self, tmp_path, monkeypatch):
+        (tmp_path / "sub").mkdir()
+        monkeypatch.setattr(
+            _dispatcher,
+            "_run_git",
+            lambda args, cwd: subprocess.CompletedProcess(
+                args=args, returncode=0,
+                stdout=str(tmp_path).encode() + b"\n", stderr=b"",
+            ),
+        )
+
+        assert _dispatcher._is_in_nested_repository("sub/x.py", tmp_path) is False
+
+    def test_unresolvable_toplevel_fails_closed(self, tmp_path, monkeypatch):
+        (tmp_path / "sub").mkdir()
+        monkeypatch.setattr(
+            _dispatcher,
+            "_run_git",
+            lambda args, cwd: subprocess.CompletedProcess(
+                args=args, returncode=0, stdout=b"/elsewhere\n", stderr=b"",
+            ),
+        )
+
+        def _boom(self: Path, strict: bool = False) -> Path:
+            raise OSError("resolve broke")
+
+        monkeypatch.setattr(Path, "resolve", _boom)
+
+        assert _dispatcher._is_in_nested_repository("sub/x.py", tmp_path) is True
 
 
 class TestVerifyWorktreeFileTrustBranches:
