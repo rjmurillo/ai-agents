@@ -3,17 +3,67 @@
   "session": "2026-08-18-session-99918-b6aa4aa72-fix-issue-5128-retrospective-policy-stdin",
   "timestamp": "2026-08-18T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Fix issue #5128: retrospective-policy stdin push-range",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed issue #5128: {push_files} resolves empty on a branch's first push, silently defeating the docs-only retrospective-policy bypass",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-18-session-99918-b6aa4aa72-fix-issue-5128-retrospective-policy-stdin"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed _handle_retrospective in scripts/validation/git_hook_policy.py to derive the push range via the existing stdin-based _push_range_changed_files helper, and moved retrospective-policy from the parallel fast-stage group into the piped stdin group in lefthook.yml per ci-scripts.md MUST-21",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-18-session-99918-b6aa4aa72-fix-issue-5128-retrospective-policy-stdin"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-18T00:00:00+00:00",
+      "type": "test",
+      "content": "912 passed/1 skipped targeted tests, 54/54 pre_pr.py gates on first attempt; this branch's own first push exercised the exact empty-{push_files} scenario and retrospective-policy passed cleanly",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-18-session-99918-b6aa4aa72-fix-issue-5128-retrospective-policy-stdin"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Hit an unrelated pre-existing main-branch regression (issue #5142, MINIMUM_AGGREGATORS_EXAMINED stale after workflow deletions) blocking every branch's push; fixed and merged it separately as PR #5143",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-18-session-99918-b6aa4aa72-fix-issue-5128-retrospective-policy-stdin"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-18T02:50:08+00:00",
+      "type": "commit",
+      "content": "Commit: 18ce2d5162e7b759b44db34126144e3f7d9fb47a",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-18-session-99918-b6aa4aa72-fix-issue-5128-retrospective-policy-stdin"
+    }
+  ],
   "metrics": {
     "duration_minutes": null,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 6
+    "commits": 1,
+    "files_changed": 10
   },
   "lessons": []
 }
