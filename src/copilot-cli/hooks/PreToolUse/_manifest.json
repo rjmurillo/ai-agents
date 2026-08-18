@@ -3,10 +3,12 @@
   "mode": "gate",
   "shims": [
     "invoke_markdownlint_guard__Bash_git_push_0e93bf.py",
-    "invoke_require_subagent_model__Agent_Task_456aac.py"
+    "invoke_require_subagent_model__Agent_Task_456aac.py",
+    "invoke_serena_memory_scope_guard__mcp_serena_write_delete_memory_serena_write_dele_29e6e3.py"
   ],
   "timeouts": {
     "invoke_markdownlint_guard__Bash_git_push_0e93bf.py": 90,
-    "invoke_require_subagent_model__Agent_Task_456aac.py": 10
+    "invoke_require_subagent_model__Agent_Task_456aac.py": 10,
+    "invoke_serena_memory_scope_guard__mcp_serena_write_delete_memory_serena_write_dele_29e6e3.py": 10
   }
 }
