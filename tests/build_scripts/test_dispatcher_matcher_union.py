@@ -87,10 +87,31 @@ def test_committed_matcher_capable_entries_have_matchers():
     for event, tokens in expected.items():
         entry = hooks[event][0]
         matcher = entry.get("matcher")
-        if matcher is None:
-            # When a non-unionable regex (e.g. ^serena-) is registered, the
-            # generator drops the matcher; the internal dispatch handles
-            # filtering. This is acceptable for Claude-only MCP tools (#4917).
+        if event == "PreToolUse":
+            # #5036 review: this branch must not silently skip the
+            # assertion. The Serena guard's copilotMatcher
+            # ("^serena-.*$") is a wildcard regex that _matcher_tool_tokens
+            # cannot reduce to a bare-name list (it is not an alternation of
+            # known tool names), so event_matcher_union returns None for the
+            # WHOLE PreToolUse group and the host-side matcher is dropped:
+            # every PreToolUse call spawns this dispatcher. That is a
+            # deliberate, documented trade-off (#4917), not a bug, because
+            # each wrapped shim script still carries its own embedded
+            # _MATCHER and filters internally before doing any real work
+            # (proved directly against the committed serena guard shim by
+            # tests/hooks/test_serena_worktree_scope_guard.py::
+            # TestGeneratedShimIntegration::
+            # test_generated_shim_no_ops_for_unrelated_tool). Assert the
+            # cause explicitly instead of masking it with `continue`, so a
+            # future PreToolUse shim whose matcher becomes reducible again
+            # (and therefore SHOULD restore host-side filtering) trips this
+            # test instead of passing silently.
+            assert matcher is None, (
+                f"PreToolUse host matcher is {matcher!r}, expected None. "
+                "If every PreToolUse shim's matcher is now reducible to bare "
+                f"tool names, update `expected[{event!r}]` to {tokens!r} "
+                "instead of leaving this stale."
+            )
             continue
         assert set(matcher.split("|")) == tokens
 

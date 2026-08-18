@@ -67,11 +67,11 @@
     "plugin-pretooluse-11-serena_worktree_scope": {
       "event": "PreToolUse",
       "mode": "gate",
-      "matcher": "^serena-",
+      "matcher": "^mcp__serena__.*$",
       "shims": [
         {
           "file": "PreToolUse/invoke_serena_worktree_scope_guard.py",
-          "copilotMatcher": "^serena-",
+          "copilotMatcher": "^serena-.*$",
           "timeout": 10,
           "statusMessage": "Checking Serena worktree scope (BLOCKING, #4917)"
         }

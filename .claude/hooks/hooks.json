@@ -57,7 +57,7 @@
                         "type": "command"
                     }
                 ],
-                "matcher": "^serena-"
+                "matcher": "^mcp__serena__.*$"
             }
         ]
     }
