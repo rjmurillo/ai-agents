@@ -50,6 +50,13 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "tests/ci/test_cli_exit_contract_ratchet.py drives it directly through "
         "covered_stems (issue #4068)."
     ),
+    "diff_line_scope.py": (
+        "Library holding the unified-diff line-scope parsing shared by "
+        "ruff_ratchet.py, which pytest.yml invokes, and the pre-push mypy gate "
+        "in scripts/validation/git_hook_policy.py. It has no main() and no "
+        "shebang; tests/ci/test_diff_line_scope.py covers it directly "
+        "(issue #2993)."
+    ),
     "count_ratchet.py": (
         "Library holding the ratchet policy shared by ruff_count_ratchet.py and "
         "taste_count_ratchet.py, both of which are workflow-invoked. It has no "
