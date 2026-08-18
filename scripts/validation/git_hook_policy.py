@@ -2712,6 +2712,11 @@ DIFF_ADDED_FILE_RE = diff_line_scope.DIFF_ADDED_FILE_RE
 DIFF_HUNK_RE = diff_line_scope.DIFF_HUNK_RE
 _normalize_ratchet_path = diff_line_scope.normalize_path
 _parse_changed_lines = diff_line_scope.parse_changed_lines
+# DIFF_ADDED_FILE_RE deliberately keeps the ``b/`` prefix, because git quotes
+# the prefix together with the path (``+++ "b/od\"d.py"``). Every consumer of
+# the header must go through this helper, which unquotes, then strips, and
+# returns None for the ``/dev/null`` post-image of a deletion.
+_file_header_path = diff_line_scope.file_header_path
 
 
 def _mypy_ratchet_base_ref() -> str:
@@ -3220,9 +3225,11 @@ def _iter_diff_changes(diff_text: str) -> Iterator[tuple[str, str, int, str]]:
             continue
         if current_line is None:
             file_match = DIFF_ADDED_FILE_RE.match(line)
-            if file_match is not None and file_match.group("path") != "/dev/null":
-                current_path = _normalize_ratchet_path(file_match.group("path"))
-                continue
+            if file_match is not None:
+                header_path = _file_header_path(file_match.group("path"))
+                if header_path is not None:
+                    current_path = header_path
+                    continue
         hunk_match = DIFF_HUNK_RE.match(line)
         if hunk_match is not None:
             current_line = int(hunk_match.group("start"))

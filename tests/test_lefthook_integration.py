@@ -4844,6 +4844,43 @@ def test_parse_changed_lines_ignores_pure_rename() -> None:
     assert changed == {}
 
 
+def test_parse_changed_lines_strips_the_quoted_b_prefix() -> None:
+    # Git quotes the "b/" prefix together with the path, so a pattern that
+    # strips the prefix before unquoting leaves "b/" in the key and the map
+    # never matches the path mypy reports.
+    diff = '+++ "b/pkg/od\\"d.py"\n@@ -0,0 +3,1 @@\n'
+
+    assert policy._parse_changed_lines(diff) == {'pkg/od"d.py': {3}}
+
+
+def test_iter_diff_changes_strips_the_b_prefix_from_the_header() -> None:
+    # Regression: the shared header pattern keeps the "b/" prefix, so the
+    # suppression scanner must strip it via _file_header_path. Reporting
+    # "b/pkg/a.py" made every net-new suppression look like a different file,
+    # which fails a security gate open.
+    diff = (
+        "diff --git a/pkg/a.py b/pkg/a.py\n"
+        "--- a/pkg/a.py\n"
+        "+++ b/pkg/a.py\n"
+        "@@ -1,0 +2 @@\n"
+        "+added line\n"
+    )
+
+    assert list(policy._iter_diff_changes(diff)) == [("pkg/a.py", "+", 2, "added line")]
+
+
+def test_iter_diff_changes_skips_a_dev_null_post_image() -> None:
+    diff = (
+        "diff --git a/pkg/gone.py b/pkg/gone.py\n"
+        "--- a/pkg/gone.py\n"
+        "+++ /dev/null\n"
+        "@@ -1 +0,0 @@\n"
+        "-removed line\n"
+    )
+
+    assert list(policy._iter_diff_changes(diff)) == []
+
+
 def test_parse_mypy_error_locations_selects_errors_only() -> None:
     stdout = (
         "pkg/a.py:12: error: Incompatible types  [assignment]\n"
