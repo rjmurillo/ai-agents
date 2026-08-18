@@ -1718,10 +1718,10 @@ class TestValidateSessionLog:
 
 
 class TestValidateQaSkipScope:
-    """Tests for blocking investigation-only claim verification."""
+    """Tests for blocking docs-only and investigation-only claim verification."""
 
     @staticmethod
-    def _log() -> dict[str, Any]:
+    def _log(evidence: str = "SKIPPED: investigation-only") -> dict[str, Any]:
         return {
             "session": {"startingCommit": "a" * 40},
             "endingCommit": "b" * 40,
@@ -1729,7 +1729,7 @@ class TestValidateQaSkipScope:
                 "sessionEnd": {
                     "qaValidation": {
                         "Complete": True,
-                        "Evidence": "SKIPPED: investigation-only",
+                        "Evidence": evidence,
                         "level": "MUST",
                     }
                 }
@@ -1795,7 +1795,7 @@ class TestValidateQaSkipScope:
             validate_qa_skip_scope(self._log(), result)
 
         assert result.errors == [
-            "QA investigation-only scope includes non-investigation files: "
+            "QA investigation-only scope includes disqualifying changes: "
             "scripts/main.py"
         ]
 
@@ -1817,18 +1817,64 @@ class TestValidateQaSkipScope:
             "QA investigation-only scope cannot be verified: bad ref"
         ]
 
-    def test_docs_only_skip_requires_qa_report(self) -> None:
-        log = self._log()
-        log["protocolCompliance"]["sessionEnd"]["qaValidation"]["Evidence"] = (
-            "SKIPPED: docs-only"
+    def test_docs_only_eligible_range_passes(self) -> None:
+        completed = subprocess.CompletedProcess(
+            [],
+            0,
+            stdout=json.dumps({"Eligible": True, "Violations": []}),
+            stderr="",
         )
         result = ValidationResult()
 
-        validate_qa_skip_scope(log, result)
+        with mock.patch("subprocess.run", return_value=completed) as run:
+            validate_qa_skip_scope(self._log("SKIPPED: docs-only"), result)
+
+        assert result.errors == []
+        assert run.call_args.args[0][-4:] == [
+            "--base-ref",
+            "a" * 40,
+            "--head-ref",
+            "b" * 40,
+        ]
+        assert "test_docs_only_eligibility.py" in run.call_args.args[0][1]
+
+    def test_docs_only_ineligible_range_fails(self) -> None:
+        completed = subprocess.CompletedProcess(
+            [],
+            0,
+            stdout=json.dumps(
+                {
+                    "Eligible": False,
+                    "Violations": ["scripts/main.py: not a documentation file"],
+                }
+            ),
+            stderr="",
+        )
+        result = ValidationResult()
+
+        with mock.patch("subprocess.run", return_value=completed):
+            validate_qa_skip_scope(self._log("SKIPPED: docs-only"), result)
 
         assert result.errors == [
-            "QA docs-only scope cannot be verified automatically; provide a QA report"
+            "QA docs-only scope includes disqualifying changes: "
+            "scripts/main.py: not a documentation file"
         ]
+
+    def test_docs_only_checker_error_fails_closed(self) -> None:
+        completed = subprocess.CompletedProcess(
+            [],
+            0,
+            stdout=json.dumps(
+                {"Eligible": False, "Violations": [], "Error": "bad ref"}
+            ),
+            stderr="",
+        )
+        result = ValidationResult()
+
+        with mock.patch("subprocess.run", return_value=completed):
+            validate_qa_skip_scope(self._log("SKIPPED: docs-only"), result)
+
+        assert result.errors == ["QA docs-only scope cannot be verified: bad ref"]
 
 
 class TestLoadSessionFile:

@@ -159,14 +159,19 @@ SESSION_END_REQUIRED_ITEMS = frozenset(
     }
 )
 
-# .agents/SESSION-PROTOCOL.md defines these exact QA exemption values:
-# "SKIPPED: docs-only" and "SKIPPED: investigation-only".
-_QA_SKIP_EVIDENCE = frozenset(
-    {
-        "SKIPPED: docs-only",
-        "SKIPPED: investigation-only",
-    }
-)
+# .agents/SESSION-PROTOCOL.md defines these exact QA exemption values, each
+# owning one scope checker script (under .claude/skills/session/scripts/)
+# and one label used in error messages. Both are verified the same way: run
+# the checker over the recorded commit range, fail closed on any checker
+# error, and report violations by path. See validate_qa_skip_scope.
+_QA_SKIP_CHECKERS = {
+    "SKIPPED: docs-only": ("test_docs_only_eligibility.py", "docs-only"),
+    "SKIPPED: investigation-only": (
+        "test_investigation_eligibility.py",
+        "investigation-only",
+    ),
+}
+_QA_SKIP_EVIDENCE = frozenset(_QA_SKIP_CHECKERS)
 
 # Evidence patterns that contradict a "complete: true" claim
 CONTRADICTION_PATTERNS = re.compile(
@@ -1218,7 +1223,8 @@ def _qa_skip_claim(data: object) -> tuple[str, object, object] | None:
     return evidence, starting_commit, data.get("endingCommit")
 
 
-def _investigation_scope_payload(
+def _scope_payload(
+    checker_name: str,
     starting_commit: str,
     ending_commit: str,
 ) -> tuple[dict[str, Any] | None, str | None]:
@@ -1229,7 +1235,7 @@ def _investigation_scope_payload(
         / "skills"
         / "session"
         / "scripts"
-        / "test_investigation_eligibility.py"
+        / checker_name
     )
     if not checker.is_file():
         return None, f"scope checker not found: {checker}"
@@ -1269,44 +1275,36 @@ def validate_qa_skip_scope(
     *,
     validation_head: str | None = None,
 ) -> None:
-    """Verify an investigation-only QA claim through the validation endpoint."""
+    """Verify a docs-only or investigation-only QA claim through its checker."""
     claim = _qa_skip_claim(data)
     if claim is None:
         return
     evidence, starting_commit, ending_commit = claim
-    if evidence == "SKIPPED: docs-only":
-        result.errors.append(
-            "QA docs-only scope cannot be verified automatically; "
-            "provide a QA report"
-        )
-        return
+    checker_name, label = _QA_SKIP_CHECKERS[evidence]
     if not isinstance(starting_commit, str) or not isinstance(ending_commit, str):
         result.errors.append(
-            "QA investigation-only scope cannot be verified: "
+            f"QA {label} scope cannot be verified: "
             "startingCommit and endingCommit are required"
         )
         return
 
-    payload, error = _investigation_scope_payload(
+    payload, error = _scope_payload(
+        checker_name,
         starting_commit,
         validation_head or ending_commit,
     )
     if error:
-        result.errors.append(f"QA investigation-only {error}")
+        result.errors.append(f"QA {label} {error}")
         return
     assert payload is not None
     error = payload.get("Error")
     if error:
-        result.errors.append(
-            f"QA investigation-only scope cannot be verified: {error}"
-        )
+        result.errors.append(f"QA {label} scope cannot be verified: {error}")
         return
     if not payload.get("Eligible", False):
         violations = payload.get("Violations", [])
         detail = ", ".join(str(path) for path in violations) or "unknown changed path"
-        result.errors.append(
-            f"QA investigation-only scope includes non-investigation files: {detail}"
-        )
+        result.errors.append(f"QA {label} scope includes disqualifying changes: {detail}")
 
 
 _FILENAME_NUMBER_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}-session-(\d+)(?:-|$)")
