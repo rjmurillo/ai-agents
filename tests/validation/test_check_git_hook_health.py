@@ -32,6 +32,7 @@ Coverage:
 from __future__ import annotations
 
 import io
+import os
 import subprocess
 import sys
 from collections.abc import Callable
@@ -94,7 +95,7 @@ def _run_cli(repo: Path, guard: Path = GUARD) -> subprocess.CompletedProcess[str
     return subprocess.run(
         [sys.executable, str(guard), str(repo)],
         cwd=str(repo),
-        env={"PATH": "/usr/bin:/bin"},
+        env={"PATH": os.environ.get("PATH", "")},
         capture_output=True,
         text=True,
         check=False,
@@ -131,7 +132,7 @@ class TestHealthy:
 
 
 class TestDeadHooks:
-    """Each way git ends up running no hook exits non-zero and names the fix."""
+    """Each way git skips pre-push exits non-zero and names the fix."""
 
     def test_hooks_path_pointing_at_a_missing_directory_fails(
         self, tmp_path: Path
@@ -182,6 +183,76 @@ class TestDeadHooks:
         assert result.returncode == 1
         assert "core.hooksPath is unset" in result.stderr
         assert check_git_hook_health.REMEDY in result.stderr
+
+    def test_validation_reuses_the_resolved_hooks_directory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo = _make_repo(tmp_path, "one_hooks_path_read")
+        hooks_dir = repo / ".git" / "hooks"
+        calls = 0
+
+        def resolve_once(_repo_root: Path) -> Path | None:
+            nonlocal calls
+            calls += 1
+            return hooks_dir if calls == 1 else None
+
+        monkeypatch.setattr(check_git_hook_health, "_hooks_dir", resolve_once)
+
+        assert check_git_hook_health.validate_git_hook_health(repo) is False
+        assert calls == 1
+
+    def test_failure_claims_only_that_pushes_are_not_gated(self, tmp_path: Path) -> None:
+        repo = _make_repo(tmp_path, "no_prepush_claim")
+
+        result = _run_cli(repo)
+
+        assert "Pushes are not locally gated: pre-push does not run." in result.stderr
+        assert "Every git hook is inert" not in result.stderr
+
+    @pytest.mark.parametrize(
+        "config_name",
+        [".lefthook.toml", "lefthook-local.jsonc", ".config/lefthook.yaml"],
+    )
+    def test_supported_lefthook_config_names_activate_the_gate(
+        self, tmp_path: Path, config_name: str
+    ) -> None:
+        repo = _make_repo(tmp_path, "alternate_config", lefthook=False)
+        config = repo / config_name
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text(LEFTHOOK_CONFIG, encoding="utf-8")
+
+        assert _run_cli(repo).returncode == 1
+
+    @pytest.mark.parametrize("scope", ["global", "system"])
+    def test_nonlocal_scope_remedy_unsets_the_authoritative_scope(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, scope: str
+    ) -> None:
+        repo = _make_repo(tmp_path, f"{scope}_scope")
+        monkeypatch.setattr(
+            check_git_hook_health,
+            "_configured_hooks_path",
+            lambda _repo_root: (".dead-hooks", scope),
+        )
+
+        remedy = check_git_hook_health._remedy(repo)
+
+        assert f"git config --{scope} --unset-all core.hooksPath" in remedy
+        assert check_git_hook_health.REMEDY in remedy
+
+    def test_command_scope_remedy_does_not_claim_it_can_persistently_unset(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo = _make_repo(tmp_path, "command_scope")
+        monkeypatch.setattr(
+            check_git_hook_health,
+            "_configured_hooks_path",
+            lambda _repo_root: (".dead-hooks", "command"),
+        )
+
+        remedy = check_git_hook_health._remedy(repo)
+
+        assert "remove the command-scoped core.hooksPath override" in remedy
+        assert check_git_hook_health.REMEDY in remedy
 
     def test_the_failure_report_stays_within_the_line_budget(
         self, tmp_path: Path
@@ -266,7 +337,7 @@ class TestLinkedWorktrees:
 
 
 class TestOutOfScope:
-    """States the gate cannot read, or has no business judging, pass."""
+    """Only explicit non-applicability passes; execution failures fail closed."""
 
     def test_a_repo_without_lefthook_config_passes(self, tmp_path: Path) -> None:
         # The remedy is a lefthook command. A repository that runs no lefthook
@@ -289,13 +360,29 @@ class TestOutOfScope:
 
         assert result.returncode == 0
 
-    def test_no_git_binary_passes(
+    def test_no_git_binary_is_an_external_failure(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         repo = _make_repo(tmp_path, "no_git")
         monkeypatch.setattr(check_git_hook_health.shutil, "which", lambda _name: None)
 
-        assert check_git_hook_health.validate_git_hook_health(repo) is True
+        assert check_git_hook_health.validate_git_hook_health(repo) is False
+        assert check_git_hook_health.main([str(repo)]) == 3
+
+    def test_git_timeout_is_an_external_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo = _make_repo(tmp_path, "git_timeout")
+        monkeypatch.setattr(
+            check_git_hook_health.subprocess,
+            "run",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                subprocess.TimeoutExpired("git", 5)
+            ),
+        )
+
+        assert check_git_hook_health.validate_git_hook_health(repo) is False
+        assert check_git_hook_health.main([str(repo)]) == 3
 
     def test_a_root_that_is_not_a_directory_is_a_config_error(
         self, tmp_path: Path
