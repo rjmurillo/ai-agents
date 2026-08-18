@@ -645,6 +645,91 @@ class TestPassWhenDslNegativeBranches:
             )
 
 
+class TestRepositoryConfigContract:
+    """Keep the trusted repository config inside the safe evaluator subset."""
+
+    def test_ready_criterion_expression_is_evaluable(self, monkeypatch, capsys):
+        # .claude/commands/pr-review-config.yaml is the live configuration
+        # consumed by /pr-autofix before it enables auto-merge. Drive main()
+        # through every production criterion so this contract covers config
+        # loading, dispatch, and the final process verdict, not just the private
+        # expression helper.
+        config_path = _REPO_ROOT / ".claude" / "commands" / "pr-review-config.yaml"
+        monkeypatch.setattr(
+            _dispatcher,
+            "_verify_config_trust",
+            lambda *_a, **_k: _dispatcher.TrustCheck(
+                _dispatcher.TRUST_TRUSTED,
+                "",
+            ),
+        )
+        responses = [
+            _make_proc(
+                stdout=json.dumps(
+                    {"unresolved_count": 0, "fetched_pages_complete": True},
+                ),
+            ),
+            _make_proc(
+                stdout=json.dumps(
+                    {
+                        "active_suppressed_count": 0,
+                        "unknown_suppressed_count": 0,
+                        "fetched_pages_complete": True,
+                    },
+                ),
+            ),
+            _make_proc(
+                stdout=json.dumps(
+                    {
+                        "unreachable_count": 0,
+                        "invalid_count": 0,
+                        "ambiguous_count": 0,
+                        "fetched_pages_complete": True,
+                    },
+                ),
+            ),
+            _make_proc(
+                stdout=json.dumps(
+                    {
+                        "CanMerge": True,
+                        "CIPassing": True,
+                        "fetched_pages_complete": True,
+                        "UnresolvedThreads": 0,
+                        "MergeStateStatus": "CLEAN",
+                        "UndisposedNonRequiredFailures": [],
+                    },
+                ),
+            ),
+            _make_proc(stdout=json.dumps({"merged": False})),
+        ]
+
+        with patch.object(
+            _dispatcher.subprocess,
+            "run",
+            side_effect=responses,
+        ) as dispatched:
+            rc = _dispatcher.main(
+                [
+                    "--config",
+                    str(config_path),
+                    "--pull-request",
+                    "5147",
+                    "--json",
+                ],
+            )
+
+        assert rc == 0
+        assert dispatched.call_count == len(responses)
+        result = json.loads(capsys.readouterr().out)
+        assert result["all_passed"] is True
+        ready = next(
+            item
+            for item in result["criteria"]
+            if item["name"] == "PR is ready to merge (CI green, no conflicts)"
+        )
+        assert ready["passed"] is True
+
+
 class TestPassWhenPythonNegativeBranches:
     """Cover the AST-rejection paths in _eval_pass_when_python.
 

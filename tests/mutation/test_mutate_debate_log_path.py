@@ -34,6 +34,7 @@ is absent (count == 0).
 
 from __future__ import annotations
 
+import ast
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -54,6 +55,34 @@ _TESTS = [
 _OUTCOME_DEAD = "DEAD"
 _OUTCOME_SURVIVED = "SURVIVED"
 _OUTCOME_DID_NOT_APPLY = "DID-NOT-APPLY"
+
+# Timeout budget (Issue #5102)
+# ---------------------------
+# Two caps bound every mutation test, and their ORDER is the contract:
+#
+#   inner: subprocess.run(timeout=_INNER_SUBPROCESS_TIMEOUT_SECONDS) in
+#          _run_tests_in, bounding the nested pytest process.
+#   outer: @pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS) on each test that
+#          calls _run_tests_in, overriding the repo-wide --timeout=120 set in
+#          pyproject.toml addopts.
+#
+# The outer cap MUST exceed the inner one. When the outer fires first,
+# pytest-timeout interrupts inside subprocess.communicate and the failure names
+# no command, which is the exact signature reported in Issue #5102:
+#   "Failed: Timeout (>120.0s) from pytest-timeout", raised inside
+#   subprocess.communicate, on a diff that never touched the mutated file.
+# With the inner cap binding instead, the failure is a subprocess.TimeoutExpired
+# naming the pytest command, and _apply_positive_mutant's finally block restores
+# the target bytes.
+#
+# Sizing follows .claude/rules/ci-scripts.md MUST 16: size on a loaded machine,
+# never an idle one. Worst measured single inner run on a contributor machine
+# was 80.69s wall (Issue #5102) for tests/test_lefthook_integration.py alone.
+# _TESTS has since grown tests/validation/test_session_log_optional.py, taking
+# the collected count from 859 to 943 (+9.8%), so that same machine now needs
+# roughly 89s. 120s left under 35s of headroom, which load average 7.63 erased.
+_INNER_SUBPROCESS_TIMEOUT_SECONDS = 300
+_OUTER_TEST_TIMEOUT_SECONDS = 360
 
 
 def _run_tests_in(wt_path: Path) -> subprocess.CompletedProcess[str]:
@@ -84,7 +113,7 @@ def _run_tests_in(wt_path: Path) -> subprocess.CompletedProcess[str]:
             **__import__("os").environ,
             "PYTHONDONTWRITEBYTECODE": "1",
         },
-        timeout=300,
+        timeout=_INNER_SUBPROCESS_TIMEOUT_SECONDS,
     )
 
 
@@ -151,7 +180,94 @@ def test_run_tests_uses_a_bounded_timeout(monkeypatch: pytest.MonkeyPatch, tmp_p
 
     _run_tests_in(tmp_path)
 
-    assert recorded["timeout"] == 300
+    assert recorded["timeout"] == _INNER_SUBPROCESS_TIMEOUT_SECONDS
+
+
+# ---------------------------------------------------------------------------
+# Timeout-budget regression guards (Issue #5102)
+# ---------------------------------------------------------------------------
+
+# Worst single inner-suite wall clock measured on a contributor machine, in
+# seconds. 80.69s was recorded in Issue #5102 against tests/test_lefthook_
+# integration.py alone; _TESTS has since grown a second file that lifts the
+# collected count from 859 to 943 (+9.8%), so the same machine now needs ~89s.
+_MEASURED_WORST_INNER_SECONDS = 89
+
+# A cap this far above the inner bound is no longer a cap. Pins the other side
+# so "raise it until it stops failing" cannot silently disable the budget.
+_OUTER_TIMEOUT_CEILING_SECONDS = 1800
+
+
+def _tests_running_the_inner_suite() -> list[str]:
+    """Names of the top-level tests that create a worktree and run the inner suite.
+
+    Discovered from this module's own source rather than hard-coded, so a fifth
+    mutant added without the timeout marker fails instead of silently
+    inheriting the repo-wide --timeout=120 from pyproject.toml addopts.
+    The `scratch_worktree` fixture is the discriminator: taking it is what makes
+    a test spawn a real nested pytest run through _run_tests_in.
+    """
+    tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
+    return [
+        node.name
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name.startswith("test_")
+        and any(arg.arg == "scratch_worktree" for arg in node.args.args)
+    ]
+
+
+def _timeout_marker_seconds(test_name: str) -> float | None:
+    """Return the seconds argument of the test's timeout marker, or None."""
+    func = globals()[test_name]
+    for mark in getattr(func, "pytestmark", []):
+        if mark.name == "timeout" and mark.args:
+            return mark.args[0]
+    return None
+
+
+def test_every_inner_suite_test_raises_the_outer_timeout() -> None:
+    names = _tests_running_the_inner_suite()
+
+    # Report the scope alongside the finding: a zero-finding sweep over a
+    # zero-sized scope proves nothing (testing.md MUST 10).
+    assert len(names) == 4, f"Expected 4 inner-suite tests, discovered {len(names)}: {names}"
+
+    unmarked = [name for name in names if _timeout_marker_seconds(name) is None]
+    assert not unmarked, (
+        f"These tests spawn the inner suite but carry no @pytest.mark.timeout, "
+        f"so they inherit the repo-wide --timeout=120 that Issue #5102 blocked "
+        f"pushes on: {unmarked}"
+    )
+
+    too_low = {
+        name: seconds
+        for name in names
+        if (seconds := _timeout_marker_seconds(name)) is not None
+        and seconds < _OUTER_TEST_TIMEOUT_SECONDS
+    }
+    assert not too_low, (
+        f"Timeout lowered below {_OUTER_TEST_TIMEOUT_SECONDS}s: {too_low}. "
+        "See Issue #5102 for the measured budget."
+    )
+
+
+def test_outer_timeout_exceeds_the_inner_subprocess_timeout() -> None:
+    # Ordering invariant. When the outer cap fires first, pytest-timeout
+    # interrupts inside subprocess.communicate and names no command, which is
+    # the unactionable failure Issue #5102 reported. The inner bound must win.
+    assert _OUTER_TEST_TIMEOUT_SECONDS > _INNER_SUBPROCESS_TIMEOUT_SECONDS
+
+
+def test_outer_timeout_clears_twice_the_measured_inner_runtime() -> None:
+    assert _OUTER_TEST_TIMEOUT_SECONDS >= 2 * _MEASURED_WORST_INNER_SECONDS
+
+
+def test_outer_timeout_stays_bounded() -> None:
+    # pytest-timeout reads 0 as "no timeout at all", so removing the bound and
+    # raising it read identically at the marker. Both must fail here.
+    assert isinstance(_OUTER_TEST_TIMEOUT_SECONDS, int)
+    assert 0 < _OUTER_TEST_TIMEOUT_SECONDS <= _OUTER_TIMEOUT_CEILING_SECONDS
 
 
 def test_positive_mutant_restores_target_when_test_run_raises(
@@ -163,7 +279,7 @@ def test_positive_mutant_restores_target_when_test_run_raises(
     target.write_bytes(original)
 
     def raise_timeout(_wt_path: Path) -> subprocess.CompletedProcess[str]:
-        raise subprocess.TimeoutExpired(cmd="pytest", timeout=300)
+        raise subprocess.TimeoutExpired(cmd="pytest", timeout=_INNER_SUBPROCESS_TIMEOUT_SECONDS)
 
     monkeypatch.setattr(sys.modules[__name__], "_run_tests_in", raise_timeout)
 
@@ -212,6 +328,7 @@ _M1_ORIGINAL = b'        path.parent == PurePosixPath(".agents/critique")\n'
 _M1_MUTANT = b'        path.parent == PurePosixPath(".agents/analysis")  # M1 mutant\n'
 
 
+@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
 def test_m1_directory_name_reverted_is_detected(scratch_worktree: Path) -> None:
     original = (REPO_ROOT / _TARGET_REL).read_bytes()
     outcome = _apply_positive_mutant(
@@ -226,15 +343,12 @@ def test_m1_directory_name_reverted_is_detected(scratch_worktree: Path) -> None:
 # ---------------------------------------------------------------------------
 
 _M2_ORIGINAL = (
-    b'            "ERROR: ADR changes require a debate log staged in '
-    b'.agents/critique",\n'
+    b'            "ERROR: ADR changes require a debate log staged in .agents/critique",\n'
 )
-_M2_MUTANT = (
-    b'            "ERROR: ADR changes require a debate log staged in '
-    b'.agents/wrong-dir",\n'
-)
+_M2_MUTANT = b'            "ERROR: ADR changes require a debate log staged in .agents/wrong-dir",\n'
 
 
+@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
 def test_m2_error_message_path_changed_is_detected(scratch_worktree: Path) -> None:
     original = (REPO_ROOT / _TARGET_REL).read_bytes()
     outcome = _apply_positive_mutant(
@@ -252,6 +366,7 @@ _M3_ORIGINAL = b"    if not debate_logs:\n"
 _M3_MUTANT = b"    if False:  # M3 mutant: gate removed\n"
 
 
+@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
 def test_m3_missing_debate_log_gate_removed_is_detected(scratch_worktree: Path) -> None:
     original = (REPO_ROOT / _TARGET_REL).read_bytes()
     outcome = _apply_positive_mutant(
@@ -285,6 +400,7 @@ _IC_MUTANT = (
 )
 
 
+@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
 def test_ic_comment_only_change_survives(scratch_worktree: Path) -> None:
     """Inverted control: a comment-only mutation must NOT be detected (rc == 0)."""
     original = (REPO_ROOT / _TARGET_REL).read_bytes()

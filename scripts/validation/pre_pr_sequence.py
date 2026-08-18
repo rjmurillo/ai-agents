@@ -50,7 +50,9 @@ from check_nested_tests import validate_no_nested_tests
 from check_push_lock_paths import validate_push_lock_paths
 from check_subprocess_encoding import validate_subprocess_encoding
 from check_test_tree_writes import validate_test_tree_writes
+from check_tmp_worktrees import validate_tmp_worktrees
 from check_unreachable_code import validate_unreachable_code
+from check_worktree_recipes import validate_worktree_recipes
 from checks_coverage import (
     validate_review_marker,
 )
@@ -210,6 +212,18 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Subprocess Encoding Convention", _root_only(validate_subprocess_encoding)),
     _Gate("Test Working Tree Writes", _root_only(validate_test_tree_writes)),
     _Gate("Push Lock Path Agreement", _root_only(validate_push_lock_paths)),
+    # Blocks a tracked prescription that tells a reader to create a worktree
+    # under /tmp or inside the checkout, against universal.md MUST NOT 7. Issue
+    # #5111: the rule, a Serena memory, and a prior incident all already
+    # existed, and six violations still accumulated, because nothing read the
+    # recipes.
+    _Gate("Worktree Recipe Destinations", _root_only(validate_worktree_recipes)),
+    # Advisory companion to the gate above: the same rule measured against the
+    # machine rather than the tree. Reports worktrees sitting under /tmp
+    # (including orphans git no longer lists) and a low /tmp free-space floor.
+    # Never fails; see the validator's docstring for why machine state does not
+    # get to block a push. Issue #5111.
+    _Gate("Temp-filesystem Worktrees (advisory)", _root_only(validate_tmp_worktrees)),
     _Gate("Session End Validation", _root_only(validate_session_end)),
     # Type-check changed Python files with ratchet semantics (issue #4674).
     # Surfaces regressions at pre-PR time rather than waiting for push CI.
