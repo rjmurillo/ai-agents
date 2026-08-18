@@ -268,10 +268,10 @@ def test_an_unstattable_entry_is_counted_not_examined(
     entry.mkdir()
     real_is_dir = Path.is_dir
 
-    def explode_for_the_entry(self: Path, *args: object, **kwargs: object) -> bool:
+    def explode_for_the_entry(self: Path) -> bool:
         if self == entry:
             raise OSError("stale file handle")
-        return bool(real_is_dir(self, *args, **kwargs))
+        return bool(real_is_dir(self))
 
     monkeypatch.setattr(Path, "is_dir", explode_for_the_entry)
 

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -46,12 +47,17 @@ def _run_sequence(monkeypatch: pytest.MonkeyPatch) -> dict[str, bool]:
     """Drive the real sequence and return each gate's verdict by name."""
     verdicts: dict[str, bool] = {}
 
-    def record(name: str, state: _State, callback: object, skip: bool = False) -> bool:
+    def record(
+        name: str,
+        state: _State,
+        callback: Callable[[], bool],
+        skip: bool = False,
+    ) -> bool:
         state.total += 1
         if skip:
             state.skipped += 1
             return True
-        result = bool(callback())  # type: ignore[operator]
+        result = bool(callback())
         verdicts[name] = result
         return result
 
