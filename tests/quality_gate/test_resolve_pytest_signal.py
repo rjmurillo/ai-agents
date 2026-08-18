@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import json
 import subprocess
-from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
 
 from scripts.quality_gate import resolve_pytest_signal as mod
 from scripts.quality_gate.resolve_pytest_signal import Job, Resolution, Run
@@ -457,14 +455,3 @@ class TestMain:
             steps=(("Require test and coverage success", "success"),),
         )
         assert mod.classify(gate_job) == mod.KIND_EXECUTOR
-
-    def test_consume_step_replaces_shadow_step(self) -> None:
-        """Quality gate consumes pytest.yml signal instead of running tests locally."""
-        workflow = yaml.safe_load(
-            (Path(__file__).parents[2] / ".github/workflows/ai-pr-quality-gate.yml").read_text(
-                encoding="utf-8"
-            )
-        )
-        steps = workflow["jobs"]["run-tests"]["steps"]
-        assert not [s for s in steps if "shadow" in s.get("name", "").lower()]
-        assert any("resolve pytest signal" in s.get("name", "").lower() for s in steps)

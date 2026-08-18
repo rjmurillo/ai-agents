@@ -122,6 +122,5 @@ Check for merge conflicts or failing required checks. Use `get_pr_context.py` to
 ## Related
 
 - **Agent**: `pr-comment-responder` - Full PR comment handling workflow
-- **Workflow**: `.github/workflows/ai-issue-triage.yml` - Uses issue scripts
 - **Module**: `.github/scripts/AIReviewCommon.psm1` - Simple wrappers for workflows
 - **Memory**: `usage-mandatory` - Enforcement rules for using skills

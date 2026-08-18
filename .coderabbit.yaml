@@ -9,6 +9,10 @@
 
 inheritance: true
 
+issue_enrichment:
+  auto_enrich:
+    enabled: false
+
 reviews:
   # Use "chill" profile to reduce nitpicky feedback
   profile: "chill"

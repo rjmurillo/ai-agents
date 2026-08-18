@@ -92,7 +92,7 @@
         "ASK"
       ],
       "expected_reason_contains": "note",
-      "rationale": "Fallback rule: CLAUDE.md/ARCHITECTURE.md are non-critical; proceed with absence noted in session log"
+      "rationale": "Fallback rule: CLAUDE.md/ARCHITECTURE.md are non-critical; proceed with absence noted in the transcript and optional session log when present"
     },
     {
       "id": "S8",

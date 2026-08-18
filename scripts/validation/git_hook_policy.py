@@ -141,13 +141,6 @@ ADR_REVIEW_PATH_RE = re.compile(
 )
 ADR_ID_RE = re.compile(r"ADR-\d+", re.IGNORECASE)
 FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
-ADR_REVIEW_PATTERNS = (
-    # Matches /adr-review, adr-review, adr review, ADR Review Protocol, etc.
-    # Case-insensitive; dot matches the hyphen or space separator (Issue #4135).
-    re.compile(r"\badr.review\b", re.IGNORECASE),
-    re.compile(r"multi-agent consensus.{0,200}\bADR\b", re.DOTALL | re.IGNORECASE),
-    re.compile(r"\barchitect\b.{0,80}\bplanner\b.{0,80}\bqa\b", re.DOTALL | re.IGNORECASE),
-)
 RETROSPECTIVE_EVIDENCE_PATTERNS = (
     re.compile(r"(?i)(##\s*retrospective|retrospective\s*section|learnings?\s*captured)"),
     re.compile(r"(?i)(\.agents/retrospective/|retrospective[-_]?file|retro[-_]?\d{4})"),
@@ -1347,25 +1340,49 @@ def _extract_adr_ids(paths: Sequence[str]) -> set[str]:
     }
 
 
-def _debate_references_adr(debate_path: Path, adr_ids: set[str]) -> bool:
-    if debate_path.is_symlink():
+def _is_debate_log_path(relative_path: str) -> bool:
+    safe_path = _safe_relative_path(relative_path)
+    if safe_path is None:
         return False
-    try:
-        content = debate_path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
+    path = PurePosixPath(safe_path)
+    return (
+        path.parent == PurePosixPath(".agents/critique")
+        and path.suffix == ".md"
+        and "debate" in path.name
+    )
+
+
+def _staged_debate_log_paths(repo_root: Path) -> list[str]:
+    result = _run_git(
+        repo_root,
+        [
+            "diff",
+            "--cached",
+            "--name-only",
+            "--diff-filter=ACMR",
+            "-z",
+            "--",
+            ".agents/critique",
+        ],
+    )
+    if result.returncode != 0:
+        return []
+    return [path for path in result.stdout.split("\0") if _is_debate_log_path(path)]
+
+
+def _staged_debate_references_adr(
+    relative_path: str,
+    repo_root: Path,
+    adr_ids: set[str],
+) -> bool:
+    if not _is_staged_regular_file(repo_root, relative_path):
         return False
+    blob = _read_index_blob(repo_root, relative_path)
+    if blob is None:
+        return False
+    content = blob.decode("utf-8", errors="replace")
     referenced = {match.group(0).upper() for match in ADR_ID_RE.finditer(content)}
     return bool(referenced & adr_ids)
-
-
-def _session_has_adr_review(session_log: Path) -> bool:
-    if session_log.is_symlink():
-        return False
-    try:
-        content = session_log.read_text(encoding="utf-8")
-    except OSError:
-        return False
-    return any(pattern.search(content) for pattern in ADR_REVIEW_PATTERNS)
 
 
 def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
@@ -1377,14 +1394,6 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
         if not gated_paths:
             return 0
 
-    session_log = _session_log_for_current_branch(repo_root / ".agents" / "sessions", repo_root)
-    if session_log is None or not _session_has_adr_review(session_log):
-        print(
-            "ERROR: ADR changes require adr-review evidence in today's session log",
-            file=sys.stderr,
-        )
-        return 1
-
     # Canonical debate-log directory per:
     #   .claude/skills/adr-review/references/artifacts.md line 3:
     #     "Save debate artifacts to `.agents/critique/`."
@@ -1392,17 +1401,24 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
     #     "Save to: `.agents/critique/ADR-NNN-debate-log.md`"
     # Issue #4250: the hook previously searched .agents/analysis/ but the
     # skill writes to .agents/critique/.
-    critique_dir = repo_root / ".agents" / "critique"
-    try:
-        debate_logs = list(critique_dir.glob("*debate*.md"))
-    except OSError:
-        debate_logs = []
+    # Only stage-zero regular files in the caller's staged path set can satisfy
+    # the gate. Working-tree-only evidence must not authorize an ADR commit.
+    debate_logs = [
+        path
+        for path in _staged_debate_log_paths(repo_root)
+        if _is_staged_regular_file(repo_root, path)
+    ]
     if not debate_logs:
-        print("ERROR: ADR changes require a debate log in .agents/critique", file=sys.stderr)
+        print(
+            "ERROR: ADR changes require a debate log staged in .agents/critique",
+            file=sys.stderr,
+        )
         return 1
 
     adr_ids = _extract_adr_ids(gated_paths)
-    if adr_ids and not any(_debate_references_adr(path, adr_ids) for path in debate_logs):
+    if adr_ids and not any(
+        _staged_debate_references_adr(path, repo_root, adr_ids) for path in debate_logs
+    ):
         names = ", ".join(sorted(adr_ids))
         print(f"ERROR: no debate log references the staged ADR IDs: {names}", file=sys.stderr)
         return 1
@@ -1926,10 +1942,12 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
         if not _is_staged_session_on_upstream_default(repo_root, path)
     ]
     if not sessions:
-        if session_paths:
-            return 0
-        print("ERROR: staged .agents changes require a JSON session log", file=sys.stderr)
-        return 1
+        # The committed session-log gate is retired: staging a .agents change no
+        # longer requires a JSON session log. When no session log is present to
+        # validate, pass. This keeps check_sessions as a validate-if-present
+        # gate (the session-policy pre-commit job still runs it), so an existing
+        # staged log below is still validated in full.
+        return 0
     new_logs = added_session_paths_in_index(sessions, repo_root)
     if new_logs is None:
         print(
@@ -1939,13 +1957,13 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
         )
         return 1
     for session in sessions:
-        mode = "--creation-mode" if session in new_logs else "--pre-commit"
+        flags = ["--creation-mode"] if session in new_logs else ["--pre-commit", "--existing-log"]
         result = _run_command(
             [
                 sys.executable,
                 "scripts/validate_session_json.py",
                 session,
-                mode,
+                *flags,
             ],
             repo_root,
         )
@@ -6770,16 +6788,25 @@ def _pushed_workflow_paths(
 
 
 def _select_pushed_workflows(paths: Sequence[str], repo_root: Path) -> list[str]:
+    existing = [
+        path
+        for path in paths
+        if (repo_root / _normalize_ratchet_path(path)).is_file()
+    ]
     base_ref = _workflow_local_base_ref()
     changed = _pushed_workflow_paths(paths, repo_root, base_ref)
     if changed is None:
         print(
             f"WARNING: workflow-local could not resolve {base_ref}; "
-            "validating all provided workflows",
+            "validating all provided workflows that still exist",
             file=sys.stderr,
         )
-        return list(paths)
-    return [path for path in paths if _normalize_ratchet_path(path) in changed]
+        return existing
+    return [
+        path
+        for path in existing
+        if _normalize_ratchet_path(path) in changed
+    ]
 
 
 def run_workflow_local(paths: Sequence[str], repo_root: Path) -> int:
@@ -7204,7 +7231,20 @@ def _handle_adr_review(args: argparse.Namespace) -> int:
 
 
 def _handle_retrospective(args: argparse.Namespace) -> int:
-    return check_retrospective_evidence(args.paths, _repo_root(args))
+    # {push_files} resolves empty on a branch's first push: lefthook's own
+    # diff-against-previous-remote-ref substitution has nothing to diff
+    # against, which silently defeats the documentation-only bypass below
+    # regardless of what the push actually contains (issue #5128). Derive
+    # the real push range independently via _push_range_changed_files, the
+    # same stdin-based mechanism the glob-triggered advisory jobs already
+    # use for this exact class of bug (see the comment above
+    # _push_range_changed_files). Fall back to args.paths, which is empty
+    # under the lefthook job's use_stdin wiring but keeps direct/manual
+    # invocation with explicit paths working.
+    repo_root = _repo_root(args)
+    changed = _push_range_changed_files(sys.stdin, repo_root)
+    paths = sorted(changed) if changed is not None else list(args.paths)
+    return check_retrospective_evidence(paths, repo_root)
 
 
 def _handle_taste(args: argparse.Namespace) -> int:

@@ -26,9 +26,10 @@ installs and where a worktree push really looks. Verified on git 2.51.0
 against a scratch repository with a linked worktree: a marker pre-push under
 the common directory fired on a push from the worktree, and stopped firing
 once removed. So ``--git-common-dir`` is unnecessary, and the whole health
-test is whether ``<git-path hooks>/pre-push`` is a file, which also covers the
-"directory exists but holds no pre-push" case. ``core.hooksPath`` is read only
-on the unhealthy path, to name which condition failed.
+test is whether ``<git-path hooks>/pre-push`` is an executable file, which
+also covers the "directory exists but holds no pre-push" and "hook exists but
+Git will ignore it" cases. ``core.hooksPath`` is read only on the unhealthy
+path, to name which condition failed.
 
 Scope: the remedy is a lefthook command, so this gate passes silently in any
 repository that does not configure lefthook. A repository with no hooks and no
@@ -46,6 +47,7 @@ a state it cannot read is not evidence that hooks are dead.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -123,9 +125,13 @@ def _configured_hooks_path(repo_root: Path) -> str | None:
 
 def _failed_condition(repo_root: Path, hooks_dir: Path) -> str:
     """Describe why git will run no hook. Called only on the unhealthy path."""
+    hook = hooks_dir / PROBE_HOOK
+    if hook.is_file():
+        return f"{hook} exists but is not executable, so git will ignore it"
+
     configured = _configured_hooks_path(repo_root)
     if configured is None:
-        return f"{hooks_dir / PROBE_HOOK} is missing and core.hooksPath is unset"
+        return f"{hook} is missing and core.hooksPath is unset"
     if not hooks_dir.is_dir():
         return (
             f"core.hooksPath is set to '{configured}' "
@@ -149,7 +155,8 @@ def diagnose(repo_root: Path) -> str | None:
     hooks_dir = _hooks_dir(repo_root)
     if hooks_dir is None:
         return None
-    if (hooks_dir / PROBE_HOOK).is_file():
+    hook = hooks_dir / PROBE_HOOK
+    if hook.is_file() and os.access(hook, os.X_OK):
         return None
     return _failed_condition(repo_root, hooks_dir)
 
@@ -158,7 +165,7 @@ def validate_git_hook_health(repo_root: Path) -> bool:
     """Return True when git will run hooks, False when every hook is inert.
 
     Entry point matching the contract the pre-PR registry consumes. Canonical
-    source: ``scripts/validation/pre_pr_sequence.py:147``, whose adapter
+    source: ``scripts/validation/pre_pr_sequence.py:148``, whose adapter
     signature reads verbatim (quoted at column 0 so the 96-character original
     is reproduced byte for byte rather than wrapped to fit an indent):
 

@@ -30,9 +30,6 @@ def _status_inputs() -> dict[str, str]:
         "bypass_used": os.environ.get("BYPASS_USED", ""),
         "bypass_label": os.environ.get("BYPASS_LABEL", ""),
         "bypass_count": os.environ.get("BYPASS_COUNT", ""),
-        "has_code_changes": os.environ.get("HAS_CODE_CHANGES", ""),
-        "qa_exists": os.environ.get("QA_EXISTS", ""),
-        "qa_report": os.environ.get("QA_REPORT", ""),
         "keywords": os.environ.get("KEYWORDS_STATUS", ""),
         "template": os.environ.get("TEMPLATE_STATUS", ""),
         "template_message": os.environ.get("TEMPLATE_MESSAGE", ""),
@@ -63,17 +60,6 @@ def _overall_status(inputs: dict[str, str]) -> tuple[str, list[str], list[str]]:
         warnings.append("No GitHub issue linking keywords found (Closes, Fixes, Resolves #N)")
     if inputs["template"] == "WARN" and inputs["template_message"]:
         warnings.append(inputs["template_message"])
-    # `check_pr_qa_report` writes `str(bool)`, so this arrives as `True` or
-    # `False` with a capital letter while `qa_report_exists` arrives lower
-    # case. The `has_code_changes` casefold is the fix: without it the
-    # comparison never matched and this warning was dead in the pipeline it
-    # ships in. The `qa_exists` casefold is symmetry, not a fix, and dropping
-    # it passes the suite; adding a test for a cased value that producer never
-    # writes would be the same mistake this change repairs. Issue #3721 is the
-    # same class one file over.
-    has_code_changes = inputs["has_code_changes"].casefold() == "true"
-    if has_code_changes and inputs["qa_exists"].casefold() == "false":
-        warnings.append("QA report not found for code changes (recommended before merge)")
     return status, blocking, warnings
 
 
@@ -116,16 +102,7 @@ def build_report(inputs: dict[str, str]) -> tuple[str, str]:
         "|:------|:-------|",
         f"| Issue linking keywords | {inputs['keywords']} |",
         f"| Template compliance | {inputs['template']} |",
-        "",
-        "### QA Validation",
-        "",
-        "| Check | Status |",
-        "|:------|:-------|",
-        f"| Code changes detected | {inputs['has_code_changes']} |",
-        f"| QA report exists | {inputs['qa_exists']} |",
     ]
-    if inputs["qa_report"]:
-        lines.append(f"| QA report | `.agents/qa/{inputs['qa_report']}` |")
     if blocking:
         lines.extend(["", "### ⚠️ Blocking Issues", ""])
         lines.extend(f"- {issue}" for issue in blocking)

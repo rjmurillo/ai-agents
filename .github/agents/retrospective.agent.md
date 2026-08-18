@@ -1072,7 +1072,7 @@ Stop recursive extraction when ALL criteria are met:
 - [ ] No new learnings identified in current iteration
 - [ ] All learnings either persisted or rejected as duplicates
 - [ ] Meta-learning evaluation yields no insights
-- [ ] Extracted learnings count documented in session log
+- [ ] Extracted learnings count documented in the retrospective
 - [ ] Validation script passes: `uv run --frozen python scripts/validation/memory_index.py --ci`
 
 **Infinite Loop Prevention:**

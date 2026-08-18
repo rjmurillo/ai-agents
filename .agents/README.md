@@ -9,8 +9,8 @@
 ## Plugin Consumer Guide
 
 When installed as a Claude Code plugin, this project creates an `.agents/` directory in
-consumer project roots. This directory stores session logs, analysis artifacts, and
-governance documents used by the plugin's hooks and skills.
+consumer project roots. This directory stores optional session logs, analysis artifacts, and governance
+documents used by the plugin's hooks and skills.
 
 ### Directory Structure
 
@@ -47,9 +47,9 @@ root is read-only, set `CLAUDE_PROJECT_DIR` to a writable location.
 ## Quick Start
 
 1. Copy contents to your ai-agents repository's `.agents/` directory
-2. Use `SESSION-START-PROMPT.md` to begin any session
-3. Follow phase prompts in `PHASE-PROMPTS.md` for specific work
-4. Use `SESSION-END-PROMPT.md` before ending any session
+2. Follow phase prompts in `PHASE-PROMPTS.md` for specific work
+3. Use the opt-in `session-init` and `session-end` skills when you want a
+   committed JSON session log
 
 ---
 
@@ -58,8 +58,6 @@ root is read-only, set `CLAUDE_PROJECT_DIR` to a writable location.
 | File | Purpose | Use When |
 |------|---------|----------|
 | **AGENT-INSTRUCTIONS.md** | Task execution protocol | Reference during all work |
-| **SESSION-START-PROMPT.md** | Universal session initialization | Start of every session |
-| **SESSION-END-PROMPT.md** | Universal session finalization | End of every session |
 | **PHASE-PROMPTS.md** | Phase-specific orchestrator prompts | Starting each phase |
 | **planning/enhancement-PROJECT-PLAN.md** | Master 6-phase project plan | Track progress |
 | **prompts/GENERATE-AGENT-SYSTEM-PROMPT.md** | Generate AGENT-SYSTEM.md | One-time setup |
@@ -88,8 +86,6 @@ mkdir -p .agents/planning .agents/prompts .agents/sessions .agents/governance .a
 
 # Copy files
 cp AGENT-INSTRUCTIONS.md .agents/
-cp SESSION-START-PROMPT.md .agents/
-cp SESSION-END-PROMPT.md .agents/
 cp PHASE-PROMPTS.md .agents/
 cp prompts/GENERATE-AGENT-SYSTEM-PROMPT.md .agents/prompts/
 

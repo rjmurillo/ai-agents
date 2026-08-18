@@ -159,6 +159,21 @@ class TestDeadHooks:
         assert "has no pre-push hook" in result.stderr
         assert check_git_hook_health.REMEDY in result.stderr
 
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="Git for Windows does not use POSIX execute bits"
+    )
+    def test_non_executable_pre_push_fails(self, tmp_path: Path) -> None:
+        repo = _make_repo(tmp_path, "non_executable")
+        hook = repo / ".git" / "hooks" / "pre-push"
+        _install_prepush(hook.parent)
+        hook.chmod(0o644)
+
+        result = _run_cli(repo)
+
+        assert result.returncode == 1
+        assert "exists but is not executable" in result.stderr
+        assert check_git_hook_health.REMEDY in result.stderr
+
     def test_missing_pre_push_with_hooks_path_unset_fails(self, tmp_path: Path) -> None:
         repo = _make_repo(tmp_path, "no_prepush")
 
@@ -268,7 +283,10 @@ class TestNegativeControl:
         repo = _make_repo(tmp_path, "missing_dir")
         _git(repo, "config", "core.hooksPath", str(repo / ".githooks"))
         original = GUARD.read_text(encoding="utf-8")
-        target = "    if (hooks_dir / PROBE_HOOK).is_file():\n        return None\n"
+        target = (
+            "    if hook.is_file() and os.access(hook, os.X_OK):\n"
+            "        return None\n"
+        )
         assert original.count(target) == 1, (
             "mutation target moved; the control did not apply"
         )

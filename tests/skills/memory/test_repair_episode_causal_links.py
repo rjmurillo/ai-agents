@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -190,25 +190,19 @@ class TestFalseEdgeRemoval:
         # the commit so the fixture cannot drift cross-date and turn the
         # pair comparable again.
         sha = _resolvable_sha()
-        # %cI carries the committer's ORIGINAL offset (e.g. "-07:00"), not
-        # UTC. _parse_causal_timestamp in extract_session_episode.py always
-        # normalizes to UTC (`parsed.astimezone(UTC)`) before
-        # _event_order_relation compares `.date()`. Slicing the raw %cI
-        # string took the local calendar date instead: for any commit made
-        # roughly 17:00-23:59 Pacific, adding the UTC offset rolls the date
-        # to the next day, so the fixture's "same day" and the code's actual
-        # "same day" disagreed and this test flaked on commit time of day.
-        # Reproducing the real comparison basis here removes that
-        # dependency (issue #5090 follow-up: found while diagnosing an
-        # unrelated push failure).
-        raw_commit_date = subprocess.run(
+        commit_timestamp = subprocess.run(
             ["git", "-C", str(REPO_ROOT), "show", "-s", "--format=%cI", sha],
             capture_output=True,
             encoding="utf-8",
             errors="replace",
             check=True,
         ).stdout.strip()
-        commit_date = datetime.fromisoformat(raw_commit_date).astimezone(UTC).date().isoformat()
+        commit_date = (
+            datetime.fromisoformat(commit_timestamp)
+            .astimezone(timezone.utc)
+            .date()
+            .isoformat()
+        )
         midnight = f"{commit_date}T00:00:00+00:00"
         episode = _flat_episode(sha)
         for evt in episode["events"]:

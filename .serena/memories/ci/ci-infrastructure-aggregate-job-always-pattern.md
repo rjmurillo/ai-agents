@@ -7,7 +7,42 @@
 
 ## Statement
 
-Aggregate jobs that collect results from matrix strategies MUST use `if: always()` to run even when validation jobs fail.
+Aggregate jobs that collect results from matrix strategies MUST carry a status
+check function in their `if` so they run even when validation jobs fail. Use
+`!cancelled()`, not `always()`. See the correction below before applying any
+example in this memory.
+
+## Correction 2026-08-15 (Issue #5097): use `!cancelled()`, not `always()`
+
+The half of this memory that says the job must run when a dependency FAILS is
+still right. The spelling is not. `always()` also returns true while the run is
+being CANCELLED, so on a workflow with `cancel-in-progress` every push that
+supersedes a live run left the aggregate reading `cancelled` dependencies,
+exiting non-zero, and publishing a red check run against the pull request head
+for a run nobody was waiting on.
+
+GitHub documents the substitution in its expressions reference: `always()`
+"Causes the step to always execute, and returns true, even when canceled", and
+"If you want to run a job or step regardless of its success or failure, use the
+recommended alternative: `if: ${{ !cancelled() }}`". `!cancelled()` is a status
+check function, so it keeps the enforcement gap in Issue #856 closed: the job
+still runs when a dependency failed or was skipped. It skips only during
+cancellation, and a skipped job is not a success, so branch protection keeps
+waiting rather than merging on a false green.
+
+Read every `if: always() && ...` example below as `if: !cancelled() && ...`.
+Mind the YAML: a plain scalar beginning with `!` parses as a tag, so use a `>-`
+block scalar or `${{ }}`.
+
+Fixed in the five PR-head aggregators: `pytest.yml` `test-result` and
+`main-failure-alert`, `cli-smoke.yml` `smoke-result`,
+`installed-plugin-hook-guard.yml` `guard-result`, and
+`test-codeql-integration.yml` `aggregate-results`. The two aggregates repaired
+earlier for Issue #2347 (`ai-pr-quality-gate.yml`, `ai-session-protocol.yml`)
+carry the equivalent `always() && !cancelled()`. The contract is pinned by
+`tests/workflows/test_aggregator_cancellation_guard.py`, whose repository-wide
+sweep fails any new `pull_request` or `push` aggregator that reads
+`needs.<job>.result` without the guard.
 
 ## Context
 
@@ -57,11 +92,11 @@ When `validate` job failed:
 ## Correct Pattern
 
 ```yaml
-# Correct: Use always() condition
+# Correct: Use !cancelled() condition, not always() (Issue #5097 correction above)
 aggregate:
   name: Aggregate Results
   needs: [detect-changes, validate]
-  if: always() && needs.detect-changes.outputs.has_sessions == 'true'
+  if: ${{ !cancelled() && needs.detect-changes.outputs.has_sessions == 'true' }}
   steps:
     - name: Collect Results
       run: |
@@ -76,10 +111,13 @@ aggregate:
 ```
 
 **Why This Works**:
-- `always()` runs job even when dependencies fail
+- `!cancelled()` runs the job even when dependencies fail, and skips only
+  when the run itself is being cancelled (superseded by a newer push), so a
+  cancelled run does not publish a red check for work nobody is waiting on
 - Still respects other conditions (e.g., `has_sessions`)
 - Enforcement step executes and can block PR
-- Clear intent: "always aggregate results, regardless of individual failures"
+- Clear intent: "aggregate results whenever the run reaches a real verdict,
+  not only when everything upstream reports the same status"
 
 ## When to Use
 
@@ -104,7 +142,7 @@ Apply this pattern when:
 
 - [ ] Matrix validation jobs can fail independently
 - [ ] Aggregate job has `needs: [validate]`
-- [ ] Aggregate job uses `if: always() && <other-conditions>`
+- [ ] Aggregate job uses `if: ${{ !cancelled() && <other-conditions> }}` (not `always()`, see Correction above)
 - [ ] Aggregate job collects results from all matrix jobs
 - [ ] Aggregate job enforces blocking conditions
 - [ ] Test: Verify aggregate runs when validation fails
