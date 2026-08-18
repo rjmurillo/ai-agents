@@ -30,9 +30,19 @@ Copilot excludes it from generation. The dated amendment section below records
 the corrected shim count and timeout sum. Debate log:
 `.agents/critique/ADR-068-071-085-5013-debate-log.md`.
 
+Amended 2026-08-18 (issue #5154): ADR-085 section 8 is the policy authority
+for deleting `push_pr_script_identity_guard` from both harnesses. Its warrant
+is the owner's security judgment about what the guard bounded, not ADR-084's
+ROI bar, which `.agents/architecture/ADR-084-vendored-hook-roi-bar.md:145-148`
+forbids using to retire a security control. That deletion supersedes the
+2026-08-14 Copilot-only exclusion, so the exclusion is moot on both sides.
+This ADR records only the derived runtime-contract metrics that follow. The
+dated amendment section below records the new shim count, timeout sum, and
+matcher union.
+
 ## Date
 
-2026-06-02; amended 2026-07-19, 2026-08-11, and 2026-08-14
+2026-06-02; amended 2026-07-19, 2026-08-11, 2026-08-14, and 2026-08-18
 
 ## Context
 
@@ -264,6 +274,54 @@ unchanged. This is a scoped runtime-contract update that follows from ADR-085
 Decision 7, not a re-evaluation of the verified runtime contract established
 above. Debate log: `.agents/critique/ADR-068-071-085-5013-debate-log.md`.
 
+### 2026-08-18 amendment: push-pr identity guard deleted from both harnesses (issue #5154)
+
+ADR-085 section 8 is the policy authority for the deletion. It records the
+owner's classification of the disposition as deleted under section 7's
+reintroduction gate 8, and it rests that classification on the owner's
+security judgment about the guard's threat model, not on ADR-084's ROI bar:
+`.agents/architecture/ADR-084-vendored-hook-roi-bar.md:145-148` forbids using
+that bar to retire a security control, and section 8 complies by changing the
+warrant. Section 8 also records the measured 102 ms per-Bash-call cost as
+context, notes that the figure is not reproducible once the dispatch group is
+deleted, and records that the server-side
+`.github/workflows/pr-validation.yml` gate catches the outcome, not the
+execution, and reaches no plugin consumer because `.github/workflows/` sits
+outside the vendored plugin surface. This ADR records only the derived
+runtime-contract metrics that follow from that decision.
+
+Issue #5154 deleted `push_pr_script_identity_guard` from both harnesses. The
+change deleted `invoke_push_pr_script_identity_guard.py`, its nine
+`_push_pr_guard_*` companion modules, and dispatch group
+`plugin-pretooluse-9-push_pr_script_identity` from `.claude/hooks/hooks.json`
+and `.claude/hooks/dispatch_groups.json`. Nothing runs the guard now, so the
+2026-08-14 Copilot-only exclusion is moot: no
+`copilotExclude` field survives it, and Claude Code stops running the guard
+too. The same change deleted `markdownlint_guard` (PreToolUse, matcher
+`Bash(git push*)`) and `markdown_auto_lint` (PostToolUse, matcher
+`^(Write|Edit)$`) under ADR-085 sections 9 and 10, a placement judgment that
+moves markdown linting to Git hooks rather than an ROI veto, so
+`require_subagent_model` is the only surviving vendored hook.
+
+The derived metrics move as follows. The active Copilot PreToolUse manifest
+contains one shim, `require_subagent_model`, with 10 seconds of configured
+timeout. The generated host entry requests 15 seconds, keeping the same five
+seconds of dispatcher headroom. The generated host matcher union narrows to
+`Agent|Task`; no Bash form remains in it, so a Copilot Bash call no longer
+reaches this dispatcher at all and the unprobed Agent and Task matcher
+behavior recorded in the 2026-08-11 amendment becomes the only matcher path
+in service. PostToolUse leaves the generated tree entirely: the event has zero
+shims, and the generator removes its directory and its `hooks.json` entry, so
+the observe-mode merger has no active producer on either harness.
+
+The require-subagent-model fail-open and fail-closed contract recorded in the
+2026-08-11 amendment is unchanged: deny on a timed-shim overrun, allow on
+malformed input, allow on the script's own internal failures. No probe has
+measured whether the host grants, caps, or enforces the requested 15 seconds;
+the 1.0.72-1 probe tested 2 seconds. This is a scoped runtime-contract update
+that follows from ADR-085 section 8, not a re-evaluation of the verified
+runtime contract established above.
+
 ## Decision
 
 1. **Anchor every plugin hook command to the plugin root.** Bash uses
@@ -444,8 +502,12 @@ item 5.)
   Windows contract simulation, artifact discovery, authenticated smoke),
   #4874 (require-subagent-model gate), #5013 (Copilot-only
   `push_pr_script_identity_guard` exclusion; policy owned by ADR-085
-  Decision 7).
+  Decision 7), #5154 (`push_pr_script_identity_guard` deleted from both
+  harnesses; policy owned by ADR-085 section 8).
 - ADR-085. Cross-harness permission-surface asymmetry; owns the security
-  judgment behind the 2026-08-14 amendment above.
+  judgment behind the 2026-08-14 and 2026-08-18 amendments above.
+- `.agents/architecture/ADR-084-vendored-hook-roi-bar.md:145-148`. The
+  security-control carve-out that ADR-085 section 8 complies with by not
+  invoking the ROI bar. ADR-084 is not the driver for the 2026-08-18 deletion.
 - `.agents/critique/ADR-068-071-085-5013-debate-log.md`. Issue #5013
   containment and exclusion review.
