@@ -58,6 +58,13 @@ GUARD = _VALIDATION_DIR / "check_git_hook_health.py"
 LEFTHOOK_CONFIG = "pre-push:\n  commands:\n    noop:\n      run: true\n"
 
 
+@pytest.fixture(autouse=True)
+def _exercise_local_clone_contract(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep local-clone tests independent of the runner's ambient CI state."""
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(
         ["git", *args], cwd=str(cwd), capture_output=True, text=True, check=False
