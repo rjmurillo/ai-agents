@@ -129,9 +129,17 @@ if ($prs.Count -gt 0) {
 
 **Purpose:** Ensure the PR exists and has a meaningful description before triggering pipelines.
 
+**Argument scope:** `az repos pr show` is scoped by pull request ID, so it accepts only
+`--id`, `--detect`, `--open`, and `--org` (plus global parameters). Passing `--project` or
+`--repository` fails the whole call with `ERROR: unrecognized arguments`. Do not add them
+back. The same restriction applies to `az repos pr policy list`, `az repos pr policy queue`,
+`az repos pr update`, `az repos pr set-vote`, and `az repos pr checkout`. Only the
+collection-scoped commands `az repos pr list` and `az repos pr create` take `--project` and
+`--repository`, because they have no PR ID to resolve them from.
+
 ```powershell
 # Get PR details
-$prDetails = az repos pr show --id $prId --organization <org-url> --project "<project>" --output json | ConvertFrom-Json
+$prDetails = az repos pr show --id $prId --organization <org-url> --output json | ConvertFrom-Json
 Write-Host "PR Title: $($prDetails.title)"
 Write-Host "PR Status: $($prDetails.status)"
 Write-Host "PR Draft: $($prDetails.isDraft)"
