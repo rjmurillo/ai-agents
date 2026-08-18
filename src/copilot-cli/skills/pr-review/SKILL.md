@@ -57,9 +57,15 @@ After you resolve the last thread on a PR with live bot reviewers (Copilot, Devi
 
 ### Step 3: Create Worktrees (if --parallel)
 
+Worktrees go in a sibling of the checkout, never under it and never under `/tmp`
+(`.claude/rules/universal.md` MUST NOT 7). A worktree inside the checkout is
+walked by every filesystem-scanning check in this repository, and one under
+`/tmp` loses its unpushed commits when the temp filesystem is reclaimed or fills
+(issue #5111).
+
 ```bash
 branch=$(gh pr view {number} --json headRefName -q '.headRefName')
-git worktree add "./.worktrees/pr-{number}" "$branch"
+git worktree add "../wt-pr-{number}" "$branch"
 ```
 
 ### Step 4: Launch Agents
