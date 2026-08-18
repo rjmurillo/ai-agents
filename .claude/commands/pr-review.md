@@ -55,9 +55,15 @@ After you resolve the last thread on a PR with live bot reviewers (Copilot, Devi
 
 ### Step 3: Create Worktrees (if --parallel)
 
+Worktrees go in a sibling of the checkout, never under it and never under `/tmp`.
+A worktree inside the checkout gets walked by every filesystem-scanning check in
+the repository, which turns fast checks into slow ones and can block pushes. A
+worktree under `/tmp` holds the only copy of its unpushed commits until a push
+lands, so a temp-filesystem reclaim or a full temp filesystem destroys them.
+
 ```bash
 branch=$(gh pr view {number} --json headRefName -q '.headRefName')
-git worktree add "./.worktrees/pr-{number}" "$branch"
+git worktree add "../wt-pr-{number}" "$branch"
 ```
 
 ### Step 4: Launch Agents
