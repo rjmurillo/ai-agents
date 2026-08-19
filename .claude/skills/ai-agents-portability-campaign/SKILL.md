@@ -175,7 +175,7 @@ uv run python build/scripts/build_all.py
 
 Current inventories:
 
-- Local `.claude/settings.json`: six events, seven registrations.
+- Local `.claude/settings.json`: six events, eight registrations.
 - Vendored `.claude/hooks/hooks.json`: two events, four registrations.
 - Generated `src/copilot-cli/hooks/hooks.json`: two events, two dispatcher
   registrations.
