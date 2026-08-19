@@ -21,8 +21,8 @@
       },
       "handoffRead": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md in full; content in context (read-only per ADR-014)"
       },
       "sessionLogCreated": {
         "level": "MUST",
@@ -31,23 +31,23 @@
       },
       "skillScriptsListed": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "ls .claude/skills/github/scripts/ -> gh-native, issue, milestone, notifications, pr, reactions, test_workflow_locally.py, utils (8 entries)"
       },
       "usageMandatoryRead": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md; content in context"
       },
       "constraintsRead": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md; Language Constraints section applied (Python-first, ADR-042)"
       },
       "memoriesLoaded": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Read .serena/memories/memory-index.md; loaded hooks/require-subagent-model-gate.md and decision-memory-hooks-registered-directly-not-grouped.md for this task"
       },
       "branchVerified": {
         "level": "MUST",
@@ -61,8 +61,8 @@
       },
       "gitStatusVerified": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "git status --short clean at start; branch claude/tool-use-hooks-perf-ht7zhx at e11c7f4"
       },
       "startingCommitNoted": {
         "level": "SHOULD",
@@ -73,13 +73,13 @@
     "sessionEnd": {
       "checklistComplete": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "All Session End MUST items below completed with evidence"
       },
       "handoffPreserved": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "git log confirms .agents/HANDOFF.md unchanged on this branch; per-issue handoff written at .agents/sessions/handoffs/2026-08-19-tool-use-hook-retirement-handoff.md"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
@@ -88,28 +88,28 @@
       },
       "markdownLintRun": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 --fix '**/*.md' -> Linting: 1111 files; Summary: 0 issues in 0 files"
       },
       "qaValidation": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-19-adr-097-zero-tool-use-hooks-qa.md"
       },
       "changesCommitted": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "22 commits on claude/tool-use-hooks-perf-ht7zhx, all authored files 5 or fewer per commit"
       },
       "validationPassed": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "pytest tests/hooks tests/build_scripts tests/ci tests/validation tests/evals -> 8407 passed, 22 skipped, 0 failed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "ADR-097 Impact table items discharged; residual recorded in the per-issue handoff"
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",

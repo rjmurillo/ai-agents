@@ -112,6 +112,34 @@ gate-blocking, code changes beyond ADR prose):
    ratchets, then `uv run python scripts/validation/pre_pr.py`, atomic
    commits, push, confirm the draft PR.
 
+## Session log removed, deliberately
+
+The committed session log
+`.agents/sessions/2026-08-19-session-99921-...json` and its derived episode were
+**deleted**, not completed. `scripts/validate_session_json.py` failed it on 14
+incomplete MUST items, and it could not be completed truthfully:
+
+- `sessionStart.serenaActivated` and `sessionStart.serenaInstructions` require
+  `mcp__serena__activate_project` and `mcp__serena__initial_instructions`. No
+  `mcp__serena__*` tool was registered in the implementing session (confirmed by
+  `ToolSearch`, which returned no match), so those calls never happened and no
+  evidence for them exists.
+- `sessionEnd.serenaMemoryUpdated` has the same problem. The `.serena/memories/`
+  files on disk were edited directly (supersession markers), but that is not the
+  MCP write the item attests to.
+- Writing "not available" or "N/A" into the Evidence fields is not an option
+  either: `CONTRADICTION_PATTERNS` in the validator
+  (`scripts/validate_session_json.py:177`) rejects exactly those tokens.
+
+So the choice was between fabricating evidence in a governance artifact and
+removing an artifact that `.claude/rules/session-logs.md` MUST 1 states is
+optional ("A session log is optional, and validated only when staged; nothing
+requires one to commit, push, or open a PR"). Removal is the honest option.
+
+Continuity is not lost: this handoff, ADR-097, and
+`.agents/critique/ADR-097-debate-log.md` carry the decisions, the dissent, and
+the implementation record.
+
 ## Verification on Resume
 
 - [ ] `git status` matches "Files Modified" (no unexpected drift)
