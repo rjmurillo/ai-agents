@@ -151,14 +151,12 @@ def test_repo_settings_cover_plugin_shims_minus_documented_prunes():
     # every hook the plugin would have run, minus the prunes this repo
     # deliberately made. A plugin shim missing here would silently never
     # run during this repo's own sessions (the 19-day dead-hook class).
-    pruned = {
-        # ADR-085: settings.json twin removed; gate-mode groups skip self-host bail.
-        "invoke_require_subagent_model.py",
-        # Serena MCP tools only exist in Claude Code; no settings twin needed (#4917).
-        "invoke_serena_worktree_scope_guard.py",
-        # ADR-085, #5061: gate-mode group, so no settings.json twin.
-        "invoke_serena_memory_scope_guard.py",
-    }
+    # ADR-096 retired every plugin-surface tool-call hook, so there is nothing
+    # left for repo settings to cover or to prune. The three former entries
+    # (require_subagent_model, serena_worktree_scope_guard,
+    # serena_memory_scope_guard) went with their hooks; leaving them here would
+    # trip the stale-prune-entry half of the assertion below.
+    pruned: set[str] = set()
     uncovered = (
         _group_shim_basenames(surface_is_plugin=True)
         - _group_shim_basenames(surface_is_plugin=False)
@@ -200,23 +198,14 @@ def test_plugin_registrations_are_dispatcher_only():
 # The authorized set is small and shrinking while the running set is what
 # drifts, so this stays cheap and gets stronger as the ROI program completes.
 AUTHORIZED_HOOKS = {
-    "invoke_require_subagent_model.py": "#4874: deny sub-agent spawns that would "
-    "silently inherit the session model on Claude and Copilot CLI",
-    "invoke_observation_sync.py": "#3217: relocate to .githooks/CI, authorized until then",
     "invoke_compact_checkpoint.py": "#3217 KEEP, trimmed by #3273",
     "invoke_context_loader.py": "#3349 KEEP: read-only, fail-open, automates the "
     "SESSION-PROTOCOL start gate for this repo's own sessions",
     "session-start.sh": "#3244 deterministic .githooks activation",
     "invoke_memory_recall.py": "#4011 KEEP: fail-open recall, dogfood-only, "
     "stdout on exit 0 so it can never erase a prompt",
-    "invoke_memory_capture.py": "#4011 KEEP: fail-open suggestion after the "
-    "tool already ran, dogfood-only",
     "invoke_memory_reflection.py": "#4011 KEEP: the only live caller that "
     "persists memory confidence scores, dogfood-only",
-    "invoke_serena_worktree_scope_guard.py": "#4917: block Serena writes when "
-    "active worktree differs from Serena project root",
-    "invoke_serena_memory_scope_guard.py": "#5061: block Serena memory writes "
-    "that would land in a checkout other than the caller's worktree",
     "invoke_checkout_freshness_check.py": "#4689: state how many commits HEAD "
     "is behind origin/main before triage begins, fail-open, dogfood-only",
 }
@@ -250,66 +239,3 @@ def test_no_authorization_outlives_the_hook_it_authorizes():
     )
 
 
-def _plugin_surface_shim_paths() -> list[Path]:
-    """Resolve every shim belonging to a plugin-surface group.
-
-    "Vendored" is a property of the registration, not of the directory a file
-    sits in. `.claude/hooks/` also holds this repository's own dogfood hooks,
-    which ADR-084 rule 5 never covered, so scoping by directory would demand a
-    consumer-value line from hooks that have no consumer.
-    """
-    return [
-        HOOKS_DIR / shim["file"]
-        for spec in MANIFEST["groups"].values()
-        if spec.get("surface") == "plugin"
-        for shim in spec["shims"]
-    ]
-
-
-def test_every_vendored_hook_states_its_customer_value():
-    """ADR-084 rule 5: a vendored hook must state what it does for a consumer.
-
-    Rule 5 asked for a CI presence check and none was built; measured 29 days
-    after the ADR was accepted, `Customer value:` appeared in no script under
-    `scripts/`, `build/`, or `.github/workflows/`. This is that check, placed
-    in the existing parity suite rather than as a new workflow because the
-    vendored surface is one hook and a standalone job guarding one compliant
-    file is more machinery than the risk warrants.
-
-    The check is deliberately a presence assertion, not a judgement. ADR-084
-    rule 5 assigns the question of whether the stated value is REAL to human
-    review at ADR and PR time; a grep cannot answer it. What this catches is
-    the cheaper failure: a hook reaching the vendored surface without anyone
-    having written down who it helps.
-    """
-    missing = [
-        path.relative_to(REPO_ROOT)
-        for path in _plugin_surface_shim_paths()
-        if "Customer value:" not in path.read_text(encoding="utf-8")
-    ]
-    assert not missing, (
-        "ADR-084 rule 5: every vendored hook needs a one-line "
-        "'Customer value:' statement in its module docstring, naming what it "
-        f"delivers in a CONSUMER's repo. Missing from: {sorted(map(str, missing))}. "
-        "'Enforces our protocol' is disqualifying under rule 1: a consumer does "
-        "not run this project's protocol. If the hook has no consumer value, it "
-        "belongs in lefthook or CI per rule 2, not in the vendored surface."
-    )
-
-
-def test_the_customer_value_check_examines_a_nonempty_surface():
-    """Guard the guard: a zero-file corpus would pass the check vacuously.
-
-    `scripts/validation/pre_pr.py`-style gates report "0 violations in N items"
-    for exactly this reason. If a future change drops the last plugin-surface
-    registration, the assertion above starts passing because it examines
-    nothing, and the rule silently stops being enforced. This fails instead.
-    """
-    paths = _plugin_surface_shim_paths()
-    assert paths, (
-        "no plugin-surface groups in dispatch_groups.json, so the rule 5 check "
-        "above examines nothing and passes vacuously. If the vendored surface "
-        "was deliberately emptied, delete both tests and say so in the ADR."
-    )
-    for path in paths:
-        assert path.is_file(), f"plugin-surface shim missing on disk: {path}"

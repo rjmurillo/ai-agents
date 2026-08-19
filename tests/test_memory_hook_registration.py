@@ -36,7 +36,6 @@ ALL_REGISTERED_COMMANDS = tuple(
 # (event, invoker path relative to .claude/hooks/)
 REGISTERED_HOOKS = (
     ("UserPromptSubmit", "UserPromptSubmit/invoke_memory_recall.py"),
-    ("PostToolUseFailure", "PostToolUse/invoke_memory_capture.py"),
     ("SessionEnd", "SessionEnd/invoke_memory_reflection.py"),
 )
 
@@ -262,99 +261,21 @@ class TestInvokerExitCodes:
         assert result.stdout.strip() != ""
 
     @pytest.mark.unit
-    def test_capture_adds_context_for_an_error_payload(self, tmp_path):
-        result = _run(
-            "PostToolUseFailure",
-            "PostToolUse/invoke_memory_capture.py",
-            {
-                "hook_event_name": "PostToolUseFailure",
-                "tool_name": "Bash",
-                "error": "Exit code 1\nModuleNotFoundError: No module named foo",
-            },
-            tmp_path,
-        )
-
-        assert result.returncode == 0, result.stderr
-        output = json.loads(result.stdout)
-        assert "<memory-suggestion>" in output["hookSpecificOutput"]["additionalContext"]
-
-    @pytest.mark.unit
-    def test_capture_uses_failure_event_instead_of_text_sniffing(self, tmp_path):
-        result = _run(
-            "PostToolUseFailure",
-            "PostToolUse/invoke_memory_capture.py",
-            {
-                "hook_event_name": "PostToolUseFailure",
-                "tool_name": "Bash",
-                "error": "Exit code 1\ncommand output",
-            },
-            tmp_path,
-        )
-
-        assert result.returncode == 0, result.stderr
-        output = json.loads(result.stdout)
-        context = output["hookSpecificOutput"]["additionalContext"]
-        assert "Exit code 1 command output" in context
-
-    @pytest.mark.unit
-    def test_capture_ignores_a_successful_tool_event(self, tmp_path):
-        """A successful tool result must not become a memory suggestion."""
-        result = _run(
-            "PostToolUseFailure",
-            "PostToolUse/invoke_memory_capture.py",
-            {
-                "hook_event_name": "PostToolUse",
-                "tool_name": "Bash",
-                "error": ('{"Success":true,"Data":{"note":"failure examples documented"}}'),
-            },
-            tmp_path,
-        )
-
-        assert result.returncode == 0, result.stderr
-        assert result.stderr == ""
-        assert result.stdout == "", f"unexpected stdout: {result.stdout!r}"
-
-    @pytest.mark.unit
-    def test_capture_command_handles_project_path_with_spaces(self, tmp_path):
-        project_dir = tmp_path / "repo with spaces"
-        project_dir.symlink_to(REPO_ROOT, target_is_directory=True)
-
-        result = _run(
-            "PostToolUseFailure",
-            "PostToolUse/invoke_memory_capture.py",
-            {
-                "hook_event_name": "PostToolUseFailure",
-                "tool_name": "Bash",
-                "error": "Error: permission denied",
-            },
-            tmp_path,
-            project_dir,
-        )
-
-        assert result.returncode == 0, result.stderr
-        output = json.loads(result.stdout)
-        assert "<memory-suggestion>" in output["hookSpecificOutput"]["additionalContext"]
-
-    @pytest.mark.unit
     def test_unanchored_command_fails_from_foreign_cwd(self, tmp_path):
         command = _registered_command(
-            "PostToolUseFailure",
-            "PostToolUse/invoke_memory_capture.py",
+            "UserPromptSubmit",
+            "UserPromptSubmit/invoke_memory_recall.py",
         )
         _anchor, unanchored = command.split("&&", maxsplit=1)
 
         result = _run_command(
             unanchored.strip(),
-            {
-                "hook_event_name": "PostToolUseFailure",
-                "tool_name": "Bash",
-                "error": "Error: permission denied",
-            },
+            {"prompt": "how does dispatch group registration work"},
             tmp_path,
         )
 
         assert result.returncode != 0
-        assert "<memory-suggestion>" not in result.stderr
+        assert "<memory-recall>" not in result.stdout
         assert "can't open file" in result.stderr
 
     @pytest.mark.unit
