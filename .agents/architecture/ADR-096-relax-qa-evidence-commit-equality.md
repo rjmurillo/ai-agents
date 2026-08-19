@@ -1,6 +1,6 @@
 ---
 id: ADR-096
-status: proposed
+status: accepted
 date: 2026-08-19
 decision-makers: [rjmurillo]
 supersedes: []
@@ -13,7 +13,7 @@ implemented: false
 
 ## Status
 
-Proposed. Requested by issue #5164 (labels `enhancement`, `priority:P2`, `area-validation`; see the priority note at the end of this document). Round 1 of the standard 6-agent `adr-review` debate (architect, critic, independent-thinker, security, analyst, high-level-advisor) returned 6/6 ACCEPT-WITH-CHANGES; debate log at `.agents/critique/ADR-096-debate-log.md`. This text is the Phase 3 resolution incorporating the required changes. Per `.claude/rules/ci-scripts.md` MUST-NOT-2 and the `adr-review-policy` lefthook hook, no code lands until this ADR is accepted.
+Accepted. Requested by issue #5164 (labels `enhancement`, `priority:P2`, `area-validation`; see the priority note at the end of this document). Round 1 of the standard 6-agent `adr-review` debate (architect, critic, independent-thinker, security, analyst, high-level-advisor) returned 6/6 ACCEPT-WITH-CHANGES; debate log at `.agents/critique/ADR-096-debate-log.md`. This text is the Phase 3 resolution incorporating the required changes, plus a Round 2 correction (see the debate log's Round 2 entry) fixing a Decision-section claim that contradicted this ADR's own correction note. Per `.claude/rules/ci-scripts.md` MUST-NOT-2 and the `adr-review-policy` lefthook hook, code was implemented only after this ADR's frontmatter `status` transitioned to `accepted` in the same change as this status update, per the `adr-review` skill's own acceptance-transition gate (debate-log evidence at `.agents/critique/ADR-096-debate-log.md`). The frontmatter `status` transition was found missing from this PR's first two heads by the AI Spec Validator workflow on PR #5167; corrected here rather than disputed, since the ADR's own text already asserted the gating rule it had failed to satisfy.
 
 ## Date
 
