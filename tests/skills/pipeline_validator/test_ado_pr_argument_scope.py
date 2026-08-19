@@ -157,12 +157,8 @@ def _tracked_markdown() -> tuple[Path, ...]:
     return tuple(Path(name) for name in result.stdout.split("\0") if name)
 
 
-def ado_doc_paths() -> list[Path]:
-    """Return every tracked markdown file that mentions `az repos pr`.
-
-    Repo-wide rather than a fixed list so a new skill, command, or runbook that documents
-    the command is guarded the day it lands, with nobody needing to remember this module.
-    """
+@functools.lru_cache(maxsize=1)
+def _ado_doc_paths_cached() -> tuple[Path, ...]:
     found: list[Path] = []
     for relative in _tracked_markdown():
         absolute = REPO_ROOT / relative
@@ -172,7 +168,18 @@ def ado_doc_paths() -> list[Path]:
             continue
         if "az repos pr" in absolute.read_text(encoding="utf-8"):
             found.append(relative)
-    return found
+    return tuple(found)
+
+
+def ado_doc_paths() -> list[Path]:
+    """Return every tracked markdown file that mentions `az repos pr`.
+
+    Repo-wide rather than a fixed list so a new skill, command, or runbook that documents
+    the command is guarded the day it lands, with nobody needing to remember this module.
+    Cached like ``_tracked_markdown()``: three test methods in this module call it, and
+    each call would otherwise re-open and substring-scan every tracked markdown file.
+    """
+    return list(_ado_doc_paths_cached())
 
 
 PRE_FIX_LINE = (
