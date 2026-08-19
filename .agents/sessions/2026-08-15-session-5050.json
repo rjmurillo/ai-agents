@@ -104,7 +104,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run --frozen pytest tests/test_selection/ -v passed (39 tests); uv run --frozen ruff check scripts/test_selection/import_graph.py scripts/test_selection/select_tests.py tests/test_selection/test_import_graph.py tests/test_selection/test_select_tests.py passed; uv run python scripts/validation/pre_pr.py passed"
+        "Evidence": "uv run --frozen pytest tests/test_selection/ -v passed (39 tests); uv run --frozen ruff check scripts/test_selection/import_graph.py scripts/test_selection/select_tests.py tests/test_selection/test_import_graph.py tests/test_selection/test_select_tests.py passed; uv run python scripts/validation/pre_pr.py passed; post-merge re-run on c917e7c642b1: uv run pytest tests/test_selection/ tests/ci/test_run_pytest_selected.py tests/validation/test_pytest_import_selection.py tests/workflows/test_pytest_xdist_parallelism.py tests/test_lefthook_integration.py -q passed (974 passed, 1 skipped)"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -135,9 +135,13 @@
     {
       "action": "Validated regression coverage",
       "result": "39 test-selection tests passed; pre_pr.py passed"
+    },
+    {
+      "action": "Merged origin/main into feat/5050-import-graph-test-selection",
+      "result": "Only lefthook.yml conflicted; hand-resolved (worktree group renumbered 11->12). Regenerated Copilot mirror, re-ran targeted suite (974 passed, 1 skipped) and full pre_pr.py before pushing."
     }
   ],
-  "endingCommit": "236ee457c2b4d09fe8a8a44a27aa28c8d7275bd4",
+  "endingCommit": "c917e7c642b106977c74c46ac5beb470f285f3ea",
   "nextSteps": [
     "Monitor CI",
     "Address review comments"

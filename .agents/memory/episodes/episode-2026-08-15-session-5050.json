@@ -14,7 +14,7 @@
       "content": "Implemented scripts/test_selection/ package",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e014"
       ],
       "_source_session": "2026-08-15-session-5050"
     },
@@ -25,7 +25,7 @@
       "content": "Integrated with pre-push hook",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e014"
       ],
       "_source_session": "2026-08-15-session-5050"
     },
@@ -36,7 +36,7 @@
       "content": "Integrated with CI",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e014"
       ],
       "_source_session": "2026-08-15-session-5050"
     },
@@ -47,7 +47,7 @@
       "content": "Created tests",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e014"
       ],
       "_source_session": "2026-08-15-session-5050"
     },
@@ -58,7 +58,7 @@
       "content": "Merged origin/main",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e014"
       ],
       "_source_session": "2026-08-15-session-5050"
     },
@@ -69,7 +69,7 @@
       "content": "Fixed integration issues",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e014"
       ],
       "_source_session": "2026-08-15-session-5050"
     },
@@ -79,15 +79,7 @@
       "type": "commit",
       "content": "Commit: bad7a36d817618e658330e78f366ce747f189f94",
       "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
-        "e005",
-        "e006",
-        "e008",
-        "e009",
-        "e010"
+        "e013"
       ],
       "leads_to": [
         "e011"
@@ -101,7 +93,7 @@
       "content": "Extended import graph builder",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e014"
       ],
       "_source_session": "2026-08-15-session-5050"
     },
@@ -112,7 +104,7 @@
       "content": "Updated test selector",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e014"
       ],
       "_source_session": "2026-08-15-session-5050"
     },
@@ -123,7 +115,7 @@
       "content": "Validated regression coverage",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e014"
       ],
       "_source_session": "2026-08-15-session-5050"
     },
@@ -135,6 +127,51 @@
       "caused_by": [
         "e007"
       ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-15-session-5050"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main into feat/5050-import-graph-test-selection",
+      "caused_by": [],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-15-session-5050"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "test",
+      "content": "Merged origin/main into feat/5050-import-graph-test-selection      Only lefthook.yml conflicted; hand-resolved (worktree group renumbered 11->12). Regenerated Copilot mirror, re-ran targeted suite (974 passed, 1 skipped) and full pre_pr.py before pushing.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-5050"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-19T11:59:39+00:00",
+      "type": "commit",
+      "content": "Commit: c917e7c642b106977c74c46ac5beb470f285f3ea",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e008",
+        "e009",
+        "e010",
+        "e011",
+        "e012"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-5050"
     }
@@ -144,8 +181,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 8
+    "commits": 3,
+    "files_changed": 3
   },
   "lessons": []
 }
