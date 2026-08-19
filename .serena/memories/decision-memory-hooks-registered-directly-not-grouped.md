@@ -1,5 +1,14 @@
 # Memory hooks register directly in settings.json, not through the group dispatcher
 
+> **PARTIALLY SUPERSEDED 2026-08-19 by ADR-096.** Two of the three hooks this
+> record covers are retired: `post_tool_call_memory` (via its
+> `invoke_memory_capture.py` wrapper, and the module itself) and
+> `invoke_observation_sync.py`. `user_prompt_submit_memory` and
+> `session_end_memory` still register directly in `.claude/settings.json`, so
+> the decision below still holds for them. The reasoning about direct
+> registration versus the group dispatcher is unchanged; only the inventory
+> shrank.
+
 ## Question
 
 Issue #4011 needed `user_prompt_submit_memory`, `post_tool_call_memory`, and
