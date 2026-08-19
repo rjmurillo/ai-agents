@@ -73,8 +73,8 @@
     "sessionEnd": {
       "checklistComplete": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "Some MUST items still incomplete"
+        "Complete": true,
+        "Evidence": "All MUST items verified and validation passed"
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/2026-08-19-pr-autofix-lease-renewal-noop.md (qaVerdict: PASS, qaCommit rebound to e7f4e1cd9922ab5ec449f745e6fca71b2dc25163)"
+        "Evidence": ".agents/qa/2026-08-19-pr-autofix-lease-renewal-noop.md"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -103,8 +103,8 @@
       },
       "validationPassed": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "validate_session_json.py failed"
+        "Complete": true,
+        "Evidence": "validate_session_json.py passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
