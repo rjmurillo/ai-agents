@@ -28,6 +28,7 @@
 |pr autofix late merge live state base refresh: [pr-autofix/pr-4323-late-base-refresh](pr-autofix/pr-4323-late-base-refresh.md) (144)
 |pr autofix batch merge conflict lease contention hook: [pr-autofix/batch-d-2026-08-11](pr-autofix/batch-d-2026-08-11.md) (1048)
 |pr autofix fleet lease renewal live-state QA evidence: [pr-autofix/fleet-operations](pr-autofix/fleet-operations.md) (406)
+|pr autofix lease renewal comment spam PR-AUTOFIX-LEASE post throttle self-renew noop concurrent session fleet: [pr-autofix/lease-renewal-comment-spam](pr-autofix/lease-renewal-comment-spam.md) (762)
 |github pr issue cli gh api review comment: [skills-github-cli-index](skills-github-cli-index.md) (627), [skills-pr-review-index](skills-pr-review-index.md) (1100), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (699), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
 |review axes full rerun cost ship marker amplifier scoped adr-094: [review/review-full-rerun-cost-and-ship-marker-amplifier](review/review-full-rerun-cost-and-ship-marker-amplifier.md) (662)
 |gist githubusercontent raw revision file selector content integrity: [github/gist-routing-content-integrity](github/gist-routing-content-integrity.md) (402)
