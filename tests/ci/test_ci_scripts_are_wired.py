@@ -93,6 +93,12 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "batch 6). drift_collect_details.py is the workflow-invoked entry point; "
         "parse_drift_results.py is its implementation detail."
     ),
+    "run_pytest_non_tmp.py": (
+        "Library entry invoked by run_pytest_selected.py, which pytest.yml runs "
+        "for every partition (issue #5050). It keeps the repo-isolated temp root; "
+        "tests/ci/test_pytest_non_tmp_policy.py covers it directly and asserts the "
+        "workflow routes through the selection runner that calls it."
+    ),
     "ruleset_required_contexts.py": (
         "Library holding the required-context contract shared by "
         "ruleset_context_drift.py and test_merge_group_readiness.py. The "

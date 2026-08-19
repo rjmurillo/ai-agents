@@ -150,48 +150,18 @@ jobs:
           - partition: bulk
             coverage_file: artifacts/.coverage.bulk
             junit_file: artifacts/pytest-results.xml
-            pytest_args: >-
-              -n auto --dist loadfile
-              --ignore-glob='tests/*/*'
-              --ignore=tests/test_ai_review.py
-              --ignore=tests/test_verdict.py
-              --ignore=tests/test_quality_gate.py
-              --ignore=tests/test_safe_push_pr_branch.py
-              --ignore=tests/test_mutation_workspace_signals.py
-              --ignore=tests/test_pr_autofix_late_live_state_gate.py
-              tests/
           - partition: bulk-nested
             coverage_file: artifacts/.coverage.bulk-nested
             junit_file: artifacts/pytest-results-bulk-nested.xml
-            pytest_args: >-
-              -n auto --dist loadfile
-              --ignore=tests/skills/github/test_wait_for_unresolved_zero.py
-              --ignore=tests/skills/session-end/test_rework_warning.py
-              tests/build_scripts tests/ci tests/claude tests/claude_mem
-              tests/commands tests/context-optimizer tests/e2e tests/eval
-              tests/evals tests/eval_scenarios tests/external_signals
-              tests/fixtures tests/forgetful tests/hooks tests/integration
-              tests/lib tests/llm_classification tests/maintenance tests/metrics
-              tests/quality_gate tests/skillbook tests/skills
-              tests/test_memory_sync tests/validation tests/validation_pre_pr
-              tests/workflows
           - partition: mutation
             coverage_file: artifacts/.coverage.mutation
             junit_file: artifacts/pytest-results-mutation.xml
-            pytest_args: >-
-              -n auto --dist loadfile
-              tests/mutation
           - partition: safe-push
             coverage_file: artifacts/.coverage.safe-push
             junit_file: artifacts/pytest-results-safe-push.xml
-            pytest_args: >-
-              tests/test_safe_push_pr_branch.py
-              tests/test_mutation_workspace_signals.py
           - partition: pr-autofix
             coverage_file: artifacts/.coverage.pr-autofix
             junit_file: artifacts/pytest-results-pr-autofix.xml
-            pytest_args: >-
-              tests/test_pr_autofix_late_live_state_gate.py
 
     steps:
       - name: Harden Runner
@@ -332,17 +302,24 @@ jobs:
       # Each matrix leg writes one statement-only coverage file. Bulk ignores
       # the two pin suites, mutation, and the two process-sensitive files
       # because those tests run in their own partition or pin step.
-      # `-n auto` uses every logical CPU exposed by the runner.
+      # `-n auto` uses every logical CPU exposed by the runner. On push and
+      # pull_request events the import graph narrows each partition to the
+      # affected tests (issue #5050); merge_group, any fail-safe verdict, and
+      # any partition with no affected test run the full partition, so coverage
+      # combine always receives non-empty data. The full-vs-subset decision and
+      # the partition argument lists live in the Python runner, not here, per
+      # ADR-006.
       - name: Run pytest
         id: run-pytest
         env:
           PYTEST_NON_TMP_ROOT: ${{ runner.temp }}/ai-agents-pytest
           COVERAGE_FILE: ${{ matrix.coverage_file }}
+          PYTEST_SELECT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: >-
-          uv run --frozen python scripts/ci/run_pytest_non_tmp.py
+          uv run --frozen python scripts/ci/run_pytest_selected.py
+          --partition ${{ matrix.partition }}
           --cov --cov-report=
           --junitxml=${{ matrix.junit_file }}
-          ${{ matrix.pytest_args }}
 
       # Issue #1963: verdict.py's 100% branch gate needs all three of
       # test_ai_review.py, test_verdict.py, and test_quality_gate.py

@@ -7273,14 +7273,27 @@ def test_pytest_policy_cleans_hook_environment(
         returncode = 0
         pid = os.getpid()
 
-        def __init__(self, _args: Sequence[str], **kwargs: object) -> None:
+        def __init__(self, args: Sequence[str], **kwargs: object) -> None:
+            self.args = args
             captured.update(kwargs)
 
         def communicate(
-            self, *, input: object = None, timeout: float | None = None
+            self, input: object = None, *, timeout: float | None = None
         ) -> tuple[str, str]:
             captured["timeout"] = timeout
             return ("", "")
+
+        def poll(self) -> int:
+            return self.returncode
+
+        def kill(self) -> None:
+            return None
+
+        def __enter__(self) -> FakePopen:
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            return None
 
     monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
