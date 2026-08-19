@@ -144,7 +144,12 @@ because they change what a reader should expect from the tree:
    rule 5's `Customer value:` docstring requirement, because there is no
    vendored hook to enforce it against. A future vendored hook must restore
    it along with the hardening bar.
-2. **The blast radius was wider than the Impact table.** The generated
+2. **ADR-068's dependent-components table carried a live count.** The row for
+   `.claude/hooks/hooks.json` read "Three vendored plugin registrations" and is
+   pinned by `test_adr_068_dependent_components_table_matches_the_registration_count`.
+   It now reads zero while keeping the historical chain, and the
+   `.github/hooks/require-subagent-model.json` row is marked retired.
+3. **The blast radius was wider than the Impact table.** The generated
    Copilot tree, `.github/hooks/require-subagent-model.json`, and roughly 20
    dispatcher tests across seven files were all reachable only through the
    registrations. Total: 45 tests failing before disposition, against the

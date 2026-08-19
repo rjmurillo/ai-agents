@@ -794,9 +794,9 @@ generated surfaces. Sources:
 | `build/scripts/generate_hooks.py` | CLI facade and module-level generation contract | Medium |
 | `src/copilot-cli/hooks/**` | Generated manifests, entrypoints, bootstrap copies, and retained shims | Medium |
 | `.claude/settings.json` | Repository-only Claude registrations; not an input to Copilot plugin generation | Medium |
-| `.claude/hooks/hooks.json` | Three vendored plugin registrations after merging issues #4917, #5061, and #5154 (four before any of the three); must not carry removed or local-only hooks | Medium |
+| `.claude/hooks/hooks.json` | Zero vendored plugin registrations after ADR-096 retired every tool-call hook (three after merging issues #4917, #5061, and #5154; four before any of the three); must not carry removed or local-only hooks | Medium |
 | `.claude/hooks/dispatch_groups.json` | Grouped hook source; must not carry the removed approval producer | Medium |
-| `.github/hooks/require-subagent-model.json` | Repo-local direct registration of the same canonical script (matcher `task`, repo-root cwd); cloud coverage begins at default-branch merge; matcher or failure-semantic changes bind both surfaces | Medium |
+| `.github/hooks/require-subagent-model.json` | Retired by ADR-096; the file is deleted. Was a repo-local direct registration of the same canonical script (matcher `task`, repo-root cwd), with cloud coverage beginning at default-branch merge | Medium |
 | `.claude/rules/lsp-first.md` | Static cross-harness source for Serena symbolic-tool steering | Medium |
 | `.claude/skills/agent-harness-reference/references/official-hook-contracts.md` | Pinned output-field authority and docs-silent ledger | High |
 | `tests/test_hook_dispatch.py` | In-process output-policy and merger contract tests | High |
