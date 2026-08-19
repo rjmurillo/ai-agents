@@ -16,7 +16,7 @@ PostToolUse hooks must never fail the primary operation. All errors should be lo
 
 | Hook | Purpose | File Types | Performance |
 |------|---------|------------|-------------|
-| `invoke_observation_sync.py` | Sync observation memories to Forgetful after `mcp__serena__write_memory` | N/A (tool matcher, not file-type) | Non-blocking |
+| `invoke_observation_sync.py` | **Retired by ADR-096.** Synced observation memories to Forgetful after `mcp__serena__write_memory` | N/A (tool matcher, not file-type) | Non-blocking |
 
 ## Hook Input Format
 
@@ -264,6 +264,6 @@ python3 .claude/hooks/PostToolUse/your_hook.py --verbose
 
 ## References
 
-- **invoke_observation_sync.py**: Reference implementation for simple hooks
+- **invoke_observation_sync.py**: retired by ADR-096, along with every other tool-call hook. It was the reference implementation for simple hooks; there is no live PostToolUse hook to copy from now, so a new one starts from `.claude/rules/tool-use-hook-bar.md` rather than from an existing example
 - **ADR-035**: Exit code standardization
 - **Claude Code Hooks Documentation**: <https://code.claude.com/docs/en/hooks>

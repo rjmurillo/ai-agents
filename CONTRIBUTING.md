@@ -315,12 +315,17 @@ The shipped pattern:
 3. **Pick the right exit code on bootstrap failure.** Use `sys.exit(2)` for blocking hooks (the missing lib means the hook cannot run, so the gate must fail closed). Use `sys.exit(0)` for non-blocking hooks where a missing lib should not stop the user. Add the inline annotation `# Non-blocking hook: exit 0 on bootstrap failure (intentional, not a typo)` next to a `sys.exit(0)` so the next reader does not "fix" it.
 
 4. **Canonical implementation examples.** Pick a sibling at the same blocking/non-blocking tier:
-   - Blocking (exit 2): `.claude/hooks/PreToolUse/invoke_require_subagent_model.py`
-   - Non-blocking (exit 0): `.claude/hooks/PostToolUse/invoke_observation_sync.py`, `.claude/hooks/SessionStart/invoke_context_loader.py`
+   - Blocking (exit 2): none. ADR-096 retired every tool-call hook, so no
+     blocking example ships. A new one must clear
+     `.claude/rules/tool-use-hook-bar.md` before it is written, not after.
+   - Non-blocking (exit 0): `.claude/hooks/SessionStart/invoke_context_loader.py`,
+     `.claude/hooks/SessionEnd/invoke_memory_reflection.py`
 
    Internal policy and advisory hooks were removed under ADR-084 in issues #3184
-   and #3295. Retrieve behavioral guidance through static rules and skills.
-   Push-time policy belongs in Lefthook and CI.
+   and #3295, and every remaining `PreToolUse`, `PostToolUse`, and
+   `PostToolUseFailure` hook was retired under ADR-096. Retrieve behavioral
+   guidance through static rules and skills. Push-time policy belongs in
+   Lefthook and CI.
 
 5. **Run the platform regen after adding the hook.** `uv run python build/scripts/build_all.py --platform copilot-cli` (and any other downstream platform) so the regenerated copy under `src/<provider>/hooks/` stays in sync.
 
@@ -567,8 +572,16 @@ and push enforcement runs through Lefthook, `pre_pr.py`, and CI under ADR-084.
 | Hook | File | Purpose | Bypass env var |
 |------|------|---------|----------------|
 | SessionStart | `invoke_context_loader.py` | Auto-loads HANDOFF.md + latest retrospective into context | none (fail-open) |
-| PostToolUse | `invoke_observation_sync.py` | Syncs Serena observations to Forgetful | none (fail-open) |
+| SessionStart | `invoke_checkout_freshness_check.py` | Reports how far HEAD is behind origin/main | none (fail-open) |
+| UserPromptSubmit | `invoke_memory_recall.py` | Recalls relevant memories for the prompt | none (fail-open) |
+| SessionEnd | `invoke_memory_reflection.py` | Persists memory confidence scores | none (fail-open) |
 | PreCompact | `invoke_compact_checkpoint.py` | Snapshots WIP state before context compaction | none (always runs) |
+
+No `PreToolUse`, `PostToolUse`, `PermissionRequest`, or `PostToolUseFailure`
+hook is registered. ADR-096 retired all five, including
+`invoke_observation_sync.py`, which previously synced Serena observations to
+Forgetful on this event. Every surviving hook fires once per session or per
+turn, never once per tool call.
 
 **Diagnosability:** Hook errors print to stderr (visible in the harness output)
 tagged `[hook-error] {hook_name} {context}: {ExceptionClass}: {message}`. The

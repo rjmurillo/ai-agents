@@ -52,7 +52,7 @@ has no automatic ingestion, recall, or reinforcement path. All memories
 must be created through explicit commands.
 
 - `scripts/memory_enhancement/hooks/user_prompt_submit_memory.py` (auto-recall)
-- `scripts/memory_enhancement/hooks/post_tool_call_memory.py` (fact capture)
+- `scripts/memory_enhancement/hooks/post_tool_call_memory.py` (fact capture): **deleted by ADR-096**, which retired the `PostToolUseFailure` wrapper that was its only caller. Re-adding automatic fact capture means writing a new carrier and clearing `.claude/rules/tool-use-hook-bar.md` first.
 - `scripts/memory_enhancement/hooks/session_end_memory.py` (reflection)
 
 To activate automatic memory pipelines, register each script under the
