@@ -15,6 +15,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -212,6 +213,131 @@ def test_vm_bootstrap_installs_lefthook_after_dependency_sync() -> None:
     install = text.index("uv run --frozen lefthook install --reset-hooks-path")
     assert sync < install
     assert "git config core.hooksPath" not in text
+
+
+def test_vm_bootstrap_has_no_bare_apt_get_or_unguarded_dpkg_i() -> None:
+    """Pin Issue #5169's fix: every apt-get/dpkg-i call site routes through
+    the quiet wrappers, so a future edit cannot silently reintroduce a bare
+    call that dumps unpack-log noise into every SessionStart session."""
+    text = VM_BOOTSTRAP_PATH.read_text(encoding="utf-8")
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            continue
+        if "apt-get" in stripped:
+            assert stripped.startswith(("quiet_apt_get", "quiet_run sudo apt-get")), (
+                f"apt-get call bypasses the quiet wrapper: {stripped!r}"
+            )
+        if "dpkg -i" in stripped:
+            assert stripped.startswith("quiet_run sudo dpkg -i"), (
+                f"dpkg -i call bypasses the quiet wrapper: {stripped!r}"
+            )
+
+
+class TestQuietAptGet:
+    """Exercise the real quiet_run/quiet_apt_get bash functions (Issue #5169)
+    against fake sudo/apt-get/dpkg executables. Extracts the function bodies
+    verbatim from bootstrap-vm.sh rather than reimplementing them, so a
+    behavioral regression in the shipped script fails these tests instead of
+    a copy that has silently drifted from it (see .claude/rules/
+    canonical-source-mirror.md on self-referential test mirrors).
+    """
+
+    @staticmethod
+    def _extract_helpers() -> str:
+        text = VM_BOOTSTRAP_PATH.read_text(encoding="utf-8")
+        markers = [
+            (r'^APT_LOG="\$\(mktemp\)"$', r"^trap cleanup_tmp EXIT$"),
+            (r"^quiet_run\(\) \{$", r"^\}$"),
+            (r"^quiet_apt_get\(\) \{$", r"^\}$"),
+        ]
+        lines = text.splitlines()
+        blocks: list[str] = []
+        for start_pat, end_pat in markers:
+            start_re = re.compile(start_pat)
+            end_re = re.compile(end_pat)
+            start_idx = next(i for i, line in enumerate(lines) if start_re.match(line))
+            end_idx = next(
+                i for i in range(start_idx, len(lines)) if end_re.match(lines[i])
+            )
+            block = "\n".join(lines[start_idx : end_idx + 1])
+            assert block, f"empty extraction for {start_pat!r}"
+            blocks.append(block)
+        return "\n\n".join(blocks)
+
+    @staticmethod
+    def _fake_bin(tmp_path: Path, name: str, body: str) -> None:
+        script = tmp_path / name
+        script.write_text(f"#!/usr/bin/env bash\n{body}\n", encoding="utf-8")
+        script.chmod(0o755)
+
+    def _run(
+        self, tmp_path: Path, apt_get_body: str, bash_call: str
+    ) -> subprocess.CompletedProcess[str]:
+        self._fake_bin(tmp_path, "sudo", 'exec "$@"')
+        self._fake_bin(tmp_path, "apt-get", apt_get_body)
+        helpers = self._extract_helpers()
+        full_script = f"set -euo pipefail\n{helpers}\n{bash_call}\n"
+        env = {**os.environ, "PATH": f"{tmp_path}:{os.environ['PATH']}"}
+        return subprocess.run(
+            ["bash", "-c", full_script],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+            env=env,
+            check=False,
+        )
+
+    def test_quiet_on_success(self, tmp_path: Path) -> None:
+        result = self._run(
+            tmp_path,
+            apt_get_body='echo "Unpacking somepkg (noise)"\nexit 0',
+            bash_call='quiet_apt_get install -y -qq somepkg\necho MARKER_OK',
+        )
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == "MARKER_OK"
+        assert result.stderr == ""
+
+    def test_warnings_surface_even_on_zero_exit(self, tmp_path: Path) -> None:
+        result = self._run(
+            tmp_path,
+            apt_get_body=(
+                'echo "Hit:1 http://archive.ubuntu.com noble InRelease"\n'
+                'echo "W: GPG error: https://example.test NO_PUBKEY ABC123"\n'
+                "exit 0"
+            ),
+            bash_call='quiet_apt_get update -qq\necho MARKER_OK',
+        )
+        assert result.returncode == 0, result.stderr
+        assert "MARKER_OK" in result.stdout
+        assert "NO_PUBKEY ABC123" in result.stderr
+
+    def test_failure_dumps_log_and_aborts(self, tmp_path: Path) -> None:
+        result = self._run(
+            tmp_path,
+            apt_get_body=(
+                'echo "Unpacking failpkg (noise)"\n'
+                'echo "E: some apt error" >&2\n'
+                "exit 100"
+            ),
+            bash_call='quiet_apt_get install -y -qq failpkg\necho SHOULD_NOT_PRINT',
+        )
+        assert result.returncode != 0
+        assert "SHOULD_NOT_PRINT" not in result.stdout
+        assert "E: some apt error" in result.stderr
+
+    def test_apt_log_removed_on_exit(self, tmp_path: Path) -> None:
+        result = self._run(
+            tmp_path,
+            apt_get_body="exit 0",
+            bash_call='quiet_apt_get update -qq\necho "$APT_LOG"',
+        )
+        assert result.returncode == 0, result.stderr
+        log_path = Path(result.stdout.strip())
+        assert not log_path.exists(), "APT_LOG was not cleaned up by the EXIT trap"
 
 
 def test_setup_action_preserves_input_and_installs_lefthook_after_dependencies() -> None:

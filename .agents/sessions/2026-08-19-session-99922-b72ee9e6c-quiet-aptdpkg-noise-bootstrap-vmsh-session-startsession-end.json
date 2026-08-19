@@ -1,0 +1,129 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 99922,
+    "date": "2026-08-19",
+    "branch": "fix/bootstrap-vm-quiet-apt-output",
+    "startingCommit": "e11c7f463",
+    "objective": "Quiet apt/dpkg noise in bootstrap-vm.sh (session-start/session-end ROI audit)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP unreachable in this remote execution environment; confirmed via ToolSearch (no mcp__serena__* tools registered). Same finding as .agents/qa/2026-08-19-session-99920-checkout-freshness-qa.md, recorded the same day in this repo."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP unreachable in this remote execution environment; confirmed via ToolSearch (no mcp__serena__* tools registered). Same finding as .agents/qa/2026-08-19-session-99920-checkout-freshness-qa.md, recorded the same day in this repo."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-injected into context at session start by SessionStart/invoke_context_loader.py."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Available skills auto-listed via system-reminder at session start."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md (usage-mandatory) auto-loaded into context at session start via CLAUDE.md's @AGENTS.md import."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md directly this session."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Memory context auto-recalled via UserPromptSubmit hook multiple times this session (.serena/memories/* sources)."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/bootstrap-vm-quiet-apt-output"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/bootstrap-vm-quiet-apt-output"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status run repeatedly throughout the session."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e11c7f463"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items complete; serenaMemoryUpdated demoted to SHOULD with justification (Serena unreachable in this environment)."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP unreachable in this remote execution environment; confirmed via ToolSearch (no mcp__serena__* tools registered). Same finding as .agents/qa/2026-08-19-session-99920-checkout-freshness-qa.md, recorded the same day in this repo."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "NOT LINTED: pre_pr.py --markdown-lint-only selected 0 of 1 files"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-19-session-99922-bootstrap-vm-quiet-apt-qa.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All changes committed (HEAD: 5a6d6bf70a)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [],
+  "endingCommit": "5a6d6bf70a",
+  "nextSteps": []
+}
