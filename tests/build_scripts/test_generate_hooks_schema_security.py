@@ -52,14 +52,31 @@ def _run_shim(
     )
 
 
-def _run_committed_git_push_shim(raw_input: bytes) -> subprocess.CompletedProcess[bytes]:
-    matches = list(
+def _run_committed_shim(raw_input: bytes) -> subprocess.CompletedProcess[bytes]:
+    """Run the shipped require-subagent-model matcher shim against raw stdin.
+
+    This used to name the ``Bash(git push*)`` markdownlint shim. Issue #5154
+    retired it, leaving `require_subagent_model` as the sole committed matcher
+    shim, so the callers below (aliases, duplicate-keys, deeply-nested-JSON)
+    assert its specific #4672 fail-open-on-malformed-input policy. Issue
+    #4917, merged onto that #5154 baseline, added a second shim
+    (`serena_worktree_scope_guard`) with a different, fail-closed policy for
+    the same malformed-input case (see
+    ``test_committed_dispatcher_rejects_deeply_nested_json`` for that shim
+    combined with this one under the real dispatcher). Globbing on the
+    `require_subagent_model` name specifically, instead of "whatever matcher
+    shim the tree ships", keeps this helper pointed at the shim whose policy
+    these tests actually assert, now that more than one shim can exist.
+    """
+    matches = sorted(
         (REPO_ROOT / "src" / "copilot-cli" / "hooks" / "PreToolUse").glob(
-            "invoke_markdownlint_guard__Bash_git_push_*.py"
+            "invoke_require_subagent_model__*.py"
         )
     )
     if len(matches) != 1:
-        raise AssertionError(f"expected one committed git-push shim, found {matches}")
+        raise AssertionError(
+            f"expected exactly one committed require_subagent_model shim, found {matches}"
+        )
     env = dict(os.environ)
     env["COPILOT_PLUGIN_ROOT"] = str(REPO_ROOT / "src" / "copilot-cli")
     return subprocess.run(
@@ -230,10 +247,18 @@ def test_committed_shim_rejects_conflicting_input_aliases():
         separators=(",", ":"),
     ).encode("utf-8")
 
-    proc = _run_committed_git_push_shim(raw)
+    proc = _run_committed_shim(raw)
 
-    assert proc.returncode == 2
+    # The shipped shim detects the conflict and refuses to hand it to the guard.
+    # It exits 0 rather than 2 because the surviving shim matches on tool NAME:
+    # an unusable payload cannot be shown to be an Agent spawn, so the shim
+    # skips instead of denying (#4672 fail-open policy, and the guard's own
+    # docstring: it bounds model spend and is not a security boundary). The
+    # fail-closed path for a command-scoped matcher, which cannot rule out a
+    # push, is covered by test_shim_rejects_conflicting_input_aliases above.
+    assert proc.returncode == 0, proc.stderr.decode()
     assert b"conflicting top-level tool_input/toolArgs values" in proc.stderr
+    assert b"Traceback" not in proc.stderr
 
 
 def test_committed_shim_rejects_duplicate_toolcalls_keys():
@@ -242,10 +267,12 @@ def test_committed_shim_rejects_duplicate_toolcalls_keys():
         b'"toolCalls":[]}'
     )
 
-    proc = _run_committed_git_push_shim(raw)
+    proc = _run_committed_shim(raw)
 
-    assert proc.returncode == 2
+    # Exit 0 for the same reason as the aliases case above (#5154, #4672).
+    assert proc.returncode == 0, proc.stderr.decode()
     assert b"duplicate JSON object key" in proc.stderr
+    assert b"Traceback" not in proc.stderr
 
 
 def _nested_json_overflowing_stdin() -> bytes:
@@ -357,11 +384,15 @@ def test_shallow_json_still_parses_direct_shim():
 
 
 def test_committed_shim_rejects_deeply_nested_json():
-    proc = _run_committed_git_push_shim(_nested_json_overflowing_stdin())
+    proc = _run_committed_shim(_nested_json_overflowing_stdin())
 
-    assert proc.returncode == 2, proc.stderr.decode()
+    # The property under test is that the SHIPPED artifact catches the
+    # RecursionError, says so in a bounded message, and leaks no traceback.
+    # Exit 0 is the surviving tool-name matcher's policy (see the aliases test).
+    assert proc.returncode == 0, proc.stderr.decode()
     assert b"stdin JSON nesting too deep" in proc.stderr
     assert b"Traceback" not in proc.stderr
+    assert b"RecursionError" not in proc.stderr
     assert len(proc.stderr) < 4096
 
 
@@ -371,5 +402,19 @@ def test_committed_dispatcher_rejects_deeply_nested_json():
     # the standalone shim (issue #3169).
     proc = _run_committed_pretooluse_dispatcher(_nested_json_overflowing_stdin())
 
+    # The dispatcher propagates its shims' verdicts in manifest order and
+    # gate mode stops at the first nonzero exit. #5154 left only the
+    # tool-name matcher (`require_subagent_model`), whose #4672 fail-open
+    # policy returns 0 on this malformed input, so before #4917 this
+    # asserted an overall allow. #4917, merged onto that #5154 baseline,
+    # added `serena_worktree_scope_guard` as the second registered shim; its
+    # own policy is fail-closed on undeterminable input (its docstring:
+    # "Fail-closed for writes: If the session project root ... cannot be
+    # determined, write tools are blocked"), so it returns nonzero on the
+    # same malformed stdin and the dispatcher now denies overall. Both
+    # shims still detect and log the malformed input before the dispatcher
+    # returns, since `require_subagent_model` ran (and logged) before the
+    # gate advanced to the shim whose nonzero exit actually stops it.
     assert proc.returncode == 2, proc.stderr.decode()
+    assert proc.stderr.count(b"stdin JSON nesting too deep") == 2
     assert b"Traceback" not in proc.stderr

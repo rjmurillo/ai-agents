@@ -200,12 +200,14 @@ def test_oversized_unmatched_apply_patch_payload_allows(tmp_path: Path) -> None:
     assert b"P" * 4096 not in proc.stderr
 
 
-def test_oversized_matched_push_payload_denies_with_context(tmp_path: Path) -> None:
+def test_oversized_matched_payload_denies_with_context(tmp_path: Path) -> None:
+    # Issue #5154 retired the Bash(git push*) group this used to exercise. The
+    # property is unchanged: a payload that MATCHES a registered shim and
+    # exceeds the replay limit denies, and the message names the matcher, the
+    # source field, and the limit. Only the matching payload shape moved.
     payload = {
-        "tool_name": "Bash",
-        "tool_input": {
-            "command": "git push " + "E" * (_MATCHED_SHIM_PAYLOAD_LIMIT_BYTES + 1)
-        },
+        "tool_name": "Agent",
+        "tool_input": {"subagent_type": "E" * (_MATCHED_SHIM_PAYLOAD_LIMIT_BYTES + 1)},
     }
     raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
     assert len(raw) > _MATCHED_SHIM_PAYLOAD_LIMIT_BYTES
@@ -214,7 +216,7 @@ def test_oversized_matched_push_payload_denies_with_context(tmp_path: Path) -> N
 
     stderr = proc.stderr.decode("utf-8", errors="replace")
     assert proc.returncode == 2
-    assert "Bash(git push*)" in stderr
+    assert "^(Agent|Task)$" in stderr
     assert "tool_input" in stderr
     assert str(_MATCHED_SHIM_PAYLOAD_LIMIT_BYTES) in stderr
     for stream in (proc.stdout, proc.stderr):

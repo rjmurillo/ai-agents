@@ -52,6 +52,7 @@ KNOWN_RETIRED_KEBAB_SKILLS: frozenset[str] = frozenset({
     "doc-coverage",
     "doc-sync",
     "github-pr-reply",
+    "guard-maturity",
     "session-migration",
     "session-qa-eligibility",
 })

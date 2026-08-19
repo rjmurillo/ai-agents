@@ -315,8 +315,8 @@ The shipped pattern:
 3. **Pick the right exit code on bootstrap failure.** Use `sys.exit(2)` for blocking hooks (the missing lib means the hook cannot run, so the gate must fail closed). Use `sys.exit(0)` for non-blocking hooks where a missing lib should not stop the user. Add the inline annotation `# Non-blocking hook: exit 0 on bootstrap failure (intentional, not a typo)` next to a `sys.exit(0)` so the next reader does not "fix" it.
 
 4. **Canonical implementation examples.** Pick a sibling at the same blocking/non-blocking tier:
-   - Blocking (exit 2): `.claude/hooks/PreToolUse/invoke_markdownlint_guard.py`
-   - Non-blocking (exit 0): `.claude/hooks/PostToolUse/invoke_observation_sync.py`, `.claude/hooks/PostToolUse/invoke_markdown_auto_lint.py`, `.claude/hooks/SessionStart/invoke_context_loader.py`
+   - Blocking (exit 2): `.claude/hooks/PreToolUse/invoke_require_subagent_model.py`
+   - Non-blocking (exit 0): `.claude/hooks/PostToolUse/invoke_observation_sync.py`, `.claude/hooks/SessionStart/invoke_context_loader.py`
 
    Internal policy and advisory hooks were removed under ADR-084 in issues #3184
    and #3295. Retrieve behavioral guidance through static rules and skills.

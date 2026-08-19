@@ -30,13 +30,24 @@ Copilot excludes it from generation. The dated amendment section below records
 the corrected shim count and timeout sum. Debate log:
 `.agents/critique/ADR-068-071-085-5013-debate-log.md`.
 
-Amended 2026-08-18 (issue #4917): the Serena worktree scope guard's matcher
-was unanchored (`^serena-`) from its first commit and never fired on either
-harness; this amendment records the anchoring fix (`^mcp__serena__.*$` on
-Claude, `^serena-.*$` on Copilot) and the resulting derived shim inventory.
-The dated amendment section below records the corrected contract and
-metrics. This bug-fix increment did not receive a fresh six-role adr-review;
-see the corresponding ADR-068 amendment for the same scoping note.
+Amended 2026-08-18 (issue #5154): ADR-085 section 8 is the policy authority
+for deleting `push_pr_script_identity_guard` from both harnesses. Its warrant
+is the owner's security judgment about what the guard bounded, not ADR-084's
+ROI bar, which `.agents/architecture/ADR-084-vendored-hook-roi-bar.md ("What this ADR does NOT do")`
+forbids using to retire a security control. That deletion supersedes the
+2026-08-14 Copilot-only exclusion, so the exclusion is moot on both sides.
+This ADR records only the derived runtime-contract metrics that follow. The
+dated amendment section below records the new shim count, timeout sum, and
+matcher union.
+
+Amended 2026-08-18 (issue #4917), merged onto the #5154 baseline above: the
+Serena worktree scope guard's matcher was unanchored (`^serena-`) from its
+first commit and never fired on either harness; this amendment records the
+anchoring fix (`^mcp__serena__.*$` on Claude, `^serena-.*$` on Copilot) and
+the resulting derived shim inventory on top of the post-#5154 baseline. The
+dated amendment section below records the corrected contract and metrics.
+This bug-fix increment did not receive a fresh six-role adr-review; see the
+corresponding ADR-068 amendment for the same scoping note.
 
 ## Date
 
@@ -272,7 +283,55 @@ unchanged. This is a scoped runtime-contract update that follows from ADR-085
 Decision 7, not a re-evaluation of the verified runtime contract established
 above. Debate log: `.agents/critique/ADR-068-071-085-5013-debate-log.md`.
 
-### 2026-08-18 amendment: Serena worktree scope guard anchoring fix (issue #4917)
+### 2026-08-18 amendment: push-pr identity guard deleted from both harnesses (issue #5154)
+
+ADR-085 section 8 is the policy authority for the deletion. It records the
+owner's classification of the disposition as deleted under section 7's
+reintroduction gate 8, and it rests that classification on the owner's
+security judgment about the guard's threat model, not on ADR-084's ROI bar:
+`.agents/architecture/ADR-084-vendored-hook-roi-bar.md ("What this ADR does NOT do")` forbids using
+that bar to retire a security control, and section 8 complies by changing the
+warrant. Section 8 also records the measured 102 ms per-Bash-call cost as
+context, notes that the figure is not reproducible once the dispatch group is
+deleted, and records that the server-side
+`.github/workflows/pr-validation.yml` gate catches the outcome, not the
+execution, and reaches no plugin consumer because `.github/workflows/` sits
+outside the vendored plugin surface. This ADR records only the derived
+runtime-contract metrics that follow from that decision.
+
+Issue #5154 deleted `push_pr_script_identity_guard` from both harnesses. The
+change deleted `invoke_push_pr_script_identity_guard.py`, its nine
+`_push_pr_guard_*` companion modules, and dispatch group
+`plugin-pretooluse-9-push_pr_script_identity` from `.claude/hooks/hooks.json`
+and `.claude/hooks/dispatch_groups.json`. Nothing runs the guard now, so the
+2026-08-14 Copilot-only exclusion is moot: no
+`copilotExclude` field survives it, and Claude Code stops running the guard
+too. The same change deleted `markdownlint_guard` (PreToolUse, matcher
+`Bash(git push*)`) and `markdown_auto_lint` (PostToolUse, matcher
+`^(Write|Edit)$`) under ADR-085 sections 9 and 10, a placement judgment that
+moves markdown linting to Git hooks rather than an ROI veto, so
+`require_subagent_model` is the only surviving vendored hook.
+
+The derived metrics move as follows. The active Copilot PreToolUse manifest
+contains one shim, `require_subagent_model`, with 10 seconds of configured
+timeout. The generated host entry requests 15 seconds, keeping the same five
+seconds of dispatcher headroom. The generated host matcher union narrows to
+`Agent|Task`; no Bash form remains in it, so a Copilot Bash call no longer
+reaches this dispatcher at all and the unprobed Agent and Task matcher
+behavior recorded in the 2026-08-11 amendment becomes the only matcher path
+in service. PostToolUse leaves the generated tree entirely: the event has zero
+shims, and the generator removes its directory and its `hooks.json` entry, so
+the observe-mode merger has no active producer on either harness.
+
+The require-subagent-model fail-open and fail-closed contract recorded in the
+2026-08-11 amendment is unchanged: deny on a timed-shim overrun, allow on
+malformed input, allow on the script's own internal failures. No probe has
+measured whether the host grants, caps, or enforces the requested 15 seconds;
+the 1.0.72-1 probe tested 2 seconds. This is a scoped runtime-contract update
+that follows from ADR-085 section 8, not a re-evaluation of the verified
+runtime contract established above.
+
+### 2026-08-18 amendment: Serena worktree scope guard anchoring fix (issue #4917), merged onto the #5154 baseline above
 
 The guard was registered from its first commit with an unanchored matcher,
 `^serena-`. A native PreToolUse matcher compiles as `^(?:PATTERN)$`, so the
@@ -290,24 +349,42 @@ PostToolUse registration and against session-log evidence of Copilot's
 `serena-*` naming), and adds `_normalize_tool_name()` so one script body
 resolves either prefix to the same bare-name write-tool check.
 
-Because the guard is not excluded from Copilot generation, this amendment
-also moves the derived shim inventory: the active Copilot PreToolUse
-manifest now contains three shims, `markdownlint_guard`,
-`require_subagent_model`, and `serena_worktree_scope`, summing to 110
-seconds of configured timeout. The generated host entry requests 115
-seconds, the same five seconds of dispatcher headroom as before. The
-require-subagent-model and markdownlint_guard fail-open and fail-closed
-behavior recorded in the prior amendments is unchanged; only the
-Copilot-side shim count and timeout sum moved, and the Serena guard itself
+Because the guard is not excluded from Copilot generation, and because this
+amendment lands on top of the #5154 deletion above rather than on the
+pre-#5154 baseline, the derived shim inventory moves from #5154's one-shim
+state, not from the earlier three-shim state: the active Copilot PreToolUse
+manifest now contains two shims, `require_subagent_model` and
+`serena_worktree_scope`, summing to 20 seconds of configured timeout. The
+generated host entry requests 25 seconds, the same five seconds of
+dispatcher headroom as before (measured directly:
+`src/copilot-cli/hooks/hooks.json` sets `timeoutSec: 25`). The
+require-subagent-model fail-open and fail-closed behavior recorded in the
+2026-08-11 amendment is unchanged; `markdownlint_guard` stays deleted per
+the #5154 amendment above and is not reintroduced. The Serena guard itself
 now has a real (previously nonexistent) fail-closed contract: it denies
 (exit 2) on scope mismatch and on an undeterminable Serena project root,
 and allows (exit 0) on scope match, on a read-only tool, and when the CWD
-git toplevel cannot be determined. The dispatcher, its matcher union, and
-its per-event mode contract are unchanged. This is a bug fix to the
-verified runtime contract, not a change to it: the contract described in
-the 2026-08-11 amendment for `markdownlint_guard` and
-`require_subagent_model` still holds; only the Serena guard's own
-previously-nonfunctional contract is now real. Fixes #4917.
+git toplevel cannot be determined.
+
+Unlike the 2026-08-14 (#5013) and prior 2026-08-18 (#5154) amendments, this
+one does change the generated host matcher union: the Serena guard's
+Copilot-side matcher (`^serena-.*$`) is a wildcard regex, not an alternation
+of known Claude tool names, so it cannot be reduced, and adding it drops the
+host-side matcher for the whole PreToolUse group again. The `Agent|Task`
+narrowing the #5154 amendment recorded above no longer holds: a Copilot Bash
+call reaches the dispatcher again (measured: the generated
+`src/copilot-cli/hooks/hooks.json` PreToolUse entry carries no `matcher`
+key), and both `require_subagent_model` and `serena_worktree_scope` run
+in-process on every PreToolUse call regardless of tool name, with each
+shim's own matcher then deciding in-process whether it does real work. The
+dispatcher itself, its three execution modes, and its per-event mode
+contract are unchanged. This is a bug fix to the verified runtime contract
+plus the scoped inventory and matcher-union consequences of merging onto
+the #5154 baseline, not a re-evaluation of the contract itself: the contract
+described in the 2026-08-11 amendment for `require_subagent_model` still
+holds; only the Serena guard's own previously-nonfunctional contract is now
+real, and the generated matcher union reflects both shims being present
+together. Fixes #4917.
 
 ## Decision
 
@@ -489,8 +566,12 @@ item 5.)
   Windows contract simulation, artifact discovery, authenticated smoke),
   #4874 (require-subagent-model gate), #5013 (Copilot-only
   `push_pr_script_identity_guard` exclusion; policy owned by ADR-085
-  Decision 7).
+  Decision 7), #5154 (`push_pr_script_identity_guard` deleted from both
+  harnesses; policy owned by ADR-085 section 8).
 - ADR-085. Cross-harness permission-surface asymmetry; owns the security
-  judgment behind the 2026-08-14 amendment above.
+  judgment behind the 2026-08-14 and 2026-08-18 amendments above.
+- `.agents/architecture/ADR-084-vendored-hook-roi-bar.md ("What this ADR does NOT do")`. The
+  security-control carve-out that ADR-085 section 8 complies with by not
+  invoking the ROI bar. ADR-084 is not the driver for the 2026-08-18 deletion.
 - `.agents/critique/ADR-068-071-085-5013-debate-log.md`. Issue #5013
   containment and exclusion review.

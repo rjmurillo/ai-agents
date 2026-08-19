@@ -25,10 +25,7 @@ RUNTIME_ADR = (
 )
 DISPATCHER_ADR = REPO_ROOT / ".agents" / "architecture" / "ADR-068-consolidated-hook-dispatcher.md"
 PERMISSION_ADR = (
-    REPO_ROOT
-    / ".agents"
-    / "architecture"
-    / "ADR-085-cross-harness-permission-surface-asymmetry.md"
+    REPO_ROOT / ".agents" / "architecture" / "ADR-085-cross-harness-permission-surface-asymmetry.md"
 )
 PLATFORM_TEMPLATE = REPO_ROOT / "templates" / "platforms" / "copilot-cli.yaml"
 
@@ -665,46 +662,79 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
         / "ADR-071-plugin-hook-runtime-contract-verification.md"
     )
 
-    # Issue #4917 (2026-08-18) added the Serena worktree scope guard, which is
-    # not excluded from Copilot generation (unlike push_pr_script_identity_guard,
-    # #5013). The dynamic reads above now see three PreToolUse shims, not two;
-    # the expected values below are the independently reviewed current facts,
-    # not a self-confirming echo of whatever the generator happens to emit.
-    assert source_counts == {"PreToolUse": 3, "PostToolUse": 1}
-    assert source_total == 4
-    assert host_total == 2
+    # Issue #5154 (2026-08-18) deleted `push_pr_script_identity_guard` from
+    # both harnesses, and deleted `markdownlint_guard` and
+    # `markdown_auto_lint` in the same change, leaving `require_subagent_model`
+    # as the sole survivor. Issue #4917 (2026-08-18), merged onto that #5154
+    # baseline (not onto the earlier three-shim/four-registration state),
+    # then added the Serena worktree scope guard, which is not excluded from
+    # Copilot generation. The dynamic reads above now see two PreToolUse
+    # shims and no PostToolUse event at all. The expected values below are
+    # the independently reviewed current facts, not a self-confirming echo of
+    # whatever the generator happens to emit.
+    assert source_counts == {"PreToolUse": 2}
+    assert source_total == 2
+    assert host_total == 1
+    # Two source registrations reduced to one host registration: 50 percent.
+    # The number is pinned so a silent regrowth of the inventory cannot
+    # restore a reduction the prose no longer claims.
     assert round(reduction, 1) == 50.0
-    assert "five registrations across two events" in adr_068
-    assert "four PreToolUse shims and one PostToolUse shim" in adr_068
     assert (
-        "four registrations across two events (three PreToolUse shims and "
-        "one PostToolUse shim)" in adr_068
+        "vendored Claude plugin source and the generated Copilot manifest "
+        "each now contain two registrations on one event: two PreToolUse "
+        "shims and no PostToolUse shim" in adr_068
     )
     assert "not for matched-call process savings" in adr_068
-    assert len(pretool_manifest["shims"]) == 3
-    assert timeout_total == 110
-    assert "current PreToolUse manifest has three shims" in adr_068
-    assert "110 seconds of configured timeout" in adr_068
-    assert f"host entry requests {host_timeout} seconds" in adr_068
-    assert "five seconds of dispatcher headroom" in adr_068
+    assert len(pretool_manifest["shims"]) == 2
+    assert timeout_total == 20
+    assert host_timeout == 25
+    # Whole sentences, not loose fragments. ADR-068 states the manifest and
+    # host-entry numbers in three places (a dated Status paragraph, Decision
+    # item 4, and a Negative bullet), so a bare "host entry requests N
+    # seconds" fragment is satisfied by any one of them and a wrong number in
+    # the other two goes unseen. Measured: changing Decision item 4 to 105
+    # left the fragment form green because the Status paragraph still said 15.
+    assert (
+        f"The current PreToolUse manifest has two shims with {timeout_total} "
+        f"seconds of configured timeout, so the generated host entry requests "
+        f"{host_timeout} seconds." in adr_068
+    )
+    assert (
+        f"The current PreToolUse manifest sums to {timeout_total} seconds. The "
+        f"generated host entry requests {host_timeout} seconds after five "
+        f"seconds of dispatcher headroom" in adr_068
+    )
     assert "the in-process bypass is latent" in adr_068
+    assert (
+        "two registrations on one event, PreToolUse, and Copilot generation "
+        "emits one host registration" in adr_085
+    )
+    deletion_note = "deleted `push_pr_script_identity_guard` from both harnesses"
+    assert deletion_note in adr_068
+    assert deletion_note in adr_071
+    assert "Issue #5154 (2026-08-18) deletes the guard outright" in adr_085
+    # The 2026-08-11 and 2026-08-14 baselines are dated historical records,
+    # not live claims, and stay pinned in all three ADRs precisely because
+    # they were true then and the amendment sections say so explicitly.
+    assert "growing the active manifest to three shims and 110 seconds of summed timeout" in adr_068
+    assert "active manifest contains three shims" in adr_071
+    assert "110 seconds of configured timeout" in adr_071
+    assert (
+        "four registrations across two events: three PreToolUse shims and one PostToolUse shim"
+        in adr_068
+    )
+    assert "three PreToolUse shims and one PostToolUse shim" in adr_068
+    # The #4917 amendment re-baselines trigger 2 back up on top of #5154's
+    # down-baseline; both dated re-baseline steps stay pinned as history.
+    assert "re-baselined it back up to two shims and 20 seconds after" in adr_068
+    assert "PreToolUse manifest grows beyond two shims" in adr_068
     assert "four registrations across two events" in adr_085
     containment_note = (
-        "excluded `push_pr_script_identity_guard` from the generated "
-        "Copilot inventory only"
+        "excluded `push_pr_script_identity_guard` from the generated Copilot inventory only"
     )
     assert containment_note in adr_068
     assert containment_note in adr_071
     assert containment_note in adr_085
-    # The 2026-08-11 baseline (issue #4874) is a dated historical record, not
-    # a live claim, and stays pinned in both ADRs precisely because it was
-    # true then and the amendment paragraphs say so explicitly.
-    assert (
-        "growing the active manifest to three shims and 110 seconds of "
-        "summed timeout" in adr_068
-    )
-    assert "active manifest contains three shims" in adr_071
-    assert "110 seconds of configured timeout" in adr_071
     for stale in (
         "125 seconds",
         "four starts on a `git push` today",
@@ -716,45 +746,73 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
         "No in-process timeout enforcement",
         "the spawn cost this ADR removes",
         "removes process startup",
+        # Superseded by #5013/#5154: these read as live claims about the
+        # markdownlint_guard-era inventory that no longer exists. #4917 later
+        # reintroduced a *different* two-shim, 20-second state (checked
+        # positively above), so these guards target the old 100-second
+        # figure specifically rather than "two shims" alone. Their dated
+        # forms above are the record.
+        "current PreToolUse manifest has two shims with 100 seconds",
+        "The current PreToolUse manifest sums to 100 seconds",
+        "The current PreToolUse inventory is two shims, and it is timed",
     ):
         assert stale not in adr_068, f"stale metric survives in ADR-068: {stale}"
     assert f"host entry requests {host_timeout} seconds" in adr_071
     assert timeout_headroom == 5
 
 
-def test_adr_068_scopes_2026_08_11_and_2026_08_14_status_paragraphs() -> None:
-    """The two dated Status paragraphs must not blur into each other.
+def test_adr_068_scopes_its_three_dated_status_paragraphs() -> None:
+    """The three dated Status paragraphs must not blur into each other.
 
     Round 1 found the 2026-08-14 paragraph framed as a blanket "facts
     refresh" with no named policy authority. The fix must land in the
     2026-08-14 paragraph specifically, and the 2026-08-11 paragraph must keep
-    its own historical numbers unchanged. Explicit reviewed values, not a
-    dynamic re-derivation of the same generator output the prose describes.
+    its own historical numbers unchanged. Issue #5154 added a third dated
+    paragraph and made the first two historical; each still owns its own
+    numbers, and only the newest one may claim the current inventory.
+    Explicit reviewed values, not a dynamic re-derivation of the same
+    generator output the prose describes.
     """
     text = DISPATCHER_ADR.read_text(encoding="utf-8")
     historical = _normalize(
         _paragraph_after(text, "Amended 2026-08-11 (issue #4874):", DISPATCHER_ADR)
     )
-    current = _normalize(
+    superseded = _normalize(
         _paragraph_after(text, "Amended 2026-08-14 (issue #5013):", DISPATCHER_ADR)
+    )
+    current = _normalize(
+        _paragraph_after(text, "Amended 2026-08-18 (issue #5154):", DISPATCHER_ADR)
     )
 
     assert "three shims and 110 seconds of summed timeout" in historical
-    assert "ADR-085 Decision 7 is the policy authority" in current
-    assert "scoped derived-metrics update" in current
-    assert "100 seconds of configured timeout" in current
-    assert "host entry requests 105 seconds" in current
-    assert "same file still lists the guard in Claude Code's canonical dispatch group" in current
+    assert "ADR-085 Decision 7 is the policy authority" in superseded
+    assert "scoped derived-metrics update" in superseded
+    assert "100 seconds of configured timeout" in superseded
+    assert "host entry requests 105 seconds" in superseded
+    assert "same file still lists the guard in Claude Code's canonical dispatch group" in superseded
     assert (
         "excluded `push_pr_script_identity_guard` from the generated Copilot "
-        "inventory only" in current
+        "inventory only" in superseded
     )
-    assert "ADR-068-071-085-5013-debate-log.md" in current
-    _refute(current, "three shims and 110 seconds of summed timeout")
+    assert "ADR-068-071-085-5013-debate-log.md" in superseded
+
+    assert "ADR-085 section 8 is the policy authority" in current
+    assert "superseding the 2026-08-14 Copilot-only exclusion" in current
+    assert "one shim with 10 seconds of configured timeout" in current
+    assert "host entry requests 15 seconds" in current
+    assert "PostToolUse leaves the generated tree entirely" in current
+    assert "narrows to `Agent|Task`" in current
+    assert "a 0.0 percent reduction, down from 33.3 percent" in current
+    assert "scoped derived-metrics update" in current
+
+    _refute(current, "100 seconds of configured timeout", "host entry requests 105 seconds")
+    _refute(superseded, "three shims and 110 seconds of summed timeout")
+    _refute(superseded, "host entry requests 15 seconds", "ADR-085 section 8 is the policy")
     _refute(historical, "scoped derived-metrics update", "ADR-085 Decision 7 is the policy")
+    _refute(historical, "ADR-085 section 8 is the policy")
 
 
-def test_adr_071_scopes_2026_08_11_and_2026_08_14_amendment_sections() -> None:
+def test_adr_071_scopes_its_three_dated_amendment_sections() -> None:
     """Same current-vs-historical boundary, on ADR-071's dated subsections."""
     text = RUNTIME_ADR.read_text(encoding="utf-8")
     historical = _normalize(
@@ -764,7 +822,7 @@ def test_adr_071_scopes_2026_08_11_and_2026_08_14_amendment_sections() -> None:
             RUNTIME_ADR,
         )
     )
-    current = _normalize(
+    superseded = _normalize(
         _section_after(
             text,
             "### 2026-08-14 amendment: push-pr identity guard excluded from "
@@ -772,27 +830,55 @@ def test_adr_071_scopes_2026_08_11_and_2026_08_14_amendment_sections() -> None:
             RUNTIME_ADR,
         )
     )
+    current = _normalize(
+        _section_after(
+            text,
+            "### 2026-08-18 amendment: push-pr identity guard deleted from "
+            "both harnesses (issue #5154)",
+            RUNTIME_ADR,
+        )
+    )
 
     assert "three shims with 110 seconds of configured timeout" in historical
     assert "115 seconds" in historical
-    assert "ADR-085 Decision 7 is the policy authority" in current
+    assert "ADR-085 Decision 7 is the policy authority" in superseded
+    assert "scoped runtime-contract update" in superseded
+    assert "100 seconds of configured timeout" in superseded
+    assert "105 seconds" in superseded
+    assert "Copilot excludes the guard from generation entirely" in superseded
+    assert "ADR-068-071-085-5013-debate-log.md" in superseded
+
+    assert "ADR-085 section 8 is the policy authority" in current
+    assert "deleted `push_pr_script_identity_guard` from both harnesses" in current
+    assert "10 seconds of configured timeout" in current
+    assert "host entry requests 15 seconds" in current
+    assert "narrows to `Agent|Task`" in current
+    assert "PostToolUse leaves the generated tree entirely" in current
     assert "scoped runtime-contract update" in current
-    assert "100 seconds of configured timeout" in current
-    assert "105 seconds" in current
-    assert "Copilot excludes the guard from generation entirely" in current
-    assert "ADR-068-071-085-5013-debate-log.md" in current
-    _refute(current, "three shims with 110 seconds of configured timeout", "115 seconds")
+
+    _refute(superseded, "three shims with 110 seconds of configured timeout", "115 seconds")
+    _refute(superseded, "host entry requests 15 seconds", "ADR-085 section 8 is the policy")
+    _refute(current, "105 seconds", "115 seconds", "ADR-085 Decision 7 is the policy")
     _refute(historical, "scoped runtime-contract update", "ADR-085 Decision 7 is the policy")
+    _refute(historical, "ADR-085 section 8 is the policy")
 
     status = _normalize(RUNTIME_ADR.read_text(encoding="utf-8"))
     assert "Amended 2026-08-11 (issue #4874)" in status
     assert "Amended 2026-08-14 (issue #5013)" in status
+    assert "Amended 2026-08-18 (issue #5154)" in status
     assert "ADR-068-071-085-metric-refresh-debate-log.md" in status
     assert "ADR-068-071-085-5013-debate-log.md" in status
 
 
 def test_adr_085_decision_seven_applies_eligibility_test_to_the_exclusion() -> None:
-    """ADR-085 Decision 7 must apply Decision 1's test, not just cite it."""
+    """ADR-085 Decision 7 must apply Decision 1's test, not just cite it.
+
+    Issue #5154 superseded this section without deleting it: the containment
+    incident and the reasoning applied to it are the record of why the guard
+    was contained before it was removed. The section must therefore keep its
+    reasoning AND say plainly that it is history, so a later reader cannot
+    mistake it for the current disposition.
+    """
     text = PERMISSION_ADR.read_text(encoding="utf-8")
     decision_seven = _normalize(
         _section_after(
@@ -811,6 +897,11 @@ def test_adr_085_decision_seven_applies_eligibility_test_to_the_exclusion() -> N
         "lookalike `new_pr.py` gaining user-level Python execution" in decision_seven
     )
     assert "Claude Code is unaffected because its host entry is not a timed" in decision_seven
+    assert (
+        "Superseded on 2026-08-18 by section 8, which deletes the guard from "
+        "both harnesses." in decision_seven
+    )
+    assert "Read it as history, not as the current disposition." in decision_seven
 
 
 def test_adr_085_decision_seven_records_generic_field_governance() -> None:
@@ -865,12 +956,9 @@ def test_adr_085_decision_seven_records_the_eight_reintroduction_gates() -> None
         "A prompt-injected repository lookalike `new_pr.py` is denied.",
         "A dynamic launcher, `python -c`, `eval`, or shell substitution, "
         "targeting `new_pr.py` is denied.",
-        "A Windows load test of 32 calls across 8 workers completes without "
-        "a false denial.",
-        "Latency stays under a 500ms p95 and a 1 second maximum across that "
-        "load test.",
-        "The measurement runs against a real Copilot CLI probe, not a "
-        "simulated harness.",
+        "A Windows load test of 32 calls across 8 workers completes without a false denial.",
+        "Latency stays under a 500ms p95 and a 1 second maximum across that load test.",
+        "The measurement runs against a real Copilot CLI probe, not a simulated harness.",
         "The owner classifies the guard's disposition as deleted or "
         "essential before it returns to the generated inventory.",
     )
@@ -903,11 +991,17 @@ def test_issue_5013_adrs_refute_stale_framing_and_incomplete_lists() -> None:
     )
 
 
-def test_issue_5013_adrs_state_claude_retention_and_copilot_exclusion() -> None:
-    """Every affected ADR must say, in its own words, who keeps the guard."""
+def test_issue_5013_adrs_retain_the_exclusion_record_as_history() -> None:
+    """The 2026-08-14 record survives #5154 in every affected ADR.
+
+    Before #5154 these phrases were live claims about who kept the guard.
+    They are now the historical record of the containment step that preceded
+    deletion, and they stay asserted for that reason: a later cleanup that
+    quietly drops them erases why the guard was contained before it was
+    removed. The live disposition is asserted separately below.
+    """
     exclusion_note = (
-        "excluded `push_pr_script_identity_guard` from the generated Copilot "
-        "inventory only"
+        "excluded `push_pr_script_identity_guard` from the generated Copilot inventory only"
     )
 
     for path in (DISPATCHER_ADR, RUNTIME_ADR, PERMISSION_ADR):
@@ -920,6 +1014,38 @@ def test_issue_5013_adrs_state_claude_retention_and_copilot_exclusion() -> None:
     assert (
         "Claude Code is unaffected because its host entry is not a timed "
         "child process" in _normalized_text(PERMISSION_ADR)
+    )
+
+
+def test_issue_5154_adrs_state_deletion_from_both_harnesses() -> None:
+    """Every affected ADR must say, in its own words, that the guard is gone.
+
+    The three facts the owner ruling turns on: the guard is deleted from both
+    harnesses, the Copilot exclusion is therefore moot, and the protected
+    outcome now rests on the server-side pr-validation gate. A reader landing
+    on any one of the three ADRs must reach all three facts without having to
+    open the other two.
+    """
+    for path in (DISPATCHER_ADR, RUNTIME_ADR, PERMISSION_ADR):
+        normalized = _normalized_text(path)
+        assert "issue #5154" in normalized.lower(), path
+        assert "both harnesses" in normalized, path
+        assert ".github/workflows/pr-validation.yml" in normalized, path
+
+    # The derived ADRs must name the policy owner; the owner must carry the
+    # decision itself rather than pointing at someone else.
+    for path in (DISPATCHER_ADR, RUNTIME_ADR):
+        assert "ADR-085 section 8 is the policy authority" in _normalized_text(path), path
+    assert (
+        "### 8. `push_pr_script_identity_guard`: deleted from both harnesses (D-D)"
+        in _normalized_text(PERMISSION_ADR)
+    )
+
+    assert "the 2026-08-14 Copilot-only exclusion is moot" in _normalized_text(RUNTIME_ADR)
+    assert "superseding the 2026-08-14 Copilot-only exclusion" in _normalized_text(DISPATCHER_ADR)
+    assert (
+        "the Copilot exclusion and its `copilotExclude: true` field are moot"
+        in _normalized_text(PERMISSION_ADR)
     )
 
 
@@ -937,6 +1063,355 @@ def test_adr_085_status_records_the_containment_incident() -> None:
     )
     assert "dispatcher itself is unchanged" in status
     assert "ADR-068-071-085-5013-debate-log.md" in status
+
+
+def test_adr_085_status_records_the_2026_08_18_deletion() -> None:
+    """Status must carry the deletion, its driver, and its replacement gate.
+
+    Same rule the containment incident follows: a reader who stops at Status
+    must not come away believing the guard still runs anywhere.
+    """
+    text = PERMISSION_ADR.read_text(encoding="utf-8")
+    status = _normalize(_section_after(text, "## Status", PERMISSION_ADR))
+
+    assert (
+        "On 2026-08-18 issue #5154 deleted `push_pr_script_identity_guard` "
+        "from both harnesses" in status
+    )
+    assert "No shim remains to exclude" in status
+    # Round 2 owner ruling: the warrant is the owner's security judgment, and
+    # cost is context. A Status paragraph that reinstates the ROI bar as the
+    # trigger puts the document back in conflict with ADR-084's carve-out.
+    assert "The warrant is the owner's own security judgment, not a cost-benefit veto." in status
+    assert "This decision does not invoke ADR-084's ROI bar" in status
+    assert "a 102 ms tax on every Bash call" in status
+    assert "Cost is context for that judgment, not its authority." in status
+    _refute(status, "The trigger is ADR-084's vendored-hook ROI bar")
+    assert "`.github/workflows/pr-validation.yml`" in status
+    assert "<https://github.com/rjmurillo/ai-agents/issues/5154>" in status
+
+
+def test_adr_085_decision_eight_records_the_owner_classification_and_gate() -> None:
+    """Section 8 must show the reintroduction gate being met, not skipped.
+
+    Decision 7 gate 8 names "deleted" as a valid terminal classification, so
+    the deletion is that gate resolving rather than an exception to it. The
+    section must also name what still enforces the outcome and what risk the
+    deletion accepts, or it reads as a cost-only decision.
+    """
+    text = PERMISSION_ADR.read_text(encoding="utf-8")
+    decision_eight = _normalize(
+        _section_after(
+            text,
+            "### 8. `push_pr_script_identity_guard`: deleted from both harnesses (D-D)",
+            PERMISSION_ADR,
+        )
+    )
+
+    assert "Issue #5154 (2026-08-18) deletes the guard outright" in decision_eight
+    assert "This supersedes section 7." in decision_eight
+    assert "**Owner classification.**" in decision_eight
+    assert "rjmurillo classified it as deleted" in decision_eight
+    assert "gate 8 names deletion as a valid terminal answer" in decision_eight
+    assert "**Decision driver: the owner's security judgment.**" in decision_eight
+    assert "It is not the authority for it." in decision_eight
+    assert "The 102 ms figure is the median of five timings taken before deletion" in decision_eight
+    # Round 2: an unreproducible number must say so where it is stated.
+    assert (
+        "Because this change deletes that dispatch group, the number is not "
+        "reproducible from the tree afterward." in decision_eight
+    )
+    assert (
+        "**Where the protected outcome is enforced now, and what that does not cover.**"
+        in decision_eight
+    )
+    for check in (
+        "Validate PR Description vs Diff",
+        "Validate PR Description Standards",
+        "Enforce Blocking Issues",
+        "`.github/scripts/parse_pr_standards.py`",
+        "`scripts/ci/enforce_pr_validation.py`",
+    ):
+        assert check in decision_eight, check
+    assert "**Residual risk accepted.**" in decision_eight
+    assert (
+        "neither harness now denies a prompt-injected repository lookalike "
+        "`new_pr.py` at agent time" in decision_eight
+    )
+    assert "**Reversibility.**" in decision_eight
+
+
+def test_adr_085_decision_eight_complies_with_the_adr_084_carve_out() -> None:
+    """The carve-out must be quoted and complied with, not argued away.
+
+    ADR-084 lines 145 to 148 forbid using its ROI bar to retire a security
+    control. Round 1 used that bar as the driver anyway. The fix is to change
+    the warrant, so the section has to name the carve-out, quote it, and say
+    it is not invoking the bar. The quote is checked against the live ADR-084
+    text below so a reworded carve-out cannot leave a stale quote here.
+    """
+    carve_out_source = REPO_ROOT / ".agents" / "architecture" / "ADR-084-vendored-hook-roi-bar.md"
+    quoted = (
+        "It does not authorize retiring an actual security control. A hook "
+        "that enforces a security property in consumer repos earns its place "
+        "by that property, not by an ROI cost-benefit veto, and a future "
+        "reviewer must not use this ADR's ROI bar to retire it."
+    )
+    # Not a tautology: this reads the cited ADR, not the citing one. If ADR-084
+    # rewords the carve-out, this fails and the quote gets refreshed.
+    assert quoted in _normalized_text(carve_out_source), carve_out_source
+
+    text = PERMISSION_ADR.read_text(encoding="utf-8")
+    decision_eight = _normalize(
+        _section_after(
+            text,
+            "### 8. `push_pr_script_identity_guard`: deleted from both harnesses (D-D)",
+            PERMISSION_ADR,
+        )
+    )
+
+    assert (
+        "**ADR-084's carve-out, and why this decision does not invoke the ROI bar.**"
+        in decision_eight
+    )
+    # The citation must resolve, so it names the durable section anchor rather
+    # than a line range. The 2026-08-18 rule 6 amendment moved the carve-out
+    # from line 145 to 169 and orphaned 11 line-range citations across ADR-068,
+    # ADR-071, and ADR-085; a range pins a number the next amendment shifts
+    # again, which is the wrong-citation failure canonical-source-mirror.md
+    # blocks on. The verbatim quote below is what actually proves the pointer
+    # lands on the carve-out.
+    assert "ADR-084-vendored-hook-roi-bar.md" in decision_eight
+    assert '"What this ADR does NOT do"' in decision_eight
+    assert "145-148" not in decision_eight, (
+        "line-range citation reintroduced; cite the section anchor instead"
+    )
+    assert quoted in decision_eight
+    assert "That carve-out binds." in decision_eight
+    assert (
+        "This decision complies with it by changing the warrant, not by "
+        "arguing the carve-out away" in decision_eight
+    )
+    assert (
+        "ADR-084's ROI bar is not cited as authority anywhere in this decision." in decision_eight
+    )
+
+
+def test_every_pr_validation_claim_carries_the_outcome_not_execution_qualifier() -> None:
+    """The overclaim must be fixed everywhere, not corrected in one paragraph.
+
+    Round 2 found Status and the References restatement asserting that
+    pr-validation.yml carries the outcome the guard protected, while the
+    Residual-risk paragraph said it catches the outcome and not the execution.
+    A document that says both is a document a reader can quote either way. So
+    every block that names the workflow must carry the qualifier itself.
+    """
+    # The verb is part of the qualifier. Measured: a mutation that changed
+    # only "catches" to "carries" left a bare "outcome, not the execution"
+    # check green, because the mutated block still contained that substring
+    # while asserting the overclaim the substring was meant to forbid.
+    qualifier = "catches the outcome, not the execution"
+    checked = 0
+    for path in (PERMISSION_ADR, DISPATCHER_ADR, RUNTIME_ADR):
+        text = path.read_text(encoding="utf-8")
+        for block in text.split("\n\n"):
+            if "pr-validation.yml" not in block:
+                continue
+            checked += 1
+            assert qualifier in _normalize(block), f"{path}: unqualified block: {block[:120]}"
+        # The round-1 wording, banned document-wide so it cannot reappear in a
+        # block that does not itself name the workflow.
+        _refute(
+            text,
+            "carries the protected outcome",
+            "that carries the outcome",
+            source=path,
+        )
+    # Report the scope with the result: a zero-finding sweep over zero blocks
+    # proves nothing. Measured composition at the time of writing: six blocks,
+    # three in ADR-085 (Status, section 8, References), two in ADR-068 (the
+    # 2026-08-18 Status amendment and References), one in ADR-071 (the
+    # 2026-08-18 amendment section).
+    assert checked == 6, f"expected 6 pr-validation blocks, scanned {checked}"
+
+
+def test_adr_085_states_workflows_are_outside_the_vendored_surface() -> None:
+    """A consumer gets no compensating control, not a weaker one."""
+    text = _normalized_text(PERMISSION_ADR)
+
+    assert (
+        "`.github/workflows/` is not part of the vendored plugin surface, so a "
+        "plugin consumer gets no compensating control at all for this vector." in text
+    )
+    assert (
+        "A plugin consumer inherits no workflow from this repository, so for "
+        "this vector a consumer gets no compensating control at all, not a "
+        "weaker one." in text
+    )
+
+
+def test_adr_085_decision_nine_records_the_markdownlint_placement_judgment() -> None:
+    """Section 9 must be section-8 shaped and must not lean on the ROI bar."""
+    text = PERMISSION_ADR.read_text(encoding="utf-8")
+    decision_nine = _normalize(
+        _section_after(
+            text,
+            "### 9. `markdownlint_guard`: deleted, markdown linting belongs in Git hooks (D-E)",
+            PERMISSION_ADR,
+        )
+    )
+
+    for heading in (
+        "**Owner classification.**",
+        "**Rationale: placement, not ROI.**",
+        "**Settled fact: this guard self-neutered in consumer repos.**",
+        "**Residual risk accepted.**",
+        "**Reversibility.**",
+    ):
+        assert heading in decision_nine, heading
+    assert "linting can be done outside the harness, with Git hooks or Lefthook" in decision_nine
+    assert (
+        "not in a per-tool-call agent hook that spawns an interpreter on every "
+        "`git push` the model issues" in decision_nine
+    )
+    assert "no ROI argument is offered here, so the carve-out does not arise" in decision_nine
+
+
+def test_adr_085_decision_nine_settles_the_self_neuter_fact_with_the_source() -> None:
+    """The disputed fact must be settled by quoted code, not by assertion.
+
+    Two reviewers disagreed. The ADR has to carry the actual call and the
+    actual delegation, and it has to say the ADR-084 debate log got it wrong.
+    The debate-log claim is read here from the live file, so this fails if the
+    log is edited and the ADR's correction goes stale.
+    """
+    debate_log = REPO_ROOT / ".agents" / "critique" / "ADR-084-debate-log.md"
+    assert "not `skip_if_consumer_repo` gated and run in consumer repos" in _normalized_text(
+        debate_log
+    ), debate_log
+
+    text = PERMISSION_ADR.read_text(encoding="utf-8")
+    decision_nine = _normalize(
+        _section_after(
+            text,
+            "### 9. `markdownlint_guard`: deleted, markdown linting belongs in Git hooks (D-E)",
+            PERMISSION_ADR,
+        )
+    )
+
+    assert "`if skip_if_consumer_repo(name): return 0`" in decision_nine
+    assert '`return run_guard(_validate, ["*.md"], GUARD_NAME)`' in decision_nine
+    assert (
+        "the guard therefore returned 0 before it read stdin, so it never ran "
+        "`markdownlint-cli2` there" in decision_nine
+    )
+    assert "`.agents/critique/ADR-084-debate-log.md:17` says the opposite" in decision_nine
+    assert "That verification was wrong, and this decision corrects it." in decision_nine
+    assert (
+        "a standing violation of ADR-084 rule 4, which bans self-neutering "
+        "vendored hooks" in decision_nine
+    )
+
+
+def test_adr_085_decision_ten_accepts_the_consumer_coverage_drop() -> None:
+    """Section 10 must state the drop to zero as accepted, not as continuity.
+
+    The asymmetry with section 9 is the whole point: the push guard skipped
+    consumer repos, this hook did not, so this is where the consumer loss is
+    real and must be owned.
+    """
+    text = PERMISSION_ADR.read_text(encoding="utf-8")
+    decision_ten = _normalize(
+        _section_after(
+            text,
+            "### 10. `markdown_auto_lint`: deleted, the same placement judgment (D-F)",
+            PERMISSION_ADR,
+        )
+    )
+
+    for heading in (
+        "**Owner classification.**",
+        "**Rationale: placement, not ROI.**",
+        "**Residual risk accepted, and it is larger here than in section 9.**",
+        "**Reversibility.**",
+    ):
+        assert heading in decision_ten, heading
+    assert (
+        "this deleted hook carried no `skip_if_consumer_repo` call anywhere in "
+        "its source, so it did run in consumer repos" in decision_ten
+    )
+    assert (
+        "a consumer who installs neither Git hooks nor Lefthook now has no "
+        "markdown gate from this plugin at all" in decision_ten
+    )
+    assert (
+        "It is not continuity, and this decision does not present it as continuity." in decision_ten
+    )
+    assert "no ROI argument is offered" in decision_ten
+
+
+def test_derived_adrs_do_not_name_the_roi_bar_as_the_deletion_driver() -> None:
+    """ADR-068 and ADR-071 repeated the retired driver chain uncited.
+
+    They may cite ADR-084 only to say the carve-out is why the bar is not the
+    warrant. Naming it as the driver is the round-2 defect.
+    """
+    for path in (DISPATCHER_ADR, RUNTIME_ADR):
+        text = _normalized_text(path)
+        _refute(
+            text,
+            "the ADR-084 vendored-hook ROI bar, and the server-side",
+            "the ADR-084 ROI driver",
+            "The vendored-hook ROI bar that drove the 2026-08-18 deletion.",
+            source=path,
+        )
+        # Section anchor, not a line range: see the note in
+        # test_adr_085_decision_eight_complies_with_the_adr_084_carve_out.
+        assert "ADR-084-vendored-hook-roi-bar.md" in text, path
+        assert '"What this ADR does NOT do"' in text, path
+        assert "145-148" not in text, (
+            f"{path}: line-range citation reintroduced; cite the section anchor"
+        )
+        assert "not ADR-084's ROI bar" in text, path
+
+
+def test_adr_082_marks_the_deleted_group_example_as_historical() -> None:
+    """ADR-082 cited a group this change deletes as a live example."""
+    text = _normalized_text(
+        REPO_ROOT / ".agents" / "architecture" / "ADR-082-claude-hook-group-dispatch.md"
+    )
+
+    assert "`plugin-posttooluse-1-markdown_auto_lint` matched only" in text
+    assert (
+        "That group is historical: issue #5154 (2026-08-18) deleted it under "
+        "ADR-085 section 10, so read it here as a worked example, not as a "
+        "live group." in text
+    )
+    _refute(
+        text,
+        "`plugin-posttooluse-1-markdown_auto_lint` matches today only",
+        source=REPO_ROOT / ".agents" / "architecture" / "ADR-082-claude-hook-group-dispatch.md",
+    )
+
+
+def test_adr_068_dependent_components_table_matches_the_registration_count() -> None:
+    """Round 2 found "Four vendored plugin registrations" against a count of one.
+
+    Issue #4917, merged onto the #5154 baseline, then added a second
+    registration (`serena_worktree_scope`), so the count moved from one back
+    to two; the table row records both historical points.
+    """
+    hooks = _read_json(REPO_ROOT / ".claude" / "hooks" / "hooks.json")["hooks"]
+    registrations = sum(map(len, hooks.values()))
+    text = _normalized_text(DISPATCHER_ADR)
+
+    assert registrations == 2
+    assert (
+        "Two vendored plugin registrations after issue #4917 merged onto "
+        "#5154 (one after #5154 alone, four before it)" in text
+    )
+    _refute(text, "| Four vendored plugin registrations", source=DISPATCHER_ADR)
+    _refute(text, "| One vendored plugin registration after issue #5154", source=DISPATCHER_ADR)
 
 
 def test_current_memories_record_skill_first_guard_retirement() -> None:

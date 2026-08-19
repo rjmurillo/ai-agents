@@ -1,42 +1,7 @@
 {
     "description": "Plugin hooks for project-toolkit. Every registration routes through invoke_dispatch_claude.py (one process per (event, matcher) group, issue #3075); membership lives in dispatch_groups.json (plugin-* groups). Inside a checkout of the repo that publishes this plugin, the dispatcher exits immediately so hooks do not double-fire with .claude/settings.json.",
     "hooks": {
-        "PostToolUse": [
-            {
-                "hooks": [
-                    {
-                        "command": "_ptr=\"${CLAUDE_PLUGIN_ROOT}\"; _warn=\"project-toolkit@ai-agents WARNING: hooks DISABLED (your session is unaffected).\"; if [ -z \"$_ptr\" ]; then echo \"$_warn Plugin root unresolvable (CLAUDE_PLUGIN_ROOT empty). Reinstall: /install-plugin rjmurillo/ai-agents\" >&2; exit 0; fi; if [ ! -d \"$_ptr\" ]; then echo \"$_warn Plugin root is not a directory: $_ptr. Reinstall: /install-plugin rjmurillo/ai-agents\" >&2; exit 0; fi; _i=\"\"; for _c in python3 python; do if command -v \"$_c\" >/dev/null 2>&1; then _ok=$(\"$_c\" -I -c \"import sys;print(int(sys.version_info>=(3,10)))\" 2>/dev/null) || _ok=\"\"; if [ \"$_ok\" = \"1\" ]; then _i=\"$_c\"; break; fi; fi; done; if [ -z \"$_i\" ]; then echo \"$_warn No suitable Python interpreter found (need >= 3.10). Install: https://www.python.org/downloads/\" >&2; exit 0; fi; if [ ! -f \"$_ptr/hooks/invoke_dispatch_claude.py\" ]; then echo \"$_warn Dispatcher missing or not a file: $_ptr/hooks/invoke_dispatch_claude.py. Reinstall: /install-plugin rjmurillo/ai-agents\" >&2; exit 0; fi; if [ ! -r \"$_ptr/hooks/invoke_dispatch_claude.py\" ]; then echo \"$_warn Dispatcher unreadable: $_ptr/hooks/invoke_dispatch_claude.py. Reinstall: /install-plugin rjmurillo/ai-agents\" >&2; exit 0; fi; \"$_i\" -I -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-posttooluse-1-markdown_auto_lint; _rc=$?; if [ $_rc -eq 126 ] || [ $_rc -eq 127 ]; then echo \"$_warn Python interpreter failed to start ($_i, exit $_rc). Install Python >= 3.10: https://www.python.org/downloads/\" >&2; exit 0; fi; exit $_rc",
-                        "statusMessage": "Running plugin-posttooluse-1-markdown_auto_lint hooks (grouped, #3075)",
-                        "timeout": 60,
-                        "type": "command"
-                    }
-                ],
-                "matcher": "^(Write|Edit)$"
-            }
-        ],
         "PreToolUse": [
-            {
-                "hooks": [
-                    {
-                        "command": "_ptr=\"${CLAUDE_PLUGIN_ROOT}\"; _warn=\"project-toolkit@ai-agents WARNING: hooks DISABLED (your session is unaffected).\"; if [ -z \"$_ptr\" ]; then echo \"$_warn Plugin root unresolvable (CLAUDE_PLUGIN_ROOT empty). Reinstall: /install-plugin rjmurillo/ai-agents\" >&2; exit 0; fi; if [ ! -d \"$_ptr\" ]; then echo \"$_warn Plugin root is not a directory: $_ptr. Reinstall: /install-plugin rjmurillo/ai-agents\" >&2; exit 0; fi; _i=\"\"; for _c in python3 python; do if command -v \"$_c\" >/dev/null 2>&1; then _ok=$(\"$_c\" -I -c \"import sys;print(int(sys.version_info>=(3,10)))\" 2>/dev/null) || _ok=\"\"; if [ \"$_ok\" = \"1\" ]; then _i=\"$_c\"; break; fi; fi; done; if [ -z \"$_i\" ]; then echo \"$_warn No suitable Python interpreter found (need >= 3.10). Install: https://www.python.org/downloads/\" >&2; exit 0; fi; if [ ! -f \"$_ptr/hooks/invoke_dispatch_claude.py\" ]; then echo \"$_warn Dispatcher missing or not a file: $_ptr/hooks/invoke_dispatch_claude.py. Reinstall: /install-plugin rjmurillo/ai-agents\" >&2; exit 0; fi; if [ ! -r \"$_ptr/hooks/invoke_dispatch_claude.py\" ]; then echo \"$_warn Dispatcher unreadable: $_ptr/hooks/invoke_dispatch_claude.py. Reinstall: /install-plugin rjmurillo/ai-agents\" >&2; exit 0; fi; \"$_i\" -I -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-pretooluse-8-markdownlint_guard; _rc=$?; if [ $_rc -eq 126 ] || [ $_rc -eq 127 ]; then echo \"$_warn Python interpreter failed to start ($_i, exit $_rc). Install Python >= 3.10: https://www.python.org/downloads/\" >&2; exit 0; fi; exit $_rc",
-                        "statusMessage": "Running plugin-pretooluse-8-markdownlint_guard hooks (grouped, #3075)",
-                        "timeout": 300,
-                        "type": "command"
-                    }
-                ],
-                "matcher": "Bash(git push*)"
-            },
-            {
-                "hooks": [
-                    {
-                        "command": "_ptr=\"${CLAUDE_PLUGIN_ROOT}\"; _warn=\"project-toolkit@ai-agents WARNING: hooks DISABLED (your session is unaffected).\"; if [ -z \"$_ptr\" ]; then echo \"$_warn Plugin root unresolvable (CLAUDE_PLUGIN_ROOT empty). Reinstall: /install-plugin rjmurillo/ai-agents\" >&2; exit 0; fi; if [ ! -d \"$_ptr\" ]; then echo \"$_warn Plugin root is not a directory: $_ptr. Reinstall: /install-plugin rjmurillo/ai-agents\" >&2; exit 0; fi; _i=\"\"; for _c in python3 python; do if command -v \"$_c\" >/dev/null 2>&1; then _ok=$(\"$_c\" -I -c \"import sys;print(int(sys.version_info>=(3,10)))\" 2>/dev/null) || _ok=\"\"; if [ \"$_ok\" = \"1\" ]; then _i=\"$_c\"; break; fi; fi; done; if [ -z \"$_i\" ]; then echo \"$_warn No suitable Python interpreter found (need >= 3.10). Install: https://www.python.org/downloads/\" >&2; exit 0; fi; if [ ! -f \"$_ptr/hooks/invoke_dispatch_claude.py\" ]; then echo \"$_warn Dispatcher missing or not a file: $_ptr/hooks/invoke_dispatch_claude.py. Reinstall: /install-plugin rjmurillo/ai-agents\" >&2; exit 0; fi; if [ ! -r \"$_ptr/hooks/invoke_dispatch_claude.py\" ]; then echo \"$_warn Dispatcher unreadable: $_ptr/hooks/invoke_dispatch_claude.py. Reinstall: /install-plugin rjmurillo/ai-agents\" >&2; exit 0; fi; \"$_i\" -I -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-pretooluse-9-push_pr_script_identity; _rc=$?; if [ $_rc -eq 126 ] || [ $_rc -eq 127 ]; then echo \"$_warn Python interpreter failed to start ($_i, exit $_rc). Install Python >= 3.10: https://www.python.org/downloads/\" >&2; exit 0; fi; exit $_rc",
-                        "statusMessage": "Running plugin-pretooluse-9-push_pr_script_identity hooks (grouped, #3075)",
-                        "timeout": 60,
-                        "type": "command"
-                    }
-                ],
-                "matcher": "Bash"
-            },
             {
                 "hooks": [
                     {

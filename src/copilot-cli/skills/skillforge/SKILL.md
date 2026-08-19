@@ -11,7 +11,6 @@ allowed-tools:
   - Edit
 metadata:
   version: 4.1.0
-  subagent_model: claude-opus-4-6
   domains: [meta-skill, automation, skill-creation, orchestration, agentic, routing]
   type: orchestrator
   inputs: [any-input, user-goal, domain-hints]

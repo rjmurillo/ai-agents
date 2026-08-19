@@ -16,7 +16,7 @@ PostToolUse hooks must never fail the primary operation. All errors should be lo
 
 | Hook | Purpose | File Types | Performance |
 |------|---------|------------|-------------|
-| `invoke_markdown_auto_lint.py` | Auto-format markdown files | `*.md` | <2s |
+| `invoke_observation_sync.py` | Sync observation memories to Forgetful after `mcp__serena__write_memory` | N/A (tool matcher, not file-type) | Non-blocking |
 
 ## Hook Input Format
 
@@ -264,6 +264,6 @@ python3 .claude/hooks/PostToolUse/your_hook.py --verbose
 
 ## References
 
-- **invoke_markdown_auto_lint.py**: Reference implementation for simple hooks
+- **invoke_observation_sync.py**: Reference implementation for simple hooks
 - **ADR-035**: Exit code standardization
 - **Claude Code Hooks Documentation**: <https://code.claude.com/docs/en/hooks>

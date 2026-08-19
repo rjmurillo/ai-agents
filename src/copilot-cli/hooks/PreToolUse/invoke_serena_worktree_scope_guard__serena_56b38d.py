@@ -375,6 +375,11 @@ def _original_main(stdin_bytes):
     operates from an external worktree. This guard detects the mismatch and blocks
     mutating Serena tools, forcing the user to re-activate the correct project.
 
+    Customer value: stops a Serena write from silently landing in a consumer's
+    main checkout when their own session is running from an external worktree,
+    which would otherwise corrupt the other checkout's working tree or leak
+    changes across their branches.
+
     Hook Type: PreToolUse
     Matcher: harness-specific, both anchored (native matchers compile as
         ``^(?:PATTERN)$``, so an unanchored prefix like ``^serena-`` only matches

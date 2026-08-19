@@ -207,22 +207,28 @@ allowed-tools: Read Grep Glob
 | Field | Location | Purpose | When to Use |
 |-------|----------|---------|-------------|
 | `model` | Top-level | Model that executes THIS skill | Only as a bare cost alias with `model-rationale` (ADR-080); otherwise omit |
-| `metadata.subagent_model` | In metadata | Model for agents THIS skill delegates to | Orchestrator skills only |
+| `metadata.subagent_model` | In metadata | Model for agents THIS skill delegates to | Never carry a value; omit the key. `check_model_pins.py` has no alias-rule coverage for nested keys, so any value here, versioned or bare alias, is a hard violation (ADR-080). |
 
 **Rationale**:
 
 - These fields serve different purposes and are not in conflict
 - Orchestrator skills may use a different model than the agents they invoke
-- Example: adr-review omits `model` (inherits) and records `subagent_model` for
-  the agents it delegates to
+- Example: adr-review omits both `model` and `subagent_model` (both inherit)
 
-**Scope note (2026-08-14)**: ADR-080 governs the key named `model` only.
-`check_model_pins.py` collects nested pins with `if key == "model"`
-(`_collect_nested_pins`), so `metadata.subagent_model` is outside the gate. No
-harness or script reads `subagent_model` either: it appears in
-`.claude/skills/adr-review/SKILL.md` and `.claude/skills/SkillForge/SKILL.md`
-and nowhere in code. It is inert metadata, and the versioned id it carries
-there still ages the same way ADR-080 describes.
+**Scope note (2026-08-18, issue #4936)**: ADR-080 now governs every key in
+`MODEL_BEARING_KEYS` (`scripts/validation/check_model_pins.py`), currently
+`{"model", "subagent_model"}`. `_collect_nested_pins` and `_nested_pins` match
+`key in MODEL_BEARING_KEYS`, and any value under a nested model-bearing key is
+a hard violation with no alias-rule exception: `_unit_rule_failure` returns
+immediately whenever `unit.nested_pins` is non-empty, before the code path
+that lets a top-level bare alias pass with a `model-rationale`. So a nested
+`subagent_model` cannot even carry `opus`; the conformant state is to omit the
+key entirely, same as `model`. This supersedes the prior scope note, which
+predated issue #4936 and described `subagent_model` as outside the gate and
+"inert metadata"; that was true only until this fix (PR #5098) closed the gap.
+Four files carried a versioned `subagent_model` pin under the stale guidance
+and were fixed in the same PR: `.claude/skills/adr-review/SKILL.md`,
+`.claude/skills/skillforge/SKILL.md`, and their `src/copilot-cli` mirrors.
 
 **Example (orchestrator)**: abridged from `.claude/skills/adr-review/SKILL.md`.
 
@@ -231,7 +237,9 @@ there still ages the same way ADR-080 describes.
 name: adr-review
 # No model: line. The orchestrator inherits the harness model (ADR-080).
 metadata:
-  subagent_model: claude-opus-4-6  # Delegated agents; not read by any harness (see scope note above)
+  # No subagent_model: line either. A nested model-bearing key has no
+  # alias-rule coverage, so any value here is a hard ADR-080 violation
+  # (issue #4936). Omit it; delegated agents inherit the harness model.
 ```
 
 **Example (non-orchestrator)**: abridged from `.claude/skills/session-init/SKILL.md`.
@@ -275,7 +283,9 @@ mode: context                        # Mode command category
 # OPTIONAL (ai-agents Extensions)
 metadata:
   # Orchestrator-specific
-  subagent_model: claude-opus-4-6    # Delegated agents; inert metadata, outside the ADR-080 gate
+  # subagent_model omitted: ADR-080 forbids any value on a nested
+  # model-bearing key (issue #4936), so delegated agents inherit the
+  # harness model with no pin to write here.
 
   # Classification
   domains: [architecture, planning]  # Domain categories
@@ -410,7 +420,9 @@ allowed-tools: Bash(gh:*) Bash(pwsh:*) Read Write
 - **Type**: Object (key-value mapping)
 - **Purpose**: Arbitrary domain-specific fields
 - **ai-agents Common Fields**:
-  - `subagent_model`: Model for delegated agents (orchestrators)
+  - `subagent_model`: Model for delegated agents (orchestrators). ADR-080
+    forbids a value here (issue #4936); omit the key so delegates inherit
+    the harness model.
   - `domains`: Array of domain categories
   - `type`: Skill type (orchestrator, initialization, analysis, etc.)
   - `complexity`: simple | standard | advanced
@@ -820,7 +832,7 @@ python3 .claude/skills/session-init/scripts/new_session_log.py
 See [references/workflow.md](references/workflow.md) for detailed workflow.
 ```
 
-### A.3 Orchestrator Skill (With subagent_model)
+### A.3 Orchestrator Skill (Delegated Agents Inherit The Harness Model)
 
 ```yaml
 ---
@@ -830,7 +842,9 @@ description: Multi-agent debate orchestration for Architecture Decision Records.
 license: MIT
 # No model: line. Orchestration is not a reason to pin (ADR-080).
 metadata:
-  subagent_model: claude-opus-4-6  # Delegated agents; inert metadata, no harness reads it
+  # No subagent_model: line either (issue #4936). A nested model-bearing
+  # key has no alias-rule coverage, so any value is a hard ADR-080
+  # violation; the delegated agents inherit the harness model.
   domains:
     - architecture
     - governance

@@ -64,10 +64,90 @@ def _create_consumer_repo(cwd: Path) -> None:
 
 
 def _bash_payload() -> bytes:
+    """A payload no registered matcher selects.
+
+    Proves the launcher resolves and the dispatcher runs to completion: it
+    starts Python, loads the manifest, matches nothing, and allows. That is the
+    customer-wedge property (issue #2205), and it is deliberately NOT evidence
+    that any guard fired.
+    """
     return json.dumps({
         "tool_name": "Bash",
         "tool_input": {"command": "echo hello"},
     }).encode()
+
+
+def _agent_payload(*, model: str | None) -> bytes:
+    """A payload the surviving `^(Agent|Task)$` gate actually selects.
+
+    Issue #5154 retired every command-scoped group, so `Bash` stopped matching
+    anything and the Bash payload above silently stopped exercising a guard. It
+    kept passing, which is the shape where a test quietly ceases to test what it
+    was written for. This payload restores that coverage against the one gate
+    still registered.
+
+    Contract, from `invoke_require_subagent_model.py`: exit 0 allows when the
+    call names a model, exit 2 blocks when it does not and no model-pinned
+    definition exists.
+    """
+    tool_input: dict[str, str] = {"subagent_type": "no-such-agent-type-5154"}
+    if model is not None:
+        tool_input["model"] = model
+    return json.dumps({"tool_name": "Agent", "tool_input": tool_input}).encode()
+
+
+def _check_surviving_gate(
+    dispatch_py: Path, *, consumer_cwd: Path, install_root: Path
+) -> int:
+    """Drive the surviving gate both ways. Returns the failure count.
+
+    The deny case is the load-bearing half. Asserting only that a matched
+    payload exits 0 cannot separate "the gate ran and allowed" from "nothing
+    matched", and that ambiguity is exactly what hid the coverage loss when the
+    Bash groups were retired. A deny proves the installed plugin routes to the
+    gate. The escape hatch is cleared for that case because it would otherwise
+    turn the deny into an allow.
+    """
+    failures = 0
+    hatch = ("CLAUDE_CODE_SUBAGENT_MODEL",)
+
+    allowed = _run_hook(
+        dispatch_py,
+        _agent_payload(model="claude-haiku-4-5"),
+        consumer_cwd=consumer_cwd,
+        plugin_root=install_root,
+        drop_env=hatch,
+    )
+    if allowed.returncode != 0:
+        print(
+            f"FAIL: PreToolUse denied an Agent spawn that named a model "
+            f"(exit {allowed.returncode}). Expected allow.\n"
+            f"  stderr: {allowed.stderr.decode(errors='replace')}"
+        )
+        failures += 1
+    else:
+        print("PASS: PreToolUse allows an Agent spawn that names a model")
+
+    denied = _run_hook(
+        dispatch_py,
+        _agent_payload(model=None),
+        consumer_cwd=consumer_cwd,
+        plugin_root=install_root,
+        drop_env=hatch,
+    )
+    if denied.returncode != 2:
+        print(
+            f"FAIL: PreToolUse did not deny an Agent spawn with no model "
+            f"(exit {denied.returncode}, expected 2). Either the dispatcher no "
+            f"longer routes to the surviving gate, or the gate stopped firing. "
+            f"Without this control the allow case above is vacuous.\n"
+            f"  stderr: {denied.stderr.decode(errors='replace')}"
+        )
+        failures += 1
+    else:
+        print("PASS: PreToolUse denies an Agent spawn with no model (gate fired)")
+
+    return failures
 
 
 def _run_hook(
@@ -77,11 +157,17 @@ def _run_hook(
     consumer_cwd: Path,
     plugin_root: Path | None,
     hide_interpreter: bool = False,
+    drop_env: tuple[str, ...] = (),
 ) -> subprocess.CompletedProcess[bytes]:
     env = dict(os.environ)
     # Remove any existing plugin root vars
     env.pop("COPILOT_PLUGIN_ROOT", None)
     env.pop("CLAUDE_PLUGIN_ROOT", None)
+    # A caller asserting a deny must be able to clear the guard's escape hatch,
+    # which would otherwise turn the expected deny into an allow on any machine
+    # that happens to export it.
+    for name in drop_env:
+        env.pop(name, None)
 
     if plugin_root is not None:
         env["COPILOT_PLUGIN_ROOT"] = str(plugin_root)
@@ -114,6 +200,28 @@ def _run_hook(
         env=env,
         timeout=30,
     )
+
+
+def _registered_events(install_root: Path) -> list[str]:
+    """Read the events the installed plugin actually registers.
+
+    Hardcoding the list went stale the moment an event lost its last group:
+    issue #5154 retired the only PostToolUse group, and a fixed
+    ``["PreToolUse", "PostToolUse"]`` then reported a missing dispatcher for an
+    event the plugin no longer ships. Reading ``hooks.json`` keeps the #4672
+    property that matters, which is that a missing dispatcher for a REGISTERED
+    event is a failure and never a skip. An empty or unreadable manifest is
+    itself a failure in the caller, so this never certifies an empty run.
+    """
+    manifest = install_root / "hooks" / "hooks.json"
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return []
+    hooks = data.get("hooks") if isinstance(data, dict) else None
+    if not isinstance(hooks, dict):
+        return []
+    return [event for event, entries in hooks.items() if isinstance(entries, list) and entries]
 
 
 def _find_dispatcher(install_root: Path, event: str) -> Path | None:
@@ -174,7 +282,10 @@ def main() -> int:
     _create_consumer_repo(args.consumer_cwd)
 
     payload = _bash_payload()
-    events_to_test = ["PreToolUse", "PostToolUse"]
+    events_to_test = _registered_events(args.install_root)
+    if not events_to_test:
+        print(f"ERROR: no hook events registered in {args.install_root}", file=sys.stderr)
+        return 1
     failures = 0
 
     for event in events_to_test:
@@ -216,6 +327,15 @@ def main() -> int:
                 else:
                     print(f"PASS: {event} fail-open with warning (negative-env)")
         else:
+            if event == "PreToolUse":
+                # The Bash payload below matches no registered group after
+                # issue #5154, so on its own it proves only that the launcher
+                # resolves. Drive the surviving gate explicitly, both ways.
+                failures += _check_surviving_gate(
+                    dispatch_py,
+                    consumer_cwd=args.consumer_cwd,
+                    install_root=args.install_root,
+                )
             # Normal positive test
             proc = _run_hook(
                 dispatch_py,

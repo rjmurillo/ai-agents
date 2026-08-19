@@ -37,7 +37,7 @@ a rule whose scope was entirely internal, which made `governance`,
 install 7,532 bytes a turn on three rules pointing at `.agents/` paths the
 installing repository does not have. PR #4426 replaced that fallback with an
 explicit skip, so those rules are absent from the plugin tree rather than
-universalized in it. The plugin ships 23 instruction files against 27 in
+universalized in it. The plugin ships 23 instruction files against 28 in
 `.github/instructions`, and that gap is the fix, not drift.
 
 `tests/validation/test_always_on_corpus_claims.py` pins the two trees together

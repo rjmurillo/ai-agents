@@ -30,7 +30,6 @@ Vocabulary used once: a "guard" is a PreToolUse or pre-push hook that can block 
 | The catalog of every env var, marker, and escape hatch | `ai-agents-config-catalog` |
 | How the harness itself behaves (payload shapes, plugin roots) | `agent-harness-reference` |
 | Fix a NON_COMPLIANT session log | `session-log-fixer` |
-| Classify guard health from telemetry | `guard-maturity` |
 | Resolve merge conflicts | Agent: merge-resolver |
 | Query agent JSONL event logs | `observability` |
 
@@ -44,9 +43,9 @@ Find your symptom in the master table. Run the first command exactly as written 
 
 | Symptom | First command | Discriminating experiment | Fix path | Trap |
 |---------|---------------|---------------------------|----------|------|
-| Push rejected by a guard, stderr shows `EVENT={...}` | Read the EVENT JSON on stderr; the `guard` field names which of `.claude/hooks/PreToolUse/invoke_*_guard.py` fired | Is `outcome` a block or `fail_open`? A block means the guard did its job; `fail_open` means guard infra broke | Fix the underlying violation, then re-push. Guard telemetry: `guard-maturity` | Bypassing instead of fixing. SKIP_PREPUSH was abused 3x within an hour of creation and removed (retro `2026-02-08-session-1187-skip-prepush-abuse.md`) |
+| Push rejected by a guard, stderr shows `EVENT={...}` | Read the EVENT JSON on stderr; the `guard` field names which of `.claude/hooks/PreToolUse/invoke_*_guard.py` fired | Is `outcome` a block or `fail_open`? A block means the guard did its job; `fail_open` means guard infra broke | Fix the underlying violation, then re-push. No tier-classifier consumes this telemetry today; the guard-maturity skill that did was retired under ADR-084 (issue #5154) | Bypassing instead of fixing. SKIP_PREPUSH was abused 3x within an hour of creation and removed (retro `2026-02-08-session-1187-skip-prepush-abuse.md`) |
 | `ModuleNotFoundError: No module named 'yaml'` running a skill script | Re-run with `uv run python <script>` | Does `uv run python -c "import yaml"` succeed while `python3 -c "import yaml"` fails? Then it is interpreter resolution, not a missing dep | Always use `uv run python` for `.claude/skills/*/scripts/`; they import `github_core` which needs PyYAML from the project venv | Bare `pip install` fails under PEP 668 on this machine. Everything goes through uv |
-| markdownlint guard blocks push, or lint "fixed" files you never touched | `git status` to see the blast radius | Did you run `markdownlint --fix '**/*.md'` (unscoped)? | Revert unrelated files; lint ONLY changed files. The guard itself is scoped to changed .md files (`.claude/hooks/PreToolUse/invoke_markdownlint_guard.py:2`) | PR #908: an unscoped `markdownlint --fix **/*.md` reformatted memory files repo-wide; the PR hit 59 commits / 95 files (retro `2026-01-15-pr-908-comprehensive-retrospective.md`) |
+| `markdown-autofix`/`markdown-check` blocks the commit, or lint "fixed" files you never touched | `git status` to see the blast radius | Did you run `markdownlint --fix '**/*.md'` (unscoped)? | Revert unrelated files; lint ONLY changed files. The Lefthook job itself is scoped to staged .md files (`lefthook.yml` `markdown-autofix`/`markdown-check`, `glob: "**/*.md"` against `{staged_files}`) | PR #908: an unscoped `markdownlint --fix **/*.md` reformatted memory files repo-wide; the PR hit 59 commits / 95 files (retro `2026-01-15-pr-908-comprehensive-retrospective.md`). The PreToolUse markdownlint guard that originally enforced this was removed under ADR-084 (issue #5154); the same scoping now lives in the two Lefthook jobs named above |
 | Bot review thread flags an em-dash or en-dash | `grep -rnP '[\x{2013}\x{2014}]' <your changed files>` | Is the hit under `tests/hooks/fixtures/`? That prefix is exempt | Replace with comma, colon, parentheses, or hyphen (`.claude/rules/universal.md` MUST NOT 5; validator `scripts/validation/checks_dash.py`) | Each dash costs one or more bot threads per PR. Fix all occurrences, not just the flagged one |
 
 #### CI reds (a gate failed on the PR)
@@ -131,7 +130,7 @@ Verified against the working tree on 2026-07-03. Retro-cited short SHAs do not r
 
 | Fact | Source | Re-verify with |
 |------|--------|----------------|
-| EVENT= stderr telemetry schema | `.claude/hooks/PreToolUse/push_guard_base.py:19,49-53,421` | `grep -n "EVENT=" .claude/hooks/PreToolUse/push_guard_base.py` |
+| EVENT= stderr telemetry schema | RETIRED: `push_guard_base.py` and every guard built on it were deleted under ADR-084 (issue #5154); no live file defines this schema | N/A. A surviving `EVENT=` emitter with a related but narrower shape (unknown-identity fail-open, not the general guard schema) is `.claude/lib/hook_utilities/guards.py::_emit_skip_event` |
 | 4 drift surfaces run in CI | `.github/workflows/validate-generated-agents.yml:165-225` | `grep -n -e "run_install_parity" -e "sync_plugin_lib" -e "build_all" -e "generate_agents" .github/workflows/validate-generated-agents.yml` |
 | `[skip-drift-check]` bypass marker | `.github/workflows/agent-drift-detection.yml:17,65-69` | `grep -n "skip-drift-check" .github/workflows/agent-drift-detection.yml` |
 | Version-field prohibition | `build/scripts/validate_plugin_version_bump.py` docstring, section RULE | `grep -n "MUST NOT carry" build/scripts/validate_plugin_version_bump.py` |
