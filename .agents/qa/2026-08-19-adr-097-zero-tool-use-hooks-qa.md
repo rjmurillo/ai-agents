@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-19-session-99921-b9d55af7c-retire-pretooluseposttooluseposttoolusefailure-hooks-windowsdefender-per-spawn.json
-qaCommit: 5db7854bb1817397db5770eed8fb3a7fb1ccee74
+qaCommit: 62fe031767a35407e1f13026ecb2abc18de8a44f
 ---
 
 # QA: ADR-097 zero tool-use hooks
@@ -194,3 +194,54 @@ failure was this QA report's own staleness check (`.agents/qa/`, `.agents/sessio
 and `.agents/memory/episodes/` are QA-evidence-exempt paths, so rebinding
 `qaCommit` above to this commit and appending this addendum clears it without
 re-triggering staleness on itself).
+
+## Addendum 2: nine post-review defects, verified and fixed before push
+
+Copilot's automated PR review (`pullrequestreview-4977497778`, head
+`aee51e154`) found nine defects, none touching this ADR's decision. Each was
+verified against the live source before editing, per this repo's evidence
+standard, not taken on the reviewer's word:
+
+| # | Finding | Verified how | Fix |
+|---|---|---|---|
+| 1 | `scripts/ci/vanilla_hook_guard.py`: `event_is_registered` read `{"PreToolUse": {}}` as "not registered" instead of malformed | Read the function; `isinstance(entries, list)` on a dict is `False`, so the branch fell through to the not-registered return | Split absent/list/non-list into three cases; non-list now raises `GuardError` |
+| 2 | `scripts/ci/test_installed_plugin_hooks.py`: `_manifest_is_readable` accepted the same malformed shape | Read `_registered_events`; its list comprehension silently drops a non-list entry, so the readable check never caught it | `_manifest_is_readable` now requires every present event value to be a list |
+| 3 | `tests/hooks/test_zero_tool_use_hooks.py`: ratchet never scanned `.github/hooks/*.json` or the generated `src/copilot-cli/hooks/hooks.json` | Read the ratchet; confirmed it reads only `.claude/hooks/hooks.json`, `dispatch_groups.json`, and `.claude/settings.json` | Added both scans (Copilot native + PascalCase casing for `.github/hooks/`) plus a guard-the-guard test |
+| 4 | `agent-harness-reference/SKILL.md`: "Lib bootstrap" row claimed a manifest walk-up to `.claude-plugin/plugin.json` | Read `invoke_context_loader.py`; the fallback is a fixed relative parent-walk, never a manifest search | Rewrote the row to the actual fallback |
+| 5 | `agent-harness-reference/SKILL.md`: "Shipped registrations" section and two "Event policy" rows described pre-ADR-097 counts and an "Active" dispatcher | Re-counted `.claude/hooks/hooks.json`, `src/copilot-cli/hooks/hooks.json`, `.claude/settings.json` directly | Rewrote to the current zero state |
+| 6 | `scripts/ci/vanilla_hook_guard.py:136` (`event_is_registered`), same bug class as #1 | Same code path as #1, distinct call site | Same fix as #1 |
+| 7 | `ai-agents-architecture-contract/SKILL.md`: "Copilot dispatcher" row contradicted the "0 events, 0 registrations" row 8 lines above | Read both rows in the same table | Marked the dispatcher row retired |
+| 8 | `ADR-071`: claimed the two SessionStart dispatch groups in `.claude/settings.json` "remain subject to" `validate_hook_anchoring.py`'s plugin-root invariant | Read `validate_hook_anchoring.py`; `_CLAUDE_REL` only reads `.claude/hooks/hooks.json`, never `.claude/settings.json` | Rewrote to name the real anchor (`$CLAUDE_PROJECT_DIR`) and the real scope |
+| 9 | `hook-protocol.md`: claimed all three memory scripts are "not currently registered" | Read `invoke_memory_recall.py` and `invoke_memory_reflection.py`; both are thin wrappers registered in `.claude/settings.json` | Rewrote to name the two live pipelines and the one genuinely-retired script |
+
+Findings 1, 2, and 6 are the same malformed-manifest defect shape in two
+files; each fix ships with its own negative-control test rather than a shared
+helper, since the two callers (`vanilla_hook_guard.py`, a CI-only Docker/
+PowerShell driver; `test_installed_plugin_hooks.py`, an in-process certifier)
+have no existing shared module to route through.
+
+Targeted tests for the three edited Python files: 65 passed (0 failed).
+Broader selection (`tests/hooks/ tests/build_scripts/ tests/ci/
+tests/validation/`): 8069 passed, 22 skipped, 0 failed. `validate_hook_anchoring.py`
+and `check_skill_md_portability.py` (after trimming a duplicate citation that
+grew the vendor-portability marker count from 31 to 32 refs) both pass clean.
+
+## Addendum 3: merge conflict against `origin/main`, resolved
+
+`origin/main` advanced past this branch's fork point (PR #5170, "stop
+injecting stale HANDOFF.md at session start"). `merge-tree-ratchet` in
+`Count Ratchets` correctly refused to evaluate count deltas against an
+unmerged tree rather than silently comparing against a stale base. One real
+conflict, in `CONTRIBUTING.md`'s lifecycle-hooks table: this branch had
+already dropped the `PostToolUse`/`invoke_observation_sync.py` row (ADR-097)
+and main had reworded the `SessionStart` row to drop "HANDOFF.md +" (#5170).
+Resolved by keeping this branch's ADR-097 state (no `observation_sync` row)
+with main's reworded `SessionStart` text, combining both independent
+changes rather than picking one side. `invoke_context_loader.py` and
+`dispatch_groups.json` auto-merged clean; verified the merged
+`dispatch_groups.json` parses as valid JSON and re-verified the
+`agent-harness-reference/SKILL.md` "Lib bootstrap" row's line citation
+against the merged file, which had shifted from lines 34-41 to 38-45 because
+main's docstring edit added four lines above the cited fallback code.
+`Count Ratchets` passed clean after the merge; re-ran `pre_pr.py --quick` to
+confirm.
