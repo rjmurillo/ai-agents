@@ -1998,6 +1998,39 @@ class TestRenewSubcommand:
         assert payload["Data"]["expires_at"] == _rfc(real_now + timedelta(minutes=10))
         assert post.call_count == 0
 
+    def test_renew_on_merged_pr_with_ample_ttl_returns_skip_pr_closed(self, capsys):
+        # Round-2 finding (AI spec validator, PR #5167): the pr-closed check
+        # must run BEFORE the RENEW_SKIP_MARGIN noop fast path, not after it.
+        # Same fixture as test_renew_on_own_live_lease_with_ample_ttl_is_a_noop
+        # (10 of 15 min left, well outside the 5-min skip margin) except the
+        # PR has merged. If the pr-closed check were gated behind the noop
+        # fast path, this would incorrectly return ACT/self-renew-noop
+        # instead of SKIP/pr-closed for up to RENEW_SKIP_MARGIN of the TTL.
+        real_now = datetime.now(UTC)
+        live_body = _body(
+            owner=_OWNER,
+            session=_SESSION,
+            acquired=real_now - timedelta(minutes=1),
+            expires=real_now + timedelta(minutes=10),
+        )
+        mine = _comment(live_body, _rfc(real_now - timedelta(minutes=1)), author=_AUTHOR)
+        with (
+            patch.object(_mod, "assert_gh_authenticated", return_value=None),
+            patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
+            _patch_list([mine]),
+            _patch_post() as post,
+            _patch_head(pr_merged=True, pr_state="MERGED"),
+            _patch_login(login=_AUTHOR),
+        ):
+            rc = main(
+                ["renew", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
+            )
+        assert rc == 1
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Data"]["action"] == "SKIP"
+        assert payload["Data"]["reason"] == "pr-closed"
+        post.assert_not_called()
+
     # --- PR-closed check on the renew path (ADR-076 Amendment 2026-08-19,
     # issue #5165) -----------------------------------------------------------
 

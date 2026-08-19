@@ -1200,19 +1200,6 @@ def acquire(
     # claim with no such proof, so its write/re-read failures fail closed.
     already_holds = verdict["reason"] == "self-renew"
 
-    # A confirmed self-renew with plenty of TTL left has nothing to extend yet:
-    # skip the write entirely rather than posting a redundant marker comment
-    # (issue #5160). This bounds worst-case comment volume no matter how often
-    # the caller invokes ``renew`` above the module's own polling cadence.
-    if renewing and already_holds and current is not None and current.expires_at - now > RENEW_SKIP_MARGIN:
-        return LeaseResult(
-            "ACT",
-            "self-renew-noop",
-            expires_at=_to_rfc3339(current.expires_at),
-            base_sha=current.base_sha,
-            local_head_sha=local_sha,
-        )
-
     # The head read is freshness evidence, not the lock. Failing it open to ACT
     # alongside the comment read would let a transient API error skip the read
     # that enforces mutual exclusion, so it is scoped to the sentinel instead.
@@ -1225,13 +1212,20 @@ def acquire(
         base_sha = "0" * 40
 
     # ADR-076 Amendment 2026-08-19 (issue #5165): a renew against a PR that
-    # has already merged or closed has nothing left to coordinate. This check
-    # is scoped to renewing=True only (a fresh acquire's cost is bounded by
-    # how many PRs pr-autofix walks; an unbounded renew loop is not) and to
-    # the write path specifically (after the RENEW_SKIP_MARGIN noop check
-    # above), so it never adds a round-trip beyond the one acquire() already
-    # spends here. A failed read (pr_state is None) falls through unchanged,
-    # exactly as it does today.
+    # has already merged or closed has nothing left to coordinate. Checked
+    # unconditionally on every renew call, BEFORE the RENEW_SKIP_MARGIN noop
+    # fast path below: gating this behind that fast path left a window up to
+    # RENEW_SKIP_MARGIN wide (the first 10 of the 15-minute TTL) where a renew
+    # against an already-closed PR still returned ACT, because the noop path
+    # never read PR state at all (round-2 finding from the AI spec validator
+    # on PR #5167; the original ordering matched what the ADR amendment
+    # proposed, but understated how much of the window it actually covered).
+    # This still adds only a read, never a second write: the branch below
+    # keeps skipping the comment POST whenever the PR is open and TTL is
+    # ample. Scoped to renewing=True only (a fresh acquire's cost is bounded
+    # by how many PRs pr-autofix walks; an unbounded renew loop is not). A
+    # failed read (pr_state is None) falls through unchanged, exactly as it
+    # does today.
     if renewing and pr_state is not None and (pr_state.merged or pr_state.state == "CLOSED"):
         logger.info(
             "op=lease_renew_pr_closed pr=%d state=%s merged=%s",
@@ -1241,6 +1235,20 @@ def acquire(
         )
         return LeaseResult(
             "SKIP", "pr-closed", base_sha=base_sha, local_head_sha=local_sha
+        )
+
+    # A confirmed self-renew with plenty of TTL left has nothing to extend yet:
+    # skip the write entirely rather than posting a redundant marker comment
+    # (issue #5160). This bounds worst-case comment volume no matter how often
+    # the caller invokes ``renew`` above the module's own polling cadence. The
+    # pr-closed check above already ran, so this cannot mask a closed PR.
+    if renewing and already_holds and current is not None and current.expires_at - now > RENEW_SKIP_MARGIN:
+        return LeaseResult(
+            "ACT",
+            "self-renew-noop",
+            expires_at=_to_rfc3339(current.expires_at),
+            base_sha=current.base_sha,
+            local_head_sha=local_sha,
         )
 
     _warn_on_checkout_mismatch(pr, local_sha, base_sha)
