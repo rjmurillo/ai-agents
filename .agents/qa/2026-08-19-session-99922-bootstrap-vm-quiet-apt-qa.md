@@ -1,11 +1,11 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-19-session-99922-b72ee9e6c-quiet-aptdpkg-noise-bootstrap-vmsh-session-startsession-end.json
-qaCommit: 14de240eb063d59bc46a37423f842586544a1e5e
+qaCommit: 5a6d6bf70a998755b10f3a7f7a45c39b4eed1213
 ---
 # QA Report: Quiet apt/dpkg Output in bootstrap-vm.sh (Issue #5169)
 
-**SHA**: 14de240eb063d59bc46a37423f842586544a1e5e
+**SHA**: 5a6d6bf70a998755b10f3a7f7a45c39b4eed1213
 **Date**: 2026-08-19
 **Scope**: `scripts/bootstrap-vm.sh` (`quiet_run()`/`quiet_apt_get()` helpers,
 covering all five bare `sudo apt-get`/`dpkg -i` call sites) and
@@ -13,11 +13,17 @@ covering all five bare `sudo apt-get`/`dpkg -i` call sites) and
 
 ## Verdict
 
-PASS. Rebinds evidence to `14de240eb`, which adds three PR-review-driven
-fixes on top of the commit the original report bound to (`a5c27d9995`): the
-`dpkg -i` call site now routed through the quiet wrapper, a real EXIT-trap
-exit-code regression found and fixed during test-writing, and committed
-subprocess regression tests replacing the ad hoc shim runs the first report
+PASS. Rebinds evidence to `5a6d6bf70`, which adds one CI-driven fix on top of
+`14de240eb`: CI's subprocess-encoding count ratchet (issue #4261) flagged the
+new `TestQuietAptGet._run` subprocess call for using `text=`/`encoding=`
+without `errors=`; added `errors="replace"`. Re-verified locally with
+`uv run python scripts/ci/subprocess_encoding_count_ratchet.py` (count ==
+baseline 238) in addition to the checks below. `14de240eb` itself adds three
+PR-review-driven fixes on top of the commit the original report bound to
+(`a5c27d9995`): the `dpkg -i` call site now routed through the quiet wrapper,
+a real EXIT-trap exit-code regression found and fixed during test-writing,
+and committed subprocess regression tests replacing the ad hoc shim runs the
+first report
 relied on.
 
 ## Evidence
