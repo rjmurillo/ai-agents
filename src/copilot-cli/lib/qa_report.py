@@ -182,18 +182,30 @@ def session_qa_binding(
     raise ValueError("Session log must resolve a full 40-character QA commit")
 
 
-def validate_qa_report(path: Path, expected: QaBinding) -> QaReport:
-    """Require a passing QA report bound to the expected session and commit."""
+def validate_qa_report(
+    path: Path, expected: QaBinding, *, head: str, repo_root: Path
+) -> QaReport:
+    """Require a passing QA report bound to the expected session, and not stale.
+
+    ``head`` is the commit to check staleness against (ADR-096). A real
+    (non-evidence-path) change between ``report.commit`` and ``head`` is a
+    hard failure. A commit range containing only paths under
+    ``QA_EVIDENCE_PREFIXES`` (a pure rebind, session-log touch-up, or other
+    bookkeeping commit) is not. ``head`` is required, not optional: an
+    earlier design let a caller supply no head and silently skip staleness
+    checking entirely (issue #5164 round-1 review), which this signature
+    makes impossible to construct.
+    """
     report = load_qa_report(path)
     if report.session_log != expected.session_log:
         raise ValueError(
             "QA report session log does not match current session: "
             f"{report.session_log} != {expected.session_log}"
         )
-    if report.commit != expected.commit:
+    changed = post_qa_code_changes(report.commit, head, repo_root=repo_root)
+    if changed:
         raise ValueError(
-            "QA report commit does not match current session commit: "
-            f"{report.commit} != {expected.commit}"
+            "QA report is stale; code changed after its commit: " + ", ".join(changed)
         )
     return report
 
@@ -222,6 +234,7 @@ def post_qa_code_changes(
         text=True,
         encoding="utf-8",
         errors="replace",
+        timeout=10,
     )
     if ancestor.returncode == 1:
         raise ValueError("QA commit is not an ancestor of validation head")
@@ -245,6 +258,7 @@ def post_qa_code_changes(
         text=True,
         encoding="utf-8",
         errors="replace",
+        timeout=10,
     )
     if changes.returncode != 0:
         raise ValueError("Could not inspect commits after QA")
