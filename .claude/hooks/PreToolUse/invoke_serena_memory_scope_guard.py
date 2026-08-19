@@ -81,7 +81,7 @@ _OVERRIDE_ENV = "SERENA_PROJECT_ROOT"
 _SESSION_ENV = "CLAUDE_PROJECT_DIR"
 
 
-class _GitUnresolvable(Exception):
+class _GitUnresolvableError(Exception):
     """Raised when git could not be run at all (not when it ran and said no).
 
     A caller genuinely outside any git repository gets a clean nonzero
@@ -95,7 +95,7 @@ class _GitUnresolvable(Exception):
 def _git_toplevel(start: Path) -> Path | None:
     """Return the git worktree root containing *start*, or None.
 
-    Raises :class:`_GitUnresolvable` when ``git`` could not be launched, hit
+    Raises :class:`_GitUnresolvableError` when ``git`` could not be launched, hit
     its timeout, or returned output we could not resolve, so a caller that
     needs to distinguish "confirmed outside a repo" from "we do not know"
     can fail closed on the latter instead of silently allowing it.
@@ -111,16 +111,16 @@ def _git_toplevel(start: Path) -> Path | None:
             timeout=_GIT_TIMEOUT_SECONDS,
         )
     except (OSError, subprocess.SubprocessError) as error:
-        raise _GitUnresolvable(str(error)) from error
+        raise _GitUnresolvableError(str(error)) from error
     if result.returncode != 0:
         return None
     toplevel = result.stdout.strip()
     if not toplevel:
-        raise _GitUnresolvable("git rev-parse --show-toplevel returned no output")
+        raise _GitUnresolvableError("git rev-parse --show-toplevel returned no output")
     try:
         return Path(toplevel).resolve()
     except OSError as error:
-        raise _GitUnresolvable(str(error)) from error
+        raise _GitUnresolvableError(str(error)) from error
 
 
 def _resolved_dir(raw: str) -> Path | None:
@@ -147,14 +147,14 @@ def _serena_memory_root() -> Path | None:
     if override is not None:
         try:
             return _git_toplevel(override) or override
-        except _GitUnresolvable:
+        except _GitUnresolvableError:
             return override
 
     session_dir = _resolved_dir(os.environ.get(_SESSION_ENV, ""))
     if session_dir is not None:
         try:
             return _git_toplevel(session_dir)
-        except _GitUnresolvable:
+        except _GitUnresolvableError:
             # An unresolvable git state here still yields no answer, and the
             # caller (main) already fails closed on a None memory root.
             return None
@@ -176,7 +176,7 @@ def _payload_cwd(payload: dict[str, object]) -> Path:
         return Path.cwd().resolve()
 
 
-class _StdinTooLarge(Exception):
+class _StdinTooLargeError(Exception):
     """Raised when the hook payload exceeds ``_MAX_STDIN_BYTES``.
 
     The read itself is already bounded (``read(_MAX_STDIN_BYTES + 1)``), so
@@ -196,7 +196,7 @@ def _read_payload() -> tuple[str, Path]:
         return fallback
     raw = sys.stdin.read(_MAX_STDIN_BYTES + 1)
     if len(raw) > _MAX_STDIN_BYTES:
-        raise _StdinTooLarge(f"payload exceeds {_MAX_STDIN_BYTES} bytes")
+        raise _StdinTooLargeError(f"payload exceeds {_MAX_STDIN_BYTES} bytes")
     if not raw.strip():
         return fallback
     try:
@@ -233,7 +233,7 @@ def main() -> int:
     """Entry point. Returns 0 (allow) or 2 (block)."""
     try:
         tool_name, caller_cwd = _read_payload()
-    except _StdinTooLarge as error:
+    except _StdinTooLargeError as error:
         print(
             f"BLOCKED: cannot verify Serena memory scope (issue #5061): {error}. "
             "A payload this size cannot be confirmed unrelated to a memory "
@@ -247,7 +247,7 @@ def main() -> int:
 
     try:
         worktree = _git_toplevel(caller_cwd)
-    except _GitUnresolvable as error:
+    except _GitUnresolvableError as error:
         print(
             "BLOCKED: could not determine your git worktree (issue #5061): "
             f"{error}. Set {_OVERRIDE_ENV} to your worktree, or write the "

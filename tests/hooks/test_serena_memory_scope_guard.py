@@ -244,7 +244,9 @@ def test_blocks_when_git_times_out_for_the_callers_worktree(
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(main_checkout))
 
     def _timeout(*args, **kwargs):
-        raise subprocess.TimeoutExpired(cmd=["git", "rev-parse"], timeout=guard._GIT_TIMEOUT_SECONDS)
+        raise subprocess.TimeoutExpired(
+            cmd=["git", "rev-parse"], timeout=guard._GIT_TIMEOUT_SECONDS
+        )
 
     monkeypatch.setattr(guard.subprocess, "run", _timeout)
     exit_code = _run_in_process(
