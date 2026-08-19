@@ -143,6 +143,19 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-19T01:23:39+00:00",
+      "type": "commit",
+      "content": "Commit: f7468520417ca6fdd7f162fa26f48cd13bab6204",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored"
     }
@@ -152,7 +165,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 11,
+    "commits": 12,
     "files_changed": 125
   },
   "lessons": []

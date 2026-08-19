@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored.json
-qaCommit: cbc805ac049ca9d2506b72cbe885b73f1638cf3d
+qaCommit: f7468520417ca6fdd7f162fa26f48cd13bab6204
 ---
 
 # QA report: issue #5154 tool-use hook retirement
@@ -46,6 +46,7 @@ as the sixth instance of this change's recurring propagation defect.
 | ADR-prose gates, post round-2 fixes | `pytest tests/build_scripts/test_hook_contract_knowledge.py tests/hooks/test_adr_hook_claims.py -q` | 402 passed |
 | CI and validation suites | `pytest tests/ci tests/validation -q` | 5579 passed, 17 skipped |
 | Installed-plugin check, real install | `scripts/ci/test_installed_plugin_hooks.py` | exit 0; allow, deny, and launcher assertions all PASS |
+| Rule 5 enforcement, post-build | `pytest tests/hooks/test_dispatch_groups_parity.py -q` | 13 passed |
 
 adr-review round 1 returned 3 Block, 2 Disagree-and-Commit, 1 conditional
 Accept. Every blocking finding is resolved and recorded in
