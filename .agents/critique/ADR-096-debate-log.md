@@ -117,3 +117,35 @@ amendments) and are hollmarked for the implementing orchestrator with this
 debate log as its punch list. No Block vote was cast; the owner's ratified
 decision proceeds per User Sovereignty regardless of remaining P1 items,
 consistent with the ADR-084 rule-6 precedent this debate was briefed on.
+
+## Implementation record: P0 items 4-8 discharged
+
+Recorded here rather than in a second debate because these are the code
+changes this debate demanded, not a new decision. No reviewer's position
+changed and no new architectural question was opened; the ADR-096 verdict
+above (2 Accept, 4 Disagree-and-Commit, 0 Block) still stands as the
+authority for all of them.
+
+| P0 | Finding | Discharged by |
+|---|---|---|
+| 4 | `validate_hook_anchoring.py` red (exit 2) | Empty manifest is now a valid anchored state exiting 0 with an examined count. Missing file, unparseable JSON, and a malformed `hooks` mapping stay fail-closed, with negative controls for both manifests. |
+| 5 | `scripts/ci/test_installed_plugin_hooks.py` needs redesign | Asserts agreement between what the manifest registers and what the tree ships. Zero events with zero dispatchers passes; an orphaned dispatcher or an unreadable manifest fails. The non-empty path is unchanged and proven still armed by a test driving the real process against a synthetic registering tree. |
+| 6 | ADR-071 invalidated, ADR-068 carries false claims | Both amended. ADR-071 gains a dated amendment retiring every tool-use contract while preserving Decision item 1 (plugin-root anchoring). ADR-068 gains a status note naming each false claim, stated explicitly because `test_adr_hook_claims.py` cannot catch them (its regex needs an `invoke_` prefix; ADR-068 uses bare gate names). |
+| 7 | "Not a one-way door" proved by the wrong experiment | Already corrected in the ADR text to "reversible in code, not in test corpus"; the commit retiring the generated tree repeats that framing. |
+| 8 | #5013 pin deleted with no replacement invariant | `tests/hooks/test_zero_tool_use_hooks.py` pins zero registrations across all four per-call events on all three manifests. Verified by mutation: re-adding a `PreToolUse` entry and a plugin-surface group fails exactly two tests; restoring returns 14/14. Carries its own vacuity guard and a negative control keeping session-scoped hooks legal. |
+
+Two findings the implementation surfaced that the debate did not, recorded
+because they change what a reader should expect from the tree:
+
+1. **The ADR-084 rule 5 customer-value tests are deleted, on their own
+   instruction.** `test_the_customer_value_check_examines_a_nonempty_surface`
+   says verbatim: "If the vendored surface was deliberately emptied, delete
+   both tests and say so in the ADR." Both are gone. Nothing now enforces
+   rule 5's `Customer value:` docstring requirement, because there is no
+   vendored hook to enforce it against. A future vendored hook must restore
+   it along with the hardening bar.
+2. **The blast radius was wider than the Impact table.** The generated
+   Copilot tree, `.github/hooks/require-subagent-model.json`, and roughly 20
+   dispatcher tests across seven files were all reachable only through the
+   registrations. Total: 45 tests failing before disposition, against the
+   ~20 the ADR estimated.
