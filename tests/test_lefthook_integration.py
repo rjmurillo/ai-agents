@@ -4844,6 +4844,43 @@ def test_parse_changed_lines_ignores_pure_rename() -> None:
     assert changed == {}
 
 
+def test_parse_changed_lines_strips_the_quoted_b_prefix() -> None:
+    # Git quotes the "b/" prefix together with the path, so a pattern that
+    # strips the prefix before unquoting leaves "b/" in the key and the map
+    # never matches the path mypy reports.
+    diff = '+++ "b/pkg/od\\"d.py"\n@@ -0,0 +3,1 @@\n'
+
+    assert policy._parse_changed_lines(diff) == {'pkg/od"d.py': {3}}
+
+
+def test_iter_diff_changes_strips_the_b_prefix_from_the_header() -> None:
+    # Regression: the shared header pattern keeps the "b/" prefix, so the
+    # suppression scanner must strip it via _file_header_path. Reporting
+    # "b/pkg/a.py" made every net-new suppression look like a different file,
+    # which fails a security gate open.
+    diff = (
+        "diff --git a/pkg/a.py b/pkg/a.py\n"
+        "--- a/pkg/a.py\n"
+        "+++ b/pkg/a.py\n"
+        "@@ -1,0 +2 @@\n"
+        "+added line\n"
+    )
+
+    assert list(policy._iter_diff_changes(diff)) == [("pkg/a.py", "+", 2, "added line")]
+
+
+def test_iter_diff_changes_skips_a_dev_null_post_image() -> None:
+    diff = (
+        "diff --git a/pkg/gone.py b/pkg/gone.py\n"
+        "--- a/pkg/gone.py\n"
+        "+++ /dev/null\n"
+        "@@ -1 +0,0 @@\n"
+        "-removed line\n"
+    )
+
+    assert list(policy._iter_diff_changes(diff)) == []
+
+
 def test_parse_mypy_error_locations_selects_errors_only() -> None:
     stdout = (
         "pkg/a.py:12: error: Incompatible types  [assignment]\n"
@@ -4937,6 +4974,26 @@ def test_changed_line_map_returns_none_when_base_unresolved(tmp_path: Path) -> N
 
     # origin/main does not exist in this fresh repo, so the diff fails.
     assert policy._changed_line_map(["mod.py"], repo, "origin/main") is None
+
+
+def test_changed_line_map_ignores_a_pure_rename(tmp_path: Path) -> None:
+    # A pathspec on `git diff` drops the delete half of a rename pair before
+    # diffcore_rename runs, so a pure rename reads as a full-file add and
+    # every pre-existing line looks newly authored. _changed_line_map
+    # delegates to diff_line_scope.changed_line_map, which runs the diff
+    # with no pathspec specifically to avoid this (issue #2993's fix for
+    # the ruff gate, shared here so the mypy gate cannot regress the same
+    # way).
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    base = _commit_file(repo, "old_name.py", "line one\nline two\nline three\n")
+    _git(repo, "mv", "old_name.py", "new_name.py")
+    _git(repo, "commit", "-qm", "test: rename with no content change")
+
+    changed = policy._changed_line_map(["new_name.py"], repo, base)
+
+    assert changed is not None
+    assert changed.get("new_name.py", set()) == set()
 
 
 def test_mypy_ratchet_blocks_error_on_changed_line(

@@ -1,0 +1,113 @@
+{
+  "schemaVersion": "2.0",
+  "session": {
+    "number": 4964,
+    "date": "2026-08-15",
+    "branch": "fix/4964-copilot-project-agent-discovery",
+    "startingCommit": "05c0cf4e5bceb5a2efb158680d741c79c02c31a1",
+    "objective": "Fix Copilot CLI project-agent discovery on hosted runners (issue #4964)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active via serena-list_memories."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Root AGENTS.md fallback instructions applied."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No HANDOFF.md needed; issue is self-contained."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "copilot/copilot-cli-frontmatter-regression-runbook memory read."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Root AGENTS.md and CLAUDE.md read."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md constraints applied."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "copilot/copilot-cli-frontmatter-regression-runbook loaded."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4964-copilot-project-agent-discovery"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4964-copilot-project-agent-discovery"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items completed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No durable cross-session fact needed."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint ran via pre-commit hooks."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All changes committed."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-5082-issue-4964-copilot-agent-discovery-qa.md"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "4 new tests pass; mypy clean; pre-push pass."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Diagnosed hosted-runner contract: Copilot CLI 1.0.78 with token auth does not emit session.custom_agents_updated",
+      "evidence": "Nightly run 31886004229 fails identically on all 3 OS.",
+      "commit": "4da170ab0b1b6d1ed114f03b3666bf311f9540b5"
+    }
+  ],
+  "endingCommit": "4da170ab0b1b6d1ed114f03b3666bf311f9540b5",
+  "nextSteps": [
+    "Trigger nightly CLI smoke to verify fix on hosted runners",
+    "Confirm issue #4964 closes automatically"
+  ]
+}

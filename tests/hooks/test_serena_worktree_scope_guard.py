@@ -309,7 +309,7 @@ class TestMatcherRegressionGuard:
         manifest = json.loads(
             (REPO_ROOT / ".claude" / "hooks" / "dispatch_groups.json").read_text()
         )
-        return manifest["groups"]["plugin-pretooluse-11-serena_worktree_scope"]
+        return manifest["groups"]["plugin-pretooluse-12-serena_worktree_scope"]
 
     def test_claude_matcher_is_fully_anchored_and_selects_real_tool_names(self) -> None:
         group = self._dispatch_group()

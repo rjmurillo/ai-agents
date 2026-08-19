@@ -30,15 +30,46 @@ Copilot excludes it from generation. The dated amendment section below records
 the corrected shim count and timeout sum. Debate log:
 `.agents/critique/ADR-068-071-085-5013-debate-log.md`.
 
-Amended 2026-08-18 (issue #5154): ADR-085 section 8 is the policy authority
-for deleting `push_pr_script_identity_guard` from both harnesses. Its warrant
-is the owner's security judgment about what the guard bounded, not ADR-084's
-ROI bar, which `.agents/architecture/ADR-084-vendored-hook-roi-bar.md ("What this ADR does NOT do")`
+Amended 2026-08-18 (issue #5061): `serena_memory_scope_guard` joined the
+consolidated PreToolUse path to block a Serena memory write or delete aimed
+at a git worktree other than the calling agent's own. The dated amendment
+section below records the corrected shim count and timeout sum, and the
+host-side matcher union collapsing to no matcher for `PreToolUse`. This
+growth meets ADR-068's re-evaluation triggers 2 and 3; issue #5151 tracks
+the six-role re-affirmation of the consolidated-dispatcher decision under
+this new load, not asserted here. Debate log:
+`.agents/critique/ADR-068-071-5061-debate-log.md`.
+
+Amended 2026-08-18 (issue #5154, landed on `main` independently of #5061
+above): ADR-085 section 8 is the policy authority for deleting
+`push_pr_script_identity_guard` from both harnesses. Its warrant is the
+owner's security judgment about what the guard bounded, not ADR-084's ROI
+bar, which `.agents/architecture/ADR-084-vendored-hook-roi-bar.md ("What this ADR does NOT do")`
 forbids using to retire a security control. That deletion supersedes the
 2026-08-14 Copilot-only exclusion, so the exclusion is moot on both sides.
 This ADR records only the derived runtime-contract metrics that follow. The
-dated amendment section below records the new shim count, timeout sum, and
-matcher union.
+dated amendment section below records, for `main` alone at the moment this
+amendment landed, the shim count, timeout sum, and matcher union that
+resulted; the 2026-08-19 reconciliation paragraph below states what those
+numbers became once merged with #5061.
+
+Amended 2026-08-19 (merge of issues #5061 and #5154): the two 2026-08-18
+amendments above were authored independently on separate branches against
+the same #5013 baseline. Merged, both survive: `serena_memory_scope_guard`
+(from #5061) stays registered, and `push_pr_script_identity_guard`,
+`markdownlint_guard`, and `markdown_auto_lint` (deleted by #5154) stay
+deleted. The merged PreToolUse manifest holds two shims,
+`require_subagent_model` and `serena_memory_scope_guard`, summing to 20
+seconds of configured timeout (host entry 25 seconds), verified against the
+regenerated `src/copilot-cli/hooks/PreToolUse/_manifest.json` and
+`src/copilot-cli/hooks/hooks.json` on 2026-08-19. The Copilot host matcher
+union for `PreToolUse` stays collapsed to none:
+`serena_memory_scope_guard`'s matcher does not reduce to a known Claude core
+tool name regardless of which other shims survive, so #5154's `Agent|Task`
+narrowing never takes effect on the merged tree. This is a mechanical
+composition of two already-reviewed amendments, not a new re-evaluation;
+issue #5151 remains the tracker for the outstanding six-role re-affirmation
+under the matcher-union loss.
 
 Amended 2026-08-18 (issue #4917), merged onto the #5154 baseline above: the
 Serena worktree scope guard's matcher was unanchored (`^serena-`) from its
@@ -49,9 +80,23 @@ dated amendment section below records the corrected contract and metrics.
 This bug-fix increment did not receive a fresh six-role adr-review; see the
 corresponding ADR-068 amendment for the same scoping note.
 
+Amended 2026-08-19 (three-way merge of issues #4917, #5061, and #5154): the
+#4917 paragraph above describes the guard merged onto the #5154 baseline
+alone, authored before #5061 had landed on `main`. This amendment
+reconciles all three: #4917's anchoring fix and fail-closed contract are
+unchanged, but the derived shim inventory now includes
+`serena_memory_scope_guard` (from #5061) alongside `serena_worktree_scope`
+and `require_subagent_model`. `.claude/hooks/dispatch_groups.json`
+registers the worktree guard as `plugin-pretooluse-12-serena_worktree_scope`,
+renumbered up from its own branch's `-11-` suffix to avoid colliding with
+`plugin-pretooluse-11-serena_memory_scope`, already landed from #5061. The
+second 2026-08-19 dated amendment section below records the corrected
+three-shim contract and metrics.
+
 ## Date
 
-2026-06-02; amended 2026-07-19, 2026-08-11, 2026-08-14, and 2026-08-18
+2026-06-02; amended 2026-07-19, 2026-08-11, 2026-08-14, 2026-08-18, and
+2026-08-19
 
 ## Context
 
@@ -283,7 +328,61 @@ unchanged. This is a scoped runtime-contract update that follows from ADR-085
 Decision 7, not a re-evaluation of the verified runtime contract established
 above. Debate log: `.agents/critique/ADR-068-071-085-5013-debate-log.md`.
 
-### 2026-08-18 amendment: push-pr identity guard deleted from both harnesses (issue #5154)
+### 2026-08-18 amendment: Serena memory worktree-scope guard (issue #5061)
+
+Issue #5061 added `serena_memory_scope_guard` to the consolidated PreToolUse
+path, to block a Serena memory write or delete aimed at a git worktree other
+than the calling agent's own. The active Copilot PreToolUse manifest now
+contains three shims, `markdownlint_guard`, `require_subagent_model`, and
+`serena_memory_scope_guard`, summing to 110 seconds of configured timeout.
+The generated host entry requests 115 seconds, the same five seconds of
+dispatcher headroom as before.
+
+The new gate's matcher,
+`mcp__serena__(write|delete)_memory|serena-(write|delete)_memory`, is a
+runtime-name token the generator cannot reduce to a documented Claude core
+tool name. Per the residual named in the 2026-08-11 amendment above, this
+drops the host-level matcher entirely: this is the #3075 regression the
+lowercase-`task` variant was rejected to avoid, now occurring for a different
+reason. The generated host entry for `PreToolUse` therefore carries no
+`matcher` field, where it previously carried `Bash|Agent|Task`. The
+dispatcher now spawns on every Copilot tool call, not only Bash and
+Agent/Task calls, and every matched call starts the dispatcher plus three
+children instead of two. `require_subagent_model` and `markdownlint_guard`
+carry their own in-process matcher check independent of the host union
+(Decision point 2: "the retained generated shims remain the final matcher
+authority and self-filter in process"), and neither shim's code changed in
+this amendment, so that self-filtering is unaffected by this diff; this
+amendment is not a new verification of it. Only the host-side
+spawn-avoidance optimization is lost. The require-subagent-model and
+markdownlint-guard fail-open and fail-closed behavior recorded in the prior
+amendments is unchanged; only the Copilot-side shim count, matcher union,
+and timeout sum moved. This is a scoped runtime-contract update, not a new
+verification of `serena_memory_scope_guard`'s own gate decisions, which
+belong to the guard's own tests.
+
+Two alternatives to consolidating this gate were considered and set aside.
+A direct, non-consolidated Copilot host entry for `serena_memory_scope_guard`
+alone was not adopted: Decision point 2's reducibility rule applies to any
+matcher regardless of consolidation, so a standalone entry would also emit no
+host matcher for this MCP-tool pattern and would not avoid the regression it
+was meant to solve. Full exclusion from the generated Copilot inventory,
+matching the issue #5013 precedent for `push_pr_script_identity_guard`, was
+also not adopted: that guard has no in-repo direct-registration fallback and
+#5013 accepted zero Copilot coverage for it after a specific containment
+incident (ADR-085 Decision 7); excluding `serena_memory_scope_guard` the same
+way would leave Copilot sessions with no protection against the exact
+cross-worktree write bug issue #5061 fixes, which this ADR does not treat as
+an acceptable trade for the spawn-cost regression. A six-role adr-review
+re-affirmation of the consolidated-dispatcher decision under the lost host
+matcher union is not recorded as part of this amendment; issue #5151 tracks
+it, including a from-scratch quantification of the frequency and latency
+cost, which this amendment states qualitatively but does not measure. Unlike
+the 2026-08-11 (#4874) and 2026-08-14 (#5013) firings of the same triggers,
+which each closed with a same-change re-affirmation, this amendment defers
+it to #5151 instead.
+
+### 2026-08-18 amendment: push-pr identity guard deleted from both harnesses (issue #5154, landed on `main` independently of #5061 above)
 
 ADR-085 section 8 is the policy authority for the deletion. It records the
 owner's classification of the disposition as deleted under section 7's
@@ -331,7 +430,63 @@ the 1.0.72-1 probe tested 2 seconds. This is a scoped runtime-contract update
 that follows from ADR-085 section 8, not a re-evaluation of the verified
 runtime contract established above.
 
-### 2026-08-18 amendment: Serena worktree scope guard anchoring fix (issue #4917), merged onto the #5154 baseline above
+The derived metrics in this section describe `main` alone at the moment this
+amendment landed, without issue #5061. The 2026-08-19 reconciliation section
+below states what they became once merged with #5061, further updated by
+the second 2026-08-19 reconciliation section that follows it, which also
+folds in issue #4917.
+
+### 2026-08-19 reconciliation: merging issues #5061 and #5154
+
+The two 2026-08-18 amendments above were authored independently on separate
+branches against the same 2026-08-14 (#5013) baseline: #5061 added
+`serena_memory_scope_guard`, and #5154 deleted `push_pr_script_identity_guard`,
+`markdownlint_guard`, and `markdown_auto_lint`. Neither amendment's derived
+metrics describe the tree once both land together. Merged, both changes
+compose: `require_subagent_model` and `serena_memory_scope_guard` both
+survive, and the three hooks #5154 deleted stay deleted regardless of #5061
+having touched neighboring dispatch groups in the same file. This is a
+mechanical composition of two already-reviewed decisions, not a new
+re-evaluation of either.
+
+The merged active Copilot PreToolUse manifest contains two shims,
+`require_subagent_model` and `serena_memory_scope_guard`, summing to 20
+seconds of configured timeout. The generated host entry requests 25 seconds,
+the same five seconds of dispatcher headroom as before. Verified against the
+regenerated tree on 2026-08-19:
+`src/copilot-cli/hooks/PreToolUse/_manifest.json` lists both shims with a
+combined 20-second timeout, and `src/copilot-cli/hooks/hooks.json` requests
+`timeoutSec: 25` on its one `PreToolUse` entry.
+
+The generated host matcher union stays collapsed to no matcher, unchanged
+from the 2026-08-18 (#5061) amendment: `serena_memory_scope_guard`'s matcher
+does not reduce to a documented Claude core tool name regardless of which
+other PreToolUse shims are registered alongside it, so #5154's `Agent|Task`
+narrowing (recorded above for `main` alone) never takes effect on the merged
+tree. Every Copilot PreToolUse-eligible tool call still spawns the
+dispatcher, which now starts two timed children (`require_subagent_model`
+and `serena_memory_scope_guard`), three process starts total, down from
+three children under #5061 alone because `markdownlint_guard` no longer
+exists to spawn a third.
+
+PostToolUse stays out of the generated tree: #5154's deletion of
+`markdown_auto_lint` is unaffected by #5061, which never touched PostToolUse.
+
+The require-subagent-model and serena_memory_scope_guard fail-open and
+fail-closed contracts recorded in their own amendments are unchanged; only
+the Copilot-side shim count, matcher union, and timeout sum moved. This is a
+scoped runtime-contract update, not a new verification of either guard's own
+gate decisions, and not the six-role re-affirmation issue #5151 tracks for
+the consolidated-dispatcher decision under the matcher-union loss.
+
+### 2026-08-19 reconciliation: merging issue #4917 into the #5061+#5154 tree
+
+Issue #4917 was authored independently, the same day as #5061 and #5154, on
+a third branch against the same 2026-08-14 (#5013) baseline: it added the
+Serena worktree scope guard, `serena_worktree_scope`. This section folds
+that guard into the tree the reconciliation above already merged. This is a
+three-way mechanical composition of three already-reviewed decisions, not a
+new re-evaluation of any of them.
 
 The guard was registered from its first commit with an unanchored matcher,
 `^serena-`. A native PreToolUse matcher compiles as `^(?:PATTERN)$`, so the
@@ -347,44 +502,53 @@ MCP tool-name convention (`mcp__serena__<tool>` versus `serena-<tool>`,
 confirmed against this repository's existing `mcp__serena__write_memory`
 PostToolUse registration and against session-log evidence of Copilot's
 `serena-*` naming), and adds `_normalize_tool_name()` so one script body
-resolves either prefix to the same bare-name write-tool check.
+resolves either prefix to the same bare-name write-tool check. The guard
+itself now has a real (previously nonexistent) fail-closed contract: it
+denies (exit 2) on scope mismatch and on an undeterminable Serena project
+root, and allows (exit 0) on scope match, on a read-only tool, and when the
+CWD git toplevel cannot be determined.
 
-Because the guard is not excluded from Copilot generation, and because this
-amendment lands on top of the #5154 deletion above rather than on the
-pre-#5154 baseline, the derived shim inventory moves from #5154's one-shim
-state, not from the earlier three-shim state: the active Copilot PreToolUse
-manifest now contains two shims, `require_subagent_model` and
-`serena_worktree_scope`, summing to 20 seconds of configured timeout. The
-generated host entry requests 25 seconds, the same five seconds of
-dispatcher headroom as before (measured directly:
-`src/copilot-cli/hooks/hooks.json` sets `timeoutSec: 25`). The
-require-subagent-model fail-open and fail-closed behavior recorded in the
-2026-08-11 amendment is unchanged; `markdownlint_guard` stays deleted per
-the #5154 amendment above and is not reintroduced. The Serena guard itself
-now has a real (previously nonexistent) fail-closed contract: it denies
-(exit 2) on scope mismatch and on an undeterminable Serena project root,
-and allows (exit 0) on scope match, on a read-only tool, and when the CWD
-git toplevel cannot be determined.
+`.claude/hooks/dispatch_groups.json` registers `serena_worktree_scope` as
+`plugin-pretooluse-12-serena_worktree_scope`, renumbered up from the `-11-`
+suffix used on its own branch: `plugin-pretooluse-11-serena_memory_scope`
+had already landed on `main` from #5061 by the time this merge occurred.
+The renumbering changes only the manifest key, not the guard's matcher or
+contract.
 
-Unlike the 2026-08-14 (#5013) and prior 2026-08-18 (#5154) amendments, this
-one does change the generated host matcher union: the Serena guard's
-Copilot-side matcher (`^serena-.*$`) is a wildcard regex, not an alternation
-of known Claude tool names, so it cannot be reduced, and adding it drops the
-host-side matcher for the whole PreToolUse group again. The `Agent|Task`
-narrowing the #5154 amendment recorded above no longer holds: a Copilot Bash
-call reaches the dispatcher again (measured: the generated
-`src/copilot-cli/hooks/hooks.json` PreToolUse entry carries no `matcher`
-key), and both `require_subagent_model` and `serena_worktree_scope` run
-in-process on every PreToolUse call regardless of tool name, with each
-shim's own matcher then deciding in-process whether it does real work. The
-dispatcher itself, its three execution modes, and its per-event mode
-contract are unchanged. This is a bug fix to the verified runtime contract
-plus the scoped inventory and matcher-union consequences of merging onto
-the #5154 baseline, not a re-evaluation of the contract itself: the contract
-described in the 2026-08-11 amendment for `require_subagent_model` still
-holds; only the Serena guard's own previously-nonfunctional contract is now
-real, and the generated matcher union reflects both shims being present
-together. Fixes #4917.
+The merged active Copilot PreToolUse manifest contains three shims,
+`require_subagent_model`, `serena_memory_scope_guard`, and
+`serena_worktree_scope`, summing to 30 seconds of configured timeout. The
+generated host entry requests 35 seconds, the same five seconds of
+dispatcher headroom as before. Verified against the regenerated tree on
+2026-08-19: `src/copilot-cli/hooks/PreToolUse/_manifest.json` lists all
+three shims with a combined 30-second timeout, and
+`src/copilot-cli/hooks/hooks.json` requests `timeoutSec: 35` on its one
+`PreToolUse` entry.
+
+The generated host matcher union stays collapsed to no matcher:
+`serena_worktree_scope`'s Copilot-side matcher (`^serena-.*$`) is, like
+`serena_memory_scope_guard`'s, a pattern that does not reduce to an
+alternation of known Claude tool names, so it does not change the
+already-collapsed union. Every Copilot PreToolUse-eligible tool call still
+spawns the dispatcher, which now starts three timed children, four process
+starts total, up from three under the #5061+#5154-only tree.
+
+On the Claude side, `serena_worktree_scope`'s matcher (`^mcp__serena__.*$`)
+is a strict superset of `serena_memory_scope_guard`'s
+(`^(mcp__serena__(write|delete)_memory|...)$`): a `write_memory` or
+`delete_memory` call now matches both Claude-side groups and runs both
+guards in sequence via their own host entries, not one. No two Claude-side
+matchers overlapped before this merge; each PreToolUse group previously ran
+at most once per call.
+
+The require-subagent-model, serena_memory_scope_guard, and
+serena_worktree_scope fail-open and fail-closed contracts recorded in their
+own amendments are unchanged; only the Copilot-side shim count, matcher
+union spawn count, and timeout sum moved, plus the Claude-side matcher
+overlap noted above. This is a scoped runtime-contract update, not a new
+verification of any guard's own gate decisions, and not the six-role
+re-affirmation issue #5151 tracks for the consolidated-dispatcher decision
+under the matcher-union loss.
 
 ## Decision
 
@@ -564,10 +728,11 @@ item 5.)
 - Issues #2205 (fix), #2223 (module-size/complexity debt), #2230 (launcher
   fail-open, closed: rejected, addressed-by-prevention), #2231 (closed:
   Windows contract simulation, artifact discovery, authenticated smoke),
-  #4874 (require-subagent-model gate), #5013 (Copilot-only
-  `push_pr_script_identity_guard` exclusion; policy owned by ADR-085
-  Decision 7), #5154 (`push_pr_script_identity_guard` deleted from both
-  harnesses; policy owned by ADR-085 section 8).
+  #4874 (require-subagent-model gate), #4917 (`serena_worktree_scope`
+  anchoring fix), #5013 (Copilot-only `push_pr_script_identity_guard`
+  exclusion; policy owned by ADR-085 Decision 7), #5061
+  (`serena_memory_scope_guard`), #5154 (`push_pr_script_identity_guard`
+  deleted from both harnesses; policy owned by ADR-085 section 8).
 - ADR-085. Cross-harness permission-surface asymmetry; owns the security
   judgment behind the 2026-08-14 and 2026-08-18 amendments above.
 - `.agents/architecture/ADR-084-vendored-hook-roi-bar.md ("What this ADR does NOT do")`. The
