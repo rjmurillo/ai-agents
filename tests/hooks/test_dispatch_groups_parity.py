@@ -154,6 +154,8 @@ def test_repo_settings_cover_plugin_shims_minus_documented_prunes():
     pruned = {
         # ADR-085: settings.json twin removed; gate-mode groups skip self-host bail.
         "invoke_require_subagent_model.py",
+        # ADR-085, #5061: gate-mode group, so no settings.json twin.
+        "invoke_serena_memory_scope_guard.py",
     }
     uncovered = (
         _group_shim_basenames(surface_is_plugin=True)
@@ -209,6 +211,8 @@ AUTHORIZED_HOOKS = {
     "tool already ran, dogfood-only",
     "invoke_memory_reflection.py": "#4011 KEEP: the only live caller that "
     "persists memory confidence scores, dogfood-only",
+    "invoke_serena_memory_scope_guard.py": "#5061: block Serena memory writes "
+    "that would land in a checkout other than the caller's worktree",
 }
 
 

@@ -398,8 +398,14 @@ the Copilot-side PreToolUse manifest then carried the remaining two shims,
 re-baselined both counts. It deleted `push_pr_script_identity_guard` from both
 harnesses (section 8) and deleted `markdownlint_guard` and
 `markdown_auto_lint` in the same change. `require_subagent_model` is the only
-survivor, so the vendored source now has one registration on one event,
-PreToolUse, and Copilot generation emits one host registration. This repository also
+survivor, so the vendored source then had one registration on one event,
+PreToolUse, and Copilot generation emitted one host registration. Issue
+#5061, landed independently the same day and merged with #5154 on
+2026-08-19, added `serena_memory_scope_guard` to the same event: the
+vendored source now has two registrations on one event, PreToolUse, and
+Copilot generation still emits one host registration, since one dispatcher
+entry serves every registered shim for an event regardless of shim count
+(ADR-068 Decision point 1). This repository also
 registers the require-subagent-model gate directly at
 `.github/hooks/require-subagent-model.json` for local Copilot runs; cloud
 agent reads only default-branch `.github/hooks/*.json`, so cloud coverage
