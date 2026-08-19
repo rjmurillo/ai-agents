@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored.json
-qaCommit: b2e1e248be185d8c9e39bd274e9b53cf7ff0c53e
+qaCommit: 6486cdfaca17db8a163d1b91aa349efe9bd4274e
 ---
 
 # QA report: issue #5154 tool-use hook retirement
