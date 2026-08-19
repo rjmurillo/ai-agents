@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-19-session-99921-b9d55af7c-retire-pretooluseposttooluseposttoolusefailure-hooks-windowsdefender-per-spawn.json
-qaCommit: 5a2de5f4b0148d19004da39a229d83f395da0766
+qaCommit: ef125dc2176fb7c06a6987bbdc7ebd32c2c28856
 ---
 
 # QA: ADR-097 zero tool-use hooks
@@ -128,3 +128,43 @@ than claiming an MCP call, matching the pattern already on `main` in
   degraded) covers it in CI and is the intended evidence; it was not run locally.
 - The Windows and Defender per-spawn cost that motivates ADR-097 is
   owner-reported and remains unmeasured here, as ADR-097's Context section states.
+
+## Addendum: two CI-only gates the local suite could not exercise
+
+The "no real-CLI smoke ran" scope gap above was not hypothetical. The PR's
+first CI run (head `2f14b88d`) surfaced two failures that no path run against
+`tests/` locally, because both drive real Docker containers or a
+PATH-scrubbed PowerShell that this sandbox cannot run:
+
+| Check | Failure | Root cause |
+|---|---|---|
+| `Vanilla Linux (no Python)`, `Vanilla Windows (no interpreter resolvable)` (`Plugin Hook Guard Result`) | `VANILLA GUARD FAILED: no bash/powershell command for event PreToolUse` | `scripts/ci/vanilla_hook_guard.py` asserted at least one `PreToolUse` hook command always exists, before it ever reached the degrade-gracefully assertion it exists to run. |
+| `pytest (bulk-nested)`, `Run Windows path-contract tests`, `Run Python Tests` | `AssertionError: expected at least one hook script command path` in `tests/integration/test_e2e_install.py::TestInstalledHooks::test_hook_command_paths_resolve_case_sensitively` | Same assumption: a case-sensitivity check over hook script paths asserted the collected list was non-empty. |
+
+Both are `tests/integration/` and `tests/ci/` Docker- or CLI-driven paths, a
+different selection than the `tests/hooks/ tests/build_scripts/ tests/ci/
+tests/validation/ tests/evals/` run recorded above, and neither ran in the
+`python-tests` pre-push job either (that job also skips these; confirmed by
+running the exact two test files locally after the fix, both green, and by
+`pre_pr.py --quick` passing clean afterward).
+
+Fix (commit `ef125dc2176fb7c06a6987bbdc7ebd32c2c28856`, 3 files): zero
+`PreToolUse` hooks registered is read as "nothing to prove vanilla-safe"
+(vacuous pass), matching `validate_hook_anchoring.py`'s existing zero-is-valid
+treatment. A missing or malformed manifest still fails closed. New negative
+controls: `test_event_is_registered_raises_on_a_malformed_hooks_mapping`,
+`test_main_fails_when_the_manifest_is_missing`. Re-verified locally:
+
+```text
+uv run --frozen python -m pytest tests/ci/test_vanilla_hook_guard.py \
+    tests/integration/test_e2e_install.py -q
+71 passed, 1 skipped
+uv run --frozen python scripts/validation/validate_hook_anchoring.py
+[PASS] Hook anchoring: 0 hook entries anchored correctly across all plugins
+```
+
+`pre_pr.py --quick` after this commit: 56 of 57 validations pass; the one
+failure was this QA report's own staleness check (`.agents/qa/`, `.agents/sessions/`,
+and `.agents/memory/episodes/` are QA-evidence-exempt paths, so rebinding
+`qaCommit` above to this commit and appending this addendum clears it without
+re-triggering staleness on itself).
