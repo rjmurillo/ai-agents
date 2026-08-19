@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored.json
-qaCommit: 6486cdfaca17db8a163d1b91aa349efe9bd4274e
+qaCommit: cbc805ac049ca9d2506b72cbe885b73f1638cf3d
 ---
 
 # QA report: issue #5154 tool-use hook retirement
@@ -29,9 +29,12 @@ citation sweep that follows from them.
 
 ## Second scope: ADR-084 rule 6 and the tool-use hook bar
 
-Added after the owner lifted the 20-commit ceiling. Rule 3 of ADR-084 is
-restored to its original text; the new bar is rule 6, so no existing citation to
-rule 3 changes meaning.
+Added after the owner lifted the 20-commit ceiling. Rule 3's obligation is
+unchanged and its original body is intact, so no existing citation to rule 3
+changes meaning. It is not byte-identical: one cross-reference sentence is
+appended routing the per-call events to rule 6. An earlier version of this
+report said "restored to its original text", which the spec validator flagged
+as the sixth instance of this change's recurring propagation defect.
 
 | Check | Command | Result |
 |---|---|---|
@@ -41,6 +44,8 @@ rule 3 changes meaning.
 | Generator drift | `build/scripts/generate_rules.py` then `build_all.py --check` | exit 0 |
 | ADR-prose and hook suites, post-flip | `pytest tests/build_scripts tests/validation tests/hooks -q` | 5792 passed, 9 skipped |
 | ADR-prose gates, post round-2 fixes | `pytest tests/build_scripts/test_hook_contract_knowledge.py tests/hooks/test_adr_hook_claims.py -q` | 402 passed |
+| CI and validation suites | `pytest tests/ci tests/validation -q` | 5579 passed, 17 skipped |
+| Installed-plugin check, real install | `scripts/ci/test_installed_plugin_hooks.py` | exit 0; allow, deny, and launcher assertions all PASS |
 
 adr-review round 1 returned 3 Block, 2 Disagree-and-Commit, 1 conditional
 Accept. Every blocking finding is resolved and recorded in
@@ -90,6 +95,26 @@ consumer coverage was already zero. `invoke_markdown_auto_lint.py` had no such
 gate, so consumer-side markdown auto-fix drops to zero with this change. Both
 are recorded in ADR-085 Decisions 9 and 10.
 
+## Coverage regression this change caused, and its controls
+
+Retiring the command-scoped groups left `scripts/ci/test_installed_plugin_hooks.py`
+sending only a `Bash` payload, which no registered matcher selects once the only
+survivor is `^(Agent|Task)$`. It kept passing while exercising no guard at all.
+The launcher-resolution property it also covers (issue #2205) stayed intact, so
+nothing went red; the loss was silent.
+
+Fixed by driving the surviving gate directly, both ways. Two controls were run
+against a real materialized install rather than asserted from reading the code:
+
+| Control | Expectation | Observed |
+|---|---|---|
+| `CLAUDE_CODE_SUBAGENT_MODEL` exported in the ambient environment | deny still fires, because `drop_env` clears it | `PASS: PreToolUse denies an Agent spawn with no model (gate fired)` |
+| payload mutated to `tool_name: Bash` so nothing matches | deny assertion fails | `FAIL: PreToolUse did not deny an Agent spawn with no model (exit 0, expected 2)` |
+
+The second is what makes the assertion non-vacuous: it fails with the exact
+diagnostic when the dispatcher stops routing to the gate, which is the condition
+the original Bash-only payload could not detect.
+
 ## Known-not-fixed, with attribution
 
 - Orphan-ref scan reports `VERDICT: CRITICAL_FAIL` with 6 findings. All six are
@@ -116,8 +141,15 @@ are recorded in ADR-085 Decisions 9 and 10.
 
 ## Full-suite status
 
-`uv run --frozen python -m pytest tests/ -q` completed with exit 0 on the same
-tree contents before the commits were restructured. Re-runs since then hit the
-local 15-minute command cap rather than a test failure. The pre-push
-`python-tests` job runs the same suite under a 30-minute budget and is the
-authoritative gate.
+**Authoritative, current head.** The pre-push `python-tests` job ran the full
+suite against each pushed head of this branch and passed every time, most
+recently on `9d2c711c9`. That job runs under a 30-minute budget and is the
+gate of record for this criterion.
+
+**Local runs, for context only.** `uv run --frozen python -m pytest tests/ -q`
+completed with exit 0 earlier, on the same tree contents but before the commits
+were restructured. Later local re-runs hit the 15-minute command cap rather than
+a test failure, so that figure is stale and must not be quoted as current-head
+evidence. Scoped local runs are current and reproducible:
+`pytest tests/build_scripts tests/validation tests/hooks -q` returns 5792
+passed, 9 skipped.
