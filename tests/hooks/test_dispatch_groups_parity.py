@@ -152,11 +152,6 @@ def test_repo_settings_cover_plugin_shims_minus_documented_prunes():
     # deliberately made. A plugin shim missing here would silently never
     # run during this repo's own sessions (the 19-day dead-hook class).
     pruned = {
-        # ADR-084 keeps customer-value markdown hooks plugin-only.
-        "invoke_markdown_auto_lint.py",
-        "invoke_markdownlint_guard.py",
-        # Gate groups do not take the plugin dispatcher's self-host bail.
-        "invoke_push_pr_script_identity_guard.py",
         # ADR-085: settings.json twin removed; gate-mode groups skip self-host bail.
         "invoke_require_subagent_model.py",
     }
@@ -203,10 +198,6 @@ def test_plugin_registrations_are_dispatcher_only():
 AUTHORIZED_HOOKS = {
     "invoke_require_subagent_model.py": "#4874: deny sub-agent spawns that would "
     "silently inherit the session model on Claude and Copilot CLI",
-    "invoke_push_pr_script_identity_guard.py": "#4764: block repository-controlled "
-    "lookalike PR scripts before Python execution",
-    "invoke_markdownlint_guard.py": "ADR-084 keeper (customer value)",
-    "invoke_markdown_auto_lint.py": "ADR-084 keeper (customer value)",
     "invoke_observation_sync.py": "#3217: relocate to .githooks/CI, authorized until then",
     "invoke_compact_checkpoint.py": "#3217 KEEP, trimmed by #3273",
     "invoke_context_loader.py": "#3349 KEEP: read-only, fail-open, automates the "
@@ -247,3 +238,68 @@ def test_no_authorization_outlives_the_hook_it_authorizes():
         f"authorized but not running: {sorted(stale)}. Delete these entries; "
         f"the ledger records what runs, not what once did."
     )
+
+
+def _plugin_surface_shim_paths() -> list[Path]:
+    """Resolve every shim belonging to a plugin-surface group.
+
+    "Vendored" is a property of the registration, not of the directory a file
+    sits in. `.claude/hooks/` also holds this repository's own dogfood hooks,
+    which ADR-084 rule 5 never covered, so scoping by directory would demand a
+    consumer-value line from hooks that have no consumer.
+    """
+    return [
+        HOOKS_DIR / shim["file"]
+        for spec in MANIFEST["groups"].values()
+        if spec.get("surface") == "plugin"
+        for shim in spec["shims"]
+    ]
+
+
+def test_every_vendored_hook_states_its_customer_value():
+    """ADR-084 rule 5: a vendored hook must state what it does for a consumer.
+
+    Rule 5 asked for a CI presence check and none was built; measured 29 days
+    after the ADR was accepted, `Customer value:` appeared in no script under
+    `scripts/`, `build/`, or `.github/workflows/`. This is that check, placed
+    in the existing parity suite rather than as a new workflow because the
+    vendored surface is one hook and a standalone job guarding one compliant
+    file is more machinery than the risk warrants.
+
+    The check is deliberately a presence assertion, not a judgement. ADR-084
+    rule 5 assigns the question of whether the stated value is REAL to human
+    review at ADR and PR time; a grep cannot answer it. What this catches is
+    the cheaper failure: a hook reaching the vendored surface without anyone
+    having written down who it helps.
+    """
+    missing = [
+        path.relative_to(REPO_ROOT)
+        for path in _plugin_surface_shim_paths()
+        if "Customer value:" not in path.read_text(encoding="utf-8")
+    ]
+    assert not missing, (
+        "ADR-084 rule 5: every vendored hook needs a one-line "
+        "'Customer value:' statement in its module docstring, naming what it "
+        f"delivers in a CONSUMER's repo. Missing from: {sorted(map(str, missing))}. "
+        "'Enforces our protocol' is disqualifying under rule 1: a consumer does "
+        "not run this project's protocol. If the hook has no consumer value, it "
+        "belongs in lefthook or CI per rule 2, not in the vendored surface."
+    )
+
+
+def test_the_customer_value_check_examines_a_nonempty_surface():
+    """Guard the guard: a zero-file corpus would pass the check vacuously.
+
+    `scripts/validation/pre_pr.py`-style gates report "0 violations in N items"
+    for exactly this reason. If a future change drops the last plugin-surface
+    registration, the assertion above starts passing because it examines
+    nothing, and the rule silently stops being enforced. This fails instead.
+    """
+    paths = _plugin_surface_shim_paths()
+    assert paths, (
+        "no plugin-surface groups in dispatch_groups.json, so the rule 5 check "
+        "above examines nothing and passes vacuously. If the vendored surface "
+        "was deliberately emptied, delete both tests and say so in the ADR."
+    )
+    for path in paths:
+        assert path.is_file(), f"plugin-surface shim missing on disk: {path}"

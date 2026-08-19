@@ -27,7 +27,7 @@ Two terms used throughout:
 | Situation | Recipe | Related skill |
 |-----------|--------|---------------|
 | You are about to rely on undocumented tool behavior (cwd, env vars, stdin format) | 1. Runtime-contract probe | `agent-harness-reference` for settled contracts |
-| You are shipping a detector, guard, or numeric threshold | 2. Guard/threshold calibration | `guard-maturity` for post-ship monitoring |
+| You are shipping a detector, guard, or numeric threshold | 2. Guard/threshold calibration | ship your own post-ship telemetry; no shared monitor exists (ADR-084, issue #5154) |
 | You changed a prompt, rule, or agent and claim it behaves better | 3. Behavioral A/B via eval harness | `benchmark-models` for cross-model comparison |
 | You are about to write a command, path, or "matches X" claim into a doc or docstring | 4. Docs-vs-reality audit | `doc-accuracy` for full doc audits |
 | A CI job failed on your PR | 5. Reproduce-on-main discriminator | `ai-agents-debugging-playbook` for symptom triage |
@@ -66,7 +66,11 @@ Pick the recipe from the selector table. Each recipe states when to use it, the 
 3. Build the calibration table: threshold | PR | measured value | would it fire? Include the expected firing rate.
 4. Run the guard on its own branch. A guard that never runs against the PR that ships it is unproven (#1989 M5 failure).
 5. If the detector fires on zero of five, the threshold is wrong or the metric is wrong. Fix before commit, and put the table in the PR description.
-6. After shipping, watch its tier via `guard-maturity` (EVENT= telemetry consumers).
+6. After shipping, watch how it performs in practice. There is no shared
+   tier-classifier skill to route this through: the guard-maturity skill and
+   its `EVENT=` telemetry consumers were retired under ADR-084 (issue #5154)
+   once their producer was deleted. Build your own lightweight tracking if
+   the guard is worth watching.
 
 **Worked examples**: see [references/worked-examples.md](references/worked-examples.md), Recipe 2.
 

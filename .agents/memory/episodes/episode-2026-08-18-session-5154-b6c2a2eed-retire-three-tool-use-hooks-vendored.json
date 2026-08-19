@@ -1,0 +1,172 @@
+{
+  "id": "episode-2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored",
+  "session": "2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored",
+  "timestamp": "2026-08-18T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Retire three tool-use hooks from the vendored plugin surface per the ADR-084 ROI bar, amend ADR-068 071 085, sweep stale citations",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-18T18:04:17+00:00",
+      "type": "commit",
+      "content": "Commit: 599b9ee",
+      "caused_by": [],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-18T19:10:18+00:00",
+      "type": "commit",
+      "content": "Commit: 34c0bd6a0764d226815a1ed47d266880b766a0ad",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-18T19:10:18+00:00",
+      "type": "commit",
+      "content": "Commit: 84bc8fc6894db15fe4d534396e5ae0c5c53bdf65",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-18T20:13:11+00:00",
+      "type": "commit",
+      "content": "Commit: 46e8996080a97c94ac6fb17ab91aebed9e54edb4",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-18T20:31:12+00:00",
+      "type": "commit",
+      "content": "Commit: 1f2b35d8505c8edb891cc93feaba6c9aa7bbf4a8",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-18T20:33:52+00:00",
+      "type": "commit",
+      "content": "Commit: 30dda08e11d634e074aa445f26fbe2e2ab40f062",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-18T23:16:57+00:00",
+      "type": "commit",
+      "content": "Commit: 5714d60e9e54039426caf5f62a6fcb9218e6b031",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-18T23:41:20+00:00",
+      "type": "commit",
+      "content": "Commit: ef5ef3a98d305dee4d684f22bca87bc367d58ffc",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-19T00:12:42+00:00",
+      "type": "commit",
+      "content": "Commit: b2e1e248be185d8c9e39bd274e9b53cf7ff0c53e",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-19T00:30:20+00:00",
+      "type": "commit",
+      "content": "Commit: 6486cdfaca17db8a163d1b91aa349efe9bd4274e",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-19T00:52:11+00:00",
+      "type": "commit",
+      "content": "Commit: cbc805ac049ca9d2506b72cbe885b73f1638cf3d",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-19T01:23:39+00:00",
+      "type": "commit",
+      "content": "Commit: f7468520417ca6fdd7f162fa26f48cd13bab6204",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 12,
+    "files_changed": 125
+  },
+  "lessons": []
+}

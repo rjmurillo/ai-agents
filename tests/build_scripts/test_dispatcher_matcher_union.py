@@ -78,9 +78,10 @@ def test_committed_matcher_capable_entries_have_matchers():
             encoding="utf-8"
         )
     )["hooks"]
+    # Issue #5154 retired the Bash and Bash(git push*) PreToolUse groups and the
+    # only PostToolUse group, so the union is what the sub-agent gate matches.
     expected = {
-        "PreToolUse": {"Bash", "Agent", "Task"},
-        "PostToolUse": {"Write", "Edit"},
+        "PreToolUse": {"Agent", "Task"},
     }
 
     assert set(hooks) == set(expected)

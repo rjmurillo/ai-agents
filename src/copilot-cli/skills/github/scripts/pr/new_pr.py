@@ -25,9 +25,8 @@ from pathlib import Path
 def _load_sibling(name: str):
     """Load a sibling script by ABSOLUTE PATH, without touching ``sys.path``.
 
-    ``new_pr.py`` runs under ``python3 -I`` (the push-pr identity guard
-    requires that exact form), and isolated mode removes the script's own
-    directory from ``sys.path``. Measured on CPython 3.14.6:
+    ``new_pr.py`` is invoked under ``python3 -I``, and isolated mode removes
+    the script's own directory from ``sys.path``. Measured on CPython 3.14.6:
 
         $ python3 -I main.py
         ModuleNotFoundError: No module named 'sibling'
@@ -38,8 +37,11 @@ def _load_sibling(name: str):
     anyone able to write into the script directory shadow a stdlib module for
     this process, which is strictly worse than the position before the split.
 
-    The identity guard pins the SHA-256 of every file in this bundle, so a
-    sibling cannot be swapped independently of new_pr.py.
+    A PreToolUse guard used to pin the SHA-256 of every file in this bundle,
+    so a sibling could not be swapped independently of new_pr.py. Issue #5154
+    deleted that guard, so nothing verifies bundle integrity at run time now.
+    A swapped sibling is caught by code review and by the server-side gate in
+    .github/workflows/pr-validation.yml, not here.
     """
     path = Path(__file__).resolve().with_name(f"{name}.py")
     spec = importlib.util.spec_from_file_location(name, path)

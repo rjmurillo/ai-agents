@@ -114,7 +114,6 @@ Mechanical or deterministic skills. Agent-vs-baseline does not measure their cor
 | git-advanced-workflows | Guidance document (passive context territory). |
 | github | Wrapper around `gh` operations. |
 | github-url-intercept | Blocking intercept rule; routing decision, no judgment surface. |
-| guard-maturity | Aggregates EVENT lines emitted by push guards. |
 | metrics | Collects from git history. |
 | observability | Queries JSONL event logs. |
 | pipeline-validator | Discovers/triggers/monitors ADO pipelines. |

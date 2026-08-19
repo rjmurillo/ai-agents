@@ -8,7 +8,7 @@ license: MIT
 # AI Agents Architecture Contract
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself. It intentionally references .agents/SESSION-PROTOCOL.md, .agents/governance, .claude/lib, scripts/hook_utilities, scripts/github_core, scripts/ai_review_common, scripts/memory_sync, scripts/sync_plugin_lib.py, scripts/validation, build/generate_agents.py, build/scripts, templates/agents, and templates/platforms because its audience is repo contributors, not plugin consumers. Issue #2050. -->
-This skill is the map of design decisions that hold this repository up: what is canonical, what is generated, which invariants are enforced by gates, and where the structure is honestly weak. Read it before any change that touches more than one tree, any hook, any plugin surface, or any generated file. The repo's governance is verification-based, not trust-based (`.agents/SESSION-PROTOCOL.md:30`: "This protocol uses **verification-based enforcement**"), so almost every claim below is backed by a gate you can run.
+This skill is the map of design decisions that hold this repository up: what is canonical, what is generated, which invariants are enforced by gates, and where the structure is honestly weak. Read it before any change that touches more than one tree, any hook, any plugin surface, or any generated file. The repo's governance runs on observable evidence, not trust (`.agents/SESSION-PROTOCOL.md:30,32-34`: "## Protocol Enforcement Model / Active requirements use observable evidence... A committed session log is never the sole accepted evidence sink."), so almost every claim below is backed by a gate you can run. PR #5135 (2026-08-18) retired the file's earlier "verification-based enforcement" wording in favor of this evidence-sink framing; cite the current text, not the old phrase.
 
 ## Triggers
 
@@ -66,18 +66,18 @@ Two meta-patterns bind these together:
 
 **Name-based dispatch everywhere.** Nothing static-imports an agent, skill, command, or hook. Agents are invoked by `subagent_type` string, skills by frontmatter `name`, commands by filename, hooks by command-path strings inside `.claude/settings.json`, and the Copilot dispatcher resolves shims from `hooks.json` order ("the authoritative registered set, NOT a directory listing", `generate_dispatcher.py` docstring). Consequence: "no caller found" does NOT mean dead code. Grep and LSP reference searches will show zero callers for live, load-bearing files. Before deleting anything, check string references (settings.json, hooks.json, frontmatter, prose) and run `orphan-ref-validator`; for history, use `chestertons-fence`.
 
-**Verification-based governance.** Every rule that matters is paired with a gate that produces an inspectable artifact: no-write invariant (exit 2 plus audit entry in the generation audit log), drift (`build_all.py --check`, `generate_agents.py --validate`), lib sync (`sync_plugin_lib.py --check`), plugin version-field prohibition (`build/scripts/validate_plugin_version_bump.py`), install parity (`validate_install_parity.py`), hook anchoring (`scripts/validation/validate_hook_anchoring.py`). `SESSION-PROTOCOL.md:30` states the doctrine and adds: labels like MANDATORY are insufficient; each requirement MUST have a verification mechanism. When you add a rule, add its gate; a rule without a gate is a wish. `ai-agents-change-control` covers how gates sequence into the change process.
+**Verification-based governance.** Every rule that matters is paired with a gate that produces an inspectable artifact: no-write invariant (exit 2 plus audit entry in the generation audit log), drift (`build_all.py --check`, `generate_agents.py --validate`), lib sync (`sync_plugin_lib.py --check`), plugin version-field prohibition (`build/scripts/validate_plugin_version_bump.py`), install parity (`validate_install_parity.py`), hook anchoring (`scripts/validation/validate_hook_anchoring.py`). `SESSION-PROTOCOL.md:43-44` states the current doctrine: "Labels such as \"MANDATORY\" are not enforcement. Each active requirement must name evidence that exists without requiring a committed session log." When you add a rule, add its gate; a rule without a gate is a wish. `ai-agents-change-control` covers how gates sequence into the change process.
 
 ### Phase 3: Understand the hook runtime and its failure policy
 
 Registration is split by consumer. These source files are intentionally not
 parity twins:
 
-| Surface | File | Registered (re-verified 2026-08-14) |
+| Surface | File | Registered (re-verified 2026-08-18) |
 |---|---|---|
 | Claude Code direct | `.claude/settings.json` `hooks` key | 6 events, 7 groups |
-| Vendored plugin source | `.claude/hooks/hooks.json` | 2 events, 4 groups |
-| Copilot CLI mirror | `src/copilot-cli/hooks/` plus its `hooks.json` | 2 events, 2 registrations |
+| Vendored plugin source | `.claude/hooks/hooks.json` | 1 events, 1 groups |
+| Copilot CLI mirror | `src/copilot-cli/hooks/` plus its `hooks.json` | 1 events, 1 registrations |
 
 Failure policy is PER FAMILY, not global. Do not copy a policy across families:
 
@@ -85,7 +85,7 @@ Failure policy is PER FAMILY, not global. Do not copy a policy across families:
 |---|---|---|
 | Local Claude hooks | Follow each event contract. SessionStart cannot block; Stop may return a block decision | `.claude/settings.json`; `agent-harness-reference` |
 | Generated/released hook artifacts | Prevention-first and loud: validate anchoring before release, then surface escaped launcher failures | ADR-066 D1, ADR-071 |
-| Copilot dispatcher | Active `gate` handles three PreToolUse shims; active `observe` handles one PostToolUse shim; dormant `advise` translates a future PermissionRequest producer | Generated manifests; `build/scripts/generate_dispatcher.py` |
+| Copilot dispatcher | Active `gate` handles one PreToolUse shim (`invoke_require_subagent_model`); no PostToolUse manifest exists (the markdown-auto-lint `observe` shim was deleted, issue #5154); dormant `advise` translates a future PermissionRequest producer | Generated manifests; `build/scripts/generate_dispatcher.py` |
 
 Why the split fails loud on shipped artifacts (the #2205 33-day silent-no-op incident), why older ADRs (ADR-008, ADR-033, ADR-035) still read fail-open, and why one dispatcher per event persists (ADR-068, Copilot CLI version history) are in `references/hook-runtime.md`. SessionStart hooks cannot block regardless. Harness exit and timeout details are owned by `agent-harness-reference`.
 
@@ -137,13 +137,13 @@ belong to `ai-agents-generation-and-release`.
 
 State these plainly when working near them; do not design as if they were sound. The dated evidence and consequence for each are in `references/weak-points.md`.
 
-- **Hook sources serve different consumers**: `.claude/settings.json` has 6 events and 7 groups, `.claude/hooks/hooks.json` has 2 events and 4 groups; do not force parity; verify repository-only vs vendored before editing either source.
+- **Hook sources serve different consumers**: `.claude/settings.json` has 6 events and 7 groups, `.claude/hooks/hooks.json` has 1 events and 1 groups; do not force parity; verify repository-only vs vendored before editing either source.
 - **`src/claude/` manual dual-edit**: shared-template edits silently skip the Claude surface unless you make the second edit.
 - **Stale docs contradict reality**: following docs verbatim fails; quote the canonical source when correcting (FM-9).
 - **Ruff debt is ratcheted, not eliminated**: changed-file and whole-tree count gates block regressions, but existing lint debt remains.
 - **Skill tests split by location**: green CI does not prove skill tests ran; run them explicitly (`ai-agents-validation-and-qa`).
 - **Proposed-ADR ambiguity**: the status field is not a reliable is-this-binding signal; check enforcement, not status.
-- **EVENT telemetry consumer is thin**: telemetry may be written and never read; verify before citing intercept ratios.
+- **EVENT telemetry pipeline fully retired (resolved)**: the emitter (`push_guard_base.py`), every guard built on it, and the classifier skill that consumed its output were all deleted under ADR-084 (issue #5154); no live source, no live consumer.
 - **Retro-cited SHAs are clone-ref dependent and off `main`**: verify ancestry, then route archaeology through retros and memories rather than relying on `git log`.
 
 ## Anti-Patterns
@@ -162,12 +162,12 @@ Before relying on or amending this contract:
 
 - [ ] Ran `uv run python build/scripts/build_all.py --check` and `uv run python build/generate_agents.py --validate` from repo root; both exit 0 on a clean tree
 - [ ] Confirmed the canonical side of any file you plan to edit against the Phase 1 table (and `GENERATOR-FILES.md`, minding its known `src/claude` row error)
-- [ ] Confirmed event counts still match: local settings print `6 7`, vendored source prints `2 4`, and generated Copilot config prints `2 2`
+- [ ] Confirmed event counts still match: local settings print `6 7`, vendored source prints `1 1`, and generated Copilot config prints `1 1`
 - [ ] Checked the ADR status header of any decision you cite (statuses drift; content beats number, and ADR numbers have collided historically)
 - [ ] If you touched `.claude/`, `src/claude/`, or `src/copilot-cli/`: left the manifests version-free (`python3 build/scripts/validate_plugin_version_bump.py` exits 0)
 
 ## Provenance and Maintenance
 
-Authored 2026-07-03, facts re-verified against the working tree on 2026-08-14. Volatile facts are date-stamped inline. The full per-claim source and re-verify command index is in `references/provenance.md`; consult it when editing or auditing this skill.
+Authored 2026-07-03, facts re-verified against the working tree on 2026-08-18. Volatile facts are date-stamped inline. The full per-claim source and re-verify command index is in `references/provenance.md`; consult it when editing or auditing this skill.
 
 Maintenance rule: when any row in `references/provenance.md` fails its re-verify command, fix this skill (SKILL.md and the affected reference) in the same PR as the change that broke it, and label anything newly Proposed as Proposed. Sibling map: pipeline operation `ai-agents-generation-and-release`, triage `ai-agents-debugging-playbook`, harness facts `agent-harness-reference`, flags `ai-agents-config-catalog`, change process `ai-agents-change-control`, history `ai-agents-failure-archaeology`, evidence bar `ai-agents-validation-and-qa`.
