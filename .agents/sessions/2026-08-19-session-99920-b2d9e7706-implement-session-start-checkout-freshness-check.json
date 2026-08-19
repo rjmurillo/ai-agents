@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "6 commits on claude/pr-automerge-goal-fr1qvc: 49739005f (feat hook), 7f1918804 (fix duplicate-key bug), 6778a0e4f (docs counts), bcaac6fd9 (Copilot mirror regen), 595d9f4bd (mypy fix), 746746753 (this session log)."
+        "Evidence": "9 commits on claude/pr-automerge-goal-fr1qvc: 49739005f (feat hook), 7f1918804 (fix duplicate-key bug), 6778a0e4f (docs counts), bcaac6fd9 (Copilot mirror regen), 595d9f4bd (mypy fix), 746746753 (session log), 502a31ee0 (finalize session/QA), b0732fcd3 (fetch refspec + encoding fix), a32947f41 (two more stale count docs)."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run python scripts/validation/pre_pr.py: 57/57 validations passed at commit 74674675351ea219b3e2212f274e9587a17bcbb3."
+        "Evidence": "uv run python scripts/validation/pre_pr.py: 57/57 validations passed at commit a32947f413d4f44e099f71607d73a9bdb520f325."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -148,11 +148,15 @@
       "result": "Does not hold: the guards that actually fired resolved through the installed plugin (CLAUDE_PLUGIN_ROOT), not any worktree-local settings.json"
     },
     {
-      "action": "Split work into 6 atomic commits (<=5 files each) and pushed",
+      "action": "Split work into atomic commits (<=5 files each) and pushed",
       "result": "Recovered from an interrupted mutation-test run's leftover marker file and fixed a mypy dict-invariance defect the push-time gate caught that an earlier narrower mypy run had missed"
+    },
+    {
+      "action": "Opened PR #5166 (non-draft, per explicit user instruction) and addressed CI/review feedback",
+      "result": "Fixed two CRITICAL PR-description-vs-diff findings (a bare filename mention and an em-dash), and three Copilot review comments: explicit-refspec git fetch (bare branch name can leave refs/remotes/origin/main stale, per this repo's own precedent at tests/test_check_pr_live_state.py:347-348, verified against a real git fixture), UTF-8 subprocess decoding, and two more stale hook-count docs"
     }
   ],
-  "endingCommit": "74674675351ea219b3e2212f274e9587a17bcbb3",
+  "endingCommit": "a32947f413d4f44e099f71607d73a9bdb520f325",
   "nextSteps": [
     "Issue #5085 Ask #4 (consumer-facing installed-plugin-vs-source staleness self-check) not started: requires a new vendored SessionStart registration in .claude/hooks/hooks.json, which needs a runtime-contract test, negative control, committed-artifact gate, and Copilot mirror regeneration per generated-artifacts.md.",
     "PR #5163 / issue #5162 still awaiting the user's decision on whether to recreate the fix as a new PR (content ready from PR #5019) or investigate the external closure first."
