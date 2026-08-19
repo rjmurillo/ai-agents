@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-19-session-99921-b9d55af7c-retire-pretooluseposttooluseposttoolusefailure-hooks-windowsdefender-per-spawn.json
-qaCommit: 684455250ccea382ed29d11b16718ab727b04e89
+qaCommit: 5a2de5f4b0148d19004da39a229d83f395da0766
 ---
 
 # QA: ADR-097 zero tool-use hooks
@@ -25,6 +25,24 @@ uv run --frozen python -m pytest tests/hooks/ tests/build_scripts/ tests/ci/ \
     tests/validation/ tests/evals/ -q
 8407 passed, 22 skipped in 295.74s
 ```
+
+The full suite, run by the `python-tests` pre-push job over all of `tests/`,
+then surfaced two more failures that selection had missed:
+`test_hook_plugin_guards.py::test_copilot_pretooluse_has_no_unregistered_matcher_shims`
+(read the deleted `_manifest.json` unconditionally) and
+`test_dogfood_copilot_plugin_drift.py::test_check_flags_drift_on_the_real_shipped_tree`
+(picked its mutation target with `rglob("*.py")[0]`, now empty). Both were fixed
+by keeping the guard armed for the empty case rather than deleting it: an absent
+manifest reads as an empty registered set, and the drift test mutates the first
+file of any type after asserting the tree is non-empty. Final:
+
+```text
+27683 passed, 73 skipped
+```
+
+The lesson for the next reader: a subdirectory selection is not the suite. Two
+guards over the shipped tree live in `tests/` root and were invisible to the
+five-directory selection used during development.
 
 Before disposition the same selection reported **45 failed**. Every failure was
 traced to a subject ADR-097 deleted, and each was dispositioned individually

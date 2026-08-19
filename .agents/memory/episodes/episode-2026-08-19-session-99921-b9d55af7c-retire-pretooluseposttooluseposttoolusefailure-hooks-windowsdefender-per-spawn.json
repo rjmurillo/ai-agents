@@ -13,6 +13,19 @@
       "type": "commit",
       "content": "Commit: 684455250ccea382ed29d11b16718ab727b04e89",
       "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-19-session-99921-b9d55af7c-retire-pretooluseposttooluseposttoolusefailure-hooks-windowsdefender-per-spawn"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-19T20:45:29+00:00",
+      "type": "commit",
+      "content": "Commit: 5a2de5f4b0148d19004da39a229d83f395da0766",
+      "caused_by": [
+        "e001"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-19-session-99921-b9d55af7c-retire-pretooluseposttooluseposttoolusefailure-hooks-windowsdefender-per-spawn"
     }
@@ -22,8 +35,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 71
+    "commits": 2,
+    "files_changed": 73
   },
   "lessons": []
 }
