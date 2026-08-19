@@ -45,16 +45,27 @@ hooks:
 
 ## Reference Implementations
 
-The following scripts are implemented and tested but are **not currently
-registered** in `.claude/settings.json`. They are available for manual
-invocation or future registration. Until they are wired, the memory system
-has no automatic ingestion, recall, or reinforcement path. All memories
-must be created through explicit commands.
+Two of the three memory scripts under `scripts/memory_enhancement/hooks/` ARE
+registered, through thin wrapper hooks in `.claude/settings.json`, not by
+direct path. The third has no wrapper and was retired.
 
-- `scripts/memory_enhancement/hooks/user_prompt_submit_memory.py` (auto-recall)
-- `scripts/memory_enhancement/hooks/post_tool_call_memory.py` (fact capture)
-- `scripts/memory_enhancement/hooks/session_end_memory.py` (reflection)
+- `scripts/memory_enhancement/hooks/user_prompt_submit_memory.py` (auto-recall):
+  live. `.claude/hooks/UserPromptSubmit/invoke_memory_recall.py` is a thin
+  invoker for it, registered under `UserPromptSubmit` in
+  `.claude/settings.json`.
+- `scripts/memory_enhancement/hooks/session_end_memory.py` (reflection): live.
+  `.claude/hooks/SessionEnd/invoke_memory_reflection.py` is a thin invoker for
+  it, registered under `SessionEnd` in `.claude/settings.json`.
+- `scripts/memory_enhancement/hooks/post_tool_call_memory.py` (fact capture):
+  **deleted by ADR-097**, which retired the `PostToolUseFailure` wrapper that
+  was its only caller. Re-adding automatic fact capture means writing a new
+  carrier and clearing `.claude/rules/tool-use-hook-bar.md` first.
 
-To activate automatic memory pipelines, register each script under the
-appropriate Claude Code hook event (`UserPromptSubmit`, `PostToolUse`,
-and `Stop` respectively) in `.claude/settings.json`.
+So the memory system has automatic recall and reflection today; only
+automatic fact capture is absent, and every memory that pipeline would have
+written must instead come through explicit commands. Both live wrappers ship
+under `.claude/hooks/`, not `scripts/memory_enhancement/hooks/` directly:
+that directory does not travel with the plugin (see `plugin-self-containment.md`),
+so the wrapper resolves the underlying package from `CLAUDE_PROJECT_DIR` and
+fails open (silent no-op) on a consumer install where the script does not
+exist.

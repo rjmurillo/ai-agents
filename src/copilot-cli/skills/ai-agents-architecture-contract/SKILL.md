@@ -73,11 +73,11 @@ Two meta-patterns bind these together:
 Registration is split by consumer. These source files are intentionally not
 parity twins:
 
-| Surface | File | Registered (re-verified 2026-08-18) |
+| Surface | File | Registered (re-verified 2026-08-19) |
 |---|---|---|
-| Claude Code direct | `.claude/settings.json` `hooks` key | 6 events, 8 groups |
-| Vendored plugin source | `.claude/hooks/hooks.json` | 1 events, 3 groups |
-| Copilot CLI mirror | `src/copilot-cli/hooks/` plus its `hooks.json` | 1 events, 1 registrations |
+| Claude Code direct | `.claude/settings.json` `hooks` key | 4 events, 6 groups |
+| Vendored plugin source | `.claude/hooks/hooks.json` | 0 events, 0 groups |
+| Copilot CLI mirror | `src/copilot-cli/hooks/` plus its `hooks.json` | 0 events, 0 registrations |
 
 Failure policy is PER FAMILY, not global. Do not copy a policy across families:
 
@@ -85,7 +85,7 @@ Failure policy is PER FAMILY, not global. Do not copy a policy across families:
 |---|---|---|
 | Local Claude hooks | Follow each event contract. SessionStart cannot block; Stop may return a block decision | `.claude/settings.json`; `agent-harness-reference` |
 | Generated/released hook artifacts | Prevention-first and loud: validate anchoring before release, then surface escaped launcher failures | ADR-066 D1, ADR-071 |
-| Copilot dispatcher | Active `gate` handles three PreToolUse shims (`invoke_require_subagent_model`, `invoke_serena_memory_scope_guard` issue #5061, `invoke_serena_worktree_scope_guard` issue #4917); no PostToolUse manifest exists (the markdown-auto-lint `observe` shim was deleted, issue #5154); dormant `advise` translates a future PermissionRequest producer | Generated manifests; `build/scripts/generate_dispatcher.py` |
+| Copilot dispatcher | Retired (ADR-097): all three PreToolUse shims (`invoke_require_subagent_model`, `invoke_serena_memory_scope_guard` issue #5061, `invoke_serena_worktree_scope_guard` issue #4917) are deleted, and with them the generated `gate` dispatcher itself. `src/copilot-cli/hooks/hooks.json` carries `"hooks": {}`; no `_dispatch.py` ships. The generator still owns the policy for a future re-add | Deleted manifests; `build/scripts/generate_dispatcher.py` |
 
 Why the split fails loud on shipped artifacts (the #2205 33-day silent-no-op incident), why older ADRs (ADR-008, ADR-033, ADR-035) still read fail-open, and why one dispatcher per event persists (ADR-068, Copilot CLI version history) are in `references/hook-runtime.md`. SessionStart hooks cannot block regardless. Harness exit and timeout details are owned by `agent-harness-reference`.
 
@@ -137,7 +137,7 @@ belong to `ai-agents-generation-and-release`.
 
 State these plainly when working near them; do not design as if they were sound. The dated evidence and consequence for each are in `references/weak-points.md`.
 
-- **Hook sources serve different consumers**: `.claude/settings.json` has 6 events and 8 groups, `.claude/hooks/hooks.json` has 1 events and 3 groups; do not force parity; verify repository-only vs vendored before editing either source.
+- **Hook sources serve different consumers**: `.claude/settings.json` has 4 events and 6 groups, `.claude/hooks/hooks.json` has 0 events and 0 groups; do not force parity; verify repository-only vs vendored before editing either source. ADR-097 retired every tool-call hook, so the vendored surface ships no hooks at all and the generated Copilot tree carries no dispatcher.
 - **`src/claude/` manual dual-edit**: shared-template edits silently skip the Claude surface unless you make the second edit.
 - **Stale docs contradict reality**: following docs verbatim fails; quote the canonical source when correcting (FM-9).
 - **Ruff debt is ratcheted, not eliminated**: changed-file and whole-tree count gates block regressions, but existing lint debt remains.
@@ -162,12 +162,12 @@ Before relying on or amending this contract:
 
 - [ ] Ran `uv run python build/scripts/build_all.py --check` and `uv run python build/generate_agents.py --validate` from repo root; both exit 0 on a clean tree
 - [ ] Confirmed the canonical side of any file you plan to edit against the Phase 1 table (and `GENERATOR-FILES.md`, minding its known `src/claude` row error)
-- [ ] Confirmed event counts still match: local settings print `6 7`, vendored source prints `1 3`, and generated Copilot config prints `1 1`
+- [ ] Confirmed event counts still match: local settings print `4 6`, vendored source prints `0 0`, and generated Copilot config prints `0 0`
 - [ ] Checked the ADR status header of any decision you cite (statuses drift; content beats number, and ADR numbers have collided historically)
 - [ ] If you touched `.claude/`, `src/claude/`, or `src/copilot-cli/`: left the manifests version-free (`python3 build/scripts/validate_plugin_version_bump.py` exits 0)
 
 ## Provenance and Maintenance
 
-Authored 2026-07-03, facts re-verified against the working tree on 2026-08-18. Volatile facts are date-stamped inline. The full per-claim source and re-verify command index is in `references/provenance.md`; consult it when editing or auditing this skill.
+Authored 2026-07-03, facts re-verified against the working tree on 2026-08-19. Volatile facts are date-stamped inline. The full per-claim source and re-verify command index is in `references/provenance.md`; consult it when editing or auditing this skill.
 
 Maintenance rule: when any row in `references/provenance.md` fails its re-verify command, fix this skill (SKILL.md and the affected reference) in the same PR as the change that broke it, and label anything newly Proposed as Proposed. Sibling map: pipeline operation `ai-agents-generation-and-release`, triage `ai-agents-debugging-playbook`, harness facts `agent-harness-reference`, flags `ai-agents-config-catalog`, change process `ai-agents-change-control`, history `ai-agents-failure-archaeology`, evidence bar `ai-agents-validation-and-qa`.

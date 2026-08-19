@@ -35,7 +35,6 @@ MAIN_GUARD = '__name__ == "__main__"'
 MODULE_ONLY_ENTRY_POINTS = frozenset(
     {
         SCRIPTS_DIR / "memory_enhancement" / "__main__.py",
-        SCRIPTS_DIR / "memory_enhancement" / "hooks" / "post_tool_call_memory.py",
         SCRIPTS_DIR / "memory_enhancement" / "hooks" / "session_end_memory.py",
     }
 )

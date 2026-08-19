@@ -15,10 +15,20 @@ The 2026-07-19 amendment review reached consensus with 3 Accept,
 3 Disagree-and-Commit, and 0 Block. Its durable record is the dated amendment
 section in the same debate log.
 
+**Amended 2026-08-19 (ADR-097): every tool-use gate contract below is retired.**
+ADR-097 removed all five tool-call hooks and the generated Copilot dispatcher,
+so the matcher, fail-open, fail-closed, shim-count, and timeout-sum contracts
+recorded in the 2026-08-11 through 2026-08-19 amendment sections describe code
+that no longer exists. Decision item 1 (plugin-root anchoring) still binds every
+hook this repository ships on any event and is unaffected. Read the dated
+amendment sections as history, not as a contract a future hook inherits. See
+the 2026-08-19 amendment section below.
+
 Amended 2026-08-11 (issue #4874): the require-subagent-model gate joined the
 consolidated PreToolUse path. The dated amendment section below records the
 matcher, fail-open, and fail-closed contract for that gate (debate log:
 `.agents/critique/ADR-068-071-085-metric-refresh-debate-log.md`).
+**Retired by ADR-097.**
 
 Amended 2026-08-14 (issue #5013): ADR-085 Decision 7 is the policy authority
 for excluding `push_pr_script_identity_guard` from the generated Copilot
@@ -549,6 +559,53 @@ overlap noted above. This is a scoped runtime-contract update, not a new
 verification of any guard's own gate decisions, and not the six-role
 re-affirmation issue #5151 tracks for the consolidated-dispatcher decision
 under the matcher-union loss.
+
+### 2026-08-19 amendment: every tool-use runtime contract retired (ADR-097)
+
+**Every gate contract recorded in the amendments above is retired.** ADR-097
+removed all five registered tool-call hooks and, with them, the generated
+Copilot dispatcher itself. The subjects those contracts described no longer
+exist in the tree.
+
+Specifically retired, not merely superseded:
+
+- The **2026-08-11 amendment** (issue #4874) recorded the require-subagent-model
+  gate's matcher, fail-open, and fail-closed contract. That gate is deleted;
+  the contract describes nothing.
+- The **2026-08-18 amendment** (issue #5061) recorded `serena_memory_scope_guard`'s
+  contract and the `PreToolUse` matcher-union collapse. Both that guard and
+  `serena_worktree_scope_guard` are deleted, and the union collapse they caused
+  is gone with them.
+- The **2026-08-19 reconciliations** recorded shim counts, spawn counts, and
+  timeout sums for the merged `PreToolUse` group set. All are now zero:
+  `.claude/hooks/hooks.json` and `src/copilot-cli/hooks/hooks.json` both carry
+  `"hooks": {}`, and no `_dispatch.py`, `_bootstrap.py`, or `_manifest.json`
+  ships under `src/copilot-cli/hooks/`.
+
+What this ADR still governs, unchanged: **Decision item 1**, the plugin-root
+anchoring invariant. It binds any PLUGIN hook command shipped in
+`.claude/hooks/hooks.json` or the generated Copilot artifact.
+`scripts/validation/validate_hook_anchoring.py` still enforces it and now
+treats zero registered hooks as a valid anchored state, while keeping a
+missing file, unparseable JSON, or a malformed `hooks` mapping fail-closed.
+That validator does not inspect `.claude/settings.json` at all: its Claude-side
+check (`_CLAUDE_REL`) reads only `.claude/hooks/hooks.json`. The two
+`SessionStart` dispatch groups in `.claude/settings.json`
+(`sessionstart-1-context_loader`, `sessionstart-2-checkout_freshness`) are
+repo-local direct registrations anchored to `${CLAUDE_PROJECT_DIR}` (`cd
+"$CLAUDE_PROJECT_DIR" && ...`), a different anchor for a different consumer
+(this repository's own Claude Code session, not a vendored plugin install),
+and Decision item 1's
+plugin-root invariant does not bind them.
+
+Issue #5151's six-role re-affirmation of the consolidated-dispatcher decision
+under matcher-union loss is moot for the Copilot side: there is no Copilot
+dispatcher left to re-affirm. The Claude-side dispatcher
+(`invoke_dispatch_claude.py`) survives for the session-scoped groups.
+
+Re-adding any tool-use hook requires re-establishing a runtime contract here
+from scratch. Do not read the retired amendments above as a contract a new hook
+inherits; they describe deleted code. See ADR-097 "Re-evaluation Triggers".
 
 ## Decision
 

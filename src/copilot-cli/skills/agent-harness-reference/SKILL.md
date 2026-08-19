@@ -62,9 +62,9 @@ citations, and docs-silent classifications.
 | Exit 0 | Allow. Plain stdout can become context on context-bearing events; `systemMessage` is an advisory shown to the user | OFFICIAL | <https://code.claude.com/docs/en/hooks> |
 | Exit 2 | Block supported actions and surface stderr according to the event contract | OFFICIAL | <https://code.claude.com/docs/en/hooks> |
 | JSON decision payload | PreToolUse uses nested `hookSpecificOutput.permissionDecision`; Stop uses top-level `decision: "block"` | OFFICIAL + CODE | <https://code.claude.com/docs/en/hooks>; strict classification in `.claude/lib/claude_hook_protocol.py` |
-| Exit codes vs ADR-035 | Claude hooks are exempt from ADR-035 exit-code taxonomy; each event follows the harness contract | CODE | Surviving hook contract in `.claude/hooks/PostToolUse/invoke_observation_sync.py:8-12` |
+| Exit codes vs ADR-035 | Claude hooks are exempt from ADR-035 exit-code taxonomy; each event follows the harness contract | CODE | Surviving hook contract in `.claude/hooks/SessionStart/invoke_context_loader.py` (the `invoke_observation_sync.py` citation was retired with that hook by ADR-097) |
 | `CLAUDE_PLUGIN_ROOT` | Set by Claude Code to the plugin install dir; cwd is the USER working dir, not the plugin root | EMPIRICAL (Claude Code 2.1.159, session 1873) | ADR-071 "Verified Runtime Contract" section |
-| Lib bootstrap | Hooks resolve shared lib via `CLAUDE_PLUGIN_ROOT` when set, else manifest walk-up to `.claude-plugin/plugin.json` | CODE | `.claude/hooks/PostToolUse/invoke_observation_sync.py:36-63` |
+| Lib bootstrap | Hooks resolve shared lib via `CLAUDE_PLUGIN_ROOT` when set; otherwise a fixed relative parent-walk (`Path(__file__).resolve().parents[N] / "lib"`), not a search for `.claude-plugin/plugin.json` | CODE | `.claude/hooks/SessionStart/invoke_context_loader.py:38-45` (the `invoke_observation_sync.py` citation was retired with that hook by ADR-097) |
 
 ## When to Refresh
 
@@ -99,21 +99,32 @@ that hangs is a gate that passes the call through.
 
 ### Shipped registrations
 
-- Vendored Claude plugin source, `.claude/hooks/hooks.json`: four registrations,
-  three PreToolUse and one PostToolUse.
-- Generated Copilot plugin, `src/copilot-cli/hooks/hooks.json`: two dispatcher
-  registrations, one per active event.
-- Local repository settings, `.claude/settings.json`: eight registrations across
-  SessionStart, UserPromptSubmit, PostToolUse, PostToolUseFailure, SessionEnd, and
-  PreCompact.
+Re-verified 2026-08-19 against the tree, not carried forward from a prior count:
+
+- Vendored Claude plugin source, `.claude/hooks/hooks.json`: zero registrations
+  (ADR-097 retired all four).
+- Generated Copilot plugin, `src/copilot-cli/hooks/hooks.json`: zero
+  registrations (ADR-097 retired the dispatcher itself; no `_dispatch.py`
+  ships).
+- Local repository settings, `.claude/settings.json`: six registrations across
+  four events, SessionStart (3), UserPromptSubmit (1), SessionEnd (1), and
+  PreCompact (1). ADR-097 retired the two repo-local per-call registrations
+  this file used to carry (PostToolUse `observation_sync`, PostToolUseFailure
+  `memory_capture`).
   These do not feed the vendored Copilot plugin generator.
 
 ### Event policy
 
+Every per-call row below describes retired machinery (ADR-097): no source
+registration exists on either harness today, so "None" everywhere in the
+Copilot-registration column reflects the current, not the historical, state.
+A future re-add must clear `.claude/rules/tool-use-hook-bar.md` first and
+rebuild the policy this table records, not inherit it.
+
 | Claude source | Copilot registration | Policy |
 |---|---|---|
-| PreToolUse | PreToolUse | Active consolidated gate dispatcher, one source shim |
-| PostToolUse | PostToolUse | Active consolidated observe dispatcher, one source shim |
+| PreToolUse | None | Retired (ADR-097): the consolidated gate dispatcher and its one source shim are deleted; a re-add rebuilds both from scratch |
+| PostToolUse | None | Retired (ADR-097): the consolidated observe dispatcher and its one source shim are deleted; a re-add rebuilds both from scratch |
 | PermissionRequest | None | Generic approve/deny translation stays tested; test-runner auto-approval is removed |
 | SessionStart | None | Supported observe/discard policy if a vendored source registration is added |
 | UserPromptSubmit | None | Supported observe/discard policy if a vendored source registration is added |

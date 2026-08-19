@@ -117,6 +117,39 @@ def extract_hook_command(hooks_json: Path, event: str, key: str) -> str:
     raise GuardError(f"no {key} command for event {event} in {hooks_json}")
 
 
+def event_is_registered(hooks_json: Path, event: str) -> bool:
+    """Return whether the manifest registers any hook on *event*.
+
+    Zero tool-use hooks is a valid, deliberately-shipped state (ADR-097): a
+    row with no ``PreToolUse`` entry has no hook command to prove
+    vanilla-safe, and driving Docker or a PATH-scrubbed PowerShell anyway
+    would test the harness, not the plugin's contract. A missing or
+    malformed manifest is a different failure and must not be read as
+    "nothing registered"; this function lets those propagate as a raised
+    exception rather than swallowing them into an empty result.
+
+    A *present* event whose value is not a list (``{"PreToolUse": {}}``) is
+    the same kind of malformed manifest, not an absent registration: reading
+    it as "not registered" would let a broken manifest pass this guard
+    vacuously instead of failing closed, which contradicts the fail-closed
+    contract this docstring already claims for a malformed ``hooks``
+    mapping.
+    """
+    data = json.loads(hooks_json.read_text(encoding="utf-8"))
+    hooks = data.get("hooks")
+    if not isinstance(hooks, dict):
+        raise GuardError(f"malformed 'hooks' mapping in {hooks_json}")
+    if event not in hooks:
+        return False
+    entries = hooks[event]
+    if not isinstance(entries, list):
+        raise GuardError(
+            f"malformed '{event}' entry in {hooks_json}: expected a list, "
+            f"got {type(entries).__name__}"
+        )
+    return len(entries) > 0
+
+
 def assert_degraded(returncode: int, output: str) -> None:
     """The contract: degraded and warning, never denied."""
     if returncode != 0:
@@ -211,17 +244,34 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--image", default="", help="Container image for linux-container mode")
     args = parser.parse_args(argv)
 
+    if args.mode == "linux-container" and not args.image:
+        print("--image is required for linux-container mode", file=sys.stderr)
+        return 2
+
+    install_root = args.install_root.resolve()
+    hooks_json = install_root / "hooks" / "hooks.json"
+    try:
+        if not event_is_registered(hooks_json, "PreToolUse"):
+            print(
+                "VANILLA GUARD PASSED (vacuous): no PreToolUse hooks registered "
+                f"in {hooks_json}; nothing to prove vanilla-safe (ADR-097)."
+            )
+            return 0
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"VANILLA GUARD FAILED: could not read {hooks_json}: {exc}", file=sys.stderr)
+        return 1
+    except GuardError as exc:
+        print(f"VANILLA GUARD FAILED: {exc}", file=sys.stderr)
+        return 1
+
     try:
         if args.mode == "linux-container":
-            if not args.image:
-                print("--image is required for linux-container mode", file=sys.stderr)
-                return 2
             returncode, output = run_linux_container(
-                args.image, args.install_root.resolve(), args.consumer_cwd.resolve()
+                args.image, install_root, args.consumer_cwd.resolve()
             )
         else:
             returncode, output = run_windows(
-                args.install_root.resolve(), args.consumer_cwd.resolve()
+                install_root, args.consumer_cwd.resolve()
             )
         print(f"hook exit code: {returncode}")
         print(f"hook output:\n{output}")

@@ -10,7 +10,6 @@ positive, negative, and edge coverage for every guard.
 
 from __future__ import annotations
 
-import ast
 import json
 import re
 import sys
@@ -522,52 +521,6 @@ def test_generation_rejects_hostile_event_remap_in_dispatcher_mode(
 
 _COPILOT_HOOKS_DIR = REPO_ROOT / "src" / "copilot-cli" / "hooks"
 _COMMITTED_SCRIPT_RE = re.compile(r'/hooks/([^/"\s]+)/([^/"\s]+\.py)')
-
-
-def test_committed_hooks_json_paths_and_matchers_are_safe() -> None:
-    config = json.loads((_COPILOT_HOOKS_DIR / "hooks.json").read_text(encoding="utf-8"))
-    events = config["hooks"]
-    assert events, "committed hooks.json has no events to validate"
-    checked_paths = 0
-    for event, entries in events.items():
-        # Every event key survives the same allowlist as generation time.
-        assert _validate_event_name(event) == event
-        for entry in entries:
-            for shell_key in ("bash", "powershell"):
-                command = entry[shell_key]
-                match = _COMMITTED_SCRIPT_RE.search(command)
-                assert match is not None, (
-                    f"no /hooks/<event>/<script>.py path in {event} {shell_key}"
-                )
-                path_event, script = match.groups()
-                assert ".." not in path_event and ".." not in script
-                assert path_event == event
-                assert _validate_event_name(path_event) == path_event
-                assert _validate_script_name(script) == script
-                checked_paths += 1
-            matcher = entry.get("matcher")
-            if matcher is not None:
-                assert _validate_matcher(matcher) == matcher
-    assert checked_paths > 0
-
-
-def test_committed_shim_matcher_headers_are_single_line_repr() -> None:
-    headered_shims = 0
-    for shim in sorted(_COPILOT_HOOKS_DIR.rglob("*.py")):
-        lines = shim.read_text(encoding="utf-8").splitlines()
-        comment_lines = [line for line in lines if line.startswith("# Matcher:")]
-        if not comment_lines:
-            continue
-        # A control-char injection would break the matcher across lines or
-        # embed a raw newline; the committed header must be exactly one line
-        # whose payload is a plain repr-quoted string with no control chars.
-        assert len(comment_lines) == 1, f"{shim} has multiple Matcher headers"
-        payload = comment_lines[0][len("# Matcher:") :].strip()
-        value = ast.literal_eval(payload)
-        assert isinstance(value, str)
-        assert not any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in value)
-        headered_shims += 1
-    assert headered_shims > 0, "expected committed shims carrying a Matcher header"
 
 
 # --- #3213: transaction rollback leaves no outside files after a failure ----

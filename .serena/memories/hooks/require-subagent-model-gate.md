@@ -1,5 +1,16 @@
 # require-subagent-model gate (issue #4874)
 
+> **SUPERSEDED 2026-08-19 by ADR-097.** This gate is retired. The script
+> `.claude/hooks/PreToolUse/invoke_require_subagent_model.py`, its dispatch
+> group `plugin-pretooluse-10-require_subagent_model`, and the Copilot surface
+> `.github/hooks/require-subagent-model.json` are all deleted, along with every
+> other tool-call hook. Nothing enforces the call-time arm now;
+> `scripts/validation/check_model_pins.py` still covers the definition-file arm.
+> The cross-harness payload facts below remain accurate and are the reason this
+> record is kept rather than deleted: they were expensive to derive and a future
+> re-add would need them again. Do not read anything here as describing a live
+> registration.
+
 PreToolUse gate denying sub-agent spawns that name no model and resolve no
 agent definition file. Canonical script
 `.claude/hooks/PreToolUse/invoke_require_subagent_model.py`, dispatch group

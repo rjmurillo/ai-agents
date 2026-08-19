@@ -4188,26 +4188,6 @@ def test_ensure_exact_case_dir_rejects_file_blocking_target(
 # --- live-corpus regression ----------------------------------------------
 
 
-def test_live_corpus_every_matcher_classifies(tmp_path: Path) -> None:
-    """Every matcher in the live plugin manifest classifies cleanly."""
-    settings = REPO_ROOT / ".claude" / "hooks" / "hooks.json"
-    if not settings.is_file():
-        pytest.skip("live settings.json not present in this checkout")
-    data = json.loads(settings.read_text())
-    hooks = data.get("hooks", {})
-    seen_kinds: set[str] = set()
-    for _event, groups in hooks.items():
-        for group in groups:
-            matcher = group.get("matcher")
-            if matcher is None:
-                continue
-            kind, params = classify_matcher(matcher)
-            assert kind in (MATCHER_REGEX, MATCHER_TOOL_GLOB, MATCHER_BARE)
-            seen_kinds.add(kind)
-    # Unit tests cover every class. The live corpus only needs one valid matcher.
-    assert seen_kinds
-
-
 # Future-import hoist (CodeRabbit critical: PEP 236 violation) ---------------
 
 

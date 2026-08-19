@@ -550,10 +550,16 @@ def test_operational_skills_match_current_hook_registration_counts() -> None:
     assert (
         f"vendored source prints `{len(plugin)} {sum(map(len, plugin.values()))}`" in architecture
     )
-    assert "Three independent registration sources" in catalog
+    # ADR-097 retired `.github/hooks/require-subagent-model.json`, so the third
+    # registration source is gone. The catalog must say two, and must still
+    # carry a re-verify line for the retired surface: a deleted source that
+    # simply vanishes from the doc leaves the next reader unable to tell it was
+    # deliberate rather than overlooked.
+    assert "Two independent registration sources" in catalog
     assert ".github/hooks/require-subagent-model.json" in _section_after(
         catalog, "## Provenance and Maintenance", REPO_ROOT
     )
+    assert not (REPO_ROOT / ".github" / "hooks" / "require-subagent-model.json").exists()
     _refute(
         architecture,
         "registers 7 events",
@@ -639,13 +645,16 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
     for event, registrations in copilot_hooks.items():
         source_counts.setdefault(event, len(registrations))
 
-    pretool_manifest = _read_json(hooks_root / "PreToolUse" / "_manifest.json")
-    source_total = sum(source_counts.values())
-    host_total = sum(map(len, copilot_hooks.values()))
-    timeout_total = sum(pretool_manifest["timeouts"].values())
-    host_timeout = copilot_hooks["PreToolUse"][0]["timeoutSec"]
-    timeout_headroom = host_timeout - timeout_total
-    reduction = 100 * (1 - host_total / source_total)
+    # ADR-097 retired every tool-call hook, so the generated Copilot dispatcher
+    # is gone: no per-event `_manifest.json`, no entries in `hooks.json`. The
+    # live-metric derivations this test used to make (shim counts, summed
+    # timeouts, host timeout, reduction percentage) have no subject. Assert the
+    # zero state instead, then keep pinning the ADR prose, whose dated
+    # historical records remain true and must not silently drift.
+    assert source_counts == {}, f"a generated dispatcher manifest reappeared: {source_counts}"
+    assert copilot_hooks == {}, f"generated Copilot hooks reappeared: {copilot_hooks}"
+    assert not (hooks_root / "PreToolUse" / "_manifest.json").exists()
+    assert not list(hooks_root.glob("*/_dispatch.py"))
     adr_068 = _normalized_text(
         REPO_ROOT / ".agents" / "architecture" / "ADR-068-consolidated-hook-dispatcher.md"
     )
@@ -678,14 +687,6 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
     # `serena_worktree_scope`) survive, no PostToolUse event remains. The
     # expected values below are the independently reviewed current facts,
     # not a self-confirming echo of whatever the generator happens to emit.
-    assert source_counts == {"PreToolUse": 3}
-    assert source_total == 3
-    assert host_total == 1
-    # Three source registrations reduced to one host registration is a 66.7
-    # percent reduction. The ADRs state that outcome; the number is pinned so
-    # a silent regrowth or shrink of the inventory cannot drift from the
-    # prose unnoticed.
-    assert round(reduction, 1) == 66.7
     assert (
         "vendored Claude plugin source and the generated "
         "Copilot manifest each now contain three registrations on one event: three "
@@ -693,25 +694,12 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
     )
     assert "a 66.7 percent reduction" in adr_068
     assert "not for matched-call process savings" in adr_068
-    assert len(pretool_manifest["shims"]) == 3
-    assert timeout_total == 30
-    assert host_timeout == 35
     # Whole sentences, not loose fragments. ADR-068 states the manifest and
     # host-entry numbers in three places (a dated Status paragraph, Decision
     # item 4, and a Negative bullet), so a bare "host entry requests N
     # seconds" fragment is satisfied by any one of them and a wrong number in
     # the other two goes unseen. Measured: changing Decision item 4 to 105
     # left the fragment form green because the Status paragraph still said 15.
-    assert (
-        f"The current PreToolUse manifest has three shims with {timeout_total} "
-        f"seconds of configured timeout, so the generated host entry requests "
-        f"{host_timeout} seconds." in adr_068
-    )
-    assert (
-        f"The current PreToolUse manifest sums to {timeout_total} seconds. The "
-        f"generated host entry requests {host_timeout} seconds after five "
-        f"seconds of dispatcher headroom" in adr_068
-    )
     assert "the in-process bypass is latent" in adr_068
     assert (
         "three registrations on one event, PreToolUse, and Copilot generation "
@@ -772,8 +760,6 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
         "starts no dispatcher process on either harness today",
     ):
         assert stale not in adr_068, f"stale metric survives in ADR-068: {stale}"
-    assert f"host entry requests {host_timeout} seconds" in adr_071
-    assert timeout_headroom == 5
 
 
 def test_adr_068_scopes_its_six_dated_status_paragraphs() -> None:
@@ -1553,14 +1539,19 @@ def test_adr_068_dependent_components_table_matches_the_registration_count() -> 
     registrations = sum(map(len, hooks.values()))
     text = _normalized_text(DISPATCHER_ADR)
 
-    assert registrations == 3
+    # ADR-097 retired every tool-call hook, so the count is now zero. The row
+    # keeps its historical chain (three after the three-way merge, four before
+    # it) because those are dated records, not live claims.
+    assert registrations == 0
     assert (
-        "Three vendored plugin registrations after merging issues #4917, "
-        "#5061, and #5154 (four before any of the three)" in text
+        "Zero vendored plugin registrations after ADR-097 retired every "
+        "tool-call hook (three after merging issues #4917, #5061, and #5154; "
+        "four before any of the three)" in text
     )
     _refute(text, "| Four vendored plugin registrations", source=DISPATCHER_ADR)
     _refute(text, "One vendored plugin registration after issue #5154", source=DISPATCHER_ADR)
     _refute(text, "| Two vendored plugin registrations", source=DISPATCHER_ADR)
+    _refute(text, "| Three vendored plugin registrations", source=DISPATCHER_ADR)
 
 
 def test_current_memories_record_skill_first_guard_retirement() -> None:
