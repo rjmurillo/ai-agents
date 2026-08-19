@@ -233,6 +233,18 @@ MAX_TTL = TTL
 #: review). The SHA gate stays authoritative regardless.
 RENEW_FAILOPEN_LIVENESS_MARGIN = timedelta(seconds=180)
 
+#: A confirmed self-renew skips the write (returns ACT/self-renew-noop with no
+#: POST) when the held lease's remaining life still exceeds this margin. The
+#: marker's information content (owner, session, expiry) is unchanged until
+#: the lease nears expiry, so writing a fresh comment before then adds PR
+#: timeline noise and an API call with no informational benefit (issue
+#: #5160). This is independent of how often a caller invokes ``renew``: a
+#: caller polling every few seconds against the 15-minute TTL produced ~500
+#: marker comments on one PR over 33 hours, all but the last few redundant.
+#: Set comfortably above RENEW_FAILOPEN_LIVENESS_MARGIN so a real renewal
+#: still lands with margin to spare before the fail-open boundary matters.
+RENEW_SKIP_MARGIN = timedelta(minutes=5)
+
 #: Upper bound on the number of timeline comments scanned per acquire/status
 #: (ADR-076 Security / part 3). A PR flooded with forged ``<!-- PR-AUTOFIX-LEASE
 #: -->`` comments cannot turn the scan into an unbounded parse-cost DoS
@@ -1149,6 +1161,19 @@ def acquire(
     # fail open: the prior claim is still live. A ``free`` verdict is a fresh
     # claim with no such proof, so its write/re-read failures fail closed.
     already_holds = verdict["reason"] == "self-renew"
+
+    # A confirmed self-renew with plenty of TTL left has nothing to extend yet:
+    # skip the write entirely rather than posting a redundant marker comment
+    # (issue #5160). This bounds worst-case comment volume no matter how often
+    # the caller invokes ``renew`` above the module's own polling cadence.
+    if renewing and already_holds and current is not None and current.expires_at - now > RENEW_SKIP_MARGIN:
+        return LeaseResult(
+            "ACT",
+            "self-renew-noop",
+            expires_at=_to_rfc3339(current.expires_at),
+            base_sha=current.base_sha,
+            local_head_sha=local_sha,
+        )
 
     # The head read is freshness evidence, not the lock. Failing it open to ACT
     # alongside the comment read would let a transient API error skip the read

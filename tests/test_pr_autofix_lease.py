@@ -1910,10 +1910,44 @@ class TestRenewSubcommand:
         return SimpleNamespace(owner="o", repo="r")
 
     def test_renew_on_own_live_lease_extends_ttl(self, capsys):
-        # Positive: holder calls renew. Self-renewal branch returns ACT with
-        # self-renew reason and a fresh expires_at.
+        # Positive: holder calls renew close to expiry. Self-renewal branch
+        # returns ACT with self-renew reason and a fresh expires_at.
         # Use real-clock timestamps so main() (which doesn't inject `now`)
         # sees a live lease. _live_held_body() is the pattern for this.
+        # Expiry is inside RENEW_SKIP_MARGIN (2 min < 5 min) so this exercises
+        # the real renewal write, not the ample-TTL no-op path (issue #5160;
+        # see test_renew_on_own_live_lease_with_ample_ttl_is_a_noop below for
+        # that path).
+        real_now = datetime.now(UTC)
+        live_body = _body(
+            owner=_OWNER,
+            session=_SESSION,
+            acquired=real_now - timedelta(minutes=13),
+            expires=real_now + timedelta(minutes=2),
+        )
+        mine = _comment(live_body, _rfc(real_now - timedelta(minutes=13)), author=_AUTHOR)
+        with (
+            patch.object(_mod, "assert_gh_authenticated", return_value=None),
+            patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
+            _patch_list([mine]),
+            _patch_post() as post,
+            _patch_head(),
+            _patch_login(login=_AUTHOR),
+        ):
+            rc = main(
+                ["renew", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
+            )
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Data"]["action"] == "ACT"
+        assert payload["Data"]["reason"] == "self-renew"
+        assert post.call_count == 1
+
+    def test_renew_on_own_live_lease_with_ample_ttl_is_a_noop(self, capsys):
+        # Issue #5160: a renew called while the held lease still has most of
+        # its TTL left (10 of 15 min, well outside the 5-min skip margin)
+        # must not write a fresh marker comment. A caller polling far tighter
+        # than the TTL requires must not multiply PR comment volume.
         real_now = datetime.now(UTC)
         live_body = _body(
             owner=_OWNER,
@@ -1926,7 +1960,7 @@ class TestRenewSubcommand:
             patch.object(_mod, "assert_gh_authenticated", return_value=None),
             patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
             _patch_list([mine]),
-            _patch_post(),
+            _patch_post() as post,
             _patch_head(),
             _patch_login(login=_AUTHOR),
         ):
@@ -1936,7 +1970,9 @@ class TestRenewSubcommand:
         assert rc == 0
         payload = json.loads(capsys.readouterr().out)
         assert payload["Data"]["action"] == "ACT"
-        assert payload["Data"]["reason"] == "self-renew"
+        assert payload["Data"]["reason"] == "self-renew-noop"
+        assert payload["Data"]["expires_at"] == _rfc(real_now + timedelta(minutes=10))
+        assert post.call_count == 0
 
     def test_renew_on_free_lease_re_claims(self, capsys):
         # Edge: renew when lease already expired re-claims it (same as acquire).
