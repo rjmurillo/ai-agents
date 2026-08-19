@@ -118,6 +118,8 @@ def relative_finding_path(filename: str, repo_root: Path) -> str | None:
     match the changed-line map would silently make every finding in that file
     non-blocking.
     """
+    if not filename:
+        return None
     candidate = Path(filename)
     if not candidate.is_absolute():
         return normalize_path(filename)
@@ -217,8 +219,15 @@ def run_ruff(
         print(f"Ruff ratchet passed for {len(files)} changed Python file(s).")
         return EXIT_OK
 
+    if not result.stdout.strip():
+        print(
+            "error: ruff exited 1 (violations found) but produced no JSON output",
+            file=sys.stderr,
+        )
+        return EXIT_EXTERNAL
+
     try:
-        findings = json.loads(result.stdout or "[]")
+        findings = json.loads(result.stdout)
     except json.JSONDecodeError as error:
         print(f"error: could not parse ruff JSON output: {error}", file=sys.stderr)
         return EXIT_EXTERNAL

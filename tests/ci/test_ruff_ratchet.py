@@ -247,6 +247,54 @@ def test_renamed_file_with_unchanged_content_does_not_block(
     assert exit_code == ruff_ratchet.EXIT_OK
 
 
+def test_empty_stdout_at_returncode_1_is_an_external_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Ruff's own contract is returncode 1 means violations found. Empty stdout
+    # alongside that (truncated output, a killed process, a broken pipe) is
+    # not "zero findings"; treating it that way would silently pass a run
+    # ruff itself flagged as failing.
+    recorder = RunRecorder([completed(1, "")])
+    monkeypatch.setattr(ruff_ratchet.subprocess, "run", recorder)
+
+    exit_code = ruff_ratchet.run_ruff(["scripts/dirty.py"], tmp_path, {"scripts/dirty.py": {12}})
+    captured = capsys.readouterr()
+
+    assert exit_code == ruff_ratchet.EXIT_EXTERNAL
+    assert "no JSON output" in captured.err
+
+
+def test_whitespace_only_stdout_at_returncode_1_is_an_external_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    recorder = RunRecorder([completed(1, "   \n")])
+    monkeypatch.setattr(ruff_ratchet.subprocess, "run", recorder)
+
+    exit_code = ruff_ratchet.run_ruff(["scripts/dirty.py"], tmp_path, {})
+
+    assert exit_code == ruff_ratchet.EXIT_EXTERNAL
+
+
+def test_relative_finding_path_treats_an_empty_filename_as_unmappable(tmp_path: Path) -> None:
+    assert ruff_ratchet.relative_finding_path("", tmp_path) is None
+
+
+def test_missing_filename_finding_blocks_rather_than_passing_silently(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # A finding with no filename key defaults to "" via finding.get("filename", "").
+    # relative_finding_path("") must return None (unmappable, block), not ""
+    # (falsy but not None, which would fall through to a non-blocking lookup
+    # on an empty-string key in the changed-line map).
+    payload = json.dumps([{"code": "E501", "message": "x", "location": {"row": 1, "column": 1}}])
+    recorder = RunRecorder([completed(1, payload)])
+    monkeypatch.setattr(ruff_ratchet.subprocess, "run", recorder)
+
+    exit_code = ruff_ratchet.run_ruff(["scripts/dirty.py"], tmp_path, {})
+
+    assert exit_code == ruff_ratchet.EXIT_VIOLATIONS
+
+
 def test_unresolved_diff_base_blocks_every_finding(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

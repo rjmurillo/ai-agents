@@ -2735,16 +2735,16 @@ def _changed_line_map(
 
     ``None`` signals that the diff base could not be resolved; callers then
     fall back to blocking on any error so the gate is never weaker than before.
+
+    Delegates to ``diff_line_scope.changed_line_map``, which runs the diff
+    with no pathspec and filters the parsed map afterward. A pathspec drops
+    the delete half of a rename pair before ``diffcore_rename`` runs, so a
+    pure rename would otherwise read as a full-file add with every
+    pre-existing line looking newly authored (the same defect issue #2993
+    fixed for the ruff gate; this gate shares the fix rather than
+    reintroducing it).
     """
-    if not paths:
-        return {}
-    result = _run_git(
-        repo_root,
-        ["diff", "--unified=0", "--no-color", f"{base_ref}...HEAD", "--", *paths],
-    )
-    if result.returncode != 0:
-        return None
-    return _parse_changed_lines(result.stdout)
+    return diff_line_scope.changed_line_map(base_ref, repo_root, paths)
 
 
 def _merge_base_scope(

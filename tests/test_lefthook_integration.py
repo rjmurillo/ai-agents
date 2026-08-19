@@ -4976,6 +4976,26 @@ def test_changed_line_map_returns_none_when_base_unresolved(tmp_path: Path) -> N
     assert policy._changed_line_map(["mod.py"], repo, "origin/main") is None
 
 
+def test_changed_line_map_ignores_a_pure_rename(tmp_path: Path) -> None:
+    # A pathspec on `git diff` drops the delete half of a rename pair before
+    # diffcore_rename runs, so a pure rename reads as a full-file add and
+    # every pre-existing line looks newly authored. _changed_line_map
+    # delegates to diff_line_scope.changed_line_map, which runs the diff
+    # with no pathspec specifically to avoid this (issue #2993's fix for
+    # the ruff gate, shared here so the mypy gate cannot regress the same
+    # way).
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    base = _commit_file(repo, "old_name.py", "line one\nline two\nline three\n")
+    _git(repo, "mv", "old_name.py", "new_name.py")
+    _git(repo, "commit", "-qm", "test: rename with no content change")
+
+    changed = policy._changed_line_map(["new_name.py"], repo, base)
+
+    assert changed is not None
+    assert changed.get("new_name.py", set()) == set()
+
+
 def test_mypy_ratchet_blocks_error_on_changed_line(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
