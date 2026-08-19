@@ -8,7 +8,9 @@ license: MIT
 # AI Agents Change Control
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
-How a change moves through this repository, and the rules that never bend. This repo runs verification-based enforcement, not trust-based. The protocol states it directly: "Labels like 'MANDATORY' or 'NON-NEGOTIABLE' are insufficient. Each requirement MUST have a verification mechanism" (`.agents/SESSION-PROTOCOL.md:36`). Every rule below therefore names two things: the gate that enforces it, and the incident that created it. If you are tempted to argue with a rule, read its incident first.
+How a change moves through this repository, and the rules that never bend. This
+repo runs verification-based enforcement. Evidence may live in the transcript,
+pull request, per-issue handoff, Serena memory, or an optional session log.
 
 Jargon used once: a "gate" is an automated check that blocks progress (commit, push, or merge) until satisfied. A "drift gate" compares generated output trees against their canonical sources. A "canonical source" is the single tree you are allowed to edit; everything generated from it is read-only output.
 
@@ -57,7 +59,7 @@ Special case, generated trees. `src/vs-code-agents/` and `src/copilot-cli/agents
 
 | Class | Extra gates it triggers |
 |-------|-------------------------|
-| Docs-only | Scoped markdownlint on changed files; dash prohibition; session log still required |
+| Docs-only | Scoped markdownlint on changed files; dash prohibition |
 | Investigation-only | Staged-file allowlist check in the pre-commit QA validator (ADR-034) |
 | Code | Full test rigor: positive, negative, edge, branch coverage, mocked I/O; coverage floors 100 security / 80 business / 60 docs (AGENTS.md Standards) |
 | Plugin content | Version-field gate at two layers: `pre_pr.py` wrapping `build/scripts/validate_plugin_version_bump.py` at pre-push, CI `.github/workflows/validate-plugin-version-bump.yml` |
@@ -84,14 +86,14 @@ Check this table before any push. The incident column is the answer to "why"; do
 | No logic in YAML workflows | ADR-006 + `.claude/rules/universal.md` MUST NOT 4 | Workflow YAML cannot be tested locally. Amendment 2026-04-28 allows pure config-data YAML under 7 conditions in `templates/platforms/` and `build/` only; `run:` block logic stays banned |
 | No em or en dashes in authored text | `validate_dash_prohibition` (`scripts/validation/checks_dash.py` via `pre_pr.py`) + dash-guard hook; `tests/hooks/fixtures/` exempt | `.claude/rules/universal.md` MUST NOT 5: bot reviewers open one or more threads per dash, every PR (Issue #1923) |
 | SHA-pin all GitHub Actions | Pre-commit hook + workflow validation (`.agents/governance/PROJECT-CONSTRAINTS.md:162`) | Tags are mutable, so pinning blocks supply-chain tag-moving. Operative rule: pin everything unless a human explicitly approves the GP-006 first-party `actions/*` tag allowance, and disclose the tension in your PR description when you hit it. Fuller writeup in `references/incident-history.md` |
-| Generated and released hook artifacts fail closed and loud (ADR-066 D1, ADR-071). Scoped, not blanket: push guards fail open on infrastructure errors by design (`.claude/hooks/PreToolUse/push_guard_base.py` docstring); repo-wide audit tracked in #2271. Per-family table: `ai-agents-architecture-contract` Phase 3 | `validate_hook_anchoring.py`, runtime-contract tests, named Lefthook jobs, and CI enforcement | #2205 customer wedge; policy reversal in the incident history |
+| Generated and released hook artifacts fail closed and loud (ADR-066 D1, ADR-071). Historical carve-out, now moot: the push guards failed open on infrastructure errors by design; the whole family (`push_guard_base.py` and every guard built on it) was deleted under ADR-084 (issue #5154), so no live guard claims this exception. Repo-wide audit tracked in #2271. Per-family table: `ai-agents-architecture-contract` Phase 3 | `validate_hook_anchoring.py`, runtime-contract tests, named Lefthook jobs, and CI enforcement | #2205 customer wedge; policy reversal in the incident history |
 | No `version` field in any plugin manifest or marketplace entry | `pre_pr.py` + `validate-plugin-version-bump.yml` | ADR-092: the field pins freshness to a hand-bumped string and conflicts across every concurrent PR (issue #4080 measured 14 of 22) |
 | Block-style YAML arrays only in frontmatter | `.agents/governance/PROJECT-CONSTRAINTS.md:224` ("Exceptions: None") | Copilot CLI frontmatter parser fails on CRLF and related formatting: github/copilot-cli#694, cited at PROJECT-CONSTRAINTS.md:220; ADR-044 |
 | `.agents/HANDOFF.md` is read-only | `.claude/rules/universal.md` MUST NOT 3 | ADR-014 (Accepted): the monolithic handoff file bloated and became a chronic merge-conflict magnet; distributed handoffs replaced it |
 | Memory-first: retrieval precedes reasoning | AGENTS.md Retrieval section; session-start gates | ADR-007: Serena memories are canonical, Forgetful supplementary. Search before building; do not re-derive settled decisions |
 | "Matches/mirrors" claims must quote the canonical source verbatim | `.claude/rules/canonical-source-mirror.md`; heuristic citation check in `pre_pr.py` | FM-9 confident-incorrectness; PR #1887 in the incident history |
 | No silent defaults | FM-10 detection table (`.agents/governance/FAILURE-MODES.md:315-399`); `taste-lints` and pre-push scans | PR #1965 verdict-parser; incident history |
-| Session-file merge immutability | Retro rule; session-protocol validation | Session 1187 (incident history): take `--theirs` for main's session file, rename yours to the next number |
+| Opted-in session-file merge immutability | Retro rule; validate-if-present session validation | Session 1187 (incident history): preserve both historical files and rename the local record |
 | No secrets, no force-push, no `--no-verify`, no direct commits to main | `.claude/rules/universal.md` MUST 1, MUST 5, MUST NOT 1, MUST NOT 2 | Hooks are the enforcement surface; skipping them is self-disarming |
 
 Escape hatches (env vars, commit markers, skip semantics) exist for several gates. They are deliberately narrow after session 1187, and each is cataloged with its abuse story in `ai-agents-config-catalog`. Do not invent a new one inline; a new flag is itself a governance change.

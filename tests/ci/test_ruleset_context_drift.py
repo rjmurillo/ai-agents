@@ -23,6 +23,16 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = (
     REPO_ROOT / ".github" / "workflows" / "ruleset-context-drift.yml"
 )
+RETIRED_AI_REVIEW_CONTEXTS = frozenset(
+    {
+        "Analyst Review",
+        "Architect Review",
+        "DevOps Review",
+        "QA Review",
+        "Roadmap Review",
+        "Security Review",
+    }
+)
 
 
 def test_matching_contexts_return_zero_without_publishing(
@@ -245,3 +255,72 @@ def test_workflow_runs_the_detector_on_schedule_and_manual_dispatch() -> None:
         == "PYTHONPATH=. python3 scripts/ci/ruleset_context_drift.py --alert"
         for step in steps
     )
+
+
+def test_ai_pr_quality_gate_workflow_is_absent() -> None:
+    """The AI PR Quality Gate was deleted, not made manual-only.
+
+    A manual-only or disabled copy of the workflow would keep the ten-agent
+    fan-out, its composite action, and its verdict aggregation alive in the
+    tree, which is the outcome this deletion rejects. Assert the whole
+    mechanism is gone rather than dormant.
+    """
+    removed = (
+        ".github/workflows/ai-pr-quality-gate.yml",
+        ".github/actions/agent-review/action.yml",
+        ".github/actions/check-agent-infrastructure/action.yml",
+        ".github/scripts/aggregate_quality_verdicts.py",
+        ".github/scripts/generate_quality_report.py",
+        "scripts/ci/agent_review_check_verdict.py",
+        "scripts/ci/agent_review_generate_summary.py",
+        "scripts/ci/agent_review_load_cache.py",
+        "scripts/ci/agent_review_save_results.py",
+        "scripts/ci/check_agent_infrastructure.py",
+    )
+    present = [path for path in removed if (REPO_ROOT / path).exists()]
+
+    assert present == [], f"retired AI PR Quality Gate files are back: {present}"
+
+
+def test_retired_review_contexts_are_not_pinned() -> None:
+    """No retired context may be pinned as required.
+
+    Pinning one would make the merge queue wait forever on a check run that no
+    workflow produces.
+    """
+    assert RETIRED_AI_REVIEW_CONTEXTS.isdisjoint(drift.REQUIRED_CONTEXTS)
+    assert drift.REQUIRED_CONTEXTS == {
+        "Analyze (actions)",
+        "Analyze (python)",
+        "Run Python Tests",
+        "Validate Generated Files",
+        "Validate Path Normalization",
+        "Validate PR",
+        "Validate PR title",
+        "Validate Plugin Version Bump",
+        "Validate Spec Coverage",
+    }
+
+
+def test_no_workflow_produces_a_retired_ai_review_context() -> None:
+    """Nothing may reintroduce a producer for a retired AI review context.
+
+    Scoped to the six AI review contexts. "Validate memory citations" is also
+    unpinned but keeps its producer in memory-validation.yml, where it is
+    advisory rather than merge-blocking.
+    """
+    workflow_dir = REPO_ROOT / ".github" / "workflows"
+    offenders: list[str] = []
+
+    for path in sorted(workflow_dir.glob("*.yml")):
+        workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if not isinstance(workflow, dict):
+            continue
+        for job_id, job in (workflow.get("jobs") or {}).items():
+            if not isinstance(job, dict):
+                continue
+            name = job.get("name", job_id)
+            if name in RETIRED_AI_REVIEW_CONTEXTS:
+                offenders.append(f"{path.name}:{job_id} -> {name}")
+
+    assert offenders == [], f"retired AI review contexts are back: {offenders}"

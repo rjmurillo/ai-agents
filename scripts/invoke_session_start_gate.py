@@ -4,7 +4,7 @@
 Implements BLOCKING gates for AI agent sessions to ensure:
 1. Memory-First: memory-index and task-relevant memories loaded
 2. Skill Availability: GitHub skills cataloged and usage-mandatory memory loaded
-3. Session Log: Valid session log exists
+3. Session Log: Session log inspected when present (advisory, never blocking)
 4. Branch Verification: Not on main/master branch
 
 EXIT CODES (per ADR-035):
@@ -106,19 +106,26 @@ def check_skill_gate(repo_root: Path) -> bool:
 
 
 def check_session_log_gate(repo_root: Path) -> bool:
+    """Advisory session-log presence check. Always returns True.
+
+    The committed session-log gate is retired: a session log is optional. A
+    missing sessions directory or the absence of a log for today is advisory
+    (a [WARN] line), never a blocking failure. When a log IS present it is still
+    inspected: the gate prints [PASS] and warns on missing structural fields.
+    """
     print("\n=== Gate 3: Session Log Verification ===")
     sessions_dir = repo_root / ".agents" / "sessions"
 
     if not sessions_dir.exists():
-        print(f"[FAIL] Sessions directory not found: {sessions_dir}")
-        return False
+        print(f"[WARN] Sessions directory not found (advisory): {sessions_dir}")
+        return True
 
     today = date.today().isoformat()
     today_sessions = sorted(sessions_dir.glob(f"{today}-session-*.json"), reverse=True)
 
     if not today_sessions:
-        print(f"[FAIL] No session log found for today ({today})")
-        return False
+        print(f"[WARN] No session log found for today ({today}) (advisory)")
+        return True
 
     latest = today_sessions[0]
     print(f"[PASS] Session log found: {latest.name}")

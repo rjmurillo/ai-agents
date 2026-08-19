@@ -1,0 +1,452 @@
+{
+  "id": "episode-2026-08-15-session-14713-issue-5096-qa-report-issue-fallback",
+  "session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Issue #5096: let the Validate PR QA-report gate accept an issue-named QA report so a first push does not need a rename commit",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Cherry-picked the shared container unblock commit",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Established the gate's canonical contract from source",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added the linked-issue fallback",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Extended the existing test module rather than creating a new one",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Named this session's QA report for the issue, not the PR",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T15:15:45+00:00",
+      "type": "commit",
+      "content": "Commit: c0d7bf451",
+      "caused_by": [
+        "e017",
+        "e023"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T16:02:24+00:00",
+      "type": "commit",
+      "content": "Commit: d00ca216c",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected three sessionStart MUST items that an earlier draft of this log recorded as unmet",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T16:09:21+00:00",
+      "type": "commit",
+      "content": "Commit: fdb34a279",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T16:12:28+00:00",
+      "type": "commit",
+      "content": "Commit: b495930a5",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T16:16:03+00:00",
+      "type": "commit",
+      "content": "Commit: b22fa729b73d202fa4ff8611423ed6191382b79e",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-bound qaCommit and endingCommit after the Serena memory commit",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-15T16:16:03+00:00",
+      "type": "commit",
+      "content": "Commit: b22fa729b",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-15T16:19:14+00:00",
+      "type": "commit",
+      "content": "Commit: e93af5c82d39a52102ea9e07a9c4f6fc5f361b57",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Drove the shipped gate end to end against this branch, with a negative control",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "First push rejected by a load-sensitive test unrelated to this diff",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "error",
+      "content": "First push rejected by a load-sensitive test unrelated to this diff  Every pre-push job passed except python-tests (779.03s), which failed only tests/test_mutation_workspace_signals.py::test_catchable_signal_removes_marker_and_scratch[15] on a hardcoded process.wait(timeout=30). Three 30-run samples on this container: this branch with 7 concurrent git push processes running, 7 failed of 30; origin/main detached with load falling, 0 of 30; this branch with 1 push process, 0 of 30. Load is the variable that moves it, not branch content, and neither this diff nor the cherry-picked d00ca216c touches scripts/testing/mutation_workspace.py. Matches .claude/rules/ci-scripts.md MUST 16: a cap sized on an idle run is a cap a real push can exceed.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-15T20:12:24+00:00",
+      "type": "commit",
+      "content": "Commit: 2989ad94e7b4eaf47cc24c7dbf101df5f4c0e225",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main a second time after the PR sat open; resolved the git_hook_policy.py and test_lefthook_integration.py conflicts on their merits",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed the two failing required checks against the merged head, not the stale pre-merge run",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found Validate Spec Coverage's failure was real, not stale: the PR body claimed behavior the code never implemented",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implemented tiered issue ordering and the foreign-PR filename filter, matching the PR body's existing claims",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "test",
+      "content": "commit 2bf7e4268. _linked_issues buckets LINKED_ISSUE matches by a new _CLOSING_KEYWORD fullmatch on each match's full text, preserving body order per tier and deduping on first occurrence. _find_issue_qa_report takes pr_number and skips a candidate whose filename's PR_TOKEN names a different PR. Four new tests plus two renamed/updated existing tests; 96 -> 100 passed. Six mutation controls (up from four) each match the PR body's pre-existing claimed counts exactly: ordering-reverted-to-numeric fails 3, foreign-PR-filter-removed fails 1.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-16T03:37:45+00:00",
+      "type": "commit",
+      "content": "Commit: 15100b3d2",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e008",
+        "e012",
+        "e015",
+        "e016",
+        "e018",
+        "e019",
+        "e020",
+        "e021",
+        "e022",
+        "e026",
+        "e027",
+        "e030",
+        "e031",
+        "e034"
+      ],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-16T03:45:26+00:00",
+      "type": "commit",
+      "content": "Commit: 2bf7e4268971aed1025b50ffc7e262363b378bfa",
+      "caused_by": [
+        "e024"
+      ],
+      "leads_to": [
+        "e028"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Push blocked twice with an opaque local pre-push hook rejection; GIT_TRACE=1 on a third attempt isolated the cause to a real test failure, not a server rejection",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed the pre-existing timezone bug blocking the push gate, on a path never touched by this branch before",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-08-16T03:45:26+00:00",
+      "type": "commit",
+      "content": "Commit: 2bf7e4268",
+      "caused_by": [
+        "e025"
+      ],
+      "leads_to": [
+        "e029"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-08-16T04:40:54+00:00",
+      "type": "commit",
+      "content": "Commit: 15476b5e5c2c99cdbdfdf2fdac69f34ddfd7bb7f",
+      "caused_by": [
+        "e028"
+      ],
+      "leads_to": [
+        "e032"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the Serena memory that documented the pre-tiering contract",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e031",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded a retrospective classifying the stale-memory defect as FM-9",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e032",
+      "timestamp": "2026-08-16T04:40:54+00:00",
+      "type": "commit",
+      "content": "Commit: 15476b5e5",
+      "caused_by": [
+        "e029"
+      ],
+      "leads_to": [
+        "e033"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e033",
+      "timestamp": "2026-08-17T01:53:57+00:00",
+      "type": "commit",
+      "content": "Commit: 3d1f72c69bda7a1f59d4b72593b2634434aa4b69",
+      "caused_by": [
+        "e032"
+      ],
+      "leads_to": [
+        "e035"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e034",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main again; main had already landed the same UTC-normalization fix under different names",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e035",
+      "timestamp": "2026-08-17T01:56:28+00:00",
+      "type": "commit",
+      "content": "Commit: d95972998d3cc4915afb2a9178c2423e7f14f9ef",
+      "caused_by": [
+        "e033"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 7,
+    "recoveries": 0,
+    "commits": 15,
+    "files_changed": 14
+  },
+  "lessons": []
+}

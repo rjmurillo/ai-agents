@@ -18,6 +18,8 @@ import sys
 from pathlib import Path
 from typing import Any, cast
 
+import pytest
+
 _REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO / "build" / "scripts"))
 
@@ -27,7 +29,7 @@ from regen_guard import detect_reason_strict  # noqa: E402
 _COPILOT = _REPO / "src" / "copilot-cli"
 _HOOKS_JSON = _COPILOT / "hooks" / "hooks.json"
 _GATING = "PreToolUse"
-_OBSERVE_EVENTS = ("PostToolUse",)
+_OBSERVE_EVENTS: tuple[str, ...] = ()
 _ALL_EVENTS = (_GATING, *_OBSERVE_EVENTS)
 _DISPATCH_TEST_TIMEOUT_CAP_SEC = 60
 _DISPATCHER_TIMEOUT_HEADROOM_SEC = 5
@@ -130,10 +132,7 @@ class TestDispatcherArtifacts:
             "invoke_topical_memory_injection.py",
             "invoke_user_prompt_memory_check.py",
         )
-        plugin_keepers = (
-            "invoke_markdown_auto_lint.py",
-            "invoke_markdownlint_guard.py",
-        )
+        plugin_keepers = ("invoke_require_subagent_model.py",)
         # invoke_auto_retrospective.py left this list in #3349: it was the
         # last shim in the Stop group and was deleted, not relocated.
         internal_keepers = ("invoke_context_loader.py",)
@@ -160,19 +159,12 @@ class TestDispatcherArtifacts:
             script.removesuffix(".py") not in serialized_generated
             for script in removed
         )
-        assert "invoke_markdownlint_guard" in serialized_generated
+        assert "invoke_require_subagent_model" in serialized_generated
 
-        posttooluse_manifest = json.loads(
-            (_COPILOT / "hooks" / "PostToolUse" / "_manifest.json").read_text(
-                encoding="utf-8"
-            )
-        )
-        assert {
-            f"{shim.split('__', 1)[0]}.py"
-            for shim in posttooluse_manifest["shims"]
-        } == {
-            "invoke_markdown_auto_lint.py",
-        }
+        # Issue #5154 retired the last PostToolUse plugin group, so the
+        # generator prunes the whole event directory instead of shipping an
+        # empty one.
+        assert not (_COPILOT / "hooks" / "PostToolUse").exists()
 
         generated_events = {
             path.parent.name
@@ -230,9 +222,63 @@ class TestDispatcherArtifacts:
         # Each observational dispatcher runs its real shim set end to end and
         # returns 0 (observe mode never gates). This exercises the committed
         # artifact under the real plugin-root contract, not a string match.
+        #
+        # Issue #5154 left the plugin surface with no observe event, so the
+        # loop below is empty today. The generated tree is asserted against
+        # that state first: adding an observe group without updating
+        # _OBSERVE_EVENTS fails here instead of silently losing coverage.
+        on_disk = {
+            path.parent.name
+            for path in (_COPILOT / "hooks").glob("*/_manifest.json")
+            if path.is_file()
+        }
+        assert on_disk - {_GATING} == set(_OBSERVE_EVENTS), (
+            f"observe events on disk do not match _OBSERVE_EVENTS: {sorted(on_disk)}"
+        )
         for event in _OBSERVE_EVENTS:
             proc = _run_entry(event, {"tool_name": "Read", "tool_input": {}})
             assert proc.returncode == 0, (
                 f"{event}: observe dispatcher returned {proc.returncode}\n"
                 f"{proc.stderr.decode()[:600]}"
             )
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            pytest.param("echo hello world", id="ordinary-unrelated-command"),
+            pytest.param(
+                "python3 attacker/pr/new_pr.py --title fix",
+                id="pre-5013-denied-lookalike",
+            ),
+        ],
+    )
+    def test_pretooluse_bash_payload_never_launches_push_pr_guard(self, command: str):
+        """A Bash payload must not launch or reference the retired push-pr
+        identity guard through the generated manifest path.
+
+        Two shapes: an ordinary unrelated command that never touched the
+        guard, and the pre-#5013 attack shape (a repository-controlled
+        ``new_pr.py`` lookalike) the guard used to deny. The second shape is
+        the meaningful control: if the shim were still wired in by accident,
+        THIS command would come back denied where the first would not
+        detect it. This runs the SHIPPED
+        ``src/copilot-cli/hooks/PreToolUse/_dispatch.py`` end to end (not
+        the generator) and asserts both allow and silence: the guard's
+        module name must not appear anywhere in the dispatcher's own
+        diagnostics.
+        """
+        guard_marker = "push_pr_script_identity_guard"
+        proc = _run_entry(
+            _GATING,
+            {
+                "tool_name": "Bash",
+                "tool_input": {"command": command},
+                "cwd": str(_REPO),
+            },
+        )
+
+        assert proc.returncode == 0, (
+            f"payload was denied: {proc.returncode}\n{proc.stderr.decode()[:600]}"
+        )
+        combined = proc.stdout.decode(errors="replace") + proc.stderr.decode(errors="replace")
+        assert guard_marker not in combined, combined[:600]

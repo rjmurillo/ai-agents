@@ -214,7 +214,10 @@ Durable tests:
 
 ## 7. Python command permission and script identity
 
-Issue #4764, 2026-08-08.
+Issue #4764, 2026-08-08. RETIRED as live wiring: issue #5154 deleted the
+identity guard from both harnesses on 2026-08-18 (ADR-085 Decision 8). The
+harness-contract findings below stay because they describe the permission
+surface, which is unchanged. The guard they were gathered for is gone.
 
 Versions:
 
@@ -262,8 +265,11 @@ plugin can govern every execution tool.
 
 Durable tests:
 
-- `tests/hooks/test_push_pr_script_identity_guard.py`
 - `tests/hooks/test_dispatch_groups_parity.py`
+
+The guard's own test files went with it in #5154. The name recorded here
+before that, `tests/hooks/test_push_pr_script_identity_guard.py`, had already
+been split into per-area files and did not exist under that name.
 
 ### 7a. Relevance before policy on the plugin-wide Bash matcher
 

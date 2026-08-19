@@ -432,8 +432,13 @@ jobs:
       - check-paths
       - test
       - coverage
+    # !cancelled() rather than always(): a superseded run leaves its
+    # dependencies 'cancelled', and always() would turn that into a red
+    # required check on the PR head (Issue #5097). !cancelled() still runs on
+    # failed and skipped dependencies, so the pass-through and the real
+    # failure signal both survive.
     if: >-
-      always() &&
+      !cancelled() &&
       (needs.check-paths.result != 'success' ||
       needs.check-paths.outputs.python-changed == 'true')
     runs-on: ubuntu-24.04-arm
@@ -606,7 +611,12 @@ jobs:
       - security
       - skip-tests
       - test-windows-pwsh
-    if: always() && github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+    # !cancelled() rather than always(): the alert script treats a 'cancelled'
+    # dependency as a failure, so a cancelled main run would file a bogus
+    # "Python Tests failed on main" issue (Issue #5097).
+    if: >-
+      !cancelled() && github.event_name == 'push' &&
+      github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 2
     permissions:

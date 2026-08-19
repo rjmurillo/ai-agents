@@ -112,20 +112,28 @@ Two traps, both fossilized in `.github/workflows/pytest.yml` comments:
 
 Related discipline, FM-10: there is no neutral default for a missing signal (FAILURE-MODES.md:387). The neutral default is UNKNOWN, not PASS (`extract_verdict` on no-match, `merge_verdicts` on empty; `get_verdict` fails safe to CRITICAL_FAIL). PR #1965 still took 3 fix rounds to make UNKNOWN blocking everywhere it flowed: the workflow verdict list, the action parser allowlist, and the action exit-code mapping. When testing parsers or gates, always include the missing-signal case and assert it raises or blocks, never that it silently passes.
 
-### Phase 5: QA gate semantics at session end
+### Phase 5: QA evidence semantics
 
-Session protocol Phase 2.5 makes QA validation BLOCKING before committing feature code (SESSION-PROTOCOL.md:738-756). Skip classes (ADR-034, `.agents/architecture/ADR-034-investigation-session-qa-exemption.md`):
+QA validation remains required for feature code. Session-log presence does not
+affect that gate. Skip classes are defined by ADR-034 and
+`.agents/architecture/ADR-034-investigation-session-qa-exemption.md`:
 
 | Evidence string | When valid | Staged files limited to |
 |-----------------|-----------|------------------------|
 | `SKIPPED: docs-only` | Strictly editorial doc edits: no code, config, tests, workflows, or code blocks changed | Documentation files |
-| `SKIPPED: investigation-only` | No code/config changes at all | The 8 patterns in `scripts/modules/investigation_allowlist.py` (single source of truth per its docstring): `.agents/sessions/`, `.agents/analysis/`, `.agents/retrospective/`, `.serena/memories/`, `.agents/security/`, `.agents/memory/` (incl. `episodes/`), `.agents/architecture/REVIEW-*`, `.agents/critique/`. ADR-034:78-87 lists the same 8 after the 2026-07-08 amendments (issues #831 and #732), so the ADR and the code agree. `SESSION-PROTOCOL.md:754` still lists only the first 5, so treat the module and ADR-034 as authoritative |
+| `SKIPPED: investigation-only` | No code/config changes at all | The patterns in `scripts/modules/investigation_allowlist.py`, which is the executable source |
 
-Explicitly NOT skippable: `.agents/planning/`, `.agents/architecture/ADR-*` (ADRs; `REVIEW-*` files ARE allowlisted by the enforcement module), `.github/`, `.claude/agents/`, `src/`, `scripts/` (ADR-034 "Not Allowed" table, which predates the module's wider allowlist). Session logs, analysis artifacts, and memory updates are audit trail, not implementation: they are filtered out automatically when deciding whether QA is required, so they can ride along with implementation commits (SESSION-PROTOCOL.md:758).
+Explicitly NOT skippable: `.agents/planning/`, `.agents/architecture/ADR-*`,
+`.github/`, `.claude/agents/`, `src/`, and `scripts/`. Optional session logs,
+analysis artifacts, and memory updates are filtered when deciding whether QA is
+required.
 
-Mixed session (investigation turned into code)? Split it: commit investigation work with the skip evidence, then start a new session for the code change with real QA (SESSION-PROTOCOL.md:798-800). Abusing skip markers is a trust failure with precedent; escape-hatch history lives in `ai-agents-config-catalog` and `ai-agents-failure-archaeology`.
+Mixed work (investigation turned into code)? Split the commits. Commit
+investigation work with skip evidence, then validate the code change with real
+QA.
 
-Full evidence line in the session log looks like `"qaValidation": { "level": "MUST", "Complete": true, "Evidence": "SKIPPED: investigation-only" }` or a QA report path under `.agents/qa/` (SESSION-PROTOCOL.md:996).
+Record QA evidence in the PR, transcript, per-issue handoff, or an optional
+session log.
 
 ### Phase 6: Add tests for a new skill, hook, or script
 

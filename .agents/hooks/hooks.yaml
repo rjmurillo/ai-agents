@@ -64,12 +64,12 @@ hooks:
 
   # --- PostToolUse ----------------------------------------------------------
   # Persist state after mutating tools so compaction cannot destroy it.
-
-  - id: post-tool-use.markdown-auto-lint
-    event: PostToolUse
-    tool: "^(Write|Edit)$"
-    script: .claude/hooks/PostToolUse/invoke_markdown_auto_lint.py
-    on_fail: warn
+  #
+  # The markdown-auto-lint entry that lived here named
+  # invoke_markdown_auto_lint.py, deleted under ADR-084 (issue #5154). The
+  # markdown work it recorded now lives in lefthook.yml (markdown-autofix,
+  # markdown-check). Nothing generates or runs this manifest (see README.md
+  # in this directory), so the entry is removed rather than repointed.
 
   # --- Stop -----------------------------------------------------------------
   # Session end: validate log and generate handoff.

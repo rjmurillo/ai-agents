@@ -183,7 +183,11 @@ jobs:
     needs: [check-paths, smoke, verify]
     # Pass-through so the required check stays green when no CLI files changed.
     # GitHub branch protection requires SUCCESS, not SKIPPED (Issue #1168).
-    if: always()
+    # !cancelled() rather than always(): !cancelled() still runs on skipped
+    # dependencies, so the pass-through above is intact, but a superseded run
+    # no longer converts its cancelled dependencies into a red required check
+    # on the PR head (Issue #5097).
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read

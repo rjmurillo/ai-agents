@@ -44,11 +44,15 @@ from check_doc_interpreter_portability import (
     validate_doc_interpreter_portability,
 )
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
+from check_generated_staleness import validate_generated_staleness
+from check_git_hook_health import validate_git_hook_health
 from check_nested_tests import validate_no_nested_tests
 from check_push_lock_paths import validate_push_lock_paths
 from check_subprocess_encoding import validate_subprocess_encoding
 from check_test_tree_writes import validate_test_tree_writes
+from check_tmp_worktrees import validate_tmp_worktrees
 from check_unreachable_code import validate_unreachable_code
+from check_worktree_recipes import validate_worktree_recipes
 from checks_coverage import (
     validate_review_marker,
 )
@@ -208,6 +212,18 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Subprocess Encoding Convention", _root_only(validate_subprocess_encoding)),
     _Gate("Test Working Tree Writes", _root_only(validate_test_tree_writes)),
     _Gate("Push Lock Path Agreement", _root_only(validate_push_lock_paths)),
+    # Blocks a tracked prescription that tells a reader to create a worktree
+    # under /tmp or inside the checkout, against universal.md MUST NOT 7. Issue
+    # #5111: the rule, a Serena memory, and a prior incident all already
+    # existed, and six violations still accumulated, because nothing read the
+    # recipes.
+    _Gate("Worktree Recipe Destinations", _root_only(validate_worktree_recipes)),
+    # Advisory companion to the gate above: the same rule measured against the
+    # machine rather than the tree. Reports worktrees sitting under /tmp
+    # (including orphans git no longer lists) and a low /tmp free-space floor.
+    # Never fails; see the validator's docstring for why machine state does not
+    # get to block a push. Issue #5111.
+    _Gate("Temp-filesystem Worktrees (advisory)", _root_only(validate_tmp_worktrees)),
     _Gate("Session End Validation", _root_only(validate_session_end)),
     # Type-check changed Python files with ratchet semantics (issue #4674).
     # Surfaces regressions at pre-PR time rather than waiting for push CI.
@@ -236,6 +252,14 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # tracking issue, the orphan signature that hid stale mirrors before #2780.
     # Issue #2770.
     _Gate("Orphaned Build Deferrals", _run_orphaned_build_deferrals),
+    # The gate above reads deferral comments inside build_all.py's source. This
+    # one asks the separate question CI asks: is the generated tree stale
+    # against its inputs. Runs sync_plugin_lib.py --check then
+    # build/scripts/build_all.py --check, in the order
+    # .claude/rules/generated-artifacts.md requires. Both are read-only.
+    # Issue #5079: without it, a hand-edit to a generated file cleared every
+    # local gate and the generator silently reverted it in CI (PR #5059).
+    _Gate("Generated Artifact Staleness", _root_only(validate_generated_staleness)),
     _Gate("Spec ID Uniqueness", _root_only(validate_spec_id_uniqueness)),  # Issue #2068
     _Gate("Traceability", _root_only(validate_traceability)),
     # No new hard-coded upstream-only paths (issue #2050).
@@ -322,6 +346,14 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # This local check calls validate_argument_hint() over the same default scan
     # surface.
     _Gate("Argument-Hint Frontmatter", _root_only(validate_argument_hint)),
+    # Deeper than the gate below, and adjacent so neither reads as covering the
+    # other. "Lefthook Installed" asks whether lefthook considers itself
+    # installed; this asks whether git will read those shims at all. A
+    # core.hooksPath pointing at a missing directory makes git run no hook and
+    # print no warning, which is how the PR #5059 hand-edit reached CI instead
+    # of being refused at push time. Issue #5090; the same repair already
+    # drifted back once after 2026-07-19.
+    _Gate("Git Hook Health (core.hooksPath)", _root_only(validate_git_hook_health)),
     # Local clones must dispatch repository guardrails. Skipped under CI, where
     # workflows invoke validation directly.
     _Gate("Lefthook Installed", _root_only(validate_lefthook_installed)),

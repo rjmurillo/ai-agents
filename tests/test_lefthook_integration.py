@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import ast
 import io
 import json
@@ -324,14 +325,15 @@ def test_adr_review_policy_blocks_stale_debate_reference(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _init_repo(tmp_path)
     # A debate log exists in the correct dir (.agents/critique/) but references
     # a DIFFERENT ADR (ADR-042), not the staged ADR (ADR-062). This exercises
     # the stale-reference branch, not the missing-log branch.
-    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
-    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
-    _write_lf(critique / "adr-042-debate.md", "ADR-042 review")
+    debate = critique / "adr-042-debate.md"
+    _write_lf(debate, "ADR-042 review")
+    _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     result = policy.check_adr_review_policy(
         [".agents/architecture/ADR-062-navigation.md"],
@@ -346,11 +348,12 @@ def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
-    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
+    _init_repo(tmp_path)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
-    _write_lf(critique / "adr-062-debate.md", "ADR-062 review")
+    debate = critique / "adr-062-debate.md"
+    _write_lf(debate, "ADR-062 review")
+    _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     assert (
         policy.check_adr_review_policy(
@@ -363,10 +366,12 @@ def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(
 
 
 def test_adr_review_policy_matches_complete_adr_ids(tmp_path: Path) -> None:
-    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    _init_repo(tmp_path)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
-    _write_lf(critique / "adr-0620-debate.md", "ADR-0620 review")
+    debate = critique / "adr-0620-debate.md"
+    _write_lf(debate, "ADR-0620 review")
+    _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     assert (
         policy.check_adr_review_policy(
@@ -380,12 +385,14 @@ def test_adr_review_policy_matches_complete_adr_ids(tmp_path: Path) -> None:
 def test_adr_review_policy_rejects_symlinked_debate_evidence(tmp_path: Path) -> None:
     if os.name == "nt":
         pytest.skip("Symlink creation requires elevated Windows privileges")
-    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    _init_repo(tmp_path)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     evidence = tmp_path / "evidence.md"
     _write_lf(evidence, "ADR-062 review")
-    (critique / "adr-062-debate.md").symlink_to(evidence)
+    debate = critique / "adr-062-debate.md"
+    debate.symlink_to(evidence)
+    _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     assert (
         policy.check_adr_review_policy(
@@ -402,8 +409,6 @@ def test_adr_review_policy_missing_critique_dir_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """No .agents/critique/ directory at all means no debate logs: gate fails."""
-    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
-    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
     # Only the old wrong dir exists; critique dir is absent.
     wrong = tmp_path / ".agents" / "analysis"
     wrong.mkdir(parents=True)
@@ -627,6 +632,57 @@ def test_retrospective_policy_blocks_evidence_older_than_grace_window(
     )
 
 
+def test_handle_retrospective_uses_stdin_derived_paths_when_available(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #5128: {push_files} resolves empty on a branch's first push.
+
+    _handle_retrospective must derive the real push range independently via
+    _push_range_changed_files instead of trusting args.paths (which lefthook
+    leaves empty once {push_files} is dropped from the job), so the
+    documentation-only bypass can still fire for a genuinely docs-only push.
+    """
+    monkeypatch.setattr(
+        policy, "_push_range_changed_files", lambda _stream, _root: {"README.md"}
+    )
+    args = argparse.Namespace(paths=[], repo_root=str(tmp_path))
+
+    assert policy._handle_retrospective(args) == 0
+
+
+def test_handle_retrospective_stdin_range_blocks_non_doc_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A stdin-derived range that includes code still requires evidence."""
+    monkeypatch.setattr(
+        policy,
+        "_push_range_changed_files",
+        lambda _stream, _root: {"scripts/one.py", "tests/test_one.py"},
+    )
+    args = argparse.Namespace(paths=[], repo_root=str(tmp_path))
+
+    assert policy._handle_retrospective(args) == 1
+    assert "retrospective evidence" in capsys.readouterr().err
+
+
+def test_handle_retrospective_falls_back_to_args_paths_when_stdin_unresolvable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An unresolvable push range (None) preserves the old args.paths behavior."""
+    monkeypatch.setattr(
+        policy, "_push_range_changed_files", lambda _stream, _root: None
+    )
+    args = argparse.Namespace(paths=[], repo_root=str(tmp_path))
+
+    assert policy._handle_retrospective(args) == 1
+    assert "retrospective evidence" in capsys.readouterr().err
+
+
 def test_configuration_uses_named_native_jobs() -> None:
     config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
 
@@ -690,14 +746,12 @@ def test_configuration_uses_named_native_jobs() -> None:
         "workflow-local-run",
         "path-normalization",
         "planning-artifacts",
-        "build-all-check",
         "placeholder-identity",
         "branch-scope",
         "additions-advisory",
         "hook-anchoring-e2e",
         "plugin-load-e2e",
         "review-axis-drift",
-        "session-json-validation",
         "observation-sync-advisory",
         "bot-cascade-advisory",
     }
@@ -712,8 +766,9 @@ def test_configuration_uses_named_native_jobs() -> None:
         "git_hook_policy.py root-hygiene {staged_files}"
     )
     assert str(pre_push["retrospective-policy"]["run"]).endswith(
-        "git_hook_policy.py retrospective {push_files}"
+        "git_hook_policy.py retrospective"
     )
+    assert pre_push["retrospective-policy"]["use_stdin"] is True
     pre_commit_names = [str(job["name"]) for job in _flatten_jobs(config["pre-commit"]["jobs"])]
     assert pre_commit_names.index("memory-token-update") < pre_commit_names.index("memory-size")
     assert pre_commit_names.index("memory-size") < pre_commit_names.index("memory-cross-reference")
@@ -864,18 +919,20 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         assert "merge" not in skip
     assert "glob" not in pre_push_jobs["pre-pr-validation"]
     assert "glob" not in pre_push_jobs["python-tests"]
-    assert pre_push_jobs["pre-pr-validation"]["env"] == {"SKIP_AUTOFIX": "1"}
+    assert pre_push_jobs["pre-pr-validation"]["env"] == {
+        "SKIP_AUTOFIX": "1",
+        # The job's own timeout in seconds, consumed by the
+        # generated-staleness gate's outer-cap clamp; the cross-check
+        # against the actual timeout lives in
+        # tests/validation/test_check_generated_staleness.py.
+        "PRE_PR_OUTER_CAP_SECONDS": "900",
+    }
     assert pre_push_jobs["python-tests"]["env"] == {
         "AI_AGENTS_PYTEST_WORKER_CAP": "4"
     }
     assert pre_push_jobs["push-ref-policy"]["use_stdin"] is True
     assert pre_push_jobs["security-scan"]["use_stdin"] is True
     assert pre_push_jobs["security-suppression-policy"]["use_stdin"] is True
-    assert pre_push_jobs["session-json-validation"]["use_stdin"] is True
-    session_validation_run = pre_push_jobs["session-json-validation"]["run"]
-    assert isinstance(session_validation_run, str)
-    assert "{push_files}" not in session_validation_run
-    assert "glob" not in pre_push_jobs["session-json-validation"]
     piped_stdin_groups = [
         item["group"]
         for item in pre_push["jobs"]
@@ -888,11 +945,20 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     assert piped_stdin_groups[0].get("parallel") is not True
     assert [job["name"] for job in piped_stdin_groups[0]["jobs"]] == [
         "push-ref-policy",
-        "security-scan",
         "security-suppression-policy",
         "placeholder-identity",
-        "session-json-validation",
+        "retrospective-policy",
     ]
+    # Issue #5066: security-scan (semgrep) left the cheap stdin group so a
+    # fast-stage failure no longer waits on it. It stays a top-level job
+    # under the piped hook, which serializes stdin delivery exactly as the
+    # piped group does (ci-scripts.md MUST-21 forbids parallel use_stdin).
+    top_level_names = [
+        str(item.get("name"))
+        for item in pre_push["jobs"]
+        if isinstance(item, dict) and "group" not in item
+    ]
+    assert "security-scan" in top_level_names
     markdown_groups = [
         item["group"]
         for item in pre_commit["jobs"]
@@ -910,20 +976,32 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "python-type-check",
         "infrastructure-advisory",
         "workflow-local-run",
-        "observation-sync-advisory",
     ):
         run = pre_push_jobs[name]["run"]
         assert isinstance(run, str)
         assert "{push_files}" in run
+    # observation-sync-advisory derives its file set from the push refs on
+    # stdin instead of {push_files}: the first-push fallback fed the whole
+    # observation corpus to the sync and overran the job's cap (#5071).
+    observation_job = pre_push_jobs["observation-sync-advisory"]
+    observation_run = observation_job["run"]
+    assert isinstance(observation_run, str)
+    assert observation_run.endswith("git_hook_policy.py observations-push")
+    assert "{push_files}" not in observation_run
+    assert observation_job.get("use_stdin") is True
     workflow_run = pre_push_jobs["workflow-local-run"]["run"]
-    build_run = pre_push_jobs["build-all-check"]["run"]
     branch_scope_run = pre_push_jobs["branch-scope"]["run"]
     assert isinstance(workflow_run, str)
-    assert isinstance(build_run, str)
     assert isinstance(branch_scope_run, str)
     assert "--no-full" not in workflow_run
-    assert build_run.endswith("build_all.py --check")
     assert "origin/main" in branch_scope_run
+    # Issue #5079 review: the standalone build-all-check job is gone on
+    # purpose. pre-pr-validation's Generated Artifact Staleness gate runs
+    # build_all.py --check inside the sequence; a second concurrent
+    # invocation in the same parallel group raced its snapshot/restore over
+    # the same owned prefixes, and its 15m lefthook timeout was a SIGKILL
+    # that skipped build_all's restoring finally.
+    assert "build-all-check" not in pre_push_jobs
     pre_commit_parallel = False
     for item in pre_commit["jobs"]:
         group = item.get("group")
@@ -2194,15 +2272,18 @@ def test_root_hygiene_skips_merge_state(tmp_path: Path) -> None:
     assert policy.check_root_hygiene(["scratch-notes.txt"], repo) == 0
 
 
-def test_session_policy_requires_and_validates_session(
+def test_session_policy_is_validate_if_present(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # The committed session-log gate is retired: a non-session .agents change
+    # needs no session log (returns 0), while a present session log is still
+    # validated by shelling out to the validator.
     monkeypatch.setattr(policy, "_merge_in_progress", lambda _root: False)
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(0))
     monkeypatch.setattr(policy, "added_session_paths_in_index", lambda paths, repo_root: set(paths))
 
-    assert policy.check_sessions([".agents/planning/plan.md"], tmp_path) == 1
+    assert policy.check_sessions([".agents/planning/plan.md"], tmp_path) == 0
     assert (
         policy.check_sessions(
             [".agents/sessions/2026-07-19-session-1-test.json"],
@@ -2282,7 +2363,13 @@ def test_pre_commit_session_policy_validates_changed_upstream_content(
         assert policy.check_sessions([relative], repo) == 1
 
     assert commands == [
-        [sys.executable, "scripts/validate_session_json.py", relative, "--pre-commit"]
+        [
+            sys.executable,
+            "scripts/validate_session_json.py",
+            relative,
+            "--pre-commit",
+            "--existing-log",
+        ]
     ]
 
 
@@ -4757,6 +4844,43 @@ def test_parse_changed_lines_ignores_pure_rename() -> None:
     assert changed == {}
 
 
+def test_parse_changed_lines_strips_the_quoted_b_prefix() -> None:
+    # Git quotes the "b/" prefix together with the path, so a pattern that
+    # strips the prefix before unquoting leaves "b/" in the key and the map
+    # never matches the path mypy reports.
+    diff = '+++ "b/pkg/od\\"d.py"\n@@ -0,0 +3,1 @@\n'
+
+    assert policy._parse_changed_lines(diff) == {'pkg/od"d.py': {3}}
+
+
+def test_iter_diff_changes_strips_the_b_prefix_from_the_header() -> None:
+    # Regression: the shared header pattern keeps the "b/" prefix, so the
+    # suppression scanner must strip it via _file_header_path. Reporting
+    # "b/pkg/a.py" made every net-new suppression look like a different file,
+    # which fails a security gate open.
+    diff = (
+        "diff --git a/pkg/a.py b/pkg/a.py\n"
+        "--- a/pkg/a.py\n"
+        "+++ b/pkg/a.py\n"
+        "@@ -1,0 +2 @@\n"
+        "+added line\n"
+    )
+
+    assert list(policy._iter_diff_changes(diff)) == [("pkg/a.py", "+", 2, "added line")]
+
+
+def test_iter_diff_changes_skips_a_dev_null_post_image() -> None:
+    diff = (
+        "diff --git a/pkg/gone.py b/pkg/gone.py\n"
+        "--- a/pkg/gone.py\n"
+        "+++ /dev/null\n"
+        "@@ -1 +0,0 @@\n"
+        "-removed line\n"
+    )
+
+    assert list(policy._iter_diff_changes(diff)) == []
+
+
 def test_parse_mypy_error_locations_selects_errors_only() -> None:
     stdout = (
         "pkg/a.py:12: error: Incompatible types  [assignment]\n"
@@ -4852,6 +4976,26 @@ def test_changed_line_map_returns_none_when_base_unresolved(tmp_path: Path) -> N
     assert policy._changed_line_map(["mod.py"], repo, "origin/main") is None
 
 
+def test_changed_line_map_ignores_a_pure_rename(tmp_path: Path) -> None:
+    # A pathspec on `git diff` drops the delete half of a rename pair before
+    # diffcore_rename runs, so a pure rename reads as a full-file add and
+    # every pre-existing line looks newly authored. _changed_line_map
+    # delegates to diff_line_scope.changed_line_map, which runs the diff
+    # with no pathspec specifically to avoid this (issue #2993's fix for
+    # the ruff gate, shared here so the mypy gate cannot regress the same
+    # way).
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    base = _commit_file(repo, "old_name.py", "line one\nline two\nline three\n")
+    _git(repo, "mv", "old_name.py", "new_name.py")
+    _git(repo, "commit", "-qm", "test: rename with no content change")
+
+    changed = policy._changed_line_map(["new_name.py"], repo, base)
+
+    assert changed is not None
+    assert changed.get("new_name.py", set()) == set()
+
+
 def test_mypy_ratchet_blocks_error_on_changed_line(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -4940,6 +5084,190 @@ def test_mypy_ratchet_ignores_error_in_unpushed_file(
     )
 
     assert policy.run_mypy(["source.py"], tmp_path) == 0
+
+
+def test_merge_base_scope_drops_round_trip_keeps_modified_rename_deletion(
+    tmp_path: Path,
+) -> None:
+    # Issue #5071: the scope is what the push ships versus the merge base.
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    _commit_file(repo, "keep.py", "value: int = 1\n")
+    _commit_file(repo, "round.py", "flag: bool = True\n")
+    _commit_file(repo, "old.py", "name: str = 'x'\n")
+    base = _commit_file(repo, "gone.py", "count: int = 0\n")
+    _write_file(repo, "keep.py", "value: int = 2\n")
+    _write_file(repo, "round.py", "flag: bool = False\n")
+    _git(repo, "mv", "old.py", "new.py")
+    _git(repo, "rm", "-q", "gone.py")
+    _git(repo, "add", "--", "keep.py", "round.py")
+    _git(repo, "commit", "-qm", "test: touch everything")
+    _write_file(repo, "round.py", "flag: bool = True\n")
+    _git(repo, "commit", "-aqm", "test: revert round.py to base content")
+
+    scope = policy._merge_base_scope(["keep.py", "round.py", "new.py", "gone.py"], repo, base)
+
+    assert scope is not None
+    assert "keep.py" in scope
+    assert "new.py" in scope
+    assert "gone.py" in scope
+    # The commit-then-revert round trip no longer differs from the merge
+    # base, so it contributes nothing to the mypy scope.
+    assert "round.py" not in scope
+
+
+def test_merge_base_scope_returns_none_when_base_unresolved(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    _commit_file(repo, "mod.py", "value: int = 1\n")
+
+    # origin/main does not exist in this fresh repo, so the diff fails and
+    # the caller must fall back to the unfiltered pushed set.
+    assert policy._merge_base_scope(["mod.py"], repo, "origin/main") is None
+
+
+def test_merge_base_scope_empty_paths_is_empty_set(tmp_path: Path) -> None:
+    assert policy._merge_base_scope([], tmp_path, "origin/main") == set()
+
+
+def test_mypy_scope_round_trip_file_is_not_scanned(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Negative case for issue #5071: a file whose branch edits round-tripped
+    # back to the merge-base content is dropped before mypy ever runs, so its
+    # pre-existing type debt cannot block the push.
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_merge_base_scope", lambda *_a: set())
+    invoked: list[Sequence[str]] = []
+
+    def fail_if_invoked(paths: Sequence[str], *_a: object) -> subprocess.CompletedProcess[str]:
+        invoked.append(paths)
+        return _completed(1, "source.py:1: error: preexisting  [assignment]\n")
+
+    monkeypatch.setattr(policy, "_invoke_mypy", fail_if_invoked)
+
+    assert policy.run_mypy(["source.py"], tmp_path) == 0
+    assert invoked == []
+    # The scope report names both counts so an empty run is distinguishable
+    # from a run that examined nothing (ci-scripts rule: report scope size).
+    assert "0 of 1 pushed file(s)" in capsys.readouterr().out
+
+
+def test_mypy_scope_keeps_modified_file_and_blocks_its_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Positive case for issue #5071: a file that still differs from the merge
+    # base stays in scope and its new-line errors still block.
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_merge_base_scope", lambda *_a: {"source.py"})
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: {"source.py": {2}})
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "source.py:2: error: bad  [assignment]\n"),
+    )
+
+    assert policy.run_mypy(["source.py"], tmp_path) == 1
+
+
+def test_mypy_scope_fallback_scans_full_set_when_base_unresolved(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Unresolvable merge base must never weaken the gate: the full pushed set
+    # is scanned, and the block-on-any-error fallback still applies.
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_merge_base_scope", lambda *_a: None)
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: None)
+    invoked: list[Sequence[str]] = []
+
+    def record(paths: Sequence[str], *_a: object) -> subprocess.CompletedProcess[str]:
+        invoked.append(list(paths))
+        return _completed(1, "source.py:2: error: bad  [assignment]\n")
+
+    monkeypatch.setattr(policy, "_invoke_mypy", record)
+
+    assert policy.run_mypy(["source.py"], tmp_path) == 1
+    assert invoked == [["source.py"]]
+    # The fallback also reports its scope size (ci-scripts: report examined
+    # counts), so a full scan is distinguishable from a filtered one.
+    assert "scanning all 1 pushed file(s)" in capsys.readouterr().out
+
+
+def test_mypy_scope_end_to_end_drops_round_trip_with_real_git(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Wiring proof over a real repository: run_mypy consults the real
+    # merge-base diff and hands mypy only the file that still differs.
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    _commit_file(repo, "keep.py", "value: int = 1\n")
+    base = _commit_file(repo, "round.py", "flag: bool = True\n")
+    _write_file(repo, "keep.py", "value: int = 2\n")
+    _write_file(repo, "round.py", "flag: bool = False\n")
+    _git(repo, "commit", "-aqm", "test: edit both files")
+    _write_file(repo, "round.py", "flag: bool = True\n")
+    _git(repo, "commit", "-aqm", "test: revert round.py")
+    monkeypatch.setenv(policy.MYPY_RATCHET_BASE_REF_ENV, base)
+    invoked: list[list[str]] = []
+
+    def record(paths: Sequence[str], *_a: object) -> subprocess.CompletedProcess[str]:
+        invoked.append(list(paths))
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_invoke_mypy", record)
+
+    assert policy.run_mypy(["keep.py", "round.py"], repo) == 0
+    assert invoked == [["keep.py"]]
+
+
+def test_mypy_scope_end_to_end_blocks_changed_line_with_real_git(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Companion to the round-trip end-to-end test: blocking must also work
+    # through real merge-base discovery, not only through mocked seams.
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    base = _commit_file(repo, "keep.py", "value: int = 1\n")
+    _write_file(repo, "keep.py", "value: int = 'broken'\n")
+    _git(repo, "commit", "-aqm", "test: break typing on line 1")
+    monkeypatch.setenv(policy.MYPY_RATCHET_BASE_REF_ENV, base)
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "keep.py:1: error: bad  [assignment]\n"),
+    )
+
+    assert policy.run_mypy(["keep.py"], repo) == 1
+
+
+def test_mypy_cli_main_exit_codes_respect_merge_base_scope(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # ci-scripts CLI exit contract: drive main(argv), not the helper. The
+    # same blocking error must exit nonzero in scope and zero when the file
+    # round-tripped out of scope.
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: {"source.py": {2}})
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "source.py:2: error: bad  [assignment]\n"),
+    )
+    argv = ["--repo-root", str(tmp_path), "mypy", "source.py"]
+
+    monkeypatch.setattr(policy, "_merge_base_scope", lambda *_a: {"source.py"})
+    assert policy.main(argv) == 1
+
+    monkeypatch.setattr(policy, "_merge_base_scope", lambda *_a: set())
+    assert policy.main(argv) == 0
 
 
 def test_mypy_invocation_sets_validation_path(
@@ -7019,6 +7347,7 @@ def test_workflow_local_maps_secret_skip_but_blocks_tool_gap(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _write_file(tmp_path, ".github/workflows/test.yml", "name: test\n")
     monkeypatch.setattr(
         policy,
         "_run_command",
@@ -7227,6 +7556,80 @@ def test_session_and_observation_helpers_aggregate_without_blocking_advisory(
 
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(1))
     assert policy.sync_observations(["memory-observations.md"], tmp_path) == 0
+
+
+def test_sync_observations_stops_at_its_internal_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The advisory must finish under its lefthook cap from the inside.
+
+    A lefthook `timeout:` kill cannot be absorbed by a shell guard, so an
+    advisory job that overruns its cap blocks the push. Each file costs up to
+    the MCP client timeout when the Forgetful server is unreachable, and the
+    first push of a new branch sweeps every tracked observation file into the
+    job, so the loop needs a wall-clock deadline of its own.
+    """
+    synced: list[str] = []
+
+    def _record(command: list[str], _root: Path, **_kwargs: object) -> object:
+        synced.append(command[3])
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", _record)
+    clock = iter([0.0, 0.0, 500.0])
+    monkeypatch.setattr(policy.time, "monotonic", lambda: next(clock))
+
+    assert policy.sync_observations(["a.md", "b.md"], tmp_path) == 0
+
+    assert synced == ["a.md"]
+    assert "skipped 1 of 2" in capsys.readouterr().err
+
+
+def test_sync_observations_clamps_the_child_timeout_to_the_remaining_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A child spawned near the deadline must not outlive the budget.
+
+    The deadline check runs between spawns, so without a clamp a child started
+    just under the deadline keeps the 90s subprocess default and carries the
+    job past the lefthook cap whose kill cannot be absorbed by a shell guard.
+    """
+    seen: list[float] = []
+
+    def _record(command: list[str], _root: Path, *, timeout_seconds: float) -> object:
+        seen.append(timeout_seconds)
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", _record)
+    monkeypatch.setattr(policy, "_OBSERVATION_SYNC_BUDGET_SECONDS", 200.0)
+    clock = iter([0.0, 150.0, 199.0, 250.0])
+    monkeypatch.setattr(policy.time, "monotonic", lambda: next(clock))
+
+    assert policy.sync_observations(["a.md", "b.md", "c.md"], tmp_path) == 0
+
+    # 50s left at the first spawn, 1s at the second; both beat the 90s default.
+    assert seen == [50.0, 1.0]
+
+
+def test_sync_observations_reports_a_fully_exhausted_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Edge: the deadline can pass before the first file is attempted."""
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: pytest.fail("budget was exhausted; nothing may sync"),
+    )
+    monkeypatch.setattr(policy, "_OBSERVATION_SYNC_BUDGET_SECONDS", 0.0)
+
+    assert policy.sync_observations(["a.md", "b.md"], tmp_path) == 0
+
+    assert "skipped 2 of 2" in capsys.readouterr().err
 
 
 def test_placeholder_identity_handles_malformed_deletion_and_failure(
@@ -7958,6 +8361,125 @@ def test_remaining_policy_success_and_error_branches(
     assert "recommended maximum" not in capsys.readouterr().out
 
 
+def test_observation_sync_runs_every_file_within_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Positive: with budget headroom every pushed file is imported once,
+    each child clamped to at most the remaining budget."""
+    commands: list[list[str]] = []
+    timeouts: list[float] = []
+
+    def _record(command, *_args, **_kwargs):
+        commands.append(command)
+        timeouts.append(_kwargs["timeout_seconds"])
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", _record)
+    assert policy.sync_observations(["a-observations.md", "b-observations.md"], tmp_path) == 0
+    imported = [command[3] for command in commands]
+    assert imported == ["a-observations.md", "b-observations.md"]
+    assert all(t <= policy.DEFAULT_SUBPROCESS_TIMEOUT_SECONDS for t in timeouts)
+    assert all(t > 0 for t in timeouts)
+    assert "budget" not in capsys.readouterr().err
+
+
+def test_observation_sync_stays_advisory_on_per_file_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Negative: a failing import warns, continues, and never blocks the push."""
+    results = iter([_completed(1), _completed(0)])
+    monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: next(results))
+    assert policy.sync_observations(["bad-observations.md", "ok-observations.md"], tmp_path) == 0
+    err = capsys.readouterr().err
+    assert "observation sync failed for 'bad-observations.md'" in err
+    assert "budget" not in err
+
+
+def test_observation_sync_budget_exhaustion_skips_remaining_and_stays_green(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Edge: lefthook's 5m timeout kill cannot be absorbed by an advisory job,
+    so the loop's own budget must stop it first, name every skipped file (no
+    silent caps), and still return 0."""
+    monkeypatch.setattr(policy, "_OBSERVATION_SYNC_BUDGET_SECONDS", -1.0)
+    calls: list[list[str]] = []
+
+    def _forbidden(command, *_args, **_kwargs):
+        calls.append(command)
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", _forbidden)
+    assert policy.sync_observations(["a-observations.md", "b-observations.md"], tmp_path) == 0
+    assert calls == []
+    err = capsys.readouterr().err
+    assert "budget" in err
+    assert "skipped 2" in err
+    assert "'a-observations.md', 'b-observations.md'" in err
+
+
+def test_observation_sync_mid_loop_expiry_keeps_progress_and_names_the_rest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Edge: the deadline passing between files keeps the files already
+    imported and skips exactly the remainder, naming them."""
+    clock = iter([0.0, 0.0, policy._OBSERVATION_SYNC_BUDGET_SECONDS + 1.0])
+
+    def _tick() -> float:
+        return next(clock, policy._OBSERVATION_SYNC_BUDGET_SECONDS + 1.0)
+
+    monkeypatch.setattr(policy.time, "monotonic", _tick)
+    commands: list[list[str]] = []
+
+    def _record(command, *_args, **_kwargs):
+        commands.append(command)
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", _record)
+    assert policy.sync_observations(["a-observations.md", "b-observations.md"], tmp_path) == 0
+    assert [command[3] for command in commands] == ["a-observations.md"]
+    err = capsys.readouterr().err
+    assert "exhausted after 1 of 2" in err
+    assert "'b-observations.md'" in err
+    assert "'a-observations.md'," not in err
+
+
+def test_observation_sync_budget_sits_below_the_lefthook_cap() -> None:
+    """The budget protects the job only if budget plus one worst-case child
+    (the unclamped straggler bound) stays at or under lefthook.yml's cap."""
+    import yaml
+
+    repo_root = Path(__file__).resolve().parents[1]
+    config = yaml.safe_load((repo_root / "lefthook.yml").read_text(encoding="utf-8"))
+
+    def _find(jobs):
+        for job in jobs:
+            if job.get("name") == "observation-sync-advisory":
+                return job
+            if "group" in job:
+                found = _find(job["group"].get("jobs", []))
+                if found is not None:
+                    return found
+        return None
+
+    job = _find(config["pre-push"]["jobs"])
+    assert job is not None, "observation-sync-advisory job missing from lefthook.yml"
+    cap_text = job["timeout"]
+    assert cap_text.endswith("m")
+    cap_seconds = float(cap_text[:-1]) * 60
+    assert (
+        policy._OBSERVATION_SYNC_BUDGET_SECONDS + policy.DEFAULT_SUBPROCESS_TIMEOUT_SECONDS
+        <= cap_seconds
+    )
+
+
 def test_changed_commit_path_and_scan_edge_cases(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8211,6 +8733,19 @@ def test_pushed_workflow_paths_selects_only_branch_delta(tmp_path: Path) -> None
     )
 
     assert changed == {".github/workflows/mine.yml"}
+
+
+def test_select_pushed_workflows_excludes_deleted_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, base = _workflow_repo_with_base(tmp_path)
+    deleted = ".github/workflows/imported.yml"
+    _git(repo, "rm", "--", deleted)
+    _git(repo, "commit", "-qm", "test: delete imported workflow")
+    monkeypatch.setenv(policy.WORKFLOW_LOCAL_BASE_REF_ENV, base)
+
+    assert policy._select_pushed_workflows([deleted], repo) == []
 
 
 def test_pushed_workflow_paths_returns_none_when_base_unresolved(
@@ -10447,7 +10982,10 @@ def test_the_tracked_scan_skips_a_sparse_missing_file(tmp_path: Path) -> None:
     assert policy.check_tracked_conflict_markers(repo) == 0
 
 
-@pytest.mark.skipif(os.name == "nt", reason="chmod 0 is a no-op on Windows")
+@pytest.mark.skipif(
+    os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+    reason="root and Windows do not honour the mode-bit barrier this needs",
+)
 def test_the_tracked_scan_fails_config_on_an_unreadable_file(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

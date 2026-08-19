@@ -43,16 +43,19 @@ _WORKFLOW_DIRS = (
 # non-empty reason, so that adding one is a decision rather than a way to
 # silence this test.
 _NOT_WORKFLOW_INVOKED: dict[str, str] = {
-    "build_triage_summary_comment.py": (
-        "Library entrypoint invoked by post_issue_triage_summary_comment.py; "
-        "tests/ci/test_ai_issue_triage_workflow.py verifies the wrapper calls it."
-    ),
     "cli_exit_contract_coverage.py": (
         "Library holding the test-coverage analysis for "
         "cli_exit_contract_ratchet.py, which is workflow-invoked from "
         "pr-validation.yml. It has no main() and no shebang; "
         "tests/ci/test_cli_exit_contract_ratchet.py drives it directly through "
         "covered_stems (issue #4068)."
+    ),
+    "diff_line_scope.py": (
+        "Library holding the unified-diff line-scope parsing shared by "
+        "ruff_ratchet.py, which pytest.yml invokes, and the pre-push mypy gate "
+        "in scripts/validation/git_hook_policy.py. It has no main() and no "
+        "shebang; tests/ci/test_diff_line_scope.py covers it directly "
+        "(issue #2993)."
     ),
     "count_ratchet.py": (
         "Library holding the ratchet policy shared by ruff_count_ratchet.py and "

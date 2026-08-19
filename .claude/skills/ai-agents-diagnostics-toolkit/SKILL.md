@@ -2,7 +2,7 @@
 name: ai-agents-diagnostics-toolkit
 version: 1.0.0
 license: MIT
-description: Catalog of this repo's measurement instruments, each with command, current baseline, and interpretation guide. Covers skill size and description budgets, orphan-ref and golden-principles scans, drift gates as signals, guard telemetry and maturity tiers, coverage pins, and the eval harness. Use when you say `measure this`, `read the drift signal`, `check skill budgets`, `guard maturity report`. Do NOT use to fix what you measure (use `ai-agents-debugging-playbook`) or for evidence standards (use `ai-agents-validation-and-qa`).
+description: Catalog of this repo's measurement instruments, each with command, current baseline, and interpretation guide. Covers skill size and description budgets, orphan-ref and golden-principles scans, drift gates as signals, coverage pins, and the eval harness. Use when you say `measure this`, `read the drift signal`, `check skill budgets`. Do NOT use to fix what you measure (use `ai-agents-debugging-playbook`) or for evidence standards (use `ai-agents-validation-and-qa`).
 ---
 
 # ai-agents Diagnostics Toolkit
@@ -10,14 +10,13 @@ description: Catalog of this repo's measurement instruments, each with command, 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 Measure instead of eyeball. Every instrument below is a read-only command that turns a vague worry ("are skills getting bloated?", "did generation drift?") into a number you can compare against a baseline. The Instrument Index gives you, per instrument, the question it answers and the exact command; [`references/instrument-guides.md`](references/instrument-guides.md) gives the healthy and unhealthy reading, the current repo baseline (as of 2026-07-29), and the trap that has already cost someone time.
 
-Vocabulary, defined once: an "instrument" is a script whose output you read, not a gate you must pass. A "drift gate" is a CI check that fails when a generated tree stops matching its canonical source. "EVENT telemetry" is the one-line JSON a push guard prints to stderr when it runs. A "baseline" is the number the instrument reports on a clean checkout of main; you measure your delta against it.
+Vocabulary, defined once: an "instrument" is a script whose output you read, not a gate you must pass. A "drift gate" is a CI check that fails when a generated tree stops matching its canonical source. A "baseline" is the number the instrument reports on a clean checkout of main; you measure your delta against it.
 
 ## Triggers
 
 - `measure this`
 - `read the drift signal`
 - `check skill budgets`
-- `guard maturity report`
 - `interpret this scan output`
 
 ## Instrument Index
@@ -31,7 +30,6 @@ Vocabulary, defined once: an "instrument" is a script whose output you read, not
 | Agent drift | Do generated agent files match their templates? | `uv run python build/generate_agents.py --validate` |
 | Mirror drift | Do the 7 generated mirror trees match `.claude/` canonical sources? | `uv run python build/scripts/build_all.py --check` |
 | Lib drift | Do `.claude/lib/` copies match `scripts/` canonical modules? | `uv run python ./scripts/sync_plugin_lib.py --check` |
-| Guard maturity | Which push guards earn their keep? | `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/guard-maturity/scripts/run_report.py"` |
 | Coverage | Is changed code actually exercised by tests? | `uv run pytest <tests> --cov=<module> --cov-branch` |
 | Eval A/B | Did a prompt or agent change alter behavior, measurably? | `uv run python ./scripts/eval/eval-prompt-change.py --scenarios <file> --dry-run` |
 | Commit count | Am I approaching the 20-commit PR cap? | `git rev-list --count HEAD ^origin/main` |
@@ -103,7 +101,7 @@ Before citing any number from this toolkit in a PR, session log, or decision:
 
 Written 2026-07-02; every baseline in this skill re-measured 2026-07-29 by running each instrument on this checkout. Under the current squash-only policy, PR-branch SHAs do not land on `main`. One merge commit predates that policy (`0f13c85ab`, PR #1, 2025-12-13), so verify ancestry instead of assuming. Do not use `git log` to re-derive any of this.
 
-Sources: `scripts/skill_description_budget.py` (docstring, issue #2794), `scripts/validation/skill_size.py` (limits, issue #676), `.claude/skills/orphan-ref-validator/scripts/scan.py:234-235` and `patterns.py:63,89` (directives), `.claude/skills/golden-principles/scripts/scan_principles.py` (rules, exit 10), `build/scripts/build_all.py:19,1005-1033` (#2440 read-only check), `build/scripts/classify_guard_maturity.py` (tier table), `build/scripts/aggregate_guard_intercepts.py:185-189` (telemetry default source), `.github/workflows/pytest.yml:202-222` (coverage pins), `scripts/eval/eval-prompt-change.py --help` and `scripts/eval/_anthropic_api.py` (harness), `AGENTS.md:17` (commit cap), `.claude/skills/skillforge/scripts/_constants.py:65` (1024 cap, canonical; `validate-skill.py:241-242` enforces it).
+Sources: `scripts/skill_description_budget.py` (docstring, issue #2794), `scripts/validation/skill_size.py` (limits, issue #676), `.claude/skills/orphan-ref-validator/scripts/scan.py:234-235` and `patterns.py:63,89` (directives), `.claude/skills/golden-principles/scripts/scan_principles.py` (rules, exit 10), `build/scripts/build_all.py:19,1005-1033` (#2440 read-only check), `.github/workflows/pytest.yml:202-222` (coverage pins), `scripts/eval/eval-prompt-change.py --help` and `scripts/eval/_anthropic_api.py` (harness), `AGENTS.md:17` (commit cap), `.claude/skills/skillforge/scripts/_constants.py:65` (1024 cap, canonical; `validate-skill.py:241-242` enforces it).
 
 Re-verify one-liners for every volatile fact:
 
@@ -114,8 +112,7 @@ Re-verify one-liners for every volatile fact:
 | Orphan-ref verdict and counts | `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/orphan-ref-validator/scripts/scan.py"` (read last line) |
 | Golden-principles totals | `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-principles/scripts/scan_principles.py"` (read last line, expect exit 10 while baseline is red) |
 | Drift gates green | run all three gate commands from the Drift gates section of [`references/instrument-guides.md`](references/instrument-guides.md) |
-| Guard tiers and telemetry dir | `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/guard-maturity/scripts/run_report.py"` and `ls .agents/telemetry/` |
-| push_guard_base location | `ls .claude/hooks/PreToolUse/push_guard_base.py` |
+| Push guards and guard-maturity classifier removed under ADR-084 | `ls .claude/hooks/PreToolUse/` (no `push_guard_base.py` or `invoke_*_guard.py` should be present) and `ls -d .claude/skills/guard-maturity` (expect "No such file or directory"; issue #5154) |
 | Coverage pin forms | `grep -n "cov-fail-under" .github/workflows/pytest.yml` |
 | Commit count | `git rev-list --count HEAD ^origin/main` |
 
