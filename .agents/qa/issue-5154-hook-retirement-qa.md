@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-18-session-5154-b6c2a2eed-retire-three-tool-use-hooks-vendored.json
-qaCommit: ef5ef3a98d305dee4d684f22bca87bc367d58ffc
+qaCommit: b2e1e248be185d8c9e39bd274e9b53cf7ff0c53e
 ---
 
 # QA report: issue #5154 tool-use hook retirement
@@ -40,6 +40,7 @@ rule 3 changes meaning.
 | Always-on corpus claims | `pytest tests/validation/test_always_on_corpus_claims.py` | 37 passed |
 | Generator drift | `build/scripts/generate_rules.py` then `build_all.py --check` | exit 0 |
 | ADR-prose and hook suites, post-flip | `pytest tests/build_scripts tests/validation tests/hooks -q` | 5792 passed, 9 skipped |
+| ADR-prose gates, post round-2 fixes | `pytest tests/build_scripts/test_hook_contract_knowledge.py tests/hooks/test_adr_hook_claims.py -q` | 402 passed |
 
 adr-review round 1 returned 3 Block, 2 Disagree-and-Commit, 1 conditional
 Accept. Every blocking finding is resolved and recorded in
