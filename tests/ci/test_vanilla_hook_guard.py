@@ -166,6 +166,23 @@ def test_event_is_registered_raises_on_a_malformed_hooks_mapping(guard, tmp_path
         guard.event_is_registered(hooks, "PreToolUse")
 
 
+def test_event_is_registered_raises_when_the_event_value_is_not_a_list(
+    guard, tmp_path: Path
+) -> None:
+    """A present event whose value is a dict, not a list, is malformed too.
+
+    ``{"PreToolUse": {}}`` is not "nothing registered": the key exists but its
+    value has the wrong shape for a hook-command list. Before this control,
+    `isinstance(entries, list)` on a dict returned False, so this shape read
+    as "not registered" and the guard passed vacuously (skipped Docker/
+    PowerShell entirely) instead of failing closed on a broken manifest.
+    """
+    hooks = tmp_path / "hooks.json"
+    hooks.write_text('{"hooks": {"PreToolUse": {}}}', encoding="utf-8")
+    with pytest.raises(guard.GuardError, match="malformed 'PreToolUse' entry"):
+        guard.event_is_registered(hooks, "PreToolUse")
+
+
 def test_main_passes_vacuously_when_no_pretooluse_hooks_are_registered(
     guard, tmp_path: Path
 ) -> None:

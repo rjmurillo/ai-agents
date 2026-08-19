@@ -127,13 +127,27 @@ def event_is_registered(hooks_json: Path, event: str) -> bool:
     malformed manifest is a different failure and must not be read as
     "nothing registered"; this function lets those propagate as a raised
     exception rather than swallowing them into an empty result.
+
+    A *present* event whose value is not a list (``{"PreToolUse": {}}``) is
+    the same kind of malformed manifest, not an absent registration: reading
+    it as "not registered" would let a broken manifest pass this guard
+    vacuously instead of failing closed, which contradicts the fail-closed
+    contract this docstring already claims for a malformed ``hooks``
+    mapping.
     """
     data = json.loads(hooks_json.read_text(encoding="utf-8"))
     hooks = data.get("hooks")
     if not isinstance(hooks, dict):
         raise GuardError(f"malformed 'hooks' mapping in {hooks_json}")
-    entries = hooks.get(event)
-    return isinstance(entries, list) and len(entries) > 0
+    if event not in hooks:
+        return False
+    entries = hooks[event]
+    if not isinstance(entries, list):
+        raise GuardError(
+            f"malformed '{event}' entry in {hooks_json}: expected a list, "
+            f"got {type(entries).__name__}"
+        )
+    return len(entries) > 0
 
 
 def assert_degraded(returncode: int, output: str) -> None:
