@@ -94,12 +94,12 @@
         "same bar"
       ],
       "expected_gate": "per-call-event-in-scope",
-      "rationale": "The bar covers every per-call event precisely to close this. PostToolUseFailure is excluded from _MATCHER_EVENTS in generate_dispatcher.py:517, so it cannot be tool-scoped, and the live registration carries no matcher and fires on every failed tool call. Choosing it makes the cost worse, not better."
+      "rationale": "The bar covers every per-call event precisely to close this. PostToolUseFailure is excluded from _MATCHER_EVENTS in generate_dispatcher.py:517, so it cannot be tool-scoped at all: any registration on it carries no matcher and fires on every failed tool call. Choosing it makes the cost worse, not better. ADR-096 left the event with nothing registered, so this is what re-adding one would cost, not a description of a live hook."
     },
     {
       "id": "S8",
       "desc": "Widening an existing matcher rather than adding a hook",
-      "input": "Rather than registering a new hook I will widen an existing PreToolUse matcher from Agent|Task to also include Bash. Plan in 5 short bullets. Do not modify any files.",
+      "input": "Rather than registering a new hook I will widen a PreToolUse matcher from Agent|Task to also include Bash. Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "union",
         "every Bash call",
@@ -107,7 +107,7 @@
         "blast radius"
       ],
       "expected_gate": "widening-clears-the-same-bar",
-      "rationale": "MUST 3's union argument applies exactly here, and every other scenario is a new-hook proposal. Widening a matcher adds the same per-call cost and the same wrong-deny blast radius as a new registration, so it clears the same bar."
+      "rationale": "MUST 3's union argument applies exactly here, and every other scenario is a new-hook proposal. Widening a matcher adds the same per-call cost and the same wrong-deny blast radius as a new registration, so it clears the same bar. ADR-096 left zero hooks registered, so the Agent|Task matcher named here is hypothetical; the reasoning is unchanged either way."
     },
     {
       "id": "S9",
