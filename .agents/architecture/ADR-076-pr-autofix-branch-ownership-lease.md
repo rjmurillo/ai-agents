@@ -243,3 +243,77 @@ ADR-088 moved the book-derived rule cited above into the `software-engineering-l
 
 - Current guidance now lives at `.claude/skills/software-engineering-library/references/release-it.md`.
 
+## Amendment 2026-08-19: PR-closed check on the renew path (revised after adr-review round 1)
+
+**Status: Round 1 (architect, critic, independent-thinker, security, analyst, high-level-advisor) returned 6/6 ACCEPT-WITH-CHANGES. Debate log: `.agents/critique/ADR-076-amendment-2026-08-19-debate-log.md`.** This text is the Phase 3 resolution incorporating the convergent required changes; see the debate log for the full finding-by-finding mapping. This amendment does not change the accepted status of ADR-076 itself.
+
+**Correction to part 3 step 6.** ADR-076 part 3 step 6 (Decision, above) still reads "Fail open... return ACT with reason `lease-store-unavailable`" for the read/write path. That text is superseded by the issue #4966 fail-closed narrowing implemented in `acquire()` (`pr_autofix_lease.py:1147-1153`, `1212-1218`, `1242-1249`) and documented in the module's own docstring (lines 81-119), which was never recorded as an amendment. It is marked superseded here rather than rewritten in place, to keep the original decision text intact as history.
+
+### Context
+
+Issue #5165 (P1, filed 2026-08-19) reports that `acquire()` (`pr_autofix_lease.py:1054-1272`) has no path to observe that a PR it is renewing a lease for has merged or closed: it reads only the PR's `head.sha` (`_pr_head_sha`) and the lease-comment timeline, never `state`, `merged`, or `closed`. PR #5078 merged at `2026-08-19T12:26:10Z`; a caller identifying itself as `copilot-d2f358d2-pr5078` kept invoking `renew` against it afterward, roughly every 4 minutes, 13+ times as the issue was filed.
+
+**Corrected cost estimate (round 1 finding).** The original draft of this amendment claimed a 4-minute cadence "crosses [the `RENEW_SKIP_MARGIN`] threshold on most calls." Recomputed against the module's own constants (`TTL = 15 min`, `RENEW_SKIP_MARGIN = 5 min`, `pr_autofix_lease.py:214`, `246`): a successful self-renew resets `expires_at` to `now + 15m`; the noop fast path (`:1169-1176`) suppresses a write whenever more than 5 minutes remain, so at a strict 4-minute cadence only the 3rd call in each ~12-minute cycle actually writes. **The write rate is roughly 1 in 3 calls, not most.** Separately, the 13 observed renewals (12:26Z to 13:18Z) overlap the merge of PR #5161 (`e28feae`, 2026-08-19 12:42:54Z), which shipped `RENEW_SKIP_MARGIN` mid-incident, so the post-#5161 residual comment volume for this specific caller has not actually been measured in isolation. The residual problem is real (an unbounded renewal loop with no terminal signal, confirmed by reading `acquire()` in full), but its cost is smaller and less precisely known than the original draft stated. This amendment does not depend on the larger estimate: the fix is justified by "unbounded and self-never-terminating" regardless of the exact comment count.
+
+**This is not the bug issue #5160 fixed.** `RENEW_SKIP_MARGIN` throttles a renew that arrives faster than the lease's own churn tolerance; it says nothing about a renew that keeps arriving, forever, against a PR that no longer needs coordination.
+
+The caller that produced these renewals is not in this repository (not found in `.claude/`, `scripts/`, or `.github/workflows/`; most likely an external GitHub Copilot coding-agent job's own orchestration). This amendment cannot fix that caller. It bounds the blast radius: any caller, present or future, that keeps calling `renew` past the point its target PR closed gets a terminal signal instead of an indefinite ACT loop, and stops posting lease comments regardless of whether it ever reads that signal.
+
+### Decision
+
+Widen the existing `_pr_head_sha` REST call (`pr_autofix_lease.py:677-702`, `gh api repos/{owner}/{repo}/pulls/{pr} --jq .head.sha`) to also project `state` and `merged`, instead of adding a new GraphQL call. That call already fires on the write path of every `acquire()`/`renew` that reaches it (after the `RENEW_SKIP_MARGIN` noop check, `:1181-1186`); widening its `--jq` filter to `{sha:.head.sha, state:.state, merged:.merged}` (or equivalent) costs zero additional round-trips over what the module already spends today. This directly resolves the round-1 finding that a dedicated GraphQL call is both unnecessary (the fact is already being fetched and discarded) and risky (it would exceed the `RENEW_FAILOPEN_LIVENESS_MARGIN` I/O budget the self-renew fail-open window was sized against, per the security reviewer's finding).
+
+When the widened response confirms the PR is merged or closed **and the caller passed `renewing=True`**, `acquire()` returns the existing `SKIP` action with `reason: "pr-closed"`, instead of proceeding to classify and write a claim. **This is not a new action value.** Round 1 converged on dropping the originally proposed third `DONE` verdict: the module's established extension point for verdict specificity is the `reason` string (nine values already ship today against two `action` values), ADR-035's exit-code range is already fully allocated by this module (0/2/3/4 taken, 1 = SKIP), and the one caller that motivated this amendment is external and will never be updated to branch on a new action value, so a new verdict buys nothing over `SKIP`/`pr-closed` for the case that matters while costing an exit code this module has nowhere to put. `main()`'s existing `return 0 if result.action == "ACT" else 1` (`:1564`) needs no change; a caller that reads only the exit code degrades safely to "declines to act, retries later" (today's SKIP behavior), and a caller that reads the structured `reason` field can distinguish "stop, the PR closed" from "wait, another lease holds it" without any contract change to the action taxonomy.
+
+**Scoping to `renewing=True` only, not fresh `acquire`.** The original draft justified this by claiming `check_pr_live_state.py` already gates `pr-autofix`'s own PR selection before `acquire` is ever reached. That claim is false: the shipped recipe in `.claude/commands/pr-autofix.md` runs `acquire` first (~line 343, "Step 1") and `check_pr_live_state.py` second (~line 371, "Step 2"). The correct justification is cost, not gating: a fresh acquire against a closed PR happens once per fix attempt, bounded by how many PRs pr-autofix walks in a session, while an unbounded `renew` loop is unbounded by construction. Scoping to `renewing=True` keeps the change minimal and targeted at the actually-unbounded case; a fresh acquire against a closed PR still posts one lease comment per attempt, which this amendment does not address and which is named here as a known residual, not silently dropped.
+
+**Placement**: inside the existing `try`/`except LeaseStoreError` block around the `_pr_head_sha` call (`:1181-1186`), after the `RENEW_SKIP_MARGIN` noop fast path (`:1169-1176`) and after `classify_acquire` has already determined the caller would otherwise proceed to a write. This placement, not the originally proposed pre-classification placement, means the widened read only runs on the renew path that is actually about to post a comment, not on every renew call (including ones the noop fast path or a `held-by:<owner>` SKIP would already have short-circuited for free).
+
+### Fail-open vs fail-closed for the widened read
+
+The existing module fails closed on an unverifiable *lease* read (issue #4966: an ownership gate that cannot verify must not mutate) and fails open on release and a token-backed renew's store I/O (issue #4376). The widened PR-state fields ride the *same* REST call `acquire()` already makes and already fails open on (`:1183-1186`, recording the zero-SHA sentinel and proceeding): if that call fails, `acquire()` already proceeds today, so this amendment introduces no new fail-open decision and no new I/O added to the `RENEW_FAILOPEN_LIVENESS_MARGIN` budget. A failed fetch (of the SHA, or now also of `state`/`merged`) falls through to existing behavior unchanged, exactly as it does today.
+
+A successful fetch that confirms merged/closed returns `SKIP`/`pr-closed` and skips the write; there is nothing new to say about not-found, since this amendment adds no new not-found discrimination (the REST call's existing 404/error handling is unchanged).
+
+### Alternatives Considered
+
+| Alternative | Pros | Cons | Why Not Chosen |
+|-------------|------|------|----------------|
+| Do nothing; rely on the caller to stop | Zero code change | The caller is external and cannot be fixed here; the loop has no self-terminating condition by construction | Leaves confirmed, unbounded (if modest) waste unaddressed |
+| Lower `RENEW_SKIP_MARGIN` or cap total renewal count | No new I/O; smaller diff | Does not answer "should this PR still be renewed at all"; a cap either times out a legitimately long fix or still renews a closed PR up to the cap | Treats the symptom (write frequency), not the cause (renewing a closed PR) |
+| Add a dedicated GraphQL call reusing `check_pr_live_state.py`'s `_LIVE_STATE_QUERY` and a new `DONE` action (original draft) | Reuses an already-schema-verified query; precise semantics | Reaches into another module's private, non-`__all__` constant; adds a round-trip the security review found exceeds the self-renew fail-open I/O budget; needs an exit code the module has no range left for; the caller that matters won't read it anyway | Superseded by the REST-reuse alternative, which achieves the same comment suppression at zero added round-trips and zero new verdict contract |
+| Have `acquire()` call `check_pr_live_state.main()` as a subprocess | Reuses the sibling's CLI directly | Spawns a second `gh` process per renewal; couples control flow to an exit-code contract; folds in supersession-by-main and draft status this check does not need | Heavier than the REST-reuse alternative for the same information |
+| **Widen the existing `_pr_head_sha` REST call; return `SKIP`/`pr-closed` (chosen)** | Zero new round-trips (the call already runs on the write path); no new action value or exit code; placement after the noop fast path means it only fires when a write is actually imminent | The REST payload's `state`/`merged` fields are a second source of live-PR-state truth alongside `check_pr_live_state.py`'s GraphQL query, so the two are not unified into one shared helper in this change | Cheapest option that fully addresses the unbounded-renewal cost with no new contract surface; unifying the two live-state read paths into a shared `github_core` helper is a reasonable follow-up but is not required to fix issue #5165 and is left out of scope here to keep this change minimal |
+
+### Security
+
+The widened `--jq` projection reads two additional fields (`state`, `merged`) from a REST response `acquire()` already fetches and already trusts for `.head.sha`; it introduces no new query, no new parser, no new subprocess call, and no new untrusted-input surface. `state`/`merged` are typed JSON fields from GitHub's own API, not free-text comment bodies, so none of ADR-076's existing Security section (lease-comment forgery, CWE-78/345/400/367) is affected. Because this amendment adds no new I/O to the self-renew fail-open window (`RENEW_FAILOPEN_LIVENESS_MARGIN`, `:234`), it introduces no new CWE-367 (TOCTOU) exposure into that budget, which the round-1 security review flagged as a real risk for the originally proposed dedicated GraphQL call.
+
+A forged or delayed REST response that misreports `merged`/`state` can at most cause a renew to return `SKIP`/`pr-closed` on a PR that is actually still open (a false stop) or fall through unchanged on a fetch failure (today's behavior). A false stop degrades to exactly what happens today when another lease holds the branch: the caller declines, the lease expires within one TTL, and the Force-Push Safety SHA gate remains the only hard boundary against an overwrite either way.
+
+### Impact on Dependent Components
+
+| Component | Dependency Type | Required Update | Risk |
+|-----------|----------------|-----------------|------|
+| `pr_autofix_lease.py` `acquire()` | Direct | Widen `_pr_head_sha`'s `--jq` projection (or add a sibling helper) to also return `state`/`merged`; after the `RENEW_SKIP_MARGIN` noop check and only when `renewing=True`, return `SKIP`/`pr-closed` instead of writing when merged/closed is confirmed; tests: closed PR on the write path returns SKIP/pr-closed with no write; open PR unchanged; fetch failure unchanged (existing fail-open path); fresh (`renewing=False`) acquire against a closed PR is unaffected (documented residual) | Medium |
+| `pr_autofix_lease.py` CLI (`main`) | Direct | No change; `SKIP` already maps to exit 1 (`:1564`) and `status="WARNING"` (`:1561`), which are the correct existing semantics for "declined to act" | None |
+| Callers of `renew` (local `pr-autofix`, any future remote Phase 2 integration) | Indirect | No caller contract change; a caller that inspects the `reason` field can log `pr-closed` distinctly from `held-by:<owner>`, but nothing requires it to | None |
+| `check_pr_live_state.py` | Indirect | No change; this amendment does not read or modify its query | None |
+| `src/copilot-cli/` mirror of the github skill | Direct | Regenerate via `build/scripts/build_all.py` after `scripts/sync_plugin_lib.py`, per `.claude/rules/generated-artifacts.md` | Low |
+
+### Consequences
+
+**Positive**: eliminates the unbounded-renewal write cost at zero added round-trips over what `acquire()` already spends on its write path today. No new action value, no new exit code, no caller migration required. Fresh acquire's residual (a lease comment on a closed PR per attempt) is bounded by how many PRs pr-autofix walks, unlike the unbounded renew case.
+
+**Negative**: an external caller unaware of the change still polls `renew` indefinitely; it simply stops receiving a written comment in response (a `SKIP`/`pr-closed` verdict, silently). The two live-PR-state read paths in this repository (`_pr_head_sha`'s widened REST call here, `check_pr_live_state.py`'s GraphQL query) remain unconsolidated; a future ADR may unify them into a shared `github_core` helper.
+
+**Neutral**: does not touch `acquire`'s fresh (`renewing=False`) path, `release`, or `status`.
+
+### Related Decisions
+
+- Issue #5165 (P1): the triggering incident this amendment addresses.
+- Issue #5160 / PR #5161: the prior, narrower fix (`RENEW_SKIP_MARGIN`) that reduced but did not eliminate write frequency, and whose merge (`e28feae`, 12:42:54Z) overlapped the incident window this amendment's evidence was drawn from.
+- Issue #4966, #4376: the fail-open/fail-closed narrowings whose reasoning this amendment's "Fail-open vs fail-closed" section extends.
+- ADR-090 (proposed, issue #3413): amends ADR-076 for the same subsystem with a v2 lease marker, 30-minute TTL, and mandatory 5-minute renewal. This amendment's `SKIP`/`pr-closed` verdict is additive to the existing `reason` taxonomy and does not depend on ADR-076's v1 lease shape; if ADR-090 is accepted, the same widened-REST-call approach carries forward unchanged, since it reads PR state independent of the lease marker's own version.
+- Issue #2455 (`check_pr_live_state.py`): the sibling probe whose ACT/SKIP *pattern* (not its GraphQL query, in this revision) this amendment's verdict shape follows.
+

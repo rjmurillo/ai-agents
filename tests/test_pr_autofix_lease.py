@@ -587,17 +587,23 @@ def _patch_post(author: str = _AUTHOR, created_at: datetime | None = None):
 
 
 @contextlib.contextmanager
-def _patch_head(sha=_SHA, pr_head=_SHA):
+def _patch_head(sha=_SHA, pr_head=_SHA, *, pr_state="OPEN", pr_merged=False):
     """Patch both SHA reads acquire performs.
 
     ``sha`` is what the caller's checkout reports at HEAD; ``pr_head`` is
     what GitHub reports as the PR head. They are separate inputs because
     the defect in #4357 was acquire publishing the first as if it were the
-    second.
+    second. ``pr_state``/``pr_merged`` default to an open, unmerged PR
+    (issue #5165); pass ``pr_state="CLOSED"`` or ``pr_merged=True`` to
+    exercise the renew/pr-closed path.
     """
     with (
         patch.object(_mod, "_git_head_sha", return_value=sha),
-        patch.object(_mod, "_pr_head_sha", return_value=pr_head),
+        patch.object(
+            _mod,
+            "_pr_head_state",
+            return_value=_mod._PrHeadState(sha=pr_head, state=pr_state, merged=pr_merged),
+        ),
     ):
         yield
 
@@ -1074,7 +1080,7 @@ class TestBaseShaProvenance:
         # would surrender mutual exclusion over a transient API error, so a
         # failure records the sentinel and the claim is still posted.
         with (
-            patch.object(_mod, "_pr_head_sha", side_effect=LeaseStoreError("api down")),
+            patch.object(_mod, "_pr_head_state", side_effect=LeaseStoreError("api down")),
             patch.object(_mod, "_git_head_sha", return_value=_OTHER_CHECKOUT),
             _patch_list([]),
             _patch_post() as post,
@@ -1097,7 +1103,7 @@ class TestBaseShaProvenance:
             author="coderabbit[bot]",
         )
         with (
-            patch.object(_mod, "_pr_head_sha", side_effect=LeaseStoreError("api down")),
+            patch.object(_mod, "_pr_head_state", side_effect=LeaseStoreError("api down")),
             patch.object(_mod, "_git_head_sha", return_value=_OTHER_CHECKOUT),
             _patch_list([live]),
             _patch_post() as post,
@@ -1493,38 +1499,56 @@ class TestGitHeadShaAgainstRealGit:
 
         assert _mod._git_head_sha() == expected
 
-    # --- _pr_head_sha adapter (issues #4357, #4375) -----------------------
+    # --- _pr_head_state adapter (issues #4357, #4375, #5165) --------------
 
-    def test_pr_head_returns_sha_on_success(self):
-        with patch.object(_mod.subprocess, "run", return_value=_completed(stdout=_SHA + "\n")):
-            assert _mod._pr_head_sha("o", "r", 1) == _SHA
+    def test_pr_head_returns_sha_and_state_on_success(self):
+        payload = json.dumps({"sha": _SHA, "state": "OPEN", "merged": False})
+        with patch.object(_mod.subprocess, "run", return_value=_completed(stdout=payload + "\n")):
+            result = _mod._pr_head_state("o", "r", 1)
+        assert result.sha == _SHA
+        assert result.state == "OPEN"
+        assert result.merged is False
+
+    def test_pr_head_returns_merged_state(self):
+        payload = json.dumps({"sha": _SHA, "state": "MERGED", "merged": True})
+        with patch.object(_mod.subprocess, "run", return_value=_completed(stdout=payload)):
+            result = _mod._pr_head_state("o", "r", 1)
+        assert result.state == "MERGED"
+        assert result.merged is True
 
     def test_pr_head_raises_store_error_on_nonzero_exit(self):
         with patch.object(_mod.subprocess, "run", return_value=_completed(rc=1, stderr="404")):
             with pytest.raises(LeaseStoreError):
-                _mod._pr_head_sha("o", "r", 1)
+                _mod._pr_head_state("o", "r", 1)
 
     def test_pr_head_raises_store_error_on_oserror(self):
         with patch.object(_mod.subprocess, "run", side_effect=OSError("gh missing")):
             with pytest.raises(LeaseStoreError):
-                _mod._pr_head_sha("o", "r", 1)
+                _mod._pr_head_state("o", "r", 1)
 
     def test_pr_head_raises_store_error_on_non_sha_payload(self):
         with patch.object(_mod.subprocess, "run", return_value=_completed(stdout="null\n")):
             with pytest.raises(LeaseStoreError):
-                _mod._pr_head_sha("o", "r", 1)
+                _mod._pr_head_state("o", "r", 1)
+
+    def test_pr_head_raises_store_error_on_non_json_payload(self):
+        with patch.object(_mod.subprocess, "run", return_value=_completed(stdout="not json\n")):
+            with pytest.raises(LeaseStoreError):
+                _mod._pr_head_state("o", "r", 1)
 
     def test_pr_head_reads_the_requested_pull_request(self):
         seen: dict = {}
 
         def _run(argv, **kwargs):
             seen["argv"] = argv
-            return _completed(stdout=_SHA)
+            return _completed(stdout=json.dumps({"sha": _SHA, "state": "OPEN", "merged": False}))
 
         with patch.object(_mod.subprocess, "run", side_effect=_run):
-            _mod._pr_head_sha("acme", "widgets", 42)
+            _mod._pr_head_state("acme", "widgets", 42)
         assert "repos/acme/widgets/pulls/42" in seen["argv"]
-        assert ".head.sha" in seen["argv"]
+        assert ".head.sha" in seen["argv"][-1]
+        assert ".state" in seen["argv"][-1]
+        assert ".merged" in seen["argv"][-1]
 
     # --- _gh_authenticated_login adapter (must_fix #7) --------------------
 
@@ -1973,6 +1997,121 @@ class TestRenewSubcommand:
         assert payload["Data"]["reason"] == "self-renew-noop"
         assert payload["Data"]["expires_at"] == _rfc(real_now + timedelta(minutes=10))
         assert post.call_count == 0
+
+    # --- PR-closed check on the renew path (ADR-076 Amendment 2026-08-19,
+    # issue #5165) -----------------------------------------------------------
+
+    def test_renew_on_merged_pr_returns_skip_pr_closed_without_writing(self, capsys):
+        # A self-renew whose PR has since merged must stop coordinating
+        # instead of writing another marker comment forever.
+        real_now = datetime.now(UTC)
+        live_body = _body(
+            owner=_OWNER,
+            session=_SESSION,
+            acquired=real_now - timedelta(minutes=13),
+            expires=real_now + timedelta(minutes=2),
+        )
+        mine = _comment(live_body, _rfc(real_now - timedelta(minutes=13)), author=_AUTHOR)
+        with (
+            patch.object(_mod, "assert_gh_authenticated", return_value=None),
+            patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
+            _patch_list([mine]),
+            _patch_post() as post,
+            _patch_head(pr_merged=True, pr_state="MERGED"),
+            _patch_login(login=_AUTHOR),
+        ):
+            rc = main(
+                ["renew", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
+            )
+        assert rc == 1
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Data"]["action"] == "SKIP"
+        assert payload["Data"]["reason"] == "pr-closed"
+        post.assert_not_called()
+
+    def test_renew_on_closed_unmerged_pr_returns_skip_pr_closed(self, capsys):
+        # A renew that would otherwise re-claim a free lock (no live lease
+        # held) must still stop when the target PR is closed, not merged.
+        with (
+            patch.object(_mod, "assert_gh_authenticated", return_value=None),
+            patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
+            _patch_list([]),
+            _patch_post() as post,
+            _patch_head(pr_state="CLOSED", pr_merged=False),
+            _patch_login(login=_AUTHOR),
+        ):
+            rc = main(
+                ["renew", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
+            )
+        assert rc == 1
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Data"]["action"] == "SKIP"
+        assert payload["Data"]["reason"] == "pr-closed"
+        post.assert_not_called()
+
+    def test_renew_on_open_pr_is_unaffected(self, capsys):
+        # Negative control: the overwhelming majority of renews, against a
+        # still-open PR, must be unaffected by the new check.
+        real_now = datetime.now(UTC)
+        live_body = _body(
+            owner=_OWNER,
+            session=_SESSION,
+            acquired=real_now - timedelta(minutes=13),
+            expires=real_now + timedelta(minutes=2),
+        )
+        mine = _comment(live_body, _rfc(real_now - timedelta(minutes=13)), author=_AUTHOR)
+        with (
+            patch.object(_mod, "assert_gh_authenticated", return_value=None),
+            patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
+            _patch_list([mine]),
+            _patch_post() as post,
+            _patch_head(pr_state="OPEN", pr_merged=False),
+            _patch_login(login=_AUTHOR),
+        ):
+            rc = main(
+                ["renew", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
+            )
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Data"]["action"] == "ACT"
+        assert payload["Data"]["reason"] == "self-renew"
+        post.assert_called_once()
+
+    def test_renew_pr_state_read_failure_falls_through_unchanged(self, capsys):
+        # A failed live-state read must not block a renew; it degrades to
+        # exactly today's behavior (fresh claim on a free lock).
+        with (
+            patch.object(_mod, "assert_gh_authenticated", return_value=None),
+            patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
+            patch.object(_mod, "_pr_head_state", side_effect=LeaseStoreError("api down")),
+            patch.object(_mod, "_git_head_sha", return_value=_SHA),
+            _patch_list([]),
+            _patch_post() as post,
+            _patch_login(login=_AUTHOR),
+        ):
+            rc = main(
+                ["renew", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
+            )
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Data"]["action"] == "ACT"
+        assert payload["Data"]["reason"] == "free"
+        post.assert_called_once()
+
+    def test_fresh_acquire_on_closed_pr_is_unaffected(self):
+        # Documented residual (ADR-076 Amendment 2026-08-19): the pr-closed
+        # check is scoped to renewing=True only. A fresh (non-renewing)
+        # acquire against a closed PR still claims it.
+        with (
+            _patch_list([]),
+            _patch_post() as post,
+            _patch_head(pr_state="CLOSED", pr_merged=False),
+            _patch_login(),
+        ):
+            result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW, renewing=False)
+        assert result.action == "ACT"
+        assert result.reason == "free"
+        post.assert_called_once()
 
     def test_renew_on_free_lease_re_claims(self, capsys):
         # Edge: renew when lease already expired re-claims it (same as acquire).

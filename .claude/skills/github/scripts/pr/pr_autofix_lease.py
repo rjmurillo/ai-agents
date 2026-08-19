@@ -40,9 +40,13 @@ ACT/SKIP convention):
     0 - ACT: caller may proceed. Returned on a clean acquire or self-renew,
         a release, or one of the three fail-open paths enumerated in the
         "Fail-open vs fail-closed" section below.
-    1 - SKIP: another live lease holds the branch, OR the ownership read
-        could not reach the store (fail-closed; issue #4966, narrowing
-        ADR-076 part 3 step 6)
+    1 - SKIP: another live lease holds the branch, the ownership read could
+        not reach the store (fail-closed; issue #4966, narrowing ADR-076
+        part 3 step 6), OR (``renew`` only) the PR has already merged or
+        closed, reason ``pr-closed`` (ADR-076 Amendment 2026-08-19, issue
+        #5165): there is nothing left to coordinate, so no claim is written.
+        A caller that does not distinguish ``pr-closed`` from any other SKIP
+        reason degrades safely to today's behavior (decline, retry later).
     2 - PR not found / usage error
     3 - External error (API failure). For ``acquire`` / ``status`` / a
         tokenless ``renew`` this is remapped to exit 1 (SKIP): an
@@ -674,8 +678,23 @@ def _git_head_sha() -> str | None:
     return sha if _SHA40.match(sha) else None
 
 
-def _pr_head_sha(owner: str, repo: str, pr: int) -> str:
-    """Return the PR's authoritative head SHA. Raises LeaseStoreError.
+@dataclass(frozen=True, slots=True)
+class _PrHeadState:
+    """PR head SHA plus live merge/close state, read in one REST call.
+
+    ADR-076 Amendment 2026-08-19 (issue #5165): widens the single REST call
+    ``acquire()`` already made for ``base_sha`` to also project ``state`` and
+    ``merged``, so a renew on an already-closed PR can be detected at zero
+    added round-trips over what the module already spends today.
+    """
+
+    sha: str
+    state: str
+    merged: bool
+
+
+def _pr_head_state(owner: str, repo: str, pr: int) -> _PrHeadState:
+    """Return the PR's authoritative head SHA, ``state``, and ``merged``.
 
     ADR-076 part 3 acquire step 1: "Fetch the PR ``head.sha`` and the latest
     N lease comments in one bounded read". The value is read from GitHub, so
@@ -683,10 +702,18 @@ def _pr_head_sha(owner: str, repo: str, pr: int) -> str:
     in. Acquire catches the failure and records the zero sentinel rather
     than failing open, because losing freshness evidence must not also lose
     the lock (see ``acquire``).
+
+    Raises LeaseStoreError on any read, transport, or payload failure.
     """
     try:
         result = subprocess.run(
-            ["gh", "api", f"repos/{owner}/{repo}/pulls/{pr}", "--jq", ".head.sha"],
+            [
+                "gh",
+                "api",
+                f"repos/{owner}/{repo}/pulls/{pr}",
+                "--jq",
+                "{sha:.head.sha, state:.state, merged:.merged}",
+            ],
             capture_output=True,
             encoding="utf-8",
             errors="replace",
@@ -699,10 +726,21 @@ def _pr_head_sha(owner: str, repo: str, pr: int) -> str:
         raise LeaseStoreError(
             f"pr head read exited {result.returncode}: {safe_log_str((result.stderr or '')[:200])}"
         )
-    sha = (result.stdout or "").strip()
-    if not _SHA40.match(sha):
+    try:
+        payload = json.loads((result.stdout or "").strip() or "{}")
+    except json.JSONDecodeError as exc:
+        raise LeaseStoreError(f"pr head read returned non-JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise LeaseStoreError("pr head read returned a non-object payload")
+    sha = payload.get("sha")
+    if not isinstance(sha, str) or not _SHA40.match(sha):
         raise LeaseStoreError("pr head read returned no 40-hex sha")
-    return sha
+    state = payload.get("state")
+    return _PrHeadState(
+        sha=sha,
+        state=state if isinstance(state, str) else "",
+        merged=bool(payload.get("merged")),
+    )
 
 
 def _gh_authenticated_login() -> str:
@@ -1178,11 +1216,33 @@ def acquire(
     # The head read is freshness evidence, not the lock. Failing it open to ACT
     # alongside the comment read would let a transient API error skip the read
     # that enforces mutual exclusion, so it is scoped to the sentinel instead.
+    pr_state: _PrHeadState | None = None
     try:
-        base_sha = _pr_head_sha(repo_owner, repo, pr)
+        pr_state = _pr_head_state(repo_owner, repo, pr)
+        base_sha = pr_state.sha
     except LeaseStoreError as exc:
         logger.warning("op=lease_pr_head_unavailable pr=%d err=%s", pr, safe_log_str(str(exc)))
         base_sha = "0" * 40
+
+    # ADR-076 Amendment 2026-08-19 (issue #5165): a renew against a PR that
+    # has already merged or closed has nothing left to coordinate. This check
+    # is scoped to renewing=True only (a fresh acquire's cost is bounded by
+    # how many PRs pr-autofix walks; an unbounded renew loop is not) and to
+    # the write path specifically (after the RENEW_SKIP_MARGIN noop check
+    # above), so it never adds a round-trip beyond the one acquire() already
+    # spends here. A failed read (pr_state is None) falls through unchanged,
+    # exactly as it does today.
+    if renewing and pr_state is not None and (pr_state.merged or pr_state.state == "CLOSED"):
+        logger.info(
+            "op=lease_renew_pr_closed pr=%d state=%s merged=%s",
+            pr,
+            pr_state.state,
+            pr_state.merged,
+        )
+        return LeaseResult(
+            "SKIP", "pr-closed", base_sha=base_sha, local_head_sha=local_sha
+        )
+
     _warn_on_checkout_mismatch(pr, local_sha, base_sha)
 
     claim = build_claim(owner, session, base_sha, now)
