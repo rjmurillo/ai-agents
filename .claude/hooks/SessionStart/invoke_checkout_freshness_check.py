@@ -87,6 +87,8 @@ def _run_git(
         cwd=cwd,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=timeout,
         check=False,
     )
@@ -102,7 +104,15 @@ def check_checkout_freshness(cwd: str) -> FreshnessCheck:
     """
     fetch_succeeded = True
     try:
-        fetch_result = _run_git(["fetch", "origin", "main", "--quiet"], cwd)
+        # A bare branch name on the command line updates only FETCH_HEAD on
+        # some git configurations, leaving refs/remotes/origin/main stale
+        # even though the fetch itself succeeded (already pinned in this
+        # repo at tests/test_check_pr_live_state.py:347-348). Use the
+        # explicit refspec so the remote-tracking ref this hook reads is the
+        # one that actually gets updated.
+        fetch_result = _run_git(
+            ["fetch", "origin", "+refs/heads/main:refs/remotes/origin/main", "--quiet"], cwd
+        )
         fetch_succeeded = fetch_result.returncode == 0
     except (OSError, subprocess.TimeoutExpired):
         fetch_succeeded = False

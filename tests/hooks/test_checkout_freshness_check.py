@@ -22,7 +22,7 @@ sys.path.insert(0, HOOKS_DIR)
 
 import invoke_checkout_freshness_check as freshness
 
-FETCH_CMD = ("git", "fetch", "origin", "main", "--quiet")
+FETCH_CMD = ("git", "fetch", "origin", "+refs/heads/main:refs/remotes/origin/main", "--quiet")
 REV_LIST_CMD = ("git", "rev-list", "--count", "HEAD..origin/main")
 
 
