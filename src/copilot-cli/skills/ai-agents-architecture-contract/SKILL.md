@@ -85,7 +85,7 @@ Failure policy is PER FAMILY, not global. Do not copy a policy across families:
 |---|---|---|
 | Local Claude hooks | Follow each event contract. SessionStart cannot block; Stop may return a block decision | `.claude/settings.json`; `agent-harness-reference` |
 | Generated/released hook artifacts | Prevention-first and loud: validate anchoring before release, then surface escaped launcher failures | ADR-066 D1, ADR-071 |
-| Copilot dispatcher | Active `gate` handles three PreToolUse shims (`invoke_require_subagent_model`, `invoke_serena_memory_scope_guard` issue #5061, `invoke_serena_worktree_scope_guard` issue #4917); no PostToolUse manifest exists (the markdown-auto-lint `observe` shim was deleted, issue #5154); dormant `advise` translates a future PermissionRequest producer | Generated manifests; `build/scripts/generate_dispatcher.py` |
+| Copilot dispatcher | Retired (ADR-097): all three PreToolUse shims (`invoke_require_subagent_model`, `invoke_serena_memory_scope_guard` issue #5061, `invoke_serena_worktree_scope_guard` issue #4917) are deleted, and with them the generated `gate` dispatcher itself. `src/copilot-cli/hooks/hooks.json` carries `"hooks": {}`; no `_dispatch.py` ships. The generator still owns the policy for a future re-add | Deleted manifests; `build/scripts/generate_dispatcher.py` |
 
 Why the split fails loud on shipped artifacts (the #2205 33-day silent-no-op incident), why older ADRs (ADR-008, ADR-033, ADR-035) still read fail-open, and why one dispatcher per event persists (ADR-068, Copilot CLI version history) are in `references/hook-runtime.md`. SessionStart hooks cannot block regardless. Harness exit and timeout details are owned by `agent-harness-reference`.
 
