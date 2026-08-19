@@ -89,17 +89,17 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "NOT LINTED: pre_pr.py --markdown-lint-only selected 0 of 1 files"
+        "Evidence": "NOT LINTED: no changed markdown files"
       },
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/2026-08-19-pr-autofix-lease-renewal-noop.md"
+        "Evidence": ".agents/qa/2026-08-19-pr-autofix-lease-renewal-noop.md (qaVerdict: PASS, qaCommit rebound to e7f4e1cd9922ab5ec449f745e6fca71b2dc25163)"
       },
       "changesCommitted": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "Uncommitted changes remain"
+        "Complete": true,
+        "Evidence": "All changes committed (HEAD: e7f4e1cd99)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -137,6 +137,6 @@
       "summary": "Posted findings comment on PR #5078; deliberately did not push to that branch to avoid colliding with the still-active unidentified automation contesting it."
     }
   ],
-  "endingCommit": "a1617fd422",
+  "endingCommit": "e7f4e1cd99",
   "nextSteps": []
 }

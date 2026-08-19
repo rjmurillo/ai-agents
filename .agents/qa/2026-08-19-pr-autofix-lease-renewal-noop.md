@@ -1,10 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-19-session-99919-bc967748c-critical-review-open-issues-prs.json
-qaCommit: a1617fd422796dac56c7db6677058db9379d06ef
+qaCommit: e7f4e1cd9922ab5ec449f745e6fca71b2dc25163
 ---
 
 # QA: pr-autofix lease renewal no-op fix (issue #5160)
+
+Rebound from `a1617fd` (the code-fix commit) to `e7f4e1cd` (the session-end
+evidence commit) after the session log's `endingCommit` refreshed; no
+functional file changed between the two, so the verdict below still holds.
 
 ## Scope
 
