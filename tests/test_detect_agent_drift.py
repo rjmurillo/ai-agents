@@ -320,18 +320,28 @@ class TestKnownBaselineDrift:
         assert _classify_overall("architect", 50.0, 80) == "DRIFT DETECTED"
 
     def test_baselined_agent_excluded_from_drift_count(self) -> None:
-        # Claude has the enriched sections; vscode lacks them, driving overall
-        # similarity to 0 for this synthetic pair. The synthetic agent name is
-        # baselined with a floor of 0, so it must report as baselined, not drift.
+        # Both sides carry a "Core Mission" section (so it is present on both
+        # sides and never enters the separate missing-section inventory; see
+        # test_baselined_pair_still_fails_on_new_missing_section in
+        # tests/build_scripts/test_drift_section_inventory.py for that path),
+        # but the wording shares no >2-char tokens, driving Jaccard similarity
+        # to 0 for this synthetic pair. The synthetic agent name is baselined
+        # with a floor of 0, so pure CONTENT drift must report as baselined,
+        # not drift (Issue #4852: a baseline covers content-similarity floor
+        # only, never a totally missing section).
         claude = (
             "---\nname: baselined-fixture\n---\n## Core Mission\n\n"
             "Rich Claude-only mission text that the counterpart does not carry."
         )
-        vscode = "---\ndescription: baselined-fixture\n---\n# Title\n\nNo matching section."
+        vscode = (
+            "---\ndescription: baselined-fixture\n---\n## Core Mission\n\n"
+            "xyz qqq zzz www."
+        )
         key = ("baselined-fixture", "src-claude vs src-vscode")
         KNOWN_BASELINE_DRIFT[key] = 0.0
         try:
             result = compare_agent(claude, vscode, "baselined-fixture", 80)
+            assert result.missing_sections == []
             assert result.status == "OK (baselined)"
         finally:
             del KNOWN_BASELINE_DRIFT[key]

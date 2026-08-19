@@ -58,13 +58,26 @@ def _write_agent(path: Path, name: str, body: str | None = None) -> None:
 
 
 def _divergent_body(name: str) -> str:
-    """An agent body for ``name`` whose Core Mission shares no words with the
-    canonical body, so the comparison reports low similarity (drift)."""
+    """An agent body for ``name`` whose sections share no words with the
+    canonical ``_AGENT_BODY``, so the comparison reports low similarity
+    (content drift). Keeps the SAME heading set as ``_AGENT_BODY`` (Core
+    Mission, Key Responsibilities, Constraints): a body that drops a heading
+    entirely produces a MISSING section too, which -- since Issue #4852 --
+    always blocks the exit code even in the install comparison, and several
+    tests using this fixture specifically exercise the pure-content-drift
+    advisory path. Dropping a heading here would silently turn those into
+    missing-section tests instead of the content-drift tests they are named
+    for.
+    """
     return (
         f"---\nname: {name}\n---\n\n"
         f"# {name.title()}\n\n"
         "## Core Mission\n\n"
-        "Totally different prose with zero overlapping vocabulary.\n"
+        "Totally different prose with zero overlapping vocabulary.\n\n"
+        "## Key Responsibilities\n\n"
+        "- Unrelated wording sharing no tokens with the canonical list.\n\n"
+        "## Constraints\n\n"
+        "- Another unrelated phrase sharing no tokens either.\n"
     )
 
 
