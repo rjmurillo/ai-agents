@@ -119,7 +119,8 @@ applied to it at the time. Section 8 carries the current position.
 
 ## Date
 
-2026-07-20; amended 2026-07-31, 2026-08-11, 2026-08-14, and 2026-08-18
+2026-07-20; amended 2026-07-31, 2026-08-11, 2026-08-14, 2026-08-18, and
+2026-08-19
 
 ## Context
 
@@ -399,13 +400,22 @@ re-baselined both counts. It deleted `push_pr_script_identity_guard` from both
 harnesses (section 8) and deleted `markdownlint_guard` and
 `markdown_auto_lint` in the same change. `require_subagent_model` is the only
 survivor, so the vendored source then had one registration on one event,
-PreToolUse, and Copilot generation emitted one host registration. Issue
-#5061, landed independently the same day and merged with #5154 on
-2026-08-19, added `serena_memory_scope_guard` to the same event: the
-vendored source now has two registrations on one event, PreToolUse, and
-Copilot generation still emits one host registration, since one dispatcher
-entry serves every registered shim for an event regardless of shim count
-(ADR-068 Decision point 1). This repository also
+PreToolUse, and Copilot generation emitted one host registration. Two
+issues then each independently added a gate to that one-registration
+baseline, both dated 2026-08-18: #5061 added `serena_memory_scope_guard`,
+and #4917 added `serena_worktree_scope`. Merged together on 2026-08-19, the
+vendored source now has three registrations on one event, PreToolUse, and
+Copilot generation still emits one host registration carrying all three
+shims, `require_subagent_model`, `serena_memory_scope_guard`, and
+`serena_worktree_scope` (measured: `.claude/hooks/hooks.json` and
+`src/copilot-cli/hooks/PreToolUse/_manifest.json` both list exactly those
+three), since one dispatcher entry serves every registered shim for an
+event regardless of shim count (ADR-068 Decision point 1).
+`.claude/hooks/dispatch_groups.json` registers the worktree guard as
+`plugin-pretooluse-12-serena_worktree_scope`, renumbered up from the `-11-`
+suffix used on its own branch to avoid colliding with
+`plugin-pretooluse-11-serena_memory_scope`, already landed from #5061. This
+repository also
 registers the require-subagent-model gate directly at
 `.github/hooks/require-subagent-model.json` for local Copilot runs; cloud
 agent reads only default-branch `.github/hooks/*.json`, so cloud coverage

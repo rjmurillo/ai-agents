@@ -60,13 +60,17 @@ def _run_committed_shim(
     This used to name the ``Bash(git push*)`` markdownlint shim. Issue #5154
     retired it, leaving ``require_subagent_model`` as the sole survivor, so
     the default target became whatever matcher shim the tree actually ships.
-    Issue #5061 (merged 2026-08-19) then added a second shim,
-    ``serena_memory_scope_guard``, with a DIFFERENT malformed-input policy:
-    it fails closed on stdin too large to parse safely, where
-    ``require_subagent_model`` fails open (#4672). The three callers of this
+    Two amendments then each added a second shim, both dated 2026-08-18:
+    issue #5061 added ``serena_memory_scope_guard``, and issue #4917 added
+    ``serena_worktree_scope_guard`` (registered as group 12, renumbered up
+    from its own branch's `-11-` suffix to avoid colliding with #5061's
+    already-landed group 11). Both new shims commit to a DIFFERENT
+    malformed-input policy than ``require_subagent_model``'s: they fail
+    closed on stdin too large to parse safely, where
+    ``require_subagent_model`` fails open (#4672). The callers of this
     helper document and assert `require_subagent_model`'s specific fail-open
     policy, not "whatever the one shim is", so globbing alone is no longer
-    unambiguous with two shims on the tree. ``name_contains`` pins the
+    unambiguous with three shims on the tree. ``name_contains`` pins the
     target explicitly; a missing match still fails loudly rather than
     silently picking the wrong shim's policy.
     """
@@ -414,17 +418,25 @@ def test_committed_dispatcher_rejects_deeply_nested_json():
     proc = _run_committed_pretooluse_dispatcher(_nested_json_overflowing_stdin())
 
     # The dispatcher propagates its shims' verdicts, running every registered
-    # shim in manifest order (gate mode) regardless of matcher, per Decision
-    # point 4. require_subagent_model fails open on unparseable stdin (#4672),
-    # so it alone would verdict 0, as it did in the brief #5154-only window
-    # when it was the sole survivor. Issue #5061 (merged 2026-08-19) restored a
-    # second shim, serena_memory_scope_guard, whose own docstring commits it
-    # to failing CLOSED when "stdin payload was too large to parse safely":
-    # a stray cross-worktree memory write cannot be ruled out from unparseable
-    # input, so it denies rather than allows. The dispatcher returns the first
-    # nonzero exit, so the aggregate verdict is 2 again, both shims' detection
-    # messages appear (each is bounded and traceback-free), and this asserts
-    # the denial rather than the transient #5154-only allow.
+    # shim in manifest order (gate mode) and stopping at the first nonzero
+    # exit, per Decision point 4. The committed order is
+    # require_subagent_model (group 10), serena_memory_scope_guard (group
+    # 11, #5061), serena_worktree_scope_guard (group 12, #4917, renumbered
+    # up from its own branch's `-11-` to avoid colliding with #5061's
+    # already-landed group). require_subagent_model fails open on
+    # unparseable stdin (#4672): it logs the detection and verdicts 0, as it
+    # did alone in the brief #5154-only window. serena_memory_scope_guard's
+    # own docstring commits it to failing CLOSED when "stdin payload was too
+    # large to parse safely": a stray cross-worktree memory write cannot be
+    # ruled out from unparseable input, so it logs the detection too and
+    # verdicts nonzero, which stops the gate there. serena_worktree_scope_guard
+    # is also documented fail-closed for the same case ("Fail-closed for
+    # writes: If the session project root ... cannot be determined, write
+    # tools are blocked"), but gate mode never reaches it: group 11's
+    # nonzero exit already stopped the chain, so this test cannot observe
+    # group 12's own policy for this input (see ADR-068 Decision point 2 on
+    # the later-shim bypass). The aggregate verdict is 2, and exactly two
+    # shims' detection messages appear (each bounded and traceback-free).
     assert proc.returncode == 2, proc.stderr.decode()
-    assert b"stdin JSON nesting too deep" in proc.stderr
+    assert proc.stderr.count(b"stdin JSON nesting too deep") == 2
     assert b"Traceback" not in proc.stderr

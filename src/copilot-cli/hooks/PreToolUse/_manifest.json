@@ -3,10 +3,12 @@
   "mode": "gate",
   "shims": [
     "invoke_require_subagent_model__Agent_Task_456aac.py",
-    "invoke_serena_memory_scope_guard__mcp_serena_write_delete_memory_serena_write_dele_cd55fe.py"
+    "invoke_serena_memory_scope_guard__mcp_serena_write_delete_memory_serena_write_dele_cd55fe.py",
+    "invoke_serena_worktree_scope_guard__serena_56b38d.py"
   ],
   "timeouts": {
     "invoke_require_subagent_model__Agent_Task_456aac.py": 10,
-    "invoke_serena_memory_scope_guard__mcp_serena_write_delete_memory_serena_write_dele_cd55fe.py": 10
+    "invoke_serena_memory_scope_guard__mcp_serena_write_delete_memory_serena_write_dele_cd55fe.py": 10,
+    "invoke_serena_worktree_scope_guard__serena_56b38d.py": 10
   }
 }

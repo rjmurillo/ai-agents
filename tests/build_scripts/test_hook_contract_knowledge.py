@@ -662,36 +662,40 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
         / "ADR-071-plugin-hook-runtime-contract-verification.md"
     )
 
-    # Issues #5061 and #5154 (both 2026-08-18) landed independently on
-    # separate branches against the same #5013 baseline, then merged on
+    # Issues #4917, #5061, and #5154 (all 2026-08-18) landed independently on
+    # three separate branches against the same #5013 baseline, then merged on
     # 2026-08-19. #5061 added the Serena memory worktree-scope guard, whose
     # matcher (`mcp__serena__(write|delete)_memory|...`) does not reduce to a
     # known Claude core tool name, so the host-side matcher union fails open
     # for PreToolUse (see test_committed_matcher_capable_entries_have_matchers
-    # in test_dispatcher_matcher_union.py). #5154 deleted
+    # in test_dispatcher_matcher_union.py). #4917 added the Serena worktree
+    # scope guard, registered as group 12 after renumbering up from its own
+    # branch's `-11-` suffix to avoid colliding with #5061's already-landed
+    # group 11; its Copilot matcher is likewise unreducible. #5154 deleted
     # `push_pr_script_identity_guard`, `markdownlint_guard`, and
-    # `markdown_auto_lint`. Merged, both compose: two PreToolUse shims
-    # (`require_subagent_model`, `serena_memory_scope_guard`) survive, no
-    # PostToolUse event remains. The expected values below are the
-    # independently reviewed current facts, not a self-confirming echo of
-    # whatever the generator happens to emit.
-    assert source_counts == {"PreToolUse": 2}
-    assert source_total == 2
+    # `markdown_auto_lint`. Merged, all three compose: three PreToolUse shims
+    # (`require_subagent_model`, `serena_memory_scope_guard`,
+    # `serena_worktree_scope`) survive, no PostToolUse event remains. The
+    # expected values below are the independently reviewed current facts,
+    # not a self-confirming echo of whatever the generator happens to emit.
+    assert source_counts == {"PreToolUse": 3}
+    assert source_total == 3
     assert host_total == 1
-    # Two source registrations reduced to one host registration is a 50.0
+    # Three source registrations reduced to one host registration is a 66.7
     # percent reduction. The ADRs state that outcome; the number is pinned so
     # a silent regrowth or shrink of the inventory cannot drift from the
     # prose unnoticed.
-    assert round(reduction, 1) == 50.0
+    assert round(reduction, 1) == 66.7
     assert (
-        "vendored Claude plugin source and "
-        "the generated Copilot manifest each now contain two registrations "
-        "on one event: two PreToolUse shims and no PostToolUse shim" in adr_068
+        "vendored Claude plugin source and the generated "
+        "Copilot manifest each now contain three registrations on one event: three "
+        "PreToolUse shims and no PostToolUse shim" in adr_068
     )
-    assert "a 50.0 percent reduction" in adr_068
+    assert "a 66.7 percent reduction" in adr_068
     assert "not for matched-call process savings" in adr_068
-    assert len(pretool_manifest["shims"]) == 2
-    assert timeout_total == 20
+    assert len(pretool_manifest["shims"]) == 3
+    assert timeout_total == 30
+    assert host_timeout == 35
     # Whole sentences, not loose fragments. ADR-068 states the manifest and
     # host-entry numbers in three places (a dated Status paragraph, Decision
     # item 4, and a Negative bullet), so a bare "host entry requests N
@@ -699,22 +703,20 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
     # the other two goes unseen. Measured: changing Decision item 4 to 105
     # left the fragment form green because the Status paragraph still said 15.
     assert (
-        f"PreToolUse manifest sums to {timeout_total} seconds of configured "
-        f"timeout, so the generated host entry requests {host_timeout} "
-        f"seconds." in adr_068
-    )
-    assert (
-        f"current PreToolUse manifest has two shims with {timeout_total} "
+        f"The current PreToolUse manifest has three shims with {timeout_total} "
         f"seconds of configured timeout, so the generated host entry requests "
         f"{host_timeout} seconds." in adr_068
     )
     assert (
         f"The current PreToolUse manifest sums to {timeout_total} seconds. The "
         f"generated host entry requests {host_timeout} seconds after five "
-        f"seconds of dispatcher headroom." in adr_068
+        f"seconds of dispatcher headroom" in adr_068
     )
     assert "the in-process bypass is latent" in adr_068
-    assert "two registrations on one event" in adr_085
+    assert (
+        "three registrations on one event, PreToolUse, and Copilot generation "
+        "still emits one host registration" in adr_085
+    )
     deletion_note = "deleted `push_pr_script_identity_guard` from both harnesses"
     assert deletion_note in adr_068
     assert deletion_note in adr_071
@@ -730,6 +732,11 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
         "four registrations across two events: three PreToolUse shims and "
         "one PostToolUse shim" in adr_068
     )
+    assert "three PreToolUse shims and one PostToolUse shim" in adr_068
+    # The 2026-08-19 three-way merge re-baselines trigger 2 up from #5154's
+    # down-baseline; every dated re-baseline step stays pinned as history.
+    assert "landing the per-increment threshold at three shims and 30 seconds" in adr_068
+    assert "PreToolUse manifest grows beyond three shims" in adr_068
     assert "four registrations across two events" in adr_085
     containment_note = (
         "excluded `push_pr_script_identity_guard` from the generated Copilot inventory only"
@@ -738,6 +745,7 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
     assert containment_note in adr_071
     assert containment_note in adr_085
     for stale in (
+        "125 seconds",
         "four starts on a `git push` today",
         "direct registration would start at most two",
         "two-shim PreToolUse",
@@ -747,15 +755,20 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
         "No in-process timeout enforcement",
         "the spawn cost this ADR removes",
         "removes process startup",
-        # Superseded by the 2026-08-19 merge reconciliation: these read as
-        # live claims about inventories that no longer exist as the current
-        # state. Their dated forms above are the record.
+        # Superseded by the 2026-08-19 three-way merge reconciliation: these
+        # read as live claims about inventories that no longer exist as the
+        # current state. Their dated forms above are the record.
+        "current PreToolUse manifest has two shims with 100 seconds",
         "The current PreToolUse manifest sums to 100 seconds",
+        "The current PreToolUse inventory is two shims, and it is timed",
         "current PreToolUse manifest has one shim",
-        "current PreToolUse manifest has three shims with 20",
+        "current PreToolUse manifest has two shims with 20",
+        "re-baselined it back up to two shims and 20 seconds after",
+        "PreToolUse manifest grows beyond two shims",
         # A `git push` starting zero dispatcher processes was true for #5154
-        # alone on `main`, never true once merged with #5061's unreducible
-        # matcher; the merge reconciliation states the real 2026-08-19 number.
+        # alone on `main`, never true once merged with #5061's and #4917's
+        # unreducible matchers; the merge reconciliation states the real
+        # 2026-08-19 number.
         "starts no dispatcher process on either harness today",
     ):
         assert stale not in adr_068, f"stale metric survives in ADR-068: {stale}"
@@ -763,19 +776,21 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
     assert timeout_headroom == 5
 
 
-def test_adr_068_scopes_its_five_dated_status_paragraphs() -> None:
-    """The five dated Status paragraphs must not blur into each other.
+def test_adr_068_scopes_its_six_dated_status_paragraphs() -> None:
+    """The six dated Status paragraphs must not blur into each other.
 
     Round 1 found the 2026-08-14 paragraph framed as a blanket "facts
     refresh" with no named policy authority. The fix must land in the
     2026-08-14 paragraph specifically, and the 2026-08-11 paragraph must keep
     its own historical numbers unchanged. Issues #5061 and #5154 each added a
     dated paragraph independently, both 2026-08-18, on separate branches
-    against the same #5013 baseline; merging them on 2026-08-19 added a fifth.
-    Each of the first four owns its own point-in-time numbers unchanged, and
-    only the 2026-08-19 paragraph may claim the current inventory. Explicit
-    reviewed values, not a dynamic re-derivation of the same generator output
-    the prose describes.
+    against the same #5013 baseline; merging them on 2026-08-19 added a
+    fifth. Issue #4917 landed independently the same day on a third branch;
+    reconciling it into the #5061+#5154 tree on 2026-08-19 added a sixth.
+    Each of the first five owns its own point-in-time numbers unchanged, and
+    only the sixth, final 2026-08-19 paragraph may claim the current
+    inventory. Explicit reviewed values, not a dynamic re-derivation of the
+    same generator output the prose describes.
     """
     text = DISPATCHER_ADR.read_text(encoding="utf-8")
     historical = _normalize(
@@ -795,9 +810,17 @@ def test_adr_068_scopes_its_five_dated_status_paragraphs() -> None:
             DISPATCHER_ADR,
         )
     )
-    current = _normalize(
+    superseded_5061_5154 = _normalize(
         _paragraph_after(
             text, "Amended 2026-08-19 (merge of issues #5061 and #5154):", DISPATCHER_ADR
+        )
+    )
+    current = _normalize(
+        _paragraph_after(
+            text,
+            "Amended 2026-08-19 (merge of issue #4917 into the #5061+#5154 "
+            "reconciliation",
+            DISPATCHER_ADR,
         )
     )
 
@@ -837,12 +860,25 @@ def test_adr_068_scopes_its_five_dated_status_paragraphs() -> None:
     assert "scoped derived-metrics update" in superseded_5154
     assert "HISTORICAL `main`-only numbers" in superseded_5154
 
-    assert "mechanical reconciliation of two already-reviewed decisions" in current
-    assert "two registrations on one event: two PreToolUse shims and no PostToolUse shim" in current
-    assert "sums to 20 seconds of configured timeout, so" in current
-    assert "generated host entry requests 25 seconds" in current
-    assert "matcher union still collapses to no `matcher` field at all" in current
-    assert "reduction is 50.0 percent" in current
+    assert "mechanical reconciliation of two already-reviewed decisions" in superseded_5061_5154
+    assert (
+        "two registrations on one event: two PreToolUse shims and no PostToolUse shim"
+        in superseded_5061_5154
+    )
+    assert "sums to 20 seconds of configured timeout, so" in superseded_5061_5154
+    assert "generated host entry requests 25 seconds" in superseded_5061_5154
+    assert "matcher union still collapses to no `matcher` field at all" in superseded_5061_5154
+    assert "reduction is 50.0 percent" in superseded_5061_5154
+
+    assert "three-way mechanical composition of three already-reviewed decisions" in current
+    assert (
+        "three registrations on one event: three PreToolUse shims"
+        in current
+    )
+    assert "sums to 30 seconds of configured timeout" in current
+    assert "generated host entry requests 35 seconds" in current
+    assert "renumbered up from the `-11-` suffix" in current
+    assert "the reduction is 66.7 percent, up from 50.0 percent" in current
 
     _refute(current, "100 seconds of configured timeout", "host entry requests 105 seconds")
     _refute(current, "110 seconds of configured timeout", "host entry requests 115 seconds")
@@ -858,14 +894,16 @@ def test_adr_068_scopes_its_five_dated_status_paragraphs() -> None:
     _refute(historical, "ADR-085 section 8 is the policy")
 
 
-def test_adr_071_scopes_its_five_dated_amendment_sections() -> None:
-    """Current-vs-historical boundary, on ADR-071's five dated subsections.
+def test_adr_071_scopes_its_six_dated_amendment_sections() -> None:
+    """Current-vs-historical boundary, on ADR-071's six dated subsections.
 
     Issues #5061 and #5154 landed independently on separate branches, both
     dated 2026-08-18, against the same #5013 baseline. Merging them on
-    2026-08-19 added a fifth dated subsection. Each of the first four keeps
-    its own point-in-time numbers unchanged; only the 2026-08-19
-    reconciliation may claim the current inventory.
+    2026-08-19 added a fifth dated subsection. Issue #4917 landed
+    independently the same day on a third branch; reconciling it into the
+    #5061+#5154 tree on 2026-08-19 added a sixth. Each of the first five
+    keeps its own point-in-time numbers unchanged; only the sixth, final
+    2026-08-19 reconciliation may claim the current inventory.
     """
     text = RUNTIME_ADR.read_text(encoding="utf-8")
     historical = _normalize(
@@ -900,10 +938,18 @@ def test_adr_071_scopes_its_five_dated_amendment_sections() -> None:
             RUNTIME_ADR,
         )
     )
-    current = _normalize(
+    superseded_5061_5154 = _normalize(
         _section_after(
             text,
             "### 2026-08-19 reconciliation: merging issues #5061 and #5154",
+            RUNTIME_ADR,
+        )
+    )
+    current = _normalize(
+        _section_after(
+            text,
+            "### 2026-08-19 reconciliation: merging issue #4917 into the "
+            "#5061+#5154 tree",
             RUNTIME_ADR,
         )
     )
@@ -935,13 +981,21 @@ def test_adr_071_scopes_its_five_dated_amendment_sections() -> None:
     assert "scoped runtime-contract update" in superseded_5154
     assert "describe `main` alone at the moment this" in superseded_5154
 
-    assert "mechanical composition of two already-reviewed decisions" in current
-    assert "contains two shims" in current
-    assert "summing to 20" in current
-    assert "generated host entry requests 25 seconds" in current
-    assert "stays collapsed to no matcher" in current
-    assert "three process starts total" in current
-    assert "PostToolUse stays out of the generated tree" in current
+    assert "mechanical composition of two already-reviewed decisions" in superseded_5061_5154
+    assert "contains two shims" in superseded_5061_5154
+    assert "summing to 20" in superseded_5061_5154
+    assert "generated host entry requests 25 seconds" in superseded_5061_5154
+    assert "stays collapsed to no matcher" in superseded_5061_5154
+    assert "three process starts total" in superseded_5061_5154
+    assert "PostToolUse stays out of the generated tree" in superseded_5061_5154
+
+    assert "three-way mechanical composition of three already-reviewed decisions" in current
+    assert "manifest contains three shims" in current
+    assert "summing to 30 seconds of configured timeout" in current
+    assert "generated host entry requests 35 seconds" in current
+    assert "renumbered up from the `-11-` suffix" in current
+    assert "four process starts total" in current
+    assert "No two Claude-side matchers overlapped before this merge" in current
 
     _refute(superseded_5013, "three shims with 110 seconds of configured timeout", "115 seconds")
     _refute(superseded_5013, "host entry requests 15 seconds", "ADR-085 section 8 is the policy")
@@ -1488,22 +1542,25 @@ def test_adr_082_marks_the_deleted_group_example_as_historical() -> None:
 def test_adr_068_dependent_components_table_matches_the_registration_count() -> None:
     """Round 2 found "Four vendored plugin registrations" against a count of one.
 
-    Merging issue #5061 (adds `serena_memory_scope_guard`) with issue #5154
-    (deletes three other hooks) on 2026-08-19 landed the count at two, not
-    one: #5154 alone would have left one, but #5061 independently added a
-    survivor.
+    Merging issue #5061 (adds `serena_memory_scope_guard`), issue #4917
+    (adds `serena_worktree_scope`, renumbered to group 12 to avoid
+    colliding with #5061's already-landed group 11), and issue #5154
+    (deletes three other hooks) on 2026-08-19 landed the count at three, not
+    one: #5154 alone would have left one, but #5061 and #4917 each
+    independently added a survivor.
     """
     hooks = _read_json(REPO_ROOT / ".claude" / "hooks" / "hooks.json")["hooks"]
     registrations = sum(map(len, hooks.values()))
     text = _normalized_text(DISPATCHER_ADR)
 
-    assert registrations == 2
+    assert registrations == 3
     assert (
-        "Two vendored plugin registrations after merging issues #5061 and "
-        "#5154 (four before either)" in text
+        "Three vendored plugin registrations after merging issues #4917, "
+        "#5061, and #5154 (four before any of the three)" in text
     )
     _refute(text, "| Four vendored plugin registrations", source=DISPATCHER_ADR)
     _refute(text, "One vendored plugin registration after issue #5154", source=DISPATCHER_ADR)
+    _refute(text, "| Two vendored plugin registrations", source=DISPATCHER_ADR)
 
 
 def test_current_memories_record_skill_first_guard_retirement() -> None:

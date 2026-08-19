@@ -39,6 +39,20 @@
           "statusMessage": "Checking Serena memory worktree scope (BLOCKING, #5061)"
         }
       ]
+    },
+    "plugin-pretooluse-12-serena_worktree_scope": {
+      "event": "PreToolUse",
+      "mode": "gate",
+      "matcher": "^mcp__serena__.*$",
+      "shims": [
+        {
+          "file": "PreToolUse/invoke_serena_worktree_scope_guard.py",
+          "copilotMatcher": "^serena-.*$",
+          "timeout": 10,
+          "statusMessage": "Checking Serena worktree scope (BLOCKING, #4917)"
+        }
+      ],
+      "surface": "plugin"
     }
   }
 }

@@ -1,0 +1,254 @@
+#!/usr/bin/env python3
+"""Block Serena write operations when project scope differs from active worktree.
+
+Issue #4917: Serena edits target the primary checkout even when the session
+operates from an external worktree. This guard detects the mismatch and blocks
+mutating Serena tools, forcing the user to re-activate the correct project.
+
+Customer value: stops a Serena write from silently landing in a consumer's
+main checkout when their own session is running from an external worktree,
+which would otherwise corrupt the other checkout's working tree or leak
+changes across their branches.
+
+Hook Type: PreToolUse
+Matcher: harness-specific, both anchored (native matchers compile as
+    ``^(?:PATTERN)$``, so an unanchored prefix like ``^serena-`` only matches
+    the literal string "serena-" and never fires; see #5036 retrospective):
+    - Claude Code native registration (``.claude/hooks/hooks.json``,
+      ``.claude/hooks/dispatch_groups.json`` "matcher"): ``^mcp__serena__.*$``.
+      Claude Code names MCP tools ``mcp__<server>__<tool>``
+      (confirmed at ``.claude/settings.json``'s
+      ``mcp__serena__write_memory`` PostToolUse registration).
+    - Generated Copilot CLI shim ("copilotMatcher"): ``^serena-.*$``.
+      Copilot CLI names the same tools ``serena-<tool>`` (confirmed at
+      ``.agents/sessions/2026-07-26-session-3384-copilot-hook-surface.json``
+      and ``.agents/sessions/2026-07-20-session-3217.json``).
+    Both prefixes are normalized to a bare tool name by
+    :func:`_normalize_tool_name` before the write-tool check, so one script
+    body is correct under either harness regardless of which matcher fired it.
+
+Exit Codes (Claude Hook Semantics):
+    0 = Allow (read-only tool, or scope matches)
+    2 = Block (write tool and scope mismatch)
+
+Fail-closed for writes: If the session project root (CLAUDE_PROJECT_DIR)
+cannot be determined, write tools are blocked. Read tools always pass.
+Only git toplevel errors on CWD fail open (not in a git repo).
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+_MAX_STDIN_BYTES = 128 * 1024
+
+# Harness-specific Serena tool-name prefixes. Claude Code registers MCP tools
+# as "mcp__<server>__<tool>"; Copilot CLI registers them as "serena-<tool>".
+# Longer prefix first so a name that happens to start with both never
+# ambiguously matches the shorter one first (not possible today, kept for
+# clarity as the set grows).
+_CLAUDE_SERENA_PREFIX = "mcp__serena__"
+_COPILOT_SERENA_PREFIX = "serena-"
+
+
+def _normalize_tool_name(tool_name: str) -> str | None:
+    """Strip the harness-specific Serena prefix, or None if not a Serena tool.
+
+    Returns the bare tool name (e.g. "replace_content") so the write-tool
+    check works identically whether Claude Code or Copilot CLI invoked this
+    script. A tool_name carrying neither prefix is not a Serena call at all
+    (defense in depth: correct even if a matcher misfires and this script
+    runs for an unrelated tool).
+    """
+    if tool_name.startswith(_CLAUDE_SERENA_PREFIX):
+        return tool_name[len(_CLAUDE_SERENA_PREFIX):]
+    if tool_name.startswith(_COPILOT_SERENA_PREFIX):
+        return tool_name[len(_COPILOT_SERENA_PREFIX):]
+    return None
+
+
+# Serena tools that mutate files, symbols, or memories. Only these are
+# blocked on scope mismatch. Bare names (harness prefix stripped by
+# _normalize_tool_name). Sourced from oraios/serena's ToolMarkerCanEdit /
+# ToolMarkerSymbolicEdit tool classes (queried via DeepWiki 2026-08-18):
+# symbolic editing, file editing, and memory editing tools all mutate state
+# and were previously incomplete (#5036 review: write_memory and
+# edit_memory were reachable in this harness per the cited session logs but
+# absent from this set, issue not previously caught because the matcher
+# never fired for ANY of them).
+_WRITE_TOOLS: frozenset[str] = frozenset(
+    {
+        # Symbolic editing tools
+        "replace_symbol_body",
+        "insert_after_symbol",
+        "insert_before_symbol",
+        "rename_symbol",
+        "safe_delete_symbol",
+        # File editing tools
+        "replace_content",
+        "replace_in_files",
+        "create_text_file",
+        "delete_lines",
+        "replace_lines",
+        "insert_at_line",
+        # Memory editing tools
+        "write_memory",
+        "delete_memory",
+        "rename_memory",
+        "edit_memory",
+        # Arbitrary command execution can write anywhere; treat as a write.
+        "execute_shell_command",
+    }
+)
+
+# Marker file that identifies the Serena project root.
+_SERENA_MARKER = ".serena/project.yml"
+
+
+def _git_toplevel(cwd: Path) -> Path | None:
+    """Return git worktree toplevel for *cwd*, or None on failure."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=str(cwd),
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return Path(result.stdout.strip()).resolve()
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return None
+
+
+def _serena_project_root() -> Path | None:
+    """Determine the project root this guard treats as Serena's scope.
+
+    Strategy:
+    1. SERENA_PROJECT_ROOT env var (explicit override for worktree switching)
+    2. CLAUDE_PROJECT_DIR git toplevel (where the session started)
+
+    Note: We use git toplevel rather than walking for .serena/project.yml
+    because .serena/project.yml is tracked in git and exists in ALL worktrees.
+    Walking up from CWD would always find the local copy, defeating isolation.
+
+    Known limitation (#5036 review): this guard has no protocol to query
+    which project the live Serena MCP server actually has activated; it can
+    only compare filesystem paths. SERENA_PROJECT_ROOT is therefore a manual
+    attestation, not a technical guarantee. An operator who sets it to the
+    external worktree WITHOUT first re-activating Serena there (via
+    mcp__serena__activate_project) recreates the exact wrong-tree edit this
+    guard exists to stop, because the comparison will report a match while
+    Serena is still writing against the primary checkout's in-memory state.
+    This function prints a warning to stderr whenever the override branch is
+    taken so misuse is visible in the transcript rather than silent.
+    """
+    explicit = os.environ.get("SERENA_PROJECT_ROOT", "").strip()
+    if explicit:
+        p = Path(explicit).resolve()
+        if (p / _SERENA_MARKER).is_file():
+            print(
+                "SERENA_PROJECT_ROOT override in effect: "
+                f"{p}. This is a manual attestation that Serena has been "
+                "re-activated (mcp__serena__activate_project) for this path. "
+                "Setting it without re-activating Serena does not move the "
+                "MCP server's actual state and defeats this guard.",
+                file=sys.stderr,
+            )
+            return _git_toplevel(p) or p
+
+    # Use CLAUDE_PROJECT_DIR (set by Claude Code to the session's project dir)
+    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
+    if project_dir:
+        p = Path(project_dir).resolve()
+        return _git_toplevel(p)
+
+    return None
+
+
+def _read_payload() -> tuple[str, Path]:
+    """Read and parse the hook stdin payload. Returns (tool_name, cwd)."""
+    if sys.stdin.isatty():
+        return "", Path.cwd().resolve()
+    raw = sys.stdin.read(_MAX_STDIN_BYTES + 1)
+    if len(raw) > _MAX_STDIN_BYTES or not raw.strip():
+        return "", Path.cwd().resolve()
+    try:
+        payload = json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        return "", Path.cwd().resolve()
+    if not isinstance(payload, dict):
+        return "", Path.cwd().resolve()
+
+    tool_name = payload.get("tool_name") or payload.get("toolName") or ""
+
+    cwd_value = payload.get("cwd")
+    if isinstance(cwd_value, str) and cwd_value.strip():
+        cwd = Path(cwd_value)
+        if not cwd.is_absolute():
+            cwd = Path.cwd() / cwd
+        cwd = cwd.resolve()
+    else:
+        cwd = Path.cwd().resolve()
+
+    return tool_name, cwd
+
+
+def main() -> int:
+    """Entry point. Returns 0 (allow) or 2 (block)."""
+    tool_name, cwd = _read_payload()
+
+    # Not a Serena tool call at all: defense in depth if a matcher misfires.
+    bare_tool_name = _normalize_tool_name(tool_name)
+    if bare_tool_name is None:
+        return 0
+
+    # Only gate write tools
+    if bare_tool_name not in _WRITE_TOOLS:
+        return 0
+
+    # Determine worktree toplevel
+    worktree_root = _git_toplevel(cwd)
+    if worktree_root is None:
+        # Cannot determine worktree; fail open
+        return 0
+
+    # Determine Serena project root
+    serena_root = _serena_project_root()
+    if serena_root is None:
+        # Cannot determine Serena root; fail closed for write safety.
+        # If Serena isn't configured, writes should not proceed.
+        print(
+            "BLOCKED: Cannot determine Serena project root. "
+            "Set SERENA_PROJECT_ROOT or ensure .serena/project.yml exists.",
+            file=sys.stderr,
+        )
+        return 2
+
+    # Compare paths
+    if worktree_root == serena_root:
+        return 0
+
+    # Scope mismatch: block
+    print(
+        f"Serena worktree scope mismatch (issue #4917).\n"
+        f"  Active worktree: {worktree_root}\n"
+        f"  Serena project:  {serena_root}\n"
+        f"Re-activate Serena for the correct worktree (mcp__serena__activate_project\n"
+        f"pointed at {worktree_root}), THEN set\n"
+        f"  SERENA_PROJECT_ROOT={worktree_root}\n"
+        f"Setting the env var alone does not move Serena's live state; it only\n"
+        f"tells this guard which path to treat as correct.",
+        file=sys.stderr,
+    )
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,89 +1,89 @@
 {
-  "env": {
-    "AI_AGENTS_PROJECT_REPO": "1"
-  },
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && ./.claude/hooks/session-start.sh",
-            "timeout": 900,
-            "statusMessage": "Installing project dependencies (matches CI)"
-          }
+    "env": {
+        "AI_AGENTS_PROJECT_REPO": "1"
+    },
+    "hooks": {
+        "SessionStart": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "cd \"$CLAUDE_PROJECT_DIR\" && ./.claude/hooks/session-start.sh",
+                        "timeout": 900,
+                        "statusMessage": "Installing project dependencies (matches CI)"
+                    }
+                ]
+            },
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 -u .claude/hooks/invoke_dispatch_claude.py --group sessionstart-1-context_loader",
+                        "timeout": 125,
+                        "statusMessage": "Running sessionstart-1-context_loader hooks (grouped, #3075)"
+                    }
+                ]
+            }
+        ],
+        "UserPromptSubmit": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 -u .claude/hooks/UserPromptSubmit/invoke_memory_recall.py",
+                        "timeout": 10,
+                        "statusMessage": "Recalling relevant memories (#4011)"
+                    }
+                ]
+            }
+        ],
+        "PostToolUse": [
+            {
+                "matcher": "mcp__serena__write_memory",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 -u .claude/hooks/PostToolUse/invoke_observation_sync.py",
+                        "timeout": 30,
+                        "statusMessage": "Syncing observation memories to Forgetful"
+                    }
+                ]
+            }
+        ],
+        "PostToolUseFailure": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 -u .claude/hooks/PostToolUse/invoke_memory_capture.py",
+                        "timeout": 10,
+                        "statusMessage": "Suggesting memories from failed tool output (#4870)"
+                    }
+                ]
+            }
+        ],
+        "SessionEnd": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 -u .claude/hooks/SessionEnd/invoke_memory_reflection.py",
+                        "timeout": 60,
+                        "statusMessage": "Persisting memory confidence scores (#4011)"
+                    }
+                ]
+            }
+        ],
+        "PreCompact": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 -u .claude/hooks/PreCompact/invoke_compact_checkpoint.py",
+                        "statusMessage": "Checkpointing state before compaction (#1703)"
+                    }
+                ]
+            }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 -u .claude/hooks/invoke_dispatch_claude.py --group sessionstart-1-context_loader",
-            "timeout": 125,
-            "statusMessage": "Running sessionstart-1-context_loader hooks (grouped, #3075)"
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 -u .claude/hooks/UserPromptSubmit/invoke_memory_recall.py",
-            "timeout": 10,
-            "statusMessage": "Recalling relevant memories (#4011)"
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "mcp__serena__write_memory",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 -u .claude/hooks/PostToolUse/invoke_observation_sync.py",
-            "timeout": 30,
-            "statusMessage": "Syncing observation memories to Forgetful"
-          }
-        ]
-      }
-    ],
-    "PostToolUseFailure": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 -u .claude/hooks/PostToolUse/invoke_memory_capture.py",
-            "timeout": 10,
-            "statusMessage": "Suggesting memories from failed tool output (#4870)"
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 -u .claude/hooks/SessionEnd/invoke_memory_reflection.py",
-            "timeout": 60,
-            "statusMessage": "Persisting memory confidence scores (#4011)"
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 -u .claude/hooks/PreCompact/invoke_compact_checkpoint.py",
-            "statusMessage": "Checkpointing state before compaction (#1703)"
-          }
-        ]
-      }
-    ]
-  }
+    }
 }
