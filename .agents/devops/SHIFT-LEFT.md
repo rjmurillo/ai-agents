@@ -1,682 +1,320 @@
 # Shift-Left Validation Strategy
 
 **Status**: Active
-**Version**: 1.0
-**Last Updated**: 2025-12-23
+**Version**: 2.0
+**Last Updated**: 2026-08-19
 
 ## Overview
 
-Shift-left validation catches issues early in development before PR creation.
-This reduces review cycles, accelerates merge velocity, and improves code quality.
+Shift-left validation catches defects on the developer's machine instead of in
+CI review cycles. This document describes the local runner, the git hooks that
+invoke it, and which checks CI repeats.
+
+ADR-042 replaced the PowerShell validation runner with Python. Every command
+below is the current one; the PowerShell entry points named in version 1.0 of
+this document (`Validate-PrePR.ps1`, `Validate-Session.ps1`,
+`Invoke-PesterTests.ps1`, `Validate-PathNormalization.ps1`,
+`Validate-PlanningArtifacts.ps1`, `Detect-AgentDrift.ps1`) no longer exist.
 
 ## Unified Validation Runner
 
-Use `scripts/Validate-PrePR.ps1` as the single command to run all shift-left validations.
+`scripts/validation/pre_pr.py` runs the full local gate sequence.
 
-### Quick Start
+```bash
+# Full validation
+uv run --frozen python scripts/validation/pre_pr.py
 
-```powershell
-# Full validation (recommended before creating PR)
-pwsh scripts/Validate-PrePR.ps1
+# Skip the four quick-skippable gates
+uv run --frozen python scripts/validation/pre_pr.py --quick
 
-# Quick validation (fast checks only, for rapid iteration)
-pwsh scripts/Validate-PrePR.ps1 -Quick
-
-# Verbose output (for troubleshooting)
-pwsh scripts/Validate-PrePR.ps1 -Verbose
+# Verbose output
+uv run --frozen python scripts/validation/pre_pr.py --verbose
 ```
+
+`--quick` skips YAML Style Validation, Path Normalization, Planning Artifacts,
+and Agent Drift Detection. Measured 2026-08-19, those four gates cost 1.89s of
+a 103.25s run, so `--quick` now saves under 2 percent. It was worth 50 to 90
+seconds when the sequence had six gates; it is not a meaningful lever today.
+Run the full sequence.
+
+`--skip-tests` and its `SKIP_TESTS` environment default are parsed but inert:
+no gate in `_SEQUENCE` sets `skip_flag`, so the flag skips nothing.
 
 ## Validation Sequence
 
-The runner executes validations in optimized order (fast checks first):
+The ordered gate list is `_SEQUENCE` in `scripts/validation/pre_pr_sequence.py`.
+Read it there. This document deliberately keeps no second copy: version 1.0
+carried a six-row table that drifted from the real sequence for months without
+anything detecting it.
 
-| # | Validation | Purpose | Skip if -Quick | Typical Duration |
-|---|------------|---------|----------------|------------------|
-| 1 | Session End | Verify session protocol compliance | No | 2-5s |
-| 2 | Pester Tests | Run all unit tests | No | 10-30s |
-| 3 | Markdown Lint | Auto-fix and validate markdown | No | 5-10s |
-| 3.5 | Workflow YAML | Validate GitHub Actions workflows | No | 2-5s |
-| 3.9 | YAML Style | Check YAML style (non-blocking warnings) | Yes | 2-5s |
-| 4 | Path Normalization | Check for absolute paths | Yes | 15-30s |
-| 5 | Planning Artifacts | Validate planning consistency | Yes | 10-20s |
-| 6 | Agent Drift | Detect semantic drift | Yes | 20-40s |
+To list the current gates:
 
-**Note:** The Lefthook pre-push jobs in `lefthook.yml` run the applicable
-validators automatically. See [Pre-Push Hook](#pre-push-hook) below.
+```bash
+uv run --frozen python -c "
+import sys; sys.path.insert(0, 'scripts/validation')
+from pre_pr_sequence import _SEQUENCE
+for gate in _SEQUENCE: print(gate.name)
+"
+```
 
-### Total Duration
+57 gates as of 2026-08-19.
 
-- **Quick mode**: ~20-50s (validations 1-3.5)
-- **Full mode**: ~60-120s (all validations)
+### Cost distribution
+
+Measured 2026-08-19 on a 4-CPU container against a tree with no changes
+against `origin/main`. Most gates scale with the diff, so treat these as the
+floor, not a forecast:
+
+| Gate | Wall |
+|------|-----:|
+| Count Ratchets | 38.37s |
+| Skill Markdown Portability | 16.07s |
+| Subprocess Encoding Convention | 7.06s |
+| Unreachable Code Detection | 5.83s |
+| Documented Interpreter Portability | 4.53s |
+| Python Syntax (compile gate) | 3.71s |
+| Remaining 51 gates | 27.68s |
+| **Total** | **103.25s** |
+
+Thirty-five of the 57 gates finish in under 0.5s each.
+
+YAML Style Validation reported 0.00s because `yamllint` was absent from the
+measuring container and the gate returns early with a warning when the binary
+is missing. Its real cost is unmeasured here.
+
+Re-measure with:
+
+```bash
+SKIP_AUTOFIX=1 uv run --frozen python scripts/validation/pre_pr.py
+```
+
+The per-gate durations print in the Detailed Results block at the end.
 
 ## Exit Codes
 
 | Code | Meaning | Action |
 |------|---------|--------|
-| 0 | PASS | All validations succeeded, ready for PR |
-| 1 | FAIL | One or more validations failed, fix issues |
-| 2 | ERROR | Environment or configuration issue |
-
-## Validation Details
-
-### 1. Session End Validation
-
-**Script**: `scripts/Validate-Session.ps1`
-
-**Checks**:
-
-- Session log exists in `.agents/sessions/`
-- Session End checklist complete (all MUST rows checked)
-- Evidence provided for each checklist item
-- HANDOFF.md updated with session link
-- Markdown linting passed
-- Git worktree clean (all changes committed)
-
-**Fix suggestions**:
-
-- Create session log if missing
-- Complete Session End checklist in session log
-- Run `npx markdownlint-cli2 --fix "**/*.md"`
-- Commit all changes including `.agents/` files
-
-### 2. Pester Unit Tests
-
-**Script**: `build/scripts/Invoke-PesterTests.ps1`
-
-**Checks**:
-
-- All Pester tests pass
-- Test coverage meets thresholds
-- No test failures or errors
-
-**Fix suggestions**:
-
-- Review test failure output
-- Run individual test file: `pwsh -File tests/MyTest.Tests.ps1`
-- Use `Invoke-Pester -Output Diagnostic` for detailed output
-
-### 3. Markdown Linting
-
-**Tool**: `markdownlint-cli2`
-
-**Checks**:
-
-- No markdown linting violations
-- Auto-fixable issues corrected
-- Code blocks have language identifiers
-
-**Fix suggestions**:
-
-- Run `npx markdownlint-cli2 --fix "**/*.md"` to auto-fix
-- Add language identifiers to code blocks (MD040)
-- Wrap generic types like `ArrayPool<T>` in backticks (MD033)
-
-### 3.5. Workflow YAML Validation
-
-**Tool**: `actionlint`
-
-**Checks**:
-
-- GitHub Actions workflow syntax validation
-- Invalid action inputs/outputs detection
-- Expression type checking (`${{ }}` syntax)
-- Runner label validation
-- Cron syntax validation
-- Security issues (script injection, credential exposure)
-- Integrated shellcheck for shell scripts
-- Integrated pyflakes for Python scripts
-
-**Fix suggestions**:
-
-- Review error messages for specific workflow file and line number
-- Check action inputs against action's `action.yml` definition
-- Verify runner labels exist (e.g., `ubuntu-latest`, `windows-latest`)
-- Test cron expressions with online validators
-- Fix expression syntax errors (missing spaces, incorrect property access)
-
-**Installation**:
-
-```bash
-# macOS
-brew install actionlint
-
-# Linux (download binary)
-bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
-
-# Go
-go install github.com/rhysd/actionlint/cmd/actionlint@latest
-```
-
-**Local validation**:
-
-```bash
-# Validate all workflow files (scope to .github/workflows/ with a glob)
-actionlint .github/workflows/*.yml
-
-# Validate specific workflow
-actionlint .github/workflows/pester-tests.yml
-
-# JSON output for parsing
-actionlint -format json .github/workflows/*.yml
-```
-
-> **Scope actionlint to the workflow files, not the repo.** A bare `actionlint`
-> with no path argument recursively scans every `.yml`/`.yaml` file, including
-> composite action definitions under `.github/actions/*/action.yml`.
-> actionlint validates workflow files only; it parses a composite `action.yml`
-> as if it were a workflow and emits false errors (missing `on:`/`jobs:` keys,
-> unexpected `runs:` and `inputs:`). Composite actions cannot be validated with
-> actionlint. Pass an explicit file glob such as `.github/workflows/*.yml` so the
-> scan never reaches `.github/actions/`. Do not pass the bare directory
-> `.github/workflows/`: actionlint rejects a directory argument with
-> "is a directory". The automated toolchain (`scripts/validation/pre_pr.py`,
-> `run_workflow_local_test.py`) already globs the workflow files correctly; this
-> note keeps manual invocations aligned.
-
-**Integration points**:
-
-- Lefthook pre-commit job: see `lefthook.yml` (blocking)
-- Unified runner: `scripts/Validate-PrePR.ps1` (blocking)
-- Worktrunk pre-merge: `.config/wt.toml` (blocking)
-
-**Common errors**:
-
-| Error | Cause | Fix |
-|-------|-------|-----|
-| `property "foo" is not defined in object type` | Typo in action input name | Check action's `action.yml` |
-| `undefined variable "FOO"` | Using undefined output/env | Verify variable is set earlier |
-| `invalid CRON format` | Bad schedule syntax | Use `0 0 * * *` format |
-| `runner label "foo" is unknown` | Invalid runs-on value | Use official runner labels |
-| `shellcheck reported issue` | Shell script error | Fix script syntax |
-
-### 3.6. Workflow Validation (Python)
-
-**Script**: `scripts/validate_workflows.py`
-
-**Purpose**: Validates GitHub Actions workflows for structure, security, and ADR-006 compliance. Complements actionlint with Python-based validation for SHA pinning, workflow size, and permissions.
-
-**Checks**:
-
-- YAML syntax correctness
-- Required workflow fields (`name`, `on`, `jobs`)
-- Action SHA pinning (security requirement)
-- Workflow size ≤100 lines (ADR-006: thin orchestration)
-- Explicit permissions (security best practice)
-- Concurrency configuration
-
-**Installation**:
-
-```bash
-# Requires Python 3 and PyYAML
-uv pip install PyYAML
-
-# Or with pip
-pip install PyYAML
-```
-
-**Local validation**:
-
-```bash
-# Validate all workflows
-python3 scripts/validate_workflows.py
-
-# Validate only changed files
-python3 scripts/validate_workflows.py --changed
-
-# Validate specific file
-python3 scripts/validate_workflows.py .github/workflows/pytest.yml
-
-# Run with act (if installed)
-python3 scripts/validate_workflows.py --act
-```
-
-**Integration points**:
-
-- Lefthook pre-push job: see `lefthook.yml` (blocking)
-- Runs automatically when pushing changes to `.github/workflows/` or `.github/actions/`
-
-**Common errors**:
-
-| Error | Cause | Fix |
-|-------|-------|-----|
-| `Action 'foo@v1' must use SHA pinning` | Using tag/branch instead of SHA | Replace with SHA: `foo@abc123... # v1.0.0` |
-| `Missing 'name' field` | Workflow missing name | Add `name:` at top level |
-| `Missing 'on' trigger` | Workflow missing trigger | Add `on:` section |
-| `Workflow has N lines (ADR-006 recommends ≤100)` | Workflow too large | Extract logic to PowerShell scripts |
-
-**Warnings vs Errors**:
-
-- **Errors** block pre-push: Invalid YAML, missing required fields, actions not SHA-pinned
-- **Warnings** are informational: Workflow size >100 lines, missing explicit permissions
-
-**Exit codes**:
-
-- `0`: All validations passed (warnings OK)
-- `1`: Validation errors found
-- `2`: Script error (missing dependencies, etc.)
-
-**Relationship to actionlint**:
-
-| Tool | Focus | When |
-|------|-------|------|
-| actionlint | GitHub Actions semantics, expression syntax | Always (blocking) |
-| validate_workflows.py | Structure, security, ADR-006 compliance | Automatically via pre-push hook |
-
-Both tools run sequentially in the pre-push hook (actionlint first, then validate_workflows.py).
-
-**See also**: [docs/WORKFLOW-VALIDATION.md](../../docs/WORKFLOW-VALIDATION.md)
-
-### 3.9. YAML Style Validation
-
-**Tool**: `yamllint`
-
-**Purpose**: Validates YAML files for style consistency across the repository. Complements actionlint (which focuses on GitHub Actions semantics) by checking general YAML formatting.
-
-**Checks**:
-
-- Line length limits (120 characters max)
-- Consistent 2-space indentation
-- Trailing spaces
-- Comment formatting (space after `#`)
-- Unix line endings
-- New line at end of file
-
-**Configuration**: `.yamllint.yml` in repository root
-
-**Installation**:
-
-```bash
-# macOS
-brew install yamllint
-
-# Linux/Windows (via pip)
-pip install yamllint
-
-# Verify installation
-yamllint --version
-```
-
-**Local validation**:
-
-```bash
-# Validate all YAML files
-yamllint .
-
-# Validate specific file
-yamllint .github/workflows/pester-tests.yml
-
-# Parsable format (for CI)
-yamllint -f parsable .
-```
-
-**Integration points**:
-
-- Lefthook pre-commit job: see `lefthook.yml` (non-blocking warnings)
-- Unified runner: `scripts/Validate-PrePR.ps1` (skipped if -Quick, non-blocking)
-
-**Behavior**:
-
-- **Non-blocking**: yamllint failures show warnings but don't fail commits
-- **Rationale**: Style issues are cosmetic and shouldn't block development velocity
-- **Recommendation**: Fix yamllint warnings during code cleanup or refactoring
-
-**Common warnings**:
-
-| Warning | Cause | Fix |
-|---------|-------|-----|
-| `line too long` | Line exceeds 120 chars | Split long lines or shorten URLs |
-| `trailing-spaces` | Spaces at end of line | Remove trailing spaces |
-| `indentation` | Inconsistent spacing | Use 2 spaces for indentation |
-| `comments` | Missing space after # | Add space: `# comment` not `#comment` |
-| `new-line-at-end-of-file` | No newline at EOF | Add blank line at end |
-
-**Relationship to actionlint**:
-
-| Tool | Focus | When to Use |
-|------|-------|-------------|
-| actionlint | GitHub Actions semantics | Always for workflow files (blocking) |
-| yamllint | General YAML style | All YAML files (non-blocking warnings) |
-
-Both tools should be used together: actionlint catches functional errors, yamllint enforces style consistency.
-
-### 4. Path Normalization
-
-**Script**: `build/scripts/Validate-PathNormalization.ps1`
-
-**Checks**:
-
-- No absolute paths in documentation files
-- All paths use relative format
-- Cross-platform path separators (forward slashes)
-
-**Fix suggestions**:
-
-- Replace absolute paths with relative paths
-- Use forward slashes (/) for cross-platform compatibility
-- Examples: `docs/guide.md`, `../architecture/design.md`
-
-### 5. Planning Artifacts
-
-**Script**: `build/scripts/Validate-PlanningArtifacts.ps1`
-
-**Checks**:
-
-- Effort estimate consistency (within 20% threshold)
-- No orphan conditions (all conditions linked to tasks)
-- Requirement coverage complete
-
-**Fix suggestions**:
-
-- Add Estimate Reconciliation section to task breakdown
-- Link specialist conditions to specific tasks
-- Add Conditions column to Work Breakdown table
-
-### 6. Agent Drift Detection
-
-**Script**: `build/scripts/Detect-AgentDrift.ps1`
-
-**Checks**:
-
-- Semantic alignment between Claude and VS Code agents
-- Core sections consistent (>80% similarity)
-- No unintended divergence in responsibilities
-
-**Fix suggestions**:
-
-- Review drifting sections in output
-- Sync content between agent variants
-- Document intentional platform-specific differences
+| 0 | PASS | All gates passed |
+| 1 | FAIL | One or more gates failed; fix and re-run |
+| 2 | ERROR | Environment or configuration fault |
+
+Gates that raise `MissingScriptSkip` record SKIP and do not fail the run.
 
 ## Integration with Workflows
 
-### Pre-Commit Hook
+### Pre-commit hook
 
-Lefthook filters staged files and runs the named pre-commit validators declared
-in `lefthook.yml`.
+Lefthook filters staged files and runs the pre-commit jobs declared in
+`lefthook.yml` (46 jobs as of 2026-08-19). Consult that file for the current
+list rather than maintaining a second checklist here.
 
-**Recommendation**: Run `Validate-PrePR.ps1` before committing to catch issues earlier.
+### Pre-push hook
 
-### Pre-Push Hook
+`lefthook.yml` declares 34 pre-push jobs, staged so cheap gates fail before
+expensive ones start (issue #5066). The hook is `piped: true`, so a failing
+job or group skips everything after it. Stage order:
 
-Lefthook filters files in the push range and runs the named pre-push validators
-declared in `lefthook.yml`. Consult that file for the current jobs rather than
-maintaining a second checklist here.
+1. Singleton guards: `repair-packed-refs`, `mutation-safety`,
+   `push-ref-staleness`.
+2. Fast stage, stdin half: a piped group of cheap ref-payload policies.
+3. Fast stage, parallel half: ratchets and policy gates. Measured maximum
+   21.05s (`merge-tree-ratchet`) on 2026-08-19.
+4. `security-scan` (semgrep), a serialized stdin consumer. Measured 6.7s for a
+   7-file push.
+5. Expensive stage: `python-tests`, `pre-pr-validation`, mypy,
+   `workflow-local-run`, the CLI e2e smokes, and the advisory reporters.
 
-**Relationship to other validation:**
+`python-tests` dominates: 475s across four serial partitions on a 4-CPU
+container (bulk 257.9s, mutation 166.6s, safe-push 36.9s, pr-autofix 8.8s).
+Reducing pre-push wall clock means reducing that job; the rest of the hook is
+about 30s combined.
 
-| Hook | Scope | When |
-|------|-------|------|
-| Pre-commit | Per-file, staged changes | Every commit |
-| Pre-push | Branch-wide, full push range | Every push |
-| `Validate-PrePR.ps1` | Full validation suite | Manual, before PR |
-| CI pipeline | Full validation + AI-powered | Every PR |
+A job's standalone wall clock does not predict its wall clock inside the hook.
+See `.claude/rules/ci-scripts.md` MUST-16 for the measured gap and why timeouts
+must be sized against a real push.
 
-### CI Pipeline
+### CI pipeline
 
-The full validation suite runs in CI via GitHub Actions workflow:
+No workflow runs `pre_pr.py`. CI repeats individual validators through
+dedicated workflows instead:
 
-- Workflow: `.github/workflows/shift-left-validation.yml`
-- Trigger: On push to feature branches
-- Mode: Full validation (no -Quick flag)
+| Local gate | CI workflow |
+|------------|-------------|
+| Count Ratchets | `pr-validation.yml` |
+| `python-tests` | `pytest.yml` (5 parallel matrix partitions) |
+| Path Normalization | `validate-paths.yml` |
+| Planning Artifacts | `validate-planning-artifacts.yml` |
+| Agent Drift Detection | `drift-detection.yml` |
+| Generated Artifact Staleness | `validate-generated-agents.yml` |
+| Rule Activation Coverage | `validate-rule-activation-coverage.yml` |
+| Spec ID Uniqueness | `validate-spec-id-uniqueness.yml` |
+| Vendor Portability | `validate-vendor-portability.yml` |
+| Plugin Version Bump | `validate-plugin-version-bump.yml` |
+| Hook Anchoring | `hook-contract-check.yml` |
+| Memory index and tier | `memory-validation.yml` |
 
-### Developer Workflow
+Two pre-push gates have no CI equivalent, so a local bypass is the only place
+they are enforced: `security-scan` (semgrep) and `python-type-check` (mypy).
+CI runs the type-ignore count ratchet, not mypy itself.
 
-Recommended workflow for feature development:
+### Developer workflow
 
 ```text
 1. Make changes
-2. Run: pwsh scripts/Validate-PrePR.ps1 -Quick
-3. Fix any issues
-4. Commit changes (pre-commit hook runs per-file checks)
-5. Push changes (pre-push hook runs full branch validation)
-6. Before PR: pwsh scripts/Validate-PrePR.ps1 (full validation, optional if push passed)
-7. Create PR (CI runs full validation)
+2. Commit (pre-commit hook runs per-file checks)
+3. Push (pre-push hook runs branch-wide validation)
+4. Open the PR (CI runs the workflows above)
 ```
 
-## Performance Optimization
+Running `pre_pr.py` by hand before pushing is optional; the pre-push hook runs
+the same sequence. Run it by hand when you want the failure in seconds rather
+than after the test suite.
 
-### Quick Mode
+## Workflow Validation
 
-Use `-Quick` flag during rapid iteration to skip slow validations:
+### actionlint
 
-```powershell
-pwsh scripts/Validate-PrePR.ps1 -Quick
+Scope actionlint to the workflow files, not the repository. A bare `actionlint`
+with no path argument recursively scans every `.yml` and `.yaml` file,
+including composite action definitions under `.github/actions/*/action.yml`.
+actionlint validates workflow files only; it parses a composite `action.yml` as
+if it were a workflow and emits false errors (missing `on:` and `jobs:` keys,
+unexpected `runs:` and `inputs:`). Composite actions cannot be validated with
+actionlint. Pass an explicit glob:
+
+```bash
+actionlint .github/workflows/*.yml
 ```
 
-**Skipped validations**:
+Do not pass the bare directory `.github/workflows/`: actionlint rejects a
+directory argument with "is a directory". The automated toolchain
+(`scripts/validation/pre_pr.py`, `scripts/validation/run_workflow_local_test.py`)
+already globs correctly; this note keeps manual invocations aligned.
 
-- Path Normalization (15-30s saved)
-- Planning Artifacts (10-20s saved)
-- Agent Drift (20-40s saved)
+Installation:
 
-**Total time saved**: ~50-90s per run
+```bash
+brew install actionlint                                    # macOS
+go install github.com/rhysd/actionlint/cmd/actionlint@latest  # Go
+```
 
-### Parallel Execution
+### validate_workflows.py
 
-Validations run sequentially by design to:
+`scripts/validate_workflows.py` checks structure, SHA pinning, ADR-006 size
+limits, and permissions. See [docs/WORKFLOW-VALIDATION.md](../../docs/WORKFLOW-VALIDATION.md)
+for its full contract, exit codes, and error table.
 
-- Provide clear progress feedback
-- Fail fast on blocking issues
-- Simplify error diagnosis
+### run_workflow_local_test.py
 
-Future enhancement: Add `-Parallel` flag for independent validations.
+`scripts/validation/run_workflow_local_test.py` is the pre-push gate for
+changed workflows. It runs three ordered stages and short-circuits on the
+first failure:
+
+1. `actionlint`: static analysis.
+2. `gh act -n`: dry run of the job graph and step wiring.
+3. `gh act`: real execution in Docker.
+
+```bash
+uv run --frozen python scripts/validation/run_workflow_local_test.py \
+  --files .github/workflows/pytest.yml
+
+# Lint plus dry-run tier only
+uv run --frozen python scripts/validation/run_workflow_local_test.py \
+  --files .github/workflows/pytest.yml --no-full
+```
+
+Missing tools yield exit 3 on a developer machine and in CI. Inside a managed
+remote container the gap degrades to exit 0 with a logged warning, because the
+tools cannot be provisioned there (issues #2548 and #3064).
+
+## YAML Style
+
+`yamllint` checks line length, indentation, trailing spaces, comment spacing,
+and end-of-file newlines against `.yamllint.yml`. Findings warn; they never
+fail a commit or a push. The gate returns early with a warning when `yamllint`
+is not installed.
+
+```bash
+pip install yamllint
+yamllint .
+```
 
 ## Local Workflow Testing with act
 
-### Overview
-
-The `act` tool (nektos/act) enables local testing of GitHub Actions workflows using Docker containers. This reduces the expensive push-check-tweak cycle by catching workflow errors before CI runs.
-
-### Supported Workflows
-
-Workflows compatible with local testing (PowerShell-only, no AI dependencies):
-
-| Workflow | Description | Test Viability |
-|----------|-------------|----------------|
-| `pester-tests.yml` | Run Pester unit tests | ✅ Full support |
-| `validate-paths.yml` | Path normalization validation | ✅ Full support |
-| `memory-validation.yml` | Memory index validation | ✅ Full support |
-
-Workflows **not** compatible with local testing:
-
-| Workflow | Reason |
-|----------|--------|
-| `ai-session-protocol.yml` | Requires Copilot CLI and BOT_PAT |
-| `ai-pr-quality-gate.yml` | Requires Copilot CLI and BOT_PAT |
-| `ai-spec-validation.yml` | Requires Copilot CLI and BOT_PAT |
+`act` (nektos/act) runs GitHub Actions workflows locally in Docker, which
+shortens the push-check-tweak cycle.
 
 ### Prerequisites
 
 ```bash
-# Install act (cross-platform)
-gh extension install https://github.com/nektos/gh-act  # GitHub CLI extension (recommended)
+# Install act, either standalone or as the gh extension
+gh extension install https://github.com/nektos/gh-act
+brew install act
 
-# Or install via package manager:
-brew install act                    # macOS
-
-# Or download binary for your OS from:
-# https://github.com/nektos/act/releases
-
-# Install Docker (required by act)
-# macOS/Windows: https://www.docker.com/products/docker-desktop
-# Linux: https://docs.docker.com/engine/install/
-
-# Verify installation
-act --version
+# Docker is required
 docker info
 ```
 
-### Configuration
-
-The repository includes `.actrc` with optimized defaults:
-
-- Uses `catthehacker/ubuntu:full-latest` images for maximum production parity (~18GB)
-- Enables artifact storage in `.artifacts/`
-- Enables caching in `.cache/`
-- Uses linux/amd64 architecture for compatibility
-- Maps `windows-latest` to `-self-hosted` (runs on host, not container)
-
-**Note**: Full images are large (~18GB) but provide complete tool parity with GitHub-hosted runners, optimizing for "no surprises" - if it works locally, it works in production.
+`.actrc` in the repository root sets `catthehacker/ubuntu:full-latest` images
+for production parity (about 18GB), artifact storage in `.artifacts/`, caching
+in `.cache/`, linux/amd64 architecture, and maps `windows-latest` to
+`-self-hosted` so it runs on the host.
 
 ### Usage
 
-#### PowerShell Wrapper (Recommended)
-
-Use `.claude/skills/github/scripts/Test-WorkflowLocally.ps1` for simplified workflow testing:
-
-```powershell
-# Run pester-tests workflow
-pwsh .claude/skills/github/scripts/Test-WorkflowLocally.ps1 -Workflow pester-tests
-
-# Dry-run to validate syntax only
-pwsh .claude/skills/github/scripts/Test-WorkflowLocally.ps1 -Workflow validate-paths -DryRun
-
-# Run specific job with verbose output
-pwsh .claude/skills/github/scripts/Test-WorkflowLocally.ps1 -Workflow pester-tests -Job test -Verbose
-
-# Pass secrets
-pwsh .claude/skills/github/scripts/Test-WorkflowLocally.ps1 -Workflow pester-tests -Secrets @{ GITHUB_TOKEN = $env:GITHUB_TOKEN }
-```
-
-#### Direct act Commands
-
 ```bash
-# Run workflow
-act pull_request -W .github/workflows/pester-tests.yml
+# Through the repository wrapper
+uv run --frozen python .claude/skills/github/scripts/test_workflow_locally.py \
+  --workflow validate-paths --dry-run
 
-# Dry-run (validate only)
+# Direct act invocation
 act pull_request -W .github/workflows/validate-paths.yml -n
-
-# Run specific job
-act pull_request -j test -W .github/workflows/pester-tests.yml
-
-# Pass secret
-act pull_request -W .github/workflows/pester-tests.yml -s GITHUB_TOKEN="$(gh auth token)"
-
-# List available workflows
 act -l
 ```
 
-### Limitations
+Workflows requiring Copilot CLI or `BOT_PAT` cannot run locally and must rely
+on CI feedback.
 
-#### Windows-Specific Code
-
-act uses Linux containers, so Windows-specific behaviors may differ:
-
-- File paths (backslashes vs. forward slashes)
-- Line endings (CRLF vs. LF)
-- Hidden file detection
-- Case sensitivity
-
-**Workaround**: Use `-P windows-latest=-self-hosted` to run on host machine (see `.actrc`).
-
-#### Missing Pre-installed Tools
-
-GitHub-hosted runners have many pre-installed tools. The default `.actrc` configuration uses full images for maximum compatibility:
-
-- **Default**: Full images (18GB+) via `.actrc` - complete tool parity with GitHub-hosted runners
-- **Alternative**: Medium images for faster iteration: `-P ubuntu-latest=catthehacker/ubuntu:act-latest`
-- **Custom**: Use custom Dockerfile with specific required tools
-
-#### AI-Dependent Workflows
-
-Workflows requiring Copilot CLI or BOT_PAT cannot run locally:
-
-- Infrastructure-dependent (no local alternative)
-- Shift-left not possible for these workflows
-- Must rely on CI feedback
-
-**ROI**: Medium - Reduces iteration time for 30% of workflows (PowerShell-only). Highest-failure workflows (Session Protocol, AI Quality Gate) still require CI.
-
-### Troubleshooting
-
-#### act Issues
+### Troubleshooting act
 
 | Problem | Cause | Solution |
 |---------|-------|----------|
-| `act: command not found` | act not installed | Install via brew/choco or download binary |
-| `Cannot connect to Docker daemon` | Docker not running | Start Docker Desktop |
-| `Error: image not found` | Missing Docker image | Pull image: `docker pull catthehacker/ubuntu:act-latest` |
-| `Permission denied` | Docker socket permissions | Add user to docker group or use sudo |
-| `Workflow validation failed` | Syntax error in workflow | Fix YAML syntax, run actionlint first |
-| `Action not found` | Typo in action name | Check action exists on GitHub Marketplace |
-| `Unknown runner label` | Invalid runs-on value | Use official labels: ubuntu-latest, windows-latest |
+| `act: command not found` | act not installed | Install via brew or the gh extension |
+| `Cannot connect to Docker daemon` | Docker not running | Start Docker |
+| `Error: image not found` | Missing image | `docker pull catthehacker/ubuntu:act-latest` |
+| `Permission denied` | Docker socket permissions | Add the user to the docker group |
+| `Workflow validation failed` | Workflow syntax error | Run actionlint first |
+| `Unknown runner label` | Invalid `runs-on` | Use official runner labels |
 
-#### PowerShell Issues in act
-
-| Problem | Cause | Solution |
-|---------|-------|----------|
-| `$ErrorActionPreference` not respected | act's PowerShell handling | act automatically prepends `$ErrorActionPreference = 'stop'` |
-| `Write-Host` output missing | PowerShell stream redirection | Use `Write-Output` or check act's stdout |
-| Module not found | Missing from Docker image | Install module in workflow: `Install-Module -Name Pester` |
+act uses Linux containers, so Windows-specific path, line-ending, and
+case-sensitivity behavior differs. Use `-P windows-latest=-self-hosted` to run
+on the host.
 
 ## Troubleshooting
 
-### Environment Issues
+**Runner exits 2**: an environment fault. Confirm Python 3.14 through `uv`,
+Node.js for markdownlint, and that the working directory is inside the
+repository.
 
-**Symptom**: Script exits with code 2
+**Runner exits 1**: a gate failed. The Detailed Results block names the gate;
+run that gate's script directly for the full output.
 
-**Common causes**:
-
-- PowerShell not installed: Install PowerShell Core 7+
-- Node.js not installed: Install Node.js 18+ for markdownlint
-- Git repository not initialized: Run in git repository root
-
-### Validation Failures
-
-**Symptom**: Script exits with code 1
-
-**Steps**:
-
-1. Review error messages in output
-2. Run individual validation script for details
-3. Fix issues based on fix suggestions above
-4. Re-run `Validate-PrePR.ps1`
-
-### Performance Issues
-
-**Symptom**: Validation takes >2 minutes
-
-**Optimization**:
-
-- Use `-Quick` flag for rapid iteration
-- Skip tests during markdown-only changes: `-SkipTests`
-- Run individual validations: `pwsh scripts/Validate-Session.ps1`
-
-## Metrics
-
-Target validation times (as of 2025-12-23):
-
-| Metric | Target | Maximum |
-|--------|--------|---------|
-| Quick mode | <30s | 60s |
-| Full mode | <90s | 120s |
-| Session End | <5s | 10s |
-| Pester Tests | <20s | 60s |
-| Markdown Lint | <10s | 20s |
-
-**Current baseline**: Measured on Ubuntu 22.04, Intel i7, 16GB RAM
-
-## Future Enhancements
-
-Planned improvements:
-
-- **Parallel execution**: Add `-Parallel` flag for independent validations
-- **Incremental validation**: Skip unchanged files
-- **Watch mode**: Auto-run on file changes
-- **IDE integration**: VS Code task definitions
-- **Metrics dashboard**: Track validation trends over time
+**A count ratchet fails right after `origin/main` moved**: merge or rebase onto
+a freshly fetched `main` and re-measure before hunting the violation. See
+`.claude/rules/ci-scripts.md` item 14.
 
 ## Related Documentation
 
 - **Session Protocol**: `.agents/SESSION-PROTOCOL.md`
-- **Git Hook Configuration**: `lefthook.yml`
-- **CI Pipeline**: `.github/workflows/shift-left-validation.yml`
-- **DevOps Patterns**: `.agents/devops/validation-runner-pattern.md`
+- **Git hook configuration**: `lefthook.yml`
+- **Workflow validation**: [docs/WORKFLOW-VALIDATION.md](../../docs/WORKFLOW-VALIDATION.md)
+- **CI script rules**: `.claude/rules/ci-scripts.md`
+- **DevOps patterns**: `.agents/devops/validation-runner-pattern.md`
 
 ## References
 
 - **Issue #325**: Unified shift-left validation runner
-- **ADR-017**: Tiered memory index architecture
-- **ADR-014**: Distributed handoff architecture
-- **ADR-005**: PowerShell-only scripting standard
+- **Issue #5066**: Pre-push fast-fail staging
+- **ADR-006**: Thin workflows, testable modules
+- **ADR-035**: Exit code standardization
+- **ADR-042**: Python migration strategy (supersedes ADR-005)
