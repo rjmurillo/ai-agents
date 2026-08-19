@@ -2,8 +2,9 @@
 """Tests for SessionStart/invoke_context_loader.py.
 
 Covers:
-- HANDOFF.md loading and truncation
-- Latest retrospective detection and loading
+- Latest retrospective detection, loading, and truncation
+- HANDOFF.md is never loaded (Issue #5168; the file is a frozen, stale
+  artifact and injecting it wasted ~1,000 tokens/session for no benefit)
 - Fail-open on missing files
 - Consumer repo skip
 - Audit trail creation
@@ -26,13 +27,18 @@ import invoke_context_loader
 
 @pytest.fixture
 def project_tree(tmp_path: Path) -> Path:
-    """Create a minimal project directory tree."""
+    """Create a minimal project directory tree.
+
+    Includes a HANDOFF.md even though the hook must never load it: several
+    tests use its presence as a regression guard against the hook starting
+    to read it again.
+    """
     agents = tmp_path / ".agents"
     agents.mkdir()
     (agents / "sessions").mkdir()
     (agents / "retrospective").mkdir()
 
-    # Create HANDOFF.md
+    # Present but must never be loaded (Issue #5168).
     (agents / "HANDOFF.md").write_text(
         "# Handoff\n\nProject state dashboard.\n", encoding="utf-8"
     )
@@ -203,7 +209,7 @@ class TestMain:
                 invoke_context_loader.main()
             assert exc_info.value.code == 0
 
-    def test_loads_handoff_and_retro(
+    def test_loads_retro_and_ignores_handoff(
         self, project_tree: Path, capsys: pytest.CaptureFixture
     ) -> None:
         # Add a retrospective
@@ -218,12 +224,16 @@ class TestMain:
             invoke_context_loader.main()
 
         captured = capsys.readouterr()
-        assert "HANDOFF.md" in captured.out
         assert "Retrospective" in captured.out
+        # Regression guard for Issue #5168: HANDOFF.md exists in project_tree
+        # but must never be read or injected.
+        assert "HANDOFF.md" not in captured.out
 
-    def test_handles_no_retros(
+    def test_ignores_handoff_when_no_retro_present(
         self, project_tree: Path, capsys: pytest.CaptureFixture
     ) -> None:
+        """With only a (stale, unloaded) HANDOFF.md and no retrospective,
+        nothing qualifies for auto-load and the hook reports as much."""
         with patch.object(
             invoke_context_loader, "skip_if_consumer_repo", return_value=False
         ), patch.object(
@@ -232,9 +242,8 @@ class TestMain:
             invoke_context_loader.main()
 
         captured = capsys.readouterr()
-        assert "HANDOFF.md" in captured.out
-        # Should still output something (handoff only)
-        assert "Loaded" in captured.out
+        assert "No context files found" in captured.out
+        assert "HANDOFF.md" not in captured.out
 
     def test_handles_missing_handoff(
         self, tmp_path: Path, capsys: pytest.CaptureFixture

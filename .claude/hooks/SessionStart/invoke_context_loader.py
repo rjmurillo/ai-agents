@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""Auto-load HANDOFF.md and latest retrospective at session start.
+"""Auto-load the latest retrospective at session start.
 
-Claude Code SessionStart hook that injects critical context files into
-the session to eliminate the 95.8% context reading failure rate documented
-in retrospective analysis.
+Claude Code SessionStart hook that injects the most recent retrospective
+into the session so prior-session findings (recurring bug patterns, gotchas)
+are available without a manual read.
 
-Loads:
-1. .agents/HANDOFF.md (read-only dashboard of project state)
-2. Latest retrospective from .agents/retrospective/ (learnings from prior sessions)
+Loads the latest retrospective from .agents/retrospective/ (learnings from
+prior sessions), truncated to prevent context bloat. Output is printed to
+stdout so Claude Code injects it into the session context.
 
-Both are truncated to prevent context bloat. Output is printed to stdout
-so Claude Code injects it into the session context.
+Does NOT load .agents/HANDOFF.md. That file has been a frozen, read-only
+artifact since 2025-12-22 (superseded by per-issue handoffs and Serena
+memory per ADR-014), and injecting it unconditionally spent roughly 1,000
+tokens per session on a dashboard nobody updates.
 
 Hook Type: SessionStart (non-blocking, fail-open)
 Exit Codes:
@@ -19,7 +21,9 @@ Exit Codes:
 References:
     - Issue #1703 (lifecycle hook infrastructure)
     - Issue #1672 (session-start gate)
+    - Issue #5168 (removed the HANDOFF.md auto-load; stale since 2025-12-22)
     - ADR-008 (protocol automation via lifecycle hooks)
+    - ADR-014 (distributed handoff architecture; supersedes HANDOFF.md)
 """
 
 from __future__ import annotations
@@ -60,7 +64,6 @@ except ImportError:
 
 
 # Maximum characters to inject per file to prevent context bloat
-MAX_HANDOFF_CHARS = 4000
 MAX_RETRO_CHARS = 4000
 
 HOOK_NAME = "context-loader"
@@ -286,7 +289,7 @@ def _emit_utf8(text: str) -> None:
 
 
 def main() -> None:
-    """Load HANDOFF.md and latest retrospective into session context."""
+    """Load the latest retrospective into session context."""
     _drain_stdin()
 
     if skip_if_consumer_repo(HOOK_NAME):
@@ -297,17 +300,7 @@ def main() -> None:
     loaded_files: list[str] = []
     output_parts: list[str] = []
 
-    # 1. Load HANDOFF.md
-    handoff_path = project_path / ".agents" / "HANDOFF.md"
-    handoff_content = _read_file_truncated(handoff_path, MAX_HANDOFF_CHARS)
-    if handoff_content:
-        output_parts.append(
-            "## 📋 Auto-loaded: HANDOFF.md (read-only dashboard)\n\n"
-            f"{handoff_content}"
-        )
-        loaded_files.append("HANDOFF.md")
-
-    # 2. Load latest retrospective
+    # Load latest retrospective
     retro_dir = project_path / ".agents" / "retrospective"
     latest_retro = _find_latest_retrospective(retro_dir)
     if latest_retro:
@@ -319,7 +312,7 @@ def main() -> None:
             )
             loaded_files.append(f"retrospective/{latest_retro.name}")
 
-    # 3. Remind about unfilled retro skeletons (Issue #2079). Surface a count
+    # Remind about unfilled retro skeletons (Issue #2079). Surface a count
     # and the fill command so the next interactive session can complete them.
     pending_count, pending_names = _count_pending_skeletons(retro_dir)
     if pending_count:
