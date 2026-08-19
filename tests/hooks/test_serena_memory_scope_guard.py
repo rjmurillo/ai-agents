@@ -220,6 +220,56 @@ def test_override_pointing_elsewhere_still_blocks(monkeypatch, main_checkout, ex
     assert exit_code == BLOCK
 
 
+def test_blocks_when_git_cannot_be_launched_for_the_callers_worktree(
+    monkeypatch, capsys, main_checkout, external_worktree
+):
+    """A launch failure is not a confirmed "outside any worktree" answer."""
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(main_checkout))
+    monkeypatch.setattr(
+        guard.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(OSError("git not found"))
+    )
+    exit_code = _run_in_process(
+        monkeypatch,
+        {"tool_name": "mcp__serena__write_memory", "cwd": str(external_worktree)},
+    )
+    assert exit_code == BLOCK
+    stderr = capsys.readouterr().err
+    assert "could not determine your git worktree" in stderr
+    assert "#5061" in stderr
+
+
+def test_blocks_when_git_times_out_for_the_callers_worktree(
+    monkeypatch, capsys, main_checkout, external_worktree
+):
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(main_checkout))
+
+    def _timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=["git", "rev-parse"], timeout=guard._GIT_TIMEOUT_SECONDS)
+
+    monkeypatch.setattr(guard.subprocess, "run", _timeout)
+    exit_code = _run_in_process(
+        monkeypatch,
+        {"tool_name": "mcp__serena__write_memory", "cwd": str(external_worktree)},
+    )
+    assert exit_code == BLOCK
+    assert "could not determine your git worktree" in capsys.readouterr().err
+
+
+def test_blocks_when_git_succeeds_with_no_usable_output(
+    monkeypatch, capsys, main_checkout, external_worktree
+):
+    """returncode 0 with blank stdout is unusable, not a confirmed non-repo answer."""
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(main_checkout))
+    blank = subprocess.CompletedProcess(args=["git"], returncode=0, stdout="   \n", stderr="")
+    monkeypatch.setattr(guard.subprocess, "run", lambda *a, **k: blank)
+    exit_code = _run_in_process(
+        monkeypatch,
+        {"tool_name": "mcp__serena__write_memory", "cwd": str(external_worktree)},
+    )
+    assert exit_code == BLOCK
+    assert "could not determine your git worktree" in capsys.readouterr().err
+
+
 # --- Edge: payload shapes ---------------------------------------------------
 
 
@@ -238,7 +288,8 @@ def test_unusable_stdin_allows(monkeypatch, main_checkout, raw):
     assert _run_in_process(monkeypatch, {}, stdin_text=raw) == ALLOW
 
 
-def test_oversized_stdin_allows(monkeypatch, main_checkout):
+def test_oversized_stdin_blocks(monkeypatch, capsys, main_checkout):
+    """Fail closed: an oversized payload cannot be confirmed unrelated to a write."""
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(main_checkout))
     oversized = json.dumps(
         {
@@ -246,7 +297,24 @@ def test_oversized_stdin_allows(monkeypatch, main_checkout):
             "pad": "x" * (guard._MAX_STDIN_BYTES + 64),
         }
     )
-    assert _run_in_process(monkeypatch, {}, stdin_text=oversized) == ALLOW
+    exit_code = _run_in_process(monkeypatch, {}, stdin_text=oversized)
+    assert exit_code == BLOCK
+    stderr = capsys.readouterr().err
+    assert "cannot verify Serena memory scope" in stderr
+    assert "#5061" in stderr
+
+
+def test_stdin_at_the_size_limit_is_not_treated_as_oversized(monkeypatch, main_checkout):
+    """The boundary itself must still parse; only bytes past it fail closed."""
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(main_checkout))
+    body = {"tool_name": "mcp__serena__write_memory", "cwd": str(main_checkout), "pad": ""}
+    overhead = len(json.dumps(body).encode("utf-8"))
+    pad_len = guard._MAX_STDIN_BYTES - overhead
+    assert pad_len >= 0
+    body["pad"] = "x" * pad_len
+    at_limit = json.dumps(body)
+    assert len(at_limit.encode("utf-8")) == guard._MAX_STDIN_BYTES
+    assert _run_in_process(monkeypatch, {}, stdin_text=at_limit) == ALLOW
 
 
 def test_non_string_tool_name_allows(monkeypatch, main_checkout, external_worktree):
@@ -329,3 +397,31 @@ def test_hook_is_registered_on_the_plugin_surface():
         json.loads((REPO_ROOT / ".claude" / "hooks" / "hooks.json").read_text(encoding="utf-8"))
     )
     assert "plugin-pretooluse-11-serena_memory_scope" in registered
+
+
+def test_matcher_is_anchored_on_every_registration_surface():
+    """A bare-substring matcher fires on any tool name containing it, not just
+    the four memory-mutation tools; classify_matcher() in
+    generate_hooks_shim.py additionally treats an unanchored pattern as a
+    literal-string comparison, so an unanchored ``serena-write_memory`` never
+    matches a real tool name at all on the Copilot surface (issue #5061)."""
+    dispatch_groups = json.loads(
+        (REPO_ROOT / ".claude" / "hooks" / "dispatch_groups.json").read_text(encoding="utf-8")
+    )
+    group = dispatch_groups["groups"]["plugin-pretooluse-11-serena_memory_scope"]
+    assert group["matcher"].startswith("^") and group["matcher"].endswith("$")
+    assert group["shims"][0]["copilotMatcher"].startswith("^")
+    assert group["shims"][0]["copilotMatcher"].endswith("$")
+
+    hooks_json = json.loads(
+        (REPO_ROOT / ".claude" / "hooks" / "hooks.json").read_text(encoding="utf-8")
+    )
+    matchers = [
+        entry.get("matcher", "")
+        for entries in hooks_json.get("hooks", {}).values()
+        for entry in entries
+        if "plugin-pretooluse-11-serena_memory_scope" in json.dumps(entry)
+    ]
+    assert matchers, "expected the guard's group entry in hooks.json"
+    for matcher in matchers:
+        assert matcher.startswith("^") and matcher.endswith("$"), matcher

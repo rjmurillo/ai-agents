@@ -57,7 +57,7 @@
             "type": "command"
           }
         ],
-        "matcher": "mcp__serena__(write|delete)_memory|serena-(write|delete)_memory"
+        "matcher": "^(mcp__serena__(write|delete)_memory|serena-(write|delete)_memory)$"
       }
     ]
   }

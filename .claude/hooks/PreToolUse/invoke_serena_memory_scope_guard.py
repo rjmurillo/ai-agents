@@ -46,10 +46,12 @@ Exit Codes (Claude Hook Semantics, exempt from ADR-035):
     0 = Allow (unrelated tool, scope matches, or caller is not in a git repo)
     2 = Block (memory mutation whose target checkout is not the caller's)
 
-Fail-closed for mutations whose session root cannot be resolved: an
-unresolvable root is exactly the state in which a stray write cannot be ruled
-out. Fail-open when the caller is not inside any git worktree, because no
-worktree isolation claim exists to violate there.
+Fail-closed for mutations whose session root cannot be resolved, whose caller
+worktree cannot be resolved (git failed to launch, timed out, or returned
+unusable output), or whose stdin payload was too large to parse safely: each
+is a state in which a stray write cannot be ruled out. Fail-open only when
+git ran and confirmed the caller is not inside any git worktree at all,
+because no worktree isolation claim exists to violate there.
 """
 
 from __future__ import annotations
@@ -79,8 +81,25 @@ _OVERRIDE_ENV = "SERENA_PROJECT_ROOT"
 _SESSION_ENV = "CLAUDE_PROJECT_DIR"
 
 
+class _GitUnresolvable(Exception):
+    """Raised when git could not be run at all (not when it ran and said no).
+
+    A caller genuinely outside any git repository gets a clean nonzero
+    ``git`` exit; that is a real answer, not an unresolvable state. A
+    launch failure, a timeout, or an unreadable result tells us nothing
+    about whether the caller is inside a worktree, so it cannot be treated
+    the same as a confirmed "not in a repo" answer.
+    """
+
+
 def _git_toplevel(start: Path) -> Path | None:
-    """Return the git worktree root containing *start*, or None."""
+    """Return the git worktree root containing *start*, or None.
+
+    Raises :class:`_GitUnresolvable` when ``git`` could not be launched, hit
+    its timeout, or returned output we could not resolve, so a caller that
+    needs to distinguish "confirmed outside a repo" from "we do not know"
+    can fail closed on the latter instead of silently allowing it.
+    """
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
@@ -91,17 +110,17 @@ def _git_toplevel(start: Path) -> Path | None:
             check=False,
             timeout=_GIT_TIMEOUT_SECONDS,
         )
-    except (OSError, subprocess.SubprocessError):
-        return None
+    except (OSError, subprocess.SubprocessError) as error:
+        raise _GitUnresolvable(str(error)) from error
     if result.returncode != 0:
         return None
     toplevel = result.stdout.strip()
     if not toplevel:
-        return None
+        raise _GitUnresolvable("git rev-parse --show-toplevel returned no output")
     try:
         return Path(toplevel).resolve()
-    except OSError:
-        return None
+    except OSError as error:
+        raise _GitUnresolvable(str(error)) from error
 
 
 def _resolved_dir(raw: str) -> Path | None:
@@ -126,11 +145,19 @@ def _serena_memory_root() -> Path | None:
     """
     override = _resolved_dir(os.environ.get(_OVERRIDE_ENV, ""))
     if override is not None:
-        return _git_toplevel(override) or override
+        try:
+            return _git_toplevel(override) or override
+        except _GitUnresolvable:
+            return override
 
     session_dir = _resolved_dir(os.environ.get(_SESSION_ENV, ""))
     if session_dir is not None:
-        return _git_toplevel(session_dir)
+        try:
+            return _git_toplevel(session_dir)
+        except _GitUnresolvable:
+            # An unresolvable git state here still yields no answer, and the
+            # caller (main) already fails closed on a None memory root.
+            return None
 
     return None
 
@@ -149,13 +176,28 @@ def _payload_cwd(payload: dict[str, object]) -> Path:
         return Path.cwd().resolve()
 
 
+class _StdinTooLarge(Exception):
+    """Raised when the hook payload exceeds ``_MAX_STDIN_BYTES``.
+
+    The read itself is already bounded (``read(_MAX_STDIN_BYTES + 1)``), so
+    there is no unbounded-read risk in accepting a larger payload; the limit
+    exists to bound JSON-parse cost. A payload this size cannot be reliably
+    parsed to confirm it is unrelated to a memory write, and a large memory
+    body is a realistic, more consequential case, not an edge case to wave
+    through. Callers fail closed on this instead of the generic
+    can't-parse-so-allow fallback.
+    """
+
+
 def _read_payload() -> tuple[str, Path]:
     """Return (tool_name, caller_cwd) from the hook stdin payload."""
     fallback = ("", Path.cwd().resolve())
     if sys.stdin.isatty():
         return fallback
     raw = sys.stdin.read(_MAX_STDIN_BYTES + 1)
-    if not raw.strip() or len(raw) > _MAX_STDIN_BYTES:
+    if len(raw) > _MAX_STDIN_BYTES:
+        raise _StdinTooLarge(f"payload exceeds {_MAX_STDIN_BYTES} bytes")
+    if not raw.strip():
         return fallback
     try:
         payload = json.loads(raw)
@@ -189,14 +231,33 @@ def _block_message(worktree: Path, memory_root: Path) -> str:
 
 def main() -> int:
     """Entry point. Returns 0 (allow) or 2 (block)."""
-    tool_name, caller_cwd = _read_payload()
+    try:
+        tool_name, caller_cwd = _read_payload()
+    except _StdinTooLarge as error:
+        print(
+            f"BLOCKED: cannot verify Serena memory scope (issue #5061): {error}. "
+            "A payload this size cannot be confirmed unrelated to a memory "
+            "write. Write the memory file directly with the Write tool, or "
+            "retry with a smaller call.",
+            file=sys.stderr,
+        )
+        return 2
     if tool_name not in _MEMORY_WRITE_TOOLS:
         return 0
 
-    worktree = _git_toplevel(caller_cwd)
+    try:
+        worktree = _git_toplevel(caller_cwd)
+    except _GitUnresolvable as error:
+        print(
+            "BLOCKED: could not determine your git worktree (issue #5061): "
+            f"{error}. Set {_OVERRIDE_ENV} to your worktree, or write the "
+            "memory file directly with the Write tool.",
+            file=sys.stderr,
+        )
+        return 2
     if worktree is None:
-        # Caller is not inside a git worktree, so there is no isolation claim
-        # to violate. Fail open.
+        # git ran and confirmed the caller is not inside a git worktree at
+        # all, so there is no isolation claim to violate. Fail open.
         return 0
 
     memory_root = _serena_memory_root()
