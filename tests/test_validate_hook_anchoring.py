@@ -42,10 +42,14 @@ def _anchored_seed() -> dict:
     silently stopped matching the generator cannot make every FAIL case pass
     vacuously.
     """
-    sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
-    import generate_dispatcher
+    scripts_path = str(REPO_ROOT / "build" / "scripts")
+    sys.path.insert(0, scripts_path)
+    try:
+        import generate_dispatcher
 
-    return {"hooks": {"PreToolUse": [generate_dispatcher.dispatcher_entry("PreToolUse", 35)]}}
+        return {"hooks": {"PreToolUse": [generate_dispatcher.dispatcher_entry("PreToolUse", 35)]}}
+    finally:
+        sys.path.remove(scripts_path)
 
 
 def _copilot_root(tmp_path: Path, mutate: Callable[[dict], None]) -> Path:

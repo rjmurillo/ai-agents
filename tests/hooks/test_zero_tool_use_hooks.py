@@ -113,12 +113,19 @@ def _github_hooks_offenders(event: str, hooks_dir: Path) -> list[str]:
     `Path.glob` on a nonexistent directory yields nothing rather than
     raising, so this returns `[]` for the expected ADR-097 state (no
     `.github/hooks/` directory at all) with no special-casing needed.
+
+    Checks both top-level keys and nested under ``hooks`` to cover both the
+    flat schema and the Copilot-native ``{"version": 1, "hooks": {...}}``
+    form used by the deleted ``.github/hooks/require-subagent-model.json``.
     """
-    return [
-        str(manifest)
-        for manifest in sorted(hooks_dir.glob("*.json"))
-        if event in _load(manifest)
-    ]
+    offenders = []
+    for manifest in sorted(hooks_dir.glob("*.json")):
+        doc = _load(manifest)
+        if event in doc:
+            offenders.append(str(manifest))
+        elif isinstance(doc.get("hooks"), dict) and event in doc["hooks"]:
+            offenders.append(str(manifest))
+    return offenders
 
 
 @pytest.mark.parametrize("event", PER_CALL_EVENTS + PER_CALL_EVENTS_COPILOT_NATIVE)
@@ -150,14 +157,17 @@ def test_github_hooks_scan_would_catch_a_reintroduced_registration(tmp_path: Pat
     The directory legitimately not existing and the scan being broken both
     produce an empty offender list. Point the same scan helper at a synthetic
     directory carrying exactly the shape ADR-097 deleted
-    (`{"preToolUse": {...}}`) and confirm it is caught, so a pass above means
-    "nothing registered", not "nothing examined".
+    (``{"version": 1, "hooks": {"preToolUse": [...]}}``) and confirm it is
+    caught, so a pass above means "nothing registered", not "nothing examined".
     """
     fake_dir = tmp_path / "hooks"
     fake_dir.mkdir()
     reintroduced = fake_dir / "require-subagent-model.json"
     reintroduced.write_text(
-        json.dumps({"preToolUse": {"type": "command", "command": "true"}}),
+        json.dumps({
+            "version": 1,
+            "hooks": {"preToolUse": [{"type": "command", "command": "true"}]},
+        }),
         encoding="utf-8",
     )
 
