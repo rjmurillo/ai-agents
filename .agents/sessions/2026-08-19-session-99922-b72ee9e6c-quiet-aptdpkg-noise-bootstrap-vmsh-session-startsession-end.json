@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "NOT LINTED: no changed markdown files"
+        "Evidence": "NOT LINTED: pre_pr.py --markdown-lint-only selected 0 of 1 files"
       },
       "qaValidation": {
         "level": "MUST",
@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: a5c27d9995)"
+        "Evidence": "All changes committed (HEAD: 14de240eb0)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -124,6 +124,6 @@
     }
   },
   "workLog": [],
-  "endingCommit": "a5c27d9995",
+  "endingCommit": "14de240eb0",
   "nextSteps": []
 }
