@@ -12,6 +12,18 @@
         }
       ]
     },
+    "sessionstart-2-checkout_freshness": {
+      "event": "SessionStart",
+      "mode": "observe",
+      "matcher": null,
+      "shims": [
+        {
+          "file": "SessionStart/invoke_checkout_freshness_check.py",
+          "timeout": 35,
+          "statusMessage": "Checking checkout freshness against origin/main (#4689)"
+        }
+      ]
+    },
     "plugin-pretooluse-10-require_subagent_model": {
       "event": "PreToolUse",
       "mode": "gate",

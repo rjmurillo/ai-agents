@@ -23,6 +23,16 @@
                         "statusMessage": "Running sessionstart-1-context_loader hooks (grouped, #3075)"
                     }
                 ]
+            },
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 -u .claude/hooks/invoke_dispatch_claude.py --group sessionstart-2-checkout_freshness",
+                        "timeout": 45,
+                        "statusMessage": "Running sessionstart-2-checkout_freshness hooks (grouped, #4689)"
+                    }
+                ]
             }
         ],
         "UserPromptSubmit": [
