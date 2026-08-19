@@ -153,3 +153,47 @@ name the per-call events rule 6 defines. This is the third time the same
 propagation gap produced a defect in this change, which is the argument for
 sweeping every surface on a claim change instead of fixing the one that was
 reported.
+
+## Round 3: rule 5, built rather than deferred
+
+The open item both the advisor and critic lenses raised, and which round 2 left
+recorded as unresolved, is now closed. Owner asked whether rule 5 was worth
+building or should be amended away. The measurement decided it:
+
+| Question | Measured |
+|---|---|
+| Hook scripts under `.claude/hooks/` carrying `Customer value:` | 1 of 8 |
+| Of those, how many are actually vendored (`surface: "plugin"`) | 1 |
+| Rule 5 compliance on the vendored surface | 1 of 1 |
+| `Customer value:` occurrences in `scripts/`, `build/`, `.github/workflows/` | 0 |
+
+The 1-of-8 figure is the trap. Rule 5 binds the vendored surface, and scope is a
+property of the registration, not the directory: `.claude/hooks/` also holds this
+repository's dogfood hooks, which the rule never covered. Scoping by directory
+would have demanded a consumer-value line from seven hooks that have no consumer,
+which is rule 1's question and rule 2's answer, not rule 5's.
+
+**Verdict: enforce, but not as specified.** A standalone workflow, script, and
+baseline guarding one already-compliant file is disproportionate, and it would
+add to precisely the self-referential governance machinery this repository's
+2026-08-17 retrospective measured at 94% of open issues. The parity suite already
+resolves plugin-surface groups and already runs inside `python-tests`, so the
+check costs no new job.
+
+Both new tests were mutation-controlled against the real tree rather than
+asserted:
+
+| Control | Expectation | Observed |
+|---|---|---|
+| `Customer value:` stripped from the vendored hook | rule 5 test fails | FAILED as required |
+| plugin surface emptied of all `surface: "plugin"` groups | anti-vacuity test fails | FAILED, **while the rule 5 test passed on zero files** |
+
+The second control is why the companion test exists. It demonstrates the vacuity
+rather than arguing it: with no plugin-surface groups the presence check examines
+nothing and reports success, which is the shape `ci-scripts.md` MUST 12 names.
+
+Sweeping rather than patching the reported line, per the round 2 method note:
+four passages described rule 5 as planned or unbuilt (the rule itself plus three
+in Consequences). All four were corrected in the same change. This is the first
+time in this change that the sweep ran before a reviewer reported the second
+instance.

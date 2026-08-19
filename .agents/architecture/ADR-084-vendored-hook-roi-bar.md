@@ -108,15 +108,33 @@ hooks. Concretely, the bar is six rules:
    vendored surface. If the logic is genuinely internal, it moves to Lefthook
    or CI per rule 2; it is not shipped dead.
 5. **Every vendored hook carries a one-line customer-value justification, and a
-   planned CI check asserts its presence.** The justification lives in the
-   hook's module docstring as a single line a plugin reader can find, by
-   convention prefixed `Customer value:` so the check is a simple presence grep,
-   not a semantic judge. That CI presence check is new surface to build (see the
-   risks below; recommended for the #3216 to #3218 chain), not an existing gate.
-   Once it ships it asserts the line is present on every hook in a vendored
-   surface, so a new hook cannot land without stating who it helps. Until then,
-   human review at ADR and PR time enforces the rule and judges whether the
-   stated value is real.
+   test asserts its presence.** The justification lives in the hook's module
+   docstring as a single line a plugin reader can find, prefixed
+   `Customer value:` so the check is a presence grep, not a semantic judge.
+
+   **Enforced since 2026-08-19 by
+   `tests/hooks/test_dispatch_groups_parity.py::test_every_vendored_hook_states_its_customer_value`,
+   not by a standalone CI job.** The original text promised a new CI check and
+   none was built; measured 29 days after acceptance, `Customer value:` appeared
+   in no script under `scripts/`, `build/`, or `.github/workflows/`. The
+   instrument changed on evidence: the vendored surface is one hook, and a
+   dedicated workflow, script, and baseline guarding one already-compliant file
+   is more machinery than the risk carries. The parity suite already resolves
+   plugin-surface groups and already runs in the `python-tests` gate, so the
+   enforcement costs no new job.
+
+   **Scope is the registration, not the directory.** A hook is vendored when its
+   dispatch group carries `surface: "plugin"`. `.claude/hooks/` also holds this
+   repository's own dogfood hooks, which this rule never covered; scoping by
+   directory would demand a consumer-value line from hooks that have no
+   consumer. Measured at the time of writing: 8 hook scripts under
+   `.claude/hooks/`, of which 1 is vendored, and that one complies.
+
+   A companion test fails when the plugin surface is empty, because a zero-file
+   corpus would let the presence check pass while examining nothing.
+
+   What the test does NOT do is judge whether the stated value is real. That
+   stays with human review at ADR and PR time, as it always did.
 6. **The per-call events clear an additional bar (added 2026-08-18).** This
    rule governs `PreToolUse`, `PostToolUse`, `PermissionRequest`, AND
    `PostToolUseFailure`. For all four, inability to express the check
@@ -171,10 +189,11 @@ hooks. Concretely, the bar is six rules:
 
 - The vendored surface trends toward customer value, not internal ceremony. A
   plugin reader can tell what each shipped hook does for them.
-- Rule 5 is designed to make the bar mechanically enforced at the point a hook
-  is added, once its CI presence check ships, rather than a convention that
-  erodes. That check is the intended ratchet that stops re-accretion; until it
-  lands, human review at ADR and PR time holds the line.
+- Rule 5 is mechanically enforced at the point a hook is added, by a test in
+  the parity suite rather than the standalone CI check first proposed. That test
+  is the ratchet against re-accretion. It went 29 days unbuilt while the ADR
+  described it as planned, which is the reason the rule now names the file that
+  enforces it instead of an intention.
 - Rules 3 and 4 push cost off the consumer's hot path: zero-spawn host-native
   surfaces where possible, and no dead hooks spawning per call to no-op.
 - Internal enforcement does not weaken. It moves to Lefthook and CI. CI gates
@@ -183,18 +202,21 @@ hooks. Concretely, the bar is six rules:
 
 ### Negative and risks
 
-- Rule 5's CI check is new surface to build and maintain. The mitigation is that
-  it is a presence check (grep for a docstring line), not a semantic judge of
-  whether the stated value is real; the human review at ADR and PR time judges
-  the value.
+- Rule 5's enforcement is a presence check, not a semantic judge of whether the
+  stated value is real; human review at ADR and PR time judges the value. Its
+  maintenance cost is near zero because it reuses the parity suite's existing
+  plugin-surface resolution and adds no job, script, or baseline. The residual
+  risk it cannot cover is a hook that carries a truthful-looking line whose
+  claimed consumer value is fictional.
 - Moving internal enforcement out of the vendored surface means a contributor
   who relied on a vendored hook firing locally now relies on Lefthook and CI.
   The mitigation is CI, which gates every PR unconditionally; Lefthook's native
   install command closes the local-commit gap, so the enforcement point moves
   but does not disappear.
-- The bar is a policy, not a code change. It binds future additions only if
-  reviewers apply it. Rule 5's CI check is what converts the policy into an
-  enforced gate for the one rule that can be mechanically checked.
+- Rules 1, 2, 3, 4, and 6 are policy, not code. They bind future additions only
+  if reviewers apply them. Rule 5 is the single mechanically checkable clause and
+  is now enforced; the rest are not, and this ADR should not be read as claiming
+  otherwise.
 
 ### What this ADR does NOT do
 
