@@ -185,13 +185,26 @@ def _manifest_is_readable(install_root: Path) -> bool:
     :func:`_registered_events` reports identically as an empty list. Without
     this split, permitting the empty case would also permit a manifest that
     failed to generate, and those are opposite verdicts.
+
+    "Well-formed" also requires every present event's value to be a list.
+    ``_registered_events`` silently drops any event whose value is not a list
+    (``entries for event, entries in hooks.items() if isinstance(entries,
+    list) and entries``), so a manifest such as ``{"hooks": {"PreToolUse":
+    {}}}`` would otherwise read as the deliberate ADR-097 zero-registration
+    state instead of the malformed manifest it actually is: a dict where a
+    list of hook commands belongs.
     """
     manifest = install_root / "hooks" / "hooks.json"
     try:
         data = json.loads(manifest.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError):
         return False
-    return isinstance(data, dict) and isinstance(data.get("hooks"), dict)
+    if not isinstance(data, dict):
+        return False
+    hooks = data.get("hooks")
+    if not isinstance(hooks, dict):
+        return False
+    return all(isinstance(entries, list) for entries in hooks.values())
 
 
 def _shipped_dispatchers(install_root: Path) -> list[Path]:
@@ -271,8 +284,9 @@ def main() -> int:
         # Unreadable or structurally wrong manifest. Still a hard failure: this
         # is the generation-broke case, not the deliberately-empty one.
         print(
-            f"FAIL: hooks.json missing, unparseable, or has no 'hooks' mapping "
-            f"in {args.install_root}",
+            f"FAIL: hooks.json missing, unparseable, has no 'hooks' mapping, "
+            f"or has a non-list hook event (every event value must be a "
+            f"list) in {args.install_root}",
             file=sys.stderr,
         )
         return 1

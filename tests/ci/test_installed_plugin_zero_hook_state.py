@@ -103,6 +103,21 @@ def test_a_manifest_without_a_hooks_mapping_still_fails(tmp_path: Path) -> None:
     assert _run(tmp_path, source) == 1
 
 
+def test_a_present_non_list_event_value_still_fails(tmp_path: Path) -> None:
+    """Control: a malformed event value must not read as "not registered".
+
+    ``{"hooks": {"PreToolUse": {}}}`` has a present ``PreToolUse`` key whose
+    value is a dict, not a list of hook commands. `_registered_events`
+    filters this out via `isinstance(entries, list)`, so without this check
+    in `_manifest_is_readable` too, the manifest would certify as the
+    deliberate ADR-097 zero-registration state (PASS) instead of failing as
+    the malformed manifest it actually is.
+    """
+    source = _plugin_source(tmp_path, json.dumps({"hooks": {"PreToolUse": {}}}))
+
+    assert _run(tmp_path, source) == 1
+
+
 def test_a_missing_plugin_source_is_a_config_error(tmp_path: Path) -> None:
     """Exit 2 stays reserved for configuration errors (ADR-035)."""
     assert _run(tmp_path, tmp_path / "does-not-exist") == 2
@@ -173,16 +188,22 @@ def test_a_registered_event_with_no_dispatcher_still_fails(tmp_path: Path) -> No
 
 
 def test_registered_events_and_readability_are_separable(tmp_path: Path) -> None:
-    """`_registered_events` returns [] for two opposite situations.
+    """`_registered_events` returns [] for THREE different situations.
 
-    The caller distinguishes them via `_manifest_is_readable`. Pinning that
-    split here keeps a future refactor from collapsing the two back together,
-    which is what would let a broken manifest pass as the empty state.
+    The caller distinguishes "legitimately empty" from the other two via
+    `_manifest_is_readable`. Pinning that split here keeps a future refactor
+    from collapsing them back together, which is what would let a broken or
+    malformed manifest pass as the deliberate empty state.
     """
     empty = _plugin_source(tmp_path / "a", json.dumps({"hooks": {}}))
     broken = _plugin_source(tmp_path / "b", "{{{")
+    malformed_event = _plugin_source(
+        tmp_path / "c", json.dumps({"hooks": {"PreToolUse": {}}})
+    )
 
     assert _MODULE._registered_events(empty) == []
     assert _MODULE._registered_events(broken) == []
+    assert _MODULE._registered_events(malformed_event) == []
     assert _MODULE._manifest_is_readable(empty) is True
     assert _MODULE._manifest_is_readable(broken) is False
+    assert _MODULE._manifest_is_readable(malformed_event) is False
