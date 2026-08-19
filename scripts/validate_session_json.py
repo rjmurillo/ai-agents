@@ -971,11 +971,17 @@ def validate_qa_report_evidence(
         # explicitly resolved live-HEAD validation head, which catches
         # staleness from commits after the session's own recorded end
         # state; fall back to the session's own resolved commit
-        # (`binding.commit`) when no such value is available (the
-        # `--existing-log` path), rather than silently skipping the
-        # staleness check as the prior optional-`validation_head` design
-        # did (issue #5164 round-1 review: this was reachable on the path
-        # every real committed-log caller uses).
+        # (`binding.commit`) when no such value is available, rather than
+        # silently skipping the staleness check as the prior optional-
+        # `validation_head` design did. This block runs only on the
+        # fresh-validation path (`not existing_log and not creation_mode`,
+        # see the caller above); the fallback fires when live-HEAD
+        # resolution itself fails (a transient git error, or a checkout
+        # `_resolve_full_commit` cannot parse), not on `--existing-log`,
+        # which never reaches this function at all (round-2 correction,
+        # ADR-096 Decision: round-1 review characterized this as reachable
+        # on `--existing-log`, which the ADR's own gating one level up
+        # rules out).
         head = validation_head if validation_head is not None else binding.commit
         validate_qa_report(resolved_report, binding, head=head, repo_root=_PROJECT_ROOT)
     except ValueError as exc:
