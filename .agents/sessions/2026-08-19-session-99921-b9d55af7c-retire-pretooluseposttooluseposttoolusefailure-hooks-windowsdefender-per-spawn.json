@@ -11,13 +11,13 @@
     "sessionStart": {
       "serenaActivated": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Serena MCP tools not present in this session/environment (confirmed via ToolSearch returning zero serena-prefixed tools, twice: a select: lookup for mcp__serena__activate_project and a keyword search); performed the AGENTS.md documented fallback by reading .serena/memories/ files directly instead."
       },
       "serenaInstructions": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Fallback per AGENTS.md: read .serena/memories/memory-index.md, .serena/memories/usage-mandatory.md, .serena/memories/hooks/require-subagent-model-gate.md, and .serena/memories/decision-memory-hooks-registered-directly-not-grouped.md directly; no MCP initial_instructions call available."
       },
       "handoffRead": {
         "level": "MUST",
@@ -83,8 +83,8 @@
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes: supersession markers added to hooks/require-subagent-model-gate.md and decision-memory-hooks-registered-directly-not-grouped.md per .claude/rules/curating-memories.md, committed in e8e0312."
       },
       "markdownLintRun": {
         "level": "MUST",

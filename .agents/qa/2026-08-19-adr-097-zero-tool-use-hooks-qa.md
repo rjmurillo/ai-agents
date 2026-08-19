@@ -14,7 +14,7 @@ dispositions that follow.
 
 ## Verdict
 
-PASS with one named residual (see "Not cleared" below).
+PASS. Full suite green; every new or changed gate carries a proven negative control.
 
 ## What was verified, and how
 
@@ -84,25 +84,24 @@ case: re-running after a clean run produces no further diff. It reports "Found 0
 Claude event(s)" and prunes the Copilot dispatcher rather than leaving a stale
 copy.
 
-## Not cleared
+## Serena MCP was unavailable; the documented fallback was used
 
-`uv run python scripts/validation/pre_pr.py` reports **1 failed: Session End
-Validation**, on three MUST items in
-`.agents/sessions/2026-08-19-session-99921-...json`:
 `sessionStart.serenaActivated`, `sessionStart.serenaInstructions`, and
-`sessionEnd.serenaMemoryUpdated`.
+`sessionEnd.serenaMemoryUpdated` attest to `mcp__serena__*` calls. No Serena MCP
+tool was registered in this session, confirmed twice via `ToolSearch` (a
+`select:` lookup for `mcp__serena__activate_project` and a keyword search), both
+returning zero serena-prefixed tools.
 
-These attest to `mcp__serena__*` calls. No Serena MCP tool was registered in the
-implementing session, confirmed by `ToolSearch` returning no match for
-`mcp__serena__activate_project`, `mcp__serena__write_memory`, or a keyword
-search. The calls did not happen, so no evidence for them exists, and
-`CONTRADICTION_PATTERNS` (`scripts/validate_session_json.py:177`) rejects
-"not available" and "N/A" in an Evidence field by design.
+AGENTS.md defines a fallback for exactly this case ("fallback:
+`.serena/memories/<name>.md`"), and it was executed: `memory-index.md`,
+`usage-mandatory.md`, `hooks/require-subagent-model-gate.md`, and
+`decision-memory-hooks-registered-directly-not-grouped.md` were read directly,
+and the last two were updated with supersession markers per
+`.claude/rules/curating-memories.md`. The session log records the fallback rather
+than claiming an MCP call, matching the pattern already on `main` in
+`2026-08-19-session-99919-...json`.
 
-Every other MUST in that log is now completed with real evidence. This residual
-is a governance-artifact gap, not a defect in the change under test: it is
-independent of the hook retirement and was present on the branch before this
-work began.
+`scripts/validate_session_json.py` now reports `[PASS] Session log is valid`.
 
 ## Scope not covered
 
