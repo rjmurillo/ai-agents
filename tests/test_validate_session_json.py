@@ -179,6 +179,8 @@ def test_rejects_non_full_qa_commit(tmp_path: Path, commit: str) -> None:
 
 
 def test_rejects_qa_report_for_unrelated_session(tmp_path: Path) -> None:
+    # The session-log identity check runs before any git call (ADR-096), so
+    # no real git repo is needed here: the ValueError fires first.
     report_path = tmp_path / "report.md"
     _write_qa_report(report_path, session_log=".agents/sessions/unrelated.json")
 
@@ -186,6 +188,8 @@ def test_rejects_qa_report_for_unrelated_session(tmp_path: Path) -> None:
         validate_qa_report(
             report_path,
             QaBinding(session_log=QA_SESSION_LOG, commit=QA_COMMIT),
+            head=QA_COMMIT,
+            repo_root=tmp_path,
         )
 
 
@@ -193,22 +197,64 @@ def test_accepts_qa_report_with_matching_session_and_commit(tmp_path: Path) -> N
     report_path = tmp_path / "report.md"
     _write_qa_report(report_path)
 
-    report = validate_qa_report(
-        report_path,
-        QaBinding(session_log=QA_SESSION_LOG, commit=QA_COMMIT),
-    )
+    completed = [
+        subprocess.CompletedProcess([], 0, "", ""),
+        subprocess.CompletedProcess([], 0, "", ""),
+    ]
+    with mock.patch.object(_qa_report.subprocess, "run", side_effect=completed):
+        report = validate_qa_report(
+            report_path,
+            QaBinding(session_log=QA_SESSION_LOG, commit=QA_COMMIT),
+            head=QA_COMMIT,
+            repo_root=tmp_path,
+        )
+
+    assert report.verdict == "PASS"
+
+
+def test_accepts_qa_report_whose_commit_differs_but_only_evidence_changed(
+    tmp_path: Path,
+) -> None:
+    # ADR-096: a qaCommit that textually differs from the current head no
+    # longer hard-fails on its own. When every commit in the range touches
+    # only QA_EVIDENCE_PREFIXES (a pure rebind), the report is still valid.
+    report_path = tmp_path / "report.md"
+    _write_qa_report(report_path, commit="b" * 40)
+
+    completed = [
+        subprocess.CompletedProcess([], 0, "", ""),
+        subprocess.CompletedProcess([], 0, ".agents/sessions/session.json\0", ""),
+    ]
+    with mock.patch.object(_qa_report.subprocess, "run", side_effect=completed):
+        report = validate_qa_report(
+            report_path,
+            QaBinding(session_log=QA_SESSION_LOG, commit=QA_COMMIT),
+            head=QA_COMMIT,
+            repo_root=tmp_path,
+        )
 
     assert report.verdict == "PASS"
 
 
 def test_rejects_qa_report_for_stale_commit(tmp_path: Path) -> None:
+    # A real (non-evidence) code change between the QA-validated commit and
+    # the current head still hard-fails, unchanged behavior (ADR-096).
     report_path = tmp_path / "report.md"
     _write_qa_report(report_path, commit="b" * 40)
 
-    with pytest.raises(ValueError, match=f"{'b' * 40} != {QA_COMMIT}"):
+    completed = [
+        subprocess.CompletedProcess([], 0, "", ""),
+        subprocess.CompletedProcess([], 0, "scripts/changed.py\0", ""),
+    ]
+    with (
+        mock.patch.object(_qa_report.subprocess, "run", side_effect=completed),
+        pytest.raises(ValueError, match="QA report is stale"),
+    ):
         validate_qa_report(
             report_path,
             QaBinding(session_log=QA_SESSION_LOG, commit=QA_COMMIT),
+            head=QA_COMMIT,
+            repo_root=tmp_path,
         )
 
 
@@ -1342,9 +1388,12 @@ class TestValidateQaReportEvidence:
         self._write_report(report)
         result = ValidationResult()
 
-        with mock.patch(
-            "scripts.validate_session_json.artifact_dir",
-            return_value=qa_root,
+        with (
+            mock.patch(
+                "scripts.validate_session_json.artifact_dir",
+                return_value=qa_root,
+            ),
+            mock.patch.object(_qa_report, "post_qa_code_changes", return_value=[]),
         ):
             validate_qa_report_evidence(
                 self._data(),
@@ -1472,15 +1521,23 @@ class TestValidateQaReportEvidence:
         ]
 
     def test_stale_commit_report_fails_closed(self, tmp_path: Path) -> None:
+        # ADR-096: a qaCommit that textually differs from the fallback head
+        # (binding.commit, since no explicit validation_head is passed here)
+        # only fails when real (non-evidence) code changed in between.
         qa_root = tmp_path / "qa"
         qa_root.mkdir()
         report = qa_root / "report.md"
         self._write_report(report, commit="b" * 40)
         result = ValidationResult()
 
-        with mock.patch(
-            "scripts.validate_session_json.artifact_dir",
-            return_value=qa_root,
+        with (
+            mock.patch(
+                "scripts.validate_session_json.artifact_dir",
+                return_value=qa_root,
+            ),
+            mock.patch.object(
+                _qa_report, "post_qa_code_changes", return_value=["scripts/new_code.py"]
+            ),
         ):
             validate_qa_report_evidence(
                 self._data(),
@@ -1490,9 +1547,36 @@ class TestValidateQaReportEvidence:
             )
 
         assert result.errors == [
-            "QA report commit does not match current session commit: "
-            f"{'b' * 40} != {self.COMMIT}"
+            "QA report is stale; code changed after its commit: scripts/new_code.py"
         ]
+
+    def test_mismatched_commit_with_evidence_only_changes_passes(
+        self, tmp_path: Path
+    ) -> None:
+        # ADR-096: the specific defect this ADR fixes. A qaCommit that
+        # differs from the fallback head because only evidence-bookkeeping
+        # commits (a rebind) landed in between no longer forces a rebind.
+        qa_root = tmp_path / "qa"
+        qa_root.mkdir()
+        report = qa_root / "report.md"
+        self._write_report(report, commit="b" * 40)
+        result = ValidationResult()
+
+        with (
+            mock.patch(
+                "scripts.validate_session_json.artifact_dir",
+                return_value=qa_root,
+            ),
+            mock.patch.object(_qa_report, "post_qa_code_changes", return_value=[]),
+        ):
+            validate_qa_report_evidence(
+                self._data(),
+                self._session_end(str(report)),
+                result,
+                session_log=self.SESSION_LOG,
+            )
+
+        assert result.errors == []
 
     def test_code_changed_after_qa_fails_closed(self, tmp_path: Path) -> None:
         qa_root = tmp_path / "qa"
@@ -1506,9 +1590,8 @@ class TestValidateQaReportEvidence:
                 "scripts.validate_session_json.artifact_dir",
                 return_value=qa_root,
             ),
-            mock.patch(
-                "scripts.validate_session_json.post_qa_code_changes",
-                return_value=["scripts/new_code.py"],
+            mock.patch.object(
+                _qa_report, "post_qa_code_changes", return_value=["scripts/new_code.py"]
             ),
         ):
             validate_qa_report_evidence(
@@ -1535,10 +1618,7 @@ class TestValidateQaReportEvidence:
                 "scripts.validate_session_json.artifact_dir",
                 return_value=qa_root,
             ),
-            mock.patch(
-                "scripts.validate_session_json.post_qa_code_changes",
-                return_value=[],
-            ),
+            mock.patch.object(_qa_report, "post_qa_code_changes", return_value=[]),
         ):
             validate_qa_report_evidence(
                 self._data(),
@@ -1562,8 +1642,9 @@ class TestValidateQaReportEvidence:
                 "scripts.validate_session_json.artifact_dir",
                 return_value=qa_root,
             ),
-            mock.patch(
-                "scripts.validate_session_json.post_qa_code_changes",
+            mock.patch.object(
+                _qa_report,
+                "post_qa_code_changes",
                 side_effect=ValueError("Could not inspect commits after QA"),
             ),
         ):
@@ -1615,8 +1696,9 @@ class TestValidateQaReportEvidence:
 
         with (
             mock.patch("scripts.validate_session_json.artifact_dir") as artifact_dir_mock,
-            mock.patch(
-                "scripts.validate_session_json.post_qa_code_changes",
+            mock.patch.object(
+                _qa_report,
+                "post_qa_code_changes",
                 return_value=["scripts/new_code.py"],
             ) as post_qa_code_changes,
         ):
@@ -1919,14 +2001,50 @@ class TestMainFunction:
 
     @pytest.fixture
     def valid_session_file(self, tmp_path: Path) -> Path:
-        """Create a valid session log file."""
+        """Create a valid session log file.
+
+        ADR-096: the QA-evidence gate now always resolves a staleness head
+        and shells out to git via ``post_qa_code_changes``, so ``tmp_path``
+        must be a real git repository with a real commit for the QA report's
+        ``qaCommit`` to resolve. A fabricated ``"a" * 40`` SHA (the prior
+        fixture shape) is not a valid object in a real repo and fails the
+        ancestry check.
+        """
+
+        def git(*args: str) -> None:
+            subprocess.run(
+                ["git", *args],
+                cwd=tmp_path,
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+
+        git("init", "-q", "-b", "main")
+        git("config", "user.name", "Test User")
+        git("config", "user.email", "test@example.com")
+        (tmp_path / "README.md").write_text("base\n", encoding="utf-8")
+        git("add", "README.md")
+        git("commit", "-q", "-m", "test: base")
+        commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        ).stdout.strip()
+
         qa_report = tmp_path / ".agents" / "qa" / "report.md"
         qa_report.parent.mkdir(parents=True)
         qa_report.write_text(
             "---\n"
             "qaVerdict: PASS\n"
             "qaSessionLog: .agents/sessions/valid-session.json\n"
-            f"qaCommit: {'a' * 40}\n"
+            f"qaCommit: {commit}\n"
             "---\n"
             "# QA\n",
             encoding="utf-8",
@@ -1951,7 +2069,7 @@ class TestMainFunction:
                 ),
             },
             "workLog": [],
-            "endingCommit": "a" * 40,
+            "endingCommit": commit,
             "nextSteps": [],
         }
         session_file = tmp_path / ".agents" / "sessions" / "valid-session.json"

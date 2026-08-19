@@ -678,11 +678,6 @@ class TestMainReworkWarningShape:
                 COMMIT,
             ),
             ("PASS", ".agents/sessions/unrelated.json", COMMIT),
-            (
-                "PASS",
-                ".agents/sessions/2026-07-30-session-99-test.json",
-                "b" * 40,
-            ),
         ],
     )
     def test_main_rejects_unbound_or_non_passing_qa_report(
@@ -709,6 +704,67 @@ class TestMainReworkWarningShape:
         )
 
         assert self.last_exit_code == 1
+
+    def test_main_accepts_mismatched_commit_when_only_evidence_changed(self, tmp_path):
+        # ADR-096: a qaCommit that differs from the session's endingCommit no
+        # longer hard-fails on its own. _run_main_with_rework's shared
+        # subprocess.run mock (patched on the single global `subprocess`
+        # module object, so it also intercepts qa_report.post_qa_code_changes'
+        # git calls) returns returncode=0 with a MagicMock stdout; iterating
+        # a bare MagicMock yields zero items, so post_qa_code_changes sees an
+        # empty (evidence-only) change set and the mismatch is accepted.
+        report = tmp_path / ".agents" / "qa" / "report.md"
+        report.parent.mkdir(parents=True)
+        self._write_qa_report(report, commit="b" * 40)
+
+        self._run_main_with_rework(
+            tmp_path,
+            ("Rework warning: none", ["rework-warning: none"]),
+            ["--qa-report", str(report)],
+            ending_commit=self.COMMIT,
+        )
+
+        assert self.last_exit_code == 0
+
+    def test_main_rejects_mismatched_commit_when_real_code_changed(self, tmp_path):
+        # ADR-096: the case that must still hard-fail. Real code changed
+        # between the QA-validated commit and the session's endingCommit.
+        report = tmp_path / ".agents" / "qa" / "report.md"
+        report.parent.mkdir(parents=True)
+        self._write_qa_report(report, commit="b" * 40)
+
+        ancestor_ok = MagicMock(returncode=0)
+        real_change = MagicMock(returncode=0, stdout="scripts/changed.py\0")
+
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        session_file = sessions_dir / "2026-07-30-session-99-test.json"
+        self._make_session_json(session_file)
+
+        with (
+            patch("complete_session_log._get_repo_root", return_value=str(tmp_path)),
+            patch("complete_session_log._test_uncommitted_changes", return_value=False),
+            patch(
+                "complete_session_log._get_ending_commit", return_value=self.COMMIT
+            ),
+            patch("complete_session_log._test_handoff_modified", return_value=False),
+            patch("complete_session_log._test_serena_memory_updated", return_value=True),
+            patch("complete_session_log._run_markdown_lint", return_value=(True, "ok")),
+            patch(
+                "complete_session_log._run_rework_warning_step",
+                return_value=("Rework warning: none", ["rework-warning: none"]),
+            ),
+            patch(
+                "complete_session_log.subprocess.run",
+                side_effect=[ancestor_ok, real_change],
+            ),
+            patch("complete_session_log.resolve_artifact_root", return_value=sessions_dir),
+        ):
+            exit_code = complete_session_log.main(
+                ["--session-path", str(session_file), "--qa-report", str(report)]
+            )
+
+        assert exit_code == 1
 
     def test_main_records_policy_qa_skip(self, tmp_path):
         with patch(

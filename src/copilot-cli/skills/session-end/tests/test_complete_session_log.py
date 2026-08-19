@@ -8,6 +8,7 @@ import importlib.util
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 from unittest import mock
 
@@ -243,6 +244,11 @@ class TestCompleteSessionLog:
         assert args.qa_report == "qa/report.md"
 
     def test_qa_report_evidence_accepts_report_under_qa_root(self, tmp_path):
+        # ADR-096: validate_qa_report() always runs post_qa_code_changes,
+        # which shells out to git. Mock it here since this test exercises
+        # _qa_report_evidence's own file-resolution logic, not staleness
+        # detection (that is covered separately in tests/test_qa_report.py
+        # and tests/test_validate_session_json.py).
         mod = _load_module()
         session_log = _session_log(mod)
         report = mod.artifact_dir("qa", base=tmp_path) / "report.md"
@@ -257,14 +263,17 @@ class TestCompleteSessionLog:
             encoding="utf-8",
         )
 
-        evidence = mod._qa_report_evidence(
-            tmp_path,
-            str(report),
-            mod.QaBinding(
-                session_log=session_log,
-                commit="a" * 40,
-            ),
-        )
+        with mock.patch.object(
+            sys.modules["qa_report"], "post_qa_code_changes", return_value=[]
+        ):
+            evidence = mod._qa_report_evidence(
+                tmp_path,
+                str(report),
+                mod.QaBinding(
+                    session_log=session_log,
+                    commit="a" * 40,
+                ),
+            )
 
         assert evidence == report.relative_to(tmp_path).as_posix()
 
