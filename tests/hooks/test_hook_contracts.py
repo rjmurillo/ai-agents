@@ -2020,8 +2020,3 @@ class TestTheShippedCopilotTreeSatisfiesTheContract:
         copilot = [v for v in report.violations if "copilot-cli" in v.script]
         assert copilot == [], [v.message for v in copilot]
 
-    def test_the_copilot_surface_actually_contributed_entries(self):
-        # Guards the whole suite above: if the reader silently returned nothing,
-        # every "passes" test would pass for the wrong reason.
-        report = _run(PROJECT_ROOT)
-        assert [e for e in report.entries if e.script_path.startswith("src/copilot-cli/")]

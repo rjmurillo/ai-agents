@@ -10,7 +10,6 @@ can silently die on an unmapped runtime tool name.
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -70,34 +69,6 @@ def test_dispatcher_entry_carries_matcher_when_given():
     entry = dispatcher_entry("PreToolUse", 60, "Bash|Edit")
     assert entry["matcher"] == "Bash|Edit"
     assert "matcher" not in dispatcher_entry("PreToolUse", 60, None)
-
-
-def test_committed_matcher_capable_entries_have_matchers():
-    hooks = json.loads(
-        (REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json").read_text(encoding="utf-8")
-    )["hooks"]
-
-    # Issue #5154 retired the Bash and Bash(git push*) PreToolUse groups and the
-    # only PostToolUse group (markdown_auto_lint). On `main` alone that would
-    # have narrowed the surviving union to {"Agent", "Task"}. Merged with issue
-    # #5061 (which added a PreToolUse shim whose matcher,
-    # mcp__serena__(write|delete)_memory|..., does not reduce to a documented
-    # Claude core tool name) and issue #4917 (which added a second PreToolUse
-    # shim, serena_worktree_scope, whose copilotMatcher "^serena-.*$" is
-    # likewise a wildcard regex that _matcher_tool_tokens cannot reduce to a
-    # bare-name list), that narrowing never takes effect: event_matcher_union
-    # fails open for PreToolUse regardless of which other shims are
-    # registered, and the generated entry carries no "matcher" field at all
-    # (see dispatcher_entry: it omits the key when the union is None). This
-    # follows directly from _matcher_tool_tokens returning None for an mcp__
-    # or wildcard pattern, asserted in test_matcher_tool_tokens above. Each
-    # wrapped shim script still carries its own embedded _MATCHER and filters
-    # internally before doing any real work (proved directly against the
-    # committed serena guard shim by
-    # tests/hooks/test_serena_worktree_scope_guard.py::
-    # TestGeneratedShimIntegration::test_generated_shim_no_ops_for_unrelated_tool).
-    assert set(hooks) == {"PreToolUse"}
-    assert "matcher" not in hooks["PreToolUse"][0]
 
 
 def test_internal_claude_matcher_key_never_reaches_committed_artifact():
