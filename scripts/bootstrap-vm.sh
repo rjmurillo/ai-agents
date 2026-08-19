@@ -26,9 +26,25 @@ install_uv() {
     rm -f "$installer"
 }
 
+APT_LOG="$(mktemp)"
+
+quiet_apt_get() {
+    # dpkg's own unpack/configure trace ignores apt-get's -qq flag, so on a
+    # base image that has drifted from a package's pinned version this
+    # printed ~40 lines of pure unpack-log noise straight into the
+    # SessionStart hook's output on every affected remote session (Issue
+    # #5169). Redirect to a log and surface it only on failure, so the
+    # success path stays quiet and a real failure still fails loud.
+    if ! sudo apt-get "$@" >"$APT_LOG" 2>&1; then
+        echo "apt-get $* failed; output follows:" >&2
+        cat "$APT_LOG" >&2
+        return 1
+    fi
+}
+
 echo "=== System Prerequisites ==="
-sudo apt-get update -qq
-sudo apt-get install -y -qq curl wget git jq unzip zstd apt-transport-https \
+quiet_apt_get update -qq
+quiet_apt_get install -y -qq curl wget git jq unzip zstd apt-transport-https \
     ca-certificates gnupg software-properties-common build-essential \
     sqlite3 openssh-client
 
@@ -44,8 +60,8 @@ if ! command -v node &>/dev/null; then
     rm -f /tmp/nodesource.gpg
     echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" | \
         sudo tee /etc/apt/sources.list.d/nodesource.list >/dev/null
-    sudo apt-get update -qq
-    sudo apt-get install -y -qq nodejs
+    quiet_apt_get update -qq
+    quiet_apt_get install -y -qq nodejs
 fi
 node --version && npm --version
 
@@ -54,7 +70,7 @@ if ! command -v pwsh &>/dev/null; then
     source /etc/os-release
     wget -q "https://packages.microsoft.com/config/ubuntu/${VERSION_ID}/packages-microsoft-prod.deb" -O /tmp/ms.deb
     sudo dpkg -i /tmp/ms.deb && rm /tmp/ms.deb
-    sudo apt-get update -qq && sudo apt-get install -y -qq powershell
+    quiet_apt_get update -qq && quiet_apt_get install -y -qq powershell
 fi
 pwsh --version
 
@@ -64,7 +80,7 @@ if ! command -v gh &>/dev/null; then
         sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg 2>/dev/null
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | \
         sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null
-    sudo apt-get update -qq && sudo apt-get install -y -qq gh
+    quiet_apt_get update -qq && quiet_apt_get install -y -qq gh
 fi
 gh --version
 
