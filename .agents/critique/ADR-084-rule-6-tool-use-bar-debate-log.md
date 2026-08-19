@@ -144,3 +144,12 @@ fixes were verified against source; what went unverified was whether every
 surface carrying the old claim had been swept. That is the mirror obligation
 applied to documentation rather than to code, and it is worth naming because
 the first three defects would each have scored as passing in isolation.
+
+**Round 2 follow-on, same shape as findings 1 to 3.** Widening rule 6 to four
+events left rule 3's appended cross-reference still reading "For `PreToolUse`
+and `PostToolUse`". One more surface restating the superseded scope, found by
+sweeping for the old phrasing rather than by another review round. Corrected to
+name the per-call events rule 6 defines. This is the third time the same
+propagation gap produced a defect in this change, which is the argument for
+sweeping every surface on a claim change instead of fixing the one that was
+reported.

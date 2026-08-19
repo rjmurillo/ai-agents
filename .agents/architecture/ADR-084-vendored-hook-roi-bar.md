@@ -98,9 +98,9 @@ hooks. Concretely, the bar is six rules:
    arguments or file content, or conditional branching a static declaration
    cannot encode), a spawning hook is the right tool and this rule does not
    apply. The preference is for the declarative surface where it achieves the
-   same effect, not a ban on hooks that do work no declaration can. For
-   `PreToolUse` and `PostToolUse`, clearing this rule is necessary but not
-   sufficient; rule 6 adds the tool-use bar.
+   same effect, not a ban on hooks that do work no declaration can. For the
+   per-call events rule 6 names, clearing this rule is necessary but not
+   sufficient; rule 6 adds a further bar.
 4. **Self-neutering hooks are banned from the vendored surface.** A hook that
    no-ops in consumer repos because it gates on the git origin
    (`skip_if_consumer_repo`) or on repo-root paths the plugin does not vendor
