@@ -17,12 +17,20 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def test_copilot_pretooluse_has_no_unregistered_matcher_shims() -> None:
-    """The distributed plugin contains only manifest-addressable shims."""
+    """The distributed plugin contains only manifest-addressable shims.
+
+    ADR-097 retired every tool-call hook, so there is no manifest and no shim
+    today. The invariant is unchanged and still armed: what must never ship is a
+    shim the manifest does not address. Expressing it as a set comparison that
+    tolerates the empty case keeps it firing the moment a hook is re-added,
+    rather than deleting a guard whose subject is only temporarily absent.
+    """
     event_directory = REPO_ROOT / "src" / "copilot-cli" / "hooks" / "PreToolUse"
-    manifest = json.loads(
-        (event_directory / "_manifest.json").read_text(encoding="utf-8")
-    )
-    registered = set(manifest["shims"])
+    manifest_path = event_directory / "_manifest.json"
+
+    registered: set[str] = set()
+    if manifest_path.is_file():
+        registered = set(json.loads(manifest_path.read_text(encoding="utf-8"))["shims"])
     generated = {path.name for path in event_directory.glob("*__*.py")}
 
     assert generated == registered
