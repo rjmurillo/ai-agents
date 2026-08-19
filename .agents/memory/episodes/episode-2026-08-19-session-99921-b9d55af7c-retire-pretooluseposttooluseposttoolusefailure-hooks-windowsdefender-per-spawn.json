@@ -1,0 +1,19 @@
+{
+  "id": "episode-2026-08-19-session-99921-b9d55af7c-retire-pretooluseposttooluseposttoolusefailure-hooks-windowsdefender-per-spawn",
+  "session": "2026-08-19-session-99921-b9d55af7c-retire-pretooluseposttooluseposttoolusefailure-hooks-windowsdefender-per-spawn",
+  "timestamp": "2026-08-19T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Retire all PreToolUse/PostToolUse/PostToolUseFailure hooks (Windows+Defender per-spawn cost); author, review, and accept ADR-096",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 18
+  },
+  "lessons": []
+}
