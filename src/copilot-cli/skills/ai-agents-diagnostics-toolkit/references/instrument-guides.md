@@ -80,19 +80,21 @@ Three separate drift surfaces; run all three when you suspect any generation pro
 - `build_all.py --check` exits 2 on staleness (docstring, `build/scripts/build_all.py:19`). Its log legitimately says `Mode: Generate` mid-run; the snapshot/restore guard (#2440) makes the whole run read-only.
 - Trap, the expensive one: drift output shows a DIFFERENCE, not a DIRECTION. On 2025-12-15 an agent "fixed" drift by editing the canonical source to match the stale generated tree (commit reverted). Before fixing any drift red, answer "which side is the source of truth?" via `.agents/governance/GENERATOR-FILES.md`, then see `ai-agents-generation-and-release` for the regeneration workflow.
 
-### Guard telemetry and maturity tiers
+### Guard telemetry and maturity tiers (retired)
 
-Push guards built on `.claude/hooks/PreToolUse/push_guard_base.py` emit one `EVENT={...}` JSON line to stderr per run. Two build scripts consume them: `build/scripts/aggregate_guard_intercepts.py` (reads `.agents/telemetry/` when present, else stdin) and `build/scripts/classify_guard_maturity.py` (assigns tiers). The `guard-maturity` skill wraps both:
-
-```bash
-uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/guard-maturity/scripts/run_report.py"
-```
-
-Tier semantics (from `classify_guard_maturity.py`, first match wins): Harmful (3+ intercepts, fitness below -0.02: remove), Proficient (60+ days, 10+ intercepts, fitness at or above +0.02: keep), Mature (30+ days, 5+ intercepts, fitness at or above 0), Inert (30+ days, 0 intercepts: prune candidate), Growing (14+ days, 1+ intercept), Budding (under 14 days). Fitness is `block_rate - 0.5`.
-
-- Current baseline (re-measured 2026-07-29, unchanged): 3 guards reported (`manifest-count`, `markdown-lint`, `session-log-field`), all Budding, 0 intercepts, fitness -0.50, age n/a.
-- Honest caveat: `.agents/telemetry/` does not exist in this checkout, so EVENT lines are not being persisted anywhere the aggregator reads by default. The measurement pipeline exists; its production feed is not wired (unverified who or what should populate `.agents/telemetry/`). Treat current tier output as a smoke test of the classifier, not as evidence about guard value.
-- Healthy: guards age into Mature/Proficient. Unhealthy: Inert (validator too narrow or guard pointless) or Harmful (normalizes bypass; remove).
+RETIRED, not just as an instrument but entirely: issue #5154 deleted
+`push_guard_base.py` and every push guard built on it, so nothing emits the
+`EVENT={...}` stderr line any more, and in the same change it deleted the
+now-producer-less classifier skill and its two build scripts (an
+aggregator and a classifier) rather than leave them measuring nothing.
+Tier semantics (Harmful, Proficient, Mature, Inert, Growing,
+Budding, keyed on age/intercepts/fitness) are documented for historical
+reference in `.agents/retrospective/` entries that cite this instrument; there
+is no live command to run. A future guard that adopts the same `EVENT=`
+stderr schema would need to rebuild both the aggregator and the classifier
+from scratch. Re-verify the removal: `ls .claude/hooks/PreToolUse/` (expect
+no `push_guard_base.py` or `invoke_*_guard.py`) and
+`ls .claude/skills/ | grep guard-maturity` (expect no output).
 
 ### Coverage measurement
 
@@ -141,9 +143,8 @@ Cap 20 commits per PR (or 40 if the branch merges main), notice at 10, warning a
 | Agent drift | `VALIDATION PASSED`, exit 0 | Green |
 | Mirror drift (`build_all.py --check`) | exit 0 | Green |
 | Plugin lib drift | `All plugin lib copies are in sync.`, exit 0 | Green |
-| Guard maturity | 3 guards, all Budding, 0 intercepts, fitness -0.50 | Feed not wired |
 | Commit count | 0 on main | Green |
 
-Two instruments read red on main: golden principles (exit 10) and the description budget in gate mode (exit 1). Guard maturity is unassessable rather than green: its telemetry feed is not wired, so exit 0 only proves the classifier runs. Every other instrument is green.
+Two instruments read red on main: golden principles (exit 10) and the description budget in gate mode (exit 1). Guard telemetry and maturity tiers is no longer in this list: it was retired entirely under ADR-084 (issue #5154), not merely feed-starved. Every other instrument is green.
 
 Re-measure before trusting any of these numbers; they are a snapshot, and the whole point of this skill is that re-measuring costs one command.

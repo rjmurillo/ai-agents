@@ -131,13 +131,14 @@ class TestMissingDispatcherIsAFailure:
         """
         source = tmp_path / "plugin"
         shutil.copytree(_REPO_ROOT / "src" / "copilot-cli", source)
-        removed = 0
-        for event in ("PreToolUse", "PostToolUse"):
-            dispatcher = source / "hooks" / event / "_dispatch.py"
-            if dispatcher.exists():
-                dispatcher.unlink()
-                removed += 1
-        assert removed == 2, "fixture did not remove both dispatchers"
+        # Remove every dispatcher the tree actually ships. Naming the events
+        # inline went stale when issue #5154 retired the last PostToolUse
+        # group; the property under test is that a plugin with no dispatcher
+        # fails, whatever set of events it registers.
+        dispatchers = sorted((source / "hooks").glob("*/_dispatch.py"))
+        assert dispatchers, "fixture found no dispatchers to remove"
+        for dispatcher in dispatchers:
+            dispatcher.unlink()
 
         proc = subprocess.run(
             [
@@ -189,9 +190,8 @@ class TestMissingDispatcherIsAFailure:
     [
         _REPO_ROOT / "build" / "scripts" / "generate_dispatcher.py",
         _REPO_ROOT / "src" / "copilot-cli" / "hooks" / "PreToolUse" / "_dispatch.py",
-        _REPO_ROOT / "src" / "copilot-cli" / "hooks" / "PostToolUse" / "_dispatch.py",
     ],
-    ids=["source", "copilot-pre", "copilot-post"],
+    ids=["source", "copilot-pre"],
 )
 def test_dispatcher_catches_system_exit(dispatcher: Path) -> None:
     """Source and every shipped copy must cover SystemExit.

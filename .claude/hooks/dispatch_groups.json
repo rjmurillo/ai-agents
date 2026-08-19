@@ -12,35 +12,6 @@
         }
       ]
     },
-    "plugin-pretooluse-8-markdownlint_guard": {
-      "event": "PreToolUse",
-      "mode": "gate",
-      "matcher": "Bash(git push*)",
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "PreToolUse/invoke_markdownlint_guard.py",
-          "timeout": 90,
-          "statusMessage": "Checking markdownlint violations on changed .md files (BLOCKING)"
-        }
-      ]
-    },
-    "plugin-pretooluse-9-push_pr_script_identity": {
-      "event": "PreToolUse",
-      "mode": "gate",
-      "matcher": "Bash",
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "PreToolUse/invoke_push_pr_script_identity_guard.py",
-          "copilotExclude": true,
-          "copilotExcludeIssue": "#5013",
-          "copilotExcludeDecision": "ADR-085",
-          "timeout": 10,
-          "statusMessage": "Verifying push-pr script identity (BLOCKING)"
-        }
-      ]
-    },
     "plugin-pretooluse-10-require_subagent_model": {
       "event": "PreToolUse",
       "mode": "gate",
@@ -66,18 +37,6 @@
           "copilotMatcher": "^(mcp__serena__(write|delete)_memory|serena-(write|delete)_memory)$",
           "timeout": 10,
           "statusMessage": "Checking Serena memory worktree scope (BLOCKING, #5061)"
-        }
-      ]
-    },
-    "plugin-posttooluse-1-markdown_auto_lint": {
-      "event": "PostToolUse",
-      "mode": "observe",
-      "matcher": "^(Write|Edit)$",
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "PostToolUse/invoke_markdown_auto_lint.py",
-          "statusMessage": "Auto-linting markdown files"
         }
       ]
     }

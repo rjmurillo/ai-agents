@@ -13,18 +13,30 @@ substitution directly (docs.github.com, expressions reference): `always()`
 and "If you want to run a job or step regardless of its success or failure,
 use the recommended alternative: `if: ${{ !cancelled() }}`". So the guarded
 job still runs when a dependency FAILED or was SKIPPED, which is what the
-aggregators exist for, and skips only when the run itself is being cancelled.
-A skipped job publishes no check run, so the superseded run goes quiet and the
-superseding run becomes the authoritative one.
+aggregators exist for.
 
-`!cancelled()` is also not a false-green risk for a required check: a skipped
-job is not a success, so branch protection keeps waiting rather than merging.
+GitHub re-evaluates a job's `if:` condition for every currently running job
+when the run is cancelled (docs.github.com, workflow cancellation
+reference): "To cancel the workflow run, the server re-evaluates `if`
+conditions for all currently running jobs. If the condition evaluates to
+`true`, the job will not get canceled." A job already running when
+cancellation lands has `!cancelled()` flip to false on that re-evaluation
+and is itself cancelled as a result, concluding `cancelled`. Verified
+against a real superseded run on this repository (`actions_get
+get_workflow_run` on run `31896264033`): overall conclusion `cancelled`,
+with its "Run Python Tests" and "Main failure alert" jobs both reporting
+`"conclusion":"cancelled"`. This module makes no claim about the exact
+conclusion a not-yet-started job reports; the guard's requirement is only
+that no PR-head aggregator conclude the red `failure` that `always()`
+produced, and `cancelled` is (like `skipped`) neither `success` nor
+`failure`, so branch protection keeps waiting on a superseded run instead
+of reading a false green.
 
-Sibling: `test_quality_gate_aggregate_cancel_skip.py` pins the same guard on
-`ai-pr-quality-gate.yml` and `ai-session-protocol.yml`, which were fixed for
-#2347 with the equivalent `always() && !cancelled()` spelling. Those two keep
-their spelling; the `always()` term there is redundant, not wrong, so only the
-semantic sweep in this module covers them.
+Two workflows fixed for #2347 with the equivalent `always() && !cancelled()`
+spelling (`ai-pr-quality-gate.yml`, `ai-session-protocol.yml`) were later
+deleted (#5132, #5135); `MINIMUM_AGGREGATORS_EXAMINED` below reflects the
+five aggregators this module now covers, not the seven that existed when it
+was fixed.
 
 Assertions run against `yaml.safe_load` output, never against workflow text
 (`.claude/rules/testing.md` MUST 9).
@@ -84,11 +96,13 @@ PRE_FIX_CONDITIONS: dict[tuple[str, str], str] = {
 # Lower bound on what the repository-wide sweep must examine. Without it a
 # broken classifier that matches nothing reports a clean sweep
 # (`.claude/rules/testing.md` MUST 10: report the scope size, not only the
-# finding count). Measured at 5 on this branch: the five in FIXED_AGGREGATORS
-# above. Previously 7 (the five above plus ai-pr-quality-gate.yml::aggregate
-# and ai-session-protocol.yml::aggregate, guarded for #2347); both of those
-# workflows were deleted in full by #5132 and #5135, a legitimate cleanup,
-# not a classifier regression (issue #5142).
+# finding count). Measured at 5: the five aggregators in FIXED_AGGREGATORS.
+# Two more (`ai-pr-quality-gate.yml::aggregate`, `ai-session-protocol.yml::aggregate`,
+# guarded for #2347) counted toward this bound until #5132 and #5135 deleted
+# those workflows in full, a legitimate cleanup and not a classifier
+# regression (issue #5142). Drop this count again if a future PR removes one
+# of the five that remain, rather than raising MINIMUM_AGGREGATORS_EXAMINED
+# to paper over a real regression.
 MINIMUM_AGGREGATORS_EXAMINED = 5
 
 
@@ -151,6 +165,102 @@ def _consumes_dependency_results(job: Mapping[str, Any]) -> bool:
     return any(CONSUMES_NEEDS_RESULT.search(text) for text in _strings(payload))
 
 
+def _strip_expression_wrapper(condition: str) -> str:
+    """Strip a single outer `${{ ... }}` wrapper, if the whole string is one.
+
+    GitHub Actions accepts a bare expression (`always() && foo`) or the same
+    expression wrapped once (`${{ always() && foo }}`) on an `if:` key. Only
+    a wrapper spanning the entire condition is stripped; `${{ }}` appearing
+    inside a larger string is left alone (no real `if` condition in this
+    repository nests one).
+    """
+    stripped = condition.strip()
+    if stripped.startswith("${{") and stripped.endswith("}}"):
+        return stripped[3:-2].strip()
+    return stripped
+
+
+def _split_top_level(expression: str, operator: str) -> list[str]:
+    """Split on occurrences of `operator` ('&&' or '||') outside parentheses.
+
+    A `&&` or `||` inside `(...)` is not a split point; splitting on every
+    occurrence regardless of depth would wrongly cut `(a && b) || c` into
+    pieces that lose the grouping.
+    """
+    parts: list[str] = []
+    depth = 0
+    current: list[str] = []
+    i = 0
+    op_len = len(operator)
+    while i < len(expression):
+        char = expression[i]
+        if char in "([":
+            depth += 1
+            current.append(char)
+        elif char in ")]":
+            depth -= 1
+            current.append(char)
+        elif depth == 0 and expression[i : i + op_len] == operator:
+            parts.append("".join(current))
+            current = []
+            i += op_len
+            continue
+        else:
+            current.append(char)
+        i += 1
+    parts.append("".join(current))
+    return parts
+
+
+# The only two spellings this repository uses for the cancellation guard.
+# `_has_cancellation_guard_term` requires an EXACT match against one of
+# these on a top-level conjunct of a top-level-`||`-free expression, not a
+# substring of the whole condition.
+_CANCELLATION_GUARD_TERMS = frozenset({"!cancelled()", "cancelled() == false"})
+
+
+def _has_cancellation_guard_term(condition: str) -> bool:
+    """True only if the guard term is an unconditional top-level requirement.
+
+    A substring check (`"!cancelled()" in condition`) accepts three
+    conditions that are not real guards:
+
+    - `always() || !cancelled()`: the OR means `!cancelled()` never actually
+      excludes anything, because `always()` already returns true during
+      cancellation.
+    - `!cancelled() == false`: parses as `(!cancelled()) == false`,
+      backwards logic that is true only WHILE the run is cancelled.
+    - `!cancelled() && success() || always()` (Copilot review finding on
+      PR #5141): GitHub Actions binds `&&` tighter than `||`
+      (docs.github.com, expressions reference, "Operators"), so this parses
+      as `(!cancelled() && success()) || always()`. `always()` alone can
+      make the whole expression true during cancellation, so the guard in
+      the first disjunct provides no protection. An earlier version of this
+      checker split only on top-level `&&` and accepted this condition,
+      because `!cancelled()` alone happened to be one of the two `&&`
+      conjuncts; the trailing `|| always()` outside that conjunct defeated
+      it and the splitter never looked for a top-level `||` at all.
+
+    All three contain the substring `!cancelled()` (or `cancelled() ==
+    false`) and none of them guards against cancellation. The fix: a
+    top-level `||` (outside any parentheses) means the expression is not an
+    unconditional requirement, whatever its other operands contain, so it
+    is rejected before any conjunct is inspected. Only when there is no
+    top-level `||` does this check split on top-level `&&` and require an
+    exact match on one conjunct. Verified against every real `if:` in
+    `.github/workflows/*.yml` today (the five fixed aggregators, none of
+    which has a top-level `||`; their nested `||` groups such as
+    `(a != 'success' || b == 'true')` sit inside parentheses) plus the
+    `cancelled() == false` and `always() && !cancelled()` spellings and all
+    three adversarial conditions above, covered by `TestCheckerEdges`.
+    """
+    expression = _strip_expression_wrapper(condition)
+    if len(_split_top_level(expression, "||")) > 1:
+        return False
+    conjuncts = _split_top_level(expression, "&&")
+    return any(part.strip() in _CANCELLATION_GUARD_TERMS for part in conjuncts)
+
+
 def cancellation_guard_violations(job: Mapping[str, Any]) -> list[str]:
     """Reasons this job would publish a red check for a superseded run.
 
@@ -166,7 +276,7 @@ def cancellation_guard_violations(job: Mapping[str, Any]) -> list[str]:
         violations.append("job has no `if`, so a cancelled run cannot be excluded")
         return violations
     condition = str(condition)
-    if "!cancelled()" not in condition and "cancelled() == false" not in condition:
+    if not _has_cancellation_guard_term(condition):
         violations.append(f"`if` does not guard on cancellation: {condition!r}")
     return violations
 
@@ -278,6 +388,51 @@ class TestCheckerEdges:
         job = {"needs": ["build"], "if": "always() && !cancelled()"}
         assert cancellation_guard_violations(job) == []
         assert bare_always_violations(job)
+
+    def test_the_unsafe_or_spelling_is_rejected(self) -> None:
+        """`!cancelled()` under an OR never actually excludes anything.
+
+        A substring check on the whole condition accepts this: the text
+        `!cancelled()` is present. It should not be accepted, because
+        `always()` already returns true during cancellation
+        (docs.github.com, expressions reference), so ORing in `!cancelled()`
+        changes nothing. Regression for a Copilot review finding on PR #5103
+        (issue #5139 item 2): `cancellation_guard_violations` originally
+        matched `"!cancelled()" in condition` and passed this condition.
+        """
+        job = {"needs": ["build"], "if": "always() || !cancelled()"}
+        violations = cancellation_guard_violations(job)
+        assert any("guard on cancellation" in reason for reason in violations)
+
+    def test_the_backwards_equality_spelling_is_rejected(self) -> None:
+        """`!cancelled() == false` parses as `(!cancelled()) == false`.
+
+        That is true only WHILE the run is cancelled, the opposite of the
+        intended guard. A substring check accepts this too, because the text
+        `!cancelled()` is present. Sibling of
+        `test_equality_spelling_of_the_guard_is_accepted`, which pins the
+        correct (non-negated) equality spelling as accepted.
+        """
+        job = {"needs": ["build"], "if": "!cancelled() == false"}
+        violations = cancellation_guard_violations(job)
+        assert any("guard on cancellation" in reason for reason in violations)
+
+    def test_the_guard_defeated_by_a_trailing_or_always_is_rejected(self) -> None:
+        """`&&` binds tighter than `||`, so a trailing `|| always()` wins.
+
+        Regression for a Copilot review finding on PR #5141: an earlier
+        version of this checker split only on top-level `&&`, so
+        `!cancelled() && success() || always()` was accepted because
+        `!cancelled()` alone was one of the two `&&` conjuncts. Per the
+        GitHub Actions operator precedence (docs.github.com, expressions
+        reference), this condition actually parses as
+        `(!cancelled() && success()) || always()`: `always()` is a second,
+        unconditional top-level disjunct, so the whole expression is true
+        during cancellation regardless of the first disjunct's guard.
+        """
+        job = {"needs": ["build"], "if": "!cancelled() && success() || always()"}
+        violations = cancellation_guard_violations(job)
+        assert any("guard on cancellation" in reason for reason in violations)
 
 
 class TestRepositoryWideSweep:

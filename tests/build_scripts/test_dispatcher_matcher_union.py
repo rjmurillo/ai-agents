@@ -76,19 +76,20 @@ def test_committed_matcher_capable_entries_have_matchers():
     hooks = json.loads(
         (REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json").read_text(encoding="utf-8")
     )["hooks"]
-    assert set(hooks) == {"PreToolUse", "PostToolUse"}
 
-    # Issue #5061 added a PreToolUse shim whose matcher
-    # (mcp__serena__(write|delete)_memory|...) does not reduce to a
-    # documented Claude core tool name, so event_matcher_union now fails
-    # open for PreToolUse and the generated entry carries no "matcher"
-    # field at all (see dispatcher_entry: it omits the key when the union
-    # is None). This follows directly from _matcher_tool_tokens returning
-    # None for an mcp__ pattern, asserted in test_matcher_tool_tokens above.
+    # Issue #5154 retired the Bash and Bash(git push*) PreToolUse groups and the
+    # only PostToolUse group (markdown_auto_lint). On `main` alone that would
+    # have narrowed the surviving union to {"Agent", "Task"}. Merged with issue
+    # #5061 (which added a PreToolUse shim whose matcher,
+    # mcp__serena__(write|delete)_memory|..., does not reduce to a documented
+    # Claude core tool name), that narrowing never takes effect:
+    # event_matcher_union fails open for PreToolUse regardless of which other
+    # shims are registered, and the generated entry carries no "matcher" field
+    # at all (see dispatcher_entry: it omits the key when the union is None).
+    # This follows directly from _matcher_tool_tokens returning None for an
+    # mcp__ pattern, asserted in test_matcher_tool_tokens above.
+    assert set(hooks) == {"PreToolUse"}
     assert "matcher" not in hooks["PreToolUse"][0]
-
-    post_entry = hooks["PostToolUse"][0]
-    assert set(post_entry["matcher"].split("|")) == {"Write", "Edit"}
 
 
 def test_internal_claude_matcher_key_never_reaches_committed_artifact():

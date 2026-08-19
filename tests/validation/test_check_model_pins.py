@@ -450,7 +450,7 @@ def test_nested_pin_not_grandfathered_by_baseline(tmp_path: Path) -> None:
         "name: legacy\nmetadata:\n  model: haiku",
     )
     report = _run(tmp_path, baseline={unit: "haiku"}, manifest=[])
-    assert any("[nested pin]" in v for v in report.violations)
+    assert any("[unsupported model-bearing value]" in v for v in report.violations)
     assert report.backlog == []
 
 
@@ -749,3 +749,132 @@ class TestNoModelLinesInGitHubAgents:
                 if line.startswith("model:"):
                     violations.append(f"{f.name}:{i}: {line}")
         assert violations == [], "model: lines found:\n" + "\n".join(violations)
+
+
+# ---------------------------------------------------------------------------
+# Issue #4936: subagent_model detection
+# ---------------------------------------------------------------------------
+
+
+class TestSubagentModelDetection:
+    """Issue #4936: MODEL_BEARING_KEYS must include subagent_model."""
+
+    def test_nested_subagent_model_pin_is_violation(self, tmp_path: Path) -> None:
+        """Positive: a versioned subagent_model is caught by enforce mode."""
+        _skill(
+            tmp_path,
+            "orchestrator",
+            "metadata:\n  subagent_model: claude-opus-4-6",
+        )
+        report = _run(tmp_path, {}, [])
+        assert report.violations, "subagent_model pin must be flagged"
+        assert any(
+            "subagent_model" in v for v in report.violations
+        )
+
+    def test_subagent_model_bare_alias_is_detected(self, tmp_path: Path) -> None:
+        """Edge: a bare alias under subagent_model is still seen as a pin.
+
+        Nested pins never reach the baseline/backlog path (``run_check`` calls
+        ``report.fail`` unconditionally whenever ``unit.nested_pins`` is
+        non-empty, before the baseline lookup that could defer it), so this
+        must be a hard violation with an empty backlog, not either-or.
+        """
+        _skill(
+            tmp_path,
+            "orchestrator",
+            "metadata:\n  subagent_model: opus",
+        )
+        report = _run(tmp_path, {}, [])
+        assert report.violations, "bare alias under subagent_model must be flagged"
+        assert not report.backlog, "a nested pin must never be merely grandfathered"
+
+    def test_no_subagent_model_passes(self, tmp_path: Path) -> None:
+        """Negative control: skill without subagent_model passes cleanly."""
+        _skill(tmp_path, "clean", "metadata:\n  version: 1.0")
+        report = _run(tmp_path, {}, [])
+        assert not report.violations
+        assert not report.backlog
+
+    def test_model_bearing_keys_constant_is_authoritative(self) -> None:
+        """Edge: the constant contains both known model keys."""
+        assert "model" in cmp.MODEL_BEARING_KEYS
+        assert "subagent_model" in cmp.MODEL_BEARING_KEYS
+
+    def test_top_level_subagent_model_also_detected(self, tmp_path: Path) -> None:
+        """Edge: subagent_model at frontmatter top level is also caught.
+
+        Same reasoning as the bare-alias case above: a nested pin is always a
+        hard violation, never backlog.
+        """
+        _skill(tmp_path, "flat", "subagent_model: claude-opus-4-6")
+        report = _run(tmp_path, {}, [])
+        assert report.violations, "top-level subagent_model must be flagged"
+        assert not report.backlog
+
+    def test_top_level_subagent_model_list_is_detected(self, tmp_path: Path) -> None:
+        """Regression: a list-valued model-bearing key must not bypass detection.
+
+        Before this guard, ``_nested_pins`` handled only the scalar-string
+        shape for a model-bearing key at the frontmatter top level and fell
+        through to an untyped recursive walk for anything else, including a
+        list. That walk has no key context left, so each list entry reached
+        ``_collect_nested_pins`` as a bare string with no enclosing
+        model-bearing key to match, and the pin went unrecorded while the
+        enforcing gate reported the unit clean.
+        """
+        _skill(
+            tmp_path,
+            "listed",
+            'subagent_model: ["claude-opus-4-6"]',
+        )
+        report = _run(tmp_path, {}, [])
+        assert report.violations, "list-valued subagent_model pin must be flagged"
+        assert any("subagent_model[0]" in v for v in report.violations)
+
+    @pytest.mark.parametrize(
+        "frontmatter, expected_path",
+        (
+            ("subagent_model:\n  id: claude-opus-4-6", "subagent_model.id"),
+            (
+                "metadata:\n  subagent_model:\n    id: claude-opus-4-6",
+                "metadata.subagent_model.id",
+            ),
+        ),
+    )
+    def test_mapping_valued_subagent_model_is_detected(
+        self, tmp_path: Path, frontmatter: str, expected_path: str
+    ) -> None:
+        """Regression: mappings preserve their model-bearing key context."""
+        _skill(tmp_path, "mapped", frontmatter)
+
+        report = _run(tmp_path, {}, [])
+
+        assert report.violations, "mapping-valued subagent_model pin must be flagged"
+        assert any(expected_path in violation for violation in report.violations)
+        assert any(
+            "unsupported model-bearing key value(s)" in violation
+            for violation in report.violations
+        )
+        assert all("nested below the top level" not in violation for violation in report.violations)
+
+    def test_model_bearing_alias_is_detected_after_non_model_alias(
+        self, tmp_path: Path
+    ) -> None:
+        """Regression: generic traversal order must not suppress model context."""
+        _skill(
+            tmp_path,
+            "aliased",
+            "shared: &candidate\n"
+            "  id: claude-opus-4-6\n"
+            "metadata:\n"
+            "  ordinary: *candidate\n"
+            "  subagent_model: *candidate",
+        )
+
+        report = _run(tmp_path, {}, [])
+
+        assert any(
+            "metadata.subagent_model.id" in violation
+            for violation in report.violations
+        )

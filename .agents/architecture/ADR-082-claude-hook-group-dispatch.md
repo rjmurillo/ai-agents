@@ -155,9 +155,11 @@ neutral in this ADR; only the publishing repo takes prunes.
     invariant. Replayed across the last 14 revisions of
     `.claude/hooks/dispatch_groups.json` it fired on healthy groups in 12 of
     them. `pretooluse-write-edit` names its matcher rather than its shims and
-    is correct; `plugin-posttooluse-1-markdown_auto_lint` matches today only
-    because the group holds one shim, and would break the moment a second
-    joined. A rule clean against exactly one tree is tuned to that tree, not
+    is correct; `plugin-posttooluse-1-markdown_auto_lint` matched only
+    because the group held one shim, and would have broken the moment a second
+    joined. That group is historical: issue #5154 (2026-08-18) deleted it
+    under ADR-085 section 10, so read it here as a worked example, not as a
+    live group. A rule clean against exactly one tree is tuned to that tree, not
     to an invariant. The falsification is in PR #3372 and the #3349 discourse.
     Membership, event, and mode are the contract, and the manifest already
     states all three; naming is a convenience for humans reading the file.

@@ -9,6 +9,9 @@ landed in the main checkout's ``.serena/memories/`` tree. The memory was
 invisible to the subagent's own branch, and the subagent silently modified a
 working tree it was supposed to be isolated from.
 
+Customer value: no silent cross-worktree Serena memory write in a consumer's
+own multi-checkout workflow, on either harness.
+
 Why this guard is not covered by the guard proposed for issue #4917
 (PR #5036, ``.claude/hooks/PreToolUse/invoke_serena_worktree_scope_guard.py``
 on branch ``fix/4917-serena-worktree-scope``, commit 96521be). That guard

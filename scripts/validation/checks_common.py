@@ -221,8 +221,10 @@ def _gh_base_ref(repo_root: Path) -> str | None:
     Retries with the upstream head branch per :func:`_gh_base_ref_probe`
     (issue #4382).
 
-    A same-named, but NOT behaviorally identical, helper lives in
-    ``.claude/hooks/PreToolUse/push_guard_base.py``; it lacks this retry.
+    A same-named, but NOT behaviorally identical, helper used to live in
+    ``.claude/hooks/PreToolUse/push_guard_base.py`` and lacked this retry.
+    Issue #5154 deleted that file with the push guards, so this is now the
+    only copy.
     """
     if not shutil.which("gh"):
         return None
@@ -314,9 +316,9 @@ def _resolve_branch_base_ref(repo_root: Path) -> str | None:
     default branch via ``refs/remotes/origin/HEAD``; (4) ``origin/main``.
     Returns None when none resolve.
 
-    A related helper (``_detect_default_base_ref``) in
-    ``.claude/hooks/PreToolUse/push_guard_base.py`` follows the same
-    priority order and has its own separate test suite.
+    A related helper (``_detect_default_base_ref``) followed the same priority
+    order in ``.claude/hooks/PreToolUse/push_guard_base.py``, which issue #5154
+    deleted with the push guards.
     """
     pr_base = _gh_base_ref(repo_root)
     if pr_base:

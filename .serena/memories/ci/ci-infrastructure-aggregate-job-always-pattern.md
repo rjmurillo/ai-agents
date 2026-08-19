@@ -26,9 +26,26 @@ GitHub documents the substitution in its expressions reference: `always()`
 "If you want to run a job or step regardless of its success or failure, use the
 recommended alternative: `if: ${{ !cancelled() }}`". `!cancelled()` is a status
 check function, so it keeps the enforcement gap in Issue #856 closed: the job
-still runs when a dependency failed or was skipped. It skips only during
-cancellation, and a skipped job is not a success, so branch protection keeps
-waiting rather than merging on a false green.
+still runs when a dependency failed or was skipped.
+
+**Correction 2026-08-18 (Issue #5139): the guarded job does not always "skip"
+during cancellation.** GitHub re-evaluates a job's `if:` condition for every
+currently running job when the run is cancelled (docs.github.com, workflow
+cancellation reference): "To cancel the workflow run, the server re-evaluates
+`if` conditions for all currently running jobs. If the condition evaluates to
+`true`, the job will not get canceled." A job already running when
+cancellation lands has `!cancelled()` flip to false on that re-evaluation and
+is itself cancelled as a result, concluding `cancelled`, not the earlier
+"`if:` is evaluated once, before the job starts" mechanism this correction
+originally stated (a Copilot review finding on PR #5141 caught the error).
+Verified against a real superseded run on this repository (`actions_get
+get_workflow_run` on run `31896264033`): overall conclusion `cancelled`, with
+its "Run Python Tests" and "Main failure alert" jobs both reporting
+`cancelled`, not `skipped`. This memory makes no claim about the exact
+conclusion a not-yet-started job reports; the guard still does its job either
+way, because `cancelled` is (like `skipped`) neither `success` nor `failure`,
+so branch protection keeps waiting on a superseded run rather than merging on
+a false green, and neither is the red `failure` that `always()` produced.
 
 Read every `if: always() && ...` example below as `if: !cancelled() && ...`.
 Mind the YAML: a plain scalar beginning with `!` parses as a tag, so use a `>-`
@@ -111,9 +128,11 @@ aggregate:
 ```
 
 **Why This Works**:
-- `!cancelled()` runs the job even when dependencies fail, and skips only
-  when the run itself is being cancelled (superseded by a newer push), so a
-  cancelled run does not publish a red check for work nobody is waiting on
+- `!cancelled()` runs the job even when dependencies fail; when the run
+  itself is being cancelled (superseded by a newer push), the job either
+  never starts (`skipped`) or is terminated mid-run (`cancelled`) depending
+  on timing, and neither conclusion publishes the red check `always()` would
+  have (see the 2026-08-18 correction above)
 - Still respects other conditions (e.g., `has_sessions`)
 - Enforcement step executes and can block PR
 - Clear intent: "aggregate results whenever the run reaches a real verdict,
