@@ -53,3 +53,13 @@ Given universal convergence on the same core defect (the `validation_head is Non
 ## Outcome
 
 **Consensus reached at Phase 3 resolution.** The rewritten ADR (same change that adds this log) is considered implementation-ready. Reopen this log with a Round 2 entry if a reviewer finds the rewrite does not address their finding.
+
+## Round 2 (post-implementation finding, AI spec validator on PR #5167)
+
+The ADR's Decision and Acceptance Criteria sections (paragraphs after the "Post-round-1 correction" note in Decision) asserted that the code-change-aware staleness check runs on `scripts/validate_session_json.py`'s `--existing-log` path: "the `--existing-log` path where `validation_head` resolves to `None` today" gets `binding.commit` as a fallback `head`, and acceptance criteria claimed a QA report passes or fails "including `validate_session_json.py`'s `--existing-log` path."
+
+That contradicts the ADR's own correction note two paragraphs earlier, which states accurately that `validate_session_log()` gates the entire QA-evidence block behind `not existing_log and not creation_mode` one level up, so `--existing-log` never reaches `validate_qa_report_evidence()` at all. The implementation matches the correction note, not the later Decision/Acceptance-Criteria prose: `tests/test_validate_session_json.py::test_existing_log_ignores_explicit_validation_head` passes an explicit `--validation-head` that would fail the check and asserts `post_qa_code_changes.assert_not_called()`, proving the call never happens on that path regardless of what `head` would resolve to.
+
+No agent in round 1 caught this internal contradiction; the correction note was added during implementation, after the round-1 debate concluded, and nothing re-checked the Decision/Acceptance-Criteria prose against it. This is a documentation-only defect: no code changed, since the implementation was already correct. Fixed by rewording the Decision and Acceptance Criteria to state `--existing-log` is out of scope for this ADR (the check applies only to the fresh-validation path, `not existing_log and not creation_mode`), matching what the correction note and the tests already establish.
+
+No further disagreement is open; this is a mechanical correction of a documentation defect the debate did not catch, not a reopened design question.
