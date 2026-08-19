@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from unittest.mock import patch
 
@@ -29,7 +30,7 @@ def _completed(returncode: int, stdout: str = "", stderr: str = "") -> subproces
     return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr=stderr)
 
 
-def _dispatching_run(responses: dict[tuple, object]):
+def _dispatching_run(responses: Mapping[tuple, object]):
     """Fake subprocess.run keyed on the exact argv, per testing.md rule 11.
 
     Raises a named AssertionError on any command not given a canned
@@ -89,6 +90,7 @@ def test_unresolvable_origin_main_reports_failure_not_zero() -> None:
         result = freshness.check_checkout_freshness("/repo")
 
     assert result.commits_behind is None
+    assert result.error is not None
     assert "unknown revision" in result.error
 
 
@@ -154,6 +156,7 @@ def test_unexpected_rev_list_output_reports_failure_not_zero() -> None:
         result = freshness.check_checkout_freshness("/repo")
 
     assert result.commits_behind is None
+    assert result.error is not None
     assert "not-a-number" in result.error
 
 
