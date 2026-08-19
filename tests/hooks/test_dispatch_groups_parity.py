@@ -217,6 +217,8 @@ AUTHORIZED_HOOKS = {
     "active worktree differs from Serena project root",
     "invoke_serena_memory_scope_guard.py": "#5061: block Serena memory writes "
     "that would land in a checkout other than the caller's worktree",
+    "invoke_checkout_freshness_check.py": "#4689: state how many commits HEAD "
+    "is behind origin/main before triage begins, fail-open, dogfood-only",
 }
 
 

@@ -1,0 +1,223 @@
+{
+  "id": "episode-2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check",
+  "session": "2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check",
+  "timestamp": "2026-08-19T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Implement session-start checkout freshness check for issue #4689",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fast-forwarded claude/pr-automerge-goal-fr1qvc onto origin/main",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implemented .claude/hooks/SessionStart/invoke_checkout_freshness_check.py",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Registered the hook as a new grouped SessionStart dispatch (sessionstart-2-checkout_freshness)",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote 14 unit tests covering nonzero/zero/unresolvable/fetch-failed-stale/timeout/git-missing cases",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found and fixed a bug in scripts/validation/hook_contracts.py: validate_duplicate_entries did not distinguish two dispatcher registrations by their --group flag",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated hardcoded hook-registration-count strings ('6 events, 7 groups' -> '6 events, 8 groups')",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Investigated the user's worktrees-in-clone hypothesis for issue #5085",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Split work into 6 atomic commits (<=5 files each) and pushed",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-19T15:51:17+00:00",
+      "type": "commit",
+      "content": "Commit: 49739005f",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-19T15:51:44+00:00",
+      "type": "commit",
+      "content": "Commit: 7f1918804",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-19T15:52:14+00:00",
+      "type": "commit",
+      "content": "Commit: 6778a0e4f",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-19T15:52:35+00:00",
+      "type": "commit",
+      "content": "Commit: bcaac6fd9",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-19T15:58:03+00:00",
+      "type": "commit",
+      "content": "Commit: 595d9f4bd",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-19T16:04:43+00:00",
+      "type": "commit",
+      "content": "Commit: 74674675351ea219b3e2212f274e9587a17bcbb3",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Split work into atomic commits (<=5 files each) and pushed",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Opened PR #5166 (non-draft, per explicit user instruction) and addressed CI/review feedback",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-19T16:22:01+00:00",
+      "type": "commit",
+      "content": "Commit: 502a31ee0",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-19T16:43:00+00:00",
+      "type": "commit",
+      "content": "Commit: b0732fcd3",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-19T16:43:19+00:00",
+      "type": "commit",
+      "content": "Commit: a32947f413d4f44e099f71607d73a9bdb520f325",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 9,
+    "files_changed": 22
+  },
+  "lessons": []
+}
