@@ -28,6 +28,20 @@ plugin-root variable to the hook process, pointing at the install dir) was
 verified empirically; see the Serena memory
 ``decision-copilot-cli-hook-plugin-root-contract``.
 
+Zero registered hooks is a VALID anchored state (ADR-096 retired every
+tool-call hook, leaving both manifests with ``"hooks": {}``). The invariant
+this gate enforces, "every hook command anchors to the plugin root", is
+satisfied over an empty set, so an empty mapping exits 0 and reports zero
+entries examined rather than passing silently
+(``.claude/rules/ci-scripts.md`` MUST 11 and MUST 12).
+
+What stays fail-closed, so a BROKEN manifest is still distinguishable from a
+deliberately empty one: a missing file, unparseable JSON, and a ``hooks`` key
+that is absent or is not a mapping. Re-accretion is guarded separately by
+``tests/hooks/test_zero_tool_use_hooks.py``, and regeneration drift by the
+generator's own drift gate; neither invariant depends on this gate rejecting
+the empty case.
+
 Exit codes (ADR-035): 0 ok, 1 anchoring violation(s), 2 config error.
 """
 
@@ -191,8 +205,17 @@ def _check_copilot(
     if err is not None:
         return 0, [err], 2
     events = doc.get("hooks") if isinstance(doc, dict) else None
-    if not isinstance(events, dict) or not events:
-        return 0, [f"no hook events in {artifact_rel}"], 2
+    if not isinstance(events, dict):
+        # Absent or non-mapping "hooks" key: the manifest is malformed, which
+        # stays fail-closed. An EMPTY mapping is a different thing and is
+        # handled below.
+        return 0, [f"malformed or missing 'hooks' mapping in {artifact_rel}"], 2
+    if not events:
+        # Deliberately zero registered hooks (ADR-096). The invariant this gate
+        # enforces, "every hook command anchors to the plugin root", is
+        # satisfied over an empty set. Report zero examined rather than passing
+        # silently, per .claude/rules/ci-scripts.md MUST 11 and MUST 12.
+        return 0, [], 0
     try:
         generate_hooks, generate_dispatcher = _load_generators(repo_root)
     except ImportError as exc:
@@ -239,9 +262,11 @@ def _check_claude(repo_root: Path) -> tuple[int, list[str], int]:
     doc, err = _load_json(repo_root / _CLAUDE_REL)
     if err is not None:
         return 0, [err], 2
+    if not isinstance(doc, dict) or not isinstance(doc.get("hooks"), dict):
+        return 0, [f"malformed or missing 'hooks' mapping in {_CLAUDE_REL}"], 2
+    # Zero command hooks is valid (ADR-096); an unparseable or structurally
+    # wrong manifest is not, and is rejected above.
     commands = _iter_commands(doc)
-    if not commands:
-        return 0, [f"no command hooks in {_CLAUDE_REL}"], 2
 
     violations: list[str] = []
     checked = 0

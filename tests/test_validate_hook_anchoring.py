@@ -30,6 +30,24 @@ def test_real_repo_passes_both_plugins() -> None:
 # --- Copilot (generator-compared) -------------------------------------------
 
 
+def _anchored_seed() -> dict:
+    """Build a correctly-anchored one-entry manifest from the canonical builder.
+
+    The shipped manifest is empty since ADR-096 retired every tool-call hook,
+    so these drift tests can no longer seed themselves from it. They synthesize
+    an entry from ``generate_dispatcher.dispatcher_entry``, the same builder
+    ``_check_copilot_entry`` compares against, then mutate one field. The
+    mutation is the discriminator: ``test_copilot_seed_is_clean_before_mutation``
+    below is the control proving the unmutated seed passes, so a seed that
+    silently stopped matching the generator cannot make every FAIL case pass
+    vacuously.
+    """
+    sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
+    import generate_dispatcher
+
+    return {"hooks": {"PreToolUse": [generate_dispatcher.dispatcher_entry("PreToolUse", 35)]}}
+
+
 def _copilot_root(tmp_path: Path, mutate: Callable[[dict], None]) -> Path:
     (tmp_path / "build").mkdir()
     src_scripts = REPO_ROOT / "build" / "scripts"
@@ -42,10 +60,18 @@ def _copilot_root(tmp_path: Path, mutate: Callable[[dict], None]) -> Path:
         shutil.copytree(src_scripts, dst_scripts)
     hooks_dir = tmp_path / "src" / "copilot-cli" / "hooks"
     hooks_dir.mkdir(parents=True)
-    doc = json.loads((REPO_ROOT / gate._COPILOT_REL).read_text())
+    doc = _anchored_seed()
     mutate(doc)
     (hooks_dir / "hooks.json").write_text(json.dumps(doc), encoding="utf-8")
     return tmp_path
+
+
+def test_copilot_seed_is_clean_before_mutation(tmp_path: Path) -> None:
+    """Control for every FAIL case below: the unmutated seed must pass."""
+    checked, violations, config = gate._check_copilot(_copilot_root(tmp_path, lambda _doc: None))
+    assert config == 0
+    assert checked == 1
+    assert not violations
 
 
 def test_copilot_bare_bash_path_fails(tmp_path: Path) -> None:
@@ -172,10 +198,70 @@ def test_copilot_direct_session_start_requires_shell_suppression(tmp_path: Path)
 
 
 def test_claude_real_file_is_anchored() -> None:
+    # ADR-096 retired every tool-call hook, so the real manifest registers zero
+    # command hooks. That is a valid anchored state, not a config error: the
+    # anchoring invariant holds over an empty set.
     checked, violations, config = gate._check_claude(REPO_ROOT)
     assert config == 0
-    assert checked > 0
+    assert checked == 0
     assert not violations
+
+
+def test_empty_claude_manifest_is_valid_not_a_config_error(tmp_path: Path) -> None:
+    """Zero registered hooks passes (ADR-096); it is not a missing manifest."""
+    hooks_dir = tmp_path / ".claude" / "hooks"
+    hooks_dir.mkdir(parents=True)
+    (hooks_dir / "hooks.json").write_text(json.dumps({"hooks": {}}), encoding="utf-8")
+
+    checked, violations, config = gate._check_claude(tmp_path)
+
+    assert config == 0
+    assert checked == 0
+    assert not violations
+
+
+def test_claude_manifest_without_hooks_key_is_still_a_config_error(tmp_path: Path) -> None:
+    """Negative control for the case above: empty is valid, malformed is not.
+
+    Without this, permitting the empty mapping would also permit a manifest
+    whose "hooks" key failed to generate at all, and the two are not the same
+    failure.
+    """
+    hooks_dir = tmp_path / ".claude" / "hooks"
+    hooks_dir.mkdir(parents=True)
+    (hooks_dir / "hooks.json").write_text(json.dumps({"version": 1}), encoding="utf-8")
+
+    _checked, violations, config = gate._check_claude(tmp_path)
+
+    assert config == 2
+    assert violations and "malformed or missing" in violations[0]
+
+
+def test_empty_copilot_manifest_is_valid_not_a_config_error(tmp_path: Path) -> None:
+    """The generated Copilot manifest is also legitimately empty (ADR-096)."""
+    artifact = Path("src/copilot-cli/hooks/hooks.json")
+    target = tmp_path / artifact
+    target.parent.mkdir(parents=True)
+    target.write_text(json.dumps({"hooks": {}, "version": 1}), encoding="utf-8")
+
+    checked, violations, config = gate._check_copilot(tmp_path, artifact)
+
+    assert config == 0
+    assert checked == 0
+    assert not violations
+
+
+def test_copilot_manifest_with_non_mapping_hooks_is_a_config_error(tmp_path: Path) -> None:
+    """Negative control: a wrong-typed 'hooks' value must not read as empty."""
+    artifact = Path("src/copilot-cli/hooks/hooks.json")
+    target = tmp_path / artifact
+    target.parent.mkdir(parents=True)
+    target.write_text(json.dumps({"hooks": [], "version": 1}), encoding="utf-8")
+
+    _checked, violations, config = gate._check_copilot(tmp_path, artifact)
+
+    assert config == 2
+    assert violations and "malformed or missing" in violations[0]
 
 
 def test_claude_bare_path_fails(tmp_path: Path) -> None:
