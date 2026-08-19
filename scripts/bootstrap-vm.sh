@@ -40,6 +40,14 @@ quiet_apt_get() {
         cat "$APT_LOG" >&2
         return 1
     fi
+    # apt-get can exit 0 while still emitting repository-signature or
+    # fetch warnings (e.g. GPG NO_PUBKEY, "Failed to fetch") that must
+    # reach the operator even on the success path; a MITM'd or compromised
+    # mirror degrading a third-party repo must not go silent (security
+    # review, Issue #5169). grep exits 1 on no match, which set -e would
+    # otherwise treat as this function failing on the common, warning-free
+    # case, so guard it with `|| true`.
+    grep -E '^(W|E): ' "$APT_LOG" >&2 || true
 }
 
 echo "=== System Prerequisites ==="
