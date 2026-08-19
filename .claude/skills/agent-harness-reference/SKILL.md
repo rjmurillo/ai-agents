@@ -64,7 +64,7 @@ citations, and docs-silent classifications.
 | JSON decision payload | PreToolUse uses nested `hookSpecificOutput.permissionDecision`; Stop uses top-level `decision: "block"` | OFFICIAL + CODE | <https://code.claude.com/docs/en/hooks>; strict classification in `.claude/lib/claude_hook_protocol.py` |
 | Exit codes vs ADR-035 | Claude hooks are exempt from ADR-035 exit-code taxonomy; each event follows the harness contract | CODE | Surviving hook contract in `.claude/hooks/SessionStart/invoke_context_loader.py` (the `invoke_observation_sync.py` citation was retired with that hook by ADR-097) |
 | `CLAUDE_PLUGIN_ROOT` | Set by Claude Code to the plugin install dir; cwd is the USER working dir, not the plugin root | EMPIRICAL (Claude Code 2.1.159, session 1873) | ADR-071 "Verified Runtime Contract" section |
-| Lib bootstrap | Hooks resolve shared lib via `CLAUDE_PLUGIN_ROOT` when set; otherwise a fixed relative parent-walk (`Path(__file__).resolve().parents[N] / "lib"`), not a search for `.claude-plugin/plugin.json` | CODE | `.claude/hooks/SessionStart/invoke_context_loader.py:34-41` (the `invoke_observation_sync.py` citation was retired with that hook by ADR-097) |
+| Lib bootstrap | Hooks resolve shared lib via `CLAUDE_PLUGIN_ROOT` when set; otherwise a fixed relative parent-walk (`Path(__file__).resolve().parents[N] / "lib"`), not a search for `.claude-plugin/plugin.json` | CODE | `.claude/hooks/SessionStart/invoke_context_loader.py:38-45` (the `invoke_observation_sync.py` citation was retired with that hook by ADR-097) |
 
 ## When to Refresh
 

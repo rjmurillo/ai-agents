@@ -26,9 +26,52 @@ install_uv() {
     rm -f "$installer"
 }
 
+APT_LOG="$(mktemp)"
+TMP_DIR=""
+
+cleanup_tmp() {
+    # `[[ -n "$TMP_DIR" ]] && rm -rf ...` would return the `[[ ]]` test's own
+    # false status when TMP_DIR is unset (the common case), and this runs as
+    # the EXIT trap under `set -e`, so a successful bootstrap run could
+    # report a non-zero exit code purely because this cleanup found nothing
+    # to do. An `if` block always returns 0 when its condition is false.
+    rm -f -- "$APT_LOG"
+    if [[ -n "$TMP_DIR" ]]; then
+        rm -rf -- "$TMP_DIR"
+    fi
+}
+trap cleanup_tmp EXIT
+
+quiet_run() {
+    # dpkg's own unpack/configure trace ignores apt-get's -qq flag (and
+    # `dpkg -i` has no quiet flag at all), so on a base image that has
+    # drifted from a package's pinned version this printed ~40 lines of
+    # pure unpack-log noise straight into the SessionStart hook's output
+    # on every affected remote session (Issue #5169). Redirect to a log
+    # and surface it only on failure, so the success path stays quiet and
+    # a real failure still fails loud.
+    if ! "$@" >"$APT_LOG" 2>&1; then
+        echo "$* failed; output follows:" >&2
+        cat "$APT_LOG" >&2
+        return 1
+    fi
+}
+
+quiet_apt_get() {
+    quiet_run sudo apt-get "$@" || return 1
+    # apt-get can exit 0 while still emitting repository-signature or
+    # fetch warnings (e.g. GPG NO_PUBKEY, "Failed to fetch") that must
+    # reach the operator even on the success path; a MITM'd or compromised
+    # mirror degrading a third-party repo must not go silent (security
+    # review, Issue #5169). grep exits 1 on no match, which set -e would
+    # otherwise treat as this function failing on the common, warning-free
+    # case, so guard it with `|| true`.
+    grep -E '^(W|E): ' "$APT_LOG" >&2 || true
+}
+
 echo "=== System Prerequisites ==="
-sudo apt-get update -qq
-sudo apt-get install -y -qq curl wget git jq unzip zstd apt-transport-https \
+quiet_apt_get update -qq
+quiet_apt_get install -y -qq curl wget git jq unzip zstd apt-transport-https \
     ca-certificates gnupg software-properties-common build-essential \
     sqlite3 openssh-client
 
@@ -44,8 +87,8 @@ if ! command -v node &>/dev/null; then
     rm -f /tmp/nodesource.gpg
     echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" | \
         sudo tee /etc/apt/sources.list.d/nodesource.list >/dev/null
-    sudo apt-get update -qq
-    sudo apt-get install -y -qq nodejs
+    quiet_apt_get update -qq
+    quiet_apt_get install -y -qq nodejs
 fi
 node --version && npm --version
 
@@ -53,8 +96,8 @@ echo "=== PowerShell Core ==="
 if ! command -v pwsh &>/dev/null; then
     source /etc/os-release
     wget -q "https://packages.microsoft.com/config/ubuntu/${VERSION_ID}/packages-microsoft-prod.deb" -O /tmp/ms.deb
-    sudo dpkg -i /tmp/ms.deb && rm /tmp/ms.deb
-    sudo apt-get update -qq && sudo apt-get install -y -qq powershell
+    quiet_run sudo dpkg -i /tmp/ms.deb && rm /tmp/ms.deb
+    quiet_apt_get update -qq && quiet_apt_get install -y -qq powershell
 fi
 pwsh --version
 
@@ -64,7 +107,7 @@ if ! command -v gh &>/dev/null; then
         sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg 2>/dev/null
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | \
         sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null
-    sudo apt-get update -qq && sudo apt-get install -y -qq gh
+    quiet_apt_get update -qq && quiet_apt_get install -y -qq gh
 fi
 gh --version
 
@@ -225,7 +268,6 @@ if ! command -v actionlint &>/dev/null; then
 
     mkdir -p "$HOME/.local/bin"
     TMP_DIR=$(mktemp -d)
-    trap 'rm -rf -- "$TMP_DIR"' EXIT
     curl "${CURL_RETRY_OPTS[@]}" -fsSL "$AL_URL" -o "$TMP_DIR/$AL_TARBALL"
     echo "${AL_SHA256}  $TMP_DIR/$AL_TARBALL" | sha256sum --check --strict
     tar -xzf "$TMP_DIR/$AL_TARBALL" -C "$TMP_DIR" actionlint

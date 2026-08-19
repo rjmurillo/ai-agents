@@ -8,7 +8,7 @@
       "shims": [
         {
           "file": "SessionStart/invoke_context_loader.py",
-          "statusMessage": "Auto-loading HANDOFF.md and latest retrospective (#1703)"
+          "statusMessage": "Auto-loading latest retrospective (#1703)"
         }
       ]
     },

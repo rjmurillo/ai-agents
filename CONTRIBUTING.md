@@ -571,7 +571,7 @@ and push enforcement runs through Lefthook, `pre_pr.py`, and CI under ADR-084.
 
 | Hook | File | Purpose | Bypass env var |
 |------|------|---------|----------------|
-| SessionStart | `invoke_context_loader.py` | Auto-loads HANDOFF.md + latest retrospective into context | none (fail-open) |
+| SessionStart | `invoke_context_loader.py` | Auto-loads latest retrospective into context | none (fail-open) |
 | SessionStart | `invoke_checkout_freshness_check.py` | Reports how far HEAD is behind origin/main | none (fail-open) |
 | UserPromptSubmit | `invoke_memory_recall.py` | Recalls relevant memories for the prompt | none (fail-open) |
 | SessionEnd | `invoke_memory_reflection.py` | Persists memory confidence scores | none (fail-open) |
