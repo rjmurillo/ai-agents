@@ -1,3 +1,9 @@
+---
+qaVerdict: PASS
+qaSessionLog: .agents/sessions/2026-08-19-session-99921-b9d55af7c-retire-pretooluseposttooluseposttoolusefailure-hooks-windowsdefender-per-spawn.json
+qaCommit: 684455250ccea382ed29d11b16718ab727b04e89
+---
+
 # QA: ADR-097 zero tool-use hooks
 
 **Branch**: `claude/tool-use-hooks-perf-ht7zhx`
