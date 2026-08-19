@@ -1,7 +1,7 @@
-"""The installed-plugin guard must certify the ADR-096 zero-hook state.
+"""The installed-plugin guard must certify the ADR-097 zero-hook state.
 
-Before ADR-096 the guard returned 1 unconditionally on an empty manifest, by
-design: "an empty run is a failure, never a skip" (#4672). ADR-096 makes zero
+Before ADR-097 the guard returned 1 unconditionally on an empty manifest, by
+design: "an empty run is a failure, never a skip" (#4672). ADR-097 makes zero
 registered hooks the deliberately shipped state, so that assertion is inverted
 rather than deleted. What the guard asserts now is AGREEMENT between what the
 manifest registers and what the tree ships.
@@ -69,7 +69,7 @@ def _run(tmp_path: Path, source: Path, negative_env: str = "false") -> int:
 
 @pytest.mark.parametrize("negative_env", ["false", "true"])
 def test_zero_registered_hooks_passes(tmp_path: Path, negative_env: str) -> None:
-    """The shipped ADR-096 state exits 0 in both the positive and degraded run."""
+    """The shipped ADR-097 state exits 0 in both the positive and degraded run."""
     source = _plugin_source(tmp_path, json.dumps({"hooks": {}, "version": 1}))
 
     assert _run(tmp_path, source, negative_env) == 0
@@ -126,9 +126,9 @@ def _registering_source(tmp_path: Path) -> Path:
 
 
 def test_a_registered_event_with_no_dispatcher_still_fails(tmp_path: Path) -> None:
-    """The #4672 invariant survives ADR-096 for any event that IS registered.
+    """The #4672 invariant survives ADR-097 for any event that IS registered.
 
-    This is the load-bearing control for the whole redesign. ADR-096 makes an
+    This is the load-bearing control for the whole redesign. ADR-097 makes an
     EMPTY manifest pass, and the docstring claims the non-empty path stays
     fully armed. If that claim were false, re-adding a tool-use hook would land
     against a guard that had quietly become a no-op, which is precisely the
@@ -137,7 +137,7 @@ def test_a_registered_event_with_no_dispatcher_still_fails(tmp_path: Path) -> No
     Inherited from the retired
     `test_partial_upgrade_degrades.py::test_absent_dispatcher_fails_the_guard`,
     which asserted the same property against the shipped Copilot tree that
-    ADR-096 deleted. The subject moves to a synthetic tree; the invariant does
+    ADR-097 deleted. The subject moves to a synthetic tree; the invariant does
     not change.
 
     Driven as a real subprocess rather than through `main()` in-process, so the

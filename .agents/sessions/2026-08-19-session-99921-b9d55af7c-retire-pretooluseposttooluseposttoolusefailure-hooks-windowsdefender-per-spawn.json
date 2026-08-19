@@ -5,7 +5,7 @@
     "date": "2026-08-19",
     "branch": "claude/tool-use-hooks-perf-ht7zhx",
     "startingCommit": "e11c7f4",
-    "objective": "Retire all PreToolUse/PostToolUse/PostToolUseFailure hooks (Windows+Defender per-spawn cost); author, review, and accept ADR-096"
+    "objective": "Retire all PreToolUse/PostToolUse/PostToolUseFailure hooks (Windows+Defender per-spawn cost); author, review, and accept ADR-097"
   },
   "protocolCompliance": {
     "sessionStart": {

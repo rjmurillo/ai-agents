@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Re-accretion ratchet for ADR-096: zero tool-call hooks stay zero.
+"""Re-accretion ratchet for ADR-097: zero tool-call hooks stay zero.
 
-ADR-096 retired every `PreToolUse`, `PostToolUse`, `PermissionRequest`, and
+ADR-097 retired every `PreToolUse`, `PostToolUse`, `PermissionRequest`, and
 `PostToolUseFailure` registration, and with them the ~20 dispatcher-hardening
 tests, including the #5013 regression pin
 (`test_pretooluse_bash_payload_never_launches_push_pr_guard`). That pin guarded
@@ -19,11 +19,11 @@ ADR-084 names as the reason a written bar was needed at all.
 
 This is not a bar on hooks generally. `SessionStart`, `UserPromptSubmit`,
 `SessionEnd`, and `PreCompact` fire once per session or per turn rather than
-once per tool call, and ADR-096 leaves them untouched.
+once per tool call, and ADR-097 leaves them untouched.
 
-If you are here because this test failed: read ADR-096's "Re-evaluation
+If you are here because this test failed: read ADR-097's "Re-evaluation
 Triggers", clear `.claude/rules/tool-use-hook-bar.md` MUST 1 through 5 for the
-new hook, and rebuild the hardening-test bar ADR-096 retired. Then delete the
+new hook, and rebuild the hardening-test bar ADR-097 retired. Then delete the
 relevant assertion here, in the same change, with that reasoning recorded.
 """
 
@@ -37,7 +37,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HOOKS_DIR = REPO_ROOT / ".claude" / "hooks"
 
-# ADR-096 scope, matching `.claude/rules/tool-use-hook-bar.md`: every per-call
+# ADR-097 scope, matching `.claude/rules/tool-use-hook-bar.md`: every per-call
 # event. Naming fewer would leave the ratchet evadable by event choice.
 PER_CALL_EVENTS = (
     "PreToolUse",
@@ -57,7 +57,7 @@ def test_plugin_manifest_registers_no_tool_use_hooks(event: str) -> None:
     hooks = _load(HOOKS_DIR / "hooks.json").get("hooks", {})
 
     assert hooks.get(event, []) == [], (
-        f"{event} re-registered in .claude/hooks/hooks.json. ADR-096 retired "
+        f"{event} re-registered in .claude/hooks/hooks.json. ADR-097 retired "
         f"every tool-call hook from the vendored surface; re-adding one ships "
         f"a per-call process spawn to every consumer. See this file's docstring."
     )
@@ -83,7 +83,7 @@ def test_dispatch_groups_carry_no_plugin_surface_tool_use_group(event: str) -> N
 def test_repo_settings_register_no_tool_use_hooks(event: str) -> None:
     """This repository's own settings carry zero too.
 
-    ADR-096 retired the two repo-local hooks (`observation_sync`,
+    ADR-097 retired the two repo-local hooks (`observation_sync`,
     `memory_capture`) alongside the three vendored ones. They never reached a
     consumer, so re-adding one costs no vendor anything, but it does reinstate
     a per-tool-call spawn on the owner's machine, which is the measured
@@ -122,7 +122,7 @@ def test_session_scoped_events_are_still_allowed() -> None:
     """Negative control: this ratchet must not read as a ban on all hooks.
 
     Without this, a future contributor could satisfy the file by deleting the
-    session-scoped hooks too, which ADR-096 explicitly leaves in place. It also
+    session-scoped hooks too, which ADR-097 explicitly leaves in place. It also
     proves the assertions above are reading a real, populated settings file
     rather than an empty one.
     """
@@ -130,7 +130,7 @@ def test_session_scoped_events_are_still_allowed() -> None:
     session_scoped = [event for event in hooks if event not in PER_CALL_EVENTS]
 
     assert session_scoped, (
-        "no session-scoped hooks registered at all. ADR-096 retired the "
+        "no session-scoped hooks registered at all. ADR-097 retired the "
         "per-call events only; SessionStart, UserPromptSubmit, SessionEnd, and "
         "PreCompact were explicitly left in place."
     )

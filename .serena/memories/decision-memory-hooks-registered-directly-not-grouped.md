@@ -1,6 +1,6 @@
 # Memory hooks register directly in settings.json, not through the group dispatcher
 
-> **PARTIALLY SUPERSEDED 2026-08-19 by ADR-096.** Two of the three hooks this
+> **PARTIALLY SUPERSEDED 2026-08-19 by ADR-097.** Two of the three hooks this
 > record covers are retired: `post_tool_call_memory` (via its
 > `invoke_memory_capture.py` wrapper, and the module itself) and
 > `invoke_observation_sync.py`. `user_prompt_submit_memory` and

@@ -4,7 +4,7 @@ The staged-file scan in detect_test_coverage_gaps must pass a timeout kwarg and
 degrade gracefully when the subprocess hangs. See issue #2943.
 
 The companion cases for ``invoke_observation_sync._get_repo_root`` were removed
-with that hook when ADR-096 retired every tool-call hook. Their subject no
+with that hook when ADR-097 retired every tool-call hook. Their subject no
 longer exists; nothing else calls the helper they covered.
 """
 

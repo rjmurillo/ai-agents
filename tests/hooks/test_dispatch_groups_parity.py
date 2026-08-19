@@ -151,7 +151,7 @@ def test_repo_settings_cover_plugin_shims_minus_documented_prunes():
     # every hook the plugin would have run, minus the prunes this repo
     # deliberately made. A plugin shim missing here would silently never
     # run during this repo's own sessions (the 19-day dead-hook class).
-    # ADR-096 retired every plugin-surface tool-call hook, so there is nothing
+    # ADR-097 retired every plugin-surface tool-call hook, so there is nothing
     # left for repo settings to cover or to prune. The three former entries
     # (require_subagent_model, serena_worktree_scope_guard,
     # serena_memory_scope_guard) went with their hooks; leaving them here would

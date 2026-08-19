@@ -1,5 +1,5 @@
 ---
-id: ADR-096
+id: ADR-097
 status: accepted
 date: 2026-08-19
 decision-makers: [rjmurillo]
@@ -9,7 +9,7 @@ explainer: null
 implemented: false
 ---
 
-# ADR-096: Zero Tool-Use Hooks
+# ADR-097: Zero Tool-Use Hooks
 
 ## Status
 
@@ -18,7 +18,7 @@ Disagree-and-Commit, security Accept, independent-thinker
 Disagree-and-Commit, high-level-advisor Accept, critic Disagree-and-Commit,
 architect Disagree-and-Commit. **2 Accept, 4 Disagree-and-Commit, 0 Block** ,
 clears the skill's consensus bar. Full findings:
-`.agents/critique/ADR-096-debate-log.md`.
+`.agents/critique/ADR-097-debate-log.md`.
 
 No reviewer contested the owner's authority to make the three ratified
 decisions (retire all 5 hooks; retire the Copilot dispatcher per ADR-085
@@ -390,7 +390,7 @@ overrides for these five specifically.
 | `src/copilot-cli/hooks/` generated tree | Direct (generated) | Regenerate via `build/scripts/build_all.py`; never hand-edit; investigate the orphaned `src/copilot-cli/hooks/PreToolUse/markdownlint-safe-config.yaml` and `.claude/hooks/PreToolUse/_bootstrap.py` the regeneration left behind | Low: generator confirmed idempotent on the empty case (re-ran `build_all.py`, zero further diff), orphans are cleanup not correctness |
 | `scripts/validation/validate_hook_anchoring.py` | Direct | Currently red: `uv run --frozen python scripts/validation/validate_hook_anchoring.py` exits 2 ("no hook events in src/copilot-cli/hooks/hooks.json", "no command hooks in .claude/hooks/hooks.json"). Wired into `pre_pr.py`, `lefthook.yml`, and `.github/workflows/validate-plugin-manifests.yml`. Needs an explicit disposition: permit zero hooks as a valid anchored state, or retire the validator | High: blocks every push and PR until resolved |
 | `scripts/ci/test_installed_plugin_hooks.py` (+ `.github/actions/test-installed-plugin-hooks/action.yml`, `.github/workflows/installed-plugin-hook-guard.yml`) | Direct | Not a naming fix: `main()` returns 1 unconditionally when `_registered_events()` is empty, by design ("an empty or unreadable manifest is itself a failure in the caller"). That design assumption is what this ADR reverses. Needs redesign to assert the deliberately-empty state, not a renamed hook reference | High: blocks CI as currently written |
-| `tests/hooks/test_adr_hook_claims.py` | Direct | Measured failing against this file: `test_no_adr_prose_names_a_hook_that_is_absent_without_retirement_marker[ADR-096]` and `test_no_adr_prose_claims_an_unregistered_hook_is_live[ADR-096]`. Each flagged sentence needs a retirement-marker word (removed/replaced/retired/superseded) in its own clause. Also flags `ADR-085:149`, which needs the same treatment for hooks this ADR retires | Medium: blocks this ADR's own acceptance gate |
+| `tests/hooks/test_adr_hook_claims.py` | Direct | Measured failing against this file: `test_no_adr_prose_names_a_hook_that_is_absent_without_retirement_marker[ADR-097]` and `test_no_adr_prose_claims_an_unregistered_hook_is_live[ADR-097]`. Each flagged sentence needs a retirement-marker word (removed/replaced/retired/superseded) in its own clause. Also flags `ADR-085:149`, which needs the same treatment for hooks this ADR retires | Medium: blocks this ADR's own acceptance gate |
 | ADR-071 (Plugin Hook Runtime Contract Verification, accepted) | Direct | Amended 2026-08-11 specifically to record `require_subagent_model`'s matcher, fail-open, and fail-closed contract. That contract no longer exists. Needs an amendment marking the relevant section retired, cited in this ADR's Related Decisions | Medium: an accepted ADR describing a dead contract misleads a future reader |
 | ADR-068 (Consolidated Hook Group Dispatch), lines 187, 227, 234, 309, 501 | Direct | Contains now-false claims that the retired gates are registered and that the Copilot dispatcher "spawns three timed-shim children." Escapes `test_adr_hook_claims.py`'s regex (needs an `invoke_` prefix; ADR-068 uses bare gate names) but the content is still false and needs a retirement note | Medium: same misleading-accepted-ADR risk, not caught by the automated gate |
 | `CONTRIBUTING.md`, `.claude/skills/ai-agents-architecture-contract/`, `.claude/skills/ai-agents-config-catalog/`, `.claude/skills/agent-harness-reference/`, `.claude/hooks/PostToolUse/README.md` (calls `observation_sync` a "reference implementation for simple hooks"), `.agents/specs/hook-protocol.md` | Indirect | Prose referencing any of the 5 retired hooks, `.github/hooks/require-subagent-model.json`, or the Copilot dispatcher as live needs updating | Low: documentation drift, not functional risk |

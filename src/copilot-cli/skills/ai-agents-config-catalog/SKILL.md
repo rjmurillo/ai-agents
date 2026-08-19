@@ -126,13 +126,13 @@ all.
 
 Two independent registration sources serve different consumers. Do not force
 parity between them. A third, `.github/hooks/require-subagent-model.json`, was
-retired by ADR-096 along with every tool-call hook:
+retired by ADR-097 along with every tool-call hook:
 
 | Surface | Consumer | Shape re-verified 2026-08-19 |
 |---|---|---|
 | `.claude/settings.json` | Claude Code direct in this repository | 4 events, 6 groups |
 | `.claude/hooks/hooks.json` | Vendored plugin source for both harness packages | 0 events, 0 groups |
-| `.github/hooks/require-subagent-model.json` | retired (ADR-096) | deleted; was Copilot CLI in this repository, native `preToolUse`, matcher `task`, direct registration |
+| `.github/hooks/require-subagent-model.json` | retired (ADR-097) | deleted; was Copilot CLI in this repository, native `preToolUse`, matcher `task`, direct registration |
 
 The Copilot generator reads `.claude/hooks/hooks.json`, not local settings. A
 one-file registration is valid only when its consumer scope is deliberate.
@@ -191,7 +191,7 @@ moved or died: update this catalog before relying on it.
 | pytest markers | `grep -n -A 5 "^markers" pyproject.toml` |
 | .env keys | `grep -n -e "API_KEY" -e "COMPRESS_TOKENIZER" .env.example` |
 | hook registration surfaces | `uv run --frozen python -c "import json; s=json.load(open('.claude/settings.json'))['hooks']; print({k: len(v) for k, v in s.items()})"` |
-| repository-local Copilot sub-agent gate retired | `test ! -e .github/hooks/require-subagent-model.json && echo retired` (ADR-096 deleted this surface) |
+| repository-local Copilot sub-agent gate retired | `test ! -e .github/hooks/require-subagent-model.json && echo retired` (ADR-097 deleted this surface) |
 | removed flags absent from CONTRIBUTING | `grep -n -e "SKIP_PREPUSH" -e "SKIP_TESTS" CONTRIBUTING.md` (expect no matches) |
 
 `COMPRESS_TOKENIZER` consumer not located; verify before documenting it as live.

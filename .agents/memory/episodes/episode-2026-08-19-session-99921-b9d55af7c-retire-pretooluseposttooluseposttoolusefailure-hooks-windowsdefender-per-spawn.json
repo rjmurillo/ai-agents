@@ -4,7 +4,7 @@
   "timestamp": "2026-08-19T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "partial",
-  "task": "Retire all PreToolUse/PostToolUse/PostToolUseFailure hooks (Windows+Defender per-spawn cost); author, review, and accept ADR-096",
+  "task": "Retire all PreToolUse/PostToolUse/PostToolUseFailure hooks (Windows+Defender per-spawn cost); author, review, and accept ADR-097",
   "decisions": [],
   "events": [],
   "metrics": {

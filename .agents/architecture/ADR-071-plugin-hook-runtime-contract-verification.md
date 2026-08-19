@@ -15,8 +15,8 @@ The 2026-07-19 amendment review reached consensus with 3 Accept,
 3 Disagree-and-Commit, and 0 Block. Its durable record is the dated amendment
 section in the same debate log.
 
-**Amended 2026-08-19 (ADR-096): every tool-use gate contract below is retired.**
-ADR-096 removed all five tool-call hooks and the generated Copilot dispatcher,
+**Amended 2026-08-19 (ADR-097): every tool-use gate contract below is retired.**
+ADR-097 removed all five tool-call hooks and the generated Copilot dispatcher,
 so the matcher, fail-open, fail-closed, shim-count, and timeout-sum contracts
 recorded in the 2026-08-11 through 2026-08-19 amendment sections describe code
 that no longer exists. Decision item 1 (plugin-root anchoring) still binds every
@@ -28,7 +28,7 @@ Amended 2026-08-11 (issue #4874): the require-subagent-model gate joined the
 consolidated PreToolUse path. The dated amendment section below records the
 matcher, fail-open, and fail-closed contract for that gate (debate log:
 `.agents/critique/ADR-068-071-085-metric-refresh-debate-log.md`).
-**Retired by ADR-096.**
+**Retired by ADR-097.**
 
 Amended 2026-08-14 (issue #5013): ADR-085 Decision 7 is the policy authority
 for excluding `push_pr_script_identity_guard` from the generated Copilot
@@ -560,9 +560,9 @@ verification of any guard's own gate decisions, and not the six-role
 re-affirmation issue #5151 tracks for the consolidated-dispatcher decision
 under the matcher-union loss.
 
-### 2026-08-19 amendment: every tool-use runtime contract retired (ADR-096)
+### 2026-08-19 amendment: every tool-use runtime contract retired (ADR-097)
 
-**Every gate contract recorded in the amendments above is retired.** ADR-096
+**Every gate contract recorded in the amendments above is retired.** ADR-097
 removed all five registered tool-call hooks and, with them, the generated
 Copilot dispatcher itself. The subjects those contracts described no longer
 exist in the tree.
@@ -597,7 +597,7 @@ dispatcher left to re-affirm. The Claude-side dispatcher
 
 Re-adding any tool-use hook requires re-establishing a runtime contract here
 from scratch. Do not read the retired amendments above as a contract a new hook
-inherits; they describe deleted code. See ADR-096 "Re-evaluation Triggers".
+inherits; they describe deleted code. See ADR-097 "Re-evaluation Triggers".
 
 ## Decision
 

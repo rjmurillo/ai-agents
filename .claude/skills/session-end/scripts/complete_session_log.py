@@ -544,7 +544,10 @@ def _qa_report_evidence(
         ) from exc
     if not resolved_report.is_file():
         raise ValueError(f"QA report not found: {resolved_report}")
-    validate_qa_report(resolved_report, binding)
+    # ADR-096: `head` is required. `binding.commit` is the session's own
+    # resolved ending commit (already computed by the caller before this
+    # function runs), so no additional git call is needed here.
+    validate_qa_report(resolved_report, binding, head=binding.commit, repo_root=resolved_root)
     try:
         return resolved_report.relative_to(resolved_root).as_posix()
     except ValueError:

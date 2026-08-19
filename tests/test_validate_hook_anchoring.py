@@ -33,7 +33,7 @@ def test_real_repo_passes_both_plugins() -> None:
 def _anchored_seed() -> dict:
     """Build a correctly-anchored one-entry manifest from the canonical builder.
 
-    The shipped manifest is empty since ADR-096 retired every tool-call hook,
+    The shipped manifest is empty since ADR-097 retired every tool-call hook,
     so these drift tests can no longer seed themselves from it. They synthesize
     an entry from ``generate_dispatcher.dispatcher_entry``, the same builder
     ``_check_copilot_entry`` compares against, then mutate one field. The
@@ -198,7 +198,7 @@ def test_copilot_direct_session_start_requires_shell_suppression(tmp_path: Path)
 
 
 def test_claude_real_file_is_anchored() -> None:
-    # ADR-096 retired every tool-call hook, so the real manifest registers zero
+    # ADR-097 retired every tool-call hook, so the real manifest registers zero
     # command hooks. That is a valid anchored state, not a config error: the
     # anchoring invariant holds over an empty set.
     checked, violations, config = gate._check_claude(REPO_ROOT)
@@ -208,7 +208,7 @@ def test_claude_real_file_is_anchored() -> None:
 
 
 def test_empty_claude_manifest_is_valid_not_a_config_error(tmp_path: Path) -> None:
-    """Zero registered hooks passes (ADR-096); it is not a missing manifest."""
+    """Zero registered hooks passes (ADR-097); it is not a missing manifest."""
     hooks_dir = tmp_path / ".claude" / "hooks"
     hooks_dir.mkdir(parents=True)
     (hooks_dir / "hooks.json").write_text(json.dumps({"hooks": {}}), encoding="utf-8")
@@ -238,7 +238,7 @@ def test_claude_manifest_without_hooks_key_is_still_a_config_error(tmp_path: Pat
 
 
 def test_empty_copilot_manifest_is_valid_not_a_config_error(tmp_path: Path) -> None:
-    """The generated Copilot manifest is also legitimately empty (ADR-096)."""
+    """The generated Copilot manifest is also legitimately empty (ADR-097)."""
     artifact = Path("src/copilot-cli/hooks/hooks.json")
     target = tmp_path / artifact
     target.parent.mkdir(parents=True)

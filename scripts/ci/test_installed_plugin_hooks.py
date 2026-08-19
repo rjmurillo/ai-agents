@@ -5,14 +5,14 @@ it copies the plugin tree into the standard install layout, creates a scratch co
 repo that is NOT the ai-agents checkout, sets the environment the host would set, and
 asserts the shipped hook surface is internally consistent and non-wedging.
 
-ADR-096 retired every tool-call hook, so the plugin now ships zero registered
+ADR-097 retired every tool-call hook, so the plugin now ships zero registered
 hook events. This script previously treated an empty manifest as an
 unconditional failure ("an empty run is a failure, never a skip", issue #4672).
-That assumption is exactly what ADR-096 reverses, so the assertion is inverted
+That assumption is exactly what ADR-097 reverses, so the assertion is inverted
 rather than deleted: what the script asserts now is AGREEMENT between what the
 manifest registers and what the tree ships.
 
-  - zero registered events and zero shipped dispatchers -> PASS, the ADR-096
+  - zero registered events and zero shipped dispatchers -> PASS, the ADR-097
     state. Reported with explicit counts, never as a silent skip.
   - zero registered events but a dispatcher still on disk -> FAIL. That is
     orphaned machinery a consumer would install and never run, and it is the
@@ -161,8 +161,8 @@ def _registered_events(install_root: Path) -> list[str]:
 
     Returns an empty list for two different situations, which the caller must
     separate rather than collapse: a manifest that legitimately registers
-    nothing (the ADR-096 state) and one that could not be read at all. Use
-    :func:`_manifest_is_readable` to tell them apart. Before ADR-096 both were
+    nothing (the ADR-097 state) and one that could not be read at all. Use
+    :func:`_manifest_is_readable` to tell them apart. Before ADR-097 both were
     treated as failure, which is why this docstring used to claim the function
     "never certifies an empty run"; that claim no longer holds and the caller
     now owns the distinction.
@@ -288,7 +288,7 @@ def main() -> int:
     )
 
     if not events_to_test:
-        # ADR-096: zero registered tool-call hooks is the deliberately shipped
+        # ADR-097: zero registered tool-call hooks is the deliberately shipped
         # state. Assert the tree AGREES with the manifest rather than passing
         # on an empty loop.
         if orphans:
@@ -302,7 +302,7 @@ def main() -> int:
             return 1
         print(
             "PASS: zero registered hook events and zero shipped dispatchers "
-            "(ADR-096 zero-tool-use-hooks state)"
+            "(ADR-097 zero-tool-use-hooks state)"
         )
         print("\nAll assertions passed.")
         return 0
@@ -348,7 +348,7 @@ def main() -> int:
                 else:
                     print(f"PASS: {event} fail-open with warning (negative-env)")
         else:
-            # ADR-096 retired the last registered gate, so there is no longer a
+            # ADR-097 retired the last registered gate, so there is no longer a
             # guard to drive both ways here. This branch now proves only that a
             # registered event's dispatcher resolves and allows an unmatched
             # call, which is the #2205 customer-wedge property. A future hook

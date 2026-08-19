@@ -13,7 +13,7 @@ The guard that is supposed to catch this recorded `SKIP` when a dispatcher was
 absent, so deleting both dispatchers left `failures == 0` and the workflow
 reported success after executing nothing.
 
-Scope after ADR-096: every case here that drove the GENERATED Copilot
+Scope after ADR-097: every case here that drove the GENERATED Copilot
 dispatcher, its bootstrap, or its launcher forms was retired with that
 artifact, which no longer exists. What remains is the Claude-side entrypoint
 (still live, still used by the two SessionStart groups) and the dispatcher
@@ -68,7 +68,7 @@ def test_dispatcher_catches_system_exit(dispatcher: Path) -> None:
 
     The `copilot-pre` parameter covered the generated copy, because asserting
     only on the source would pass while a stale generated copy still denied.
-    ADR-096 retired that copy along with every tool-call hook, so there is no
+    ADR-097 retired that copy along with every tool-call hook, so there is no
     generated dispatcher left to drift from this source. Should a tool-use hook
     ever be re-added, restore the shipped-copy parameter with it: the drift it
     guarded returns the moment a second copy exists.

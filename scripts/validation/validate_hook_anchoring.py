@@ -28,7 +28,7 @@ plugin-root variable to the hook process, pointing at the install dir) was
 verified empirically; see the Serena memory
 ``decision-copilot-cli-hook-plugin-root-contract``.
 
-Zero registered hooks is a VALID anchored state (ADR-096 retired every
+Zero registered hooks is a VALID anchored state (ADR-097 retired every
 tool-call hook, leaving both manifests with ``"hooks": {}``). The invariant
 this gate enforces, "every hook command anchors to the plugin root", is
 satisfied over an empty set, so an empty mapping exits 0 and reports zero
@@ -211,7 +211,7 @@ def _check_copilot(
         # handled below.
         return 0, [f"malformed or missing 'hooks' mapping in {artifact_rel}"], 2
     if not events:
-        # Deliberately zero registered hooks (ADR-096). The invariant this gate
+        # Deliberately zero registered hooks (ADR-097). The invariant this gate
         # enforces, "every hook command anchors to the plugin root", is
         # satisfied over an empty set. Report zero examined rather than passing
         # silently, per .claude/rules/ci-scripts.md MUST 11 and MUST 12.
@@ -264,7 +264,7 @@ def _check_claude(repo_root: Path) -> tuple[int, list[str], int]:
         return 0, [err], 2
     if not isinstance(doc, dict) or not isinstance(doc.get("hooks"), dict):
         return 0, [f"malformed or missing 'hooks' mapping in {_CLAUDE_REL}"], 2
-    # Zero command hooks is valid (ADR-096); an unparseable or structurally
+    # Zero command hooks is valid (ADR-097); an unparseable or structurally
     # wrong manifest is not, and is rejected above.
     commands = _iter_commands(doc)
 

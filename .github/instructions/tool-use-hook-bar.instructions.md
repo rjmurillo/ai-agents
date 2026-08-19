@@ -17,7 +17,7 @@ spawn, and match every tool.
 `build/scripts/generate_dispatcher.py:517` omits it from `_MATCHER_EVENTS`, so
 it cannot be tool-scoped at all: any registration on it fires on every failed
 tool call. It is the one per-call event with no narrowing available. Nothing is
-registered on it today (ADR-096), so this is a warning about what re-adding one
+registered on it today (ADR-097), so this is a warning about what re-adding one
 would cost, not a description of a live hook.
 
 A tool-use hook runs on the caller's hot path on every matching call, for the
@@ -51,7 +51,7 @@ every Bash call, filtering in-process after the spawn.
 invariant, not a host limitation: issue #2342 collapses each event to a single
 entry. It was pinned by
 `tests/build_scripts/test_copilot_dispatcher_artifact.py::test_every_event_is_one_dispatcher_entry`,
-which ADR-096 deleted along with the generated dispatcher it asserted against.
+which ADR-097 deleted along with the generated dispatcher it asserted against.
 The invariant still lives in `build/scripts/generate_dispatcher.py`; nothing
 currently pins it, because there is no generated dispatcher to pin. The
 generator already emits multiple entries per event for
@@ -66,10 +66,10 @@ the ceiling, and it is worse than widening. `event_matcher_union`
 matcher fails to reduce to a known tool name, and its own docstring states the
 consequence: "emit no matcher; the dispatcher fires on every call and filters
 in-process". An MCP tool name is exactly the unreducible case. No such matcher
-is registered today, because none is: ADR-096 retired the two Serena guards
+is registered today, because none is: ADR-097 retired the two Serena guards
 whose `mcp__serena__*` matchers had collapsed the entire `PreToolUse` union,
 making the Copilot dispatcher spawn on every tool call rather than on Serena
-calls. That collapse is the single strongest measured cost ADR-096 removed, and
+calls. That collapse is the single strongest measured cost ADR-097 removed, and
 it is what this mechanism will do again to the first MCP-matched hook someone
 re-adds.
 
@@ -120,7 +120,7 @@ re-adds.
 
 ## What ships today: nothing
 
-**Zero tool-use hooks are registered, on either harness.** ADR-096 retired all
+**Zero tool-use hooks are registered, on either harness.** ADR-097 retired all
 five (`require_subagent_model`, `serena_memory_scope_guard`,
 `serena_worktree_scope_guard`, `observation_sync`, `memory_capture`) and the
 generated Copilot dispatcher with them. `.claude/hooks/hooks.json` and
@@ -142,7 +142,7 @@ Three things a proposer must not inherit from the retired set:
    MUST 1 does not accept.** MUST 1 weighs outcome against cost, not cost
    against cost. That argument was recorded against `require_subagent_model` and
    was already flagged as not-precedent before the hook was retired.
-3. **Clearing this bar is necessary, not sufficient.** ADR-096 retired
+3. **Clearing this bar is necessary, not sufficient.** ADR-097 retired
    `require_subagent_model` even though it was the marginal pass: with the other
    four gone, keeping it would have cost the entire generated Copilot
    dispatcher, its manifest, its bootstrap, and roughly 20 hardening tests for
@@ -151,8 +151,8 @@ Three things a proposer must not inherit from the retired set:
 What a first re-add owes, beyond MUST 1 through 5:
 
 - Restore the one-entry-per-event pin (mechanism 2), which had no subject to
-  guard after ADR-096 and was deleted.
-- Rebuild the dispatcher hardening bar ADR-096 retired: fail-open on a corrupt
+  guard after ADR-097 and was deleted.
+- Rebuild the dispatcher hardening bar ADR-097 retired: fail-open on a corrupt
   manifest, partial-upgrade degradation, JSON-bomb rejection on oversized stdin,
   and a #5013-style regression pin proving a broad matcher cannot deny unrelated
   work. The generator can rebuild the dispatcher code; these tests do not come
@@ -171,7 +171,7 @@ What a first re-add owes, beyond MUST 1 through 5:
 - ADR-068 (consolidated dispatcher), which owns the one-entry-per-event
   invariant this bar's cost model depends on. Its live registration counts are
   retired; read its 2026-08-19 Status amendment first.
-- ADR-096 (zero tool-use hooks), which retired all five registrations and the
+- ADR-097 (zero tool-use hooks), which retired all five registrations and the
   generated Copilot dispatcher. It is the reason this file has no live example,
   and its "Re-evaluation Triggers" section is what a re-add must clear.
 - ADR-071 Decision item 1 (plugin-root anchoring) still binds every hook on

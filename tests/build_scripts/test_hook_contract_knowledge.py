@@ -550,7 +550,7 @@ def test_operational_skills_match_current_hook_registration_counts() -> None:
     assert (
         f"vendored source prints `{len(plugin)} {sum(map(len, plugin.values()))}`" in architecture
     )
-    # ADR-096 retired `.github/hooks/require-subagent-model.json`, so the third
+    # ADR-097 retired `.github/hooks/require-subagent-model.json`, so the third
     # registration source is gone. The catalog must say two, and must still
     # carry a re-verify line for the retired surface: a deleted source that
     # simply vanishes from the doc leaves the next reader unable to tell it was
@@ -645,7 +645,7 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
     for event, registrations in copilot_hooks.items():
         source_counts.setdefault(event, len(registrations))
 
-    # ADR-096 retired every tool-call hook, so the generated Copilot dispatcher
+    # ADR-097 retired every tool-call hook, so the generated Copilot dispatcher
     # is gone: no per-event `_manifest.json`, no entries in `hooks.json`. The
     # live-metric derivations this test used to make (shim counts, summed
     # timeouts, host timeout, reduction percentage) have no subject. Assert the
@@ -1539,12 +1539,12 @@ def test_adr_068_dependent_components_table_matches_the_registration_count() -> 
     registrations = sum(map(len, hooks.values()))
     text = _normalized_text(DISPATCHER_ADR)
 
-    # ADR-096 retired every tool-call hook, so the count is now zero. The row
+    # ADR-097 retired every tool-call hook, so the count is now zero. The row
     # keeps its historical chain (three after the three-way merge, four before
     # it) because those are dated records, not live claims.
     assert registrations == 0
     assert (
-        "Zero vendored plugin registrations after ADR-096 retired every "
+        "Zero vendored plugin registrations after ADR-097 retired every "
         "tool-call hook (three after merging issues #4917, #5061, and #5154; "
         "four before any of the three)" in text
     )

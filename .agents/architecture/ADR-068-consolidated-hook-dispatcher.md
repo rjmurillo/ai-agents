@@ -14,8 +14,8 @@ implemented: true
 
 ## Status
 
-**Amended 2026-08-19 (ADR-096): every tool-use registration this record
-describes is retired, and so is the generated Copilot dispatcher.** ADR-096
+**Amended 2026-08-19 (ADR-097): every tool-use registration this record
+describes is retired, and so is the generated Copilot dispatcher.** ADR-097
 removed all five tool-call hooks. Consequently, every claim below about live
 `PreToolUse` or `PostToolUse` registrations is historical and no longer
 describes the tree. In particular, and stated plainly because no automated gate
@@ -37,7 +37,7 @@ prefix, and this record uses bare gate names):
 What survives unchanged: the consolidation decision itself, and the Claude-side
 dispatcher `invoke_dispatch_claude.py`, which still serves the two
 `SessionStart` groups in `.claude/settings.json`. ADR-085 Decision 5 reserved
-dispatcher removal for a new architecture decision; ADR-096 is that decision.
+dispatcher removal for a new architecture decision; ADR-097 is that decision.
 
 Accepted (2026-07-19). The implementation shipped before the decision record
 completed its lifecycle transition. The mandatory six-agent adr-review reached
@@ -794,9 +794,9 @@ generated surfaces. Sources:
 | `build/scripts/generate_hooks.py` | CLI facade and module-level generation contract | Medium |
 | `src/copilot-cli/hooks/**` | Generated manifests, entrypoints, bootstrap copies, and retained shims | Medium |
 | `.claude/settings.json` | Repository-only Claude registrations; not an input to Copilot plugin generation | Medium |
-| `.claude/hooks/hooks.json` | Zero vendored plugin registrations after ADR-096 retired every tool-call hook (three after merging issues #4917, #5061, and #5154; four before any of the three); must not carry removed or local-only hooks | Medium |
+| `.claude/hooks/hooks.json` | Zero vendored plugin registrations after ADR-097 retired every tool-call hook (three after merging issues #4917, #5061, and #5154; four before any of the three); must not carry removed or local-only hooks | Medium |
 | `.claude/hooks/dispatch_groups.json` | Grouped hook source; must not carry the removed approval producer | Medium |
-| `.github/hooks/require-subagent-model.json` | Retired by ADR-096; the file is deleted. Was a repo-local direct registration of the same canonical script (matcher `task`, repo-root cwd), with cloud coverage beginning at default-branch merge | Medium |
+| `.github/hooks/require-subagent-model.json` | Retired by ADR-097; the file is deleted. Was a repo-local direct registration of the same canonical script (matcher `task`, repo-root cwd), with cloud coverage beginning at default-branch merge | Medium |
 | `.claude/rules/lsp-first.md` | Static cross-harness source for Serena symbolic-tool steering | Medium |
 | `.claude/skills/agent-harness-reference/references/official-hook-contracts.md` | Pinned output-field authority and docs-silent ledger | High |
 | `tests/test_hook_dispatch.py` | In-process output-policy and merger contract tests | High |

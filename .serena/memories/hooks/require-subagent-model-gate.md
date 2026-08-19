@@ -1,6 +1,6 @@
 # require-subagent-model gate (issue #4874)
 
-> **SUPERSEDED 2026-08-19 by ADR-096.** This gate is retired. The script
+> **SUPERSEDED 2026-08-19 by ADR-097.** This gate is retired. The script
 > `.claude/hooks/PreToolUse/invoke_require_subagent_model.py`, its dispatch
 > group `plugin-pretooluse-10-require_subagent_model`, and the Copilot surface
 > `.github/hooks/require-subagent-model.json` are all deleted, along with every

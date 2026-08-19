@@ -40,7 +40,7 @@
 ## Next Steps
 
 1. Owner ratifies (or rejects) retiring the entire Copilot hook surface and its dispatcher, per ADR-085 D-5.
-2. Author ADR-096 covering both decisions: the 5 hook retirements and the dispatcher/Copilot-surface disposition. Record that the mandatory adr-review debate did not run and why.
+2. Author ADR-097 covering both decisions: the 5 hook retirements and the dispatcher/Copilot-surface disposition. Record that the mandatory adr-review debate did not run and why.
 3. Dispose of the 32 red tests. Categories: 2 vacuity guards the repo authorizes deleting; ~20 Copilot dispatcher tests whose subject is gone (includes the #5013 regression pin `test_pretooluse_bash_payload_never_launches_push_pr_guard`); ~5 count/knowledge tests needing doc updates; 1 prune list; 1 ADR retirement marker.
 4. Add retirement markers to ADR-068 / ADR-085 prose naming the deleted hooks (`test_adr_hook_claims.py` enforces the words removed|replaced|retired|superseded).
 5. Rewrite `.claude/rules/tool-use-hook-bar.md` "Applying the bar to what ships today" (it documents hooks 1 and 4 as live) and regenerate mirrors with `build/scripts/generate_rules.py`.
@@ -60,14 +60,14 @@
 Since this handoff was written, the parent session (with Agent tool access
 this subagent lacked) completed the blocked items:
 
-- **ADR-096 authored and accepted**: `.agents/architecture/ADR-096-zero-tool-use-hooks.md`.
+- **ADR-097 authored and accepted**: `.agents/architecture/ADR-097-zero-tool-use-hooks.md`.
   Covers all three ratified decisions (5-hook retirement, full Copilot
   dispatcher retirement per ADR-085 Decision 5, `post_tool_call_memory.py`
   dead-code retirement). `status: accepted`, `implemented: false` (correct
   per ADR-073, flips true at first merged change).
 - **Six-role `adr-review` debate ran**: 2 Accept, 4 Disagree-and-Commit, 0
   Block. Full findings and resolution:
-  `.agents/critique/ADR-096-debate-log.md`. Two content defects the debate
+  `.agents/critique/ADR-097-debate-log.md`. Two content defects the debate
   caught were fixed in the ADR itself (an inverted ADR-084 carve-out
   citation; `post_tool_call_memory.py` claimed retired before it actually
   was).
@@ -77,10 +77,10 @@ this subagent lacked) completed the blocked items:
   was first written (see "Decisions Made" above, which said it was left in
   place), it is done now.
 - **`tests/hooks/test_adr_hook_claims.py` passes**: 360/360, including
-  against ADR-096's own prose and a pre-existing gap at
+  against ADR-097's own prose and a pre-existing gap at
   `ADR-085-cross-harness-permission-surface-asymmetry.md:149` (also fixed).
 
-**ADR-096's own Impact on Dependent Components table is now the
+**ADR-097's own Impact on Dependent Components table is now the
 authoritative, prioritized punch list for everything still required** ,
 more complete than this handoff's original "Next Steps" list, and it
 supersedes that list where they differ. Read the ADR before resuming, not
