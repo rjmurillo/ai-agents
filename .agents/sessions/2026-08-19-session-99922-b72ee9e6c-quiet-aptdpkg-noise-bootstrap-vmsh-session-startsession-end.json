@@ -1,0 +1,124 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 99922,
+    "date": "2026-08-19",
+    "branch": "fix/bootstrap-vm-quiet-apt-output",
+    "startingCommit": "e11c7f463",
+    "objective": "Quiet apt/dpkg noise in bootstrap-vm.sh (session-start/session-end ROI audit)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/bootstrap-vm-quiet-apt-output"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/bootstrap-vm-quiet-apt-output"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e11c7f463"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [],
+  "endingCommit": "",
+  "nextSteps": []
+}
