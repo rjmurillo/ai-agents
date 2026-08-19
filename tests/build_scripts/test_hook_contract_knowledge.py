@@ -807,15 +807,24 @@ def test_adr_068_scopes_its_five_dated_status_paragraphs() -> None:
     assert "scoped derived-metrics update" in superseded_5013
     assert "100 seconds of configured timeout" in superseded_5013
     assert "host entry requests 105 seconds" in superseded_5013
-    assert "same file still lists the guard in Claude Code's canonical dispatch group" in superseded_5013
+    assert (
+        "same file still lists the guard in Claude Code's canonical dispatch group"
+        in superseded_5013
+    )
     assert (
         "excluded `push_pr_script_identity_guard` from the generated Copilot "
         "inventory only" in superseded_5013
     )
     assert "ADR-068-071-085-5013-debate-log.md" in superseded_5013
 
-    assert "held three shims, `markdownlint_guard`, `require_subagent_model`, and" in superseded_5061
-    assert "110 seconds of configured timeout, with a 115-second generated host entry" in superseded_5061
+    assert (
+        "held three shims, `markdownlint_guard`, `require_subagent_model`, and"
+        in superseded_5061
+    )
+    assert (
+        "110 seconds of configured timeout, with a 115-second generated host entry"
+        in superseded_5061
+    )
     assert "held five registrations across two events" in superseded_5061
     assert "HISTORICAL numbers as they stood before the 2026-08-19" in superseded_5061
 
@@ -840,7 +849,11 @@ def test_adr_068_scopes_its_five_dated_status_paragraphs() -> None:
     _refute(superseded_5013, "three shims and 110 seconds of summed timeout")
     _refute(superseded_5013, "host entry requests 15 seconds", "ADR-085 section 8 is the policy")
     _refute(superseded_5061, "100 seconds of configured timeout")
-    _refute(superseded_5154, "100 seconds of configured timeout", "110 seconds of configured timeout")
+    _refute(
+        superseded_5154,
+        "100 seconds of configured timeout",
+        "110 seconds of configured timeout",
+    )
     _refute(historical, "scoped derived-metrics update", "ADR-085 Decision 7 is the policy")
     _refute(historical, "ADR-085 section 8 is the policy")
 
@@ -905,7 +918,10 @@ def test_adr_071_scopes_its_five_dated_amendment_sections() -> None:
     assert "Copilot excludes the guard from generation entirely" in superseded_5013
     assert "ADR-068-071-085-5013-debate-log.md" in superseded_5013
 
-    assert "contains three shims, `markdownlint_guard`, `require_subagent_model`, and" in superseded_5061
+    assert (
+        "contains three shims, `markdownlint_guard`, `require_subagent_model`, and"
+        in superseded_5061
+    )
     assert "110 seconds of configured timeout" in superseded_5061
     assert "115 seconds" in superseded_5061
     assert "carries no" in superseded_5061
