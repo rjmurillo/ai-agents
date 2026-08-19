@@ -55,7 +55,7 @@
         "bounded"
       ],
       "expected_gate": "prefer-least-frequent-event",
-      "rationale": "MUST 4 directs work that can be done at session boundaries to SessionStart, SessionEnd, or PreCompact, which fire on a bounded schedule instead of scaling with how hard the agent is working."
+      "rationale": "MUST 5 directs work that can be done at session boundaries to SessionStart, SessionEnd, or PreCompact, which fire on a bounded schedule instead of scaling with how hard the agent is working."
     },
     {
       "id": "S5",
@@ -66,7 +66,7 @@
         "context"
       ],
       "expected_gate": "skip-rule-not-applicable",
-      "rationale": "The bar governs the two tool-use events only. SessionStart fires once per session, so its cost does not scale with tool calls and this rule does not apply."
+      "rationale": "The bar governs the per-call events (PreToolUse, PostToolUse, PermissionRequest, PostToolUseFailure). SessionStart is a session boundary: it fires once per session, so its cost does not scale with tool calls and this rule does not apply. Contrast S7, where choosing a different per-call event does not escape the bar."
     },
     {
       "id": "S6",

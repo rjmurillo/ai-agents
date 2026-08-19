@@ -117,16 +117,25 @@ hooks. Concretely, the bar is six rules:
    surface, so a new hook cannot land without stating who it helps. Until then,
    human review at ADR and PR time enforces the rule and judges whether the
    stated value is real.
-6. **Tool-use events clear an additional bar (added 2026-08-18).** For
-   `PreToolUse` and `PostToolUse`, inability to express the check declaratively
-   is where the analysis starts, not where it ends. Their cost scales with how
-   hard the agent is working, which the session-boundary events do not. They are
-   not the only per-call events (`PermissionRequest` shares both the per-call
-   cost and the tool-name-only matcher, and
-   `build/scripts/generate_dispatcher.py:517` already groups all three in
-   `_MATCHER_EVENTS`), but they are where vendored hooks are registered today;
-   this rule applies unchanged to `PermissionRequest` if one is registered
-   there. Such a hook requires BOTH:
+6. **The per-call events clear an additional bar (added 2026-08-18).** This
+   rule governs `PreToolUse`, `PostToolUse`, `PermissionRequest`, AND
+   `PostToolUseFailure`. For all four, inability to express the check
+   declaratively is where the analysis starts, not where it ends. Their cost
+   scales with how hard the agent is working, which the session-boundary events
+   do not.
+
+   **All four, not just the tool-use pair, and the scope is load-bearing.**
+   Naming fewer leaves the bar evadable by event choice: a guard refused on
+   `PostToolUse` could re-register on `PostToolUseFailure`, pay the same spawn,
+   and match every tool. `PostToolUseFailure` deserves the most scrutiny rather
+   than the least, because `build/scripts/generate_dispatcher.py:517` omits it
+   from `_MATCHER_EVENTS`, so it cannot be tool-scoped at all, and the live
+   registration in `.claude/settings.json` carries no matcher and fires on every
+   failed tool call. `PermissionRequest` shares the per-call cost and the
+   tool-name-only matcher with the tool-use pair, which is why the generator
+   groups those three together.
+
+   A registration on any of the four requires BOTH:
 
    a. An outcome that far outweighs the per-call spawn cost: a costly mistake,
       an irrecoverable loss, or a security property enforced by denial at agent

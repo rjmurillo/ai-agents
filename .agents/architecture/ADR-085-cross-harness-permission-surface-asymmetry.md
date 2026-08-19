@@ -640,10 +640,14 @@ drop-to-zero finding describes a state that already held.
 
 **Residual risk accepted.** What the deletion actually removes is agent-time
 markdown enforcement inside this repository: the model can no longer be
-blocked at `git push` by a lint failure the plugin detects. Until the
-equivalent Lefthook job is in place, a push carrying a markdown violation
-reaches the remote and the failure surfaces in CI instead of locally. The
-owner accepts that. For plugin consumers the answer is blunter: this hook
+blocked at `git push` by a lint failure the plugin detects. The Lefthook
+equivalent is already in place and this decision previously overstated the
+gap: `lefthook.yml` runs `markdown-autofix` and `markdown-check` at
+pre-commit over staged `**/*.md`, so an ordinary commit is still linted
+locally. What remains is narrower than "a push reaches the remote
+unchecked": a violation in a file the commit did not stage, or a commit made
+with `SKIP_AUTOFIX=1`, is no longer caught at push time and surfaces in CI
+instead. The owner accepts that. For plugin consumers the answer is blunter: this hook
 never ran in a consumer repo, so the plugin was not providing them a
 push-time markdown gate to lose, and this decision stops implying otherwise
 rather than claiming continuity.

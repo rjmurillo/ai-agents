@@ -11,8 +11,8 @@ Operative rule for ADR-084 rule 6. The ADR carries the decision and its
 evidence; this file is what to do at the authoring seam.
 
 **Scope: every per-call event, vendored or repo-local.** That is `PreToolUse`,
-`PostToolUse`, `PermissionRequest`, and `PostToolUseFailure`. Naming only the
-two tool-use events would leave the bar evadable by event choice: a guard
+`PostToolUse`, `PermissionRequest`, and `PostToolUseFailure`, matching ADR-084
+rule 6. Naming fewer would leave the bar evadable by event choice: a guard
 refused on `PostToolUse` could re-register on `PostToolUseFailure`, pay the same
 spawn, and match every tool.
 

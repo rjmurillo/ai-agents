@@ -100,3 +100,47 @@ deferred.
 **Ambiguity of "far outweighs" (critic P1-8).** The cost has units and the
 benefit does not. Mitigated but not closed: MUST 2's rule-outs and the worked
 example are checkable, the threshold itself is not.
+
+## Round 2: post-merge validator findings
+
+Source: the AI Spec Validator's completeness lens on PR #5156 head `ab3c122df`,
+which read the shipped artifacts rather than the proposal. It returned PARTIAL
+with three consistency defects in the rule 6 artifacts and one overclaim
+inherited from the first scope. All four were verified against source and fixed.
+
+**1. The decision of record was narrower than its own operative rule (the
+serious one).** ADR-084 rule 6 scoped to `PreToolUse`, `PostToolUse`, and
+`PermissionRequest`. `.claude/rules/tool-use-hook-bar.md` scoped to those plus
+`PostToolUseFailure` and stated that naming fewer leaves the bar evadable by
+event choice. A reviewer applying the ADR alone would therefore have permitted
+exactly the move scenario S7 exists to refuse. This is the round 1 critic
+finding (P0-2) fixed in the rule but only half-carried into the ADR. Verified
+again from source before fixing: `build/scripts/generate_dispatcher.py:517`
+omits `PostToolUseFailure` from `_MATCHER_EVENTS`, so it cannot be tool-scoped,
+and `.claude/settings.json` registers it with no matcher. The ADR now carries
+the four-event scope and says why it is load-bearing.
+
+**2. The fixture contradicted the rule it measures.** Scenario S5's rationale
+still read "The bar governs the two tool-use events only", which is the exact
+claim round 1 refuted and the QA report records as corrected. A fixture that
+asserts the pre-correction claim will score a regression as correct.
+
+**3. Citation drift inside the fixture.** S4 attributed prefer-least-frequent
+to MUST 4; that is MUST 5. MUST 4 is the unreducible-matcher rule, which S9
+cites correctly.
+
+**4. ADR-085 Decision 9 overstated its own residual gap.** It said a push
+carrying a markdown violation reaches the remote "until the equivalent Lefthook
+job is in place". `lefthook.yml` already runs `markdown-autofix` and
+`markdown-check` at pre-commit over staged `**/*.md`, so the job exists. The
+real gap is narrower: a violation in a file the commit did not stage, or a
+commit made with `SKIP_AUTOFIX=1`. Corrected rather than left as a
+worse-than-reality claim, which is the same overclaim class round 1 caught in
+the millisecond exhibit.
+
+**Method note.** Findings 1 to 3 are all the same shape: a correction applied to
+one artifact and not propagated to the others that restate it. The round 1
+fixes were verified against source; what went unverified was whether every
+surface carrying the old claim had been swept. That is the mirror obligation
+applied to documentation rather than to code, and it is worth naming because
+the first three defects would each have scored as passing in isolation.
