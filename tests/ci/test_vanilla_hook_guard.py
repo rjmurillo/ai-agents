@@ -136,6 +136,73 @@ def test_extract_hook_command_raises_when_absent(guard, tmp_path: Path) -> None:
         guard.extract_hook_command(hooks, "PreToolUse", "bash")
 
 
+def test_event_is_registered_true_for_a_populated_event(guard, tmp_path: Path) -> None:
+    hooks = tmp_path / "hooks.json"
+    hooks.write_text('{"hooks": {"PreToolUse": [{"bash": "echo hi"}]}}', encoding="utf-8")
+    assert guard.event_is_registered(hooks, "PreToolUse") is True
+
+
+def test_event_is_registered_false_for_a_missing_key(guard, tmp_path: Path) -> None:
+    hooks = tmp_path / "hooks.json"
+    hooks.write_text('{"hooks": {}}', encoding="utf-8")
+    assert guard.event_is_registered(hooks, "PreToolUse") is False
+
+
+def test_event_is_registered_false_for_an_empty_list(guard, tmp_path: Path) -> None:
+    hooks = tmp_path / "hooks.json"
+    hooks.write_text('{"hooks": {"PreToolUse": []}}', encoding="utf-8")
+    assert guard.event_is_registered(hooks, "PreToolUse") is False
+
+
+def test_event_is_registered_raises_on_a_malformed_hooks_mapping(guard, tmp_path: Path) -> None:
+    """A non-dict 'hooks' value is a corrupt manifest, not an empty one.
+
+    Reading it as "nothing registered" would let a genuinely broken manifest
+    pass the vanilla guard silently instead of failing closed.
+    """
+    hooks = tmp_path / "hooks.json"
+    hooks.write_text('{"hooks": "not-a-mapping"}', encoding="utf-8")
+    with pytest.raises(guard.GuardError, match="malformed"):
+        guard.event_is_registered(hooks, "PreToolUse")
+
+
+def test_main_passes_vacuously_when_no_pretooluse_hooks_are_registered(
+    guard, tmp_path: Path
+) -> None:
+    """ADR-097: zero tool-use hooks is a valid, deliberately-shipped state.
+
+    Nothing registered means nothing to prove vanilla-safe, and the guard
+    must not spin up Docker or drive PowerShell to test an empty manifest.
+    """
+    install_root = tmp_path / "install"
+    (install_root / "hooks").mkdir(parents=True)
+    (install_root / "hooks" / "hooks.json").write_text(
+        '{"hooks": {}}', encoding="utf-8"
+    )
+    code = guard.main(
+        [
+            "--mode", "windows-path",
+            "--install-root", str(install_root),
+            "--consumer-cwd", str(tmp_path),
+        ]
+    )
+    assert code == 0
+
+
+def test_main_fails_when_the_manifest_is_missing(guard, tmp_path: Path) -> None:
+    """A missing manifest is a real failure, never read as zero-hooks-vacuous."""
+    install_root = tmp_path / "install"
+    (install_root / "hooks").mkdir(parents=True)
+    code = guard.main(
+        [
+            "--mode", "windows-path",
+            "--install-root", str(install_root),
+            "--consumer-cwd", str(tmp_path),
+        ]
+    )
+    assert code == 1
+
+
 def test_main_rejects_linux_container_mode_without_an_image(guard, tmp_path: Path) -> None:
     code = guard.main(
         [
