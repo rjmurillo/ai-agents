@@ -51,7 +51,6 @@ sys.path.insert(0, str(_CLAUDE_LIB_DIR))
 
 from paths import artifact_dir  # noqa: E402
 from qa_report import (  # noqa: E402
-    post_qa_code_changes,
     session_log_identity,
     session_qa_binding,
     validate_qa_report,
@@ -968,28 +967,19 @@ def validate_qa_report_evidence(
             session_log=session_log,
             resolve_commit=_resolve_full_commit,
         )
-        report = validate_qa_report(resolved_report, binding)
+        # ADR-096: `head` is required for staleness checking. Prefer an
+        # explicitly resolved live-HEAD validation head, which catches
+        # staleness from commits after the session's own recorded end
+        # state; fall back to the session's own resolved commit
+        # (`binding.commit`) when no such value is available (the
+        # `--existing-log` path), rather than silently skipping the
+        # staleness check as the prior optional-`validation_head` design
+        # did (issue #5164 round-1 review: this was reachable on the path
+        # every real committed-log caller uses).
+        head = validation_head if validation_head is not None else binding.commit
+        validate_qa_report(resolved_report, binding, head=head, repo_root=_PROJECT_ROOT)
     except ValueError as exc:
         result.errors.append(str(exc))
-        return
-
-    if validation_head is None:
-        return
-    try:
-        changed_after_qa = post_qa_code_changes(
-            report.commit,
-            validation_head,
-            repo_root=_PROJECT_ROOT,
-        )
-    except ValueError as exc:
-        result.errors.append(str(exc))
-    else:
-        if not changed_after_qa:
-            return
-        result.errors.append(
-            "QA report is stale; code changed after its commit: "
-            + ", ".join(changed_after_qa)
-        )
 
 
 def validate_protocol_compliance(
