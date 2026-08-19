@@ -23,48 +23,6 @@
           "statusMessage": "Checking checkout freshness against origin/main (#4689)"
         }
       ]
-    },
-    "plugin-pretooluse-10-require_subagent_model": {
-      "event": "PreToolUse",
-      "mode": "gate",
-      "matcher": "^(Agent|Task)$",
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "PreToolUse/invoke_require_subagent_model.py",
-          "copilotMatcher": "^(Agent|Task)$",
-          "timeout": 10,
-          "statusMessage": "Requiring explicit sub-agent model (BLOCKING)"
-        }
-      ]
-    },
-    "plugin-pretooluse-11-serena_memory_scope": {
-      "event": "PreToolUse",
-      "mode": "gate",
-      "matcher": "^(mcp__serena__(write|delete)_memory|serena-(write|delete)_memory)$",
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "PreToolUse/invoke_serena_memory_scope_guard.py",
-          "copilotMatcher": "^(mcp__serena__(write|delete)_memory|serena-(write|delete)_memory)$",
-          "timeout": 10,
-          "statusMessage": "Checking Serena memory worktree scope (BLOCKING, #5061)"
-        }
-      ]
-    },
-    "plugin-pretooluse-12-serena_worktree_scope": {
-      "event": "PreToolUse",
-      "mode": "gate",
-      "matcher": "^mcp__serena__.*$",
-      "shims": [
-        {
-          "file": "PreToolUse/invoke_serena_worktree_scope_guard.py",
-          "copilotMatcher": "^serena-.*$",
-          "timeout": 10,
-          "statusMessage": "Checking Serena worktree scope (BLOCKING, #4917)"
-        }
-      ],
-      "surface": "plugin"
     }
   }
 }
