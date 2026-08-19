@@ -1226,7 +1226,17 @@ def acquire(
     # by how many PRs pr-autofix walks; an unbounded renew loop is not). A
     # failed read (pr_state is None) falls through unchanged, exactly as it
     # does today.
-    if renewing and pr_state is not None and (pr_state.merged or pr_state.state == "CLOSED"):
+    # ``pr_state.state`` comes from the REST "Get a pull request" endpoint
+    # (``gh api repos/{owner}/{repo}/pulls/{pr}``, `_pr_head_state` above),
+    # whose ``state`` field is lowercase ("open" / "closed"). This differs
+    # from `check_pr_live_state.py`'s GraphQL query, whose PullRequestState
+    # enum values are uppercase ("OPEN" / "CLOSED" / "MERGED"); the two are
+    # not interchangeable casing conventions. An earlier version of this
+    # check compared against uppercase "CLOSED", which a real REST response
+    # never matches, so a closed-but-unmerged PR fell through unnoticed
+    # (only `pr_state.merged`, a boolean, ever fired). Found by the AI Spec
+    # Validator on PR #5167.
+    if renewing and pr_state is not None and (pr_state.merged or pr_state.state == "closed"):
         logger.info(
             "op=lease_renew_pr_closed pr=%d state=%s merged=%s",
             pr,

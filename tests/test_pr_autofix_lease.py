@@ -587,15 +587,19 @@ def _patch_post(author: str = _AUTHOR, created_at: datetime | None = None):
 
 
 @contextlib.contextmanager
-def _patch_head(sha=_SHA, pr_head=_SHA, *, pr_state="OPEN", pr_merged=False):
+def _patch_head(sha=_SHA, pr_head=_SHA, *, pr_state="open", pr_merged=False):
     """Patch both SHA reads acquire performs.
 
     ``sha`` is what the caller's checkout reports at HEAD; ``pr_head`` is
     what GitHub reports as the PR head. They are separate inputs because
     the defect in #4357 was acquire publishing the first as if it were the
     second. ``pr_state``/``pr_merged`` default to an open, unmerged PR
-    (issue #5165); pass ``pr_state="CLOSED"`` or ``pr_merged=True`` to
-    exercise the renew/pr-closed path.
+    (issue #5165); pass ``pr_state="closed"`` or ``pr_merged=True`` to
+    exercise the renew/pr-closed path. Lowercase to match the REST "Get a
+    pull request" endpoint's actual ``state`` casing (``open``/``closed``),
+    not GraphQL's uppercase ``PullRequestState`` enum: an earlier version of
+    this fixture used uppercase, matching the source's original (wrong)
+    comparison instead of a real API response.
     """
     with (
         patch.object(_mod, "_git_head_sha", return_value=sha),
@@ -2019,7 +2023,7 @@ class TestRenewSubcommand:
             patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
             _patch_list([mine]),
             _patch_post() as post,
-            _patch_head(pr_merged=True, pr_state="MERGED"),
+            _patch_head(pr_merged=True, pr_state="closed"),
             _patch_login(login=_AUTHOR),
         ):
             rc = main(
@@ -2050,7 +2054,7 @@ class TestRenewSubcommand:
             patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
             _patch_list([mine]),
             _patch_post() as post,
-            _patch_head(pr_merged=True, pr_state="MERGED"),
+            _patch_head(pr_merged=True, pr_state="closed"),
             _patch_login(login=_AUTHOR),
         ):
             rc = main(
@@ -2070,7 +2074,7 @@ class TestRenewSubcommand:
             patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
             _patch_list([]),
             _patch_post() as post,
-            _patch_head(pr_state="CLOSED", pr_merged=False),
+            _patch_head(pr_state="closed", pr_merged=False),
             _patch_login(login=_AUTHOR),
         ):
             rc = main(
@@ -2098,7 +2102,7 @@ class TestRenewSubcommand:
             patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
             _patch_list([mine]),
             _patch_post() as post,
-            _patch_head(pr_state="OPEN", pr_merged=False),
+            _patch_head(pr_state="open", pr_merged=False),
             _patch_login(login=_AUTHOR),
         ):
             rc = main(
@@ -2138,7 +2142,7 @@ class TestRenewSubcommand:
         with (
             _patch_list([]),
             _patch_post() as post,
-            _patch_head(pr_state="CLOSED", pr_merged=False),
+            _patch_head(pr_state="closed", pr_merged=False),
             _patch_login(),
         ):
             result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW, renewing=False)
