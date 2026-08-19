@@ -1,0 +1,19 @@
+{
+  "id": "episode-2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check",
+  "session": "2026-08-19-session-99920-b2d9e7706-implement-session-start-checkout-freshness-check",
+  "timestamp": "2026-08-19T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Implement session-start checkout freshness check for issue #4689",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 2
+  },
+  "lessons": []
+}
