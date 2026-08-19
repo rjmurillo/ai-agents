@@ -543,6 +543,62 @@ class TestValidateDuplicateEntries:
         violations = hook_contracts.validate_duplicate_entries(entries)
         assert len(violations) == 0
 
+    def test_dispatcher_entries_naming_different_groups_not_duplicate(self):
+        # Two SessionStart registrations both invoking invoke_dispatch_claude.py
+        # (same script, same hook_type, no matcher) are distinct hooks when
+        # their --group flags differ (#4689: sessionstart-2-checkout_freshness
+        # added alongside sessionstart-1-context_loader).
+        entries = [
+            hook_contracts.HookEntry(
+                hook_type="SessionStart",
+                script_path=".claude/hooks/invoke_dispatch_claude.py",
+                command=(
+                    "python3 -u .claude/hooks/invoke_dispatch_claude.py "
+                    "--group sessionstart-1-context_loader"
+                ),
+                matcher=None,
+            ),
+            hook_contracts.HookEntry(
+                hook_type="SessionStart",
+                script_path=".claude/hooks/invoke_dispatch_claude.py",
+                command=(
+                    "python3 -u .claude/hooks/invoke_dispatch_claude.py "
+                    "--group sessionstart-2-checkout_freshness"
+                ),
+                matcher=None,
+            ),
+        ]
+        violations = hook_contracts.validate_duplicate_entries(entries)
+        assert violations == []
+
+    def test_dispatcher_entries_naming_the_same_group_are_still_duplicate(self):
+        # Negative control: the group-aware key must not disable the check
+        # entirely. A genuine accidental double-registration of one group
+        # still has to be caught.
+        entries = [
+            hook_contracts.HookEntry(
+                hook_type="SessionStart",
+                script_path=".claude/hooks/invoke_dispatch_claude.py",
+                command=(
+                    "python3 -u .claude/hooks/invoke_dispatch_claude.py "
+                    "--group sessionstart-1-context_loader"
+                ),
+                matcher=None,
+            ),
+            hook_contracts.HookEntry(
+                hook_type="SessionStart",
+                script_path=".claude/hooks/invoke_dispatch_claude.py",
+                command=(
+                    "python3 -u .claude/hooks/invoke_dispatch_claude.py "
+                    "--group sessionstart-1-context_loader"
+                ),
+                matcher=None,
+            ),
+        ]
+        violations = hook_contracts.validate_duplicate_entries(entries)
+        assert len(violations) == 1
+        assert violations[0].category == "duplicate"
+
 
 # ---------------------------------------------------------------------------
 # validate_all (integration)

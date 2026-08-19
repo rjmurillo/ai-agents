@@ -719,13 +719,34 @@ def validate_exit_code_docs(
     return None
 
 
+def _duplicate_key(entry: HookEntry) -> tuple[str, str, str | None, str | None]:
+    """Identity used to detect a duplicate registration.
+
+    A dispatcher entry (``invoke_dispatch_claude.py``) fans out to whichever
+    group its ``--group`` flag names, so two dispatcher registrations that
+    share a hook type and matcher are distinct hooks, not duplicates, when
+    their groups differ. Include the group in the key for exactly that
+    script; every other script keeps the prior three-part identity.
+    """
+    group: str | None = None
+    if Path(entry.script_path).name == DISPATCHER_SCRIPT_NAME:
+        match = _GROUP_FLAG_PATTERN.search(entry.command)
+        if match:
+            group = match.group(1)
+    return (entry.hook_type, entry.script_path, entry.matcher, group)
+
+
 def validate_duplicate_entries(entries: list[HookEntry]) -> list[Violation]:
-    """Check for duplicate hook entries (same script under same hook type + matcher)."""
-    seen: dict[tuple[str, str, str | None], HookEntry] = {}
+    """Check for duplicate hook entries (same script under same hook type + matcher).
+
+    Two dispatcher registrations naming different groups are not duplicates;
+    see ``_duplicate_key``.
+    """
+    seen: dict[tuple[str, str, str | None, str | None], HookEntry] = {}
     violations: list[Violation] = []
 
     for entry in entries:
-        key = (entry.hook_type, entry.script_path, entry.matcher)
+        key = _duplicate_key(entry)
         if key in seen:
             violations.append(
                 Violation(
