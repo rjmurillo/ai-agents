@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-19-session-99921-b9d55af7c-retire-pretooluseposttooluseposttoolusefailure-hooks-windowsdefender-per-spawn.json
-qaCommit: ef125dc2176fb7c06a6987bbdc7ebd32c2c28856
+qaCommit: 5db7854bb1817397db5770eed8fb3a7fb1ccee74
 ---
 
 # QA: ADR-097 zero tool-use hooks
@@ -43,6 +43,32 @@ file of any type after asserting the tree is non-empty. Final:
 The lesson for the next reader: a subdirectory selection is not the suite. Two
 guards over the shipped tree live in `tests/` root and were invisible to the
 five-directory selection used during development.
+
+CI then surfaced a third tier the local suite cannot reach at all:
+`scripts/ci/vanilla_hook_guard.py` (Docker- and PowerShell-driven) and
+`tests/integration/test_e2e_install.py::test_hook_command_paths_resolve_case_sensitively`
+both assumed at least one `PreToolUse` hook is always registered. The guard
+raised "no bash/powershell command for event PreToolUse" before reaching the
+degrade-gracefully check it exists to run.
+
+Both now treat zero registered hooks as "nothing to prove vanilla-safe", a
+vacuous pass matching `validate_hook_anchoring.py`. Verified by driving the
+guard directly on all four paths, not by reading the diff:
+
+| Input | Expected | Observed |
+|---|---|---|
+| real zero-hook tree | exit 0 | exit 0, "VANILLA GUARD PASSED (vacuous)" |
+| `hooks` is a list, not a mapping | exit 1 | exit 1, "malformed 'hooks' mapping" |
+| manifest absent | exit 1 | exit 1, names the unreadable path |
+| `linux-container` with no `--image` | exit 2 | exit 2, config error (ADR-035 precedence preserved) |
+
+`tests/ci/test_vanilla_hook_guard.py` and `tests/integration/test_e2e_install.py`:
+77 passed, 1 skipped.
+
+So the coverage tiers that missed this change, in order of increasing distance
+from the developer: a five-directory pytest selection, the full local suite, and
+CI-only Docker/PowerShell gates. Only the third tier is genuinely unreachable
+locally; the first two were a selection mistake.
 
 Before disposition the same selection reported **45 failed**. Every failure was
 traced to a subject ADR-097 deleted, and each was dispositioned individually
