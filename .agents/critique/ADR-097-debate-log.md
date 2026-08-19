@@ -154,3 +154,29 @@ because they change what a reader should expect from the tree:
    dispatcher tests across seven files were all reachable only through the
    registrations. Total: 45 tests failing before disposition, against the
    ~20 the ADR estimated.
+
+## Post-merge PR review: nine follow-up defects, none reopening the decision
+
+Copilot's automated review on PR #5172 (rjmurillo/ai-agents) found nine
+defects after the debate closed: two matching malformed-manifest bugs
+(a present-but-non-list event value read as "not registered" instead of
+"malformed" in both `scripts/ci/vanilla_hook_guard.py` and
+`scripts/ci/test_installed_plugin_hooks.py`), a coverage gap in the
+re-accretion ratchet (`.github/hooks/*.json` and the generated Copilot
+manifest were unscanned, so recreating the deleted
+`require-subagent-model.json` would have passed silently), and six stale
+prose claims across `agent-harness-reference/SKILL.md`,
+`ai-agents-architecture-contract/SKILL.md`, `ai-agents-config-catalog/SKILL.md`,
+`ADR-071`, and `hook-protocol.md` that this debate's own item 6 anticipated
+in kind ("ADR-071 invalidated, ADR-068 carries false claims") but did not
+enumerate exhaustively. Every finding was verified against the live source
+before editing, per the same evidence standard this debate applied.
+
+None of the nine touches the ADR-097 decision itself, the six-role verdict,
+or any P0 item's disposition above. They are implementation-fidelity defects
+in the discharge, the same class as the two coverage gaps the QA report's
+own addendum already documented (the CI-only vanilla-guard and
+case-sensitivity-path gates). Recorded here, not as a new debate round,
+because no reviewer's position changes and no new architectural question is
+opened; this entry exists so `check_adr_review_policy`'s debate-log gate has
+current staged evidence for the ADR-071 correction in the same commit.

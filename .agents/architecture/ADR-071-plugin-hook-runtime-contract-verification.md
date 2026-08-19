@@ -583,12 +583,20 @@ Specifically retired, not merely superseded:
   ships under `src/copilot-cli/hooks/`.
 
 What this ADR still governs, unchanged: **Decision item 1**, the plugin-root
-anchoring invariant. It binds any hook command this repository ships on any
-event. `scripts/validation/validate_hook_anchoring.py` still enforces it and
-now treats zero registered hooks as a valid anchored state, while keeping a
+anchoring invariant. It binds any PLUGIN hook command shipped in
+`.claude/hooks/hooks.json` or the generated Copilot artifact.
+`scripts/validation/validate_hook_anchoring.py` still enforces it and now
+treats zero registered hooks as a valid anchored state, while keeping a
 missing file, unparseable JSON, or a malformed `hooks` mapping fail-closed.
-The two `SessionStart` groups in `.claude/settings.json` remain live and remain
-subject to it.
+That validator does not inspect `.claude/settings.json` at all: its Claude-side
+check (`_CLAUDE_REL`) reads only `.claude/hooks/hooks.json`. The two
+`SessionStart` dispatch groups in `.claude/settings.json`
+(`sessionstart-1-context_loader`, `sessionstart-2-checkout_freshness`) are
+repo-local direct registrations anchored to `${CLAUDE_PROJECT_DIR}` (`cd
+"$CLAUDE_PROJECT_DIR" && ...`), a different anchor for a different consumer
+(this repository's own Claude Code session, not a vendored plugin install),
+and Decision item 1's
+plugin-root invariant does not bind them.
 
 Issue #5151's six-role re-affirmation of the consolidated-dispatcher decision
 under matcher-union loss is moot for the Copilot side: there is no Copilot
