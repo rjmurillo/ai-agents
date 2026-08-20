@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-5174-b3bfa3aaa-remove-agent-tier-hierarchy-replace.json
-qaCommit: 37b854c478ae68a9929fb58042cf42217614ee38
+qaCommit: 3ca163a90cd0dee956b48b06c83463ded4adf4e6
 ---
 
 # QA report: issue #5130, remove the agent tier hierarchy
@@ -107,8 +107,14 @@ Twenty-nine review findings landed after the original run. Each is covered:
 | Body still carried two head-bound claims after declaring it no longer pins a head: "exit 0 on the current head" and "run to completion on the pushed head" | Copilot | Both narrowed to "the run for one push", pointing at `qaCommit` for the attested commit. The declaration and the prose now agree |
 | Correcting ADR-078 re-arms `adr-review`, which the body still described as moot | this session, on re-reading the body after the edit | Acceptance box moved from `[~]` to `[ ]` and the section retitled. The criterion is unmet and applicable, which is worse than moot and the honest state. Auto-merge will not wait for it; flagged to the maintainer rather than disabled here |
 
-Re-verified on this head: 11 migration guards, 44 bypass-checker tests, taste ratchet OK with slack,
-ruff and mypy clean on changed files.
+Re-verified on the attested commit: 11 migration guards, 44 bypass-checker tests, taste ratchet OK
+with slack, ruff and mypy clean on changed files. The scoped pre-push pytest gate ran to completion
+over all four partitions: 27493 + 24 + 46 + 30 passed, zero `FAILED` or `ERROR` lines, exit 0.
+
+`qaCommit` names the commit this report attests to. Commits after it, if any, are documentation-only
+edits to this file and the PR description; no code or agent metadata changed under them. That
+distinction is stated rather than implied, because a `qaCommit` that silently lags the head is the
+same stale-evidence defect the description stopped committing when it dropped its head SHA.
 
 Earlier, after merging `origin/main` at ba541c21f: 295 tests across seven suites,
 `generate_agent_catalog.py --check` OK, `validate_copilot_agent_frontmatter.py` PASS on 31 files,
