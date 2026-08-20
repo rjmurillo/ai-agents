@@ -139,6 +139,10 @@
     {
       "activity": "Closed the behavioral-verification gap after a bot refuted the reason it was left open",
       "finding": "The QA report and PR body claimed behavioral verification of the two gates needed the live PR loop rather than a static gate. Copilot's second review filed a suppressed finding naming tests/test_pr_autofix_late_live_state_gate.py, which already extracts a marker-delimited block from this same command (_extract_guard at :38-43), writes fake producer scripts (_write_fake_scripts at :54), and runs the block under bash -c (_run_race at :238-352) parameterized over the source and the mirror. Checked the premise, found the claim false, and closed the gap: added tier-dispatch markers to the block and tests/commands/test_pr_autofix_tier_dispatch_runtime.py, 24 cases over both docs. Controls: restoring .Data.Tier fails 10, weakening the disarm gate's T1 exemption fails 2, making the round-cap breaker inert fails 6, and a comment-only edit inside the block passes 24 as the inverted control."
+    },
+    {
+      "activity": "Closed a fourth instance of the aggregate-over-the-line bug",
+      "finding": "Copilot found that extract_field_reads bound every jq path on a logical line to the first producer on that line, so a line with two producer pipelines checked its second read against the first producer's schema. The invocation-coverage guard permits several jq commands per line, so the hole was reachable. Fixed by pairing each jq program with the window of text that feeds it, breaking ties inside the window toward the nearer of a direct invocation and a captured-variable reference. Two regression cases added; restoring the per-line binding fails both and nothing else. Also hardened the runtime harness after two further Copilot findings: every case now asserts exit 0 and empty stderr rather than one case asserting the status, and the negative control requires exactly one occurrence to mutate instead of replacing all."
     }
   ],
   "outcomes": {
@@ -216,7 +220,7 @@
       }
     ]
   },
-  "endingCommit": "4b0b1ba6172b6ebed5581fffbbecddb2f2dc707c",
+  "endingCommit": "6c79df17144d29b068e65d5830089ce63d96f12e",
   "nextSteps": [
     "Open a draft PR from claude/pr-5175-review-v21yk2 referencing issue #5094",
     "Report on PR #5175 that its branch carries no diff so the owner can decide whether to close it in favor of this change"
