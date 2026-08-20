@@ -18,7 +18,7 @@ tools:
   - github/get_workflow_run
   - cloudmcp-manager/*
   - serena/*
-tier: manager
+role: coordinator
 ---
 
 # Orchestrator Agent

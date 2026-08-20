@@ -10,7 +10,7 @@ tools:
   - cloudmcp-manager/*
   - github.vscode-pull-request-github/*
   - serena/*
-tier: manager
+role: coordinator
 ---
 # PR Comment Responder Agent
 
