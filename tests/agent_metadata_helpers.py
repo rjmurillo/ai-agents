@@ -18,6 +18,7 @@ import importlib.util
 import re
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
 
 import yaml
@@ -164,8 +165,7 @@ def _declares_agent_metadata(front: dict) -> bool:
     if isinstance(nested, dict):
         scopes.append(nested)
     return any(
-        isinstance(scope.get("role"), str) or isinstance(scope.get("tier"), str)
-        for scope in scopes
+        isinstance(scope.get("role"), str) or isinstance(scope.get("tier"), str) for scope in scopes
     )
 
 
@@ -242,3 +242,112 @@ def _discover_agent_trees() -> set[str]:
         if _looks_like_an_agent_file(name, path, _frontmatter(path)):
             found.add(PurePosixPath(name).parent.as_posix())
     return found
+
+
+# The canonical tree, from the same constant the matrix validator resolves
+# against. Quoted from build/scripts/validate_agent_matrix_refs.py:137:
+#   CANONICAL_TREE = Path("templates/agents")
+_CANONICAL_TREE = _vamr.CANONICAL_TREE.as_posix()
+
+# Suffix-matching sibling documents that are deliberately not agent
+# definitions. They are the only files in a configured tree allowed to fail the
+# fail-closed corpus guard in `test_agent_tree_discovery.py`. Listed per file,
+# not per directory, for the same reason as `_EXEMPT_FILES`: adding one is then
+# a deliberate edit rather than silent inheritance.
+#
+# Quoted from build/scripts/validate_agent_matrix_refs.py:59-64, which measured
+# the same four with the same predicate: "Measured across all six trees that
+# rule keeps all 175 agent files and excludes exactly four suffix-matching
+# sibling documents: ``.claude/agents/AGENTS.md``, ``.claude/agents/CLAUDE.md``,
+# ``src/claude/AGENTS.md``, and ``src/claude/claude-instructions.template.md``."
+_NON_AGENT_SIBLINGS = frozenset(
+    {
+        ".claude/agents/AGENTS.md",
+        ".claude/agents/CLAUDE.md",
+        "src/claude/AGENTS.md",
+        "src/claude/claude-instructions.template.md",
+    }
+)
+
+
+def _why_not_an_agent_definition(path: Path) -> str:
+    """Empty when the repo's own predicate accepts `path`, else why it does not.
+
+    `is_agent_definition` fills `reasons` only for the two failures it can
+    describe, a duplicated frontmatter key and a `description` that is present
+    but unusable. Absent, unterminated, and unparseable blocks return None
+    silently, so the fallback names all of them rather than reporting an empty
+    string that reads as no finding.
+    """
+    reasons: list[str] = []
+    if _vamr.is_agent_definition(path, reasons):
+        return ""
+    return "; ".join(reasons) or (
+        "frontmatter is absent, unterminated, unparseable, or carries no non-empty `description`"
+    )
+
+
+def _roles_by_agent_name() -> dict[str, dict[str, object]]:
+    """Agent name -> tree -> declared role, across every configured tree.
+
+    The name is the filename with that tree's own suffix stripped, which is how
+    `validate_agent_matrix_refs` resolves a citation: the trees do not agree on
+    one suffix, so `orchestrator.shared.md`, `orchestrator.md`, and
+    `orchestrator.agent.md` are all the agent `orchestrator`.
+
+    Files the corpus predicate rejects are skipped here and caught by the
+    fail-closed guard instead. So is the narrower case of the two parsers
+    disagreeing, which `test_every_agent_definition_declares_a_known_role`
+    reports.
+    """
+    roles: dict[str, dict[str, object]] = {}
+    for tree, suffix in _vamr.AGENT_TREES:
+        for path in sorted((_REPO_ROOT / tree).glob(f"*{suffix}")):
+            if not _vamr.is_agent_definition(path):
+                continue
+            front = _frontmatter(path)
+            if front is None:
+                continue
+            roles.setdefault(path.name[: -len(suffix)], {})[tree.as_posix()] = _declared_role(front)
+    return roles
+
+
+def _cross_tree_role_disagreements(roles: Mapping[str, Mapping[str, object]]) -> list[str]:
+    """Names whose copies declare more than one role, with the canonical value.
+
+    The expected value is the template's when the template carries the agent,
+    since `templates/agents` is the canonical tree every other copy is
+    generated or hand-mirrored from. When it does not, the first tree in sorted
+    order stands in, so a pair of non-template copies is still compared rather
+    than dropped.
+
+    A tree-specific agent, which Copilot asked to be handled explicitly, needs
+    no special case and deliberately does not get one: the single tree is its
+    own source, the comparison excludes the source, and nothing is left to
+    disagree. Guarding on `len(by_tree) < 2` would state that in a branch no
+    input can make observable. What must not happen is the naive spelling,
+    `by_tree.get(_CANONICAL_TREE)`, which reads a template-less agent as
+    expecting `None` and reports every tree-specific agent as divergent.
+    `test_cross_tree_role_comparison_verdicts` pins that case.
+
+    Compared with `!=` rather than through a set, because a role is whatever
+    the frontmatter said. A list or a dict there is a defect the known-role
+    guard reports, and it must not crash this one on the way past. Sorting is
+    by tree name for the same reason: role values are not ordered.
+    """
+    offenders: list[str] = []
+    for name in sorted(roles):
+        by_tree = roles[name]
+        source = _CANONICAL_TREE if _CANONICAL_TREE in by_tree else sorted(by_tree)[0]
+        expected = by_tree[source]
+        divergent = [
+            (tree, by_tree[tree])
+            for tree in sorted(by_tree)
+            if tree != source and by_tree[tree] != expected
+        ]
+        if divergent:
+            offenders.append(
+                f"{name}: {source} declares {expected!r}, but "
+                + ", ".join(f"{tree} declares {role!r}" for tree, role in divergent)
+            )
+    return offenders
