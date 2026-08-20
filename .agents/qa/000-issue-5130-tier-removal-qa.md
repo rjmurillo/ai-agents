@@ -104,6 +104,8 @@ Twenty-nine review findings landed after the original run. Each is covered:
 | Migration test module hit 531 lines against the 500-line taste ceiling while the description claimed lint clean | Copilot | Split by concern into `agent_metadata_helpers.py` (245), `test_agent_tree_discovery.py` (136), and the migration module (210). taste-lints reports no violations on any of the three; 11 tests still pass |
 | `escalate_to_high_level_advisor` was called but never defined, and the next line indexed `positions[winner]` with a non-participant | Copilot | Escalation now appends an explicit result naming the arbiter and skips the winner branch. No undefined call, no bad lookup |
 | Serena memory gave 186 as the PR file total | Copilot | 186 is the agent metadata count; the PR changed 208 files. Both now labelled |
+| Body still carried two head-bound claims after declaring it no longer pins a head: "exit 0 on the current head" and "run to completion on the pushed head" | Copilot | Both narrowed to "the run for one push", pointing at `qaCommit` for the attested commit. The declaration and the prose now agree |
+| Correcting ADR-078 re-arms `adr-review`, which the body still described as moot | this session, on re-reading the body after the edit | Acceptance box moved from `[~]` to `[ ]` and the section retitled. The criterion is unmet and applicable, which is worse than moot and the honest state. Auto-merge will not wait for it; flagged to the maintainer rather than disabled here |
 
 Re-verified on this head: 11 migration guards, 44 bypass-checker tests, taste ratchet OK with slack,
 ruff and mypy clean on changed files.
