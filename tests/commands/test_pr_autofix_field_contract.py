@@ -5,31 +5,24 @@ and branches on the result. When a read names a path the producer never emits,
 `jq` yields `null`, the `//` default fires, and the gate silently evaluates as
 if it had evidence. Nothing fails; the gate just stops gating.
 
-That defect has now shipped twice in the same file, one script apart:
-
-1. `TIER` read `.Data.tier` from `check_pr_live_state.py`, which emits no tier
-   field at all (the originally reported bug).
-2. The repair pointed at the right script but kept the envelope, reading
-   `.Data.Tier` from `test_pr_merge_ready.py`. That script has no
-   `--output-format` flag and prints its result dict directly, so there is no
-   `Data` envelope to traverse and `TIER` was still pinned at `UNKNOWN`.
-
-Both instances silently disabled the round-cap circuit breaker's T3/T4 check
-and the auto-merge disarm gate's non-T1 check.
+That defect shipped twice in this file, one script apart. First `TIER` read
+`.Data.tier` from `check_pr_live_state.py`, which emits no tier field at all.
+The repair then pointed at the right script but kept the envelope, reading
+`.Data.Tier` from `test_pr_merge_ready.py`, which has no `--output-format` flag
+and prints its result dict directly. Both instances left `TIER` pinned at
+`UNKNOWN`, silently disabling the round-cap circuit breaker's T3/T4 check and
+the auto-merge disarm gate's non-T1 check.
 
 This test closes the class rather than the instance. It extracts every jq read
-in the command body, binds each read to the producer whose stdout it consumes,
-statically derives that producer's real output shape with `ast`, and fails on
-any mismatch of envelope level or field name.
+in the command body, binds each to the producer whose stdout it consumes,
+derives that producer's real output shape with `ast`, and fails on any mismatch
+of envelope level or field name.
 
-Two producer styles exist and the distinction is the whole point:
-
-- Scripts routed through `github_core.output.write_skill_output` wrap their
-  payload in a `Data` envelope, so reads must be `.Data.<field>`.
-- Scripts that `print(json.dumps(result))` directly emit a flat object, so
-  reads must be `.<field>` with no envelope.
-
-Note that a flat producer may still carry its own top-level `Success` key
+Two producer styles exist and the distinction is the whole point. Scripts routed
+through `github_core.output.write_skill_output` wrap their payload in a `Data`
+envelope, so reads must be `.Data.<field>`. Scripts that
+`print(json.dumps(result))` directly emit a flat object, so reads must be
+`.<field>`. A flat producer may still carry its own top-level `Success` key
 (`test_pr_merge_ready.py` does), so envelope detection keys off the emitter
 call, never off the presence of a `Success` field.
 """
@@ -59,9 +52,7 @@ _JQ_PATH = re.compile(r"jq\s[^|>]*?'(\.[A-Za-z_][A-Za-z0-9_.]*)")
 _VAR_REF = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?")
 
 
-# ---------------------------------------------------------------------------
 # Producer side: derive each script's real output shape from its source.
-# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -168,9 +159,7 @@ def derive_producer_schema(script: str) -> ProducerSchema:
     return ProducerSchema(script=script, wraps_in_data=False, top_level_keys=keys)
 
 
-# ---------------------------------------------------------------------------
 # Command side: extract every jq read and bind it to its producer.
-# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -245,9 +234,7 @@ def _bound_source(line: str, bindings: dict[str, str]) -> str | None:
     return None
 
 
-# ---------------------------------------------------------------------------
 # The check itself.
-# ---------------------------------------------------------------------------
 
 
 def _envelope_violation(read: FieldRead, schema: ProducerSchema) -> str | None:
@@ -306,9 +293,7 @@ def command_body() -> str:
     return COMMAND_PATH.read_text(encoding="utf-8")
 
 
-# ---------------------------------------------------------------------------
 # Positive: the shipped command and its mirror honor every producer contract.
-# ---------------------------------------------------------------------------
 
 
 def test_source_command_has_no_contract_violations(command_body: str) -> None:
@@ -361,9 +346,7 @@ def test_tier_read_targets_the_authoritative_flat_producer(command_body: str) ->
         )
 
 
-# ---------------------------------------------------------------------------
 # Coverage: the extractor must not go blind and silently pass.
-# ---------------------------------------------------------------------------
 
 
 def test_every_read_binds_to_a_producer(command_body: str) -> None:
@@ -407,9 +390,7 @@ def test_flat_producer_keys_include_the_fields_the_command_reads() -> None:
     assert "CanMerge" in schema.top_level_keys
 
 
-# ---------------------------------------------------------------------------
 # Negative controls: the check must actually fail on each known defect shape.
-# ---------------------------------------------------------------------------
 
 
 def _piped_read(script: str, jq_path: str) -> str:
@@ -475,9 +456,7 @@ def test_correct_reads_produce_no_violations() -> None:
     assert contract_violations(body) == []
 
 
-# ---------------------------------------------------------------------------
 # Edge cases in the extraction helpers.
-# ---------------------------------------------------------------------------
 
 
 def test_logical_lines_joins_backslash_continuations() -> None:
