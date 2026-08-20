@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract.json
-qaCommit: 533b83d9d234c883089e02065e6cc69e007be929
+qaCommit: b933155a58f78652ed09289e561f867616ddb0b7
 ---
 
 # QA Report: session 99923, pr-autofix tier field contract
@@ -9,7 +9,7 @@ qaCommit: 533b83d9d234c883089e02065e6cc69e007be929
 - Issue: #5094
 - PR: #5176
 - Session log: `.agents/sessions/2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract.json`
-- QA commit: `533b83d9d234c883089e02065e6cc69e007be929`
+- QA commit: `b933155a58f78652ed09289e561f867616ddb0b7`
 - Branch: `claude/pr-5175-review-v21yk2`
 
 ## Verdict
@@ -292,7 +292,23 @@ the two tier tests from `test_pr_autofix_field_contract.py` into
 `test_pr_autofix_tier_contract.py`. Pure code motion, verified as such: 422
 tests collected under `tests/commands/` before the split and 422 after, and
 `taste-lints` now reports 0 errors across all five files (three warnings, all
-"approaching size limit"). Line counts: 449, 106, 454, 79, 480.
+"approaching size limit"). Line counts: 449, 103, 454, 79, 480.
+
+The split still carried one defect, and it is the shape this PR already fixed
+once. `_TIER_ARM` moved into the new module although `recognized_tiers` had
+stopped using it when it switched to walking lines by hand, leaving an untested
+alternate matching rule behind, exactly as `_bound_source` did earlier. Cursor
+Bugbot found it on the split commit. Confirmed dead two ways before deleting:
+a repository search returns one occurrence, the definition, and deleting it
+leaves all 79 tests passing. What I checked when moving the code was line
+counts; what a move actually needs checking for is what the moved code still
+uses.
+
+The deletion on the branch is Bugbot's autofix commit, not mine. Its agent
+pushed `b933155a5` while I was committing the identical three-line removal
+locally; I reset onto its commit and dropped my duplicate, the same resolution
+used for the three earlier collisions on this branch. `qaCommit` is bound to
+that commit because it is the head the measurements above were taken at.
 
 ## Known limits
 
