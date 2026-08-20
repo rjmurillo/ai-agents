@@ -346,3 +346,17 @@ Absent either, the retirement stands and the follow-up closes. A bad pull reques
 ### Follow-up, not part of this decision
 
 - Commit thrash as a token-budget control, if it proves needed, with its own evidence.
+- Whether the retired ceilings should be re-measured against a larger stratified sample of the 104 labeled pull requests, to confirm the five-pull-request result holds.
+
+## Related Decisions
+
+- ADR-086, lefthook local hook orchestration
+- ADR-101, enforcement planes. Not a disjoint scope: ADR-101's plane rule classifies the gates this decision retires as P0, and therefore advisory, which is the same conclusion reached here from cost evidence rather than from the invariant. This decision also removes `SKIP_SCOPE_CHECK`, one of the four root-cause exhibits ADR-101 cites. Neither decision depends on the other landing
+
+## References
+
+- `.agents/governance/PROJECT-CONSTRAINTS.md:125`, the ceiling rationale and its single-incident basis
+- `.agents/retrospective/2026-08-07-pr-4402-scope-bypass.md`, self-attested approval after refusal
+- `.agents/retrospective/2026-08-17-governance-bureaucracy-critical-review.md`, the 94% self-inflicted issue measurement and the #5103 rebind finding
+- `scripts/detect_scope_explosion.py:492`, the unverified bypass flag
+- Pull requests #4846, #4718, #5036, #5152, #5103, #5107, the sample
