@@ -196,7 +196,11 @@ def _describe_gh_failure(proc: subprocess.CompletedProcess[str]) -> str:
 
     1. This module stopped using ``gh pr view`` (GraphQL) for the REST
        list-pulls endpoint in issue #4690. Naming the wrong command sent a
-       reader to the wrong place.
+       reader to the wrong place. Every operator-facing string in this module
+       says "gh label lookup" for the same reason: an earlier fix corrected
+       only this function and left the timeout and unparseable-JSON paths
+       naming the old command, which the regression test did not catch because
+       it exercised one path. Refs #5130 review.
     2. An authentication or egress-policy denial is not a transient failure and
        will not pass on a retry. It is called out by name so the reader stops
        re-running the push.
@@ -254,9 +258,18 @@ def check_bypass_label(label: str, branch: str | None) -> tuple[int, str]:
     try:
         proc = _run_gh_pr_view(branch)
     except FileNotFoundError:
-        return EXIT_EXTERNAL, "gh CLI not found; cannot check bypass label"
+        return EXIT_EXTERNAL, (
+            "gh CLI not found, so the label cannot be verified locally and the "
+            "commit limit still applies. Split the PR, or ask a human maintainer "
+            "to decide on the commit-limit-bypass label; that label is human-only."
+        )
     except subprocess.TimeoutExpired:
-        return EXIT_EXTERNAL, f"gh pr view timed out after {GH_TIMEOUT_SECONDS}s"
+        return EXIT_EXTERNAL, (
+            f"gh label lookup timed out after {GH_TIMEOUT_SECONDS}s. "
+            "The label cannot be verified locally, so the commit limit still "
+            "applies. Split the PR, or ask a human maintainer to decide on the "
+            "commit-limit-bypass label; that label is human-only."
+        )
 
     if proc.returncode != 0:
         stderr = (proc.stderr or "").lower()
@@ -272,7 +285,12 @@ def check_bypass_label(label: str, branch: str | None) -> tuple[int, str]:
     try:
         payload = json.loads(proc.stdout)
     except json.JSONDecodeError:
-        return EXIT_EXTERNAL, "gh pr view returned unparseable JSON"
+        return EXIT_EXTERNAL, (
+            "gh label lookup returned unparseable JSON. "
+            "The label cannot be verified locally, so the commit limit still "
+            "applies. Split the PR, or ask a human maintainer to decide on the "
+            "commit-limit-bypass label; that label is human-only."
+        )
 
     number = payload.get("number")
     state = payload.get("state")

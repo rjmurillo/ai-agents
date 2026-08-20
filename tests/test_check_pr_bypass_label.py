@@ -207,21 +207,53 @@ def test_policy_denial_still_wins_over_a_bare_403(monkeypatch):
     assert "rate limit" not in status
 
 
-def test_failure_message_does_not_name_gh_pr_view(monkeypatch):
+def _external_paths():
+    """Every way check_bypass_label can return EXIT_EXTERNAL.
+
+    Enumerated rather than sampled. The first version of this guard tested
+    only the non-zero-returncode path, so the timeout and unparseable-JSON
+    messages kept naming `gh pr view` and the test stayed green. Covering one
+    branch of a four-branch error surface is how a fix looks complete and is
+    not. Refs #5130 review.
+    """
+    return {
+        "gh missing": lambda branch: (_ for _ in ()).throw(FileNotFoundError()),
+        "timeout": lambda branch: (_ for _ in ()).throw(
+            subprocess.TimeoutExpired(cmd="gh", timeout=mod.GH_TIMEOUT_SECONDS)
+        ),
+        "nonzero exit": lambda branch: _proc(1, "", "could not connect to api.github.com"),
+        "unparseable json": lambda branch: _proc(0, "not json at all", ""),
+    }
+
+
+@pytest.mark.parametrize("path", sorted(_external_paths()))
+def test_no_external_path_names_gh_pr_view(monkeypatch, path):
     """Regression guard: this module uses REST list-pulls, not `gh pr view`.
 
-    Naming the wrong command sent readers to the wrong place. Issue #4690
-    moved this module off GraphQL; the message lagged behind.
+    Issue #4690 moved this module off GraphQL; the operator-facing strings
+    lagged behind.
     """
-    monkeypatch.setattr(
-        mod,
-        "_run_gh_pr_view",
-        lambda branch: _proc(1, "", "could not connect to api.github.com"),
-    )
+    monkeypatch.setattr(mod, "_run_gh_pr_view", _external_paths()[path])
+
+    code, status = mod.check_bypass_label("commit-limit-bypass", None)
+
+    assert code == mod.EXIT_EXTERNAL
+    assert "gh pr view" not in status
+
+
+@pytest.mark.parametrize("path", sorted(_external_paths()))
+def test_every_external_path_states_the_limit_still_applies(monkeypatch, path):
+    """An unverifiable label blocks on every path, and each says so.
+
+    A reader who hits the timeout branch needs the same two sanctioned routes
+    as one who hits the denial branch.
+    """
+    monkeypatch.setattr(mod, "_run_gh_pr_view", _external_paths()[path])
 
     _, status = mod.check_bypass_label("commit-limit-bypass", None)
 
-    assert "gh pr view" not in status
+    assert "commit limit still applies" in status or "commit limit still" in status
+    assert "human-only" in status
 
 
 def test_returns_external_when_gh_missing(monkeypatch):
