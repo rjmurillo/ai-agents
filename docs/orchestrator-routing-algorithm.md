@@ -267,15 +267,26 @@ def resolve_disagreement(results):
 
     ranked = sorted(tallies.items(), key=lambda item: item[1], reverse=True)
     tied = len(ranked) > 1 and ranked[0][1] == ranked[1][1]
+
+    # Only a *dissenting* non-negotiable makes the conflict hard, which is what
+    # the docstring says and what an earlier revision of this code did not do.
+    # Checking every voter escalated when the winner itself marked its position
+    # non-negotiable: architect=A/non-negotiable against implementer=B is an
+    # untied 2-1 for A, and the vote settled it. Holding firm on the position
+    # that won is agreement with the vote, not a block on it. Refs #5177 review
+    # (Copilot).
+    winner = None if tied else ranked[0][0]
     blocking = any(
-        results[agent].get("non_negotiable") for agent in recommendations
+        results[agent].get("non_negotiable")
+        for agent, recommendation in recommendations.items()
+        if recommendation != winner
     )
 
     if tied or blocking:
         return {
             "strategy": "escalate",
             "escalate_to": "high-level-advisor",
-            "reason": "Tied weighted vote" if tied else "Non-negotiable position held",
+            "reason": "Tied weighted vote" if tied else "Dissenting non-negotiable position",
             "agents": sorted(recommendations),
             "conflict": sorted(tallies),
         }
