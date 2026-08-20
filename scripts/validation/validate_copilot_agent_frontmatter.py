@@ -27,11 +27,11 @@ from pathlib import Path
 import yaml
 
 # Fields a Copilot custom agent file must declare as non-empty strings: Copilot
-# needs name/description to register and select the agent (issue #2500). ``tier``
+# needs name/description to register and select the agent (issue #2500). ``role``
 # is checked only when present (see find_malformed), per the issue's "if the
 # repository requires it" qualifier.
 _REQUIRED_STRING_FIELDS = ("name", "description")
-_OPTIONAL_STRING_FIELDS = ("tier",)
+_OPTIONAL_STRING_FIELDS = ("role",)
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPT_DIR.parents[1]
@@ -61,7 +61,7 @@ def _frontmatter_error(text: str) -> str | None:
        YAML parser error so the offending line is actionable.
     2. Frontmatter that is not a mapping.
     3. A missing or non-string ``name``/``description`` (Copilot needs both to
-       register and select the agent); a non-string ``tier`` when present.
+       register and select the agent); a non-string ``role`` when present.
 
     A colon-bearing description authored as an unquoted plain scalar fails class 1
     here exactly as it does in Copilot, which is the regression these issues fix.

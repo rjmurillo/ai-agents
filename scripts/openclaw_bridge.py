@@ -55,13 +55,17 @@ def _validate_path_component(name: str, base_dir: Path) -> Path:
         raise ValueError(f"Path traversal detected in agent name: {name}")
     return candidate
 
-# OpenClaw tier mapping from ai-agents tiers
-_TIER_TO_OPENCLAW_ROLE: dict[str, str] = {
-    "expert": "strategic",
-    "manager": "coordinator",
-    "builder": "executor",
-    "integration": "support",
-}
+# Agent role vocabulary. These values are written directly in agent frontmatter
+# (``role:``) and are already OpenClaw's role names, so the export copies them
+# through unchanged. An agent with no ``role:`` falls back to _DEFAULT_ROLE.
+_KNOWN_ROLES: frozenset[str] = frozenset({
+    "strategic",
+    "coordinator",
+    "executor",
+    "support",
+})
+
+_DEFAULT_ROLE = "support"
 
 # Default model mapping from ai-agents model names to OpenClaw provider format
 _MODEL_MAP: dict[str, str] = {
@@ -78,7 +82,7 @@ class AgentDefinition:
     name: str
     description: str
     model: str
-    tier: str
+    role: str
     argument_hint: str = ""
     body: str = ""
     source_path: str = ""
@@ -113,7 +117,7 @@ def parse_agent_file(path: Path) -> AgentDefinition | None:
     name = metadata.get("name", "")
     description = metadata.get("description", "")
     model = metadata.get("model", "sonnet")
-    tier = metadata.get("tier", "integration")
+    role = _resolve_role(metadata.get("role"), path)
 
     if not name or not description:
         return None
@@ -122,11 +126,34 @@ def parse_agent_file(path: Path) -> AgentDefinition | None:
         name=name,
         description=description,
         model=model,
-        tier=tier,
+        role=role,
         argument_hint=metadata.get("argument-hint", ""),
         body=post.content,
         source_path=str(path),
     )
+
+
+def _resolve_role(raw: object, path: Path) -> str:
+    """Return the agent's declared role, falling back to _DEFAULT_ROLE.
+
+    An absent ``role:`` is normal for hand-written agents outside the shared
+    templates, so it falls back silently. A present but unrecognized value is a
+    typo in frontmatter that would otherwise be exported verbatim into the
+    OpenClaw manifest, so it is logged before the fallback rather than passed
+    through as a new role name.
+    """
+    if raw is None:
+        return _DEFAULT_ROLE
+    if not isinstance(raw, str) or raw.strip() not in _KNOWN_ROLES:
+        logger.warning(
+            "Unrecognized role %r in %s; using %r. Known roles: %s",
+            raw,
+            path.name,
+            _DEFAULT_ROLE,
+            ", ".join(sorted(_KNOWN_ROLES)),
+        )
+        return _DEFAULT_ROLE
+    return raw.strip()
 
 
 def load_agents(agents_dir: Path) -> list[AgentDefinition]:
@@ -170,7 +197,7 @@ def generate_agents_md(agents: list[AgentDefinition]) -> str:
     ]
 
     for agent in agents:
-        role = _TIER_TO_OPENCLAW_ROLE.get(agent.tier, agent.tier)
+        role = agent.role
         model = _MODEL_MAP.get(agent.model, agent.model)
         desc = agent.description[:80] + "..." if len(agent.description) > 80 else agent.description
         lines.append(f"| {agent.name} | {role} | {model} | {desc} |")
@@ -210,7 +237,7 @@ def generate_skill_md(agent: AgentDefinition) -> str:
         "## Configuration",
         "",
         f"- **Model**: `{model}`",
-        f"- **Role**: {_TIER_TO_OPENCLAW_ROLE.get(agent.tier, agent.tier)}",
+        f"- **Role**: {agent.role}",
         f"- **Source**: ai-agents (`{agent.source_path}`)"
         if agent.source_path
         else f"- **Source**: ai-agents ({agent.name})",
@@ -303,7 +330,7 @@ def export_json(agents: list[AgentDefinition]) -> str:
             "name": agent.name,
             "description": agent.description,
             "model": _MODEL_MAP.get(agent.model, agent.model),
-            "role": _TIER_TO_OPENCLAW_ROLE.get(agent.tier, agent.tier),
+            "role": agent.role,
             "argument_hint": agent.argument_hint,
             "source": agent.source_path if agent.source_path else agent.name,
         })
