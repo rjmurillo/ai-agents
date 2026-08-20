@@ -27,7 +27,6 @@ Public symbols:
 - `logical_lines(text)`: backslash-continuation joining, exposed for tests
 """
 
-
 from __future__ import annotations
 
 import ast
@@ -37,9 +36,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMMAND_PATH = REPO_ROOT / ".claude" / "commands" / "pr-autofix.md"
-MIRROR_PATH = (
-    REPO_ROOT / "src" / "copilot-cli" / "skills" / "pr-autofix" / "SKILL.md"
-)
+MIRROR_PATH = REPO_ROOT / "src" / "copilot-cli" / "skills" / "pr-autofix" / "SKILL.md"
 PRODUCER_DIR = REPO_ROOT / ".claude" / "skills" / "github" / "scripts" / "pr"
 
 # `github_core.output` helpers that wrap their payload in a `Data` envelope.
@@ -273,16 +270,57 @@ def extract_field_reads(text: str) -> list[FieldRead]:
         if line.lstrip().startswith("#"):
             continue
         scripts = _INVOKE.findall(line)
-        paths = jq_paths(line)
         capture = _BIND.search(line)
-        if scripts and capture and not paths:
+        if scripts and capture and not jq_paths(line):
             bindings[capture.group(1)] = scripts[0]
             continue
-        if not paths:
-            continue
-        source = scripts[0] if scripts else _bound_source(line, bindings)
-        reads.extend(FieldRead(line=lineno, script=source, path=path) for path in paths)
+        for source, program in _reads_by_invocation(line, bindings):
+            reads.extend(
+                FieldRead(line=lineno, script=source, path=path)
+                for path in _JQ_PATH.findall(program)
+            )
     return reads
+
+
+def _reads_by_invocation(line: str, bindings: dict[str, str]) -> list[tuple[str | None, str]]:
+    """Pair each jq program on `line` with the producer feeding *that* jq.
+
+    Binding per line instead of per invocation was the fourth instance of this
+    PR's recurring bug: a line with two producer pipelines assigned every path
+    to the first producer, so the second read was checked against the wrong
+    schema and a real mismatch could pass. The coverage guard deliberately
+    permits several jq commands per line, so the two together made the hole
+    reachable rather than theoretical.
+
+    Each jq program sees only the text between the previous jq program and
+    itself, which is what actually feeds it. Within that window the nearer of a
+    direct producer invocation and a captured-variable reference wins, because
+    `X=$(a.py); printf '%s' "$Y" | jq` feeds the jq from `$Y`, not from `a.py`.
+    """
+    pairs: list[tuple[str | None, str]] = []
+    previous_end = 0
+    for match in _JQ_PROGRAM.finditer(line):
+        window = line[previous_end : match.start()]
+        previous_end = match.end()
+        pairs.append((_window_source(window, bindings), match.group(1)))
+    return pairs
+
+
+def _window_source(window: str, bindings: dict[str, str]) -> str | None:
+    """Producer feeding a jq whose input is `window`, nearest reference wins."""
+    invocations = list(_INVOKE.finditer(window))
+    direct_at = invocations[-1].start() if invocations else -1
+
+    bound_at = -1
+    bound_source: str | None = None
+    for reference in _VAR_REF.finditer(window):
+        if reference.group(1) in bindings:
+            bound_at = reference.start()
+            bound_source = bindings[reference.group(1)]
+
+    if direct_at < 0 and bound_at < 0:
+        return None
+    return invocations[-1].group(1) if direct_at > bound_at else bound_source
 
 
 def jq_paths(line: str) -> list[str]:
@@ -292,11 +330,7 @@ def jq_paths(line: str) -> list[str]:
     can carry more than one jq invocation, so both are enumerated. Literal
     defaults (`// "UNKNOWN"`, `// empty`) carry no leading dot and drop out.
     """
-    return [
-        path
-        for program in _JQ_PROGRAM.findall(line)
-        for path in _JQ_PATH.findall(program)
-    ]
+    return [path for program in _JQ_PROGRAM.findall(line) for path in _JQ_PATH.findall(program)]
 
 
 def jq_invocation_count(line: str) -> int:
@@ -421,4 +455,3 @@ def contract_violations(text: str) -> list[str]:
         if finding:
             problems.append(finding)
     return problems
-

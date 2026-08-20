@@ -67,9 +67,8 @@ def command_body() -> str:
 def test_source_command_has_no_contract_violations(command_body: str) -> None:
     violations = contract_violations(command_body)
 
-    assert violations == [], (
-        "pr-autofix.md reads fields its producers never emit:\n"
-        + "\n".join(violations)
+    assert violations == [], "pr-autofix.md reads fields its producers never emit:\n" + "\n".join(
+        violations
     )
 
 
@@ -77,8 +76,7 @@ def test_copilot_mirror_has_no_contract_violations() -> None:
     violations = contract_violations(MIRROR_PATH.read_text(encoding="utf-8"))
 
     assert violations == [], (
-        "The shipped Copilot mirror drifted from producer contracts:\n"
-        + "\n".join(violations)
+        "The shipped Copilot mirror drifted from producer contracts:\n" + "\n".join(violations)
     )
 
 
@@ -86,8 +84,7 @@ def test_mirror_reads_match_source_reads(command_body: str) -> None:
     """The mirror is generated, so its reads must equal the source's reads."""
     source = [(r.script, r.path) for r in extract_field_reads(command_body)]
     mirror = [
-        (r.script, r.path)
-        for r in extract_field_reads(MIRROR_PATH.read_text(encoding="utf-8"))
+        (r.script, r.path) for r in extract_field_reads(MIRROR_PATH.read_text(encoding="utf-8"))
     ]
 
     assert source == mirror, (
@@ -98,9 +95,7 @@ def test_mirror_reads_match_source_reads(command_body: str) -> None:
 
 def test_tier_read_targets_the_authoritative_flat_producer(command_body: str) -> None:
     """Pin the specific regression from issue #5094 and its repeat."""
-    tier_reads = [
-        r for r in extract_field_reads(command_body) if r.path.endswith("Tier")
-    ]
+    tier_reads = [r for r in extract_field_reads(command_body) if r.path.endswith("Tier")]
 
     assert tier_reads, "The TIER read vanished; the round-cap gate lost its input."
     for read in tier_reads:
@@ -171,9 +166,7 @@ def test_every_consumed_producer_has_derivable_keys(command_body: str) -> None:
     actually in use so that regression fails here.
     """
     scripts = {r.script for r in extract_field_reads(command_body) if r.script}
-    undecidable = sorted(
-        s for s in scripts if derive_producer_schema(s).top_level_keys is None
-    )
+    undecidable = sorted(s for s in scripts if derive_producer_schema(s).top_level_keys is None)
 
     assert undecidable == [], (
         "Field checking silently stands down for these producers:\n"
@@ -218,7 +211,7 @@ def test_multi_path_jq_programs_yield_every_path() -> None:
 def test_literal_defaults_are_not_read_as_paths() -> None:
     """`// \"UNKNOWN\"` and `// empty` are values, not producer fields."""
     assert jq_paths("X=$(echo \"$L\" | jq -r '.Data.action // empty')") == [".Data.action"]
-    assert jq_paths("X=$(echo \"$L\" | jq -r '.Tier // \"UNKNOWN\"')") == [".Tier"]
+    assert jq_paths('X=$(echo "$L" | jq -r \'.Tier // "UNKNOWN"\')') == [".Tier"]
 
 
 def test_multi_path_violation_is_reported_for_the_second_path() -> None:
@@ -272,8 +265,7 @@ def test_flat_producer_keys_include_the_fields_the_command_reads() -> None:
 def _piped_read(script: str, jq_path: str) -> str:
     """A one-line command body piping `script` straight into a `jq` read."""
     return (
-        f'VALUE=$(python3 "$SCRIPTS_DIR/{script}.py" --pull-request "$PR" '
-        f"| jq -r '{jq_path}')\n"
+        f'VALUE=$(python3 "$SCRIPTS_DIR/{script}.py" --pull-request "$PR" | jq -r \'{jq_path}\')\n'
     )
 
 
@@ -379,8 +371,7 @@ def test_correct_reads_produce_no_violations() -> None:
 
 def test_logical_lines_joins_backslash_continuations() -> None:
     joined = logical_lines(
-        'CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" \\\n'
-        "    --output-format json)\n"
+        'CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" \\\n    --output-format json)\n'
     )
 
     assert len(joined) == 1
@@ -405,4 +396,41 @@ def test_commented_reads_are_ignored() -> None:
 def test_a_read_with_no_producer_in_scope_is_reported_unbound() -> None:
     assert extract_field_reads("VALUE=$(echo \"$OTHER\" | jq -r '.Data.action')\n") == [
         FieldRead(line=1, script=None, path=".Data.action")
+    ]
+
+
+def test_two_producers_on_one_line_each_bind_to_their_own_jq() -> None:
+    """The second pipeline must not be checked against the first producer.
+
+    Binding per line assigned every path to the first producer found, so the
+    second read here was validated against `check_pr_live_state.py` and its
+    real producer was never consulted. The coverage guard permits several jq
+    commands per line, so nothing else objected. Same shape as the guard bugs
+    before it: an aggregate over the line where the unit is the invocation.
+    """
+    line = (
+        "A=$(python3 \"$SCRIPTS_DIR/check_pr_live_state.py\" | jq -r '.Data.action') && "
+        "B=$(python3 \"$SCRIPTS_DIR/test_pr_merge_ready.py\" | jq -r '.Tier')\n"
+    )
+
+    assert extract_field_reads(line) == [
+        FieldRead(line=1, script="check_pr_live_state", path=".Data.action"),
+        FieldRead(line=1, script="test_pr_merge_ready", path=".Tier"),
+    ]
+
+
+def test_a_captured_variable_nearer_the_jq_wins_over_an_earlier_producer() -> None:
+    """Nearest input wins, so a producer captured earlier does not steal the bind.
+
+    `X=$(a.py); printf '%s' "$LIVE" | jq` feeds the jq from `$LIVE`. Taking the
+    last producer seen on the line would bind it to `a.py` instead.
+    """
+    body = (
+        'LIVE=$(python3 "$SCRIPTS_DIR/check_pr_live_state.py" --output-format json)\n'
+        'X=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR") '
+        "&& Y=$(printf '%s' \"$LIVE\" | jq -r '.Data.action')\n"
+    )
+
+    assert extract_field_reads(body) == [
+        FieldRead(line=2, script="check_pr_live_state", path=".Data.action")
     ]

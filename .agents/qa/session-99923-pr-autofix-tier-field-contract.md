@@ -117,9 +117,9 @@ The guard now fails and names the missed lines. Restored; 32 passed.
 
 | Command | Result |
 |---|---|
-| `uv run pytest tests/commands/test_pr_autofix_field_contract.py` | 32 passed |
+| `uv run pytest tests/commands/test_pr_autofix_field_contract.py` | 34 passed |
 | `uv run pytest tests/commands/test_pr_autofix_tier_dispatch_runtime.py` | 24 passed |
-| `uv run pytest tests/commands/ tests/skills/pr-autofix/` | 424 passed, 1 skipped |
+| `uv run pytest tests/commands/ tests/skills/pr-autofix/` | 426 passed, 1 skipped |
 | the four `tests/test_pr_autofix_*.py` suites plus the two above | 662 passed, 1 skipped |
 | `uv run ruff check tests/commands/` | All checks passed |
 | `uv run python build/scripts/build_all.py --check` | no staleness |
@@ -214,6 +214,37 @@ Copilot then found two holes in that harness, both real and both closed:
 Two of those controls assert behavior the static gate cannot see at all. The
 round-cap breaker firing on T3 and T4, and the T1 PR keeping the auto-merge it
 earned, are properties of the shell conditions, not of the `jq` path.
+
+### Fifth pass: the same aggregate bug, a fourth time
+
+Copilot found that `extract_field_reads` bound every path on a logical line to
+the first producer on that line. A line running two producer pipelines had its
+second read checked against the first producer's schema, so a real mismatch
+there could pass. The invocation-coverage guard deliberately permits several jq
+commands per line, so the two together made the hole reachable rather than
+theoretical.
+
+This is the fourth instance of one shape in this PR: an aggregate over the line
+where the unit that must be checked is the invocation. Presence, then path
+count, then programs, and now the producer binding.
+
+Fixed by pairing each jq program with the text that actually feeds it, the
+window between the previous program and this one, with the nearer of a direct
+invocation and a captured-variable reference winning inside that window. The
+tie-break matters: `X=$(a.py); printf '%s' "$LIVE" | jq` feeds the jq from
+`$LIVE`, so taking the last producer on the line would mis-bind it to `a.py`.
+
+Two regression cases added, and verified by restoring the per-line binding:
+
+```
+FAILED test_two_producers_on_one_line_each_bind_to_their_own_jq
+FAILED test_a_captured_variable_nearer_the_jq_wins_over_an_earlier_producer
+2 failed, 32 passed
+```
+
+Restored; 34 passed. The 16 reads in the real command body bind exactly as
+before, so this widens what the gate can catch without moving what it currently
+reports.
 
 ## Known limits
 
