@@ -90,11 +90,16 @@ table = adr[adr.index("| Strategy | Use Case | Behavior |"):
             adr.index("Route to high-level-advisor |") + len("Route to high-level-advisor |")]
 proto = adr[adr.index("1. Orchestrator dispatches to N agents in parallel"):
             adr.index("4. Final decision applied") + len("4. Final decision applied")]
-for f in (".agents/AGENT-SYSTEM.md", "docs/orchestrator-routing-algorithm.md",
-          ".agents/SESSION-PROTOCOL.md"):
+for f in (".agents/AGENT-SYSTEM.md", "docs/orchestrator-routing-algorithm.md"):
     s = Path(f).read_text()
     print(f, "table:", table in s, "protocol:", proto in s, "hla:", "high-level-advisor" in s)
 ```
+
+`.agents/SESSION-PROTOCOL.md` was the third path in this block until PR #5179
+deleted the file upstream. Running it against a deleted path raises
+`FileNotFoundError`, so the check that was meant to prove the claim would
+instead fail to run at all. Dropped rather than left as a broken repro. Refs
+#5177 review (Copilot).
 
 ## The five findings from #5130, and where each is answered
 
@@ -102,7 +107,7 @@ for f in (".agents/AGENT-SYSTEM.md", "docs/orchestrator-routing-algorithm.md",
 |---|---|---|
 | 1 | `AGENT-SYSTEM.md` still carried a full duplicate | Section 2.5 replaced. 149 lines out, a 58-line coordination section in. |
 | 2 | ~40 templates carry `tier:` pointing at a deleted definition | 186 files across six trees migrated to `role:`, in two frontmatter shapes. See "The two shapes" below. |
-| 3 | Replacement prose said "escalate to the orchestrator"; ADR-009 says `high-level-advisor` | All three name `high-level-advisor`. The two substantive replacements quote ADR-009 verbatim; the SESSION-PROTOCOL pointer summarizes. See the per-file table above. |
+| 3 | Replacement prose said "escalate to the orchestrator"; ADR-009 says `high-level-advisor` | Both surviving documents name `high-level-advisor` and quote ADR-009 verbatim. Originally three: the `SESSION-PROTOCOL.md` pointer summarized rather than quoted, and that file was deleted upstream by PR #5179. See the per-file table above. |
 | 4 | `detect_agent_drift.py` baselines merge-resolver at 20.7% because of tier enrichment | Re-measured. See below. |
 | 5 | #1769 plans relocation, not deletion | Reconciled above. Relocation target does not exist; #1769's table no longer claims the section. |
 

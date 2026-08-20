@@ -205,8 +205,37 @@ def _tracked_markdown() -> list[str]:
     return [name for name in result.stdout.decode("utf-8").split("\0") if name]
 
 
+# Suffixes distinctive enough to identify an agent file without reading its
+# role. Measured across every tracked markdown file: `.agent.md` and
+# `.shared.md` occur only inside configured agent trees, so they carry no false
+# positives. The two trees that use a bare `.md` are not listed, because that
+# suffix also matches hundreds of ordinary documents.
+_AGENT_FILE_SUFFIXES = (".agent.md", ".shared.md")
+
+
+def _looks_like_an_agent_file(name: str, path: Path, front: dict) -> bool:
+    """Two independent signals, so neither alone has to be complete.
+
+    The frontmatter signal catches a role or tier of any value. The suffix
+    signal catches a file that declares no role at all, which the frontmatter
+    signal cannot see and which Copilot found uncovered on PR #5177: the
+    negative control there promised "absent or misspelled" and only exercised
+    misspelled.
+
+    Residual, stated rather than papered over: a new tree that uses a bare
+    `.md` suffix *and* omits `role` entirely is still invisible here. Closing
+    that would mean treating every markdown file with a `description` as an
+    agent, which pulls in skills, prompts, and analysis documents. The two
+    signals below cover every naming convention the repository actually uses
+    for agents.
+    """
+    if _declares_agent_metadata(front):
+        return True
+    return name.endswith(_AGENT_FILE_SUFFIXES) and _vamr.is_agent_definition(path)
+
+
 def _discover_agent_trees() -> set[str]:
-    """Every tracked directory holding agent frontmatter, found by search, not config."""
+    """Every tracked directory holding agent files, found by search, not config."""
     found: set[str] = set()
     for name in _tracked_markdown():
         if name in _EXEMPT_FILES:
@@ -215,7 +244,7 @@ def _discover_agent_trees() -> set[str]:
         if not path.is_file():
             continue
         front = _frontmatter(path)
-        if front is not None and _declares_agent_metadata(front):
+        if front is not None and _looks_like_an_agent_file(name, path, front):
             found.add(PurePosixPath(name).parent.as_posix())
     return found
 
@@ -252,30 +281,49 @@ def test_every_on_disk_agent_tree_is_configured():
     )
 
 
-def test_discovery_does_not_depend_on_the_field_it_validates(tmp_path):
-    """A new tree must be discovered even when its role is absent or misspelled.
+def test_discovery_does_not_depend_on_the_field_it_validates():
+    """A new tree must be discovered when its role is misspelled, empty, or absent.
 
-    This is the hole Copilot found on PR #5177. Discovery used to match only
-    valid roles and legacy tiers, so `src/new-agents/foo.agent.md` carrying
-    `role: strategc` was not seen as agent metadata at all. The converse guard
-    passed because it found no new tree, and the known-role guard passed because
-    it only scans configured trees. A whole unconfigured tree went unnoticed
-    precisely because its role was wrong, which inverts the intent.
+    Two rounds of review on this one test. Copilot first found discovery
+    matching only valid roles, so `role: strategc` in a new tree was invisible.
+    Copilot then found the fix incomplete: the docstring promised "absent or
+    misspelled" while every case still carried a role or tier, so a tree whose
+    files omit `role` entirely stayed invisible and the control read as passing.
 
-    Exercised against the predicate rather than the filesystem, so it does not
-    write into the repository or race the suites that share it.
+    Both signals are exercised here. Frontmatter carrying any string role or
+    tier is one. A distinctive agent suffix on a real agent definition is the
+    other, and it is what covers the absent case.
     """
-    escapes = [
+    by_frontmatter = [
         {"name": "foo", "description": "misspelled", "role": "strategc"},
         {"name": "foo", "description": "empty", "role": ""},
         {"name": "foo", "description": "legacy top level", "tier": "builder"},
         {"name": "foo", "description": "nested misspell", "metadata": {"role": "coordinatr"}},
     ]
-    missed = [case for case in escapes if not _declares_agent_metadata(case)]
+    missed = [case for case in by_frontmatter if not _declares_agent_metadata(case)]
     assert not missed, f"agent metadata not recognized, so its tree stays invisible: {missed}"
 
-    # The converse: the overloaded integer tiers must still be excluded, or every
-    # skill and Serena memory becomes a spurious unconfigured tree.
+    # The absent-role case, which the frontmatter signal cannot see by design.
+    absent = {"name": "foo", "description": "a new agent declaring no role at all"}
+    assert not _declares_agent_metadata(absent), (
+        "frontmatter signal is not supposed to fire without a role or tier key; "
+        "if it does, the suffix signal below is untested"
+    )
+    real_agent = next(
+        path for path in _agent_definitions() if path.name.endswith(_AGENT_FILE_SUFFIXES)
+    )
+    relative = real_agent.relative_to(_REPO_ROOT).as_posix()
+    front = _frontmatter(real_agent)
+    assert front is not None
+    stripped = {key: value for key, value in front.items() if key not in {"role", "tier"}}
+    assert not _declares_agent_metadata(stripped), "fixture still carries a role; test is vacuous"
+    assert _looks_like_an_agent_file(relative, real_agent, stripped), (
+        "a real agent file with its role stripped is still not recognized, so a new "
+        "tree whose agents omit `role` would go undiscovered"
+    )
+
+    # The converse: overloaded integer tiers must stay excluded, or every skill
+    # and Serena memory becomes a spurious unconfigured tree.
     not_agents = [
         {"name": "s", "description": "skill tier", "metadata": {"tier": 3}},
         {"name": "m", "description": "memory tier", "tier": 2},
