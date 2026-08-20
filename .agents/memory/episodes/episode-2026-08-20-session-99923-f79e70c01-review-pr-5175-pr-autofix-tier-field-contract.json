@@ -26,6 +26,19 @@
       "caused_by": [
         "e001"
       ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-20T01:51:21+00:00",
+      "type": "commit",
+      "content": "Commit: c8ef39989bef26b36a032bd559c3c05ba10a1cf3",
+      "caused_by": [
+        "e002"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
     }
@@ -35,13 +48,14 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 5
+    "commits": 3,
+    "files_changed": 7
   },
   "lessons": [
     "Derive a producer's output schema statically and check consumers against it. Parse the producer with ast to determine envelope level and top-level keys, then fail the build on any consumer read that disagrees.",
     "Avoid: Trusting a PR body's description of completed work without reading the diff. Check git diff against the merge base before reading the description.",
     "Avoid: Using a Success field to detect the Data envelope. Key envelope detection off the github_core.output emitter call, which is the thing that actually wraps the payload.",
-    "Avoid: Fixing a silent-fallback bug at the instance instead of the class. Ship a gate covering every read of the same shape, not only the one that was reported."
+    "Avoid: Fixing a silent-fallback bug at the instance instead of the class. Ship a gate covering every read of the same shape, not only the one that was reported.",
+    "Avoid: Building a coverage guard on the same regex as the thing it guards. Detect with an independent, weaker pattern (_JQ_TOKEN spots the word jq). Prove the decoupling by re-running the mutation and watching the guard fail."
   ]
 }

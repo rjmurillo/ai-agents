@@ -74,7 +74,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ruff clean on the new test; 22 pass in the new file; 459 passed and 1 skipped across the pr-autofix behavioral suites and tests/commands; mypy ratchet clean on the changed file."
+        "Evidence": "ruff clean across tests/commands; 29 pass in the new contract file; 397 passed and 1 skipped across tests/commands and tests/skills/pr-autofix; 462 passed and 1 skipped including the pr-autofix behavioral suites; build_all.py --check reports no staleness; mypy ratchet clean."
       },
       "qaValidation": {
         "level": "MUST",
@@ -123,6 +123,10 @@
     {
       "activity": "Audited the remaining reads",
       "finding": "All 16 reads bind to a producer with zero unbound. The other 15 were already correct: 13 Data-wrapped reads against check_pr_live_state.py, pr_autofix_lease.py, check_pr_round_cap.py, and get_pr_context.py, plus a flat '.merged' read against test_pr_merged.py."
+    },
+    {
+      "activity": "Addressed spec-validation findings on PR #5176",
+      "finding": "The bot correctly found the first gate did not catch the defect issue #5094 reported: field names were checked only for flat producers, so `.Data.tier` from check_pr_live_state.py passed clean. Extended derivation to wrapped producers by unioning keys across every write_skill_output/write_skill_error payload. Also had to teach _keys_bound_to about ast.AnnAssign, since get_pr_context.py builds its payload that way and an Assign-only walk would have failed the valid `.Data.auto_merge_method` read as a phantom field. Closed two further gaps: multi-path jq programs, and a coverage guard that shared the extractor's regex and so went blind in lockstep with it."
     }
   ],
   "outcomes": {
@@ -167,10 +171,15 @@
         "antipattern": "Fixing a silent-fallback bug at the instance instead of the class",
         "consequence": "The issue #5094 repair moved the read to the right producer but kept the wrong envelope, reproducing the identical silent-UNKNOWN defect one script over.",
         "correction": "Ship a gate covering every read of the same shape, not only the one that was reported."
+      },
+      {
+        "antipattern": "Building a coverage guard on the same regex as the thing it guards",
+        "consequence": "test_extractor_reaches_every_jq_invocation first reused _JQ_PROGRAM. Mutating that pattern to match nothing blinded the extractor and the guard together, so the guard passed vacuously and certified the blindness it exists to catch.",
+        "correction": "Detect with an independent, weaker pattern (_JQ_TOKEN spots the word jq). Prove the decoupling by re-running the mutation and watching the guard fail."
       }
     ]
   },
-  "endingCommit": "ee7db91b1a5f5c9d40a6f4235af9f0d1f173b108",
+  "endingCommit": "c8ef39989bef26b36a032bd559c3c05ba10a1cf3",
   "nextSteps": [
     "Open a draft PR from claude/pr-5175-review-v21yk2 referencing issue #5094",
     "Report on PR #5175 that its branch carries no diff so the owner can decide whether to close it in favor of this change"
