@@ -2,7 +2,7 @@
 name: debug
 description: 'Debug your application to find and fix a bug. Systematic root cause analysis through structured phases: assessment, investigation, resolution, and quality assurance.'
 model: opus
-tier: builder
+role: executor
 argument-hint: Describe the bug, error message, or unexpected behavior to investigate
 ---
 
