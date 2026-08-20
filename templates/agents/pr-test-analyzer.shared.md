@@ -1,5 +1,5 @@
 ---
-tier: builder
+role: executor
 description: Use this agent when you need to review a pull request for test coverage quality and completeness. This agent should be invoked after a PR is created or updated to ensure tests adequately cover new functionality and edge cases.
 argument-hint: Point to the PR or changes whose test coverage to assess
 tools_vscode:
