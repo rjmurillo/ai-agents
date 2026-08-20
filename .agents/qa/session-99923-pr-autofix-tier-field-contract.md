@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract.json
-qaCommit: 8c301f43758aa07cadab58a701e06169df372609
+qaCommit: bcf83e6d1b5e3eb4d539163e75d83b5be09d7bc2
 ---
 
 # QA Report: session 99923, pr-autofix tier field contract
@@ -9,7 +9,7 @@ qaCommit: 8c301f43758aa07cadab58a701e06169df372609
 - Issue: #5094
 - PR: #5176
 - Session log: `.agents/sessions/2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract.json`
-- QA commit: `8c301f43758aa07cadab58a701e06169df372609`
+- QA commit: `bcf83e6d1b5e3eb4d539163e75d83b5be09d7bc2`
 - Branch: `claude/pr-5175-review-v21yk2`
 
 ## Verdict
@@ -40,8 +40,13 @@ reads it, and the two downstream gates compare it in opposite directions:
 
 | Gate | Condition | `TIER=UNKNOWN` before the fix | After the fix |
 |---|---|---|---|
-| Round-cap circuit breaker (`pr-autofix.md:421`) | `TIER = T3` or `TIER = T4` | never fired: the breaker was inert | fires on real T3/T4 |
-| Auto-merge disarm (`pr-autofix.md:452`) | `TIER != T1` | fired on **every** armed PR | spares genuine T1 |
+| Round-cap circuit breaker | `TIER = T3` or `TIER = T4` | never fired: the breaker was inert | fires on real T3/T4 |
+| Auto-merge disarm | `TIER != T1` | fired on **every** armed PR | spares genuine T1 |
+
+Both conditions live between the `# tier-dispatch:start` and `:end` markers in
+`.claude/commands/pr-autofix.md`. Earlier drafts of this table cited absolute
+line numbers, and adding the markers moved both by four; the markers are the
+stable anchor and the runtime suite extracts on them, so cite those instead.
 
 So one gate was off and the other was stuck on, stripping auto-merge from
 legitimately land-ready T1 PRs. The first version of this report, the PR body,
