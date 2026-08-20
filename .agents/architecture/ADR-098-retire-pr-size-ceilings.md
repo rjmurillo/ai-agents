@@ -77,16 +77,20 @@ That last point sharpens the result rather than softening it. Because #4846 was 
 
 The closed-unmerged set is not the only place a counterexample can live, and an earlier revision of this decision treated it as though it were. A pull request the ceiling is *currently* holding is open, not closed, so the open labeled population had to be classified too. A reviewer raised this; the search is `label:"needs-split" created:2026-08-06..2026-08-20 is:open`, and at the stated cutoff it returns four.
 
-| Pull request | `commit-limit-bypass` | Reading |
-|---|---|---|
-| #5177 | yes | Reached the blocking tier; relief granted |
-| #5178 | yes | Reached the blocking tier; relief granted |
-| #5176 | no | Advisory tier only |
-| #5181 | no | Advisory tier only, and is this decision's own pull request |
+| Pull request | Authored non-merge | Qualifying `main` merge | Effective limit | Blocked |
+|---|---|---|---|---|
+| #5177 | not measured | not measured | carries `commit-limit-bypass` | Reached the blocking tier; relief granted |
+| #5178 | not measured | not measured | carries `commit-limit-bypass` | Reached the blocking tier; relief granted |
+| #5176 | 40 (44 total, 4 merges) | yes | 40 | No: the gate blocks on `count > limit`, and 40 is not greater than 40 |
+| #5181 | 14 (16 total, 2 merges) | yes | 40 | No |
+
+These are measured, not inferred, and the distinction matters because an earlier revision of this decision got it wrong twice. Absence of `commit-limit-bypass` marks relief **not granted**, not the threshold **not reached**, and `needs-split` fires from the warning tier. So the label cannot clear a pull request; only the arithmetic can. The first version of this table read the two unlabeled rows as advisory-tier on exactly the inference this decision had already withdrawn for #4821, and a reviewer caught the repeat.
+
+#5176 is the sharpest case in either population. It sits at 40 authored non-merge commits against a relieved ceiling of exactly 40, so it is one commit from being blocked, and it got there through a real review cycle: its history is dominated by fix-plus-rebind pairs answering successive review findings. It is the #4718 shape at the boundary.
 
 No open pull request is held by the ceiling without relief. Two reached the blocking tier and both were relieved by hand, which is two of the twenty bypass applications the cost figure counts. #5177 is the same pull request cited below for spending its output on gate arithmetic, so the two halves of that observation are the same case seen from opposite sides.
 
-Combining both populations: across eleven labeled pull requests classified by hand, closed and open, the blocking ceiling stopped nothing. Three reached the blocking tier and all three were relieved.
+Combining both populations: across eleven labeled pull requests classified by hand, closed and open, the blocking ceiling stopped nothing. Three reached the blocking tier and all three were relieved, and one more sits exactly at its relieved ceiling.
 
 ### What actually stopped the bad one
 

@@ -125,7 +125,7 @@ After the council decision was recorded, external review found one more, and it 
 
 Six roles had reviewed that enumeration across two rounds. Analyst, whose explicit mandate was evidence adequacy, had pressed hard on sample size and on the two unread cases, and did not raise the missing population. Neither did the orchestrator who built it.
 
-Classifying the open set at the same cutoff returned four. #5177 and #5178 carry `commit-limit-bypass`, so both reached the blocking tier and both were relieved by hand; #5176 and #5181 carry the advisory label only. No open pull request is held by the ceiling without relief, so the finding survived. It survived on evidence that had not existed when the council voted for it.
+Classifying the open set at the same cutoff returned four, and the first attempt at classifying it repeated the very inference this decision had already withdrawn: it read the absence of `commit-limit-bypass` on #5176 and #5181 as proof they were advisory-tier, when that label marks relief not granted rather than the threshold not reached. A second reviewer caught the repeat. Measured properly, #5176 carries 40 authored non-merge commits against a relieved ceiling of exactly 40, and #5181 carries 14 against the same 40. Neither is blocked, and #5176 misses by one commit. The finding survived, on evidence that had not existed when the council voted for it and after the same error was made twice.
 
 That is worth recording plainly. The conclusion was right and the reasoning behind it was incomplete, which is the condition a review process exists to detect and this one did not.
 
