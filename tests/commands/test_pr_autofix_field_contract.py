@@ -2,8 +2,9 @@
 
 Refs #5094. The `/pr-autofix` command body pipes producer scripts through `jq`
 and branches on the result. When a read names a path the producer never emits,
-`jq` yields `null`, the `//` default fires, and the gate silently evaluates as
-if it had evidence. Nothing fails; the gate just stops gating.
+`jq` yields `null`, the `//` default fires, and every downstream comparison
+reads the fallback instead of the producer's value. Nothing fails, and which
+way each branch then goes depends on how it compares the sentinel.
 
 That defect shipped twice in this file, one script apart. First `TIER` read
 `.Data.tier` from `check_pr_live_state.py`, which emits no tier field at all.

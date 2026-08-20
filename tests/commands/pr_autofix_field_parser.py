@@ -405,7 +405,8 @@ def _envelope_violation(read: FieldRead, schema: ProducerSchema) -> str | None:
             f"line {read.line}: reads `{read.path}` from {schema.script}.py, which "
             f"prints a flat object with no Data envelope. Use "
             f"`{read.path.replace('.Data', '', 1)}`. The read yields null today, "
-            f"so the `//` default fires and the gate never gates."
+            f"so the `//` default fires and every downstream comparison reads "
+            f"the fallback instead of the producer's value."
         )
     return None
 
