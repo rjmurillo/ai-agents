@@ -147,16 +147,24 @@ def test_unauthenticated_gh_is_named(monkeypatch):
 
 
 def test_rate_limit_is_named(monkeypatch):
+    """Rate-limit 403 must be classified as a rate limit, not a policy denial.
+
+    GitHub rate-limit responses commonly look like ``API rate limit exceeded
+    (HTTP 403)``. The classifier must check for rate-limit wording before it
+    checks for 403, otherwise these transient errors get the "will not pass on
+    retry" message intended for permanent policy denials.
+    """
     monkeypatch.setattr(
         mod,
         "_run_gh_pr_view",
-        lambda branch: _proc(1, "", "API rate limit exceeded"),
+        lambda branch: _proc(1, "", "API rate limit exceeded (HTTP 403)"),
     )
 
     code, status = mod.check_bypass_label("commit-limit-bypass", None)
 
     assert code == mod.EXIT_EXTERNAL
     assert "rate limit" in status
+    assert "will not pass on retry" not in status
 
 
 def test_failure_message_does_not_name_gh_pr_view(monkeypatch):

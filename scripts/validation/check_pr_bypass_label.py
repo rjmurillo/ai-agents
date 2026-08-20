@@ -214,12 +214,12 @@ def _describe_gh_failure(proc: subprocess.CompletedProcess[str]) -> str:
     lowered = stderr.lower()
     detail = f"exit {proc.returncode}"
 
-    if "403" in lowered or "not enabled for this session" in lowered:
+    if "rate limit" in lowered:
+        reason = "gh hit a rate limit"
+    elif "403" in lowered or "not enabled for this session" in lowered:
         reason = "gh is denied by policy (HTTP 403); this will not pass on retry"
     elif "401" in lowered or "invalid" in lowered and "token" in lowered:
         reason = "gh is not authenticated; check GH_TOKEN"
-    elif "rate limit" in lowered:
-        reason = "gh hit a rate limit"
     else:
         reason = "gh label lookup failed"
 
