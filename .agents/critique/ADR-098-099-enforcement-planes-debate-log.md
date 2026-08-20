@@ -33,6 +33,26 @@ Security then found the finding that falsified the design's premise outright. `B
 
 **Two governance rules the drafts shipped against.** Independent-thinker found `.claude/rules/governance.md` MUST-1 (human approval, auto-merge prohibited for governance files) unlisted in the impact table. Critic and high-level-advisor found MUST NOT 1 (no reducing review requirements without a unanimous-consensus ADR) uncited. Both decisions reduce review requirements, so both rules apply. What they bind was itself corrected later in the review and is stated at the top of this log: `.claude/rules/governance.md` is scoped by its frontmatter to `.agents/governance/**`, so MUST-1 and MUST NOT 1 gate the implementation pull requests, which edit governance files, and not these two architecture proposals. The finding stands; the scope claim in the first version of this paragraph did not.
 
+## Round 7: the panel re-run, with verification assigned
+
+Round 7 exists because a reviewer applied the contract correctly: consensus was recorded on the round-6 text, both decisions changed materially afterwards under bot review, and the contract requires consensus on the revision being accepted. The panel was re-run against head `a6bfda1b6`.
+
+**One thing was changed about how it was run, and it was changed as an experiment.** This log records two competing explanations for why six rounds of this panel converged to Accept on text holding a dozen-plus factual errors: single-vendor correlation across six Anthropic-model roles, and the cheaper, falsifiable alternative that no role was ever assigned to verify claims against the tree. Round 7 assigns verification to every role explicitly, and makes it the analyst's whole job. If the panel comes back clean, the correlation explanation gains support. If it finds real defects, the assignment was the missing part.
+
+**It found real defects, in text that had already survived ten external review rounds.** That is evidence for the cheaper explanation, and it means the fix is a role assignment rather than a vendor change. Recorded before the verdicts, because the result is more useful than the votes.
+
+| Role | Verdict | Load-bearing finding |
+|---|---|---|
+| high-level-advisor | Disagree-and-Commit | ADR-098 item 1 said `pr_commit_count.py` "returns 0 in every case". It returns 2 and 3 on its error paths (`:461`, `:480`, `:483`). Also: cut the 90 day re-measure, split the two decisions, freeze the text |
+| security | Disagree-and-Commit | The manufactured-green skip-job pattern is live on a **required** context, not only the harmless one this decision cited. Also `dismiss_stale_reviews_on_push` is unbaselined, and a citation pointed at a comment header |
+| analyst, architect, critic, independent-thinker | not yet returned | Round 7 is incomplete. No consensus is claimed for it |
+
+**The required-context finding, and the correction to it.** Security reported that `pytest.yml` pairs `test-result` and `skip-tests` under the same job name `Run Python Tests`, that the name is a pinned required context (`ruleset_required_contexts.py:14`), and that a pull request editing its own path filter therefore yields a green required check with zero tests run. The first two facts check out and are important: this decision had cited only `passive-context-budget.yml`, whose context is not required, and so understated its own thesis in its own repository.
+
+The exploit claim does not survive checking. The filter list at `pytest.yml:69-100` covers `**/*.yml` and also names `.github/workflows/pytest.yml` by path, so any edit to the filter marks Python inputs changed and the real test job runs. The single-pull-request attack closes on itself, deliberately. The residual is a two-pull-request sequence whose first step runs the tests and shows the filter change in its diff. ADR-099 now carries the verified version rather than the reported one.
+
+That correction is worth its own line. A panel role produced a finding, and checking the finding against the tree improved it in both directions: the underlying defect was worse than this decision had recorded, and the attack was less immediate than the reviewer had reported. Verification is not only a filter against false findings; it is what turns a true finding into an accurate one.
+
 ## Evidence corrections made during the debate
 
 **The cost figure counted labels and said humans, and the repository documents the counterexample in the gate's own source.** ADR-098 asserted "20 human bypass applications" in seven places. The query returns 20 labeled pull requests and says nothing about who labeled them. `scripts/validation/git_hook_policy.py:6055-6070` records an agent applying `commit-limit-bypass` to PR #4735 on 2026-08-08 **because this gate's failure message named the label as the reader's next step** (issue #4782), and states the mechanism directly: "Naming the label as the reader's next step tells whoever tripped the gate to grant themselves a permission they do not hold." The message gained a prohibition; the label gained no enforcement, because a GitHub label carries none.
