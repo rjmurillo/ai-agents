@@ -69,12 +69,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Twelve commits on claude/pr-5175-review-v21yk2, each five authored files or fewer: the fix and mirror, the contract gate and its parser split, three hardening passes driven by spec-validation findings, and the session/QA evidence rebinds."
+        "Evidence": "Every commit on claude/pr-5175-review-v21yk2 touches five authored files or fewer, one logical change each: the fix and mirror, the contract gate and its parser split, the hardening passes driven by spec-validation findings, the tier-dispatch runtime suite, and the session/QA evidence rebinds. No count is recorded here on purpose, because correcting the log is itself a commit, so any number written into it is stale the moment it lands."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ruff clean across tests/commands; 32 pass in the contract file; 400 passed and 1 skipped across tests/commands and tests/skills/pr-autofix; build_all.py --check reports no staleness; pre_pr.py all validations passed."
+        "Evidence": "ruff check and ruff format clean on the new test file; 32 pass in the contract file and 24 in the tier-dispatch runtime file; 424 passed and 1 skipped across tests/commands and tests/skills/pr-autofix; 662 passed and 1 skipped adding the four tests/test_pr_autofix_*.py suites; build_all.py --check reports no staleness; pre_pr.py all validations passed."
       },
       "qaValidation": {
         "level": "MUST",
@@ -135,6 +135,10 @@
     {
       "activity": "Addressed Copilot review on PR #5176",
       "finding": "Three findings, all verified against the code and all real. (1) The 'two disabled gates' claim was half wrong: the disarm gate tests TIER != T1, so UNKNOWN made it fire always rather than never. Corrected in the command comment, test docstring, session log, QA report, and PR body, with a truth table so the asymmetry is explicit. (2) The session-log deliverable still said 22 tests; the module has 32. (3) The TIER invocation does not pass --is-bot, so bot PRs now classify T2-T4 instead of T5. That third one is real but out of scope here: get_pr_context.py emits author as a login string with no bot flag, and it is fetched after the TIER call, so closing it means either a producer change or a login heuristic plus a fetch reorder. Raised on the thread with a proposal instead of pushing it."
+    },
+    {
+      "activity": "Closed the behavioral-verification gap after a bot refuted the reason it was left open",
+      "finding": "The QA report and PR body claimed behavioral verification of the two gates needed the live PR loop rather than a static gate. Copilot's second review filed a suppressed finding naming tests/test_pr_autofix_late_live_state_gate.py, which already extracts a marker-delimited block from this same command (_extract_guard at :38-43), writes fake producer scripts (_write_fake_scripts at :54), and runs the block under bash -c (_run_race at :238-352) parameterized over the source and the mirror. Checked the premise, found the claim false, and closed the gap: added tier-dispatch markers to the block and tests/commands/test_pr_autofix_tier_dispatch_runtime.py, 24 cases over both docs. Controls: restoring .Data.Tier fails 10, weakening the disarm gate's T1 exemption fails 2, making the round-cap breaker inert fails 6, and a comment-only edit inside the block passes 24 as the inverted control."
     }
   ],
   "outcomes": {
@@ -153,6 +157,11 @@
         "type": "test",
         "path": "tests/commands/test_pr_autofix_field_contract.py",
         "description": "Static contract gate binding every jq read in the command body to its producer's ast-derived output shape; 32 tests including negative controls for both envelope-mismatch directions, unknown fields on both producer styles, and coverage guards against the extractor going blind"
+      },
+      {
+        "type": "test",
+        "path": "tests/commands/test_pr_autofix_tier_dispatch_runtime.py",
+        "description": "Runtime suite that extracts the block between the new tier-dispatch markers from both the source command and the generated mirror and executes it under bash with fake producers; 24 cases over T1-armed, T3/T4 round-cap entry, round-cap escalation, unarmed PRs, unreadable auto-merge state, mutation exit 75 versus a real failure, and a dead tier producer. Verified by four mutations including one inverted control that must survive."
       }
     ]
   },
@@ -162,6 +171,11 @@
         "pattern": "Derive a producer's output schema statically and check consumers against it",
         "context": "Shell command bodies read producer JSON through jq. A wrong path yields null, the // default fires, and the gate silently passes with no evidence.",
         "application": "Parse the producer with ast to determine envelope level and top-level keys, then fail the build on any consumer read that disagrees."
+      },
+      {
+        "pattern": "Marker-delimited shell blocks make a prose command executable under test",
+        "context": "A command body is markdown, so its shell is documentation until something runs it. Marker comments carve out a block that a test can extract from every generated copy.",
+        "application": "Wrap the block in start/end comments, extract between them, stub the helper functions and producer scripts, run under bash -c, and parameterize over the source and each generated mirror so a stale mirror fails."
       }
     ],
     "avoidances": [
@@ -194,6 +208,11 @@
         "antipattern": "Describing a stuck sentinel as 'the gate turns off' without reading each comparison",
         "consequence": "TIER=UNKNOWN was written up as disabling both downstream gates. It disabled the one testing equality (TIER = T3/T4) and stuck ON the one testing inequality (TIER != T1), which stripped auto-merge from every armed PR including genuine T1s. The write-up shipped in five artifacts before a reviewer caught it.",
         "correction": "For a sentinel that reaches more than one branch, tabulate the sentinel against each condition before describing the impact. Equality and inequality tests on the same stuck value fail in opposite directions."
+      },
+      {
+        "antipattern": "Declaring a gap unreachable without searching the repository for the technique",
+        "consequence": "A known limit in the QA report and the PR body claimed behavioral verification of the two gates 'needs the live PR loop, not a static gate', and asked reviewers to accept that. tests/test_pr_autofix_late_live_state_gate.py already extracted a marked block from this same command, faked the producer scripts, and ran it under bash -c. The claim was an absence asserted from no search, and it shipped through three review rounds before a bot filed it as a suppressed finding.",
+        "correction": "An absence claim needs a search, the same as a presence claim, and it is the more dangerous of the two because nothing later trips over it. Before writing that something cannot be tested here, grep the test tree for the shape you say is missing."
       }
     ]
   },

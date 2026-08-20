@@ -97,6 +97,8 @@
     "Avoid: Fixing a silent-fallback bug at the instance instead of the class. Ship a gate covering every read of the same shape, not only the one that was reported.",
     "Avoid: Building a coverage guard on the same regex as the thing it guards. Detect with an independent, weaker pattern (_JQ_TOKEN spots the word jq). Prove the decoupling by re-running the mutation and watching the guard fail.",
     "Avoid: Choosing a coverage comparison a sibling item can balance out. Compare at the granularity of the thing that must be checked, one row per invocation, not an aggregate over the line. Prove it by restoring the old comparison and watching a named test fail.",
-    "Avoid: Describing a stuck sentinel as 'the gate turns off' without reading each comparison. For a sentinel that reaches more than one branch, tabulate the sentinel against each condition before describing the impact. Equality and inequality tests on the same stuck value fail in opposite directions."
+    "Avoid: Describing a stuck sentinel as 'the gate turns off' without reading each comparison. For a sentinel that reaches more than one branch, tabulate the sentinel against each condition before describing the impact. Equality and inequality tests on the same stuck value fail in opposite directions.",
+    "Marker-delimited shell blocks make a prose command executable under test. Wrap the block in start/end comments, extract between them, stub the helper functions and producer scripts, run under bash -c, and parameterize over the source and each generated mirror so a stale mirror fails.",
+    "Avoid: Declaring a gap unreachable without searching the repository for the technique. An absence claim needs a search, the same as a presence claim, and it is the more dangerous of the two because nothing later trips over it. Before writing that something cannot be tested here, grep the test tree for the shape you say is missing."
   ]
 }

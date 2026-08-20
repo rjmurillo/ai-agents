@@ -19,10 +19,11 @@ PASS.
 ## Scope under test
 
 One-line behavior change in `.claude/commands/pr-autofix.md` (tier read moved
-from `.Data.Tier` to `.Tier`), its generated mirror in
-`src/copilot-cli/skills/pr-autofix/SKILL.md`, and the static gate split across
-`tests/commands/pr_autofix_field_parser.py` and
-`tests/commands/test_pr_autofix_field_contract.py`.
+from `.Data.Tier` to `.Tier`) plus tier-dispatch marker comments, its generated
+mirror in `src/copilot-cli/skills/pr-autofix/SKILL.md`, the static gate split
+across `tests/commands/pr_autofix_field_parser.py` and
+`tests/commands/test_pr_autofix_field_contract.py`, and the runtime suite in
+`tests/commands/test_pr_autofix_tier_dispatch_runtime.py`.
 
 ## Evidence
 
@@ -112,8 +113,9 @@ The guard now fails and names the missed lines. Restored; 32 passed.
 | Command | Result |
 |---|---|
 | `uv run pytest tests/commands/test_pr_autofix_field_contract.py` | 32 passed |
-| `uv run pytest tests/commands/ tests/skills/pr-autofix/` | 400 passed, 1 skipped |
-| pr-autofix behavioral suites plus `tests/commands/` | 462 passed, 1 skipped |
+| `uv run pytest tests/commands/test_pr_autofix_tier_dispatch_runtime.py` | 24 passed |
+| `uv run pytest tests/commands/ tests/skills/pr-autofix/` | 424 passed, 1 skipped |
+| the four `tests/test_pr_autofix_*.py` suites plus the two above | 662 passed, 1 skipped |
 | `uv run ruff check tests/commands/` | All checks passed |
 | `uv run python build/scripts/build_all.py --check` | no staleness |
 | `uv run python scripts/validation/pre_pr.py` | All validations passed |
@@ -147,17 +149,56 @@ jq invocation line was parsed. The other 15 were already correct: 13
 against `test_pr_merged.py`. Each now has its field name verified against the
 producer's derived schema, not only its envelope level.
 
+### Fourth pass: the gap I declared unreachable was reachable
+
+The first three passes shipped a known limit saying behavioral verification of
+the two gates "needs the live PR loop, not a static gate", and the PR asked
+reviewers to accept that. Copilot's second review filed it as a suppressed
+finding and named the counter-evidence: `tests/test_pr_autofix_late_live_state_gate.py`
+already extracts a block from this same command between marker comments, writes
+fake producer scripts into a temp `$SCRIPTS_DIR`, and runs the block under
+`bash -c`, parameterized over the source and the generated mirror.
+
+Checked the premise before acting on it. `_extract_guard` at `:38-43` pulls the
+text between `# late-live-state-guard:start` and `:end`; `_write_fake_scripts`
+at `:54` writes a stand-in `check_pr_live_state.py`; `_run_race` at `:238-352`
+assembles the harness and calls `subprocess.run(["bash", "-c", harness], ...)`.
+So the claim was false: the pattern existed in this repository, one directory up
+from the tests I was writing, and I asserted its absence without looking.
+
+Closed rather than re-argued. The tier-dispatch block now carries
+`# tier-dispatch:start` / `:end` markers, and
+`tests/commands/test_pr_autofix_tier_dispatch_runtime.py` runs it against fake
+producers for both docs: 24 cases covering T1-armed, T3 and T4 round-cap entry,
+round-cap escalation stopping before the disarm gate, unarmed PRs, unreadable
+auto-merge state, mutation exit 75 versus a real failure, and a dead tier
+producer.
+
+Controls, each verified by putting the defect or a mutant back:
+
+| Mutation | Result |
+|---|---|
+| Restore `.Data.Tier` in source and mirror | 10 failed, 14 passed |
+| Disarm gate loses its T1 exemption (`!= T1` to `!= T9`) | 2 failed |
+| Round-cap breaker made inert (`T3`/`T4` test to `false`) | 6 failed |
+| Reword a comment inside the block (inverted control, must survive) | 24 passed |
+
+The inverted control is there because a harness whose mutants are all one
+polarity cannot tell "every mutant died" from "this fails no matter what"
+(testing rule MUST-11). Note also what the restore control did to the
+negative-control test itself: rather than passing vacuously against a tree with
+the defect already in it, it failed on its own guard, `shipped tier read not
+found to mutate`.
+
+Two of those controls assert behavior the static gate cannot see at all. The
+round-cap breaker firing on T3 and T4, and the T1 PR keeping the auto-merge it
+earned, are properties of the shell conditions, not of the `jq` path.
+
 ## Known limits
 
 Stated rather than claimed clean, per the clear-the-gate-or-drop-the-claim rule:
 
-1. **No behavioral verification of the two affected gates.** Proving the T3/T4
-   round-cap and non-T1 auto-merge branches actually execute with the parsed
-   tier needs the live PR loop, not a static gate. The breaker has never run,
-   and the disarm gate has only ever run indiscriminately, so the first real
-   runs of both are the test. Spec validation raised this; deliberately out of
-   scope here and flagged in the PR's review focus areas.
-2. **`--is-bot` is never passed, so bot PRs mis-tier.** Copilot found this on
+1. **`--is-bot` is never passed, so bot PRs mis-tier.** Copilot found this on
    PR #5176 and it is real. The command's own tier contract says "Pass
    `--is-bot` when the PR author is a bot" and defines T5 as a bot PR with any
    failure or threads; `classify_tier` returns T5 only when `is_bot` is true.
@@ -174,12 +215,17 @@ Stated rather than claimed clean, per the clear-the-gate-or-drop-the-claim rule:
    heuristic, plus reordering the fetch, plus a new read for the contract gate
    to cover. That is a behavior change to tier dispatch in an autonomous PR
    loop, so it belongs in its own change with its own review.
-3. `_calls_data_emitter` is module-wide, not path-sensitive. A producer that
+2. `_calls_data_emitter` is module-wide, not path-sensitive. A producer that
    wrapped only its error branch while printing flat on success would be
    misclassified. None of the six producers in play does this.
-4. `_keys_bound_to` unions module-wide, so a second same-named dict in another
+3. `_keys_bound_to` unions module-wide, so a second same-named dict in another
    function would widen the accepted field set. Checked: no producer in play has
    one.
+4. The runtime suite fakes the four producers. It proves what the block does
+   with a given tier, round-cap verdict, and auto-merge state; it does not prove
+   the real producers return those shapes. The contract gate covers that half,
+   and one test in the runtime module asserts the fake tier producer still
+   matches the real one's flat, envelope-free output.
 
 ## Second hardening pass
 
