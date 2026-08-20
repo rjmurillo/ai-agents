@@ -236,7 +236,7 @@ def test_extractor_finds_reads_for_every_producer_style(command_body: str) -> No
     assert any(not s.wraps_in_data for s in schemas), "No flat producer covered."
 
 
-_ENVELOPE_CLASSIFICATION = {
+_ENVELOPE_CLASSIFICATION: dict[str, bool] = {
     "test_pr_merge_ready": False,
     "test_pr_merged": False,
     "check_pr_live_state": True,
@@ -246,28 +246,27 @@ _ENVELOPE_CLASSIFICATION = {
 }
 
 
-def test_every_consumed_producer_has_envelope_classification(command_body: str) -> None:
-    """Converse guard: every producer discovered by extract_field_reads is classified.
-
-    test_producer_envelope_classification only checks producers in the hardcoded table.
-    A new producer would never appear there, so its wrap style is never asserted.
-    """
-    consumed = {r.script for r in extract_field_reads(command_body) if r.script}
-    classified = set(_ENVELOPE_CLASSIFICATION.keys())
-    unclassified = consumed - classified
-
-    assert unclassified == set(), (
-        "Producers consumed by pr-autofix.md but missing from the envelope classification table:\n"
-        + "\n".join(f"  {s}.py" for s in sorted(unclassified))
-    )
-
-
-@pytest.mark.parametrize(
-    ("script", "expected_wrap"),
-    list(_ENVELOPE_CLASSIFICATION.items()),
-)
+@pytest.mark.parametrize(("script", "expected_wrap"), sorted(_ENVELOPE_CLASSIFICATION.items()))
 def test_producer_envelope_classification(script: str, expected_wrap: bool) -> None:
     assert derive_producer_schema(script).wraps_in_data is expected_wrap
+
+
+def test_every_consumed_producer_has_a_pinned_envelope(command_body: str) -> None:
+    """The converse of the pins above: nothing may be consumed without one.
+
+    Without this, the pins cover a hardcoded list rather than the producers the
+    command actually reads, so a newly consumed script gets no wrap pin and the
+    suite stays green. Same shape as the guard bugs before it: the set that is
+    checked and the set that matters were allowed to drift apart.
+    """
+    consumed = {r.script for r in extract_field_reads(command_body) if r.script}
+    unpinned = sorted(consumed - _ENVELOPE_CLASSIFICATION.keys())
+
+    assert unpinned == [], (
+        "These producers are read by the command but have no envelope pin, so a "
+        "misclassification would go unnoticed:\n"
+        + "\n".join(f"  {script}.py" for script in unpinned)
+    )
 
 
 def test_flat_producer_keys_include_the_fields_the_command_reads() -> None:

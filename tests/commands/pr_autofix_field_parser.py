@@ -389,14 +389,6 @@ def jq_invocation_lines(text: str) -> list[tuple[int, str]]:
     ]
 
 
-def _bound_source(line: str, bindings: dict[str, str]) -> str | None:
-    """Producer behind the first captured variable referenced on `line`."""
-    for var in _VAR_REF.findall(line):
-        if var in bindings:
-            return bindings[var]
-    return None
-
-
 # The check itself.
 
 
