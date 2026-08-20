@@ -1741,8 +1741,9 @@ class TestValidateSessionLog:
     def test_valid_minimal_log(self) -> None:
         """Valid minimal log passes validation.
 
-        "Minimal" means the six root fields SESSION-PROTOCOL.md requires, not
-        the two the schema used to name (issue #3763).
+        "Minimal" means the six root fields the schema requires
+        (.agents/schemas/session-log.schema.json), not the two it used to
+        name (issue #3763).
         """
         data = {
             "schemaVersion": "1.0",
@@ -4119,7 +4120,7 @@ class TestEvidenceAgreesWithSession:
         assert not any("endingCommit is empty" in w for w in validate_session_log(log).warnings)
 
     def test_a_log_with_no_next_steps_field_warns(self) -> None:
-        """`SESSION-PROTOCOL.md` lists `nextSteps` as a required top-level field."""
+        """The schema lists `nextSteps` as a required top-level field."""
         log = _make_valid_log()
         log.pop("nextSteps", None)
         assert any("nextSteps" in w for w in validate_session_log(log).warnings)
@@ -4468,9 +4469,9 @@ class TestARequiredItemCannotChooseItsOwnEnforcement:
         assert not any(e.startswith(_MISSING_LEVEL_PREFIX) for e in errors)
 
     def test_a_demoted_incomplete_item_without_evidence_is_an_error(self) -> None:
-        """The bypass #3747 names. SESSION-PROTOCOL.md line 20 already requires
-        documented justification to deviate from a MUST, so this enforces the
-        rule as written rather than inventing policy."""
+        """The bypass #3747 names. Deviating from a MUST already requires
+        documented justification, so this enforces the rule as written
+        rather than inventing policy."""
         errors = self._check({"complete": False, "level": "SHOULD", "evidence": ""}).errors
         assert any(e.startswith(_UNJUSTIFIED_DEMOTION_PREFIX) for e in errors)
 
@@ -4558,9 +4559,10 @@ class TestARequiredItemCannotChooseItsOwnEnforcement:
 
 
 class TestTheSchemaNamesEveryRequiredRootField:
-    """Issue #3763: SESSION-PROTOCOL.md lists six required root fields and
-    build_session_log emits all six, but the schema named two. The schema was
-    the single document disagreeing with both the prose and the generator.
+    """Issue #3763: the session protocol prose listed six required root
+    fields and build_session_log emits all six, but the schema named two.
+    The schema was the single document disagreeing with both the prose and
+    the generator.
     """
 
     def test_each_promoted_field_is_individually_required(self) -> None:
