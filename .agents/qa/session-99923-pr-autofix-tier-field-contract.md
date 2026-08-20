@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract.json
-qaCommit: b933155a58f78652ed09289e561f867616ddb0b7
+qaCommit: 843e3fe0d8130e7efc532a6513dbb2e5a8197b0c
 ---
 
 # QA Report: session 99923, pr-autofix tier field contract
@@ -9,7 +9,7 @@ qaCommit: b933155a58f78652ed09289e561f867616ddb0b7
 - Issue: #5094
 - PR: #5176
 - Session log: `.agents/sessions/2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract.json`
-- QA commit: `b933155a58f78652ed09289e561f867616ddb0b7`
+- QA commit: `843e3fe0d8130e7efc532a6513dbb2e5a8197b0c`
 - Branch: `claude/pr-5175-review-v21yk2`
 
 ## Verdict
@@ -309,6 +309,31 @@ pushed `b933155a5` while I was committing the identical three-line removal
 locally; I reset onto its commit and dropped my duplicate, the same resolution
 used for the three earlier collisions on this branch. `qaCommit` is bound to
 that commit because it is the head the measurements above were taken at.
+
+### Eighth pass: the corrected claim had two survivors
+
+"Corrected in all five artifacts" was true of the five artifacts I looked at
+and false as a statement about the repository. Copilot found the original
+backwards claim still standing in two more places on the merged head: the
+envelope violation message in `pr_autofix_field_parser.py` ended "the gate
+never gates", and the module docstring of `test_pr_autofix_field_contract.py`
+said "the gate just stops gating" three lines above the truth table that
+refutes it.
+
+Verified the premise before fixing, per the reviewer-findings discipline this
+branch just merged: the disarm gate is `[ "$TIER" != "T1" ]`, so a sentinel
+makes it fire on every input rather than never. Copilot's reading is correct
+and mine was the same overgeneralization a third and fourth time.
+
+Both now describe the fallback instead of predicting the branch. Changing the
+message is safe because the tests pin the identifying substrings, `flat object
+with no Data envelope` and `wraps its payload in a Data envelope`, not the
+explanatory tail; a grep for the old wording now returns nothing.
+
+The transferable part is the shape of the mistake, not the wording. A claim
+corrected in the artifacts you happen to be editing is corrected in those
+artifacts. Closing it means grepping the phrase across the tree, which is what
+found nothing this time only because Copilot had already done it.
 
 ## Known limits
 
