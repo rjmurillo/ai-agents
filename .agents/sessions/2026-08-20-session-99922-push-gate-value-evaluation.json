@@ -104,7 +104,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "lefthook pre-commit ran on every commit. The first attempt was blocked by branch-context-policy because the newest tracked session log named claude/tool-use-hooks-perf-ht7zhx; resolved by creating this log for the current branch, which is the exemption path check_branch_context implements. No hook was bypassed."
+        "Evidence": "lefthook pre-commit ran on every commit and two gates blocked legitimately, both resolved without a bypass. branch-context-policy blocked the first commit because the newest tracked session log named claude/tool-use-hooks-perf-ht7zhx; resolved by creating this log for the current branch, which is the exemption path check_branch_context implements. scope-policy later blocked at 128/50 files on a six-file change because the local origin/main ref pointed at a commit the branch already contained; git fetch origin main moved the reading to 5 with no change to the diff, per ci-scripts.md MUST-14. adr-review-policy also required the debate log be staged alongside the ADR edit, which it now is. SKIP_SCOPE_CHECK was not used."
       },
       "tasksUpdated": {
         "level": "SHOULD",
