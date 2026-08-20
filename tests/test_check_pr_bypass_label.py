@@ -105,6 +105,77 @@ def test_returns_external_when_gh_fails(monkeypatch):
     assert "failed" in status
 
 
+def test_policy_denial_is_named_and_still_blocks(monkeypatch):
+    """A 403 must read as a denial, not as a missing label, and must not pass.
+
+    Measured on a Claude Code cloud session, 2026-08-20: every gh REST call
+    returned HTTP 403 "GitHub access is not enabled for this session" while the
+    commit-limit-bypass label was in fact applied to the PR. The old message
+    rendered that as "gh pr view failed (exit 1)", which reads as a transient
+    error worth retrying.
+    """
+    monkeypatch.setattr(
+        mod,
+        "_run_gh_pr_view",
+        lambda branch: _proc(
+            1,
+            "",
+            "gh: GitHub access is not enabled for this session. (HTTP 403)",
+        ),
+    )
+
+    code, status = mod.check_bypass_label("commit-limit-bypass", None)
+
+    # The verdict is unchanged: an unverifiable label still blocks.
+    assert code == mod.EXIT_EXTERNAL
+    assert "denied by policy" in status
+    assert "will not pass on retry" in status
+    assert "commit limit still applies" in status
+
+
+def test_unauthenticated_gh_is_named(monkeypatch):
+    monkeypatch.setattr(
+        mod,
+        "_run_gh_pr_view",
+        lambda branch: _proc(1, "", "The token in GH_TOKEN is invalid. (HTTP 401)"),
+    )
+
+    code, status = mod.check_bypass_label("commit-limit-bypass", None)
+
+    assert code == mod.EXIT_EXTERNAL
+    assert "not authenticated" in status
+
+
+def test_rate_limit_is_named(monkeypatch):
+    monkeypatch.setattr(
+        mod,
+        "_run_gh_pr_view",
+        lambda branch: _proc(1, "", "API rate limit exceeded"),
+    )
+
+    code, status = mod.check_bypass_label("commit-limit-bypass", None)
+
+    assert code == mod.EXIT_EXTERNAL
+    assert "rate limit" in status
+
+
+def test_failure_message_does_not_name_gh_pr_view(monkeypatch):
+    """Regression guard: this module uses REST list-pulls, not `gh pr view`.
+
+    Naming the wrong command sent readers to the wrong place. Issue #4690
+    moved this module off GraphQL; the message lagged behind.
+    """
+    monkeypatch.setattr(
+        mod,
+        "_run_gh_pr_view",
+        lambda branch: _proc(1, "", "could not connect to api.github.com"),
+    )
+
+    _, status = mod.check_bypass_label("commit-limit-bypass", None)
+
+    assert "gh pr view" not in status
+
+
 def test_returns_external_when_gh_missing(monkeypatch):
     def _raise(branch):
         raise FileNotFoundError("gh")

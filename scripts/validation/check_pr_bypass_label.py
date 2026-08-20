@@ -182,6 +182,55 @@ def _run_gh_pr_view(branch: str | None) -> subprocess.CompletedProcess[str]:
     return proc
 
 
+def _describe_gh_failure(proc: subprocess.CompletedProcess[str]) -> str:
+    """Return an actionable one-line reason the label lookup failed.
+
+    The previous message was ``gh pr view failed (exit N)``, which was wrong on
+    both halves and told the reader nothing they could act on. This helper does
+    not change the verdict: an unverifiable label still blocks, because a local
+    check cannot confirm a permission only a maintainer can grant. It changes
+    what the reader is told, so a denied session is not mistaken for a missing
+    label.
+
+    Two corrections and one addition:
+
+    1. This module stopped using ``gh pr view`` (GraphQL) for the REST
+       list-pulls endpoint in issue #4690. Naming the wrong command sent a
+       reader to the wrong place.
+    2. An authentication or egress-policy denial is not a transient failure and
+       will not pass on a retry. It is called out by name so the reader stops
+       re-running the push.
+    3. The remaining relief is named, because it is not obvious from here: a
+       branch whose commits already sit on another pushed ref is measured by
+       ``_unpushed_commit_count`` in git_hook_policy.py and can pass without
+       this label at all.
+
+    Measured on a Claude Code cloud session, 2026-08-20: ``gh auth status``
+    reported "The token in GH_TOKEN is invalid", and every REST call returned
+    HTTP 403 "GitHub access is not enabled for this session". The old message
+    rendered that as ``gh pr view failed (exit 1)``.
+    """
+    stderr = (proc.stderr or "") + (proc.stdout or "")
+    lowered = stderr.lower()
+    detail = f"exit {proc.returncode}"
+
+    if "403" in lowered or "not enabled for this session" in lowered:
+        reason = "gh is denied by policy (HTTP 403); this will not pass on retry"
+    elif "401" in lowered or "invalid" in lowered and "token" in lowered:
+        reason = "gh is not authenticated; check GH_TOKEN"
+    elif "rate limit" in lowered:
+        reason = "gh hit a rate limit"
+    else:
+        reason = "gh label lookup failed"
+
+    return (
+        f"{reason} ({detail}). "
+        "The label cannot be verified locally, so the commit limit still "
+        "applies. Ask a maintainer to confirm the label, or land the commits "
+        "on another pushed branch first so they stop counting as new."
+    )
+
+
 def check_bypass_label(label: str, branch: str | None) -> tuple[int, str]:
     """Return (exit_code, status_line) for the bypass-label check.
 
@@ -204,7 +253,7 @@ def check_bypass_label(label: str, branch: str | None) -> tuple[int, str]:
         if "no pull request" in stderr or "no open pull request" in stderr:
             target = branch or "current branch"
             return EXIT_ABSENT, f"no open PR for {target}"
-        return EXIT_EXTERNAL, f"gh pr view failed (exit {proc.returncode})"
+        return EXIT_EXTERNAL, _describe_gh_failure(proc)
 
     try:
         payload = json.loads(proc.stdout)
