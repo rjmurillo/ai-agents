@@ -22,6 +22,7 @@ from tests.commands.pr_autofix_dispatch_harness import (
     DISPATCH_DOCS,
     PREFIX_TIER_READ,
     REPO_ROOT,
+    extract_dispatch,
     run_dispatch,
     write_fake_scripts,
 )
@@ -297,7 +298,7 @@ def test_a_comment_reword_changes_nothing(tmp_path: Path, doc: str) -> None:
     behavior is identical, not that a defect survives.
 
     An inverted control is only evidence if it can also fail, so that was
-    demonstrated rather than assumed: retargeting `block_edit` at the disarm
+    demonstrated rather than assumed: retargeting the edit at the disarm
     gate's `[ "$AUTO_MERGE" != "null" ]` and flipping it to `=` fails both
     parameterizations on the first assertion, while the shipped comment edit
     passes. The first attempt at that demonstration proved nothing, because it
@@ -307,6 +308,16 @@ def test_a_comment_reword_changes_nothing(tmp_path: Path, doc: str) -> None:
     unfinished one, which is the same narrower-than-the-claim mistake the rest
     of this suite exists to catch.
     """
+    block = extract_dispatch((REPO_ROOT / doc).read_text(encoding="utf-8"))
+    # Derived, not pinned. An earlier version named a literal comment fragment,
+    # which coupled the control to one sentence's line wrapping: rewrapping the
+    # paragraph would fail the exactly-one assertion and read as a defect when
+    # nothing had changed. The property is that editing a comment is inert, not
+    # that editing this comment is.
+    target = next(
+        line for line in block.splitlines() if line.startswith("#") and block.count(line) == 1
+    )
+
     shipped_dir = tmp_path / "shipped"
     reworded_dir = tmp_path / "reworded"
     shipped_dir.mkdir()
@@ -318,7 +329,7 @@ def test_a_comment_reword_changes_nothing(tmp_path: Path, doc: str) -> None:
         doc,
         tier="T3",
         auto_merge="SQUASH",
-        block_edit=("# gate ran.", "# gate ran (reworded by the inverted control)."),
+        block_edit=(target, target + " Reworded by the inverted control."),
     )
 
     assert reworded.disarmed == shipped.disarmed
