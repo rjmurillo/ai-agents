@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-5174-b3bfa3aaa-remove-agent-tier-hierarchy-replace.json
-qaCommit: 91c08d707bf9be20d9a4403734e0df646e56f416
+qaCommit: 27771f68acb16f7f2c729347f3b5aa2a1c29b2be
 ---
 
 # QA report: issue #5130, remove the agent tier hierarchy
@@ -71,7 +71,7 @@ pass and caught by the install-parity gate.
 
 ## Addendum: findings after the first QA pass
 
-Six review findings landed after the original run. Each is covered:
+Eleven review findings landed after the original run. Each is covered:
 
 | Finding | Source | Verification |
 |---|---|---|
@@ -81,7 +81,15 @@ Six review findings landed after the original run. Each is covered:
 | Taste ratchet regressed 577 > 576 (test file crossed 500 lines) | pre-push merge-tree ratchet | Split by concern into two modules, 356 and 222 lines; ratchet back to `OK (count == baseline 576)` |
 | No gate asserted zero `tier:` keys across the six agent trees, so a reintroduced `tier:` would pass every check | spec reviewer | `tests/test_agent_role_metadata_migration.py` reads both frontmatter shapes across all six trees; a discovery test acts as a negative control against vacuous globs |
 | Nothing pinned the escalation target in the routing docs, which is how the stale `escalate_to_architect` survived | spec reviewer | Parametrized guard over AGENT-SYSTEM.md, SESSION-PROTOCOL.md, and orchestrator-routing-algorithm.md; verified non-vacuous by checking out origin's stale doc, where it fails |
+| Tree roster was a one-directional config set: a renamed or seventh tree went unchecked | Cursor Bugbot | Roster now derived from `AGENT_TREES` in `validate_agent_matrix_refs.py`; a disk walk asserts nothing lives outside it. Verified by planting a seventh tree with `tier: builder`, which fails the walk while the old key check passes right through it |
+| An agent declaring no role at all passed; the bridge exports absent as `support` | Copilot | Every agent definition must declare a known role. Verified against a planted role-less agent |
+| Unparseable frontmatter was dropped from the corpus, so a malformed agent could keep `tier:` | Copilot | Tier check adds a textual sweep of the raw block. Verified against a planted agent whose frontmatter does not parse and carries `tier: builder` |
+| Contradictory `role` in the two shapes failed nothing | spec validator | Now an error. Verified against a planted `executor` vs `strategic` file |
+| Session artifact `endingCommit` was stale at `cc829f98be` | Copilot | Repointed to the final work commit; episode regenerated |
 
-Re-verified on this commit: `uv run pytest` on the six affected suites (155 passed), `ruff` and `mypy` clean on all 12 changed Python files,
-`generate_agent_catalog.py --check` OK, `validate_copilot_agent_frontmatter.py`
-PASS on 31 files, `taste_count_ratchet.py` OK at baseline 576.
+Re-verified on this commit: 293 tests across seven suites, `ruff` and `mypy` clean on all 12 changed
+Python files, `generate_agent_catalog.py --check` OK, `validate_copilot_agent_frontmatter.py` PASS on
+31 files, `run_install_parity_ci.py` OK, `taste_count_ratchet.py` at baseline 576.
+
+Every guard added for the findings above was run against a planted violation and fails on it. None is
+asserted from a passing run alone, because a guard that has only ever passed has not been shown to work.
