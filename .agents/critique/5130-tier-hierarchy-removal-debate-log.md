@@ -2,7 +2,7 @@
 
 Subject: `.agents/SESSION-PROTOCOL.md`, `.agents/AGENT-SYSTEM.md` section 2.5,
 `docs/orchestrator-routing-algorithm.md` Phase 2.5, and the `tier:` frontmatter
-on 136 agent files across six trees.
+on 186 agent files across six trees.
 
 Gate: `AGENTS.md` fires `adr-review` on any `.agents/SESSION-PROTOCOL.md` edit.
 `scripts/validation/git_hook_policy.py check_adr_review_policy` requires this
@@ -55,11 +55,51 @@ places rather than paraphrased.
 
 | # | Finding from the reverted attempt | Answer in this change |
 |---|---|---|
-| 1 | `AGENT-SYSTEM.md` still carried a full duplicate | Section 2.5 replaced. 149 lines out, a 60-line coordination section in. |
-| 2 | ~40 templates carry `tier:` pointing at a deleted definition | 136 files across six trees migrated to `role:` in the same commit. Zero `tier:` keys remain in any agent tree. |
+| 1 | `AGENT-SYSTEM.md` still carried a full duplicate | Section 2.5 replaced. 149 lines out, a 58-line coordination section in. |
+| 2 | ~40 templates carry `tier:` pointing at a deleted definition | 186 files across six trees migrated to `role:`, in two frontmatter shapes. See "The two shapes" below. |
 | 3 | Replacement prose said "escalate to the orchestrator"; ADR-009 says `high-level-advisor` | Every replacement quotes ADR-009's table and consensus protocol verbatim and states the target explicitly. |
 | 4 | `detect_agent_drift.py` baselines merge-resolver at 20.7% because of tier enrichment | Re-measured. See below. |
 | 5 | #1769 plans relocation, not deletion | Reconciled above. Relocation target does not exist; #1769's table no longer claims the section. |
+
+## The two shapes, and a correction to this log
+
+An earlier revision of this log said "136 files across six trees" and "Zero
+`tier:` keys remain in any agent tree." Both were wrong when written, and the
+second was wrong in the specific way issue #5130 exists to prevent: a committed
+artifact asserting a completion that had not happened.
+
+The field exists in two frontmatter shapes:
+
+```yaml
+role: executor                  # templates/agents/, .github/agents/,
+                                # src/vs-code-agents/, src/copilot-cli/agents/
+metadata:                       # .claude/agents/, src/claude/
+  role: strategic
+```
+
+The first migration pass matched `^tier:` and caught 136 files. It left 50
+nested under `metadata:` untouched, and this log was written from that pass's
+numbers. The true population is 186. The install-parity gate caught the miss by
+demanding the untouched Claude-side siblings of every shared agent the change
+touched; no test caught it, because nothing reads `metadata.tier`.
+
+Measure it, rather than trusting this sentence:
+
+```bash
+grep -rn '^\s*tier:' templates/agents .claude/agents .github/agents \
+  src/claude src/vs-code-agents src/copilot-cli/agents | wc -l
+```
+
+That returns 0 on the complete branch and 50 on any head carrying only the
+first pass.
+
+A third consequence surfaced during review. `scripts/openclaw_bridge.py` read
+only the top-level key, so every nested-shape agent resolved to the fallback
+role: `.claude/agents/architect.md` declares `strategic` and exported as
+`support`. That blind spot predates this change (the old code read a top-level
+`tier` the same way), but it is a real defect and is fixed here, with tests
+covering the nested shape and a negative control for an unmigrated
+`metadata.tier` file.
 
 ## Finding 4, measured
 
