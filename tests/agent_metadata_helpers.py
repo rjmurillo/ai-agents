@@ -255,11 +255,19 @@ _CANONICAL_TREE = _vamr.CANONICAL_TREE.as_posix()
 # not per directory, for the same reason as `_EXEMPT_FILES`: adding one is then
 # a deliberate edit rather than silent inheritance.
 #
-# Quoted from build/scripts/validate_agent_matrix_refs.py:59-64, which measured
-# the same four with the same predicate: "Measured across all six trees that
-# rule keeps all 175 agent files and excludes exactly four suffix-matching
-# sibling documents: ``.claude/agents/AGENTS.md``, ``.claude/agents/CLAUDE.md``,
-# ``src/claude/AGENTS.md``, and ``src/claude/claude-instructions.template.md``."
+# Quoted from the same predicate's docstring in
+# build/scripts/validate_agent_matrix_refs.py, which measured the same four:
+# "Re-measured across all six trees on 2026-08-20: 190 files carry a configured
+# tree's suffix, the rule keeps all 186 agent definitions, and it excludes
+# exactly four suffix-matching sibling documents: ``.claude/agents/AGENTS.md``,
+# ``.claude/agents/CLAUDE.md``, ``src/claude/AGENTS.md``, and
+# ``src/claude/claude-instructions.template.md``."
+#
+# The quotation and its source are updated together on purpose. The previous
+# pair both said 175, true when written and false by this PR, and a quotation
+# that drifts from its source is the failure `canonical-source-mirror` names.
+# Cited by symbol rather than by line range for the same reason: those line
+# numbers moved in this very change.
 _NON_AGENT_SIBLINGS = frozenset(
     {
         ".claude/agents/AGENTS.md",

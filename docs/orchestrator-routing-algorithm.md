@@ -427,17 +427,39 @@ def collect_outputs(results):
 # framing. Refs #5130 adr-review, and #5177 review (Copilot).
 
 
+def _as_result(position):
+    """Normalize one recorded position into the shape the resolver consumes.
+
+    A bare string is the common case and carries no flags. A mapping is the
+    full form and may carry `non_negotiable`.
+
+    This exists because the first version of `resolve_conflicts` wrapped every
+    position as `{"recommendation": position}` and dropped everything else. A
+    dissenting non-negotiable therefore escalated in Phase 2.5 and voted like
+    any other position here, so the two phases still disagreed on identical
+    inputs after they were supposedly unified. That is the same defect the
+    unification was meant to close, surviving in the adapter rather than in the
+    algorithm. Refs #5177 review (Copilot).
+    """
+    if isinstance(position, dict):
+        return position
+    return {"recommendation": position}
+
+
 def resolve_conflicts(conflicts):
     """Resolve each conflict with ADR-009's aggregation strategies.
 
-    `conflict["positions"]` maps an agent to the position it took, which is the
-    shape `resolve_disagreement` consumes once wrapped as results.
+    `conflict["positions"]` maps an agent to the position it took. A position is
+    either the recommendation itself or a mapping carrying `recommendation` plus
+    any flags the resolver reads, currently `non_negotiable`. Both forms reach
+    `resolve_disagreement` unchanged, so a position that escalates in Phase 2.5
+    escalates here too.
     """
     resolutions = []
     for conflict in conflicts:
         positions = conflict["positions"]
         outcome = resolve_disagreement(
-            {agent: {"recommendation": position} for agent, position in positions.items()}
+            {agent: _as_result(position) for agent, position in positions.items()}
         )
 
         if outcome["strategy"] == "escalate":
