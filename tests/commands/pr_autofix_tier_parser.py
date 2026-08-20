@@ -27,9 +27,6 @@ import re
 
 from tests.commands.pr_autofix_field_parser import PRODUCER_DIR
 
-_TIER_ARM = re.compile(
-    r"^\s*([A-Z][A-Z0-9|]*)\)\s*$|^\s*([A-Z][A-Z0-9|]*)\)\s*;;\s*$", re.MULTILINE
-)
 _TIER_PASSTHROUGH = re.compile(
     r"^\s*((?:[A-Z][A-Z0-9]*\|)*[A-Z][A-Z0-9]*)\)\s*;;\s*$", re.MULTILINE
 )
