@@ -447,3 +447,47 @@ def contract_violations(text: str) -> list[str]:
         if finding:
             problems.append(finding)
     return problems
+
+
+# Tier whitelist: the command's accepted set against the producer's declared one.
+
+_TIER_CASE = re.compile(r"^\s*((?:[A-Z][A-Z0-9]*\|)+[A-Z][A-Z0-9]*)\)\s*;;\s*$", re.MULTILINE)
+
+
+def accepted_tiers(text: str) -> tuple[str, ...] | None:
+    """Tiers the command body's tier guard accepts, in written order.
+
+    Returns None when no such `case` arm is present, which the caller must treat
+    as a missing guard rather than an empty set.
+    """
+    match = _TIER_CASE.search(text)
+    if match is None:
+        return None
+    return tuple(match.group(1).split("|"))
+
+
+def declared_tiers(script: str = "test_pr_merge_ready") -> tuple[str, ...] | None:
+    """The producer's own `_TIER_ORDER`, read from its source with `ast`.
+
+    `classify_tier`'s docstring names this tuple as the range of its return
+    value, so it is the canonical set a consumer may see. Reading it here rather
+    than restating it is what stops the command's guard from being written
+    against a remembered contract, which is how the guard first shipped
+    rejecting BEHIND, BLOCKED, DIRTY, and SKIP.
+    """
+    tree = ast.parse((PRODUCER_DIR / f"{script}.py").read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign):
+            continue
+        for target in node.targets:
+            if not (isinstance(target, ast.Name) and target.id == "_TIER_ORDER"):
+                continue
+            if not isinstance(node.value, ast.Tuple):
+                return None
+            values = [
+                element.value
+                for element in node.value.elts
+                if isinstance(element, ast.Constant) and isinstance(element.value, str)
+            ]
+            return tuple(values) if len(values) == len(node.value.elts) else None
+    return None

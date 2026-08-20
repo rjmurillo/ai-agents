@@ -37,13 +37,17 @@ directions and for field names on both producer styles. The parser lives in
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from tests.commands.pr_autofix_field_parser import (
     COMMAND_PATH,
     MIRROR_PATH,
     FieldRead,
+    accepted_tiers,
     contract_violations,
+    declared_tiers,
     derive_producer_schema,
     extract_field_reads,
     jq_invocation_count,
@@ -452,3 +456,33 @@ def test_a_captured_variable_nearer_the_jq_wins_over_an_earlier_producer() -> No
     assert extract_field_reads(body) == [
         FieldRead(line=2, script="check_pr_live_state", path=".Data.action")
     ]
+
+
+# Tier whitelist: bound to the producer, not to the command's prose ladder.
+
+
+@pytest.mark.parametrize("doc", [COMMAND_PATH, MIRROR_PATH])
+def test_the_tier_guard_accepts_exactly_what_the_producer_declares(doc: Path) -> None:
+    """The guard's set must equal `_TIER_ORDER`, not the T1-T5 prose ladder.
+
+    The guard first shipped listing only T1 through T5, because it was written
+    against the tier ladder in the command's own documentation instead of the
+    producer's `_TIER_ORDER`. That rejected BEHIND, BLOCKED, DIRTY, and SKIP as
+    producer failures and silently disabled the documented BEHIND and DIRTY
+    handling: a fail-closed guard that closes on healthy input is worse than the
+    fail-open it replaced, because it stops real work and says nothing.
+
+    Comparing tuples rather than sets, so a reordering is visible too; the
+    producer treats `_TIER_ORDER` as an ordering, and a consumer that silently
+    disagrees about it is worth seeing.
+    """
+    declared = declared_tiers()
+    assert declared is not None, "could not read _TIER_ORDER from the producer"
+
+    accepted = accepted_tiers(doc.read_text(encoding="utf-8"))
+    assert accepted is not None, f"{doc.name} has no tier guard; the fail-open is back"
+
+    assert accepted == declared, (
+        f"{doc.name} accepts {accepted}, but the producer declares {declared}. "
+        "Quote the producer's tuple rather than restating the ladder."
+    )

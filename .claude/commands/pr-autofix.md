@@ -430,8 +430,18 @@ TIER=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" 2>/dev
 # acting on a PR whose tier it never learned. Do not gate on exit status instead:
 # test_pr_merge_ready.py exits 1 for any not-merge-ready PR, so T2 through T4 are
 # legitimately non-zero.
+# The accepted set is the producer's own, quoted verbatim from
+# test_pr_merge_ready.py:1103, which classify_tier's docstring names as the
+# range of its return value:
+#   _TIER_ORDER = ("T1", "T2", "T3", "T4", "T5", "BEHIND", "BLOCKED", "DIRTY", "SKIP")
+# The four beyond the T1-T5 ladder are real: SKIP for a draft, closed, or merged
+# PR, and BEHIND/BLOCKED/DIRTY from the merge-state lookup. Listing only the
+# ladder rejected those as producer failures and silently disabled the
+# documented BEHIND and DIRTY handling.
+# tests/commands/test_pr_autofix_field_contract.py pins this list against the
+# producer so the two cannot drift apart again.
 case "$TIER" in
-    T1|T2|T3|T4|T5) ;;
+    T1|T2|T3|T4|T5|BEHIND|BLOCKED|DIRTY|SKIP) ;;
     *)
         echo "Cannot determine tier for #$PR (tier producer failed or emitted no tier); skipping."
         cleanup_pr_autofix
