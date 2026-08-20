@@ -387,8 +387,13 @@ def test_role_vocabulary_agrees_across_consumers(consumer: str):
 
 
 _ROLE_INERTNESS_CLAUSES = (
-    "It grants and withholds nothing at runtime.",
-    "not by comparing two agents'\nrole values.",
+    # Scoped, not bare. The bare form contradicted ADR-098, which qualifies the
+    # identical claim with "in this repository" because the OpenClaw export is
+    # a consumer this repository cannot certify. The `critic` re-review on
+    # PR #5177 found the document asserting globally what its own ADR asserts
+    # locally, with this pin holding the broader wording in place.
+    "It grants and withholds nothing at runtime in this repository:",
+    "not by comparing two agents' role values.",
 )
 
 
@@ -410,9 +415,14 @@ def test_the_role_inertness_sentence_survives_in_agent_system():
     Raised independently by the high-level-advisor (P0), architect (P1), and
     security (P2) passes of the issue #5130 `adr-review` debate on ADR-098.
     """
-    text = (_REPO_ROOT / ".agents/AGENT-SYSTEM.md").read_text(encoding="utf-8")
+    raw = (_REPO_ROOT / ".agents/AGENT-SYSTEM.md").read_text(encoding="utf-8")
+    # Collapse wrapping before matching. An earlier revision embedded a literal
+    # newline in one clause, so re-wrapping the paragraph (which a prose edit
+    # does routinely, and which changes nothing about the claim) failed the pin
+    # for a reason the failure message could not explain.
+    text = " ".join(raw.split())
 
-    missing = [clause for clause in _ROLE_INERTNESS_CLAUSES if clause not in text]
+    missing = [c for c in _ROLE_INERTNESS_CLAUSES if " ".join(c.split()) not in text]
     assert not missing, (
         "`.agents/AGENT-SYSTEM.md` no longer states that `role` is inert and does "
         f"not order agents. Missing: {missing}. ADR-098 names this sentence as the "
