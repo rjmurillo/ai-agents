@@ -228,7 +228,7 @@
       }
     ]
   },
-  "endingCommit": "8b6768075f4d634c22228958b0e90755d1a0ec91",
+  "endingCommit": "2d1f1d1544eaee43d52fcaf2ab1fb9c1bbcbccb4",
   "nextSteps": [
     "Open a draft PR from claude/pr-5175-review-v21yk2 referencing issue #5094",
     "Report on PR #5175 that its branch carries no diff so the owner can decide whether to close it in favor of this change"
