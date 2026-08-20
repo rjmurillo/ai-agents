@@ -169,6 +169,19 @@
       "caused_by": [
         "e012"
       ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-20T18:44:00+00:00",
+      "type": "commit",
+      "content": "Commit: 9ebcc21d258d1b30ea253a0e8152d7afecdae4ad",
+      "caused_by": [
+        "e013"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
     }
@@ -178,7 +191,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 13,
+    "commits": 14,
     "files_changed": 8
   },
   "lessons": [
