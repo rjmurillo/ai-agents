@@ -119,6 +119,16 @@ The two hypotheses predict different fixes, so the difference matters. The test:
 
 Both are recorded here because closing on the vendor explanation would foreclose a question the cheaper fix answers, and because the falsification harness ADR-099 already defers is the instrument that would settle it. Analyst's round-6 pass is weak evidence for the second hypothesis: given an explicit mandate to re-verify numbers against the tree, it checked every countable figure and found them all correct.
 
+### The gap the council did not find
+
+After the council decision was recorded, external review found one more, and it is the sharpest evidence-design finding of the whole exercise: **the enumeration had classified only closed-unmerged pull requests.** A pull request the ceiling is currently holding is open, not closed, so the population most likely to contain a counterexample had never been queried.
+
+Six roles had reviewed that enumeration across two rounds. Analyst, whose explicit mandate was evidence adequacy, had pressed hard on sample size and on the two unread cases, and did not raise the missing population. Neither did the orchestrator who built it.
+
+Classifying the open set at the same cutoff returned four. #5177 and #5178 carry `commit-limit-bypass`, so both reached the blocking tier and both were relieved by hand; #5176 and #5181 carry the advisory label only. No open pull request is held by the ceiling without relief, so the finding survived. It survived on evidence that had not existed when the council voted for it.
+
+That is worth recording plainly. The conclusion was right and the reasoning behind it was incomplete, which is the condition a review process exists to detect and this one did not.
+
 ### Where the review ends
 
 High-level-advisor's read, which the orchestrator accepts: freeze the text. Six rounds on six files, with the external reviewers out-yielding the panel, means another round buys marginal prose and spends credibility the panel needs. What remains is not more review; it is the owner's decision under MUST-1 and MUST NOT 1.

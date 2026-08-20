@@ -4,7 +4,7 @@
   "timestamp": "2026-08-20T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
-  "task": "Evaluate whether the pull request commit-count and per-commit file-count push gates earn their cost, and structurally solve what the evidence shows. Produced ADR-098 (retire the size ceilings) and ADR-099 (enforcement planes), carried through five rounds of six-role adr-review plus external bot review, which corrected the design twice and caught four factual errors in the drafts.",
+  "task": "Evaluate whether the pull request commit-count and per-commit file-count push gates earn their cost, and structurally solve what the evidence shows. Produced ADR-098 (retire the size ceilings) and ADR-099 (enforcement planes), carried through six rounds of six-role adr-review plus external bot review, which corrected the design twice and caught four factual errors in the drafts.",
   "decisions": [],
   "events": [
     {
@@ -110,6 +110,19 @@
       "caused_by": [
         "e009"
       ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-20T19:25:18+00:00",
+      "type": "commit",
+      "content": "Commit: 5126362370c3f5a2bb6b0b69144d67ae7a6c6373",
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     }
@@ -119,7 +132,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
+    "commits": 6,
     "files_changed": 6
   },
   "lessons": []

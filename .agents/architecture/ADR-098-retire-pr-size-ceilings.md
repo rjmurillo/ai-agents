@@ -73,11 +73,26 @@ All seven are now characterized, and none was prevented from landing by the size
 
 That last point sharpens the result rather than softening it. Because #4846 was relieved, the enumerated population contains **no pull request that the blocking ceiling actually stopped**. The gate's harm-prevention record over this window is empty, not thin.
 
+### The open population, enumerated
+
+The closed-unmerged set is not the only place a counterexample can live, and an earlier revision of this decision treated it as though it were. A pull request the ceiling is *currently* holding is open, not closed, so the open labeled population had to be classified too. A reviewer raised this; the search is `label:"needs-split" created:2026-08-06..2026-08-20 is:open`, and at the stated cutoff it returns four.
+
+| Pull request | `commit-limit-bypass` | Reading |
+|---|---|---|
+| #5177 | yes | Reached the blocking tier; relief granted |
+| #5178 | yes | Reached the blocking tier; relief granted |
+| #5176 | no | Advisory tier only |
+| #5181 | no | Advisory tier only, and is this decision's own pull request |
+
+No open pull request is held by the ceiling without relief. Two reached the blocking tier and both were relieved by hand, which is two of the twenty bypass applications the cost figure counts. #5177 is the same pull request cited below for spending its output on gate arithmetic, so the two halves of that observation are the same case seen from opposite sides.
+
+Combining both populations: across eleven labeled pull requests classified by hand, closed and open, the blocking ceiling stopped nothing. Three reached the blocking tier and all three were relieved.
+
 ### What actually stopped the bad one
 
 #4846 is the only pull request in the sample that should not merge, and it did not merge. What held it was its own security and vendor-provenance gate, a correctness check, not a size ceiling. The size gate labeled it, and it also labeled #4718, #5036, #5152, #5103, and #5107, which all merged and should have.
 
-That is the finding this decision rests on, bounded by the enumeration above: across the closed-unmerged population the blocking ceiling stopped nothing, and the one pull request that should not have merged was held by a correctness gate. Over the same window the ceilings imposed cost on five of the six sampled pull requests that were doing the right thing.
+That is the finding this decision rests on, bounded by both enumerations above: across the closed-unmerged and open labeled populations the blocking ceiling stopped nothing, and the one pull request that should not have merged was held by a correctness gate. Over the same window the ceilings imposed cost on five of the six sampled pull requests that were doing the right thing.
 
 ### The cost
 

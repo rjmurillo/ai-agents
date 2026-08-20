@@ -243,8 +243,8 @@ This buys per-change autonomy at the cost of a single point of failure at the co
 ### Positive
 
 - The incidents become instances of a named class with a stated rule rather than recurring surprises. Two of the four are live: #5090's hook wiring and the credential path to the control plane. #5099 was fixed without this taxonomy, and #4402's flag is deleted by ADR-098.
-- Deleting a gate's workflow trigger deadlocks the change instead of passing it.
-- The debate mandate stops being satisfiable by writing a file.
+- Deleting a gate's workflow trigger deadlocks the change instead of passing it. Conditional on Phase 2, which the go/no-go abandons by default.
+- The debate mandate stops being satisfiable by writing a file. Also conditional on Phase 2, and therefore not expected to be delivered on current evidence.
 - Narrowing the trigger by reversibility would remove ceremony from whatever share of ADRs are process changes. The 10-of-96 sample suggests that share is large; it has no stated selection method, so the size of the benefit is not established here.
 
 ### Negative
@@ -285,7 +285,7 @@ This buys per-change autonomy at the cost of a single point of failure at the co
 - **Phase 2, debate attestation.** Base-ref job, digest keying, citation requirement, narrowed trigger. Requires Phase 0, and requires the go/no-go below to have returned go; absent a published catch rate it does not open.
 - **Phase 3, retire governance MUST-1** once Phases 0 and 2 are demonstrably holding. Not before, or the repository has neither control. Retiring MUST-1 reduces a review requirement, so `.claude/rules/governance.md` MUST NOT 1 applies and Phase 3 requires a unanimous-consensus ADR of its own. Abandoning Phase 2 under the clause below forecloses Phase 3: without a verified debate gate there is nothing to retire MUST-1 in favor of.
 
-**Go or no-go before Phases 2 and 3. The default is no.** Phases 0 and 1 are net repair: they close named live defects and add no new gate a contributor can trip. Phases 2 and 3 add machinery, in a repository where the 2026-08-17 review measured 87 of 92 open issues (94%) as its own automation breaking itself.
+**Go or no-go before Phases 2 and 3. The default is no.** Phases 0 and 1 are net repair: they close named live defects rather than adding machinery to detect new ones. Phase 0 does add a blocking merge control, since it raises the approval count, enables code-owner review, and widens CODEOWNERS, so the distinction is repair versus accretion rather than gate versus no gate. Phases 2 and 3 add machinery, in a repository where the 2026-08-17 review measured 87 of 92 open issues (94%) as its own automation breaking itself.
 
 Against that base rate, momentum is not a sufficient reason to continue, so the burden sits on the additions rather than on stopping. **Phases 2 and 3 are abandoned unless the falsification harness below publishes a per-role catch rate that justifies the surface they add.** Not recorded and weighed; abandoned by default, and revived only by that measurement. The evidence for Phase 2 today is one self-disclosed incident on a file that has since been deleted, plus a 10-of-96 ADR sample with no stated selection method, which is thinner than what Phases 0 and 1 rest on. Shipping Phases 0 and 1 alone is an acceptable terminal state for this decision, and on current evidence it is the expected one.
 
