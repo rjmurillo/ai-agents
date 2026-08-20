@@ -244,8 +244,8 @@ when the session opted in.
 
 If any completion item fails, do not close the session. Surface the reason in
 the transcript and per-issue handoff. If an opted-in log exists and fails
-validation, fix it by hand against `.agents/schemas/session-log.schema.json`
-and re-run `uv run python scripts/validate_session_json.py <path>`.
+validation, fix it by hand to satisfy the session-log schema, then
+re-validate it.
 
 When drift or context loss is detected at session start or mid-session, run the Anti-Drift Protocol below before resuming routing.
 
