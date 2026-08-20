@@ -151,6 +151,30 @@ def _require_frontmatter_string(frontmatter: dict[str, object], key: str, templa
     return stripped
 
 
+# Must stay in sync with _KNOWN_ROLES in scripts/openclaw_bridge.py and
+# _KNOWN_ROLES in scripts/validation/validate_copilot_agent_frontmatter.py.
+_KNOWN_ROLES = frozenset({"strategic", "coordinator", "executor", "support"})
+
+
+def _require_role(frontmatter: dict[str, object], template: Path) -> str:
+    """Return a role from the closed set, or raise CatalogError.
+
+    The Copilot frontmatter validator constrains this field and this generator
+    did not, so a typo passed here and rendered into docs/agent-catalog.md as
+    though it were a real role. Two consumers disagreeing about what counts as
+    valid is how a stale value survives one gate by going through the other.
+    Refs #5130 review.
+    """
+    role = _require_frontmatter_string(frontmatter, "role", template)
+    if role not in _KNOWN_ROLES:
+        known = ", ".join(sorted(_KNOWN_ROLES))
+        raise CatalogError(
+            f"frontmatter field 'role' in {template} is {role!r}; "
+            f"expected one of: {known}"
+        )
+    return role
+
+
 def build_entry(template: Path) -> AgentEntry:
     """Build a catalog entry from one agent template file."""
     try:
@@ -160,7 +184,7 @@ def build_entry(template: Path) -> AgentEntry:
 
     frontmatter = _parse_frontmatter(content, template)
     description = _require_frontmatter_string(frontmatter, "description", template)
-    role = _require_frontmatter_string(frontmatter, "role", template)
+    role = _require_role(frontmatter, template)
 
     return AgentEntry(
         name=_agent_name_from_path(template),

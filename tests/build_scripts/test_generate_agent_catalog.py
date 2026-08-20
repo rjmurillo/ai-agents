@@ -64,6 +64,36 @@ def test_render_includes_one_row_per_template(tmp_path: Path) -> None:
     assert "_2 agent templates indexed._" in content
 
 
+@pytest.mark.parametrize("role", ["strategic", "coordinator", "executor", "support"])
+def test_every_known_role_is_accepted(tmp_path: Path, role: str) -> None:
+    # Arrange
+    templates_dir = tmp_path / "templates" / "agents"
+    _write_template(templates_dir, "alpha", role=role)
+
+    # Act
+    content = gac.render_catalog(gac.collect_entries(templates_dir))
+
+    # Assert
+    assert f"| {role} |" in content
+
+
+@pytest.mark.parametrize("role", ["buidler", "builder", "expert", "Executor"])
+def test_role_outside_the_known_set_is_rejected(tmp_path: Path, role: str) -> None:
+    """A typo or a stale pre-migration value must not render into the catalog.
+
+    The Copilot frontmatter validator constrains this field; this generator did
+    not, so a value rejected by one gate could still reach docs/agent-catalog.md
+    through the other. Refs #5130 review.
+    """
+    # Arrange
+    templates_dir = tmp_path / "templates" / "agents"
+    _write_template(templates_dir, "alpha", role=role)
+
+    # Act / Assert
+    with pytest.raises(gac.CatalogError, match="expected one of"):
+        gac.collect_entries(templates_dir)
+
+
 def test_entries_are_sorted_by_name(tmp_path: Path) -> None:
     # Arrange
     templates_dir = tmp_path / "templates" / "agents"
