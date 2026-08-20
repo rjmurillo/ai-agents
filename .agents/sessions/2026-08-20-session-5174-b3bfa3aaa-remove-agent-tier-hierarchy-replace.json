@@ -119,7 +119,7 @@
       "reworkWarning": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "rework-warning: none"
+        "Evidence": "rework-warning: .agents/qa/000-issue-5130-tier-removal-qa.md edited 6 times"
       }
     }
   },
