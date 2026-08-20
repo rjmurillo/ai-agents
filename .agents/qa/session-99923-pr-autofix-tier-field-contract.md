@@ -117,9 +117,9 @@ The guard now fails and names the missed lines. Restored; 32 passed.
 
 | Command | Result |
 |---|---|
-| `uv run pytest tests/commands/test_pr_autofix_field_contract.py` | 35 passed |
-| `uv run pytest tests/commands/test_pr_autofix_tier_dispatch_runtime.py` | 32 passed |
-| `uv run pytest tests/commands/ tests/skills/pr-autofix/` | 435 passed, 1 skipped |
+| `uv run pytest tests/commands/test_pr_autofix_field_contract.py` | 37 passed |
+| `uv run pytest tests/commands/test_pr_autofix_tier_dispatch_runtime.py` | 40 passed |
+| `uv run pytest tests/commands/ tests/skills/pr-autofix/` | 445 passed, 1 skipped |
 | the four `tests/test_pr_autofix_*.py` suites plus the two above | 662 passed, 1 skipped |
 | `uv run ruff check tests/commands/` | All checks passed |
 | `uv run python build/scripts/build_all.py --check` | no staleness |

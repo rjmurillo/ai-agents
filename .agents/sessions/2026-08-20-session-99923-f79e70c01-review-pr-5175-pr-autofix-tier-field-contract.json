@@ -151,6 +151,10 @@
     {
       "activity": "Closed a fail-open the runtime suite had codified as correct",
       "finding": "Copilot found that a tier producer emitting no valid payload still let the loop act. Without pipefail jq masks the failure, and the shapes disagree: empty stdout (crash or unparseable JSON) leaves TIER empty while a JSON error object leaves it UNKNOWN. Both skip the T3/T4 breaker and satisfy TIER != T1, so the loop stripped auto-merge and continued without a tier. Worse, the PRODUCER_FAILURE runtime case asserted exactly that as expected behavior. Added a case statement validating TIER against the declared tiers and skipping otherwise, deliberately not gating on exit status because test_pr_merge_ready.py exits 1 for any not-merge-ready PR. Replaced the offending test with three failure shapes plus a case pinning that a valid tier arriving with exit 1 is still dispatched, and moved the negative control onto the new observable outcome rather than leaving it asserting the old one. Also removed the dead _bound_source helper and reconciled a converse guard the Cursor agent pushed concurrently down to a single copy."
+    },
+    {
+      "activity": "Fixed a fail-closed guard that closed on healthy input",
+      "finding": "The tier guard I had just added listed T1 through T5, taken from the tier ladder in the command's own prose rather than from the producer. test_pr_merge_ready.py:1103 declares _TIER_ORDER = (T1..T5, BEHIND, BLOCKED, DIRTY, SKIP), and classify_tier's docstring names that tuple as the range of its return value. The guard rejected the four merge-path and skip values as producer failures, so a PR that went BEHIND mid-loop was skipped with a false 'producer failed' message and the documented BEHIND and DIRTY handling never ran. Found by Cursor Bugbot. This is the same defect class the PR exists to close, committed while closing it: a consumer written against a remembered contract instead of the canonical source, which .claude/rules/canonical-source-mirror.md requires a lookup for before the first commit. Fixed by quoting _TIER_ORDER verbatim in the command comment and adding declared_tiers/accepted_tiers plus a test asserting the two are equal over source and mirror, so the sets cannot drift again. Controls: restoring the ladder fails 10, deleting the guard fails 10."
     }
   ],
   "outcomes": {
@@ -173,7 +177,7 @@
       {
         "type": "test",
         "path": "tests/commands/test_pr_autofix_tier_dispatch_runtime.py",
-        "description": "Runtime suite that extracts the block between the new tier-dispatch markers from both the source command and the generated mirror and executes it under bash with fake producers; 24 cases over T1-armed, T3/T4 round-cap entry, round-cap escalation, unarmed PRs, unreadable auto-merge state, mutation exit 75 versus a real failure, and a dead tier producer. Verified by four mutations including one inverted control that must survive."
+        "description": "Runtime suite that extracts the block between the tier-dispatch markers from both the source command and the generated mirror and executes it under bash with fake producers. Covers T1 keeping armed auto-merge, T3/T4 round-cap entry, escalation stopping before the disarm gate, every tier in the producer's _TIER_ORDER dispatching on a non-zero exit, unarmed PRs, unreadable auto-merge state, mutation exit 75 versus a real failure, and all three shapes of a producer that names no tier. Verified by mutation, including an inverted control that must survive. Counts are recorded in the QA report rather than here, so they cannot drift."
       }
     ]
   },
