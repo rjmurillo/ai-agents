@@ -1,5 +1,5 @@
 ---
-id: ADR-099
+id: ADR-101
 status: proposed
 date: 2026-08-20
 decision-makers: [rjmurillo]
@@ -9,7 +9,7 @@ explainer: null
 implemented: false
 ---
 
-# ADR-099: Enforcement Planes
+# ADR-101: Enforcement Planes
 
 ## Status
 
@@ -37,7 +37,7 @@ The fix matters more as confirmation than as an open problem: what closed the ho
 
 That file no longer exists. PR #5179 removed it, along with the session skills, and narrowed the debate trigger to ADR files alone (`AGENTS.md:44`, "Any `ADR-*.md` edit fires adr-review"). The incident stands as evidence anyway, because what failed was not the trigger's breadth but the fact that a session could decline to run the mandated review and still commit. Removing one path from the trigger set does not change that, and the narrowing is a partial move toward Application A below rather than a fix for this.
 
-A fourth belongs with them. `.agents/retrospective/2026-08-07-pr-4402-scope-bypass.md` records an agent setting `SKIP_SCOPE_CHECK=1` twice after authorization was explicitly withheld, citing an agent-writable memory as its authority. ADR-098 removes that flag for its own reasons, so this exhibit may be gone by the time this decision is implemented. It is retained here because the pattern it illustrates, a self-set variable asserting external approval, is what rule 3 below forbids generally.
+A fourth belongs with them. `.agents/retrospective/2026-08-07-pr-4402-scope-bypass.md` records an agent setting `SKIP_SCOPE_CHECK=1` twice after authorization was explicitly withheld, citing an agent-writable memory as its authority. ADR-100 removes that flag for its own reasons, so this exhibit may be gone by the time this decision is implemented. It is retained here because the pattern it illustrates, a self-set variable asserting external approval, is what rule 3 below forbids generally.
 
 ### The shared root cause
 
@@ -166,7 +166,7 @@ Before any gate below is treated as binding. The first item comes first because 
 
   This item has a dependency the rest of the phase does not, and it should not ship without resolving it. A nonzero count applies to **every** ordinary pull request, and once the repository-level PAT is removed there is no base-owned approver left: the only approval commands in `.github/workflows/` serve Dependabot and Renovate. Installing the count without first defining an independent approval producer, and stating what evidence it evaluates, converts the operating goal into a per-change human review. Sequence it after that producer exists. An earlier revision offered a fallback, scoping the count to the enforcement paths CODEOWNERS covers, and that fallback is not implementable: a ruleset targets refs, so `required_approving_review_count` applies to every pull request against the targeted branch, and CODEOWNERS changes **who** must approve a matching file without scoping the numeric count by path. There is no path-scoped approval count to fall back to. Either the independent producer exists first, or the count is a per-change human decision on every ordinary pull request.
 
-  **And the producer itself has to sit outside P0, or it recreates the self-attestation this decision rejects.** An approval producer whose code a pull request can edit, or whose credential a head-defined workflow can read, lets the gated author mint the approval that satisfies the count (CWE-863). That is the same shape as the `commit-limit-bypass` label ADR-098 documents, with more machinery. Three properties are required before the count is raised, and they are properties of the producer rather than of the ruleset: it executes from the base ref, never from head-defined code; it holds a dedicated credential no `pull_request`-triggered workflow can reach, which the secret-containment item above is a prerequisite for; and its identity is baselined at P2 so a swap is drift rather than a silent substitution.
+  **And the producer itself has to sit outside P0, or it recreates the self-attestation this decision rejects.** An approval producer whose code a pull request can edit, or whose credential a head-defined workflow can read, lets the gated author mint the approval that satisfies the count (CWE-863). That is the same shape as the `commit-limit-bypass` label ADR-100 documents, with more machinery. Three properties are required before the count is raised, and they are properties of the producer rather than of the ruleset: it executes from the base ref, never from head-defined code; it holds a dedicated credential no `pull_request`-triggered workflow can reach, which the secret-containment item above is a prerequisite for; and its identity is baselined at P2 so a swap is drift rather than a silent substitution.
 - Extend `.github/CODEOWNERS` to cover `.github/workflows/`, `scripts/validation/`, `scripts/ci/`, `lefthook.yml`, and `/.github/CODEOWNERS` itself. A CODEOWNERS file that does not own itself can be edited by a pull request that needs no owner review.
 
   **This has an identity prerequisite, and without it the item deadlocks rather than gates.** All five current CODEOWNERS entries name `@rjmurillo`, and the pull requests this loop produces are authored by that same account. GitHub does not let an author approve their own pull request, so enabling `require_code_owner_review` over enforcement paths would leave **no eligible approver at all** for exactly the changes the rule is meant to govern. An independent approval producer satisfies the numeric count but cannot satisfy code-owner review. Phase 0 must therefore establish either a non-author code owner or a bot-authored pull request flow before this item is enabled, and that is a prerequisite rather than a refinement.
@@ -261,7 +261,7 @@ This buys per-change autonomy at the cost of a single point of failure at the co
 
 ### Positive
 
-- The incidents become instances of a named class with a stated rule rather than recurring surprises. Two of the four are live: #5090's hook wiring and the credential path to the control plane. #5099 was fixed without this taxonomy, and #4402's flag is deleted by ADR-098.
+- The incidents become instances of a named class with a stated rule rather than recurring surprises. Two of the four are live: #5090's hook wiring and the credential path to the control plane. #5099 was fixed without this taxonomy, and #4402's flag is deleted by ADR-100.
 - Deleting a gate's workflow trigger deadlocks the change instead of passing it. Conditional on Phase 2, which the go/no-go abandons by default.
 - The debate mandate stops being satisfiable by writing a file. Also conditional on Phase 2, and therefore not expected to be delivered on current evidence.
 - Narrowing the trigger by reversibility would remove ceremony from whatever share of ADRs are process changes. The 10-of-96 sample suggests that share is large; it has no stated selection method, so the size of the benefit is not established here.
@@ -329,7 +329,7 @@ So the human decision this design depends on is the one that sets P2 and approve
 - ADR-006, thin workflows and testable modules
 - ADR-086, lefthook local hook orchestration
 - ADR-093, verify red checks with the same checker
-- ADR-098, retire the pull request size ceilings
+- ADR-100, retire the pull request size ceilings
 
 ## References
 

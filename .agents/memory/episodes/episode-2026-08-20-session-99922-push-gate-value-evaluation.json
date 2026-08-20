@@ -4,7 +4,7 @@
   "timestamp": "2026-08-20T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
-  "task": "Evaluate whether the pull request commit-count and per-commit file-count push gates earn their cost, and structurally solve what the evidence shows. Produced ADR-098 (retire the size ceilings) and ADR-099 (enforcement planes), carried through six rounds of six-role adr-review plus external bot review, which corrected the design twice and caught four factual errors in the drafts.",
+  "task": "Evaluate whether the pull request commit-count and per-commit file-count push gates earn their cost, and structurally solve what the evidence shows. Produced ADR-100 (retire the size ceilings) and ADR-101 (enforcement planes), carried through six rounds of six-role adr-review plus external bot review, which corrected the design twice and caught four factual errors in the drafts.",
   "decisions": [],
   "events": [
     {

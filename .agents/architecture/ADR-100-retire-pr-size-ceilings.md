@@ -1,5 +1,5 @@
 ---
-id: ADR-098
+id: ADR-100
 status: proposed
 date: 2026-08-20
 decision-makers: [rjmurillo]
@@ -9,7 +9,7 @@ explainer: null
 implemented: false
 ---
 
-# ADR-098: Retire the Pull Request Size Ceilings
+# ADR-100: Retire the Pull Request Size Ceilings
 
 ## Status
 
@@ -39,7 +39,7 @@ The label proves neither the actor nor the threshold, and successive revisions o
 
 So the honest reading of the 20 is: **20 pull requests carrying the bypass label**, with neither actor nor threshold established for the set. Blocking is established only where the arithmetic was reconstructed, and within this window that is three cases: #4846 at 235 commits, #5177 at 60 authored non-merge against a relieved ceiling of 40, and #5178, which its own session log records as blocked at 23 and again at 33 commits ahead. One labeled pull request was reconstructed as **not** blocked, #5176 at 25 against 40, which is the direct counterexample to reading the label as a block. Every claim below is scoped to those measurements rather than to the 20.
 
-This is also the cleanest instance in this repository of ADR-099's invariant, and it arrived from the opposite direction. The commit ceiling is a P0 and P1 gate whose sole relief is a P0-writable artifact: any account with write access applies a label, and nothing verifies the human maintainer CONTRIBUTING.md requires. The gate does not protect the thing it gates from the actor it gates.
+This is also the cleanest instance in this repository of ADR-101's invariant, and it arrived from the opposite direction. The commit ceiling is a P0 and P1 gate whose sole relief is a P0-writable artifact: any account with write access applies a label, and nothing verifies the human maintainer CONTRIBUTING.md requires. The gate does not protect the thing it gates from the actor it gates.
 
 The rationale on record is `.agents/governance/PROJECT-CONSTRAINTS.md:125`, which cites one 2026-01 incident, PR #908: 59 commits, review slow and merge risky. That was a single data point, gathered before this repository had either its present adversarial review practice or its present volume.
 
@@ -219,6 +219,10 @@ Retire both size ceilings as blocking gates. Do not replace them with another bl
 
    The fix is to compare against the first parent for merge commits, or to exclude paths introduced by a merge whose other parent is an ancestor of the base, so a base merge stops counting as authored change. Whichever is chosen, the test is that merging `main` into a branch does not by itself invalidate that branch's QA binding.
 
+6. **Record push-ceiling telemetry at demotion time.** When `_check_commit_limit` is demoted under item 1, have it emit what it would have blocked: branch, total and authored counts, the effective limit, which relief applied, and whether a relief check failed to evaluate. Append-only, outside the branch under measurement. Without this the pre-push ceiling has no observable behaviour at all after demotion, and the re-measure above can never cover the half of the gate that produced every recorded workaround. This item exists because a reviewer pointed out that the telemetry appeared only in prose and would therefore never be built.
+
+   The recording has a second use this decision met first-hand. Both relief checks shell out to `check_pr_bypass_label.py`, which reads labels through `gh pr view`, which uses GraphQL. In the environment this decision was authored in, GraphQL returns 403 and both checks exit 3, so `_check_commit_limit` saw no relief and blocked a two-commit push on a branch that carries the `needs-split` label and qualified for the small-push allowance. A gate that fails closed when its relief check is merely unreachable converts an environment limitation into an unconditional block, and nothing today records that this happened. The telemetry field "whether a relief check failed to evaluate" is what makes that distinguishable from a genuine refusal.
+
 ### What is deliberately not adopted
 
 An earlier draft of this decision proposed replacing commit count with a convergence metric: commits added since the last green check run, and commits added without a corresponding review thread resolution.
@@ -308,17 +312,24 @@ Order: fix the rebind generator; remove the CI block in `enforce_pr_validation.p
 
 ### Time-box and re-measure
 
-The blocking-value claim now rests on ten labeled pull requests classified by hand across both populations, not on one. It is still provisional rather than permanent, for a different reason: survivorship. Pull requests the ceiling deterred, or that were split before opening, appear in no query, so no enumeration can reach them, and the eight in-tree records above establish that this population exists without bounding it. Ninety days after the implementation lands, re-measure against a stated selection method over the labeled population. The predicate has to be a counterfactual about **these gates**, not a general quality measure, and an earlier revision of this paragraph got that wrong: it asked whether any pull request merged in the interval should not have, which would return the ceilings on the strength of a bad pull request they could never have blocked. A gate is not vindicated by harm it had no power to prevent.
+The blocking-value claim rests on ten labeled pull requests classified by hand across both populations, plus eight in-tree workaround records with no stated selection method. That is enough to retire the gates and not enough to close the question, so this decision carries one falsification commitment. A prior revision of this section was challenged from both directions in review, one role arguing it be cut as unrunnable and one arguing it be rewritten as the only test the decision has. It is rewritten, because the second reading is right: cutting it would leave the weakest-evidenced item in the decision with no test at all.
 
-State the counterfactual before running the measurement, so it cannot be fitted afterwards. For each pull request merged in the interval, replay the **CI** contract on its history as merged: authored non-merge commits against 20, or 40 where a qualifying `main` merge is present. That partitions the interval into the set that contract **would have** blocked and the set it would have passed.
+**Owner.** The repository owner, or a delegate the owner names in the follow-up issue. Not the implementing agent, and not this decision's author: a falsification test scored by the party whose decision it tests is the shape ADR-101 exists to refuse.
 
-**Only the CI contract is replayable, and an earlier revision of this paragraph claimed both.** The pre-push contract cannot be reconstructed from merged history, for two reasons that compound. It evaluates a **push range** rather than a branch state, and it then applies reliefs computed at push time, the already-carried-elsewhere carve-out and the `needs-split` small-push allowance (`git_hook_policy.py:6122-6162`). Neither is visible afterwards. And a squashed branch has erased the commits the gate actually saw, which is not hypothetical here: the same decision documents PR #5178 squashing at 23 and at 33 commits ahead, so its merged history shows 12 and the pre-push gate saw 33. Replaying merged history against the local contract would score that pull request as never blocked, when it was blocked twice.
+**Trigger.** File a follow-up issue titled "Re-measure the retired size ceilings" at the same time the implementation pull request merges, due 90 days after that merge. This decision is not complete until that issue exists; an unfiled re-measure is the ritual the cut argument correctly objects to.
 
-The consequence is a stated limit rather than a workaround. The re-measure covers the CI ceiling. The pre-push ceiling is the one this decision has the most first-hand evidence against and the least ability to re-measure, and closing that needs push-time telemetry recorded as it happens, which does not exist today. Anyone who wants the local contract in the 90 day result has to add that recording when the ceilings are demoted, not after.
+**Population.** Every pull request merged into `main` in the 90 days after the implementation merge.
 
-Only the first set can speak to this decision. The rollback triggers if a pull request in it should not have merged, or if a correctness gate on it failed later than it would have under the CI ceiling. A bad pull request in the second set is evidence about some other gate and is recorded as such, not counted here. If the first set is empty, or contains no harm, the CI ceiling's retirement stands and the follow-up closes; the pre-push ceiling's retirement is not re-measured by this procedure and stands on the evidence already gathered.
+**The counterfactual, stated before the measurement so it cannot be fitted after.** Replay the retired **CI** contract over each merged pull request's history as merged: authored non-merge commits against 20, or 40 where a qualifying `main` merge is present. That partitions the interval into the set the CI ceiling would have blocked and the set it would have passed.
 
-This is the standard ADR-099 applies to its own ADR sample, and it is applied here for the same reason: a decision resting on an undisclosed or very small sample earns a re-measurement, not an exemption.
+**Pass or fail predicate.** The retirement fails, and the CI ceiling returns, if either holds for a pull request in the would-have-been-blocked partition:
+
+1. It was reverted, or a fix-forward commit landed within 7 days repairing a defect it introduced, **and** a reviewer records that a smaller pull request would plausibly have caught it. Both halves required: reverts happen for reasons size does not predict.
+2. A correctness gate failed on `main` after it merged, where that gate would have run before merge had the pull request been split.
+
+Absent either, the retirement stands and the follow-up closes. A bad pull request in the would-have-passed partition is evidence about some other gate, recorded there, and does not count here.
+
+**The pre-push half cannot be tested by this procedure, and that is a consequence rather than an omission.** Its contract evaluates a push range, applies two reliefs computed at push time, and a squashed branch has erased the commits it saw, so merged history cannot reconstruct its verdict. This decision's own PR #5178 case is the proof: 12 commits in surviving history against 33 the gate actually blocked. Measuring it needs push-time telemetry recorded as it happens, which does not exist and cannot be added retroactively. That is why it is Decision item 6 rather than a line in this section: if the recording is not built when the ceilings are demoted, the pre-push ceiling is unmeasurable by construction and its retirement is permanent on the evidence already gathered.
 
 ### Follow-up, not part of this decision
 
@@ -328,7 +339,7 @@ This is the standard ADR-099 applies to its own ADR sample, and it is applied he
 ## Related Decisions
 
 - ADR-086, lefthook local hook orchestration
-- ADR-099, enforcement planes. Not a disjoint scope: ADR-099's plane rule classifies the gates this decision retires as P0, and therefore advisory, which is the same conclusion reached here from cost evidence rather than from the invariant. This decision also removes `SKIP_SCOPE_CHECK`, one of the four root-cause exhibits ADR-099 cites. Neither decision depends on the other landing
+- ADR-101, enforcement planes. Not a disjoint scope: ADR-101's plane rule classifies the gates this decision retires as P0, and therefore advisory, which is the same conclusion reached here from cost evidence rather than from the invariant. This decision also removes `SKIP_SCOPE_CHECK`, one of the four root-cause exhibits ADR-101 cites. Neither decision depends on the other landing
 
 ## References
 
