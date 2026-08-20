@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-5174-b3bfa3aaa-remove-agent-tier-hierarchy-replace.json
-qaCommit: 3f5fb9c4e1031d9b22fa4b28520e14ee2867acc7
+qaCommit: 2221006824b0a485ddc8cd9d02947df9f993981a
 ---
 
 # QA report: issue #5130, remove the agent tier hierarchy
@@ -265,3 +265,26 @@ log's round-3 section and the rewritten body now both record three re-run
 lenses and their final votes. One limit stands and is stated in both places:
 `critic` was not re-run a second time against the corrected number its BLOCK
 named.
+
+### Round-4 review fixes
+
+`qaCommit` rebound. Verified at that commit:
+
+| Check | Result |
+|---|---|
+| `pytest tests/test_agent_role_metadata_migration.py tests/test_agent_tree_discovery.py tests/build_scripts/test_validate_agent_matrix_refs.py -q` | 166 passed |
+| `build/scripts/validate_agent_matrix_refs.py` | exit 0 |
+| `ruff check` on the two changed Python files | All checks passed |
+| Dash scan on the four changed files | 0 violations |
+
+The corpus counts in this round are the measurement, not a repetition of one:
+`_agent_files()` returns **190**, `_agent_definitions()` returns **186**, and
+the difference is the four allowlisted siblings. The docstring that had said
+175 and the comment quoting it were both stale, and both are updated together
+with the figure dated.
+
+One finding in this batch needed no code change: Copilot reported the PR body
+still claiming 25 wrong roles in a default export. The body had already been
+rewritten to 16 before the review was generated. It now states 16, and quotes
+the old 25 only inside a labeled note recording that the number was wrong and
+who caught it.
