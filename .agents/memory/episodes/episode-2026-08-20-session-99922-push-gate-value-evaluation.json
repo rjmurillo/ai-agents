@@ -58,6 +58,19 @@
       "type": "commit",
       "content": "Commit: f5f0d59c6f50e46a575df292a3800e74418f4835",
       "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-20T18:34:31+00:00",
+      "type": "commit",
+      "content": "Commit: 5beda2c685658571787f1b033dfb437783da0db1",
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     }
@@ -67,7 +80,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 6
   },
   "lessons": []
