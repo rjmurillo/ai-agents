@@ -445,13 +445,18 @@ TIER=$(printf '%s' "$MERGE_READY" | jq -r '.Tier // "UNKNOWN"')
 # Anything other than the literal `true` denies the exemption: the real producer
 # always emits the boolean, so healthy input is unaffected, and a missing or
 # unreadable field is exactly the state that must not buy a merge.
-# Not `// "unknown"`, which is what this read said first. jq's alternative
-# operator fires on `false` as well as `null`, so a producer that reported an
-# incomplete fetch was relabelled "unknown" and the operator was told the field
-# could not be read when it had been read fine. Both still deny the exemption,
-# which is why the tests could not tell them apart until one was added that
-# reads the message. Keep the explicit null test.
-PAGES_COMPLETE=$(printf '%s' "$MERGE_READY" | jq -r '.fetched_pages_complete | if . == null then "unknown" else tostring end')
+# The read has been wrong twice, in opposite directions, so both are pinned.
+# First it said `// "unknown"`, and jq's alternative operator fires on `false`
+# as well as `null`, so a producer reporting an incomplete fetch was relabelled
+# "unknown": the operator was told the field could not be read when it had been
+# read fine. Both deny the exemption, which is why no test could tell them apart
+# until one was added that reads the message.
+# Then the repair used a bare `tostring`, which does not check the JSON type, so
+# the *string* "true" came out as `true` and bought the exemption. That is the
+# worse direction: malformed evidence granting a merge is the thing this guard
+# exists to refuse. Only a real JSON boolean is accepted now; every other type,
+# including a string spelling of a boolean, is "unknown" and denies.
+PAGES_COMPLETE=$(printf '%s' "$MERGE_READY" | jq -r 'if (.fetched_pages_complete | type) == "boolean" then (.fetched_pages_complete | tostring) else "unknown" end')
 # .claude/commands/pr-review-config.yaml already ANDs this field into its
 # completion-gate criterion, so this is the same safety rule applied at the
 # other place a merge can be armed, not a new policy.
@@ -868,7 +873,7 @@ Per PR processed:
 - [ ] Branch lease acquired via `pr_autofix_lease.py acquire` before any branch mutation (issue #3413). SKIP result caused early exit; ACT result recorded with `base_sha`.
 - [ ] Remote mutations stayed under renewal supervision and were re-verified immediately before the mutation; if renewal ownership was lost, the mutation was blocked and the lease was released first.
 - [ ] Per-PR live-state gate ran immediately before the tier's action (issue #2455): `check_pr_live_state.py --pull-request $PR --skip-fetch --output-format json`. Verdict `Data.action=ACT` recorded; `Data.action=SKIP` aborted the action and recorded the reason (merged, closed, draft, or fully superseded by base).
-- [ ] Auto-merge disarm ran after live-state ACT on any non-T1 PR (issue #3913): `auto_merge_method` was null or `set_pr_auto_merge.py --disable` succeeded and returned `AutoMergeEnabled: false` before any push.
+- [ ] Auto-merge disarm ran after live-state ACT on any PR that is not provably T1 (issue #3913, and issue #5094 for the completeness half): that is every non-T1 PR, and also a T1 whose `fetched_pages_complete` was not the boolean `true`, since a tier derived from a truncated fetch has not earned the exemption. `auto_merge_method` was null or `set_pr_auto_merge.py --disable` succeeded and returned `AutoMergeEnabled: false` before any push.
 - [ ] Live-state gate re-ran immediately before any base refresh or conflict resolution (issue #4349): stale gate result from the start of the session is not sufficient; the PR can merge mid-cycle.
 - [ ] Every base refresh, rebase, push, auto-merge change, and direct merge ran through `run_pr_mutation_if_live` immediately before mutation (issue #4349).
 - [ ] Late mutation checks matched the head SHA, base ref, and base SHA captured by the current readiness cycle; any mismatch stopped mutation and restarted readiness checks.

@@ -263,3 +263,38 @@ def test_flat_producer_keys_include_the_fields_the_command_reads() -> None:
     assert schema.top_level_keys is not None
     assert "Tier" in schema.top_level_keys, "Tier is set via `result['Tier'] = ...`."
     assert "CanMerge" in schema.top_level_keys
+
+
+@pytest.mark.parametrize("doc", [COMMAND_PATH, MIRROR_PATH])
+def test_the_verification_checklist_covers_the_completeness_half(doc: Path) -> None:
+    """Prose that agents report compliance against must track the gate.
+
+    The disarm checklist item said "any non-T1 PR" while the gate had started
+    disarming a T1 whose evidence was incomplete. An agent reading the checklist
+    as its definition of done could report compliance without ever verifying the
+    new disarm, which is prose drifting from behavior in the one direction that
+    matters: the artifact used as evidence.
+
+    Copilot caught it. This guard is here so the next widening of the gate
+    cannot leave the checklist behind quietly. It is deliberately weak, since it
+    asks only that the checklist name the field the gate reads; a guard that
+    tried to parse the condition out of English would fail for the wrong
+    reasons.
+    """
+    body = doc.read_text(encoding="utf-8")
+    block = body[body.index("# tier-dispatch:start") : body.index("# tier-dispatch:end")]
+    if "PAGES_COMPLETE" not in block:
+        pytest.skip("the gate no longer reads a completeness field")
+
+    checklist = [
+        line
+        for line in body.splitlines()
+        if line.startswith("- [ ]") and "Auto-merge disarm" in line
+    ]
+
+    assert checklist, "the auto-merge disarm checklist item vanished"
+    assert any("fetched_pages_complete" in line for line in checklist), (
+        "the dispatch block disarms on incomplete completeness evidence, but the "
+        "verification checklist still describes the disarm as non-T1 only, so an "
+        "agent can report compliance without checking the newer condition"
+    )

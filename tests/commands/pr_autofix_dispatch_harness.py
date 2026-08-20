@@ -79,7 +79,12 @@ payload = {"Success": True, "Tier": tier, "Ready": False}
 # predating the field would emit. The command must deny the T1 exemption then,
 # not assume completeness.
 pages = os.environ["FAKE_PAGES_COMPLETE"]
-if pages != "OMIT":
+if pages.startswith("RAW:"):
+    # A value of the wrong JSON type, so the command's type check is exercised
+    # rather than assumed. "RAW:\"true\"" is the string spelling of a boolean,
+    # which a bare `tostring` laundered into the real thing.
+    payload["fetched_pages_complete"] = json.loads(pages[4:])
+elif pages != "OMIT":
     payload["fetched_pages_complete"] = pages == "true"
 print(json.dumps(payload, indent=2))
 raise SystemExit(0 if tier == "T1" else 1)

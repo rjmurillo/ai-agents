@@ -232,7 +232,10 @@ def test_the_fake_tier_producer_matches_the_real_output_shape(tmp_path: Path, do
     write_fake_scripts(scripts_dir)
 
     env = {k: v for k, v in os.environ.items() if k not in CI_ONLY_ENV}
-    env["FAKE_TIER"] = "T1"  # exits 0; the fake mirrors the real not-ready status
+    # T1 is the one tier the fake exits 0 for, mirroring the real producer,
+    # which exits 1 for any PR that is not merge-ready. `check=True` below then
+    # fails on a fake that has stopped matching that contract.
+    env["FAKE_TIER"] = "T1"
     env["FAKE_PAGES_COMPLETE"] = "true"
     process = subprocess.run(
         ["python3", str(scripts_dir / "test_pr_merge_ready.py")],
@@ -431,3 +434,73 @@ def test_a_missing_field_is_reported_as_unknown(tmp_path: Path, doc: str) -> Non
         tmp_path / "omit", doc, tier="T1", auto_merge="SQUASH", pages_complete="OMIT"
     )
     assert "fetched_pages_complete=unknown" in omitted.stdout
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+@pytest.mark.parametrize(
+    "raw",
+    ['RAW:"true"', 'RAW:"false"', "RAW:1", 'RAW:"yes"', "RAW:[]"],
+    ids=["string-true", "string-false", "number", "string-yes", "array"],
+)
+def test_a_wrong_typed_completeness_value_never_buys_the_exemption(
+    tmp_path: Path, doc: str, raw: str
+) -> None:
+    """Malformed evidence must deny, and the string `"true"` is the trap.
+
+    The repair for the `//` bug used a bare `tostring`, which converts without
+    checking the JSON type, so a producer emitting the *string* `"true"` came
+    out as `true` and kept auto-merge armed. That is the worse direction of the
+    two: the earlier bug mislabelled a denial, this one granted a merge on
+    evidence the command could not actually read.
+
+    `"false"` is here as well, even though it denies either way. Without it the
+    case set would only cover values that differ in outcome, and the next reader
+    could not tell whether the type check or the value check did the work.
+    """
+    run = run_dispatch(tmp_path, doc, tier="T1", auto_merge="SQUASH", pages_complete=raw)
+
+    assert run.disarmed, (
+        f"a completeness value of {raw[4:]} is not a boolean the command can trust, "
+        "yet it kept auto-merge armed on a T1"
+    )
+    assert "fetched_pages_complete=unknown" in run.stdout, (
+        "a wrong-typed value was reported as if it had been read"
+    )
+    assert run.reached_end
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_the_inverted_control_can_fail(tmp_path: Path, doc: str) -> None:
+    """The inverted control's own control, executable rather than recorded.
+
+    `test_a_comment_reword_changes_nothing` asserts two runs agree. On its own
+    that is satisfiable by a harness which cannot observe anything, so the claim
+    it rests on is that a *non-inert* edit would make the two runs differ. That
+    claim was demonstrated by hand and written into a docstring and a QA report,
+    which is prose: nothing re-runs it when the harness changes underneath.
+
+    This asserts it. The edit inverts the disarm gate's auto-merge test, which
+    changes the outcome for the case both controls run, and the two runs must
+    then disagree. If the harness ever stops seeing behavior, this fails and the
+    inverted control above is exposed as vacuous instead of quietly passing.
+
+    Verified to be discriminating rather than assumed: the first hand-run
+    attempt flipped `[ "$TIER" != "T1" ]` to `!= "T9"`, and T3 sits on the same
+    side of both, so the edit changed nothing and the probe reported nothing.
+    """
+    shipped = run_dispatch(tmp_path / "shipped", doc, tier="T3", auto_merge="SQUASH")
+    non_inert = run_dispatch(
+        tmp_path / "mutated",
+        doc,
+        tier="T3",
+        auto_merge="SQUASH",
+        block_edit=('[ "$AUTO_MERGE" != "null" ]', '[ "$AUTO_MERGE" = "null" ]'),
+    )
+
+    assert shipped.disarmed, "the shipped block should disarm an armed non-T1 PR"
+    assert not non_inert.disarmed, "the inverted gate should not disarm"
+    assert non_inert.stdout != shipped.stdout, (
+        "a behavior-changing edit produced byte-identical output, so the "
+        "inverted control that asserts agreement cannot be distinguishing "
+        "anything and its passing means nothing"
+    )
