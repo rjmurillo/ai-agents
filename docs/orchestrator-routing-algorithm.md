@@ -223,11 +223,23 @@ Quoted verbatim from
 | **escalate** | Conflicts detected | Route to high-level-advisor |
 
 ```python
-# Soft-conflict weights, per ADR-009: "weighted vote (architect > implementer)".
-# An agent absent from this table carries weight 1.
+# Soft-conflict weights. ADR-009:90 grants exactly one ordering, quoted
+# verbatim: "Soft conflicts -> weighted vote (architect > implementer)".
+# That is the whole of the canonical source; ADR-009 defines no weight table
+# and names no other agent. This dict is the minimal encoding of that one
+# ordering, and an agent absent from it carries weight 1.
+#
+# An earlier revision also carried "security": 2 under this same "per ADR-009"
+# comment. ADR-009 does not grant it (`grep -c -i security` on the ADR returns
+# 0), so it was an invented authority grant wearing a canonical citation: a
+# security/qa disagreement would have resolved 2-1 for security instead of
+# escalating. Removed rather than renamed, per
+# `.claude/rules/canonical-source-mirror.md` ("a wrong citation is worse than
+# no citation; it weaponizes the next reader's trust"). Weighting any further
+# agent is an ADR-009 amendment, not a docs edit. Refs #5130 adr-review
+# (architect, critic).
 CONFLICT_VOTE_WEIGHTS = {
     "architect": 2,
-    "security": 2,
     "implementer": 1,
 }
 

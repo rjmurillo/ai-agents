@@ -12,6 +12,20 @@ log staged alongside the change.
 
 ## Review provenance (read this first)
 
+**The debate ran on 2026-08-20. Votes and findings are in "The `adr-review`
+debate" section at the end of this file.** It was run at the maintainer's
+explicit direction, in a session with subagent invocation available, against
+the branch at `be5d513`. Seven agents: the six `adr-review` roles plus a `qa`
+pass. Result: 4 ACCEPT, 1 DISAGREE-AND-COMMIT, 2 BLOCK. Both blocks named
+bounded clearing conditions; both sets of findings were real, and the two P0s
+were fixed before this log was updated.
+
+The rest of this section is the original disclosure, kept verbatim rather than
+deleted, because the history of *how long this went unreviewed* is part of the
+record. Read it as history, not as current state.
+
+---
+
 The six-agent `adr-review` debate did **not** run for this change. The session
 that authored it was configured with subagent invocation disabled, so no
 independent architect, critic, independent-thinker, security, analyst, or
@@ -48,9 +62,40 @@ The alternative on the table was relocation, per the existing plan in
 `.agents/analysis/1769-monolith-section-classification.md`. Relocation lost on
 evidence:
 
-1. The relocation target `workflow-routing.md` does not exist in the tree, and
-   #1769's own section table (lines 120-135) no longer lists tier coordination
-   among the sections it plans to move. The plan moved on.
+1. The relocation target does not exist in the tree.
+   `.agents/analysis/1769-monolith-section-classification.md:87` classifies
+   section 2.5 as `PATH-SCOPED-RULE` with target `agent-catalog.md`, and that
+   target names a rule file under `.claude/rules/` that does not exist
+   (`ls .claude/rules/ | grep agent-catalog` returns nothing). The
+   `docs/agent-catalog.md` in the tree is a different artifact, the generated
+   agent index that `build/generate_agent_catalog.py` writes, not a
+   path-scoped rule. So relocation had no destination, and shrinking the
+   section in place is the only move available today.
+
+   **Corrected 2026-08-20 by the `adr-review` debate (critic, analyst), and
+   the original wording was wrong twice over.** It read: "The relocation
+   target `workflow-routing.md` does not exist in the tree, and #1769's own
+   section table (lines 120-135) no longer lists tier coordination among the
+   sections it plans to move. The plan moved on." Both halves are false.
+   #1769 never assigned section 2.5 to `workflow-routing.md`; that is the
+   target for sections 3, 4, and 6 (lines 88, 89, 91). And lines 120-135 are
+   the `SESSION-PROTOCOL.md` table, a different document: the AGENT-SYSTEM.md
+   table is lines 84-97, where line 87 still lists this section. The plan did
+   not move on, and this log said it had, citing the wrong file and the wrong
+   lines to prove it.
+
+   The correction matters more than the sentence. Issue #5130 exists because
+   PR #5127 committed a replacement that asserted a state the tree
+   contradicted. This log is the artifact meant to prevent that, and it had
+   reproduced the defect. Noted rather than silently rewritten so the next
+   reader can see the failure mode recur under the guard built for it.
+
+   Note also that this PR edits `1769-monolith-section-classification.md:87`
+   itself, so that row is not independent confirmation of anything: the
+   document was made to agree with the change in the same commit. What the
+   row now records is the new state (section 2.5 is 58 lines and quotes
+   ADR-009), not a verdict that relocation was rejected.
+
 2. `.agents/SESSION-PROTOCOL.md` had already been reduced to a five-line
    pointer at the `AGENT-SYSTEM.md` copy by the time this change started. The
    223-line body issue #5130 describes lives only in `AGENT-SYSTEM.md`
@@ -72,12 +117,20 @@ blanket. Measured by byte comparison against the ADR, not by eye:
 |---|---|---|---|
 | `.agents/AGENT-SYSTEM.md` | verbatim | verbatim | yes |
 | `docs/orchestrator-routing-algorithm.md` | verbatim | not carried, by design | yes |
-| `.agents/SESSION-PROTOCOL.md` | summarized in one sentence | not carried | yes |
+| `.agents/SESSION-PROTOCOL.md` (deleted upstream, see below) | summarized in one sentence | not carried | yes |
 
-`SESSION-PROTOCOL.md` is a five-line pointer, so it summarizes rather than
-quotes. That is the right shape for it, but it means "quoted verbatim" is true
-of the two substantive replacements and not of the pointer. An earlier revision
+`SESSION-PROTOCOL.md` was a five-line pointer, so it summarized rather than
+quoted. That is the right shape for a pointer, but it means "quoted verbatim"
+is true of the two substantive replacements and not of it. An earlier revision
 of this log said all three quote verbatim, which was wrong.
+
+That row is **history, not current state**: PR #5179 deleted
+`.agents/SESSION-PROTOCOL.md` from `main`, and this branch took the deletion on
+merge. The row is kept because the verbatim-provenance claim it corrects was
+made about all three files, and dropping it would leave the correction looking
+like it only ever concerned two. Only the first two rows describe files that
+exist today, and only those two are asserted by
+`test_adr_009_blocks_are_quoted_byte_for_byte`.
 
 What matters for issue #5130 finding 3 is the escalation target, and all three
 name `high-level-advisor`. None contains "escalate to the orchestrator" or the
@@ -215,3 +268,120 @@ that sentence is ever dropped, this dissent becomes live again.
   aggregation and escalation source, quoted verbatim.
 - `.claude/rules/canonical-source-mirror.md`. Why the ADR text is quoted, not
   paraphrased.
+
+## The `adr-review` debate, 2026-08-20
+
+Run at the maintainer's direction against the branch at `be5d513`, base
+`origin/main` at `ba541c21f`. Six `adr-review` roles per
+`.claude/skills/adr-review/SKILL.md`, plus a `qa` pass added because the
+repository's spec validator listed `REQ-020: Obtain QA verification of test
+coverage` as `NOT_COVERED` alongside the ADR, security, architect, and critic
+gaps.
+
+### Phase 1: independent votes
+
+| Agent | Vote | The finding that drove it |
+|-------|------|---------------------------|
+| architect | **BLOCK** | No ADR records this decision. The change retires a documented governance contract across 186 files, rewrites the documented conflict-resolution algorithm, and withdraws a rationale clause from ADR-078, with the rationale living only in a reference document and this log. |
+| critic | **BLOCK** | Two wrong citations committed to the permanent record: `"security": 2` shipped under a `per ADR-009` attribution ADR-009 does not support, and this log's finding-5 answer cited the wrong relocation target and the wrong line range. |
+| independent-thinker | ACCEPT | The hierarchy was not merely unenforced but false: it opened "per ADR-009" while ADR-009 contains zero occurrences of "tier", and six of the nine agents it granted delegation authority carry "you CANNOT delegate" in their own prompt bodies. |
+| security | ACCEPT | Tier never gated anything (`grep -riE "\btier\b" .claude/hooks/` returns zero on `origin/main`); the delegation containment survives independently; both new role gates fail closed toward the least-authority value. |
+| analyst | DISAGREE-AND-COMMIT | Claims 1, 1a, 2, 5, 6 reproduce under independent verification. Claim 4 (the #1769 reconciliation) is overstated and partly circular. |
+| high-level-advisor | ACCEPT | The migration is mechanically atomic; splitting ships a known-broken intermediate. A live 50-agent mis-export bug is fixed on the way. |
+| qa | ACCEPT | 68 tests pass; changed functions measure 91 to 100 percent branch coverage; all seven negative controls it could construct fail as the PR claims. |
+
+### Phase 2: consolidation
+
+Consensus was not reached on the first round (the skill's bar is 6/6 Accept or
+Disagree-and-Commit). Two findings were raised independently by more than one
+agent, which is the signal worth recording:
+
+- **The `security: 2` misattribution** was found by architect and critic
+  separately. Verified: `.agents/architecture/ADR-009-parallel-safe-multi-agent-design.md:90`
+  reads `- Soft conflicts -> weighted vote (architect > implementer)` and is
+  the ADR's only weighting statement; `grep -c -i security` on the ADR returns
+  0.
+- **`.agents/prototypes/agents/README.md:32`** was found by architect and
+  independent-thinker separately: it instructed future prototype authors to
+  keep `metadata.tier` aligned with a baseline that no longer has the field.
+
+Two agents also independently corrected the *reason* this change is right.
+The debate log's own argument was "nothing enforces the hierarchy, so delete
+it." independent-thinker rejected that inference as unsound in this repository,
+where `.claude/rules/*.md` and `AGENTS.md` bind behavior with no validator
+behind them, and found that enforcement had in fact existed:
+`test_tier_compatibility.py` shipped in PR #1426 (`525490fae`) with
+`TIER_HIERARCHY`, `AGENT_TIERS`, and real exit codes, and was deleted
+incidentally in `5c4729345` ("M1 catalog prune"), not by a decision that ranks
+should stop being checked. The conclusion survives on a stronger premise the
+original argument did not make: **the hierarchy was false, not merely
+unwatched.** Removing a wrong rule is not the same act as removing an
+unenforced one, and this log had been claiming the weaker of the two.
+
+### Phase 3: resolution
+
+Fixed in this change, before the log was updated:
+
+| Finding | Priority | Raised by | Resolution |
+|---------|----------|-----------|------------|
+| `"security": 2` attributed to ADR-009 | P0 | critic, architect | Removed from `CONFLICT_VOTE_WEIGHTS` in `docs/orchestrator-routing-algorithm.md`, with the reason recorded inline. Weighting any further agent is an ADR-009 amendment, not a docs edit. |
+| This log's finding-5 answer cited `workflow-routing.md` and lines 120-135 | P0 | critic, analyst | Corrected in place, with the original wording quoted so the failure is visible rather than tidied away. The real target is `agent-catalog.md` at line 87; lines 120-135 are the `SESSION-PROTOCOL.md` table. |
+| "There is no ranked agent hierarchy" sits 21 lines above a verbatim `architect > implementer` | P1 | architect, critic | `.agents/AGENT-SYSTEM.md` section 2.5 now says "no ranked *delegation* hierarchy" and carries a paragraph distinguishing an aggregation weight from an invocation rank. |
+| The verbatim ADR-009 quote had no guard | P1 | critic, architect | `test_adr_009_blocks_are_quoted_byte_for_byte` added, extracting the blocks from ADR-009 at test time. Negative control run: a one-word paraphrase ("the high-level-advisor") fails it. |
+| ADR-078 stale and its option-C rationale not vocabulary-only | P1 | architect, analyst | Corrected with a dated note at the end of ADR-078. The "breaking the manager-tier boundary" clause is **withdrawn**, not renamed, because a role that grants nothing cannot be broken. Option C is still rejected, on two grounds instead of three. |
+| ADR-078:212 missing from the PR's own stale-line disclosure | P2 | analyst | Added; the correction note lists all six lines. |
+| `.agents/prototypes/agents/README.md:32` mandates the deleted field | P2 | architect, independent-thinker | Updated to `metadata.role`, with the frozen-prototype exemption explained so a new prototype does not inherit it. |
+
+Disclosed and deliberately **not** fixed here:
+
+- **Duplicate section number `2.5`** at `.agents/AGENT-SYSTEM.md:572` (`### 2.5
+  Strategy Agents`) and `:788` (`## 2.5 Agent Coordination`). Raised P2 by
+  critic. Pre-existing on `origin/main`. Renumbering either one requires
+  choosing a numbering convention and updating
+  `.agents/analysis/1769-monolith-section-classification.md` plus the section
+  tally that `test_audit_records_total_section_count` pins. That is a
+  maintainer's call on convention, not a defect this change introduced.
+- **Four copies of `_KNOWN_ROLES` with no equality test** (qa P1, security P2).
+  qa proved it: adding `"auditor"` to the validator's copy alone leaves all six
+  affected modules green.
+- **No cross-tree role-agreement guard** (qa P1). qa proved it: setting
+  `.claude/agents/janitor.md` to `role: strategic` against
+  `templates/agents/janitor.shared.md`'s `role: support` leaves 119 tests green
+  and the drift detector reporting no drift. This is the highest-probability
+  regression for a six-tree sweep, and it is untested.
+- **A malformed agent file in a configured tree escapes the role guard** (qa
+  P1), because `_agent_definitions()` requires parseable frontmatter. The raw
+  textual sweep closes this for the old `tier:` key but not for the new `role:`
+  key.
+- **The nested-role read elevates 25 agents in the OpenClaw export** (security
+  P2, CWE-269). Correct behavior, but the downstream semantics of `role` in
+  OpenClaw are outside this repository and were not verified by anyone here.
+
+### Phase 4: convergence
+
+`ACCEPT` from independent-thinker, security, high-level-advisor, and qa.
+`DISAGREE-AND-COMMIT` from analyst, conditioned on the finding-4 correction,
+which is made above.
+
+critic's `BLOCK` named its clearing condition explicitly: "Add the
+verbatim-quote test (P1-5) and the one reconciling sentence (P1-4) in the same
+pass and I would move to ACCEPT." Both P0s are fixed and both P1s are done, so
+that condition is met on this head. **It is met by construction, not by a
+re-vote: critic was not re-run against the fixed tree.** Whoever merges should
+know the difference.
+
+architect's `BLOCK` is **not** cleared. Its P0 is that no ADR records this
+decision, and this change still adds none (`git diff --name-status
+origin/main...HEAD -- .agents/architecture/` shows only the ADR-078
+correction). architect's position is that a critique log has no status field,
+no supersession chain, and is not in the catalog a future architect greps, so
+it cannot carry a decision of this size. high-level-advisor's position, given
+directly on the same question, is to land the migration and file the ADR work
+as a follow-up issue rather than grow this PR further.
+
+Both are designated tie-breakers under
+`.claude/skills/adr-review/SKILL.md` (architect on structural questions,
+high-level-advisor on deadlock), and they disagree. Under `AGENTS.md`
+Boundaries, authoring a new ADR is `Ask First` regardless. **That decision is
+the maintainer's and is recorded here as open**, rather than resolved by
+whichever tie-breaker is quoted last.
