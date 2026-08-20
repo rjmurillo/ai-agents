@@ -284,8 +284,9 @@ uv run python scripts/validate_session_json.py "$LOG"
 
 **Required Session Log Sections**:
 
-Session logs are JSON, not markdown. See `.agents/SESSION-PROTOCOL.md` for the
-full schema; the extractor reads these fields:
+Session logs are JSON, not markdown. See
+`.agents/schemas/session-log.schema.json` for the full schema; the extractor
+reads these fields:
 
 ```json
 {

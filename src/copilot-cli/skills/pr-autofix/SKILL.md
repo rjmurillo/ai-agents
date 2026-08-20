@@ -564,7 +564,7 @@ classifier.  Pass `--is-bot` when the PR author is a bot.
 - **Stale CI check**: Push fresh commit to re-trigger; avoid `--no-verify` if possible.
 - **Bot review threads**: Read, triage per Thread Severity, reply with disposition, resolve via `add_pr_review_thread_reply.py --resolve`.
 - **Armed auto-merge + final thread**: `add_pr_review_thread_reply.py --resolve` posts the reply, disables armed auto-merge when that thread is the final unresolved one, then resolves the thread. If the guard cannot prove the unresolved count, the script exits 3 after posting the reply and leaves the thread unresolved so GitHub cannot merge before the completion gate.
-- **Session validation failure**: Use session-log-fixer skill.
+- **Session validation failure**: Hand-edit the log to satisfy the session-log schema, then re-validate it.
 
 ## Force-Push Safety
 

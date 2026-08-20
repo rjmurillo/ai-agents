@@ -1741,8 +1741,9 @@ class TestValidateSessionLog:
     def test_valid_minimal_log(self) -> None:
         """Valid minimal log passes validation.
 
-        "Minimal" means the six root fields SESSION-PROTOCOL.md requires, not
-        the two the schema used to name (issue #3763).
+        "Minimal" means the six root fields the schema requires
+        (.agents/schemas/session-log.schema.json), not the two it used to
+        name (issue #3763).
         """
         data = {
             "schemaVersion": "1.0",
@@ -2300,10 +2301,10 @@ def _make_valid_log(**session_overrides: object) -> dict:
     }
     session.update(session_overrides)
     return {
-        # The four fields below are required by SESSION-PROTOCOL.md and emitted
-        # by session_structure.build_session_log, but the schema did not name
-        # them until issue #3763. A fixture that omitted them was only "valid"
-        # against the weaker schema, so it is corrected here alongside the fix.
+        # The four fields below were required by protocol convention but the
+        # schema did not name them until issue #3763. A fixture that omitted
+        # them was only "valid" against the weaker schema, so it is corrected
+        # here alongside the fix.
         "schemaVersion": "1.0",
         "session": session,
         "protocolCompliance": {
@@ -4119,7 +4120,7 @@ class TestEvidenceAgreesWithSession:
         assert not any("endingCommit is empty" in w for w in validate_session_log(log).warnings)
 
     def test_a_log_with_no_next_steps_field_warns(self) -> None:
-        """`SESSION-PROTOCOL.md` lists `nextSteps` as a required top-level field."""
+        """The schema lists `nextSteps` as a required top-level field."""
         log = _make_valid_log()
         log.pop("nextSteps", None)
         assert any("nextSteps" in w for w in validate_session_log(log).warnings)
@@ -4468,9 +4469,9 @@ class TestARequiredItemCannotChooseItsOwnEnforcement:
         assert not any(e.startswith(_MISSING_LEVEL_PREFIX) for e in errors)
 
     def test_a_demoted_incomplete_item_without_evidence_is_an_error(self) -> None:
-        """The bypass #3747 names. SESSION-PROTOCOL.md line 20 already requires
-        documented justification to deviate from a MUST, so this enforces the
-        rule as written rather than inventing policy."""
+        """The bypass #3747 names. Deviating from a MUST already requires
+        documented justification, so this enforces the rule as written
+        rather than inventing policy."""
         errors = self._check({"complete": False, "level": "SHOULD", "evidence": ""}).errors
         assert any(e.startswith(_UNJUSTIFIED_DEMOTION_PREFIX) for e in errors)
 
@@ -4541,19 +4542,15 @@ class TestARequiredItemCannotChooseItsOwnEnforcement:
             e.startswith(_MISSING_LEVEL_PREFIX) and "branchVerified" in e for e in result.errors
         )
 
-    def test_the_generator_output_trips_neither_rule(self) -> None:
-        """A rule that fires on the repo's own session-init template is a rule
-        that blocks every new session. build_session_log emits `level` on all
-        twelve required items, so both rules are pure ratchets on practice."""
-        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / ".claude/skills/session-init"))
-        from session_init.session_structure import build_session_log
-
-        log = build_session_log(
+    def test_a_well_formed_log_trips_neither_rule(self) -> None:
+        """A rule that fires on a well-formed log is a rule that blocks every
+        new session. A log with `level` on all required items must be a pure
+        ratchet on practice, not a false positive."""
+        log = _make_valid_log(
             branch="feat/probe",
-            commit="a" * 40,
-            session_number=1,
+            startingCommit="a" * 40,
             objective="probe",
-            current_date="2026-07-29",
+            date="2026-07-29",
         )
         errors = validate_session_log(log).errors
         assert not any(e.startswith(_MISSING_LEVEL_PREFIX) for e in errors)
@@ -4562,9 +4559,10 @@ class TestARequiredItemCannotChooseItsOwnEnforcement:
 
 
 class TestTheSchemaNamesEveryRequiredRootField:
-    """Issue #3763: SESSION-PROTOCOL.md lists six required root fields and
-    build_session_log emits all six, but the schema named two. The schema was
-    the single document disagreeing with both the prose and the generator.
+    """Issue #3763: the session protocol prose listed six required root
+    fields and build_session_log emits all six, but the schema named two.
+    The schema was the single document disagreeing with both the prose and
+    the generator.
     """
 
     def test_each_promoted_field_is_individually_required(self) -> None:

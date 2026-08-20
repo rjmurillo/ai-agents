@@ -90,7 +90,6 @@ evidence (failing tests, widening diff), not on speculation.
 | PR, issue, label, milestone ops | Skill: github |
 | Respond to PR review threads | Skill: pr-comment-responder |
 | Merge conflicts | Agent: merge-resolver |
-| Session-protocol CI failure | Skill: session-log-fixer |
 | Push, ship, "open a PR" | /ship (or /push-pr for push-only) |
 | "what do we know about X" | Skill: memory-search |
 | Research an unfamiliar topic | Skill: context-gather, then research-and-incorporate |
@@ -100,7 +99,6 @@ evidence (failing tests, widening diff), not on speculation.
 | Code quality, health check | Skill: quality-grades (repo-wide) or review (pre-merge) |
 | "Did I touch security-critical files?" | Skill: security-detection |
 | Review a diff or snippet for vulnerabilities | Skill: security-review; injection scan via security-scan |
-| Save progress, checkpoint | Skill: session-end |
 | Correction received, lesson learned | Skill: reflect |
 | Document a decision | Skill: adr-generator |
 | New skill wanted | Skill: skillforge |

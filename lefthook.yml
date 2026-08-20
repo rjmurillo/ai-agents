@@ -195,7 +195,6 @@ pre-commit:
             run: uv run --frozen python scripts/validation/git_hook_policy.py adr-review {staged_files}
             glob:
               - ".agents/architecture/ADR-*.md"
-              - ".agents/SESSION-PROTOCOL.md"
             skip:
               - merge
 
