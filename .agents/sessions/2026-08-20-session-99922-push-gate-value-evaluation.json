@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "npx markdownlint-cli2 was run against ADR-098 and reported 0 issues, though .agents/** is excluded by the project glob so 0 files were actually linted. Substituted a direct check: em-dash and en-dash count of 0 and banned-vocabulary count of 0 across all three authored files, re-run after every edit."
+        "Evidence": "Ran for real only after review caught that it had not been. The project glob excludes .agents/**, so the original invocation reported '0 issues' while linting 0 files, and an earlier revision of this record marked the item complete on that result with the dash and banned-vocabulary scans offered as a substitute. Those scans evaluate no markdownlint rule. Re-run by copying the four changed Markdown files to a scratch directory alongside the project rule config with its ignores and globs keys stripped: 'Linting: 4 files / Summary: 6 issues in 2 files', five MD012 multiple-blank-lines in the debate log and one MD032 blanks-around-lists in ADR-099, every one of them introduced by this session's own insertions. All six fixed; the re-run reports 'Linting: 4 files / Summary: 0 issues in 0 files'. The PR's 'Lint and formatting clean' preflight claim was unsupported until this point and is now supported."
       },
       "qaValidation": {
         "level": "MUST",

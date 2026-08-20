@@ -31,11 +31,13 @@ Measured at 2026-08-20T18:00Z over the preceding 14 days: 292 pull requests open
 
 That cutoff is load-bearing because the closing day was still in progress. A reviewer re-running the same date-bounded queries later in the day saw 296, 105, and 21. Read every count in this decision against the stated cutoff rather than as a standing figure; the argument does not turn on the difference, but the numbers are a snapshot and should be cited as one.
 
-Read the 36% carefully, because it is weaker evidence than it looks. `pr-validation.yml` applies `needs-split` at `WARNING`, `ALERT`, or `BLOCKED`, and its own comment states the step "is ADVISORY and must never fail the job." So the label counts notices from 10 commits upward, not blocks. The 20 bypass applications are the figure that measures blocking, and they are the cost that scales with volume.
+Read the 36% carefully, because it is weaker evidence than it looks. `pr-validation.yml` applies `needs-split` at `WARNING`, `ALERT`, or `BLOCKED`, and its own comment states the step "is ADVISORY and must never fail the job." So the label counts notices from 10 commits upward, not blocks. The 20 bypass applications are the closest thing to a blocking figure the queries produce, and the next paragraph explains why that is still not a count of blocks.
 
 **That figure counts labels, not humans, and an earlier revision of this decision said humans.** The query returns 20 labeled pull requests. It does not establish who applied the label, and the actor cannot be inferred from label presence. The repository documents the counterexample in the enforcement code itself: `scripts/validation/git_hook_policy.py:6055-6070` records that an agent applied `commit-limit-bypass` to PR #4735 on 2026-08-08, and that it did so **because this gate's own failure message named the label as the reader's next step** (issue #4782). The comment states the mechanism plainly: "Naming the label as the reader's next step tells whoever tripped the gate to grant themselves a permission they do not hold." The message was rewritten to add the prohibition; the label's permissions were not changed, because a GitHub label carries none.
 
-So the honest reading of the 20 is: 20 blocking-tier reliefs, actor not established, with at least one documented case of the gated actor granting its own relief at the gate's suggestion. Every "human" attached to this figure below has been corrected to that.
+The label proves neither the actor nor the threshold, and successive revisions of this decision inferred each in turn. The first said 20 **human** applications, which the PR #4735 case above refutes. The correction then said 20 **blocking-tier** reliefs, which is the same inference in the other dimension and is the one this decision rejects twelve lines below: the label marks relief granted, not the threshold reached. A pull request can carry it having never been blocked.
+
+So the honest reading of the 20 is: **20 pull requests carrying the bypass label**, with neither actor nor threshold established for the set. Blocking is established only where the arithmetic was reconstructed, and within this window that is three cases: #4846 at 235 commits, #5177 at 60 authored non-merge against a relieved ceiling of 40, and #5178, which its own session log records as blocked at 23 and again at 33 commits ahead. One labeled pull request was reconstructed as **not** blocked, #5176 at 25 against 40, which is the direct counterexample to reading the label as a block. Every claim below is scoped to those measurements rather than to the 20.
 
 This is also the cleanest instance in this repository of ADR-099's invariant, and it arrived from the opposite direction. The commit ceiling is a P0 and P1 gate whose sole relief is a P0-writable artifact: any account with write access applies a label, and nothing verifies the human maintainer CONTRIBUTING.md requires. The gate does not protect the thing it gates from the actor it gates.
 
@@ -97,7 +99,7 @@ Every cell is measured from the head refs rather than inferred from labels, and 
 
 #5176 is worth noting beyond its verdict. It has continued growing since the cutoff and now sits at 40 authored non-merge commits against a relieved ceiling of exactly 40, one commit from blocking, through a history dominated by fix-plus-rebind pairs answering successive review findings. That is the #4718 rigor shape approaching the boundary in real time.
 
-No open pull request was held by the ceiling without relief at the cutoff. Two reached the blocking tier and both were relieved by hand, which is two of the twenty bypass applications the cost figure counts, on labels applied by an actor the query does not identify. #5177 is the same pull request cited below for spending its output on gate arithmetic, so the two halves of that observation are the same case seen from opposite sides.
+No open pull request was held by the ceiling without relief at the cutoff. Two reached the blocking tier by measurement and both carry the bypass label, which is the measured statement; who applied those labels is not established, and an earlier revision of this sentence said "relieved by hand" while the same sentence conceded the actor was unknown. #5177 is the same pull request cited below for spending its output on gate arithmetic, so the two halves of that observation are the same case seen from opposite sides.
 
 Combining both populations at one cutoff: across ten labeled pull requests classified by hand, seven closed-unmerged and three open, the blocking ceiling stopped nothing. Three reached the blocking tier and all three were relieved.
 
@@ -140,7 +142,7 @@ This is also the answer to the survivorship limitation recorded below, and it na
 
 The 5-file per-commit cap has no bypass. A single mechanical rename across a wide surface must be split into dozens of commits, which then trips the 20-commit ceiling, which then needs a label CONTRIBUTING.md reserves to a human maintainer and nothing enforces as such. PR #5177 in the current window shows this shape: a session spending its output on gate arithmetic and commit slicing rather than on the change.
 
-The 20 bypass applications in two weeks scale linearly with volume, and the relief they represent fails in one of two ways with no third option. Honored as written, it is a human decision per blocked pull request, and at 292 pull requests per fortnight that caps throughput at human attention, which is the operating goal's stated failure mode. Not honored, it is the gated actor granting itself relief, which is PR #4735 and which makes the ceiling advisory in fact while remaining blocking in form. The repository has run both.
+The relief mechanism fails in one of two ways with no third option, and the repository has recorded both. Honored as CONTRIBUTING.md writes it, it is a human decision per blocked pull request, and at 292 pull requests per fortnight that caps throughput at human attention, which is the operating goal's stated failure mode. Not honored, it is the gated actor granting itself relief, which is PR #4735 and which makes the ceiling advisory in fact while remaining blocking in form. What is not established is the rate: 20 pull requests carry the label over the window, and only the three reconstructed cases above are known to have been blocked at all, so this argument rests on the mechanism rather than on a per-fortnight human-attention cost that was never measured.
 
 ### A false positive measured while writing this
 
@@ -215,7 +217,7 @@ The ceilings were a proxy for reviewability, in a regime where a human did the r
 | Alternative | Pros | Cons | Why not chosen |
 |---|---|---|---|
 | Keep the ceilings, add a self-service bypass flag | One line, matches the existing pattern | The pattern has a recorded abuse after approval was withheld (`2026-08-07-pr-4402-scope-bypass.md`) | Extends a mechanism with a known failure |
-| Keep the ceilings, widen the human bypass | Uses existing machinery | 20 bypass applications per two weeks already, scaling with volume, and the label is unenforceable as human-only (PR #4735) | Caps throughput at human attention, or is self-granted |
+| Keep the ceilings, widen the human bypass | Uses existing machinery | 20 labeled pull requests per two weeks, three reconstructed as blocked, and the label is unenforceable as human-only (PR #4735) | Caps throughput at human attention, or is self-granted |
 | Replace with net authored file surface | Measures reviewer burden more directly | Passes #4846 at 16 files, flags #4718 at 49; backwards on the sample | Wrong on the only case that matters |
 | Replace with a convergence metric | Separates spin from rigor in principle | New machinery, no baseline, both inputs forgeable by the gated actor | Deferred to its own decision with its own evidence |
 | Model judges whether a diff is "one idea" | No human needed | The model can assert any classification; self-report with a mechanical costume | No verifiable evidence behind the verdict |
@@ -223,14 +225,13 @@ The ceilings were a proxy for reviewability, in a regime where a human did the r
 
 ### Trade-offs
 
-This trades a small, unproven protection against sprawl for the removal of a measured, recurring cost. The protection is unproven in the specific sense that across the six sampled pull requests and the seven enumerated closed-unmerged ones, it never made a correct blocking call that a correctness gate did not already make. The cost is measured: 36% of pull requests labeled, 20 blocking-tier reliefs in two weeks whose actor the query does not identify, and at least one pull request in the current window spending its output on gate arithmetic.
+This trades a small, unproven protection against sprawl for the removal of a measured, recurring cost. The protection is unproven in the specific sense that across the six sampled pull requests and the seven enumerated closed-unmerged ones, it never made a correct blocking call that a correctness gate did not already make. The cost is measured where it is measured and stated as such: 36% of pull requests carrying `needs-split`, 20 carrying the bypass label with three of them reconstructed as actually blocked, eight recorded workarounds across seven months, and at least one pull request in the current window spending its output on gate arithmetic.
 
 ## Consequences
 
 ### Positive
 
-- The 20 bypass applications per two weeks disappear, with them both the throughput ceiling at human attention and the self-granted-relief path PR #4735 demonstrates. The 36% `needs-split` rate is unaffected: that label fires from the warning tier, which Decision item 1 keeps.
-- The human bypass step disappears, removing 20 touchpoints per two weeks and the throughput cap they impose.
+- The bypass step disappears, and with it both failure modes of its relief: the human decision per blocked pull request when honored, and the self-granted path PR #4735 demonstrates when not. The number of touchpoints removed is bounded above by the 20 labeled pull requests and below by the three reconstructed as blocked; the decision does not claim a figure inside that range. The 36% `needs-split` rate is unaffected: that label fires from the warning tier, which Decision item 1 keeps.
 - A wide mechanical change stops requiring dozens of artificial commits.
 - One self-attested bypass flag with a recorded abuse history leaves the repository.
 
