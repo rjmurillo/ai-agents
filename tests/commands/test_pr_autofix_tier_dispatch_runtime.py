@@ -371,15 +371,21 @@ def test_a_producer_that_names_no_tier_skips_the_pr(tmp_path: Path, doc: str, fa
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
-@pytest.mark.parametrize("tier", ["T2", "T5"])
+@pytest.mark.parametrize("tier", ["T2", "T5", "BEHIND", "BLOCKED", "DIRTY", "SKIP"])
 def test_a_valid_tier_exiting_nonzero_is_still_dispatched(
     tmp_path: Path, doc: str, tier: str
 ) -> None:
-    """Exit status is not the discriminator, so do not let it become one.
+    """Every declared tier is dispatched, and exit status is not the discriminator.
 
-    `test_pr_merge_ready.py` exits 1 for any PR that is not merge-ready, so T2
-    through T5 legitimately arrive with a non-zero status. A guard that rejected
-    exit 1 would skip every PR the loop exists to fix.
+    Two things this pins. `test_pr_merge_ready.py` exits 1 for any PR that is
+    not merge-ready, so these tiers legitimately arrive with a non-zero status,
+    and a guard rejecting exit 1 would skip every PR the loop exists to fix.
+
+    And the set is the producer's `_TIER_ORDER`, not the T1-T5 ladder the
+    command's prose describes. BEHIND, BLOCKED, DIRTY, and SKIP are declared
+    return values; the guard first shipped rejecting all four, which turned a
+    healthy classification into "producer failed" and stopped the documented
+    BEHIND and DIRTY handling.
     """
     run = run_dispatch(tmp_path, doc, tier=tier, auto_merge="null")
 
