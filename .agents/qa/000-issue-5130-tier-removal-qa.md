@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-5174-b3bfa3aaa-remove-agent-tier-hierarchy-replace.json
-qaCommit: 27771f68acb16f7f2c729347f3b5aa2a1c29b2be
+qaCommit: 64b86fb2b953b908d4889e1eb4c70560718ce6f8
 ---
 
 # QA report: issue #5130, remove the agent tier hierarchy
@@ -71,7 +71,7 @@ pass and caught by the install-parity gate.
 
 ## Addendum: findings after the first QA pass
 
-Eleven review findings landed after the original run. Each is covered:
+Fourteen review findings landed after the original run. Each is covered:
 
 | Finding | Source | Verification |
 |---|---|---|
@@ -86,10 +86,23 @@ Eleven review findings landed after the original run. Each is covered:
 | Unparseable frontmatter was dropped from the corpus, so a malformed agent could keep `tier:` | Copilot | Tier check adds a textual sweep of the raw block. Verified against a planted agent whose frontmatter does not parse and carries `tier: builder` |
 | Contradictory `role` in the two shapes failed nothing | spec validator | Now an error. Verified against a planted `executor` vs `strategic` file |
 | Session artifact `endingCommit` was stale at `cc829f98be` | Copilot | Repointed to the final work commit; episode regenerated |
+| Roster and discovery compared paths in two forms, so on Windows every real tree read as unconfigured | Cursor Bugbot | `as_posix()` on both sides. Measured with `PureWindowsPath`: six unconfigured before, zero after |
+| The converse guard walked the filesystem, racing xdist siblings that create worktrees; CI `bulk-nested` went red while the same command passed locally twice | CI | Switched to `git ls-files`. Verified both ways: an untracked copy of `templates/agents` planted in the repo root no longer trips it, a staged `src/seventh-tree` still does |
+| Secondary and primary rate limits shared one branch, so secondary callers were told to wait for a reset window that does not exist | Copilot | Split, matching the canonical pair in `github_core/api.py:330`. Three tests assert both directions |
 
-Re-verified on this commit: 293 tests across seven suites, `ruff` and `mypy` clean on all 12 changed
-Python files, `generate_agent_catalog.py --check` OK, `validate_copilot_agent_frontmatter.py` PASS on
-31 files, `run_install_parity_ci.py` OK, `taste_count_ratchet.py` at baseline 576.
+Re-verified on this commit: the CI `bulk-nested` partition reproduced locally via
+`run_pytest_selected.py`, 15074 passed and 62 skipped, which is the partition that was red.
+Full suite under the repo's own partition contract: 27820 passed and 74 skipped in bulk,
+85 passed in the three process-sensitive modules run serially.
+
+An earlier full run here reported 7 failures. Those were caused by passing `-n 4` across the
+whole suite, which violates the contract in `tests/validation/test_pytest_parallelism_policy.py`
+that process-sensitive modules stay serial. All 7 pass serially. The methodology was wrong,
+not the code, and the number is recorded here rather than quietly dropped.
+
+`ruff` and `mypy` clean on all 12 changed Python files, `generate_agent_catalog.py --check` OK,
+`validate_copilot_agent_frontmatter.py` PASS on 31 files, `run_install_parity_ci.py` OK,
+`taste_count_ratchet.py` at baseline 576.
 
 Every guard added for the findings above was run against a planted violation and fails on it. None is
 asserted from a passing run alone, because a guard that has only ever passed has not been shown to work.
