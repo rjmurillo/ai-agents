@@ -99,9 +99,11 @@ Every cell is measured from the head refs rather than inferred from labels, and 
 
 #5176 is worth noting beyond its verdict. It has continued growing since the cutoff and now sits at 40 authored non-merge commits against a relieved ceiling of exactly 40, one commit from blocking, through a history dominated by fix-plus-rebind pairs answering successive review findings. That is the #4718 rigor shape approaching the boundary in real time.
 
-No open pull request was held by the ceiling without relief at the cutoff. Two reached the blocking tier by measurement and both carry the bypass label, which is the measured statement; who applied those labels is not established, and an earlier revision of this sentence said "relieved by hand" while the same sentence conceded the actor was unknown. #5177 is the same pull request cited below for spending its output on gate arithmetic, so the two halves of that observation are the same case seen from opposite sides.
+Two open pull requests reached the blocking tier by measurement and both carry the bypass label, which is the measured statement; who applied those labels is not established, and an earlier revision of this sentence said "relieved by hand" while the same sentence conceded the actor was unknown. #5177 is the same pull request cited below for spending its output on gate arithmetic, so the two halves of that observation are the same case seen from opposite sides.
 
-Combining both populations at one cutoff: across ten labeled pull requests classified by hand, seven closed-unmerged and three open, the blocking ceiling stopped nothing. Three reached the blocking tier and all three were relieved.
+Combining both populations at one cutoff: across ten labeled pull requests classified by hand, seven closed-unmerged and three open, no pull request was stopped from eventually landing by the ceiling. Three reached the blocking tier. Two carried the bypass label. The third, #5178, did not get relief at all: its own session log records the push blocked at 33 commits ahead **with `gh` auth unavailable to apply the bypass**, and the branch was squashed instead.
+
+An earlier revision of this paragraph said all three were relieved, which its own evidence four sections down refutes. The correction strengthens the cost case rather than weakening it: a ceiling that forces a squash is worse than one that grants relief, because the squash is what destroyed eleven cited review SHAs. "Nothing was stopped from landing" and "everything that reached the tier was relieved" are different claims, and only the first is supported.
 
 ### What actually stopped the bad one
 
@@ -156,6 +158,39 @@ The remediation the gate printed does not mention refs. It advises splitting the
 
 This does not by itself justify retirement, and it is one observation. It does show the gate blocking on branch bookkeeping rather than on scope, which is the same category error the count ceiling makes on rigor.
 
+### The ceiling blocked this decision, measured while writing it
+
+The false positive recorded above was the scope gate. This is the commit ceiling, on this pull request, and it is the second first-hand measurement rather than a sampled one.
+
+At the point this section was written, `push-ref-policy` refused the push:
+
+```text
+ERROR: push has 42 commits, limit is 40
+```
+
+The arithmetic, taken from the branch at that moment: 42 total commits from the merge base with `main`, of which **37 are authored non-merge** and 5 are merges. The CI contract counts authored non-merge commits against the same relieved limit of 40, so **CI would have passed this push at 37 while the pre-push hook blocked it at 42**. Two gates, two counting rules, one name, demonstrated on the pull request that documents the discrepancy.
+
+What the five merges are matters more than the count:
+
+| Merge | Why it exists |
+|---|---|
+| `cc4f40de7`, `5b069bf78` | `Merge branch 'main'`, the base merges that **grant the relief to 40 in the first place** |
+| `9eca857da`, `91daf9da1`, `d66ee4e44` | `Merge remote-tracking branch 'origin/<this branch>'`, reconciling pushes other actors made to this branch while it was being worked |
+
+So the local ceiling charges the author for the merges that buy its own relief, and for merges forced by concurrent activity the author did not initiate. Neither is authored change. A branch that other agents push to consumes its own ceiling without its author writing anything, and the relief mechanism costs one commit each time it buys twenty.
+
+The relief paths available at that moment were the ones this decision has already enumerated, and every one of them is a path this decision argues against:
+
+- **Apply `commit-limit-bypass`.** Reserved to a human maintainer by CONTRIBUTING.md:880 and applicable by any write-access account. An agent self-applying it is the documented abuse (PR #4735, issue #4782). Not taken.
+- **Squash and force-push.** PR #5178's path, which cost eleven cited review SHAs. This branch carries live review threads pinned to its commits. Not taken.
+- **`--no-verify` or any of the six bypasses.** Forbidden by `.claude/rules/universal.md` MUST NOT 2. Not taken.
+- **Merge `main` again.** Relief is already granted; another merge adds one to the count and buys nothing. Counterproductive.
+- **Ask a human.** The only remaining path, and a per-change human decision at the exact throughput ceiling this decision names.
+
+`_unpushed_commit_count` does not help here and its docstring explains why: it deliberately keeps the branch's own remote ref in the count, because "excluding it would make every re-push measure only the newest commits, which would retire the ceiling entirely for any branch pushed more than once." That is a defensible choice for the gate's purpose. Its consequence is that a long-lived branch under review cannot re-push past the ceiling no matter how small the new work is; this push added two commits.
+
+This is not offered as proof the ceiling is wrong. It is one event, and the sample warnings above apply to it too. It is offered because the decision was already written and the gate then produced, unprompted, an instance of every mechanism the decision describes: the two counting rules disagreeing, the relief consuming the budget it relieves, concurrent agents spending an author's ceiling, and a blocked change whose only compliant exit is a human.
+
 ## Decision
 
 Retire both size ceilings as blocking gates. Do not replace them with another blocking size gate.
@@ -178,7 +213,11 @@ Retire both size ceilings as blocking gates. Do not replace them with another bl
 
 4. **`SKIP_SCOPE_CHECK` is removed, after item 3 lands.** `scripts/detect_scope_explosion.py:492` honors `SKIP_SCOPE_CHECK=1` with no verification of the human approval it claims. `.agents/retrospective/2026-08-07-pr-4402-scope-bypass.md` records an agent setting it twice after authorization was explicitly withheld, citing an agent-writable memory as its authority. Once nothing blocks on scope, the flag has no purpose, and a self-attested approval flag with a recorded abuse history should not outlive its use. Removing it before item 3 would tighten the gate rather than retire it.
 
-5. **Fix the rebind generator.** #5103 and #5107 show 18 to 20 commits with zero open review threads because the QA and session evidence rebind fires on every `main` merge into a long-lived branch. That is a defect producing fake commits. Fix it at the source rather than teaching a metric to ignore it.
+5. **Fix the rebind churn at its source, `post_qa_code_changes`.** #5103 and #5107 show 18 to 20 commits with zero open review threads because the QA and session evidence rebind fires on every `main` merge into a long-lived branch. An earlier revision of this item said "fix the rebind generator" and named no component anywhere, while ordering it first, so the stated order could not be begun.
+
+   The component is `post_qa_code_changes` in `.claude/lib/qa_report.py:244-253` and its `src/copilot-cli/lib/qa_report.py` mirror. It runs `git log --format= --name-only --no-renames -m <qaCommit>..<head>`, and `-m` splits each merge and diffs against **both** parents, so every path `main` touched inside a base merge is returned as a post-QA code change. The QA report then reads stale and needs a rebind commit, once per base merge, on a branch that changed none of those paths. PR #4954's QA record states the mechanism in its own words: "Because `post_qa_code_changes()` walks `git log -m` (both parents of a merge), every path `origin/main` touched appears as changed relative to the prior binding."
+
+   The fix is to compare against the first parent for merge commits, or to exclude paths introduced by a merge whose other parent is an ancestor of the base, so a base merge stops counting as authored change. Whichever is chosen, the test is that merging `main` into a branch does not by itself invalidate that branch's QA binding.
 
 ### What is deliberately not adopted
 
@@ -251,7 +290,7 @@ This trades a small, unproven protection against sprawl for the removal of a mea
 |---|---|---|---|
 | `scripts/ci/enforce_pr_validation.py:64-84` | Direct | Remove the `COMMIT_STATUS == "BLOCKED"` branch and its bypass-label fetch. This is the CI block; `pr_commit_count.py` already returns 0 in every case | High |
 | `scripts/validation/git_hook_policy.py` `_check_commit_limit` | Direct | Demote to a report. This is the pre-push block every recorded workaround actually hit | High |
-| `scripts/validation/pr_commit_count.py` | Direct | Keep classifying and reporting; already returns 0 in all cases | Low |
+| `scripts/validation/pr_commit_count.py` | Direct | Keep classifying and reporting. Already returns 0 on every classification path, though it still exits 2 and 3 on its error paths (`:461`, `:480`, `:483`), so no caller should read exit 0 as "classified" | Low |
 | `scripts/validation/git_hook_policy.py` | Direct | `check_atomic_commit` advisory | Medium |
 | `scripts/detect_scope_explosion.py` | Direct | Demote `BLOCK_THRESHOLD` (line 50) to advisory FIRST; then add process-record exclusions; then remove `SKIP_SCOPE_CHECK` at line 492. Removing the flag without the demotion ships a blocking gate with no relief | Medium |
 | `lefthook.yml` | Direct | Jobs stay, exit codes become 0 | Low |
