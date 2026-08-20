@@ -69,12 +69,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Single commit touching 3 authored files: .claude/commands/pr-autofix.md, src/copilot-cli/skills/pr-autofix/SKILL.md, tests/commands/test_pr_autofix_field_contract.py"
+        "Evidence": "Twelve commits on claude/pr-5175-review-v21yk2, each five authored files or fewer: the fix and mirror, the contract gate and its parser split, three hardening passes driven by spec-validation findings, and the session/QA evidence rebinds."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ruff clean across tests/commands; 30 pass in the contract file; 398 passed and 1 skipped across tests/commands and tests/skills/pr-autofix; build_all.py --check reports no staleness; mypy ratchet clean; pre_pr.py all validations passed."
+        "Evidence": "ruff clean across tests/commands; 32 pass in the contract file; 400 passed and 1 skipped across tests/commands and tests/skills/pr-autofix; build_all.py --check reports no staleness; pre_pr.py all validations passed."
       },
       "qaValidation": {
         "level": "MUST",
@@ -127,6 +127,10 @@
     {
       "activity": "Addressed spec-validation findings on PR #5176",
       "finding": "The bot correctly found the first gate did not catch the defect issue #5094 reported: field names were checked only for flat producers, so `.Data.tier` from check_pr_live_state.py passed clean. Extended derivation to wrapped producers by unioning keys across every write_skill_output/write_skill_error payload. Also had to teach _keys_bound_to about ast.AnnAssign, since get_pr_context.py builds its payload that way and an Assign-only walk would have failed the valid `.Data.auto_merge_method` read as a phantom field. Closed two further gaps: multi-path jq programs, and a coverage guard that shared the extractor's regex and so went blind in lockstep with it."
+    },
+    {
+      "activity": "Third hardening pass on the coverage guard",
+      "finding": "Spec validation found the invocation-coverage guard could still be masked: it compared parsed paths against jq invocation count, and a multi-path program supplies enough paths to cover for a sibling the parser never read. Reproduced at 2 invocations / 2 paths / 1 program, where the old comparison read the line as fully reached. Now compares programs to invocations plus a pathless-program check. Same failure shape as the previous round, one level down."
     }
   ],
   "outcomes": {
@@ -176,10 +180,15 @@
         "antipattern": "Building a coverage guard on the same regex as the thing it guards",
         "consequence": "test_extractor_reaches_every_jq_invocation first reused _JQ_PROGRAM. Mutating that pattern to match nothing blinded the extractor and the guard together, so the guard passed vacuously and certified the blindness it exists to catch.",
         "correction": "Detect with an independent, weaker pattern (_JQ_TOKEN spots the word jq). Prove the decoupling by re-running the mutation and watching the guard fail."
+      },
+      {
+        "antipattern": "Choosing a coverage comparison a sibling item can balance out",
+        "consequence": "The invocation guard was wrong three times in the same way: line presence let a second jq command hide behind a parsed first; path count let a multi-path program cover for an unread sibling. Each version looked like it counted the right thing.",
+        "correction": "Compare at the granularity of the thing that must be checked, one row per invocation, not an aggregate over the line. Prove it by restoring the old comparison and watching a named test fail."
       }
     ]
   },
-  "endingCommit": "f0cfc4af1ac13eb88502a499ecc76d18e4bd3383",
+  "endingCommit": "c2d32bf478e1005a4fa96902f92f595e65528313",
   "nextSteps": [
     "Open a draft PR from claude/pr-5175-review-v21yk2 referencing issue #5094",
     "Report on PR #5175 that its branch carries no diff so the owner can decide whether to close it in favor of this change"

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract.json
-qaCommit: f0cfc4af1ac13eb88502a499ecc76d18e4bd3383
+qaCommit: c2d32bf478e1005a4fa96902f92f595e65528313
 ---
 
 # QA Report: session 99923, pr-autofix tier field contract
@@ -9,7 +9,7 @@ qaCommit: f0cfc4af1ac13eb88502a499ecc76d18e4bd3383
 - Issue: #5094
 - PR: #5176
 - Session log: `.agents/sessions/2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract.json`
-- QA commit: `f0cfc4af1ac13eb88502a499ecc76d18e4bd3383`
+- QA commit: `c2d32bf478e1005a4fa96902f92f595e65528313`
 - Branch: `claude/pr-5175-review-v21yk2`
 
 ## Verdict
@@ -46,10 +46,10 @@ contract, and the pinned tier regression:
 FAILED test_source_command_has_no_contract_violations
 FAILED test_copilot_mirror_has_no_contract_violations
 FAILED test_tier_read_targets_the_authoritative_flat_producer
-3 failed, 27 passed
+3 failed, 29 passed
 ```
 
-Restored the fix; 30 passed.
+Restored the fix; 32 passed.
 
 ### Negative control: the originally reported shape
 
@@ -93,14 +93,14 @@ FAILED test_extractor_reaches_every_jq_invocation
   line 423: ROUND_REASON=$(echo "$ROUND_CAP" | jq -r '.Data.reason ...
 ```
 
-The guard now fails and names the missed lines. Restored; 30 passed.
+The guard now fails and names the missed lines. Restored; 32 passed.
 
 ### Test results
 
 | Command | Result |
 |---|---|
-| `uv run pytest tests/commands/test_pr_autofix_field_contract.py` | 30 passed |
-| `uv run pytest tests/commands/ tests/skills/pr-autofix/` | 398 passed, 1 skipped |
+| `uv run pytest tests/commands/test_pr_autofix_field_contract.py` | 32 passed |
+| `uv run pytest tests/commands/ tests/skills/pr-autofix/` | 400 passed, 1 skipped |
 | pr-autofix behavioral suites plus `tests/commands/` | 462 passed, 1 skipped |
 | `uv run ruff check tests/commands/` | All checks passed |
 | `uv run python build/scripts/build_all.py --check` | no staleness |
@@ -165,3 +165,24 @@ mutation-verified:
    jq commands where only the first parsed counted as reached. Now compares
    per-line counts. Measured on such a line: 2 invocations, 1 path parsed, guard
    fires.
+
+## Third hardening pass
+
+Spec validation found the invocation-coverage guard could still be masked, and
+it was right. The guard compared parsed paths against jq invocation count, but a
+program may name several paths, so one well-parsed invocation supplies enough
+paths to cover for a sibling the parser never read.
+
+Reproduced: `jq -r '.Data.action // .Data.reason'` beside an unparseable
+`jq -r ".Data.$field"` gives 2 invocations, 2 paths, 1 program. The old
+comparison read the line as fully reached while the second command went
+unchecked. Same shape as the previous round's line-presence bug, one level down.
+
+Now compares programs to invocations, plus a check that every program read
+yields a path. Verified by mutation: restoring the path-count comparison fails
+exactly `test_a_multi_path_program_cannot_mask_an_unparsed_sibling`.
+
+Worth recording as a pattern: three rounds of this guard each failed the same
+way, by choosing a comparison that a sibling could balance out. Presence, then
+path count, then programs. Each fix was verified by putting the old form back
+and watching a named test fail.

@@ -52,6 +52,19 @@
       "caused_by": [
         "e003"
       ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-20T03:06:39+00:00",
+      "type": "commit",
+      "content": "Commit: c2d32bf478e1005a4fa96902f92f595e65528313",
+      "caused_by": [
+        "e004"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
     }
@@ -61,7 +74,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 5,
     "files_changed": 7
   },
   "lessons": [
@@ -69,6 +82,7 @@
     "Avoid: Trusting a PR body's description of completed work without reading the diff. Check git diff against the merge base before reading the description.",
     "Avoid: Using a Success field to detect the Data envelope. Key envelope detection off the github_core.output emitter call, which is the thing that actually wraps the payload.",
     "Avoid: Fixing a silent-fallback bug at the instance instead of the class. Ship a gate covering every read of the same shape, not only the one that was reported.",
-    "Avoid: Building a coverage guard on the same regex as the thing it guards. Detect with an independent, weaker pattern (_JQ_TOKEN spots the word jq). Prove the decoupling by re-running the mutation and watching the guard fail."
+    "Avoid: Building a coverage guard on the same regex as the thing it guards. Detect with an independent, weaker pattern (_JQ_TOKEN spots the word jq). Prove the decoupling by re-running the mutation and watching the guard fail.",
+    "Avoid: Choosing a coverage comparison a sibling item can balance out. Compare at the granularity of the thing that must be checked, one row per invocation, not an aggregate over the line. Prove it by restoring the old comparison and watching a named test fail."
   ]
 }
