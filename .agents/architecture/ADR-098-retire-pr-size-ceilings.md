@@ -23,9 +23,9 @@ Proposed
 
 Two gates cap pull request size in this repository.
 
-`scripts/validation/git_hook_policy.py` caps authored files per commit at five, with no bypass of any kind. `scripts/validation/pr_commit_count.py` classifies a pull request at 10 (warning), 15 (alert), and above its effective limit (blocked), with relief at the blocking tier through a `commit-limit-bypass` label a human applies.
+`scripts/validation/git_hook_policy.py` caps authored files per commit at five, with no bypass of any kind. The commit ceiling is enforced in two places: `_check_commit_limit` in the same file blocks the push, and in CI `scripts/validation/pr_commit_count.py` classifies a pull request at 10 (warning), 15 (alert), and above its effective limit (blocked) while `scripts/ci/enforce_pr_validation.py:64-84` turns that classification into the failure. Relief at the blocking tier runs through a `commit-limit-bypass` label a human applies.
 
-Two details of that second gate matter and an earlier draft of this decision got both wrong. It counts **authored non-merge** commits, not the total GitHub displays (`pr_commit_count.py:110`; the raw total is kept for audit only). And the ceiling is **relieved to 40** for a branch carrying a qualifying merge from `main` (`:65`, `:71`, issue #3596). So the live contract is 20 authored commits, or 40 after a base merge, not an unconditional block at 20. The gate is more lenient than the first draft described.
+Three details of the commit ceiling matter and an earlier draft of this decision got all three wrong. The CI path counts **authored non-merge** commits, not the total GitHub displays (`pr_commit_count.py:110`; the raw total is kept for audit only). The ceiling is **relieved to 40** for a branch carrying a qualifying merge from `main` (`:65`, `:71`, issue #3596). So the CI contract is 20 authored commits, or 40 after a base merge, not an unconditional block at 20. And the local pre-push path does not share that arithmetic: `_check_commit_limit` counts `git rev-list --count` over the push range, which **includes merge commits**, and carries two further reliefs the CI path has no equivalent of, one for commits already carried by another pushed branch and one allowing small pushes on a branch already labeled `needs-split`. Two gates, two counting rules, two relief sets, one name.
 
 Measured at 2026-08-20T18:00Z over the preceding 14 days: 292 pull requests opened, 104 of them (36%) carrying `needs-split`, and 20 carrying the human-only bypass label. Queries: `created:2026-08-06..2026-08-20` alone, then with `label:"needs-split"`, then with `label:"commit-limit-bypass"`.
 
@@ -53,7 +53,7 @@ Neither size axis separates these. Net authored file surface would pass #4846 at
 
 An earlier draft of this decision said the labeled population could not be enumerated by tooling and recorded the absence of a counterexample as untested. That was wrong. `label:"needs-split" created:2026-08-06..2026-08-20 is:closed is:unmerged` returns the population directly, and a reviewer supplied the query.
 
-It matters because the closed-unmerged set is where a counterexample would live: a change the ceiling stopped that should not have landed. The query returns seven.
+It matters because the closed-unmerged set is one place a counterexample would live: a change the ceiling stopped that should not have landed. The open population below is the other, and the section after that covers a third question the labels cannot answer at all. The query returns seven.
 
 | Pull request | Commits | `commit-limit-bypass` | State at close |
 |---|---|---|---|
@@ -67,7 +67,7 @@ It matters because the closed-unmerged set is where a counterexample would live:
 
 Exactly one of the seven carries `commit-limit-bypass`. Its description is "Allows PR to exceed 20 commit limit," so it marks **relief granted**, not the threshold being reached. Those are different sets in principle, and the absence of the label does not prove a pull request stayed under the ceiling.
 
-An earlier draft offered #4821 as proof of that gap: 29 commits, no bypass label. That argument was withdrawn after review. The 29 is GitHub's total including merges, while the gate classifies authored non-merge commits, and #4821 is branch-freshness work that merges `main`, which would relieve its ceiling to 40. On the gate's own arithmetic it was probably never blocked. The distinction between "relief granted" and "threshold reached" still holds as a matter of what the label means; this repository simply does not supply a worked example of it.
+An earlier draft offered #4821 as proof of that gap: 29 commits, no bypass label. That argument was withdrawn after review. The 29 is GitHub's total including merges, while the gate classifies authored non-merge commits, and #4821 is branch-freshness work that merges `main`, which would relieve its ceiling to 40. On the gate's own arithmetic it was probably never blocked. The distinction between "relief granted" and "threshold reached" still holds as a matter of what the label means, and #5178 turns out to supply the worked example: its session log records the push blocked at 33 commits ahead with `gh` auth unavailable to apply the bypass, so the threshold was reached while relief was not available at all.
 
 All seven are now characterized, and none was prevented from landing by the size ceiling. One was mergeable at close, one had conflicts, one was governance-gated by its own text, three sat under the effective ceiling, and #4846 carried the bypass label, meaning relief was granted rather than withheld.
 
@@ -81,11 +81,13 @@ The query is `label:"needs-split" created:2026-08-06..2026-08-20 is:open`, evalu
 
 | Pull request | Authored non-merge at cutoff | Qualifying `main` merge | Effective limit | Blocked |
 |---|---|---|---|---|
-| #5177 | carries `commit-limit-bypass` | n/a | relieved | Reached the blocking tier; relief granted |
-| #5178 | carries `commit-limit-bypass` | n/a | relieved | Reached the blocking tier; relief granted |
-| #5176 | 24 (26 total, 2 merges) | yes, at 17:50Z | 40 | No |
+| #5176 | 25 (26 total at cutoff, 1 merge) | yes, at 17:50Z | 40 | No |
+| #5177 | 60 (63 total at cutoff, 3 merges) | yes, at 16:55Z | 40 | Yes. 60 exceeds the relieved 40, and it carries `commit-limit-bypass`, so relief was granted |
+| #5178 | 7 surviving at cutoff, 12 non-merge at merge | yes, at 18:24Z | 20, then 40 | Yes, twice, at 23 and at 33 commits ahead. Its surviving history understates it because the branch was squashed both times |
 
-These are measured, not inferred, and the distinction matters because an earlier revision got it wrong twice. Absence of `commit-limit-bypass` marks relief **not granted**, not the threshold **not reached**, and `needs-split` fires from the warning tier. So the label cannot clear a pull request; only the arithmetic can. The first version of this table read #5176 as advisory-tier on exactly the inference already withdrawn for #4821, and a reviewer caught the repeat.
+Every cell is measured from the head refs rather than inferred from labels, and the distinction matters because earlier revisions got it wrong twice. Absence of `commit-limit-bypass` marks relief **not granted**, not the threshold **not reached**, and `needs-split` fires from the warning tier. So the label cannot clear a pull request; only the arithmetic can. The first version of this table read #5176 as advisory-tier on exactly the inference already withdrawn for #4821, and a reviewer caught the repeat. The revision after that left #5177 and #5178 as "carries the label" rather than a count, which is the same inference in the opposite direction. Both are now counted with `git rev-list` over `pull/N/head` against its merge base, split by parent count and filtered on committer date.
+
+#5178 is the row that does not fit the format, and the misfit is the finding. Its surviving history holds 12 authored non-merge commits, comfortably under any ceiling. Its own QA report records that the branch reached 23 commits ahead of `origin/main` and then 33, and was squashed both times. The table can only count what survived, so for any branch the ceiling caused to rewrite itself, the count in this column is not what the gate saw. That is the subject of the next section.
 
 #5176 is worth noting beyond its verdict. It has continued growing since the cutoff and now sits at 40 authored non-merge commits against a relieved ceiling of exactly 40, one commit from blocking, through a history dominated by fix-plus-rebind pairs answering successive review findings. That is the #4718 rigor shape approaching the boundary in real time.
 
@@ -98,6 +100,35 @@ Combining both populations at one cutoff: across ten labeled pull requests class
 #4846 is the only pull request in the sample that should not merge, and it did not merge. What held it was its own security and vendor-provenance gate, a correctness check, not a size ceiling. The size gate labeled it, and it also labeled #4718, #5036, #5152, #5103, and #5107, which all merged and should have.
 
 That is the finding this decision rests on, bounded by both enumerations above: across the ten labeled pull requests classified at the cutoff, the blocking ceiling stopped nothing it did not also relieve, and the one pull request that should not have merged was held by a correctness gate. Over the same window the ceilings imposed cost on five of the six sampled pull requests that were doing the right thing.
+
+### What the ceiling actually caused, recovered from in-tree records
+
+The two label queries above answer one question: did the ceiling stop a change that should not have landed. They cannot answer a second one, because a branch that was squashed, split, or abandoned before opening leaves no label behind. That second question is what the ceiling made authors do instead.
+
+It is answerable anyway, and not by any GitHub query. This repository's session logs, QA reports, and retrospectives record the workarounds as they happened, in the tree, with the commit counts that triggered them. Eight are recoverable by grep.
+
+| Record | What the ceiling caused |
+|---|---|
+| PR #4954, `.agents/qa/000-session-14695-adr-080-amendment-qa.md:34` and `000-session-15001-pr-4954-round2-findings-qa.md:35` | At 21 authored commits, with the bypass label needing a human and squashing needing a force-push, the session merged `origin/main` through `gh pr update-branch` **for the sole purpose of supplying `contains_main_merge` evidence** and relieving the ceiling to 40. The merge then made `post_qa_code_changes()` read every path main had touched as changed, forcing a rebind of `endingCommit`, `comparison.head`, and three QA reports |
+| PR #4954 round 15, `.agents/qa/000-session-14706-pr-4954-round3-coordination-qa.md:54` | "with the PR at 39 of the `MAIN_MERGE_BLOCK_THRESHOLD=40` authored-commit ceiling, this commit is the last one this session can make, leaving no budget for that cross-cutting change." Two live review findings were answered with a pull request reply instead of the fix |
+| PR #5178, `.agents/qa/session-99923-premise-verification-qa-report.md:10-11` and `.agents/sessions/2026-08-20-session-99923-bbadd3bf9-implement-premise-verification-fix-issue.json:176` | Squashed twice. First at 23 commits ahead, collapsing 7 local commits into 2. Then at 33 ahead, with `gh` auth unavailable to apply the bypass, collapsing the branch into 6 commits and force-pushing. Eleven commit SHAs cited in that report's round-by-round evidence became unreachable, and the report now carries a paragraph listing them. The session stopped and asked the operator through `AskUserQuestion` which repair to take |
+| Session 3468, `.agents/sessions/2026-07-27-session-3468-eval-gate-significance.json:15` and `:830` | "ADR-008's twenty-commit ceiling refused the push at twenty-one." The branch was left at twenty and the remaining findings moved to a new branch. Later in the same session, at the ceiling again, a reviewer proposal recorded as "split-independent and therefore sound" was filed rather than folded in, "not a fold-in on a stacked branch at the commit ceiling" |
+| Session 3991, `.agents/sessions/2026-07-30-session-3991-dedupe-copilot-gotchas.json:162` | Records the two size gates contradicting each other: the ceiling "only runs at push time, so a long branch finds the ceiling after the work is committed," and "squashing is often the wrong repair, since the five-file atomic rule then makes the collapsed commit a different violation" |
+| PR #955, `.agents/sessions/2026-01-16-session-8-pr-955-workflow-fix.json:190` | 86 commits, cleared by the bypass label |
+| PR #3348, `.agents/retrospective/2026-07-26-auto-retro.md:43` | Bypass applied after review churn pushed it past 20 |
+| Session 1830 round 14, `.agents/sessions/2026-05-10-session-1830-resume-skill-catalog-triage-post-1942.json:226` | Bypass applied |
+
+Four things follow that neither label population could show.
+
+**The ceiling produces history rewriting, and the rewriting destroys review provenance.** #5178 merged. What the gate changed was not whether it merged but whether its eleven rounds of review stayed citable. Eleven SHAs did not, and the QA report has to spend a paragraph saying so. The gate's stated purpose is reviewability.
+
+**It suppresses fixes.** #4954 round 15 is a code change not made on a live review finding because the commit budget was spent. That is the opposite of the outcome the ceiling exists to produce, and it is recorded by the session that made the call.
+
+**Its own relief mechanism is a distortion.** Merging `main` to buy headroom is a merge performed for the gate rather than for the branch, and it triggers the rebind cascade that item 5 below fixes. The evidence-rebind churn this decision cites as inflating commit counts is, in at least one recorded case, caused by the workaround for the count.
+
+**The two size gates contradict each other.** Squashing to clear the commit ceiling produces a commit that violates the five-file cap, which has no bypass at all. Session 3991 states it plainly. An author at the ceiling has no compliant move left except splitting the pull request or waiting for a human.
+
+This is also the answer to the survivorship limitation recorded below, and it narrows it. Survivorship is unrecoverable **by query**. It is partly recoverable from the tree, because this repository's own protocol makes agents write down what they did and why. That recovery is not a sample with a stated selection method, so it does not support a rate. It does establish existence, repeatedly, across seven months.
 
 ### The cost
 
@@ -121,13 +152,21 @@ This does not by itself justify retirement, and it is one observation. It does s
 
 Retire both size ceilings as blocking gates. Do not replace them with another blocking size gate.
 
-1. **`pr_commit_count.py` stops blocking.** It reports counts and keeps its notice and warning output. It returns 0 in all cases. The `commit-limit-bypass` label and its human step retire with it.
+1. **Both commit-ceiling enforcement sites stop blocking.** There are two, they count differently, and an earlier draft of this item named only the classifier, which would have retired nothing.
+
+   `scripts/validation/pr_commit_count.py` classifies and **already returns 0 in every case** (`:485-519`); its own comment explains that the `BLOCKED` status is emitted as a `::warning::` because "the final enforcement decision and its error annotation live in enforce_pr_validation.py." The CI block is therefore `scripts/ci/enforce_pr_validation.py:64-84`, which reads `COMMIT_STATUS`, fetches the pull request's labels, and returns `LOGIC_ERROR` unless `commit-limit-bypass` is present. Remove that branch and its bypass-label handling; keep the classifier's notice and warning output.
+
+   The second site is local and fires earlier: `_check_commit_limit` in `scripts/validation/git_hook_policy.py:6122-6162`, reached from the `push-ref-policy` pre-push job. This is the gate every workaround in the section above actually hit, because it blocks the push rather than the merge. It also **counts differently**: `git rev-list --count <range>` includes merge commits, where the CI classifier counts authored non-merge commits only. Its relief set is wider too, adding an already-pushed-elsewhere carve-out and a small-push allowance for branches already labeled `needs-split`. Demote it to a report alongside the CI site, or the ceiling survives in the place it does the most damage.
+
+   The `commit-limit-bypass` label and its human step retire with both.
 
 2. **`check_atomic_commit` stops blocking.** The five-file guidance stays as advisory output. Note that no convention survives this: `.claude/rules/universal.md` MUST-6 is the five-file rule itself, and a search of `.claude/rules/` for a one-idea-per-commit convention returns nothing. Retiring the ceiling leaves commit granularity to author judgment, which is the honest description of the resulting state.
 
 3. **The scope check becomes advisory, and process-record paths leave its measurement.** `scripts/detect_scope_explosion.py:50` sets `BLOCK_THRESHOLD = 50` and the script returns 1 above it, so the scope check blocks today. It stops blocking and reports only. Separately, `_partition_generated` already excludes generated files; extend that to `.agents/sessions/**`, `.agents/qa/**`, and `.agents/memory/episodes/**`, which are process record rather than reviewable change.
 
    An earlier draft of this decision described the scope check as already advisory. That was wrong, and the order matters: demoting the threshold has to land in the same change as item 4, or removing the bypass leaves a blocking gate with no relief at all.
+
+   **This item rests on weaker evidence than items 1 and 2, and that is stated rather than blurred.** The populations enumerated above measure the commit ceiling. No equivalent measurement exists for the scope gate, and none can be produced from GitHub: it is invoked only from `lefthook.yml:378` and `:542`, never from a workflow, and it applies no label, so a pull request it blocked leaves no remote artifact. The counterexample search that was possible for the commit ceiling is not possible here. What this item rests on instead is three things: the gate traces to the same single incident, PR #908, through ADR-049 (`ADR-049-pre-pr-validation-gates.md:13-27`), which is still `Proposed` and whose own file threshold was 10 rather than the 50 that shipped; its only relief is the self-attested flag item 4 removes for a recorded abuse history; and the one blocking event observed first-hand while writing this decision was a false positive on branch bookkeeping. If that basis is judged insufficient, items 3 and 4 split cleanly into a decision of their own, and items 1, 2, and 5 stand without them.
 
 4. **`SKIP_SCOPE_CHECK` is removed, after item 3 lands.** `scripts/detect_scope_explosion.py:492` honors `SKIP_SCOPE_CHECK=1` with no verification of the human approval it claims. `.agents/retrospective/2026-08-07-pr-4402-scope-bypass.md` records an agent setting it twice after authorization was explicitly withheld, citing an agent-writable memory as its authority. Once nothing blocks on scope, the flag has no purpose, and a self-attested approval flag with a recorded abuse history should not outlive its use. Removing it before item 3 would tighten the gate rather than retire it.
 
@@ -193,7 +232,7 @@ This trades a small, unproven protection against sprawl for the removal of a mea
 
 - A genuine sprawl pull request now depends entirely on correctness gates and review to stop it. If those miss, nothing size-based catches it.
 - Losing the label also loses the one event that routinely put a very large pull request in front of a human. Whether that look ever caught anything is not established: a search across the repository for `commit-limit-bypass` finds the label described only as relief a maintainer grants on request, for example `.agents/governance/GOTCHAS.md:238`, and no record of it producing a finding. The lost function is asserted, not measured, and should not be weighted as though it were.
-- **The sample is still subject to survivorship.** Pull requests the ceiling deterred, or that were split before they were ever opened, appear nowhere in the labeled population, so no query recovers them. The 90 day re-measure below cannot recover them either. This is the residual limitation.
+- **The sample is still subject to survivorship, though less than an earlier revision claimed.** Pull requests the ceiling deterred, or that were split before they were ever opened, appear nowhere in the labeled population, so no query recovers them, and the 90 day re-measure below cannot recover them either. The in-tree records above recover eight cases the queries miss, which establishes that the deterred population is not empty. What stays out of reach is its size, because those records exist only where an agent chose to write one.
 
 ### Neutral
 
@@ -203,7 +242,9 @@ This trades a small, unproven protection against sprawl for the removal of a mea
 
 | Component | Dependency | Required update | Risk |
 |---|---|---|---|
-| `scripts/validation/pr_commit_count.py` | Direct | Return 0 in all cases; keep reporting | Low |
+| `scripts/ci/enforce_pr_validation.py:64-84` | Direct | Remove the `COMMIT_STATUS == "BLOCKED"` branch and its bypass-label fetch. This is the CI block; `pr_commit_count.py` already returns 0 in every case | High |
+| `scripts/validation/git_hook_policy.py` `_check_commit_limit` | Direct | Demote to a report. This is the pre-push block every recorded workaround actually hit | High |
+| `scripts/validation/pr_commit_count.py` | Direct | Keep classifying and reporting; already returns 0 in all cases | Low |
 | `scripts/validation/git_hook_policy.py` | Direct | `check_atomic_commit` advisory | Medium |
 | `scripts/detect_scope_explosion.py` | Direct | Demote `BLOCK_THRESHOLD` (line 50) to advisory FIRST; then add process-record exclusions; then remove `SKIP_SCOPE_CHECK` at line 492. Removing the flag without the demotion ships a blocking gate with no relief | Medium |
 | `lefthook.yml` | Direct | Jobs stay, exit codes become 0 | Low |
@@ -217,11 +258,11 @@ This trades a small, unproven protection against sprawl for the removal of a mea
 
 One phase. No dependency on repository configuration, no new gate, no new required check. Each item is independently revertible by restoring a return value.
 
-Order: fix the rebind generator; demote `pr_commit_count.py`; demote `check_atomic_commit` early, so that this change's own wide diff is not sliced by the cap it retires; demote the scope `BLOCK_THRESHOLD` and add the process-record exclusions; then remove `SKIP_SCOPE_CHECK`; then update the documents. The last two are ordered, not interchangeable, per Decision items 3 and 4.
+Order: fix the rebind generator; remove the CI block in `enforce_pr_validation.py` and demote `_check_commit_limit`; demote `check_atomic_commit` early, so that this change's own wide diff is not sliced by the cap it retires; demote the scope `BLOCK_THRESHOLD` and add the process-record exclusions; then remove `SKIP_SCOPE_CHECK`; then update the documents. The last two are ordered, not interchangeable, per Decision items 3 and 4.
 
 ### Time-box and re-measure
 
-The blocking-value claim now rests on ten labeled pull requests classified by hand across both populations, not on one. It is still provisional rather than permanent, for a different reason: survivorship. Pull requests the ceiling deterred, or that were split before opening, appear in no query, so no enumeration can reach them. Ninety days after the implementation lands, re-measure against a stated selection method over the labeled population: whether any pull request merged in the interval should not have, and whether any correctness gate failure was reached later than it would have been under the ceilings. If either shows harm, the ceilings return, informed by what the interval revealed. If neither does, the retirement stands and the follow-up closes.
+The blocking-value claim now rests on ten labeled pull requests classified by hand across both populations, not on one. It is still provisional rather than permanent, for a different reason: survivorship. Pull requests the ceiling deterred, or that were split before opening, appear in no query, so no enumeration can reach them, and the eight in-tree records above establish that this population exists without bounding it. Ninety days after the implementation lands, re-measure against a stated selection method over the labeled population: whether any pull request merged in the interval should not have, and whether any correctness gate failure was reached later than it would have been under the ceilings. If either shows harm, the ceilings return, informed by what the interval revealed. If neither does, the retirement stands and the follow-up closes.
 
 This is the standard ADR-099 applies to its own ADR sample, and it is applied here for the same reason: a decision resting on an undisclosed or very small sample earns a re-measurement, not an exemption.
 

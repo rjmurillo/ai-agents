@@ -216,6 +216,24 @@
       ],
       "leads_to": [],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Searched this repository's own session logs, QA reports, and retrospectives for what the commit ceiling made authors do, after six rounds of review had accepted that no such evidence existed",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Traced where the commit ceiling actually blocks, after a reviewer showed the decision's own remediation would have retired nothing",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     }
   ],
   "metrics": {

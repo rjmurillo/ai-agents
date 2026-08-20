@@ -29,9 +29,14 @@ Security then found the finding that falsified the design's premise outright. `B
 
 **A subtraction ADR was about to ship a tightening.** Independent-thinker and critic separately found that ADR-098 described the scope check as advisory when `scripts/detect_scope_explosion.py:50` sets `BLOCK_THRESHOLD = 50` and the script returns 1 above it. Removing `SKIP_SCOPE_CHECK` on that basis would have left a blocking gate with no relief at all. The fix demotes the threshold and orders it explicitly before the flag removal.
 
-**Two governance rules the drafts shipped against.** Independent-thinker found `.claude/rules/governance.md` MUST-1 (human approval, auto-merge prohibited for governance files) unlisted in the impact table. Critic and high-level-advisor found MUST NOT 1 (no reducing review requirements without a unanimous-consensus ADR) uncited. Both decisions reduce review requirements, so both rules bind both ADRs and their implementation pull requests.
+**Two governance rules the drafts shipped against.** Independent-thinker found `.claude/rules/governance.md` MUST-1 (human approval, auto-merge prohibited for governance files) unlisted in the impact table. Critic and high-level-advisor found MUST NOT 1 (no reducing review requirements without a unanimous-consensus ADR) uncited. Both decisions reduce review requirements, so both rules apply. What they bind was itself corrected later in the review and is stated at the top of this log: `.claude/rules/governance.md` is scoped by its frontmatter to `.agents/governance/**`, so MUST-1 and MUST NOT 1 gate the implementation pull requests, which edit governance files, and not these two architecture proposals. The finding stands; the scope claim in the first version of this paragraph did not.
 
 ## Evidence corrections made during the debate
+
+**The behavioral cost was recoverable from the tree the whole time.** Six rounds of panel review and eleven bot reviews all reasoned about the size ceilings from GitHub label populations, and every one of them accepted the same limitation: that pull requests the ceiling deterred, split, or squashed leave no artifact a query can reach. That was true of GitHub and false of this repository. `grep` over `.agents/qa/`, `.agents/sessions/`, and `.agents/retrospective/` returns eight recorded workarounds across seven months, including two squashes on PR #5178 that made eleven cited review SHAs unreachable, a `main` merge on PR #4954 performed for no purpose except to buy ceiling headroom, and a review finding on that same pull request left unfixed because the commit budget was spent. ADR-098 now carries them. Worth recording as a review failure rather than a finding: the repository's own protocol requires agents to write down what they did, which makes it a searchable corpus of exactly the evidence every reviewer had agreed was unobtainable, and nobody searched it.
+
+**The commit ceiling has two enforcement sites and the decision named neither.** A bot reviewer found that `pr_commit_count.py` already returns 0 in every case, so ADR-098's original item 1, "`pr_commit_count.py` stops blocking," would have retired nothing. The CI block is `enforce_pr_validation.py:64-84`. Checking that also surfaced a second site the review had not touched at all: `_check_commit_limit` in `git_hook_policy.py`, reached from the pre-push hook, which counts total commits including merges rather than authored non-merge commits and carries two reliefs the CI path lacks. That is the gate every recorded workaround actually hit, because it blocks the push rather than the merge.
+
 
 Two claims were withdrawn after checking, which is recorded because the corrections matter as much as the findings.
 
@@ -143,7 +148,7 @@ The shape recurs across all of these: a statement true of a measured instance, w
 
 ### Where the review ends
 
-High-level-advisor's read, which the orchestrator accepts: freeze the text. Six rounds on six files, with the external reviewers out-yielding the panel, means another round buys marginal prose and spends credibility the panel needs. What remains is not more review; it is the owner's decision under MUST-1 and MUST NOT 1.
+High-level-advisor's read, which the orchestrator accepts: freeze the text. Six rounds on six files, with the external reviewers out-yielding the panel, means another round buys marginal prose and spends credibility the panel needs. What remains is not more review; it is the owner's decision on these proposals, and then MUST-1 and MUST NOT 1 on the implementation pull requests that edit `.agents/governance/**`. Those rules do not gate this pull request, per the scope correction recorded at the top of this log.
 
 ## Verdicts
 
