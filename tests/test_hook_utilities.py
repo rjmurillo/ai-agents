@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 import sys
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -449,3 +449,62 @@ class TestModuleExports:
             "unlock_file",
         }
         assert set(mod.__all__) == expected
+
+
+def _naive_local(utc_instant: datetime, offset_hours: int) -> datetime:
+    """Local naive datetime a host at ``offset_hours`` would read.
+
+    Mirrors ``datetime.now()`` (no tzinfo) for a host in that offset.
+    """
+    tz = timezone(timedelta(hours=offset_hours))
+    return utc_instant.astimezone(tz).replace(tzinfo=None)
+
+
+class TestHostSessionDate:
+    """Issue #4779: session logs are dated by host-local time, not UTC.
+
+    Ported from the deleted session-init skill's parity test (that skill and
+    its ``session_init.date_helpers`` twin no longer exist); these cases still
+    cover the surviving production helper directly.
+    """
+
+    def test_when_host_behind_utc_returns_host_date(self) -> None:
+        """Edge: the reported bug. UTC date is one day ahead of the host date."""
+        utc_instant = datetime(2026, 8, 9, 6, 30, tzinfo=UTC)
+        assert utc_instant.strftime("%Y-%m-%d") == "2026-08-09"
+
+        result = hook_utilities.host_session_date(now=lambda: _naive_local(utc_instant, -7))
+
+        assert result == "2026-08-08"
+
+    def test_when_host_ahead_of_utc_returns_host_date(self) -> None:
+        """Host at +1000; the host has rolled to the next day but UTC has not."""
+        utc_instant = datetime(2026, 8, 8, 16, 0, tzinfo=UTC)
+        assert utc_instant.strftime("%Y-%m-%d") == "2026-08-08"
+
+        result = hook_utilities.host_session_date(now=lambda: _naive_local(utc_instant, 10))
+
+        assert result == "2026-08-09"
+
+    def test_positive_formats_injected_local_time(self) -> None:
+        result = hook_utilities.host_session_date(now=lambda: datetime(2026, 8, 14, 12, 0, 0))
+
+        assert result == "2026-08-14"
+
+    def test_boundary_midnight_and_last_second(self) -> None:
+        assert (
+            hook_utilities.host_session_date(now=lambda: datetime(2026, 8, 14, 0, 0, 0))
+            == "2026-08-14"
+        )
+        assert (
+            hook_utilities.host_session_date(now=lambda: datetime(2026, 8, 13, 23, 59, 59))
+            == "2026-08-13"
+        )
+
+    def test_default_clocks_are_local_now_not_utc(self) -> None:
+        """A regression to a UTC-bound default would reintroduce Issue #4779."""
+        for helper in (
+            hook_utilities.host_session_date,
+            hook_utilities.recent_host_session_dates,
+        ):
+            assert helper.__defaults__ == (datetime.now,)
