@@ -62,10 +62,10 @@ SCANNABLE_EXTENSIONS = {
 #   file-size remediation text proposes extracting "helper functions" from a
 #   JSON dump, which is advice no author can act on (issue #3970).
 #
-#   sessions/: session logs, which SESSION-PROTOCOL.md requires to carry one
-#   workLog entry per step, so length tracks how much work a session did and
-#   nothing else. validate_session_json.py validates one file per session, so
-#   splitting one is not available either.
+#   sessions/: session logs carry one workLog entry per step by convention, so
+#   length tracks how much work a session did and nothing else.
+#   validate_session_json.py validates one file per session, so splitting one
+#   is not available either.
 _AGENT_STATE_DIR = ".agents"
 
 FILE_SIZE_EXEMPT_SUFFIX = ".json"
