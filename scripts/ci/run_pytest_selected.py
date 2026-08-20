@@ -50,7 +50,6 @@ _PARTITION_FULL_ARGS: dict[str, list[str]] = {
     "bulk-nested": [
         *_PARALLEL,
         "--ignore=tests/skills/github/test_wait_for_unresolved_zero.py",
-        "--ignore=tests/skills/session-end/test_rework_warning.py",
         "tests/build_scripts",
         "tests/ci",
         "tests/claude",
@@ -99,7 +98,6 @@ _UNPARTITIONED_TESTS = frozenset(
         "tests/test_verdict.py",
         "tests/test_quality_gate.py",
         "tests/skills/github/test_wait_for_unresolved_zero.py",
-        "tests/skills/session-end/test_rework_warning.py",
     }
 )
 

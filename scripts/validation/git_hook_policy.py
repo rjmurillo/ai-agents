@@ -81,7 +81,6 @@ ROOT_SCRATCH_ALLOWLIST = frozenset(
 SESSION_PATH_RE = re.compile(r"^\.agents/sessions/\d{4}-\d{2}-\d{2}-session-\d+.*\.json$")
 EPISODE_ID_RE = re.compile(r"^episode-[A-Za-z0-9._-]+$")
 ADR_PATH_RE = re.compile(r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$", re.IGNORECASE)
-SESSION_PROTOCOL_PATH_RE = re.compile(r"(?:^|[\\/])SESSION-PROTOCOL\.md$", re.IGNORECASE)
 ALLOWED_REPO_ROOT_ENTRIES = frozenset(
     {
         ".PSScriptAnalyzerSettings.psd1",
@@ -133,13 +132,6 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
         "tests",
         "uv.lock",
     }
-)
-# Composed rather than written out again: the two halves disagreed about
-# anchoring for as long as they were separate strings, and a path merely ending
-# in the protocol's filename read as the protocol itself.
-ADR_REVIEW_PATH_RE = re.compile(
-    f"{ADR_PATH_RE.pattern}|{SESSION_PROTOCOL_PATH_RE.pattern}",
-    re.IGNORECASE,
 )
 ADR_ID_RE = re.compile(r"ADR-\d+", re.IGNORECASE)
 FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
@@ -1326,9 +1318,9 @@ def _only_model_pin_fields_changed(
 def _gated_adr_review_paths(paths: Sequence[str], repo_root: Path) -> list[str]:
     gated: list[str] = []
     for path in paths:
-        if ADR_REVIEW_PATH_RE.search(path) is None:
+        if ADR_PATH_RE.search(path) is None:
             continue
-        if ADR_PATH_RE.search(path) and _is_frontmatter_only_metadata_change(path, repo_root):
+        if _is_frontmatter_only_metadata_change(path, repo_root):
             continue
         gated.append(path)
     return gated
@@ -1782,7 +1774,7 @@ def check_branch_context(repo_root: Path) -> int:
         )
         print(
             "  Fix: switch to the expected branch, update the session log branch "
-            "field, or run /session-init for the current branch.",
+            "field, or create a new session log for the current branch.",
             file=sys.stderr,
         )
         return 1
@@ -5226,8 +5218,7 @@ def _governed_document_identity(path: str) -> str | None:
     most of their lines, so git reads a commit that drops one and adds another
     as a rename of it, and the walk crosses from one decision into the other.
 
-    The number in the filename is what says which decision a path holds. The
-    protocol has no number and stands for itself.
+    The number in the filename is what says which decision a path holds.
     """
     if ADR_PATH_RE.search(path):
         # Read the number from the final segment, which is where the path test
@@ -5236,8 +5227,6 @@ def _governed_document_identity(path: str) -> str | None:
         # decisions would share one identity.
         identifier = ADR_ID_RE.search(PATH_SEPARATOR_RE.split(path)[-1])
         return _normalized_record_number(identifier.group(0)) if identifier else None
-    if SESSION_PROTOCOL_PATH_RE.search(path):
-        return "SESSION-PROTOCOL"
     return None
 
 
@@ -7065,9 +7054,9 @@ def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
             command.append("--existing-log")
         elif not has_session_deletion:
             # A log this branch is adding for the first time is being committed
-            # at session-start, before session-end runs. Pass --creation-mode so
-            # the validator skips protocol-compliance checks that can only be
-            # satisfied after the session completes (issue #4425).
+            # while the session is still open, before it closes. Pass
+            # --creation-mode so the validator skips protocol-compliance checks
+            # that can only be satisfied after the session completes (issue #4425).
             command.append("--creation-mode")
         result = _run_command(command, repo_root)
         _print_process_output(result)
