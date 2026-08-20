@@ -192,8 +192,24 @@ The inverted control is there because a harness whose mutants are all one
 polarity cannot tell "every mutant died" from "this fails no matter what"
 (testing rule MUST-11). Note also what the restore control did to the
 negative-control test itself: rather than passing vacuously against a tree with
-the defect already in it, it failed on its own guard, `shipped tier read not
-found to mutate`.
+the defect already in it, it failed on its own guard.
+
+Copilot then found two holes in that harness, both real and both closed:
+
+1. **Only one case checked the shell's exit status.** A log file that exists or
+   a string in stdout proves a branch ran; it does not prove the block finished,
+   so a shell error after the observed effect would leave a case green. The
+   shared helper now asserts exit 0 and empty stderr for every case. Measured
+   first: all nine input shapes exit 0 with empty stderr, including the ones
+   that `continue`. Verified by injecting an unset variable under `set -u`,
+   which fails 22 of the 22 cases that run the block; the two that still pass
+   are the shape guard, which never spawns `bash`.
+2. **The negative control mutated with an unbounded replace after an `in`
+   check.** A second identical read would have hit both sites, so the control
+   would no longer isolate the defect it is named for. Now requires exactly one
+   occurrence and replaces one. Verified by duplicating the tier read in the
+   command: the control fails with `assert 2 == 1` instead of silently mutating
+   two sites.
 
 Two of those controls assert behavior the static gate cannot see at all. The
 round-cap breaker firing on T3 and T4, and the T1 PR keeping the auto-merge it

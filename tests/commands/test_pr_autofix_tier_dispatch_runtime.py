@@ -154,8 +154,12 @@ def run_dispatch(
 
     block = extract_dispatch((REPO_ROOT / doc).read_text(encoding="utf-8"))
     if tier_read != SHIPPED_TIER_READ:
-        assert SHIPPED_TIER_READ in block, "shipped tier read not found to mutate"
-        block = block.replace(SHIPPED_TIER_READ, tier_read)
+        # Exactly one, not at least one. A second identical read would make the
+        # mutation hit several sites at once, and the negative control would
+        # stop isolating the defect it is named for.
+        occurrences = block.count(SHIPPED_TIER_READ)
+        assert occurrences == 1, f"expected exactly one tier read to mutate, found {occurrences}"
+        block = block.replace(SHIPPED_TIER_READ, tier_read, 1)
 
     harness = f"""\
 set -u
@@ -201,6 +205,17 @@ done
         timeout=60,
         check=False,
     )
+    # Every case asserts this, not just one. A log file that exists or a string
+    # in stdout proves a branch ran; it does not prove the block finished, so
+    # without this a shell error after the observed effect leaves the case green
+    # (testing rule MUST-8). Measured: all nine input shapes exit 0 with empty
+    # stderr, including the ones that `continue`. Verified by injecting an unset
+    # variable into the harness under `set -u`: 22 of the 22 cases that run the
+    # block fail, and only the two that never spawn bash still pass.
+    assert process.returncode == 0, (
+        f"the extracted block exited {process.returncode}: {process.stderr.strip()}"
+    )
+    assert process.stderr == "", f"the block wrote to stderr: {process.stderr.strip()}"
     return DispatchRun(process, round_cap_log, disarm_log, cleanup_log)
 
 
@@ -211,7 +226,6 @@ def test_t1_with_auto_merge_armed_keeps_it(tmp_path: Path, doc: str) -> None:
     assert not run.disarmed, "a T1 PR lost the auto-merge it earned"
     assert not run.round_cap_called, "the round cap fired outside T3/T4"
     assert run.reached_end
-    assert run.process.returncode == 0
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
