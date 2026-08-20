@@ -142,14 +142,14 @@ When creating a new AI-powered workflow with concurrency control:
 
 | Constraint | Source | Verification |
 |------------|--------|--------------|
-| MUST initialize Serena before any other action | SESSION-PROTOCOL | Tool output in transcript |
-| MUST read .agents/HANDOFF.md before starting work | SESSION-PROTOCOL | Content in context |
-| MUST NOT modify HANDOFF.md during session | SESSION-PROTOCOL, ADR-014 | HANDOFF.md unchanged |
-| MUST preserve incomplete issue state | SESSION-PROTOCOL, ADR-014 | Per-issue handoff |
-| MUST validate a staged or supplied session log | SESSION-PROTOCOL | Validator output |
-| MAY create and complete a session log | SESSION-PROTOCOL | Valid JSON when opted in |
+| MUST initialize Serena before any other action | AGENTS.md | Tool output in transcript |
+| MUST read .agents/HANDOFF.md before starting work | `templates/agents/implementer.shared.md` | Content in context |
+| MUST NOT modify HANDOFF.md during session | ADR-014 | HANDOFF.md unchanged |
+| MUST preserve incomplete issue state | ADR-014 | Per-issue handoff |
+| MUST validate a staged or supplied session log | `.claude/rules/session-logs.md` | Validator output |
+| MAY create and complete a session log | `.claude/rules/session-logs.md` | Valid JSON when opted in |
 
-**Reference**: [SESSION-PROTOCOL.md](../SESSION-PROTOCOL.md)
+**Reference**: [`.claude/rules/session-logs.md`](../../.claude/rules/session-logs.md)
 
 **Rationale Summary**: Transcript, pull request, handoff, and Serena evidence
 replace mandatory committed logs. Supplied logs remain validate-if-present.
@@ -261,7 +261,7 @@ None currently documented. Add here if legacy code violates constraints but is a
 
 ## Related Documents
 
-- [SESSION-PROTOCOL.md](../SESSION-PROTOCOL.md) - Session start/end requirements
+- [`.claude/rules/session-logs.md`](../../.claude/rules/session-logs.md) - Session log mechanics
 - [ADR-005-powershell-only-scripting.md](../architecture/ADR-005-powershell-only-scripting.md) - Language decision
 - [ADR-006-thin-workflows-testable-modules.md](../architecture/ADR-006-thin-workflows-testable-modules.md) - Workflow architecture
 - [Analysis 002 - Project Constraints Consolidation](../analysis/002-project-constraints-consolidation.md) - Background analysis
