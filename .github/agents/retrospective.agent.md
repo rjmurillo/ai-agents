@@ -9,7 +9,7 @@ tools:
   - agent
   - cloudmcp-manager/*
   - serena/*
-tier: integration
+role: support
 ---
 # Retrospective Agent (Reflector)
 

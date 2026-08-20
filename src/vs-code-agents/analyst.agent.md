@@ -23,7 +23,7 @@ tools:
   - serena/read_memory
   - serena/initial_instructions
 model: Claude Opus 4.6 (copilot)
-tier: integration
+role: support
 ---
 
 # Analyst Agent

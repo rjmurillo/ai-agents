@@ -8,7 +8,7 @@ tools:
   - search
   - cloudmcp-manager/*
   - serena/*
-tier: integration
+role: support
 ---
 
 # Skillbook Agent
