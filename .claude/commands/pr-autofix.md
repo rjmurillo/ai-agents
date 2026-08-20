@@ -440,8 +440,19 @@ TIER=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" 2>/dev
 # documented BEHIND and DIRTY handling.
 # tests/commands/test_pr_autofix_field_contract.py pins this list against the
 # producer so the two cannot drift apart again.
+# Recognized and actionable are two different questions, and collapsing them is
+# what put SKIP on the acting path. The tier table below reads
+# "| SKIP | Draft, merged, or closed | No action |", so SKIP terminates here.
+# Letting it reach the disarm gate means TIER != T1 holds and auto-merge is
+# stripped from a PR that went draft, merged, or closed after the live-state
+# gate ran.
 case "$TIER" in
-    T1|T2|T3|T4|T5|BEHIND|BLOCKED|DIRTY|SKIP) ;;
+    SKIP)
+        echo "Tier SKIP for #$PR (draft, merged, or closed); no action."
+        cleanup_pr_autofix
+        continue
+        ;;
+    T1|T2|T3|T4|T5|BEHIND|BLOCKED|DIRTY) ;;
     *)
         echo "Cannot determine tier for #$PR (tier producer failed or emitted no tier); skipping."
         cleanup_pr_autofix

@@ -451,19 +451,56 @@ def contract_violations(text: str) -> list[str]:
 
 # Tier whitelist: the command's accepted set against the producer's declared one.
 
-_TIER_CASE = re.compile(r"^\s*((?:[A-Z][A-Z0-9]*\|)+[A-Z][A-Z0-9]*)\)\s*;;\s*$", re.MULTILINE)
+_TIER_ARM = re.compile(
+    r"^\s*([A-Z][A-Z0-9|]*)\)\s*$|^\s*([A-Z][A-Z0-9|]*)\)\s*;;\s*$", re.MULTILINE
+)
+_TIER_PASSTHROUGH = re.compile(
+    r"^\s*((?:[A-Z][A-Z0-9]*\|)*[A-Z][A-Z0-9]*)\)\s*;;\s*$", re.MULTILINE
+)
 
 
-def accepted_tiers(text: str) -> tuple[str, ...] | None:
-    """Tiers the command body's tier guard accepts, in written order.
+def _tier_case_block(text: str) -> str | None:
+    """The `case "$TIER" in ... esac` block, or None when the guard is absent."""
+    match = re.search(r'case "\$TIER" in\n(.*?)\nesac', text, re.DOTALL)
+    return match.group(1) if match else None
 
-    Returns None when no such `case` arm is present, which the caller must treat
-    as a missing guard rather than an empty set.
+
+def recognized_tiers(text: str) -> frozenset[str] | None:
+    """Every tier the guard names in any arm, terminating or pass-through.
+
+    Recognition is the property that must equal the producer's declared set. It
+    is deliberately separate from dispatch: a tier can be recognized and still
+    terminate, which is what `SKIP` does.
     """
-    match = _TIER_CASE.search(text)
-    if match is None:
+    block = _tier_case_block(text)
+    if block is None:
         return None
-    return tuple(match.group(1).split("|"))
+    tiers: set[str] = set()
+    for line in block.splitlines():
+        stripped = line.strip()
+        if not stripped.endswith(")") and not stripped.endswith(") ;;"):
+            continue
+        label = stripped.removesuffix(";;").strip().removesuffix(")")
+        if not label or label == "*":
+            continue
+        if all(part.isupper() or part.isdigit() for part in label.replace("|", "")):
+            tiers.update(label.split("|"))
+    return frozenset(tiers) if tiers else None
+
+
+def dispatched_tiers(text: str) -> frozenset[str] | None:
+    """Tiers whose arm is a no-op, so the loop keeps acting on them.
+
+    The pass-through arm is the one written `T1|T2|...) ;;` with no body. A tier
+    outside it either terminates or is unrecognized.
+    """
+    block = _tier_case_block(text)
+    if block is None:
+        return None
+    match = _TIER_PASSTHROUGH.search(block)
+    if match is None:
+        return frozenset()
+    return frozenset(match.group(1).split("|"))
 
 
 def declared_tiers(script: str = "test_pr_merge_ready") -> tuple[str, ...] | None:

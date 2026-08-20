@@ -45,10 +45,10 @@ from tests.commands.pr_autofix_field_parser import (
     COMMAND_PATH,
     MIRROR_PATH,
     FieldRead,
-    accepted_tiers,
     contract_violations,
     declared_tiers,
     derive_producer_schema,
+    dispatched_tiers,
     extract_field_reads,
     jq_invocation_count,
     jq_invocation_lines,
@@ -56,6 +56,7 @@ from tests.commands.pr_autofix_field_parser import (
     jq_programs,
     logical_lines,
     pathless_jq_programs,
+    recognized_tiers,
     unparsed_jq_invocations,
 )
 
@@ -462,8 +463,8 @@ def test_a_captured_variable_nearer_the_jq_wins_over_an_earlier_producer() -> No
 
 
 @pytest.mark.parametrize("doc", [COMMAND_PATH, MIRROR_PATH])
-def test_the_tier_guard_accepts_exactly_what_the_producer_declares(doc: Path) -> None:
-    """The guard's set must equal `_TIER_ORDER`, not the T1-T5 prose ladder.
+def test_the_guard_recognizes_exactly_what_the_producer_declares(doc: Path) -> None:
+    """Recognition must equal `_TIER_ORDER`, not the T1-T5 prose ladder.
 
     The guard first shipped listing only T1 through T5, because it was written
     against the tier ladder in the command's own documentation instead of the
@@ -472,17 +473,41 @@ def test_the_tier_guard_accepts_exactly_what_the_producer_declares(doc: Path) ->
     handling: a fail-closed guard that closes on healthy input is worse than the
     fail-open it replaced, because it stops real work and says nothing.
 
-    Comparing tuples rather than sets, so a reordering is visible too; the
-    producer treats `_TIER_ORDER` as an ordering, and a consumer that silently
-    disagrees about it is worth seeing.
+    Recognition counts every arm, terminating or not, because a tier that
+    terminates deliberately is still recognized. What each tier then *does* is
+    the separate question the next test asks.
     """
     declared = declared_tiers()
     assert declared is not None, "could not read _TIER_ORDER from the producer"
 
-    accepted = accepted_tiers(doc.read_text(encoding="utf-8"))
-    assert accepted is not None, f"{doc.name} has no tier guard; the fail-open is back"
+    recognized = recognized_tiers(doc.read_text(encoding="utf-8"))
+    assert recognized is not None, f"{doc.name} has no tier guard; the fail-open is back"
 
-    assert accepted == declared, (
-        f"{doc.name} accepts {accepted}, but the producer declares {declared}. "
-        "Quote the producer's tuple rather than restating the ladder."
+    assert recognized == frozenset(declared), (
+        f"{doc.name} recognizes {sorted(recognized)}, but the producer declares "
+        f"{sorted(declared)}. Quote the producer's tuple rather than restating the ladder."
+    )
+
+
+@pytest.mark.parametrize("doc", [COMMAND_PATH, MIRROR_PATH])
+def test_skip_is_recognized_but_never_dispatched(doc: Path) -> None:
+    """Recognized is not actionable, and conflating them put SKIP on the acting path.
+
+    The command's own tier table reads `| SKIP | Draft, merged, or closed | No
+    action |`. Recognizing SKIP in the pass-through arm let it reach the
+    auto-merge disarm gate, where `SKIP != T1` holds, so a PR that went draft,
+    merged, or closed after the live-state gate ran would have had auto-merge
+    stripped by a loop that had just decided it was non-actionable.
+    """
+    declared = declared_tiers()
+    assert declared is not None
+
+    dispatched = dispatched_tiers(doc.read_text(encoding="utf-8"))
+    assert dispatched is not None, f"{doc.name} has no tier guard"
+
+    assert "SKIP" not in dispatched, (
+        f"{doc.name} dispatches SKIP, which the tier table defines as no action."
+    )
+    assert dispatched == frozenset(declared) - {"SKIP"}, (
+        f"{doc.name} dispatches {sorted(dispatched)}; expected every declared tier but SKIP."
     )

@@ -371,7 +371,7 @@ def test_a_producer_that_names_no_tier_skips_the_pr(tmp_path: Path, doc: str, fa
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
-@pytest.mark.parametrize("tier", ["T2", "T5", "BEHIND", "BLOCKED", "DIRTY", "SKIP"])
+@pytest.mark.parametrize("tier", ["T2", "T5", "BEHIND", "BLOCKED", "DIRTY"])
 def test_a_valid_tier_exiting_nonzero_is_still_dispatched(
     tmp_path: Path, doc: str, tier: str
 ) -> None:
@@ -382,10 +382,11 @@ def test_a_valid_tier_exiting_nonzero_is_still_dispatched(
     and a guard rejecting exit 1 would skip every PR the loop exists to fix.
 
     And the set is the producer's `_TIER_ORDER`, not the T1-T5 ladder the
-    command's prose describes. BEHIND, BLOCKED, DIRTY, and SKIP are declared
-    return values; the guard first shipped rejecting all four, which turned a
-    healthy classification into "producer failed" and stopped the documented
-    BEHIND and DIRTY handling.
+    command's prose describes. BEHIND, BLOCKED, and DIRTY are declared return
+    values; the guard first shipped rejecting them, which turned a healthy
+    classification into "producer failed" and stopped the documented BEHIND and
+    DIRTY handling. SKIP is declared too but is not dispatched, so it has its
+    own test below rather than a row here.
     """
     run = run_dispatch(tmp_path, doc, tier=tier, auto_merge="null")
 
@@ -456,3 +457,24 @@ def test_the_fake_tier_producer_matches_the_real_output_shape(tmp_path: Path, do
     assert 'result["Tier"]' in real
     assert "print(json.dumps(result, indent=2))" in real
     assert "write_skill_output" not in real, "the real producer started using the Data emitter"
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_skip_terminates_instead_of_reaching_the_disarm_gate(tmp_path: Path, doc: str) -> None:
+    """SKIP is recognized and non-actionable, so the loop must stop on it.
+
+    The command's tier table reads `| SKIP | Draft, merged, or closed | No
+    action |`. Sending it down the pass-through arm let it reach the auto-merge
+    disarm gate, where `SKIP != T1` holds, so a PR that went draft, merged, or
+    closed after the live-state gate ran would have had auto-merge stripped by
+    a loop that had just classified it as nothing to do. Copilot caught that
+    while reviewing the widened whitelist.
+    """
+    run = run_dispatch(tmp_path, doc, tier="SKIP", auto_merge="SQUASH", round_action="ACT")
+
+    assert "no action" in run.stdout.lower()
+    assert "Cannot determine tier" not in run.stdout, "SKIP is declared, not a producer failure"
+    assert run.cleaned_up
+    assert not run.disarmed, "auto-merge was stripped from a non-actionable PR"
+    assert not run.round_cap_called
+    assert not run.reached_end
