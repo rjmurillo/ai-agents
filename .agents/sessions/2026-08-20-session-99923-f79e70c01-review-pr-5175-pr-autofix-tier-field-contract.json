@@ -143,6 +143,10 @@
     {
       "activity": "Closed a fourth instance of the aggregate-over-the-line bug",
       "finding": "Copilot found that extract_field_reads bound every jq path on a logical line to the first producer on that line, so a line with two producer pipelines checked its second read against the first producer's schema. The invocation-coverage guard permits several jq commands per line, so the hole was reachable. Fixed by pairing each jq program with the window of text that feeds it, breaking ties inside the window toward the nearer of a direct invocation and a captured-variable reference. Two regression cases added; restoring the per-line binding fails both and nothing else. Also hardened the runtime harness after two further Copilot findings: every case now asserts exit 0 and empty stderr rather than one case asserting the status, and the negative control requires exactly one occurrence to mutate instead of replacing all."
+    },
+    {
+      "activity": "Cleared the 20-commit pre-push ceiling without a bypass",
+      "finding": "push-ref-policy blocked at 24 commits against a limit of 20. The needs-split relief could not be read: check_pr_bypass_label.py calls `gh api repos/{owner}/{repo}/pulls`, and this remote session's GitHub proxy answers HTTP 403 'GitHub access is not enabled for this session' for that endpoint, so the helper fails closed as designed. An earlier diagnosis blamed GraphQL and the helper's use of `gh pr view`; both were wrong, since the helper already moved to REST for exactly that reason and the misleading 'gh pr view failed' text is a legacy message on the REST path at :207. The owner then authorized --no-verify, but origin/main had advanced by one commit in the interim, so merging it was independently justified and _contains_main_merge raises the ceiling from BLOCK_THRESHOLD 20 to MAIN_MERGE_BLOCK_THRESHOLD 40. 25 <= 40, push-ref-policy returns 0, and no gate was skipped. Every blocking pre-push job was also run by hand beforehand and passed."
     }
   ],
   "outcomes": {
@@ -220,7 +224,7 @@
       }
     ]
   },
-  "endingCommit": "1dc128c13633a9617e85bbb6bfe278e7602adb2c",
+  "endingCommit": "24bd807c1fc341399eb9b6be07d88d18c67dbb85",
   "nextSteps": [
     "Open a draft PR from claude/pr-5175-review-v21yk2 referencing issue #5094",
     "Report on PR #5175 that its branch carries no diff so the owner can decide whether to close it in favor of this change"
