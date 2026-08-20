@@ -185,6 +185,7 @@ def run_dispatch(
     round_action: str = "ACT",
     mutation_rc: str = "",
     tier_read: str = SHIPPED_TIER_READ,
+    block_edit: tuple[str, str] | None = None,
     expected_stderr: str | None = None,
 ) -> DispatchRun:
     scripts_dir = tmp_path / "scripts"
@@ -203,6 +204,14 @@ def run_dispatch(
         occurrences = block.count(SHIPPED_TIER_READ)
         assert occurrences == 1, f"expected exactly one tier read to mutate, found {occurrences}"
         block = block.replace(SHIPPED_TIER_READ, tier_read, 1)
+    if block_edit is not None:
+        # Arbitrary edit to the extracted block, used by the in-suite inverted
+        # control. Same exactly-one discipline as the tier read: a mutation
+        # that lands on several sites is not evidence about any one of them.
+        before, after = block_edit
+        occurrences = block.count(before)
+        assert occurrences == 1, f"expected exactly one {before!r} to edit, found {occurrences}"
+        block = block.replace(before, after, 1)
 
     harness = f"""\
 set -u

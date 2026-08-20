@@ -57,14 +57,48 @@ Copilot then found two holes in that harness, both real and both closed:
    shared helper now asserts exit 0 and empty stderr for every case. Measured
    first: all nine input shapes exit 0 with empty stderr, including the ones
    that `continue`. Verified by injecting an unset variable under `set -u`,
-   which fails 22 of the 22 cases that run the block; the two that still pass
-   are the shape guard, which never spawns `bash`.
+   which fails every case that runs the block; the only survivors are the
+   fake-shape cases, which never spawn `bash`. Measured 22 of 22 at that
+   revision, and stated as the property because the count moves on every commit
+   that adds a case.
 2. **The negative control mutated with an unbounded replace after an `in`
    check.** A second identical read would have hit both sites, so the control
    would no longer isolate the defect it is named for. Now requires exactly one
    occurrence and replaces one. Verified by duplicating the tier read in the
    command: the control fails with `assert 2 == 1` instead of silently mutating
    two sites.
+
+### The inverted control is now a suite member, and it discriminates
+
+Spec validation's one PARTIAL was that the inverted control above was a manual
+run recorded here, not a test, so nothing re-ran it as the suite changed
+underneath it. It is now
+`test_a_comment_reword_changes_nothing`, which runs the block twice for the same
+input and asserts the two runs agree on every accessor and byte-for-byte on
+stdout. The reword is applied through a new `block_edit` parameter on
+`run_dispatch`, under the same exactly-one-occurrence discipline as the tier
+read.
+
+A control that always passes is not evidence, so it was shown to fail. Two
+attempts, and the first one is the instructive half:
+
+| Edit fed to `block_edit` | Expected | Result |
+|---|---|---|
+| `# gate ran.` reworded (shipped form) | passes | 2 passed |
+| `[ "$TIER" != "T1" ]` to `!= "T9"` | fails | **2 passed** |
+| `[ "$AUTO_MERGE" != "null" ]` to `= "null"` | fails | 2 failed on `disarmed` |
+
+The middle row is not a defect in the test. T3 is non-T1 and non-T9 alike, so
+for the case this control runs the edit is behavior-preserving by construction,
+and a probe that cannot move the thing it measures reports nothing either way.
+Reading that row as "the control passed" would have shipped an unproven control;
+it took a second edit that genuinely changes the T3-armed outcome to establish
+the property. Same unit-narrower-than-the-claim shape as the rest of this PR,
+found in my own verification rather than in the code.
+
+The mutation ran under a script that asserted the edit wrote something, purged
+`__pycache__` on both sides, and asserted a byte-identical restore afterwards
+(testing rules MUST-7 and SHOULD-8).
 
 Two of those controls assert behavior the static gate cannot see at all. The
 round-cap breaker firing on T3 and T4, and the T1 PR keeping the auto-merge it

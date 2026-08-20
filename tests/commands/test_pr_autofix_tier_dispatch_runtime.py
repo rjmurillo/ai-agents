@@ -275,3 +275,59 @@ def test_skip_terminates_instead_of_reaching_the_disarm_gate(tmp_path: Path, doc
     assert not run.round_cap_called
     assert not run.reached_end
     assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_a_comment_reword_changes_nothing(tmp_path: Path, doc: str) -> None:
+    """The inverted control, in the suite rather than in a report.
+
+    A set of same-polarity mutants cannot distinguish "every mutant died" from
+    "this fails no matter what". Every other control here asserts a mutation
+    breaks something; this one asserts a mutation that should be inert really
+    is, so a harness that failed unconditionally would be caught.
+
+    It lived only in the QA report as a manual run until spec validation
+    pointed out the obvious: a control nothing re-runs stops being evidence the
+    moment the suite changes under it. The same "turn prose into a guard" move
+    already applied to the nested-path limit.
+
+    The reason the negative controls cannot live here is that they would have
+    to keep the defect present to assert on it. This one has no such problem:
+    rewording a comment is inert by construction, so the assertion is that
+    behavior is identical, not that a defect survives.
+
+    An inverted control is only evidence if it can also fail, so that was
+    demonstrated rather than assumed: retargeting `block_edit` at the disarm
+    gate's `[ "$AUTO_MERGE" != "null" ]` and flipping it to `=` fails both
+    parameterizations on the first assertion, while the shipped comment edit
+    passes. The first attempt at that demonstration proved nothing, because it
+    flipped `[ "$TIER" != "T1" ]` to `!= "T9"`, and T3 sits on the same side of
+    both, so the edit was behavior-preserving for this case. A control that
+    cannot move the thing it probes is not a passing control; it is an
+    unfinished one, which is the same narrower-than-the-claim mistake the rest
+    of this suite exists to catch.
+    """
+    shipped_dir = tmp_path / "shipped"
+    reworded_dir = tmp_path / "reworded"
+    shipped_dir.mkdir()
+    reworded_dir.mkdir()
+
+    shipped = run_dispatch(shipped_dir, doc, tier="T3", auto_merge="SQUASH")
+    reworded = run_dispatch(
+        reworded_dir,
+        doc,
+        tier="T3",
+        auto_merge="SQUASH",
+        block_edit=("# gate ran.", "# gate ran (reworded by the inverted control)."),
+    )
+
+    assert reworded.disarmed == shipped.disarmed
+    assert reworded.round_cap_called == shipped.round_cap_called
+    assert reworded.cleaned_up == shipped.cleaned_up
+    assert reworded.reached_end == shipped.reached_end
+    assert reworded.queue_completed == shipped.queue_completed
+    assert reworded.stdout == shipped.stdout, (
+        "rewording a comment changed the block's behavior, so either the "
+        "extraction is including something it should not, or the suite is "
+        "sensitive to text it has no business reading"
+    )
