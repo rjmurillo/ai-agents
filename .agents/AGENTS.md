@@ -13,7 +13,6 @@ flowchart TD
     subgraph Sessions["Session Management"]
         SL[sessions/]
         HP[HANDOFF.md]
-        SP[SESSION-PROTOCOL.md]
     end
 
     subgraph Artifacts["Agent Outputs"]
@@ -57,7 +56,6 @@ flowchart TD
 |----------------|---------|-----------------|
 | `sessions/` | Optional JSON logs and per-issue handoffs | Opt-in tools, all agents |
 | `HANDOFF.md` | Cross-session context bridge | All agents (on session end) |
-| `SESSION-PROTOCOL.md` | RFC 2119 protocol requirements | Validation scripts |
 | `AGENT-SYSTEM.md` | System documentation | Architect/Orchestrator |
 
 ### Agent Output Directories
@@ -250,7 +248,6 @@ Source: `skill-usage-mandatory` memory
 
 ## Related Documentation
 
-- [SESSION-PROTOCOL.md](SESSION-PROTOCOL.md) - Canonical protocol reference
 - [AGENT-SYSTEM.md](AGENT-SYSTEM.md) - Full system documentation
 - [governance/naming-conventions.md](governance/naming-conventions.md) - Naming rules
 - [Root AGENTS.md](../AGENTS.md) - Agent usage instructions
