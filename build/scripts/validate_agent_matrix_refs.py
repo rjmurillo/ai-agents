@@ -58,7 +58,8 @@ as an agent only when it opens with a YAML frontmatter block carrying a
 non-empty string ``description:`` key. Both fences must be complete lines: a
 substring search for ``\n---`` accepted ``---not-a-closing-fence`` and admitted
 a malformed document as an agent. Measured across all six trees that rule keeps
-all 175 agent files and excludes exactly four suffix-matching sibling documents:
+all 186 agent definitions out of 190 suffix-matching files, excluding exactly
+four sibling documents:
 ``.claude/agents/AGENTS.md``, ``.claude/agents/CLAUDE.md``,
 ``src/claude/AGENTS.md``, and ``src/claude/claude-instructions.template.md``. It
 also fully subsumes the uppercase-stem filter it replaced.

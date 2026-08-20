@@ -270,9 +270,16 @@ _CANONICAL_TREE = _vamr.CANONICAL_TREE.as_posix()
 #
 # Quoted from build/scripts/validate_agent_matrix_refs.py:59-64, which measured
 # the same four with the same predicate: "Measured across all six trees that
-# rule keeps all 175 agent files and excludes exactly four suffix-matching
-# sibling documents: ``.claude/agents/AGENTS.md``, ``.claude/agents/CLAUDE.md``,
-# ``src/claude/AGENTS.md``, and ``src/claude/claude-instructions.template.md``."
+# rule keeps all 186 agent definitions out of 190 suffix-matching files,
+# excluding exactly four sibling documents: ``.claude/agents/AGENTS.md``,
+# ``.claude/agents/CLAUDE.md``, ``src/claude/AGENTS.md``, and
+# ``src/claude/claude-instructions.template.md``."
+#
+# Both numbers were 175 until PR #5177. Copilot caught that the copy here
+# contradicted this PR's own guarded corpus size; the canonical comment was
+# wrong too, so it was corrected first and re-quoted rather than the copy being
+# patched to differ from its source. `_agent_files()` returns 190 and
+# `_agent_definitions()` returns 186 on this head.
 _NON_AGENT_SIBLINGS = frozenset(
     {
         ".claude/agents/AGENTS.md",

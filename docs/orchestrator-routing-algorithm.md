@@ -439,15 +439,29 @@ def resolve_conflicts(conflicts):
     `architect`, because architect is a participant in these disputes and cannot
     arbitrate one it is party to.
 
-    `conflict["positions"]` maps an agent to the position it took, which is the
-    shape `resolve_disagreement` consumes once wrapped as results.
+    `conflict["positions"]` maps an agent to the position it took, and
+    `conflict["non_negotiable"]` is the set of agents that marked their position
+    as such. Both are carried into the shape `resolve_disagreement` consumes.
+
+    Carrying the flag is load-bearing, and an earlier revision of this adapter
+    dropped it. Copilot caught it on PR #5177: routing both phases through one
+    resolver does not unify them if the adapter discards the field the resolver
+    branches on. A dissenting non-negotiable position escalates in Phase 2.5 and
+    became an ordinary soft vote here, so the two phases still resolved
+    identical inputs differently, which is the exact defect the shared resolver
+    was introduced to fix.
     """
     resolutions = []
     for conflict in conflicts:
         positions = conflict["positions"]
-        outcome = resolve_disagreement(
-            {agent: {"recommendation": position} for agent, position in positions.items()}
-        )
+        non_negotiable = conflict.get("non_negotiable", frozenset())
+        outcome = resolve_disagreement({
+            agent: {
+                "recommendation": position,
+                "non_negotiable": agent in non_negotiable,
+            }
+            for agent, position in positions.items()
+        })
 
         if outcome["strategy"] == "escalate":
             # Escalation is not a pairwise winner. high-level-advisor is not a

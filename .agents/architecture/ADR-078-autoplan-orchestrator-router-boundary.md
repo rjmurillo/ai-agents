@@ -136,7 +136,7 @@ the same surface.
 |-------------|------|------|----------------|
 | A. Explicit layering: autoplan = front-door router, orchestrator = routed-to multi-agent coordinator (chosen) | Matches actual design; smallest change; keeps both entry ergonomics; removes ambiguity with one handoff clause | Two surfaces still exist, so contributors must learn the boundary; relies on docs being read | Chosen: lowest risk, no capability loss, honest to how the code already behaves |
 | B. Fold autoplan into orchestrator (single router) | One router, zero overlap | orchestrator's blocking session-start gate and opus tier are too heavy for trivial routing; loses implicit cheap entry; large blast radius across the shared agent source and every agent handoff | Rejected: makes the common lightweight path pay the multi-agent tax |
-| C. Fold orchestrator into autoplan | One entry point at the skill layer | A skill would own agent-layer handoff and synthesis, so orchestrator's blocking session-start checklist would sit in a surface that fires implicitly on `do it`; loses opus reasoning tier for complex work | Rejected: pushes agent-tier responsibility into a skill |
+| C. Fold orchestrator into autoplan | One entry point at the skill layer | A skill would own agent-layer handoff and synthesis, so orchestrator's blocking session-start checklist would sit in a surface that fires implicitly on `do it`; loses opus reasoning tier for complex work | Rejected: pushes agent-layer responsibility into a skill |
 | D. Keep both, document nothing | No work | The #2867 ambiguity persists; duplicated classification logic keeps drifting | Rejected: does not solve the reported problem |
 
 ### Trade-offs
@@ -330,8 +330,9 @@ and reached different verdicts, and both records are kept:
   1 DISAGREE-AND-COMMIT, 2 BLOCK. Found two P0s, including a `security: 2` vote
   weight attributed to ADR-009 that the ADR does not contain
   (`grep -c -i security` on ADR-009 returns 0). Its architect `BLOCK` on the
-  absence of an ADR recording the tier removal is open and is a maintainer call
-  under `AGENTS.md` "Ask First: New ADRs".
+  absence of an ADR recording the tier removal is **discharged**:
+  `.agents/architecture/ADR-098-agent-role-metadata-replaces-tier-hierarchy.md`
+  is that record, and it went through two further review rounds of its own.
 - `.agents/critique/ADR-078-debate-log.md`: six agents, 3 ACCEPT,
   3 DISAGREE-AND-COMMIT, 0 BLOCK. Found the half-converted vocabulary above, a
   Rationale that cited `role:` as evidence for a routing constraint this same

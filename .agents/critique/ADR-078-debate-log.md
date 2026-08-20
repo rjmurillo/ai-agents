@@ -230,3 +230,30 @@ its own reliability: each missed what the other caught. A green debate is
 evidence that six or seven lenses found nothing, not evidence that nothing is
 there. The accidental replication is worth more than either result alone, and it
 should not be tidied away into a single consensus line.
+
+## Round 3 findings that landed on ADR-078, 2026-08-20
+
+Two corrections after this log's own debate closed, both from Copilot review on
+PR #5177 rather than from a lens here. Recorded because this log is ADR-078's
+review record and a reader should not have to reconstruct why the file moved
+after the debate ended.
+
+**One layer-sense `tier` survived the sweep.** Option C's verdict cell still read
+"pushes agent-tier responsibility into a skill" while the rest of the document
+had moved to "layer". That is the third round of the same defect on this one
+axis: the first pass converted two of seven occurrences, the six-agent debate
+converted the rest, and this cell was missed by both because it sits in a table
+cell rather than in prose. Now "agent-layer responsibility". `grep` for a
+layer-sense `tier` in this file returns nothing.
+
+**The provenance note called a discharged `BLOCK` open.** It said the other
+debate's architect `BLOCK` on the absence of an ADR recording the tier removal
+"is open and is a maintainer call". `.agents/architecture/ADR-098-agent-role-metadata-replaces-tier-hierarchy.md`
+had already been written in answer to exactly that block, and has since been
+through two review rounds of its own. The note now says discharged and names the
+ADR.
+
+Both are the same failure mode this branch keeps producing: a statement true when
+written, left standing after the thing it describes changed. The count of such
+findings on this PR is now large enough to be the finding itself, which is
+recorded in the QA report rather than here.
