@@ -4,7 +4,7 @@
   "timestamp": "2026-08-20T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
-  "task": "Evaluate whether the pull request commit-count and per-commit file-count push gates earn their cost, and structurally solve what the evidence shows. Produced ADR-098 (retire the size ceilings) and ADR-099 (enforcement planes), carried through six rounds of six-role adr-review plus external bot review, which corrected the design twice and caught four factual errors in the drafts.",
+  "task": "Evaluate whether the pull request commit-count and per-commit file-count push gates earn their cost, and structurally solve what the evidence shows. Produced ADR-100 (retire the size ceilings) and ADR-101 (enforcement planes), carried through seven rounds of six-role adr-review plus continuing external bot review. External review changed the design repeatedly and falsified a substantial number of drafted claims; the counts are recorded in the debate log and QA report rather than here, because this field is copied into the episode artifact and a number stated here goes stale on every subsequent round. Round 7 re-ran the panel with verification against the tree assigned to every role, which found real defects in text eleven bot rounds had passed.",
   "decisions": [],
   "events": [
     {
@@ -310,6 +310,45 @@
       "caused_by": [
         "e025"
       ],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-08-20T23:17:15+00:00",
+      "type": "commit",
+      "content": "Commit: d8d0782fc9e1abeca05bb349a678d4ec0470b850",
+      "caused_by": [
+        "e026"
+      ],
+      "leads_to": [
+        "e028"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-08-20T23:28:30+00:00",
+      "type": "commit",
+      "content": "Commit: f8bf75ac02d44ed64cfffab76a4bcde11be5895e",
+      "caused_by": [
+        "e027"
+      ],
+      "leads_to": [
+        "e029"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-08-20T23:31:38+00:00",
+      "type": "commit",
+      "content": "Commit: 9c47c5a1c7ef124fb62c6382e7a04943b2e19b38",
+      "caused_by": [
+        "e028"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     }
@@ -319,8 +358,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 19,
-    "files_changed": 6
+    "commits": 22,
+    "files_changed": 10
   },
   "lessons": []
 }
