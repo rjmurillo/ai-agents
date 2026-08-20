@@ -413,8 +413,9 @@ fi
 # test_pr_merge_ready.py has no --output-format flag and prints its result
 # dict directly (`print(json.dumps(result, indent=2))`), so there is no Data
 # envelope to traverse. Reading .Data.Tier pins TIER at UNKNOWN, which is the
-# same silent-disable defect one script over. tests/test_pr_autofix_field_contract.py
-# checks every read in this file against its producer's real schema.
+# same silent-disable defect one script over.
+# tests/commands/test_pr_autofix_field_contract.py checks every read in this
+# file against its producer's real schema.
 TIER=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" 2>/dev/null | jq -r '.Tier // "UNKNOWN"')
 if [ "$TIER" = "T3" ] || [ "$TIER" = "T4" ]; then
     ROUND_CAP=$(python3 "$SCRIPTS_DIR/check_pr_round_cap.py" \
