@@ -52,7 +52,7 @@ Phase gates are explicit checkpoints within skills that **force structured re-ev
 **Pass criteria**: Include in --thoughts: "Verification gate: [current] -> [expected]"
 ```
 
-**Example skills**: merge-resolver, session-log-fixer
+**Example skills**: merge-resolver, retrospective
 
 ---
 
@@ -223,7 +223,6 @@ When adding phase gates to a skill:
 | milestone-planner | - | - | Yes | Yes | Compliant |
 | merge-resolver | Required | Required | - | - | Pending |
 | analyze | Required | - | - | Required | Pending |
-| session-log-fixer | - | Required | - | - | Pending |
 | adr-review | Required | - | Required | - | Pending |
 | prompt-engineer | - | - | Required | - | Pending |
 

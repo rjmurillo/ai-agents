@@ -200,7 +200,7 @@ def test_plugin_registrations_are_dispatcher_only():
 AUTHORIZED_HOOKS = {
     "invoke_compact_checkpoint.py": "#3217 KEEP, trimmed by #3273",
     "invoke_context_loader.py": "#3349 KEEP: read-only, fail-open, automates the "
-    "SESSION-PROTOCOL start gate for this repo's own sessions",
+    "session start gate for this repo's own sessions",
     "session-start.sh": "#3244 deterministic .githooks activation",
     "invoke_memory_recall.py": "#4011 KEEP: fail-open recall, dogfood-only, "
     "stdout on exit 0 so it can never erase a prompt",

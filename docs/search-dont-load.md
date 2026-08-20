@@ -1,7 +1,7 @@
 # Search, Don't Load: Memory-First Evidence Protocol
 
 > **Status**: Active
-> **Related**: [ADR-007: Memory-First Architecture](/.agents/architecture/ADR-007-memory-first-architecture.md) | [SESSION-PROTOCOL.md](/.agents/SESSION-PROTOCOL.md) Phase 2
+> **Related**: [ADR-007: Memory-First Architecture](/.agents/architecture/ADR-007-memory-first-architecture.md) | [AGENTS.md](/AGENTS.md) Retrieval gate
 
 ## What This Pattern Means
 
@@ -76,12 +76,11 @@ and loaded.
 
 ## When to Use This Pattern
 
-Every session start. SESSION-PROTOCOL.md Phase 2 requires agents to search the
+Every session start. `AGENTS.md`'s Retrieval gate requires agents to search the
 memory index and load task-relevant memories before modifying files.
 
 ## References
 
 - [ADR-007: Memory-First Architecture](/.agents/architecture/ADR-007-memory-first-architecture.md)
-- [SESSION-PROTOCOL.md, Phase 2: Context Retrieval](/.agents/SESSION-PROTOCOL.md)
-- [Memory Loading Protocol](/.agents/SESSION-PROTOCOL.md) (lines 112-123)
+- [AGENTS.md, Retrieval](/AGENTS.md)
 - Serena memory: `init-003-memory-first-monitoring-gate` (30% efficiency data)

@@ -318,7 +318,7 @@ gh pr list --state merged --limit 100 --json createdAt,mergedAt | jq '[.[] | (.m
 ## Related Documents
 
 - [Technical Guardrails Guide](technical-guardrails.md)
-- [SESSION-PROTOCOL.md](../.agents/SESSION-PROTOCOL.md)
+- [`.claude/rules/session-logs.md`](../.claude/rules/session-logs.md)
 - [Issue #230](https://github.com/rjmurillo/ai-agents/issues/230)
 - [Retrospective: PR #226](../.agents/retrospective/2025-12-22-pr-226-premature-merge-failure.md)
 

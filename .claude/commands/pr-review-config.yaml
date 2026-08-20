@@ -36,7 +36,7 @@ scripts:
 
 check_failure_actions:
   - check_type: "Session validation"
-    action: "Invoke session-log-fixer skill"
+    action: "Hand-fix against .agents/schemas/session-log.schema.json and re-run scripts/validate_session_json.py"
   - check_type: "AI reviewer (infra)"
     action: "May be transient; note and continue"
   - check_type: "AI reviewer (code quality)"
@@ -136,7 +136,7 @@ completion_criteria:
 
 failure_handling:
   - type: "Session validation fails"
-    action: "Use session-log-fixer skill to diagnose and fix"
+    action: "Hand-fix against .agents/schemas/session-log.schema.json and re-run scripts/validate_session_json.py"
   - type: "AI reviewer fails (infra)"
     action: "Note as infrastructure issue; may be transient"
   - type: "AI reviewer fails (code quality)"
@@ -166,8 +166,6 @@ related_memories:
     purpose: "Session context for multi-round reviews"
   - name: "ai-quality-gate-failure-categorization"
     purpose: "Infrastructure vs code quality failures"
-  - name: "session-log-fixer"
-    purpose: "Diagnose and fix session protocol failures"
 
 thread_resolution:
   note: "Replying to a review comment does NOT automatically resolve the thread. Thread resolution requires a separate GraphQL mutation."

@@ -25,11 +25,12 @@ from scripts.validation.check_doc_interpreter_portability import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# The three scripts issue #3791 names, and the module each one needs. Every one
-# is a declared project dependency, so `uv run python` resolves it and a bare
-# system interpreter may not.
+# The two surviving scripts issue #3791 names, and the module each one needs.
+# (A third, scripts/sync_adr_protocol.py, was deleted along with the session
+# skill cluster and .agents/SESSION-PROTOCOL.md, the doc it synced into.)
+# Every one is a declared project dependency, so `uv run python` resolves it
+# and a bare system interpreter may not.
 ISSUE_3791_SCRIPTS = {
-    "scripts/sync_adr_protocol.py": "yaml",
     "build/generate_agents.py": "yaml",
     "build/scripts/build_all.py": "yaml",
 }
@@ -38,13 +39,14 @@ ISSUE_3791_SCRIPTS = {
 # --- regression: the issue #3791 surface stays fixed ------------------------
 
 
-@pytest.mark.parametrize("doc", ["CONTRIBUTING.md", ".agents/SESSION-PROTOCOL.md"])
+@pytest.mark.parametrize("doc", ["CONTRIBUTING.md"])
 def test_onboarding_docs_name_no_bare_interpreter_for_issue_3791_scripts(doc: str) -> None:
     """The contributor-onboarding docs must not tell a reader to run these bare.
 
-    A fresh checkout has no system PyYAML, so `python3 scripts/sync_adr_protocol.py`
-    dies with ModuleNotFoundError. CONTRIBUTING.md:838 is a required pre-submit
-    step, which is why this is a blocking regression test rather than prose.
+    A fresh checkout has no system PyYAML, so a bare `python3` invocation of an
+    ISSUE_3791_SCRIPTS entry dies with ModuleNotFoundError. CONTRIBUTING.md is
+    a required pre-submit read, which is why this is a blocking regression
+    test rather than prose.
     """
     tracked_py = set(tracked_files(REPO_ROOT, "*.py"))
     text = (REPO_ROOT / doc).read_text(encoding="utf-8")
@@ -82,7 +84,7 @@ def test_repository_is_at_or_below_its_baseline() -> None:
 
 @pytest.mark.parametrize(
     "path",
-    ["src/claude/AGENTS.md", ".claude/skills/session-init/scripts/new_session_log.py"],
+    ["src/claude/AGENTS.md"],
 )
 def test_named_regression_files_carry_no_bare_interpreter(path: str) -> None:
     """Scan two specific files without consulting the guard's scope configuration.

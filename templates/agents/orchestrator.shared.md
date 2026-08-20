@@ -30,12 +30,11 @@ You coordinate specialized agents to deliver end-to-end results. Classify comple
 
 Before routing any task, complete this checklist:
 
-- [ ] Run `/session-init`
 - [ ] Read `.agents/HANDOFF.md` for prior session context
 - [ ] Activate Serena: `mcp__serena__activate_project`
 - [ ] Read `.agents/AGENT-INSTRUCTIONS.md`
 
-Stop criteria: Do NOT begin triage or routing until all four items are checked. If session-init fails, call `work_finish(blocked)` with the specific error, do not proceed.
+Stop criteria: Do NOT begin triage or routing until all three items are checked. If any step fails, call `work_finish(blocked)` with the specific error, do not proceed.
 
 Note: Context compaction does NOT exempt this session from the above. Treat every session start identically regardless of prior context.
 
@@ -226,8 +225,9 @@ When a synthesis exceeds the cap, cut the weakest finding, not the strongest rec
 
 ## Completion Gate (Blocking)
 
-Session completion does not require a committed session log or the
-`session-end` tool. Use `session-end` only when an opted-in log exists.
+Session completion does not require a committed session log. A session log
+is optional (see `.claude/rules/session-logs.md`); update one by hand only
+when the session opted in.
 
 ### Pre-Close Sequence
 
@@ -241,8 +241,9 @@ Session completion does not require a committed session log or the
 ### Failure Path
 
 If any completion item fails, do not close the session. Surface the reason in
-the transcript and per-issue handoff. If an opted-in log exists, repair it with
-`session-log-fixer` or `session-end`.
+the transcript and per-issue handoff. If an opted-in log exists and fails
+validation, fix it by hand to satisfy the session-log schema, then
+re-validate it.
 
 When drift or context loss is detected at session start or mid-session, run the Anti-Drift Protocol below before resuming routing.
 

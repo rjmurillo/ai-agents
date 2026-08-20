@@ -63,8 +63,6 @@ Before starting work, complete these steps IN ORDER:
 
 ### 1. Session Initialization
 
-> **Canonical Source**: Copy the Session Start checklist from [SESSION-PROTOCOL.md](SESSION-PROTOCOL.md#session-start-checklist)
-
 Use the **table format** (not bullet lists) for validation to pass:
 
 ```markdown
@@ -83,8 +81,6 @@ Use the **table format** (not bullet lists) for validation to pass:
 | SHOULD | Verify git status | [x] | Output documented below |
 | SHOULD | Note starting commit | [x] | SHA documented below |
 ```
-
-See [SESSION-PROTOCOL.md](SESSION-PROTOCOL.md) for full requirements and validation rules.
 
 ### 2. Task Execution (FOR EACH TASK)
 
@@ -112,8 +108,6 @@ See [SESSION-PROTOCOL.md](SESSION-PROTOCOL.md) for full requirements and validat
 
 ### 3. Session Finalization
 
-> **Canonical Source**: Copy the Session End checklist from [SESSION-PROTOCOL.md](SESSION-PROTOCOL.md#session-end-checklist)
-
 Use the Session End checklist for repository quality and continuity:
 
 ```markdown
@@ -128,8 +122,6 @@ Use the Session End checklist for repository quality and continuity:
 | MUST | Commit all changes (including `.serena/memories/`) | [x] | Commit SHA: abc1234 |
 | MUST NOT | Update `.agents/HANDOFF.md` | [x] | HANDOFF.md unchanged |
 ```
-
-See [SESSION-PROTOCOL.md](SESSION-PROTOCOL.md) for full requirements and validation rules.
 
 ---
 
@@ -791,7 +783,6 @@ If something goes wrong:
 
 ## Related Documents
 
-- [SESSION-PROTOCOL.md](./SESSION-PROTOCOL.md) - Session start/end requirements
 - [PROTOCOL-ANTIPATTERNS.md](./governance/PROTOCOL-ANTIPATTERNS.md) - Protocol design antipatterns and replacement patterns
 - [PROJECT-CONSTRAINTS.md](./governance/PROJECT-CONSTRAINTS.md) - Hard constraints
 

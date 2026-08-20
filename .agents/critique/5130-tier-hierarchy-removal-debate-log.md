@@ -1,10 +1,12 @@
 # Issue #5130 debate log: remove the agent tier hierarchy
 
-Subject: `.agents/SESSION-PROTOCOL.md`, `.agents/AGENT-SYSTEM.md` section 2.5,
+Subject: `.agents/AGENT-SYSTEM.md` section 2.5,
 `docs/orchestrator-routing-algorithm.md` Phase 2.5, and the `tier:` frontmatter
 on 186 agent files across six trees.
 
-Gate: `AGENTS.md` fires `adr-review` on any `.agents/SESSION-PROTOCOL.md` edit.
+Gate at authoring time: `AGENTS.md` fired `adr-review` on any
+`.agents/SESSION-PROTOCOL.md` edit. See the update below; that file and its
+trigger were deleted upstream before this branch landed.
 `scripts/validation/git_hook_policy.py check_adr_review_policy` requires this
 log staged alongside the change.
 
@@ -17,6 +19,20 @@ high-level-advisor pass exists. This log is a single-author design record plus
 the measurements that back it, not a consensus artifact, and it should not be
 read as one. A maintainer who wants the debate the gate normally buys should
 run `adr-review` against this diff before merging.
+
+**Update, 2026-08-20, after merging `origin/main` at `ba541c21f`.** The gate
+named above no longer applies to this change, and not because anything here
+improved. PR #5179 deleted `.agents/SESSION-PROTOCOL.md` outright, along with
+the four session-lifecycle skills and every living reference to the document.
+`AGENTS.md:44` now reads "Any `ADR-*.md` edit fires adr-review"; the
+SESSION-PROTOCOL trigger is gone with the file.
+
+This branch accepted that deletion on merge rather than restoring the file, so
+the edit that fired the gate no longer exists in the diff, and the diff touches
+no `ADR-*.md`. The criterion is moot rather than met. Nothing in this log was
+independently reviewed, and the paragraph above stands as the record of that.
+Anyone reading this later should not mistake a deleted trigger for a passed
+one.
 
 What this log does carry: the prior independent review that produced issue
 #5130 in the first place. PR #5127 attempted the same removal, the `critic`

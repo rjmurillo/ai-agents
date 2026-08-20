@@ -342,11 +342,15 @@ def test_no_agent_definition_declares_conflicting_roles():
     )
 
 
+# `.agents/SESSION-PROTOCOL.md` was in this list until PR #5179 deleted the file
+# and every living reference to it. Dropped rather than left behind, because a
+# parametrized case naming a path that no longer exists fails on the read, which
+# reports a missing escalation target where the real answer is that the document
+# is gone.
 @pytest.mark.parametrize(
     "document",
     [
         ".agents/AGENT-SYSTEM.md",
-        ".agents/SESSION-PROTOCOL.md",
         "docs/orchestrator-routing-algorithm.md",
     ],
 )

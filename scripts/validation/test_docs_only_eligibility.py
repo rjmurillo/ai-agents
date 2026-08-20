@@ -3,19 +3,16 @@
 
 Tests whether every changed file in a commit range is a Markdown file and
 whether its code-block content (fenced or indented) is byte-identical
-between the base and head revisions. `.agents/SESSION-PROTOCOL.md` defines
-"docs-only" as: all modified files are documentation files, and changes
-are strictly editorial (spelling, grammar, or formatting) with no changes
-to code, configuration, tests, workflows, or code blocks of any kind.
+between the base and head revisions. "docs-only" means: all modified files
+are documentation files, and changes are strictly editorial (spelling,
+grammar, or formatting) with no changes to code, configuration, tests,
+workflows, or code blocks of any kind.
 
-This script is self-contained (stdlib only, no third-party markdown
-parser) because it ships inside a plugin root (`.claude/skills/`) and
-`.claude/rules/plugin-self-containment.md` forbids a skill script from
-depending on upstream-only `scripts/` modules. The fence/indented-code
-detection below is a conservative regex scan, not a full CommonMark
-parse: it can flag prose as code (for example, four-space-indented list
-continuation text) but never the reverse, so a false positive only costs
-an unnecessary QA report, never a missed code change. Fail closed.
+The fence/indented-code detection below is a conservative regex scan, not a
+full CommonMark parse: it can flag prose as code (for example,
+four-space-indented list continuation text) but never the reverse, so a
+false positive only costs an unnecessary QA report, never a missed code
+change. Fail closed.
 
 Exit codes follow ADR-035:
     0 - Success (always returns 0, eligibility is in JSON output)

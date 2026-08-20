@@ -11,7 +11,7 @@ LOGIC_ERROR = 1
 BYPASS_LABEL = "commit-limit-bypass"
 
 # CONTRIBUTING.md, section "Bypassing the Limit", is the canonical authority for
-# this label; CONTRIBUTING.md:883 reads, verbatim:
+# this label; CONTRIBUTING.md:880 reads, verbatim:
 #     1. A human maintainer MUST add the `commit-limit-bypass` label
 # So the blocked-PR annotation states the sanctioned action (split) and names the
 # label as a maintainer decision rather than as the reader's next step (issue

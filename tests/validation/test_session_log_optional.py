@@ -54,7 +54,6 @@ _SESSION_REL = ".agents/sessions/2026-01-18-session-1.json"
 
 _CANONICAL_CONTRACT_PATHS = (
     ".agents/README.md",
-    ".agents/SESSION-PROTOCOL.md",
     ".agents/governance/FAILURE-MODES.md",
     ".agents/governance/GOTCHAS.md",
     ".agents/governance/PROJECT-CONSTRAINTS.md",
@@ -67,8 +66,6 @@ _CANONICAL_CONTRACT_PATHS = (
     ".claude/agents/retrospective.md",
     ".claude/rules/universal.md",
     ".claude/commands/build.md",
-    ".claude/skills/session-init/SKILL.md",
-    ".claude/skills/session-end/SKILL.md",
     ".claude/skills/reflect/references/integration-and-design.md",
     ".claude/skills/research-and-incorporate/references/workflow.md",
     ".claude/skills/ai-agents-change-control/SKILL.md",
@@ -100,8 +97,6 @@ _CANONICAL_CONTRACT_PATHS = (
     "src/copilot-cli/agents/pr-comment-responder.agent.md",
     "src/copilot-cli/agents/retrospective.agent.md",
     "src/copilot-cli/skills/build/SKILL.md",
-    "src/copilot-cli/skills/session-init/SKILL.md",
-    "src/copilot-cli/skills/session-end/SKILL.md",
     "src/copilot-cli/skills/reflect/references/integration-and-design.md",
     "src/copilot-cli/skills/research-and-incorporate/references/workflow.md",
     "src/vs-code-agents/critic.agent.md",
@@ -402,29 +397,9 @@ def test_orphaned_session_command_helper_remains_absent() -> None:
         assert "is_session_logged_command" not in text
 
 
-@pytest.mark.parametrize(
-    "skill_path,script_path",
-    (
-        (
-            ".claude/skills/session-init/SKILL.md",
-            ".claude/skills/session-init/scripts/new_session_log.py",
-        ),
-        (
-            ".claude/skills/session-end/SKILL.md",
-            ".claude/skills/session-end/scripts/complete_session_log.py",
-        ),
-        (
-            ".claude/skills/session-log-fixer/SKILL.md",
-            "scripts/validate_session_json.py",
-        ),
-    ),
-)
-def test_opt_in_session_tools_retain_validation(
-    skill_path: str,
-    script_path: str,
-) -> None:
-    """Opt-in creation, completion, and repair still use the retained validator."""
-    skill = (PROJECT_ROOT / skill_path).read_text(encoding="utf-8")
-
-    assert "validate_session_json.py" in skill
-    assert (PROJECT_ROOT / script_path).is_file()
+def test_opt_in_session_logs_retain_validation() -> None:
+    """Hand-written opt-in session logs still use the retained validator."""
+    assert (PROJECT_ROOT / "scripts" / "validate_session_json.py").is_file()
+    assert (
+        PROJECT_ROOT / ".agents" / "schemas" / "session-log.schema.json"
+    ).is_file()

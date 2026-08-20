@@ -296,7 +296,8 @@ The validator script (`Validate-SessionEnd.ps1`) was not updated after ADR-014. 
 
 - ADR-014: Distributed Handoff Architecture (reason for HANDOFF.md read-only)
 - Pre-commit hook output: "ERROR: BLOCKED: HANDOFF.md is read-only on feature branches"
-- SESSION-PROTOCOL.md v1.4: Should clarify HANDOFF.md update policy
+- `.agents/HANDOFF.md` update policy: now covered by ADR-014 directly (the
+  session protocol doc that originally carried this note was later removed)
 
 ---
 

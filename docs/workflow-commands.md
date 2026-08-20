@@ -209,7 +209,7 @@ The lifecycle commands replace the numbered workflow commands that were removed 
 
 | Old Command | Replacement | Notes |
 |-------------|-------------|-------|
-| `/0-init` | `/session-init` skill | Session initialization is now a skill, not a lifecycle phase |
+| `/0-init` | Session start checklist in `templates/agents/implementer.shared.md` | Session initialization is a checklist, not a lifecycle phase or a skill |
 | `/1-plan` | `/spec` + `/plan` | Requirements and planning are now separate phases |
 | `/2-impl` | `/build` | TDD-first, atomic commits, quality scoring |
 | `/3-qa` | `/test` | Expanded from 1 gate to 6 gates |
