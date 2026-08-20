@@ -269,12 +269,16 @@ What changed, and it is not all one kind of edit:
    concepts sharing a word, and renaming them would be scope creep dressed as
    consistency.
 
-Lines corrected: 36, 79, 110, 123, 206, 212, six phrases in all. PR #5177's
-original disclosure listed 36, 79, 111, 123, and 206 and **missed 212**, which
-carried the identical defect; the omission was found by the `adr-review`
-analyst pass, which enumerated all six. Line 110 ("the two surfaces already
-operate at different tiers") was corrected last, in `d5453ca8a`, after the
-other five.
+Lines corrected: 36, 79, 110, 111, 123, 206, 212, **seven phrases in all**.
+
+The count took three passes to get right, which is worth recording because the
+miscount kept surviving the prose that reported it. PR #5177's original
+disclosure listed 36, 79, 111, 123, and 206 and **missed 212**; the `adr-review`
+analyst pass found 212. Lines 110 and 111 were corrected later, in `d5453ca8a`.
+An earlier revision of this note then said "six phrases in all" and omitted 111
+from its own list, while the debate log's table listed all seven rows under a
+sentence that also said six. Copilot caught the table-versus-count mismatch.
+Both now say seven and both enumerate the same seven lines.
 
 **Review provenance.** The six-agent `adr-review` debate ran against this
 correction and the wider change on 2026-08-20. Votes, findings, and the two

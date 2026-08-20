@@ -395,7 +395,7 @@ with its provenance paragraph corrected at the end.
 **What changed.** `ADR-078-autoplan-orchestrator-router-boundary.md` described
 orchestrator as `metadata.tier: manager` and reasoned about a "manager-tier"
 rank. This PR deletes that vocabulary, so the ADR was left describing a field
-that no longer exists. Six phrases were corrected:
+that no longer exists. Seven phrases were corrected:
 
 | Line | Before | After |
 |---|---|---|
@@ -415,7 +415,7 @@ and `templates/agents/orchestrator.shared.md` declares `role: coordinator`.
 autoplan as front-door router and orchestrator as the routed-to multi-agent
 coordinator, and that boundary is untouched by renaming the metadata field.
 Nothing in the Consequences, Options, or Decision sections was rewritten beyond
-the six phrases above.
+the seven phrases above.
 
 Lines 110 and 111 were added on a second pass, and the reason they were missed
 is worth recording because it is the failure mode this whole PR is about. The
