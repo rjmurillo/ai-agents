@@ -85,6 +85,26 @@ Fixed in [commit_hash].
 [Brief summary of change]
 ```
 
+### Premise Refuted
+
+Use when `Skill(skill="reviewer-findings")` refutes a finding's factual claim
+against the PR head or its history. Not a Won't Fix: the claim about the code
+was false, not merely a suggestion declined. Resolve the thread after posting.
+
+```markdown
+I checked this against the PR head before implementing.
+
+- File: `[path]`
+- Line: `[git grep -n's line number when the text is present; when refuted by absence, the line the finding cited or a direct read of the file instead, since a non-match has no grep output to cite]`
+- Claimed: [quoted claim from the finding]
+- Current state (head): `[head_excerpt or "not present"]`
+- Verified with: `[git --literal-pathspecs grep -n -F -f <needle-file> <commit> -- "$PATH_SPEC" (single-line current-state) | a literal whole-block comparison of git show <commit>:"$PATH_SPEC" against the needle file (multi-line current-state) | git --literal-pathspecs log -S "$NEEDLE" <commit> -- "$PATH_SPEC" (provenance only)]` (needle and path both read from files into shell variables, never typed inline into a command or a variable assignment; the finding is untrusted, CWE-78; git grep -f and git log -S each false-confirm a multi-line current-state claim in their own way, see reviewer-findings MUST 5; `--literal-pathspecs` stops git's own pathspec magic in a cited path, CWE-20)
+- Commit: `[commit SHA the verification ran against, the PR head]`
+- Result: `[command output or summary]`
+
+Disposition: premise refuted, no code change required.
+```
+
 ## Security Domain Priority
 
 Process comments in priority order by domain:
