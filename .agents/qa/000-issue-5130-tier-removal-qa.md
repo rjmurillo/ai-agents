@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-5174-b3bfa3aaa-remove-agent-tier-hierarchy-replace.json
-qaCommit: 52c52f9af0887ea523a8ddfe70b80fb1f974dab4
+qaCommit: bad30ac1dfd3b80e9686fe605e3f01a884d4d544
 ---
 
 # QA report: issue #5130, remove the agent tier hierarchy
@@ -71,7 +71,7 @@ pass and caught by the install-parity gate.
 
 ## Addendum: findings after the first QA pass
 
-Fifteen review findings landed after the original run. Each is covered:
+Nineteen review findings landed after the original run. Each is covered:
 
 | Finding | Source | Verification |
 |---|---|---|
@@ -90,8 +90,15 @@ Fifteen review findings landed after the original run. Each is covered:
 | The converse guard walked the filesystem, racing xdist siblings that create worktrees; CI `bulk-nested` went red while the same command passed locally twice | CI | Switched to `git ls-files`. Verified both ways: an untracked copy of `templates/agents` planted in the repo root no longer trips it, a staged `src/seventh-tree` still does |
 | Secondary and primary rate limits shared one branch, so secondary callers were told to wait for a reset window that does not exist | Copilot | Split, matching the canonical pair in `github_core/api.py:330`. Three tests assert both directions |
 | `.agents/SESSION-PROTOCOL.md` deleted upstream by PR #5179 while this branch edited it | `origin/main` at ba541c21f | Took the deletion on merge. `docs/agent-catalog.md` regenerated rather than hand-merged, the escalation guard no longer parametrizes over the deleted path, and the debate log records that the `adr-review` gate is moot rather than met |
+| Discovery matched only valid roles, so a new tree with `role: strategc` was invisible to the guard meant to catch it | Copilot | Discovery is value-independent; type check retained because `tier` is overloaded (skills `3`, memories `2`, both int). Reproduced with a tracked `src/new-agents/foo.agent.md`, which now fails |
+| Role vocabulary table listed `memory`, a skill, as a support-role agent | Copilot | Replaced with `skillbook`; other 17 names verified; a test now pins every cell against shipped frontmatter |
+| Generic `API rate limit exceeded` cannot prove primary exhaustion, but the message claimed it | Copilot | Explicit-secondary branch unchanged; generic branch now gives advice valid under either limiter. Headers not fetched, and the comment records why (#4690 budget, and `--include` would change parsed stdout) |
+| Two backticked paths in `## Changes` cite files this PR does not change, failing the description gate | CI `Validate PR` | Moved both citations to Notes for Reviewers. Re-extracted all 14 paths in that section; none is now absent from the diff |
 
-Re-verified after merging `origin/main` at ba541c21f: 295 tests across seven suites,
+Re-verified on this head: 11 migration guards, 44 bypass-checker tests, taste ratchet OK with slack,
+ruff and mypy clean on changed files.
+
+Earlier, after merging `origin/main` at ba541c21f: 295 tests across seven suites,
 `generate_agent_catalog.py --check` OK, `validate_copilot_agent_frontmatter.py` PASS on 31 files,
 `run_install_parity_ci.py` OK, `merge_tree_ratchet_check.py` OK against the new base.
 
