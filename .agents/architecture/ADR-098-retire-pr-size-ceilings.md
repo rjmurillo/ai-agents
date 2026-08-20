@@ -75,30 +75,29 @@ That last point sharpens the result rather than softening it. Because #4846 was 
 
 ### The open population, enumerated
 
-The closed-unmerged set is not the only place a counterexample can live, and an earlier revision of this decision treated it as though it were. A pull request the ceiling is *currently* holding is open, not closed, so the open labeled population had to be classified too. A reviewer raised this; the search is `label:"needs-split" created:2026-08-06..2026-08-20 is:open`, run at **2026-08-20T19:47Z**, and it returns four.
+The closed-unmerged set is not the only place a counterexample can live, and an earlier revision of this decision treated it as though it were. A pull request the ceiling is *currently* holding is open, not closed, so the open labeled population had to be classified too. A reviewer raised this.
 
-That is a later snapshot than the 18:00Z cutoff the counts above use, and the two must not be conflated. #5181 did not exist at 18:00Z; it was opened at 18:05:08Z. #5176 did exist and carried 26 commits with a qualifying `main` merge already in place, so it was under its relieved ceiling at that cutoff too, but it reached 40 by the later snapshot. Both timestamps are stated because the population is live and a single cutoff cannot describe a set that grew between them.
+The query is `label:"needs-split" created:2026-08-06..2026-08-20 is:open`, evaluated at the same 2026-08-20T18:00Z cutoff as every other count here. It returns three. This decision's own pull request, #5181, was opened at 18:05:08Z and is excluded on both grounds: it postdates the cutoff, and an artifact should not appear in the evidence set that argues for it.
 
-| Pull request | Authored non-merge | Qualifying `main` merge | Effective limit | Blocked |
+| Pull request | Authored non-merge at cutoff | Qualifying `main` merge | Effective limit | Blocked |
 |---|---|---|---|---|
-| #5177 | not measured | not measured | carries `commit-limit-bypass` | Reached the blocking tier; relief granted |
-| #5178 | not measured | not measured | carries `commit-limit-bypass` | Reached the blocking tier; relief granted |
-| #5176 | 40 (44 total, 4 merges) | yes | 40 | No: the gate blocks on `count > limit`, and 40 is not greater than 40 |
-| #5181 | 14 (16 total, 2 merges) | yes | 40 | No |
+| #5177 | carries `commit-limit-bypass` | n/a | relieved | Reached the blocking tier; relief granted |
+| #5178 | carries `commit-limit-bypass` | n/a | relieved | Reached the blocking tier; relief granted |
+| #5176 | 24 (26 total, 2 merges) | yes, at 17:50Z | 40 | No |
 
-These are measured, not inferred, and the distinction matters because an earlier revision of this decision got it wrong twice. Absence of `commit-limit-bypass` marks relief **not granted**, not the threshold **not reached**, and `needs-split` fires from the warning tier. So the label cannot clear a pull request; only the arithmetic can. The first version of this table read the two unlabeled rows as advisory-tier on exactly the inference this decision had already withdrawn for #4821, and a reviewer caught the repeat.
+These are measured, not inferred, and the distinction matters because an earlier revision got it wrong twice. Absence of `commit-limit-bypass` marks relief **not granted**, not the threshold **not reached**, and `needs-split` fires from the warning tier. So the label cannot clear a pull request; only the arithmetic can. The first version of this table read #5176 as advisory-tier on exactly the inference already withdrawn for #4821, and a reviewer caught the repeat.
 
-#5176 is the sharpest case in either population. It sits at 40 authored non-merge commits against a relieved ceiling of exactly 40, so it is one commit from being blocked, and it got there through a real review cycle: its history is dominated by fix-plus-rebind pairs answering successive review findings. It is the #4718 shape at the boundary.
+#5176 is worth noting beyond its verdict. It has continued growing since the cutoff and now sits at 40 authored non-merge commits against a relieved ceiling of exactly 40, one commit from blocking, through a history dominated by fix-plus-rebind pairs answering successive review findings. That is the #4718 rigor shape approaching the boundary in real time.
 
-Two open pull requests reached the blocking tier and both were relieved by hand, which is two of the twenty bypass applications the cost figure counts. #5177 is the same pull request cited below for spending its output on gate arithmetic, so the two halves of that observation are the same case seen from opposite sides. The remaining two (#5176 and #5181) were not classified because their authored non-merge commit counts were not measured; the absence of a bypass label does not establish they stayed below the blocking threshold.
+No open pull request was held by the ceiling without relief at the cutoff. Two reached the blocking tier and both were relieved by hand, which is two of the twenty bypass applications the cost figure counts. #5177 is the same pull request cited below for spending its output on gate arithmetic, so the two halves of that observation are the same case seen from opposite sides.
 
-Combining both populations: across eleven labeled pull requests classified by hand, closed and open, the blocking ceiling stopped nothing. Three reached the blocking tier and all three were relieved, and one more sits exactly at its relieved ceiling.
+Combining both populations at one cutoff: across ten labeled pull requests classified by hand, seven closed-unmerged and three open, the blocking ceiling stopped nothing. Three reached the blocking tier and all three were relieved.
 
 ### What actually stopped the bad one
 
 #4846 is the only pull request in the sample that should not merge, and it did not merge. What held it was its own security and vendor-provenance gate, a correctness check, not a size ceiling. The size gate labeled it, and it also labeled #4718, #5036, #5152, #5103, and #5107, which all merged and should have.
 
-That is the finding this decision rests on, bounded by both enumerations above: across the closed-unmerged population and the two relieved open pull requests, the blocking ceiling stopped nothing it did not also relieve, and the one pull request that should not have merged was held by a correctness gate. Two open pull requests remain unclassified. Over the same window the ceilings imposed cost on five of the six sampled pull requests that were doing the right thing.
+That is the finding this decision rests on, bounded by both enumerations above: across the ten labeled pull requests classified at the cutoff, the blocking ceiling stopped nothing it did not also relieve, and the one pull request that should not have merged was held by a correctness gate. Over the same window the ceilings imposed cost on five of the six sampled pull requests that were doing the right thing.
 
 ### The cost
 
@@ -222,7 +221,7 @@ Order: fix the rebind generator; demote `pr_commit_count.py`; demote `check_atom
 
 ### Time-box and re-measure
 
-The blocking-value claim now rests on eleven labeled pull requests classified by hand across both populations, not on one. It is still provisional rather than permanent, for a different reason: survivorship. Pull requests the ceiling deterred, or that were split before opening, appear in no query, so no enumeration can reach them. Ninety days after the implementation lands, re-measure against a stated selection method over the labeled population: whether any pull request merged in the interval should not have, and whether any correctness gate failure was reached later than it would have been under the ceilings. If either shows harm, the ceilings return, informed by what the interval revealed. If neither does, the retirement stands and the follow-up closes.
+The blocking-value claim now rests on ten labeled pull requests classified by hand across both populations, not on one. It is still provisional rather than permanent, for a different reason: survivorship. Pull requests the ceiling deterred, or that were split before opening, appear in no query, so no enumeration can reach them. Ninety days after the implementation lands, re-measure against a stated selection method over the labeled population: whether any pull request merged in the interval should not have, and whether any correctness gate failure was reached later than it would have been under the ceilings. If either shows harm, the ceilings return, informed by what the interval revealed. If neither does, the retirement stands and the follow-up closes.
 
 This is the standard ADR-099 applies to its own ADR sample, and it is applied here for the same reason: a decision resting on an undisclosed or very small sample earns a re-measurement, not an exemption.
 
