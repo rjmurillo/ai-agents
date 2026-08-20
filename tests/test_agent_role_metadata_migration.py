@@ -48,6 +48,10 @@ def test_no_agent_file_carries_a_tier_key():
     from the corpus entirely, so a malformed agent could retain `tier:` and
     keep this green. The value must also be an agent tier, since a suffix-
     matching sibling doc may legitimately use `tier:` for something else.
+
+    A second round found the sweep still escapable: an *unterminated* block has
+    no closing fence, so even the raw extractor returned None and the file was
+    skipped. The sweep now falls back to the whole file text in that case.
     """
     offenders = []
     for path in _agent_files():
@@ -61,12 +65,19 @@ def test_no_agent_file_carries_a_tier_key():
                 offenders.append(f"{relative} (metadata.tier)")
             continue
 
+        # `_frontmatter_block` returns None for an *unterminated* block, since
+        # the fence regex needs a closing `---`. Falling through on that would
+        # skip the file outright, which the spec validator caught on PR #5177:
+        # a file whose frontmatter is never closed evaded both sweeps. Fall back
+        # to the whole text, which is safe here because the match also requires
+        # a pre-migration tier value. Measured across all 190 agent files: zero
+        # hits, so this adds no false positives.
         block = _frontmatter_block(path)
-        if block is None:
-            continue
-        for value in _RAW_TIER_RE.findall(block):
+        haystack = block if block is not None else path.read_text(encoding="utf-8")
+        shape = "unparseable frontmatter" if block is not None else "unterminated frontmatter"
+        for value in _RAW_TIER_RE.findall(haystack):
             if value.strip().strip("\"'") in _LEGACY_TIERS:
-                offenders.append(f"{relative} (unparseable frontmatter, raw tier: {value!r})")
+                offenders.append(f"{relative} ({shape}, raw tier: {value!r})")
 
     assert not offenders, (
         "agent files still carry the migrated `tier:` key: "
