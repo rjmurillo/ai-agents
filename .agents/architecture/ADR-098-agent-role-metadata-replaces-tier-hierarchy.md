@@ -107,7 +107,9 @@ with a descriptive `role:` key drawn from a closed four-value vocabulary.**
 - `role` is **descriptive metadata**. It grants and withholds nothing at
   runtime **in this repository**: no hook, validator, generator, or workflow
   reads it to allow or deny an action, and both fallback paths in
-  `scripts/openclaw_bridge.py` degrade to `support`, the configured fallback.
+  `scripts/openclaw_bridge.py` degrade to `support`, the configured fallback
+  value. Naming that fallback "least-authority" would contradict the sentence it
+  sits in and re-introduce the rank this decision removes.
   Delegation is decided by the orchestrator against the task, per ADR-009, not
   by comparing two agents' role values.
 
@@ -115,8 +117,12 @@ with a descriptive `role:` key drawn from a closed four-value vocabulary.**
   external OpenClaw manifest, and OpenClaw owns what its role names mean there.
   This repository cannot certify that, so the inertness claim is made where it
   can be checked and no further. See Re-evaluation Triggers.
-- Coordination authority lives in ADR-009 and nowhere else. Conflicts escalate
-  to `high-level-advisor`.
+- Coordination authority lives in ADR-009. Conflicts escalate to
+  `high-level-advisor`. ADR-009 grants the three strategies and the one vote
+  ordering; it does not define what makes a conflict hard, so any document that
+  supplies that trigger is adding operational detail and must label it as its
+  own rather than attribute it to ADR-009. See
+  `docs/orchestrator-routing-algorithm.md`, which now does.
 
 The distinction that survives is between an **aggregation weight** and an
 **invocation rank**. ADR-009 does rank two agents, `architect > implementer`,
@@ -189,11 +195,24 @@ that vocabulary directly removes the indirection.
 The rename also closed a live defect. `scripts/openclaw_bridge.py` read only a
 top-level key, so every nested-shape agent resolved to the fallback:
 `.claude/agents/architect.md` declared `strategic` and exported as `support`.
-**50 files carried the latent bug** (25 in `.claude/agents`, 25 in
-`src/claude`), and a default export run emits **25 wrong roles**, because
-`--agents-dir` defaults to `src/claude`. The two numbers are different and are
-kept apart deliberately: 50 is the exposure, 25 is what one manifest actually
-shipped. A wrong-output bug that predates this change and that no test caught.
+Three numbers, kept apart because collapsing any two of them overstates the
+damage:
+
+- **50 files carried the latent read** (25 in `.claude/agents`, 25 in
+  `src/claude`). That is the exposure.
+- **32 of them exported a wrong role** (16 per tree). The other 18 declared
+  `integration`, which the old `_TIER_TO_OPENCLAW_ROLE` mapped to `support`, so
+  the bug's output coincided with the right answer by accident.
+- **A default export run emitted 16 wrong roles**, because `--agents-dir`
+  defaults to `src/claude`. That is what one manifest actually shipped.
+
+Measured by replaying the pre-fix resolver
+(`e6de14b39^:scripts/openclaw_bridge.py:116`, `metadata.get("tier",
+"integration")`) over the pre-fix trees, not inferred from the file counts. An
+earlier revision of this paragraph put the exposure-shaped number 25 in the
+impact slot, which understated nothing but named the wrong quantity; the
+`critic` pass caught it on re-review. A wrong-output bug that predates this
+change and that no test caught.
 
 ### Alternatives Considered
 
@@ -241,32 +260,56 @@ reverted. The cost of the choice is 70 lines and one maintenance test.
   other vocabularies (`.claude/skills/cva-analysis/SKILL.md`, a Serena memory,
   the archived PRD), which the sweep excludes by matching the four retired
   values rather than the key name.
-- A latent wrong-output defect is fixed: 50 nested-shape agents now export their
-  declared role instead of silently exporting `support`.
+- A latent wrong-output defect is fixed: 50 nested-shape agents now have their
+  declared role read at all, and **32 of them export a different role than
+  before**. The remaining 18 declared `integration`, whose old mapping already
+  landed on `support`, so their output is unchanged.
 - A typo in the field now fails validation. Previously `buidler` parsed as a
   string, passed, and became `support` downstream.
-- Three enforcement gaps found during review were closed in this same change,
-  each verified against a planted violation rather than from a passing run:
-  `test_role_vocabulary_agrees_across_consumers` pins the three production
-  copies of the role vocabulary against a test-tree witness, and
+- All three enforcement gaps found during review were closed in this same
+  change, each verified against a planted violation rather than from a passing
+  run: `test_role_vocabulary_agrees_across_consumers` pins the three production
+  copies of the role vocabulary against a test-tree witness,
   `test_agents_present_in_several_trees_declare_one_role` catches an agent whose
   copies disagree across trees, and
-  `test_every_agent_file_in_a_configured_tree_is_a_readable_definition` fails a
-  malformed agent that previously dropped out of the corpus before any role
-  check saw it. Before `test_agents_present_in_several_trees_declare_one_role`,
-  setting
-  `.claude/agents/janitor.md` to `strategic` against the template's `support`
-  left the suite green and `detect_agent_drift.py` silent.
+  `test_every_agent_file_in_a_configured_tree_is_a_readable_definition`
+  (`tests/test_agent_tree_discovery.py`) fails a file that carries a configured
+  tree's suffix but does not parse, instead of letting it drop out of the
+  corpus. That third guard covers the flat form only, because `_agent_files`
+  globs each tree non-recursively, so a fourth was added to
+  `nested_agent_definitions` in `build/scripts/validate_agent_matrix_refs.py`:
+  a file in a subdirectory that opens a frontmatter fence and then fails to
+  parse is now reported. Both the `critic` and `independent-thinker` re-review
+  passes found that escape independently, from opposite directions, and it was
+  real: a planted `.claude/agents/probe/zzbad.md` with unbalanced YAML and
+  `role: strategc` was invisible to this guard, to tree discovery, and to all
+  three consumers at once, with the matrix validator exiting 0. It now exits 2
+  and names the file. A nested note whose frontmatter parses cleanly but
+  carries no `description` stays silent, because that is a sidecar and not a
+  botched agent. Before the second, setting `.claude/agents/janitor.md` to
+  `strategic` against the template's `support` left the suite green and
+  `detect_agent_drift.py` silent. Before the third, a planted
+  `.claude/agents/zzqaprobe.md` with unbalanced YAML and `role: strategc` passed
+  the migration suite, `validate_agent_matrix_refs.py`, and
+  `validate_copilot_agent_frontmatter.py`.
 
 ### Negative
 
 - **The delegation constraint has no normative owner, and 14 agents are already
   outside it.** The hierarchy covered both delegation topology and conflict
   escalation. This decision keeps the second and removes the first without
-  replacing it. What survives is prose in three places
-  (`.agents/AGENT-SYSTEM.md:862`, `:1047`, `:1311`, all stating the
-  one-level-deep pattern and that subagents cannot delegate to each other) plus
-  a per-agent line in **17 of 31 templates**. **The other 14 carry no
+  replacing it. What survives is prose in three places in
+  `.agents/AGENT-SYSTEM.md`, all stating the one-level-deep pattern and that
+  subagents cannot delegate to each other: the `**Reference**:` note naming
+  `../../src/claude/orchestrator.md` as the canonical pattern source, the
+  `**Note**: Orchestrator executes each consultation and aggregates` line, and
+  the sentence beginning `The orchestrator manages all parallel execution
+  coordination`. Cited by quoted phrase rather than by line number on the
+  `critic` pass's advice, and it was right within the hour: a four-line edit to
+  section 2.5 elsewhere in this same change moved all three, so the numbers
+  this paragraph originally carried (`:862`, `:1047`, `:1311`) were stale
+  before the PR merged. Issue #1769's relocation plan will move them again.
+  Alongside that prose sits a per-agent line in **17 of 31 templates**. **The other 14 carry no
   constraint at all**: `code-reviewer`, `code-simplifier`, `comment-analyzer`,
   `debug`, `dependency-auditor`, `janitor`, `merge-resolver`, `negotiation`,
   `orchestrator`, `pr-comment-responder`, `pr-test-analyzer`,
@@ -278,14 +321,14 @@ reverted. The cost of the choice is 70 lines and one maintenance test.
 
   The real enforcement surface is the tool grant, not the prose: an agent that
   declares no `tools:` key inherits `Task` and can delegate whatever any
-  document says. **This is an unowned follow-up: no issue number, no PR, no
-  assignee**, and the acceptance criterion that would close it is a test
-  asserting every agent template either withholds `Task` or carries the denial
-  line. An earlier revision said "Tracked as a follow-up", which named nothing a
-  reader could check; the critic re-vote caught that the ADR was committing the
-  same unnamed-reference defect it fixes for the Standing Dissent two sections
-  below. Stating it as unowned is the honest form, because a governance hole
-  parked in a Consequences list is one that never gets paid, which is the pattern
+  document says. **Tracked as issue #5184**, whose acceptance criteria name an
+  owner for the constraint and require a check that fails when a template's
+  delegation statement disagrees with its tool grant. The issue number is here
+  rather than the phrase "tracked as a follow-up" because the
+  `independent-thinker` re-review pointed out that an untracked follow-up is
+  the unpayable form of exactly the debt this bullet is about: a governance
+  hole parked in a Consequences list is one that never gets paid, which is the
+  pattern
   `.agents/retrospective/2026-08-17-governance-bureaucracy-critical-review.md`
   exists to name.
 - **`role` is a four-value vocabulary that grants nothing.** See Standing
@@ -316,7 +359,7 @@ reverted. The cost of the choice is 70 lines and one maintenance test.
 | `.agents/AGENT-SYSTEM.md` section 2.5 | Direct | 149 lines of hierarchy replaced by a coordination section quoting ADR-009 | Low |
 | 186 agent files across six trees | Direct | `tier:` to `role:` in both the top-level and `metadata:`-nested shapes | Low, mechanical, guarded by a repo-wide sweep |
 | `build/generate_agent_catalog.py` | Direct | Requires `role`, constrains it to four values, renders a Role column | Low |
-| `scripts/openclaw_bridge.py` | Direct | `_TIER_TO_OPENCLAW_ROLE` deleted; reads both frontmatter shapes; warns and falls back on an unknown value | Medium, changes exported roles for 50 agents |
+| `scripts/openclaw_bridge.py` | Direct | `_TIER_TO_OPENCLAW_ROLE` deleted; reads both frontmatter shapes; warns and falls back on an unknown value | Medium, changes exported roles for 32 agents, 16 of them in a default run |
 | `scripts/validation/validate_copilot_agent_frontmatter.py` | Direct | `role` required and constrained; previously any string passed | Low |
 | `docs/orchestrator-routing-algorithm.md` | Direct | `validate_tier_sequence`, `TIER_HIERARCHY`, `AGENT_TIERS` removed; implements ADR-009's three strategies; escalates to `high-level-advisor` | Medium |
 | `build/scripts/detect_agent_drift.py` | Indirect | `merge-resolver` baseline comment corrected; re-measured at 20.7% on both comparisons, unchanged | Low |
@@ -419,35 +462,40 @@ Any one of these puts this decision back on the table:
    established inside this repository only. If the downstream consumer gates on
    `role`, the export becomes an authority-granting surface and needs its own
    review.
+5. **A seventh agent tree is added with a bare `.md` suffix.** Consequences
+   states that such a tree, if it also omits `role` entirely, stays invisible to
+   tree discovery. That residual is stated rather than closed, so the event that
+   would make it bite belongs here and not only in a prose list. Raised by the
+   `critic` re-review, which pointed out that naming a residual "not
+   far-fetched" and then leaving it out of the triggers is how a known hole goes
+   unwatched.
 
 ## Review Provenance
 
-**Three `adr-review` rounds ran, and this section records all three.** An
-earlier revision named only the first and printed its tally as settled, which
-the critic re-vote caught as the same defect my own BLOCK had named one section
-over: a count that changes while review continues, reported as final.
-
-1. **On the change this ADR records**, 2026-08-20, six roles plus a `qa` pass:
-   4 ACCEPT, 1 DISAGREE-AND-COMMIT, 2 BLOCK. **This ADR exists because of that
-   debate**: the `architect` pass blocked on the absence of a decision record,
-   holding that a critique log has no status field, no supersession chain, and
-   is not in the catalog a future architect greps.
-2. **On this ADR's own text**, same day, after it was written: BLOCK from
-   `architect`, `critic`, and `independent-thinker`, ACCEPT from `security`,
-   conditional ACCEPT from `high-level-advisor`, DISAGREE-AND-COMMIT from
-   `analyst`. All three blocks were on false statements in the record, none on
-   the decision. `independent-thinker` said so explicitly: "The decision
-   survives every attack I mounted and is better supported than the ADR
-   argues." This is the round the Standing Dissent below refers to.
-3. **A re-vote of the three blocking roles**, because round 2's conditions were
-   cleared by editing and never re-verified by the agents that set them. The
-   debate log said so in its own words, and Copilot flagged it as an
-   `adr-review` contract violation: a standing BLOCK is not convergence.
-
-Votes, findings, the two P0s fixed in round 1, and the full record of all three
+Three rounds ran on 2026-08-20. All votes, findings, and the P0s fixed between
 rounds are in `.agents/critique/5130-tier-hierarchy-removal-debate-log.md`.
-Round 3's outcome is recorded there rather than summarised here, so this section
-cannot go stale the way its predecessor did.
+
+| Round | Subject | Tally |
+|-------|---------|-------|
+| 1 | The change this ADR records, six `adr-review` roles plus a `qa` pass | 4 ACCEPT, 1 DISAGREE-AND-COMMIT, 2 BLOCK |
+| 2 | ADR-098 itself, after it was written | 2 ACCEPT, 1 DISAGREE-AND-COMMIT, 3 BLOCK |
+| 3 | ADR-098 after round 2's corrections, the three round-2 blockers re-run | 1 ACCEPT, 1 DISAGREE-AND-COMMIT, 1 BLOCK, then ACCEPT on the P0 fix |
+
+The middle row is stated rather than folded into an average because a reader who
+stops here should not conclude this artifact passed 4-1-2. Its own review was
+2-1-3, with three P0s, one of which was a Context paragraph wrong three ways in
+the self-flattering direction. Round 3 then found a fourth: the export-impact
+number in Consequences named the exposure count, not the wrong-output count.
+
+**This ADR exists because of round 1**: the `architect` pass blocked on the
+absence of a decision record, holding that a critique log has no status field,
+no supersession chain, and is not in the catalog a future architect greps.
+
+Round 3 exists because the `adr-review` contract requires every final vote to be
+ACCEPT or DISAGREE-AND-COMMIT, and round 2 ended on three standing BLOCKs whose
+clearing conditions had been met by construction rather than re-verified by the
+agents that set them. The log said so plainly at the time, but disclosure is not
+convergence.
 
 ## Related Decisions
 

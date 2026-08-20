@@ -259,6 +259,15 @@ def resolve_disagreement(results):
       {"strategy": "vote",     ...}  soft conflict, decided by weight
       {"strategy": "escalate", ...}  hard conflict, routed to high-level-advisor
 
+    **The hard-conflict trigger below is this document's, not ADR-009's.**
+    ADR-009:88-91 grants the three strategies and the one vote ordering, and
+    stops there; it never says what makes a conflict hard. Some rule has to
+    decide, or "escalate" has no entry condition and the vote strategy is
+    unreachable. This document supplies one and labels it, rather than
+    attributing an invented contract to the ADR. If the semantics below are
+    ever relied on as governance rather than as this router's behavior, they
+    belong in ADR-009 by amendment. Refs #5177 review (Copilot).
+
     A conflict is hard when the top weight is tied, so the vote has no winner,
     or when any dissenting agent marked its position non-negotiable. The
     orchestrator routes a hard conflict; it does not arbitrate it.

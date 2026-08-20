@@ -539,7 +539,7 @@ Every finding below was re-verified before acting. Corrections landed in ADR-098
 | Finding | Priority | Raised by | Resolution |
 |---|---|---|---|
 | Context paragraph wrong three ways | P0 | architect, critic, independent-thinker, analyst | Rewritten to 24 ranked / 9 empowered / 7 denying / 2 exempt, naming `pr-comment-responder` and its orchestrator bypass |
-| Implementation Notes listed three open gaps, two already closed | P0 | architect, critic, security, independent-thinker | Gaps 1 and 2 moved to Consequences/Positive citing the tests that closed them; and the malformed-frontmatter gap was closed afterward by `test_every_agent_file_in_a_configured_tree_is_a_readable_definition`, so all three are now closed |
+| Implementation Notes listed three open gaps, two already closed | P0 | architect, critic, security, independent-thinker | Gaps 1 and 2 moved to Consequences/Positive citing the tests that closed them. Gap 3 was left recorded as open here, and that became false in the same PR: `tests/test_agent_tree_discovery.py` closed it, and the round-3 `architect` pass flagged this row as the last artifact still asserting otherwise |
 | The "load-bearing" mitigation sentence was pinned by nothing | P0 (hla), P1 (architect), P2 (security) | three passes | `test_the_role_inertness_sentence_survives_in_agent_system` added. Negative control: replacing the sentence fails it, restoring passes |
 | Exemption set understated 14x | P1 | independent-thinker, security, architect | Negative section now names all 14 templates carrying no delegation statement, and identifies the tool grant as the real enforcement surface |
 | "grants nothing at runtime" asserted globally from local evidence | P1 | security | Scoped to this repository, with the OpenClaw export boundary called out and added to Re-evaluation Triggers |
@@ -579,6 +579,33 @@ What remains open and is not a defect of this ADR: the delegation constraint has
 no normative owner and 14 of 31 templates carry no statement of it. The ADR does
 not create that hole, it stops describing it falsely. Tracked with a named
 acceptance criterion rather than parked in a Consequences list.
+
+## Two round-3 re-runs happened, and they disagree
+
+Two sessions independently re-ran the three blocking lenses against ADR-098 on
+2026-08-20, concurrently and unaware of each other, exactly as happened in
+rounds 1 and 2. Both are recorded below, unreconciled.
+
+They did not reach the same verdict. Run B's `critic` returned a **BLOCK** on a
+P0 that run A's `critic` did not find: the export-impact figure. Run A cleared
+`critic` at DISAGREE-AND-COMMIT with that number unexamined. Run B replayed the
+pre-fix resolver and measured it: 50 files carried the latent read, 32 exported
+a wrong role, and a default run emitted **16**, not the 25 the ADR claimed. 25
+was the nested-shape count in `src/claude`, not a count of anything wrong. The
+P0 is fixed and the ADR now carries 32/16.
+
+Both runs' `architect` returned ACCEPT and both `independent-thinker`s returned
+DISAGREE-AND-COMMIT, by different routes and with different findings.
+
+The disagreement is the point, and it is the third time on this branch that two
+independent passes over the same artifact produced different findings. A green
+review is evidence that the lenses that ran found nothing, not evidence that
+nothing is there. Averaging two runs into one verdict would delete the only
+measurement either produces about its own reliability.
+
+---
+
+# Run A
 
 ## Round 3: the three blocking roles re-voted, 2026-08-20
 
@@ -666,3 +693,118 @@ Two of the three could not check whether the delegation-constraint follow-up has
 an issue number: `gh` returns HTTP 403 in this session. Neither claims no issue
 exists. ADR-098 now states the follow-up as unowned rather than "tracked", which
 is checkable from the document either way.
+
+---
+
+# Run B
+
+## The `adr-review` re-run on ADR-098, 2026-08-20 (round 3)
+
+Round 2 ended on three standing BLOCK votes, and the section above says in as
+many words that the clearing conditions were "met by construction and not by a
+re-vote". The `adr-review` contract requires every final vote to be ACCEPT or
+DISAGREE-AND-COMMIT. A Copilot review on PR #5177 made the same point against
+the same lines, and it is correct: disclosing that a gate was not cleared is not
+clearing it.
+
+So the three blocking lenses were re-run against the corrected ADR-098, each
+given its own recorded clearing conditions plus the three Copilot corrections
+that had landed since, and each told that a BLOCK is legitimate only with a
+file:line measurement behind it.
+
+### Phase 1: votes
+
+| Agent | Vote | Driving finding |
+|-------|------|-----------------|
+| architect | **ACCEPT** | All three clearing conditions discharged and independently re-measured. Two P2s, no P0. "Nothing false remains in the ADR." |
+| critic | **BLOCK** | Both clearing conditions discharged, but a new P0: the export-impact number is still wrong, in the span its first BLOCK named. |
+| independent-thinker | **DISAGREE-AND-COMMIT** | All five clearing conditions discharged. Two P1s, one of which is a real over-claim it declined to block on: "the escaped artifact loads in no host and grants nothing, and the fix is one sentence in a residuals list that already exists." |
+
+### The P0, confirmed by re-measurement
+
+`critic` held that "**50 files carried the latent bug** ... a default export run
+emits **25 wrong roles**" put an exposure-shaped number in the impact slot. I
+replayed the pre-fix resolver rather than take this on the reviewer's word:
+`e6de14b39^:scripts/openclaw_bridge.py:116` reads `metadata.get("tier",
+"integration")`, top-level only, so every nested-shape file mapped through
+`_TIER_TO_OPENCLAW_ROLE["integration"]` and exported `support`.
+
+| Quantity | Measured |
+|---|---|
+| Nested-shape files carrying the latent read | **50** (25 per tree) |
+| Of those, files that exported a wrong role | **32** (16 per tree) |
+| Files whose wrong output coincided with the right answer | **18**, having declared `integration`, which already mapped to `support` |
+| Wrong roles in a default export run (`--agents-dir` defaults to `src/claude`) | **16** |
+
+25 was the nested-shape count in `src/claude`, not a count of anything wrong.
+The round-2 correction split exposure from impact and then filled the impact
+slot with the exposure-shaped number, so the error survived the very edit that
+was supposed to fix it. As in round 2, it ran self-flattering. Corrected in
+three spans: Context, Consequences/Positive, and the affected-components table.
+
+### The escape both critic and independent-thinker found, from opposite ends
+
+Round 2 recorded gap 3 as closed by
+`test_every_agent_file_in_a_configured_tree_is_a_readable_definition`. Both
+lenses measured that the closure was one directory narrower than the claim:
+`_agent_files` globs each tree non-recursively, so a malformed file inside
+`.claude/agents/security/` is invisible to it, and `nested_agent_definitions`
+(`build/scripts/validate_agent_matrix_refs.py`) skipped it too, because that
+function gated on `is_agent_definition` and a malformed file is not a
+definition. The file escaped the fail-closed corpus guard, the nested guard,
+tree discovery, and all three role consumers at once.
+
+Verified by planting `.claude/agents/probe2/zzbad.md` with unbalanced YAML and
+`role: strategc`: the matrix validator exited **0** and all 27 role tests
+passed. Rather than record a third residual, the hole was closed:
+`nested_agent_definitions` now reports a nested file that opens a frontmatter
+fence and fails to parse. Same probe after the fix exits **2** and names the
+file; removing it returns exit 0. Five tests were added covering unbalanced
+YAML, an unclosed fence, a scalar block, a clean-but-descriptionless sidecar
+(which must stay silent, and does), and a malformed file at the top level
+(another guard's corpus). 139 pass in that file, up from 134.
+
+### One correction to the reviewers
+
+`architect` raised as P2 that a misplaced agent in a subdirectory escapes every
+role guard, on the ground that `tests/agent_metadata_helpers.py:104` uses
+`glob` and not `rglob`. For a **well-formed** agent that is wrong:
+`nested_agent_definitions` has covered it since issue #3601, wired at
+`validate_agent_matrix_refs.py:684`. Negative control: a planted
+`.claude/agents/probe/zzprobe.md` with valid frontmatter and `role: strategc`
+makes the validator exit **2** with "agent definition in a subdirectory", and
+exit 0 once removed. No residual was added for it. The malformed variant that
+`critic` and `independent-thinker` described is a different case, it was real,
+and it is the one that got fixed.
+
+### Phase 3: resolution
+
+| Finding | Priority | Raised by | Resolution |
+|---|---|---|---|
+| Export-impact number named the exposure, not the impact | P0 | critic | Three numbers now stated and kept apart: 50 exposure, 32 wrong, 16 in a default run, with the replay method named |
+| Malformed nested file escapes every guard | P1 (it), P2 (critic) | critic, independent-thinker | Closed rather than documented: new branch in `nested_agent_definitions` plus five tests, negative-controlled both ways |
+| `.agents/AGENT-SYSTEM.md` asserts inertness globally where ADR-098 scopes it to this repository, and the pin held the broader wording | P1 | critic | Sentence scoped to "in this repository" and the OpenClaw boundary named; `_ROLE_INERTNESS_CLAUSES` updated to the scoped form and made wrap-insensitive, since the old clause embedded a literal newline |
+| "Tracked as a follow-up" cited no tracker | P1 | independent-thinker | Issue #5184 opened with acceptance criteria, and cited by number |
+| Review Provenance recorded round 1 only, so a reader concludes 4-1-2 when this ADR's own review was 2-1-3 | P2 | independent-thinker | All three rounds now tabled, with the middle row called out rather than averaged away |
+| Three bare line numbers into a 1900-line living document | P2 | critic | Replaced with quoted phrases. The advice proved itself within the hour: a four-line edit elsewhere in this change moved all three |
+| A seventh bare-`.md` tree is called "not far-fetched" but is not a re-evaluation trigger | P2 | critic | Added as trigger 5 |
+| Phase 3 table of round 2 still said the malformed-frontmatter gap remains open | P2 | architect | Row corrected in place, with the reason it went stale |
+| Misplaced well-formed agent in a subdirectory escapes every guard | P2 | architect | **Refuted by negative control.** Covered since issue #3601; no change made |
+
+### Phase 4: convergence
+
+`critic`'s BLOCK was a single P0 with an exact edit attached. That edit is made
+and the number it named was re-measured independently before changing anything,
+which is the standard round 2 set. `architect` accepted. `independent-thinker`
+committed on the record while declining to certify one sentence, and that
+sentence has since been fixed by closing the hole rather than by rewording the
+claim.
+
+**This round did converge, and not by construction.** Every round-2 blocker was
+re-run against the corrected document and returned a vote; the one BLOCK named
+a P0, and the P0 is fixed with its measurement recorded above. What is not
+claimed: `critic` has not been re-run a second time against the corrected
+number. Its clearing condition was stated as an exact replacement text and that
+text is what landed, so the gap between "condition satisfied" and "condition
+re-verified" is narrower here than it was in round 2, but it is not zero, and a
+reader should know which one this is.

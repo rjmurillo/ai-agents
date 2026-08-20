@@ -1592,6 +1592,53 @@ class TestNestedAgentDefinitions:
         self._write(tmp_path, "sub/.agent.md", AGENT_STUB.format(name="anon"))
         assert vamr.nested_agent_definitions(tmp_path, ".agent.md") == []
 
+    def test_a_nested_file_with_unparseable_frontmatter_is_reported(self, tmp_path):
+        """The escape both re-review passes found on PR #5177.
+
+        A malformed nested file is not an agent definition, so the
+        definition-gated branch skipped it, and the test-side corpus never sees
+        it either because ``_agent_files`` globs each tree non-recursively. It
+        escaped this guard, the fail-closed corpus guard, tree discovery, and
+        all three role consumers at once.
+        """
+        self._write(
+            tmp_path,
+            "security/broken.md",
+            '---\nname: broken\ndescription: "unterminated\nrole: strategc\n---\n\n# broken\n',
+        )
+        found = vamr.nested_agent_definitions(tmp_path, ".md")
+        assert len(found) == 1
+        assert "does not parse" in found[0]
+
+    def test_a_nested_file_with_an_unclosed_fence_is_reported(self, tmp_path):
+        """No closing fence is the same failure as a YAML error: nothing loads."""
+        self._write(tmp_path, "security/unclosed.md", "---\nname: unclosed\ndescription: x\n")
+        assert len(vamr.nested_agent_definitions(tmp_path, ".md")) == 1
+
+    def test_a_nested_scalar_frontmatter_block_is_reported(self, tmp_path):
+        """A block that loads to a string is not a mapping and cannot be read."""
+        self._write(tmp_path, "security/scalar.md", "---\njust a string\n---\n\n# scalar\n")
+        assert len(vamr.nested_agent_definitions(tmp_path, ".md")) == 1
+
+    def test_a_nested_note_with_clean_frontmatter_and_no_description_stays_silent(self, tmp_path):
+        """The discriminator is brokenness, not the presence of a fence.
+
+        ``references/*.md`` sidecars are allowed to carry frontmatter. Reporting
+        every fenced non-definition would make this guard fire on legitimate
+        reference material, which is why it splits on whether the block loads.
+        """
+        self._write(
+            tmp_path,
+            "references/notes.md",
+            "---\ntitle: Notes\nowner: security\n---\n\n# Notes\n",
+        )
+        assert vamr.nested_agent_definitions(tmp_path, ".md") == []
+
+    def test_a_malformed_file_at_the_top_level_is_not_reported_as_nested(self, tmp_path):
+        """The flat form is another guard's corpus; double-reporting misdirects."""
+        self._write(tmp_path, "broken.md", '---\ndescription: "unterminated\n---\n')
+        assert vamr.nested_agent_definitions(tmp_path, ".md") == []
+
     def test_deeply_nested_definitions_are_found(self, tmp_path):
         """One level of recursion would miss ``a/b/c``; the glob must be full."""
         self._write(tmp_path, "a/b/c/buried.md", AGENT_STUB.format(name="buried"))

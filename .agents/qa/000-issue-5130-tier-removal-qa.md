@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-5174-b3bfa3aaa-remove-agent-tier-hierarchy-replace.json
-qaCommit: ba5ae69271a2ac4ab3a1858375545423d50790f3
+qaCommit: 3f5fb9c4e1031d9b22fa4b28520e14ee2867acc7
 ---
 
 # QA report: issue #5130, remove the agent tier hierarchy
@@ -202,3 +202,39 @@ not the code, and the number is recorded here rather than quietly dropped.
 
 Every guard added for the findings above was run against a planted violation and fails on it. None is
 asserted from a passing run alone, because a guard that has only ever passed has not been shown to work.
+
+## Addendum: the ADR-098 review re-run (round 3)
+
+`qaCommit` rebound to `3f5fb9c4e`. What was verified at that commit:
+
+| Check | Command | Result |
+|---|---|---|
+| Role and discovery guards | `pytest tests/test_agent_role_metadata_migration.py tests/test_agent_tree_discovery.py tests/build_scripts/test_validate_agent_matrix_refs.py -q` | 166 passed |
+| Monolith section classification | `pytest tests/test_monolith_section_classification.py -q` | 8 passed (the AGENT-SYSTEM.md section 2.5 edit did not orphan its row) |
+| Lint | `ruff check` on the three changed Python files | All checks passed |
+| Format | `ruff format --check tests/test_agent_role_metadata_migration.py` | Already formatted. The other two files were format-dirty at HEAD before this change and were not reformatted, to keep the diff on the change |
+| Dash prohibition | scan of all seven changed files | 0 violations |
+
+Two negative controls, both run rather than reasoned about:
+
+- **The new nested guard.** Planted `.claude/agents/probe/zzbad.md` with
+  unbalanced YAML and `role: strategc`. Before: `validate_agent_matrix_refs.py`
+  exit 0, 27 role tests green. After: exit 2 naming the file. Removed: exit 0.
+- **The scoped inertness pin.** Replacing the sentence in
+  `.agents/AGENT-SYSTEM.md` fails
+  `test_the_role_inertness_sentence_survives_in_agent_system`; restoring it
+  passes.
+
+One reviewer finding was refuted rather than fixed. The `architect` pass held
+that a misplaced well-formed agent in a subdirectory escapes every guard.
+Negative control: a planted `.claude/agents/probe/zzprobe.md` with valid
+frontmatter makes the validator exit 2 with "agent definition in a
+subdirectory", covered since issue #3601. No change was made for it, and no
+residual was recorded, because recording a hole the tree already closes would
+make ADR-098 false in the other direction.
+
+Not validated at this commit: the full `pytest tests/` suite. The timed run in
+the Evidence section above stands for the migration itself; this addendum's
+changes touch one validator, three test files, and four documents, and the
+suites covering them are named above. The pre-push `python-tests` job is the
+gate that runs the rest.

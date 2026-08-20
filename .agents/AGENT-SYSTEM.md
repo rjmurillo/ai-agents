@@ -839,9 +839,13 @@ meanings:
 
 `role` is descriptive metadata consumed by `build/generate_agent_catalog.py`
 (the catalog's Role column) and `scripts/openclaw_bridge.py` (the OpenClaw
-export). It grants and withholds nothing at runtime. Delegation is decided by
-the orchestrator against the task, per ADR-009, not by comparing two agents'
-role values.
+export). It grants and withholds nothing at runtime in this repository: no
+hook, validator, generator, or workflow reads it to allow or deny an action.
+The scope matters because the second consumer named above writes `role` into an
+external OpenClaw manifest, and OpenClaw owns what its role names mean there;
+ADR-098 records that boundary and treats a change to it as a re-evaluation
+trigger. Delegation is decided by the orchestrator against the task, per
+ADR-009, not by comparing two agents' role values.
 
 Nor by comparing agent names. The consensus protocol above weights `architect`
 over `implementer` when a soft conflict goes to a vote, and those two agents
