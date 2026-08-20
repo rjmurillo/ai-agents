@@ -107,9 +107,9 @@ without deleting either surface.
 
 ## Rationale
 
-The two surfaces already operate at different tiers. autoplan is a skill that
-can route to anything, including orchestrator. orchestrator is a manager agent
-that routes only among specialist agents. Naming this layering matches the
+The two surfaces already operate at different layers. autoplan is a skill that
+can route to anything, including orchestrator. orchestrator is a coordinator-role
+agent that routes only among specialist agents. Naming this layering matches the
 built reality and needs the least change. It also preserves autoplan's cheap
 implicit firing and orchestrator's heavy session gate, which do not belong in
 the same surface.

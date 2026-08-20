@@ -223,12 +223,14 @@ Read this section as a disclosure, not as a review record.
 **What changed.** `ADR-078-autoplan-orchestrator-router-boundary.md` described
 orchestrator as `metadata.tier: manager` and reasoned about a "manager-tier"
 rank. This PR deletes that vocabulary, so the ADR was left describing a field
-that no longer exists. Five phrases were corrected:
+that no longer exists. Six phrases were corrected:
 
 | Line | Before | After |
 |---|---|---|
 | 36 | `manager-tier agent (model: opus, metadata.tier: manager)` | `coordinator-role agent (model: opus, metadata.role: coordinator)` |
 | 79 | `manager-tier coordinator of the agent system` | `coordinating hub of the agent system` |
+| 110 | `operate at different tiers` | `operate at different layers` |
+| 111 | `orchestrator is a manager agent` | `orchestrator is a coordinator-role agent` |
 | 123 | `breaking the manager-tier boundary` | `breaking the skill/agent boundary` |
 | 206 | `orchestrator (manager-tier agent)` | `orchestrator (coordinator-role agent)` |
 | 212 | `end-to-end at manager tier` | `end-to-end at the agent layer` |
@@ -241,13 +243,25 @@ and `templates/agents/orchestrator.shared.md` declares `role: coordinator`.
 autoplan as front-door router and orchestrator as the routed-to multi-agent
 coordinator, and that boundary is untouched by renaming the metadata field.
 Nothing in the Consequences, Options, or Decision sections was rewritten beyond
-the five phrases above.
+the six phrases above.
 
-Four other uses of the word "tier" in that document were deliberately left
+Lines 110 and 111 were added on a second pass, and the reason they were missed
+is worth recording because it is the failure mode this whole PR is about. The
+first pass classified line 110's "different tiers" as the skill-versus-agent
+layering, a different concept, and stopped reading. The very next sentence said
+"orchestrator is a manager agent", which is the deleted rank with no ambiguity
+at all. Reading a word in isolation to decide whether it was in scope produced
+a defensible call on that word and a wrong one on the sentence around it. The
+spec validator caught it on CI, not me. `grep -c ' manager'` on the file now
+returns 0, which is the check I should have run in the first place instead of
+adjudicating uses one at a time.
+
+Three other uses of the word "tier" in that document are deliberately left
 alone, because they are different concepts that the tier-to-role migration does
 not touch: Cynefin complexity tiers (line 37), the skill-versus-agent layering
-(56, 94, 110, 130), the opus model tier (63, 122), and "agent-tier handoff"
-meaning the agent layer rather than an agent rank.
+(56, 94, 130), and the opus model tier (63, 122). "Agent-tier handoff" at 94
+and 123 means the agent layer rather than an agent rank, and stays for the same
+reason.
 
 **No `adr-review` debate ran for this edit.** The six-agent debate that
 `AGENTS.md` normally fires on an `ADR-*.md` change did not happen. Subagent
