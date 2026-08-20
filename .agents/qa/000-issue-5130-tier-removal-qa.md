@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-5174-b3bfa3aaa-remove-agent-tier-hierarchy-replace.json
-qaCommit: 18cfda8810b75b3d1ecf64d86915d2959439ebdd
+qaCommit: 286c4028d0e0e727631f2a90cd325dcc978edfba
 ---
 
 # QA report: issue #5130, remove the agent tier hierarchy
@@ -135,6 +135,10 @@ Twenty-nine review findings landed after the original run. Each is covered:
 | "Six phrases" stated above a seven-row table | adr-review debate: analyst, critic, independent-thinker | Corrected to seven across six hunks here and in the PR body. Commit `d5453ca8a` says "sixth" and is immutable, so history and the log disagree by one; recorded rather than hidden |
 | A security finding claimed the closed role set is unenforced on the Claude trees, proven by executing the validator for `All 0 files` | adr-review debate: security | Execution evidence correct, conclusion overstated. `test_every_agent_definition_declares_a_known_role` enforces the closed set across all six trees in both shapes, so a `strategoc` typo fails. Narrowed to a validator shape-blindness follow-up and recorded as a correction in the debate log |
 | Two independent `adr-review` debates ran on this branch, concurrently and unaware of each other: six agents in one session (3 ACCEPT / 3 D&C / 0 BLOCK) and seven in another (4 ACCEPT / 1 D&C / 2 BLOCK) | both sessions, on merging | Both results are kept above rather than reconciled into one verdict. They disagree, and the disagreement is the finding: the seven-agent run caught two P0s the six-agent run missed, including a false ADR-009 citation. A single debate is not evidence of correctness, and averaging two into one would destroy the only signal that says so |
+| Copies of the same agent were never compared to each other; changing `janitor` to `strategic` in one tree while its template said `support` left 119 tests and drift detection green | Copilot, by mutation | Cross-tree agreement guard against the template as canonical source. Verified: the same mutation now fails by name. Agents with no template are skipped, not failed, because the Claude trees carry hand-maintained agents with no shared source |
+| Four modules define the closed role set behind a comment reading "must stay in sync with"; adding `auditor` to only the validator left every test green | Copilot, by mutation | Equality asserted across the three production consumers. Verified: the same mutation fails with the symmetric difference named. Asserted rather than centralized, because a shared constant would mean production modules importing from a test package |
+| A malformed agent in a configured tree fell out of the corpus before the known-role test could see it: `is_agent_definition` needs parseable frontmatter, and the raw sweep only matches retired *values* | Copilot | Distinctive-suffix files kept even when the predicate rejects them. Verified with a planted `.agent.md` carrying an unterminated quote and `role: strategoc` |
+| Two conflict algorithms in one document disagreed on the same inputs: `security` vs `implementer` ties and escalates under ADR-009's weights, while Phase 4.2's pairwise table awarded it to `security` | Copilot | Pairwise table deleted, both phases routed through `resolve_disagreement`. Same reason the `security: 2` weight was deleted one section above: ADR-009 grants exactly one weighting. Simulated all four branches |
 
 Re-verified on the attested commit: 11 migration guards, 44 bypass-checker tests, taste ratchet OK
 with slack, ruff and mypy clean on changed files. The scoped pre-push pytest gate ran to completion
