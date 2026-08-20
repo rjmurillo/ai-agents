@@ -46,10 +46,10 @@ contract, and the pinned tier regression:
 FAILED test_source_command_has_no_contract_violations
 FAILED test_copilot_mirror_has_no_contract_violations
 FAILED test_tier_read_targets_the_authoritative_flat_producer
-3 failed, 22 passed
+3 failed, 27 passed
 ```
 
-Restored the fix; 29 passed.
+Restored the fix; 30 passed.
 
 ### Negative control: the originally reported shape
 
@@ -93,7 +93,7 @@ FAILED test_extractor_reaches_every_jq_invocation
   line 423: ROUND_REASON=$(echo "$ROUND_CAP" | jq -r '.Data.reason ...
 ```
 
-The guard now fails and names the missed lines. Restored; 29 passed.
+The guard now fails and names the missed lines. Restored; 30 passed.
 
 ### Test results
 
