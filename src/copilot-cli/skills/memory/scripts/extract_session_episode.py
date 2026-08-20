@@ -1423,6 +1423,9 @@ def _maybe_update_event_timestamp(
     target["timestamp"] = incoming_timestamp
 
 
+_COMMIT_EVENT_CONTENT_RE = re.compile(r"^commit:\s*([0-9a-f]{7,40})$")
+
+
 def _dedupe_events(
     existing: list, new: list, midnight: str | None, *, session_id: str = ""
 ) -> list[dict]:
@@ -1434,9 +1437,22 @@ def _dedupe_events(
     unchanged, preserving backward compatibility.  Events stamped with the
     current session are kept unconditionally so accumulated commit events
     survive ``--preserve`` regeneration (issue #3123).
+
+    Commit events dedupe abbreviation-aware, via ``_same_commit``, rather than
+    by exact content-string equality. ``_collect_shas``/``_already_seen``
+    already guarantee that within one fresh extraction, but this function is
+    what also compares a fresh extraction against a *previously preserved*
+    episode: a full 40-char SHA recorded on one ``--preserve`` run and a
+    7-char abbreviation of the same commit recorded on an earlier run (e.g.
+    once ``endingCommit`` widens from empty to the full SHA between commits)
+    hash to two different ``(type, content)`` keys under exact-string
+    comparison, so both survive the union and the episode double-counts one
+    commit as two events (issue #5069, found by copilot-pull-request-reviewer
+    on PR #5178 against episode-2026-08-20-session-99923-...json's e006/e007).
     """
     out: list[dict] = []
     seen: set[tuple[str, str]] = set()
+    commit_shas: list[tuple[str, int]] = []  # (sha, index into out) for type == "commit"
     filtered_existing: list[dict] = []
     for evt in existing:
         entry = _as_dict(evt)
@@ -1447,7 +1463,26 @@ def _dedupe_events(
     positions: dict[tuple[str, str], int] = {}
     for evt in filtered_existing + list(new):
         entry = _as_dict(evt)
-        key = (_norm(entry.get("type")), _norm(entry.get("content")))
+        norm_type = _norm(entry.get("type"))
+        norm_content = _norm(entry.get("content"))
+        key = (norm_type, norm_content)
+
+        if norm_type == "commit":
+            match = _COMMIT_EVENT_CONTENT_RE.match(norm_content)
+            sha = match.group(1) if match else None
+            if sha is not None:
+                dup_index = next(
+                    (
+                        idx
+                        for existing_sha, idx in commit_shas
+                        if _same_commit(sha, existing_sha)
+                    ),
+                    None,
+                )
+                if dup_index is not None:
+                    _maybe_update_event_timestamp(out[dup_index], entry, midnight)
+                    continue
+
         if key in seen:
             _maybe_update_event_timestamp(out[positions[key]], entry, midnight)
             continue
@@ -1458,6 +1493,8 @@ def _dedupe_events(
         if stamped:
             entry["timestamp"] = stamped
         out.append(entry)
+        if norm_type == "commit" and sha is not None:
+            commit_shas.append((sha, len(out) - 1))
     for i, entry in enumerate(out, 1):
         entry["id"] = f"e{i:03d}"
     return out
