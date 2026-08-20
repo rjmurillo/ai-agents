@@ -1,7 +1,7 @@
 ---
 id: ADR-078
 status: proposed
-date: 2026-07-04
+date: 2026-08-20
 decision-makers: []
 supersedes: []
 superseded-by: null
@@ -15,9 +15,19 @@ implemented: true
 
 Proposed
 
+**Clarified 2026-08-20 (issue #5130): the agent tier vocabulary this record used
+was deleted repository-wide.** Seven phrases across six hunks moved off
+`metadata.tier: manager` and the "manager-tier" rank onto the shipped
+`metadata.role: coordinator`, and the skill-versus-agent axis is now named
+"layer" throughout rather than "tier". The Decision, Alternatives, and
+Consequences are unchanged in substance; the one argument that did change is
+option C's rejection clause, called out in
+`.agents/critique/ADR-078-debate-log.md`. That log is this record's first
+independent six-agent review.
+
 ## Date
 
-2026-07-04
+2026-08-20 (last updated; originally decided 2026-07-04)
 
 ## Context
 
@@ -53,7 +63,7 @@ cadence).
 Adopt an explicit two-layer boundary and document it in both routing surfaces:
 the autoplan skill and the orchestrator shared source.
 
-- `autoplan` is the outer front-door router at the skill tier. It classifies
+- `autoplan` is the outer front-door router at the skill layer. It classifies
   any request that names no skill and routes it to the single best
   destination: a skill, a lifecycle command, or an agent chain. It is
   lightweight and stops only for decisions that are genuinely the user's.
@@ -76,7 +86,8 @@ without deleting either surface.
   orchestrator agent) with independent, overlapping classification logic and no
   stated precedence.
 - **When introduced**: orchestrator predates autoplan and is the established
-  coordinating hub of the agent system. autoplan is newer
+  multi-agent coordinator of the agent system, per ADR-009 ("Orchestrator
+  role evolves from dispatcher to coordinator"). autoplan is newer
   (version 0.1.0), inspired by gstack `/autoplan`, and was refined in #2866
   ("recon target stack before routing in autoplan").
 - **Original author and context**: orchestrator is the canonical multi-agent
@@ -91,7 +102,7 @@ without deleting either surface.
 - **What alternatives were considered?** None recorded; autoplan shipped
   without an ADR reconciling it against orchestrator, which is why #2867 exists.
 - **What constraints drove the design?** orchestrator needs the blocking
-  session-start gate and agent-tier handoff/synthesis. autoplan needs to be
+  session-start gate and agent-layer handoff/synthesis. autoplan needs to be
   cheap and fire implicitly on vague openers.
 
 ### Why Change Now
@@ -108,9 +119,13 @@ without deleting either surface.
 ## Rationale
 
 The two surfaces already operate at different layers. autoplan is a skill that
-can route to anything, including orchestrator. orchestrator is a coordinator-role
-agent that routes only among specialist agents. Naming this layering matches the
-built reality and needs the least change. It also preserves autoplan's cheap
+can route to anything, including orchestrator. orchestrator is an agent that
+routes among specialist agents and escalates per ADR-009. The layering is this
+record's contract, not a property read off any metadata field: `role` is
+descriptive and confers no invocation authority (see `.agents/AGENT-SYSTEM.md`
+section 2.5). Containment comes from the platform, where a subagent has no Task
+tool. Naming this layering matches the built reality and needs the least
+change. It also preserves autoplan's cheap
 implicit firing and orchestrator's heavy session gate, which do not belong in
 the same surface.
 
@@ -120,14 +135,14 @@ the same surface.
 |-------------|------|------|----------------|
 | A. Explicit layering: autoplan = front-door router, orchestrator = routed-to multi-agent coordinator (chosen) | Matches actual design; smallest change; keeps both entry ergonomics; removes ambiguity with one handoff clause | Two surfaces still exist, so contributors must learn the boundary; relies on docs being read | Chosen: lowest risk, no capability loss, honest to how the code already behaves |
 | B. Fold autoplan into orchestrator (single router) | One router, zero overlap | orchestrator's blocking session-start gate and opus tier are too heavy for trivial routing; loses implicit cheap entry; large blast radius across the shared agent source and every agent handoff | Rejected: makes the common lightweight path pay the multi-agent tax |
-| C. Fold orchestrator into autoplan | One entry point at skill tier | A skill would own agent-tier handoff and synthesis, breaking the skill/agent boundary; loses opus reasoning tier for complex work | Rejected: pushes agent-tier responsibility into a skill |
+| C. Fold orchestrator into autoplan | One entry point at the skill layer | A skill would own agent-layer handoff and synthesis, so orchestrator's blocking session-start checklist would sit in a surface that fires implicitly on `do it`; loses opus reasoning tier for complex work | Rejected: pushes agent-tier responsibility into a skill |
 | D. Keep both, document nothing | No work | The #2867 ambiguity persists; duplicated classification logic keeps drifting | Rejected: does not solve the reported problem |
 
 ### Trade-offs
 
 The chosen option trades a small ongoing learning cost (contributors must know
 the two-layer boundary) for zero capability loss and minimal blast radius.
-Options B and C each remove one surface but force one tier to absorb
+Options B and C each remove one surface but force one layer to absorb
 responsibilities that do not fit it.
 
 ## Consequences
@@ -159,7 +174,8 @@ responsibilities that do not fit it.
 | `templates/agents/orchestrator.shared.md` | Direct | Add a clause: orchestrator is a routed-to destination; it does not invoke autoplan. This shared source regenerates the platform agent files | Low |
 | `src/copilot-cli/agents/orchestrator.agent.md`, `src/vs-code-agents/orchestrator.agent.md` | Indirect (generated) | Regenerate from the shared source with `python3 build/generate_agents.py`; do not hand-edit | Low |
 | `.claude/agents/orchestrator.md`, `src/claude/orchestrator.md`, `.github/agents/orchestrator.agent.md` | Direct (hand-maintained) | Hand-apply the same boundary clause; no generator writes these (REQ-003-010 forbids generators under `.claude/`; Claude sources are not template-generated). Install parity requires `.claude/agents` and `.github/agents` copies move together | Low |
-| `docs/agent-catalog.md` | Indirect (generated) | Regenerate if the orchestrator description changes | Low |
+| `docs/agent-catalog.md` | Indirect (generated) | Regenerate with `uv run python build/generate_agent_catalog.py` whenever a template's frontmatter or description changes; `build/generate_agents.py` does not write this file | Low |
+| `docs/orchestrator-routing-algorithm.md` | Direct | Keep its delegation model and escalation target consistent with this boundary and with ADR-009. PR #5177 replaced its Phase 2.5 wholesale, which is what showed this row was missing | Medium |
 
 ## Implementation Notes
 
@@ -167,9 +183,12 @@ responsibilities that do not fit it.
    (`.claude/skills/autoplan/SKILL.md`, hand-authored) and the orchestrator
    shared source (`templates/agents/orchestrator.shared.md`). State the boundary
    and the one-way handoff in each.
-2. Regenerate the generated platform files (`src/copilot-cli`, `src/vs-code-agents`,
-   `docs/agent-catalog.md`) with `python3 build/generate_agents.py` and commit the
-   output in the same change (generated artifacts ship with the source change).
+2. Regenerate the generated platform files and commit the output in the same
+   change (generated artifacts ship with the source change). Two generators, not
+   one: `uv run python build/generate_agents.py` writes `src/copilot-cli` and
+   `src/vs-code-agents`; `uv run python build/generate_agent_catalog.py` writes
+   `docs/agent-catalog.md`. An earlier revision of this ADR named
+   `generate_agents.py` for the catalog, which does not write it.
    Hand-apply the same boundary clause to the copies no generator writes:
    `src/claude/orchestrator.md`, `.claude/agents/orchestrator.md`, and
    `.github/agents/orchestrator.agent.md` (REQ-003-010). Verify with
@@ -179,6 +198,15 @@ responsibilities that do not fit it.
 
 ## Related Decisions
 
+- ADR-009 (parallel-safe multi-agent design). Canonical source for the
+  coordinator role, the three aggregation strategies, and the escalation target.
+  This record's layering sits on top of it and does not restate it.
+- ADR-030 (skills pattern superiority). Scope carve-out: ADR-030 governs
+  tool-access surfaces, where a skill beats a subagent. It does not reach
+  orchestrator's blocking session gate or multi-agent synthesis, which is why
+  option C below is rejected rather than following ADR-030's general preference.
+- Issue #5130 and `.agents/critique/ADR-078-debate-log.md` (the 2026-08-20
+  vocabulary clarification and its six-agent review).
 - Issue #2867 (this ADR resolves it)
 - Issue #2859 (eval orchestrator and autoplan on end-to-end delivery); gate any
   future decision to delete a surface on that end-to-end evidence, not on
@@ -203,13 +231,13 @@ responsibilities that do not fit it.
 
 ### Agent Name
 
-autoplan (skill-tier router) and orchestrator (coordinator-role agent)
+autoplan (skill-layer router) and orchestrator (coordinator-role agent)
 
 ### Overlap Analysis
 
 | Existing Agent | Capability Overlap | Overlap % | Differentiation |
 |----------------|-------------------|-----------|-----------------|
-| orchestrator vs autoplan | Both classify a request and select a downstream target | ~40% (classification and routing) | autoplan routes across the whole catalog at skill tier and fires implicitly; orchestrator coordinates specialist agents end-to-end at the agent layer with a blocking session gate and synthesis |
+| orchestrator vs autoplan | Both classify a request and select a downstream target | ~40% (classification and routing) | autoplan routes across the whole catalog at the skill layer and fires implicitly; orchestrator coordinates specialist agents end-to-end at the agent layer with a blocking session gate and synthesis |
 
 ### Entry Criteria
 
