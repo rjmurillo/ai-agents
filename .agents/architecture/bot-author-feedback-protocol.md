@@ -70,9 +70,9 @@ flowchart TD
 Before performing any work, rjmurillo-bot MUST:
 
 1. Read `.agents/AGENTS.md`
-2. Follow `.agents/SESSION-PROTOCOL.md`
+2. Follow `.claude/rules/session-logs.md` if a session log is kept
 
-**Verification**: Check for session log at `.agents/sessions/YYYY-MM-DD-session-NN.json`
+**Verification**: Check for session log at `.agents/sessions/YYYY-MM-DD-session-NN.json` (optional; see `.claude/rules/session-logs.md`)
 
 ### Required Tools
 
@@ -294,7 +294,7 @@ The maintenance script identifies PRs needing action but does NOT address review
    /pr-review 123
    ```
 
-3. **Agent addresses feedback** per `.agents/SESSION-PROTOCOL.md`
+3. **Agent addresses feedback** per `templates/agents/implementer.shared.md`
 4. **Verify completion**: All comments have replies with commit SHAs
 
 ### What "Process Comments" Means
@@ -627,9 +627,9 @@ if ($isBotAuthor) { Invoke-PRReview }
 if (-not $shouldAct) { return }
 # RIGHT: Always check for merge conflicts regardless of action
 
-# WRONG: Skip session protocol
+# WRONG: Skip session start requirements
 ProcessPR()
-# RIGHT: Must read AGENTS.md and follow SESSION-PROTOCOL.md first
+# RIGHT: Must read AGENTS.md first
 ```
 
 ## Glossary
@@ -665,6 +665,6 @@ ProcessPR()
 ## Related Documents
 
 - `.agents/AGENTS.md` - Agent system instructions
-- `.agents/SESSION-PROTOCOL.md` - Required session initialization
+- `.claude/rules/session-logs.md` - Session log mechanics (optional)
 - Memory: `pr-changes-requested-semantics` - Quick reference
 - Script: `scripts/Invoke-PRMaintenance.ps1` - Implementation
