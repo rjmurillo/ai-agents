@@ -226,10 +226,13 @@ done
     # Every case asserts this, not just one. A log file that exists or a string
     # in stdout proves a branch ran; it does not prove the block finished, so
     # without this a shell error after the observed effect leaves the case green
-    # (testing rule MUST-8). Measured: all nine input shapes exit 0 with empty
-    # stderr, including the ones that `continue`. Verified by injecting an unset
-    # variable into the harness under `set -u`: 22 of the 22 cases that run the
-    # block fail, and only the two that never spawn bash still pass.
+    # (testing rule MUST-8). Verified by injecting an unset variable into the
+    # harness under `set -u`: every case that spawns bash fails, and the only
+    # survivors are the fake-shape cases that never spawn it. Stated as that
+    # property rather than as a pass count, because the count was written as
+    # "22 of the 22" and was 38 of 38 by the time Copilot checked it. A number
+    # in a comment goes stale on the commit that adds a case; the property does
+    # not, and re-running the injection still checks it.
     assert process.returncode == 0, (
         f"the extracted block exited {process.returncode}: {process.stderr.strip()}"
     )

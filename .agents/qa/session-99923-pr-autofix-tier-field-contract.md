@@ -67,11 +67,14 @@ contract, and the pinned tier regression:
 FAILED test_source_command_has_no_contract_violations
 FAILED test_copilot_mirror_has_no_contract_violations
 FAILED test_tier_read_targets_the_authoritative_flat_producer
-3 failed, 32 passed
+3 failed, 35 passed
 ```
 
-Restored the fix; 35 passed. Re-run at this head rather than
-carried forward, because the suite has grown since the control was first taken.
+Restored the fix; 38 passed. Re-run at this head rather than carried forward,
+because the suite keeps growing and these totals keep going stale: they were
+written as 36, then 32, and Copilot caught the third drift. The three failing
+names are the durable part of this control; the totals are only there to show
+the run was real.
 
 ### Negative control: the originally reported shape
 
@@ -368,6 +371,33 @@ This is the sixth instance in this PR of one shape: a check whose unit is
 narrower than the claim it backs. Presence, then path count, then programs,
 then producer binding, then recognized-versus-dispatched, and now source
 without mirror.
+
+### Tenth pass: counts in prose keep outrunning the suite
+
+Copilot found three stale figures in one review, all the same shape and all
+mine: the revert control said 35 passed when the file had 38, the runtime
+harness comment claimed "22 of the 22 cases that run the block fail" when the
+current answer is 38 of 38, and the session log described the runtime suite as
+covering "every tier in `_TIER_ORDER` dispatching", which is the opposite of
+the `SKIP` behavior this PR shipped.
+
+All three re-run and corrected. The unset-variable injection now fails 38 and
+spares 2:
+
+```
+38 failed, 2 passed
+```
+
+The durable repair is not the new numbers. It is that the runtime comment no
+longer carries any: it states the property, that every case spawning bash fails
+and only the fake-shape cases survive, which stays true as cases are added. The
+session log had already dropped its per-suite counts for this reason and still
+carried a behavioral description that drifted, so the lesson generalizes past
+counts to any restatement of what the code does.
+
+This is the seventh instance of the PR's recurring shape, and the most
+embarrassing, because the fix for it was already written down here and applied
+to only one of the three surfaces that needed it.
 
 ## Known limits
 
