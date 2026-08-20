@@ -26,7 +26,9 @@ import yaml
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # The six trees the migration covered. Kept explicit rather than globbed so a
-# new agent tree has to be added here deliberately.
+# new agent tree has to be added here deliberately;
+# `test_every_on_disk_agent_tree_is_configured` is what makes that deliberate
+# rather than optional.
 _AGENT_TREES = (
     "templates/agents",
     ".claude/agents",
@@ -64,9 +66,88 @@ def _frontmatter(path: Path) -> dict | None:
     return parsed if isinstance(parsed, dict) else None
 
 
+# Frozen measurement artifacts for issue #1738. They deliberately retain
+# `metadata.tier` because rewriting them would alter a recorded measurement.
+# Listed per file, not per directory, so adding a new one is a deliberate edit
+# here rather than a silent inheritance of a directory-wide exemption.
+_EXEMPT_FILES = frozenset(
+    {
+        ".agents/prototypes/agents/implementer.compressed.md",
+        ".agents/prototypes/agents/orchestrator.compressed.md",
+        ".agents/prototypes/agents/security.compressed.md",
+        ".agents/analysis/instruction-specificity-prototype-security-compressed.md",
+    }
+)
+
+# Directories that never hold agent definitions, skipped when walking.
+_UNSEARCHED = frozenset(
+    {".git", ".venv", "node_modules", "__pycache__", ".mypy_cache", ".pytest_cache"}
+)
+
+# The pre-migration vocabulary. Detection keys on these *values*, not on the
+# key names: `tier:` and `role:` are both overloaded in this repo. Skills use
+# `metadata.tier: 3` for skill tier, Serena memories use `tier:` for memory
+# tier, and `.claude/skills/review/references/*.md` use `role: analyst` for a
+# review axis. None of those are agent metadata, and a key-name check would
+# drag all three in as false positives.
+_LEGACY_TIERS = frozenset({"expert", "manager", "builder", "integration"})
+
+
+def _declares_agent_metadata(front: dict) -> bool:
+    """True when frontmatter carries an agent role or a pre-migration agent tier."""
+    scopes = [front]
+    nested = front.get("metadata")
+    if isinstance(nested, dict):
+        scopes.append(nested)
+    return any(
+        scope.get("role") in _KNOWN_ROLES or scope.get("tier") in _LEGACY_TIERS
+        for scope in scopes
+    )
+
+
+def _discover_agent_trees() -> set[str]:
+    """Every directory on disk holding agent frontmatter, found by walking, not config."""
+    found: set[str] = set()
+    for path in _REPO_ROOT.rglob("*.md"):
+        relative = path.relative_to(_REPO_ROOT)
+        if _UNSEARCHED & set(relative.parts) or relative.as_posix() in _EXEMPT_FILES:
+            continue
+        front = _frontmatter(path)
+        if front is not None and _declares_agent_metadata(front):
+            found.add(relative.parent.as_posix())
+    return found
+
+
 def test_agent_trees_are_discovered():
     """Negative control: if the globs stop matching, the guards below are vacuous."""
     assert len(_agent_files()) > 100
+
+
+def test_every_configured_tree_exists():
+    """A typo in `_AGENT_TREES` is silently skipped by `is_dir()`, so name it here.
+
+    Without this, renaming a tree on disk turns its guard into a no-op that
+    still reports green.
+    """
+    missing = [tree for tree in _AGENT_TREES if not (_REPO_ROOT / tree).is_dir()]
+    assert not missing, f"_AGENT_TREES names directories that do not exist: {missing}"
+
+
+def test_every_on_disk_agent_tree_is_configured():
+    """Converse guard: the config set must cover what is actually on disk.
+
+    `_AGENT_TREES` is a hardcoded list, so on its own it only proves things
+    about trees someone remembered to add. A seventh tree added tomorrow would
+    carry `tier:` past every check in this file. Raised by Cursor Bugbot on
+    PR #5177 against the learned rule that a configuration-set test needs a
+    converse guard.
+    """
+    unconfigured = _discover_agent_trees() - set(_AGENT_TREES)
+    assert not unconfigured, (
+        "agent frontmatter found in unconfigured trees: "
+        f"{sorted(unconfigured)}. Add each to _AGENT_TREES so the tier and role "
+        "guards cover it, or to _EXEMPT_FILES with the reason."
+    )
 
 
 def test_no_agent_file_carries_a_tier_key():
