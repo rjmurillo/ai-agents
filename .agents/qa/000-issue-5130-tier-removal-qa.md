@@ -240,3 +240,42 @@ the Evidence section above stands for the migration itself; this addendum's
 changes touch one validator, three test files, and four documents, and the
 suites covering them are named above. The pre-push `python-tests` job is the
 gate that runs the rest.
+
+### Final-gate evidence, run at `0a6870c19`
+
+`Validate Spec Coverage` marked two acceptance criteria PARTIAL for lack of
+evidence in this file rather than for lack of the work. Both commands were run
+and their output is recorded here rather than only asserted in the PR body.
+
+`uv run python scripts/validation/run_install_parity_ci.py`, exit 0:
+
+```
+Fetching main for diff base...
+Running validate_install_parity.py against origin/main...
+install-parity: OK
+```
+
+`uv run python scripts/validation/pre_pr.py`, exit 0, tail:
+
+```
+[PASS] Workflow Local Run (0.43s)
+[PASS] Review Marker (SHA-bound /review) (0.07s)
+[PASS] Instruction Budget (always-on) (0.13s)
+[PASS] Always-on Corpus Claims (0.99s)
+
+RESULT: All validations passed
+```
+
+Push landed, verified by the two commands `pre_pr.py` names:
+`git rev-parse HEAD` and `git ls-remote origin claude/pr-5174-merge-review-gvrype`
+both report `0a6870c1956fe490c8e1bce1d2425b5291e15ebf`.
+
+The validator's second PARTIAL, that "the records state that reviewers were not
+re-run after corrections", was true of the artifact it read and is no longer
+true of the tree. It ran at 23:15Z against a PR body that still said the debate
+ran three times with every clearing condition met by construction. Round 3 had
+been pushed nine minutes earlier but the body describing it had not. The debate
+log's round-3 section and the rewritten body now both record three re-run
+lenses and their final votes. One limit stands and is stated in both places:
+`critic` was not re-run a second time against the corrected number its BLOCK
+named.
