@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-5174-b3bfa3aaa-remove-agent-tier-hierarchy-replace.json
-qaCommit: 9d215599d9601774209fd84cbae05d230f45607e
+qaCommit: e4a4e82d86580f82efd629e1bc07770dde8b16d1
 ---
 
 # QA report: issue #5130, remove the agent tier hierarchy
@@ -71,7 +71,7 @@ pass and caught by the install-parity gate.
 
 ## Addendum: findings after the first QA pass
 
-Twenty-five review findings landed after the original run. Each is covered:
+Twenty-six review findings landed after the original run. Each is covered:
 
 | Finding | Source | Verification |
 |---|---|---|
@@ -97,6 +97,7 @@ Twenty-five review findings landed after the original run. Each is covered:
 | Debate log's reproduction block still opened the deleted `.agents/SESSION-PROTOCOL.md`, so running it raised `FileNotFoundError` | Copilot | Path dropped from the block and the change noted inline. Re-ran it: AGENT-SYSTEM.md carries table and protocol, orchestrator-routing carries the table, both name `high-level-advisor` |
 | Negative control promised "absent or misspelled" but every case carried a role or tier, so a new tree omitting `role` entirely stayed invisible | Copilot | Second discovery signal added: a distinctive agent suffix on a real agent definition. Measured that `.agent.md` and `.shared.md` occur only in configured trees. Verified with a tracked `src/roleless-tree/foo.agent.md` carrying no role, which now fails the converse guard |
 | Suffix signal sat behind a successful YAML parse, so a malformed agent in a new tree stayed invisible | Copilot | Suffix checked first, without parsing. Verified with a tracked `src/new-agents/foo.agent.md` carrying invalid frontmatter: invisible before, fails the converse guard now |
+| An *unterminated* frontmatter block returned None from both extractors, so the raw `tier:` sweep skipped the file entirely | spec validator | Sweep falls back to whole file text when the fence cannot be delimited. Zero hits across all 190 agent files, so no false positives. Verified with `.claude/agents/zz-evader.md` carrying an unclosed block and `tier: builder` |
 | Migration test module hit 531 lines against the 500-line taste ceiling while the description claimed lint clean | Copilot | Split by concern into `agent_metadata_helpers.py` (245), `test_agent_tree_discovery.py` (136), and the migration module (210). taste-lints reports no violations on any of the three; 11 tests still pass |
 | `escalate_to_high_level_advisor` was called but never defined, and the next line indexed `positions[winner]` with a non-participant | Copilot | Escalation now appends an explicit result naming the arbiter and skips the winner branch. No undefined call, no bad lookup |
 | Serena memory gave 186 as the PR file total | Copilot | 186 is the agent metadata count; the PR changed 208 files. Both now labelled |
