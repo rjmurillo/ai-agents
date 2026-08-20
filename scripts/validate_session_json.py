@@ -124,12 +124,13 @@ _BRANCH_EVIDENCE_ITEMS = ("branchVerified", "notOnMain", "verifyBranch")
 
 # Minimum required session start items (must exist in every session log).
 #
-# Kept in lockstep with every item ``new_session_log_json.py`` emits at
-# ``"level": "MUST"``. Four MUST items were absent from this set (issue #4405),
-# which made the gate strictly easier to satisfy by deleting a checklist item
-# than by completing it: a deleted key was silent, an incomplete key failed.
-# ``test_every_generator_must_item_is_required`` pins the two lists together so
-# this cannot drift again the next time an item is added to either side.
+# Four MUST items were once absent from this set (issue #4405), which made
+# the gate strictly easier to satisfy by deleting a checklist item than by
+# completing it: a deleted key was silent, an incomplete key failed. This is
+# the sole source of truth for the checklist shape now; the generator this
+# comment used to pin against (``new_session_log_json.py``) was deleted with
+# the session-init skill (issue #5138), so a session log's checklist is
+# written by hand and validated directly against this set.
 SESSION_START_REQUIRED_ITEMS = frozenset(
     {
         "serenaActivated",
@@ -1323,7 +1324,7 @@ def validate_filename_number(
 ) -> None:
     """Check that ``session.number`` matches the number in the filename.
 
-    session-init derives the log filename from ``session.number`` and downstream
+    The log filename is derived from ``session.number`` and downstream
     tooling reads the number back out of the filename, so the two are one fact
     stored twice. Nothing enforced the agreement, which let an autofix bot seed a
     counter value that disagreed with the name it was written under (issue #3355).
