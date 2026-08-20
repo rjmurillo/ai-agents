@@ -1,0 +1,24 @@
+{
+  "id": "episode-2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract",
+  "session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract",
+  "timestamp": "2026-08-20T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Review PR #5175 and drive it to closure; found the PR carried a zero-diff branch, so reimplemented the described pr-autofix tier field fix and added a producer field-contract test",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5
+  },
+  "lessons": [
+    "Derive a producer's output schema statically and check consumers against it. Parse the producer with ast to determine envelope level and top-level keys, then fail the build on any consumer read that disagrees.",
+    "Avoid: Trusting a PR body's description of completed work without reading the diff. Check git diff against the merge base before reading the description.",
+    "Avoid: Using a Success field to detect the Data envelope. Key envelope detection off the github_core.output emitter call, which is the thing that actually wraps the payload.",
+    "Avoid: Fixing a silent-fallback bug at the instance instead of the class. Ship a gate covering every read of the same shape, not only the one that was reported."
+  ]
+}

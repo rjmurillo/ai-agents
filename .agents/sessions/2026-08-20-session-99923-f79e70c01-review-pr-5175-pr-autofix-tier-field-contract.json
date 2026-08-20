@@ -1,0 +1,148 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 99923,
+    "date": "2026-08-20",
+    "branch": "claude/pr-5175-review-v21yk2",
+    "startingCommit": "f79e70c",
+    "objective": "Review PR #5175 and drive it to closure; found the PR carried a zero-diff branch, so reimplemented the described pr-autofix tier field fix and added a producer field-contract test"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": "Serena MCP server was still connecting at session start and no mcp__serena__activate_project call was made. Used the AGENTS.md documented fallback of reading repository files directly instead."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": "Not read. The SessionStart hook that injected HANDOFF.md was removed in #5170, and this task was scoped to one PR review rather than resumed issue work."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file, created mid-session when the branch-context-policy pre-commit hook blocked on the previous session's log naming branch claude/tool-use-hooks-perf-ht7zhx."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git checkout -B claude/pr-5175-review-v21yk2 origin/main; branch confirmed via git branch -a"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On claude/pr-5175-review-v21yk2"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short clean at start; HEAD at f79e70c, 0 commits behind origin/main per the checkout freshness check"
+      }
+    },
+    "sessionEnd": {
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Single commit touching 3 authored files: .claude/commands/pr-autofix.md, src/copilot-cli/skills/pr-autofix/SKILL.md, tests/commands/test_pr_autofix_field_contract.py"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run ruff check on the new test: All checks passed. uv run pytest tests/commands/test_pr_autofix_field_contract.py: 22 passed. Existing pr-autofix behavioral suites plus tests/commands: 459 passed, 1 skipped."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Negative control run: reverted the one-character fix in both the source command and the generated mirror, confirmed 3 tests fail (source contract, mirror contract, pinned tier regression), then restored the fix and confirmed 22 pass."
+      },
+      "markdownLintRun": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not run separately; the two markdown files changed one code line each and the mirror is generator output."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP unavailable this session. The durable finding is recorded in the command body comment and the test module docstring instead."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified (read-only per ADR-014)"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "activity": "Reviewed PR #5175",
+      "finding": "The PR branch copilot/fix-pr-autofix-tier-issue carries one commit titled 'Initial plan' and an empty diff against its merge base. git diff --name-only origin/main...origin/copilot/fix-pr-autofix-tier-issue returns nothing. The PR body describes a completed fix, a regenerated mirror, and a new test, none of which were ever pushed; the body itself notes the local push was blocked by a sandbox network restriction on the security-scan pre-push hook."
+    },
+    {
+      "activity": "Verified the described defect still exists on main",
+      "finding": ".claude/commands/pr-autofix.md read '.Data.Tier' from test_pr_merge_ready.py. That script has no --output-format flag and emits its result dict directly via print(json.dumps(result, indent=2)), so there is no Data envelope. TIER was pinned at UNKNOWN, silently disabling the T3/T4 round-cap circuit breaker and the non-T1 auto-merge disarm gate."
+    },
+    {
+      "activity": "Applied the fix and regenerated the mirror",
+      "finding": "Changed the read to '.Tier' in .claude/commands/pr-autofix.md and regenerated src/copilot-cli/skills/pr-autofix/SKILL.md with build/scripts/generate_commands.py. Regeneration touched only the intended file."
+    },
+    {
+      "activity": "Added tests/commands/test_pr_autofix_field_contract.py",
+      "finding": "Statically binds all 16 jq reads in the command body to their producer scripts, derives each producer's real output shape with ast, and fails on any envelope-level or field-name mismatch. Envelope detection keys off the github_core.output emitter call rather than a Success field, because flat producers can carry their own top-level Success key (test_pr_merge_ready.py does)."
+    },
+    {
+      "activity": "Audited the remaining reads",
+      "finding": "All 16 reads bind to a producer with zero unbound. The other 15 were already correct: 13 Data-wrapped reads against check_pr_live_state.py, pr_autofix_lease.py, check_pr_round_cap.py, and get_pr_context.py, plus a flat '.merged' read against test_pr_merged.py."
+    }
+  ],
+  "outcomes": {
+    "deliverables": [
+      {
+        "type": "code",
+        "path": ".claude/commands/pr-autofix.md",
+        "description": "Tier read corrected from .Data.Tier to .Tier, re-arming the T3/T4 round-cap circuit breaker and the non-T1 auto-merge disarm gate"
+      },
+      {
+        "type": "code",
+        "path": "src/copilot-cli/skills/pr-autofix/SKILL.md",
+        "description": "Generated Copilot mirror refreshed via build/scripts/generate_commands.py so the shipped plugin carries the same fix"
+      },
+      {
+        "type": "test",
+        "path": "tests/commands/test_pr_autofix_field_contract.py",
+        "description": "Static contract gate binding every jq read in the command body to its producer's ast-derived output shape; 22 tests including negative controls for both envelope-mismatch directions"
+      }
+    ]
+  },
+  "learnings": {
+    "patterns": [
+      {
+        "pattern": "Derive a producer's output schema statically and check consumers against it",
+        "context": "Shell command bodies read producer JSON through jq. A wrong path yields null, the // default fires, and the gate silently passes with no evidence.",
+        "application": "Parse the producer with ast to determine envelope level and top-level keys, then fail the build on any consumer read that disagrees."
+      }
+    ],
+    "avoidances": [
+      {
+        "antipattern": "Trusting a PR body's description of completed work without reading the diff",
+        "consequence": "PR #5175's body described a fix, a regenerated mirror, and a new test against a branch whose diff was empty. Reviewing the prose would have approved nothing.",
+        "correction": "Check git diff against the merge base before reading the description."
+      },
+      {
+        "antipattern": "Using a Success field to detect the Data envelope",
+        "consequence": "test_pr_merge_ready.py emits a flat object that carries its own top-level Success key, so a Success probe misclassifies it as enveloped and the check inverts.",
+        "correction": "Key envelope detection off the github_core.output emitter call, which is the thing that actually wraps the payload."
+      },
+      {
+        "antipattern": "Fixing a silent-fallback bug at the instance instead of the class",
+        "consequence": "The issue #5094 repair moved the read to the right producer but kept the wrong envelope, reproducing the identical silent-UNKNOWN defect one script over.",
+        "correction": "Ship a gate covering every read of the same shape, not only the one that was reported."
+      }
+    ]
+  },
+  "endingCommit": "",
+  "nextSteps": [
+    "Open a draft PR from claude/pr-5175-review-v21yk2 and reference issue #5094",
+    "Report on PR #5175 that its branch is empty so the owner can decide whether to close it in favor of this change"
+  ]
+}
