@@ -121,7 +121,7 @@
   "workLog": [
     {
       "action": "Measured the two size gates against real pull request data rather than accepting or rejecting them on principle",
-      "result": "104 of 292 pull requests in 14 days carry needs-split (36%); 20 needed the human-only commit-limit-bypass label. Sampling found the gate fires on three unrelated conditions: genuine sprawl (#4846, 235 commits, never merged), review rigor (#4718, 109 commits, six defects each with fix and test, merged), and pure process churn (#5103 and #5107, zero open review threads, count inflated by the QA and session evidence rebind refiring on every main merge)."
+      "result": "104 of 292 pull requests in 14 days carry needs-split (36%), and 20 carry the nominally human-only commit-limit-bypass label. Neither the actor nor the threshold is established for that set of 20: the label marks relief granted rather than the ceiling reached, and git_hook_policy.py:6055-6070 records an agent self-applying it to PR #4735 at the gate's own suggestion. Blocking is established only where the arithmetic was reconstructed, which within the window is #4846, #5177 and #5178, with #5176 measured as not blocked despite carrying the label. An earlier revision of this entry said 20 needed a human-only label, which asserts both. Sampling found the gate fires on three unrelated conditions: genuine sprawl (#4846, 235 commits, never merged), review rigor (#4718, 109 commits, six defects each with fix and test, merged), and pure process churn (#5103 and #5107, zero open review threads, count inflated by the QA and session evidence rebind refiring on every main merge)."
     },
     {
       "action": "Tested three successive designs against a six-role adversarial panel",
