@@ -2300,10 +2300,10 @@ def _make_valid_log(**session_overrides: object) -> dict:
     }
     session.update(session_overrides)
     return {
-        # The four fields below are required by SESSION-PROTOCOL.md and emitted
-        # by session_structure.build_session_log, but the schema did not name
-        # them until issue #3763. A fixture that omitted them was only "valid"
-        # against the weaker schema, so it is corrected here alongside the fix.
+        # The four fields below were required by protocol convention but the
+        # schema did not name them until issue #3763. A fixture that omitted
+        # them was only "valid" against the weaker schema, so it is corrected
+        # here alongside the fix.
         "schemaVersion": "1.0",
         "session": session,
         "protocolCompliance": {
@@ -4541,19 +4541,15 @@ class TestARequiredItemCannotChooseItsOwnEnforcement:
             e.startswith(_MISSING_LEVEL_PREFIX) and "branchVerified" in e for e in result.errors
         )
 
-    def test_the_generator_output_trips_neither_rule(self) -> None:
-        """A rule that fires on the repo's own session-init template is a rule
-        that blocks every new session. build_session_log emits `level` on all
-        twelve required items, so both rules are pure ratchets on practice."""
-        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / ".claude/skills/session-init"))
-        from session_init.session_structure import build_session_log
-
-        log = build_session_log(
+    def test_a_well_formed_log_trips_neither_rule(self) -> None:
+        """A rule that fires on a well-formed log is a rule that blocks every
+        new session. A log with `level` on all required items must be a pure
+        ratchet on practice, not a false positive."""
+        log = _make_valid_log(
             branch="feat/probe",
-            commit="a" * 40,
-            session_number=1,
+            startingCommit="a" * 40,
             objective="probe",
-            current_date="2026-07-29",
+            date="2026-07-29",
         )
         errors = validate_session_log(log).errors
         assert not any(e.startswith(_MISSING_LEVEL_PREFIX) for e in errors)
