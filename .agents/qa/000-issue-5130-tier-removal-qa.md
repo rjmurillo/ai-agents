@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-5174-b3bfa3aaa-remove-agent-tier-hierarchy-replace.json
-qaCommit: 2221006824b0a485ddc8cd9d02947df9f993981a
+qaCommit: 644660abfd271e8016f9f18798027d2670c56d40
 ---
 
 # QA report: issue #5130, remove the agent tier hierarchy
@@ -302,3 +302,27 @@ still claiming 25 wrong roles in a default export. The body had already been
 rewritten to 16 before the review was generated. It now states 16, and quotes
 the old 25 only inside a labeled note recording that the number was wrong and
 who caught it.
+
+### The sixth concurrent-session collision
+
+Another session fixed the same two Copilot findings independently and pushed
+first, so the push was rejected and the work was merged rather than rebased.
+Both sides had:
+
+- The Phase 4.2 adapter dropping `non_negotiable`. Two different designs: a
+  per-position mapping normalizer here, and a `conflict["non_negotiable"]` set
+  in the incoming version. **Incoming taken**, per the rule this branch has
+  followed for every content conflict.
+- The stale 175-agent count in the canonical docstring and in the comment
+  quoting it. Same fix, different wording. **Incoming taken.**
+- The remaining `agent-tier` span in ADR-078's option C. **Incoming taken**,
+  and it carries a second finding this side did not have: the ADR-078 debate
+  log's provenance note still called the architect `BLOCK` open after ADR-098
+  had discharged it.
+
+Verified after the merge rather than assumed to have survived it: 166 tests
+pass across the three affected suites, `validate_agent_matrix_refs.py` exits 0,
+and no conflict marker survives anywhere under `.agents`, `docs`, `tests`,
+`build`, or `scripts`.
+
+`qaCommit` rebound to the merge.
