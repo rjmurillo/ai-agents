@@ -399,3 +399,35 @@ def test_completeness_does_not_rescue_a_non_t1(tmp_path: Path, doc: str) -> None
     run = run_dispatch(tmp_path, doc, tier="T3", auto_merge="SQUASH", pages_complete="true")
 
     assert run.disarmed, "a complete fetch granted the T1 exemption to a T3"
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_an_incomplete_fetch_is_reported_as_false_not_unknown(tmp_path: Path, doc: str) -> None:
+    """The producer said `false`; the operator must not be told `unknown`.
+
+    Both values deny the T1 exemption, so every assertion above holds either
+    way. That is precisely why this one is needed: the first version of the
+    read used jq's `//`, which fires on `false` as well as `null`, and the
+    whole suite stayed green while an incomplete fetch was relabelled as an
+    unreadable one. A reviewer caught it, not a test.
+
+    The two states are genuinely different and a later reader will act on the
+    difference: `false` means the producer measured the fetch and found it
+    truncated, `unknown` means no measurement reached us at all. Anyone adding
+    a `= "false"` branch on top of the collapsing read would find it dead.
+    """
+    reported = run_dispatch(
+        tmp_path / "false", doc, tier="T1", auto_merge="SQUASH", pages_complete="false"
+    )
+    assert "fetched_pages_complete=false" in reported.stdout, (
+        "an incomplete fetch the producer measured was reported as something else"
+    )
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_a_missing_field_is_reported_as_unknown(tmp_path: Path, doc: str) -> None:
+    """The other half, so the test above cannot pass by reporting one label."""
+    omitted = run_dispatch(
+        tmp_path / "omit", doc, tier="T1", auto_merge="SQUASH", pages_complete="OMIT"
+    )
+    assert "fetched_pages_complete=unknown" in omitted.stdout

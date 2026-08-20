@@ -445,6 +445,12 @@ TIER=$(printf '%s' "$MERGE_READY" | jq -r '.Tier // "UNKNOWN"')
 # Anything other than the literal `true` denies the exemption: the real producer
 # always emits the boolean, so healthy input is unaffected, and a missing or
 # unreadable field is exactly the state that must not buy a merge.
+# Not `// "unknown"`, which is what this read said first. jq's alternative
+# operator fires on `false` as well as `null`, so a producer that reported an
+# incomplete fetch was relabelled "unknown" and the operator was told the field
+# could not be read when it had been read fine. Both still deny the exemption,
+# which is why the tests could not tell them apart until one was added that
+# reads the message. Keep the explicit null test.
 PAGES_COMPLETE=$(printf '%s' "$MERGE_READY" | jq -r '.fetched_pages_complete | if . == null then "unknown" else tostring end')
 # .claude/commands/pr-review-config.yaml already ANDs this field into its
 # completion-gate criterion, so this is the same safety rule applied at the

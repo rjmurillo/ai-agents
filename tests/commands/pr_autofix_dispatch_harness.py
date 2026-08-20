@@ -197,7 +197,11 @@ def run_dispatch(
     expected_stderr: str | None = None,
 ) -> DispatchRun:
     scripts_dir = tmp_path / "scripts"
-    scripts_dir.mkdir()
+    # `parents=True` so a case can hand in a fresh subdirectory of its own
+    # `tmp_path` when it runs the block more than once, which the comparison
+    # cases do. Without it those cases fail on a missing parent rather than on
+    # anything they are testing.
+    scripts_dir.mkdir(parents=True)
     write_fake_scripts(scripts_dir)
 
     round_cap_log = tmp_path / "round-cap"
