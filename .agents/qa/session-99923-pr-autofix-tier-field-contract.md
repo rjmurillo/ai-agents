@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract.json
-qaCommit: 1d0d1e5a60d46c475eb7570847a66ef610c3d1b6
+qaCommit: 2d5b9f7facfa22f45e56dbe7cc0c3ca18c2ff053
 ---
 
 # QA Report: session 99923, pr-autofix tier field contract
@@ -9,7 +9,7 @@ qaCommit: 1d0d1e5a60d46c475eb7570847a66ef610c3d1b6
 - Issue: #5094
 - PR: #5176
 - Session log: `.agents/sessions/2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract.json`
-- QA commit: `1d0d1e5a60d46c475eb7570847a66ef610c3d1b6`
+- QA commit: `2d5b9f7facfa22f45e56dbe7cc0c3ca18c2ff053`
 - Branch: `claude/pr-5175-review-v21yk2`
 
 ## Verdict
@@ -173,6 +173,70 @@ Eight further rounds of review found real defects after the first PASS, several
 of them mine and several the same shape twice. They are recorded in
 `session-99923-pr-autofix-review-passes.md`, split out when this file crossed
 the 500-line taste rule.
+
+### The fix opened a case, so the fix closes it
+
+A silent-failure pass over the whole command body raised five reads outside this
+diff. Four are genuinely separate; one is not, and the difference is what makes
+it belong here.
+
+`classify_tier` returns T1 on `CanMerge` alone
+(`test_pr_merge_ready.py`, `classify_tier`), and `CanMerge` is
+`len(reasons) == 0` with `fetched_pages_complete` computed on the following line
+and never appended to `reasons` (`check_merge_readiness`). So a fetch truncated
+at the pagination cap that happens to surface no unresolved thread and no
+failing required check classifies T1. The producer's own module docstring says
+so: "a partial fetch that happens to find no failing checks is not evidence that
+no failing checks exist."
+
+That was covered by accident before this PR. With `TIER` pinned at `UNKNOWN`,
+`TIER != T1` held for every PR, so the disarm gate stripped auto-merge from the
+truncated-fetch PR along with everything else. Making T1 reachable removes the
+accident. The verification that matters is the direction: this is not an
+adjacent defect found while passing by, it is a case this PR's own fix exposes,
+which is the mirror obligation rather than a follow-up.
+
+The gate now asks "provably T1" instead of "T1", and only that. It never stops
+work on any tier; it declines to *spare* auto-merge on unproven evidence.
+Anything other than the literal `true` denies the exemption, so a producer
+predating the field cannot buy a merge by omitting it.
+`.claude/commands/pr-review-config.yaml` already ANDs the same field into its
+completion-gate criterion, so this applies one existing rule at the other place
+a merge can be armed rather than inventing a policy.
+
+Controls, each counting occurrences before patching and asserting a
+byte-identical restore, over source and mirror together:
+
+| Mutation | Result |
+|---|---|
+| baseline | 93 passed |
+| Guard removed, back to the bare `!= T1` test | 4 failed |
+| Missing field defaulted to `true` (fail open) | 4 failed |
+| Completeness alone grants the exemption | 8 failed |
+| restored | 93 passed |
+
+**Caught in the same change, by the suite.** Rewriting the read to capture the
+producer once, I put `2>/dev/null` on both `jq` calls. The producer's stderr is
+already suppressed, so a `jq` parse error is the only signal an operator gets
+that the output was unreadable, and both guards would otherwise skip the PR
+with no explanation. The malformed-producer case failed by name. That is the
+same finding (F1 below) committed while fixing a sibling of it, which is the
+third time this PR has produced an instance of the pattern it is closing.
+
+### Flagged, not fixed
+
+Per see-something-say-something. All four are pre-existing on `origin/main` and
+none is opened by this change.
+
+| # | Finding | Verdict | Severity |
+|---|---|---|---|
+| F1 | The producer's stderr is discarded on both `test_pr_merge_ready.py` and `get_pr_context.py` calls | Real | Low. Both reads fall through to an explicit empty-check, so the loop skips rather than acting wrong. Diagnostic only. |
+| F2 | `check_pr_round_cap.py` emits `escalation_posted`, and the command never reads it | Real | Medium. The command's comment says the script "already posted a human-readable PR comment", but that POST is caught as non-fatal, so the escalation note can be silently absent while the loop stops anyway. |
+| F3 | The round-cap read cannot tell a crash from a malformed reply from a real API error | Real | Low. All three print the same fallback reason and all three stop the loop, so it fails closed. Diagnostic only. |
+| F4 | `auto_merge_method` read with `// "null"` collapses "producer said null" with "read failed" | **Refuted** | The command checks `[ -z "$AUTO_MERGE" ]` separately first. Verified rather than reasoned: `printf '' \| jq -r '.foo // "null"'` emits nothing at all (empty stdin is no document, so `//` never applies), while `printf '{"foo":null}'` emits `null`. The two states are already distinguished. |
+
+F2 and F3 belong in their own change: they read a different producer, neither
+has a wrong-mutation path, and this PR already carries a `needs-split` label.
 
 ## Known limits
 
