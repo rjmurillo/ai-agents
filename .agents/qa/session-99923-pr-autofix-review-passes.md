@@ -100,6 +100,15 @@ The mutation ran under a script that asserted the edit wrote something, purged
 `__pycache__` on both sides, and asserted a byte-identical restore afterwards
 (testing rules MUST-7 and SHOULD-8).
 
+The first shipped form of the control named a literal comment fragment,
+`# gate ran.`, and self-review caught that this couples it to one sentence's
+line wrapping: rewrapping the paragraph drops the count to zero and fails the
+exactly-one assertion, reporting a defect where nothing changed. It now derives
+its target, taking the first unique full-line comment in the extracted block, so
+the assertion is the property (editing a comment is inert) rather than one
+instance of it. Discrimination was re-run against the derived form with the same
+result: shipped edit 2 passed, `!= "null"` flipped to `=` 2 failed.
+
 Two of those controls assert behavior the static gate cannot see at all. The
 round-cap breaker firing on T3 and T4, and the T1 PR keeping the auto-merge it
 earned, are properties of the shell conditions, not of the `jq` path.
