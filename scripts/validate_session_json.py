@@ -124,12 +124,13 @@ _BRANCH_EVIDENCE_ITEMS = ("branchVerified", "notOnMain", "verifyBranch")
 
 # Minimum required session start items (must exist in every session log).
 #
-# Kept in lockstep with every item ``new_session_log_json.py`` emits at
-# ``"level": "MUST"``. Four MUST items were absent from this set (issue #4405),
-# which made the gate strictly easier to satisfy by deleting a checklist item
-# than by completing it: a deleted key was silent, an incomplete key failed.
-# ``test_every_generator_must_item_is_required`` pins the two lists together so
-# this cannot drift again the next time an item is added to either side.
+# Four MUST items were once absent from this set (issue #4405), which made
+# the gate strictly easier to satisfy by deleting a checklist item than by
+# completing it: a deleted key was silent, an incomplete key failed. This is
+# the sole source of truth for the checklist shape now; the generator this
+# comment used to pin against (``new_session_log_json.py``) was deleted with
+# the session-init skill (issue #5138), so a session log's checklist is
+# written by hand and validated directly against this set.
 SESSION_START_REQUIRED_ITEMS = frozenset(
     {
         "serenaActivated",
@@ -158,11 +159,11 @@ SESSION_END_REQUIRED_ITEMS = frozenset(
     }
 )
 
-# .agents/SESSION-PROTOCOL.md defines these exact QA exemption values, each
-# owning one scope checker script (under .claude/skills/session/scripts/)
-# and one label used in error messages. Both are verified the same way: run
-# the checker over the recorded commit range, fail closed on any checker
-# error, and report violations by path. See validate_qa_skip_scope.
+# Each QA exemption value owns one scope checker script (under
+# scripts/validation/) and one label used in error messages. Both are
+# verified the same way: run the checker over the recorded commit range,
+# fail closed on any checker error, and report violations by path. See
+# validate_qa_skip_scope.
 _QA_SKIP_CHECKERS = {
     "SKIPPED: docs-only": ("test_docs_only_eligibility.py", "docs-only"),
     "SKIPPED: investigation-only": (
@@ -302,9 +303,9 @@ _MUST_NOT_VIOLATED_PREFIX = "MUST NOT violated: "
 # that matter most (issue #3747).
 _MISSING_LEVEL_PREFIX = "Missing level: "
 
-# SESSION-PROTOCOL.md line 20 already states that deviation from a MUST
-# "requires documented justification". Enforcing that sentence is what closes
-# the demotion bypass: an author can still declare a required item SHOULD when
+# A demotion from MUST to SHOULD requires documented justification.
+# Enforcing that rule is what closes the demotion bypass: an author can
+# still declare a required item SHOULD when
 # the harness genuinely cannot satisfy it, but the deviation has to be written
 # down and attributable. Measured over the corpus, all 257 existing demotions
 # already carry evidence, so this enforces current practice rather than
@@ -728,9 +729,8 @@ def validate_evidence_agrees_with_session(data: dict[str, Any], result: Validati
 
     if "nextSteps" not in data:
         result.warnings.append(
-            "nextSteps is missing; SESSION-PROTOCOL.md lists it as a required "
-            "top-level field. Record the follow-ups, or write [] to state there "
-            "are none"
+            "nextSteps is missing; it is a required top-level field. Record "
+            "the follow-ups, or write [] to state there are none"
         )
 
 
@@ -754,10 +754,9 @@ def _validate_required_item_level(
 
     Demotion stays legal, because a harness can genuinely lack a capability the
     protocol assumes: Serena is not reachable from Copilot CLI, and 61 logs say
-    so. What it may no longer be is silent. SESSION-PROTOCOL.md line 20 already
-    requires documented justification for deviating from a MUST, so an
-    incomplete demoted item without evidence is a protocol failure under the
-    rule as written.
+    so. What it may no longer be is silent. Deviating from a MUST requires
+    documented justification, so an incomplete demoted item without evidence
+    is a protocol failure under the rule as written.
     """
     if level is None:
         result.errors.append(
@@ -774,8 +773,7 @@ def _validate_required_item_level(
         result.errors.append(
             f"{_UNJUSTIFIED_DEMOTION_PREFIX}{section_name}.{item_name} is required "
             f"but declares level {level!r} while incomplete, with no evidence. "
-            "SESSION-PROTOCOL.md requires documented justification to deviate "
-            "from a MUST."
+            "Deviating from a MUST requires documented justification."
         )
 
 
@@ -1009,8 +1007,8 @@ def validate_protocol_compliance(
 
 
 # Root fields promoted to schema-required by issue #3763, and the only ones an
-# already-committed log is excused from. SESSION-PROTOCOL.md has listed all six
-# root fields as required since it was written, and build_session_log emits all
+# already-committed log is excused from. All six root fields have been
+# required since the schema was written, and build_session_log emits all
 # six, but the schema named only two, so the schema was the one document
 # disagreeing with both. Renaming an old log still cannot conjure these four,
 # so they relax in record mode (issue #3385).
@@ -1225,14 +1223,7 @@ def _scope_payload(
     ending_commit: str,
 ) -> tuple[dict[str, Any] | None, str | None]:
     """Run the owning eligibility checker for one recorded commit range."""
-    checker = (
-        _PROJECT_ROOT
-        / ".claude"
-        / "skills"
-        / "session"
-        / "scripts"
-        / checker_name
-    )
+    checker = _PROJECT_ROOT / "scripts" / "validation" / checker_name
     if not checker.is_file():
         return None, f"scope checker not found: {checker}"
 
@@ -1333,7 +1324,7 @@ def validate_filename_number(
 ) -> None:
     """Check that ``session.number`` matches the number in the filename.
 
-    session-init derives the log filename from ``session.number`` and downstream
+    The log filename is derived from ``session.number`` and downstream
     tooling reads the number back out of the filename, so the two are one fact
     stored twice. Nothing enforced the agreement, which let an autofix bot seed a
     counter value that disagreed with the name it was written under (issue #3355).

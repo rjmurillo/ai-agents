@@ -146,10 +146,12 @@ Three survivor hooks were named in #3217 when this ADR began:
   of test-runner commands to cut permission fatigue. It was Claude-only when this
   ADR started. The hook-contract branch briefly generated a Copilot translation,
   then removed both registrations after Finding 3.
-- `invoke_observation_sync.py` (PostToolUse). Syncs this repo's internal Serena
-  and Forgetful memories. It had no documented plugin-consumer contract. The
-  2026-07-22 owner decision removes it from the vendored Copilot surface and
-  retains it only in local repository settings.
+- `invoke_observation_sync.py` (PostToolUse, retired outright by ADR-097).
+  Synced this repo's internal Serena and Forgetful memories. It had no
+  documented plugin-consumer contract. The 2026-07-22 owner decision removed
+  it from the vendored Copilot surface and retained it only in local
+  repository settings; ADR-097 completed the retirement by removing the
+  local registration too.
 
 ### Finding 1: Copilot has no repo-committed permission surface, and the guard self-neutered before retirement
 

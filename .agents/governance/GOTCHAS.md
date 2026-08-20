@@ -233,7 +233,7 @@ after the work is committed, not while it accumulates. Check it mid-session:
 git rev-list --count HEAD ^origin/main
 ```
 
-Relief is one of two sanctioned paths (CONTRIBUTING.md:857): split the PR,
+Relief is one of two sanctioned paths (CONTRIBUTING.md:854): split the PR,
 or ask a human maintainer to decide on the `commit-limit-bypass` label; only
 that maintainer may add it (CONTRIBUTING.md, "Bypassing the Limit"): ask for
 it, and do not apply it yourself. Refs #4782. Squashing is often the wrong repair,

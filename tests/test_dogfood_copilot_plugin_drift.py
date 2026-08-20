@@ -108,7 +108,14 @@ def test_check_flags_drift_on_the_real_shipped_tree(tmp_path: Path) -> None:
     dogfood.dogfood_install(src, tgt)
     assert dogfood.dogfood_check(src, tgt)[0] is False
 
-    hook = sorted((src / "hooks").rglob("*.py"))[0]
+    # Any tracked file in the shipped tree exercises the fingerprint; the
+    # property under test is drift detection, not the file's language. ADR-097
+    # retired every hook script, so the tree carries no .py file to edit and a
+    # `.py`-only glob raised IndexError here. Widening to any file keeps the
+    # test driving the real shipped tree whatever that tree currently holds.
+    candidates = sorted(path for path in (src / "hooks").rglob("*") if path.is_file())
+    assert candidates, "shipped hooks tree is empty; nothing to drift"
+    hook = candidates[0]
     hook.write_text(hook.read_text(encoding="utf-8") + "\n# drift marker\n", encoding="utf-8")
     stale, message = dogfood.dogfood_check(src, tgt)
     assert stale is True

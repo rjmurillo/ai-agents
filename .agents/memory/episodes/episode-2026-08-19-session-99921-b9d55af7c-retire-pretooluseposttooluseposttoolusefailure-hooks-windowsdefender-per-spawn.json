@@ -1,0 +1,81 @@
+{
+  "id": "episode-2026-08-19-session-99921-b9d55af7c-retire-pretooluseposttooluseposttoolusefailure-hooks-windowsdefender-per-spawn",
+  "session": "2026-08-19-session-99921-b9d55af7c-retire-pretooluseposttooluseposttoolusefailure-hooks-windowsdefender-per-spawn",
+  "timestamp": "2026-08-19T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Retire all PreToolUse/PostToolUse/PostToolUseFailure hooks (Windows+Defender per-spawn cost); author, review, and accept ADR-097",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-19T20:13:41+00:00",
+      "type": "commit",
+      "content": "Commit: 684455250ccea382ed29d11b16718ab727b04e89",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-19-session-99921-b9d55af7c-retire-pretooluseposttooluseposttoolusefailure-hooks-windowsdefender-per-spawn"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-19T20:45:29+00:00",
+      "type": "commit",
+      "content": "Commit: 5a2de5f4b0148d19004da39a229d83f395da0766",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-19-session-99921-b9d55af7c-retire-pretooluseposttooluseposttoolusefailure-hooks-windowsdefender-per-spawn"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-19T21:14:00+00:00",
+      "type": "commit",
+      "content": "Commit: ef125dc2176fb7c06a6987bbdc7ebd32c2c28856",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-19-session-99921-b9d55af7c-retire-pretooluseposttooluseposttoolusefailure-hooks-windowsdefender-per-spawn"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-19T21:36:04+00:00",
+      "type": "commit",
+      "content": "Commit: 5db7854bb1817397db5770eed8fb3a7fb1ccee74",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-19-session-99921-b9d55af7c-retire-pretooluseposttooluseposttoolusefailure-hooks-windowsdefender-per-spawn"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-19T23:31:15+00:00",
+      "type": "commit",
+      "content": "Commit: 62fe031767a35407e1f13026ecb2abc18de8a44f",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-19-session-99921-b9d55af7c-retire-pretooluseposttooluseposttoolusefailure-hooks-windowsdefender-per-spawn"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 5,
+    "files_changed": 77
+  },
+  "lessons": []
+}

@@ -45,7 +45,7 @@ retrospective is written when someone asks for one.
 | An unfilled auto-retro skeleton exists in `.agents/retrospective/` | Yes (fill it) |
 | Diagnosing why a task failed (Five Whys, fishbone) | Yes |
 | Capturing a single in-conversation correction ("no", "wrong") | No, use `reflect` |
-| Saving a quick checkpoint with no analysis | No, use `session-end` |
+| Saving a quick checkpoint with no analysis | No, use `/checkpoint` |
 
 The output artifact is a Markdown file. The Learning Extraction Template in
 `references/learning-template.md` defines the exact structure. Save to

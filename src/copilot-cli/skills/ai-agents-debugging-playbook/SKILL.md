@@ -29,7 +29,7 @@ Vocabulary used once: a "guard" is a PreToolUse or pre-push hook that can block 
 | Evidence standards, test layout, how to write the missing test | `ai-agents-validation-and-qa` |
 | The catalog of every env var, marker, and escape hatch | `ai-agents-config-catalog` |
 | How the harness itself behaves (payload shapes, plugin roots) | `agent-harness-reference` |
-| Fix a NON_COMPLIANT session log | `session-log-fixer` |
+| Fix a NON_COMPLIANT session log | Hand-edit against `.agents/schemas/session-log.schema.json`, re-run `scripts/validate_session_json.py` |
 | Resolve merge conflicts | Agent: merge-resolver |
 | Query agent JSONL event logs | `observability` |
 

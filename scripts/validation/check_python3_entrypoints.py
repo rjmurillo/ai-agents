@@ -53,7 +53,6 @@ _THIRD_PARTY_IMPORTS: frozenset[str] = frozenset(
 # Documentation files that are checked. Caller may override via --docs.
 _DEFAULT_DOCS: list[str] = [
     "CONTRIBUTING.md",
-    ".agents/SESSION-PROTOCOL.md",
     ".github/copilot-instructions.md",
     "README.md",
     ".agents/prototypes/agents/implementer.compressed.md",
@@ -273,7 +272,7 @@ def main(argv: list[str] | None = None) -> int:
         nargs="*",
         metavar="FILE",
         default=_DEFAULT_DOCS,
-        help="Documentation files to scan (default: CONTRIBUTING.md, SESSION-PROTOCOL.md, ...)",
+        help="Documentation files to scan (default: CONTRIBUTING.md, copilot-instructions.md, ...)",
     )
     parser.add_argument(
         "--repo-root",

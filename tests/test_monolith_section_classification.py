@@ -2,9 +2,14 @@
 
 The classification document at
 ``.agents/analysis/1769-monolith-section-classification.md`` maps every
-top-level ``##`` section in the three always-loaded monolith instruction files
+top-level ``##`` section in the always-loaded monolith instruction files
 to a destination. These tests pin the audit's core invariant: no monolith
 section is silently dropped from the classification.
+
+The audit originally covered three monoliths; ``.agents/SESSION-PROTOCOL.md``
+was deleted 2026-08-20 (Issue #5138), so only the two surviving files are
+checked live. The audit doc keeps its section for the deleted file as a
+historical record.
 
 The failure mode this guards against: a future edit adds a new ``##`` section
 to a monolith, and a stale audit no longer covers it. The test fails until the
@@ -28,7 +33,6 @@ ANALYSIS_DOC = (
 MONOLITHS = (
     PROJECT_ROOT / ".agents" / "AGENT-SYSTEM.md",
     PROJECT_ROOT / ".agents" / "AGENT-INSTRUCTIONS.md",
-    PROJECT_ROOT / ".agents" / "SESSION-PROTOCOL.md",
 )
 
 

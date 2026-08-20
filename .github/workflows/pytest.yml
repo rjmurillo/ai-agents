@@ -347,15 +347,14 @@ jobs:
         run: |
           pytest \
             tests/skills/github/test_wait_for_unresolved_zero.py \
-            tests/skills/session-end/test_rework_warning.py \
             --cov --cov-branch --cov-report=
 
-      # Isolated 100% branch gate for the two REQ-009 modules.
+      # Isolated 100% branch gate for the REQ-009 module.
       - name: "Enforce REQ-009 module coverage at 100% (PR #1989 user requirement)"
         if: steps.pin-req009-collect.outcome != 'skipped' && !cancelled()
         run: >-
           coverage report --data-file=artifacts/.coverage.pin-req009
-          --include=.claude/skills/github/scripts/pr/wait_for_unresolved_zero.py,.claude/skills/session-end/scripts/rework_warning.py
+          --include=.claude/skills/github/scripts/pr/wait_for_unresolved_zero.py
           --fail-under=100
 
       - name: Upload test results

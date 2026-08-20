@@ -415,21 +415,6 @@ def test_user_prompt_direct_failure_is_silent_and_nonzero(tmp_path: Path) -> Non
     assert proc.stderr == ""
 
 
-def test_committed_pretooluse_timeout_includes_dispatcher_headroom() -> None:
-    """The shipped dispatcher has time beyond its shim budgets."""
-    hooks_root = REPO_ROOT / "src" / "copilot-cli" / "hooks"
-    hooks_doc = json.loads((hooks_root / "hooks.json").read_text(encoding="utf-8"))
-    manifest = json.loads(
-        (hooks_root / "PreToolUse" / "_manifest.json").read_text(encoding="utf-8")
-    )
-
-    shim_timeouts = list(manifest["timeouts"].values())
-    timeout_sec = hooks_doc["hooks"]["PreToolUse"][0]["timeoutSec"]
-
-    assert shim_timeouts
-    assert timeout_sec > sum(shim_timeouts)
-
-
 def test_negative_control_bare_relative_path_fails(tmp_path: Path) -> None:
     """The pre-fix bare ``./hooks/...`` form fails the same harness (teeth)."""
     _generate(tmp_path)  # materialize the plugin tree; return value unused here
@@ -534,102 +519,6 @@ def test_every_powershell_command_resolves_under_pwsh(tmp_path: Path) -> None:
         for line in lines:
             assert line.startswith("OK:"), f"unresolved powershell path: {line}"
 
-
-def test_stale_plugin_root_failure_names_the_missing_path(tmp_path: Path) -> None:
-    """A stale plugin root fails closed AND the error names the full path.
-
-    ``agent-harness-reference`` documents this failure mode and rejects an
-    existence check in the launcher command strings on the grounds that the
-    interpreter error already names the missing path (issues #3321, #3332).
-    That rejection is only sound while the claim holds. This test makes the
-    claim falsifiable: if a future interpreter or launcher shape stopped
-    naming the path, the guard argument would have to be revisited and this
-    goes red first.
-
-    Uses the committed hooks.json dispatcher command (the shipped artifact)
-    instead of the _generate() fixture, whose platform config does not enable
-    consolidated dispatcher routing. This aligns the test with what actually
-    ships (ADR-068).
-    """
-    # Read the committed hooks.json - the shipped artifact uses the dispatcher
-    hooks_root = REPO_ROOT / "src" / "copilot-cli" / "hooks"
-    hooks_doc = json.loads((hooks_root / "hooks.json").read_text(encoding="utf-8"))
-
-    stale_root = tmp_path / "moved-away"
-    assert not stale_root.exists()
-    env = _contract_env(copilot_root=str(stale_root), claude_root=str(stale_root))
-    userland = tmp_path / "userland"
-    userland.mkdir(parents=True, exist_ok=True)
-
-    command = _first_bash_command(hooks_doc, "PreToolUse")
-    proc = subprocess.run(
-        [_require_bash(), "-c", command],
-        env=env,
-        cwd=userland,
-        input="{}",
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-        check=False,
-    )
-
-    # Post-fix (issue 4672): stale plugin root is infrastructure failure,
-    # so the hook fails OPEN (exit 0 with warning) rather than denying.
-    assert proc.returncode == 0, (
-        f"stale plugin root must fail open (exit 0) per issue 4672, got {proc.returncode}"
-    )
-    assert "WARNING: hooks DISABLED" in proc.stderr, (
-        "stale root must emit an actionable warning on stderr"
-    )
-    normalized_stderr = _slash(proc.stderr)
-    assert stale_root.as_posix() in normalized_stderr, (
-        "warning must name the missing path so the user can act on it. "
-        f"stderr={proc.stderr!r}"
-    )
-
-
-@pytest.mark.skipif(shutil.which("pwsh") is None, reason="pwsh not installed")
-def test_stale_plugin_root_powershell_failure_names_the_missing_path(
-    tmp_path: Path,
-) -> None:
-    """The PowerShell launcher also exposes the stale path when it fails."""
-    hooks_root = REPO_ROOT / "src" / "copilot-cli" / "hooks"
-    hooks_doc = json.loads((hooks_root / "hooks.json").read_text(encoding="utf-8"))
-    stale_root = tmp_path / "moved-away"
-    env = _contract_env(copilot_root=str(stale_root), claude_root=str(stale_root))
-    command = hooks_doc["hooks"]["PreToolUse"][0]["powershell"]
-
-    # Linux CI has pwsh and python3, but not the Windows py launcher.
-    if sys.platform != "win32":
-        command = command.replace("py -3", "python3", 1)
-    proc = subprocess.run(
-        ["pwsh", "-NoProfile", "-Command", command],
-        env=env,
-        cwd=tmp_path,
-        input="{}",
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-        check=False,
-    )
-
-    # Post-fix (issue 4672): stale plugin root is infrastructure failure,
-    # so the hook fails OPEN (exit 0 with warning) rather than denying.
-    assert proc.returncode == 0, (
-        f"stale plugin root must fail open (exit 0) per issue 4672, got {proc.returncode}"
-    )
-    # PowerShell Write-Host goes to stdout when captured by subprocess
-    combined = proc.stdout + proc.stderr
-    assert "WARNING: hooks DISABLED" in combined, (
-        "stale root must emit an actionable warning"
-    )
-    normalized = _slash(combined)
-    assert stale_root.as_posix() in normalized, (
-        "PowerShell warning must name the missing path so the user can act on it. "
-        f"output={combined!r}"
-    )
 
 
 class TestSubprocessDecoding:

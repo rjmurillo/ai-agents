@@ -36,8 +36,12 @@ are template/example content, are excluded):
 |----------|-------------------------|-------|
 | `AGENT-SYSTEM.md` | 13 | 1990 |
 | `AGENT-INSTRUCTIONS.md` | 18 | 822 |
-| `SESSION-PROTOCOL.md` | 10 | 324 |
-| **Total** | **41** | **3136** |
+| **Total** | **31** | **2812** |
+
+`SESSION-PROTOCOL.md` (10 sections, 324 lines) was one of the three
+always-loaded monoliths this audit covered; it was deleted 2026-08-20
+(Issue #5138), so its row and section table below are struck from the
+live count. Its classification table is kept for the historical record.
 
 ## Target Rule Files (Phase 2)
 
@@ -115,7 +119,7 @@ owner. The steering files and their scopes:
 | Related Documents | KEEP-IN-STEERING | Pointer list; stays as a pointer block in the slimmed monolith |
 | Lessons Learned | PATH-SCOPED-RULE | `memory-handoff.md`; feeds memory/retro, scope to `.agents/**` |
 
-## SESSION-PROTOCOL.md (10 sections, 324 lines)
+## SESSION-PROTOCOL.md (10 sections, 324 lines): historical, file deleted 2026-08-20
 
 | `##` Section | Classification | Target / glob |
 |--------------|----------------|---------------|
@@ -132,19 +136,23 @@ owner. The steering files and their scopes:
 
 ## Tallies
 
+Live count, `AGENT-SYSTEM.md` and `AGENT-INSTRUCTIONS.md` only
+(`SESSION-PROTOCOL.md` deleted 2026-08-20, Issue #5138); its 1
+ALWAYS-LOAD-RULE, 7 PATH-SCOPED-RULE, and 2 KEEP-IN-STEERING sections are
+struck from these counts.
+
 | Classification | Count |
 |----------------|-------|
-| ALWAYS-LOAD-RULE | 4 |
-| PATH-SCOPED-RULE | 27 |
-| KEEP-IN-STEERING | 10 |
-| **Total sections** | **41** |
+| ALWAYS-LOAD-RULE | 3 |
+| PATH-SCOPED-RULE | 20 |
+| KEEP-IN-STEERING | 8 |
+| **Total sections** | **31** |
 
 ALWAYS-LOAD sections (the only content entering `agent-boundaries.md`):
 
 - AGENT-INSTRUCTIONS `Quick Start Checklist`
 - AGENT-INSTRUCTIONS `Critical Reminders`
 - AGENT-INSTRUCTIONS `Emergency Recovery`
-- SESSION-PROTOCOL `RFC 2119 Key Words`
 
 ## Notes and Caveats for Phase 2
 

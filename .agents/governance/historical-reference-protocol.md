@@ -151,7 +151,7 @@ Root cause identified in Session 115 (commit `fed4321`, 2025-12-28, `.agents/ses
 
 - [Naming Conventions](./naming-conventions.md) - Artifact naming patterns
 - [Traceability Protocol](./traceability-protocol.md) - Specification traceability
-- [SESSION-PROTOCOL.md](../SESSION-PROTOCOL.md) - Session logging requirements
+- [`.claude/rules/session-logs.md`](../../.claude/rules/session-logs.md) - Session log mechanics
 - [ADR-007](../architecture/ADR-007-memory-first-architecture.md) - Memory-first architecture
 
 ---

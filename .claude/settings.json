@@ -47,31 +47,6 @@
                 ]
             }
         ],
-        "PostToolUse": [
-            {
-                "matcher": "mcp__serena__write_memory",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 -u .claude/hooks/PostToolUse/invoke_observation_sync.py",
-                        "timeout": 30,
-                        "statusMessage": "Syncing observation memories to Forgetful"
-                    }
-                ]
-            }
-        ],
-        "PostToolUseFailure": [
-            {
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 -u .claude/hooks/PostToolUse/invoke_memory_capture.py",
-                        "timeout": 10,
-                        "statusMessage": "Suggesting memories from failed tool output (#4870)"
-                    }
-                ]
-            }
-        ],
         "SessionEnd": [
             {
                 "hooks": [

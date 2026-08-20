@@ -128,7 +128,7 @@ At session start, you SHOULD call mcp__serena__activate_project.
 **Verification-Based Approach (Succeeded)**:
 
 ```markdown
-## SESSION-PROTOCOL.md
+## AGENTS.md
 | Req | Step | Verification |
 |-----|------|--------------|
 | MUST | `mcp__serena__activate_project` | Tool output in transcript |
@@ -202,7 +202,7 @@ These patterns indicate trust-based compliance that will likely fail:
 - PR #669: Branch verification root cause analysis
 - Issue #684: Branch verification protocol
 - ADR-034: Investigation session QA exemption (verification-based design)
-- SESSION-PROTOCOL.md: Verification-based session requirements
+- `templates/agents/implementer.shared.md`: Verification-based session requirements
 
 ---
 

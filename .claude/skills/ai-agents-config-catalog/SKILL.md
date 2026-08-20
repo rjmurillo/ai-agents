@@ -9,7 +9,7 @@ license: MIT
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 Every flag, marker, and skip semantic in this repo, verified against code as
-of 2026-07-03. Hook registration surfaces were rechecked on 2026-08-18. Each
+of 2026-07-03. Hook registration surfaces were rechecked on 2026-08-19. Each
 escape hatch exists because a gate sometimes misfires; each one also has an
 abuse story or a guard. Before you set any of these, read its row. The house
 rule (learned in session 1187, see the Removed Flags section): escape hatches
@@ -58,7 +58,7 @@ Lesson encoded: a global bypass with no teeth (no telemetry, no approval step) w
 | Name | Type | Effect | Status | Guard / abuse story | Where defined |
 |---|---|---|---|---|---|
 | `GIT_CONFIG_COUNT` + `GIT_CONFIG_KEY_0`/`GIT_CONFIG_VALUE_0` | env vars (set by conftest) | Test session injects `commit.gpgsign=false` with command-line precedence so test repos never invoke the user's signing setup | Production test infra | Only sets index 0 when `GIT_CONFIG_COUNT` is unset, so an outer process's config is not clobbered | `tests/conftest.py:35-38` |
-| `SERENA_PROJECT_ROOT` | env var (user-set) | Overrides automatic Serena project root detection in the worktree scope guard. Set to the absolute path of the intended worktree when switching projects | Production hook | Validated: path must contain `.serena/project.yml` or the override is ignored. Blocks writes when unset and `CLAUDE_PROJECT_DIR` is absent | `.claude/hooks/PreToolUse/invoke_serena_worktree_scope_guard.py:68-73` |
+| `SERENA_PROJECT_ROOT` | env var (user-set) | Formerly overrode automatic Serena project root detection in the worktree scope guard. Set to the absolute path of the intended worktree when switching projects | Retired hook (ADR-097) | Was validated: path had to contain `.serena/project.yml` or the override was ignored; blocked writes when unset and `CLAUDE_PROJECT_DIR` was absent. `invoke_serena_worktree_scope_guard.py` is deleted, so nothing reads this variable today | historical: `.claude/hooks/PreToolUse/invoke_serena_worktree_scope_guard.py:68-73` (path no longer exists) |
 | PEP 668 / uv | environment reality | Bare `pip` fails (externally managed env). Everything goes through `uv sync --frozen --extra dev`; skill scripts need `uv run python`, not `python3` (PyYAML lives in the venv) | Production | `ModuleNotFoundError: No module named 'yaml'` means you used the wrong interpreter | `pyproject.toml`, `.python-version` (3.14.6) |
 | pytest markers `unit`, `integration`, `safe_push_transport`, `security`, `smoke`, `windows_path` | pytest -m selectors | Filter test classes; `smoke` = real-CLI tests needing auth/credits, nightly only, and the smoke gate asserts they were NOT skipped (issue #2231 item 4); `safe_push_transport` = touches a non-local transport, excluded from pre-push | Production | Marking a test `smoke` to dodge CI is detected by the not-skipped assertion | `pyproject.toml [tool.pytest.ini_options].markers` |
 
@@ -94,8 +94,8 @@ Session-end QA can be skipped only with one of these exact verdict strings in th
 
 | Verdict | When legitimate | Enforcement |
 |---|---|---|
-| `SKIPPED: investigation-only` | Every staged file matches the allowlist: `.agents/sessions/`, `.agents/analysis/`, `.agents/retrospective/`, `.serena/memories/`, `.agents/security/`, `.agents/memory/` (incl. `episodes/`), `.agents/architecture/REVIEW-*`, `.agents/critique/` | Single source of truth `scripts/modules/investigation_allowlist.py`; pre-check via the `session` skill (Test-InvestigationEligibility); CI backstop `.github/scripts/validate_investigation_claims.py` (advisory, confirmed: exits 0 unconditionally per its own docstring and `main()`) |
-| `SKIPPED: docs-only` | All changes are markdown and strictly editorial: spelling, grammar, formatting; no code, config, tests, workflows, or code-block changes | Re-verified 2026-08-18: `SESSION-PROTOCOL.md:754` no longer exists (PR #5135 cut the file to 324 lines and dropped the exact verdict strings; it now only names the exemption generically at Phase 2.5). The enforcing source is `scripts/validate_session_json.py` (`validate_qa_skip_scope`, dispatch table at lines 166-169) plus `CONTRIBUTING.md:695-699` |
+| `SKIPPED: investigation-only` | Every staged file matches the allowlist: `.agents/sessions/`, `.agents/analysis/`, `.agents/retrospective/`, `.serena/memories/`, `.agents/security/`, `.agents/memory/` (incl. `episodes/`), `.agents/architecture/REVIEW-*`, `.agents/critique/` | Single source of truth `scripts/modules/investigation_allowlist.py`; pre-check via `scripts/validation/test_investigation_eligibility.py`; CI backstop `.github/scripts/validate_investigation_claims.py` (advisory, confirmed: exits 0 unconditionally per its own docstring and `main()`) |
+| `SKIPPED: docs-only` | All changes are markdown and strictly editorial: spelling, grammar, formatting; no code, config, tests, workflows, or code-block changes | The enforcing source is `scripts/validate_session_json.py` (`validate_qa_skip_scope`, dispatch table at lines 166-169) plus `CONTRIBUTING.md:695-699`. Pre-check via `scripts/validation/test_docs_only_eligibility.py` |
 
 Mixed sessions do not qualify; split the commit. Claiming investigation-only with a code file staged is exactly what the CI backstop exists to catch.
 
@@ -124,14 +124,15 @@ all.
 
 ## Hook Registration Surfaces
 
-Three independent registration sources serve different consumers. Do not force
-parity between them:
+Two independent registration sources serve different consumers. Do not force
+parity between them. A third, `.github/hooks/require-subagent-model.json`, was
+retired by ADR-097 along with every tool-call hook:
 
-| Surface | Consumer | Shape re-verified 2026-08-18 |
+| Surface | Consumer | Shape re-verified 2026-08-19 |
 |---|---|---|
-| `.claude/settings.json` | Claude Code direct in this repository | 6 events, 8 groups |
-| `.claude/hooks/hooks.json` | Vendored plugin source for both harness packages | 1 events, 3 groups |
-| `.github/hooks/require-subagent-model.json` | Copilot CLI in this repository (cloud agent from the default branch) | native `preToolUse`, matcher `task`, direct registration |
+| `.claude/settings.json` | Claude Code direct in this repository | 4 events, 6 groups |
+| `.claude/hooks/hooks.json` | Vendored plugin source for both harness packages | 0 events, 0 groups |
+| `.github/hooks/require-subagent-model.json` | retired (ADR-097) | deleted; was Copilot CLI in this repository, native `preToolUse`, matcher `task`, direct registration |
 
 The Copilot generator reads `.claude/hooks/hooks.json`, not local settings. A
 one-file registration is valid only when its consumer scope is deliberate.
@@ -170,7 +171,7 @@ repository-controlled code, so command-name matching is not a safe approval boun
 
 ## Provenance and Maintenance
 
-Audited 2026-08-18 against the working tree for hook registration surfaces.
+Audited 2026-08-19 against the working tree for hook registration surfaces.
 Other rows remain verified as of 2026-07-03. Sources: files and line numbers
 cited per row above. Line numbers drift; the commands below are the durable
 re-verification. Run from repo root. If a command returns nothing, the flag
@@ -183,14 +184,14 @@ moved or died: update this catalog before relying on it.
 | size-exception | `grep -n "size-exception" scripts/validation/skill_size.py` |
 | orphan-ref directives + 50-line window | `grep -n "IGNORE_DIRECTIVE_RE" .claude/skills/orphan-ref-validator/scripts/patterns.py && grep -n "splitlines()\[:50\]" .claude/skills/orphan-ref-validator/scripts/scan.py` |
 | investigation allowlist | `grep -n "agents/" scripts/modules/investigation_allowlist.py` |
-| docs-only verdict | `grep -n "SKIPPED: docs-only" CONTRIBUTING.md scripts/validate_session_json.py` (SESSION-PROTOCOL.md no longer names the exact verdict string as of PR #5135) |
+| docs-only verdict | `grep -n "SKIPPED: docs-only" CONTRIBUTING.md scripts/validate_session_json.py` |
 | plugin version-field validator | `uv run python build/scripts/validate_plugin_version_bump.py --help` |
 | no version in any manifest or marketplace entry | `uv run python build/scripts/validate_plugin_version_bump.py` |
 | GIT_CONFIG_COUNT injection | `grep -n "GIT_CONFIG_COUNT" tests/conftest.py` |
 | pytest markers | `grep -n -A 5 "^markers" pyproject.toml` |
 | .env keys | `grep -n -e "API_KEY" -e "COMPRESS_TOKENIZER" .env.example` |
 | hook registration surfaces | `uv run --frozen python -c "import json; s=json.load(open('.claude/settings.json'))['hooks']; print({k: len(v) for k, v in s.items()})"` |
-| repository-local Copilot sub-agent gate | `uv run --frozen python -c "import json; h=json.load(open('.github/hooks/require-subagent-model.json'))['hooks']['preToolUse']; print([(e['matcher'], e['type']) for e in h])"` |
+| repository-local Copilot sub-agent gate retired | `test ! -e .github/hooks/require-subagent-model.json && echo retired` (ADR-097 deleted this surface) |
 | removed flags absent from CONTRIBUTING | `grep -n -e "SKIP_PREPUSH" -e "SKIP_TESTS" CONTRIBUTING.md` (expect no matches) |
 
 `COMPRESS_TOKENIZER` consumer not located; verify before documenting it as live.

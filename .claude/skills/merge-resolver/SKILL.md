@@ -279,7 +279,7 @@ Add entries in `references/strategies.md` for domain-specific conflicts.
 ## Related
 
 - **Security**: Branch name and path validation prevent injection and traversal
-- **SESSION-PROTOCOL.md**: Optional log and continuity requirements
+- **`.claude/rules/session-logs.md`**: Optional log and continuity requirements
 - **strategies.md**: Detailed resolution patterns for edge cases
 - **merge-resolver-session-protocol-gap**: Memory documenting root cause analysis
 

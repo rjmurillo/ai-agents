@@ -36,7 +36,6 @@ _ROOT_BULK_IGNORES = {
 }
 _NESTED_BULK_IGNORES = {
     "tests/skills/github/test_wait_for_unresolved_zero.py",
-    "tests/skills/session-end/test_rework_warning.py",
 }
 
 # Any argv spelling that starts workers or picks a distribution mode.

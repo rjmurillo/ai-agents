@@ -246,49 +246,6 @@ def test_camel_case_payload_replays_as_snake_case():
     }
 
 
-def test_committed_shim_rejects_conflicting_input_aliases():
-    raw = json.dumps(
-        {
-            "tool_name": "Bash",
-            "tool_input": {"command": "echo safe"},
-            "toolArgs": {"command": "git push origin main"},
-        },
-        separators=(",", ":"),
-    ).encode("utf-8")
-
-    proc = _run_committed_shim(raw)
-
-    # The shipped require_subagent_model shim detects the conflict and refuses
-    # to hand it to the guard. It exits 0 rather than 2 because that shim
-    # matches on tool NAME: an unusable payload cannot be shown to be an Agent
-    # spawn, so the shim skips instead of denying (#4672 fail-open policy, and
-    # the guard's own docstring: it bounds model spend and is not a security
-    # boundary). serena_memory_scope_guard (issue #5061, merged 2026-08-19)
-    # has a different policy for its own scope-resolution failures, which is
-    # why _run_committed_shim pins the target explicitly rather than globbing
-    # for "the one shim" now that two exist. The fail-closed path for a
-    # command-scoped matcher, which cannot rule out a push, is covered by
-    # test_shim_rejects_conflicting_input_aliases above.
-    assert proc.returncode == 0, proc.stderr.decode()
-    assert b"conflicting top-level tool_input/toolArgs values" in proc.stderr
-    assert b"Traceback" not in proc.stderr
-
-
-def test_committed_shim_rejects_duplicate_toolcalls_keys():
-    raw = (
-        b'{"toolCalls":[{"name":"Bash","args":{"command":"git push"}}],'
-        b'"toolCalls":[]}'
-    )
-
-    proc = _run_committed_shim(raw)
-
-    # Exit 0 for the same reason as the aliases case above: this targets
-    # require_subagent_model's specific #4672 fail-open policy.
-    assert proc.returncode == 0, proc.stderr.decode()
-    assert b"duplicate JSON object key" in proc.stderr
-    assert b"Traceback" not in proc.stderr
-
-
 def _nested_json_overflowing_stdin() -> bytes:
     """Return JSON bytes whose nesting overflows this interpreter's parser.
 
@@ -397,46 +354,3 @@ def test_shallow_json_still_parses_direct_shim():
     assert b"nesting too deep" not in proc.stderr
 
 
-def test_committed_shim_rejects_deeply_nested_json():
-    proc = _run_committed_shim(_nested_json_overflowing_stdin())
-
-    # The property under test is that the SHIPPED artifact catches the
-    # RecursionError, says so in a bounded message, and leaks no traceback.
-    # Exit 0 is require_subagent_model's tool-name-matcher policy (see the
-    # aliases test); _run_committed_shim pins that specific shim by name.
-    assert proc.returncode == 0, proc.stderr.decode()
-    assert b"stdin JSON nesting too deep" in proc.stderr
-    assert b"Traceback" not in proc.stderr
-    assert b"RecursionError" not in proc.stderr
-    assert len(proc.stderr) < 4096
-
-
-def test_committed_dispatcher_rejects_deeply_nested_json():
-    # Dispatcher negative control: the production dispatcher already fails closed
-    # on RecursionError. This guards against regressing that path while fixing
-    # the standalone shim (issue #3169).
-    proc = _run_committed_pretooluse_dispatcher(_nested_json_overflowing_stdin())
-
-    # The dispatcher propagates its shims' verdicts, running every registered
-    # shim in manifest order (gate mode) and stopping at the first nonzero
-    # exit, per Decision point 4. The committed order is
-    # require_subagent_model (group 10), serena_memory_scope_guard (group
-    # 11, #5061), serena_worktree_scope_guard (group 12, #4917, renumbered
-    # up from its own branch's `-11-` to avoid colliding with #5061's
-    # already-landed group). require_subagent_model fails open on
-    # unparseable stdin (#4672): it logs the detection and verdicts 0, as it
-    # did alone in the brief #5154-only window. serena_memory_scope_guard's
-    # own docstring commits it to failing CLOSED when "stdin payload was too
-    # large to parse safely": a stray cross-worktree memory write cannot be
-    # ruled out from unparseable input, so it logs the detection too and
-    # verdicts nonzero, which stops the gate there. serena_worktree_scope_guard
-    # is also documented fail-closed for the same case ("Fail-closed for
-    # writes: If the session project root ... cannot be determined, write
-    # tools are blocked"), but gate mode never reaches it: group 11's
-    # nonzero exit already stopped the chain, so this test cannot observe
-    # group 12's own policy for this input (see ADR-068 Decision point 2 on
-    # the later-shim bypass). The aggregate verdict is 2, and exactly two
-    # shims' detection messages appear (each bounded and traceback-free).
-    assert proc.returncode == 2, proc.stderr.decode()
-    assert proc.stderr.count(b"stdin JSON nesting too deep") == 2
-    assert b"Traceback" not in proc.stderr

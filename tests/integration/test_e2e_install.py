@@ -215,7 +215,8 @@ class TestInstalledHooks:
         """
         data = json.loads((installed_plugin / "hooks" / "hooks.json").read_text(encoding="utf-8"))
         script_paths = _iter_hook_script_paths(data)
-        assert script_paths, "expected at least one hook script command path"
+        # Zero registered hooks is a valid, deliberately-shipped state (ADR-097):
+        # no script paths means nothing to resolve, not a missing-hook defect.
         unresolved = [
             rel
             for rel in script_paths
