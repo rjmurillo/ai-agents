@@ -63,7 +63,8 @@
         "e023",
         "e027",
         "e030",
-        "e033"
+        "e033",
+        "e036"
       ],
       "leads_to": [
         "e006"
@@ -382,6 +383,39 @@
       "caused_by": [
         "e031"
       ],
+      "leads_to": [
+        "e037"
+      ],
+      "_source_session": "2026-08-20-session-99923-bbadd3bf9-implement-premise-verification-fix-issue"
+    },
+    {
+      "id": "e035",
+      "timestamp": "2026-08-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Tenth review round: a fresh Copilot pass on the pushed e66aa467c head (4 comments) found a genuine gap distinct from the ninth round's CWE-20 work: pr-comment-responder/SKILL.md Phase 2 step 4's 'a refuted premise is not implemented' sentence, read without reviewer-findings' three-claims context, could route a finding to Action: Reply Only whenever any claim (diagnosis, prescription) was refuted, even with a confirmed verdict, dropping a real defect (reviewer-findings/SKILL.md's own Anti-Patterns section already names this exact mistake). Fixed by clarifying the premise check settles the verdict specifically, in both SKILL.md and workflow.md. Also fixed two smaller findings: the trailing-newline test's negative control reimplemented its membership check inline instead of sharing the positive tests' predicate (extracted _has_sentinel_recipe, mutation-killed by weakening it and confirming the negative control failed alongside, not independently of, the positive tests); and the memory decision record still cited two commits (743a05a, bad269d) that predate every squash this session performed and were never in this report's tracked history (repointed at the surviving implementation commit). Landed at edbe6b96b. Full suite: 457 passed, unchanged.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-20-session-99923-bbadd3bf9-implement-premise-verification-fix-issue"
+    },
+    {
+      "id": "e036",
+      "timestamp": "2026-08-20T00:00:00+00:00",
+      "type": "test",
+      "content": "Tenth review round: a fresh Copilot pass on the pushed e66aa467c head (4 comments) found a genuine gap distinct from the ninth round's CWE-20 work: pr-comment-responder/SKILL.md Phase 2 step 4's 'a refuted premise is not implemented' sentence, read without reviewer-findings' three-claims context, could route a finding to Action: Reply Only whenever any claim (diagnosis, prescription) was refuted, even with a confirmed verdict, dropping a real defect (reviewer-findings/SKILL.md's own Anti-Patterns section already names this exact mistake). Fixed by clarifying the premise check settles the verdict specifically, in both SKILL.md and workflow.md. Also fixed two smaller findings: the trailing-newline test's negative control reimplemented its membership check inline instead of sharing the positive tests' predicate (extracted _has_sentinel_recipe, mutation-killed by weakening it and confirming the negative control failed alongside, not independently of, the positive tests); and the memory decision record still cited two commits (743a05a, bad269d) that predate every squash this session performed and were never in this report's tracked history (repointed at the surviving implementation commit). Landed at edbe6b96b. Full suite: 457 passed, unchanged.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-20-session-99923-bbadd3bf9-implement-premise-verification-fix-issue"
+    },
+    {
+      "id": "e037",
+      "timestamp": "2026-08-20T18:56:55+00:00",
+      "type": "commit",
+      "content": "Commit: edbe6b96bd3931a287bede0f38e80c03ac2e59ef",
+      "caused_by": [
+        "e034"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-20-session-99923-bbadd3bf9-implement-premise-verification-fix-issue"
     }
@@ -391,7 +425,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 13,
+    "commits": 14,
     "files_changed": 26
   },
   "lessons": []
