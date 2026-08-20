@@ -201,17 +201,28 @@ Stated rather than claimed clean, per the clear-the-gate-or-drop-the-claim rule:
    the real producers return those shapes. The contract gate covers that half,
    and one test in the runtime module asserts the fake tier producer still
    matches the real one's flat, envelope-free output.
-5. **Only the first path segment is checked.** `_field_violation` reduces the
-   read to `path.lstrip(".").split(".")[0]`, so `.Data.superseded_by_base.fully_superseded`
-   is validated on `superseded_by_base` alone and a renamed nested key would
-   pass. Raised by spec validation on PR #5176 and confirmed by reading
-   `_field_violation` in `pr_autofix_field_parser.py`, cited by symbol because
-   this report has already carried two line numbers that went stale inside the
-   commit that moved them. Not closed here: checking nested keys means
-   deriving the shape of a nested literal, which is a different and larger piece
-   of derivation than the top-level union this gate does. The reported defect
-   class is a first-segment mismatch in both of its instances, so the gate
-   covers what it was built for; this is the next layer, not a hole in this one.
+5. **Only the first path segment is checked, and this limit is now guarded
+   rather than merely stated.** `_field_violation` reduces the read to
+   `path.lstrip(".").split(".")[0]`, so a rename below that segment would pass.
+   Raised by spec validation on PR #5176.
+
+   The limit is latent, not active, and an earlier draft of this entry got that
+   wrong twice over. It claimed `.Data.superseded_by_base.fully_superseded` was
+   validated on `superseded_by_base` alone, implying a live unchecked read.
+   Measured: all 16 reads in the command body are single-segment, so zero of
+   them reach past what the check inspects. That string appears once in the
+   command, in a comment at line 378, and the extractor excludes comment lines
+   by design, so it was never a read. Two spec-validation runs reasoned from
+   that error and marked the criterion partial.
+
+   Closed as prose and reopened as a test.
+   `test_no_read_needs_nested_field_checking` asserts, over source and mirror,
+   that no read has a segment past the checked one, and its message says to
+   extend `_field_violation` first. Control: injecting
+   `.Data.superseded_by_base.fully_superseded` as a real read fails `[doc0]`
+   and passes `[doc1]`; restored, both pass. Deriving nested literal shapes is
+   still the larger job and still deferred, but the day someone needs it, the
+   suite says so instead of staying quiet.
 6. **One command body.** The gate is bound to `pr-autofix.md` and its mirror.
    Sibling command bodies run the same producers through `jq` and can carry the
    same defect class. Also raised by spec validation. Closing it repo-wide is
