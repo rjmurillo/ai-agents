@@ -215,3 +215,48 @@ that sentence is ever dropped, this dissent becomes live again.
   aggregation and escalation source, quoted verbatim.
 - `.claude/rules/canonical-source-mirror.md`. Why the ADR text is quoted, not
   paraphrased.
+
+## ADR-078, corrected here, with no debate behind it
+
+Read this section as a disclosure, not as a review record.
+
+**What changed.** `ADR-078-autoplan-orchestrator-router-boundary.md` described
+orchestrator as `metadata.tier: manager` and reasoned about a "manager-tier"
+rank. This PR deletes that vocabulary, so the ADR was left describing a field
+that no longer exists. Five phrases were corrected:
+
+| Line | Before | After |
+|---|---|---|
+| 36 | `manager-tier agent (model: opus, metadata.tier: manager)` | `coordinator-role agent (model: opus, metadata.role: coordinator)` |
+| 79 | `manager-tier coordinator of the agent system` | `coordinating hub of the agent system` |
+| 123 | `breaking the manager-tier boundary` | `breaking the skill/agent boundary` |
+| 206 | `orchestrator (manager-tier agent)` | `orchestrator (coordinator-role agent)` |
+| 212 | `end-to-end at manager tier` | `end-to-end at the agent layer` |
+
+The replacement values were read from the shipped frontmatter rather than
+assumed: `.claude/agents/orchestrator.md` declares `metadata.role: coordinator`
+and `templates/agents/orchestrator.shared.md` declares `role: coordinator`.
+
+**What did not change.** The decision. ADR-078 chose explicit layering between
+autoplan as front-door router and orchestrator as the routed-to multi-agent
+coordinator, and that boundary is untouched by renaming the metadata field.
+Nothing in the Consequences, Options, or Decision sections was rewritten beyond
+the five phrases above.
+
+Four other uses of the word "tier" in that document were deliberately left
+alone, because they are different concepts that the tier-to-role migration does
+not touch: Cynefin complexity tiers (line 37), the skill-versus-agent layering
+(56, 94, 110, 130), the opus model tier (63, 122), and "agent-tier handoff"
+meaning the agent layer rather than an agent rank.
+
+**No `adr-review` debate ran for this edit.** The six-agent debate that
+`AGENTS.md` normally fires on an `ADR-*.md` change did not happen. Subagent
+invocation was unavailable in the authoring session. This log satisfies
+`check_adr_review_policy`, which requires a staged file under `.agents/critique/`
+naming the ADR ID, and that check is a string-presence test: it does not verify
+that anyone reviewed anything.
+
+The repository owner was asked and chose to have the correction made here rather
+than deferred to a follow-up PR carrying a real review. That is recorded so the
+next reader does not mistake a passing gate for a performed review. If the
+vocabulary correction above is wrong, nothing independent caught it.
