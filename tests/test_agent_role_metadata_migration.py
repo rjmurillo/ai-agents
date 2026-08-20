@@ -64,6 +64,38 @@ def _frontmatter(path: Path) -> dict | None:
     return parsed if isinstance(parsed, dict) else None
 
 
+def test_every_configured_tree_exists_on_disk():
+    """Fail if a configured tree is missing or misspelled.
+
+    The ``is_dir()`` filter in ``_agent_files`` silently skips missing paths,
+    so a typo'd entry would go dark and the guards below would pass on fewer
+    files. This is the first half of the bidirectional config-set check.
+    """
+    missing = {tree for tree in _AGENT_TREES if not (_REPO_ROOT / tree).is_dir()}
+    assert not missing, f"configured agent trees missing from disk: {missing}"
+
+
+def test_every_on_disk_agent_tree_is_configured():
+    """Fail if a new agent tree is added but not listed in _AGENT_TREES.
+
+    This is the converse of ``test_every_configured_tree_exists_on_disk``.
+    Without it, a new tree added to the repo would never be scanned and any
+    ``tier:`` keys introduced there would silently pass.
+
+    The pattern matches the one in ``test_validate_agent_matrix_refs.py``.
+    """
+    from tests.build_scripts.test_validate_agent_matrix_refs import (
+        EXPECTED_TREES as MATRIX_EXPECTED_TREES,
+    )
+
+    configured = set(_AGENT_TREES)
+    assert configured == MATRIX_EXPECTED_TREES, (
+        f"_AGENT_TREES drifted from the canonical set: "
+        f"extra={configured - MATRIX_EXPECTED_TREES}, "
+        f"missing={MATRIX_EXPECTED_TREES - configured}"
+    )
+
+
 def test_agent_trees_are_discovered():
     """Negative control: if the globs stop matching, the guards below are vacuous."""
     assert len(_agent_files()) > 100
