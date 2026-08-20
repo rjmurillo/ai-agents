@@ -210,4 +210,4 @@ Phase gates use the hybrid enforcement pattern from SKILL-PHASE-GATES.md:
 - [Claude-flow Architecture Analysis](../analysis/claude-flow-architecture-analysis.md)
 - [Skill Phase Gates](./SKILL-PHASE-GATES.md)
 - [Agent System Workflows](../AGENT-SYSTEM.md#3-workflow-patterns)
-- [Session Protocol](../SESSION-PROTOCOL.md)
+- [Session Log Mechanics](../../.claude/rules/session-logs.md)

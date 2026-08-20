@@ -74,9 +74,7 @@ uv run python .claude/skills/github/scripts/pr/new_pr.py --title "WIP: Feature" 
 
 **Force Mode**: Creates audit trail in `.agents/audit/pr-creation-force-*.txt`
 
-### SESSION-PROTOCOL.md Updates
-
-**Location**: `.agents/SESSION-PROTOCOL.md` (Unattended Execution Protocol section)
+### Unattended Execution Requirements
 
 **Added**: Stricter protocol for autonomous/unattended operation
 
@@ -276,7 +274,7 @@ python3 scripts/validate_memory_tier.py --path .serena/memories
 
 ## Related Documents
 
-- [SESSION-PROTOCOL.md](../.agents/SESSION-PROTOCOL.md) - Canonical session protocol
+- [`.claude/rules/session-logs.md`](../.claude/rules/session-logs.md) - Session log mechanics
 - [Retrospective: PR #226](../.agents/retrospective/2025-12-22-pr-226-premature-merge-failure.md) - Failure analysis
 - [Issue #230](https://github.com/rjmurillo/ai-agents/issues/230) - Implementation tracking
 - [usage-mandatory.md](../.serena/memories/usage-mandatory.md) - Skill usage policy

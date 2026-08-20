@@ -183,7 +183,7 @@ Import is idempotent. Safe to run multiple times.
 
 - `scripts/forgetful/README.md` - Script usage
 - `scripts/Review-MemoryExportSecurity.ps1` - Security scanner
-- `.agents/SESSION-PROTOCOL.md` - Session workflow integration
+- `.claude/rules/session-logs.md` - Session workflow integration
 - ADR-007 - Memory-First Architecture
 
 ## Requirements

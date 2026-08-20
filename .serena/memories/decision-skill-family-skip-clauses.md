@@ -98,7 +98,7 @@ Ad hoc audit scripts need the same scepticism as the artifacts they audit. Four 
 this one produced four different counts. The first split negative clauses on `.` and
 truncated a clause at `github.com`, hiding a real routing target. The second matched any
 skill name inside the clause span and counted the prose phrase "a new session log" as a
-route to the `session` skill, inventing two reciprocity violations. The third required the
+route to the `session` skill, inventing two reciprocity violations. The third required the <!-- orphan-ref-ignore -->
 name to sit immediately before the closing paren, so it read `(use memory or
 memory-enhancement)` as one target and missed the other. The fourth parses the whole
 parenthetical and keeps every token that is a real skill name.

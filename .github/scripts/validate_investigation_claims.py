@@ -52,8 +52,9 @@ from scripts.modules.investigation_allowlist import (  # noqa: E402
     test_file_matches_allowlist,
 )
 
-# Investigation allowlist patterns per ADR-034 + authorized extensions
-# Must match .claude/skills/session/scripts/test_investigation_eligibility.py
+# Investigation allowlist patterns per ADR-034 + authorized extensions.
+# This is the sole copy; the session skill's parity twin was removed with
+# the session skill cluster.
 _ALLOWLIST_PATTERNS = [
     r"^\.agents/sessions/",
     r"^\.agents/analysis/",

@@ -83,7 +83,7 @@ No line length limit is enforced (MD013 disabled). Prettier compatibility takes 
 
 ### Links and Cross-References
 
-- Use relative paths for internal links: `[Session Protocol](.agents/SESSION-PROTOCOL.md)`.
+- Use relative paths for internal links: `[Session Log Mechanics](.claude/rules/session-logs.md)`.
 - Use `@filename` syntax in CLAUDE.md and AGENTS.md to reference included files.
 - Verify links exist before committing. Broken links degrade navigation.
 - For ADR references, use the format: `ADR-NNN: description`.
@@ -261,7 +261,7 @@ Available options with a table:
 ### Effective Cross-Referencing
 
 ```markdown
-See [Session Protocol](.agents/SESSION-PROTOCOL.md) for full requirements.
+See [Session Log Mechanics](.claude/rules/session-logs.md) for full requirements.
 
 This follows the pattern defined in ADR-043: Scoped Tool Execution.
 

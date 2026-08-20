@@ -94,8 +94,8 @@ Session-end QA can be skipped only with one of these exact verdict strings in th
 
 | Verdict | When legitimate | Enforcement |
 |---|---|---|
-| `SKIPPED: investigation-only` | Every staged file matches the allowlist: `.agents/sessions/`, `.agents/analysis/`, `.agents/retrospective/`, `.serena/memories/`, `.agents/security/`, `.agents/memory/` (incl. `episodes/`), `.agents/architecture/REVIEW-*`, `.agents/critique/` | Single source of truth `scripts/modules/investigation_allowlist.py`; pre-check via the `session` skill (Test-InvestigationEligibility); CI backstop `.github/scripts/validate_investigation_claims.py` (advisory, confirmed: exits 0 unconditionally per its own docstring and `main()`) |
-| `SKIPPED: docs-only` | All changes are markdown and strictly editorial: spelling, grammar, formatting; no code, config, tests, workflows, or code-block changes | Re-verified 2026-08-18: `SESSION-PROTOCOL.md:754` no longer exists (PR #5135 cut the file to 324 lines and dropped the exact verdict strings; it now only names the exemption generically at Phase 2.5). The enforcing source is `scripts/validate_session_json.py` (`validate_qa_skip_scope`, dispatch table at lines 166-169) plus `CONTRIBUTING.md:695-699` |
+| `SKIPPED: investigation-only` | Every staged file matches the allowlist: `.agents/sessions/`, `.agents/analysis/`, `.agents/retrospective/`, `.serena/memories/`, `.agents/security/`, `.agents/memory/` (incl. `episodes/`), `.agents/architecture/REVIEW-*`, `.agents/critique/` | Single source of truth `scripts/modules/investigation_allowlist.py`; pre-check via `scripts/validation/test_investigation_eligibility.py`; CI backstop `.github/scripts/validate_investigation_claims.py` (advisory, confirmed: exits 0 unconditionally per its own docstring and `main()`) |
+| `SKIPPED: docs-only` | All changes are markdown and strictly editorial: spelling, grammar, formatting; no code, config, tests, workflows, or code-block changes | The enforcing source is `scripts/validate_session_json.py` (`validate_qa_skip_scope`, dispatch table at lines 166-169) plus `CONTRIBUTING.md:695-699`. Pre-check via `scripts/validation/test_docs_only_eligibility.py` |
 
 Mixed sessions do not qualify; split the commit. Claiming investigation-only with a code file staged is exactly what the CI backstop exists to catch.
 
@@ -184,7 +184,7 @@ moved or died: update this catalog before relying on it.
 | size-exception | `grep -n "size-exception" scripts/validation/skill_size.py` |
 | orphan-ref directives + 50-line window | `grep -n "IGNORE_DIRECTIVE_RE" .claude/skills/orphan-ref-validator/scripts/patterns.py && grep -n "splitlines()\[:50\]" .claude/skills/orphan-ref-validator/scripts/scan.py` |
 | investigation allowlist | `grep -n "agents/" scripts/modules/investigation_allowlist.py` |
-| docs-only verdict | `grep -n "SKIPPED: docs-only" CONTRIBUTING.md scripts/validate_session_json.py` (SESSION-PROTOCOL.md no longer names the exact verdict string as of PR #5135) |
+| docs-only verdict | `grep -n "SKIPPED: docs-only" CONTRIBUTING.md scripts/validate_session_json.py` |
 | plugin version-field validator | `uv run python build/scripts/validate_plugin_version_bump.py --help` |
 | no version in any manifest or marketplace entry | `uv run python build/scripts/validate_plugin_version_bump.py` |
 | GIT_CONFIG_COUNT injection | `grep -n "GIT_CONFIG_COUNT" tests/conftest.py` |

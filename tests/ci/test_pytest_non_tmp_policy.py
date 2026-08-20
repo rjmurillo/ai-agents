@@ -54,7 +54,7 @@ def test_non_tmp_runner_invokes_pytest_with_external_temp_roots(monkeypatch, tmp
 
     completed = SimpleNamespace(returncode=0)
     with mock.patch.object(runner.subprocess, "run", return_value=completed) as run:
-        rc = runner.main(["tests/test_log_session_end_skip.py", "-q"])
+        rc = runner.main(["tests/test_hook_utilities.py", "-q"])
 
     assert rc == 0
     cmd = run.call_args.args[0]
@@ -73,40 +73,6 @@ def test_pytest_configure_exports_basetemp(monkeypatch, tmp_path):
     repo_conftest.pytest_configure(SimpleNamespace(option=SimpleNamespace(basetemp=str(basetemp))))
 
     assert os.environ["_PYTEST_BASETEMP"] == str(basetemp.resolve())
-
-
-def test_skip_log_accepts_pytest_basetemp_root(monkeypatch, tmp_path):
-    log_module = _load_module(
-        "log_session_end_skip",
-        PROJECT_ROOT / "scripts/log_session_end_skip.py",
-    )
-    pytest_basetemp = tmp_path / "pytest-base"
-    pytest_basetemp.mkdir()
-    other_tmp = tmp_path / "ordinary-tmp"
-    other_tmp.mkdir()
-    monkeypatch.setenv("_PYTEST_BASETEMP", str(pytest_basetemp))
-    monkeypatch.setenv("TMPDIR", str(other_tmp))
-    log = pytest_basetemp / "skips.jsonl"
-
-    rc = log_module.main(["--reason", "x", "--log-path", str(log)])
-
-    assert rc == 0
-    assert log.exists()
-
-
-def test_allowed_roots_include_existing_pytest_basetemp(monkeypatch, tmp_path):
-    log_module = _load_module(
-        "log_session_end_skip",
-        PROJECT_ROOT / "scripts/log_session_end_skip.py",
-    )
-    pytest_basetemp = tmp_path / "pytest-base"
-    pytest_basetemp.mkdir()
-    monkeypatch.delenv("TMPDIR", raising=False)
-    monkeypatch.setenv("_PYTEST_BASETEMP", str(pytest_basetemp))
-
-    roots = log_module._allowed_log_roots(PROJECT_ROOT)
-
-    assert pytest_basetemp.resolve() in roots
 
 
 def test_workflow_runs_pytest_through_non_tmp_runner():

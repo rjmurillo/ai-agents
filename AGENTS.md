@@ -8,7 +8,7 @@
 
 |APIs: Context7, DeepWiki, WebSearch|Memory: `memory` skill
 |Constraints: `.agents/governance/PROJECT-CONSTRAINTS.md`|ADRs: `.agents/architecture/ADR-*.md`
-|Protocol: `.agents/SESSION-PROTOCOL.md`|Skills: `.claude/skills/{name}/SKILL.md`
+|Skills: `.claude/skills/{name}/SKILL.md`
 |Rules: read `.claude/rules/*.md` by `applyTo` first|Book depth: `software-engineering-library`|Generators: `.agents/governance/GENERATOR-FILES.md`
 
 ## Gates
@@ -32,7 +32,7 @@ Knowledge -> context. Actions -> skills.
 
 ## Skill-First
 
-|PRs: GitHub|Reviews: pr-comment-responder|Conflicts: merge-resolver agent|Session: session-init, session-end|CI fix: session-log-fixer|Push: /push-pr
+|PRs: GitHub|Reviews: pr-comment-responder|Conflicts: merge-resolver agent|Push: /push-pr
 |Security: security-detection|Quality: analyze|Learn: reflect|Lifecycle: /spec /plan /build /test /review /ship
 |CI-feedback sub-loop: cluster, ladder build->test->review->ship. See `.agents/governance/CI-FEEDBACK-SUBLOOP.md`
 |ADR-078: no skill -> autoplan; multi-step/cross-cutting -> orchestrator; no return loop
@@ -41,7 +41,7 @@ Knowledge -> context. Actions -> skills.
 
 ### ADR Review
 
-Any `ADR-*.md` or `SESSION-PROTOCOL.md` edit fires adr-review.
+Any `ADR-*.md` edit fires adr-review.
 
 ## Standards
 

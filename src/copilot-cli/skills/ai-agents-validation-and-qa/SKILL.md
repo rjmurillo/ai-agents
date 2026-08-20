@@ -27,7 +27,7 @@ Audience: a zero-context contributor (human or model) about to write, run, or sk
 | Measure drift, budgets, telemetry, coverage trends | `ai-agents-diagnostics-toolkit` |
 | Probe an external tool's runtime behavior empirically | `ai-agents-empirical-probe-toolkit` |
 | Understand which gates a change class triggers | `ai-agents-change-control` |
-| Session-end mechanics beyond the QA row | `session-end` skill |
+| Session-log mechanics beyond the QA row | `.claude/rules/session-logs.md` |
 
 ## Process
 
@@ -176,7 +176,7 @@ Before claiming a change meets the evidence bar:
 
 ## Provenance and Maintenance
 
-Verified 2026-07-29 against the working tree (issue #3828 re-verification pass; the earlier 2026-07-03 pass had rotted for `pyproject.toml`, both `conftest.py` files, `.github/workflows/pytest.yml`, and `.claude/rules/generated-artifacts.md`). Sources: `.agents/governance/TESTING-RIGOR.md:3-55,77-81`, `.agents/governance/TESTING-ANTI-PATTERNS.md:9-118`, `pyproject.toml [tool.pytest.ini_options]`, repo-root `conftest.py:315-386`, `tests/conftest.py:19-76`, `.github/workflows/pytest.yml:196-222`, `.claude/rules/generated-artifacts.md:67-73`, `.claude/rules/claude-agents.md:18`, `.agents/architecture/ADR-034-investigation-session-qa-exemption.md:62-110`, `.agents/SESSION-PROTOCOL.md:738-800,996`, `.agents/governance/FAILURE-MODES.md:14-30,387`, `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:110-157`, `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:23-83`.
+Verified 2026-07-29 against the working tree (issue #3828 re-verification pass; the earlier 2026-07-03 pass had rotted for `pyproject.toml`, both `conftest.py` files, `.github/workflows/pytest.yml`, and `.claude/rules/generated-artifacts.md`). Sources: `.agents/governance/TESTING-RIGOR.md:3-55,77-81`, `.agents/governance/TESTING-ANTI-PATTERNS.md:9-118`, `pyproject.toml [tool.pytest.ini_options]`, repo-root `conftest.py:315-386`, `tests/conftest.py:19-76`, `.github/workflows/pytest.yml:196-222`, `.claude/rules/generated-artifacts.md:67-73`, `.claude/rules/claude-agents.md:18`, `.agents/architecture/ADR-034-investigation-session-qa-exemption.md:62-110`, `scripts/validate_session_json.py` (`_QA_SKIP_CHECKERS`), `.agents/governance/FAILURE-MODES.md:14-30,387`, `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:110-157`, `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:23-83`.
 
 Re-verify volatile facts:
 
@@ -184,7 +184,7 @@ Re-verify volatile facts:
 grep -n testpaths pyproject.toml                                  # collection roots
 sed -n '315,386p' conftest.py                                     # #2316 HEAD guard still present
 grep -n "cov-fail-under" .github/workflows/pytest.yml             # coverage pins and forms
-grep -n "SKIPPED" .agents/SESSION-PROTOCOL.md | head -5           # QA skip evidence strings
+grep -n "_QA_SKIP_CHECKERS" -A5 scripts/validate_session_json.py   # QA skip evidence strings
 ls tests/skills/ .claude/skills/prose-self-check/tests/           # both skill-test locations alive
 git ls-files '*.Tests.ps1' | wc -l                                # Pester doc still stale if 0
 ```

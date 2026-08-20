@@ -294,7 +294,7 @@ def format_markdown(skills: list[SkillMetadata]) -> str:
 def format_session_message(stale_skills: list[SkillMetadata], stale_days: int) -> str:
     """Format a session-ready message listing underutilized skills.
 
-    Designed for integration with session-init or reflect skills.
+    Designed for integration with the reflect skill or a session start hook.
     Outputs a concise notification when stale skills exist, or empty
     string when all skills are recently used.
 

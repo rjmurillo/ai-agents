@@ -14,10 +14,9 @@ description: How a hunch becomes an accepted result in this repo. Covers the
 # AI Agents Research Methodology
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
-This repo runs on verification-based governance. SESSION-PROTOCOL.md states it
-verbatim: "Labels like 'MANDATORY' or 'NON-NEGOTIABLE' are insufficient. Each
-requirement MUST have a verification mechanism." (.agents/SESSION-PROTOCOL.md:36-37).
-The same standard applies to ideas. An idea is not accepted because it sounds
+This repo runs on verification-based governance: labels like "MANDATORY" or
+"NON-NEGOTIABLE" are insufficient, every requirement needs a verification
+mechanism. The same standard applies to ideas. An idea is not accepted because it sounds
 right, because a model agreed with it, or because a retro asserted it. It is
 accepted when it survives the lifecycle below and leaves an inspectable
 artifact at every stage.
@@ -53,7 +52,7 @@ invent a new review ritual; route into these:
 
 | Claim type | Adversarial mechanism | How to invoke |
 |---|---|---|
-| Architectural decision (ADR) | `adr-review` 6-agent debate (architect, critic, independent-thinker, security, analyst, high-level-advisor) until consensus, 10 rounds max | Auto-fires on any `ADR-*.md` or `SESSION-PROTOCOL.md` create/edit (AGENTS.md "ADR Review"); or `/adr-review path` |
+| Architectural decision (ADR) | `adr-review` 6-agent debate (architect, critic, independent-thinker, security, analyst, high-level-advisor) until consensus, 10 rounds max | Auto-fires on any `ADR-*.md` create/edit (AGENTS.md "ADR Review"); or `/adr-review path` |
 | A single decision's reasoning | `decision-critic` skill | Say `Poke holes in this decision` or `Validate my thinking on ...` |
 | Contrarian read of a plan | `independent-thinker` or `critic` agent (`.claude/agents/`) | Task tool with that subagent_type |
 | Strategic build/buy/defer | `buy-vs-build-framework` (Quick tier: 1-2 hours) | Required gate for new capabilities, see Phase 3 |
@@ -265,7 +264,6 @@ volatile facts:
 
 | Fact | Source | Re-verify |
 |---|---|---|
-| Verification-based enforcement wording | `.agents/SESSION-PROTOCOL.md:30-37` | `sed -n '30,40p' .agents/SESSION-PROTOCOL.md` |
 | #1989 false premise, calibration rule, M4 numbers | `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:20,72-73,149-157` | `grep -n "calibrat" .agents/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
 | #2230 rejection record | `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411` | `grep -n 2230 .agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` |
 | adr-review auto-fire + 6-agent debate | AGENTS.md "ADR Review"; `.claude/skills/adr-review/SKILL.md` | `grep -n "debate" .claude/skills/adr-review/SKILL.md` |

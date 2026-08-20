@@ -15,43 +15,23 @@ import argparse
 import json
 import re
 import subprocess
+import sys
+from pathlib import Path
 
-# Investigation allowlist patterns. Canonical source of truth is
-# scripts/modules/investigation_allowlist.py (ADR-034 amendment, PR #2958).
-# This packaged skill script cannot import that repo-relative module at
-# runtime because it also ships to installed-plugin trees where scripts/
-# is absent, so it keeps a verbatim copy. A drift test
-# (tests/test_investigation_allowlist.py::TestSessionSkillAllowlistParity)
-# fails CI if this copy diverges from the module. Keep the two in lockstep.
-_ALLOWLIST_PATTERNS = [
-    r"^\.agents/sessions/",
-    r"^\.agents/analysis/",
-    r"^\.agents/retrospective/",
-    r"^\.serena/memories($|/)",
-    r"^\.agents/security/",
-    r"^\.agents/memory/",
-    r"^\.agents/architecture/REVIEW-",
-    r"^\.agents/critique/",
-]
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
-_ALLOWLIST_DISPLAY = [
-    ".agents/sessions/",
-    ".agents/analysis/",
-    ".agents/retrospective/",
-    ".serena/memories/",
-    ".agents/security/",
-    ".agents/memory/",
-    ".agents/architecture/REVIEW-*",
-    ".agents/critique/",
-]
+from scripts.modules.investigation_allowlist import (  # noqa: E402  (path set above)
+    get_investigation_allowlist_display,
+)
+from scripts.modules.investigation_allowlist import (  # noqa: E402  (path set above)
+    test_file_matches_allowlist as _file_matches_allowlist,
+)
+
+_ALLOWLIST_DISPLAY = get_investigation_allowlist_display()
 
 _COMMIT_PATTERN = re.compile(r"^[0-9a-f]{7,40}$")
-
-
-def _file_matches_allowlist(file_path: str) -> bool:
-    """Test whether a file path matches the investigation allowlist."""
-    normalized = file_path.replace("\\", "/")
-    return any(re.search(p, normalized) for p in _ALLOWLIST_PATTERNS)
 
 
 def _name_status_paths(output: str) -> list[str]:
@@ -71,6 +51,8 @@ def _run_git(command: list[str]) -> tuple[list[str] | None, str | None]:
         command,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=10,
         check=False,
     )

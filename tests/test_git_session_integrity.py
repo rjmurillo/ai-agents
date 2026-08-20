@@ -1,6 +1,8 @@
-"""Tests for git/session integrity (#4316, #4307, #4561, #4288).
+"""Tests for git/session integrity (#4316, #4307, #4288).
 
-Hermetic except test_population_uniqueness_real_branches which reads live refs.
+Issue #4561's branch-discriminator tests were removed along with
+new_session_log.py when the session-init skill was deleted (Issue #5138);
+no surviving implementation exists to test.
 """
 
 from __future__ import annotations
@@ -14,14 +16,8 @@ import warnings as _w
 from datetime import UTC, datetime
 from pathlib import Path
 
-import pytest
-
 # Add the scripts directory to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts" / "validation"))
-_session_init = (
-    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "session-init" / "scripts"
-)
-sys.path.insert(0, str(_session_init))
 
 
 def _git(args: list[str], cwd: str) -> subprocess.CompletedProcess[str]:
@@ -271,111 +267,6 @@ class TestMergeCommitAtomicExempt:
 
         brought = _merge_brought_paths(Path(repo), ["a.py"])
         assert brought == set(), "No merge in progress means no exemptions"
-
-
-# Issue #4561: Branch discriminator prevents session-number collision
-
-
-class TestSessionBranchDiscriminator:
-    """Tests for _branch_discriminator and collision prevention."""
-
-    def test_different_branches_different_discriminators(self) -> None:
-        """Two different branch names produce different discriminators."""
-        from new_session_log import _branch_discriminator
-
-        d1 = _branch_discriminator("fix/issue-4561")
-        d2 = _branch_discriminator("feat/new-feature")
-        assert d1 != d2, "Different branches must produce different discriminators"
-
-    def test_same_branch_same_discriminator(self) -> None:
-        """Same branch always produces the same discriminator (deterministic)."""
-        from new_session_log import _branch_discriminator
-
-        d1 = _branch_discriminator("fix/issue-4561")
-        d2 = _branch_discriminator("fix/issue-4561")
-        assert d1 == d2
-
-    def test_discriminator_is_correct_width(self) -> None:
-        """Discriminator width matches the module constant."""
-        import re
-
-        from new_session_log import _BRANCH_DISCRIMINATOR_WIDTH, _branch_discriminator
-
-        d = _branch_discriminator("main")
-        assert len(d) == _BRANCH_DISCRIMINATOR_WIDTH
-        assert re.fullmatch(r"[0-9a-f]+", d), f"Expected hex chars, got: {d}"
-
-    def test_concurrent_worktrees_no_collision(self, tmp_path: Path) -> None:
-        """Two simulated worktrees on different branches get different filenames."""
-        from new_session_log import _write_session_file
-
-        sessions_dir = str(tmp_path / "sessions")
-        current_date = "2026-08-05"
-
-        session_data_a = {"session": {"number": 42, "branch": "branch-a"}}
-        session_data_b = {"session": {"number": 42, "branch": "branch-b"}}
-
-        path_a, _ = _write_session_file(
-            sessions_dir, session_data_a, current_date, "", branch="branch-a"
-        )
-        path_b, _ = _write_session_file(
-            sessions_dir, session_data_b, current_date, "", branch="branch-b"
-        )
-
-        assert path_a != path_b, "Same session number on different branches must not collide"
-        assert os.path.exists(path_a)
-        assert os.path.exists(path_b)
-
-    def test_same_branch_still_increments_on_collision(self, tmp_path: Path) -> None:
-        """Same branch, same number still retries via the existing collision logic."""
-        from new_session_log import _write_session_file
-
-        sessions_dir = str(tmp_path / "sessions")
-        current_date = "2026-08-05"
-
-        session_data_1 = {"session": {"number": 1, "branch": "feat/x"}}
-        session_data_2 = {"session": {"number": 1, "branch": "feat/x"}}
-
-        path_1, num_1 = _write_session_file(
-            sessions_dir, session_data_1, current_date, "", branch="feat/x"
-        )
-        path_2, num_2 = _write_session_file(
-            sessions_dir, session_data_2, current_date, "", branch="feat/x"
-        )
-        assert path_1 != path_2
-        assert num_2 > num_1, "Should have incremented session number"
-
-    def test_population_uniqueness_real_branches(self, tmp_path: Path) -> None:
-        """Every branch in this repository gets a unique discriminator.
-
-        This is the direct falsifiable test of the property issue #4561 exists
-        to provide. At 4 hex chars this test fails (7 collisions on 940
-        branches). At 8 hex chars it passes with headroom.
-        """
-        from new_session_log import _branch_discriminator
-
-        # Read real branch names from the repository
-        result = subprocess.run(
-            ["git", "for-each-ref", "--format=%(refname:short)", "refs/heads", "refs/remotes"],
-            capture_output=True,
-            text=True,
-            check=False,
-            encoding="utf-8",
-            errors="replace",
-            cwd=str(Path(__file__).resolve().parents[1]),
-        )
-        if result.returncode != 0:
-            pytest.skip("git not available in test environment")
-        branches = [b for b in result.stdout.splitlines() if b.strip()]
-        if len(branches) < 10:
-            pytest.skip(f"only {len(branches)} branches; need >=10 for meaningful test")
-
-        discriminators = {_branch_discriminator(b) for b in branches}
-        collisions = len(branches) - len(discriminators)
-        assert collisions == 0, (
-            f"{collisions} discriminator collision(s) among {len(branches)} branches. "
-            "The discriminator width is too narrow."
-        )
 
 
 # Issue #4288: Session log selector tie-break unification
