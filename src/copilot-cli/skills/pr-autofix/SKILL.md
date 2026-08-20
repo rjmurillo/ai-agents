@@ -391,6 +391,7 @@ if [ -z "$EXPECTED_HEAD_SHA" ] || [ -z "$EXPECTED_BASE_REF" ] || [ -z "$EXPECTED
 fi
 # ACTION == "ACT": proceed with the tier's planned action set.
 
+# tier-dispatch:start
 # Step 2.5: Round-cap circuit breaker (BLOCKING for T3/T4, issue #5056).
 # T3/T4 PRs iterate: post a fix, wait for CI or a bot review, repeat. Nothing
 # capped how many times that loop could run, and prose caps have been
@@ -418,7 +419,10 @@ fi
 # TIER != T1, which UNKNOWN always satisfies, so it fires on every armed PR
 # and strips auto-merge from genuine T1 PRs too.
 # tests/commands/test_pr_autofix_field_contract.py checks every read in this
-# file against its producer's real schema.
+# file against its producer's real schema, and
+# tests/commands/test_pr_autofix_tier_dispatch_runtime.py executes the block
+# between the tier-dispatch markers under bash with fake producers, so the two
+# gate directions below are asserted behavior rather than described behavior.
 TIER=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" 2>/dev/null | jq -r '.Tier // "UNKNOWN"')
 if [ "$TIER" = "T3" ] || [ "$TIER" = "T4" ]; then
     ROUND_CAP=$(python3 "$SCRIPTS_DIR/check_pr_round_cap.py" \
@@ -466,6 +470,7 @@ if [ "$AUTO_MERGE" != "null" ] && [ "$TIER" != "T1" ]; then
         continue
     fi
 fi
+# tier-dispatch:end
 
 # Release the lease after all per-PR work (push + post-push CI wait + merge).
 # Pattern:
