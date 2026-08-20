@@ -33,7 +33,10 @@ from tests.commands.pr_autofix_field_parser import (
     jq_invocation_count,
     jq_invocation_lines,
     jq_paths,
+    jq_programs,
     logical_lines,
+    pathless_jq_programs,
+    unparsed_jq_invocations,
 )
 
 
@@ -114,24 +117,31 @@ def test_extractor_reaches_every_jq_invocation(command_body: str) -> None:
     This compares against the jq invocations actually present, so a quoting
     style the regexes miss fails here instead of passing silently.
 
-    Compares per-line counts, not mere line presence. A line running two jq
-    commands where only one parses is fully "reached" by a presence check, so
-    the second invocation would go unchecked behind the first. A read may name
-    several paths, so the requirement is at least one read per invocation.
+    Compares per invocation, not per line and not by path count. Line presence
+    lets a second jq command hide behind a parsed first one. Path count is no
+    better: a multi-path program supplies enough paths to balance the arithmetic
+    for a sibling the parser never read. So this asserts the parser extracted a
+    program for every invocation, and got a path out of every program.
     """
-    reads_per_line: dict[int, int] = {}
-    for read in extract_field_reads(command_body):
-        reads_per_line[read.line] = reads_per_line.get(read.line, 0) + 1
-
-    missed = [
-        (lineno, jq_invocation_count(line), reads_per_line.get(lineno, 0), line.strip())
+    unparsed = [
+        (lineno, jq_invocation_count(line), len(jq_programs(line)), line.strip())
         for lineno, line in jq_invocation_lines(command_body)
-        if reads_per_line.get(lineno, 0) < jq_invocation_count(line)
+        if unparsed_jq_invocations(line)
     ]
 
-    assert missed == [], "jq invocations the extractor never parsed:\n" + "\n".join(
-        f"line {lineno}: {invocations} jq invocation(s), {reads} read(s) parsed: {line[:100]}"
-        for lineno, invocations, reads, line in missed
+    assert unparsed == [], "jq invocations the extractor never parsed:\n" + "\n".join(
+        f"line {lineno}: {count} invocation(s), {parsed} program(s) parsed: {line[:100]}"
+        for lineno, count, parsed, line in unparsed
+    )
+
+    pathless = [
+        (lineno, program)
+        for lineno, line in jq_invocation_lines(command_body)
+        for program in pathless_jq_programs(line)
+    ]
+
+    assert pathless == [], "jq programs the extractor read no path from:\n" + "\n".join(
+        f"line {lineno}: {program[:100]}" for lineno, program in pathless
     )
 
 
@@ -153,6 +163,32 @@ def test_every_consumed_producer_has_derivable_keys(command_body: str) -> None:
         "Field checking silently stands down for these producers:\n"
         + "\n".join(f"  {s}.py" for s in undecidable)
     )
+
+
+def test_a_multi_path_program_cannot_mask_an_unparsed_sibling() -> None:
+    """The masking case: enough paths to balance a count, half the line unread.
+
+    Two jq commands on one line. The first is a multi-path program the parser
+    reads fine; the second is double-quoted and yields no program at all. Path
+    count comes out 2 against 2 invocations, so a path-vs-invocation comparison
+    reports the line fully reached while the second command is never checked.
+    Counting programs against invocations is what catches it.
+    """
+    line = (
+        "X=$(echo \"$LIVE\" | jq -r '.Data.action // .Data.reason') && "
+        'Y=$(echo "$LIVE" | jq -r ".Data.$field")'
+    )
+
+    assert jq_invocation_count(line) == 2
+    assert len(jq_paths(line)) == 2, "the path count balances, which is the trap"
+    assert len(jq_programs(line)) == 1, "only the single-quoted program is readable"
+    assert unparsed_jq_invocations(line) == 1
+
+
+def test_a_program_yielding_no_path_is_reported() -> None:
+    """Read but pathless is unchecked too, one stage later than unread."""
+    assert pathless_jq_programs("X=$(echo \"$L\" | jq -r 'length')") == ["length"]
+    assert pathless_jq_programs("X=$(echo \"$L\" | jq -r '.Data.action')") == []
 
 
 def test_multi_path_jq_programs_yield_every_path() -> None:

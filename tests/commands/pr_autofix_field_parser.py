@@ -304,6 +304,34 @@ def jq_invocation_count(line: str) -> int:
     return len(_JQ_TOKEN.findall(line))
 
 
+def jq_programs(line: str) -> list[str]:
+    """The jq program text the parser could extract from `line`, in order."""
+    return _JQ_PROGRAM.findall(line)
+
+
+def unparsed_jq_invocations(line: str) -> int:
+    """How many jq commands on `line` the parser never read a program for.
+
+    Counting paths against invocations does not work, and the difference is the
+    whole point of this helper. A program may name several paths, so one
+    well-parsed invocation can supply enough paths to cover for a sibling the
+    parser never read: `jq -r '.Data.a // .Data.b'` next to an unparseable
+    `jq -r ".Data.$field"` yields 2 paths for 2 invocations and the arithmetic
+    balances while half the line is unchecked. Comparing programs to invocations
+    is per-invocation and cannot be masked that way.
+    """
+    return max(0, jq_invocation_count(line) - len(jq_programs(line)))
+
+
+def pathless_jq_programs(line: str) -> list[str]:
+    """Programs the parser read but got no path out of.
+
+    A program the parser reads but cannot pull a path from is also unchecked,
+    just one stage later than an unread one, so the guard needs both.
+    """
+    return [program for program in jq_programs(line) if not _JQ_PATH.findall(program)]
+
+
 def jq_invocation_lines(text: str) -> list[tuple[int, str]]:
     """Logical lines that invoke jq, ignoring comments.
 
