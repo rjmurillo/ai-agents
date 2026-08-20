@@ -30,6 +30,8 @@ from tests.commands.pr_autofix_field_parser import (
     contract_violations,
     derive_producer_schema,
     extract_field_reads,
+    jq_invocation_lines,
+    jq_paths,
     logical_lines,
 )
 
@@ -102,6 +104,52 @@ def test_every_read_binds_to_a_producer(command_body: str) -> None:
     assert unbound == [], "Reads that bind to no producer are unchecked:\n" + "\n".join(
         f"line {r.line}: `{r.path}`" for r in unbound
     )
+
+
+def test_extractor_reaches_every_jq_invocation(command_body: str) -> None:
+    """A read the extractor never saw is invisible, not reported unbound.
+
+    `test_every_read_binds_to_a_producer` only covers reads that were found.
+    This compares against the jq invocations actually present, so a quoting
+    style the regexes miss fails here instead of passing silently.
+    """
+    reached = {r.line for r in extract_field_reads(command_body)}
+    missed = [
+        (lineno, line.strip())
+        for lineno, line in jq_invocation_lines(command_body)
+        if lineno not in reached
+    ]
+
+    assert missed == [], "jq invocations the extractor never parsed:\n" + "\n".join(
+        f"line {lineno}: {line[:120]}" for lineno, line in missed
+    )
+
+
+def test_multi_path_jq_programs_yield_every_path() -> None:
+    """A fallback between two paths is two reads, and both must be checked."""
+    assert jq_paths("X=$(echo \"$LIVE\" | jq -r '.Data.action // .Data.reason')") == [
+        ".Data.action",
+        ".Data.reason",
+    ]
+
+
+def test_literal_defaults_are_not_read_as_paths() -> None:
+    """`// \"UNKNOWN\"` and `// empty` are values, not producer fields."""
+    assert jq_paths("X=$(echo \"$L\" | jq -r '.Data.action // empty')") == [".Data.action"]
+    assert jq_paths("X=$(echo \"$L\" | jq -r '.Tier // \"UNKNOWN\"')") == [".Tier"]
+
+
+def test_multi_path_violation_is_reported_for_the_second_path() -> None:
+    """The class stays closed on the fallback half, not just the leading path."""
+    body = (
+        'LIVE=$(python3 "$SCRIPTS_DIR/check_pr_live_state.py" --pull-request "$PR")\n'
+        "X=$(echo \"$LIVE\" | jq -r '.Data.action // .Data.tier')\n"
+    )
+
+    violations = contract_violations(body)
+
+    assert len(violations) == 1
+    assert "emits no `tier` field" in violations[0]
 
 
 def test_extractor_finds_reads_for_every_producer_style(command_body: str) -> None:

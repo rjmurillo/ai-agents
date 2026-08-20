@@ -47,7 +47,17 @@ DATA_ENVELOPE_EMITTERS = frozenset({"write_skill_output", "write_skill_error"})
 
 _INVOKE = re.compile(r"\$SCRIPTS_DIR/([A-Za-z0-9_]+)\.py")
 _BIND = re.compile(r"^\s*(?:if\s+)?([A-Za-z_][A-Za-z0-9_]*)=\$\(")
-_JQ_PATH = re.compile(r"jq\s[^|>]*?'(\.[A-Za-z_][A-Za-z0-9_.]*)")
+# A jq invocation and its single-quoted program. The program is matched whole so
+# every path inside it is seen, not just the first: `.Data.a // .Data.b` is two
+# reads, and checking only the leading one leaves the fallback unverified.
+_JQ_PROGRAM = re.compile(r"jq\s[^|>']*'([^']*)'")
+# A path reference inside a jq program. Anchored on a leading dot preceded by a
+# non-path character so `.b` in `.Data.a // .Data.b` starts a new match while
+# the `.a` inside `.Data.a` does not.
+_JQ_PATH = re.compile(r"(?:^|[^A-Za-z0-9_.])(\.[A-Za-z_][A-Za-z0-9_.]*)")
+# Bare `jq` as a command word. Independent of _JQ_PROGRAM on purpose; see
+# jq_invocation_lines for why the guard must not share the extractor's regex.
+_JQ_TOKEN = re.compile(r"(?:^|[|\s(])jq\s")
 _VAR_REF = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?")
 
 
@@ -263,7 +273,7 @@ def extract_field_reads(text: str) -> list[FieldRead]:
         if line.lstrip().startswith("#"):
             continue
         scripts = _INVOKE.findall(line)
-        paths = _JQ_PATH.findall(line)
+        paths = jq_paths(line)
         capture = _BIND.search(line)
         if scripts and capture and not paths:
             bindings[capture.group(1)] = scripts[0]
@@ -273,6 +283,43 @@ def extract_field_reads(text: str) -> list[FieldRead]:
         source = scripts[0] if scripts else _bound_source(line, bindings)
         reads.extend(FieldRead(line=lineno, script=source, path=path) for path in paths)
     return reads
+
+
+def jq_paths(line: str) -> list[str]:
+    """Every path referenced by every jq program on `line`, in order.
+
+    A jq program can name more than one path (`.Data.a // .Data.b`), and a line
+    can carry more than one jq invocation, so both are enumerated. Literal
+    defaults (`// "UNKNOWN"`, `// empty`) carry no leading dot and drop out.
+    """
+    return [
+        path
+        for program in _JQ_PROGRAM.findall(line)
+        for path in _JQ_PATH.findall(program)
+    ]
+
+
+def jq_invocation_lines(text: str) -> list[tuple[int, str]]:
+    """Logical lines that invoke jq, ignoring comments.
+
+    Exists so a test can assert the extractor reached every one of them.
+    `extract_field_reads` can only report a read it found; a read it never saw
+    (an unusual quoting style, a path starting with `[` or `$`) is silently
+    absent and leaves the suite green. Comparing against this list makes the
+    extractor's reach falsifiable instead of assumed.
+
+    Deliberately does NOT reuse `_JQ_PROGRAM`. A guard built on the same regex
+    as the thing it guards goes blind in lockstep with it: break that pattern
+    and both the extractor and the guard see zero invocations, so the guard
+    passes vacuously and certifies the blindness it exists to catch. `_JQ_TOKEN`
+    only has to spot the word `jq`, which is a far weaker claim than parsing its
+    program, and that independence is the whole point.
+    """
+    return [
+        (lineno, line)
+        for lineno, line in logical_lines(text)
+        if not line.lstrip().startswith("#") and _JQ_TOKEN.search(line)
+    ]
 
 
 def _bound_source(line: str, bindings: dict[str, str]) -> str | None:
