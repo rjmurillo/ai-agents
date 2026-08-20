@@ -50,5 +50,10 @@ naming the existing Confirmed/Declined/Unreproduced replies, a gate in
 `Action: Reply Only` before `Action: Implement` can be chosen, and a new
 "Premise Refuted" reply template. No new script, no new taxonomy, no
 escalation needed: `reviewer-findings` MUST 4 already answered the PRD's
-blocking question. Landed in PR for issue #5069 (commits `743a05a`,
-`bad269d`).
+blocking question. Landed in PR #5178 for issue #5069; the branch was
+squashed twice during review (see the QA report's "Final squash" notes at
+`.agents/qa/session-99923-premise-verification-qa-report.md`), so the
+commits that carry this decision today are `63e81fe36` (the skill/router
+implementation) and this memory's own commit (originally landed alongside
+it, since renumbered by each squash; check the memory-index entry's
+git history for the current SHA rather than trusting a value fixed here).

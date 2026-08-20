@@ -226,7 +226,13 @@ uses `git --literal-pathspecs log -S "$NEEDLE" <pr-head-commit> --
 is the same file-loaded variable in every command above: pass it after the
 literal `--` shown above where the command supports it, or through the
 quoted `"$PATH_SPEC"` for `git show`'s combined revision spec, never spliced
-into a larger shell string. A refuted
+into a larger shell string. The premise check settles the verdict
+specifically (is the claimed fact or behavior real, right now), not the
+diagnosis or the prescription, which are separate claims per
+`reviewer-findings`'s three-claims model; a confirmed verdict with a wrong
+diagnosis or a stale prescription is not a refuted premise, so re-derive the
+actual defect and implement a fix for it rather than the reviewer's fix as
+written. A refuted
 premise MUST NOT reach `Action: Implement`;
 classify it `Action: Reply Only` with `Rationale` naming the file, line, and
 commit checked, and use the Premise Refuted template

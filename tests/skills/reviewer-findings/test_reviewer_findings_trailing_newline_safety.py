@@ -65,6 +65,20 @@ def _collapsed(text: str) -> str:
     return " ".join(text.split())
 
 
+def _has_sentinel_recipe(text: str, recipe: str) -> bool:
+    """Return whether ``recipe`` appears in ``text`` after wrap-collapsing.
+
+    The single contract check shared by every positive assertion in this
+    file and by the negative control below (Copilot on PR #5178: an
+    earlier draft had the negative control reimplement this membership
+    test inline instead of calling the same predicate the positive tests
+    use, so a future change to how positive assertions match could drift
+    from what the negative control still checks, silently weakening the
+    guard without either test failing to signal it).
+    """
+    return recipe in _collapsed(text)
+
+
 class TestTrailingNewlineCommandSubstitutionSafety:
     def test_reviewer_findings_needle_load_survives_a_trailing_newline(
         self, plugin_root: Path
@@ -82,8 +96,8 @@ class TestTrailingNewlineCommandSubstitutionSafety:
         finding actually quoted, understating a match that should have
         confirmed the premise.
         """
-        text = _collapsed(_read(plugin_root, SKILL_NAME))
-        assert _NEEDLE_SENTINEL_RECIPE in text, (
+        text = _read(plugin_root, SKILL_NAME)
+        assert _has_sentinel_recipe(text, _NEEDLE_SENTINEL_RECIPE), (
             f"{SKILL_NAME}/SKILL.md in {plugin_root} no longer prescribes "
             f"the sentinel round-trip ({_NEEDLE_SENTINEL_RECIPE!r}) for "
             f"loading the needle file; a plain $(cat <needle-file>) "
@@ -125,8 +139,8 @@ class TestTrailingNewlineCommandSubstitutionSafety:
         directory: the copilot-cli mirror is a separately generated file,
         not merely a passthrough copy, so it needs its own check.
         """
-        text = _collapsed(_read_reference(plugin_root, ROUTER_SKILL, "workflow.md"))
-        assert _PATH_SENTINEL_RECIPE in text, (
+        text = _read_reference(plugin_root, ROUTER_SKILL, "workflow.md")
+        assert _has_sentinel_recipe(text, _PATH_SENTINEL_RECIPE), (
             f"{ROUTER_SKILL}/references/workflow.md in {plugin_root} no "
             f"longer prescribes the sentinel round-trip "
             f"({_PATH_SENTINEL_RECIPE!r}) for loading the path file; a "
@@ -135,22 +149,28 @@ class TestTrailingNewlineCommandSubstitutionSafety:
         )
 
     def test_a_bare_cat_load_is_what_the_sentinel_guard_would_catch(self) -> None:
-        """Negative control: the same substring check must flag the
-        pre-fix, lossy recipe rather than pass on any `$(cat ...)` mention.
+        """Negative control: the exact same ``_has_sentinel_recipe`` predicate
+        the positive tests call must flag the pre-fix, lossy recipe rather
+        than pass on any `$(cat ...)` mention.
 
-        This guards against the check degenerating into "the text mentions
-        $(cat" (trivially true even in the un-fixed form, since the fix
-        prose itself names the bad pattern as a warning) by requiring the
-        *exact* sentinel recipe, not merely a substring of it.
+        Calling the shared predicate here, instead of a second, independent
+        substring check, is the point (Copilot on PR #5178: an earlier draft
+        reimplemented the membership test inline, so a future change to how
+        the positive tests match could drift from what this control still
+        checks without either test failing to signal it). This also guards
+        against the check degenerating into "the text mentions $(cat"
+        (trivially true even in the un-fixed form, since the fix prose
+        itself names the bad pattern as a warning) by requiring the *exact*
+        sentinel recipe, not merely a substring of it.
         """
         unfixed_needle = "load the needle with `NEEDLE=$(cat <needle-file>)` and reference it"
         unfixed_path = "load the path with `PATH_SPEC=$(cat <path-file>)` and reference it"
-        assert _NEEDLE_SENTINEL_RECIPE not in _collapsed(unfixed_needle), (
+        assert not _has_sentinel_recipe(unfixed_needle, _NEEDLE_SENTINEL_RECIPE), (
             "the sentinel guard did not distinguish the lossy bare $(cat "
             "<needle-file>) recipe from the fixed sentinel form, so it "
             "would not catch a real regression back to the lossy form"
         )
-        assert _PATH_SENTINEL_RECIPE not in _collapsed(unfixed_path), (
+        assert not _has_sentinel_recipe(unfixed_path, _PATH_SENTINEL_RECIPE), (
             "the sentinel guard did not distinguish the lossy bare $(cat "
             "<path-file>) recipe from the fixed sentinel form, so it would "
             "not catch a real regression back to the lossy form"
