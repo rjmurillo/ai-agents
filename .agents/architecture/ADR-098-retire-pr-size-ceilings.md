@@ -75,7 +75,9 @@ That last point sharpens the result rather than softening it. Because #4846 was 
 
 ### The open population, enumerated
 
-The closed-unmerged set is not the only place a counterexample can live, and an earlier revision of this decision treated it as though it were. A pull request the ceiling is *currently* holding is open, not closed, so the open labeled population had to be classified too. A reviewer raised this; the search is `label:"needs-split" created:2026-08-06..2026-08-20 is:open`, and at the stated cutoff it returns four.
+The closed-unmerged set is not the only place a counterexample can live, and an earlier revision of this decision treated it as though it were. A pull request the ceiling is *currently* holding is open, not closed, so the open labeled population had to be classified too. A reviewer raised this; the search is `label:"needs-split" created:2026-08-06..2026-08-20 is:open`, run at **2026-08-20T19:47Z**, and it returns four.
+
+That is a later snapshot than the 18:00Z cutoff the counts above use, and the two must not be conflated. #5181 did not exist at 18:00Z; it was opened at 18:05:08Z. #5176 did exist and carried 26 commits with a qualifying `main` merge already in place, so it was under its relieved ceiling at that cutoff too, but it reached 40 by the later snapshot. Both timestamps are stated because the population is live and a single cutoff cannot describe a set that grew between them.
 
 | Pull request | Authored non-merge | Qualifying `main` merge | Effective limit | Blocked |
 |---|---|---|---|---|

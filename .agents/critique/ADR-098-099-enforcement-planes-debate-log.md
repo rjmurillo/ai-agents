@@ -129,6 +129,16 @@ Classifying the open set at the same cutoff returned four, and the first attempt
 
 That is worth recording plainly. The conclusion was right and the reasoning behind it was incomplete, which is the condition a review process exists to detect and this one did not.
 
+### Two more after the decision, both about how a claim was scoped
+
+Neither changed a conclusion; both changed what the text was entitled to say, and they are recorded because the pattern is the same one that runs through this whole log.
+
+**A pinned cutoff that could not contain its own population.** The counts carry a stated snapshot of 18:00Z. The open-population table was written under that same attribution and could not have been: #5181 was opened at 18:05:08Z, five minutes after the cutoff it was filed under. The open query actually ran at 19:47Z. Both timestamps are now stated separately, because the population is live and one cutoff cannot describe a set that grew between them. Pinning a timestamp was itself a correction from an earlier round; pinning it and then filing later evidence under it is the same error one level down.
+
+**A threat-model claim that contradicted its own remedy.** ADR-099 asserted that a ruleset matches a required check by context name only, and two paragraphs later proposed pinning `integration_id` as the fix for the spoofing hole that claim describes. Both cannot be unconditionally true. The claim holds for this repository's configuration, where `scripts/ci/ruleset_required_contexts.py` pins names alone, and not for GitHub in general. Scoped in both places.
+
+The shape recurs: a statement true of a measured instance, written as though true of the mechanism. That is the same failure as reading a label's absence as proof of a threshold, and as citing a rule whose path scope does not reach the file. Three instances, three rounds, one habit.
+
 ### Where the review ends
 
 High-level-advisor's read, which the orchestrator accepts: freeze the text. Six rounds on six files, with the external reviewers out-yielding the panel, means another round buys marginal prose and spends credibility the panel needs. What remains is not more review; it is the owner's decision under MUST-1 and MUST NOT 1.
