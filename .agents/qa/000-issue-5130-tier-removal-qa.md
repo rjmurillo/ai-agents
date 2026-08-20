@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-5174-b3bfa3aaa-remove-agent-tier-hierarchy-replace.json
-qaCommit: 4557cdb9592eb595c4c1b09ff0901eabc4752f69
+qaCommit: ecc721225a7ab41a1ca79908f8a0e5036605ea87
 ---
 
 # QA report: issue #5130, remove the agent tier hierarchy
@@ -68,3 +68,19 @@ pass and caught by the install-parity gate.
   They are frozen prototype measurement artifacts for issue #1738
   (`prototype: true`) and were left unmodified so the recorded measurement
   stays faithful.
+
+## Addendum: findings after the first QA pass
+
+Three rounds of review landed after the original run. Each is covered:
+
+| Finding | Source | Verification |
+|---|---|---|
+| OpenClaw export read only the top-level key, so nested-shape agents resolved to `support` | spec reviewer | 5 new cases in `tests/test_openclaw_bridge_roles.py`, incl. a negative control for unmigrated `metadata.tier`. Claude tree now resolves 4 strategic / 5 coordinator / 11 executor / 11 support |
+| Frontmatter validator accepted any string for `role`, so `buidler` became `support` | Copilot review | `role` required and constrained to the four known values; 6 new cases incl. the typo and a stale `builder` value |
+| Debate log claimed all three files quote ADR-009 verbatim | Copilot review | Replaced with a byte-measured per-file table; SESSION-PROTOCOL.md summarizes, orchestrator-routing carries the table only |
+| Taste ratchet regressed 577 > 576 (test file crossed 500 lines) | pre-push merge-tree ratchet | Split by concern into two modules, 356 and 222 lines; ratchet back to `OK (count == baseline 576)` |
+
+Re-verified on this commit: `uv run pytest` on the four affected suites (46 + 28
++ 30 + 26 = 130 passed), `ruff` and `mypy` clean on all 11 changed Python files,
+`generate_agent_catalog.py --check` OK, `validate_copilot_agent_frontmatter.py`
+PASS on 31 files, `taste_count_ratchet.py` OK at baseline.

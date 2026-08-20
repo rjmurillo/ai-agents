@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "NOT LINTED: no changed markdown files"
+        "Evidence": "NOT LINTED: pre_pr.py --markdown-lint-only selected 0 of 1 files"
       },
       "qaValidation": {
         "level": "MUST",
