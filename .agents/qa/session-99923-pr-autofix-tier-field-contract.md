@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract.json
-qaCommit: c8ef39989bef26b36a032bd559c3c05ba10a1cf3
+qaCommit: f0cfc4af1ac13eb88502a499ecc76d18e4bd3383
 ---
 
 # QA Report: session 99923, pr-autofix tier field contract
@@ -9,7 +9,7 @@ qaCommit: c8ef39989bef26b36a032bd559c3c05ba10a1cf3
 - Issue: #5094
 - PR: #5176
 - Session log: `.agents/sessions/2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract.json`
-- QA commit: `c8ef39989bef26b36a032bd559c3c05ba10a1cf3`
+- QA commit: `f0cfc4af1ac13eb88502a499ecc76d18e4bd3383`
 - Branch: `claude/pr-5175-review-v21yk2`
 
 ## Verdict
@@ -99,8 +99,8 @@ The guard now fails and names the missed lines. Restored; 29 passed.
 
 | Command | Result |
 |---|---|
-| `uv run pytest tests/commands/test_pr_autofix_field_contract.py` | 29 passed |
-| `uv run pytest tests/commands/ tests/skills/pr-autofix/` | 397 passed, 1 skipped |
+| `uv run pytest tests/commands/test_pr_autofix_field_contract.py` | 30 passed |
+| `uv run pytest tests/commands/ tests/skills/pr-autofix/` | 398 passed, 1 skipped |
 | pr-autofix behavioral suites plus `tests/commands/` | 462 passed, 1 skipped |
 | `uv run ruff check tests/commands/` | All checks passed |
 | `uv run python build/scripts/build_all.py --check` | no staleness |
@@ -139,12 +139,29 @@ producer's derived schema, not only its envelope level.
 
 Stated rather than claimed clean, per the clear-the-gate-or-drop-the-claim rule:
 
-1. `_calls_data_emitter` is module-wide, not path-sensitive. A producer that
+1. **No behavioral verification of the two re-armed gates.** Proving the T3/T4
+   round-cap and non-T1 auto-merge branches actually execute with the parsed
+   tier needs the live PR loop, not a static gate. Both branches have been inert
+   for as long as the defect existed, so their first live runs are the real
+   test. Spec validation raised this; it is deliberately out of scope here and
+   flagged in the PR's review focus areas.
+2. `_calls_data_emitter` is module-wide, not path-sensitive. A producer that
    wrapped only its error branch while printing flat on success would be
    misclassified. None of the six producers in play does this.
-2. `_keys_bound_to` unions module-wide, so a second same-named dict in another
+3. `_keys_bound_to` unions module-wide, so a second same-named dict in another
    function would widen the accepted field set. Checked: no producer in play has
    one.
-3. Whether the two re-armed gates behave correctly at runtime is a behavioral
-   question this static gate cannot answer. Both have been inert, so their first
-   live runs are the real test. Flagged in the PR's review focus areas.
+
+## Second hardening pass
+
+Spec validation raised two fail-open paths after the first pass. Both fixed and
+mutation-verified:
+
+1. `_field_violation` stood down whenever `top_level_keys` was None, and nothing
+   required the producers in use to be decidable. Forcing derivation to return
+   None now fails 5 tests, `test_every_consumed_producer_has_derivable_keys`
+   among them; before the fix the suite stayed green.
+2. The invocation-coverage guard compared line presence, so a line running two
+   jq commands where only the first parsed counted as reached. Now compares
+   per-line counts. Measured on such a line: 2 invocations, 1 path parsed, guard
+   fires.

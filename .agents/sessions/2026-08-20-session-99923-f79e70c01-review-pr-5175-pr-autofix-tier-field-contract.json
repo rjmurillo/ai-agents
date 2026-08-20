@@ -74,7 +74,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ruff clean across tests/commands; 29 pass in the new contract file; 397 passed and 1 skipped across tests/commands and tests/skills/pr-autofix; 462 passed and 1 skipped including the pr-autofix behavioral suites; build_all.py --check reports no staleness; mypy ratchet clean."
+        "Evidence": "ruff clean across tests/commands; 30 pass in the contract file; 398 passed and 1 skipped across tests/commands and tests/skills/pr-autofix; build_all.py --check reports no staleness; mypy ratchet clean; pre_pr.py all validations passed."
       },
       "qaValidation": {
         "level": "MUST",
@@ -179,7 +179,7 @@
       }
     ]
   },
-  "endingCommit": "c8ef39989bef26b36a032bd559c3c05ba10a1cf3",
+  "endingCommit": "f0cfc4af1ac13eb88502a499ecc76d18e4bd3383",
   "nextSteps": [
     "Open a draft PR from claude/pr-5175-review-v21yk2 referencing issue #5094",
     "Report on PR #5175 that its branch carries no diff so the owner can decide whether to close it in favor of this change"
