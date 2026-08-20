@@ -199,7 +199,7 @@ allowed-tools: Read Grep Glob
 **Sources**:
 
 - **adr-review skill**: Uses `metadata.subagent_model` for delegated agent model
-- **skillforge, session-init**: Use top-level `model` for skill execution model
+- **skillforge**: Uses top-level `model` for skill execution model
 - **ADR-040**: Specifies top-level `model` per SkillForge validator
 
 **Resolution**: **BOTH, DIFFERENT PURPOSES**
@@ -242,14 +242,14 @@ metadata:
   # (issue #4936). Omit it; delegated agents inherit the harness model.
 ```
 
-**Example (non-orchestrator)**: abridged from `.claude/skills/session-init/SKILL.md`.
+**Example (non-orchestrator)**: abridged from `.claude/skills/retrospective/SKILL.md`.
 
 ```yaml
 ---
-name: session-init
+name: retrospective
 # No model: line. Inherits the harness model (ADR-080).
 metadata:
-  domains: [session-protocol]    # No subagent_model (not an orchestrator)
+  domains: [retrospective, learning-extraction]    # No subagent_model (not an orchestrator)
 ```
 
 ---
@@ -317,7 +317,7 @@ metadata:
   - No consecutive hyphens
   - Must match parent directory name
 - **Regex**: `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`
-- **Example**: `session-init`, `adr-review`, `fix-markdown-fences`
+- **Example**: `reflect`, `adr-review`, `fix-markdown-fences`
 
 #### description (REQUIRED)
 
@@ -599,10 +599,9 @@ model-rationale: cost. The 'haiku' rolling alias resolves via the platform model
 ```
 
 **Determinism is no longer a reason to pin.** The ADR-040-era exception for
-security-critical skills (`security-detection`, `session-log-fixer`) is
-superseded: `.claude/skills/security-detection/SKILL.md` ships `model: haiku`
-with a cost rationale, `.claude/skills/session-log-fixer/SKILL.md` carries no
-`model:` line at all, and a versioned pin on either would fail the gate.
+security-critical skills is superseded: `.claude/skills/security-detection/SKILL.md`
+ships `model: haiku` with a cost rationale, `.claude/skills/reflect/SKILL.md`
+carries no `model:` line at all, and a versioned pin on either would fail the gate.
 
 ### 7.3 Comma-Separated to Space-Delimited (allowed-tools)
 
@@ -796,35 +795,36 @@ Installation:
 
 ### A.2 ai-agents Optimized Skill (With Extensions)
 
+Abridged from `.claude/skills/retrospective/SKILL.md`.
+
 ```yaml
 ---
-name: session-init
-version: 1.0.0
-description: Create protocol-compliant session logs with verification-based enforcement. Prevents recurring CI validation failures by reading canonical template from SESSION-PROTOCOL.md and validating immediately. Use when starting any new session.
+name: retrospective
+version: 0.1.0
+description: Extract learnings from a session or task through structured retrospective frameworks. Gathers evidence, runs Five Whys and fishbone diagnosis, scores atomicity, and writes a canonical retrospective artifact. Use when you say "run a retrospective" or "extract learnings from this session".
 license: MIT
 # No model: line. Inherits the harness model (ADR-080), as the shipped skill does.
 metadata:
   domains:
-    - session-protocol
-    - compliance
-    - automation
-  type: initialization
+    - retrospective
+    - learning-extraction
+    - root-cause-analysis
+  type: workflow
   inputs:
-    - session-number
-    - objective
-  outputs:
+    - scope-description
     - session-log
-    - validation-report
+  outputs:
+    - retrospective-markdown-file
 ---
 
-# Session Init
+# Retrospective
 
-Create protocol-compliant session logs.
+Extract learnings from a session through structured retrospective frameworks.
 
 ## Quick Start
 
 ```bash
-python3 .claude/skills/session-init/scripts/new_session_log.py
+uv run python scripts/run_retrospective.py --scope "<scope-description>"
 ```
 
 ## References

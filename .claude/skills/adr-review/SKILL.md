@@ -15,7 +15,6 @@ metadata:
       - "docs/architecture/ADR-*.md"
       - "docs/decisions/ADR-*.md"
       - "architecture/decisions/ADR-*.md"
-      - ".agents/SESSION-PROTOCOL.md"
     events: [create, update, delete]
     auto_invoke: true
 ---
@@ -61,7 +60,6 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 | `ADR-*.md` | `docs/architecture/` | create, update, delete |
 | `ADR-*.md` | `docs/decisions/` | create, update, delete |
 | `ADR-*.md` | `architecture/decisions/` | create, update, delete |
-| `SESSION-PROTOCOL.md` | `.agents/` | create, update, delete |
 
 **Detection**: from the skill directory, run `python3 scripts/detect_adr_changes.py --base-path <repo-root>`. From repo root, run `.claude/skills/adr-review/scripts/detect_adr_changes.py` for the Claude skill tree or `src/copilot-cli/skills/adr-review/scripts/detect_adr_changes.py` for the Copilot CLI mirror.
 
@@ -71,7 +69,6 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 
 - Architect creates or updates an ADR
 - ANY agent modifies `.agents/architecture/ADR-*.md`, `docs/adr/ADR-*.md`, `docs/architecture/ADR-*.md`, `docs/decisions/ADR-*.md`, or `architecture/decisions/ADR-*.md`
-- ANY agent modifies `.agents/SESSION-PROTOCOL.md`
 
 **User-Initiated Triggers** (manual):
 

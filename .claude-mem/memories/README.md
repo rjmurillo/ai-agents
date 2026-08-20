@@ -249,7 +249,7 @@ Not possible due to automatic duplicate detection. If seeing apparent duplicates
 ## References
 
 - [Claude-Mem Export/Import Docs](https://docs.claude-mem.ai/usage/export-import)
-- [SESSION-PROTOCOL.md](../../.agents/SESSION-PROTOCOL.md) - Session workflow integration
+- [Session Log Mechanics](../../.claude/rules/session-logs.md) - Session workflow integration
 - [ADR-007: Memory-First Architecture](../../.agents/architecture/ADR-007-memory-first-architecture.md)
 - Forgetful MCP: Similar capability for semantic memory system
 

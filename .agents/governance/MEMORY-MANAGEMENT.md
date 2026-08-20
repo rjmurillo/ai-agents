@@ -2,7 +2,7 @@
 
 > **Status**: Operational Guidance
 > **Last Updated**: 2026-01-03
-> **Related**: ADR-007 (Memory-First Architecture), SESSION-PROTOCOL.md
+> **Related**: ADR-007 (Memory-First Architecture), `AGENTS.md` Retrieval gate
 
 This document describes the unified memory management workflow across three memory systems: **Serena**, **Forgetful**, and **Claude-Mem**.
 
@@ -478,7 +478,7 @@ Before exporting, verify:
 
 ## Related Documents
 
-- [SESSION-PROTOCOL.md](../SESSION-PROTOCOL.md) - Session start/end requirements
+- [`.claude/rules/session-logs.md`](../../.claude/rules/session-logs.md) - Session log mechanics
 - [ADR-007: Memory-First Architecture](../architecture/ADR-007-memory-first-architecture.md)
 - [.claude-mem/memories/README.md](../../.claude-mem/memories/README.md) - Export/import detailed workflow
 - [Claude-Mem Export/Import Docs](https://docs.claude-mem.ai/usage/export-import)

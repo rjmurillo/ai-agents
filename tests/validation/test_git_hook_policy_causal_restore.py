@@ -2322,19 +2322,6 @@ class TestAdrReviewPolicyMergeScope:
         assert foreign not in carried
         assert policy._head_copy_is_one_main_has_carried(repo, adr_path) is False
 
-    def test_the_protocol_itself_is_still_a_path_this_gate_governs(
-        self,
-        tmp_path,
-    ):
-        """The negative control for the test above.
-
-        Anchoring the protocol half must not narrow it past the real file,
-        which lives one directory down and is the reason the alternative
-        exists. Checked at both the segment boundary and the repository root.
-        """
-        assert policy.ADR_REVIEW_PATH_RE.search(".agents/SESSION-PROTOCOL.md")
-        assert policy.ADR_REVIEW_PATH_RE.search("SESSION-PROTOCOL.md")
-
     def test_a_lineage_into_a_different_decision_record_is_not_carried(
         self,
         tmp_path,
@@ -2559,15 +2546,6 @@ class TestGovernedDocumentIdentity:
         assert policy._governed_document_identity(
             ".agents/architecture/ADR-201-first.md"
         ) != policy._governed_document_identity(".agents/architecture/ADR-202-second.md")
-
-    def test_the_protocol_stands_for_itself(self):
-        """It carries no number, and it is not any record's."""
-        protocol = policy._governed_document_identity(".agents/SESSION-PROTOCOL.md")
-
-        assert protocol is not None
-        assert protocol != policy._governed_document_identity(
-            ".agents/architecture/ADR-201-first.md"
-        )
 
     def test_a_directory_named_for_a_record_does_not_shadow_the_file(self):
         """The number is read where the path test anchors: the last segment.

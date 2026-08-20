@@ -3,8 +3,6 @@ paths:
   - ".claude/commands/spec.md"
   - ".agents/sessions/**"
   - ".agents/retrospective/**"
-  - ".claude/skills/session-init/**"
-  - ".claude/skills/session-end/**"
   - ".claude/rules/secret-redaction.md"
 priority: high
 ---

@@ -25,7 +25,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 TARGETS = (
     Path("tests/ci/test_validation_scripts_are_reachable.py"),
     Path("scripts/validation/git_hook_policy.py"),
-    Path(".claude/skills/session-end/scripts/complete_session_log.py"),
 )
 
 
@@ -160,39 +159,12 @@ def _run_mutations(repo_root: Path) -> int:
                 "tests/validation/test_session_log_branch_aware.py",
             ],
         ),
-        # Issue #4161: branch-first selection in _find_current_session_log
-        (
-            "#4161 branch-match",
-            repo_root
-            / ".claude/skills/session-end/scripts/complete_session_log.py",
-            "if _read_log_branch(full) == branch:",
-            "if _read_log_branch(full) != branch:  # mutant: invert branch match",
-            [
-                "tests/skills/test_session_scripts.py",
-            ],
-        ),
-        # Issue #4161: newest matching branch log wins when branch has multiple logs
-        (
-            "#4161 newest-branch-match",
-            repo_root
-            / ".claude/skills/session-end/scripts/complete_session_log.py",
-            "sorted(candidates, key=lambda x: (x[0], x[2]), reverse=True)",
-            "sorted(candidates, key=lambda x: x[2])",
-            [
-                "tests/skills/test_session_scripts.py",
-            ],
-        ),
-        # Issue #4161: _get_current_branch empty-string guard
-        (
-            "#4161 empty-branch-guard",
-            repo_root
-            / ".claude/skills/session-end/scripts/complete_session_log.py",
-            "return branch or None",
-            "return branch",
-            [
-                "tests/skills/test_session_scripts.py",
-            ],
-        ),
+        # Issue #4161's three mutations targeted
+        # .claude/skills/session-end/scripts/complete_session_log.py and its
+        # test at tests/skills/test_session_scripts.py. Both were deleted
+        # with the session-end skill (Issue #5138); the branch-aware
+        # session-log selection they guarded has no surviving implementation
+        # to mutate.
     ]
 
     results: dict[str, list[str]] = {"DEAD": [], "SURVIVED": [], "DID-NOT-APPLY": []}

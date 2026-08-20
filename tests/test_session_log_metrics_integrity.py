@@ -1,24 +1,28 @@
 """Tests for two session-log integrity gaps (issues #4405 and #4415).
 
-#4405: four checklist items the generator emits at ``"level": "MUST"`` were
+#4405: four checklist items a session log needs at ``"level": "MUST"`` were
 absent from ``SESSION_START_REQUIRED_ITEMS``. Deleting one of those keys passed
 validation while leaving it present-and-incomplete failed, so the gate was
 strictly easier to satisfy by removing a checklist item than by doing the work
-it names. The parity test below pins the generator and the validator together
-so the two lists cannot drift apart again.
+it names.
 
 #4415: a log whose ``session.startingCommit`` equals its ``endingCommit``
 claims a base that is also its tip. The episode extractor excludes the base
 commit by design, so the session's only commit vanishes and the episode records
 ``metrics.commits`` 0, which the episode-store ratchet then rejects several
 steps away from the field that was actually wrong.
+
+Fixtures build a session log by hand against ``SESSION_START_REQUIRED_ITEMS``/
+``SESSION_END_REQUIRED_ITEMS`` directly. A generator (``new_session_log_json.py``,
+under the session-init skill) used to produce this shape and a parity test
+pinned the two together; both were deleted with the skill (issue #5138), and
+session logs are now written by hand, so these required-items sets are the
+sole source of truth for the checklist shape.
 """
 
 from __future__ import annotations
 
 import copy
-import sys
-from pathlib import Path
 from typing import Any
 
 import pytest
@@ -31,24 +35,48 @@ from scripts.validate_session_json import (
     validate_session_start,
 )
 
-_SESSION_INIT = Path(__file__).resolve().parents[1] / ".claude" / "skills" / "session-init"
-sys.path.insert(0, str(_SESSION_INIT))
-
-from session_init.session_structure import build_session_log  # noqa: E402
-
 _SHA_A = "1" * 40
 _SHA_B = "2" * 40
 _SAME_COMMIT_PREFIX = "startingCommit and endingCommit are the same commit"
 
 
 def _generated_log() -> dict[str, Any]:
-    return build_session_log(
-        branch="feature/x",
-        commit=_SHA_A,
-        session_number=1,
-        objective="probe",
-        current_date="2026-08-03",
-    )
+    """A hand-built session log with every checklist item incomplete.
+
+    Mirrors the shape the deleted generator used to produce: every required
+    sessionStart/sessionEnd item at its documented level, plus one SHOULD
+    item (``gitStatusVerified``) so tests have a non-MUST control.
+    """
+    session_start = {
+        name: {"Complete": False, "Evidence": "", "level": "MUST"}
+        for name in SESSION_START_REQUIRED_ITEMS
+    }
+    session_start["gitStatusVerified"] = {
+        "Complete": False,
+        "Evidence": "",
+        "level": "SHOULD",
+    }
+    session_end = {
+        name: {"Complete": False, "Evidence": "", "level": "MUST"}
+        for name in SESSION_END_REQUIRED_ITEMS
+    }
+    return {
+        "schemaVersion": "1.0",
+        "session": {
+            "number": 1,
+            "date": "2026-08-03",
+            "branch": "feature/x",
+            "startingCommit": _SHA_A,
+            "objective": "probe",
+        },
+        "protocolCompliance": {
+            "sessionStart": session_start,
+            "sessionEnd": session_end,
+        },
+        "workLog": [],
+        "endingCommit": "",
+        "nextSteps": [],
+    }
 
 
 def _set_complete(item: dict[str, Any], value: bool) -> None:
@@ -78,56 +106,6 @@ def _completed_log() -> dict[str, Any]:
                 if not item.get("Evidence"):
                     item["Evidence"] = "verified"
     return log
-
-
-def _must_items(log: dict[str, Any], section: str) -> set[str]:
-    items = log["protocolCompliance"][section]
-    return {
-        name
-        for name, body in items.items()
-        if isinstance(body, dict) and body.get("level") == "MUST"
-    }
-
-
-class TestGeneratorValidatorParity:
-    """Every MUST item the generator emits must be required by the validator.
-
-    This is the regression guard for #4405. Without it, adding a MUST item to
-    the generator silently widens the hole: the new key is unenforced, so a log
-    that omits it validates clean.
-    """
-
-    @pytest.mark.parametrize(
-        ("section", "required"),
-        [
-            ("sessionStart", SESSION_START_REQUIRED_ITEMS),
-            ("sessionEnd", SESSION_END_REQUIRED_ITEMS),
-        ],
-    )
-    def test_every_generator_must_item_is_required(
-        self, section: str, required: frozenset[str]
-    ) -> None:
-        musts = _must_items(_generated_log(), section)
-        assert musts, f"{section} emitted no MUST items; the probe is measuring nothing"
-        missing = musts - set(required)
-        assert not missing, (
-            f"{section} MUST items absent from the validator's required set: "
-            f"{sorted(missing)}. A log omitting any of these validates clean, "
-            f"so the gate is easier to pass by deleting the item than by "
-            f"completing it (issue #4405)."
-        )
-
-    @pytest.mark.parametrize("section", ["sessionStart", "sessionEnd"])
-    def test_required_set_names_no_item_the_generator_omits(self, section: str) -> None:
-        """The reverse direction: a required key the generator never emits would
-        make every freshly generated log invalid on creation."""
-        required = (
-            SESSION_START_REQUIRED_ITEMS
-            if section == "sessionStart"
-            else SESSION_END_REQUIRED_ITEMS
-        )
-        emitted = set(_generated_log()["protocolCompliance"][section])
-        assert not (set(required) - emitted)
 
 
 class TestSessionStartRequiredItems:

@@ -305,7 +305,7 @@ a freshly fetched `main` and re-measure before hunting the violation. See
 
 ## Related Documentation
 
-- **Session Protocol**: `.agents/SESSION-PROTOCOL.md`
+- **Session log mechanics**: `.claude/rules/session-logs.md`
 - **Git hook configuration**: `lefthook.yml`
 - **Workflow validation**: [docs/WORKFLOW-VALIDATION.md](../../docs/WORKFLOW-VALIDATION.md)
 - **CI script rules**: `.claude/rules/ci-scripts.md`
