@@ -104,6 +104,8 @@ Adopt **enforcement plane** classification as this repository's rule for gate de
 
 > A gate protecting artifacts at plane N must compute its verdict at a plane above N, from evidence the gated actor cannot forge.
 
+The recursion stops at P2, and saying where is part of the rule. P2 is the root of trust: it is protected by the credential boundary that defines it, not by a P3 that does not exist. A change to a ruleset or a bypass-actor list is therefore governed by who holds the admin credential, and the only defense available in the tree is detection, which is why the hardening list routes drift findings out of the repository rather than pretending a P0 detector can enforce against P2.
+
 Four rules follow.
 
 1. **Enforcement above the enforced.** A P0 hook may advise and may fail fast for local convenience. It may never be the only thing between a change and the trunk, because the actor owns that plane.
@@ -188,7 +190,7 @@ Four residuals remain, per the module's own trust model, and Application B cover
 
 ### Fork pull requests
 
-A fork pull request receives a read-only token and no secrets, so a base-ref verification job may be unable to produce its attestation, and the required context would never report. Under the deadlock property that is a permanent block, which is correct for an untrusted contribution but wrong as an unhandled surprise. Fork pull requests take a documented path: the attestation runs after a maintainer moves the branch in-repository, and the deadlock is the intended state until then.
+A fork pull request's own workflow receives a read-only token and no secrets. A `workflow_run` job triggered by it does not inherit that limitation, and this decision relies on exactly that property above, so the fork case is not settled by the fork's token alone. The open question is narrower and is a runtime-contract question: whether the separate publisher App can attach the required context to a fork head commit. Probe that before mandating any workaround. If it cannot, the required context would never report. Under the deadlock property that is a permanent block, which is correct for an untrusted contribution but wrong as an unhandled surprise. Fork pull requests take a documented path: the attestation runs after a maintainer moves the branch in-repository, and the deadlock is the intended state until then.
 
 ### What stays outside the loop
 
@@ -247,7 +249,8 @@ This buys per-change autonomy at the cost of a single point of failure at the co
 
 ### Negative
 
-- Human decisions per change go to zero. Human decisions per period do not. Someone must confirm the control plane on a cadence, because a P0 detector cannot enforce against P2. Describing this as "no human in the loop" is accurate for change flow and inaccurate as an absolute, and the honest form of the claim is the one to keep.
+- Human decisions per change go to zero **for ordinary changes**, not for changes to the enforcement paths themselves. Phase 0 extends CODEOWNERS over those paths and every entry today names the repository owner, so an enforcement-path change would require a human review. That is the intended trade, and it is a narrower autonomy claim than the goal as originally stated: the loop runs unattended over the code it is meant to change, and stops at the code that constrains it. Defining a non-human code owner whose credential sits outside the loop would close even that, and is out of scope here.
+- Human decisions per period do not go to zero. Someone must confirm the control plane on a cadence, because a P0 detector cannot enforce against P2. Describing this as "no human in the loop" is accurate for change flow and inaccurate as an absolute, and the honest form of the claim is the one to keep.
 - A misconfigured required context blocks every pull request until corrected.
 - The attestation verifies execution, not reasoning quality. Rubber-stamping remains possible. The citation requirement narrows it without eliminating it.
 - The panel remains single-vendor. All six roles pin Anthropic models, so correlated blind spots are not addressed here. Accepted as residual risk and recorded rather than solved.
@@ -286,11 +289,13 @@ This buys per-change autonomy at the cost of a single point of failure at the co
 
 Against that base rate, momentum is not a sufficient reason to continue, so the burden sits on the additions rather than on stopping. **Phases 2 and 3 are abandoned unless the falsification harness below publishes a per-role catch rate that justifies the surface they add.** Not recorded and weighed; abandoned by default, and revived only by that measurement. The evidence for Phase 2 today is one self-disclosed incident on a file that has since been deleted, plus a 10-of-96 ADR sample with no stated selection method, which is thinner than what Phases 0 and 1 rest on. Shipping Phases 0 and 1 alone is an acceptable terminal state for this decision, and on current evidence it is the expected one.
 
-This decision is itself a governance change, so under `.claude/rules/governance.md` MUST-1 as it stands today it requires human approval. That is the bootstrap, and it is the last human decision the design requires in the normal flow.
+The bootstrap needs stating accurately rather than assumed. `.claude/rules/governance.md` is scoped by its frontmatter to `.agents/governance/**`, and this file sits in `.agents/architecture/`, so MUST-1 does not gate this proposal. It gates the implementation pull request, which edits `.agents/governance/PROJECT-CONSTRAINTS.md`. MUST-2 runs the other way and is satisfied by this ADR existing.
+
+So the human decision this design depends on is the one that sets P2 and approves the implementation, not approval of this document. That is the bootstrap, and it is the last human decision the design requires in the normal flow.
 
 ### Follow-up, not part of this decision
 
-- **A measured catch rate for the panel.** The attestation raises the trust placed in the debate without measuring whether the debate catches anything. A falsification harness should replay known-bad diffs, seeded from defects already on record, and publish a per-role catch rate. Until that exists, the panel's effectiveness is assumed rather than known. This blocks declaring Phase 2 complete; it does not block starting it.
+- **A measured catch rate for the panel.** The attestation raises the trust placed in the debate without measuring whether the debate catches anything. A falsification harness should replay known-bad diffs, seeded from defects already on record, and publish a per-role catch rate. Until that exists, the panel's effectiveness is assumed rather than known. Per the go/no-go, this blocks Phase 2 from opening at all, not merely from being declared complete. An earlier revision said it did not block starting, which contradicted the default-no decision; the default-no governs.
 - Cross-vendor panel composition, if the correlated-blind-spot risk proves real.
 - Tag protection rules. Named during review as unmonitored P2 surface. It guards release-tag integrity rather than the merge path this decision's invariant governs, so it belongs with the Phase 0 inventory work rather than blocking it.
 

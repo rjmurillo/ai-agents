@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "endingCommit names f5f0d59c6f50e46a575df292a3800e74418f4835, the commit carrying the two ADRs and the debate log. Later commits on this branch record the SHA itself, correct citations that a base merge made stale, and carry the owner's merge of main; per .claude/rules/session-logs.md MUST-2 the SHA is set in a follow-up rather than by amending, so the commit that records it is necessarily not the commit it names. The recorded SHA stays reachable as an ancestor, which is what the validator checks."
+        "Evidence": "The two ADRs and the debate log first landed at f5f0d59c6f50e46a575df292a3800e74418f4835. endingCommit holds the current value, which advances with each follow-up commit, because review and a base merge forced several rounds of correction after that first landing. Per .claude/rules/session-logs.md MUST-2 the SHA is set in a follow-up rather than by amending, so the commit recording it is necessarily not the commit it names; the recorded SHA stays reachable as an ancestor, which is what the validator checks."
       },
       "validationPassed": {
         "level": "MUST",

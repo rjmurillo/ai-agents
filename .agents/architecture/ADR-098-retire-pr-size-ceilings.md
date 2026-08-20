@@ -27,7 +27,9 @@ Two gates cap pull request size in this repository.
 
 Two details of that second gate matter and an earlier draft of this decision got both wrong. It counts **authored non-merge** commits, not the total GitHub displays (`pr_commit_count.py:110`; the raw total is kept for audit only). And the ceiling is **relieved to 40** for a branch carrying a qualifying merge from `main` (`:65`, `:71`, issue #3596). So the live contract is 20 authored commits, or 40 after a base merge, not an unconditional block at 20. The gate is more lenient than the first draft described.
 
-Measured over the 14 days ending 2026-08-20: 292 pull requests opened, 104 of them (36%) carrying `needs-split`, and 20 carrying the human-only bypass label.
+Measured at 2026-08-20T18:00Z over the preceding 14 days: 292 pull requests opened, 104 of them (36%) carrying `needs-split`, and 20 carrying the human-only bypass label. Queries: `created:2026-08-06..2026-08-20` alone, then with `label:"needs-split"`, then with `label:"commit-limit-bypass"`.
+
+That cutoff is load-bearing because the closing day was still in progress. A reviewer re-running the same date-bounded queries later in the day saw 296, 105, and 21. Read every count in this decision against the stated cutoff rather than as a standing figure; the argument does not turn on the difference, but the numbers are a snapshot and should be cited as one.
 
 Read the 36% carefully, because it is weaker evidence than it looks. `pr-validation.yml` applies `needs-split` at `WARNING`, `ALERT`, or `BLOCKED`, and its own comment states the step "is ADVISORY and must never fail the job." So the label counts notices from 10 commits upward, not blocks. The 20 bypass applications are the figure that measures blocking, and they are the cost that scales with volume.
 
@@ -73,9 +75,9 @@ That last point sharpens the result rather than softening it. Because #4846 was 
 
 ### What actually stopped the bad one
 
-#4846 is the only pull request in the sample that should not merge, and it did not merge. What held it was its own security and vendor-provenance gate, a correctness check, not a size ceiling. The size gate labeled it, and it also labeled #4718, #5036, #5152, and #5103, which all merged and should have.
+#4846 is the only pull request in the sample that should not merge, and it did not merge. What held it was its own security and vendor-provenance gate, a correctness check, not a size ceiling. The size gate labeled it, and it also labeled #4718, #5036, #5152, #5103, and #5107, which all merged and should have.
 
-That is the finding this decision rests on, bounded by the enumeration above: across the closed-unmerged population the blocking ceiling stopped nothing, and the one pull request that should not have merged was held by a correctness gate. Over the same window the ceilings imposed cost on four of five sampled pull requests that were doing the right thing.
+That is the finding this decision rests on, bounded by the enumeration above: across the closed-unmerged population the blocking ceiling stopped nothing, and the one pull request that should not have merged was held by a correctness gate. Over the same window the ceilings imposed cost on five of the six sampled pull requests that were doing the right thing.
 
 ### The cost
 
@@ -156,7 +158,7 @@ The ceilings were a proxy for reviewability, in a regime where a human did the r
 
 ### Trade-offs
 
-This trades a small, unproven protection against sprawl for the removal of a measured, recurring cost. The protection is unproven in the specific sense that in a five-pull-request sample it never made a correct blocking call that a correctness gate did not already make. The cost is measured: 36% of pull requests labeled, 20 human interventions in two weeks, and at least one pull request in the current window spending its output on gate arithmetic.
+This trades a small, unproven protection against sprawl for the removal of a measured, recurring cost. The protection is unproven in the specific sense that across the six sampled pull requests and the seven enumerated closed-unmerged ones, it never made a correct blocking call that a correctness gate did not already make. The cost is measured: 36% of pull requests labeled, 20 human interventions in two weeks, and at least one pull request in the current window spending its output on gate arithmetic.
 
 ## Consequences
 
@@ -187,7 +189,7 @@ This trades a small, unproven protection against sprawl for the removal of a mea
 | `lefthook.yml` | Direct | Jobs stay, exit codes become 0 | Low |
 | `CONTRIBUTING.md` | Direct | Remove the bypass-label procedure | Low |
 | `.agents/governance/PROJECT-CONSTRAINTS.md:125` | Direct | Record the constraint as retired, with this ADR as the reason | Medium |
-| `.claude/rules/governance.md` MUST-1 and MUST NOT 1 | Direct | This decision edits a file under `.agents/governance/`, so MUST-1 requires human approval, and it reduces a review requirement, so MUST NOT 1 requires a unanimous-consensus ADR. Both apply to this ADR and to its implementation pull request | High |
+| `.claude/rules/governance.md` MUST-1 and MUST NOT 1 | Indirect | These bind the **implementation** pull request, which edits `.agents/governance/PROJECT-CONSTRAINTS.md`, not this proposal: the rule's frontmatter scopes it to `.agents/governance/**` and this file sits in `.agents/architecture/`. MUST-2 runs the other way and is satisfied here, since it requires a governance change to be accompanied by an ADR | High |
 | `.claude/rules/universal.md` MUST-6 | Direct | This is the five-file rule. Retire or restate it; there is no separate one-idea-per-commit convention to fall back on | Medium |
 | QA and session evidence rebind | Direct | Fix the every-merge refire | Medium |
 
