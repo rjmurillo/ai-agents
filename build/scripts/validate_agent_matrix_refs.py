@@ -57,15 +57,12 @@ filename is lowercase. Membership is therefore decided by content: a file counts
 as an agent only when it opens with a YAML frontmatter block carrying a
 non-empty string ``description:`` key. Both fences must be complete lines: a
 substring search for ``\n---`` accepted ``---not-a-closing-fence`` and admitted
-a malformed document as an agent. Re-measured across all six trees on
-2026-08-20: 190 files carry a configured tree's suffix, the rule keeps all 186
-agent definitions, and it excludes exactly four suffix-matching sibling
-documents: ``.claude/agents/AGENTS.md``, ``.claude/agents/CLAUDE.md``,
+a malformed document as an agent. Measured across all six trees that rule keeps
+all 186 agent definitions out of 190 suffix-matching files, excluding exactly
+four sibling documents:
+``.claude/agents/AGENTS.md``, ``.claude/agents/CLAUDE.md``,
 ``src/claude/AGENTS.md``, and ``src/claude/claude-instructions.template.md``. It
-also fully subsumes the uppercase-stem filter it replaced. The earlier figure
-here was 175, correct when written and stale by the time issue #5130 counted the
-same corpus at 186; the count is dated now so the next reader can tell whether
-it still holds rather than trusting an undated one.
+also fully subsumes the uppercase-stem filter it replaced.
 
 GFM RENDERS A TABLE INDENTED UP TO THREE SPACES. Every table pattern here
 therefore tolerates that indent. Anchoring them at column zero made an indented

@@ -330,8 +330,9 @@ and reached different verdicts, and both records are kept:
   1 DISAGREE-AND-COMMIT, 2 BLOCK. Found two P0s, including a `security: 2` vote
   weight attributed to ADR-009 that the ADR does not contain
   (`grep -c -i security` on ADR-009 returns 0). Its architect `BLOCK` on the
-  absence of an ADR recording the tier removal is open and is a maintainer call
-  under `AGENTS.md` "Ask First: New ADRs".
+  absence of an ADR recording the tier removal is **discharged**:
+  `.agents/architecture/ADR-098-agent-role-metadata-replaces-tier-hierarchy.md`
+  is that record, and it went through two further review rounds of its own.
 - `.agents/critique/ADR-078-debate-log.md`: six agents, 3 ACCEPT,
   3 DISAGREE-AND-COMMIT, 0 BLOCK. Found the half-converted vocabulary above, a
   Rationale that cited `role:` as evidence for a routing constraint this same

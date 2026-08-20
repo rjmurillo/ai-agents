@@ -231,28 +231,29 @@ evidence that six or seven lenses found nothing, not evidence that nothing is
 there. The accidental replication is worth more than either result alone, and it
 should not be tidied away into a single consensus line.
 
-## Addendum, 2026-08-20: the vocabulary sweep missed one, and a bot found it
+## Round 3 findings that landed on ADR-078, 2026-08-20
 
-Both debates above reviewed the skill-versus-agent vocabulary and agreed it had
-been converted to "layer". A Copilot review on PR #5177 then found a live
-counterexample neither run caught: ADR-078's Alternatives table, option C, still
-rejected the option on the ground that it "pushes **agent-tier** responsibility
-into a skill".
+Two corrections after this log's own debate closed, both from Copilot review on
+PR #5177 rather than from a lens here. Recorded because this log is ADR-078's
+review record and a reader should not have to reconstruct why the file moved
+after the debate ended.
 
-That span is exactly what the correction note above declares fixed. The note
-says the axis reads "layer" throughout and names two deliberate survivors, the
-Cynefin complexity tier and the opus model tier. Option C's clause is neither.
-It is the retired agent rank, sitting inside the very table the debates read.
+**One layer-sense `tier` survived the sweep.** Option C's verdict cell still read
+"pushes agent-tier responsibility into a skill" while the rest of the document
+had moved to "layer". That is the third round of the same defect on this one
+axis: the first pass converted two of seven occurrences, the six-agent debate
+converted the rest, and this cell was missed by both because it sits in a table
+cell rather than in prose. Now "agent-layer responsibility". `grep` for a
+layer-sense `tier` in this file returns nothing.
 
-Corrected to "pushes agent-layer responsibility into a skill".
+**The provenance note called a discharged `BLOCK` open.** It said the other
+debate's architect `BLOCK` on the absence of an ADR recording the tier removal
+"is open and is a maintainer call". `.agents/architecture/ADR-098-agent-role-metadata-replaces-tier-hierarchy.md`
+had already been written in answer to exactly that block, and has since been
+through two review rounds of its own. The note now says discharged and names the
+ADR.
 
-Worth recording rather than fixing quietly, because of where it was found. The
-sweep had already been re-counted three times, from five spans to six to seven,
-and each re-count was itself prompted by a reviewer rather than by the sweep. A
-prose claim of the form "converted throughout" is unfalsifiable by reading the
-places you already looked, which is the failure mode ADR-098 exists to argue
-about. The two `tier` uses that remain in that table are the opus model tier on
-lines 138 and 139, and they stay by the rule the note already states.
-
-Nothing here touches ADR-078's decision. The autoplan/orchestrator boundary is
-unaffected by what the rejected alternative's rejection clause calls the axis.
+Both are the same failure mode this branch keeps producing: a statement true when
+written, left standing after the thing it describes changed. The count of such
+findings on this PR is now large enough to be the finding itself, which is
+recorded in the QA report rather than here.

@@ -15,6 +15,16 @@ implemented: true
 
 Proposed
 
+**`status: proposed` against `implemented: true` is deliberate, not drift.**
+ADR-073 binds a transition to `accepted` to adr-review debate-log evidence under
+`.agents/critique/`, which now exists, so the flip is mechanically available and
+is not taken here. A debate authorizing the acceptance of its own subject is the
+self-asserted approval that rule exists to prevent, and the acceptance of a
+governance ADR is a maintainer act. ADR-093 carries the same pair for the same
+reason. The critic re-vote raised this and it is answered rather than left for a
+reader to reconcile: the decision ships, the record says a human has not yet
+signed it.
+
 ## Date
 
 2026-08-20
@@ -54,7 +64,14 @@ of the five Manager-tier agents (`milestone-planner`, `critic`,
 `issue-feature-review`). Only `orchestrator` and `pr-comment-responder` lack the
 line, and `pr-comment-responder` delegates in its own body
 (`.claude/agents/pr-comment-responder.md:81`, "**Task**: Delegate to
-orchestrator (primary)").
+orchestrator (primary)"). The sharper instance is
+`templates/agents/pr-comment-responder.shared.md:216`, which instructs it to
+"delegate directly to `implementer` (bypassing orchestrator) for efficiency".
+That contradicts the surviving prose this record relies on at
+`.agents/AGENT-SYSTEM.md:862`, `:1047`, and `:1311`, which describe delegation
+as one-level-deep through the orchestrator. The retired section was the only
+document carrying that delegation-topology fact, which is why it is cited here
+rather than left to the Negative section alone.
 
 **The contradiction was there on day one.** The commit that introduced the
 hierarchy, `525490fae`, shipped `src/claude/architect.md` carrying
@@ -357,22 +374,36 @@ OpenClaw bridge still exports and the catalog generator cannot render, so it
 cannot be split across PRs without shipping a known-broken intermediate.
 
 Three enforcement gaps were found by planting a violation and observing the
-suite stay green. **All three were closed in this same PR** and are recorded
-under Consequences/Positive. The third, a malformed agent file dropping out of
-the corpus before the known-role check saw it, closed last and is the narrowest
-of the three, and it took two guards rather than one.
-`test_every_agent_file_in_a_configured_tree_is_a_readable_definition` fails a
-file that sits at the top level of a configured tree and carries that tree's
-suffix but does not parse. Two of the six trees use a bare `.md` suffix, which
-admits sibling documents, so `_NON_AGENT_SIBLINGS` allowlists the four that are
-deliberately not agents and a separate test guards that allowlist. The
-subdirectory case needed its own branch in `nested_agent_definitions`, since
-that function skipped anything failing `is_agent_definition` and a malformed
-file is not a definition. Three of the six trees already ship subdirectories
-(`security/references/`), so the shape was live, not hypothetical.
+suite stay green. **All three were closed in this same PR**, recorded under
+Consequences/Positive with the test that closes each, and the third is described
+below.
 
-Two residuals have no fix and are stated so they are not mistaken for
-coverage:
+The third was closed last and is worth naming, because an earlier revision of
+this section described it as the one remaining open gap and Copilot caught the
+staleness. A malformed agent file in a configured tree used to drop out of the
+corpus before the known-role check saw it: discovery ran every candidate through
+`is_agent_definition`, which needs parseable frontmatter, so a YAML error
+excluded the file rather than failing it. `_agent_definitions` now keeps a file
+that carries a tree's distinctive `.agent.md` or `.shared.md` suffix even when
+the predicate rejects it, and `test_every_agent_file_in_a_configured_tree_is_a_readable_definition`
+fails on it by name.
+
+Verified with two probes, because the suffix is load-bearing and one probe does
+not exercise both halves. A bare `.claude/agents/*.md` with unbalanced YAML and
+`role: strategc` fails the readable-definition test only; a
+`.github/agents/*.agent.md` with an unterminated quote and `role: strategoc`
+fails that test **and** `test_every_agent_definition_declares_a_known_role`,
+because it also exercises the new `_agent_definitions` retention path. An
+earlier revision of this section named one probe and the test docstring named
+the other, which `independent-thinker` caught on the round-3 re-vote: the two
+documents disagreed about what had been run. Both are named here, and the
+closure covers all six configured trees, one test wider than the retention
+mechanism alone.
+
+Three further residuals have no fix and are stated so they are not mistaken for
+coverage. The third is the one this change's own third-gap fix introduced, and
+`independent-thinker` caught that an earlier revision omitted it while promising
+to state every residual:
 
 - The equality test compares the three production consumers against a fourth
   literal in the test tree, which makes it a witness against drift in one
@@ -384,6 +415,19 @@ coverage:
   prompts, and analysis documents across the repository. Two of the six
   existing trees use that bare suffix, so a seventh following the same
   convention is not far-fetched.
+
+- **The fail-closed corpus check has an allowlist, and the allowlist is the hole
+  in it.** `_NON_AGENT_SIBLINGS` in `tests/agent_metadata_helpers.py` exempts
+  four sibling documents from every role guard.
+  `test_the_non_agent_sibling_allowlist_is_neither_stale_nor_vacuous` rejects an
+  entry that is stale, and rejects one that parses as a valid agent. It does
+  **not** reject a *malformed* agent added to the allowlist, because a malformed
+  file still returns a reason for not being a definition and so stays exempt.
+  The third gap this change closed is therefore re-openable with a one-line
+  edit. The test's own docstring says so; this record previously did not, which
+  is inconsistent with how the four frozen tier exemptions are handled two
+  sections above, where an explicit per-file list exists precisely so a fifth
+  cannot inherit the exemption.
 
 ## Standing Dissent
 

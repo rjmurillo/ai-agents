@@ -411,56 +411,57 @@ def collect_outputs(results):
 
 ### Step 4.2: Resolve Conflicts
 
+One conflict algorithm, not two. An earlier revision of this document kept a
+pairwise `CONFLICT_RESOLUTION` table here alongside Phase 2.5's weighted vote,
+and a "Conflict Resolution Priority" table below it. Both disagreed with the
+weighted vote: `security` against `implementer` ties 1-1 under ADR-009's weights
+and escalates, while the pairwise table awarded it to `security` outright. The
+same inputs produced different outcomes depending on which phase read them.
+Copilot found the contradiction on PR #5177, and the `adr-review` debate found
+the same shape in `CONFLICT_VOTE_WEIGHTS`.
+
+The table is deleted rather than reconciled, for the same reason a `security: 2`
+weight was deleted from `CONFLICT_VOTE_WEIGHTS` one section above: ADR-009 grants
+exactly one weighting, `architect > implementer`. Every other precedence pair in
+that table (`security > implementer`, `security > devops`,
+`critic > milestone-planner`) was local invention with no ADR behind it, which is
+the same unenforced-hierarchy problem issue #5130 exists to remove. Adding a
+precedence rule is an ADR-009 amendment, not a docs edit.
+
 ```python
-# Phase 4.2 has no conflict policy of its own. It routes every conflict
-# through `resolve_disagreement` above, which is ADR-009's.
-#
-# An earlier revision carried a `CONFLICT_RESOLUTION` pairwise table here
-# (`("security", "implementer"): "security"`, `("critic", "milestone-planner"):
-# "critic"`, and two more) plus a "Conflict Resolution Priority" table below it.
-# Both granted standing precedence to agents ADR-009 does not name, and both
-# disagreed with the weighted vote above: security versus implementer tied and
-# escalated in Phase 2.5 while the pairwise table selected security outright.
-# The same inputs produced different outcomes depending on which phase read
-# them. Removed for the same reason `"security": 2` was removed from
-# CONFLICT_VOTE_WEIGHTS: a precedence no ADR grants, shipped under an ADR-009
-# framing. Refs #5130 adr-review, and #5177 review (Copilot).
-
-
-def _as_result(position):
-    """Normalize one recorded position into the shape the resolver consumes.
-
-    A bare string is the common case and carries no flags. A mapping is the
-    full form and may carry `non_negotiable`.
-
-    This exists because the first version of `resolve_conflicts` wrapped every
-    position as `{"recommendation": position}` and dropped everything else. A
-    dissenting non-negotiable therefore escalated in Phase 2.5 and voted like
-    any other position here, so the two phases still disagreed on identical
-    inputs after they were supposedly unified. That is the same defect the
-    unification was meant to close, surviving in the adapter rather than in the
-    algorithm. Refs #5177 review (Copilot).
-    """
-    if isinstance(position, dict):
-        return position
-    return {"recommendation": position}
-
-
 def resolve_conflicts(conflicts):
-    """Resolve each conflict with ADR-009's aggregation strategies.
+    """Route every conflict through the single ADR-009 aggregation above.
 
-    `conflict["positions"]` maps an agent to the position it took. A position is
-    either the recommendation itself or a mapping carrying `recommendation` plus
-    any flags the resolver reads, currently `non_negotiable`. Both forms reach
-    `resolve_disagreement` unchanged, so a position that escalates in Phase 2.5
-    escalates here too.
+    `resolve_disagreement` returns one of three strategies: `merge` when the
+    agents agree, `vote` when a weighted tally has an outright winner, and
+    `escalate` when the vote ties or a dissenting agent marked its position
+    non-negotiable. Escalation names `high-level-advisor` as the arbiter, not
+    `architect`, because architect is a participant in these disputes and cannot
+    arbitrate one it is party to.
+
+    `conflict["positions"]` maps an agent to the position it took, and
+    `conflict["non_negotiable"]` is the set of agents that marked their position
+    as such. Both are carried into the shape `resolve_disagreement` consumes.
+
+    Carrying the flag is load-bearing, and an earlier revision of this adapter
+    dropped it. Copilot caught it on PR #5177: routing both phases through one
+    resolver does not unify them if the adapter discards the field the resolver
+    branches on. A dissenting non-negotiable position escalates in Phase 2.5 and
+    became an ordinary soft vote here, so the two phases still resolved
+    identical inputs differently, which is the exact defect the shared resolver
+    was introduced to fix.
     """
     resolutions = []
     for conflict in conflicts:
         positions = conflict["positions"]
-        outcome = resolve_disagreement(
-            {agent: _as_result(position) for agent, position in positions.items()}
-        )
+        non_negotiable = conflict.get("non_negotiable", frozenset())
+        outcome = resolve_disagreement({
+            agent: {
+                "recommendation": position,
+                "non_negotiable": agent in non_negotiable,
+            }
+            for agent, position in positions.items()
+        })
 
         if outcome["strategy"] == "escalate":
             # Escalation is not a pairwise winner. high-level-advisor is not a
@@ -471,6 +472,7 @@ def resolve_conflicts(conflicts):
                 "conflict": conflict,
                 "resolution": "escalate",
                 "arbiter": outcome["escalate_to"],
+                "reason": outcome["reason"],
                 "recommendation": None,
             })
             continue

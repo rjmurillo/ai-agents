@@ -110,9 +110,22 @@ def _agent_definitions() -> list[Path]:
 
     Excludes siblings like `AGENTS.md` and `claude-instructions.template.md`
     that share a tree's bare `.md` suffix but ship no agent frontmatter.
-    """
-    return [path for path in _agent_files() if _vamr.is_agent_definition(path)]
 
+    Distinctive-suffix files are kept even when the predicate rejects them, so a
+    malformed agent fails the role check instead of dropping out of the corpus.
+    Copilot found the fail-open on PR #5177: `is_agent_definition` needs
+    parseable frontmatter with a description, so an agent whose YAML breaks was
+    excluded before the known-role test could report it, and the raw legacy-tier
+    sweep only looks for retired *values* and would not see a bad `role`. Only
+    `.agent.md` and `.shared.md` qualify, because the two trees using a bare
+    `.md` also hold genuine non-agent siblings that have no frontmatter at all.
+    """
+    return [
+        path
+        for path in _agent_files()
+        if _vamr.is_agent_definition(path)
+        or path.name.endswith(_AGENT_FILE_SUFFIXES)
+    ]
 
 def _frontmatter_block(path: Path) -> str | None:
     """The raw text between the frontmatter fences, unparsed."""
@@ -255,19 +268,18 @@ _CANONICAL_TREE = _vamr.CANONICAL_TREE.as_posix()
 # not per directory, for the same reason as `_EXEMPT_FILES`: adding one is then
 # a deliberate edit rather than silent inheritance.
 #
-# Quoted from the same predicate's docstring in
-# build/scripts/validate_agent_matrix_refs.py, which measured the same four:
-# "Re-measured across all six trees on 2026-08-20: 190 files carry a configured
-# tree's suffix, the rule keeps all 186 agent definitions, and it excludes
-# exactly four suffix-matching sibling documents: ``.claude/agents/AGENTS.md``,
+# Quoted from build/scripts/validate_agent_matrix_refs.py:59-64, which measured
+# the same four with the same predicate: "Measured across all six trees that
+# rule keeps all 186 agent definitions out of 190 suffix-matching files,
+# excluding exactly four sibling documents: ``.claude/agents/AGENTS.md``,
 # ``.claude/agents/CLAUDE.md``, ``src/claude/AGENTS.md``, and
 # ``src/claude/claude-instructions.template.md``."
 #
-# The quotation and its source are updated together on purpose. The previous
-# pair both said 175, true when written and false by this PR, and a quotation
-# that drifts from its source is the failure `canonical-source-mirror` names.
-# Cited by symbol rather than by line range for the same reason: those line
-# numbers moved in this very change.
+# Both numbers were 175 until PR #5177. Copilot caught that the copy here
+# contradicted this PR's own guarded corpus size; the canonical comment was
+# wrong too, so it was corrected first and re-quoted rather than the copy being
+# patched to differ from its source. `_agent_files()` returns 190 and
+# `_agent_definitions()` returns 186 on this head.
 _NON_AGENT_SIBLINGS = frozenset(
     {
         ".claude/agents/AGENTS.md",
