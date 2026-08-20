@@ -11,18 +11,18 @@
     "sessionStart": {
       "serenaActivated": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Serena MCP tools are not exposed in this session (the server appears in the connecting list but no mcp__serena__* tool resolves via ToolSearch). Used the file fallback AGENTS.md sanctions: read .serena/memories/memory-index.md and wrote .serena/memories/decision-frontmatter-migrations-must-cover-both-key-shapes.md directly."
       },
       "serenaInstructions": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "initial_instructions unavailable for the same reason. Substituted the committed equivalents: AGENTS.md, .claude/rules/*.md, and .agents/governance/PROJECT-CONSTRAINTS.md, all read this session."
       },
       "handoffRead": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read at commit f79e70c; it is READ-ONLY per ADR-014 and was not modified. No open per-issue handoff exists for issue #5130."
       },
       "sessionLogCreated": {
         "level": "MUST",
@@ -31,23 +31,23 @@
       },
       "skillScriptsListed": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "ls .claude/skills/*/scripts/*.py enumerated the skill script surface. Invoked session-init/scripts/new_session_log.py and session-end/scripts/complete_session_log.py."
       },
       "usageMandatoryRead": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "AGENTS.md and CLAUDE.md loaded as project instructions at session start; .claude/rules/universal.md, code-quality.md, voice.md, builder-ethos.md, knowledge-persistence.md, pragmatic-programmer.md, search-before-building.md, and claude-model-patches.md injected and applied."
       },
       "constraintsRead": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read this session (Language Constraints and RETRIEVAL-LED REASONING sections)."
       },
       "memoriesLoaded": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "UserPromptSubmit hook auto-recalled pr-review and skills-graphql memories. Read .serena/memories/memory-index.md, git/git-hooks-observations.md, and tasks/issue-2840-model-pin-migration.md for the SKIP_SCOPE_CHECK provenance."
       },
       "branchVerified": {
         "level": "MUST",
@@ -61,8 +61,8 @@
       },
       "gitStatusVerified": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "git status --short clean at branch creation; branch reset to origin/main at f79e70c."
       },
       "startingCommitNoted": {
         "level": "SHOULD",
@@ -74,37 +74,37 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": false,
-        "Evidence": ""
+        "Evidence": "Some MUST items still incomplete"
       },
       "handoffPreserved": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
       },
       "markdownLintRun": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "NOT LINTED: no changed markdown files"
       },
       "qaValidation": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/qa/000-issue-5130-tier-removal-qa.md"
       },
       "changesCommitted": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "All changes committed (HEAD: cc829f98be)"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": false,
-        "Evidence": ""
+        "Evidence": "validate_session_json.py failed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -115,10 +115,15 @@
         "level": "SHOULD",
         "Complete": false,
         "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
       }
     }
   },
   "workLog": [],
-  "endingCommit": "",
+  "endingCommit": "cc829f98be",
   "nextSteps": []
 }

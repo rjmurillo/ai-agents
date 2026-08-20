@@ -6,14 +6,24 @@
   "outcome": "partial",
   "task": "Remove agent tier hierarchy and replace tier frontmatter with role metadata for issue 5130",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-20T01:28:15+00:00",
+      "type": "commit",
+      "content": "Commit: cc829f98be",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-20-session-5174-b3bfa3aaa-remove-agent-tier-hierarchy-replace"
+    }
+  ],
   "metrics": {
     "duration_minutes": null,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 6
+    "commits": 1,
+    "files_changed": 205
   },
   "lessons": []
 }
