@@ -140,7 +140,7 @@
       "result": "An earlier ADR-098 draft described the scope check as advisory and removed SKIP_SCOPE_CHECK on that basis. Two reviewers independently found it blocks at 51 files, so the removal would have left a blocking gate with no relief at all. Fixed by demoting BLOCK_THRESHOLD as an explicit decision item ordered before the flag removal, in the decision text, the implementation order, and the impact table."
     }
   ],
-  "endingCommit": "c6852b99f6016871844e25fb9a424324e4c75cca",
+  "endingCommit": "9b433cb7b22c0027c362c15bc5f019f0ac49c9dd",
   "nextSteps": [
     "Implement ADR-098 in its stated order: fix the QA and session evidence rebind generator, demote pr_commit_count.py, demote check_atomic_commit early, demote the scope BLOCK_THRESHOLD and add process-record exclusions, then remove SKIP_SCOPE_CHECK, then update the dependent documents.",
     "ADR-099 Phase 1 starts from the verification PR #5146 already shipped, not from issue #5099, which closed 2026-08-18. run_completion_gate.py already byte-compares each dispatched work-tree file and verifies its static import closure. The remaining work is to fail closed on a dispatched file whose closure is not statically resolvable, and to lift the same verification from P0 into a base-ref P1 job.",
