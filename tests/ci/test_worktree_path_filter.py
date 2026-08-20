@@ -30,7 +30,7 @@ class TestWorktreePathFilter:
         """A source file is found even when the repo root is inside a 'worktrees' dir."""
         # Simulate a repo root that lives inside a directory named "worktrees"
         fake_root = tmp_path / "worktrees" / "wt_fix"
-        for subdir in ("scripts", ".claude/skills/session-end/scripts", "tests"):
+        for subdir in ("scripts", ".claude/skills/merge-resolver/scripts", "tests"):
             (fake_root / subdir).mkdir(parents=True, exist_ok=True)
         probe = fake_root / "scripts" / "validate_worktree.py"
         probe.write_text("# placeholder\n")

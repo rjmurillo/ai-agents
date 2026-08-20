@@ -77,12 +77,12 @@ Serena MCP tools available → MUST call FIRST:
 | Python first (.py preferred, PowerShell grandfathered) | ADR-042 |
 | No raw gh when skill exists | usage-mandatory |
 | No logic in workflow YAML | ADR-006 |
-| Verify branch before git operations | SESSION-PROTOCOL |
+| Verify branch before git operations | `templates/agents/implementer.shared.md` |
 | HANDOFF.md is read-only | ADR-014 |
 
 ## Session Protocol (Quick Reference)
 
-> **Full Details**: `../.agents/SESSION-PROTOCOL.md`
+> **Full Details**: `../templates/agents/implementer.shared.md` (start/end checklists), `../.claude/rules/session-logs.md` (optional session log mechanics)
 
 **Session Start:**
 
@@ -96,7 +96,7 @@ Serena MCP tools available → MUST call FIRST:
 
 1. Update per-issue handoff when work remains
 2. Update Serena memory (if available)
-3. Run scoped markdownlint on changed files (ADR-043, see SESSION-PROTOCOL.md Phase 2)
+3. Run scoped markdownlint on changed files (ADR-043)
 4. Validate an existing JSON session log when one is staged or supplied
 
 ## Gotchas (non-obvious, save cycles)
@@ -114,7 +114,7 @@ apart. Add new ones there.
 ## Key Documents
 
 1. **AGENTS.md** - Primary reference (read first)
-2. `.agents/SESSION-PROTOCOL.md` - Session requirements
+2. `.claude/rules/session-logs.md` - Session log mechanics (optional)
 3. `.agents/HANDOFF.md` - Project dashboard (read-only)
 4. `.agents/governance/PROJECT-CONSTRAINTS.md` - Hard constraints
 5. `.agents/AGENT-SYSTEM.md` - Full agent details

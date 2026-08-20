@@ -28,15 +28,6 @@ from scripts.validation.check_doc_interpreter_portability import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# The three scripts issue #3791 names, and the module each one needs. Every one
-# is a declared project dependency, so `uv run python` resolves it and a bare
-# system interpreter may not.
-ISSUE_3791_SCRIPTS = {
-    "scripts/sync_adr_protocol.py": "yaml",
-    "build/generate_agents.py": "yaml",
-    "build/scripts/build_all.py": "yaml",
-}
-
 
 def make_repo(tmp_path: Path, files: dict[str, str]) -> Path:
     """Create a git repo at ``tmp_path`` with ``files`` committed."""
@@ -447,7 +438,7 @@ def test_historical_records_are_out_of_scope(path: str) -> None:
 @pytest.mark.parametrize(
     "path",
     [
-        "src/copilot-cli/skills/session-init/SKILL.md",
+        "src/copilot-cli/skills/reflect/SKILL.md",
         "src/vs-code-agents/retrospective.agent.md",
         ".github/instructions/python.instructions.md",
         ".github/prompts/pr-quality-gate-architect.md",
@@ -487,7 +478,7 @@ def test_hand_maintained_src_claude_is_in_scope(path: str) -> None:
 @pytest.mark.parametrize(
     "path",
     [
-        ".claude/skills/session-init/scripts/new_session_log.py",
+        ".claude/skills/adr-review/scripts/detect_adr_changes.py",
         "build/scripts/build_all.py",
         "scripts/ci/write_drift_job_summary.py",
     ],
@@ -508,7 +499,12 @@ def test_test_fixtures_are_out_of_scope(path: str) -> None:
 
 @pytest.mark.parametrize(
     "path",
-    ["CONTRIBUTING.md", ".agents/SESSION-PROTOCOL.md", "docs/installation.md", "README.md"],
+    [
+        "CONTRIBUTING.md",
+        ".agents/governance/PROJECT-CONSTRAINTS.md",
+        "docs/installation.md",
+        "README.md",
+    ],
 )
 def test_live_instruction_docs_are_in_scope(path: str) -> None:
     assert is_in_scope(path)

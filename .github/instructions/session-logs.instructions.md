@@ -4,9 +4,10 @@ applyTo: .agents/**
 
 # Session Log Mechanics
 
-`.agents/SESSION-PROTOCOL.md` describes what a session log contains. A session
-log is optional: nothing requires one to commit, push, or open a PR. This rule
-covers the mechanics that still apply once you choose to keep one.
+`.agents/schemas/session-log.schema.json` describes what a session log
+contains. A session log is optional: nothing requires one to commit, push, or
+open a PR. This rule covers the mechanics that still apply once you choose to
+keep one.
 
 Scoped to `.agents/**` rather than `**` on purpose. The mechanics matter only
 when a change touches that tree, and the always-on instruction ceiling
@@ -63,7 +64,7 @@ universal; that is issue #4317, not a property of this rule.
 
 ## References
 
-- `.agents/SESSION-PROTOCOL.md`. What a session log contains.
+- `.agents/schemas/session-log.schema.json`. What a session log contains.
 - `scripts/validation/git_hook_policy.py`. The `session` subcommand that
   validates a staged log; it passes when none is staged.
 - `scripts/validate_session_json.py`. The reachability check on `endingCommit`.

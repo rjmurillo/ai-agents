@@ -76,4 +76,3 @@ These rules apply to every change in this repository.
 - `AGENTS.md`. Boundaries and standards
 - `.agents/governance/PROJECT-CONSTRAINTS.md`. Canonical constraints
 - `.agents/architecture/ADR-042-python-migration-strategy.md`. Python-first
-- `.agents/SESSION-PROTOCOL.md`. Session gates

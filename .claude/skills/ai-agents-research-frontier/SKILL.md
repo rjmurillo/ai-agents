@@ -102,9 +102,9 @@ durable competitive surface and everything else is plumbing.
 
 - A large corpus of skill directories, rules, retrospectives, and Serena
   memories. Run the Phase 1 corpus command for current counts.
-- Gates that produce inspectable artifacts (verification-based governance,
-  SESSION-PROTOCOL.md): every rule violation leaves evidence, so compliance is
-  measurable after the fact.
+- Gates that produce inspectable artifacts (verification-based governance):
+  every rule violation leaves evidence, so compliance is measurable after the
+  fact.
 - A working eval harness: `scripts/eval/eval-rule-activation.py` compares
   baseline (no rule) vs description-only vs full-body loading, LLM-judged on
   activation, citation, and behavior scores (1 to 5), with `--dry-run` as the

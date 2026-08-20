@@ -162,7 +162,7 @@ def test_gotchas_defers_the_commit_limit_bypass_to_a_maintainer() -> None:
     Also pins the fix for a self-contradiction a review caught: the entry
     used to say relief was the label "and nothing else", while its own
     closing sentence and the canonical source it cites
-    (``CONTRIBUTING.md:857``: "You MUST split the PR, or ask a human
+    (``CONTRIBUTING.md:854``: "You MUST split the PR, or ask a human
     maintainer to decide on the `commit-limit-bypass` label") both name
     splitting as an equally sanctioned path. The assertion that
     `"and nothing else"` is absent is a regression guard for that specific
@@ -179,7 +179,7 @@ def test_gotchas_defers_the_commit_limit_bypass_to_a_maintainer() -> None:
     assert "split the PR" in section, "GOTCHAS.md dropped the split-the-PR sanctioned path"
     assert "and nothing else" not in section, (
         "GOTCHAS.md again claims the label is the only relief, contradicting "
-        "the split-the-PR path named in the same entry and in CONTRIBUTING.md:857"
+        "the split-the-PR path named in the same entry and in CONTRIBUTING.md:854"
     )
     assert "do not apply it yourself" in section, "GOTCHAS.md prohibition missing"
     match = _SELF_SERVICE_INSTRUCTION.search(section)
@@ -310,7 +310,7 @@ def test_ci_blocker_stays_silent_when_the_bypass_label_is_already_present(
 
 
 def test_description_validator_defers_its_bypass_label_to_a_maintainer() -> None:
-    """Same shape, second human-only label (CONTRIBUTING.md:912)."""
+    """Same shape, second human-only label (CONTRIBUTING.md:909)."""
     issues = validate_pr_description(
         pr_files=["scripts/validation/pr_description.py"],
         mentioned_files=["docs/not-in-this-diff.md"],

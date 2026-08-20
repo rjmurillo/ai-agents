@@ -36,7 +36,7 @@ Every change belongs to at least one class. A mixed change inherits the union of
 | Git hook configuration | `lefthook.yml` | Named-job validation and relevant validator tests |
 | Claude lifecycle hook | `.claude/hooks/**`, hook generators | Dual-registration sync; runtime-contract tests; `scripts/validation/validate_hook_anchoring.py` |
 | Workflow | `.github/workflows/*.yml` | No logic in YAML (ADR-006); SHA-pinned actions; run changed workflows before push (AGENTS.md Always list) |
-| ADR / governance | Any `ADR-*.md` or `SESSION-PROTOCOL.md` create or edit | Fires the `adr-review` multi-agent debate gate (AGENTS.md "ADR Review"); governance changes need human approval plus an ADR |
+| ADR / governance | Any `ADR-*.md` create or edit | Fires the `adr-review` multi-agent debate gate (AGENTS.md "ADR Review"); governance changes need human approval plus an ADR |
 
 The OPERATIVE investigation-only allowlist is the enforcement module `scripts/modules/investigation_allowlist.py` (docstring: "Single source of truth for investigation artifact path patterns"; consumed by `validate_session_json.py`, the session skill, and `validate_investigation_claims.py`). It allows 8 patterns as of 2026-07-30 (display form from `get_investigation_allowlist_display()`):
 
@@ -123,7 +123,7 @@ Before you push, confirm:
 - [ ] Touched `.claude/`, `src/claude/`, or `src/copilot-cli/`? The matching `plugin.json` still carries no `version` field (`python3 build/scripts/validate_plugin_version_bump.py` exits 0)
 - [ ] Touched a canonical generation source? `uv run python build/scripts/build_all.py --check` and `uv run python build/generate_agents.py --validate` both pass
 - [ ] Commit count under 20 (`git rev-list --count HEAD ^origin/main`), each commit 5 files or fewer
-- [ ] Created or edited an ADR or SESSION-PROTOCOL.md? `adr-review` gate acknowledged
+- [ ] Created or edited an ADR? `adr-review` gate acknowledged
 - [ ] No em or en dashes in changed files: `python3 -c "import sys; b=open(sys.argv[1],'rb').read(); print(b.count(chr(0x2014).encode())+b.count(chr(0x2013).encode()))" FILE` prints 0
 
 ## Provenance and Maintenance

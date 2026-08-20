@@ -58,7 +58,7 @@ Session protocol requires reading N files at session start. The instruction live
 | Session end | Per-issue handoff and Serena continuity | Conditional |
 | Pre-commit | Validates a staged session log | Validate-if-present |
 
-See `.agents/SESSION-PROTOCOL.md` and ADR-007 (memory-first architecture).
+See `templates/agents/implementer.shared.md` and ADR-007 (memory-first architecture).
 
 ---
 
@@ -89,7 +89,7 @@ Context window approaches its limit. The harness compacts prior messages. Compre
 - Display `Commit X/20`, or `X/40` once the branch merges main, every turn so the counter survives compaction visibly. Thresholds live in `scripts/validation/pr_commit_count.py`.
 - On resume, require the agent to read the latest per-issue handoff before taking any mutating action.
 
-See ADR-008 (protocol automation lifecycle hooks) and `.agents/SESSION-PROTOCOL.md`.
+See ADR-008 (protocol automation lifecycle hooks) and `.agents/HANDOFF.md`.
 
 ---
 
@@ -498,5 +498,5 @@ smoke MUST be loud.
 - `PROTOCOL-ANTIPATTERNS.md`: theoretical foundation (trust vs verification).
 - `CONSENSUS.md`: algorithms invoked when patterns 5 and 6 apply.
 - `SECURITY-REVIEW-PROTOCOL.md`: enforcement for pattern 8.
-- `.agents/SESSION-PROTOCOL.md`: gates that prevent patterns 1 and 2.
+- `templates/agents/implementer.shared.md`: gates that prevent patterns 1 and 2.
 - ADR-007, ADR-008, ADR-014, ADR-023, ADR-026: decisions that encode these enforcement patterns.

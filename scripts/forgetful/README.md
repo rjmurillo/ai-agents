@@ -215,10 +215,10 @@ Exit code 0 = clean, 1 = sensitive data found (blocks commit)
 
 ### Session Protocol
 
-See `.agents/SESSION-PROTOCOL.md` for session start/end integration:
+See `templates/agents/implementer.shared.md` for session start/end integration:
 
-- **Phase 2.1 (Session Start)**: Import shared memories
-- **Phase 0.5 (Session End)**: Export session memories
+- **Session Start**: Import shared memories
+- **Session End**: Export session memories
 
 ### Team Collaboration
 
