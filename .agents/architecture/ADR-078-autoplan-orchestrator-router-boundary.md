@@ -22,8 +22,9 @@ was deleted repository-wide.** Seven phrases across six hunks moved off
 "layer" throughout rather than "tier". The Decision, Alternatives, and
 Consequences are unchanged in substance; the one argument that did change is
 option C's rejection clause, called out in
-`.agents/critique/ADR-078-debate-log.md`. That log is this record's first
-independent six-agent review.
+`.agents/critique/ADR-078-debate-log.md`. Two independent `adr-review` debates
+reviewed this record on 2026-08-20; see Review provenance below for both, and
+for why their disagreement is kept rather than reconciled.
 
 ## Date
 
@@ -263,3 +264,80 @@ autoplan (skill-layer router) and orchestrator (coordinator-role agent)
 | Routing ambiguity reports (issues like #2867) | 0 new after adoption | Issue tracker search over 90 days |
 | Duplicated classification drift | No divergence between the two surfaces' documented boundary | Review at each edit of either surface |
 | End-to-end delivery quality | No regression vs current | #2859 end-to-end eval fixtures |
+
+## Correction, 2026-08-20: tier vocabulary retired (issue #5130)
+
+Issue #5130 deleted the four-tier Expert/Manager/Builder/Integration agent
+hierarchy and replaced the `tier:` frontmatter key with a descriptive `role:`
+key. This ADR described orchestrator in that retired vocabulary, so the text
+was corrected here in the same change. **The decision is untouched.** autoplan
+remains the front-door router and orchestrator remains the routed-to
+multi-agent coordinator; nothing in Decision or Explicit Limitations changed.
+
+What changed, and it is not all one kind of edit:
+
+1. **Ground-truth correction.** The prose said orchestrator carries
+   `metadata.tier: manager`. Its shipped frontmatter is `metadata.role:
+   coordinator` (`.claude/agents/orchestrator.md`, `src/claude/orchestrator.md`).
+   The old text named a field that no longer exists.
+2. **A rationale clause re-grounded, not renamed.** Option C was rejected on
+   three grounds, one of which was "breaking the manager-tier boundary". A
+   straight rename to "coordinator-role boundary" was **rejected** as a fix,
+   because `.agents/AGENT-SYSTEM.md` section 2.5 now states that `role`
+   "grants and withholds nothing at runtime", and a boundary that grants
+   nothing cannot be broken; the rename would have produced a clause that is
+   false by the new section's own definition. The clause now reads "breaking
+   the skill/agent boundary", which names a distinction that does exist and
+   survives the tier deletion: a skill and an agent are different kinds of
+   surface with different lifecycles. **Option C is still rejected and the
+   vote is unchanged.**
+3. **Two ordinary-word uses of "tier" are left alone**: the Cynefin complexity
+   tier and the opus model tier. Those are externally anchored vocabularies this
+   repository does not own, and renaming them would be scope creep dressed as
+   consistency.
+
+   The skill-versus-agent axis is a third case and is **not** left alone. An
+   earlier revision of this note said it was. Four lenses in the second
+   `adr-review` run found the result incoherent: the first pass had converted
+   that axis to "layer" at lines 110 and 212 while leaving "tier" at 56, 94,
+   123, 130, and 206, so line 212 read "at skill tier ... at the agent layer"
+   inside one sentence. It is now "layer" throughout, and
+   `.claude/skills/autoplan/SKILL.md` moved with it so the record and the
+   surface it governs do not desync.
+
+Lines corrected: 36, 79, 110, 111, 123, 206, 212, **seven phrases in all**.
+
+The count took three passes to get right, which is worth recording because the
+miscount kept surviving the prose that reported it. PR #5177's original
+disclosure listed 36, 79, 111, 123, and 206 and **missed 212**; the `adr-review`
+analyst pass found 212. Lines 110 and 111 were corrected later, in `d5453ca8a`.
+An earlier revision of this note then said "six phrases in all" and omitted 111
+from its own list, while the debate log's table listed all seven rows under a
+sentence that also said six. Copilot caught the table-versus-count mismatch.
+Both now say seven and both enumerate the same seven lines.
+
+**Review provenance. Two `adr-review` debates ran on 2026-08-20, in separate
+sessions, concurrently and unaware of each other.** They used different rosters
+and reached different verdicts, and both records are kept:
+
+- `.agents/critique/5130-tier-hierarchy-removal-debate-log.md`: 4 ACCEPT,
+  1 DISAGREE-AND-COMMIT, 2 BLOCK. Found two P0s, including a `security: 2` vote
+  weight attributed to ADR-009 that the ADR does not contain
+  (`grep -c -i security` on ADR-009 returns 0). Its architect `BLOCK` on the
+  absence of an ADR recording the tier removal is open and is a maintainer call
+  under `AGENTS.md` "Ask First: New ADRs".
+- `.agents/critique/ADR-078-debate-log.md`: six agents, 3 ACCEPT,
+  3 DISAGREE-AND-COMMIT, 0 BLOCK. Found the half-converted vocabulary above, a
+  Rationale that cited `role:` as evidence for a routing constraint this same
+  change declares non-enforcing, and Implementation Notes naming a generator
+  that does not write the file it claims to regenerate.
+
+Neither run is a ratification of the other. The second missed both P0s the
+first caught; the first missed all three findings the second caught. That the
+two disagree is the useful part of having both, and it is the strongest
+available evidence that a single green debate proves less than it appears to.
+
+This note exists because the first debate's architect pass required the
+withdrawal in item 2 to be auditable rather than silent: a rewritten rationale
+with no record of what was retired is the failure mode the ADR log exists to
+prevent.

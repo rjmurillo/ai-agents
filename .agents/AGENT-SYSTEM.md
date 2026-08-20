@@ -791,8 +791,12 @@ Triage by priority and implement fixes.
 
 Agent coordination is governed by ADR-009 (Parallel-Safe Multi-Agent Design).
 The orchestrator dispatches work, aggregates results, and escalates conflicts.
-There is no ranked agent hierarchy: nothing in the build, the hooks, or the
-validators reads a rank, so a documented one only drifts from behavior.
+There is no ranked agent *delegation* hierarchy: nothing in the build, the
+hooks, or the validators reads a rank to decide who may call whom, so a
+documented one only drifts from behavior. "Delegation" is the load-bearing
+word. ADR-009 does rank two agents, but only as vote weights inside conflict
+aggregation, which the next section quotes; that is a weighting on a returned
+result, not a statement about who may invoke whom.
 
 ### Aggregation and Escalation
 
@@ -838,6 +842,16 @@ meanings:
 export). It grants and withholds nothing at runtime. Delegation is decided by
 the orchestrator against the task, per ADR-009, not by comparing two agents'
 role values.
+
+Nor by comparing agent names. The consensus protocol above weights `architect`
+over `implementer` when a soft conflict goes to a vote, and those two agents
+are `strategic` and `executor` in the table above, so the four role values sit
+one inference away from being read back as a rank. They are not one. That vote
+weight is scoped to aggregating a disagreement between results already
+produced; it confers no authority to delegate, to override, or to be consulted
+first, and it extends to no agent ADR-009 does not name. A future reader
+deriving `strategic > executor` from these two facts has derived exactly the
+thing this section removed.
 
 `docs/agent-catalog.md` is the generated index of every agent and its role.
 

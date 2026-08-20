@@ -196,3 +196,37 @@ findings being checkable, not on the gate going green. Every claim above cites a
 file, a line, or a command. The strongest evidence that the debate was real is
 that it produced nine changes to the record under review, four of them in the
 correction that summoned it.
+
+## A second debate ran, concurrently, and disagreed
+
+Added on merge. While this six-agent debate was running, a separate session ran
+its own `adr-review` against the same change. Neither knew about the other; both
+pushed to this branch.
+
+| | This log | `.agents/critique/5130-tier-hierarchy-removal-debate-log.md` |
+|---|---|---|
+| Roster | 6 agents | 7 |
+| Verdict | 3 ACCEPT, 3 D&C, 0 BLOCK | 4 ACCEPT, 1 D&C, 2 BLOCK |
+| P0s found | none | two |
+
+The other run found two P0s this one missed. The sharper of them: a `security: 2`
+vote weight attributed to ADR-009, which that ADR does not contain.
+`grep -c -i "security" .agents/architecture/ADR-009-parallel-safe-multi-agent-design.md`
+returns 0, and ADR-009:90 grants exactly one weighting, `architect > implementer`.
+Six independent lenses read the same branch and none of them checked that
+citation. Its architect pass also raised a `BLOCK` this run did not consider at
+all: that deleting a repository-wide taxonomy is itself an architecture decision
+that should have its own ADR. That is open and is a maintainer call under
+`AGENTS.md` "Ask First: New ADRs".
+
+This run found three things that one missed: the half-converted skill-versus-agent
+vocabulary, the Rationale citing `role:` as evidence for a routing constraint the
+same change declares non-enforcing, and Implementation Notes naming a generator
+that does not write the file it claims to regenerate.
+
+**Both records are kept, unreconciled, and that is deliberate.** Averaging two
+debates into one verdict would delete the only measurement either produced about
+its own reliability: each missed what the other caught. A green debate is
+evidence that six or seven lenses found nothing, not evidence that nothing is
+there. The accidental replication is worth more than either result alone, and it
+should not be tidied away into a single consensus line.
