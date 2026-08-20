@@ -404,14 +404,12 @@ def collect_outputs(results):
 
 One conflict algorithm, not two. An earlier revision of this document kept a
 pairwise `CONFLICT_RESOLUTION` table here alongside Phase 2.5's weighted vote,
-and a "Conflict Resolution Priority" table below it. Both granted standing
-precedence to agents ADR-009 does not name, and both disagreed with the weighted
-vote: `security` against `implementer` ties 1-1 under ADR-009's weights and
-escalates, while the pairwise table awarded it to `security` outright. The same
-inputs produced different outcomes depending on which phase read them. Copilot
-found the contradiction on PR #5177, and the `adr-review` debate found the same
-shape in `CONFLICT_VOTE_WEIGHTS`.
-
+and a "Conflict Resolution Priority" table below it. Both disagreed with the
+weighted vote: `security` against `implementer` ties 1-1 under ADR-009's weights
+and escalates, while the pairwise table awarded it to `security` outright. The
+same inputs produced different outcomes depending on which phase read them.
+Copilot found the contradiction on PR #5177, and the `adr-review` debate found
+the same shape in `CONFLICT_VOTE_WEIGHTS`.
 
 The table is deleted rather than reconciled, for the same reason a `security: 2`
 weight was deleted from `CONFLICT_VOTE_WEIGHTS` one section above: ADR-009 grants
