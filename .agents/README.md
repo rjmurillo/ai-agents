@@ -48,8 +48,9 @@ root is read-only, set `CLAUDE_PROJECT_DIR` to a writable location.
 
 1. Copy contents to your ai-agents repository's `.agents/` directory
 2. Follow phase prompts in `PHASE-PROMPTS.md` for specific work
-3. Use the opt-in `session-init` and `session-end` skills when you want a
-   committed JSON session log
+3. Write an optional JSON session log by hand against
+   `.agents/schemas/session-log.schema.json` when you want a committed one
+   (see `.claude/rules/session-logs.md`)
 
 ---
 

@@ -850,7 +850,7 @@ def validate_pr_description(
                         "`## Changed Files` are informational. Move the path "
                         "under one of those headings, use a bullet (`- path.ext`) "
                         "or bold (`**path.ext**`), or wrap it in a code fence. "
-                        # CONTRIBUTING.md:912, section "Bypassing Description
+                        # CONTRIBUTING.md:909, section "Bypassing Description
                         # Validation", reads verbatim: "1. A human maintainer
                         # MUST add the `description-validation-bypass` label
                         # (case-insensitive match)". Naming it as the reader's
@@ -858,7 +858,7 @@ def validate_pr_description(
                         # permission it does not hold (issue #4782).
                         #
                         # Stricter/looser/different than canonical:
-                        # CONTRIBUTING.md:912 states only who MAY add the
+                        # CONTRIBUTING.md:909 states only who MAY add the
                         # label. This message additionally states who may NOT
                         # (the reader), because the load-bearing half for an
                         # autonomous reader is the prohibition, not the

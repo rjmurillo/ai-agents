@@ -342,44 +342,6 @@
         0
       ]
     ],
-    "session-end/scripts/rework_warning.py": [
-      [
-        "result = subprocess.run(",
-        0
-      ]
-    ],
-    "session-init/scripts/new_session_log.py": [
-      [
-        "result = subprocess.run(",
-        0
-      ]
-    ],
-    "session-init/scripts/new_session_log_json.py": [
-      [
-        "result = subprocess.run(",
-        0
-      ],
-      [
-        "result = subprocess.run(",
-        1
-      ],
-      [
-        "result = subprocess.run(",
-        2
-      ]
-    ],
-    "session-init/session_init/git_helpers.py": [
-      [
-        "result = subprocess.run(",
-        0
-      ]
-    ],
-    "session/scripts/test_investigation_eligibility.py": [
-      [
-        "result = subprocess.run(",
-        0
-      ]
-    ],
     "style-enforcement/scripts/check_style.py": [
       [
         "result = subprocess.run(",

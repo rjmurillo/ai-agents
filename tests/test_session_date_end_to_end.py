@@ -20,17 +20,18 @@ from unittest.mock import patch
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SESSION_INIT_SCRIPTS = REPO_ROOT / ".claude" / "skills" / "session-init" / "scripts"
 PRECOMPACT_DIR = REPO_ROOT / ".claude" / "hooks" / "PreCompact"
 
-for _path in (str(SESSION_INIT_SCRIPTS), str(PRECOMPACT_DIR)):
+for _path in (str(PRECOMPACT_DIR),):
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
 import invoke_compact_checkpoint  # noqa: E402
-import new_session_log_json  # noqa: E402
 
-from scripts.hook_utilities.utilities import get_recent_session_log  # noqa: E402
+from scripts.hook_utilities.utilities import (  # noqa: E402
+    get_recent_session_log,
+    host_session_date,
+)
 from scripts.validation.git_hook_policy import (  # noqa: E402
     _recent_session_candidates,
     _session_log_for_branch,
@@ -62,20 +63,30 @@ def host_timezone(request: pytest.FixtureRequest):
         time.tzset()
 
 
-def _create_session_log(tmp_path: Path) -> Path:
-    """Drive the real JSON creator; return the file it named."""
+def _create_session_log(
+    tmp_path: Path,
+    *,
+    log_date: str | None = None,
+    branch: str = "fix/4779-e2e",
+    number: int = 1,
+) -> Path:
+    """Write a session log JSON directly at the host session date.
+
+    The session-init skill's creator script has been removed along with the
+    session skill cluster; session logs are now optional and hand-written
+    (see `.claude/rules/session-logs.md`). This constructs the same minimal
+    JSON shape by hand, at the real host date, so the consumer-side
+    date-agreement assertions below keep exercising production code.
+    """
     sessions_dir = tmp_path / ".agents" / "sessions"
-    sessions_dir.mkdir(parents=True)
-    with patch.object(new_session_log_json, "_get_repo_root", return_value=str(tmp_path)), \
-         patch.object(new_session_log_json, "_get_branch", return_value="fix/4779-e2e"), \
-         patch.object(new_session_log_json, "_get_commit", return_value="abc1234"):
-        exit_code = new_session_log_json.main(
-            ["--session-number", "1", "--objective", "end to end"]
-        )
-    assert exit_code == 0
-    created = list(sessions_dir.glob("*.json"))
-    assert len(created) == 1
-    return created[0]
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    resolved_date = log_date if log_date is not None else host_session_date()
+    created = sessions_dir / f"{resolved_date}-session-{number}-e2e.json"
+    created.write_text(
+        json.dumps({"session": {"date": resolved_date, "branch": branch, "number": number}}),
+        encoding="utf-8",
+    )
+    return created
 
 
 def test_hook_utilities_consumer_finds_host_dated_log(host_timezone, tmp_path):
@@ -112,10 +123,7 @@ def _create_then_scan_across_timezones(
     """Create for one host date, then scan from another fixed host date."""
     os.environ["TZ"] = creator_timezone
     time.tzset()
-    with patch.object(
-        new_session_log_json, "host_session_date", return_value=creator_date
-    ):
-        created = _create_session_log(tmp_path)
+    created = _create_session_log(tmp_path, log_date=creator_date)
 
     os.environ["TZ"] = scanner_timezone
     time.tzset()
@@ -238,13 +246,13 @@ def test_checkpoint_fallback_consumer_finds_host_dated_log(host_timezone, tmp_pa
 
 
 def test_created_filename_and_payload_agree(host_timezone, tmp_path):
-    """The real creator uses one date consistently in filename and payload.
+    """A written log uses one date consistently in filename and payload.
 
-    The controlled-instant authority assertions live in
-    ``tests/skills/session/test_date_helpers.py``; this end-to-end assertion
-    covers agreement only.
+    The controlled-instant authority assertions for the date helper itself
+    live in ``tests/test_hook_utilities.py::TestHostSessionDate``; this
+    end-to-end assertion covers agreement only.
     """
     created = _create_session_log(tmp_path)
 
     payload = json.loads(created.read_text(encoding="utf-8"))
-    assert created.name == f"{payload['session']['date']}-session-1.json"
+    assert created.name == f"{payload['session']['date']}-session-1-e2e.json"

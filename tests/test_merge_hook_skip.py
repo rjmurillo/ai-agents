@@ -72,7 +72,7 @@ class TestAdrReviewPolicySkipsMerge:
         skip = cast(list[object], job.get("skip", []))
         assert "merge" in skip, (
             "adr-review-policy is missing 'skip: merge'; it will block merge commits "
-            "that touch SESSION-PROTOCOL.md or ADR files inherited from main (issue #4307)"
+            "that touch ADR files inherited from main (issue #4307)"
         )
 
     def test_skip_is_list(self) -> None:

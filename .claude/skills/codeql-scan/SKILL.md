@@ -186,7 +186,6 @@ Before completing a security scan task:
 |-------|---------|-------------|
 | `security-detection` | Detect security-critical file changes | Before CodeQL scan to identify high-risk changes |
 | `github` | GitHub operations (PR comments, issues) | Report CodeQL findings to PR reviews |
-| `session-init` | Initialize session with protocol | Before starting security analysis workflow |
 
 ## References
 
@@ -194,7 +193,6 @@ Before completing a security scan task:
 - **SARIF Specification:** <https://sarifweb.azurewebsites.net/>
 - **ADR-035:** Exit code standardization
 - **ADR-042:** Python migration strategy (supersedes ADR-005, PowerShell-only scripting)
-- **Session Protocol:** `.agents/SESSION-PROTOCOL.md`
 
 <details>
 <summary><strong>Output Format Examples</strong></summary>
@@ -371,5 +369,3 @@ python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation ful
 ```
 
 </details>
-
-<!-- vendor-portability: declared. This skill links .agents/SESSION-PROTOCOL.md as a documentation pointer for the session gate. The CodeQL scan does not read that file at runtime; a vendored install without it loses the link, not the scan. Issue #2050. -->

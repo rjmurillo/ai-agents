@@ -104,7 +104,7 @@ _SKILL_SCAN_EXTENSIONS = frozenset({".md", ".py", ".ps1", ".psm1"})
 
 
 _SESSION_LOG_FILENAME_RE = re.compile(
-    # Canonical filename per session-init script:
+    # Canonical filename convention:
     # .agents/sessions/YYYY-MM-DD-session-NN[-keyword1-keyword2-...].{md|json}
     # Keywords are kebab-case (lowercase letters/digits + hyphens only).
     r"^\.agents/sessions/"

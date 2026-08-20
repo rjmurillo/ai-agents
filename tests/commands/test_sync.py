@@ -123,11 +123,11 @@ def test_absolute_known_root_reference_is_drift(tmp_path: Path) -> None:
 def test_hyphenated_skill_reference_is_checked(tmp_path: Path) -> None:
     # Arrange
     repo = _make_repo(tmp_path)
-    (repo / ".claude" / "skills" / "session-end").mkdir(parents=True)
-    (repo / ".claude" / "skills" / "session-end" / "SKILL.md").write_text(
-        "# session-end\n", encoding="utf-8"
+    (repo / ".claude" / "skills" / "fix-markdown-fences").mkdir(parents=True)
+    (repo / ".claude" / "skills" / "fix-markdown-fences" / "SKILL.md").write_text(
+        "# fix-markdown-fences\n", encoding="utf-8"
     )
-    _write_req(repo, "REQ-004B.md", "Uses `.claude/skills/session-end/SKILL.md`.\n")
+    _write_req(repo, "REQ-004B.md", "Uses `.claude/skills/fix-markdown-fences/SKILL.md`.\n")
 
     # Act
     result = dsd.detect_drift(repo, dsd.DEFAULT_SPEC_TARGETS)

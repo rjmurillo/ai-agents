@@ -32,12 +32,10 @@ def host_session_date(now: Callable[[], datetime] = datetime.now) -> str:
 
     Session logs are named by the contributor's host local date, not UTC
     (Issue #4779). A consumer that scans by date prefix must anchor on the
-    same host clock the creator used, or a session in a far-east timezone
-    becomes invisible near midnight UTC. This is the consumer-side twin of
-    :func:`session_init.date_helpers.host_session_date`; the plugin boundary
-    forbids sharing one import, so repository parity tests pin the two copies
-    to identical output. ``now`` is injectable for
-    deterministic tests and must return a naive local datetime.
+    same host clock a hand-written log's date field used, or a session in a
+    far-east timezone becomes invisible near midnight UTC. ``now`` is
+    injectable for deterministic tests and must return a naive local
+    datetime.
     """
     return now().strftime(_ISO_DATE)
 

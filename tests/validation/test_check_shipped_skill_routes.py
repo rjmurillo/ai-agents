@@ -72,7 +72,7 @@ def test_root_without_skills_is_not_an_error(repo: Path) -> None:
 # --- negative ---
 
 
-@pytest.mark.parametrize("name", ["merge-resolver", "github", "session-init"])
+@pytest.mark.parametrize("name", ["merge-resolver", "github", "reflect"])
 def test_drift_is_reported_for_any_skill_name(repo: Path, name: str) -> None:
     """The #2026 shape: canonical keeps the skill, the shipped root drops it."""
     write_skill(repo, ".claude", name)
