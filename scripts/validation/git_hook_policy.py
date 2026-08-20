@@ -6055,7 +6055,7 @@ _NEEDS_SPLIT_LABEL = "needs-split"
 
 # Every message that names `commit-limit-bypass` carries this clause with it.
 # CONTRIBUTING.md, section "Bypassing the Limit", is the canonical authority;
-# CONTRIBUTING.md:883 reads, verbatim:
+# CONTRIBUTING.md:880 reads, verbatim:
 #     1. A human maintainer MUST add the `commit-limit-bypass` label
 # Naming the label as the reader's next step tells whoever tripped the gate to
 # grant themselves a permission they do not hold. An agent reads that as
@@ -6066,7 +6066,7 @@ _NEEDS_SPLIT_LABEL = "needs-split"
 # ("Split this commit. This local pre-commit check has no PR-label bypass.",
 # added in commit e1fbc5a7a, PR #4245).
 #
-# Stricter/looser/different than canonical: CONTRIBUTING.md:883 states only
+# Stricter/looser/different than canonical: CONTRIBUTING.md:880 states only
 # who MAY add the label (a human maintainer). This message additionally
 # states who may NOT (the reader), because the load-bearing half for an
 # autonomous reader is the prohibition, not the permission; the canonical
