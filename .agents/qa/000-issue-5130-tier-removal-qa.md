@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-5174-b3bfa3aaa-remove-agent-tier-hierarchy-replace.json
-qaCommit: bad30ac1dfd3b80e9686fe605e3f01a884d4d544
+qaCommit: a47c805737cfd09bad0c81b160bf26874f2a61fb
 ---
 
 # QA report: issue #5130, remove the agent tier hierarchy
@@ -71,16 +71,16 @@ pass and caught by the install-parity gate.
 
 ## Addendum: findings after the first QA pass
 
-Nineteen review findings landed after the original run. Each is covered:
+Twenty-one review findings landed after the original run. Each is covered:
 
 | Finding | Source | Verification |
 |---|---|---|
 | OpenClaw export read only the top-level key, so nested-shape agents resolved to `support` | spec reviewer | 5 new cases in `tests/test_openclaw_bridge_roles.py`, incl. a negative control for unmigrated `metadata.tier`. Claude tree now resolves 4 strategic / 5 coordinator / 11 executor / 11 support |
 | Frontmatter validator accepted any string for `role`, so `buidler` became `support` | Copilot review | `role` required and constrained to the four known values; 6 new cases incl. the typo and a stale `builder` value |
-| Debate log claimed all three files quote ADR-009 verbatim | Copilot review | Replaced with a byte-measured per-file table; SESSION-PROTOCOL.md summarizes, orchestrator-routing carries the table only |
+| Debate log claimed all three files quote ADR-009 verbatim | Copilot review | Replaced with a byte-measured per-file table. At the time: SESSION-PROTOCOL.md summarized, orchestrator-routing carried the table only. That file has since been deleted upstream, and the log's reproduction block no longer opens it |
 | Taste ratchet regressed 577 > 576 (test file crossed 500 lines) | pre-push merge-tree ratchet | Split by concern into two modules, 356 and 222 lines; ratchet back to `OK (count == baseline 576)` |
 | No gate asserted zero `tier:` keys across the six agent trees, so a reintroduced `tier:` would pass every check | spec reviewer | `tests/test_agent_role_metadata_migration.py` reads both frontmatter shapes across all six trees; a discovery test acts as a negative control against vacuous globs |
-| Nothing pinned the escalation target in the routing docs, which is how the stale `escalate_to_architect` survived | spec reviewer | Parametrized guard over AGENT-SYSTEM.md, SESSION-PROTOCOL.md, and orchestrator-routing-algorithm.md; verified non-vacuous by checking out origin's stale doc, where it fails |
+| Nothing pinned the escalation target in the routing docs, which is how the stale `escalate_to_architect` survived | spec reviewer | Parametrized guard over AGENT-SYSTEM.md and orchestrator-routing-algorithm.md; verified non-vacuous by checking out origin's stale doc, where it fails. SESSION-PROTOCOL.md was a third case until PR #5179 deleted the file; see the row below |
 | Tree roster was a one-directional config set: a renamed or seventh tree went unchecked | Cursor Bugbot | Roster now derived from `AGENT_TREES` in `validate_agent_matrix_refs.py`; a disk walk asserts nothing lives outside it. Verified by planting a seventh tree with `tier: builder`, which fails the walk while the old key check passes right through it |
 | An agent declaring no role at all passed; the bridge exports absent as `support` | Copilot | Every agent definition must declare a known role. Verified against a planted role-less agent |
 | Unparseable frontmatter was dropped from the corpus, so a malformed agent could keep `tier:` | Copilot | Tier check adds a textual sweep of the raw block. Verified against a planted agent whose frontmatter does not parse and carries `tier: builder` |
@@ -94,6 +94,8 @@ Nineteen review findings landed after the original run. Each is covered:
 | Role vocabulary table listed `memory`, a skill, as a support-role agent | Copilot | Replaced with `skillbook`; other 17 names verified; a test now pins every cell against shipped frontmatter |
 | Generic `API rate limit exceeded` cannot prove primary exhaustion, but the message claimed it | Copilot | Explicit-secondary branch unchanged; generic branch now gives advice valid under either limiter. Headers not fetched, and the comment records why (#4690 budget, and `--include` would change parsed stdout) |
 | Two backticked paths in `## Changes` cite files this PR does not change, failing the description gate | CI `Validate PR` | Moved both citations to Notes for Reviewers. Re-extracted all 14 paths in that section; none is now absent from the diff |
+| Debate log's reproduction block still opened the deleted `.agents/SESSION-PROTOCOL.md`, so running it raised `FileNotFoundError` | Copilot | Path dropped from the block and the change noted inline. Re-ran it: AGENT-SYSTEM.md carries table and protocol, orchestrator-routing carries the table, both name `high-level-advisor` |
+| Negative control promised "absent or misspelled" but every case carried a role or tier, so a new tree omitting `role` entirely stayed invisible | Copilot | Second discovery signal added: a distinctive agent suffix on a real agent definition. Measured that `.agent.md` and `.shared.md` occur only in configured trees. Verified with a tracked `src/roleless-tree/foo.agent.md` carrying no role, which now fails the converse guard |
 
 Re-verified on this head: 11 migration guards, 44 bypass-checker tests, taste ratchet OK with slack,
 ruff and mypy clean on changed files.
