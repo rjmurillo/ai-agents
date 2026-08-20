@@ -88,7 +88,7 @@ These are measured, not inferred, and the distinction matters because an earlier
 
 #5176 is the sharpest case in either population. It sits at 40 authored non-merge commits against a relieved ceiling of exactly 40, so it is one commit from being blocked, and it got there through a real review cycle: its history is dominated by fix-plus-rebind pairs answering successive review findings. It is the #4718 shape at the boundary.
 
-No open pull request is held by the ceiling without relief. Two reached the blocking tier and both were relieved by hand, which is two of the twenty bypass applications the cost figure counts. #5177 is the same pull request cited below for spending its output on gate arithmetic, so the two halves of that observation are the same case seen from opposite sides.
+Two open pull requests reached the blocking tier and both were relieved by hand, which is two of the twenty bypass applications the cost figure counts. #5177 is the same pull request cited below for spending its output on gate arithmetic, so the two halves of that observation are the same case seen from opposite sides. The remaining two (#5176 and #5181) were not classified because their authored non-merge commit counts were not measured; the absence of a bypass label does not establish they stayed below the blocking threshold.
 
 Combining both populations: across eleven labeled pull requests classified by hand, closed and open, the blocking ceiling stopped nothing. Three reached the blocking tier and all three were relieved, and one more sits exactly at its relieved ceiling.
 
@@ -96,7 +96,7 @@ Combining both populations: across eleven labeled pull requests classified by ha
 
 #4846 is the only pull request in the sample that should not merge, and it did not merge. What held it was its own security and vendor-provenance gate, a correctness check, not a size ceiling. The size gate labeled it, and it also labeled #4718, #5036, #5152, #5103, and #5107, which all merged and should have.
 
-That is the finding this decision rests on, bounded by both enumerations above: across the closed-unmerged and open labeled populations the blocking ceiling stopped nothing, and the one pull request that should not have merged was held by a correctness gate. Over the same window the ceilings imposed cost on five of the six sampled pull requests that were doing the right thing.
+That is the finding this decision rests on, bounded by both enumerations above: across the closed-unmerged population and the two relieved open pull requests, the blocking ceiling stopped nothing it did not also relieve, and the one pull request that should not have merged was held by a correctness gate. Two open pull requests remain unclassified. Over the same window the ceilings imposed cost on five of the six sampled pull requests that were doing the right thing.
 
 ### The cost
 
@@ -220,7 +220,7 @@ Order: fix the rebind generator; demote `pr_commit_count.py`; demote `check_atom
 
 ### Time-box and re-measure
 
-Because the blocking-value claim rests on a single pull request, this retirement is provisional rather than permanent. Ninety days after the implementation lands, re-measure against a stated selection method over the labeled population: whether any pull request merged in the interval should not have, and whether any correctness gate failure was reached later than it would have been under the ceilings. If either shows harm, the ceilings return, informed by what the interval revealed. If neither does, the retirement stands and the follow-up closes.
+The blocking-value claim now rests on eleven labeled pull requests classified by hand across both populations, not on one. It is still provisional rather than permanent, for a different reason: survivorship. Pull requests the ceiling deterred, or that were split before opening, appear in no query, so no enumeration can reach them. Ninety days after the implementation lands, re-measure against a stated selection method over the labeled population: whether any pull request merged in the interval should not have, and whether any correctness gate failure was reached later than it would have been under the ceilings. If either shows harm, the ceilings return, informed by what the interval revealed. If neither does, the retirement stands and the follow-up closes.
 
 This is the standard ADR-099 applies to its own ADR sample, and it is applied here for the same reason: a decision resting on an undisclosed or very small sample earns a re-measurement, not an exemption.
 

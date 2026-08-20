@@ -4,7 +4,7 @@ Six rounds, six roles (architect, critic, independent-thinker, security, analyst
 
 **Council decision, round 6, all six roles run on the final text: 3 Accept, 3 Disagree-and-Commit, 0 Block. Consensus reached** under this repository's contract, which requires every role to return Accept or Disagree-and-Commit.
 
-The decision is a review verdict, not an acceptance. Both ADRs remain `status: proposed` and require human approval under `.claude/rules/governance.md` MUST-1, plus a unanimous-consensus record under MUST NOT 1, before either can be accepted.
+The decision is a review verdict, not an acceptance. Both ADRs remain `status: proposed`. Note the scope, corrected during review: `.claude/rules/governance.md` is scoped to `.agents/governance/**`, so MUST-1 and MUST NOT 1 bind the implementation pull requests that edit governance files, not these architecture proposals.
 
 Round 4 was reported as "6 Accept, 0 Block" in an earlier revision of this log. That was wrong: only four roles were re-run and two positions were inferred. A bot reviewer caught it, and round 5 exists because of that catch.
 

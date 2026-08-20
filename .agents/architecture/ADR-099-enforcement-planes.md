@@ -98,7 +98,7 @@ Adopt **enforcement plane** classification as this repository's rule for gate de
 |---|---|---|---|
 | P0, tree | Files under version control: hooks, validation scripts, workflow definitions, rule files, ADRs, debate logs | Any pull request author, including the autonomous loop | Advisory only |
 | P1, runner | GitHub Actions execution producing a named check run | The loop influences it by editing P0 content, unless the executed definition comes from a ref the pull request cannot change | Binding only under the conditions below |
-| P2, control | Repository configuration: rulesets, required context names, review requirements, bypass actors, Actions token defaults. Not files in the tree. | Target state: only a credential the loop does not hold. Present state: also reachable from P0 through `BOT_PAT`, see above | Trust anchor only after hardening; nothing today |
+| P2, control | Repository configuration: rulesets, required context names, review requirements, bypass actors, Actions token defaults. Not files in the tree. | Target state: only a credential the loop does not hold. Present state: the review control layered on P2 is reachable from P0 through `BOT_PAT`; whether P2 itself is depends on the token's owning account, which is unknown | Trust anchor only after hardening; nothing today |
 
 ### The invariant
 
@@ -142,7 +142,7 @@ Two requirements follow, and they are the operative content of this decision:
 
 ### Control plane hardening, prerequisite to everything else
 
-Before any gate below is treated as binding. The first item outranks the rest: while it is open, every item after it can be undone by the party it constrains.
+Before any gate below is treated as binding. The first item comes first because it defeats the second: an exfiltrated token with `write` mints the approvals that satisfy `required_approving_review_count`, so installing that count while the token is reachable ships a control the loop can satisfy itself. It does not follow that the token undoes every later item; on the evidence above it cannot edit the ruleset or satisfy code-owner review unless it belongs to the admin account, which is unknown.
 
 - **Contain every secret reachable from a `pull_request` run**, not only the PATs. This is more than adding an `environment:` stanza, and the obvious version of it does not work.
 
@@ -152,8 +152,10 @@ Before any gate below is treated as binding. The first item outranks the rest: w
 
   What actually contains it: **remove the repository-level copy of the secret**, so environment-scoped access is the only access, **and restrict that environment's deployment branches to the base ref**. Scope alone is not containment: a head-defined workflow can add the `environment:` stanza rather than delete it, and receive the secret, unless the environment's deployment rules reject pull-request refs. A branch restriction rejects them without a reviewer, which a required-reviewer rule would not do without reintroducing a per-change human. Then redesign the pull-request-time consumers so the code that reaches the secret is base-owned rather than head-defined. A head-defined job may then run without the token, or the privileged part moves into a base-ref job per the rules above. Inventory every PAT reachable from a `pull_request` run before changing any of them.
 
-  Separately, reduce scope below classic `repo` if achievable; note that the dependabot workflow's own comment claims ruleset-required reviews need a real user identity, which may make `repo` scope and approval minting mutually exclusive with scope reduction. Resolve that during the phase. Until the repository-level copy is gone, P2 is writable from P0 and the plane model does not hold here.
+  Separately, reduce scope below classic `repo` if achievable; note that the dependabot workflow's own comment claims ruleset-required reviews need a real user identity, which may make `repo` scope and approval minting mutually exclusive with scope reduction. Resolve that during the phase. Until the repository-level copy is gone, the review control that Phase 0 layers on P2 is satisfiable from P0, and the plane model does not hold here. Whether P2 itself is writable from P0 turns on the token's owning account and is not established.
 - Set `required_approving_review_count` above zero **and** set `require_code_owner_review`. The count alone is not sufficient: without code-owner review, any approval satisfies the count and CODEOWNERS still gates nothing. Neither parameter is in the current baseline.
+
+  This item has a dependency the rest of the phase does not, and it should not ship without resolving it. A nonzero count applies to **every** ordinary pull request, and once the repository-level PAT is removed there is no base-owned approver left: the only approval commands in `.github/workflows/` serve Dependabot and Renovate. Installing the count without first defining an independent approval producer, and stating what evidence it evaluates, converts the operating goal into a per-change human review. Sequence it after that producer exists, or scope the count to the enforcement paths CODEOWNERS covers.
 - Extend `.github/CODEOWNERS` to cover `.github/workflows/`, `scripts/validation/`, `scripts/ci/`, `lefthook.yml`, and `/.github/CODEOWNERS` itself. A CODEOWNERS file that does not own itself can be edited by a pull request that needs no owner review.
 - Make `check_ruleset_params_drift.py` bidirectional, so an added rule or widened permission is a finding.
 - Fetch and baseline `bypass_actors`, `enforcement`, and `strict_required_status_checks_policy`. Bypass actors decide who is exempt; enforcement status decides whether the ruleset applies at all; the strict policy decides whether a stale green counts, which the head-SHA digest keying below depends on.
