@@ -275,3 +275,50 @@ parameterized the three guards a reviewer had pointed at and stopped there,
 which is the same "corrected where I was looking" failure recorded two passes
 earlier. Doing it by grep instead of by report closed five guards and found the
 one no reviewer had seen.
+
+### Twelfth pass: two gaps a subagent fleet found that no bot had
+
+Five subagents reviewed the diff in parallel. Two returned findings that
+changed the merge decision; both are gaps in the runtime harness, and both are
+mine.
+
+**The disarm call's flags were never asserted.** The fake
+`set_pr_auto_merge.py` appended to a log and ignored `argv`, so `run.disarmed`
+proved a call happened and said nothing about what was asked for. Verified
+before fixing: flipping `--disable` to `--enable` in the shipped command left
+the whole suite green at 429 passed. That mutation turns the gate that strips
+auto-merge from a non-T1 PR into one that arms it immediately before a push,
+which is the exact outcome issue #3913's gate exists to prevent. The fake now
+records its argument vector and the disarm case asserts `--disable` is present
+and `--enable` is not.
+
+**A per-PR skip was indistinguishable from a queue abort.** The harness looped
+over one PR, so `continue`, `break`, and `exit 0` were observationally
+identical to every accessor: the gate's message printed, cleanup ran, and the
+shell exited 0 because the shared helper requires exactly that. Four mutants
+across the terminating arms survived. The harness now walks a two-PR queue and
+every terminating arm asserts the second PR was still visited.
+
+The second fix was wrong on its first attempt, and the way it was wrong is the
+point. It printed a marker after `done` and asserted that; `break` still
+reaches that marker, so the `break` mutant survived the fix written to kill it.
+Only re-running the control caught it. That is the same unit-narrower-than-the-
+claim mistake this whole PR is about, committed while closing an instance of
+it, which is now three occasions in this branch where the fix reproduced the
+defect it was fixing.
+
+Controls at the current head:
+
+```
+--disable -> --enable        1 failed, 39 passed
+SKIP continue -> break       1 failed, 39 passed
+SKIP continue -> exit 0      1 failed, 39 passed
+reword a comment (inverted)  40 passed
+```
+
+**Also observed, not fixed here.** Running `pytest tests/commands/` regenerates
+`src/copilot-cli/skills/pr-autofix/SKILL.md` in the working tree. It propagated
+a mutation from the source into the tracked mirror during these controls, and
+it means a mirror-drift failure turns green on a re-run, destroying the
+evidence. That is a sibling test's behavior, older and wider than this change,
+so it belongs in its own PR rather than as an addendum here.

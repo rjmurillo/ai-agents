@@ -120,9 +120,16 @@ print(json.dumps({"Success": True, "Data": {"auto_merge_method": payload}}))
         """\
 import json
 import os
+import sys
 from pathlib import Path
 
-Path(os.environ["DISARM_LOG"]).open("a", encoding="utf-8").write("disarmed\\n")
+# Records the argument vector, not just the fact of an invocation. A fake that
+# ignores argv proves a call happened and says nothing about what was asked
+# for, so `--disable` could become `--enable` with the whole suite green. That
+# mutation was verified to survive before this line existed.
+Path(os.environ["DISARM_LOG"]).open("a", encoding="utf-8").write(
+    "disarmed " + " ".join(sys.argv[1:]) + "\\n"
+)
 print(json.dumps({"Success": True, "Data": {"disabled": True}}))
 """,
         encoding="utf-8",
@@ -144,11 +151,37 @@ class DispatchRun:
         self.round_cap_called = round_cap_log.exists()
         self.disarmed = disarm_log.exists()
         self.cleaned_up = cleanup_log.exists()
+        self.disarm_argv = disarm_log.read_text(encoding="utf-8") if self.disarmed else ""
 
     @property
     def reached_end(self) -> bool:
         """True when no gate issued `continue` before the block finished."""
         return "reached-post-tier" in self.stdout
+
+    @property
+    def queue_completed(self) -> bool:
+        """True when the loop walked its whole queue instead of aborting.
+
+        The harness iterates two PRs. With one, `continue`, `break`, and
+        `exit 0` are observationally identical to every other accessor here:
+        the gate's message is printed, cleanup ran, and the shell exits 0
+        because the shared helper requires exactly that. Mutating the SKIP
+        arm's `continue` to `break` or `exit 0` was verified to survive the
+        whole suite before this property existed.
+
+        This asserts the second PR was *visited*, not that the loop exited
+        normally. The first version checked a marker printed after `done`,
+        which `break` still reaches, so the `break` mutant survived the very
+        fix meant to kill it. That is the same unit-narrower-than-the-claim
+        mistake this suite exists to catch, committed while fixing an instance
+        of it, and caught only because the control was re-run afterwards.
+
+        The distinction is not cosmetic. Every terminating arm in the block is
+        a per-PR skip, so turning one into a queue abort means a single draft
+        PR early in the queue silently stops autofix for every PR behind it,
+        with the process still exiting 0 for a supervisor to read as success.
+        """
+        return "visiting 5177" in self.stdout
 
 
 def run_dispatch(
@@ -194,7 +227,8 @@ run_pr_mutation_if_live() {{
     "$@"
 }}
 
-for PR in 5176; do
+for PR in 5176 5177; do
+    printf 'visiting %s\\n' "$PR"
 {block}
     printf 'reached-post-tier\\n'
 done
@@ -283,6 +317,7 @@ def test_round_cap_escalation_stops_before_the_disarm_gate(tmp_path: Path, doc: 
     assert run.cleaned_up
     assert not run.disarmed, "the loop kept acting after the round cap escalated"
     assert not run.reached_end
+    assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
@@ -292,6 +327,16 @@ def test_non_t1_with_auto_merge_armed_is_disarmed(tmp_path: Path, doc: str) -> N
     assert run.disarmed
     assert "Auto-merge armed on non-T1 PR" in run.stdout
     assert run.reached_end
+    # The flags, not just the fact of a call. The fake used to ignore argv, so
+    # `--disable` could be mutated to `--enable` with all 429 tests green: the
+    # gate that strips auto-merge before an unguarded push would instead arm it.
+    # Verified surviving before this assertion existed.
+    assert "--disable" in run.disarm_argv, (
+        f"the disarm call did not pass --disable; argv was {run.disarm_argv.strip()!r}"
+    )
+    assert "--enable" not in run.disarm_argv, (
+        f"the disarm call passed --enable; argv was {run.disarm_argv.strip()!r}"
+    )
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
@@ -310,6 +355,7 @@ def test_unreadable_auto_merge_state_skips_instead_of_guessing(tmp_path: Path, d
     assert run.cleaned_up
     assert not run.disarmed, "the disarm path fired on no evidence"
     assert not run.reached_end
+    assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
@@ -326,6 +372,7 @@ def test_a_skipped_mutation_is_not_reported_as_a_failure(tmp_path: Path, doc: st
     assert "Failed to disable auto-merge" not in run.stdout
     assert run.cleaned_up
     assert not run.reached_end
+    assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
@@ -342,6 +389,7 @@ def test_a_failed_mutation_is_reported(tmp_path: Path, doc: str) -> None:
     assert "Failed to disable auto-merge" in run.stdout
     assert run.cleaned_up
     assert not run.reached_end
+    assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
@@ -371,6 +419,7 @@ def test_a_producer_that_names_no_tier_skips_the_pr(tmp_path: Path, doc: str, fa
     assert not run.disarmed, "auto-merge was stripped on an unknown tier"
     assert not run.round_cap_called
     assert not run.reached_end, "the loop kept acting without a valid tier"
+    assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
@@ -423,6 +472,7 @@ def test_the_prefix_read_stops_a_t1_pr_from_being_dispatched(tmp_path: Path, doc
 
     assert "Cannot determine tier" in run.stdout, "the pre-fix read no longer reproduces the defect"
     assert not run.reached_end, "a T1 PR was dispatched on a tier the read never resolved"
+    assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
     assert not run.round_cap_called
 
 
@@ -481,3 +531,4 @@ def test_skip_terminates_instead_of_reaching_the_disarm_gate(tmp_path: Path, doc
     assert not run.disarmed, "auto-merge was stripped from a non-actionable PR"
     assert not run.round_cap_called
     assert not run.reached_end
+    assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
