@@ -443,7 +443,7 @@ TIER=$(printf '%s' "$MERGE_READY" | jq -r '.Tier // "UNKNOWN"')
 # Anything other than the literal `true` denies the exemption: the real producer
 # always emits the boolean, so healthy input is unaffected, and a missing or
 # unreadable field is exactly the state that must not buy a merge.
-PAGES_COMPLETE=$(printf '%s' "$MERGE_READY" | jq -r '.fetched_pages_complete // "unknown"')
+PAGES_COMPLETE=$(printf '%s' "$MERGE_READY" | jq -r '.fetched_pages_complete | if . == null then "unknown" else tostring end')
 # .claude/commands/pr-review-config.yaml already ANDs this field into its
 # completion-gate criterion, so this is the same safety rule applied at the
 # other place a merge can be armed, not a new policy.
