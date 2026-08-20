@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-5174-b3bfa3aaa-remove-agent-tier-hierarchy-replace.json
-qaCommit: eae5000872641436babe91e3edcf1cb229528ffb
+qaCommit: 50c6b29b68c40cbbecea682f0a688fd1a12a2f37
 ---
 
 # QA report: issue #5130, remove the agent tier hierarchy
@@ -68,15 +68,40 @@ pass and caught by the install-parity gate.
   ADR-009 that ADR-009 does not grant, and two false citations in the debate
   log's own finding-5 answer) were fixed before the log was updated.
 
-  **What is still not validated is consensus.** `critic`'s BLOCK named a
-  bounded clearing condition and it is met; `architect`'s is not. Its P0 is
-  that no ADR records the tier-to-role decision, and this change still adds
-  none. `high-level-advisor`, asked the same question, said land it and file a
-  follow-up. Both are designated tie-breakers and they disagree, and
-  `AGENTS.md` makes authoring a new ADR `Ask First`, so it is the maintainer's
-  call and is recorded as open rather than resolved.
-- Three gaps the `qa` pass proved by planting violations, all still open and
-  none blocking: the four copies of `_KNOWN_ROLES` have no equality test
+  **`architect`'s BLOCK has since been discharged.** Its P0 was that no ADR
+  recorded the tier-to-role decision. The maintainer directed one be written,
+  and `.agents/architecture/ADR-098-agent-role-metadata-replaces-tier-hierarchy.md`
+  now carries it. The architect pass confirmed the discharge in the follow-on
+  debate: "Yes."
+
+  Editing an ADR re-fires `adr-review`, so the six roles ran a second time
+  against ADR-098 itself: 2 ACCEPT, 1 DISAGREE-AND-COMMIT, 3 BLOCK. **Every
+  block in that round was on the record, not the decision.** All three
+  converged on one Context paragraph wrong three ways (24 agents ranked not
+  nine; seven of the nine empowered agents deny delegation not six; two lack
+  the line rather than one). Corrected against a re-measurement, along with
+  eleven smaller findings.
+
+  **What is still not validated is a re-vote.** Both rounds' clearing
+  conditions are met by construction; no reviewer was re-run against the
+  corrected artifacts. That distinction is recorded in the debate log rather
+  than smoothed over.
+- **Closed since**: three of the gaps below were implemented and are no longer
+  open. `test_role_vocabulary_agrees_across_consumers` pins the four copies of
+  the role vocabulary, `test_agents_present_in_several_trees_declare_one_role`
+  catches cross-tree disagreement against the canonical template, and
+  `test_every_agent_file_in_a_configured_tree_is_a_readable_definition` makes a
+  malformed agent file fail closed instead of dropping out of the corpus. Each
+  was verified against a planted violation, not from a passing run. A fourth
+  guard, `test_the_role_inertness_sentence_survives_in_agent_system`, pins the
+  sentence ADR-098 names as the mitigation for its Standing Dissent, which three
+  passes of the ADR-098 debate found was held by nothing.
+
+  Two residuals remain and have no fix: the equality test cannot see coordinated
+  drift across all four copies, and a new tree using a bare `.md` suffix that
+  also omits `role` stays invisible to discovery.
+
+- The gaps as originally found by the `qa` pass, kept for the record: the four copies of `_KNOWN_ROLES` have no equality test
   (adding a fifth value to one copy leaves the suite green); nothing asserts
   that copies of the same agent agree across trees (setting
   `.claude/agents/janitor.md` to `strategic` against the template's `support`
