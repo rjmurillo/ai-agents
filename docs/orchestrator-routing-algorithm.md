@@ -224,6 +224,7 @@ Quoted verbatim from
 
 ```python
 # Soft-conflict weights, per ADR-009: "weighted vote (architect > implementer)".
+# An agent absent from this table carries weight 1.
 CONFLICT_VOTE_WEIGHTS = {
     "architect": 2,
     "security": 2,
@@ -231,14 +232,24 @@ CONFLICT_VOTE_WEIGHTS = {
 }
 
 
-def detect_escalation_need(results):
+def resolve_disagreement(results):
     """
-    Detect disagreement among agents that ran on the same question.
+    Apply ADR-009's aggregation strategies to a set of agent results.
 
-    Returns an escalation record when two or more agents returned different
-    recommendations, otherwise False. Per ADR-009 the escalation target is
-    high-level-advisor; the orchestrator routes the conflict, it does not
-    arbitrate it.
+    ADR-009 defines three outcomes, and disagreement alone does not mean
+    escalate. A soft conflict is settled by weighted vote; only a hard
+    conflict, one the vote cannot settle, routes onward. Escalating every
+    disagreement would skip the vote strategy entirely and contradict the
+    protocol quoted above.
+
+    Returns one of:
+      {"strategy": "merge",    ...}  no disagreement
+      {"strategy": "vote",     ...}  soft conflict, decided by weight
+      {"strategy": "escalate", ...}  hard conflict, routed to high-level-advisor
+
+    A conflict is hard when the top weight is tied, so the vote has no winner,
+    or when any dissenting agent marked its position non-negotiable. The
+    orchestrator routes a hard conflict; it does not arbitrate it.
     """
     recommendations = {
         agent: result.get("recommendation")
@@ -246,18 +257,34 @@ def detect_escalation_need(results):
         if result.get("recommendation") is not None
     }
 
-    if len(recommendations) < 2:
-        return False
+    if len(recommendations) < 2 or len(set(recommendations.values())) == 1:
+        return {"strategy": "merge", "recommendation": next(iter(recommendations.values()), None)}
 
-    distinct = set(recommendations.values())
-    if len(distinct) == 1:
-        return False
+    tallies = {}
+    for agent, recommendation in recommendations.items():
+        weight = CONFLICT_VOTE_WEIGHTS.get(agent, 1)
+        tallies[recommendation] = tallies.get(recommendation, 0) + weight
+
+    ranked = sorted(tallies.items(), key=lambda item: item[1], reverse=True)
+    tied = len(ranked) > 1 and ranked[0][1] == ranked[1][1]
+    blocking = any(
+        results[agent].get("non_negotiable") for agent in recommendations
+    )
+
+    if tied or blocking:
+        return {
+            "strategy": "escalate",
+            "escalate_to": "high-level-advisor",
+            "reason": "Tied weighted vote" if tied else "Non-negotiable position held",
+            "agents": sorted(recommendations),
+            "conflict": sorted(tallies),
+        }
 
     return {
-        "escalate_to": "high-level-advisor",
-        "reason": "Conflicting agent recommendations",
+        "strategy": "vote",
+        "recommendation": ranked[0][0],
+        "tallies": tallies,
         "agents": sorted(recommendations),
-        "conflict": sorted(distinct),
     }
 ```
 
@@ -371,8 +398,11 @@ def resolve_conflicts(conflicts):
         elif (agent_b, agent_a) in CONFLICT_RESOLUTION:
             winner = CONFLICT_RESOLUTION[(agent_b, agent_a)]
         else:
-            # Escalate to architect
-            winner = escalate_to_architect(conflict)
+            # No pairwise rule covers this pair. Per ADR-009 a conflict the
+            # aggregation strategies cannot settle routes to high-level-advisor,
+            # not to architect: architect is a participant in these disputes and
+            # cannot be the arbiter of one it is party to.
+            winner = escalate_to_high_level_advisor(conflict)
 
         resolutions.append({
             "conflict": conflict,
