@@ -5,7 +5,7 @@
     "date": "2026-08-20",
     "branch": "claude/push-gate-value-eval-tu1lju",
     "startingCommit": "f79e70c017e0a253f92d07ff4ba84f84a9f8b449",
-    "objective": "Evaluate whether the pull request commit-count and per-commit file-count push gates earn their cost, and structurally solve what the evidence shows. Produced ADR-100 (retire the size ceilings) and ADR-101 (enforcement planes), carried through six rounds of six-role adr-review plus external bot review, which corrected the design twice and caught four factual errors in the drafts."
+    "objective": "Evaluate whether the pull request commit-count and per-commit file-count push gates earn their cost, and structurally solve what the evidence shows. Produced ADR-100 (retire the size ceilings) and ADR-101 (enforcement planes), carried through seven rounds of six-role adr-review plus continuing external bot review. External review changed the design repeatedly and falsified a substantial number of drafted claims; the counts are recorded in the debate log and QA report rather than here, because this field is copied into the episode artifact and a number stated here goes stale on every subsequent round. Round 7 re-ran the panel with verification against the tree assigned to every role, which found real defects in text eleven bot rounds had passed."
   },
   "protocolCompliance": {
     "sessionStart": {

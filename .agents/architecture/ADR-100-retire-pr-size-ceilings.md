@@ -189,6 +189,18 @@ The relief paths available at that moment were the ones this decision has alread
 
 `_unpushed_commit_count` does not help here and its docstring explains why: it deliberately keeps the branch's own remote ref in the count, because "excluding it would make every re-push measure only the newest commits, which would retire the ceiling entirely for any branch pushed more than once." That is a defensible choice for the gate's purpose. Its consequence is that a long-lived branch under review cannot re-push past the ceiling no matter how small the new work is; this push added two commits.
 
+**The owner then granted the relief, and the gate denied it anyway.** This is the part worth recording above all the rest, because it was tested rather than reasoned about.
+
+The repository owner applied `commit-limit-bypass` to this pull request. GitHub confirms both labels present: `["needs-split", "commit-limit-bypass"]`. The push was retried and returned `ERROR: push has 45 commits, limit is 40`.
+
+The mechanism is not subtle. `_check_commit_limit` asks for the label by shelling out to `scripts/validation/check_pr_bypass_label.py`, which reads it through `gh pr view`, which uses GitHub's GraphQL API. In this execution environment GraphQL returns 403, the script exits 3, which is this repository's own convention for an external failure, and `_check_commit_limit` treats every non-zero return as relief-not-granted. The same 403 defeats the `needs-split` small-push allowance, which this branch also qualified for: it carries the label and the push added three commits against a cap of five.
+
+So the sanctioned, human-only relief was correctly granted by the only party entitled to grant it, and the gate could not see it. The failure mode is not the one this decision described. "A gate whose only relief is a human caps throughput at human attention" understates it. The accurate statement is that **the gate's only relief is unreachable from the environment this repository's own agents run in**, so the human decision does not work either, and a gate that fails closed when its relief check is merely unreachable is unconditional in that environment regardless of what any human does.
+
+This is reproducible rather than anecdotal. PR #5178's session log records the identical failure in a different session two days earlier: "`gh` auth was unavailable in-session to run the `needs-split` label bypass." That session's response was to squash thirty-three commits and force-push, which is how eleven cited review SHAs became unreachable. The same unreachable relief produced the same destructive workaround, twice, in two sessions, and the second time only because the first was recorded and this one refused to repeat it.
+
+Decision item 6's telemetry field "whether a relief check failed to evaluate" exists because of this event. Nothing in the repository currently distinguishes a gate that refused from a gate that could not ask.
+
 This is not offered as proof the ceiling is wrong. It is one event, and the sample warnings above apply to it too. It is offered because the decision was already written and the gate then produced, unprompted, an instance of every mechanism the decision describes: the two counting rules disagreeing, the relief consuming the budget it relieves, concurrent agents spending an author's ceiling, and a blocked change whose only compliant exit is a human.
 
 ## Decision
@@ -292,7 +304,7 @@ This trades a small, unproven protection against sprawl for the removal of a mea
 
 | Component | Dependency | Required update | Risk |
 |---|---|---|---|
-| `scripts/ci/enforce_pr_validation.py:64-84` | Direct | Remove the `COMMIT_STATUS == "BLOCKED"` branch and its bypass-label fetch. This is the CI block; `pr_commit_count.py` already returns 0 in every case | High |
+| `scripts/ci/enforce_pr_validation.py:64-84` | Direct | Remove the `COMMIT_STATUS == "BLOCKED"` branch and its bypass-label fetch. This is the CI block; `pr_commit_count.py` returns 0 on every classification path and must keep exiting 2 and 3 on its error paths, so demoting the size classification must not neutralize configuration and API failures | High |
 | `scripts/validation/git_hook_policy.py` `_check_commit_limit` | Direct | Demote to a report. This is the pre-push block every recorded workaround actually hit | High |
 | `scripts/validation/pr_commit_count.py` | Direct | Keep classifying and reporting. Already returns 0 on every classification path, though it still exits 2 and 3 on its error paths (`:461`, `:480`, `:483`), so no caller should read exit 0 as "classified" | Low |
 | `scripts/validation/git_hook_policy.py` | Direct | `check_atomic_commit` advisory | Medium |
