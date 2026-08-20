@@ -81,6 +81,22 @@ _EXEMPT_FILES = frozenset(
     }
 )
 
+# `role:` is not exclusive to agents. The review skill's reference files use it
+# for a review axis (`role: agent-safety`), in both the Claude and Copilot
+# trees, and those values are strings just like agent roles, so no type check
+# separates them. Named here rather than discriminated by value, because value
+# matching is exactly the bug this list exists to avoid reintroducing.
+#
+# Getting this list wrong fails loudly rather than silently: an unlisted
+# non-agent directory shows up as a spurious unconfigured tree, which is a
+# noisy test, not a missed one.
+_NON_AGENT_ROLE_DIRS = frozenset(
+    {
+        ".claude/skills/review/references",
+        "src/copilot-cli/skills/review/references",
+    }
+)
+
 _FRONTMATTER_RE = re.compile(r"^---\r?\n([\s\S]*?)\r?\n---\r?\n")
 
 # Matches a `tier:` key inside a frontmatter block at any indent. Used for the
@@ -138,13 +154,27 @@ def _declared_role(front: dict) -> object | None:
 
 
 def _declares_agent_metadata(front: dict) -> bool:
-    """True when frontmatter carries an agent role or a pre-migration agent tier."""
+    """True when frontmatter carries an agent role or tier key, whatever its value.
+
+    Deliberately value-independent. An earlier version matched only the four
+    known roles and the four legacy tiers, which made discovery depend on the
+    very field the other guards validate: a brand new tree whose first agent
+    said `role: strategc` was not recognized as an agent tree at all, so the
+    converse guard passed and the known-role guard never looked there, because
+    it only scans configured trees. Raised by Copilot on PR #5177, and
+    reproduced before fixing: a tracked `src/new-agents/foo.agent.md` with that
+    typo passed both guards.
+
+    Type still discriminates, because `tier` is overloaded. Skills use
+    `metadata.tier: 3` and Serena memories use `tier: 2`, both integers, while
+    an agent tier was always a string.
+    """
     scopes = [front]
     nested = front.get("metadata")
     if isinstance(nested, dict):
         scopes.append(nested)
     return any(
-        scope.get("role") in _KNOWN_ROLES or scope.get("tier") in _LEGACY_TIERS
+        isinstance(scope.get("role"), str) or isinstance(scope.get("tier"), str)
         for scope in scopes
     )
 
@@ -213,13 +243,45 @@ def test_every_on_disk_agent_tree_is_configured():
     this file. Raised by Cursor Bugbot on PR #5177 against the learned rule
     that a configuration-set test needs a converse guard.
     """
-    unconfigured = _discover_agent_trees() - set(_AGENT_TREES)
+    unconfigured = _discover_agent_trees() - set(_AGENT_TREES) - _NON_AGENT_ROLE_DIRS
     assert not unconfigured, (
         "agent frontmatter found in unconfigured trees: "
         f"{sorted(unconfigured)}. Add each to AGENT_TREES in "
         "build/scripts/validate_agent_matrix_refs.py so the tier and role "
         "guards cover it, or to _EXEMPT_FILES here with the reason."
     )
+
+
+def test_discovery_does_not_depend_on_the_field_it_validates(tmp_path):
+    """A new tree must be discovered even when its role is absent or misspelled.
+
+    This is the hole Copilot found on PR #5177. Discovery used to match only
+    valid roles and legacy tiers, so `src/new-agents/foo.agent.md` carrying
+    `role: strategc` was not seen as agent metadata at all. The converse guard
+    passed because it found no new tree, and the known-role guard passed because
+    it only scans configured trees. A whole unconfigured tree went unnoticed
+    precisely because its role was wrong, which inverts the intent.
+
+    Exercised against the predicate rather than the filesystem, so it does not
+    write into the repository or race the suites that share it.
+    """
+    escapes = [
+        {"name": "foo", "description": "misspelled", "role": "strategc"},
+        {"name": "foo", "description": "empty", "role": ""},
+        {"name": "foo", "description": "legacy top level", "tier": "builder"},
+        {"name": "foo", "description": "nested misspell", "metadata": {"role": "coordinatr"}},
+    ]
+    missed = [case for case in escapes if not _declares_agent_metadata(case)]
+    assert not missed, f"agent metadata not recognized, so its tree stays invisible: {missed}"
+
+    # The converse: the overloaded integer tiers must still be excluded, or every
+    # skill and Serena memory becomes a spurious unconfigured tree.
+    not_agents = [
+        {"name": "s", "description": "skill tier", "metadata": {"tier": 3}},
+        {"name": "m", "description": "memory tier", "tier": 2},
+    ]
+    wrong = [case for case in not_agents if _declares_agent_metadata(case)]
+    assert not wrong, f"non-agent frontmatter treated as agent metadata: {wrong}"
 
 
 def test_configured_trees_match_the_canonical_set():
@@ -347,6 +409,46 @@ def test_no_agent_definition_declares_conflicting_roles():
 # parametrized case naming a path that no longer exists fails on the read, which
 # reports a missing escalation target where the real answer is that the document
 # is gone.
+def test_role_vocabulary_table_names_real_agents_with_those_roles():
+    """Every example in the AGENT-SYSTEM role table must be an agent with that role.
+
+    Copilot found `memory` listed as a support-role agent on PR #5177. It is a
+    skill, not an agent, and `validate_agent_matrix_refs` documents a phantom
+    `memory` agent as the incident it exists to prevent, so the new vocabulary
+    was pointing readers at exactly the name that motivated that guard.
+
+    A prose table naming agents is a citation, and citations rot. Nothing else
+    checks this one.
+    """
+    text = (_REPO_ROOT / ".agents/AGENT-SYSTEM.md").read_text(encoding="utf-8")
+    row = re.compile(r"^\|\s*`(strategic|coordinator|executor|support)`\s*\|[^|]*\|([^|]*)\|", re.M)
+
+    declared: dict[str, object] = {}
+    for path in _agent_definitions():
+        front = _frontmatter(path)
+        if front is not None:
+            declared.setdefault(path.name.split(".")[0], _declared_role(front))
+
+    rows = row.findall(text)
+    assert rows, "role vocabulary table not found in .agents/AGENT-SYSTEM.md"
+
+    offenders = []
+    for claimed, examples in rows:
+        for name in (part.strip() for part in examples.split(",")):
+            if not name:
+                continue
+            if name not in declared:
+                offenders.append(
+                    f"{name}: named as a {claimed} agent but ships no agent definition"
+                )
+            elif declared[name] != claimed:
+                offenders.append(
+                    f"{name}: table says {claimed}, frontmatter says {declared[name]!r}"
+                )
+
+    assert not offenders, "role vocabulary table is wrong: " + "; ".join(offenders)
+
+
 @pytest.mark.parametrize(
     "document",
     [

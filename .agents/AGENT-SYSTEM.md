@@ -831,7 +831,7 @@ meanings:
 | `strategic` | Sets direction, arbitrates priority, owns design authority | high-level-advisor, architect, roadmap, independent-thinker |
 | `coordinator` | Routes work, sequences plans, aggregates parallel results | orchestrator, milestone-planner, critic, pr-comment-responder |
 | `executor` | Produces the change: code, tests, deployment, fixes | implementer, qa, devops, security, debug |
-| `support` | Supplies research, documentation, and context to any caller | analyst, explainer, task-decomposer, memory, retrospective |
+| `support` | Supplies research, documentation, and context to any caller | analyst, explainer, task-decomposer, skillbook, retrospective |
 
 `role` is descriptive metadata consumed by `build/generate_agent_catalog.py`
 (the catalog's Role column) and `scripts/openclaw_bridge.py` (the OpenClaw
