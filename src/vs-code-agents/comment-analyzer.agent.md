@@ -20,7 +20,7 @@ tools:
   - serena/*
   - memory
 model: Claude Sonnet 4.6 (copilot)
-tier: integration
+role: support
 ---
 
 # Comment Analyzer Agent

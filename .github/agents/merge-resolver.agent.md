@@ -21,7 +21,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
   - memory
-tier: builder
+role: executor
 ---
 
 # Merge Resolver Agent

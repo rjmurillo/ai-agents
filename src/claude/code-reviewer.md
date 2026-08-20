@@ -4,7 +4,7 @@ description: Use this agent when you need to review code changes for correctness
 model: haiku
 model-rationale: cost. The reviewer filters to high-confidence findings and escalates complex architecture or security concerns to specialist agents, so the lower-cost tier is sufficient.
 metadata:
-  tier: builder
+  role: executor
 argument-hint: Point to the diff, PR, or files to review; defaults to current working changes
 ---
 

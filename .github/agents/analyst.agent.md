@@ -23,7 +23,7 @@ tools:
   - serena/list_memories
   - serena/read_memory
   - serena/initial_instructions
-tier: integration
+role: support
 ---
 
 # Analyst Agent

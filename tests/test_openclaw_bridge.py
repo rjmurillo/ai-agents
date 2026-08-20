@@ -27,7 +27,7 @@ def sample_agent():
         name="analyst",
         description="Research specialist who digs deep into root causes.",
         model="sonnet",
-        tier="integration",
+        role="support",
         argument_hint="Describe the topic to research",
         body="# Analyst Agent\n\nCore identity text.",
         source_path="src/claude/analyst.md",
@@ -41,21 +41,21 @@ def sample_agents():
             name="orchestrator",
             description="Enterprise task orchestrator for multi-step coordination.",
             model="opus",
-            tier="manager",
+            role="coordinator",
             argument_hint="Describe the task to solve end-to-end",
         ),
         AgentDefinition(
             name="implementer",
             description="Execution-focused engineering expert.",
             model="opus",
-            tier="builder",
+            role="executor",
             argument_hint="Specify the plan file path",
         ),
         AgentDefinition(
             name="analyst",
             description="Research specialist.",
             model="sonnet",
-            tier="integration",
+            role="support",
         ),
     ]
 
@@ -67,7 +67,7 @@ def agent_md_file(tmp_path):
         name: test-agent
         description: A test agent for unit testing.
         model: sonnet
-        tier: builder
+        role: executor
         argument-hint: Provide the test scenario
         ---
         # Test Agent
@@ -85,17 +85,17 @@ def agents_dir(tmp_path):
     agents = tmp_path / "agents"
     agents.mkdir()
 
-    for name, model, tier in [
-        ("orchestrator", "opus", "manager"),
-        ("implementer", "opus", "builder"),
-        ("analyst", "sonnet", "integration"),
+    for name, model, role in [
+        ("orchestrator", "opus", "coordinator"),
+        ("implementer", "opus", "executor"),
+        ("analyst", "sonnet", "support"),
     ]:
         content = textwrap.dedent(f"""\
             ---
             name: {name}
             description: The {name} agent.
             model: {model}
-            tier: {tier}
+            role: {role}
             argument-hint: Use {name}
             ---
             # {name.title()} Agent
@@ -116,7 +116,7 @@ class TestParseAgentFile:
         assert result.name == "test-agent"
         assert result.description == "A test agent for unit testing."
         assert result.model == "sonnet"
-        assert result.tier == "builder"
+        assert result.role == "executor"
         assert result.argument_hint == "Provide the test scenario"
         assert "This is the agent body." in result.body
 
@@ -143,21 +143,6 @@ class TestParseAgentFile:
         md_file = tmp_path / "no-desc.md"
         md_file.write_text(content, encoding="utf-8")
         assert parse_agent_file(md_file) is None
-
-    def test_defaults_model_and_tier(self, tmp_path):
-        content = textwrap.dedent("""\
-            ---
-            name: minimal
-            description: Minimal agent.
-            ---
-            # Body
-        """)
-        md_file = tmp_path / "minimal.md"
-        md_file.write_text(content, encoding="utf-8")
-        result = parse_agent_file(md_file)
-        assert result is not None
-        assert result.model == "sonnet"
-        assert result.tier == "integration"
 
     def test_handles_invalid_frontmatter(self, tmp_path):
         md_file = tmp_path / "invalid.md"
@@ -203,7 +188,7 @@ class TestGenerateAgentsMd:
         assert "implementer" in result
         assert "analyst" in result
 
-    def test_maps_tiers_to_roles(self, sample_agents):
+    def test_emits_declared_roles(self, sample_agents):
         result = generate_agents_md(sample_agents)
         assert "coordinator" in result
         assert "executor" in result
@@ -224,7 +209,7 @@ class TestGenerateAgentsMd:
             name="verbose",
             description="A" * 100,
             model="sonnet",
-            tier="builder",
+            role="executor",
         )
         result = generate_agents_md([agent])
         assert "..." in result
@@ -257,7 +242,7 @@ class TestGenerateSkillMd:
             name="minimal",
             description="Minimal agent.",
             model="sonnet",
-            tier="builder",
+            role="executor",
         )
         result = generate_skill_md(agent)
         assert "## Usage" not in result

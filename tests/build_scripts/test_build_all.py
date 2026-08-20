@@ -27,7 +27,7 @@ def _write_agent_template(templates_dir: Path, name: str) -> None:
     templates_dir.mkdir(parents=True, exist_ok=True)
     (templates_dir / f"{name}.shared.md").write_text(
         "---\n"
-        "tier: builder\n"
+        "role: executor\n"
         f"description: {name} agent.\n"
         "---\n"
         f"# {name.title()} Agent\n"

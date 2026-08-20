@@ -8,7 +8,7 @@ tools:
   - search
   - cloudmcp-manager/*
   - serena/*
-tier: expert
+role: strategic
 ---
 # High-Level Advisor Agent
 

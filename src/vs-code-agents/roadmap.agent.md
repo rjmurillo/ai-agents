@@ -9,7 +9,7 @@ tools:
   - serena/*
   - memory
 model: Claude Opus 4.6 (copilot)
-tier: expert
+role: strategic
 ---
 
 # Roadmap Agent
