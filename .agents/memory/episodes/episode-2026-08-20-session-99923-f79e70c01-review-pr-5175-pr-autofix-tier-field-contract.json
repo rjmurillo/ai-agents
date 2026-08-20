@@ -83,6 +83,7 @@
     "Avoid: Using a Success field to detect the Data envelope. Key envelope detection off the github_core.output emitter call, which is the thing that actually wraps the payload.",
     "Avoid: Fixing a silent-fallback bug at the instance instead of the class. Ship a gate covering every read of the same shape, not only the one that was reported.",
     "Avoid: Building a coverage guard on the same regex as the thing it guards. Detect with an independent, weaker pattern (_JQ_TOKEN spots the word jq). Prove the decoupling by re-running the mutation and watching the guard fail.",
-    "Avoid: Choosing a coverage comparison a sibling item can balance out. Compare at the granularity of the thing that must be checked, one row per invocation, not an aggregate over the line. Prove it by restoring the old comparison and watching a named test fail."
+    "Avoid: Choosing a coverage comparison a sibling item can balance out. Compare at the granularity of the thing that must be checked, one row per invocation, not an aggregate over the line. Prove it by restoring the old comparison and watching a named test fail.",
+    "Avoid: Describing a stuck sentinel as 'the gate turns off' without reading each comparison. For a sentinel that reaches more than one branch, tabulate the sentinel against each condition before describing the impact. Equality and inequality tests on the same stuck value fail in opposite directions."
   ]
 }

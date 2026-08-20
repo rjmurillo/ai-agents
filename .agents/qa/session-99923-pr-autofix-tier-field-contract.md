@@ -32,9 +32,21 @@ from `.Data.Tier` to `.Tier`), its generated mirror in
 payload with `print(json.dumps(result, indent=2))` at line 1226, building
 `result` as a flat dict literal with `result["Tier"]` assigned at line 1091.
 There is no `Data` envelope, so `jq -r '.Data.Tier // "UNKNOWN"'` resolved to
-null on every call and `TIER` was unconditionally `UNKNOWN`. That disabled the
-T3/T4 branch of the round-cap circuit breaker and the non-T1 branch of the
-auto-merge disarm gate.
+null on every call and `TIER` was unconditionally `UNKNOWN`.
+
+A stuck sentinel does not fail one way. It fails whichever way each comparison
+reads it, and the two downstream gates compare it in opposite directions:
+
+| Gate | Condition | `TIER=UNKNOWN` before the fix | After the fix |
+|---|---|---|---|
+| Round-cap circuit breaker (`pr-autofix.md:421`) | `TIER = T3` or `TIER = T4` | never fired: the breaker was inert | fires on real T3/T4 |
+| Auto-merge disarm (`pr-autofix.md:452`) | `TIER != T1` | fired on **every** armed PR | spares genuine T1 |
+
+So one gate was off and the other was stuck on, stripping auto-merge from
+legitimately land-ready T1 PRs. The first version of this report, the PR body,
+the command comment, and the test docstring all described both as "disabled".
+That is correct for the breaker and backwards for the disarm gate. Copilot
+caught it in review on PR #5176; corrected in all five artifacts.
 
 ### Negative control: the shipped fix
 
@@ -139,16 +151,33 @@ producer's derived schema, not only its envelope level.
 
 Stated rather than claimed clean, per the clear-the-gate-or-drop-the-claim rule:
 
-1. **No behavioral verification of the two re-armed gates.** Proving the T3/T4
+1. **No behavioral verification of the two affected gates.** Proving the T3/T4
    round-cap and non-T1 auto-merge branches actually execute with the parsed
-   tier needs the live PR loop, not a static gate. Both branches have been inert
-   for as long as the defect existed, so their first live runs are the real
-   test. Spec validation raised this; it is deliberately out of scope here and
-   flagged in the PR's review focus areas.
-2. `_calls_data_emitter` is module-wide, not path-sensitive. A producer that
+   tier needs the live PR loop, not a static gate. The breaker has never run,
+   and the disarm gate has only ever run indiscriminately, so the first real
+   runs of both are the test. Spec validation raised this; deliberately out of
+   scope here and flagged in the PR's review focus areas.
+2. **`--is-bot` is never passed, so bot PRs mis-tier.** Copilot found this on
+   PR #5176 and it is real. The command's own tier contract says "Pass
+   `--is-bot` when the PR author is a bot" and defines T5 as a bot PR with any
+   failure or threads; `classify_tier` returns T5 only when `is_bot` is true.
+   The TIER invocation passes no such flag, so bot PRs now classify T2 to T4 and
+   a bot PR with threads enters the T3/T4 round-cap flow instead of the
+   documented individual handling. This was latent before the fix, because no
+   tier dispatch happened at all.
+
+   Not closed here, and the reason is size rather than doubt. Copilot suggested
+   "preserve the Phase 1 bot flag", but no such flag exists anywhere in the
+   command. `get_pr_context.py` does emit `author`, but only as a login string
+   with no bot marker, and `CTX` is fetched *after* the TIER call. Closing this
+   needs either a producer change (emit an author type or `is_bot`) or a login
+   heuristic, plus reordering the fetch, plus a new read for the contract gate
+   to cover. That is a behavior change to tier dispatch in an autonomous PR
+   loop, so it belongs in its own change with its own review.
+3. `_calls_data_emitter` is module-wide, not path-sensitive. A producer that
    wrapped only its error branch while printing flat on success would be
    misclassified. None of the six producers in play does this.
-3. `_keys_bound_to` unions module-wide, so a second same-named dict in another
+4. `_keys_bound_to` unions module-wide, so a second same-named dict in another
    function would widen the accepted field set. Checked: no producer in play has
    one.
 

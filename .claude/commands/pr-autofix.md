@@ -404,14 +404,17 @@ fi
 # per pass through this loop for a T3/T4 PR, immediately after the tier is
 # known, before any thread-lifecycle or CI-fix action.
 # Tier comes from test_pr_merge_ready.py, the authoritative tier source;
-# check_pr_live_state.py emits no tier field, so reading $LIVE here would
-# pin TIER at UNKNOWN and silently disable this gate. Computed once, also
-# consumed by the auto-merge disarm gate below.
+# check_pr_live_state.py emits no tier field, so reading $LIVE here pins TIER
+# at UNKNOWN. Computed once, also consumed by the auto-merge disarm gate below.
 # Read `.Tier`, not `.Data.Tier`: unlike the github_core.output emitters,
 # test_pr_merge_ready.py has no --output-format flag and prints its result
 # dict directly (`print(json.dumps(result, indent=2))`), so there is no Data
-# envelope to traverse. Reading .Data.Tier pins TIER at UNKNOWN, which is the
-# same silent-disable defect one script over.
+# envelope to traverse.
+# A pinned UNKNOWN breaks the two gates in OPPOSITE directions, so do not
+# read it as "the gates turn off": this gate tests TIER = T3 or T4, which
+# UNKNOWN never satisfies, so it goes inert; the disarm gate below tests
+# TIER != T1, which UNKNOWN always satisfies, so it fires on every armed PR
+# and strips auto-merge from genuine T1 PRs too.
 # tests/commands/test_pr_autofix_field_contract.py checks every read in this
 # file against its producer's real schema.
 TIER=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" 2>/dev/null | jq -r '.Tier // "UNKNOWN"')

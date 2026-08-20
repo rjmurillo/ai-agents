@@ -10,8 +10,24 @@ That defect shipped twice in this file, one script apart. First `TIER` read
 The repair then pointed at the right script but kept the envelope, reading
 `.Data.Tier` from `test_pr_merge_ready.py`, which has no `--output-format` flag
 and prints its result dict directly. Both instances left `TIER` pinned at
-`UNKNOWN`, silently disabling the round-cap circuit breaker's T3/T4 check and
-the auto-merge disarm gate's non-T1 check.
+`UNKNOWN`.
+
+A stuck sentinel does not fail one way. It fails whichever way each comparison
+happens to read it, and the two gates downstream compare it in opposite
+directions:
+
+===========================  ==============================  =========================
+Gate                         Condition                       Effect of TIER=UNKNOWN
+===========================  ==============================  =========================
+Round-cap circuit breaker    ``TIER = T3`` or ``TIER = T4``   never fired
+Auto-merge disarm            ``TIER != T1``                   fired on every armed PR
+===========================  ==============================  =========================
+
+So the round-cap breaker was inert, while the disarm gate was stuck on and
+stripped auto-merge from every armed PR, including genuine T1 PRs that had
+earned it. Fixing the read arms the first and lets the second discriminate.
+Calling both of them "disabled" is wrong in the second case, and this docstring
+said so until Copilot caught it on PR #5176.
 
 These tests close the class rather than the instance: every read in the command
 body is checked against its producer's derived schema, in both envelope

@@ -110,7 +110,7 @@
     },
     {
       "activity": "Verified the described defect still exists on main",
-      "finding": ".claude/commands/pr-autofix.md read '.Data.Tier' from test_pr_merge_ready.py. That script has no --output-format flag and emits its result dict directly via print(json.dumps(result, indent=2)), so there is no Data envelope. TIER was pinned at UNKNOWN, silently disabling the T3/T4 round-cap circuit breaker and the non-T1 auto-merge disarm gate."
+      "finding": ".claude/commands/pr-autofix.md read '.Data.Tier' from test_pr_merge_ready.py. That script has no --output-format flag and emits its result dict directly via print(json.dumps(result, indent=2)), so there is no Data envelope. TIER was pinned at UNKNOWN, which broke the two downstream gates in OPPOSITE directions: the round-cap breaker tests TIER = T3 or T4 and so went inert, while the auto-merge disarm gate tests TIER != T1 and so fired on every armed PR, stripping auto-merge from genuine T1 PRs. The initial write-up called both 'disabled'; Copilot caught the inversion on PR #5176."
     },
     {
       "activity": "Applied the fix and regenerated the mirror",
@@ -131,6 +131,10 @@
     {
       "activity": "Third hardening pass on the coverage guard",
       "finding": "Spec validation found the invocation-coverage guard could still be masked: it compared parsed paths against jq invocation count, and a multi-path program supplies enough paths to cover for a sibling the parser never read. Reproduced at 2 invocations / 2 paths / 1 program, where the old comparison read the line as fully reached. Now compares programs to invocations plus a pathless-program check. Same failure shape as the previous round, one level down."
+    },
+    {
+      "activity": "Addressed Copilot review on PR #5176",
+      "finding": "Three findings, all verified against the code and all real. (1) The 'two disabled gates' claim was half wrong: the disarm gate tests TIER != T1, so UNKNOWN made it fire always rather than never. Corrected in the command comment, test docstring, session log, QA report, and PR body, with a truth table so the asymmetry is explicit. (2) The session-log deliverable still said 22 tests; the module has 32. (3) The TIER invocation does not pass --is-bot, so bot PRs now classify T2-T4 instead of T5. That third one is real but out of scope here: get_pr_context.py emits author as a login string with no bot flag, and it is fetched after the TIER call, so closing it means either a producer change or a login heuristic plus a fetch reorder. Raised on the thread with a proposal instead of pushing it."
     }
   ],
   "outcomes": {
@@ -138,7 +142,7 @@
       {
         "type": "code",
         "path": ".claude/commands/pr-autofix.md",
-        "description": "Tier read corrected from .Data.Tier to .Tier, re-arming the T3/T4 round-cap circuit breaker and the non-T1 auto-merge disarm gate"
+        "description": "Tier read corrected from .Data.Tier to .Tier, arming the T3/T4 round-cap circuit breaker (previously inert) and letting the auto-merge disarm gate discriminate (previously fired on every armed PR, including genuine T1)"
       },
       {
         "type": "code",
@@ -148,7 +152,7 @@
       {
         "type": "test",
         "path": "tests/commands/test_pr_autofix_field_contract.py",
-        "description": "Static contract gate binding every jq read in the command body to its producer's ast-derived output shape; 22 tests including negative controls for both envelope-mismatch directions"
+        "description": "Static contract gate binding every jq read in the command body to its producer's ast-derived output shape; 32 tests including negative controls for both envelope-mismatch directions, unknown fields on both producer styles, and coverage guards against the extractor going blind"
       }
     ]
   },
@@ -185,6 +189,11 @@
         "antipattern": "Choosing a coverage comparison a sibling item can balance out",
         "consequence": "The invocation guard was wrong three times in the same way: line presence let a second jq command hide behind a parsed first; path count let a multi-path program cover for an unread sibling. Each version looked like it counted the right thing.",
         "correction": "Compare at the granularity of the thing that must be checked, one row per invocation, not an aggregate over the line. Prove it by restoring the old comparison and watching a named test fail."
+      },
+      {
+        "antipattern": "Describing a stuck sentinel as 'the gate turns off' without reading each comparison",
+        "consequence": "TIER=UNKNOWN was written up as disabling both downstream gates. It disabled the one testing equality (TIER = T3/T4) and stuck ON the one testing inequality (TIER != T1), which stripped auto-merge from every armed PR including genuine T1s. The write-up shipped in five artifacts before a reviewer caught it.",
+        "correction": "For a sentinel that reaches more than one branch, tabulate the sentinel against each condition before describing the impact. Equality and inequality tests on the same stuck value fail in opposite directions."
       }
     ]
   },
