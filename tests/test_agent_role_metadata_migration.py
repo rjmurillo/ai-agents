@@ -50,7 +50,7 @@ _vamr = _load_matrix_validator()
 # (tree path, filename suffix) for each configured tree, from the canonical
 # constant. Suffix matters: `.claude/agents` uses a bare `.md`, so it admits
 # sibling docs like `AGENTS.md` that are not agent definitions.
-_AGENT_TREES = tuple(str(tree) for tree, _ in _vamr.AGENT_TREES)
+_AGENT_TREES = tuple(tree.as_posix() for tree, _ in _vamr.AGENT_TREES)
 
 # Must stay in sync with _KNOWN_ROLES in scripts/openclaw_bridge.py,
 # scripts/validation/validate_copilot_agent_frontmatter.py, and
