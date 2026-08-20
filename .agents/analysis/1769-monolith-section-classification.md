@@ -80,7 +80,7 @@ owner. The steering files and their scopes:
 |--------------|-------|----------------|---------------|
 | 1. Executive Summary | 33 | PATH-SCOPED-RULE | `agent-catalog.md` (`templates/agents/**,src/claude/**,.claude/agents/**`); compress to system-purpose preamble |
 | 2. Agent Catalog | 744 | PATH-SCOPED-RULE | `agent-catalog.md`; compress 20-agent prose to a table + per-agent key constraints (D7) |
-| 2.5 Agent Tier Hierarchy | 149 | PATH-SCOPED-RULE | `agent-catalog.md`; tier table + escalation rule |
+| 2.5 Agent Coordination | 58 | PATH-SCOPED-RULE | `agent-catalog.md`; role table + ADR-009 escalation rule. Was "2.5 Agent Tier Hierarchy" (149 lines); the tier hierarchy was removed in issue #5130 and the section now quotes ADR-009 verbatim |
 | 3. Workflow Patterns | 282 | PATH-SCOPED-RULE | `workflow-routing.md` (`templates/**,.agents/planning/**`); canonical workflow source is `src/claude/orchestrator.md`, keep pointer |
 | 4. Routing Heuristics | 37 | PATH-SCOPED-RULE | `workflow-routing.md` |
 | 5. Memory and Handoff System | 100 | PATH-SCOPED-RULE | `memory-handoff.md` (`.agents/**,.serena/**`) |

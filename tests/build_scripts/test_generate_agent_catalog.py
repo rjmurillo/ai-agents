@@ -9,6 +9,7 @@ is stale or missing).
 from __future__ import annotations
 
 import sys
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import pytest
@@ -301,10 +302,19 @@ def test_validator_returns_config_error_when_generator_import_fails(
 
     original_import = builtins.__import__
 
-    def fake_import(name: str, *args: object, **kwargs: object) -> object:
+    # Mirror __import__'s real signature rather than (*args, **kwargs). mypy
+    # resolves __import__ through overloads keyed on the fromlist argument, so
+    # forwarding *tuple[object, ...] fails every overload at once.
+    def fake_import(
+        name: str,
+        globals: Mapping[str, object] | None = None,
+        locals: Mapping[str, object] | None = None,
+        fromlist: Sequence[str] = (),
+        level: int = 0,
+    ) -> object:
         if name == "generate_agent_catalog":
             raise ImportError("boom")
-        return original_import(name, *args, **kwargs)
+        return original_import(name, globals, locals, fromlist, level)
 
     monkeypatch.setattr(builtins, "__import__", fake_import)
 
