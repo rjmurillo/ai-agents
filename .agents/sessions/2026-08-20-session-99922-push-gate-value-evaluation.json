@@ -10,14 +10,14 @@
   "protocolCompliance": {
     "sessionStart": {
       "serenaActivated": {
-        "level": "SHOULD",
-        "Complete": false,
-        "Evidence": "Not activated. Work was ADR authoring and evidence verification over files read directly; no symbol-level navigation was performed, so the LSP-first path in .claude/rules/lsp-first.md did not apply. Recorded as a gap rather than claimed."
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Satisfied, but late and only after review caught the misrecording. AGENTS.md:3 heads this requirement 'Serena Init (BLOCKING)', and .claude/rules/lsp-first.md:83 confirms that only the LSP-first navigation preference is advisory while initialization stays blocking. Two earlier revisions of this log recorded the level as SHOULD and justified the omission on the grounds that no symbol-level navigation was performed. That was the wrong test: the advisory clause covers navigation, not initialization, and working over Markdown does not waive it. mcp__serena__activate_project is not exposed as a tool in this session because the MCP server is started already bound to this project; activation was confirmed instead by mcp__serena__list_memories(topic='git'), which returned 61 project-scoped memories and therefore proves an active project rather than asserting one. Recorded this way rather than downgraded a third time: on a pull request arguing that gates should be honestly accounted for, restating a blocking requirement as a weaker one to make the record pass would have been the exact failure both ADRs describe."
       },
       "serenaInstructions": {
-        "level": "SHOULD",
-        "Complete": false,
-        "Evidence": "Not read, for the same reason as serenaActivated. No Serena memory was written this session; findings were persisted as two ADRs and a debate log instead."
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Satisfied late, alongside serenaActivated. mcp__serena__initial_instructions was called and returned the Serena Instructions Manual (54.9KB). It was not read at session start, and the work it would have informed, ADR authoring and evidence verification over files read directly, was already complete by the time it was read, so this is a compliance repair rather than a claim that it shaped the session. No Serena memory was written; the durable findings are two ADRs, a debate log, a QA report, and this log."
       },
       "handoffRead": {
         "level": "MUST",

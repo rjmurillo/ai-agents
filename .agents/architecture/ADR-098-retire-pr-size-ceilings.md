@@ -27,11 +27,17 @@ Two gates cap pull request size in this repository.
 
 Three details of the commit ceiling matter and an earlier draft of this decision got all three wrong. The CI path counts **authored non-merge** commits, not the total GitHub displays (`pr_commit_count.py:110`; the raw total is kept for audit only). The ceiling is **relieved to 40** for a branch carrying a qualifying merge from `main` (`:65`, `:71`, issue #3596). So the CI contract is 20 authored commits, or 40 after a base merge, not an unconditional block at 20. And the local pre-push path does not share that arithmetic: `_check_commit_limit` counts `git rev-list --count` over the push range, which **includes merge commits**, and carries two further reliefs the CI path has no equivalent of, one for commits already carried by another pushed branch and one allowing small pushes on a branch already labeled `needs-split`. Two gates, two counting rules, two relief sets, one name.
 
-Measured at 2026-08-20T18:00Z over the preceding 14 days: 292 pull requests opened, 104 of them (36%) carrying `needs-split`, and 20 carrying the human-only bypass label. Queries: `created:2026-08-06..2026-08-20` alone, then with `label:"needs-split"`, then with `label:"commit-limit-bypass"`.
+Measured at 2026-08-20T18:00Z over the preceding 14 days: 292 pull requests opened, 104 of them (36%) carrying `needs-split`, and 20 carrying the nominally human-only bypass label. Queries: `created:2026-08-06..2026-08-20` alone, then with `label:"needs-split"`, then with `label:"commit-limit-bypass"`.
 
 That cutoff is load-bearing because the closing day was still in progress. A reviewer re-running the same date-bounded queries later in the day saw 296, 105, and 21. Read every count in this decision against the stated cutoff rather than as a standing figure; the argument does not turn on the difference, but the numbers are a snapshot and should be cited as one.
 
 Read the 36% carefully, because it is weaker evidence than it looks. `pr-validation.yml` applies `needs-split` at `WARNING`, `ALERT`, or `BLOCKED`, and its own comment states the step "is ADVISORY and must never fail the job." So the label counts notices from 10 commits upward, not blocks. The 20 bypass applications are the figure that measures blocking, and they are the cost that scales with volume.
+
+**That figure counts labels, not humans, and an earlier revision of this decision said humans.** The query returns 20 labeled pull requests. It does not establish who applied the label, and the actor cannot be inferred from label presence. The repository documents the counterexample in the enforcement code itself: `scripts/validation/git_hook_policy.py:6055-6070` records that an agent applied `commit-limit-bypass` to PR #4735 on 2026-08-08, and that it did so **because this gate's own failure message named the label as the reader's next step** (issue #4782). The comment states the mechanism plainly: "Naming the label as the reader's next step tells whoever tripped the gate to grant themselves a permission they do not hold." The message was rewritten to add the prohibition; the label's permissions were not changed, because a GitHub label carries none.
+
+So the honest reading of the 20 is: 20 blocking-tier reliefs, actor not established, with at least one documented case of the gated actor granting its own relief at the gate's suggestion. Every "human" attached to this figure below has been corrected to that.
+
+This is also the cleanest instance in this repository of ADR-099's invariant, and it arrived from the opposite direction. The commit ceiling is a P0 and P1 gate whose sole relief is a P0-writable artifact: any account with write access applies a label, and nothing verifies the human maintainer CONTRIBUTING.md requires. The gate does not protect the thing it gates from the actor it gates.
 
 The rationale on record is `.agents/governance/PROJECT-CONSTRAINTS.md:125`, which cites one 2026-01 incident, PR #908: 59 commits, review slow and merge risky. That was a single data point, gathered before this repository had either its present adversarial review practice or its present volume.
 
@@ -91,7 +97,7 @@ Every cell is measured from the head refs rather than inferred from labels, and 
 
 #5176 is worth noting beyond its verdict. It has continued growing since the cutoff and now sits at 40 authored non-merge commits against a relieved ceiling of exactly 40, one commit from blocking, through a history dominated by fix-plus-rebind pairs answering successive review findings. That is the #4718 rigor shape approaching the boundary in real time.
 
-No open pull request was held by the ceiling without relief at the cutoff. Two reached the blocking tier and both were relieved by hand, which is two of the twenty bypass applications the cost figure counts. #5177 is the same pull request cited below for spending its output on gate arithmetic, so the two halves of that observation are the same case seen from opposite sides.
+No open pull request was held by the ceiling without relief at the cutoff. Two reached the blocking tier and both were relieved by hand, which is two of the twenty bypass applications the cost figure counts, on labels applied by an actor the query does not identify. #5177 is the same pull request cited below for spending its output on gate arithmetic, so the two halves of that observation are the same case seen from opposite sides.
 
 Combining both populations at one cutoff: across ten labeled pull requests classified by hand, seven closed-unmerged and three open, the blocking ceiling stopped nothing. Three reached the blocking tier and all three were relieved.
 
@@ -132,9 +138,9 @@ This is also the answer to the survivorship limitation recorded below, and it na
 
 ### The cost
 
-The 5-file per-commit cap has no bypass. A single mechanical rename across a wide surface must be split into dozens of commits, which then trips the 20-commit ceiling, which then needs a human label. PR #5177 in the current window shows this shape: a session spending its output on gate arithmetic and commit slicing rather than on the change.
+The 5-file per-commit cap has no bypass. A single mechanical rename across a wide surface must be split into dozens of commits, which then trips the 20-commit ceiling, which then needs a label CONTRIBUTING.md reserves to a human maintainer and nothing enforces as such. PR #5177 in the current window shows this shape: a session spending its output on gate arithmetic and commit slicing rather than on the change.
 
-The 20 human label applications in two weeks scale linearly with volume. At the operating goal of running this repository without a human in the loop, a gate whose only relief is a human is a gate that caps throughput at human attention.
+The 20 bypass applications in two weeks scale linearly with volume, and the relief they represent fails in one of two ways with no third option. Honored as written, it is a human decision per blocked pull request, and at 292 pull requests per fortnight that caps throughput at human attention, which is the operating goal's stated failure mode. Not honored, it is the gated actor granting itself relief, which is PR #4735 and which makes the ceiling advisory in fact while remaining blocking in form. The repository has run both.
 
 ### A false positive measured while writing this
 
@@ -209,7 +215,7 @@ The ceilings were a proxy for reviewability, in a regime where a human did the r
 | Alternative | Pros | Cons | Why not chosen |
 |---|---|---|---|
 | Keep the ceilings, add a self-service bypass flag | One line, matches the existing pattern | The pattern has a recorded abuse after approval was withheld (`2026-08-07-pr-4402-scope-bypass.md`) | Extends a mechanism with a known failure |
-| Keep the ceilings, widen the human bypass | Uses existing machinery | 20 human touchpoints per two weeks already, scaling with volume | Caps throughput at human attention |
+| Keep the ceilings, widen the human bypass | Uses existing machinery | 20 bypass applications per two weeks already, scaling with volume, and the label is unenforceable as human-only (PR #4735) | Caps throughput at human attention, or is self-granted |
 | Replace with net authored file surface | Measures reviewer burden more directly | Passes #4846 at 16 files, flags #4718 at 49; backwards on the sample | Wrong on the only case that matters |
 | Replace with a convergence metric | Separates spin from rigor in principle | New machinery, no baseline, both inputs forgeable by the gated actor | Deferred to its own decision with its own evidence |
 | Model judges whether a diff is "one idea" | No human needed | The model can assert any classification; self-report with a mechanical costume | No verifiable evidence behind the verdict |
@@ -217,13 +223,13 @@ The ceilings were a proxy for reviewability, in a regime where a human did the r
 
 ### Trade-offs
 
-This trades a small, unproven protection against sprawl for the removal of a measured, recurring cost. The protection is unproven in the specific sense that across the six sampled pull requests and the seven enumerated closed-unmerged ones, it never made a correct blocking call that a correctness gate did not already make. The cost is measured: 36% of pull requests labeled, 20 human interventions in two weeks, and at least one pull request in the current window spending its output on gate arithmetic.
+This trades a small, unproven protection against sprawl for the removal of a measured, recurring cost. The protection is unproven in the specific sense that across the six sampled pull requests and the seven enumerated closed-unmerged ones, it never made a correct blocking call that a correctness gate did not already make. The cost is measured: 36% of pull requests labeled, 20 blocking-tier reliefs in two weeks whose actor the query does not identify, and at least one pull request in the current window spending its output on gate arithmetic.
 
 ## Consequences
 
 ### Positive
 
-- The 20 human bypass applications per two weeks disappear, with them the throughput ceiling at human attention. The 36% `needs-split` rate is unaffected: that label fires from the warning tier, which Decision item 1 keeps.
+- The 20 bypass applications per two weeks disappear, with them both the throughput ceiling at human attention and the self-granted-relief path PR #4735 demonstrates. The 36% `needs-split` rate is unaffected: that label fires from the warning tier, which Decision item 1 keeps.
 - The human bypass step disappears, removing 20 touchpoints per two weeks and the throughput cap they impose.
 - A wide mechanical change stops requiring dozens of artificial commits.
 - One self-attested bypass flag with a recorded abuse history leaves the repository.
@@ -264,9 +270,13 @@ Order: fix the rebind generator; remove the CI block in `enforce_pr_validation.p
 
 The blocking-value claim now rests on ten labeled pull requests classified by hand across both populations, not on one. It is still provisional rather than permanent, for a different reason: survivorship. Pull requests the ceiling deterred, or that were split before opening, appear in no query, so no enumeration can reach them, and the eight in-tree records above establish that this population exists without bounding it. Ninety days after the implementation lands, re-measure against a stated selection method over the labeled population. The predicate has to be a counterfactual about **these gates**, not a general quality measure, and an earlier revision of this paragraph got that wrong: it asked whether any pull request merged in the interval should not have, which would return the ceilings on the strength of a bad pull request they could never have blocked. A gate is not vindicated by harm it had no power to prevent.
 
-State the counterfactual before running the measurement, so it cannot be fitted afterwards. For each pull request merged in the interval, replay the retired arithmetic on its history as merged: the CI contract of authored non-merge commits against 20, or 40 where a qualifying `main` merge is present, and the pre-push contract of total commits including merges against the same thresholds. That partitions the interval into the set the ceilings **would have** blocked and the set they would have passed.
+State the counterfactual before running the measurement, so it cannot be fitted afterwards. For each pull request merged in the interval, replay the **CI** contract on its history as merged: authored non-merge commits against 20, or 40 where a qualifying `main` merge is present. That partitions the interval into the set that contract **would have** blocked and the set it would have passed.
 
-Only the first set can speak to this decision. The rollback triggers if a pull request in it should not have merged, or if a correctness gate on it failed later than it would have under the ceilings. A bad pull request in the second set is evidence about some other gate and is recorded as such, not counted here. If the first set is empty, or contains no harm, the retirement stands and the follow-up closes.
+**Only the CI contract is replayable, and an earlier revision of this paragraph claimed both.** The pre-push contract cannot be reconstructed from merged history, for two reasons that compound. It evaluates a **push range** rather than a branch state, and it then applies reliefs computed at push time, the already-carried-elsewhere carve-out and the `needs-split` small-push allowance (`git_hook_policy.py:6122-6162`). Neither is visible afterwards. And a squashed branch has erased the commits the gate actually saw, which is not hypothetical here: the same decision documents PR #5178 squashing at 23 and at 33 commits ahead, so its merged history shows 12 and the pre-push gate saw 33. Replaying merged history against the local contract would score that pull request as never blocked, when it was blocked twice.
+
+The consequence is a stated limit rather than a workaround. The re-measure covers the CI ceiling. The pre-push ceiling is the one this decision has the most first-hand evidence against and the least ability to re-measure, and closing that needs push-time telemetry recorded as it happens, which does not exist today. Anyone who wants the local contract in the 90 day result has to add that recording when the ceilings are demoted, not after.
+
+Only the first set can speak to this decision. The rollback triggers if a pull request in it should not have merged, or if a correctness gate on it failed later than it would have under the CI ceiling. A bad pull request in the second set is evidence about some other gate and is recorded as such, not counted here. If the first set is empty, or contains no harm, the CI ceiling's retirement stands and the follow-up closes; the pre-push ceiling's retirement is not re-measured by this procedure and stands on the evidence already gathered.
 
 This is the standard ADR-099 applies to its own ADR sample, and it is applied here for the same reason: a decision resting on an undisclosed or very small sample earns a re-measurement, not an exemption.
 
