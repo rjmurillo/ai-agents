@@ -15,6 +15,16 @@ implemented: true
 
 Proposed
 
+**`status: proposed` against `implemented: true` is deliberate, not drift.**
+ADR-073 binds a transition to `accepted` to adr-review debate-log evidence under
+`.agents/critique/`, which now exists, so the flip is mechanically available and
+is not taken here. A debate authorizing the acceptance of its own subject is the
+self-asserted approval that rule exists to prevent, and the acceptance of a
+governance ADR is a maintainer act. ADR-093 carries the same pair for the same
+reason. The critic re-vote raised this and it is answered rather than left for a
+reader to reconcile: the decision ships, the record says a human has not yet
+signed it.
+
 ## Date
 
 2026-08-20
@@ -54,7 +64,14 @@ of the five Manager-tier agents (`milestone-planner`, `critic`,
 `issue-feature-review`). Only `orchestrator` and `pr-comment-responder` lack the
 line, and `pr-comment-responder` delegates in its own body
 (`.claude/agents/pr-comment-responder.md:81`, "**Task**: Delegate to
-orchestrator (primary)").
+orchestrator (primary)"). The sharper instance is
+`templates/agents/pr-comment-responder.shared.md:216`, which instructs it to
+"delegate directly to `implementer` (bypassing orchestrator) for efficiency".
+That contradicts the surviving prose this record relies on at
+`.agents/AGENT-SYSTEM.md:862`, `:1047`, and `:1311`, which describe delegation
+as one-level-deep through the orchestrator. The retired section was the only
+document carrying that delegation-topology fact, which is why it is cited here
+rather than left to the Negative section alone.
 
 **The contradiction was there on day one.** The commit that introduced the
 hierarchy, `525490fae`, shipped `src/claude/architect.md` carrying
@@ -90,7 +107,7 @@ with a descriptive `role:` key drawn from a closed four-value vocabulary.**
 - `role` is **descriptive metadata**. It grants and withholds nothing at
   runtime **in this repository**: no hook, validator, generator, or workflow
   reads it to allow or deny an action, and both fallback paths in
-  `scripts/openclaw_bridge.py` degrade to `support`, the least-authority value.
+  `scripts/openclaw_bridge.py` degrade to `support`, the configured fallback.
   Delegation is decided by the orchestrator against the task, per ADR-009, not
   by comparing two agents' role values.
 
@@ -228,12 +245,16 @@ reverted. The cost of the choice is 70 lines and one maintenance test.
   declared role instead of silently exporting `support`.
 - A typo in the field now fails validation. Previously `buidler` parsed as a
   string, passed, and became `support` downstream.
-- Two enforcement gaps found during review were closed in this same change, each
-  verified against a planted violation rather than from a passing run:
+- Three enforcement gaps found during review were closed in this same change,
+  each verified against a planted violation rather than from a passing run:
   `test_role_vocabulary_agrees_across_consumers` pins the three production
   copies of the role vocabulary against a test-tree witness, and
   `test_agents_present_in_several_trees_declare_one_role` catches an agent whose
-  copies disagree across trees. Before the second, setting
+  copies disagree across trees, and
+  `test_every_agent_file_in_a_configured_tree_is_a_readable_definition` fails a
+  malformed agent that previously dropped out of the corpus before any role
+  check saw it. Before `test_agents_present_in_several_trees_declare_one_role`,
+  setting
   `.claude/agents/janitor.md` to `strategic` against the template's `support`
   left the suite green and `detect_agent_drift.py` silent.
 
@@ -257,10 +278,14 @@ reverted. The cost of the choice is 70 lines and one maintenance test.
 
   The real enforcement surface is the tool grant, not the prose: an agent that
   declares no `tools:` key inherits `Task` and can delegate whatever any
-  document says. **Tracked as a follow-up with a concrete acceptance criterion**
-  (a test asserting every agent template either withholds `Task` or carries the
-  denial line), because a governance hole parked in a Consequences list is one
-  that never gets paid, which is the pattern
+  document says. **This is an unowned follow-up: no issue number, no PR, no
+  assignee**, and the acceptance criterion that would close it is a test
+  asserting every agent template either withholds `Task` or carries the denial
+  line. An earlier revision said "Tracked as a follow-up", which named nothing a
+  reader could check; the critic re-vote caught that the ADR was committing the
+  same unnamed-reference defect it fixes for the Standing Dissent two sections
+  below. Stating it as unowned is the honest form, because a governance hole
+  parked in a Consequences list is one that never gets paid, which is the pattern
   `.agents/retrospective/2026-08-17-governance-bureaucracy-critical-review.md`
   exists to name.
 - **`role` is a four-value vocabulary that grants nothing.** See Standing
@@ -306,20 +331,36 @@ OpenClaw bridge still exports and the catalog generator cannot render, so it
 cannot be split across PRs without shipping a known-broken intermediate.
 
 Three enforcement gaps were found by planting a violation and observing the
-suite stay green. **Two were closed in this same PR** and are recorded under
-Consequences/Positive. One remains open:
+suite stay green. **All three were closed in this same PR**, recorded under
+Consequences/Positive with the test that closes each, and the third is described
+below.
 
-- A malformed agent file in a configured tree drops out of the corpus before
-  the known-role check sees it, because discovery requires parseable
-  frontmatter (`tests/agent_metadata_helpers.py` returns `None` on a YAML
-  error and the caller skips the file). The blast radius is bounded: the
-  zero-`tier` sweep matches raw text and does not depend on parsing, and the
-  Copilot frontmatter validator surfaces the parser error for `.github/agents/`.
-  So the migration's headline claim survives the hole; what escapes is a
-  *wrong* `role` value on an unparseable file.
+The third was closed last and is worth naming, because an earlier revision of
+this section described it as the one remaining open gap and Copilot caught the
+staleness. A malformed agent file in a configured tree used to drop out of the
+corpus before the known-role check saw it: discovery ran every candidate through
+`is_agent_definition`, which needs parseable frontmatter, so a YAML error
+excluded the file rather than failing it. `_agent_definitions` now keeps a file
+that carries a tree's distinctive `.agent.md` or `.shared.md` suffix even when
+the predicate rejects it, and `test_every_agent_file_in_a_configured_tree_is_a_readable_definition`
+fails on it by name.
 
-Two further residuals have no fix and are stated so they are not mistaken for
-coverage:
+Verified with two probes, because the suffix is load-bearing and one probe does
+not exercise both halves. A bare `.claude/agents/*.md` with unbalanced YAML and
+`role: strategc` fails the readable-definition test only; a
+`.github/agents/*.agent.md` with an unterminated quote and `role: strategoc`
+fails that test **and** `test_every_agent_definition_declares_a_known_role`,
+because it also exercises the new `_agent_definitions` retention path. An
+earlier revision of this section named one probe and the test docstring named
+the other, which `independent-thinker` caught on the round-3 re-vote: the two
+documents disagreed about what had been run. Both are named here, and the
+closure covers all six configured trees, one test wider than the retention
+mechanism alone.
+
+Three further residuals have no fix and are stated so they are not mistaken for
+coverage. The third is the one this change's own third-gap fix introduced, and
+`independent-thinker` caught that an earlier revision omitted it while promising
+to state every residual:
 
 - The equality test compares the three production consumers against a fourth
   literal in the test tree, which makes it a witness against drift in one
@@ -331,6 +372,19 @@ coverage:
   prompts, and analysis documents across the repository. Two of the six
   existing trees use that bare suffix, so a seventh following the same
   convention is not far-fetched.
+
+- **The fail-closed corpus check has an allowlist, and the allowlist is the hole
+  in it.** `_NON_AGENT_SIBLINGS` in `tests/agent_metadata_helpers.py` exempts
+  four sibling documents from every role guard.
+  `test_the_non_agent_sibling_allowlist_is_neither_stale_nor_vacuous` rejects an
+  entry that is stale, and rejects one that parses as a valid agent. It does
+  **not** reject a *malformed* agent added to the allowlist, because a malformed
+  file still returns a reason for not being a definition and so stays exempt.
+  The third gap this change closed is therefore re-openable with a one-line
+  edit. The test's own docstring says so; this record previously did not, which
+  is inconsistent with how the four frozen tier exemptions are handled two
+  sections above, where an explicit per-file list exists precisely so a fifth
+  cannot inherit the exemption.
 
 ## Standing Dissent
 
@@ -368,13 +422,32 @@ Any one of these puts this decision back on the table:
 
 ## Review Provenance
 
-The six-agent `adr-review` debate ran on 2026-08-20 against the change this ADR
-records, plus a `qa` pass: 4 ACCEPT, 1 DISAGREE-AND-COMMIT, 2 BLOCK. Votes,
-findings, and the two P0s that were fixed before it converged are recorded in
-`.agents/critique/5130-tier-hierarchy-removal-debate-log.md`. **This ADR exists
-because of that debate**: the `architect` pass blocked on the absence of a
-decision record, holding that a critique log has no status field, no
-supersession chain, and is not in the catalog a future architect greps.
+**Three `adr-review` rounds ran, and this section records all three.** An
+earlier revision named only the first and printed its tally as settled, which
+the critic re-vote caught as the same defect my own BLOCK had named one section
+over: a count that changes while review continues, reported as final.
+
+1. **On the change this ADR records**, 2026-08-20, six roles plus a `qa` pass:
+   4 ACCEPT, 1 DISAGREE-AND-COMMIT, 2 BLOCK. **This ADR exists because of that
+   debate**: the `architect` pass blocked on the absence of a decision record,
+   holding that a critique log has no status field, no supersession chain, and
+   is not in the catalog a future architect greps.
+2. **On this ADR's own text**, same day, after it was written: BLOCK from
+   `architect`, `critic`, and `independent-thinker`, ACCEPT from `security`,
+   conditional ACCEPT from `high-level-advisor`, DISAGREE-AND-COMMIT from
+   `analyst`. All three blocks were on false statements in the record, none on
+   the decision. `independent-thinker` said so explicitly: "The decision
+   survives every attack I mounted and is better supported than the ADR
+   argues." This is the round the Standing Dissent below refers to.
+3. **A re-vote of the three blocking roles**, because round 2's conditions were
+   cleared by editing and never re-verified by the agents that set them. The
+   debate log said so in its own words, and Copilot flagged it as an
+   `adr-review` contract violation: a standing BLOCK is not convergence.
+
+Votes, findings, the two P0s fixed in round 1, and the full record of all three
+rounds are in `.agents/critique/5130-tier-hierarchy-removal-debate-log.md`.
+Round 3's outcome is recorded there rather than summarised here, so this section
+cannot go stale the way its predecessor did.
 
 ## Related Decisions
 

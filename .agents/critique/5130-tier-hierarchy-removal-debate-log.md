@@ -286,6 +286,19 @@ gaps.
 | critic | **BLOCK** | Two wrong citations committed to the permanent record: `"security": 2` shipped under a `per ADR-009` attribution ADR-009 does not support, and this log's finding-5 answer cited the wrong relocation target and the wrong line range. |
 | independent-thinker | ACCEPT | The hierarchy was not merely unenforced but false: it opened "per ADR-009" while ADR-009 contains zero occurrences of "tier", and six of the nine agents it granted delegation authority carry "you CANNOT delegate" in their own prompt bodies. |
 | security | ACCEPT | Tier never gated anything (`grep -riE "\btier\b" .claude/hooks/` returns zero on `origin/main`); the delegation containment survives independently; both new role gates fail closed toward the least-authority value. |
+
+
+> **Editor's note, added on the round-3 re-vote.** The phrase
+> "least-authority value" above is left as the reviewer wrote it, but
+> ADR-098 later rejected it and it should not be read as this record's
+> position. It presumes the four role values order authority, which is the
+> rank reading the whole change removes. "Fail closed" carries the same
+> presumption and is stronger: if `role` is inert, degrading to `support`
+> is neither fail-closed nor fail-open, it is a default with no safety
+> semantics. The accurate description is "the configured fallback".
+> `independent-thinker` caught that excising the phrase from the ADR while
+> leaving it here moved the defect instead of fixing it.
+
 | analyst | DISAGREE-AND-COMMIT | Claims 1, 1a, 2, 5, 6 reproduce under independent verification. Claim 4 (the #1769 reconciliation) is overstated and partly circular. |
 | high-level-advisor | ACCEPT | The migration is mechanically atomic; splitting ships a known-broken intermediate. A live 50-agent mis-export bug is fixed on the way. |
 | qa | ACCEPT | 68 tests pass; changed functions measure 91 to 100 percent branch coverage; all seven negative controls it could construct fail as the PR claims. |
@@ -475,6 +488,19 @@ architect, critic, and independent-thinker.**
 | independent-thinker | **BLOCK on the record, not the decision** | "The decision survives every attack I mounted and is better supported than the ADR argues." Five spans wrong, including the exemption set understated 14x. |
 | analyst | DISAGREE-AND-COMMIT | Every mechanical claim (149 lines, 186 files, four `_KNOWN_ROLES`, 17 templates, 20.7%) reproduces; Context claim 6 does not. |
 | security | ACCEPT | No P0. `role` confers no runtime authority anywhere traceable, and both fallback paths degrade to `support`, the least-authority value. |
+
+
+> **Editor's note, added on the round-3 re-vote.** The phrase
+> "least-authority value" above is left as the reviewer wrote it, but
+> ADR-098 later rejected it and it should not be read as this record's
+> position. It presumes the four role values order authority, which is the
+> rank reading the whole change removes. "Fail closed" carries the same
+> presumption and is stronger: if `role` is inert, degrading to `support`
+> is neither fail-closed nor fail-open, it is a default with no safety
+> semantics. The accurate description is "the configured fallback".
+> `independent-thinker` caught that excising the phrase from the ADR while
+> leaving it here moved the defect instead of fixing it.
+
 | high-level-advisor | ACCEPT (conditional) | "Architect was right. I was wrong on the ranking." |
 
 ### The finding all three blocks converged on
@@ -513,7 +539,7 @@ Every finding below was re-verified before acting. Corrections landed in ADR-098
 | Finding | Priority | Raised by | Resolution |
 |---|---|---|---|
 | Context paragraph wrong three ways | P0 | architect, critic, independent-thinker, analyst | Rewritten to 24 ranked / 9 empowered / 7 denying / 2 exempt, naming `pr-comment-responder` and its orchestrator bypass |
-| Implementation Notes listed three open gaps, two already closed | P0 | architect, critic, security, independent-thinker | Gaps 1 and 2 moved to Consequences/Positive citing the tests that closed them; only the malformed-frontmatter gap remains open |
+| Implementation Notes listed three open gaps, two already closed | P0 | architect, critic, security, independent-thinker | Gaps 1 and 2 moved to Consequences/Positive citing the tests that closed them; and the malformed-frontmatter gap was closed afterward by `test_every_agent_file_in_a_configured_tree_is_a_readable_definition`, so all three are now closed |
 | The "load-bearing" mitigation sentence was pinned by nothing | P0 (hla), P1 (architect), P2 (security) | three passes | `test_the_role_inertness_sentence_survives_in_agent_system` added. Negative control: replacing the sentence fails it, restoring passes |
 | Exemption set understated 14x | P1 | independent-thinker, security, architect | Negative section now names all 14 templates carrying no delegation statement, and identifies the tool grant as the real enforcement surface |
 | "grants nothing at runtime" asserted globally from local evidence | P1 | security | Scoped to this repository, with the OpenClaw export boundary called out and added to Re-evaluation Triggers |
@@ -553,3 +579,90 @@ What remains open and is not a defect of this ADR: the delegation constraint has
 no normative owner and 14 of 31 templates carry no statement of it. The ADR does
 not create that hole, it stops describing it falsely. Tracked with a named
 acceptance criterion rather than parked in a Consequences list.
+
+## Round 3: the three blocking roles re-voted, 2026-08-20
+
+Round 2 cleared three `BLOCK`s by editing and never re-ran the agents that set
+them. This log said so in its own words, and Copilot escalated it as an
+`adr-review` contract violation on `#discussion_r3825914856`: the contract
+requires every final vote to be `ACCEPT` or `DISAGREE-AND-COMMIT`, and a
+standing `BLOCK` is not convergence. `architect`, `critic`, and
+`independent-thinker` were re-run against the file on disk, each given its own
+clearing condition verbatim and told not to soften a finding to help this
+converge.
+
+| Role | Round 2 | Round 3 | Clearing condition |
+|---|---|---|---|
+| architect | BLOCK | **ACCEPT** | All three false statements discharged |
+| critic | BLOCK | **DISAGREE-AND-COMMIT** | Both halves discharged for the section, not for the class |
+| independent-thinker | BLOCK | **DISAGREE-AND-COMMIT** | Four of five spans discharged; the fifth is unrecoverable from this log |
+
+No `BLOCK` remains. Every one of the three re-derived its numbers from the tree
+rather than from this log, and each found something new against the author's
+interest, which is the evidence that the pass was not ceremonial:
+
+- **architect** planted its probe in `src/vs-code-agents`, a third tree this ADR
+  never cites, specifically so the run would not replay the recorded
+  verification. It found the Positive bullet naming two tests for three gaps and
+  a cross-reference resolving to the wrong section.
+- **critic** planted probes in two trees and found the closure is **wider** than
+  ADR-098 claims: a bare-`.md` tree the retention mechanism does not reach still
+  fails the readable-definition test. It also found Review Provenance one round
+  behind, printing a tally as settled while a third round was in flight, which
+  is the identical defect class its own round-2 `BLOCK` had named one section
+  over.
+- **independent-thinker** caught its own false positive mid-review (a
+  `no delegation` grep hit on a thinking-trigger note in
+  `orchestrator.shared.md:59` that is not a constraint, giving 13 instead of
+  14), found the rank phrasing this ADR excised still living in **this log**,
+  found the residual the third-gap fix introduces and the ADR did not state, and
+  found a planted probe left untracked in the working tree turning the local
+  suite red.
+
+Every finding above is fixed. The rank phrasing in this log is annotated rather
+than rewritten, because editing what a reviewer said to match a later conclusion
+is not a correction, it is a forgery.
+
+### What this round is, and what it is not
+
+`independent-thinker` asked to have this recorded in its own terms, and it is
+the most useful thing round 3 produced:
+
+> Re-running the agent that set a condition does not make the resulting vote
+> independent. I am stateless. I did not remember my BLOCK; I read the log's
+> one-line summary of it. The briefing that launched me named both new edits and
+> gave the reason for each. That is anchoring, and it sets the scope of what I
+> look at. Worse, it means the *set* of things I re-check is defined by the
+> log's account of my prior self, which is why the "five spans" arithmetic
+> matters: if a sixth finding existed and the log dropped it, this re-run cannot
+> recover it, and no amount of re-running fixes that.
+
+> This is not an independent review, and it is not theater. It is a
+> re-derivation. [...] three re-derivations still do not add up to one
+> independent review. The protocol should stop treating "every final vote is
+> ACCEPT or DISAGREE-AND-COMMIT" as the property worth enforcing. A vote is
+> cheap to obtain by construction. What is expensive, and what actually caught
+> the 14x error the first time, is measuring the claim.
+
+That is a finding about `adr-review` itself, not about this ADR, and it is
+recorded here rather than acted on: changing the skill's convergence contract is
+its own change with its own review. The concrete proposal, for whoever takes it
+up, is to require each clearing condition to be enumerated as a checkable
+assertion and each re-run to state the command it ran and what it returned, so
+the difference between *satisfied* and *verified* is visible in the record
+instead of being a footnote a merger has to notice.
+
+### One structural defect this round could not fix
+
+Round 2 recorded `independent-thinker`'s clearing condition as "five spans", and
+the resolution table attributes four rows to it at P0/P1 plus the pointer at P2.
+The count does not resolve. A stateless re-run cannot recover which finding the
+number referred to. Enumerate findings rather than counting them; a tally is not
+a citation.
+
+### Gate uncleared
+
+Two of the three could not check whether the delegation-constraint follow-up has
+an issue number: `gh` returns HTTP 403 in this session. Neither claims no issue
+exists. ADR-098 now states the follow-up as unowned rather than "tracked", which
+is checkable from the document either way.

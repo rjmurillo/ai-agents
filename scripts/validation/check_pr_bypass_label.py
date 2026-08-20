@@ -59,12 +59,26 @@ EXIT_EXTERNAL = 3
 _OWNER_REPO_PATTERN = re.compile(r"[\w.-]+/[\w.-]+")
 
 # GitHub's secondary-limit and abuse-detection wording, and its primary quota
-# refusal. Restated here rather than imported, matching how
-# scripts/gh_retry_helpers.py carries the same signatures, but kept identical
-# to the canonical pair in scripts/github_core/api.py:330-337, whose comment
-# states the reason for this order: "Checked before the primary pattern because
-# both bodies say 'rate limit' and the remedies differ: secondary clears in
-# about a minute, primary waits for the bucket reset."
+# refusal. Restated here rather than imported, and kept character-for-character
+# identical to the canonical pair in scripts/github_core/api.py:330-337:
+#
+#     _SECONDARY_RATE_LIMIT_SIGNATURE = re.compile(
+#         r"secondary rate limit|abuse detection", re.IGNORECASE
+#     )
+#     _RATE_LIMIT_SIGNATURE = re.compile(r"rate limit (?:already )?exceeded", re.IGNORECASE)
+#
+# Quoted rather than paraphrased so a future edit can be checked against the
+# source by eye. That file's comment states the reason for the order: "Checked
+# before the primary pattern because both bodies say 'rate limit' and the
+# remedies differ: secondary clears in about a minute, primary waits for the
+# bucket reset."
+#
+# An earlier revision of this comment also claimed scripts/gh_retry_helpers.py
+# "carries the same signatures". It does not, and Copilot caught it on PR #5177.
+# That module has one broader RETRYABLE_GH_FAILURE regex (gh_retry_helpers.py:38-42)
+# that folds rate limits, timeouts, and 5xx into a single retryable class,
+# because it answers "retry?" rather than "which limiter?". Claiming parity with
+# it invited a future edit to sync against the wrong source.
 _SECONDARY_RATE_LIMIT_SIGNATURE = re.compile(
     r"secondary rate limit|abuse detection", re.IGNORECASE
 )
