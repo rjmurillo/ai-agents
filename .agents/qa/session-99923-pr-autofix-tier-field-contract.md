@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract.json
-qaCommit: 40f0aebe8dc37530914a5d51a3592ed219033e86
+qaCommit: 169a72bd003a8a4b22120484735594fec5f48373
 ---
 
 # QA Report: session 99923, pr-autofix tier field contract
@@ -9,7 +9,7 @@ qaCommit: 40f0aebe8dc37530914a5d51a3592ed219033e86
 - Issue: #5094
 - PR: #5176
 - Session log: `.agents/sessions/2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract.json`
-- QA commit: `40f0aebe8dc37530914a5d51a3592ed219033e86`
+- QA commit: `169a72bd003a8a4b22120484735594fec5f48373`
 - Branch: `claude/pr-5175-review-v21yk2`
 
 ## Verdict
@@ -131,12 +131,13 @@ The guard now fails and names the missed lines. Restored; the suite passes.
 | `uv run pytest tests/commands/ tests/skills/pr-autofix/` | 457 passed, 1 skipped |
 | the four `tests/test_pr_autofix_*.py` files plus `tests/commands/ tests/skills/pr-autofix/` | 695 passed, 1 skipped |
 
-Re-measured at the head this report is bound to. The first two rows were one
-row reading 38 before the coverage guards were split into their own file; a
-count carried across a split describes a file that no longer exists.
 | `uv run ruff check tests/commands/` | All checks passed |
 | `uv run python build/scripts/build_all.py --check` | no staleness |
 | `uv run python scripts/validation/pre_pr.py` | All validations passed |
+
+Re-measured at the head this report is bound to. The first two rows were one
+row reading 38 before the coverage guards were split into their own file; a
+count carried across a split describes a file that no longer exists.
 
 ### Coverage shape
 

@@ -138,6 +138,50 @@ restoring `//` fails `test_an_incomplete_fetch_is_reported_as_false_not_unknown`
 on both docs and nothing else (2 failed, 52 passed), restore byte-identical,
 54 passed either side.
 
+### The repair opened the worse direction of the same bug
+
+Copilot read the fix from the pass above and found it had traded one defect for
+a more dangerous one. `tostring` converts without checking the JSON type, so the
+*string* `"true"` came out as the boolean `true`. Measured across the shipped
+read and its replacement:
+
+| Producer payload | `// "unknown"` | bare `tostring` | JSON-boolean check |
+|---|---|---|---|
+| `{"fetched_pages_complete":true}` | `true` | `true` | `true` |
+| `{"fetched_pages_complete":"true"}` | `unknown` | **`true`** | `unknown` |
+| `{"fetched_pages_complete":false}` | `unknown` | `false` | `false` |
+| `{"fetched_pages_complete":1}` | `unknown` | `1` | `unknown` |
+| `{}` | `unknown` | `unknown` | `unknown` |
+
+The middle row is the whole finding. The first bug mislabelled a denial, which
+costs an operator a confusing message. This one granted a merge on evidence the
+command could not read, which is the exact thing the guard exists to refuse.
+Three reads, three behaviors, and only the third is right.
+
+Control: restoring the bare `tostring` fails the new wrong-type case on all five
+values across both docs, 10 in total, and nothing else. Restore byte-identical.
+
+Two more from the same review, both real:
+
+- **The verification checklist still said the disarm runs on non-T1 PRs only.**
+  Agents report completion against that checklist, so it is the one piece of
+  prose in the command that functions as evidence, and it had drifted from the
+  gate. Updated, plus a guard that fails when the block gates on a completeness
+  field the checklist does not name.
+- **The inverted control's discrimination was prose.** `Validate Spec Coverage`
+  independently marked the same criterion PARTIAL and named the same reason:
+  the control asserts two runs agree, and the claim that a non-inert edit makes
+  them differ lived only in a docstring and this report.
+  `test_the_inverted_control_can_fail` asserts it, so a harness that stops
+  observing behavior fails instead of passing quietly.
+
+And a fourth, on the checker rather than the command: `_JQ_PATH` reads dotted
+identifiers only, so `.Tier // .["tier"]` yields one path, passes both coverage
+guards, and leaves the bracket half unchecked. Verified against the parser
+before fixing (one read, zero violations, zero unparsed). Reported rather than
+parsed, since nothing uses bracket notation today and the first read that does
+should fail loudly rather than pass unseen.
+
 Two of those controls assert behavior the static gate cannot see at all. The
 round-cap breaker firing on T3 and T4, and the T1 PR keeping the auto-merge it
 earned, are properties of the shell conditions, not of the `jq` path.
