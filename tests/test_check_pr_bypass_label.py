@@ -171,6 +171,47 @@ def test_rate_limit_is_named_and_not_called_a_policy_denial(monkeypatch, stderr)
     assert "will not pass on retry" not in status
 
 
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "You have exceeded a secondary rate limit. (HTTP 403)",
+        "gh: You have triggered an abuse detection mechanism. (HTTP 403)",
+    ],
+)
+def test_secondary_limit_gets_back_off_advice_not_a_reset_window(monkeypatch, stderr):
+    """A secondary limit must not be handed the primary remedy.
+
+    Both bodies contain the words "rate limit", so an earlier revision matched
+    them with one branch and told secondary-limit callers to wait for a window
+    reset. There is no primary window to wait for, and retrying against a
+    secondary limit keeps it engaged. Refs #5130 review (Copilot), #4690.
+    """
+    monkeypatch.setattr(mod, "_run_gh_pr_view", lambda branch: _proc(1, "", stderr))
+
+    code, status = mod.check_bypass_label("commit-limit-bypass", None)
+
+    assert code == mod.EXIT_EXTERNAL
+    assert "secondary rate limit" in status
+    assert "back off" in status
+    assert "bucket resets" not in status
+    assert "denied by policy" not in status
+
+
+def test_primary_limit_keeps_the_reset_window_advice(monkeypatch):
+    """The converse: primary exhaustion does clear on the bucket reset."""
+    monkeypatch.setattr(
+        mod,
+        "_run_gh_pr_view",
+        lambda branch: _proc(1, "", "gh: API rate limit exceeded for user ID 1. (HTTP 403)"),
+    )
+
+    code, status = mod.check_bypass_label("commit-limit-bypass", None)
+
+    assert code == mod.EXIT_EXTERNAL
+    assert "bucket resets" in status
+    assert "secondary" not in status
+
+
 def test_message_does_not_advertise_a_throwaway_branch(monkeypatch):
     """The error must not teach a way around the ceiling it enforces.
 

@@ -58,6 +58,20 @@ EXIT_EXTERNAL = 3
 # and period; nothing else, and neither part may be empty.
 _OWNER_REPO_PATTERN = re.compile(r"[\w.-]+/[\w.-]+")
 
+# GitHub's secondary-limit and abuse-detection wording, and its primary quota
+# refusal. Restated here rather than imported, matching how
+# scripts/gh_retry_helpers.py carries the same signatures, but kept identical
+# to the canonical pair in scripts/github_core/api.py:330-337, whose comment
+# states the reason for this order: "Checked before the primary pattern because
+# both bodies say 'rate limit' and the remedies differ: secondary clears in
+# about a minute, primary waits for the bucket reset."
+_SECONDARY_RATE_LIMIT_SIGNATURE = re.compile(
+    r"secondary rate limit|abuse detection", re.IGNORECASE
+)
+_PRIMARY_RATE_LIMIT_SIGNATURE = re.compile(
+    r"rate limit (?:already )?exceeded", re.IGNORECASE
+)
+
 # git-check-ref-format is broader than this, but every ref this tool queries is
 # an ordinary branch name. Refusing the rest costs nothing real and keeps a
 # crafted ref out of the query string.
@@ -231,8 +245,19 @@ def _describe_gh_failure(proc: subprocess.CompletedProcess[str]) -> str:
     # thing this helper exists to get right. Match on the distinguishing
     # wording, most specific first, and treat the status code only as a
     # fallback signal. Refs #5130 review (Cursor Bugbot).
-    if "rate limit" in lowered or "secondary rate" in lowered:
-        reason = "gh hit a rate limit; this succeeds once the window resets"
+    #
+    # Secondary is tested before primary because both bodies contain the words
+    # "rate limit" and the remedies differ. An earlier revision collapsed them
+    # and handed secondary-limit callers the primary remedy, which is actively
+    # wrong: there is no primary reset window to wait for, and retrying against
+    # a secondary limit keeps it engaged. Refs #5130 review (Copilot), #4690.
+    if _SECONDARY_RATE_LIMIT_SIGNATURE.search(stderr):
+        reason = (
+            "GitHub applied a secondary rate limit; stop concurrent gh calls "
+            "and back off for about a minute"
+        )
+    elif _PRIMARY_RATE_LIMIT_SIGNATURE.search(stderr):
+        reason = "gh exhausted its primary rate limit; this succeeds once the bucket resets"
     elif "not enabled for this session" in lowered or "403" in lowered:
         reason = "gh is denied by policy (HTTP 403); this will not pass on retry"
     elif "401" in lowered or ("invalid" in lowered and "token" in lowered):
