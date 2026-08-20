@@ -356,6 +356,8 @@ def test_the_fake_tier_producer_matches_the_real_output_shape(tmp_path: Path, do
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=True,
         timeout=60,
     )
