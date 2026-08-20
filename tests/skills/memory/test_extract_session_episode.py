@@ -3413,6 +3413,43 @@ class TestDedupeEventsCollapsesAbbreviatedCommits:
             f"got {commit_events[0]['content']!r}"
         )
 
+    def test_the_retained_event_is_upgraded_from_a_synthesized_midnight(self) -> None:
+        """The abbreviation-matched dedup branch must still upgrade a
+        synthesized-midnight timestamp to a real one, not just merge content
+        (Copilot on PR #5178: both sibling tests above give the existing and
+        incoming events the identical timestamp, so removing the
+        ``_maybe_update_event_timestamp`` call inside the abbreviation-match
+        branch leaves all four dedup tests green; the upgrade path was
+        exercised by nothing).
+
+        Uses a synthetic SHA absent from this repository (confirmed via
+        ``git cat-file -t``, exit 128) rather than the class's ``FULL``
+        constant, which git-verifiably IS a real commit here
+        (``git log -1 --format=%cI bad269d8199e...`` resolves to
+        2026-08-20T01:29:42+00:00): ``_preserved_timestamp`` tries a real git
+        lookup before falling back to the entry's stored ``timestamp``, so a
+        resolvable SHA would make both events' timestamps resolve to the same
+        real git time regardless of what the fixture sets, masking the exact
+        gap this test exists to close.
+        """
+        fake_full = "1234567890abcdef1234567890abcdef12345678"
+        fake_short = "1234567"
+        midnight = "2026-01-08T00:00:00+00:00"
+        real = "2026-01-08T03:15:00+00:00"
+        existing = [self._commit_event(fake_full, timestamp=midnight)]
+        new = [self._commit_event(fake_short, timestamp=real)]
+        result = extract_session_episode._dedupe_events(existing, new, midnight, session_id="")
+        commit_events = [e for e in result if e["type"] == "commit"]
+        assert len(commit_events) == 1, (
+            f"expected one commit event for one commit, got {len(commit_events)}: "
+            f"{[e['content'] for e in commit_events]}"
+        )
+        assert commit_events[0]["timestamp"] == real, (
+            "the retained event's synthesized-midnight timestamp was not "
+            f"upgraded to the incoming duplicate's real timestamp {real!r}, "
+            f"got {commit_events[0]['timestamp']!r}"
+        )
+
     def test_two_genuinely_different_commits_both_survive(self) -> None:
         """Negative control: dedup must not collapse two distinct commits."""
         other = "cafef00dcafef00dcafef00dcafef00dcafef00d"

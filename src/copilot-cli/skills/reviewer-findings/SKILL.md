@@ -53,9 +53,9 @@ ordinary defect:
 
 | Premise | What settles it | Disposition |
 |---|---|---|
-| True | `git grep -n -F`/`git log -S` (or a read of the cited code) matches the claim | Confirmed; proceed to fix |
-| False | `git grep -n -F`/`git log -S` refutes the claim, or the prescribed fix is already present and the verdict does not reproduce on its own | Declined (refuted); reply with the file, line, commit, and evidence, no code change |
-| Unverifiable | Neither command settles it | Unreproduced; reply with what you tried, leave the thread open |
+| True | The check matching the claim's shape (single-line current state: `git grep -n -F`; multi-line current state: whole-block comparison; provenance or history: `git log -S`; see Process below) matches the claim | Confirmed; proceed to fix |
+| False | That same shape-matched check refutes the claim, or the prescribed fix is already present and the verdict does not reproduce on its own | Declined (refuted); reply with the file, line, commit, and evidence, no code change |
+| Unverifiable | None of the above settles it | Unreproduced; reply with what you tried, leave the thread open |
 
 Measured on this repository: a dispatched reviewer filed six findings against
 one PR, all six resting on a premise `git log -S` refutes, three of them
@@ -294,7 +294,7 @@ State the measurement, then the disposition.
 Before you resolve the thread:
 
 - [ ] The verdict is settled by evidence you produced, not by the finding asserting it.
-- [ ] A claim about current state or history was checked with `git grep -n -F`/`git log -S`, not assumed, and the reply cites the file, line, and commit checked.
+- [ ] A claim about current state or history was checked with the command matching its shape (single-line current state: `git grep -n -F`; multi-line current state: whole-block comparison; provenance or history: `git log -S`), not assumed, and the reply cites the file, line, and commit checked.
 - [ ] The diagnosis was tested separately from the verdict.
 - [ ] The prescribed fix was re-checked against the tree in front of you.
 - [ ] Every supporting count, and every "the repo already does this", was checked.
