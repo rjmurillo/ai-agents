@@ -182,9 +182,13 @@
     {
       "phase": "review-response",
       "summary": "Tenth review round: a fresh Copilot pass on the pushed e66aa467c head (4 comments) found a genuine gap distinct from the ninth round's CWE-20 work: pr-comment-responder/SKILL.md Phase 2 step 4's 'a refuted premise is not implemented' sentence, read without reviewer-findings' three-claims context, could route a finding to Action: Reply Only whenever any claim (diagnosis, prescription) was refuted, even with a confirmed verdict, dropping a real defect (reviewer-findings/SKILL.md's own Anti-Patterns section already names this exact mistake). Fixed by clarifying the premise check settles the verdict specifically, in both SKILL.md and workflow.md. Also fixed two smaller findings: the trailing-newline test's negative control reimplemented its membership check inline instead of sharing the positive tests' predicate (extracted _has_sentinel_recipe, mutation-killed by weakening it and confirming the negative control failed alongside, not independently of, the positive tests); and the memory decision record still cited two commits (743a05a, bad269d) that predate every squash this session performed and were never in this report's tracked history (repointed at the surviving implementation commit). Landed at edbe6b96b. Full suite: 457 passed, unchanged."
+    },
+    {
+      "phase": "review-response",
+      "summary": "Eleventh review round: a fresh Copilot pass on the pushed 823ec6c56 head (3 comments) found two gaps. (1) The disposition table and pre-resolution checklist in reviewer-findings/SKILL.md still summarized verification as git grep -n -F / git log -S, not naming the whole-block git show comparison an earlier round already required for multi-line current-state claims; an agent working from the summary surfaces could misapply the check. Fixed by naming all three claim-shape-specific paths in both surfaces. (2) extract_session_episode.py's abbreviation-aware commit-dedup timestamp-upgrade branch was untested: both existing tests gave identical timestamps to the existing and incoming events, so removing the upgrade call left all four tests green. New test with a midnight-vs-real timestamp pair on a synthetic, repo-verified-absent SHA (a real repo SHA would have made the git-lookup fallback mask the gap). Mutation-killed. Landed at 58ae9a0b9. Full suite: 458 passed."
     }
   ],
-  "endingCommit": "edbe6b96bd3931a287bede0f38e80c03ac2e59ef",
+  "endingCommit": "58ae9a0b97b81f61c4e971e4820e5b8db746357f",
   "nextSteps": [
     "PR #5178 is open (Fixes #5069) with a live PR-activity subscription; monitor for CI results and address any further review feedback until it merges or closes"
   ]

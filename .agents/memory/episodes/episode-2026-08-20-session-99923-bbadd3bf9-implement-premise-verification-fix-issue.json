@@ -64,7 +64,8 @@
         "e027",
         "e030",
         "e033",
-        "e036"
+        "e036",
+        "e039"
       ],
       "leads_to": [
         "e006"
@@ -416,6 +417,39 @@
       "caused_by": [
         "e034"
       ],
+      "leads_to": [
+        "e040"
+      ],
+      "_source_session": "2026-08-20-session-99923-bbadd3bf9-implement-premise-verification-fix-issue"
+    },
+    {
+      "id": "e038",
+      "timestamp": "2026-08-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Eleventh review round: a fresh Copilot pass on the pushed 823ec6c56 head (3 comments) found two gaps. (1) The disposition table and pre-resolution checklist in reviewer-findings/SKILL.md still summarized verification as git grep -n -F / git log -S, not naming the whole-block git show comparison an earlier round already required for multi-line current-state claims; an agent working from the summary surfaces could misapply the check. Fixed by naming all three claim-shape-specific paths in both surfaces. (2) extract_session_episode.py's abbreviation-aware commit-dedup timestamp-upgrade branch was untested: both existing tests gave identical timestamps to the existing and incoming events, so removing the upgrade call left all four tests green. New test with a midnight-vs-real timestamp pair on a synthetic, repo-verified-absent SHA (a real repo SHA would have made the git-lookup fallback mask the gap). Mutation-killed. Landed at 58ae9a0b9. Full suite: 458 passed.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-20-session-99923-bbadd3bf9-implement-premise-verification-fix-issue"
+    },
+    {
+      "id": "e039",
+      "timestamp": "2026-08-20T00:00:00+00:00",
+      "type": "test",
+      "content": "Eleventh review round: a fresh Copilot pass on the pushed 823ec6c56 head (3 comments) found two gaps. (1) The disposition table and pre-resolution checklist in reviewer-findings/SKILL.md still summarized verification as git grep -n -F / git log -S, not naming the whole-block git show comparison an earlier round already required for multi-line current-state claims; an agent working from the summary surfaces could misapply the check. Fixed by naming all three claim-shape-specific paths in both surfaces. (2) extract_session_episode.py's abbreviation-aware commit-dedup timestamp-upgrade branch was untested: both existing tests gave identical timestamps to the existing and incoming events, so removing the upgrade call left all four tests green. New test with a midnight-vs-real timestamp pair on a synthetic, repo-verified-absent SHA (a real repo SHA would have made the git-lookup fallback mask the gap). Mutation-killed. Landed at 58ae9a0b9. Full suite: 458 passed.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-20-session-99923-bbadd3bf9-implement-premise-verification-fix-issue"
+    },
+    {
+      "id": "e040",
+      "timestamp": "2026-08-20T19:23:07+00:00",
+      "type": "commit",
+      "content": "Commit: 58ae9a0b97b81f61c4e971e4820e5b8db746357f",
+      "caused_by": [
+        "e037"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-20-session-99923-bbadd3bf9-implement-premise-verification-fix-issue"
     }
@@ -425,7 +459,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 14,
+    "commits": 15,
     "files_changed": 26
   },
   "lessons": []
