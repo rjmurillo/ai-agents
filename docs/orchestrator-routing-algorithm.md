@@ -206,101 +206,59 @@ def add_mandatory_agents(sequence, task_type, risk, file_patterns):
 
 ---
 
-## Phase 2.5: Validate Tier Compatibility
+## Phase 2.5: Detect Conflicts and Escalate
 
-After selecting agents, validate the delegation sequence respects the tier hierarchy.
+After the selected agents return, check their results for disagreement. There
+is no agent ranking to validate a sequence against: ADR-009 routes a hard
+conflict to `high-level-advisor`, so escalation is a single hop rather than a
+climb up a hierarchy.
+
+Quoted verbatim from
+`.agents/architecture/ADR-009-parallel-safe-multi-agent-design.md`:
+
+| Strategy | Use Case | Behavior |
+|----------|----------|----------|
+| **merge** | Non-conflicting outputs | Combine all outputs |
+| **vote** | Redundant execution | Select majority |
+| **escalate** | Conflicts detected | Route to high-level-advisor |
 
 ```python
-TIER_HIERARCHY = {
-    "expert": 1,
-    "manager": 2,
-    "builder": 3,
-    "integration": 4
+# Soft-conflict weights, per ADR-009: "weighted vote (architect > implementer)".
+CONFLICT_VOTE_WEIGHTS = {
+    "architect": 2,
+    "security": 2,
+    "implementer": 1,
 }
-
-AGENT_TIERS = {
-    # Expert
-    "high-level-advisor": "expert",
-    "independent-thinker": "expert",
-    "architect": "expert",
-    "roadmap": "expert",
-    # Manager
-    "orchestrator": "manager",
-    "milestone-planner": "manager",
-    "critic": "manager",
-    "issue-feature-review": "manager",
-    "pr-comment-responder": "manager",
-    # Builder
-    "implementer": "builder",
-    "qa": "builder",
-    "devops": "builder",
-    "security": "builder",
-    "debug": "builder",
-    # Integration
-    "analyst": "integration",
-    "explainer": "integration",
-    "task-decomposer": "integration",
-    "retrospective": "integration",
-    "backlog-generator": "integration",
-    "janitor": "integration",
-    "merge-resolver": "builder",
-    "memory": "integration",
-    "skillbook": "integration",
-}
-
-def validate_tier_sequence(agent_sequence):
-    """
-    Validates that agent sequence respects tier hierarchy rules.
-    
-    Valid patterns:
-      - Higher tier delegates to lower tier (expert -> manager -> builder -> integration)
-      - Same tier agents execute in parallel
-    
-    Invalid patterns:
-      - Lower tier delegating to higher tier (use escalation instead)
-    """
-    for i in range(len(agent_sequence) - 1):
-        current = agent_sequence[i]
-        next_agent = agent_sequence[i + 1]
-
-        current_level = TIER_HIERARCHY[AGENT_TIERS[current]]
-        next_level = TIER_HIERARCHY[AGENT_TIERS[next_agent]]
-
-        if current_level <= next_level:
-            continue  # Valid: same tier (parallel) or delegation downward
-
-        raise TierViolationError(
-            f"Invalid delegation: {current} ({AGENT_TIERS[current]}) "
-            f"cannot delegate to {next_agent} ({AGENT_TIERS[next_agent]}). "
-            f"Use escalation instead."
-        )
-
-    return True
 
 
 def detect_escalation_need(results):
     """
-    Detects when Builder-tier conflicts require Manager escalation.
+    Detect disagreement among agents that ran on the same question.
+
+    Returns an escalation record when two or more agents returned different
+    recommendations, otherwise False. Per ADR-009 the escalation target is
+    high-level-advisor; the orchestrator routes the conflict, it does not
+    arbitrate it.
     """
-    builder_results = {
-        agent: result for agent, result in results.items()
-        if AGENT_TIERS.get(agent) == "builder"
+    recommendations = {
+        agent: result.get("recommendation")
+        for agent, result in results.items()
+        if result.get("recommendation") is not None
     }
 
-    if len(builder_results) < 2:
+    if len(recommendations) < 2:
         return False
 
-    recommendations = [r.get("recommendation") for r in builder_results.values()]
+    distinct = set(recommendations.values())
+    if len(distinct) == 1:
+        return False
 
-    if len(set(recommendations)) > 1:
-        return {
-            "escalate_to": "manager",
-            "reason": "Conflicting Builder recommendations",
-            "agents": list(builder_results.keys()),
-            "conflict": recommendations
-        }
-
-    return False
+    return {
+        "escalate_to": "high-level-advisor",
+        "reason": "Conflicting agent recommendations",
+        "agents": sorted(recommendations),
+        "conflict": sorted(distinct),
+    }
 ```
 
 ---

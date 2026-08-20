@@ -122,12 +122,12 @@ Run `git rev-list --count HEAD ^origin/main` during extended work. Warn at 10
 commits, prepare to wrap at 15, and stop adding scope above the active limit
 reported by `scripts/validation/pr_commit_count.py`.
 
-### Tier-Based Coordination
+### Delegation and Coordination
 
-Agent delegation follows the tier hierarchy in `.agents/AGENT-SYSTEM.md`.
-Record material routing decisions in the transcript, task tracker, per-issue
-handoff, or Serena memory. Parallel writers must own separate files or
-worktrees.
+Agent delegation follows ADR-009: the orchestrator dispatches, aggregates, and
+routes hard conflicts to `high-level-advisor`. Record material routing
+decisions in the transcript, task tracker, per-issue handoff, or Serena memory.
+Parallel writers must own separate files or worktrees.
 
 ### Continuity During Long Work
 
