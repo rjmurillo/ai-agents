@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-5174-b3bfa3aaa-remove-agent-tier-hierarchy-replace.json
-qaCommit: 64b86fb2b953b908d4889e1eb4c70560718ce6f8
+qaCommit: 52c52f9af0887ea523a8ddfe70b80fb1f974dab4
 ---
 
 # QA report: issue #5130, remove the agent tier hierarchy
@@ -71,7 +71,7 @@ pass and caught by the install-parity gate.
 
 ## Addendum: findings after the first QA pass
 
-Fourteen review findings landed after the original run. Each is covered:
+Fifteen review findings landed after the original run. Each is covered:
 
 | Finding | Source | Verification |
 |---|---|---|
@@ -89,8 +89,13 @@ Fourteen review findings landed after the original run. Each is covered:
 | Roster and discovery compared paths in two forms, so on Windows every real tree read as unconfigured | Cursor Bugbot | `as_posix()` on both sides. Measured with `PureWindowsPath`: six unconfigured before, zero after |
 | The converse guard walked the filesystem, racing xdist siblings that create worktrees; CI `bulk-nested` went red while the same command passed locally twice | CI | Switched to `git ls-files`. Verified both ways: an untracked copy of `templates/agents` planted in the repo root no longer trips it, a staged `src/seventh-tree` still does |
 | Secondary and primary rate limits shared one branch, so secondary callers were told to wait for a reset window that does not exist | Copilot | Split, matching the canonical pair in `github_core/api.py:330`. Three tests assert both directions |
+| `.agents/SESSION-PROTOCOL.md` deleted upstream by PR #5179 while this branch edited it | `origin/main` at ba541c21f | Took the deletion on merge. `docs/agent-catalog.md` regenerated rather than hand-merged, the escalation guard no longer parametrizes over the deleted path, and the debate log records that the `adr-review` gate is moot rather than met |
 
-Re-verified on this commit: the CI `bulk-nested` partition reproduced locally via
+Re-verified after merging `origin/main` at ba541c21f: 295 tests across seven suites,
+`generate_agent_catalog.py --check` OK, `validate_copilot_agent_frontmatter.py` PASS on 31 files,
+`run_install_parity_ci.py` OK, `merge_tree_ratchet_check.py` OK against the new base.
+
+Before that merge, on 64b86fb2b: the CI `bulk-nested` partition reproduced locally via
 `run_pytest_selected.py`, 15074 passed and 62 skipped, which is the partition that was red.
 Full suite under the repo's own partition contract: 27820 passed and 74 skipped in bulk,
 85 passed in the three process-sensitive modules run serially.
