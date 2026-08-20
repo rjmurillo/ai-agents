@@ -81,18 +81,18 @@ The closed-unmerged set is not the only place a counterexample can live, and an 
 |---|---|---|
 | #5177 | yes | Reached the blocking tier; relief granted |
 | #5178 | yes | Reached the blocking tier; relief granted |
-| #5176 | no | Advisory tier only |
-| #5181 | no | Advisory tier only, and is this decision's own pull request |
+| #5176 | no | Authored non-merge count not measured; tier undetermined |
+| #5181 | no | Authored non-merge count not measured; tier undetermined. This decision's own pull request |
 
-No open pull request is held by the ceiling without relief. Two reached the blocking tier and both were relieved by hand, which is two of the twenty bypass applications the cost figure counts. #5177 is the same pull request cited below for spending its output on gate arithmetic, so the two halves of that observation are the same case seen from opposite sides.
+Two open pull requests reached the blocking tier and both were relieved by hand, which is two of the twenty bypass applications the cost figure counts. #5177 is the same pull request cited below for spending its output on gate arithmetic, so the two halves of that observation are the same case seen from opposite sides. The remaining two (#5176 and #5181) were not classified because their authored non-merge commit counts were not measured; the absence of a bypass label does not establish they stayed below the blocking threshold.
 
-Combining both populations: across eleven labeled pull requests classified by hand, closed and open, the blocking ceiling stopped nothing. Three reached the blocking tier and all three were relieved.
+Combining both populations: across the seven closed-unmerged pull requests and the two relieved open pull requests, the blocking ceiling stopped nothing it did not also relieve. Two open pull requests (#5176 and #5181) remain unclassified without their authored non-merge counts, so the full eleven-PR finding is incomplete.
 
 ### What actually stopped the bad one
 
 #4846 is the only pull request in the sample that should not merge, and it did not merge. What held it was its own security and vendor-provenance gate, a correctness check, not a size ceiling. The size gate labeled it, and it also labeled #4718, #5036, #5152, #5103, and #5107, which all merged and should have.
 
-That is the finding this decision rests on, bounded by both enumerations above: across the closed-unmerged and open labeled populations the blocking ceiling stopped nothing, and the one pull request that should not have merged was held by a correctness gate. Over the same window the ceilings imposed cost on five of the six sampled pull requests that were doing the right thing.
+That is the finding this decision rests on, bounded by both enumerations above: across the closed-unmerged population and the two relieved open pull requests, the blocking ceiling stopped nothing it did not also relieve, and the one pull request that should not have merged was held by a correctness gate. Two open pull requests remain unclassified. Over the same window the ceilings imposed cost on five of the six sampled pull requests that were doing the right thing.
 
 ### The cost
 

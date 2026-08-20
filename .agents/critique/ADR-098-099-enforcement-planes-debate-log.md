@@ -125,7 +125,7 @@ After the council decision was recorded, external review found one more, and it 
 
 Six roles had reviewed that enumeration across two rounds. Analyst, whose explicit mandate was evidence adequacy, had pressed hard on sample size and on the two unread cases, and did not raise the missing population. Neither did the orchestrator who built it.
 
-Classifying the open set at the same cutoff returned four. #5177 and #5178 carry `commit-limit-bypass`, so both reached the blocking tier and both were relieved by hand; #5176 and #5181 carry the advisory label only. No open pull request is held by the ceiling without relief, so the finding survived. It survived on evidence that had not existed when the council voted for it.
+Classifying the open set at the same cutoff returned four. #5177 and #5178 carry `commit-limit-bypass`, so both reached the blocking tier and both were relieved by hand; #5176 and #5181 lack the bypass label but their authored non-merge counts were not measured, so their tier is undetermined. The finding that the blocking ceiling stopped nothing it did not also relieve holds for the nine classified pull requests; two open pull requests remain unclassified. It survived on evidence that had not existed when the council voted for it, and that evidence is incomplete.
 
 That is worth recording plainly. The conclusion was right and the reasoning behind it was incomplete, which is the condition a review process exists to detect and this one did not.
 
