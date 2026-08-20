@@ -38,6 +38,8 @@ directions and for field names on both producer styles. The parser lives in
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from tests.commands.pr_autofix_field_parser import (
@@ -111,18 +113,30 @@ def test_tier_read_targets_the_authoritative_flat_producer(command_body: str) ->
 
 
 # Coverage: the extractor must not go blind and silently pass.
+#
+# All three guards run over both shipped documents. Running them on the source
+# alone leaves the mirror's blindness unguarded: `contract_violations` and
+# `test_mirror_reads_match_source_reads` both compare only reads the extractor
+# already found, so an invocation neither side parses contributes to neither
+# check and stays invisible. Copilot caught that on PR #5176, on the guard
+# below; the other two took the same source-only fixture, so all three are
+# parameterized rather than only the one reported.
 
 
-def test_every_read_binds_to_a_producer(command_body: str) -> None:
+@pytest.mark.parametrize("doc", [COMMAND_PATH, MIRROR_PATH])
+def test_every_read_binds_to_a_producer(doc: Path) -> None:
     """An unbound read is unchecked, so treat it as a failure, not a skip."""
-    unbound = [r for r in extract_field_reads(command_body) if r.script is None]
+    body = doc.read_text(encoding="utf-8")
+    unbound = [r for r in extract_field_reads(body) if r.script is None]
 
-    assert unbound == [], "Reads that bind to no producer are unchecked:\n" + "\n".join(
-        f"line {r.line}: `{r.path}`" for r in unbound
+    assert unbound == [], (
+        f"{doc.name}: reads that bind to no producer are unchecked:\n"
+        + "\n".join(f"line {r.line}: `{r.path}`" for r in unbound)
     )
 
 
-def test_extractor_reaches_every_jq_invocation(command_body: str) -> None:
+@pytest.mark.parametrize("doc", [COMMAND_PATH, MIRROR_PATH])
+def test_extractor_reaches_every_jq_invocation(doc: Path) -> None:
     """A read the extractor never saw is invisible, not reported unbound.
 
     `test_every_read_binds_to_a_producer` only covers reads that were found.
@@ -135,29 +149,32 @@ def test_extractor_reaches_every_jq_invocation(command_body: str) -> None:
     for a sibling the parser never read. So this asserts the parser extracted a
     program for every invocation, and got a path out of every program.
     """
+    body = doc.read_text(encoding="utf-8")
     unparsed = [
         (lineno, jq_invocation_count(line), len(jq_programs(line)), line.strip())
-        for lineno, line in jq_invocation_lines(command_body)
+        for lineno, line in jq_invocation_lines(body)
         if unparsed_jq_invocations(line)
     ]
 
-    assert unparsed == [], "jq invocations the extractor never parsed:\n" + "\n".join(
+    assert unparsed == [], f"{doc.name}: jq invocations the extractor never parsed:\n" + "\n".join(
         f"line {lineno}: {count} invocation(s), {parsed} program(s) parsed: {line[:100]}"
         for lineno, count, parsed, line in unparsed
     )
 
     pathless = [
         (lineno, program)
-        for lineno, line in jq_invocation_lines(command_body)
+        for lineno, line in jq_invocation_lines(body)
         for program in pathless_jq_programs(line)
     ]
 
-    assert pathless == [], "jq programs the extractor read no path from:\n" + "\n".join(
-        f"line {lineno}: {program[:100]}" for lineno, program in pathless
+    assert pathless == [], (
+        f"{doc.name}: jq programs the extractor read no path from:\n"
+        + "\n".join(f"line {lineno}: {program[:100]}" for lineno, program in pathless)
     )
 
 
-def test_every_consumed_producer_has_derivable_keys(command_body: str) -> None:
+@pytest.mark.parametrize("doc", [COMMAND_PATH, MIRROR_PATH])
+def test_every_consumed_producer_has_derivable_keys(doc: Path) -> None:
     """The field check must not stand down on a producer the command reads.
 
     `_field_violation` returns None when `top_level_keys` is None, which is
@@ -166,11 +183,12 @@ def test_every_consumed_producer_has_derivable_keys(command_body: str) -> None:
     and every other test would stay green. Pin derivability for the producers
     actually in use so that regression fails here.
     """
-    scripts = {r.script for r in extract_field_reads(command_body) if r.script}
+    body = doc.read_text(encoding="utf-8")
+    scripts = {r.script for r in extract_field_reads(body) if r.script}
     undecidable = sorted(s for s in scripts if derive_producer_schema(s).top_level_keys is None)
 
     assert undecidable == [], (
-        "Field checking silently stands down for these producers:\n"
+        f"{doc.name}: field checking silently stands down for these producers:\n"
         + "\n".join(f"  {s}.py" for s in undecidable)
     )
 

@@ -121,11 +121,11 @@ The guard now fails and names the missed lines. Restored; the suite passes.
 
 | Command | Result |
 |---|---|
-| `uv run pytest tests/commands/test_pr_autofix_field_contract.py` | 35 passed |
+| `uv run pytest tests/commands/test_pr_autofix_field_contract.py` | 38 passed |
 | `uv run pytest tests/commands/test_pr_autofix_tier_contract.py` | 4 passed |
 | `uv run pytest tests/commands/test_pr_autofix_tier_dispatch_runtime.py` | 40 passed |
-| `uv run pytest tests/commands/ tests/skills/pr-autofix/` | 447 passed, 1 skipped |
-| the four `tests/test_pr_autofix_*.py` files plus `tests/commands/ tests/skills/pr-autofix/` | 685 passed, 1 skipped |
+| `uv run pytest tests/commands/ tests/skills/pr-autofix/` | 450 passed, 1 skipped |
+| the four `tests/test_pr_autofix_*.py` files plus `tests/commands/ tests/skills/pr-autofix/` | 688 passed, 1 skipped |
 | `uv run ruff check tests/commands/` | All checks passed |
 | `uv run python build/scripts/build_all.py --check` | no staleness |
 | `uv run python scripts/validation/pre_pr.py` | All validations passed |
@@ -334,6 +334,40 @@ The transferable part is the shape of the mistake, not the wording. A claim
 corrected in the artifacts you happen to be editing is corrected in those
 artifacts. Closing it means grepping the phrase across the tree, which is what
 found nothing this time only because Copilot had already done it.
+
+### Ninth pass: the coverage guards only covered the source
+
+Copilot found `test_extractor_reaches_every_jq_invocation` running against
+`COMMAND_PATH` alone. The suite claims source-and-mirror coverage, but the two
+mirror checks both compare only reads the extractor already found:
+`contract_violations` inspects extracted reads, and
+`test_mirror_reads_match_source_reads` compares two extracted lists. An
+invocation neither side parses is absent from both lists, so the lists agree
+and nothing fails. The one guard written to catch extractor blindness never
+looked at the mirror.
+
+Verified the premise, then checked its siblings rather than only the reported
+instance. `test_every_read_binds_to_a_producer` and
+`test_every_consumed_producer_has_derivable_keys` took the same source-only
+fixture and had the same hole. All three are now parameterized over both
+shipped documents.
+
+Control: inject a double-quoted `jq` program into the mirror only, which
+`_JQ_TOKEN` sees and `_JQ_PROGRAM` cannot parse. The mirror case fails and the
+source case passes on the same tree:
+
+```
+FAILED test_extractor_reaches_every_jq_invocation[doc1]
+1 failed, 1 passed
+```
+
+Before the change that same injection produced no failure at all. Restored;
+mirror byte-identical, 82 passed.
+
+This is the sixth instance in this PR of one shape: a check whose unit is
+narrower than the claim it backs. Presence, then path count, then programs,
+then producer binding, then recognized-versus-dispatched, and now source
+without mirror.
 
 ## Known limits
 
