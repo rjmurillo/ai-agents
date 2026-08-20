@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-5174-b3bfa3aaa-remove-agent-tier-hierarchy-replace.json
-qaCommit: d5453ca8a710e19fe0bd3f388568a5613fde4a3b
+qaCommit: eae5000872641436babe91e3edcf1cb229528ffb
 ---
 
 # QA report: issue #5130, remove the agent tier hierarchy
@@ -60,10 +60,29 @@ pass and caught by the install-parity gate.
 
 ## Not validated
 
-- The six-agent `adr-review` debate that `AGENTS.md` fires on a
-  `.agents/SESSION-PROTOCOL.md` edit did not run; the authoring session had
-  subagent invocation disabled. Recorded in the first section of
-  `.agents/critique/5130-tier-hierarchy-removal-debate-log.md`.
+- The six-agent `adr-review` debate **ran on 2026-08-20**, in a later session
+  with subagent invocation available, and its votes are recorded in
+  `.agents/critique/5130-tier-hierarchy-removal-debate-log.md`. Seven agents,
+  the six `adr-review` roles plus a `qa` pass: 4 ACCEPT, 1
+  DISAGREE-AND-COMMIT, 2 BLOCK. Both P0s (a `security: 2` weight attributed to
+  ADR-009 that ADR-009 does not grant, and two false citations in the debate
+  log's own finding-5 answer) were fixed before the log was updated.
+
+  **What is still not validated is consensus.** `critic`'s BLOCK named a
+  bounded clearing condition and it is met; `architect`'s is not. Its P0 is
+  that no ADR records the tier-to-role decision, and this change still adds
+  none. `high-level-advisor`, asked the same question, said land it and file a
+  follow-up. Both are designated tie-breakers and they disagree, and
+  `AGENTS.md` makes authoring a new ADR `Ask First`, so it is the maintainer's
+  call and is recorded as open rather than resolved.
+- Three gaps the `qa` pass proved by planting violations, all still open and
+  none blocking: the four copies of `_KNOWN_ROLES` have no equality test
+  (adding a fifth value to one copy leaves the suite green); nothing asserts
+  that copies of the same agent agree across trees (setting
+  `.claude/agents/janitor.md` to `strategic` against the template's `support`
+  leaves 119 tests green and the drift detector silent); and a malformed agent
+  file in a configured tree drops out of the corpus before the known-role
+  check sees it. Copilot has since raised all three independently.
 - `.agents/prototypes/agents/*.compressed.md` still carry `metadata.tier`.
   They are frozen prototype measurement artifacts for issue #1738
   (`prototype: true`) and were left unmodified so the recorded measurement
@@ -99,14 +118,15 @@ Twenty-nine review findings landed after the original run. Each is covered:
 | Suffix signal sat behind a successful YAML parse, so a malformed agent in a new tree stayed invisible | Copilot | Suffix checked first, without parsing. Verified with a tracked `src/new-agents/foo.agent.md` carrying invalid frontmatter: invisible before, fails the converse guard now |
 | An *unterminated* frontmatter block returned None from both extractors, so the raw `tier:` sweep skipped the file entirely | spec validator | Sweep falls back to whole file text when the fence cannot be delimited. Zero hits across all 190 agent files, so no false positives. Verified with `.claude/agents/zz-evader.md` carrying an unclosed block and `tier: builder` |
 | `blocking` examined every voter, so a non-negotiable on the *winning* recommendation forced escalation, contradicting the docstring three lines above | Copilot | Narrowed to dissenters. Simulated both ways: architect=A/non-negotiable vs implementer=B escalated before, votes A now; a real dissenter still escalates |
-| ADR-078 described orchestrator as `metadata.tier: manager`, a field this PR deletes | Copilot (x2), spec validator | Owner chose correction here over a follow-up PR. Five phrases fixed against the shipped frontmatter; four other `tier` uses left alone as different concepts. No `adr-review` ran, and the debate log says so. Gate confirmed a string check by negative control: `ADR-ZZZ` fails, `ADR-078` passes |
+| ADR-078 described orchestrator as `metadata.tier: manager`, a field this PR deletes | Copilot (x2), spec validator | Owner chose correction here over a follow-up PR. Seven phrases fixed against the shipped frontmatter (36, 79, 110, 111, 123, 206, 212); four other `tier` uses left alone as different concepts. The `adr-review` debate has since run and reviewed this correction specifically: its architect pass is why the option-C clause was re-grounded on the skill/agent boundary rather than renamed to a role boundary, a role granting nothing at runtime being unable to be broken. Gate confirmed a string check by negative control: `ADR-ZZZ` fails, `ADR-078` passes, so the green gate is still not evidence of review |
 | The ADR-078 correction missed line 111, `orchestrator is a manager agent`, one sentence after a line I had classified as out of scope | spec-coverage CI on 074a3a0db | Sixth phrase fixed, plus line 110's `different tiers` to `different layers`. Root cause: adjudicating the word `tier` use-by-use instead of sweeping for the rank vocabulary. `grep -c ' manager'` on the file now returns 0, which is the check that would have caught it |
 | PR body pinned a head SHA that went stale on every push, three revisions running | Copilot | Body no longer names a head. The head-bound record is `qaCommit` in this file, rebound per push; the body is narrative |
 | Migration test module hit 531 lines against the 500-line taste ceiling while the description claimed lint clean | Copilot | Split by concern into `agent_metadata_helpers.py` (245), `test_agent_tree_discovery.py` (136), and the migration module (210). taste-lints reports no violations on any of the three; 11 tests still pass |
 | `escalate_to_high_level_advisor` was called but never defined, and the next line indexed `positions[winner]` with a non-participant | Copilot | Escalation now appends an explicit result naming the arbiter and skips the winner branch. No undefined call, no bad lookup |
-| Serena memory gave 186 as the PR file total | Copilot | 186 is the agent metadata count; the PR changed 208 files. Both now labelled |
+| Serena memory gave 186 as the PR file total | Copilot | 186 is the agent metadata count and is the durable figure. The PR-wide total was 208 when first flagged and is 212 as of this rebind; it moves on every review round, so the memory marks it a snapshot and carries the ratio as the lesson rather than the second number. Copilot re-flagged the 208 after it went stale, which is the behaviour that argued for the snapshot label |
 | Body still carried two head-bound claims after declaring it no longer pins a head: "exit 0 on the current head" and "run to completion on the pushed head" | Copilot | Both narrowed to "the run for one push", pointing at `qaCommit` for the attested commit. The declaration and the prose now agree |
-| Correcting ADR-078 re-arms `adr-review`, which the body still described as moot | this session, on re-reading the body after the edit | Acceptance box moved from `[~]` to `[ ]` and the section retitled. The criterion is unmet and applicable, which is worse than moot and the honest state. Auto-merge will not wait for it; flagged to the maintainer rather than disabled here |
+| Correcting ADR-078 re-arms `adr-review`, which the body still described as moot | this session, on re-reading the body after the edit | Acceptance box moved from `[~]` to `[ ]` and the section retitled. The criterion was unmet and applicable, which is worse than moot and was the honest state at the time. **Superseded: the debate has since run** against the ADR-078 correction and the wider change; see the row below and the debate log |
+| The `adr-review` debate ran, so every artifact saying it had not was stale | a later session with subagent invocation available | Seven agents, 4 ACCEPT / 1 D&C / 2 BLOCK. Two P0s found and fixed: `security: 2` attributed to ADR-009 (`grep -c -i security` on the ADR returns 0, and ADR-009:90 grants only `architect > implementer`), and two false citations in this branch's own debate log. `architect`'s BLOCK on the absence of an ADR recording the decision is open and is a maintainer call under `AGENTS.md` "Ask First: New ADRs". Corrected here, in the debate log, and in ADR-078's note; the PR description is the remaining stale surface |
 
 Re-verified on the attested commit: 11 migration guards, 44 bypass-checker tests, taste ratchet OK
 with slack, ruff and mypy clean on changed files. The scoped pre-push pytest gate ran to completion
