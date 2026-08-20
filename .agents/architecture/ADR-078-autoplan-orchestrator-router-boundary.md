@@ -136,7 +136,7 @@ the same surface.
 |-------------|------|------|----------------|
 | A. Explicit layering: autoplan = front-door router, orchestrator = routed-to multi-agent coordinator (chosen) | Matches actual design; smallest change; keeps both entry ergonomics; removes ambiguity with one handoff clause | Two surfaces still exist, so contributors must learn the boundary; relies on docs being read | Chosen: lowest risk, no capability loss, honest to how the code already behaves |
 | B. Fold autoplan into orchestrator (single router) | One router, zero overlap | orchestrator's blocking session-start gate and opus tier are too heavy for trivial routing; loses implicit cheap entry; large blast radius across the shared agent source and every agent handoff | Rejected: makes the common lightweight path pay the multi-agent tax |
-| C. Fold orchestrator into autoplan | One entry point at the skill layer | A skill would own agent-layer handoff and synthesis, so orchestrator's blocking session-start checklist would sit in a surface that fires implicitly on `do it`; loses opus reasoning tier for complex work | Rejected: pushes agent-tier responsibility into a skill |
+| C. Fold orchestrator into autoplan | One entry point at the skill layer | A skill would own agent-layer handoff and synthesis, so orchestrator's blocking session-start checklist would sit in a surface that fires implicitly on `do it`; loses opus reasoning tier for complex work | Rejected: pushes agent-layer responsibility into a skill |
 | D. Keep both, document nothing | No work | The #2867 ambiguity persists; duplicated classification logic keeps drifting | Rejected: does not solve the reported problem |
 
 ### Trade-offs

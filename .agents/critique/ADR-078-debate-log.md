@@ -230,3 +230,29 @@ its own reliability: each missed what the other caught. A green debate is
 evidence that six or seven lenses found nothing, not evidence that nothing is
 there. The accidental replication is worth more than either result alone, and it
 should not be tidied away into a single consensus line.
+
+## Addendum, 2026-08-20: the vocabulary sweep missed one, and a bot found it
+
+Both debates above reviewed the skill-versus-agent vocabulary and agreed it had
+been converted to "layer". A Copilot review on PR #5177 then found a live
+counterexample neither run caught: ADR-078's Alternatives table, option C, still
+rejected the option on the ground that it "pushes **agent-tier** responsibility
+into a skill".
+
+That span is exactly what the correction note above declares fixed. The note
+says the axis reads "layer" throughout and names two deliberate survivors, the
+Cynefin complexity tier and the opus model tier. Option C's clause is neither.
+It is the retired agent rank, sitting inside the very table the debates read.
+
+Corrected to "pushes agent-layer responsibility into a skill".
+
+Worth recording rather than fixing quietly, because of where it was found. The
+sweep had already been re-counted three times, from five spans to six to seven,
+and each re-count was itself prompted by a reviewer rather than by the sweep. A
+prose claim of the form "converted throughout" is unfalsifiable by reading the
+places you already looked, which is the failure mode ADR-098 exists to argue
+about. The two `tier` uses that remain in that table are the opus model tier on
+lines 138 and 139, and they stay by the rule the note already states.
+
+Nothing here touches ADR-078's decision. The autoplan/orchestrator boundary is
+unaffected by what the rejected alternative's rejection clause calls the axis.
