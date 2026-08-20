@@ -54,6 +54,9 @@ _JQ_PROGRAM = re.compile(r"jq\s[^|>']*'([^']*)'")
 _JQ_PATH = re.compile(r"(?:^|[^A-Za-z0-9_.])(\.[A-Za-z_][A-Za-z0-9_.]*)")
 # Bare `jq` as a command word. Independent of _JQ_PROGRAM on purpose; see
 # jq_invocation_lines for why the guard must not share the extractor's regex.
+# Bracket-notation field access, which `_JQ_PATH` cannot see. Not parsed into a
+# path deliberately; see unsupported_path_syntax for why it is reported instead.
+_JQ_BRACKET_PATH = re.compile(r"\.\s*\[\s*[\"']")
 _JQ_TOKEN = re.compile(r"(?:^|[|\s(])jq\s")
 _VAR_REF = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?")
 
@@ -366,6 +369,25 @@ def pathless_jq_programs(line: str) -> list[str]:
     return [program for program in jq_programs(line) if not _JQ_PATH.findall(program)]
 
 
+def unsupported_path_syntax(line: str) -> list[str]:
+    """Programs using path syntax `_JQ_PATH` cannot see, so they fail closed.
+
+    `_JQ_PATH` reads dotted identifiers only. Bracket notation (`.["tier"]`,
+    `.Data["action"]`) names a field just as well and is invisible to it, and
+    the existing guards do not help: a mixed program such as
+    `.Tier // .["tier"]` yields one path, so it is neither unparsed nor
+    pathless, and the bracket half is never checked against the producer.
+    Copilot found this shape on PR #5176.
+
+    The gap is real but latent, so this reports rather than resolves: nothing
+    in the command uses bracket notation today. Making it a finding means the
+    first read that does fails loudly and says to teach the extractor, instead
+    of passing unchecked because the parser could not see it. That is the same
+    choice made for nested paths in `_field_violation`.
+    """
+    return [program for program in jq_programs(line) if _JQ_BRACKET_PATH.search(program)]
+
+
 def jq_invocation_lines(text: str) -> list[tuple[int, str]]:
     """Logical lines that invoke jq, ignoring comments.
 
@@ -440,6 +462,14 @@ def contract_violations(text: str) -> list[str]:
     is right, so the envelope finding wins.
     """
     problems: list[str] = []
+    for lineno, line in logical_lines(text):
+        for program in unsupported_path_syntax(line):
+            problems.append(
+                f"line {lineno}: jq program `{program}` uses bracket-notation field "
+                "access, which the path extractor cannot read, so any field named "
+                "that way is never checked against its producer. Teach `_JQ_PATH` "
+                "bracket notation before using it here."
+            )
     for read in extract_field_reads(text):
         if read.script is None:
             continue

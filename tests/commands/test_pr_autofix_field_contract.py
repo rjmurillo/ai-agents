@@ -50,6 +50,9 @@ from tests.commands.pr_autofix_field_parser import (
     derive_producer_schema,
     extract_field_reads,
     logical_lines,
+    pathless_jq_programs,
+    unparsed_jq_invocations,
+    unsupported_path_syntax,
 )
 
 
@@ -288,3 +291,41 @@ def test_a_captured_variable_nearer_the_jq_wins_over_an_earlier_producer() -> No
     assert extract_field_reads(body) == [
         FieldRead(line=2, script="check_pr_live_state", path=".Data.action")
     ]
+
+
+def test_detects_bracket_notation_hiding_a_field() -> None:
+    """The mixed-form shape Copilot found: one dotted path masks a bracket one.
+
+    `.Tier // .["tier"]` yields exactly one path, so the read is neither an
+    unparsed invocation nor a pathless program, and both coverage guards pass
+    while the bracket half names a field no producer emits. The parser reports
+    it rather than parsing it, so the first real use fails loudly instead of
+    going unchecked.
+    """
+    body = _piped_read("test_pr_merge_ready", '.Tier // .["tier"]')
+
+    violations = contract_violations(body)
+
+    assert len(violations) == 1
+    assert "bracket-notation" in violations[0]
+
+
+def test_bracket_notation_is_invisible_to_the_existing_guards() -> None:
+    """Why the new finding is needed rather than the guards already covering it.
+
+    Without this, a reader could reasonably assume the invocation and pathless
+    guards already catch an unreadable program. They do not catch this one, and
+    stating that as a test keeps the reasoning checkable.
+    """
+    line = 'X=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" | jq -r \'.Tier // .["tier"]\')'
+
+    assert unparsed_jq_invocations(line) == 0
+    assert pathless_jq_programs(line) == []
+    assert unsupported_path_syntax(line) == ['.Tier // .["tier"]']
+
+
+def test_dotted_paths_are_not_reported_as_unsupported() -> None:
+    """Guard against a check that flags everything and looks strict."""
+    line = 'X=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" | jq -r \'.Tier // "UNKNOWN"\')'
+
+    assert unsupported_path_syntax(line) == []
