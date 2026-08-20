@@ -320,7 +320,7 @@ This trades a small, unproven protection against sprawl for the removal of a mea
 
 One phase. No dependency on repository configuration, no new gate, no new required check. Each item is independently revertible by restoring a return value.
 
-Order: fix the rebind generator; remove the CI block in `enforce_pr_validation.py` and demote `_check_commit_limit`; demote `check_atomic_commit` early, so that this change's own wide diff is not sliced by the cap it retires; demote the scope `BLOCK_THRESHOLD` and add the process-record exclusions; then remove `SKIP_SCOPE_CHECK`; then update the documents. The last two are ordered, not interchangeable, per Decision items 3 and 4.
+Order: fix the rebind churn at `post_qa_code_changes` per item 5; remove the CI block in `enforce_pr_validation.py` and demote `_check_commit_limit`; demote `check_atomic_commit` early, so that this change's own wide diff is not sliced by the cap it retires; demote the scope `BLOCK_THRESHOLD` and add the process-record exclusions; then remove `SKIP_SCOPE_CHECK`; then update the documents. The last two are ordered, not interchangeable, per Decision items 3 and 4.
 
 ### Time-box and re-measure
 
