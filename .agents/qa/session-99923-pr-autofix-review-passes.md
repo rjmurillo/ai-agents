@@ -109,6 +109,35 @@ the assertion is the property (editing a comment is inert) rather than one
 instance of it. Discrimination was re-run against the derived form with the same
 result: shipped edit 2 passed, `!= "null"` flipped to `=` 2 failed.
 
+### A reviewer caught what the tests could not see
+
+The Cursor agent found the completeness read wrong within minutes of the push,
+and the interesting part is why no assertion did.
+
+The read said `.fetched_pages_complete // "unknown"`. jq's alternative operator
+fires on `false` as well as `null`, so a producer that measured the fetch and
+reported it truncated came out as `unknown`, telling the operator the field
+could not be read when it had been read fine. Verified rather than assumed:
+
+| Producer payload | `// "unknown"` | explicit null test |
+|---|---|---|
+| `{"fetched_pages_complete":true}` | `true` | `true` |
+| `{"fetched_pages_complete":false}` | `unknown` | `false` |
+| `{}` | `unknown` | `unknown` |
+
+Both wrong and right values deny the T1 exemption, so every assertion in the
+suite held either way. The case parameterized on `false` was passing while
+running the `unknown` path, which makes it a test whose two inputs cannot
+produce different results. That is the same defect shape as the rest of this
+PR, one level up: the unit the assertion could see was narrower than the
+behavior the case was named for.
+
+Closed by asserting on the operator message, which is where the states differ,
+with the fix taken from the reviewer rather than reimplemented. Control:
+restoring `//` fails `test_an_incomplete_fetch_is_reported_as_false_not_unknown`
+on both docs and nothing else (2 failed, 52 passed), restore byte-identical,
+54 passed either side.
+
 Two of those controls assert behavior the static gate cannot see at all. The
 round-cap breaker firing on T3 and T4, and the T1 PR keeping the auto-merge it
 earned, are properties of the shell conditions, not of the `jq` path.
