@@ -146,17 +146,43 @@ def test_unauthenticated_gh_is_named(monkeypatch):
     assert "not authenticated" in status
 
 
-def test_rate_limit_is_named(monkeypatch):
-    monkeypatch.setattr(
-        mod,
-        "_run_gh_pr_view",
-        lambda branch: _proc(1, "", "API rate limit exceeded"),
-    )
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        # The realistic shape: GitHub answers an exhausted rate limit with 403,
+        # not 429. An earlier version of the classifier tested for "403" first
+        # and labelled this a policy denial that "will not pass on retry",
+        # which is the opposite of the truth. The original test used a body
+        # with no status code, so it passed while the real case was wrong.
+        # Refs #5130 review (Cursor Bugbot).
+        "gh: API rate limit exceeded for user ID 6811113. (HTTP 403)",
+        "You have exceeded a secondary rate limit. (HTTP 403)",
+        "API rate limit exceeded",
+    ],
+)
+def test_rate_limit_is_named_and_not_called_a_policy_denial(monkeypatch, stderr):
+    monkeypatch.setattr(mod, "_run_gh_pr_view", lambda branch: _proc(1, "", stderr))
 
     code, status = mod.check_bypass_label("commit-limit-bypass", None)
 
     assert code == mod.EXIT_EXTERNAL
     assert "rate limit" in status
+    assert "denied by policy" not in status
+    assert "will not pass on retry" not in status
+
+
+def test_policy_denial_still_wins_over_a_bare_403(monkeypatch):
+    """A 403 with no rate-limit wording is still a denial, not a rate limit."""
+    monkeypatch.setattr(
+        mod,
+        "_run_gh_pr_view",
+        lambda branch: _proc(1, "", "gh: Forbidden (HTTP 403)"),
+    )
+
+    _, status = mod.check_bypass_label("commit-limit-bypass", None)
+
+    assert "denied by policy" in status
+    assert "rate limit" not in status
 
 
 def test_failure_message_does_not_name_gh_pr_view(monkeypatch):

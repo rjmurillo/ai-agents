@@ -214,12 +214,19 @@ def _describe_gh_failure(proc: subprocess.CompletedProcess[str]) -> str:
     lowered = stderr.lower()
     detail = f"exit {proc.returncode}"
 
-    if "403" in lowered or "not enabled for this session" in lowered:
+    # Order matters, and 403 must not be the first test. GitHub answers an
+    # exhausted rate limit with 403 too ("API rate limit exceeded", HTTP 403),
+    # so keying on the status code first labels a retryable condition
+    # "will not pass on retry", which is the opposite of the truth and the one
+    # thing this helper exists to get right. Match on the distinguishing
+    # wording, most specific first, and treat the status code only as a
+    # fallback signal. Refs #5130 review (Cursor Bugbot).
+    if "rate limit" in lowered or "secondary rate" in lowered:
+        reason = "gh hit a rate limit; this succeeds once the window resets"
+    elif "not enabled for this session" in lowered or "403" in lowered:
         reason = "gh is denied by policy (HTTP 403); this will not pass on retry"
-    elif "401" in lowered or "invalid" in lowered and "token" in lowered:
+    elif "401" in lowered or ("invalid" in lowered and "token" in lowered):
         reason = "gh is not authenticated; check GH_TOKEN"
-    elif "rate limit" in lowered:
-        reason = "gh hit a rate limit"
     else:
         reason = "gh label lookup failed"
 
