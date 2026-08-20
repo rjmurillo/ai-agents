@@ -233,6 +233,7 @@ def test_the_fake_tier_producer_matches_the_real_output_shape(tmp_path: Path, do
 
     env = {k: v for k, v in os.environ.items() if k not in CI_ONLY_ENV}
     env["FAKE_TIER"] = "T1"  # exits 0; the fake mirrors the real not-ready status
+    env["FAKE_PAGES_COMPLETE"] = "true"
     process = subprocess.run(
         ["python3", str(scripts_dir / "test_pr_merge_ready.py")],
         env=env,
@@ -246,12 +247,17 @@ def test_the_fake_tier_producer_matches_the_real_output_shape(tmp_path: Path, do
     payload = json.loads(process.stdout)
 
     assert payload["Tier"] == "T1"
+    assert payload["fetched_pages_complete"] is True
     assert "Data" not in payload, "the fake grew an envelope the real producer does not emit"
 
     real = (REPO_ROOT / ".claude/skills/github/scripts/pr/test_pr_merge_ready.py").read_text(
         encoding="utf-8"
     )
     assert 'result["Tier"]' in real
+    # The command reads this field to decide whether a T1 earned its exemption,
+    # so its disappearance from the producer must fail here rather than silently
+    # turn every T1 into "not provably complete".
+    assert '"fetched_pages_complete": fetched_pages_complete,' in real
     assert "print(json.dumps(result, indent=2))" in real
     assert "write_skill_output" not in real, "the real producer started using the Data emitter"
 
@@ -342,3 +348,54 @@ def test_a_comment_reword_changes_nothing(tmp_path: Path, doc: str) -> None:
         "extraction is including something it should not, or the suite is "
         "sensitive to text it has no business reading"
     )
+
+
+# The T1 exemption must be earned, not assumed (issue #5094 mirror obligation).
+#
+# `classify_tier` returns T1 on `CanMerge`, and `CanMerge` is `len(reasons) == 0`
+# with `fetched_pages_complete` computed after it and never appended to
+# `reasons`, so a fetch truncated at the pagination cap that happens to surface
+# no unresolved thread and no failing required check classifies T1.
+#
+# This only became reachable when the tier read was fixed. While TIER was pinned
+# at UNKNOWN, `TIER != T1` held for every PR, so the disarm gate stripped
+# auto-merge from the truncated-fetch case by accident. Making T1 reachable
+# removed that accident, which makes closing it part of this change rather than
+# a follow-up: the fix opened the case.
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_a_t1_from_a_complete_fetch_keeps_its_auto_merge(tmp_path: Path, doc: str) -> None:
+    """The positive half. Without this, denying every T1 would also pass."""
+    run = run_dispatch(tmp_path, doc, tier="T1", auto_merge="SQUASH", pages_complete="true")
+
+    assert not run.disarmed, "a T1 backed by a complete fetch lost the auto-merge it earned"
+    assert run.reached_end
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+@pytest.mark.parametrize("pages", ["false", "OMIT"])
+def test_a_t1_from_an_incomplete_fetch_is_disarmed(tmp_path: Path, doc: str, pages: str) -> None:
+    """Both unproven shapes: the producer said false, and it said nothing.
+
+    `OMIT` is what a producer predating the field emits. Defaulting a missing
+    field to complete would fail open on exactly the state that must not buy a
+    merge, so the command accepts only the literal `true`.
+    """
+    run = run_dispatch(tmp_path, doc, tier="T1", auto_merge="SQUASH", pages_complete=pages)
+
+    assert run.disarmed, (
+        "a T1 whose merge-readiness fetch was incomplete kept auto-merge armed; "
+        "GitHub can then land it without the readiness ever being proven"
+    )
+    assert "--disable" in run.disarm_argv
+    assert "incomplete" in run.stdout, "the operator was not told why it disarmed"
+    assert run.reached_end
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_completeness_does_not_rescue_a_non_t1(tmp_path: Path, doc: str) -> None:
+    """A complete fetch is necessary for the exemption, never sufficient."""
+    run = run_dispatch(tmp_path, doc, tier="T3", auto_merge="SQUASH", pages_complete="true")
+
+    assert run.disarmed, "a complete fetch granted the T1 exemption to a T3"

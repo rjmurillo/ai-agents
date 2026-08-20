@@ -423,7 +423,32 @@ fi
 # tests/commands/test_pr_autofix_tier_dispatch_runtime.py executes the block
 # between the tier-dispatch markers under bash with fake producers, so the two
 # gate directions below are asserted behavior rather than described behavior.
-TIER=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" 2>/dev/null | jq -r '.Tier // "UNKNOWN"')
+MERGE_READY=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" 2>/dev/null)
+# Deliberately no 2>/dev/null on either jq below. The producer's stderr is
+# suppressed above, so a jq parse error is the only signal an operator gets that
+# the producer emitted something unreadable, and both guards below would
+# otherwise skip the PR with no explanation. Adding the redirect here was tried
+# and the runtime suite failed it by name; see the malformed-producer case.
+TIER=$(printf '%s' "$MERGE_READY" | jq -r '.Tier // "UNKNOWN"')
+# Captured once and read twice, because the tier alone does not say whether the
+# evidence behind it was complete. classify_tier returns T1 on CanMerge, and
+# CanMerge is `len(reasons) == 0` with fetched_pages_complete computed after it
+# and never appended to reasons (test_pr_merge_ready.py, check_merge_readiness).
+# So a fetch truncated at the pagination cap that happens to surface no
+# unresolved thread and no failing required check classifies T1, which the
+# producer's own docstring warns about: "a partial fetch that happens to find no
+# failing checks is not evidence that no failing checks exist."
+# This mattered only after the tier read above was fixed. While TIER was pinned
+# at UNKNOWN, TIER != T1 held for every PR, so the disarm gate below stripped
+# auto-merge from the truncated-fetch case by accident. Making T1 reachable
+# removes that accident, so the exemption has to be earned rather than assumed.
+# Anything other than the literal `true` denies the exemption: the real producer
+# always emits the boolean, so healthy input is unaffected, and a missing or
+# unreadable field is exactly the state that must not buy a merge.
+PAGES_COMPLETE=$(printf '%s' "$MERGE_READY" | jq -r '.fetched_pages_complete // "unknown"')
+# .claude/commands/pr-review-config.yaml already ANDs this field into its
+# completion-gate criterion, so this is the same safety rule applied at the
+# other place a merge can be armed, not a new policy.
 # Fail closed on a tier the producer never declared. Without pipefail jq masks a
 # producer failure, and the two failure shapes do not even agree with each other:
 # empty stdout (crash, or unparseable JSON) leaves TIER empty, while a JSON error
@@ -492,8 +517,19 @@ if [ -z "$AUTO_MERGE" ]; then
     cleanup_pr_autofix
     continue
 fi
-if [ "$AUTO_MERGE" != "null" ] && [ "$TIER" != "T1" ]; then
-    echo "Auto-merge armed on non-T1 PR #$PR (method: $AUTO_MERGE); disabling before acting."
+# "Not provably T1" rather than "not T1": a T1 whose evidence came from a
+# truncated fetch has not earned the exemption, so it disarms with the rest.
+if [ "$TIER" = "T1" ] && [ "$PAGES_COMPLETE" = "true" ]; then
+    TIER_TRUSTED_T1=yes
+else
+    TIER_TRUSTED_T1=no
+fi
+if [ "$AUTO_MERGE" != "null" ] && [ "$TIER_TRUSTED_T1" != "yes" ]; then
+    if [ "$TIER" = "T1" ]; then
+        echo "Auto-merge armed on #$PR and the tier is T1, but the merge-readiness fetch was incomplete (fetched_pages_complete=$PAGES_COMPLETE); disabling before acting."
+    else
+        echo "Auto-merge armed on non-T1 PR #$PR (method: $AUTO_MERGE); disabling before acting."
+    fi
     if run_pr_mutation_if_live \
         python3 "$SCRIPTS_DIR/set_pr_auto_merge.py" \
         --pull-request "$PR" --disable --output-format json; then

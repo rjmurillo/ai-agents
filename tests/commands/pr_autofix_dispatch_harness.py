@@ -74,7 +74,14 @@ if tier == "ERROR_OBJECT":
 
 # A not-merge-ready PR exits 1 with a perfectly good tier, so exit status alone
 # cannot stand in for tier validity.
-print(json.dumps({"Success": True, "Tier": tier, "Ready": False}, indent=2))
+payload = {"Success": True, "Tier": tier, "Ready": False}
+# Omitted entirely when the case asks for it, which is the shape a producer
+# predating the field would emit. The command must deny the T1 exemption then,
+# not assume completeness.
+pages = os.environ["FAKE_PAGES_COMPLETE"]
+if pages != "OMIT":
+    payload["fetched_pages_complete"] = pages == "true"
+print(json.dumps(payload, indent=2))
 raise SystemExit(0 if tier == "T1" else 1)
 """,
         encoding="utf-8",
@@ -183,6 +190,7 @@ def run_dispatch(
     tier: str,
     auto_merge: str = "null",
     round_action: str = "ACT",
+    pages_complete: str = "true",
     mutation_rc: str = "",
     tier_read: str = SHIPPED_TIER_READ,
     block_edit: tuple[str, str] | None = None,
@@ -244,6 +252,7 @@ done
             "FAKE_TIER": tier,
             "FAKE_AUTO_MERGE": auto_merge,
             "FAKE_ROUND_ACTION": round_action,
+            "FAKE_PAGES_COMPLETE": pages_complete,
             "MUTATION_RC_OVERRIDE": mutation_rc,
         }
     )
