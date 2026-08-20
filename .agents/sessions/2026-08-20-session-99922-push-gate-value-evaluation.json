@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Two commits on claude/push-gate-value-eval-tu1lju: the ADR pair with its debate log, then this session log. Ending commit recorded in a follow-up commit per .claude/rules/session-logs.md MUST-2."
+        "Evidence": "ADR pair (ADR-098, ADR-099) and debate log committed at f5f0d59c6f50e46a575df292a3800e74418f4835."
       },
       "validationPassed": {
         "level": "MUST",
