@@ -399,6 +399,36 @@ This is the seventh instance of the PR's recurring shape, and the most
 embarrassing, because the fix for it was already written down here and applied
 to only one of the three surfaces that needed it.
 
+### Eleventh pass: three more source-only guards
+
+Spec validation went PARTIAL and named two guards the previous pass had left
+on the source-only fixture, `test_every_consumed_producer_has_a_pinned_envelope`
+and `test_extractor_finds_reads_for_every_producer_style`. Both real. Grepping
+`command_body` rather than fixing the two reported turned up a third nobody had
+named, `test_tier_read_targets_the_authoritative_flat_producer`, which was
+covered only transitively through the read-equality test.
+
+All three now run over both docs. The two remaining uses of the source-only
+fixture are legitimate and were checked rather than assumed:
+`test_source_command_has_no_contract_violations` has an explicit mirror twin,
+and `test_mirror_reads_match_source_reads` reads both by construction.
+
+Control, the one spec validation asked for: a mirror-only read of a producer
+absent from the envelope pins.
+
+```
+FAILED test_every_consumed_producer_has_a_pinned_envelope[doc1]
+1 failed, 3 passed
+```
+
+Restored; mirror byte-identical.
+
+That this is a second round of the same fix is the finding. The previous pass
+parameterized the three guards a reviewer had pointed at and stopped there,
+which is the same "corrected where I was looking" failure recorded two passes
+earlier. Doing it by grep instead of by report closed five guards and found the
+one no reviewer had seen.
+
 ## Known limits
 
 Stated rather than claimed clean, per the clear-the-gate-or-drop-the-claim rule:

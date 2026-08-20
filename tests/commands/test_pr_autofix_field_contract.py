@@ -96,9 +96,11 @@ def test_mirror_reads_match_source_reads(command_body: str) -> None:
     )
 
 
-def test_tier_read_targets_the_authoritative_flat_producer(command_body: str) -> None:
+@pytest.mark.parametrize("doc", [COMMAND_PATH, MIRROR_PATH])
+def test_tier_read_targets_the_authoritative_flat_producer(doc: Path) -> None:
     """Pin the specific regression from issue #5094 and its repeat."""
-    tier_reads = [r for r in extract_field_reads(command_body) if r.path.endswith("Tier")]
+    body = doc.read_text(encoding="utf-8")
+    tier_reads = [r for r in extract_field_reads(body) if r.path.endswith("Tier")]
 
     assert tier_reads, "The TIER read vanished; the round-cap gate lost its input."
     for read in tier_reads:
@@ -246,9 +248,10 @@ def test_multi_path_violation_is_reported_for_the_second_path() -> None:
     assert "emits no `tier` field" in violations[0]
 
 
-def test_extractor_finds_reads_for_every_producer_style(command_body: str) -> None:
+@pytest.mark.parametrize("doc", [COMMAND_PATH, MIRROR_PATH])
+def test_extractor_finds_reads_for_every_producer_style(doc: Path) -> None:
     """Both envelope styles must be represented, or the check proves little."""
-    scripts = {r.script for r in extract_field_reads(command_body)}
+    scripts = {r.script for r in extract_field_reads(doc.read_text(encoding="utf-8"))}
     schemas = [derive_producer_schema(s) for s in scripts if s]
 
     assert any(s.wraps_in_data for s in schemas), "No Data-wrapped producer covered."
@@ -270,15 +273,21 @@ def test_producer_envelope_classification(script: str, expected_wrap: bool) -> N
     assert derive_producer_schema(script).wraps_in_data is expected_wrap
 
 
-def test_every_consumed_producer_has_a_pinned_envelope(command_body: str) -> None:
+@pytest.mark.parametrize("doc", [COMMAND_PATH, MIRROR_PATH])
+def test_every_consumed_producer_has_a_pinned_envelope(doc: Path) -> None:
     """The converse of the pins above: nothing may be consumed without one.
 
     Without this, the pins cover a hardcoded list rather than the producers the
     command actually reads, so a newly consumed script gets no wrap pin and the
     suite stays green. Same shape as the guard bugs before it: the set that is
     checked and the set that matters were allowed to drift apart.
+
+    Over both docs, so a producer reachable only from the mirror cannot evade
+    the pin. Spec validation named this and the producer-style guard after the
+    first three were parameterized; the tier-read pin above was source-only too
+    and nobody had named it.
     """
-    consumed = {r.script for r in extract_field_reads(command_body) if r.script}
+    consumed = {r.script for r in extract_field_reads(doc.read_text(encoding="utf-8")) if r.script}
     unpinned = sorted(consumed - _ENVELOPE_CLASSIFICATION.keys())
 
     assert unpinned == [], (
