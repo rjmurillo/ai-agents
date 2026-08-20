@@ -197,10 +197,9 @@ def generate_agents_md(agents: list[AgentDefinition]) -> str:
     ]
 
     for agent in agents:
-        role = agent.role
         model = _MODEL_MAP.get(agent.model, agent.model)
         desc = agent.description[:80] + "..." if len(agent.description) > 80 else agent.description
-        lines.append(f"| {agent.name} | {role} | {model} | {desc} |")
+        lines.append(f"| {agent.name} | {agent.role} | {model} | {desc} |")
 
     lines.extend([
         "",
