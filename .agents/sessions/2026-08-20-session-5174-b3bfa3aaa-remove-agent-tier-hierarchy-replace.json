@@ -73,8 +73,8 @@
     "sessionEnd": {
       "checklistComplete": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "Some MUST items still incomplete"
+        "Complete": true,
+        "Evidence": "All MUST items verified and validation passed"
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -103,8 +103,8 @@
       },
       "validationPassed": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "validate_session_json.py failed"
+        "Complete": true,
+        "Evidence": "validate_session_json.py passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
