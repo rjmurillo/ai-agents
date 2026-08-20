@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-5174-b3bfa3aaa-remove-agent-tier-hierarchy-replace.json
-qaCommit: d5453ca8a710e19fe0bd3f388568a5613fde4a3b
+qaCommit: ef03332fab773aca6c9e6a96d30dba17fbdd7cad
 ---
 
 # QA report: issue #5130, remove the agent tier hierarchy
@@ -107,6 +107,13 @@ Twenty-nine review findings landed after the original run. Each is covered:
 | Serena memory gave 186 as the PR file total | Copilot | 186 is the agent metadata count; the PR changed 208 files. Both now labelled |
 | Body still carried two head-bound claims after declaring it no longer pins a head: "exit 0 on the current head" and "run to completion on the pushed head" | Copilot | Both narrowed to "the run for one push", pointing at `qaCommit` for the attested commit. The declaration and the prose now agree |
 | Correcting ADR-078 re-arms `adr-review`, which the body still described as moot | this session, on re-reading the body after the edit | Acceptance box moved from `[~]` to `[ ]` and the section retitled. The criterion is unmet and applicable, which is worse than moot and the honest state. Auto-merge will not wait for it; flagged to the maintainer rather than disabled here |
+| My ADR-078 correction half-converted the skill-versus-agent axis: line 212 read `at skill tier ... at the agent layer` in one sentence | adr-review debate: architect, critic, independent-thinker, security, independently | `layer` throughout the ADR and both autoplan SKILL.md copies (Copilot mirror by regeneration, not by hand). `tier` now means only Cynefin complexity and the opus model tier |
+| The Rationale cited `role:` as evidence for a routing constraint, while `AGENT-SYSTEM.md:836-840` added by this same PR says `role` grants and withholds nothing at runtime | adr-review debate: critic, security | Rewritten: the layering is the record's own contract, not a property read off metadata; containment comes from the platform. The pre-edit sentence had a real mechanism, `validate_tier_sequence`, which this PR deletes |
+| ADR-078 Implementation Notes named `build/generate_agents.py` for `docs/agent-catalog.md`, which that script does not write | adr-review debate: architect | Both generators named correctly and the wrong trigger fixed. Verified: 0 catalog references in `generate_agents.py`; `generate_agent_catalog.py:51` owns the path; the catalog changed 33 lines in this PR from a frontmatter change |
+| The ADR edit skipped the `date` bump `adr-best-practices.md:37` rule 1 requires, and left no in-file trace of the correction | adr-review debate: independent-thinker | `date` bumped, original decision date kept in prose, dated clarification note added to `## Status` on the ADR-068:17 precedent |
+| Option C's rejection clause became circular after my rewrite and duplicated its own verdict cell | adr-review debate: critic, architect | Replaced with the external checkable consequence: a blocking session-start checklist cannot live in a surface that fires implicitly |
+| "Six phrases" stated above a seven-row table | adr-review debate: analyst, critic, independent-thinker | Corrected to seven across six hunks here and in the PR body. Commit `d5453ca8a` says "sixth" and is immutable, so history and the log disagree by one; recorded rather than hidden |
+| A security finding claimed the closed role set is unenforced on the Claude trees, proven by executing the validator for `All 0 files` | adr-review debate: security | Execution evidence correct, conclusion overstated. `test_every_agent_definition_declares_a_known_role` enforces the closed set across all six trees in both shapes, so a `strategoc` typo fails. Narrowed to a validator shape-blindness follow-up and recorded as a correction in the debate log |
 
 Re-verified on the attested commit: 11 migration guards, 44 bypass-checker tests, taste ratchet OK
 with slack, ruff and mypy clean on changed files. The scoped pre-push pytest gate ran to completion
