@@ -107,9 +107,9 @@ without deleting either surface.
 
 ## Rationale
 
-The two surfaces are different kinds of thing. autoplan is a skill that
-can route to anything, including orchestrator. orchestrator is an agent
-that routes only among specialist agents. Naming this layering matches the
+The two surfaces already operate at different layers. autoplan is a skill that
+can route to anything, including orchestrator. orchestrator is a coordinator-role
+agent that routes only among specialist agents. Naming this layering matches the
 built reality and needs the least change. It also preserves autoplan's cheap
 implicit firing and orchestrator's heavy session gate, which do not belong in
 the same surface.
@@ -269,9 +269,12 @@ What changed, and it is not all one kind of edit:
    concepts sharing a word, and renaming them would be scope creep dressed as
    consistency.
 
-Lines corrected: 36, 79, 123, 206, 212. PR #5177's own disclosure listed
-36, 79, 111, 123, and 206 and **missed 212**, which carried the identical
-defect; the omission was found by the `adr-review` analyst pass.
+Lines corrected: 36, 79, 110, 123, 206, 212, six phrases in all. PR #5177's
+original disclosure listed 36, 79, 111, 123, and 206 and **missed 212**, which
+carried the identical defect; the omission was found by the `adr-review`
+analyst pass, which enumerated all six. Line 110 ("the two surfaces already
+operate at different tiers") was corrected last, in `d5453ca8a`, after the
+other five.
 
 **Review provenance.** The six-agent `adr-review` debate ran against this
 correction and the wider change on 2026-08-20. Votes, findings, and the two
