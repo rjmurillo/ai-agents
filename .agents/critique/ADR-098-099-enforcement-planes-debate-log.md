@@ -1,8 +1,8 @@
 # Debate Log: ADR-098 and ADR-099
 
-Four rounds, six roles (architect, critic, independent-thinker, security, analyst, high-level-advisor). Convened 2026-08-20 on a proposal that began as one ADR and split into two.
+Five rounds, six roles (architect, critic, independent-thinker, security, analyst, high-level-advisor). Convened 2026-08-20 on a proposal that began as one ADR and split into two.
 
-Five rounds. Final tally, round 5, all six roles run on corrected text: **4 Accept, 2 Disagree-and-Commit, 0 Block.**
+Final tally, round 5, all six roles run on corrected text: **4 Accept, 2 Disagree-and-Commit, 0 Block.**
 
 Round 4 was reported as "6 Accept, 0 Block" in an earlier revision of this log. That was wrong: only four roles were re-run and two positions were inferred. A bot reviewer caught it, and round 5 exists because of that catch.
 
@@ -23,7 +23,7 @@ The result is a split. ADR-098 is pure subtraction and ships alone. ADR-099 carr
 
 **The control plane was assumed, then found unverifiable, then found reachable.** The first draft claimed the ruleset state was unknown because `gh api` returned 403. Architect corrected that: the baseline is in-tree at `scripts/validation/ruleset_params_baseline.json` and `scripts/ci/ruleset_required_contexts.py`. Reading it produced worse news than not knowing, `required_approving_review_count` is `0`, so CODEOWNERS gates nothing, and CODEOWNERS covers five review-prompt globs, not itself and not any enforcement path.
 
-Security then found the finding that falsified the design's premise outright. `BOT_PAT` requires classic `repo` scope by the workflow's own error text, is spent on `gh pr review --approve`, is referenced by seven workflows, and the repository has exactly one environment-gated job. Secrets reach same-repository `pull_request` runs, and the loop authors same-repository branches. So a pull request can read the token and edit the ruleset directly, and can mint the approval that would satisfy any review count the decision installs. The plane table's claim that the control plane is writable "only by a credential the loop does not hold" was false of this repository. ADR-099 now says so in its own text and makes token containment the first hardening item.
+Security then found the finding that falsified the design's premise outright. `BOT_PAT` requires classic `repo` scope by the workflow's own error text, is spent on `gh pr review --approve`, is referenced by seven workflows, and the repository has exactly one environment-gated job. Secrets reach same-repository `pull_request` runs, and the loop authors same-repository branches. So a pull request can read the token and act with that account's authority. External review later narrowed this: the repository's two collaborators are `rjmurillo` (admin) and `rjmurillo-bot` (write), ruleset mutation requires admin, and classic `repo` scope does not raise an account's role. The verified impact is token theft plus **minting pull request approvals**, which defeats the review count Phase 0 installs; direct ruleset mutation is not established. ADR-099 now states the narrower claim and makes determining the token's owning account a Phase 0 item.
 
 **A subtraction ADR was about to ship a tightening.** Independent-thinker and critic separately found that ADR-098 described the scope check as advisory when `scripts/detect_scope_explosion.py:50` sets `BLOCK_THRESHOLD = 50` and the script returns 1 above it. Removing `SKIP_SCOPE_CHECK` on that basis would have left a blocking gate with no relief at all. The fix demotes the threshold and orders it explicitly before the flag removal.
 

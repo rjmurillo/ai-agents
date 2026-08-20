@@ -23,7 +23,9 @@ Proposed
 
 Two gates cap pull request size in this repository.
 
-`scripts/validation/git_hook_policy.py` caps authored files per commit at five, with no bypass of any kind. `scripts/validation/pr_commit_count.py` warns at 10 commits, alerts at 15, and blocks at 20, with relief only through a `commit-limit-bypass` label a human applies.
+`scripts/validation/git_hook_policy.py` caps authored files per commit at five, with no bypass of any kind. `scripts/validation/pr_commit_count.py` warns at 10, alerts at 15, and blocks above 20, with relief only through a `commit-limit-bypass` label a human applies.
+
+Two details of that second gate matter and an earlier draft of this decision got both wrong. It counts **authored non-merge** commits, not the total GitHub displays (`pr_commit_count.py:110`; the raw total is kept for audit only). And the ceiling is **relieved to 40** for a branch carrying a qualifying merge from `main` (`:65`, `:71`, issue #3596). So the live contract is 20 authored commits, or 40 after a base merge, not an unconditional block at 20. The gate is more lenient than the first draft described.
 
 Measured over the 14 days ending 2026-08-20: 292 pull requests opened, 104 of them (36%) carrying `needs-split`, and 20 requiring the human-only label.
 
@@ -52,16 +54,18 @@ It matters because the closed-unmerged set is where a counterexample would live:
 | Pull request | Commits | `commit-limit-bypass` | State at close |
 |---|---|---|---|
 | #4846 | 235 | yes | Failing its own security and vendor-provenance gate |
-| #4821 | 29 | no | `blocked`; its own body states governance rules require human approval and forbid auto-merge |
+| #4821 | 29 total, authored count not measured | no | `blocked`; its own body states governance rules require human approval and forbid auto-merge. Merges `main`, so its effective ceiling is 40 |
 | #4872 | 19 | no | Under the ceiling; 9 of its 19 commits are `docs(qa): bind ...` rebind churn |
 | #4985 | 14 | no | `clean`, mergeable at close |
 | #4683 | 13 | no | `dirty`, merge conflict |
 | #4814 | not read | no | not read |
 | #4733 | not read | no | not read |
 
-Exactly one of the seven carries `commit-limit-bypass`. Its description is "Allows PR to exceed 20 commit limit," so it marks **relief granted**, not the threshold being reached. Those are different sets, and #4821 in the table above is the proof: 29 commits, over the ceiling, no bypass label. A pull request blocked with no relief is precisely the counterexample class, and it carries no label to find it by.
+Exactly one of the seven carries `commit-limit-bypass`. Its description is "Allows PR to exceed 20 commit limit," so it marks **relief granted**, not the threshold being reached. Those are different sets in principle, and the absence of the label does not prove a pull request stayed under the ceiling.
 
-So the enumeration bounds the claim less than a first reading suggests. What it establishes: of the five characterized, none was prevented from landing by the size ceiling. One was mergeable at close, one had conflicts, one was governance-gated by its own text, one sat under the ceiling, and #4846 was failing a correctness gate. What it does not establish: that #4814 and #4733, which were not read, are not counterexamples. Absence of the bypass label does not clear them.
+An earlier draft offered #4821 as proof of that gap: 29 commits, no bypass label. That argument was withdrawn after review. The 29 is GitHub's total including merges, while the gate classifies authored non-merge commits, and #4821 is branch-freshness work that merges `main`, which would relieve its ceiling to 40. On the gate's own arithmetic it was probably never blocked. The distinction between "relief granted" and "threshold reached" still holds as a matter of what the label means; this repository simply does not supply a worked example of it.
+
+So the enumeration bounds the claim less than a first reading suggests. What it establishes: of the five characterized, none was prevented from landing by the size ceiling. One was mergeable at close, one had conflicts, one was governance-gated by its own text, one sat under the effective ceiling, and #4846 was failing a correctness gate. What it does not establish: that #4814 and #4733, which were not read, are not counterexamples. Absence of the bypass label does not clear them, and neither does a raw commit count, which is the wrong unit.
 
 Two of seven therefore remain open. Reading them is cheap and belongs in the implementation pull request before the ceilings come out.
 
@@ -170,7 +174,6 @@ This trades a small, unproven protection against sprawl for the removal of a mea
 ### Neutral
 
 - The advisory output stays, so the information a reviewer used is still printed. Only the blocking authority is removed.
-- `.claude/rules/universal.md` keeps one idea per commit as a convention. Conventions and mechanical preconditions are different things, and only the second is retired.
 
 ## Impact on Dependent Components
 
