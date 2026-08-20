@@ -37,9 +37,23 @@ agent the change touched. That gate is the backstop for this class, so read its
 "missing (required siblings)" list as "you missed a shape", not as "add empty
 edits".
 
-Nothing reads `metadata.tier`. `build/generate_agent_catalog.py` reads
-templates; `scripts/openclaw_bridge.py` reads a top-level key. The nested copy
-is documentation, which is exactly why no test caught its absence.
+At the time of the miss, nothing read the nested key. `build/generate_agent_catalog.py`
+reads templates, and `scripts/openclaw_bridge.py` read only a top-level key, so
+the nested copy was documentation and no test could observe it.
+
+**That is no longer true, and the reason matters more than the fact.** The
+top-level-only read was itself the bug: `.claude/agents/architect.md` declared
+`strategic` and the bridge exported it as `support`, silently, for every
+nested-shape agent. Reading one shape did not make the other shape inert; it
+made the export wrong. `_read_declared_role` now reads both, so the nested key
+is runtime input with five regression cases covering it.
+
+The lesson to carry forward is the inverse of the one this paragraph first
+recorded: do not conclude a second shape is documentation because no consumer
+reads it. Check whether a consumer *should* read it. A shape nothing reads is
+either dead metadata to delete or a consumer bug to fix, and telling them apart
+is the work. Assuming the first is how this migration shipped a silent
+misclassification.
 
 ### 2. The atomic-commit and commit-count gates are incompatible above 100 authored files
 
