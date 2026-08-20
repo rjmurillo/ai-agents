@@ -402,7 +402,20 @@ def resolve_conflicts(conflicts):
             # aggregation strategies cannot settle routes to high-level-advisor,
             # not to architect: architect is a participant in these disputes and
             # cannot be the arbiter of one it is party to.
-            winner = escalate_to_high_level_advisor(conflict)
+            #
+            # Escalation is not a pairwise winner, so it does not flow through
+            # the branch below. high-level-advisor is not a party to the
+            # dispute and therefore has no entry in `conflict["positions"]`;
+            # treating it as a winner would index that mapping with a key it
+            # never contains. The arbiter decides, so there is no
+            # recommendation to carry forward from a participant.
+            resolutions.append({
+                "conflict": conflict,
+                "resolution": "escalate",
+                "arbiter": "high-level-advisor",
+                "recommendation": None,
+            })
+            continue
 
         resolutions.append({
             "conflict": conflict,
