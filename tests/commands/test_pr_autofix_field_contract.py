@@ -236,16 +236,35 @@ def test_extractor_finds_reads_for_every_producer_style(command_body: str) -> No
     assert any(not s.wraps_in_data for s in schemas), "No flat producer covered."
 
 
+_ENVELOPE_CLASSIFICATION = {
+    "test_pr_merge_ready": False,
+    "test_pr_merged": False,
+    "check_pr_live_state": True,
+    "check_pr_round_cap": True,
+    "get_pr_context": True,
+    "pr_autofix_lease": True,
+}
+
+
+def test_every_consumed_producer_has_envelope_classification(command_body: str) -> None:
+    """Converse guard: every producer discovered by extract_field_reads is classified.
+
+    test_producer_envelope_classification only checks producers in the hardcoded table.
+    A new producer would never appear there, so its wrap style is never asserted.
+    """
+    consumed = {r.script for r in extract_field_reads(command_body) if r.script}
+    classified = set(_ENVELOPE_CLASSIFICATION.keys())
+    unclassified = consumed - classified
+
+    assert unclassified == set(), (
+        "Producers consumed by pr-autofix.md but missing from the envelope classification table:\n"
+        + "\n".join(f"  {s}.py" for s in sorted(unclassified))
+    )
+
+
 @pytest.mark.parametrize(
     ("script", "expected_wrap"),
-    [
-        ("test_pr_merge_ready", False),
-        ("test_pr_merged", False),
-        ("check_pr_live_state", True),
-        ("check_pr_round_cap", True),
-        ("get_pr_context", True),
-        ("pr_autofix_lease", True),
-    ],
+    list(_ENVELOPE_CLASSIFICATION.items()),
 )
 def test_producer_envelope_classification(script: str, expected_wrap: bool) -> None:
     assert derive_producer_schema(script).wraps_in_data is expected_wrap

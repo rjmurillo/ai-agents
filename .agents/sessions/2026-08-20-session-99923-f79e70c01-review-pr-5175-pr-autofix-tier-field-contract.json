@@ -74,7 +74,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ruff check and ruff format clean on the new test file; 32 pass in the contract file and 24 in the tier-dispatch runtime file; 424 passed and 1 skipped across tests/commands and tests/skills/pr-autofix; 662 passed and 1 skipped adding the four tests/test_pr_autofix_*.py suites; build_all.py --check reports no staleness; pre_pr.py all validations passed."
+        "Evidence": "ruff check and ruff format clean on the new test file; 35 pass in the contract file and 24 in the tier-dispatch runtime file; 424 passed and 1 skipped across tests/commands and tests/skills/pr-autofix; 662 passed and 1 skipped adding the four tests/test_pr_autofix_*.py suites; build_all.py --check reports no staleness; pre_pr.py all validations passed."
       },
       "qaValidation": {
         "level": "MUST",
@@ -164,7 +164,7 @@
       {
         "type": "test",
         "path": "tests/commands/test_pr_autofix_field_contract.py",
-        "description": "Static contract gate binding every jq read in the command body to its producer's ast-derived output shape; 32 tests including negative controls for both envelope-mismatch directions, unknown fields on both producer styles, and coverage guards against the extractor going blind"
+        "description": "Static contract gate binding every jq read in the command body to its producer's ast-derived output shape; 35 tests including negative controls for both envelope-mismatch directions, unknown fields on both producer styles, and coverage guards against the extractor going blind"
       },
       {
         "type": "test",
