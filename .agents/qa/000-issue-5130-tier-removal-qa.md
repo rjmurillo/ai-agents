@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-5174-b3bfa3aaa-remove-agent-tier-hierarchy-replace.json
-qaCommit: d92a1606dda8a388b4a234a7d1d26a2bff3d8f21
+qaCommit: 7d300d1e0979ad8ab8a1be24f142f10a475ac2e4
 ---
 
 # QA report: issue #5130, remove the agent tier hierarchy
