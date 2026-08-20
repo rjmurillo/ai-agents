@@ -286,11 +286,17 @@ What changed, and it is not all one kind of edit:
    because `.agents/AGENT-SYSTEM.md` section 2.5 now states that `role`
    "grants and withholds nothing at runtime", and a boundary that grants
    nothing cannot be broken; the rename would have produced a clause that is
-   false by the new section's own definition. The clause now reads "breaking
-   the skill/agent boundary", which names a distinction that does exist and
-   survives the tier deletion: a skill and an agent are different kinds of
-   surface with different lifecycles. **Option C is still rejected and the
-   vote is unchanged.**
+   false by the new section's own definition.
+
+   The clause went through two replacements, and only the second survives.
+   The first read "breaking the skill/agent boundary", which is true but still
+   argues from a boundary rather than a cost. The second, which is what row C
+   now carries, names the concrete consequence instead: a skill would own
+   agent-layer handoff and synthesis, so orchestrator's blocking session-start
+   checklist would sit in a surface that fires implicitly on `do it`. That is
+   checkable against the two surfaces rather than resting on a boundary the
+   reader has to take on faith. **Option C is still rejected and the vote is
+   unchanged.**
 3. **Two ordinary-word uses of "tier" are left alone**: the Cynefin complexity
    tier and the opus model tier. Those are externally anchored vocabularies this
    repository does not own, and renaming them would be scope creep dressed as

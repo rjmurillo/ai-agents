@@ -5,21 +5,34 @@ and discovery must not depend on the field the migration guards validate. Every
 test here exists because a review found the previous version blind in exactly
 the case it was written to catch.
 
+It also owns the two guards that are about the corpus the roster yields
+rather than about any one file: every agent file in a configured tree must be
+readable as a definition, and an agent shipped into several trees must declare
+one role in all of them.
+
 Split from `test_agent_role_metadata_migration.py` at the 500-line ceiling.
 """
 
 from __future__ import annotations
 
+import pytest
+
 from tests.agent_metadata_helpers import (
     _AGENT_FILE_SUFFIXES,
     _AGENT_TREES,
+    _CANONICAL_TREE,
     _NON_AGENT_ROLE_DIRS,
+    _NON_AGENT_SIBLINGS,
     _REPO_ROOT,
     _agent_definitions,
+    _agent_files,
+    _cross_tree_role_disagreements,
     _declares_agent_metadata,
     _discover_agent_trees,
     _frontmatter,
     _looks_like_an_agent_file,
+    _roles_by_agent_name,
+    _why_not_an_agent_definition,
 )
 
 
@@ -128,4 +141,164 @@ def test_configured_trees_match_the_canonical_set():
         "the agent tree roster drifted from the canonical set: "
         f"extra={configured - MATRIX_EXPECTED_TREES}, "
         f"missing={MATRIX_EXPECTED_TREES - configured}"
+    )
+
+
+def test_agents_present_in_several_trees_declare_one_role():
+    """A shared agent must not carry different roles in different trees.
+
+    31 agent names ship in more than one of the six trees. Nothing checked that
+    the copies agree. Proven on PR #5177 by setting `.claude/agents/janitor.md`
+    to `role: strategic` while `templates/agents/janitor.shared.md` kept
+    `role: support`: 119 tests stayed green and
+    `build/scripts/detect_agent_drift.py` reported no drift.
+
+    `test_role_vocabulary_table_names_real_agents_with_those_roles` above looks
+    like it would catch this and cannot. It builds its map with
+    `declared.setdefault(...)` over `_agent_files()`, which walks `AGENT_TREES`
+    with `templates/agents` first, so it only ever records the template's value
+    and every divergent copy is masked by the one that came first.
+    """
+    roles = _roles_by_agent_name()
+
+    # Anti-vacuous control. An empty or single-tree map makes the assertion
+    # below hold for free, which is the exact shape of the bug it guards.
+    shared = [name for name, by_tree in roles.items() if len(by_tree) > 1]
+    assert len(shared) >= 25, (
+        f"only {len(shared)} agent names appear in more than one tree, so the "
+        "cross-tree comparison is close to vacuous. Measured on PR #5177: 31."
+    )
+
+    offenders = _cross_tree_role_disagreements(roles)
+    assert not offenders, (
+        "the same agent declares different roles in different trees: "
+        + "; ".join(offenders)
+        + f". {_CANONICAL_TREE} is the canonical source; re-copy the role from "
+        "the template rather than editing one install's copy."
+    )
+
+
+@pytest.mark.parametrize(
+    ("case", "roles", "expected"),
+    [
+        (
+            "agreement across three trees is silent",
+            {"janitor": {_CANONICAL_TREE: "support", ".claude/agents": "support"}},
+            [],
+        ),
+        (
+            "an agent in one tree only has nothing to disagree with",
+            {"quality-auditor": {".claude/agents": "executor"}},
+            [],
+        ),
+        (
+            "divergence is reported against the template",
+            {
+                "janitor": {
+                    _CANONICAL_TREE: "support",
+                    ".claude/agents": "strategic",
+                    "src/claude": "support",
+                }
+            },
+            [
+                f"janitor: {_CANONICAL_TREE} declares 'support', but "
+                ".claude/agents declares 'strategic'"
+            ],
+        ),
+        (
+            "divergence with no template falls back to the first tree",
+            {"ghost": {"src/claude": "executor", ".claude/agents": "support"}},
+            ["ghost: .claude/agents declares 'support', but src/claude declares 'executor'"],
+        ),
+        (
+            "a copy that declares no role at all diverges",
+            {"janitor": {_CANONICAL_TREE: "support", ".claude/agents": None}},
+            [f"janitor: {_CANONICAL_TREE} declares 'support', but .claude/agents declares None"],
+        ),
+        (
+            "an unhashable role is reported, not crashed on",
+            {"janitor": {_CANONICAL_TREE: "support", ".claude/agents": ["support"]}},
+            [
+                f"janitor: {_CANONICAL_TREE} declares 'support', but "
+                ".claude/agents declares ['support']"
+            ],
+        ),
+    ],
+)
+def test_cross_tree_role_comparison_verdicts(case: str, roles: dict, expected: list[str]):
+    """Unit cases for the comparison, since the repo has no divergence to show.
+
+    Every one of the 31 shared names agrees today and every one ships a
+    template, so the repo sweep above exercises the agreeing path only. The
+    tree-specific and no-template branches would be dead code measured against
+    live data alone, which is how the masking bug in the older table test
+    survived.
+    """
+    assert _cross_tree_role_disagreements(roles) == expected, case
+
+
+def test_every_agent_file_in_a_configured_tree_is_a_readable_definition():
+    """A malformed agent must fail the build, not drop out of the corpus.
+
+    Every other role guard iterates `_agent_definitions()`, which filters
+    through `is_agent_definition`. That predicate requires parseable
+    frontmatter with a usable `description`, so a broken file is not reported
+    as broken; it stops being an agent as far as the suite is concerned, and
+    every assertion about roles then holds over a corpus that no longer
+    contains it. Proven on PR #5177: a planted `.claude/agents/zzqaprobe.md`
+    with unbalanced YAML and `role: strategc` passed the migration suite,
+    `validate_agent_matrix_refs.py` (exit 0, `OK`), and
+    `validate_copilot_agent_frontmatter.py` (`[PASS]`, which reads
+    `.github/agents/` only). Copilot asked for the same thing: "Make configured
+    agent files fail closed on malformed frontmatter instead of dropping them
+    from the corpus."
+
+    Scope is a file that already sits in a configured tree carrying that
+    tree's suffix. Two of the six trees use a bare `.md`, which admits sibling
+    documents, so `_NON_AGENT_SIBLINGS` names the four that are deliberately
+    not agents. That allowlist is itself guarded below.
+    """
+    offenders = []
+    for path in _agent_files():
+        relative = path.relative_to(_REPO_ROOT).as_posix()
+        if relative in _NON_AGENT_SIBLINGS:
+            continue
+        reason = _why_not_an_agent_definition(path)
+        if reason:
+            offenders.append(f"{relative}: {reason}")
+
+    assert not offenders, (
+        "files in a configured agent tree are not readable as agent "
+        "definitions, so every role guard skips them: " + "; ".join(offenders) + ". Fix the "
+        "frontmatter, or add the file to _NON_AGENT_SIBLINGS in "
+        "tests/agent_metadata_helpers.py if it is a sibling document rather "
+        "than an agent."
+    )
+
+
+def test_the_non_agent_sibling_allowlist_is_neither_stale_nor_vacuous():
+    """The allowlist above must not excuse a live agent or a deleted file.
+
+    An allowlist is the hole in a fail-closed guard. A path that no longer
+    exists is dead weight that hides the next real exclusion, and a path that
+    has since grown real agent frontmatter would be silently exempted from
+    every guard the fail-closed check exists to feed.
+    """
+    discovered = {path.relative_to(_REPO_ROOT).as_posix() for path in _agent_files()}
+
+    missing = sorted(_NON_AGENT_SIBLINGS - discovered)
+    assert not missing, (
+        "_NON_AGENT_SIBLINGS names files no configured tree ships: "
+        f"{missing}. Remove them rather than leaving a stale exemption."
+    )
+
+    now_agents = sorted(
+        relative
+        for relative in _NON_AGENT_SIBLINGS
+        if not _why_not_an_agent_definition(_REPO_ROOT / relative)
+    )
+    assert not now_agents, (
+        "_NON_AGENT_SIBLINGS exempts files that now read as real agent "
+        f"definitions: {now_agents}. Drop them from the allowlist so their "
+        "roles are checked."
     )

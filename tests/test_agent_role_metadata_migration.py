@@ -19,7 +19,9 @@ Tree-roster and discovery guards live in `test_agent_tree_discovery.py`.
 
 from __future__ import annotations
 
+import importlib.util
 import re
+import sys
 
 import pytest
 
@@ -30,12 +32,9 @@ from tests.agent_metadata_helpers import (
     _REPO_ROOT,
     _agent_definitions,
     _agent_files,
-    _agent_name,
-    _canonical_roles_by_agent,
     _declared_role,
     _frontmatter,
     _frontmatter_block,
-    _load_module,
 )
 
 
@@ -98,13 +97,33 @@ def test_every_agent_definition_declares_a_known_role():
     trees, because the OpenClaw bridge exports an absent role as `support`
     without complaint and the Copilot-side validator does not reach those
     files, so the asserted 186-file migration would stop being enforced.
+
+    The `front is None` branch below does NOT cover a malformed agent, and its
+    message used to claim it did. `_agent_definitions()` filters through
+    `is_agent_definition`, which already requires a parseable block with a
+    usable `description`, so a malformed file leaves the corpus before this
+    loop runs. Copilot and this PR's qa pass found the same hole
+    independently, and a planted `.claude/agents/zzqaprobe.md` carrying
+    unbalanced YAML and `role: strategc` passed this test. That case is now
+    `test_every_agent_file_in_a_configured_tree_is_a_readable_definition` in
+    `test_agent_tree_discovery.py`, which fails closed on the corpus instead.
+
+    What the branch really catches is narrower and still worth reporting: the
+    two parsers disagreeing about one file. `agent_frontmatter` reads with
+    `utf-8-sig` while `_frontmatter` here reads with `utf-8`, so a byte-order
+    mark makes the first accept the file and the second reject it, and the
+    agent's role then goes unchecked. Verified by planting a BOM.
     """
     offenders = []
     for path in _agent_definitions():
         relative = path.relative_to(_REPO_ROOT)
         front = _frontmatter(path)
         if front is None:
-            offenders.append(f"{relative}: frontmatter does not parse")
+            offenders.append(
+                f"{relative}: accepted as an agent by "
+                "build/scripts/validate_agent_matrix_refs.py but rejected by "
+                "this module's parser, so its role is checked by neither"
+            )
             continue
         declared = _declared_role(front)
         if declared is None:
@@ -285,75 +304,118 @@ def test_adr_009_blocks_are_quoted_byte_for_byte(document: str, start_marker: st
     )
 
 
-def test_every_copy_of_an_agent_declares_the_same_role():
-    """A per-copy role check does not catch two copies disagreeing.
+# The three production modules that each restate the closed role vocabulary.
+# Every one of them rejects a value outside its own copy, so a copy that drifts
+# does not fail loudly; it changes what one gate accepts while the other two
+# keep refusing, and the disagreement surfaces as a rejected agent somewhere
+# downstream.
+_ROLE_VOCABULARY_CONSUMERS = (
+    "scripts/openclaw_bridge.py",
+    "scripts/validation/validate_copilot_agent_frontmatter.py",
+    "build/generate_agent_catalog.py",
+)
 
-    Copilot proved the gap by mutation on PR #5177: changing `janitor` to
-    `strategic` in one tree while its template stayed `support` left 119 tests
-    and drift detection green. Every guard here validated each file against the
-    closed set and none compared files to each other, so a half-applied edit
-    read as correct everywhere it looked.
 
-    The template is canonical because `build/generate_agents.py` renders the
-    platform copies from it, so a copy that disagrees is drift by definition.
-    Agents with no template are skipped rather than failed: the Claude trees
-    carry hand-maintained agents that legitimately have no shared source.
+def _module_constant(relative: str, attribute: str) -> object:
+    """Read `attribute` from the module at `relative`, loaded by path.
+
+    By path rather than by dotted import, because the three consumers do not
+    share one import root: two are under the `scripts` package and the third
+    sits in `build/`, which is not a package and is reached by a `sys.path`
+    insert in its own tests. Loading by path treats all three the same and
+    names the file in the failure.
+
+    The probe name is namespaced and popped afterwards so this never shadows
+    the real `scripts.openclaw_bridge` for a sibling test module.
     """
-    canonical = _canonical_roles_by_agent()
-    assert canonical, "no template agents found; the canonical source moved"
+    path = _REPO_ROOT / relative
+    name = f"_role_vocabulary_probe_{path.stem}"
+    spec = importlib.util.spec_from_file_location(name, path)
+    assert spec and spec.loader, f"cannot load {relative}"
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.modules.pop(name, None)
+    return getattr(module, attribute, None)
 
-    offenders = []
-    for path in _agent_definitions():
-        name = _agent_name(path)
-        expected = canonical.get(name)
-        if expected is None:
-            continue
-        front = _frontmatter(path)
-        if front is None:
-            continue
-        declared = _declared_role(front)
-        if isinstance(declared, str) and declared.strip() != expected:
-            offenders.append(
-                f"{path.relative_to(_REPO_ROOT)}: {declared.strip()!r}, "
-                f"template says {expected!r}"
-            )
 
-    assert not offenders, (
-        "copies of the same agent declare different roles: " + ", ".join(offenders)
+@pytest.mark.parametrize("consumer", _ROLE_VOCABULARY_CONSUMERS)
+def test_role_vocabulary_agrees_across_consumers(consumer: str):
+    """The four `_KNOWN_ROLES` definitions must name the same closed set.
+
+    Three of the four carry a "Must stay in sync" comment and nothing enforced
+    it. Proven on PR #5177 by adding `"auditor"` to the validator's copy alone:
+    all six affected modules stayed green, 119 passed. Copilot asked for the
+    same guard independently.
+
+    A shared constant would be better and is not reachable from here. The three
+    consumers run as standalone scripts from three different roots, one of them
+    outside any package, so centralizing means editing three production entry
+    points and their import bootstraps. This asserts the invariant those
+    comments already claim, at the cost of a fourth copy: the literal in
+    `agent_metadata_helpers` is the independent witness each consumer is
+    measured against, which is what keeps the comparison from being two aliases
+    of one value.
+
+    Parametrized per consumer so the failure names the file to edit rather than
+    reporting that some set somewhere disagrees.
+    """
+    roles = _module_constant(consumer, "_KNOWN_ROLES")
+
+    # Anti-vacuous control. A renamed or deleted constant returns None, and
+    # `None != _KNOWN_ROLES` would fail with a message blaming the vocabulary
+    # instead of the rename.
+    assert isinstance(roles, frozenset | set) and roles, (
+        f"{consumer} no longer defines a non-empty `_KNOWN_ROLES`; it is "
+        f"{roles!r}. Update _ROLE_VOCABULARY_CONSUMERS to the new name rather "
+        "than dropping the consumer from the comparison."
+    )
+    assert all(isinstance(role, str) for role in roles), (
+        f"{consumer} defines non-string roles: {sorted(map(repr, roles))}"
+    )
+
+    assert set(roles) == set(_KNOWN_ROLES), (
+        f"{consumer} disagrees with the role vocabulary: "
+        f"extra={sorted(set(roles) - set(_KNOWN_ROLES))}, "
+        f"missing={sorted(set(_KNOWN_ROLES) - set(roles))}. All four copies "
+        "must name the same set: the three in "
+        f"{', '.join(_ROLE_VOCABULARY_CONSUMERS)} and the one in "
+        "tests/agent_metadata_helpers.py."
     )
 
 
-def test_every_consumer_of_the_role_vocabulary_agrees():
-    """Four modules define the closed role set; nothing made them agree.
+_ROLE_INERTNESS_CLAUSES = (
+    "It grants and withholds nothing at runtime.",
+    "not by comparing two agents'\nrole values.",
+)
 
-    A comment in `agent_metadata_helpers.py` said "must stay in sync with" and
-    named the other three. Copilot proved on PR #5177 that the comment enforced
-    nothing: adding a value to only the validator left every affected test
-    green, so the validator would accept a role the catalog and the OpenClaw
-    export reject.
 
-    Asserting equality rather than centralizing, deliberately. A shared constant
-    would mean production modules importing from each other, or from a test
-    package, to satisfy a test. This keeps each module self-contained and makes
-    the drift fail loudly instead.
+def test_the_role_inertness_sentence_survives_in_agent_system():
+    """Pin the sentence ADR-098 names as the mitigation for its Standing Dissent.
+
+    ADR-098 retires the tier hierarchy on the ground that a documented
+    constraint nothing verifies drifts from behavior silently. Its own residual
+    risk is that a reader re-derives a rank from the four `role` values, and the
+    single mitigation it names is this sentence in `.agents/AGENT-SYSTEM.md`
+    section 2.5. The ADR's Standing Dissent says in as many words that if the
+    sentence is dropped, the dissent becomes live again.
+
+    Nothing checked it. The ADR-009 quotes are pinned byte-for-byte, the
+    escalation target is pinned, and the role table is pinned, while the one
+    sentence the decision record calls load-bearing was held by nothing. An ADR
+    that condemns unverified documented constraints cannot rest on one.
+
+    Raised independently by the high-level-advisor (P0), architect (P1), and
+    security (P2) passes of the issue #5130 `adr-review` debate on ADR-098.
     """
-    sources = {
-        "scripts/validation/validate_copilot_agent_frontmatter.py": None,
-        "build/generate_agent_catalog.py": None,
-        "scripts/openclaw_bridge.py": None,
-    }
-    for relative in sources:
-        module = _load_module(_REPO_ROOT / relative)
-        assert hasattr(module, "_KNOWN_ROLES"), f"{relative} no longer defines _KNOWN_ROLES"
-        sources[relative] = frozenset(module._KNOWN_ROLES)
+    text = (_REPO_ROOT / ".agents/AGENT-SYSTEM.md").read_text(encoding="utf-8")
 
-    disagreeing = {
-        relative: sorted(roles ^ _KNOWN_ROLES)
-        for relative, roles in sources.items()
-        if roles != _KNOWN_ROLES
-    }
-    assert not disagreeing, (
-        "the closed role vocabulary has drifted between consumers; "
-        f"symmetric difference against the test helper: {disagreeing}. "
-        f"Helper set: {sorted(_KNOWN_ROLES)}"
+    missing = [clause for clause in _ROLE_INERTNESS_CLAUSES if clause not in text]
+    assert not missing, (
+        "`.agents/AGENT-SYSTEM.md` no longer states that `role` is inert and does "
+        f"not order agents. Missing: {missing}. ADR-098 names this sentence as the "
+        "mitigation for its Standing Dissent, so removing it reopens that dissent: "
+        "either restore the wording or amend ADR-098 to say what replaced it."
     )

@@ -404,9 +404,14 @@ def collect_outputs(results):
 
 One conflict algorithm, not two. An earlier revision of this document kept a
 pairwise `CONFLICT_RESOLUTION` table here alongside Phase 2.5's weighted vote,
-and the two disagreed on the same inputs: `security` against `implementer` ties
-1-1 under ADR-009's weights and escalates, while the pairwise table awarded it
-to `security` outright. Copilot found the contradiction on PR #5177.
+and a "Conflict Resolution Priority" table below it. Both granted standing
+precedence to agents ADR-009 does not name, and both disagreed with the weighted
+vote: `security` against `implementer` ties 1-1 under ADR-009's weights and
+escalates, while the pairwise table awarded it to `security` outright. The same
+inputs produced different outcomes depending on which phase read them. Copilot
+found the contradiction on PR #5177, and the `adr-review` debate found the same
+shape in `CONFLICT_VOTE_WEIGHTS`.
+
 
 The table is deleted rather than reconciled, for the same reason a `security: 2`
 weight was deleted from `CONFLICT_VOTE_WEIGHTS` one section above: ADR-009 grants
@@ -418,7 +423,7 @@ precedence rule is an ADR-009 amendment, not a docs edit.
 
 ```python
 def resolve_conflicts(conflicts):
-    """Route every conflict through the single ADR-009 aggregation in Phase 2.5.
+    """Route every conflict through the single ADR-009 aggregation above.
 
     `resolve_disagreement` returns one of three strategies: `merge` when the
     agents agree, `vote` when a weighted tally has an outright winner, and
@@ -426,16 +431,22 @@ def resolve_conflicts(conflicts):
     non-negotiable. Escalation names `high-level-advisor` as the arbiter, not
     `architect`, because architect is a participant in these disputes and cannot
     arbitrate one it is party to.
+
+    `conflict["positions"]` maps an agent to the position it took, which is the
+    shape `resolve_disagreement` consumes once wrapped as results.
     """
     resolutions = []
     for conflict in conflicts:
-        outcome = resolve_disagreement(conflict["results"])
+        positions = conflict["positions"]
+        outcome = resolve_disagreement(
+            {agent: {"recommendation": position} for agent, position in positions.items()}
+        )
 
         if outcome["strategy"] == "escalate":
-            # The arbiter decides, so no participant recommendation carries
-            # forward. `high-level-advisor` is not a party to the dispute and
-            # has no entry in `conflict["positions"]`; treating it as a winner
-            # would index that mapping with a key it never contains.
+            # Escalation is not a pairwise winner. high-level-advisor is not a
+            # party to the dispute, so it has no entry in `positions`, and the
+            # arbiter decides rather than carrying a participant's position
+            # forward.
             resolutions.append({
                 "conflict": conflict,
                 "resolution": "escalate",
@@ -456,12 +467,22 @@ def resolve_conflicts(conflicts):
 
 ### Conflict Resolution Priority
 
-| Higher Priority | Lower Priority | Reason |
-|-----------------|----------------|--------|
-| security | * | Security concerns are non-negotiable |
-| architect | implementer | Design decisions guide implementation |
-| critic | milestone-planner | Validation catches planning errors |
-| qa | implementer | Quality gates must be met |
+ADR-009 grants exactly one ordering, quoted verbatim from
+`.agents/architecture/ADR-009-parallel-safe-multi-agent-design.md:90`:
+
+> Soft conflicts -> weighted vote (architect > implementer)
+
+That is the whole of it. Every other conflict goes to a weighted vote in which
+the agents ADR-009 does not name carry equal weight, and a vote the weights
+cannot settle escalates to `high-level-advisor`.
+
+A table here previously granted standing precedence to four more pairs
+(`security` over everything, `critic` over `milestone-planner`, `qa` over
+`implementer`). No ADR grants those. It is recorded rather than silently
+dropped because the rankings are not unreasonable on their face, which is
+exactly what made them durable: a reader could not tell which line was
+canonical and which was invented. If any of them should bind, the route is an
+ADR-009 amendment, not a table in a routing document. Refs #5130 adr-review.
 
 ---
 
