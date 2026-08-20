@@ -118,6 +118,32 @@ def _discover_agent_trees() -> set[str]:
     return found
 
 
+def test_configured_trees_match_the_canonical_set():
+    """Cross-check against the repo's canonical tree list, not just against disk.
+
+    `test_every_on_disk_agent_tree_is_configured` catches a tree that exists on
+    disk and is unlisted here. This catches the other drift: this list and
+    `test_validate_agent_matrix_refs.EXPECTED_TREES` disagreeing about what the
+    canonical set is, which disk-walking alone cannot see.
+
+    Contributed by the Cursor autofix agent on PR #5177. Its own converse test
+    was this comparison; it is kept for that cross-check but does not replace
+    the disk walk above, since two hardcoded lists agreeing says nothing about
+    a seventh tree neither one names.
+    """
+    from tests.build_scripts.test_validate_agent_matrix_refs import (
+        EXPECTED_TREES as MATRIX_EXPECTED_TREES,
+    )
+
+    configured = set(_AGENT_TREES)
+    assert configured == MATRIX_EXPECTED_TREES, (
+        "_AGENT_TREES drifted from the canonical set: "
+        f"extra={configured - MATRIX_EXPECTED_TREES}, "
+        f"missing={MATRIX_EXPECTED_TREES - configured}"
+    )
+
+
+
 def test_agent_trees_are_discovered():
     """Negative control: if the globs stop matching, the guards below are vacuous."""
     assert len(_agent_files()) > 100
