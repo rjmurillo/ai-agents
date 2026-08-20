@@ -219,3 +219,64 @@ def test_escalation_target_is_high_level_advisor(document: str):
         f"{document} names a non-ADR-009 escalation target: {present}. "
         "ADR-009:81 and :91 route conflicts to high-level-advisor."
     )
+
+
+def _adr_009_block(start_marker: str, end_marker: str) -> str:
+    """Return the ADR-009 span from `start_marker` through `end_marker`."""
+    adr = (
+        _REPO_ROOT / ".agents/architecture/ADR-009-parallel-safe-multi-agent-design.md"
+    ).read_text(encoding="utf-8")
+    start = adr.index(start_marker)
+    end = adr.index(end_marker, start) + len(end_marker)
+    return adr[start:end]
+
+
+@pytest.mark.parametrize(
+    ("document", "start_marker", "end_marker"),
+    [
+        (
+            ".agents/AGENT-SYSTEM.md",
+            "| **merge** |",
+            "| **escalate** | Conflicts detected | Route to high-level-advisor |",
+        ),
+        (
+            "docs/orchestrator-routing-algorithm.md",
+            "| **merge** |",
+            "| **escalate** | Conflicts detected | Route to high-level-advisor |",
+        ),
+        (
+            ".agents/AGENT-SYSTEM.md",
+            "1. Orchestrator dispatches to N agents in parallel",
+            "4. Final decision applied",
+        ),
+    ],
+)
+def test_adr_009_blocks_are_quoted_byte_for_byte(document: str, start_marker: str, end_marker: str):
+    """The ADR-009 quotes must stay byte-identical to ADR-009.
+
+    Issue #5130 exists because PR #5127 shipped a *paraphrase* that named the
+    wrong arbiter. The fix was to quote ADR-009 verbatim instead, and
+    `.claude/rules/canonical-source-mirror.md` requires exactly that. But
+    nothing enforced it: `test_escalation_target_is_high_level_advisor` above
+    pins the target string only, so editing ADR-009's table or protocol would
+    leave both mirrors silently stale and restore the #5127 condition. The
+    byte comparison existed only as a copy-pasteable snippet in
+    `.agents/critique/5130-tier-hierarchy-removal-debate-log.md`.
+
+    Added by the issue #5130 `adr-review` debate (critic P1-5, architect P2).
+
+    Note the asymmetry in the parametrization: `docs/orchestrator-routing-algorithm.md`
+    quotes the aggregation table but not the consensus protocol, which its own
+    per-file table discloses. Asserting the protocol there would fail on a
+    documented, intentional omission, so it is not asserted.
+    """
+    quoted = _adr_009_block(start_marker, end_marker)
+    text = (_REPO_ROOT / document).read_text(encoding="utf-8")
+
+    assert quoted in text, (
+        f"{document} no longer quotes ADR-009 byte-for-byte.\n"
+        f"ADR-009 says:\n{quoted}\n"
+        "Re-copy the block from "
+        ".agents/architecture/ADR-009-parallel-safe-multi-agent-design.md "
+        "rather than editing the mirror."
+    )
