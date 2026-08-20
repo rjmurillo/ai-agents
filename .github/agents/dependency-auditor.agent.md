@@ -9,7 +9,7 @@ tools:
   - shell
   - cloudmcp-manager/*
   - serena/*
-tier: builder
+role: executor
 ---
 # Dependency Auditor
 
