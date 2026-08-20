@@ -19,7 +19,7 @@ tools:
   - github/search_code
   - github/search_issues
   - serena/*
-tier: builder
+role: executor
 # Implements code in an isolated workspace with tool access and branch-local state.
 isolation_required: true
 ---

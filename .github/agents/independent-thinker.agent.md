@@ -11,7 +11,7 @@ tools:
   - cloudmcp-manager/*
   - perplexity/*
   - serena/*
-tier: expert
+role: strategic
 ---
 # Independent Thinker Agent
 
