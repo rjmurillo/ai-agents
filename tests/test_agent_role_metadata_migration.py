@@ -35,6 +35,7 @@ from tests.agent_metadata_helpers import (
     _declared_role,
     _frontmatter,
     _frontmatter_block,
+    _why_not_an_agent_definition,
 )
 
 
@@ -98,32 +99,34 @@ def test_every_agent_definition_declares_a_known_role():
     without complaint and the Copilot-side validator does not reach those
     files, so the asserted 186-file migration would stop being enforced.
 
-    The `front is None` branch below does NOT cover a malformed agent, and its
-    message used to claim it did. `_agent_definitions()` filters through
-    `is_agent_definition`, which already requires a parseable block with a
-    usable `description`, so a malformed file leaves the corpus before this
-    loop runs. Copilot and this PR's qa pass found the same hole
-    independently, and a planted `.claude/agents/zzqaprobe.md` carrying
-    unbalanced YAML and `role: strategc` passed this test. That case is now
-    `test_every_agent_file_in_a_configured_tree_is_a_readable_definition` in
-    `test_agent_tree_discovery.py`, which fails closed on the corpus instead.
-
-    What the branch really catches is narrower and still worth reporting: the
-    two parsers disagreeing about one file. `agent_frontmatter` reads with
-    `utf-8-sig` while `_frontmatter` here reads with `utf-8`, so a byte-order
-    mark makes the first accept the file and the second reject it, and the
-    agent's role then goes unchecked. Verified by planting a BOM.
+    The `front is None` branch catches two cases. First, distinctive-suffix
+    files (`.agent.md`, `.shared.md`) are retained by `_agent_definitions()`
+    even when `is_agent_definition` rejects them, so a malformed agent reaches
+    this loop and fails here instead of silently dropping out of the corpus.
+    Second, the two parsers can disagree about one file: `agent_frontmatter`
+    reads with `utf-8-sig` while `_frontmatter` here reads with `utf-8`, so a
+    byte-order mark makes the first accept the file and the second reject it.
+    The branch reports both cases with accurate messages.
     """
     offenders = []
     for path in _agent_definitions():
         relative = path.relative_to(_REPO_ROOT)
         front = _frontmatter(path)
         if front is None:
-            offenders.append(
-                f"{relative}: accepted as an agent by "
-                "build/scripts/validate_agent_matrix_refs.py but rejected by "
-                "this module's parser, so its role is checked by neither"
-            )
+            rejection_reason = _why_not_an_agent_definition(path)
+            if rejection_reason:
+                offenders.append(
+                    f"{relative}: retained by distinctive suffix but rejected "
+                    f"by build/scripts/validate_agent_matrix_refs.py "
+                    f"({rejection_reason})"
+                )
+            else:
+                offenders.append(
+                    f"{relative}: accepted as an agent by "
+                    "build/scripts/validate_agent_matrix_refs.py but rejected by "
+                    "this module's parser (e.g. BOM encoding mismatch), "
+                    "so its role is checked by neither"
+                )
             continue
         declared = _declared_role(front)
         if declared is None:
