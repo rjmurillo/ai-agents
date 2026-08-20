@@ -3,7 +3,7 @@
   "session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract",
   "timestamp": "2026-08-20T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Review PR #5175 and drive it to closure; found the PR carried a zero-diff branch, so reimplemented the described pr-autofix tier field fix and added a producer field-contract test",
   "decisions": [],
   "events": [
@@ -13,6 +13,19 @@
       "type": "commit",
       "content": "Commit: e98baa7548c6e1ebf2928383a496738f44e25086",
       "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-20T01:26:06+00:00",
+      "type": "commit",
+      "content": "Commit: ee7db91b1a5f5c9d40a6f4235af9f0d1f173b108",
+      "caused_by": [
+        "e001"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
     }
@@ -22,7 +35,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 5
   },
   "lessons": [

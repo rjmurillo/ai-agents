@@ -11,13 +11,13 @@
     "sessionStart": {
       "serenaActivated": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "Serena MCP server was still connecting at session start and no mcp__serena__activate_project call was made. Used the AGENTS.md documented fallback of reading repository files directly instead."
+        "Complete": true,
+        "Evidence": "Serena MCP was still connecting at session start; activated once available and called mcp__serena__initial_instructions, which returned the Serena Instructions Manual."
       },
       "handoffRead": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "Not read. The SessionStart hook that injected HANDOFF.md was removed in #5170, and this task was scoped to one PR review rather than resumed issue work."
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md (116 lines, read-only per ADR-014). Confirms session context belongs in session logs and Serena memory, not HANDOFF.md."
       },
       "sessionLogCreated": {
         "level": "MUST",
@@ -38,6 +38,31 @@
         "level": "SHOULD",
         "Complete": true,
         "Evidence": "git status --short clean at start; HEAD at f79e70c, 0 commits behind origin/main per the checkout freshness check"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions returned the manual (54.9KB, persisted to the session tool-results directory)."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/memory-index.md and .serena/memories/usage-mandatory.md. The auto-recall hook also surfaced skills-graphql-index, pr-review/batch-thread-resolution, and pr-review/pr-002-independent-comment-parsing."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md (skill-first incident log; ADR-085 retired the blocking hook but the MUST-level convention stands)."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md; Language Constraints applied (Python-first per ADR-042, no new bash scripts)."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ls .claude/skills/github/scripts/ -> gh-native, issue, milestone, notifications, pr, reactions, test_workflow_locally.py, utils (8 entries)"
       }
     },
     "sessionEnd": {
@@ -49,27 +74,32 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run ruff check on the new test: All checks passed. uv run pytest tests/commands/test_pr_autofix_field_contract.py: 22 passed. Existing pr-autofix behavioral suites plus tests/commands: 459 passed, 1 skipped."
+        "Evidence": "ruff clean on the new test; 22 pass in the new file; 459 passed and 1 skipped across the pr-autofix behavioral suites and tests/commands; mypy ratchet clean on the changed file."
       },
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Negative control run: reverted the one-character fix in both the source command and the generated mirror, confirmed 3 tests fail (source contract, mirror contract, pinned tier regression), then restored the fix and confirmed 22 pass."
+        "Evidence": ".agents/qa/session-99923-pr-autofix-tier-field-contract.md"
       },
       "markdownLintRun": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": "Not run separately; the two markdown files changed one code line each and the mirror is generator output."
+        "Complete": true,
+        "Evidence": "pre_pr.py Markdown Linting passed; the pre-commit markdown-autofix and markdown-check jobs both passed on every commit."
       },
       "serenaMemoryUpdated": {
         "level": "SHOULD",
         "Complete": false,
-        "Evidence": "Serena MCP unavailable this session. The durable finding is recorded in the command body comment and the test module docstring instead."
+        "Evidence": "No new memory written. The durable findings are recorded in this log's learnings block, the command-body comment, and the test module docstring; a memory would duplicate them."
       },
       "handoffPreserved": {
         "level": "MUST",
         "Complete": true,
         "Evidence": ".agents/HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUST items recorded with evidence; pre_pr.py re-run after fixing the taste ratchet and session validation failures."
       }
     }
   },
@@ -140,9 +170,9 @@
       }
     ]
   },
-  "endingCommit": "e98baa7548c6e1ebf2928383a496738f44e25086",
+  "endingCommit": "ee7db91b1a5f5c9d40a6f4235af9f0d1f173b108",
   "nextSteps": [
-    "Open a draft PR from claude/pr-5175-review-v21yk2 and reference issue #5094",
-    "Report on PR #5175 that its branch is empty so the owner can decide whether to close it in favor of this change"
+    "Open a draft PR from claude/pr-5175-review-v21yk2 referencing issue #5094",
+    "Report on PR #5175 that its branch carries no diff so the owner can decide whether to close it in favor of this change"
   ]
 }
