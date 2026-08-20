@@ -278,6 +278,20 @@ Stated rather than claimed clean, per the clear-the-gate-or-drop-the-claim rule:
    the real producers return those shapes. The contract gate covers that half,
    and one test in the runtime module asserts the fake tier producer still
    matches the real one's flat, envelope-free output.
+5. **Only the first path segment is checked.** `_field_violation` reduces the
+   read to `path.lstrip(".").split(".")[0]`, so `.Data.superseded_by_base.fully_superseded`
+   is validated on `superseded_by_base` alone and a renamed nested key would
+   pass. Raised by spec validation on PR #5176 and confirmed at
+   `pr_autofix_field_parser.py:431`. Not closed here: checking nested keys means
+   deriving the shape of a nested literal, which is a different and larger piece
+   of derivation than the top-level union this gate does. The reported defect
+   class is a first-segment mismatch in both of its instances, so the gate
+   covers what it was built for; this is the next layer, not a hole in this one.
+6. **One command body.** The gate is bound to `pr-autofix.md` and its mirror.
+   Sibling command bodies run the same producers through `jq` and can carry the
+   same defect class. Also raised by spec validation. Closing it repo-wide is
+   the ocean next to this PR's lake, and the parser is a module precisely so a
+   later change can point it at other bodies.
 
 ## Second hardening pass
 
