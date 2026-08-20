@@ -74,7 +74,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ruff check and ruff format clean on the new test file; 35 pass in the contract file and 24 in the tier-dispatch runtime file; 424 passed and 1 skipped across tests/commands and tests/skills/pr-autofix; 662 passed and 1 skipped adding the four tests/test_pr_autofix_*.py suites; build_all.py --check reports no staleness; pre_pr.py all validations passed."
+        "Evidence": "ruff check and ruff format clean on the changed test tree; the contract suite, the tier-dispatch runtime suite, tests/commands and tests/skills/pr-autofix all green; build_all.py --check reports no staleness; pre_pr.py all validations passed. Exact counts live in the QA report, which is rebound to a commit and re-measured whenever the head moves, so no number is duplicated here to go stale (Cursor Bugbot flagged the previous copy at 32 against an actual 34)."
       },
       "qaValidation": {
         "level": "MUST",
@@ -147,6 +147,10 @@
     {
       "activity": "Cleared the 20-commit pre-push ceiling without a bypass",
       "finding": "push-ref-policy blocked at 24 commits against a limit of 20. The needs-split relief could not be read: check_pr_bypass_label.py calls `gh api repos/{owner}/{repo}/pulls`, and this remote session's GitHub proxy answers HTTP 403 'GitHub access is not enabled for this session' for that endpoint, so the helper fails closed as designed. An earlier diagnosis blamed GraphQL and the helper's use of `gh pr view`; both were wrong, since the helper already moved to REST for exactly that reason and the misleading 'gh pr view failed' text is a legacy message on the REST path at :207. The owner then authorized --no-verify, but origin/main had advanced by one commit in the interim, so merging it was independently justified and _contains_main_merge raises the ceiling from BLOCK_THRESHOLD 20 to MAIN_MERGE_BLOCK_THRESHOLD 40. 25 <= 40, push-ref-policy returns 0, and no gate was skipped. Every blocking pre-push job was also run by hand beforehand and passed."
+    },
+    {
+      "activity": "Closed a fail-open the runtime suite had codified as correct",
+      "finding": "Copilot found that a tier producer emitting no valid payload still let the loop act. Without pipefail jq masks the failure, and the shapes disagree: empty stdout (crash or unparseable JSON) leaves TIER empty while a JSON error object leaves it UNKNOWN. Both skip the T3/T4 breaker and satisfy TIER != T1, so the loop stripped auto-merge and continued without a tier. Worse, the PRODUCER_FAILURE runtime case asserted exactly that as expected behavior. Added a case statement validating TIER against the declared tiers and skipping otherwise, deliberately not gating on exit status because test_pr_merge_ready.py exits 1 for any not-merge-ready PR. Replaced the offending test with three failure shapes plus a case pinning that a valid tier arriving with exit 1 is still dispatched, and moved the negative control onto the new observable outcome rather than leaving it asserting the old one. Also removed the dead _bound_source helper and reconciled a converse guard the Cursor agent pushed concurrently down to a single copy."
     }
   ],
   "outcomes": {
@@ -164,7 +168,7 @@
       {
         "type": "test",
         "path": "tests/commands/test_pr_autofix_field_contract.py",
-        "description": "Static contract gate binding every jq read in the command body to its producer's ast-derived output shape; 35 tests including negative controls for both envelope-mismatch directions, unknown fields on both producer styles, and coverage guards against the extractor going blind"
+        "description": "Statically binds every jq read in the command body to its producer script, derives each producer's real output shape with ast, and fails on any envelope-level or field-name mismatch. Negative controls for both envelope directions, unknown fields on both producer styles, a violation reached through a captured shell variable, and one in the second path of a multi-path program. Coverage guards: every read binds to a producer, the extractor reaches every jq invocation, wrapped payload keys are derivable, the annotated-assignment form resolves, each read binds to the producer feeding its own invocation, and every consumed producer carries an envelope pin. Counts are recorded in the QA report rather than here, so they cannot drift."
       },
       {
         "type": "test",
@@ -224,7 +228,7 @@
       }
     ]
   },
-  "endingCommit": "24bd807c1fc341399eb9b6be07d88d18c67dbb85",
+  "endingCommit": "8b6768075f4d634c22228958b0e90755d1a0ec91",
   "nextSteps": [
     "Open a draft PR from claude/pr-5175-review-v21yk2 referencing issue #5094",
     "Report on PR #5175 that its branch carries no diff so the owner can decide whether to close it in favor of this change"

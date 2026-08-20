@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract.json
-qaCommit: 24bd807c1fc341399eb9b6be07d88d18c67dbb85
+qaCommit: 8b6768075f4d634c22228958b0e90755d1a0ec91
 ---
 
 # QA Report: session 99923, pr-autofix tier field contract
@@ -9,7 +9,7 @@ qaCommit: 24bd807c1fc341399eb9b6be07d88d18c67dbb85
 - Issue: #5094
 - PR: #5176
 - Session log: `.agents/sessions/2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract.json`
-- QA commit: `24bd807c1fc341399eb9b6be07d88d18c67dbb85`
+- QA commit: `8b6768075f4d634c22228958b0e90755d1a0ec91`
 - Branch: `claude/pr-5175-review-v21yk2`
 
 ## Verdict
@@ -117,9 +117,9 @@ The guard now fails and names the missed lines. Restored; 32 passed.
 
 | Command | Result |
 |---|---|
-| `uv run pytest tests/commands/test_pr_autofix_field_contract.py` | 34 passed |
-| `uv run pytest tests/commands/test_pr_autofix_tier_dispatch_runtime.py` | 24 passed |
-| `uv run pytest tests/commands/ tests/skills/pr-autofix/` | 426 passed, 1 skipped |
+| `uv run pytest tests/commands/test_pr_autofix_field_contract.py` | 35 passed |
+| `uv run pytest tests/commands/test_pr_autofix_tier_dispatch_runtime.py` | 32 passed |
+| `uv run pytest tests/commands/ tests/skills/pr-autofix/` | 435 passed, 1 skipped |
 | the four `tests/test_pr_autofix_*.py` suites plus the two above | 662 passed, 1 skipped |
 | `uv run ruff check tests/commands/` | All checks passed |
 | `uv run python build/scripts/build_all.py --check` | no staleness |
@@ -242,7 +242,7 @@ FAILED test_a_captured_variable_nearer_the_jq_wins_over_an_earlier_producer
 2 failed, 32 passed
 ```
 
-Restored; 34 passed. The 16 reads in the real command body bind exactly as
+Restored; the suite passes. The 16 reads in the real command body bind exactly as
 before, so this widens what the gate can catch without moving what it currently
 reports.
 
