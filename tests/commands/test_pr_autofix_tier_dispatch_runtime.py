@@ -11,9 +11,14 @@ scripts on ``$SCRIPTS_DIR``, following the harness in
 ``tests/test_pr_autofix_late_live_state_gate.py``.
 
 The discriminating input is a T1 PR with auto-merge armed. Under the shipped
-read (``.Tier``) the disarm gate spares it; under the pre-fix read
-(``.Data.Tier``) the tier pins to ``UNKNOWN``, ``TIER != T1`` holds, and the
-gate strips auto-merge from a PR that earned it.
+read (``.Tier``) it is dispatched as T1 and keeps the auto-merge it earned;
+under the pre-fix read (``.Data.Tier``) the tier resolves to ``UNKNOWN``, which
+names no declared tier, so the block skips the PR instead of acting on it.
+
+Before the tier guard landed, that same ``UNKNOWN`` fell through to the disarm
+gate, where ``TIER != T1`` holds, and stripped auto-merge from the PR. Copilot
+found that fall-through, and an earlier version of this module asserted it as
+correct behavior rather than reporting it.
 """
 
 from __future__ import annotations
@@ -60,13 +65,25 @@ import os
 import sys
 
 tier = os.environ["FAKE_TIER"]
-if tier == "PRODUCER_FAILURE":
+
+# The three ways this producer can fail to name a tier. They do not agree with
+# each other downstream, which is the point: without pipefail jq masks the
+# failure, and empty stdout leaves TIER empty while a JSON error object leaves
+# it UNKNOWN.
+if tier == "CRASH":
     print("boom", file=sys.stderr)
     raise SystemExit(1)
+if tier == "MALFORMED":
+    print("not json at all")
+    raise SystemExit(1)
+if tier == "ERROR_OBJECT":
+    print(json.dumps({"Success": False, "Error": "rate limited"}))
+    raise SystemExit(1)
 
-# Flat dict printed directly, exactly as the real producer does. It carries its
-# own top-level Success key and no Data envelope.
+# A not-merge-ready PR exits 1 with a perfectly good tier, so exit status alone
+# cannot stand in for tier validity.
 print(json.dumps({"Success": True, "Tier": tier, "Ready": False}, indent=2))
+raise SystemExit(0 if tier == "T1" else 1)
 """,
         encoding="utf-8",
     )
@@ -143,6 +160,7 @@ def run_dispatch(
     round_action: str = "ACT",
     mutation_rc: str = "",
     tier_read: str = SHIPPED_TIER_READ,
+    expected_stderr: str | None = None,
 ) -> DispatchRun:
     scripts_dir = tmp_path / "scripts"
     scripts_dir.mkdir()
@@ -215,7 +233,17 @@ done
     assert process.returncode == 0, (
         f"the extracted block exited {process.returncode}: {process.stderr.strip()}"
     )
-    assert process.stderr == "", f"the block wrote to stderr: {process.stderr.strip()}"
+    if expected_stderr is None:
+        assert process.stderr == "", f"the block wrote to stderr: {process.stderr.strip()}"
+    else:
+        # Declared per case rather than allowed globally, so an unexpected
+        # diagnostic still fails everywhere else. The command redirects the
+        # producer's stderr to /dev/null but not jq's, so malformed producer
+        # output surfaces a jq parse error to the operator, which is the loud
+        # failure we want rather than something to suppress.
+        assert expected_stderr in process.stderr, (
+            f"expected {expected_stderr!r} on stderr, got: {process.stderr.strip()!r}"
+        )
     return DispatchRun(process, round_cap_log, disarm_log, cleanup_log)
 
 
@@ -314,31 +342,66 @@ def test_a_failed_mutation_is_reported(tmp_path: Path, doc: str) -> None:
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
-def test_a_producer_failure_pins_the_sentinel_and_the_gates_split(tmp_path: Path, doc: str) -> None:
-    """A dead tier producer reproduces the pre-fix behavior, in both directions.
+@pytest.mark.parametrize("failure", ["CRASH", "MALFORMED", "ERROR_OBJECT"])
+def test_a_producer_that_names_no_tier_skips_the_pr(tmp_path: Path, doc: str, failure: str) -> None:
+    """Fail closed when the tier is unknown, in all three failure shapes.
 
-    This is the sentinel asymmetry executed rather than described: the breaker
-    goes inert and the disarm gate fires, from one stuck value.
+    An earlier version of this test asserted the opposite and called it the
+    sentinel asymmetry: no round cap, auto-merge disarmed. That codified a
+    fail-open as correct. Copilot caught it. Without `pipefail` `jq` masks the
+    producer's failure, and the shapes do not even agree: a crash or malformed
+    output leaves `TIER` empty, a JSON error object leaves it `UNKNOWN`. Both
+    skip the T3/T4 breaker *and* satisfy `TIER != T1`, so the loop would strip
+    auto-merge from a PR whose tier it never learned and then keep acting on it.
     """
     run = run_dispatch(
         tmp_path,
         doc,
-        tier="PRODUCER_FAILURE",
+        tier=failure,
         auto_merge="SQUASH",
         round_action="ACT",
+        expected_stderr="jq: parse error" if failure == "MALFORMED" else None,
     )
 
-    assert not run.round_cap_called, "breaker fired on UNKNOWN"
-    assert run.disarmed, "disarm gate did not fire on UNKNOWN"
+    assert "Cannot determine tier" in run.stdout
+    assert run.cleaned_up
+    assert not run.disarmed, "auto-merge was stripped on an unknown tier"
+    assert not run.round_cap_called
+    assert not run.reached_end, "the loop kept acting without a valid tier"
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
-def test_the_prefix_read_strips_auto_merge_from_a_t1_pr(tmp_path: Path, doc: str) -> None:
+@pytest.mark.parametrize("tier", ["T2", "T5"])
+def test_a_valid_tier_exiting_nonzero_is_still_dispatched(
+    tmp_path: Path, doc: str, tier: str
+) -> None:
+    """Exit status is not the discriminator, so do not let it become one.
+
+    `test_pr_merge_ready.py` exits 1 for any PR that is not merge-ready, so T2
+    through T5 legitimately arrive with a non-zero status. A guard that rejected
+    exit 1 would skip every PR the loop exists to fix.
+    """
+    run = run_dispatch(tmp_path, doc, tier=tier, auto_merge="null")
+
+    assert "Cannot determine tier" not in run.stdout
+    assert not run.round_cap_called, "the breaker fired outside T3/T4"
+    assert run.reached_end
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_the_prefix_read_stops_a_t1_pr_from_being_dispatched(tmp_path: Path, doc: str) -> None:
     """Negative control: the defect, restored, on its discriminating input.
 
     `test_t1_with_auto_merge_armed_keeps_it` above asserts the opposite of this
     against the shipped read. Both run the same block on the same inputs, so
     together they show the fix is what moves the behavior.
+
+    What the pre-fix read does changed once the tier guard landed, and this test
+    changed with it rather than being left asserting the old outcome. Before the
+    guard, `UNKNOWN` reached the disarm gate and stripped auto-merge from a T1
+    PR. Now the guard catches it first and the PR is skipped. Both are wrong for
+    a T1 PR, so the control still discriminates; the observable outcome is the
+    skip, not the disarm.
     """
     run = run_dispatch(
         tmp_path,
@@ -348,7 +411,8 @@ def test_the_prefix_read_strips_auto_merge_from_a_t1_pr(tmp_path: Path, doc: str
         tier_read=PREFIX_TIER_READ,
     )
 
-    assert run.disarmed, "the pre-fix read no longer reproduces the defect"
+    assert "Cannot determine tier" in run.stdout, "the pre-fix read no longer reproduces the defect"
+    assert not run.reached_end, "a T1 PR was dispatched on a tier the read never resolved"
     assert not run.round_cap_called
 
 
@@ -364,7 +428,7 @@ def test_the_fake_tier_producer_matches_the_real_output_shape(tmp_path: Path, do
     _write_fake_scripts(scripts_dir)
 
     env = {k: v for k, v in os.environ.items() if k not in _CI_ONLY_ENV}
-    env["FAKE_TIER"] = "T2"
+    env["FAKE_TIER"] = "T1"  # exits 0; the fake mirrors the real not-ready status
     process = subprocess.run(
         ["python3", str(scripts_dir / "test_pr_merge_ready.py")],
         env=env,
@@ -377,7 +441,7 @@ def test_the_fake_tier_producer_matches_the_real_output_shape(tmp_path: Path, do
     )
     payload = json.loads(process.stdout)
 
-    assert payload["Tier"] == "T2"
+    assert payload["Tier"] == "T1"
     assert "Data" not in payload, "the fake grew an envelope the real producer does not emit"
 
     real = (REPO_ROOT / ".claude/skills/github/scripts/pr/test_pr_merge_ready.py").read_text(

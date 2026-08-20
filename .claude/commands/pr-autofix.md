@@ -422,6 +422,22 @@ fi
 # between the tier-dispatch markers under bash with fake producers, so the two
 # gate directions below are asserted behavior rather than described behavior.
 TIER=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" 2>/dev/null | jq -r '.Tier // "UNKNOWN"')
+# Fail closed on a tier the producer never declared. Without pipefail jq masks a
+# producer failure, and the two failure shapes do not even agree with each other:
+# empty stdout (crash, or unparseable JSON) leaves TIER empty, while a JSON error
+# object leaves it UNKNOWN. Both skip the T3/T4 breaker below AND satisfy
+# TIER != T1 in the disarm gate, so the loop would strip auto-merge and keep
+# acting on a PR whose tier it never learned. Do not gate on exit status instead:
+# test_pr_merge_ready.py exits 1 for any not-merge-ready PR, so T2 through T4 are
+# legitimately non-zero.
+case "$TIER" in
+    T1|T2|T3|T4|T5) ;;
+    *)
+        echo "Cannot determine tier for #$PR (tier producer failed or emitted no tier); skipping."
+        cleanup_pr_autofix
+        continue
+        ;;
+esac
 if [ "$TIER" = "T3" ] || [ "$TIER" = "T4" ]; then
     ROUND_CAP=$(python3 "$SCRIPTS_DIR/check_pr_round_cap.py" \
         --pull-request "$PR" --output-format json)
