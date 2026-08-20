@@ -171,6 +171,28 @@ def test_rate_limit_is_named_and_not_called_a_policy_denial(monkeypatch, stderr)
     assert "will not pass on retry" not in status
 
 
+def test_message_does_not_advertise_a_throwaway_branch(monkeypatch):
+    """The error must not teach a way around the ceiling it enforces.
+
+    An earlier revision suggested landing the commits on another pushed branch
+    so they stop counting as new. CONTRIBUTING.md:875 sanctions two routes and
+    only two: split the PR, or have a human maintainer decide on the label.
+    Refs #5130 review (Copilot).
+    """
+    monkeypatch.setattr(
+        mod,
+        "_run_gh_pr_view",
+        lambda branch: _proc(1, "", "GitHub access is not enabled. (HTTP 403)"),
+    )
+
+    _, status = mod.check_bypass_label("commit-limit-bypass", None)
+
+    assert "another pushed branch" not in status
+    assert "stop counting as new" not in status
+    assert "Split the PR" in status
+    assert "do not apply it yourself" in status
+
+
 def test_policy_denial_still_wins_over_a_bare_403(monkeypatch):
     """A 403 with no rate-limit wording is still a denial, not a rate limit."""
     monkeypatch.setattr(

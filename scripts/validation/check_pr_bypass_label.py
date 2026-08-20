@@ -200,10 +200,16 @@ def _describe_gh_failure(proc: subprocess.CompletedProcess[str]) -> str:
     2. An authentication or egress-policy denial is not a transient failure and
        will not pass on a retry. It is called out by name so the reader stops
        re-running the push.
-    3. The remaining relief is named, because it is not obvious from here: a
-       branch whose commits already sit on another pushed ref is measured by
-       ``_unpushed_commit_count`` in git_hook_policy.py and can pass without
-       this label at all.
+    3. The two sanctioned routes are named. CONTRIBUTING.md:875 reads,
+       verbatim: "You MUST split the PR, or ask a human maintainer to decide
+       on the ``commit-limit-bypass`` label." An earlier revision of this
+       message also suggested landing the commits on another pushed branch so
+       they stop counting as new. That is a real effect of
+       ``_unpushed_commit_count``, but that function exists for genuine stacked
+       PRs (issue #3610), and describing it here read as instructions for
+       defeating the ceiling with a throwaway remote branch. Removed: an error
+       message from the enforcement mechanism itself is the last place that
+       should teach an evasion. Refs #5130 review (Copilot).
 
     Measured on a Claude Code cloud session, 2026-08-20: ``gh auth status``
     reported "The token in GH_TOKEN is invalid", and every REST call returned
@@ -233,8 +239,9 @@ def _describe_gh_failure(proc: subprocess.CompletedProcess[str]) -> str:
     return (
         f"{reason} ({detail}). "
         "The label cannot be verified locally, so the commit limit still "
-        "applies. Ask a maintainer to confirm the label, or land the commits "
-        "on another pushed branch first so they stop counting as new."
+        "applies. Split the PR, or ask a human maintainer to decide on the "
+        "commit-limit-bypass label (CONTRIBUTING.md, 'Bypassing the Limit'); "
+        "that label is human-only, so do not apply it yourself."
     )
 
 
