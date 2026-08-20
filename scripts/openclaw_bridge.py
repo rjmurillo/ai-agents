@@ -117,7 +117,7 @@ def parse_agent_file(path: Path) -> AgentDefinition | None:
     name = metadata.get("name", "")
     description = metadata.get("description", "")
     model = metadata.get("model", "sonnet")
-    role = _resolve_role(metadata.get("role"), path)
+    role = _resolve_role(metadata, path)
 
     if not name or not description:
         return None
@@ -133,15 +133,43 @@ def parse_agent_file(path: Path) -> AgentDefinition | None:
     )
 
 
-def _resolve_role(raw: object, path: Path) -> str:
+def _read_declared_role(metadata: dict[str, Any]) -> object | None:
+    """Return the agent's declared role from either frontmatter shape.
+
+    This repository writes the field two ways. The shared templates and the
+    generated trees put it at the top level; the Claude-side install copies
+    under ``.claude/agents/`` and ``src/claude/`` nest it under ``metadata:``:
+
+        role: executor                  # templates/, .github/agents/, src/vs-code-agents/
+        metadata:                       # .claude/agents/, src/claude/
+          role: strategic
+
+    Reading only the top level silently mapped every nested-shape agent to the
+    fallback role: ``.claude/agents/architect.md`` declares `strategic` and
+    exported as `support`. That predates the tier-to-role rename (the old code
+    read a top-level ``tier`` with the same blind spot) but is a real defect,
+    so both shapes are read here. Top level wins when both are present.
+    """
+    top_level: object | None = metadata.get("role")
+    if top_level is not None:
+        return top_level
+    nested = metadata.get("metadata")
+    if isinstance(nested, dict):
+        nested_role: object | None = nested.get("role")
+        return nested_role
+    return None
+
+
+def _resolve_role(metadata: dict[str, Any], path: Path) -> str:
     """Return the agent's declared role, falling back to _DEFAULT_ROLE.
 
-    An absent ``role:`` is normal for hand-written agents outside the shared
-    templates, so it falls back silently. A present but unrecognized value is a
-    typo in frontmatter that would otherwise be exported verbatim into the
-    OpenClaw manifest, so it is logged before the fallback rather than passed
-    through as a new role name.
+    An absent ``role:`` in both shapes is normal for hand-written agents
+    outside the shared templates, so it falls back silently. A present but
+    unrecognized value is a typo in frontmatter that would otherwise be
+    exported verbatim into the OpenClaw manifest, so it is logged before the
+    fallback rather than passed through as a new role name.
     """
+    raw = _read_declared_role(metadata)
     if raw is None:
         return _DEFAULT_ROLE
     if not isinstance(raw, str) or raw.strip() not in _KNOWN_ROLES:
