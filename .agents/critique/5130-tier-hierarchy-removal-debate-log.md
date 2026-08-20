@@ -48,8 +48,37 @@ evidence:
    was filed to catch.
 
 What survives is the part that was always load-bearing: ADR-009's aggregation
-strategies and escalation target. That is now quoted verbatim in all three
-places rather than paraphrased.
+strategies and escalation target. How much of the ADR each file carries differs
+by what that file is for, so the provenance claim is per-file rather than
+blanket. Measured by byte comparison against the ADR, not by eye:
+
+| File | Aggregation table | Consensus protocol | Names `high-level-advisor` |
+|---|---|---|---|
+| `.agents/AGENT-SYSTEM.md` | verbatim | verbatim | yes |
+| `docs/orchestrator-routing-algorithm.md` | verbatim | not carried, by design | yes |
+| `.agents/SESSION-PROTOCOL.md` | summarized in one sentence | not carried | yes |
+
+`SESSION-PROTOCOL.md` is a five-line pointer, so it summarizes rather than
+quotes. That is the right shape for it, but it means "quoted verbatim" is true
+of the two substantive replacements and not of the pointer. An earlier revision
+of this log said all three quote verbatim, which was wrong.
+
+What matters for issue #5130 finding 3 is the escalation target, and all three
+name `high-level-advisor`. None contains "escalate to the orchestrator" or the
+old `"escalate_to": "manager"`, which is what PR #5127 got wrong. Reproduce:
+
+```python
+from pathlib import Path
+adr = Path(".agents/architecture/ADR-009-parallel-safe-multi-agent-design.md").read_text()
+table = adr[adr.index("| Strategy | Use Case | Behavior |"):
+            adr.index("Route to high-level-advisor |") + len("Route to high-level-advisor |")]
+proto = adr[adr.index("1. Orchestrator dispatches to N agents in parallel"):
+            adr.index("4. Final decision applied") + len("4. Final decision applied")]
+for f in (".agents/AGENT-SYSTEM.md", "docs/orchestrator-routing-algorithm.md",
+          ".agents/SESSION-PROTOCOL.md"):
+    s = Path(f).read_text()
+    print(f, "table:", table in s, "protocol:", proto in s, "hla:", "high-level-advisor" in s)
+```
 
 ## The five findings from #5130, and where each is answered
 
@@ -57,7 +86,7 @@ places rather than paraphrased.
 |---|---|---|
 | 1 | `AGENT-SYSTEM.md` still carried a full duplicate | Section 2.5 replaced. 149 lines out, a 58-line coordination section in. |
 | 2 | ~40 templates carry `tier:` pointing at a deleted definition | 186 files across six trees migrated to `role:`, in two frontmatter shapes. See "The two shapes" below. |
-| 3 | Replacement prose said "escalate to the orchestrator"; ADR-009 says `high-level-advisor` | Every replacement quotes ADR-009's table and consensus protocol verbatim and states the target explicitly. |
+| 3 | Replacement prose said "escalate to the orchestrator"; ADR-009 says `high-level-advisor` | All three name `high-level-advisor`. The two substantive replacements quote ADR-009 verbatim; the SESSION-PROTOCOL pointer summarizes. See the per-file table above. |
 | 4 | `detect_agent_drift.py` baselines merge-resolver at 20.7% because of tier enrichment | Re-measured. See below. |
 | 5 | #1769 plans relocation, not deletion | Reconciled above. Relocation target does not exist; #1769's table no longer claims the section. |
 
