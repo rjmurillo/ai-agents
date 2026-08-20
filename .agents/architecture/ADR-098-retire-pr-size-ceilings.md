@@ -23,11 +23,13 @@ Proposed
 
 Two gates cap pull request size in this repository.
 
-`scripts/validation/git_hook_policy.py` caps authored files per commit at five, with no bypass of any kind. `scripts/validation/pr_commit_count.py` warns at 10, alerts at 15, and blocks above 20, with relief only through a `commit-limit-bypass` label a human applies.
+`scripts/validation/git_hook_policy.py` caps authored files per commit at five, with no bypass of any kind. `scripts/validation/pr_commit_count.py` classifies a pull request at 10 (warning), 15 (alert), and above its effective limit (blocked), with relief at the blocking tier through a `commit-limit-bypass` label a human applies.
 
 Two details of that second gate matter and an earlier draft of this decision got both wrong. It counts **authored non-merge** commits, not the total GitHub displays (`pr_commit_count.py:110`; the raw total is kept for audit only). And the ceiling is **relieved to 40** for a branch carrying a qualifying merge from `main` (`:65`, `:71`, issue #3596). So the live contract is 20 authored commits, or 40 after a base merge, not an unconditional block at 20. The gate is more lenient than the first draft described.
 
-Measured over the 14 days ending 2026-08-20: 292 pull requests opened, 104 of them (36%) carrying `needs-split`, and 20 requiring the human-only label.
+Measured over the 14 days ending 2026-08-20: 292 pull requests opened, 104 of them (36%) carrying `needs-split`, and 20 carrying the human-only bypass label.
+
+Read the 36% carefully, because it is weaker evidence than it looks. `pr-validation.yml` applies `needs-split` at `WARNING`, `ALERT`, or `BLOCKED`, and its own comment states the step "is ADVISORY and must never fail the job." So the label counts notices from 10 commits upward, not blocks. The 20 bypass applications are the figure that measures blocking, and they are the cost that scales with volume.
 
 The rationale on record is `.agents/governance/PROJECT-CONSTRAINTS.md:125`, which cites one 2026-01 incident, PR #908: 59 commits, review slow and merge risky. That was a single data point, gathered before this repository had either its present adversarial review practice or its present volume.
 
@@ -58,22 +60,22 @@ It matters because the closed-unmerged set is where a counterexample would live:
 | #4872 | 19 | no | Under the ceiling; 9 of its 19 commits are `docs(qa): bind ...` rebind churn |
 | #4985 | 14 | no | `clean`, mergeable at close |
 | #4683 | 13 | no | `dirty`, merge conflict |
-| #4814 | not read | no | not read |
-| #4733 | not read | no | not read |
+| #4814 | 13 | no | Under the ceiling. Trunk merge-queue work, abandoned when the queue was removed; 4 of its 13 commits are `docs(qa): repoint ...` evidence rebinds |
+| #4733 | 11 | no | Under the ceiling. Five-issue cluster, `blocked`, `infrastructure-failure` |
 
 Exactly one of the seven carries `commit-limit-bypass`. Its description is "Allows PR to exceed 20 commit limit," so it marks **relief granted**, not the threshold being reached. Those are different sets in principle, and the absence of the label does not prove a pull request stayed under the ceiling.
 
 An earlier draft offered #4821 as proof of that gap: 29 commits, no bypass label. That argument was withdrawn after review. The 29 is GitHub's total including merges, while the gate classifies authored non-merge commits, and #4821 is branch-freshness work that merges `main`, which would relieve its ceiling to 40. On the gate's own arithmetic it was probably never blocked. The distinction between "relief granted" and "threshold reached" still holds as a matter of what the label means; this repository simply does not supply a worked example of it.
 
-So the enumeration bounds the claim less than a first reading suggests. What it establishes: of the five characterized, none was prevented from landing by the size ceiling. One was mergeable at close, one had conflicts, one was governance-gated by its own text, one sat under the effective ceiling, and #4846 was failing a correctness gate. What it does not establish: that #4814 and #4733, which were not read, are not counterexamples. Absence of the bypass label does not clear them, and neither does a raw commit count, which is the wrong unit.
+All seven are now characterized, and none was prevented from landing by the size ceiling. One was mergeable at close, one had conflicts, one was governance-gated by its own text, three sat under the effective ceiling, and #4846 carried the bypass label, meaning relief was granted rather than withheld.
 
-Two of seven therefore remain open. Reading them is cheap and belongs in the implementation pull request before the ceilings come out.
+That last point sharpens the result rather than softening it. Because #4846 was relieved, the enumerated population contains **no pull request that the blocking ceiling actually stopped**. The gate's harm-prevention record over this window is empty, not thin.
 
 ### What actually stopped the bad one
 
 #4846 is the only pull request in the sample that should not merge, and it did not merge. What held it was its own security and vendor-provenance gate, a correctness check, not a size ceiling. The size gate labeled it, and it also labeled #4718, #5036, #5152, and #5103, which all merged and should have.
 
-That is the finding this decision rests on, and it is bounded by the enumeration above rather than stated absolutely: across the closed-unmerged population, the blocking ceiling engaged once, on a pull request a correctness gate was already refusing. Over the same window it imposed cost on four of five sampled pull requests that were doing the right thing.
+That is the finding this decision rests on, bounded by the enumeration above: across the closed-unmerged population the blocking ceiling stopped nothing, and the one pull request that should not have merged was held by a correctness gate. Over the same window the ceilings imposed cost on four of five sampled pull requests that were doing the right thing.
 
 ### The cost
 
@@ -160,7 +162,7 @@ This trades a small, unproven protection against sprawl for the removal of a mea
 
 ### Positive
 
-- The 36% `needs-split` rate stops taxing rigorous work.
+- The 20 human bypass applications per two weeks disappear, with them the throughput ceiling at human attention. The 36% `needs-split` rate is unaffected: that label fires from the warning tier, which Decision item 1 keeps.
 - The human bypass step disappears, removing 20 touchpoints per two weeks and the throughput cap they impose.
 - A wide mechanical change stops requiring dozens of artificial commits.
 - One self-attested bypass flag with a recorded abuse history leaves the repository.

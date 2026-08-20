@@ -1,8 +1,10 @@
 # Debate Log: ADR-098 and ADR-099
 
-Five rounds, six roles (architect, critic, independent-thinker, security, analyst, high-level-advisor). Convened 2026-08-20 on a proposal that began as one ADR and split into two.
+Six rounds, six roles (architect, critic, independent-thinker, security, analyst, high-level-advisor). Convened 2026-08-20 on a proposal that began as one ADR and split into two.
 
-Final tally, round 5, all six roles run on corrected text: **4 Accept, 2 Disagree-and-Commit, 0 Block.**
+**Council decision, round 6, all six roles run on the final text: 3 Accept, 3 Disagree-and-Commit, 0 Block. Consensus reached** under this repository's contract, which requires every role to return Accept or Disagree-and-Commit.
+
+The decision is a review verdict, not an acceptance. Both ADRs remain `status: proposed` and require human approval under `.claude/rules/governance.md` MUST-1, plus a unanimous-consensus record under MUST NOT 1, before either can be accepted.
 
 Round 4 was reported as "6 Accept, 0 Block" in an earlier revision of this log. That was wrong: only four roles were re-run and two positions were inferred. A bot reviewer caught it, and round 5 exists because of that catch.
 
@@ -87,6 +89,40 @@ Every round-5 correction originated in bot review of the live pull request, not 
 
 All six panel roles pin Anthropic models. This is what the single-vendor limitation recorded in ADR-099 predicts, observed rather than theorized, and it is the strongest evidence in this log for why cross-vendor review belongs in the design rather than in a follow-up. It is also the reason the panel's own agreement should be weighted below the external findings it missed.
 
+
+## Round 6: the council decision
+
+Called because round 5's votes were rendered on text that eight subsequent corrections had changed. Carrying them forward would have repeated the inference error a bot reviewer caught after round 4.
+
+| Role | Verdict | Reservation carried |
+|---|---|---|
+| architect | Accept | Publisher identity had no phase owner; two editorial fixes. Applied. |
+| analyst | Accept | Re-verified the corrected gate contract line by line against `pr_commit_count.py` and every countable figure in the tree. All matched. Asked that #4814 and #4733 be read before implementation. Done, below. |
+| high-level-advisor | Accept | Freeze and hand to the owner; read the two unread pull requests first. Done. |
+| critic | Disagree-and-Commit | The 36% measures an advisory notice, not a block; the enumeration shows zero blocks rather than one; approval-minting does not satisfy `require_code_owner_review`. All applied. |
+| security (2.0x) | Disagree-and-Commit | The permission denial is not implementable at P2 and must be stated as an advisory lint; the anchor must be an App-published check run with `integration_id` pinned, because a commit status is postable by any `repo`-scope token; baseline the environment deployment policy. All applied. |
+| independent-thinker | Disagree-and-Commit | A double standard on selection method between the two ADRs, and a competing explanation for the panel's blind spot. Recorded below. |
+
+### The enumeration completed
+
+Two pull requests were unread when round 5 closed. Both were read for this round. #4814 carries 13 commits, #4733 carries 11, neither carries the bypass label, and both sit under the effective ceiling. Neither is a counterexample.
+
+That completes the closed-unmerged population at seven of seven and changes the finding's shape: because #4846 carried `commit-limit-bypass`, meaning relief was granted, the enumerated population contains no pull request the blocking ceiling actually stopped. The gate's harm-prevention record over this window is empty rather than thin.
+
+### Two explanations for the panel's blind spot, one of them cheaper
+
+The panel converged to Accept twice on text carrying eight load-bearing factual errors, every one of which was found outside the panel. The obvious reading is the single-vendor correlation this log already records, since all six roles pin Anthropic models.
+
+Independent-thinker supplied a competing explanation that is cheaper and, importantly, falsifiable: **no panel role was ever assigned to verify claims against the tree.** The wrong threshold contract sat in plain text at `scripts/validation/pr_commit_count.py:62-71`; reading it costs one command, and a reviewer of any vendor reasoning over prose alone would have missed it identically.
+
+The two hypotheses predict different fixes, so the difference matters. The test: replay the eight errors against a same-vendor role whose only mandate is to open every cited file. If it catches most of them, the vendor framing is over-weighted and the real defect is role design.
+
+Both are recorded here because closing on the vendor explanation would foreclose a question the cheaper fix answers, and because the falsification harness ADR-099 already defers is the instrument that would settle it. Analyst's round-6 pass is weak evidence for the second hypothesis: given an explicit mandate to re-verify numbers against the tree, it checked every countable figure and found them all correct.
+
+### Where the review ends
+
+High-level-advisor's read, which the orchestrator accepts: freeze the text. Six rounds on six files, with the external reviewers out-yielding the panel, means another round buys marginal prose and spends credibility the panel needs. What remains is not more review; it is the owner's decision under MUST-1 and MUST NOT 1.
+
 ## Verdicts
 
 | Round | architect | critic | independent-thinker | security | analyst | high-level-advisor |
@@ -96,3 +132,4 @@ All six panel roles pin Anthropic models. This is what the single-vendor limitat
 | 3, split pair | D&C | Block on 098, D&C on 099 | D&C | Block | D&C | Accept |
 | 4, revised | Accept | Accept both | Accept | Accept | not re-run | not re-run |
 | 5, corrected | Accept | D&C | Accept | Accept | D&C | Accept |
+| 6, final | Accept | D&C | D&C | D&C | Accept | Accept |
