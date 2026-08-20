@@ -25,8 +25,9 @@ from __future__ import annotations
 
 import importlib.util
 import re
+import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import pytest
 import yaml
@@ -78,11 +79,6 @@ _EXEMPT_FILES = frozenset(
         ".agents/prototypes/agents/security.compressed.md",
         ".agents/analysis/instruction-specificity-prototype-security-compressed.md",
     }
-)
-
-# Directories that never hold agent definitions, skipped when walking.
-_UNSEARCHED = frozenset(
-    {".git", ".venv", "node_modules", "__pycache__", ".mypy_cache", ".pytest_cache"}
 )
 
 _FRONTMATTER_RE = re.compile(r"^---\r?\n([\s\S]*?)\r?\n---\r?\n")
@@ -153,16 +149,44 @@ def _declares_agent_metadata(front: dict) -> bool:
     )
 
 
+def _tracked_markdown() -> list[str]:
+    """Every markdown path git tracks, as repo-relative posix strings.
+
+    Deliberately not `rglob`. This suite runs under xdist alongside tests that
+    materialize git worktrees and scratch repositories, and a raw filesystem
+    walk races them: a sibling test's temporary checkout carries the six real
+    agent trees under a path this file has never heard of, and the converse
+    guard below reports them as unconfigured. That failure is scheduling
+    dependent, so it passes locally and fails in CI, which is how it was found
+    (PR #5177, the `bulk-nested` partition).
+
+    Asking git removes the race. It answers about committed and staged content
+    only, which is the exact scope this guard is about: a seventh agent tree
+    someone added to the repository, not a directory that existed for 200ms
+    inside another test.
+    """
+    result = subprocess.run(
+        ["git", "ls-files", "-z", "--", "*.md"],
+        cwd=_REPO_ROOT,
+        capture_output=True,
+        check=True,
+        encoding=None,
+    )
+    return [name for name in result.stdout.decode("utf-8").split("\0") if name]
+
+
 def _discover_agent_trees() -> set[str]:
-    """Every directory on disk holding agent frontmatter, found by walking, not config."""
+    """Every tracked directory holding agent frontmatter, found by search, not config."""
     found: set[str] = set()
-    for path in _REPO_ROOT.rglob("*.md"):
-        relative = path.relative_to(_REPO_ROOT)
-        if _UNSEARCHED & set(relative.parts) or relative.as_posix() in _EXEMPT_FILES:
+    for name in _tracked_markdown():
+        if name in _EXEMPT_FILES:
+            continue
+        path = _REPO_ROOT / name
+        if not path.is_file():
             continue
         front = _frontmatter(path)
         if front is not None and _declares_agent_metadata(front):
-            found.add(relative.parent.as_posix())
+            found.add(PurePosixPath(name).parent.as_posix())
     return found
 
 
