@@ -4,8 +4,8 @@ Issue #4854: the test job is now a five-entry matrix. Pin collection and
 enforcement steps run only in the bulk partition. The combine step moves to a
 separate coverage job that merges all partition data.
 
-Two pin *collection* steps re-run five owned files in the bulk leg; the shared
-"Run pytest" step in bulk --ignores all five and stays statement-only (no
+Two pin *collection* steps re-run four owned files in the bulk leg; the shared
+"Run pytest" step in bulk --ignores all four and stays statement-only (no
 --cov-branch). Each collection step owns a disjoint subset with its own
 COVERAGE_FILE. Each collection step collects BROAD branch coverage (bare
 --cov, not a narrow module target).
@@ -36,10 +36,7 @@ _VERDICT_TARGET = "scripts/ai_review_common/verdict.py"
 _REQ009_COLLECT = "Pin REQ-009 module coverage collection (PR #1989 user requirement)"
 _REQ009_COLLECT_ID = "pin-req009-collect"
 _REQ009_GATE = "Enforce REQ-009 module coverage at 100% (PR #1989 user requirement)"
-_REQ009_TARGETS = (
-    ".claude/skills/github/scripts/pr/wait_for_unresolved_zero.py",
-    ".claude/skills/session-end/scripts/rework_warning.py",
-)
+_REQ009_TARGETS = (".claude/skills/github/scripts/pr/wait_for_unresolved_zero.py",)
 
 _UPLOAD_STEP = "Upload test results"
 
@@ -57,13 +54,12 @@ def _run_after_collection_executed(collect_step_id: str) -> str:
     )
 
 
-# The five files the two pin collection steps own.
+# The four files the two pin collection steps own.
 _OWNED_FILES = (
     "tests/test_ai_review.py",
     "tests/test_verdict.py",
     "tests/test_quality_gate.py",
     "tests/skills/github/test_wait_for_unresolved_zero.py",
-    "tests/skills/session-end/test_rework_warning.py",
 )
 
 _IGNORE_PATTERN = re.compile(r"--ignore=(\S+)")
