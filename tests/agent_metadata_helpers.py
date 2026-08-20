@@ -38,6 +38,16 @@ def _load_matrix_validator():
 
 _vamr = _load_matrix_validator()
 
+
+def _load_module(path: Path):
+    """Import a repository module by path, for cross-consumer contract checks."""
+    spec = importlib.util.spec_from_file_location(f"_probe_{path.stem}", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
 # (tree path, filename suffix) for each configured tree, from the canonical
 # constant. Suffix matters: `.claude/agents` uses a bare `.md`, so it admits
 # sibling docs like `AGENTS.md` that are not agent definitions.
@@ -109,8 +119,49 @@ def _agent_definitions() -> list[Path]:
 
     Excludes siblings like `AGENTS.md` and `claude-instructions.template.md`
     that share a tree's bare `.md` suffix but ship no agent frontmatter.
+
+    Distinctive-suffix files are kept even when the predicate rejects them, so a
+    malformed agent fails the role check instead of dropping out of the corpus.
+    Copilot found the fail-open on PR #5177: `is_agent_definition` needs
+    parseable frontmatter with a description, so an agent whose YAML breaks was
+    excluded before the known-role test could report it, and the raw legacy-tier
+    sweep only looks for retired *values* and would not see a bad `role`. Only
+    `.agent.md` and `.shared.md` qualify, because the two trees using a bare
+    `.md` also hold genuine non-agent siblings that have no frontmatter at all.
     """
-    return [path for path in _agent_files() if _vamr.is_agent_definition(path)]
+    return [
+        path
+        for path in _agent_files()
+        if _vamr.is_agent_definition(path)
+        or path.name.endswith(_AGENT_FILE_SUFFIXES)
+    ]
+
+
+def _canonical_roles_by_agent() -> dict[str, str]:
+    """Declared role per agent name in the shared template tree.
+
+    The template is the canonical source: it is what `build/generate_agents.py`
+    renders the platform copies from, so a copy disagreeing with it is drift.
+    """
+    canonical: dict[str, str] = {}
+    template_root = _REPO_ROOT / "templates" / "agents"
+    for path in sorted(template_root.glob("*.shared.md")):
+        front = _frontmatter(path)
+        if front is None:
+            continue
+        role = _declared_role(front)
+        if isinstance(role, str):
+            canonical[path.name.removesuffix(".shared.md")] = role.strip()
+    return canonical
+
+
+def _agent_name(path: Path) -> str:
+    """Agent name from a filename, with every tree's suffix stripped."""
+    name = path.name
+    for suffix in (".shared.md", ".agent.md", ".md"):
+        if name.endswith(suffix):
+            return name.removesuffix(suffix)
+    return name
 
 
 def _frontmatter_block(path: Path) -> str | None:

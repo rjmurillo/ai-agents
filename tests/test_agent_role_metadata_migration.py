@@ -30,9 +30,12 @@ from tests.agent_metadata_helpers import (
     _REPO_ROOT,
     _agent_definitions,
     _agent_files,
+    _agent_name,
+    _canonical_roles_by_agent,
     _declared_role,
     _frontmatter,
     _frontmatter_block,
+    _load_module,
 )
 
 
@@ -279,4 +282,78 @@ def test_adr_009_blocks_are_quoted_byte_for_byte(document: str, start_marker: st
         "Re-copy the block from "
         ".agents/architecture/ADR-009-parallel-safe-multi-agent-design.md "
         "rather than editing the mirror."
+    )
+
+
+def test_every_copy_of_an_agent_declares_the_same_role():
+    """A per-copy role check does not catch two copies disagreeing.
+
+    Copilot proved the gap by mutation on PR #5177: changing `janitor` to
+    `strategic` in one tree while its template stayed `support` left 119 tests
+    and drift detection green. Every guard here validated each file against the
+    closed set and none compared files to each other, so a half-applied edit
+    read as correct everywhere it looked.
+
+    The template is canonical because `build/generate_agents.py` renders the
+    platform copies from it, so a copy that disagrees is drift by definition.
+    Agents with no template are skipped rather than failed: the Claude trees
+    carry hand-maintained agents that legitimately have no shared source.
+    """
+    canonical = _canonical_roles_by_agent()
+    assert canonical, "no template agents found; the canonical source moved"
+
+    offenders = []
+    for path in _agent_definitions():
+        name = _agent_name(path)
+        expected = canonical.get(name)
+        if expected is None:
+            continue
+        front = _frontmatter(path)
+        if front is None:
+            continue
+        declared = _declared_role(front)
+        if isinstance(declared, str) and declared.strip() != expected:
+            offenders.append(
+                f"{path.relative_to(_REPO_ROOT)}: {declared.strip()!r}, "
+                f"template says {expected!r}"
+            )
+
+    assert not offenders, (
+        "copies of the same agent declare different roles: " + ", ".join(offenders)
+    )
+
+
+def test_every_consumer_of_the_role_vocabulary_agrees():
+    """Four modules define the closed role set; nothing made them agree.
+
+    A comment in `agent_metadata_helpers.py` said "must stay in sync with" and
+    named the other three. Copilot proved on PR #5177 that the comment enforced
+    nothing: adding a value to only the validator left every affected test
+    green, so the validator would accept a role the catalog and the OpenClaw
+    export reject.
+
+    Asserting equality rather than centralizing, deliberately. A shared constant
+    would mean production modules importing from each other, or from a test
+    package, to satisfy a test. This keeps each module self-contained and makes
+    the drift fail loudly instead.
+    """
+    sources = {
+        "scripts/validation/validate_copilot_agent_frontmatter.py": None,
+        "build/generate_agent_catalog.py": None,
+        "scripts/openclaw_bridge.py": None,
+    }
+    for relative in sources:
+        module = _load_module(_REPO_ROOT / relative)
+        assert hasattr(module, "_KNOWN_ROLES"), f"{relative} no longer defines _KNOWN_ROLES"
+        sources[relative] = frozenset(module._KNOWN_ROLES)
+
+    disagreeing = {
+        relative: sorted(roles ^ _KNOWN_ROLES)
+        for relative, roles in sources.items()
+        if roles != _KNOWN_ROLES
+    }
+    assert not disagreeing, (
+        "the closed role vocabulary has drifted between consumers; "
+        f"symmetric difference against the test helper: {disagreeing}. "
+        f"Helper set: {sorted(_KNOWN_ROLES)}"
     )

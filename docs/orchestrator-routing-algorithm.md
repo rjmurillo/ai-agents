@@ -402,48 +402,53 @@ def collect_outputs(results):
 
 ### Step 4.2: Resolve Conflicts
 
-```python
-CONFLICT_RESOLUTION = {
-    # (agent_a, agent_b) -> winner
-    ("security", "implementer"): "security",  # Security concerns win
-    ("architect", "implementer"): "architect",  # Design wins
-    ("security", "devops"): "security",  # Security wins
-    ("critic", "milestone-planner"): "critic",  # Validation wins
-}
+One conflict algorithm, not two. An earlier revision of this document kept a
+pairwise `CONFLICT_RESOLUTION` table here alongside Phase 2.5's weighted vote,
+and the two disagreed on the same inputs: `security` against `implementer` ties
+1-1 under ADR-009's weights and escalates, while the pairwise table awarded it
+to `security` outright. Copilot found the contradiction on PR #5177.
 
+The table is deleted rather than reconciled, for the same reason a `security: 2`
+weight was deleted from `CONFLICT_VOTE_WEIGHTS` one section above: ADR-009 grants
+exactly one weighting, `architect > implementer`. Every other precedence pair in
+that table (`security > implementer`, `security > devops`,
+`critic > milestone-planner`) was local invention with no ADR behind it, which is
+the same unenforced-hierarchy problem issue #5130 exists to remove. Adding a
+precedence rule is an ADR-009 amendment, not a docs edit.
+
+```python
 def resolve_conflicts(conflicts):
+    """Route every conflict through the single ADR-009 aggregation in Phase 2.5.
+
+    `resolve_disagreement` returns one of three strategies: `merge` when the
+    agents agree, `vote` when a weighted tally has an outright winner, and
+    `escalate` when the vote ties or a dissenting agent marked its position
+    non-negotiable. Escalation names `high-level-advisor` as the arbiter, not
+    `architect`, because architect is a participant in these disputes and cannot
+    arbitrate one it is party to.
+    """
     resolutions = []
     for conflict in conflicts:
-        agent_a, agent_b = conflict["between"]
+        outcome = resolve_disagreement(conflict["results"])
 
-        if (agent_a, agent_b) in CONFLICT_RESOLUTION:
-            winner = CONFLICT_RESOLUTION[(agent_a, agent_b)]
-        elif (agent_b, agent_a) in CONFLICT_RESOLUTION:
-            winner = CONFLICT_RESOLUTION[(agent_b, agent_a)]
-        else:
-            # No pairwise rule covers this pair. Per ADR-009 a conflict the
-            # aggregation strategies cannot settle routes to high-level-advisor,
-            # not to architect: architect is a participant in these disputes and
-            # cannot be the arbiter of one it is party to.
-            #
-            # Escalation is not a pairwise winner, so it does not flow through
-            # the branch below. high-level-advisor is not a party to the
-            # dispute and therefore has no entry in `conflict["positions"]`;
-            # treating it as a winner would index that mapping with a key it
-            # never contains. The arbiter decides, so there is no
-            # recommendation to carry forward from a participant.
+        if outcome["strategy"] == "escalate":
+            # The arbiter decides, so no participant recommendation carries
+            # forward. `high-level-advisor` is not a party to the dispute and
+            # has no entry in `conflict["positions"]`; treating it as a winner
+            # would index that mapping with a key it never contains.
             resolutions.append({
                 "conflict": conflict,
                 "resolution": "escalate",
-                "arbiter": "high-level-advisor",
+                "arbiter": outcome["escalate_to"],
+                "reason": outcome["reason"],
                 "recommendation": None,
             })
             continue
 
         resolutions.append({
             "conflict": conflict,
-            "resolution": winner,
-            "recommendation": conflict["positions"][winner]
+            "resolution": outcome["strategy"],
+            "recommendation": outcome["recommendation"],
         })
 
     return resolutions
