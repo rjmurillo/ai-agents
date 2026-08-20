@@ -148,7 +148,7 @@
       "result": "Two sites, not one. pr_commit_count.py returns 0 in every case (:485-519) and says so in its own comment; the CI block is enforce_pr_validation.py:64-84, which fetches labels and fails unless commit-limit-bypass is present. The second site is local: _check_commit_limit in git_hook_policy.py:6122-6162, reached from the push-ref-policy pre-push job, counting git rev-list --count over the push range, which includes merge commits, with two reliefs the CI path has no equivalent of. Two gates, two counting rules, two relief sets, one name. ADR-098 item 1 now names both."
     }
   ],
-  "endingCommit": "d66ee4e447c955ef22061f902fd6a86c820e2aef",
+  "endingCommit": "badf29d2500592c33822796a403c5c4489742bc9",
   "nextSteps": [
     "Implement ADR-098 in its stated order: fix the QA and session evidence rebind generator; remove the CI block in scripts/ci/enforce_pr_validation.py:64-84 and demote _check_commit_limit in git_hook_policy.py, which are the two commit-ceiling enforcement sites (pr_commit_count.py already returns 0 and blocking it retires nothing); demote check_atomic_commit early; demote the scope BLOCK_THRESHOLD and add process-record exclusions; then remove SKIP_SCOPE_CHECK; then update the dependent documents.",
     "ADR-099 Phase 1 starts from the verification PR #5146 already shipped, not from issue #5099, which closed 2026-08-18. run_completion_gate.py already byte-compares each dispatched work-tree file and verifies its static import closure. The remaining work is to fail closed on a dispatched file whose closure is not statically resolvable, and to lift the same verification from P0 into a base-ref P1 job.",
