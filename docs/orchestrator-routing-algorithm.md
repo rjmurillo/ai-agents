@@ -403,47 +403,51 @@ def collect_outputs(results):
 ### Step 4.2: Resolve Conflicts
 
 ```python
-CONFLICT_RESOLUTION = {
-    # (agent_a, agent_b) -> winner
-    ("security", "implementer"): "security",  # Security concerns win
-    ("architect", "implementer"): "architect",  # Design wins
-    ("security", "devops"): "security",  # Security wins
-    ("critic", "milestone-planner"): "critic",  # Validation wins
-}
+# Phase 4.2 has no conflict policy of its own. It routes every conflict
+# through `resolve_disagreement` above, which is ADR-009's.
+#
+# An earlier revision carried a `CONFLICT_RESOLUTION` pairwise table here
+# (`("security", "implementer"): "security"`, `("critic", "milestone-planner"):
+# "critic"`, and two more) plus a "Conflict Resolution Priority" table below it.
+# Both granted standing precedence to agents ADR-009 does not name, and both
+# disagreed with the weighted vote above: security versus implementer tied and
+# escalated in Phase 2.5 while the pairwise table selected security outright.
+# The same inputs produced different outcomes depending on which phase read
+# them. Removed for the same reason `"security": 2` was removed from
+# CONFLICT_VOTE_WEIGHTS: a precedence no ADR grants, shipped under an ADR-009
+# framing. Refs #5130 adr-review, and #5177 review (Copilot).
+
 
 def resolve_conflicts(conflicts):
+    """Resolve each conflict with ADR-009's aggregation strategies.
+
+    `conflict["positions"]` maps an agent to the position it took, which is the
+    shape `resolve_disagreement` consumes once wrapped as results.
+    """
     resolutions = []
     for conflict in conflicts:
-        agent_a, agent_b = conflict["between"]
+        positions = conflict["positions"]
+        outcome = resolve_disagreement(
+            {agent: {"recommendation": position} for agent, position in positions.items()}
+        )
 
-        if (agent_a, agent_b) in CONFLICT_RESOLUTION:
-            winner = CONFLICT_RESOLUTION[(agent_a, agent_b)]
-        elif (agent_b, agent_a) in CONFLICT_RESOLUTION:
-            winner = CONFLICT_RESOLUTION[(agent_b, agent_a)]
-        else:
-            # No pairwise rule covers this pair. Per ADR-009 a conflict the
-            # aggregation strategies cannot settle routes to high-level-advisor,
-            # not to architect: architect is a participant in these disputes and
-            # cannot be the arbiter of one it is party to.
-            #
-            # Escalation is not a pairwise winner, so it does not flow through
-            # the branch below. high-level-advisor is not a party to the
-            # dispute and therefore has no entry in `conflict["positions"]`;
-            # treating it as a winner would index that mapping with a key it
-            # never contains. The arbiter decides, so there is no
-            # recommendation to carry forward from a participant.
+        if outcome["strategy"] == "escalate":
+            # Escalation is not a pairwise winner. high-level-advisor is not a
+            # party to the dispute, so it has no entry in `positions`, and the
+            # arbiter decides rather than carrying a participant's position
+            # forward.
             resolutions.append({
                 "conflict": conflict,
                 "resolution": "escalate",
-                "arbiter": "high-level-advisor",
+                "arbiter": outcome["escalate_to"],
                 "recommendation": None,
             })
             continue
 
         resolutions.append({
             "conflict": conflict,
-            "resolution": winner,
-            "recommendation": conflict["positions"][winner]
+            "resolution": outcome["strategy"],
+            "recommendation": outcome["recommendation"],
         })
 
     return resolutions
@@ -451,12 +455,22 @@ def resolve_conflicts(conflicts):
 
 ### Conflict Resolution Priority
 
-| Higher Priority | Lower Priority | Reason |
-|-----------------|----------------|--------|
-| security | * | Security concerns are non-negotiable |
-| architect | implementer | Design decisions guide implementation |
-| critic | milestone-planner | Validation catches planning errors |
-| qa | implementer | Quality gates must be met |
+ADR-009 grants exactly one ordering, quoted verbatim from
+`.agents/architecture/ADR-009-parallel-safe-multi-agent-design.md:90`:
+
+> Soft conflicts -> weighted vote (architect > implementer)
+
+That is the whole of it. Every other conflict goes to a weighted vote in which
+the agents ADR-009 does not name carry equal weight, and a vote the weights
+cannot settle escalates to `high-level-advisor`.
+
+A table here previously granted standing precedence to four more pairs
+(`security` over everything, `critic` over `milestone-planner`, `qa` over
+`implementer`). No ADR grants those. It is recorded rather than silently
+dropped because the rankings are not unreasonable on their face, which is
+exactly what made them durable: a reader could not tell which line was
+canonical and which was invented. If any of them should bind, the route is an
+ADR-009 amendment, not a table in a routing document. Refs #5130 adr-review.
 
 ---
 
