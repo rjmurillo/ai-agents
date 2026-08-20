@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Two commits on claude/push-gate-value-eval-tu1lju: the ADR pair with its debate log, then this session log. Ending commit recorded in a follow-up commit per .claude/rules/session-logs.md MUST-2."
+        "Evidence": "endingCommit names f5f0d59c6f50e46a575df292a3800e74418f4835, the commit carrying the two ADRs and the debate log. Later commits on this branch record the SHA itself, correct citations that a base merge made stale, and carry the owner's merge of main; per .claude/rules/session-logs.md MUST-2 the SHA is set in a follow-up rather than by amending, so the commit that records it is necessarily not the commit it names. The recorded SHA stays reachable as an ancestor, which is what the validator checks."
       },
       "validationPassed": {
         "level": "MUST",

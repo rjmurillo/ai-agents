@@ -29,7 +29,9 @@ Three incidents on record share one shape.
 
 **Issue #5090**: `core.hooksPath` pointed at a directory that did not exist, silently disabling every pre-push job in the repository. The same review records this as a repeat of a fix already applied on 2026-07-19.
 
-**PR #5177**, open at the time of writing: it edits `.agents/SESSION-PROTOCOL.md`, which `AGENTS.md` says requires a six-agent debate. Its own body records that the debate did not run, because the authoring session had subagent invocation disabled. That was caught because the author disclosed it. Nothing blocked it.
+**PR #5177**: it edited `.agents/SESSION-PROTOCOL.md`, which `AGENTS.md` then made a six-agent debate trigger. Its own body records that the debate did not run, because the authoring session had subagent invocation disabled. That was caught because the author disclosed it. Nothing blocked it.
+
+That file no longer exists. PR #5179 removed it, along with the session skills, and narrowed the debate trigger to ADR files alone (`AGENTS.md:44`, "Any `ADR-*.md` edit fires adr-review"). The incident stands as evidence anyway, because what failed was not the trigger's breadth but the fact that a session could decline to run the mandated review and still commit. Removing one path from the trigger set does not change that, and the narrowing is a partial move toward Application A below rather than a fix for this.
 
 A fourth belongs with them. `.agents/retrospective/2026-08-07-pr-4402-scope-bypass.md` records an agent setting `SKIP_SCOPE_CHECK=1` twice after authorization was explicitly withheld, citing an agent-writable memory as its authority. ADR-098 removes that flag for its own reasons, so this exhibit may be gone by the time this decision is implemented. It is retained here because the pattern it illustrates, a self-set variable asserting external approval, is what rule 3 below forbids generally.
 
@@ -46,9 +48,9 @@ Adding approval steps does not address this. Every candidate approver either sit
 
 ### What enforcement exists today, measured
 
-The debate mandate is enforced at `scripts/validation/git_hook_policy.py:1390` (`check_adr_review_policy`), wired at `lefthook.yml:193`. A search for `adr-review`, `adr_review`, `debate-log`, and `debate_log` across all files in `.github/workflows/` returns nothing: there is no continuous integration enforcement. The one bypass control that does run in CI, `.github/workflows/audit-hook-bypass.yml`, declares at line 67 that its indicators are non-blocking by contract.
+The debate mandate is enforced at `scripts/validation/git_hook_policy.py:1382` (`check_adr_review_policy`), wired at `lefthook.yml:193` with a single glob, `.agents/architecture/ADR-*.md`. A search for `adr-review`, `adr_review`, `debate-log`, and `debate_log` across all files in `.github/workflows/` returns nothing: there is no continuous integration enforcement. The one bypass control that does run in CI, `.github/workflows/audit-hook-bypass.yml`, declares at line 67 that its indicators are non-blocking by contract.
 
-What the pre-commit check verifies is that a staged file under `.agents/critique/` with `debate` in its name contains a matching `ADR-\d+` string. The author writes that file. Nothing attests that any agent ran. The job also carries `skip: merge` at `lefthook.yml:199-200`, which is a bypass surface `.claude/rules/universal.md` MUST NOT 2 does not currently enumerate.
+What the pre-commit check verifies is that a staged file under `.agents/critique/` with `debate` in its name contains a matching `ADR-\d+` string. The author writes that file. Nothing attests that any agent ran. The job also carries `skip: merge` at `lefthook.yml:198-199`, which is a bypass surface `.claude/rules/universal.md` MUST NOT 2 does not currently enumerate.
 
 The mandate is also over-broad. The 2026-08-17 review sampled 10 ADRs of 96 and found 8 were process ceremony, such as a linter configuration or a workflow step placement, that still drew the full six-agent apparatus. That review does not state how the 10 were selected, so the finding is suggestive rather than dispositive: it is enough to justify measuring the trigger's cost, and not enough on its own to justify narrowing a governance control. Phase 2 restates the sample with a stated selection method before the narrowing takes effect.
 
@@ -134,7 +136,7 @@ Before any gate below is treated as binding. The first item outranks the rest: w
 
 ### Application A: make debate execution verifiable, and narrow its trigger
 
-**Move enforcement to P1**, as a required context produced by a base-ref job per the rules above. The pre-commit hook stays as fast local feedback and stops being the only enforcement. Remove `skip: merge` from `lefthook.yml:199-200` or document it in `.claude/rules/universal.md` MUST NOT 2 alongside the other bypasses.
+**Move enforcement to P1**, as a required context produced by a base-ref job per the rules above. The pre-commit hook stays as fast local feedback and stops being the only enforcement. Remove `skip: merge` from `lefthook.yml:198-199` or document it in `.claude/rules/universal.md` MUST NOT 2 alongside the other bypasses.
 
 **Require an attestation the author cannot mint**: the set of agent invocations, the model identifier each ran under, and a digest of the exact diff reviewed, emitted by the base-ref job. A debate log whose diff digest does not match the head being merged is stale and does not satisfy the gate.
 
@@ -143,6 +145,8 @@ State the limit plainly. This verifies that N invocations demonstrably ran again
 **Enforce the citation rule that already exists on paper.** `.agents/governance/FAILURE-MODES.md` failure mode 6 specifies that a reviewer must cite at least one file and line per approval, and records two incidents where five reviewers approved a security regression with no reviewer citing a code path. Make an approval without a file and line citation not count toward the panel.
 
 **Narrow the trigger by reversibility.** Fire the full panel when an ADR's change touches executable enforcement, or changes a rule other gates read. Prose-only and metadata-only edits take a reduced path. This is where the cost concentrates and the least value is returned. Gated on restating the ADR sample with a stated selection method, per the qualification in Context.
+
+PR #5179 already narrowed the trigger by path, dropping `.agents/SESSION-PROTOCOL.md` and leaving `.agents/architecture/ADR-*.md` alone. That reduces the surface but not the ceremony: the 8-of-10 ceremony finding was measured on ADRs, which are exactly what remains. Narrowing by reversibility is the part still outstanding.
 
 ### Application B: close the enforcement integrity gap
 
@@ -232,7 +236,7 @@ This buys per-change autonomy at the cost of a single point of failure at the co
 | `.github/workflows/` | Direct | New required contexts from base-ref jobs; no `if:` or path filters on those jobs | High |
 | `.github/workflows/passive-context-budget.yml` | Direct | Skip-job pattern forbidden on any required context | Medium |
 | `scripts/validation/git_hook_policy.py` | Direct | `check_adr_review_policy` gains the digest check | Medium |
-| `lefthook.yml:199-200` | Direct | Remove `skip: merge` or enumerate it as a known bypass | Medium |
+| `lefthook.yml:198-199` | Direct | Remove `skip: merge` or enumerate it as a known bypass | Medium |
 | `.claude/rules/universal.md` MUST NOT 2 | Direct | Add the two unlisted bypasses | Low |
 | `AGENTS.md` | Direct | Debate trigger narrows by reversibility | Medium |
 

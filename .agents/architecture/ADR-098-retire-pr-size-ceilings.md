@@ -55,6 +55,18 @@ The 5-file per-commit cap has no bypass. A single mechanical rename across a wid
 
 The 20 human label applications in two weeks scale linearly with volume. At the operating goal of running this repository without a human in the loop, a gate whose only relief is a human is a gate that caps throughput at human attention.
 
+### A false positive measured while writing this
+
+The scope half of the same family produced one during the authoring of this decision, which is worth recording because it was observed first-hand rather than sampled.
+
+This pull request changes six files, all documentation. After a base merge, `scripts/detect_scope_explosion.py` reported `BLOCKED: PR scope explosion detected. 128/50 files` and refused the commit. The 128 was real arithmetic over a wrong input: the local `origin/main` ref still pointed at a commit the branch already contained, so the merge base resolved behind the branch and every commit main had landed in between was attributed to this pull request. A single `git fetch origin main` moved the reading from 128 to 5 with no change to the diff.
+
+The remediation the gate printed does not mention refs. It advises splitting the pull request, stashing work, and offers `SKIP_SCOPE_CHECK=1`. Both of the first two are wrong here, and the third is the flag with a recorded abuse history that item 4 removes. An agent following the printed advice would either fragment a six-file change or reach for the bypass, and the retrospective at `.agents/retrospective/2026-08-07-pr-4402-scope-bypass.md` records what happens next.
+
+`.claude/rules/ci-scripts.md` MUST-14 already documents stale-ref inflation for the count ratchets and states that a ref fetched earlier in the same session should be treated as stale. The scope gate has the same failure and does not say so.
+
+This does not by itself justify retirement, and it is one observation. It does show the gate blocking on branch bookkeeping rather than on scope, which is the same category error the count ceiling makes on rigor.
+
 ## Decision
 
 Retire both size ceilings as blocking gates. Do not replace them with another blocking size gate.

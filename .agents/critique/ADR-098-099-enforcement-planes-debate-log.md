@@ -42,6 +42,20 @@ The panel is single-vendor: all six roles pin Anthropic models. That is recorded
 - **ADR-098's blocking-value evidence is an n of 1.** Four of five sampled pull requests are allow-cases. The claim that the ceilings never made a correct blocking call rests on #4846 alone, and is subject to survivorship, since deterred and pre-split pull requests never appear. Analyst could not enumerate the wider labeled population due to a tooling gap, so no independent counterexample search was run. Mitigated by a 90 day re-measure trigger rather than resolved.
 - **Tag protection** and the `BOT_PAT` scope question (whether reducing below classic `repo` conflicts with minting real-user reviews) are Phase 0 inventory work.
 
+## Round 5: the base moved under the conclusions
+
+Not a debate round. Recorded here because it changed cited facts after the panel had finished, and because the mechanism generalizes.
+
+Minutes after the pull request opened, the owner merged `main` into the branch. That merge carried PR #5179, "remove session, session-init, session-end, session-log-fixer skills and session protocol," which deleted `.agents/SESSION-PROTOCOL.md`.
+
+ADR-099 cited that file as a live six-agent debate trigger, in the PR #5177 incident and in the description of what the mandate covers. The same merge moved `check_adr_review_policy` from line 1390 to 1382, moved the `skip: merge` entry from lines 199-200 to 198-199, and shifted governance MUST-1 from line 12 to 13. Every one of those was verified true when written and false forty minutes later.
+
+Every citation in both documents was re-run against the merged tree. Six held unchanged. Five were corrected. One finding was substantive rather than cosmetic: the trigger set has already narrowed to ADR files alone, which is a partial move toward what ADR-099's Application A proposes, so the ADR now says that instead of proposing it as though nothing had happened. The PR #5177 evidence survives the deletion, because what failed there was that a session could decline the mandated review and still commit, and removing one path from the trigger set does not touch that.
+
+Nothing in the repository catches this class of drift. `.agents/**` is excluded from markdownlint, and `orphan-ref-validator` matches file paths and skill names rather than line numbers or prose claims about another file's contents. `.claude/rules/canonical-source-mirror.md` names the failure mode under "True when you wrote it is not true at merge" and states the remedy plainly: the only check is the one the author runs, against the tree that will actually merge.
+
+Two review bots also engaged in this window. Cursor Bugbot flagged the `changesCommitted` evidence for naming more commits than `endingCommit` records, which was correct: the prose said two commits when the branch had grown past that, and it did not explain why the commit that records the SHA is necessarily not the commit it names. Its autofix agent pushed a terser replacement; this branch keeps a fuller one that preserves the session-log MUST-2 rationale, since that rationale is what made the original wording confusing.
+
 ## Verdicts
 
 | Round | architect | critic | independent-thinker | security | analyst | high-level-advisor |
