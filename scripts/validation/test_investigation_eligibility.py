@@ -15,11 +15,17 @@ import argparse
 import json
 import re
 import subprocess
+import sys
+from pathlib import Path
 
-from scripts.modules.investigation_allowlist import (
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.modules.investigation_allowlist import (  # noqa: E402  (path set above)
     get_investigation_allowlist_display,
 )
-from scripts.modules.investigation_allowlist import (
+from scripts.modules.investigation_allowlist import (  # noqa: E402  (path set above)
     test_file_matches_allowlist as _file_matches_allowlist,
 )
 
@@ -45,6 +51,8 @@ def _run_git(command: list[str]) -> tuple[list[str] | None, str | None]:
         command,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=10,
         check=False,
     )
