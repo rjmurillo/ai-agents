@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-5174-b3bfa3aaa-remove-agent-tier-hierarchy-replace.json
-qaCommit: ca71ebbe884852d541473fd697819cc8196cad7a
+qaCommit: 91c08d707bf9be20d9a4403734e0df646e56f416
 ---
 
 # QA report: issue #5130, remove the agent tier hierarchy
@@ -71,7 +71,7 @@ pass and caught by the install-parity gate.
 
 ## Addendum: findings after the first QA pass
 
-Three rounds of review landed after the original run. Each is covered:
+Six review findings landed after the original run. Each is covered:
 
 | Finding | Source | Verification |
 |---|---|---|
@@ -79,8 +79,9 @@ Three rounds of review landed after the original run. Each is covered:
 | Frontmatter validator accepted any string for `role`, so `buidler` became `support` | Copilot review | `role` required and constrained to the four known values; 6 new cases incl. the typo and a stale `builder` value |
 | Debate log claimed all three files quote ADR-009 verbatim | Copilot review | Replaced with a byte-measured per-file table; SESSION-PROTOCOL.md summarizes, orchestrator-routing carries the table only |
 | Taste ratchet regressed 577 > 576 (test file crossed 500 lines) | pre-push merge-tree ratchet | Split by concern into two modules, 356 and 222 lines; ratchet back to `OK (count == baseline 576)` |
+| No gate asserted zero `tier:` keys across the six agent trees, so a reintroduced `tier:` would pass every check | spec reviewer | `tests/test_agent_role_metadata_migration.py` reads both frontmatter shapes across all six trees; a discovery test acts as a negative control against vacuous globs |
+| Nothing pinned the escalation target in the routing docs, which is how the stale `escalate_to_architect` survived | spec reviewer | Parametrized guard over AGENT-SYSTEM.md, SESSION-PROTOCOL.md, and orchestrator-routing-algorithm.md; verified non-vacuous by checking out origin's stale doc, where it fails |
 
-Re-verified on this commit: `uv run pytest` on the four affected suites (46 + 28
-+ 30 + 26 = 130 passed), `ruff` and `mypy` clean on all 11 changed Python files,
+Re-verified on this commit: `uv run pytest` on the six affected suites (155 passed), `ruff` and `mypy` clean on all 12 changed Python files,
 `generate_agent_catalog.py --check` OK, `validate_copilot_agent_frontmatter.py`
-PASS on 31 files, `taste_count_ratchet.py` OK at baseline.
+PASS on 31 files, `taste_count_ratchet.py` OK at baseline 576.
