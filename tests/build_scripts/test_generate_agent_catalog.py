@@ -26,7 +26,7 @@ def _write_template(
     name: str,
     *,
     description: str = "A test agent.",
-    tier: str = "builder",
+    role: str = "executor",
     extra_body: str = "Body line.\n",
 ) -> Path:
     """Write a ``<name>.shared.md`` template with the given frontmatter."""
@@ -34,7 +34,7 @@ def _write_template(
     path = templates_dir / f"{name}.shared.md"
     content = (
         "---\n"
-        f"tier: {tier}\n"
+        f"role: {role}\n"
         f"description: {description}\n"
         "---\n"
         f"# {name.title()} Agent\n"
@@ -50,16 +50,16 @@ def _write_template(
 def test_render_includes_one_row_per_template(tmp_path: Path) -> None:
     # Arrange
     templates_dir = tmp_path / "templates" / "agents"
-    _write_template(templates_dir, "alpha", description="First agent.", tier="builder")
-    _write_template(templates_dir, "beta", description="Second agent.", tier="expert")
+    _write_template(templates_dir, "alpha", description="First agent.", role="executor")
+    _write_template(templates_dir, "beta", description="Second agent.", role="strategic")
 
     # Act
     content = gac.render_catalog(gac.collect_entries(templates_dir))
 
     # Assert
-    assert "| [alpha](../templates/agents/alpha.shared.md) | builder |" in content
+    assert "| [alpha](../templates/agents/alpha.shared.md) | executor |" in content
     assert "First agent." in content
-    assert "| [beta](../templates/agents/beta.shared.md) | expert |" in content
+    assert "| [beta](../templates/agents/beta.shared.md) | strategic |" in content
     assert "_2 agent templates indexed._" in content
 
 
@@ -171,7 +171,7 @@ def test_invalid_yaml_raises_catalog_error(tmp_path: Path) -> None:
         gac.collect_entries(templates_dir)
 
 
-@pytest.mark.parametrize("field", ["description", "tier"])
+@pytest.mark.parametrize("field", ["description", "role"])
 def test_missing_required_frontmatter_field_raises_catalog_error(
     tmp_path: Path, field: str
 ) -> None:
@@ -180,7 +180,7 @@ def test_missing_required_frontmatter_field_raises_catalog_error(
     templates_dir.mkdir(parents=True)
     frontmatter_lines = {
         "description": "description: A test agent.",
-        "tier": "tier: builder",
+        "role": "role: executor",
     }
     frontmatter_lines.pop(field)
     (templates_dir / "broken.shared.md").write_text(
@@ -198,8 +198,8 @@ def test_missing_required_frontmatter_field_raises_catalog_error(
     [
         ("description", "[]"),
         ("description", "''"),
-        ("tier", "[]"),
-        ("tier", "''"),
+        ("role", "[]"),
+        ("role", "''"),
     ],
 )
 def test_malformed_required_frontmatter_field_raises_catalog_error(
@@ -210,7 +210,7 @@ def test_malformed_required_frontmatter_field_raises_catalog_error(
     templates_dir.mkdir(parents=True)
     frontmatter_lines = {
         "description": "description: A test agent.",
-        "tier": "tier: builder",
+        "role": "role: executor",
     }
     frontmatter_lines[field] = f"{field}: {value}"
     (templates_dir / "broken.shared.md").write_text(

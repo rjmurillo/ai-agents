@@ -21,7 +21,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 _MALFORMED = (
     """---
 name: code-reviewer
-tier: builder
+role: executor
 description: Use this agent to review code. Examples: Context: user did X."""
     """ user: "review" assistant: ok
 ---
@@ -32,7 +32,7 @@ Body.
 
 _VALID_BLOCK = """---
 name: code-reviewer
-tier: builder
+role: executor
 description: |-
   Use this agent to review code. Examples:
   Context: user did X.
@@ -45,7 +45,7 @@ Body.
 
 _VALID_BLOCK_WITH_INDENTED_FENCE = """---
 name: code-reviewer
-tier: builder
+role: executor
 description: |-
   Use this agent when examples include fences:
     ---
@@ -111,7 +111,7 @@ class TestFindMalformed:
 
     def test_missing_name_flagged(self, tmp_path):
         agents_dir = _agents_dir(tmp_path)
-        _write(agents_dir, "x.agent.md", "---\ntier: builder\n---\nbody\n")
+        _write(agents_dir, "x.agent.md", "---\nrole: executor\n---\nbody\n")
         assert [p.name for p, _ in v.find_malformed(agents_dir, repo_root=tmp_path)] == [
             "x.agent.md"
         ]
@@ -130,7 +130,7 @@ class TestFindMalformed:
 
     def test_missing_description_flagged(self, tmp_path):
         agents_dir = _agents_dir(tmp_path)
-        _write(agents_dir, "x.agent.md", "---\nname: x\ntier: builder\n---\nbody\n")
+        _write(agents_dir, "x.agent.md", "---\nname: x\nrole: executor\n---\nbody\n")
         offenders = v.find_malformed(agents_dir, repo_root=tmp_path)
         assert offenders and "description" in offenders[0][1]
 
@@ -141,9 +141,9 @@ class TestFindMalformed:
         offenders = v.find_malformed(agents_dir, repo_root=tmp_path)
         assert offenders and "description" in offenders[0][1]
 
-    def test_non_string_tier_flagged(self, tmp_path):
+    def test_non_string_role_flagged(self, tmp_path):
         agents_dir = _agents_dir(tmp_path)
-        _write(agents_dir, "x.agent.md", "---\nname: x\ndescription: ok\ntier:\n  - a\n---\nb\n")
+        _write(agents_dir, "x.agent.md", "---\nname: x\ndescription: ok\nrole:\n  - a\n---\nb\n")
         assert [p.name for p, _ in v.find_malformed(agents_dir, repo_root=tmp_path)] == [
             "x.agent.md"
         ]
