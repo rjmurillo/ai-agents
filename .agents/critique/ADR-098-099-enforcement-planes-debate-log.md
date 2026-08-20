@@ -2,7 +2,9 @@
 
 Four rounds, six roles (architect, critic, independent-thinker, security, analyst, high-level-advisor). Convened 2026-08-20 on a proposal that began as one ADR and split into two.
 
-Final tally: **6 Accept, 0 Block.**
+Five rounds. Final tally, round 5, all six roles run on corrected text: **4 Accept, 2 Disagree-and-Commit, 0 Block.**
+
+Round 4 was reported as "6 Accept, 0 Block" in an earlier revision of this log. That was wrong: only four roles were re-run and two positions were inferred. A bot reviewer caught it, and round 5 exists because of that catch.
 
 ## What was proposed, and what it became
 
@@ -39,10 +41,10 @@ The panel is single-vendor: all six roles pin Anthropic models. That is recorded
 ## Unresolved and deliberately deferred
 
 - **The debate mandate's catch rate is unmeasured.** Independent-thinker's condition, that the oversight mechanism be measured rather than assumed, is filed as a follow-up blocking completion of ADR-099 Phase 2 rather than its start. Independent-thinker flagged in round 4 that this permits opening Phase 2 with the deciding number still unmeasured. Accepted, because Phases 0 and 1 alone are a stated acceptable terminal state.
-- **ADR-098's blocking-value evidence is an n of 1.** Four of five sampled pull requests are allow-cases. The claim that the ceilings never made a correct blocking call rests on #4846 alone, and is subject to survivorship, since deterred and pre-split pull requests never appear. Analyst could not enumerate the wider labeled population due to a tooling gap, so no independent counterexample search was run. Mitigated by a 90 day re-measure trigger rather than resolved.
+- **ADR-098's blocking-value evidence was an n of 1 until the population was enumerated.** A bot reviewer supplied the query the panel believed did not exist. Seven closed-unmerged `needs-split` pull requests exist in the window; exactly one carries `commit-limit-bypass`, and it was independently failing its own security gate. Five of seven were characterized, none stopped by the ceiling. Survivorship remains: pull requests the ceiling deterred appear in no query.
 - **Tag protection** and the `BOT_PAT` scope question (whether reducing below classic `repo` conflicts with minting real-user reviews) are Phase 0 inventory work.
 
-## Round 5: the base moved under the conclusions
+## Between rounds: the base moved under the conclusions
 
 Not a debate round. Recorded here because it changed cited facts after the panel had finished, and because the mechanism generalizes.
 
@@ -56,6 +58,35 @@ Nothing in the repository catches this class of drift. `.agents/**` is excluded 
 
 Two review bots also engaged in this window. Cursor Bugbot flagged the `changesCommitted` evidence for naming more commits than `endingCommit` records, which was correct: the prose said two commits when the branch had grown past that, and it did not explain why the commit that records the SHA is necessarily not the commit it names. Its autofix agent pushed a terser replacement; this branch keeps a fuller one that preserves the session-log MUST-2 rationale, since that rationale is what made the original wording confusing.
 
+
+## Round 5: the panel re-run on corrected text
+
+Called because external bot review of the live pull request falsified four claims the panel had accepted, and because the round-4 tally was found to be unsupported.
+
+| Role | Verdict | Condition, and disposition |
+|---|---|---|
+| security (2.0x) | Accept | Blocked first on context spoofing and on containment scoped to PATs only. Both applied, then confirmed in text. |
+| architect | Accept | Required the substitution case named and `require_code_owner_review` added. Applied. |
+| high-level-advisor | Accept | Required the go/no-go default flipped to abandon Phases 2 and 3 absent a measured catch rate. Applied. |
+| independent-thinker | Accept | Three prose fixes, including that the error-disclosure clause "converts an error into a credential." Applied. |
+| analyst | Disagree-and-Commit | Verified the #5099 correction and every citation independently. Withheld a clean Accept for counts it had not itself verified; those were then verified. |
+| critic | Disagree-and-Commit | Five defects, all applied: the spoofing denial missed `checks: write`; the gate names four residuals, not two; the bypass-label inference was invalid; a cited convention does not exist; fail-closed contradicted itself. |
+
+### What round 5 changed
+
+Critic's findings were the sharpest of the debate and each was verified before it was applied:
+
+- **The spoofing fix was half a fix.** A required context is satisfiable by a check run as well as a commit status. `.github/workflows/claude.yml` triggers on `pull_request` and grants `checks: write` and `statuses: write` together; three workflows grant the former. Denying only `statuses: write` left the anchor spoofable.
+- **The residual count was wrong.** `run_completion_gate.py` names four residuals in its own trust model: dynamic imports, untracked files, the dispatcher itself, and a CWE-367 verify-then-dispatch window. The decision claimed two. Only one of the four is addressed by moving planes, and the ADR now says which.
+- **The enumeration's inference was invalid.** `commit-limit-bypass` marks relief granted, not the blocking threshold being reached. #4821 has 29 commits and no label, which is exactly the counterexample class the enumeration was meant to rule out. Two of seven remain unread and the label cannot clear them, so ADR-098 now says the population check is incomplete rather than closed.
+- **A cited convention does not exist.** Both ADRs claimed one-idea-per-commit is documented in `.claude/rules/universal.md`. A search returns nothing; MUST-6 is the five-file rule being retired. Nothing survives the retirement, and the text now says so.
+
+### The observation worth keeping
+
+Every round-5 correction originated in bot review of the live pull request, not in the agent panel. The panel had converged to Accept twice on text containing a closed issue described as a live CVSS 8.8, a spoofable anchor, an invalid inference, and a citation to a rule that does not exist.
+
+All six panel roles pin Anthropic models. This is what the single-vendor limitation recorded in ADR-099 predicts, observed rather than theorized, and it is the strongest evidence in this log for why cross-vendor review belongs in the design rather than in a follow-up. It is also the reason the panel's own agreement should be weighted below the external findings it missed.
+
 ## Verdicts
 
 | Round | architect | critic | independent-thinker | security | analyst | high-level-advisor |
@@ -63,4 +94,5 @@ Two review bots also engaged in this window. Cursor Bugbot flagged the `changesC
 | 1, tier sketch | Block | Block | D&C | Block | Block | D&C |
 | 2, single ADR | Block | Block | D&C | Block | Block | D&C |
 | 3, split pair | D&C | Block on 098, D&C on 099 | D&C | Block | D&C | Accept |
-| 4, revised | Accept | Accept both | Accept | Accept | not re-run, conditions met verbatim | not re-run, condition met |
+| 4, revised | Accept | Accept both | Accept | Accept | not re-run | not re-run |
+| 5, corrected | Accept | D&C | Accept | Accept | D&C | Accept |

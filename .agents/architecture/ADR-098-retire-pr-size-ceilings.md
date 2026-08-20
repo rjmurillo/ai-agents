@@ -43,11 +43,33 @@ Sampling pull requests in the window shows the count gate does not measure one c
 
 Neither size axis separates these. Net authored file surface would pass #4846 at 16 files and flag #4718 at 49, which is backwards. Commit count flags #4846 correctly but punishes #4718 and #5103 identically for behavior the repository wants.
 
+### The closed-unmerged population, enumerated
+
+An earlier draft of this decision said the labeled population could not be enumerated by tooling and recorded the absence of a counterexample as untested. That was wrong. `label:"needs-split" created:2026-08-06..2026-08-20 is:closed is:unmerged` returns the population directly, and a reviewer supplied the query.
+
+It matters because the closed-unmerged set is where a counterexample would live: a change the ceiling stopped that should not have landed. The query returns seven.
+
+| Pull request | Commits | `commit-limit-bypass` | State at close |
+|---|---|---|---|
+| #4846 | 235 | yes | Failing its own security and vendor-provenance gate |
+| #4821 | 29 | no | `blocked`; its own body states governance rules require human approval and forbid auto-merge |
+| #4872 | 19 | no | Under the ceiling; 9 of its 19 commits are `docs(qa): bind ...` rebind churn |
+| #4985 | 14 | no | `clean`, mergeable at close |
+| #4683 | 13 | no | `dirty`, merge conflict |
+| #4814 | not read | no | not read |
+| #4733 | not read | no | not read |
+
+Exactly one of the seven carries `commit-limit-bypass`. Its description is "Allows PR to exceed 20 commit limit," so it marks **relief granted**, not the threshold being reached. Those are different sets, and #4821 in the table above is the proof: 29 commits, over the ceiling, no bypass label. A pull request blocked with no relief is precisely the counterexample class, and it carries no label to find it by.
+
+So the enumeration bounds the claim less than a first reading suggests. What it establishes: of the five characterized, none was prevented from landing by the size ceiling. One was mergeable at close, one had conflicts, one was governance-gated by its own text, one sat under the ceiling, and #4846 was failing a correctness gate. What it does not establish: that #4814 and #4733, which were not read, are not counterexamples. Absence of the bypass label does not clear them.
+
+Two of seven therefore remain open. Reading them is cheap and belongs in the implementation pull request before the ceilings come out.
+
 ### What actually stopped the bad one
 
 #4846 is the only pull request in the sample that should not merge, and it did not merge. What held it was its own security and vendor-provenance gate, a correctness check, not a size ceiling. The size gate labeled it, and it also labeled #4718, #5036, #5152, and #5103, which all merged and should have.
 
-That is the finding this decision rests on. In the sample, the size ceilings did not make a single correct blocking decision that a correctness gate did not already make, and they imposed cost on four of five pull requests that were doing the right thing.
+That is the finding this decision rests on, and it is bounded by the enumeration above rather than stated absolutely: across the closed-unmerged population, the blocking ceiling engaged once, on a pull request a correctness gate was already refusing. Over the same window it imposed cost on four of five sampled pull requests that were doing the right thing.
 
 ### The cost
 
@@ -73,7 +95,7 @@ Retire both size ceilings as blocking gates. Do not replace them with another bl
 
 1. **`pr_commit_count.py` stops blocking.** It reports counts and keeps its notice and warning output. It returns 0 in all cases. The `commit-limit-bypass` label and its human step retire with it.
 
-2. **`check_atomic_commit` stops blocking.** The five-file guidance stays as advisory output. One idea per commit remains the documented convention in `.claude/rules/universal.md`; it stops being a mechanical precondition for committing.
+2. **`check_atomic_commit` stops blocking.** The five-file guidance stays as advisory output. Note that no convention survives this: `.claude/rules/universal.md` MUST-6 is the five-file rule itself, and a search of `.claude/rules/` for a one-idea-per-commit convention returns nothing. Retiring the ceiling leaves commit granularity to author judgment, which is the honest description of the resulting state.
 
 3. **The scope check becomes advisory, and process-record paths leave its measurement.** `scripts/detect_scope_explosion.py:50` sets `BLOCK_THRESHOLD = 50` and the script returns 1 above it, so the scope check blocks today. It stops blocking and reports only. Separately, `_partition_generated` already excludes generated files; extend that to `.agents/sessions/**`, `.agents/qa/**`, and `.agents/memory/episodes/**`, which are process record rather than reviewable change.
 
@@ -143,8 +165,7 @@ This trades a small, unproven protection against sprawl for the removal of a mea
 
 - A genuine sprawl pull request now depends entirely on correctness gates and review to stop it. If those miss, nothing size-based catches it.
 - Losing the label also loses the one event that routinely put a very large pull request in front of a human. Whether that look ever caught anything is not established: a search across the repository for `commit-limit-bypass` finds the label described only as relief a maintainer grants on request, for example `.agents/governance/GOTCHAS.md:238`, and no record of it producing a finding. The lost function is asserted, not measured, and should not be weighted as though it were.
-- **The evidence base is thin in the one cell that matters, and this decision holds itself to a weaker standard than ADR-099 applies to its own sample.** Four of the five sampled pull requests are allow-cases, which carry no information about blocking value. The claim that the ceilings never made a correct blocking call therefore rests on #4846 alone, an n of 1. The sample is also subject to survivorship: pull requests the ceiling deterred, or that were split before opening, never appear in it. The five are 4.8% of the 104 labeled.
-- No independent wider-sample check was run. An attempt to enumerate the other labeled pull requests in the window was blocked by tooling that cannot list pull requests by label, so the absence of a counterexample is an untested claim rather than a negative result.
+- **The sample is still subject to survivorship.** Pull requests the ceiling deterred, or that were split before they were ever opened, appear nowhere in the labeled population, so no query recovers them. The 90 day re-measure below cannot recover them either. This is the residual limitation.
 
 ### Neutral
 
@@ -162,7 +183,7 @@ This trades a small, unproven protection against sprawl for the removal of a mea
 | `CONTRIBUTING.md` | Direct | Remove the bypass-label procedure | Low |
 | `.agents/governance/PROJECT-CONSTRAINTS.md:125` | Direct | Record the constraint as retired, with this ADR as the reason | Medium |
 | `.claude/rules/governance.md` MUST-1 and MUST NOT 1 | Direct | This decision edits a file under `.agents/governance/`, so MUST-1 requires human approval, and it reduces a review requirement, so MUST NOT 1 requires a unanimous-consensus ADR. Both apply to this ADR and to its implementation pull request | High |
-| `.claude/rules/universal.md` MUST-6 | Direct | Restate as convention, not mechanical precondition | Medium |
+| `.claude/rules/universal.md` MUST-6 | Direct | This is the five-file rule. Retire or restate it; there is no separate one-idea-per-commit convention to fall back on | Medium |
 | QA and session evidence rebind | Direct | Fix the every-merge refire | Medium |
 
 ## Implementation Notes

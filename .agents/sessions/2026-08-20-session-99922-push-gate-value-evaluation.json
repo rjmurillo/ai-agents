@@ -5,7 +5,7 @@
     "date": "2026-08-20",
     "branch": "claude/push-gate-value-eval-tu1lju",
     "startingCommit": "f79e70c017e0a253f92d07ff4ba84f84a9f8b449",
-    "objective": "Evaluate whether the pull request commit-count and per-commit file-count push gates earn their cost, and structurally resolve what the evidence shows. Produced ADR-098 (retire the size ceilings) and ADR-099 (enforcement planes), each carried through a four-round six-role adr-review debate to a 6 accept 0 block verdict."
+    "objective": "Evaluate whether the pull request commit-count and per-commit file-count push gates earn their cost, and structurally solve what the evidence shows. Produced ADR-098 (retire the size ceilings) and ADR-099 (enforcement planes), carried through five rounds of six-role adr-review plus external bot review, which corrected the design twice and caught four factual errors in the drafts."
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -143,8 +143,8 @@
   "endingCommit": "f5f0d59c6f50e46a575df292a3800e74418f4835",
   "nextSteps": [
     "Implement ADR-098 in its stated order: fix the QA and session evidence rebind generator, demote pr_commit_count.py, demote check_atomic_commit early, demote the scope BLOCK_THRESHOLD and add process-record exclusions, then remove SKIP_SCOPE_CHECK, then update the dependent documents.",
-    "Fix issue #5099 (CVSS 8.8, the /ship gate checksums its config but not the verifier scripts it dispatches) on its own pull request, ahead of every ADR-099 phase.",
-    "ADR-099 Phase 0 needs owner credentials: contain BOT_PAT behind a protected environment, set required_approving_review_count above zero and require_code_owner_review, extend CODEOWNERS to enforcement paths and to itself, make the drift check bidirectional, and baseline bypass_actors, enforcement, and the Actions default token settings.",
+    "ADR-099 Phase 1 starts from the verification PR #5146 already shipped, not from issue #5099, which closed 2026-08-18. run_completion_gate.py already byte-compares each dispatched work-tree file and verifies its static import closure. The remaining work is to fail closed on a dispatched file whose closure is not statically resolvable, and to lift the same verification from P0 into a base-ref P1 job.",
+    "ADR-099 Phase 0 needs owner credentials. Containing BOT_PAT means removing the repository-level copy so environment-scoped access is the only access, and making pull-request-time consumers base-owned; an environment stanza alone is defeated by a pull request deleting it, and an environment with required reviewers reintroduces a per-change human. ai-spec-validation.yml is the live head-defined consumer. Also set required_approving_review_count above zero and require_code_owner_review, extend CODEOWNERS to enforcement paths and to itself, make the drift check bidirectional, and baseline bypass_actors, enforcement, and the Actions default token settings.",
     "Both ADRs reduce review requirements, so .claude/rules/governance.md MUST-1 and MUST NOT 1 apply: each needs human approval and a unanimous-consensus record before its implementation pull request merges.",
     "Re-measure ADR-098's retirement 90 days after implementation against a stated selection method over the labeled population, because the blocking-value evidence is an n of 1 and no wider counterexample search was run."
   ]
