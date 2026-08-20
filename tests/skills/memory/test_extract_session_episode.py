@@ -3351,6 +3351,103 @@ class TestSourceSessionStamping:
         assert "legacy unstamped event" in contents
 
 
+class TestDedupeEventsCollapsesAbbreviatedCommits:
+    """_dedupe_events must dedupe commit events abbreviation-aware, not by
+    exact (type, content) string equality.
+
+    _collect_shas/_already_seen already guarantee this within one fresh
+    extraction. _dedupe_events is the other place a full SHA and its own
+    abbreviation can meet: once across a --preserve boundary, where an
+    earlier run recorded one spelling and a later run's fresh extraction
+    independently produces the other. Issue #5069 (copilot-pull-request-
+    reviewer on PR #5178): episode-2026-08-20-session-99923-...json recorded
+    "Commit: bad269d8199e4265fc2a6269439e0ace1ffab5b7" from one run and
+    "Commit: bad269d" from a later --preserve run over the same session log;
+    exact-string dedup let both survive as separate events and inflated
+    metrics.commits by one.
+    """
+
+    FULL = "bad269d8199e4265fc2a6269439e0ace1ffab5b7"
+    SHORT = "bad269d"
+
+    @staticmethod
+    def _commit_event(
+        sha: str, event_id: str = "e001", timestamp: str = "2026-01-08T01:00:00+00:00"
+    ) -> dict:
+        return {
+            "id": event_id,
+            "timestamp": timestamp,
+            "type": "commit",
+            "content": f"Commit: {sha}",
+            "caused_by": [],
+            "leads_to": [],
+        }
+
+    def test_a_full_sha_already_recorded_absorbs_a_freshly_extracted_abbreviation(self) -> None:
+        """The common --preserve shape: existing has the full SHA, new re-derives the short one."""
+        existing = [self._commit_event(self.FULL, timestamp="2026-01-08T01:00:00+00:00")]
+        new = [self._commit_event(self.SHORT, timestamp="2026-01-08T01:00:00+00:00")]
+        result = extract_session_episode._dedupe_events(existing, new, None, session_id="")
+        commit_events = [e for e in result if e["type"] == "commit"]
+        assert len(commit_events) == 1, (
+            f"expected one commit event for one commit, got {len(commit_events)}: "
+            f"{[e['content'] for e in commit_events]}"
+        )
+        assert commit_events[0]["content"] == f"Commit: {self.FULL}", (
+            "the first spelling seen (the existing full SHA) must be the one kept, "
+            f"got {commit_events[0]['content']!r}"
+        )
+
+    def test_an_abbreviation_already_recorded_absorbs_a_freshly_extracted_full_sha(self) -> None:
+        """The reverse shape: existing has the short form, new produces the full one."""
+        existing = [self._commit_event(self.SHORT, timestamp="2026-01-08T01:00:00+00:00")]
+        new = [self._commit_event(self.FULL, timestamp="2026-01-08T01:00:00+00:00")]
+        result = extract_session_episode._dedupe_events(existing, new, None, session_id="")
+        commit_events = [e for e in result if e["type"] == "commit"]
+        assert len(commit_events) == 1, (
+            f"expected one commit event for one commit, got {len(commit_events)}: "
+            f"{[e['content'] for e in commit_events]}"
+        )
+        assert commit_events[0]["content"] == f"Commit: {self.SHORT}", (
+            "the first spelling seen (the existing short SHA) must be the one kept, "
+            f"got {commit_events[0]['content']!r}"
+        )
+
+    def test_two_genuinely_different_commits_both_survive(self) -> None:
+        """Negative control: dedup must not collapse two distinct commits."""
+        other = "cafef00dcafef00dcafef00dcafef00dcafef00d"
+        existing = [self._commit_event(self.FULL)]
+        new = [self._commit_event(other)]
+        result = extract_session_episode._dedupe_events(existing, new, None, session_id="")
+        commit_events = [e for e in result if e["type"] == "commit"]
+        assert len(commit_events) == 2, (
+            "two distinct commits were collapsed into one: "
+            f"{[e['content'] for e in commit_events]}"
+        )
+
+    def test_commit_content_that_does_not_match_the_sha_format_falls_back_to_exact_key(
+        self,
+    ) -> None:
+        """Edge: non-standard commit content (e.g. a squash note) still dedupes by exact match."""
+        existing = [
+            {
+                "id": "e001",
+                "timestamp": "2026-01-08T01:00:00+00:00",
+                "type": "commit",
+                "content": "Commit: (squashed into a later commit)",
+                "caused_by": [],
+                "leads_to": [],
+            }
+        ]
+        new = [dict(existing[0])]
+        result = extract_session_episode._dedupe_events(existing, new, None, session_id="")
+        commit_events = [e for e in result if e["type"] == "commit"]
+        assert len(commit_events) == 1, (
+            "identical non-SHA commit content must still collapse to one event via "
+            f"the exact-key fallback, got {len(commit_events)}"
+        )
+
+
 class TestSourceSessionEndToEnd:
     """End-to-end: write wrong episode, correct source, re-extract, confirm wrong
     event is gone rather than unioned in (issue #4024 discriminating reproduction).
