@@ -13,7 +13,7 @@ tools:
   - github/search_pull_requests
   - github/search_repositories
   - serena/*
-tier: integration
+role: support
 ---
 
 # Backlog Generator Agent
