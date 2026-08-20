@@ -11,6 +11,8 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
+import pytest
+
 from scripts.validation import validate_copilot_agent_frontmatter
 from scripts.validation import validate_copilot_agent_frontmatter as v
 
@@ -57,6 +59,7 @@ Body.
 
 _VALID_QUOTED = """---
 name: analyst
+role: support
 description: 'Investigate root causes: gather evidence first'
 ---
 
@@ -137,9 +140,70 @@ class TestFindMalformed:
     def test_empty_description_flagged(self, tmp_path):
         # The .strip() branch: a whitespace-only description is not a usable string.
         agents_dir = _agents_dir(tmp_path)
-        _write(agents_dir, "x.agent.md", "---\nname: x\ndescription: '  '\n---\nbody\n")
+        _write(
+            agents_dir,
+            "x.agent.md",
+            "---\nname: x\ndescription: '  '\nrole: executor\n---\nbody\n",
+        )
         offenders = v.find_malformed(agents_dir, repo_root=tmp_path)
         assert offenders and "description" in offenders[0][1]
+
+    def test_missing_role_flagged(self, tmp_path):
+        """``role`` is required now that the OpenClaw export depends on it."""
+        agents_dir = _agents_dir(tmp_path)
+        _write(agents_dir, "x.agent.md", "---\nname: x\ndescription: ok\n---\nbody\n")
+        offenders = v.find_malformed(agents_dir, repo_root=tmp_path)
+        assert offenders and "role" in offenders[0][1]
+
+    @pytest.mark.parametrize(
+        "role",
+        ["strategic", "coordinator", "executor", "support"],
+    )
+    def test_every_known_role_accepted(self, tmp_path, role):
+        agents_dir = _agents_dir(tmp_path)
+        _write(
+            agents_dir,
+            "x.agent.md",
+            f"---\nname: x\ndescription: ok\nrole: {role}\n---\nbody\n",
+        )
+        assert v.find_malformed(agents_dir, repo_root=tmp_path) == []
+
+    def test_typo_role_flagged_not_silently_downgraded(self, tmp_path):
+        """A near-miss value must fail here rather than reach the bridge.
+
+        `buidler` is a plausible typo for `builder`, the pre-migration value.
+        It parses as a string, so the old stringness-only check passed it, and
+        scripts/openclaw_bridge.py then exported the agent as `support`.
+        """
+        agents_dir = _agents_dir(tmp_path)
+        _write(
+            agents_dir,
+            "x.agent.md",
+            "---\nname: x\ndescription: ok\nrole: buidler\n---\nbody\n",
+        )
+        offenders = v.find_malformed(agents_dir, repo_root=tmp_path)
+        assert offenders
+        assert "buidler" in offenders[0][1]
+
+    def test_stale_tier_value_flagged(self, tmp_path):
+        """A file migrated by hand to `role` but left with a tier value fails."""
+        agents_dir = _agents_dir(tmp_path)
+        _write(
+            agents_dir,
+            "x.agent.md",
+            "---\nname: x\ndescription: ok\nrole: builder\n---\nbody\n",
+        )
+        offenders = v.find_malformed(agents_dir, repo_root=tmp_path)
+        assert offenders and "builder" in offenders[0][1]
+
+    def test_role_surrounding_whitespace_accepted(self, tmp_path):
+        agents_dir = _agents_dir(tmp_path)
+        _write(
+            agents_dir,
+            "x.agent.md",
+            "---\nname: x\ndescription: ok\nrole: '  executor  '\n---\nbody\n",
+        )
+        assert v.find_malformed(agents_dir, repo_root=tmp_path) == []
 
     def test_non_string_role_flagged(self, tmp_path):
         agents_dir = _agents_dir(tmp_path)
