@@ -440,7 +440,7 @@ TIER=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" 2>/dev
 # PR, and BEHIND/BLOCKED/DIRTY from the merge-state lookup. Listing only the
 # ladder rejected those as producer failures and silently disabled the
 # documented BEHIND and DIRTY handling.
-# tests/commands/test_pr_autofix_field_contract.py pins this list against the
+# tests/commands/test_pr_autofix_tier_contract.py pins this list against the
 # producer so the two cannot drift apart again.
 # Recognized and actionable are two different questions, and collapsing them is
 # what put SKIP on the acting path. The tier table below reads

@@ -20,10 +20,13 @@ PASS.
 
 One-line behavior change in `.claude/commands/pr-autofix.md` (tier read moved
 from `.Data.Tier` to `.Tier`) plus tier-dispatch marker comments, its generated
-mirror in `src/copilot-cli/skills/pr-autofix/SKILL.md`, the static gate split
-across `tests/commands/pr_autofix_field_parser.py` and
-`tests/commands/test_pr_autofix_field_contract.py`, and the runtime suite in
-`tests/commands/test_pr_autofix_tier_dispatch_runtime.py`.
+mirror in `src/copilot-cli/skills/pr-autofix/SKILL.md`, two static gates and
+their parsers (`pr_autofix_field_parser.py` with
+`test_pr_autofix_field_contract.py` for the jq reads,
+`pr_autofix_tier_parser.py` with `test_pr_autofix_tier_contract.py` for the
+tier set), and the runtime suite in
+`tests/commands/test_pr_autofix_tier_dispatch_runtime.py`. All under
+`tests/commands/`.
 
 ## Evidence
 
@@ -64,10 +67,11 @@ contract, and the pinned tier regression:
 FAILED test_source_command_has_no_contract_violations
 FAILED test_copilot_mirror_has_no_contract_violations
 FAILED test_tier_read_targets_the_authoritative_flat_producer
-3 failed, 29 passed
+3 failed, 32 passed
 ```
 
-Restored the fix; 32 passed.
+Restored the fix; 35 passed. Re-run at this head rather than
+carried forward, because the suite has grown since the control was first taken.
 
 ### Negative control: the originally reported shape
 
@@ -111,16 +115,17 @@ FAILED test_extractor_reaches_every_jq_invocation
   line 423: ROUND_REASON=$(echo "$ROUND_CAP" | jq -r '.Data.reason ...
 ```
 
-The guard now fails and names the missed lines. Restored; 32 passed.
+The guard now fails and names the missed lines. Restored; the suite passes.
 
 ### Test results
 
 | Command | Result |
 |---|---|
-| `uv run pytest tests/commands/test_pr_autofix_field_contract.py` | 37 passed |
+| `uv run pytest tests/commands/test_pr_autofix_field_contract.py` | 35 passed |
+| `uv run pytest tests/commands/test_pr_autofix_tier_contract.py` | 4 passed |
 | `uv run pytest tests/commands/test_pr_autofix_tier_dispatch_runtime.py` | 40 passed |
-| `uv run pytest tests/commands/ tests/skills/pr-autofix/` | 445 passed, 1 skipped |
-| the four `tests/test_pr_autofix_*.py` suites plus the two above | 662 passed, 1 skipped |
+| `uv run pytest tests/commands/ tests/skills/pr-autofix/` | 447 passed, 1 skipped |
+| the four `tests/test_pr_autofix_*.py` files plus `tests/commands/ tests/skills/pr-autofix/` | 685 passed, 1 skipped |
 | `uv run ruff check tests/commands/` | All checks passed |
 | `uv run python build/scripts/build_all.py --check` | no staleness |
 | `uv run python scripts/validation/pre_pr.py` | All validations passed |
@@ -246,6 +251,49 @@ Restored; the suite passes. The 16 reads in the real command body bind exactly a
 before, so this widens what the gate can catch without moving what it currently
 reports.
 
+### Sixth pass: recognized is not actionable
+
+Widening the guard to the producer's declared set put `SKIP` on the acting
+path. The command's own tier table reads
+`| SKIP | Draft, merged, or closed | No action |`, so a `SKIP` reaching the
+disarm gate satisfies `TIER != T1` and strips auto-merge from a PR that went
+draft, merged, or closed after the live-state gate ran. Copilot caught it.
+
+Two properties, separated rather than merged: recognition must equal
+`_TIER_ORDER`, and dispatch must equal that set minus `SKIP`, which now has its
+own terminating arm. `recognized_tiers` reads every arm, `dispatched_tiers`
+reads only the pass-through arm, and both are compared against the producer
+over source and mirror.
+
+Control, restated after re-running it at this head. An earlier version of this
+line said "putting `SKIP` back on the pass-through arm fails exactly four
+tests, two static and two runtime". Re-run, that mutation fails only the two
+static ones. `case` takes the first matching arm, so a `SKIP)` arm left above
+the pass-through arm still matches first and runtime behavior does not change.
+The four-failure result needs the whole pre-fix shape, the `SKIP)` arm deleted
+*and* `SKIP` added to the pass-through arm:
+
+```
+FAILED test_pr_autofix_tier_contract.py::test_skip_is_recognized_but_never_dispatched[doc0]
+FAILED test_pr_autofix_tier_contract.py::test_skip_is_recognized_but_never_dispatched[doc1]
+FAILED test_pr_autofix_tier_dispatch_runtime.py::test_skip_terminates_instead_of_reaching_the_disarm_gate[.claude/commands/pr-autofix.md]
+FAILED test_pr_autofix_tier_dispatch_runtime.py::test_skip_terminates_instead_of_reaching_the_disarm_gate[src/copilot-cli/skills/pr-autofix/SKILL.md]
+4 failed, 75 passed
+```
+
+Restored; 79 passed. The correction is the point: a control that names one
+mutation and reports another mutation's result is not evidence about either.
+
+### Seventh pass: the split, and what it did not change
+
+`taste-lints` reported two files over the 500-line rule. The tier extractors
+moved from `pr_autofix_field_parser.py` into `pr_autofix_tier_parser.py`, and
+the two tier tests from `test_pr_autofix_field_contract.py` into
+`test_pr_autofix_tier_contract.py`. Pure code motion, verified as such: 422
+tests collected under `tests/commands/` before the split and 422 after, and
+`taste-lints` now reports 0 errors across all five files (three warnings, all
+"approaching size limit"). Line counts: 449, 106, 454, 79, 480.
+
 ## Known limits
 
 Stated rather than claimed clean, per the clear-the-gate-or-drop-the-claim rule:
@@ -281,8 +329,10 @@ Stated rather than claimed clean, per the clear-the-gate-or-drop-the-claim rule:
 5. **Only the first path segment is checked.** `_field_violation` reduces the
    read to `path.lstrip(".").split(".")[0]`, so `.Data.superseded_by_base.fully_superseded`
    is validated on `superseded_by_base` alone and a renamed nested key would
-   pass. Raised by spec validation on PR #5176 and confirmed at
-   `pr_autofix_field_parser.py:431`. Not closed here: checking nested keys means
+   pass. Raised by spec validation on PR #5176 and confirmed by reading
+   `_field_violation` in `pr_autofix_field_parser.py`, cited by symbol because
+   this report has already carried two line numbers that went stale inside the
+   commit that moved them. Not closed here: checking nested keys means
    deriving the shape of a nested literal, which is a different and larger piece
    of derivation than the top-level union this gate does. The reported defect
    class is a first-segment mismatch in both of its instances, so the gate
