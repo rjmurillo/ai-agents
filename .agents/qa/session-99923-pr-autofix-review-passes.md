@@ -316,6 +316,19 @@ SKIP continue -> exit 0      1 failed, 39 passed
 reword a comment (inverted)  40 passed
 ```
 
+Adding those assertions put the runtime module over the 500-line taste rule,
+so the harness moved to `pr_autofix_dispatch_harness.py`, following the parser
+precedent: that module is the machinery, this one is the cases. 276 and 277
+lines. Controls re-run after the split to confirm the move lost nothing:
+
+```
+--disable -> --enable          1 failed, 39 passed
+SKIP continue -> break         1 failed, 39 passed
+SKIP continue -> exit 0        1 failed, 39 passed
+restore the pre-fix read      15 failed, 25 passed
+reword a comment (inverted)   40 passed
+```
+
 **Also observed, not fixed here.** Running `pytest tests/commands/` regenerates
 `src/copilot-cli/skills/pr-autofix/SKILL.md` in the working tree. It propagated
 a mutation from the source into the tracked mirror during these controls, and
