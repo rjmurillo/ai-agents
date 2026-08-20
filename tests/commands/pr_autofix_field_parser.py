@@ -299,6 +299,11 @@ def jq_paths(line: str) -> list[str]:
     ]
 
 
+def jq_invocation_count(line: str) -> int:
+    """How many jq commands `line` runs, counted independently of the parser."""
+    return len(_JQ_TOKEN.findall(line))
+
+
 def jq_invocation_lines(text: str) -> list[tuple[int, str]]:
     """Logical lines that invoke jq, ignoring comments.
 

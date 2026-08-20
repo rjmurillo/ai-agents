@@ -30,6 +30,7 @@ from tests.commands.pr_autofix_field_parser import (
     contract_violations,
     derive_producer_schema,
     extract_field_reads,
+    jq_invocation_count,
     jq_invocation_lines,
     jq_paths,
     logical_lines,
@@ -112,16 +113,45 @@ def test_extractor_reaches_every_jq_invocation(command_body: str) -> None:
     `test_every_read_binds_to_a_producer` only covers reads that were found.
     This compares against the jq invocations actually present, so a quoting
     style the regexes miss fails here instead of passing silently.
+
+    Compares per-line counts, not mere line presence. A line running two jq
+    commands where only one parses is fully "reached" by a presence check, so
+    the second invocation would go unchecked behind the first. A read may name
+    several paths, so the requirement is at least one read per invocation.
     """
-    reached = {r.line for r in extract_field_reads(command_body)}
+    reads_per_line: dict[int, int] = {}
+    for read in extract_field_reads(command_body):
+        reads_per_line[read.line] = reads_per_line.get(read.line, 0) + 1
+
     missed = [
-        (lineno, line.strip())
+        (lineno, jq_invocation_count(line), reads_per_line.get(lineno, 0), line.strip())
         for lineno, line in jq_invocation_lines(command_body)
-        if lineno not in reached
+        if reads_per_line.get(lineno, 0) < jq_invocation_count(line)
     ]
 
     assert missed == [], "jq invocations the extractor never parsed:\n" + "\n".join(
-        f"line {lineno}: {line[:120]}" for lineno, line in missed
+        f"line {lineno}: {invocations} jq invocation(s), {reads} read(s) parsed: {line[:100]}"
+        for lineno, invocations, reads, line in missed
+    )
+
+
+def test_every_consumed_producer_has_derivable_keys(command_body: str) -> None:
+    """The field check must not stand down on a producer the command reads.
+
+    `_field_violation` returns None when `top_level_keys` is None, which is
+    correct for "cannot tell" but is a fail-open path: a producer refactor that
+    broke derivation would silently stop field-checking every read against it,
+    and every other test would stay green. Pin derivability for the producers
+    actually in use so that regression fails here.
+    """
+    scripts = {r.script for r in extract_field_reads(command_body) if r.script}
+    undecidable = sorted(
+        s for s in scripts if derive_producer_schema(s).top_level_keys is None
+    )
+
+    assert undecidable == [], (
+        "Field checking silently stands down for these producers:\n"
+        + "\n".join(f"  {s}.py" for s in undecidable)
     )
 
 
