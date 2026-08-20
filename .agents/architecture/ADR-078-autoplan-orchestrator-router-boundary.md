@@ -33,9 +33,8 @@ Ground truth in the current tree:
   `handle it`, `figure this out`, and implicitly on any concrete request that
   names no skill.
 - `.claude/agents/orchestrator.md` (mirrored in `src/claude/orchestrator.md`)
-  is a coordinator-role agent (`model: opus`, `metadata.role: coordinator`). It
-  triages each request by complexity tier (Cynefin:
-  clear/complicated/complex/chaotic),
+  is a coordinator-role agent (`model: opus`, `metadata.role: coordinator`). It triages
+  each request by complexity tier (Cynefin: clear/complicated/complex/chaotic),
   scope, urgency, and reversibility, then routes to specialist agents, manages
   handoffs, and synthesizes findings. Its own description scopes it to
   "multi-step tasks requiring coordination... end-to-end resolution."
@@ -77,7 +76,7 @@ without deleting either surface.
   orchestrator agent) with independent, overlapping classification logic and no
   stated precedence.
 - **When introduced**: orchestrator predates autoplan and is the established
-  coordinator of the agent system. autoplan is newer
+  coordinating hub of the agent system. autoplan is newer
   (version 0.1.0), inspired by gstack `/autoplan`, and was refined in #2866
   ("recon target stack before routing in autoplan").
 - **Original author and context**: orchestrator is the canonical multi-agent
@@ -121,7 +120,7 @@ the same surface.
 |-------------|------|------|----------------|
 | A. Explicit layering: autoplan = front-door router, orchestrator = routed-to multi-agent coordinator (chosen) | Matches actual design; smallest change; keeps both entry ergonomics; removes ambiguity with one handoff clause | Two surfaces still exist, so contributors must learn the boundary; relies on docs being read | Chosen: lowest risk, no capability loss, honest to how the code already behaves |
 | B. Fold autoplan into orchestrator (single router) | One router, zero overlap | orchestrator's blocking session-start gate and opus tier are too heavy for trivial routing; loses implicit cheap entry; large blast radius across the shared agent source and every agent handoff | Rejected: makes the common lightweight path pay the multi-agent tax |
-| C. Fold orchestrator into autoplan | One entry point at the skill surface | A skill would own agent handoff and synthesis, which is a different kind of surface with a different lifecycle; loses the opus reasoning tier for complex work, and loses orchestrator's blocking session-start gate | Rejected: pushes agent-surface responsibility into a skill |
+| C. Fold orchestrator into autoplan | One entry point at skill tier | A skill would own agent-tier handoff and synthesis, breaking the skill/agent boundary; loses opus reasoning tier for complex work | Rejected: pushes agent-tier responsibility into a skill |
 | D. Keep both, document nothing | No work | The #2867 ambiguity persists; duplicated classification logic keeps drifting | Rejected: does not solve the reported problem |
 
 ### Trade-offs
@@ -204,13 +203,13 @@ responsibilities that do not fit it.
 
 ### Agent Name
 
-autoplan (skill-surface router) and orchestrator (coordinator-role agent)
+autoplan (skill-tier router) and orchestrator (coordinator-role agent)
 
 ### Overlap Analysis
 
 | Existing Agent | Capability Overlap | Overlap % | Differentiation |
 |----------------|-------------------|-----------|-----------------|
-| orchestrator vs autoplan | Both classify a request and select a downstream target | ~40% (classification and routing) | autoplan routes across the whole catalog from the skill surface and fires implicitly; orchestrator coordinates specialist agents end-to-end from the agent surface with a blocking session gate and synthesis |
+| orchestrator vs autoplan | Both classify a request and select a downstream target | ~40% (classification and routing) | autoplan routes across the whole catalog at skill tier and fires implicitly; orchestrator coordinates specialist agents end-to-end at the agent layer with a blocking session gate and synthesis |
 
 ### Entry Criteria
 
@@ -252,24 +251,25 @@ What changed, and it is not all one kind of edit:
    `metadata.tier: manager`. Its shipped frontmatter is `metadata.role:
    coordinator` (`.claude/agents/orchestrator.md`, `src/claude/orchestrator.md`).
    The old text named a field that no longer exists.
-2. **A rationale clause withdrawn, not renamed.** Option C was rejected on
-   three grounds, one of which was "breaking the manager-tier boundary". That
-   clause is **withdrawn**. It cannot be carried over as
-   "coordinator-role boundary", because `.agents/AGENT-SYSTEM.md` section 2.5
-   now states that `role` "grants and withholds nothing at runtime", and a
-   boundary that grants nothing cannot be broken. Renaming it would have
-   produced a clause that is false by the new section's own definition. The
-   rejection of option C now rests on its two surviving grounds, the
-   surface-kind difference and the loss of the opus reasoning tier, plus
-   orchestrator's blocking session-start gate. **Option C is still rejected**
-   and the vote is unchanged; it stands on two legs where it used to stand on
-   three.
+2. **A rationale clause re-grounded, not renamed.** Option C was rejected on
+   three grounds, one of which was "breaking the manager-tier boundary". A
+   straight rename to "coordinator-role boundary" was **rejected** as a fix,
+   because `.agents/AGENT-SYSTEM.md` section 2.5 now states that `role`
+   "grants and withholds nothing at runtime", and a boundary that grants
+   nothing cannot be broken; the rename would have produced a clause that is
+   false by the new section's own definition. The clause now reads "breaking
+   the skill/agent boundary", which names a distinction that does exist and
+   survives the tier deletion: a skill and an agent are different kinds of
+   surface with different lifecycles. **Option C is still rejected and the
+   vote is unchanged.**
 3. **Ordinary-word uses of "tier" were left alone**, because their meaning
-   survives the change: the Cynefin complexity tier, the opus reasoning tier
-   (ADR-080), and the skill-versus-agent surface distinction. Only uses that
-   named the deleted rank were touched.
+   survives the change: the Cynefin complexity tier, the skill-versus-agent
+   layering ("at skill tier"), the opus model tier, and "agent-tier handoff"
+   meaning the agent layer rather than an agent rank. Those are different
+   concepts sharing a word, and renaming them would be scope creep dressed as
+   consistency.
 
-Lines corrected: 36, 79, 110, 123, 206, 212. PR #5177's own disclosure listed
+Lines corrected: 36, 79, 123, 206, 212. PR #5177's own disclosure listed
 36, 79, 111, 123, and 206 and **missed 212**, which carried the identical
 defect; the omission was found by the `adr-review` analyst pass.
 

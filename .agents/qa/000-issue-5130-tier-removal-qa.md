@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-5174-b3bfa3aaa-remove-agent-tier-hierarchy-replace.json
-qaCommit: acf171eaad3f029d99b1f8687bfb916e267bf886
+qaCommit: 3ca163a90cd0dee956b48b06c83463ded4adf4e6
 ---
 
 # QA report: issue #5130, remove the agent tier hierarchy
@@ -71,7 +71,7 @@ pass and caught by the install-parity gate.
 
 ## Addendum: findings after the first QA pass
 
-Twenty-eight review findings landed after the original run. Each is covered:
+Twenty-nine review findings landed after the original run. Each is covered:
 
 | Finding | Source | Verification |
 |---|---|---|
@@ -99,13 +99,22 @@ Twenty-eight review findings landed after the original run. Each is covered:
 | Suffix signal sat behind a successful YAML parse, so a malformed agent in a new tree stayed invisible | Copilot | Suffix checked first, without parsing. Verified with a tracked `src/new-agents/foo.agent.md` carrying invalid frontmatter: invisible before, fails the converse guard now |
 | An *unterminated* frontmatter block returned None from both extractors, so the raw `tier:` sweep skipped the file entirely | spec validator | Sweep falls back to whole file text when the fence cannot be delimited. Zero hits across all 190 agent files, so no false positives. Verified with `.claude/agents/zz-evader.md` carrying an unclosed block and `tier: builder` |
 | `blocking` examined every voter, so a non-negotiable on the *winning* recommendation forced escalation, contradicting the docstring three lines above | Copilot | Narrowed to dissenters. Simulated both ways: architect=A/non-negotiable vs implementer=B escalated before, votes A now; a real dissenter still escalates |
+| ADR-078 described orchestrator as `metadata.tier: manager`, a field this PR deletes | Copilot (x2), spec validator | Owner chose correction here over a follow-up PR. Five phrases fixed against the shipped frontmatter; four other `tier` uses left alone as different concepts. No `adr-review` ran, and the debate log says so. Gate confirmed a string check by negative control: `ADR-ZZZ` fails, `ADR-078` passes |
 | PR body pinned a head SHA that went stale on every push, three revisions running | Copilot | Body no longer names a head. The head-bound record is `qaCommit` in this file, rebound per push; the body is narrative |
 | Migration test module hit 531 lines against the 500-line taste ceiling while the description claimed lint clean | Copilot | Split by concern into `agent_metadata_helpers.py` (245), `test_agent_tree_discovery.py` (136), and the migration module (210). taste-lints reports no violations on any of the three; 11 tests still pass |
 | `escalate_to_high_level_advisor` was called but never defined, and the next line indexed `positions[winner]` with a non-participant | Copilot | Escalation now appends an explicit result naming the arbiter and skips the winner branch. No undefined call, no bad lookup |
 | Serena memory gave 186 as the PR file total | Copilot | 186 is the agent metadata count; the PR changed 208 files. Both now labelled |
+| Body still carried two head-bound claims after declaring it no longer pins a head: "exit 0 on the current head" and "run to completion on the pushed head" | Copilot | Both narrowed to "the run for one push", pointing at `qaCommit` for the attested commit. The declaration and the prose now agree |
+| Correcting ADR-078 re-arms `adr-review`, which the body still described as moot | this session, on re-reading the body after the edit | Acceptance box moved from `[~]` to `[ ]` and the section retitled. The criterion is unmet and applicable, which is worse than moot and the honest state. Auto-merge will not wait for it; flagged to the maintainer rather than disabled here |
 
-Re-verified on this head: 11 migration guards, 44 bypass-checker tests, taste ratchet OK with slack,
-ruff and mypy clean on changed files.
+Re-verified on the attested commit: 11 migration guards, 44 bypass-checker tests, taste ratchet OK
+with slack, ruff and mypy clean on changed files. The scoped pre-push pytest gate ran to completion
+over all four partitions: 27493 + 24 + 46 + 30 passed, zero `FAILED` or `ERROR` lines, exit 0.
+
+`qaCommit` names the commit this report attests to. Commits after it, if any, are documentation-only
+edits to this file and the PR description; no code or agent metadata changed under them. That
+distinction is stated rather than implied, because a `qaCommit` that silently lags the head is the
+same stale-evidence defect the description stopped committing when it dropped its head SHA.
 
 Earlier, after merging `origin/main` at ba541c21f: 295 tests across seven suites,
 `generate_agent_catalog.py --check` OK, `validate_copilot_agent_frontmatter.py` PASS on 31 files,

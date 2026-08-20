@@ -85,11 +85,13 @@ after 20 commits are already on the branch.
 
 - Issue #5130, branch `claude/pr-5174-merge-review-gvrype`. 186 agent metadata
   files carried the key, of which 124 are hand-maintained copies the
-  atomic-commit gate counts. The PR as a whole changed 208 files across
-  73 commits once tooling, tests, and records were added; the migration
-  itself is the 186. Labelled explicitly because an earlier revision of this
-  memory gave 186 as the PR total, which understates what a bulk migration
-  actually costs to plan for. Refs #5177 review (Copilot).
+  atomic-commit gate counts. The PR as a whole had changed 208 files across
+  73 commits when this was written, and kept growing through review; the
+  migration itself is the fixed 186. Labelled explicitly because an earlier
+  revision of this memory gave 186 as the PR total, which understates what a
+  bulk migration actually costs to plan for. Take the 186 as the durable
+  number and the PR total as a snapshot: the ratio is the lesson, not the
+  second figure. Refs #5177 review (Copilot).
 - `grep -rc '^tier:'` returned 136; `grep -rc '^\s*tier:'` returned 186.
 - `uv run python scripts/validation/git_hook_policy.py atomic-commit` with 6
   staged Claude-side agents: fails. With 4: passes.

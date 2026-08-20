@@ -385,3 +385,57 @@ high-level-advisor on deadlock), and they disagree. Under `AGENTS.md`
 Boundaries, authoring a new ADR is `Ask First` regardless. **That decision is
 the maintainer's and is recorded here as open**, rather than resolved by
 whichever tie-breaker is quoted last.
+
+## ADR-078, corrected here: what changed, phrase by phrase
+
+Read this section as the detail of the edit. The review record is the debate
+section above; this one predates it and is kept for the before/after table,
+with its provenance paragraph corrected at the end.
+
+**What changed.** `ADR-078-autoplan-orchestrator-router-boundary.md` described
+orchestrator as `metadata.tier: manager` and reasoned about a "manager-tier"
+rank. This PR deletes that vocabulary, so the ADR was left describing a field
+that no longer exists. Five phrases were corrected:
+
+| Line | Before | After |
+|---|---|---|
+| 36 | `manager-tier agent (model: opus, metadata.tier: manager)` | `coordinator-role agent (model: opus, metadata.role: coordinator)` |
+| 79 | `manager-tier coordinator of the agent system` | `coordinating hub of the agent system` |
+| 123 | `breaking the manager-tier boundary` | `breaking the skill/agent boundary` |
+| 206 | `orchestrator (manager-tier agent)` | `orchestrator (coordinator-role agent)` |
+| 212 | `end-to-end at manager tier` | `end-to-end at the agent layer` |
+
+The replacement values were read from the shipped frontmatter rather than
+assumed: `.claude/agents/orchestrator.md` declares `metadata.role: coordinator`
+and `templates/agents/orchestrator.shared.md` declares `role: coordinator`.
+
+**What did not change.** The decision. ADR-078 chose explicit layering between
+autoplan as front-door router and orchestrator as the routed-to multi-agent
+coordinator, and that boundary is untouched by renaming the metadata field.
+Nothing in the Consequences, Options, or Decision sections was rewritten beyond
+the five phrases above.
+
+Four other uses of the word "tier" in that document were deliberately left
+alone, because they are different concepts that the tier-to-role migration does
+not touch: Cynefin complexity tiers (line 37), the skill-versus-agent layering
+(56, 94, 110, 130), the opus model tier (63, 122), and "agent-tier handoff"
+meaning the agent layer rather than an agent rank.
+
+**Review provenance, corrected 2026-08-20.** An earlier revision of this
+section said no `adr-review` debate ran for this edit. That was true when it was
+written and is no longer true. The six-agent debate ran later the same day, at
+the maintainer's direction, and the `architect` pass reviewed this ADR-078
+correction specifically as a proposed change, not merely the wider migration.
+Its finding is why the correction reads as it does: a straight rename of
+"manager-tier boundary" to "coordinator-role boundary" was rejected, because a
+role that grants nothing at runtime cannot be broken, so the clause was
+re-grounded on the skill/agent boundary instead. Votes and findings are in the
+section above.
+
+Two things that remain true and should not be read away. `check_adr_review_policy`
+requires only a staged file under `.agents/critique/` naming the ADR ID, and is a
+string-presence test that verifies nothing about whether a review occurred, so a
+green commit gate is never evidence of review. And the repository owner was asked
+and chose to have this correction made here rather than deferred to a follow-up
+PR; that call stands on its own merits, independently of the debate that
+subsequently ran.
