@@ -201,14 +201,6 @@ module = "semantic_hooks.*"
 disallow_any_generics = false
 
 [[tool.mypy.overrides]]
-# Pre-existing: mock.patch.object(csl.subprocess, ...) triggers spurious
-# "None not callable [misc]" when complete_session_log is type-checked
-# alongside the test file. The module name has no dotted prefix because
-# tests/skills/session-end/ is not a valid Python package (hyphenated).
-module = "test_rework_warning"
-disable_error_code = ["misc"]
-
-[[tool.mypy.overrides]]
 # Pre-existing type debt (arg-type at serena_integration.py:246,
 # return-value at :326) unrelated to the atomic-write hardening. The
 # scripts.memory_sync modules import this module, so a whole-file mypy
