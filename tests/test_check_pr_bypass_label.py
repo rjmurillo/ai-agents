@@ -197,8 +197,16 @@ def test_secondary_limit_gets_back_off_advice_not_a_reset_window(monkeypatch, st
     assert "denied by policy" not in status
 
 
-def test_primary_limit_keeps_the_reset_window_advice(monkeypatch):
-    """The converse: primary exhaustion does clear on the bucket reset."""
+def test_generic_rate_limit_body_does_not_claim_which_limiter(monkeypatch):
+    """A generic body cannot prove primary exhaustion, so the message must not say so.
+
+    An earlier revision of this file asserted the opposite: it required the
+    words "bucket resets" on this input. Copilot pointed out on PR #5177 that a
+    secondary limit can emit the same generic body while `x-ratelimit-remaining`
+    is still above zero, which is exactly what `classify_gh_failure_response`
+    uses headers to distinguish. This module has no headers, so it gives the
+    advice that holds under either limiter rather than guessing.
+    """
     monkeypatch.setattr(
         mod,
         "_run_gh_pr_view",
@@ -208,8 +216,10 @@ def test_primary_limit_keeps_the_reset_window_advice(monkeypatch):
     code, status = mod.check_bypass_label("commit-limit-bypass", None)
 
     assert code == mod.EXIT_EXTERNAL
-    assert "bucket resets" in status
-    assert "secondary" not in status
+    assert "primary or secondary" in status
+    assert "back off" in status
+    assert "bucket resets" not in status
+    assert "denied by policy" not in status
 
 
 def test_message_does_not_advertise_a_throwaway_branch(monkeypatch):

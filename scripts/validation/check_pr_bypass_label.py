@@ -257,7 +257,20 @@ def _describe_gh_failure(proc: subprocess.CompletedProcess[str]) -> str:
             "and back off for about a minute"
         )
     elif _PRIMARY_RATE_LIMIT_SIGNATURE.search(stderr):
-        reason = "gh exhausted its primary rate limit; this succeeds once the bucket resets"
+        # Deliberately does not claim which limiter. A secondary limit can emit
+        # this same generic body while `x-ratelimit-remaining` is still above
+        # zero, so the wording alone cannot tell them apart: only the failed
+        # response's headers can, which is what `classify_gh_failure_response`
+        # in scripts/github_core/api.py uses. This module does not have them.
+        # `gh api --include` would change the stdout the success path parses,
+        # and a second call to fetch headers would spend more of the budget
+        # this module exists to survive running out of (#4690). So the message
+        # gives the advice that is correct under either limiter and does not
+        # assert the one it cannot prove. Refs #5130 review (Copilot).
+        reason = (
+            "gh hit a rate limit, primary or secondary; the body alone cannot "
+            "tell which, so stop concurrent gh calls, back off, and retry"
+        )
     elif "not enabled for this session" in lowered or "403" in lowered:
         reason = "gh is denied by policy (HTTP 403); this will not pass on retry"
     elif "401" in lowered or ("invalid" in lowered and "token" in lowered):
