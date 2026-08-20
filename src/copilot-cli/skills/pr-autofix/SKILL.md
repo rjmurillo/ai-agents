@@ -433,7 +433,7 @@ TIER=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" 2>/dev
 # test_pr_merge_ready.py exits 1 for any not-merge-ready PR, so T2 through T4 are
 # legitimately non-zero.
 case "$TIER" in
-    T1|T2|T3|T4|T5) ;;
+    T1|T2|T3|T4|T5|BEHIND|BLOCKED|DIRTY|SKIP) ;;
     *)
         echo "Cannot determine tier for #$PR (tier producer failed or emitted no tier); skipping."
         cleanup_pr_autofix
