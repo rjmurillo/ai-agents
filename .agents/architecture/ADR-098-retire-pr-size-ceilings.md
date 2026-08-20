@@ -23,11 +23,11 @@ Proposed
 
 Two gates cap pull request size in this repository.
 
-`scripts/validation/git_hook_policy.py` caps authored files per commit at five, with no bypass of any kind. The commit ceiling is enforced in two places: `_check_commit_limit` in the same file blocks the push, and in CI `scripts/validation/pr_commit_count.py` classifies a pull request at 10 (warning), 15 (alert), and above its effective limit (blocked) while `scripts/ci/enforce_pr_validation.py:64-84` turns that classification into the failure. Relief at the blocking tier runs through a `commit-limit-bypass` label a human applies.
+`scripts/validation/git_hook_policy.py` caps authored files per commit at five, with no bypass of any kind. The commit ceiling is enforced in two places: `_check_commit_limit` in the same file blocks the push, and in CI `scripts/validation/pr_commit_count.py` classifies a pull request at 10 (warning), 15 (alert), and above its effective limit (blocked) while `scripts/ci/enforce_pr_validation.py:64-84` turns that classification into the failure. Relief at the blocking tier runs through a `commit-limit-bypass` label. State the normative reservation and the actual permission separately, because they differ and the difference is a finding below: CONTRIBUTING.md:880 reserves the label to a human maintainer, and nothing enforces that, because a GitHub label is applicable by any account with write access.
 
 Three details of the commit ceiling matter and an earlier draft of this decision got all three wrong. The CI path counts **authored non-merge** commits, not the total GitHub displays (`pr_commit_count.py:110`; the raw total is kept for audit only). The ceiling is **relieved to 40** for a branch carrying a qualifying merge from `main` (`:65`, `:71`, issue #3596). So the CI contract is 20 authored commits, or 40 after a base merge, not an unconditional block at 20. And the local pre-push path does not share that arithmetic: `_check_commit_limit` counts `git rev-list --count` over the push range, which **includes merge commits**, and carries two further reliefs the CI path has no equivalent of, one for commits already carried by another pushed branch and one allowing small pushes on a branch already labeled `needs-split`. Two gates, two counting rules, two relief sets, one name.
 
-Measured at 2026-08-20T18:00Z over the preceding 14 days: 292 pull requests opened, 104 of them (36%) carrying `needs-split`, and 20 carrying the nominally human-only bypass label. Queries: `created:2026-08-06..2026-08-20` alone, then with `label:"needs-split"`, then with `label:"commit-limit-bypass"`.
+Measured at a 2026-08-20T18:00Z cutoff over the date-bounded window 2026-08-06 to 2026-08-20: 292 pull requests opened, 104 of them (36%) carrying `needs-split`, and 20 carrying the nominally human-only bypass label. Queries: `created:2026-08-06..2026-08-20` alone, then with `label:"needs-split"`, then with `label:"commit-limit-bypass"`. Described as a date-bounded window rather than "the preceding 14 days", which an earlier revision called it: `created:` is date-granular and includes all of August 6, so the span is 14 days and 18 hours against an 18:00Z cutoff. The three headline counts are the query's, not a re-derivation at exact timestamp boundaries.
 
 That cutoff is load-bearing because the closing day was still in progress. A reviewer re-running the same date-bounded queries later in the day saw 296, 105, and 21. Read every count in this decision against the stated cutoff rather than as a standing figure; the argument does not turn on the difference, but the numbers are a snapshot and should be cited as one.
 
@@ -196,7 +196,7 @@ If commit thrash later needs a control, it is a token-budget question, not a cor
 
 ### What currently exists
 
-- **Structure being changed**: a five-file per-commit cap and a 20-commit per-pull-request ceiling, both enforced through lefthook, with a human-applied label as the only relief.
+- **Structure being changed**: a five-file per-commit cap enforced through lefthook, and a 20-commit per-pull-request ceiling enforced in two places, the pre-push hook and CI, with a `commit-limit-bypass` label as the only relief at the blocking tier. CONTRIBUTING.md reserves that label to a human maintainer; nothing enforces the reservation.
 - **When introduced**: traced to the PR #908 retrospective of 2026-01 and issue #934, recorded at `.agents/governance/PROJECT-CONSTRAINTS.md:125`.
 - **Original context**: one 59-commit pull request that made review slow and merge risky.
 
