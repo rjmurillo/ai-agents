@@ -453,3 +453,103 @@ green commit gate is never evidence of review. And the repository owner was aske
 and chose to have this correction made here rather than deferred to a follow-up
 PR; that call stands on its own merits, independently of the debate that
 subsequently ran.
+
+## The `adr-review` debate on ADR-098, 2026-08-20
+
+The first debate's `architect` pass blocked on a P0: no ADR recorded this
+decision. The maintainer directed that one be written.
+`.agents/architecture/ADR-098-agent-role-metadata-replaces-tier-hierarchy.md`
+is that record, and editing an ADR fires `adr-review` under `AGENTS.md:44`, so
+the six roles ran again against ADR-098 itself.
+
+**4 BLOCK-or-conditional, 2 clean: `ACCEPT` from security, `ACCEPT` (conditional)
+from high-level-advisor, `DISAGREE-AND-COMMIT` from analyst, `BLOCK` from
+architect, critic, and independent-thinker.**
+
+### Phase 1: votes
+
+| Agent | Vote | Driving finding |
+|-------|------|-----------------|
+| architect | **BLOCK** | The original P0 is discharged ("Yes"), but three statements in ADR-098 were false against the tree. An ADR that retires a document for being false cannot ship false claims. |
+| critic | **BLOCK** | Same Context paragraph, measured three ways wrong, plus an Implementation Notes section about to become false on its own merge commit. |
+| independent-thinker | **BLOCK on the record, not the decision** | "The decision survives every attack I mounted and is better supported than the ADR argues." Five spans wrong, including the exemption set understated 14x. |
+| analyst | DISAGREE-AND-COMMIT | Every mechanical claim (149 lines, 186 files, four `_KNOWN_ROLES`, 17 templates, 20.7%) reproduces; Context claim 6 does not. |
+| security | ACCEPT | No P0. `role` confers no runtime authority anywhere traceable, and both fallback paths degrade to `support`, the least-authority value. |
+| high-level-advisor | ACCEPT (conditional) | "Architect was right. I was wrong on the ranking." |
+
+### The finding all three blocks converged on
+
+One paragraph, wrong three ways, and it was the evidence base for the ADR's
+third force. Measured independently by architect, critic, analyst, and
+independent-thinker, then re-measured before correcting:
+
+| Claim as written | Measured |
+|---|---|
+| "the nine agents it ranked" | The table ranked **24** agents. Nine is the Expert plus Manager count, the agents *granted delegation authority*, which the ADR failed to say. |
+| "Six of the nine ... carry an explicit 'As a subagent, you CANNOT delegate' line" | **Seven** of the nine. And `templates/agents/roadmap.shared.md:161` reads "You cannot delegate.", so the quoted uppercase string covers 9 of 17 templates, not all of them. |
+| "`orchestrator` is the only agent of the nine with no such line, and it is the only one that actually delegates" | **Two** lack it: `orchestrator` and `pr-comment-responder`. The second delegates in its own body, and `templates/agents/pr-comment-responder.shared.md:217` documents delegating directly to `implementer` **bypassing orchestrator**, which is the one delegation-topology fact the retired section was the only document to carry. |
+
+The corrected number argues *for* the decision more strongly than the wrong one
+did. That is the uncomfortable part and the reason it is recorded rather than
+quietly fixed: the error ran in the self-flattering direction in a document
+whose whole thesis is that unchecked claims drift.
+
+### What independent-thinker found that strengthens the decision
+
+Sent to attack its own prior reasoning, it went looking for the charitable
+reading (that the hierarchy was aspirational documentation for a system never
+finished) and killed it with one commit inspection. At `525490fae`, the commit
+that introduced the hierarchy, `src/claude/architect.md` carried `tier: expert`
+at frontmatter line 5 and "**As a subagent, you CANNOT delegate**" at line 486.
+Same file, same commit, and `test_tier_compatibility.py`'s own `AGENT_TIERS`
+listed `"architect": "expert"` the day it shipped. The hierarchy did not precede
+the contradiction and wait to be reconciled; it was authored on top of one. That
+evidence is now in ADR-098's Context and appears in no earlier artifact.
+
+### Phase 3: resolution
+
+Every finding below was re-verified before acting. Corrections landed in ADR-098:
+
+| Finding | Priority | Raised by | Resolution |
+|---|---|---|---|
+| Context paragraph wrong three ways | P0 | architect, critic, independent-thinker, analyst | Rewritten to 24 ranked / 9 empowered / 7 denying / 2 exempt, naming `pr-comment-responder` and its orchestrator bypass |
+| Implementation Notes listed three open gaps, two already closed | P0 | architect, critic, security, independent-thinker | Gaps 1 and 2 moved to Consequences/Positive citing the tests that closed them; only the malformed-frontmatter gap remains open |
+| The "load-bearing" mitigation sentence was pinned by nothing | P0 (hla), P1 (architect), P2 (security) | three passes | `test_the_role_inertness_sentence_survives_in_agent_system` added. Negative control: replacing the sentence fails it, restoring passes |
+| Exemption set understated 14x | P1 | independent-thinker, security, architect | Negative section now names all 14 templates carrying no delegation statement, and identifies the tool grant as the real enforcement surface |
+| "grants nothing at runtime" asserted globally from local evidence | P1 | security | Scoped to this repository, with the OpenClaw export boundary called out and added to Re-evaluation Triggers |
+| 50-agent mis-export conflated exposure with shipped impact | P1 | critic | 50 files carried the latent bug; a default export emits 25. Both numbers now stated and kept apart |
+| "repository-wide sweep" and "enforced in three consumers" overstated reach | P1 | critic, independent-thinker | Both scoped: the sweep covers six trees, and two of the three consumers scan one tree each by default |
+| Opening sentence quoted with a silent truncation | P2 | critic, analyst | Quoted in full, with its actual position under `### Overview` |
+| "cannot leave a stale mirror" broader than the parametrization | P2 | critic | Narrowed to what the guard actually asserts |
+| #1769 circularity disclosed in the log but not the ADR | P2 | critic | Caveat carried into the ADR's References |
+| No re-evaluation triggers | P2 | architect, critic | Four added, including the Standing Dissent's own trigger |
+| Standing Dissent not verbatim; omitted which sentence it depends on | P2 | architect | Clause restored, with a note on why naming it matters |
+| `decision-makers: []`, `implemented: false` against "Shipped in PR #5177" | P2 | architect, hla, critic | `[rjmurillo]` and `implemented: true`, matching ADR-093's shape |
+| Pointer-only section 2.5 never evaluated | P2 | independent-thinker | Recorded under Trade-offs as a doc-treatment choice, rejected on the evidence that `SESSION-PROTOCOL.md` was such a pointer and had already eroded into a summary |
+| Re-derivation risk stated three times | P2 | high-level-advisor | Collapsed to Standing Dissent, which the protocol requires |
+
+### One correction to the reviewers
+
+Two passes reported the `if front is None:` branch in the migration module as
+dead code with a docstring claiming coverage it did not have. The implementer
+found that wrong: the branch **is** reachable, because
+`build/scripts/validate_agent_matrix_refs.py` reads with `utf-8-sig` while the
+test helper reads with `utf-8`, so a byte-order mark makes one accept and the
+other reject. Proven by prepending a BOM to `.claude/agents/janitor.md`. The
+branch was kept and its message reworded to name the real cause. Deleting it, as
+two reviewers implied, would have made that parser disagreement unreportable.
+
+### Phase 4: convergence
+
+architect's clearing condition was three edits, all made. critic's was the
+Context paragraph plus the Implementation Notes state, both made.
+independent-thinker's was five spans plus the pointer alternative plus a plan
+for the unowned delegation constraint, all made. **As with the first debate,
+this is met by construction and not by a re-vote: no reviewer was re-run against
+the corrected ADR.** Whoever merges should know the difference between a
+condition satisfied and a condition re-verified by the agent that set it.
+
+What remains open and is not a defect of this ADR: the delegation constraint has
+no normative owner and 14 of 31 templates carry no statement of it. The ADR does
+not create that hole, it stops describing it falsely. Tracked with a named
+acceptance criterion rather than parked in a Consequences list.
