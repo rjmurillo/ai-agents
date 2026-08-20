@@ -62,7 +62,8 @@
       "caused_by": [
         "e023",
         "e027",
-        "e030"
+        "e030",
+        "e033"
       ],
       "leads_to": [
         "e006"
@@ -348,6 +349,39 @@
       "caused_by": [
         "e028"
       ],
+      "leads_to": [
+        "e034"
+      ],
+      "_source_session": "2026-08-20-session-99923-bbadd3bf9-implement-premise-verification-fix-issue"
+    },
+    {
+      "id": "e032",
+      "timestamp": "2026-08-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "First force-push attempt (of the 6-commit squash ending at 0fe8e236c) ran the full ~16-minute pre-push hook chain successfully, then git rejected the actual ref update as \"stale info\": while the hook was running, origin/main advanced again with PR #5179 (ba541c21f, removing the session/session-init/session-end/session-log-fixer skills and SESSION-PROTOCOL.md), and an automated process merged it into this branch on the remote (f46c3b5aa). --force-with-lease did exactly its job: refused to overwrite a remote that had moved past what was last fetched, rather than silently discarding f46c3b5aa/ba541c21f. Confirmed no file overlap between #5179's 227 changed files and this branch's 24 (comm -12 on sorted file lists), then merged the new origin/main into the local squashed branch (10d9af4a5, clean merge, git diff --check empty), re-ran the full suite (457 passed, unchanged), and rebound the QA report and this log's endingCommit to 10d9af4a5.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-20-session-99923-bbadd3bf9-implement-premise-verification-fix-issue"
+    },
+    {
+      "id": "e033",
+      "timestamp": "2026-08-20T00:00:00+00:00",
+      "type": "test",
+      "content": "First force-push attempt (of the 6-commit squash ending at 0fe8e236c) ran the full ~16-minute pre-push hook chain successfully, then git rejected the actual ref update as \"stale info\": while the hook was running, origin/main advanced again with PR #5179 (ba541c21f, removing the session/session-init/session-end/session-log-fixer skills and SESSION-PROTOCOL.md), and an automated process merged it into this branch on the remote (f46c3b5aa). --force-with-lease did exactly its job: refused to overwrite a remote that had moved past what was last fetched, rather than silently discarding f46c3b5aa/ba541c21f. Confirmed no file overlap between #5179's 227 changed files and this branch's 24 (comm -12 on sorted file lists), then merged the new origin/main into the local squashed branch (10d9af4a5, clean merge, git diff --check empty), re-ran the full suite (457 passed, unchanged), and rebound the QA report and this log's endingCommit to 10d9af4a5.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-20-session-99923-bbadd3bf9-implement-premise-verification-fix-issue"
+    },
+    {
+      "id": "e034",
+      "timestamp": "2026-08-20T18:24:46+00:00",
+      "type": "commit",
+      "content": "Commit: 10d9af4a5e1c4891e10a794de2c62ae155ee3f56",
+      "caused_by": [
+        "e031"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-20-session-99923-bbadd3bf9-implement-premise-verification-fix-issue"
     }
@@ -357,8 +391,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 12,
-    "files_changed": 23
+    "commits": 13,
+    "files_changed": 26
   },
   "lessons": []
 }
