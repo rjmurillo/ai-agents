@@ -34,6 +34,40 @@ The ratchet measured the tree at 0 and demanded the baseline be recorded, which
 is the action taken. The ratchet scans git-tracked `*.py`, `*.pyi`, `*.ipynb`,
 so its 0 and `ruff check .`'s 0 agree on the same corpus.
 
+### The guard is enforcement, not documentation
+
+After lowering the baseline to 0, the gate was proved by injecting a violation
+rather than by inspection:
+
+```text
+$ printf '# %s\n' "$(python3 -c "print('x'*120)")" >> scripts/validate_pr_review_config.py
+$ uv run ruff check scripts/validate_pr_review_config.py --output-format=concise
+scripts/validate_pr_review_config.py:418:101: E501 Line too long (122 > 100)
+
+$ uv run --frozen --extra dev python scripts/ci/ruff_count_ratchet.py
+ruff count ratchet: REGRESSION. 1 violations > baseline 0 (+1). New ruff
+violations cannot merge; fix them or, if they are unavoidable, coordinate a
+baseline change (issue #2993).
+RATCHET_EXIT=1
+
+$ git checkout -- scripts/validate_pr_review_config.py
+$ uv run --frozen --extra dev python scripts/ci/ruff_count_ratchet.py
+ruff count ratchet: OK (count == baseline 0).
+RATCHET_EXIT=0
+```
+
+The control run after restoring the file is what makes the exit 1 attributable
+to the injected line rather than to anything else in the tree.
+
+The first attempt at this probe was non-discriminating and is recorded because
+it is the trap worth naming: the violation was injected into
+`docs/eval/scripts/analyze.py`, and `pyproject.toml` waives E501 for
+`docs/eval/scripts/**/*.py`, so ruff emitted nothing and the ratchet reported OK
+with the line present. A probe whose target rule is waived on the target path
+measures nothing while looking exactly like a passing probe
+(`.claude/rules/testing.md` SHOULD-17). Choose an injection site where the rule
+is actually enabled.
+
 ### Tests
 
 ```text
