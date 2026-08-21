@@ -14,7 +14,9 @@ mirrored byte-identical to `src/copilot-cli/lib/qa_report.py`, and
 `scripts/validate_session_json.py` (`validate_qa_report_evidence()` surfaces
 the diagnostic into `result.warnings`). Test change:
 `tests/test_validate_session_json.py` (`test_rejects_qa_commit_disagreement`
-replaced, five new unit cases, one wiring test). Unrelated red-CI fixes
+replaced, five new unit cases, two wiring tests: the disagreement-warns
+wiring test and the fallback-head-path test added per Implementation Note 8,
+see below). Unrelated red-CI fixes
 carried on the same branch: `tests/ci/test_validate_vendor_provenance.py`
 (stale setup-uv SHA pin) and `.github/workflows/pytest.yml` (pip pin moved
 past PYSEC-2026-3721). Everything else on this branch is ADR-099 and its
@@ -24,7 +26,7 @@ debate log, both documentation.
 
 | Command | Result |
 |---|---|
-| `uv run pytest tests/test_validate_session_json.py -q` | 379 passed |
+| `uv run pytest tests/test_validate_session_json.py -q` | 380 passed |
 | `uv run pytest tests/test_validate_session_json.py -k "qa_report or qa or session_json or session_log" -q` | 565 passed |
 | `uv run ruff check .claude/lib/qa_report.py scripts/validate_session_json.py tests/test_validate_session_json.py` | clean |
 | `diff -q .claude/lib/qa_report.py src/copilot-cli/lib/qa_report.py` | identical |
@@ -106,6 +108,21 @@ merged to main; the pin value itself (`26.2`) was identical on both sides, so
 no code changed. `uv run pytest tests/test_validate_session_json.py -q`
 re-run clean at 379 passed again on `06fa514b5`, and
 `merge_tree_ratchet_check.py --base-ref origin/main` reported OK.
+
+## Fallback-Head-Path Test (Implementation Note 8)
+
+`ai-spec-validation`'s Implementation Completeness pass correctly flagged one
+gap: ADR-099 Implementation Note 8 asked for a test pinning the
+fallback-head-path exposure named under "The laxer direction is bounded, not
+impossible", and no such test existed. Added
+`test_fallback_head_masks_a_real_change_between_the_two_fields`: with
+`validation_head=None`, `comparison.head` older than `endingCommit`, and
+`report.commit` a genuine ancestor of `comparison.head`, the test asserts
+both that the report still passes and that the two `git` commands
+`post_qa_code_changes()` issues never name `endingCommit`, pinning the gap
+described in the ADR rather than leaving it asserted only in prose.
+`uv run pytest tests/test_validate_session_json.py -q` re-run clean at 380
+passed (the new test plus all 379 prior).
 
 ## Verdict
 

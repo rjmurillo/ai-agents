@@ -1530,6 +1530,70 @@ class TestValidateQaReportEvidence:
         else:
             assert result.warnings == []
 
+    def test_fallback_head_masks_a_real_change_between_the_two_fields(
+        self, tmp_path: Path
+    ) -> None:
+        # ADR-099 Implementation Note 8. Pins the laxer-direction exposure
+        # named in "The laxer direction is bounded, not impossible": when
+        # live-HEAD resolution fails (validation_head=None, simulating that
+        # failure) and the two commit fields disagree with comparison.head
+        # older, the fallback binds staleness checking to comparison.head
+        # (precedence always picks it), never to the newer endingCommit. A
+        # real code change landing between those two fields is therefore
+        # unreported. This asserts both halves: the report still passes
+        # (result.errors == []) and the git ancestry query never mentions
+        # endingCommit at all, so the gap is pinned rather than assumed.
+        older_head = "a" * 40  # comparison.head; wins precedence
+        newer_ending = "b" * 40  # endingCommit; never queried
+        qa_commit = "c" * 40  # a genuine ancestor of older_head
+        qa_root = tmp_path / "qa"
+        qa_root.mkdir()
+        report = qa_root / "report.md"
+        self._write_report(report, commit=qa_commit)
+        data = {
+            "episodeMetrics": {"comparison": {"head": older_head}},
+            "endingCommit": newer_ending,
+        }
+        result = ValidationResult()
+        completed = [
+            subprocess.CompletedProcess([], 0, "", ""),
+            subprocess.CompletedProcess([], 0, "", ""),
+        ]
+
+        with (
+            mock.patch(
+                "scripts.validate_session_json.artifact_dir",
+                return_value=qa_root,
+            ),
+            mock.patch.object(
+                _qa_report.subprocess, "run", side_effect=completed
+            ) as run,
+        ):
+            validate_qa_report_evidence(
+                data,
+                self._session_end(str(report)),
+                result,
+                session_log=self.SESSION_LOG,
+                validation_head=None,
+            )
+
+        assert result.errors == []
+        called_commands = [call.args[0] for call in run.call_args_list]
+        assert called_commands == [
+            ["git", "merge-base", "--is-ancestor", qa_commit, older_head],
+            [
+                "git",
+                "log",
+                "--format=",
+                "--name-only",
+                "--no-renames",
+                "-m",
+                "-z",
+                f"{qa_commit}..{older_head}",
+            ],
+        ]
+        assert not any(newer_ending in command for command in called_commands)
+
     def test_missing_report_fails_closed(self, tmp_path: Path) -> None:
         qa_root = tmp_path / "qa"
         qa_root.mkdir()
