@@ -165,7 +165,7 @@ This decision aligns with:
 - [Issue #357](https://github.com/rjmurillo/ai-agents/issues/357) - Motivating bug report
 - [Issue #77](https://github.com/rjmurillo/ai-agents/issues/77) - Known blocker: QA agent cannot run Pester tests
 - [PR #465](https://github.com/rjmurillo/ai-agents/pull/465) - Complementary matrix aggregation fix
-- [PRD-quality-gate-prompt-refinement](/.agents/archive/planning/PRD-quality-gate-prompt-refinement.md) - Implementation PRD
-- [ADR-010](/.agents/architecture/ADR-010-quality-gates-evaluator-optimizer.md) - Quality gate patterns
+- [PRD-quality-gate-prompt-refinement](../archive/planning/PRD-quality-gate-prompt-refinement.md) - Implementation PRD
+- [ADR-010](./ADR-010-quality-gates-evaluator-optimizer.md) - Quality gate patterns
 - [Pester Documentation](https://pester.dev/) - Test framework
-- [Debate Log](/.agents/critique/ADR-023-debate-log.md) - Multi-agent review record
+- [Debate Log](../critique/ADR-023-debate-log.md) - Multi-agent review record
