@@ -395,7 +395,8 @@
         "e029",
         "e030",
         "e033",
-        "e034"
+        "e034",
+        "e036"
       ],
       "leads_to": [
         "e032"
@@ -445,6 +446,30 @@
       "caused_by": [
         "e032"
       ],
+      "leads_to": [
+        "e037"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e036",
+      "timestamp": "2026-08-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Cleared a fourteen-thread review round, several of which corrected the author rather than the text",
+      "caused_by": [],
+      "leads_to": [
+        "e031"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e037",
+      "timestamp": "2026-08-21T01:22:17+00:00",
+      "type": "commit",
+      "content": "Commit: 945edfa030559e7ce28315ff39c891ed2df2696d",
+      "caused_by": [
+        "e035"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     }
@@ -454,7 +479,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 25,
+    "commits": 26,
     "files_changed": 10
   },
   "lessons": []
