@@ -1953,6 +1953,57 @@ def test_branch_context_survives_a_committed_merge_import(tmp_path: Path) -> Non
     assert policy.check_branch_context(repo) == 0
 
 
+def _add_origin_main_without_head_with(repo: Path, tracked: Path) -> None:
+    """Give ``repo`` an ``origin/main`` with no resolvable ``origin/HEAD``.
+
+    Reproduces the common no-``origin/HEAD`` clone shape from issue #5220: a
+    fetch of ``main`` into an already-initialised repo populates
+    ``refs/remotes/origin/main`` without ever creating the symbolic
+    ``refs/remotes/origin/HEAD`` ref, which only ``git clone`` sets up
+    automatically. ``git remote add`` plus ``git fetch`` alone, the shape a
+    fetch-into-existing-repo or some CI checkout actions produce, does not.
+    """
+    relative = tracked.relative_to(repo).as_posix()
+    _git(repo, "add", "--", relative)
+    _git(repo, "commit", "-qm", "test: land session log upstream")
+    remote = repo.parent / "remote.git"
+    _git(repo, "clone", "-q", "--bare", str(repo), str(remote))
+    _git(repo, "remote", "add", "origin", str(remote))
+    default = _git(repo, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+    _git(repo, "--git-dir", str(remote), "branch", "-f", "main", default)
+    _git(repo, "fetch", "-q", "origin", "main")
+
+
+def test_branch_context_merged_history_survives_missing_origin_head(
+    tmp_path: Path,
+) -> None:
+    """A missing ``origin/HEAD`` must not defeat the #3343 exemption (issue #5220).
+
+    ``git clone`` sets ``origin/HEAD``; a fetch into an existing repo, a
+    shallow or filtered clone, and several CI checkout actions do not. Before
+    the fix, ``_is_merged_history`` asked only ``origin/HEAD`` and returned
+    False the moment that ref failed to resolve, wedging every commit on a
+    branch that had merged main and owned its own log. The fallback ladder in
+    ``_merged_history_upstream`` must recover via ``origin/main`` here.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    imported = _write_session_log(
+        repo, branch="feature/merged", name="session-merged", mtime=2_000_000_000.0
+    )
+    _add_origin_main_without_head_with(repo, imported)
+    os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
+    _write_session_log(repo, branch="feature/x", name="session-own", mtime=1_000_000_000.0)
+
+    # Negative control: origin/HEAD really is absent in this fixture, so the
+    # assertion below cannot pass just because the fixture set it up anyway.
+    head = _git(repo, "rev-parse", "--abbrev-ref", "origin/HEAD", check=False)
+    assert head.returncode != 0
+
+    assert policy.check_branch_context(repo) == 0
+
+
 def test_branch_context_blocks_a_newer_log_that_is_not_upstream(tmp_path: Path) -> None:
     """The issue #682 case must survive the #3343 fix.
 

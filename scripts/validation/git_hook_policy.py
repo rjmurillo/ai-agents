@@ -1059,6 +1059,35 @@ def _session_log_for_branch(sessions_dir: Path, branch: str) -> Path | None:
     return None
 
 
+def _merged_history_upstream(repo_root: Path) -> str | None:
+    """Return the best available name for the upstream default branch.
+
+    ``origin/HEAD`` is the precise answer when it resolves, but only
+    ``git clone`` sets it: a fetch into an already-cloned repo, a shallow or
+    filtered clone, and several CI checkout actions leave it absent, which is
+    exactly the shape a fresh remote-execution container has (issue #5220).
+    Falling back to ``origin/main`` and then local ``main`` mirrors the ladder
+    ``resolve_push_update`` already uses for push-base resolution
+    (``git_hook_policy.py``, the ``base = _merge_base(repo_root, "origin/main",
+    ...)`` / ``_merge_base(repo_root, "main", ...)`` pair): a repo without
+    ``origin/HEAD`` still has a trunk, and refusing to look at it turns a
+    missing convenience ref into a hard block on every subsequent commit.
+
+    Returns ``None`` when no candidate resolves, which keeps
+    ``_is_merged_history`` failing closed for a repo that genuinely cannot
+    name its trunk (no remote, fully isolated clone).
+    """
+    head = _run_git(repo_root, ["rev-parse", "--abbrev-ref", "origin/HEAD"])
+    if head.returncode == 0:
+        candidate = head.stdout.strip()
+        if candidate:
+            return candidate
+    for candidate in ("origin/main", "main"):
+        if _commit_ref_exists(repo_root, candidate):
+            return candidate
+    return None
+
+
 def _is_merged_history(repo_root: Path, path: Path) -> bool:
     """Return True when ``path`` already exists on the upstream default branch.
 
@@ -1074,8 +1103,9 @@ def _is_merged_history(repo_root: Path, path: Path) -> bool:
     the co-mingling case from issue #682 keeps its teeth.
 
     Fails closed on every indeterminate answer it can observe: a path outside
-    the repo, no resolvable ``origin/HEAD``, or a failed probe all return False
-    and the mismatch still blocks.
+    the repo, no resolvable upstream candidate (``_merged_history_upstream``
+    returns ``None``), or a failed probe all return False and the mismatch
+    still blocks.
 
     It cannot fail closed on git being unavailable, and does not claim to.
     ``_run_command`` catches only ``TimeoutExpired``, so a missing git binary
@@ -1090,8 +1120,7 @@ def _is_merged_history(repo_root: Path, path: Path) -> bool:
         relative = path.relative_to(repo_root).as_posix()
     except ValueError:
         return False
-    head = _run_git(repo_root, ["rev-parse", "--abbrev-ref", "origin/HEAD"])
-    upstream = head.stdout.strip() if head.returncode == 0 else ""
+    upstream = _merged_history_upstream(repo_root)
     if not upstream:
         return False
     probe = _run_git(repo_root, ["cat-file", "-e", f"{upstream}:{relative}"])
