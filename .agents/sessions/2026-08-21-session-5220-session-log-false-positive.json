@@ -32,7 +32,7 @@
       "usageMandatoryRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Followed skill-first routing per .claude/rules; no skill covered this task's git-hook-policy code fix, so worked directly per AGENTS.md Autonomy Guardrail (internal, reversible: act)"
+        "Evidence": "The security-critical file (scripts/validation/git_hook_policy.py) was already identified by the pre-commit hook's own detection, and .claude/skills/security-detection/SKILL.md itself directs skipping its detection utility and using the security agent directly when review is already known to be needed; did that (Task(subagent_type=\"security\")) rather than invoking the detection skill redundantly"
       },
       "constraintsRead": {
         "level": "MUST",
