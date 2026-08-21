@@ -235,7 +235,7 @@
       "outcome": "Took origin/main's version of scripts/validation/git_hook_policy.py and tests/test_lefthook_integration.py entirely (git checkout --theirs); post-merge diff against origin/main for both files is empty, confirming no remaining behavioral divergence; branch-context test slice (23 tests) re-verified passing"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "3781e3b5658d19c9128a3e4728d27cc62743f8cb",
   "nextSteps": [
     "None. PR #5226 closed unmerged (superseded by 746e2c36a / PR #5229) and issue #5220 closed as completed. This branch carries no further pending work; the session log is kept as historical record per .claude/rules/session-logs.md, which now discontinues creating new ones but keeps logs already on a branch."
   ]

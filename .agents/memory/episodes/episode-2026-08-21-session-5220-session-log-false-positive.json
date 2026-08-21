@@ -386,6 +386,19 @@
       "caused_by": [
         "e031"
       ],
+      "leads_to": [
+        "e040"
+      ],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e040",
+      "timestamp": "2026-08-21T20:51:39+00:00",
+      "type": "commit",
+      "content": "Commit: 3781e3b5658d19c9128a3e4728d27cc62743f8cb",
+      "caused_by": [
+        "e039"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-5220-session-log-false-positive"
     }
@@ -395,8 +408,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
-    "files_changed": 3
+    "commits": 8,
+    "files_changed": 5
   },
   "lessons": []
 }

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5220-session-log-false-positive.json
-qaCommit: b3c0d7f12c6f770807e2f535ecafc5d5d87707a5
+qaCommit: 3781e3b5658d19c9128a3e4728d27cc62743f8cb
 ---
 
 # QA Report: Issue #5220, check_branch_context hard-blocks after a merge when origin/HEAD is unset
