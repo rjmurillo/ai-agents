@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding.json
-qaCommit: c7298e571d0449d73f6edd9ee04e2b1023e859ed
+qaCommit: bd36dcf779365bd0ac9eac93be7b272d596e9be2
 ---
 
 # ADR-099 Session QA
@@ -26,8 +26,8 @@ debate log, both documentation.
 
 | Command | Result |
 |---|---|
-| `uv run pytest tests/test_validate_session_json.py -q` | 381 passed |
-| `uv run pytest -k "qa_report or qa or session_json or session_log" -q` | 567 passed, 27354 deselected |
+| `uv run pytest tests/test_validate_session_json.py -q` | 382 passed |
+| `uv run pytest -k "qa_report or qa or session_json or session_log" -q` | 568 passed, 27354 deselected |
 | `uv run ruff check .claude/lib/qa_report.py scripts/validate_session_json.py tests/test_validate_session_json.py` | clean |
 | `diff -q .claude/lib/qa_report.py src/copilot-cli/lib/qa_report.py` | identical |
 
@@ -257,6 +257,35 @@ requirement did not apply.
 
 `qaCommit` moves from `d4b017fb1` to `c7298e571`, the commit carrying the
 debate-log fix; `post_qa_code_changes('c7298e571d0449d73f6edd9ee04e2b1023e859ed', 'HEAD', ...)`
+confirmed empty against the two session-log-only follow-up commits made
+after it.
+
+## Post-Review Rebind: A Third Copilot Round
+
+A third automated Copilot review pass found two items. One confirmed
+real: the parametrized disagreement-warning wiring test only exercised a
+passing report, so a regression moving the warning append after
+`validate_qa_report()` would silently drop the warning on any validation
+failure with every existing test staying green. Fixed by adding
+`test_disagreement_warning_survives_a_subsequent_validation_failure`,
+verified via discrimination probe (moving the append fails the new test
+at `0 == 1` while the existing wiring test stays green either way;
+mutation reverted and confirmed byte-identical). The other flagged this
+session log's own creation as violating the repo's "discontinue session
+log creation" policy; verified against git history and found factually
+wrong: this log was first committed at `2026-08-21T15:04:24Z`
+(`4a08172f5`), roughly 5.5 hours before the policy commit (`#5229`) was
+even authored (`2026-08-21T20:42:37Z`), so it predates the policy and is
+exactly the grandfathered "carried over from before this change" case
+the rule's own text names. No code change for that finding; the reply
+states the timestamps.
+
+Test Results table above re-run and updated: 382 passed (381 plus the
+new wiring test); 568 passed / 27354 deselected on the broader keyword
+sweep.
+
+`qaCommit` moves from `c7298e571` to `bd36dcf77`, the commit carrying the
+new wiring test; `post_qa_code_changes('bd36dcf779365bd0ac9eac93be7b272d596e9be2', 'HEAD', ...)`
 confirmed empty against the two session-log-only follow-up commits made
 after it.
 
