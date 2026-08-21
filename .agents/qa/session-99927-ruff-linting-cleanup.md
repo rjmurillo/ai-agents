@@ -39,8 +39,13 @@ the baseline file.
 ```
 
 The ratchet measured the tree at 0 and demanded the baseline be recorded, which
-is the action taken. The ratchet scans git-tracked `*.py`, `*.pyi`, `*.ipynb`,
-so its 0 and `ruff check .`'s 0 agree on the same corpus.
+is the action taken. Both commands reported 0 in this run, but that is not a
+general guarantee: `ruff_count_ratchet.py`'s own docstring documents that its
+scope is git-tracked files only, while a bare `ruff check .` also walks
+untracked scratch, nested worktrees, and vendored caches, which the docstring
+notes inflated a local run to 767 against a real tracked count of 361
+elsewhere. The two counts agreeing here reflects a clean working tree, not
+identical corpora by design.
 
 ### The guard is enforcement, not documentation
 

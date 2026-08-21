@@ -133,8 +133,10 @@ ignore = []
 # intentional `shell=True` payloads, so any commit that touches one puts it in
 # the changed set that the `security-scan` pre-push job feeds to semgrep, which
 # then blocks the push on three CWE-78 findings the corpus exists to contain.
-# Reformatting an answer key to trip a security gate is the wrong trade, and the
-# repository ships no `.semgrepignore` to scope that gate instead.
+# Reformatting an answer key to trip a security gate is the wrong trade. A
+# `.semgrepignore` would not help either: git_hook_policy.py's pre-push scan
+# invokes semgrep with --x-ignore-semgrepignore-files, so that file is
+# deliberately ignored and cannot scope this gate.
 ".agents/security/benchmarks/**/*.py" = ["RUF100", "I001", "E501"]
 # sys.path manipulation required before imports for plugin-context path resolution
 ".claude/skills/github/scripts/**/*.py" = ["E402"]
