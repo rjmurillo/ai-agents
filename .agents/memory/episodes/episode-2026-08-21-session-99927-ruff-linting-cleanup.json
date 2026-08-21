@@ -89,6 +89,42 @@
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Proved the zero baseline is enforcement rather than documentation by injecting an E501 and running the ratchet.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "pre_pr.py reported three failures on the first run: Generated Artifact Staleness, Mypy Changed Files, and Session End Validation.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Noted that a bare uv run mypy over the changed set is not the gate.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-21T16:50:26+00:00",
+      "type": "commit",
+      "content": "Commit: 611af7893f3fdb3c7b7ce00835d7f438dc8368be",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
     }
   ],
   "metrics": {
@@ -96,8 +132,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 3
+    "commits": 1,
+    "files_changed": 17
   },
   "lessons": []
 }

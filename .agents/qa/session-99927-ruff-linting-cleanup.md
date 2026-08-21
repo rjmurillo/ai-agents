@@ -1,3 +1,9 @@
+---
+qaVerdict: PASS
+qaSessionLog: .agents/sessions/2026-08-21-session-99927-ruff-linting-cleanup.json
+qaCommit: 611af7893f3fdb3c7b7ce00835d7f438dc8368be
+---
+
 # QA Report: repo-wide ruff cleanup and zero-baseline guard
 
 Session 99927. Branch `claude/ruff-linting-cleanup-hizsp7`. Starting commit `9e1ebd2`.

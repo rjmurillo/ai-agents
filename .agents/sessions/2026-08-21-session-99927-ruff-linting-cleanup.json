@@ -130,9 +130,21 @@
     {
       "action": "Hit a pre-commit block from branch-context-policy on the first commit.",
       "result": "check_branch_context in scripts/validation/git_hook_policy.py found the newest dated session log naming claude/pr-automerge-goal-eu2soz. That log is committed on origin/main via PR #5202, so it satisfies _is_merged_history and the only missing half of the documented exemption was a log for the current branch. Created this log rather than bypassing the hook."
+    },
+    {
+      "action": "Proved the zero baseline is enforcement rather than documentation by injecting an E501 and running the ratchet.",
+      "result": "Exit 1 with REGRESSION on the injected line, exit 0 after git checkout restored the file. The first probe was non-discriminating: it injected into docs/eval/scripts/analyze.py, where pyproject.toml waives E501, so ruff emitted nothing and the ratchet reported OK with the violation present. Re-ran against scripts/validate_pr_review_config.py, where the rule is enabled."
+    },
+    {
+      "action": "pre_pr.py reported three failures on the first run: Generated Artifact Staleness, Mypy Changed Files, and Session End Validation.",
+      "result": "Staleness was the Copilot mirror of the edited skill script; regenerated with sync_plugin_lib.py then build_all.py, in that order per generated-artifacts.md. Mypy was three pre-existing type-arg errors in the 2252 sim that the E501 reflow moved onto changed lines, which is precisely what the changed-line ratchet blocks on; fixed by annotating rows as list[dict[str, Any]]. Session End needed this endingCommit."
+    },
+    {
+      "action": "Noted that a bare uv run mypy over the changed set is not the gate.",
+      "result": "It reported only a duplicate-module collision between the canonical skill script and its generated mirror. run_mypy's _mypy_invocations already splits basename collisions into separate invocations, so the real gate never sees that error. Reading the gate rather than trusting the ad-hoc command is what surfaced the three genuine errors."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "611af7893f3fdb3c7b7ce00835d7f438dc8368be",
   "nextSteps": [
     "Watch the ruff count ratchet on the PR: with the baseline at 0 any new violation now blocks rather than being absorbed by slack.",
     "Consider whether packages/semantic-hooks/pyproject.toml should inherit the root ruff per-file-ignores instead of redeclaring its own select list, so the two configs cannot drift again."
