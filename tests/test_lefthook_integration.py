@@ -1984,7 +1984,7 @@ def test_branch_context_merged_history_survives_missing_origin_head(
     the fix, ``_is_merged_history`` asked only ``origin/HEAD`` and returned
     False the moment that ref failed to resolve, wedging every commit on a
     branch that had merged main and owned its own log. The fallback ladder in
-    ``_merged_history_upstream`` must recover via ``origin/main`` here.
+    ``_resolve_upstream_default`` must recover via ``origin/main`` here.
     """
     repo = tmp_path / "repo"
     _init_repo(repo, branch="feature/x")
@@ -2008,7 +2008,7 @@ def test_branch_context_merged_history_does_not_trust_local_main(tmp_path: Path)
     """A file merely present on local ``main`` must not grant the #3343 exemption.
 
     Issue #682's co-mingling case is a session log landing on the wrong local
-    branch. A fallback to local ``main`` (dropped from ``_merged_history_upstream``
+    branch. A fallback to local ``main`` (dropped from ``_resolve_upstream_default``
     after security review of the #5220 fix, 2026-08-21) would treat exactly that
     shape as settled upstream history: local ``main`` is writable by the same
     developer the exemption would then excuse, unlike ``origin/main``, which
@@ -2134,8 +2134,18 @@ def test_a_primary_checkout_is_not_mistaken_for_a_worktree(tmp_path: Path) -> No
     assert policy._is_linked_worktree(worktree) is True
 
 
-def test_branch_context_merged_history_exemption_needs_an_upstream(tmp_path: Path) -> None:
-    """Without a resolvable origin/HEAD the exemption fails closed."""
+def test_branch_context_merged_history_exemption_needs_an_upstream(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Without a resolvable origin/HEAD the exemption fails closed.
+
+    The branch owns its own log but has no remote at all, so
+    ``_resolve_upstream_default`` returns None and the mismatch cannot be
+    proven settled history. The message names the real gap
+    (issue #5220's second proposed fix) instead of the generic three
+    co-mingling remedies, which are wrong here: switching branches, editing
+    the log, or writing a new one would not clear an unresolvable trunk.
+    """
     repo = tmp_path / "repo"
     _init_repo(repo, branch="feature/x")
     _commit_file(repo, "tracked", "value\n")
@@ -2143,6 +2153,33 @@ def test_branch_context_merged_history_exemption_needs_an_upstream(tmp_path: Pat
     _write_session_log(repo, branch="feature/other", name="session-new", mtime=2_000_000_000.0)
 
     assert policy.check_branch_context(repo) == 1
+
+    stderr = capsys.readouterr().err
+    assert "git remote set-head origin --auto" in stderr
+    assert "Fix: switch to the expected branch" not in stderr
+
+
+def test_branch_context_message_stays_generic_without_an_owned_log(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A branch with no log of its own gets the original three remedies.
+
+    Same unresolvable-upstream shape as the test above, but the current
+    branch never wrote its own session log, which is the ordinary co-mingling
+    case from issue #682 rather than the #5220 unresolvable-trunk case. The
+    remote-set-head hint would be misleading here: the real problem is a
+    missing log, and fetching origin/main would not fix that.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    _write_session_log(repo, branch="feature/other", name="session-new")
+
+    assert policy.check_branch_context(repo) == 1
+
+    stderr = capsys.readouterr().err
+    assert "Fix: switch to the expected branch" in stderr
+    assert "git remote set-head origin --auto" not in stderr
 
 
 def test_branch_context_matches_a_legacy_shaped_owned_log(tmp_path: Path) -> None:
