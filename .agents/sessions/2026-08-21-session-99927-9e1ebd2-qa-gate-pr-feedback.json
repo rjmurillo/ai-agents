@@ -136,11 +136,14 @@
     {
       "activity": "Copilot bot review on PR #5219: triaged 5 findings",
       "finding": "Verified each against the actual code rather than accepting or dismissing on sight. Two were correct and fixed: validationPassed's evidence field was written before the test-fix and QA-rebind commits landed and had gone stale (contradicted this same log's own workLog), and the QA report's Findings section undersold the diff as pure documentation when it also fixes a real (non-runtime) test defect; both corrected here. A third was correct on the underlying critique (test_workflow_sets_up_uv used a raw substring match, testing.md MUST 9 requires parsed structure) and fixed by parsing the workflow YAML and asserting on the 'Setup uv' step's uses field. A fourth (claiming any ADR-*.md edit requires a fresh 6-agent adr-review round) is contradicted by the hook itself: check_adr_review_policy's _is_frontmatter_only_metadata_change/_only_implemented_field_changed (scripts/validation/git_hook_policy.py:1247-1267) is a purpose-built exemption for exactly this edit shape (body byte-identical, only the implemented key changed), and it already ran and passed locally on this branch's first commit. A fifth (delete the session-log artifacts because session-logs.md says logs are optional) is right that logs are optional but wrong that creating one here was improper: without it, branch-context-policy's exemption (a log for the current branch existing) could never fire on a fresh branch sharing a day with any other branch's log, which would have blocked every commit outright. Replied to both disagreements with citations rather than complying or staying silent."
+    },
+    {
+      "activity": "Copilot's second review pass on PR #5219: 2 more findings, both correct",
+      "finding": "The QA report's Scope heading still said 'Content changes through commit 26daf217f' after the report had already been rebound to cedd4a346 in the same edit that fixed the prior round's findings; the heading was never updated alongside the frontmatter qaCommit and the paragraph below it. Fixed. Also, this log's nextSteps still listed 'push this branch and open a draft PR', already done (PR #5219, open, non-draft); removed it so a future session reading nextSteps does not duplicate work already complete."
     }
   ],
   "endingCommit": "cedd4a346cb86470d82898ee99442c3db9fb04b4",
   "nextSteps": [
-    "A future session should design and debate (adr-generator + adr-review) a code-change-aware relaxation of session_qa_binding()'s comparison.head/endingCommit equality check, per issue #5217.",
-    "Push this branch and open a draft PR referencing issue #5217, per this repo's push/PR conventions."
+    "A future session should design and debate (adr-generator + adr-review) a code-change-aware relaxation of session_qa_binding()'s comparison.head/endingCommit equality check, per issue #5217."
   ]
 }

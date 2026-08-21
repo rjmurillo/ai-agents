@@ -7,7 +7,7 @@ qaCommit: cedd4a346cb86470d82898ee99442c3db9fb04b4
 
 ## Scope
 
-Content changes through commit `26daf217f`:
+Content changes through commit `cedd4a346`:
 
 1. `.agents/architecture/ADR-096-relax-qa-evidence-commit-equality.md`: frontmatter `implemented: false` -> `true`.
 2. `.agents/sessions/2026-08-21-session-99927-9e1ebd2-qa-gate-pr-feedback.json`: this session's log (plus its generated episode).
