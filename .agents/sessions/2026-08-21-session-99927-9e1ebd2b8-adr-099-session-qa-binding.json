@@ -173,7 +173,7 @@
       "finding": "The check quoted the debate log's Round 1 disclosure (lines 11-17, honestly stating no independent agents ran) to claim the required six-agent debate never happened, missing that Round 3 (further down the same file) is the genuine six-agent debate that reached consensus. The file's own top framing was the real gap: its 'Round: 1 of up to 10' line and the Round 1 section header never updated after Round 3 concluded, so a reader landing on the opening section has no forward pointer to what supersedes it. Fixed by updating the Round line to state Round 3 concluded with consensus and adding an explicit superseded-by-Round-3 note at the top of the Round 1 section. No finding content changed; this is a navigation fix, not a retraction, and does not touch the ADR file itself so the adr-review-policy gate did not require a paired debate-log entry."
     }
   ],
-  "endingCommit": "d4b017fb1c093d7c26764bc07d896b92cf38374b",
+  "endingCommit": "c7298e571d0449d73f6edd9ee04e2b1023e859ed",
   "nextSteps": [
     "File a follow-up issue for a dedicated QA-freshness field in session-log.schema.json, distinct from endingCommit, per PR #4954 round 15's actual recommendation (ADR-099 Follow-ups item 1).",
     "File a follow-up issue for dropping the validate_session_json.py fallback that binds head to binding.commit when live-HEAD resolution fails (ADR-099 Follow-ups item 2).",
