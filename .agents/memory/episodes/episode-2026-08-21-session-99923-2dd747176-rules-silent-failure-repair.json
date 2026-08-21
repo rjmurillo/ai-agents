@@ -182,6 +182,19 @@
       "caused_by": [
         "e013"
       ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-21T08:40:34+00:00",
+      "type": "commit",
+      "content": "Commit: 73769ed28b0be52c76faf21e5f6fe227e520db85",
+      "caused_by": [
+        "e014"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
     }
@@ -191,7 +204,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 14,
+    "commits": 15,
     "files_changed": 6
   },
   "lessons": []
