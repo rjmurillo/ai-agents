@@ -84,3 +84,56 @@ The pre-push `push-ref-policy` hook refused the branch because the clone was sha
 - **The ADR's own line-number citations go stale on merge.** The implementation adds roughly 28 lines to `.claude/lib/qa_report.py`, so every `qa_report.py:NNN` citation in the ADR, all of which describe the pre-change file, is off by that much in a post-merge tree. Most are in Context and Prior Art, where describing the pre-change state is the point, so they are annotated rather than rewritten: one sentence at the top of Context states the convention. The exception was a forward-looking citation in "The drift can run either way" that pointed a reader at `post_qa_code_changes()`'s `merge-base` call to check current behavior; that one now names the function and the error text, which do not move. Found by re-reading the ADR against the implemented file rather than by any gate.
 
 No design question is reopened. Round 1's decision stands; this entry records evidence that arrived later and the three claims it corrected.
+
+## Round 3 (the genuine six-agent debate, and its conflict resolution)
+
+Round 1 disclosed it was a single-reviewer pass, not six independent agents, and recommended re-running the real debate on a harness with subagent tooling. This round is that re-run: a fresh orchestrating session with the `Agent` tool spawned six independent Phase-1 reviewers (architect, critic, independent-thinker, security, analyst, high-level-advisor), each reading the ADR and the live repository from disk with no visibility into the others' output.
+
+### Phase 1: independent positions
+
+| Agent | Position | Headline finding |
+|---|---|---|
+| architect | Disagree-and-Commit | Central schema evidence verified real; found "cannot fail open" is false in one sub-case, a missing alternative (a reachability check on `comparison.head` itself), and that `status: accepted` sat alongside the ADR's own text stating the multi-agent bar was not met |
+| critic | Accept | Corpus numbers reproduced exactly; found "engages on 35 of 1458" overstates measured production reachability (0 committed logs reach it via `--existing-log`), ~40 stale line citations, stale `implemented: false` |
+| independent-thinker | **Block** | Measured 38 of 38 committed `comparison.head` edits also moving `endingCommit` to the same SHA in the same commit, read as contradicting the Context claim that the two fields move independently; also flagged the 23-mention cost figure as misattributed and "cannot fail open" as unpinned by any test |
+| security | Accept | Independently reproduced the no-new-capability claim by testing 7 adversarial encodings: 6 of 7 already bypassed the pre-change raise. Found the replacement diagnostic is unreachable from the only automated gate it checked (pre-commit) and that the cited `endingCommit` mitigation fails open on shallow clones |
+| analyst | Accept | Verified most citations exactly; found the Round 1 corpus table did not sum (1417+35=1452, not 1458) and confirmed `implemented: false` was stale |
+| high-level-advisor | Accept | Verified the schema evidence, the blast-radius re-measurement, and the shipped implementation matching the ADR; raised proportionality (a 10:1 governance-to-code ratio) and one refinement (drop the `validate_session_json.py` `binding.commit` fallback rather than diagnose it) as follow-ups, not blockers |
+
+Five of six returned Accept or Disagree-and-Commit on the Decision. Independent-thinker's Block is the only dissent, and per the debate protocol a Block routes to the high-level-advisor as tie-breaker for Phase 2 conflict resolution.
+
+### Phase 2: conflict resolution (high-level-advisor, tie-breaker, second independent pass)
+
+The orchestrating session named a specific risk before routing the conflict: independent-thinker's 38-of-38 measurement could be a selection-bias artifact of the very check being relaxed (authors manually syncing both fields to satisfy the equality gate, rather than the fields being naturally coupled), and asked the tie-breaker to rule on that explicitly rather than accept the number at face value.
+
+**The selection-bias hypothesis was tested and rejected as unfalsifiable on this data**, not because it is wrong in general but because the control group needed to distinguish it does not exist: every commit that edits `comparison.head` with `endingCommit` present is raise-applicable (the caller supplies `resolve_commit`, so even an abbreviated `endingCommit` resolves), so there is no "raise inert, fields still synced" population to compare against.
+
+**independent-thinker's headline number was itself corrected on re-measurement**: 50 commits edit `comparison.head`, not 38. 38 was the both-full-SHA lockstep subset, reported as the total. Of 44 commits where `endingCommit` is present, 42 move it in lockstep, not 44. The corrected figure is 42 of 44, a strong tendency, not the "38 of 38" invariant the Block leaned on.
+
+**The finding was upheld against the Context, overruled against the Decision.** The tie-breaker confirmed, independently, that the Context's claim ("advanced by two unrelated operations at two different times") does not describe observed practice, and confirmed the `commitHead` schema field documents divergence from the session's own last commit, not from `endingCommit` specifically, per `.agents/sessions/handoffs/2026-08-15-2840-handoff.md:80`. But it also found the lockstep is evidence of the churn the ADR exists to remove, not evidence the raise protects a real invariant: `handoff.md:207` records a PR #4954 reviewer finding that hand-syncing `endingCommit` to a rebind target produces "false historical session provenance" in that field. The Decision was not built on the refuted Context sentence; it rests on `binding.commit` being a rarely-read fallback, the security lens's adversarial-bypass measurement, and the check never reaching a committed log, none of which the 42/44 measurement touches.
+
+**Two of independent-thinker's other findings were separately upheld**: the 23-mention, 15-round cost is misattributed (`handoff.md:227` names `QA_EVIDENCE_PREFIXES` boundary churn, a different mechanism ADR-096 already addressed at its own call site, as the actual driver), and ADR line 98's "the fix that would close that chain" overstated `handoff.md:207`'s actual characterization ("required at minimum") and `handoff.md:219`'s recommended remedy (a new dedicated schema field, not this relaxation).
+
+**Full verdict table** (Issue | Verdict | Priority):
+
+| Issue | Verdict | Priority |
+|---|---|---|
+| independent-thinker P0: 42/44 lockstep contradicts Context's "unrelated operations" claim | Upheld against Context, overruled against Decision | P1 |
+| `commitHead` divergence-target conflation | Upheld | P1 |
+| 23-mention/15-round cost misattributed | Upheld | P1 |
+| "the fix that would close that chain" overstated | Upheld | P1 |
+| critic: "engages on 35 of 1458" should be 0 | Partly upheld (0 via `--existing-log`; a small CI-only residual population does reach it) | P1 |
+| analyst: table doesn't sum | Upheld, reproduced with a corrected population of 1459 and an added 6-log third bucket | P1 |
+| architect: "cannot fail open" false in a sub-case | Upheld | P1 |
+| security: diagnostic unreachable from the only automated gate | Partly upheld (true for pre-commit; the CI residual population does reach it) | P1 |
+| security: `endingCommit` check fails open on shallow clones | Upheld | P2 |
+| `implemented: false` stale | Upheld | P1 |
+| ~40 stale line citations | Partly upheld (disclosure widened to both files) | P2 |
+| `_collect_shas` foreign-commit mis-attribution risk | Noted, not caused by this ADR | P2 |
+| high-level-advisor's smaller-fix refinement (drop the fallback) | Upheld as a follow-up, not a blocker | P2 |
+
+**Final decision: amend substantially, not accept-as-is and not revert.** The code at `3b05b71d4` is correct and stays; `status: accepted` was already satisfied per `.claude/rules/ci-scripts.md` MUST-NOT-2 before this round began. The Context section, the corpus table, the "cannot fail open" claim, the diagnostic-reachability claim, the misattributed cost figure, and the round-15 characterization are rewritten in this same change per the ruling. A full six-lens re-review was judged disproportionate to a Context rewrite that five of six lenses had already accepted the Decision under; the ruling scoped Phase 4 convergence to independent-thinker and analyst only, the two reviewers whose findings drove the rewrite.
+
+### Phase 4: convergence check (scoped)
+
+independent-thinker and analyst re-reviewed the rewritten Context, corpus table, "laxer direction" section, and diagnostic-reachability section against this same ruling.

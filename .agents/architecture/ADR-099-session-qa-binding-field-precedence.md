@@ -6,7 +6,7 @@ decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 ---
 
 # ADR-099: Replace session_qa_binding()'s Field-Equality Raise with Documented Precedence and a Diagnostic
@@ -15,7 +15,7 @@ implemented: false
 
 Accepted. Requested by issue #5217 (labels `enhancement`, `priority:P2`, `area-validation`), filed as the follow-up ADR-096 named in its "Explicitly out of scope" section and in PR #5167's Reviewer Expectations. Per `.claude/rules/ci-scripts.md` MUST-NOT-2, code lands only after this frontmatter `status` reaches `accepted`, in the same change as the status transition. That gating rule is the one ADR-096 asserted and failed to satisfy on its own first two PR heads (ADR-096 Status paragraph, and `.agents/critique/ADR-096-debate-log.md` Round 3), so it is satisfied here rather than deferred.
 
-**Read the review-conduct disclosure before relying on this status.** Round 1 applied all six `adr-review` lenses (architect, critic, independent-thinker, security, analyst, high-level-advisor) and resolved seven findings, two of which changed the argument rather than the prose. It did **not** run six independent agents: the harness serving that session registers no subagent-spawn tool. This is a single-reviewer review, disclosed in full at the top of `.agents/critique/ADR-099-debate-log.md`, and the multi-agent bar the protocol exists to clear is not met. Re-running `adr-review` on a harness with subagent tooling is recommended before treating that bar as cleared.
+**Read the review-conduct disclosure before relying on this status.** Round 1 (recorded in `.agents/critique/ADR-099-debate-log.md`) was a single-reviewer pass applying all six `adr-review` lenses sequentially in one session with no independent agents, disclosed as such at the time. A Round 2 entry in the same log added post-implementation corrections found on self-review, also single-reviewer. Round 3 is the correction that matters for this status line: a fresh orchestrating session with subagent tooling ran six genuinely independent Phase-1 reviewers (architect, critic, independent-thinker, security, analyst, high-level-advisor) against this document. Five returned Accept or Disagree-and-Commit on the Decision. **Independent-thinker returned Block**, arguing the Context section's central claim, that `comparison.head` and `endingCommit` are "advanced by two unrelated operations at two different times," is contradicted by the committed record. A Phase 2 conflict-resolution pass (high-level-advisor, tie-breaker) investigated the Block directly: reproduced and corrected the underlying measurement (42 of 44 lockstep edits, not the claimed 38 of 38), confirmed the Context's central claim does not hold as observed practice, and overruled the Block against the Decision (which survives on grounds the finding does not touch: `binding.commit` is a rarely-read fallback, the check provided negligible adversarial value before this change per the security lens, and it never reached a committed log) while upholding it against the Context, which this document now rewrites accordingly. See the debate log's Round 3 entry for the full ruling, including the corrected corpus table and the reasons "23 rebind mentions" and "cannot fail open" are also corrected below.
 
 ## Date
 
@@ -23,7 +23,7 @@ Accepted. Requested by issue #5217 (labels `enhancement`, `priority:P2`, `area-v
 
 ## Context
 
-Every `.claude/lib/qa_report.py` line number in this ADR describes the file **before** this change, which is the state the argument is about. The change adds roughly 28 lines, so a reader checking these citations against a post-merge working tree should navigate by symbol name instead.
+Every `.claude/lib/qa_report.py` and `scripts/validate_session_json.py` line number in this ADR describes the file **before** this change, which is the state the argument is about. The change adds roughly 28 lines to the former; citations into the latter (`validate_qa_report_evidence()`, the live-`HEAD` resolution, the `endingCommit` reachability check) run 5 to 8 lines low against the post-change tree for the same reason. A reader checking these citations against a post-merge working tree should navigate by symbol name instead.
 
 `session_qa_binding()` (`.claude/lib/qa_report.py:142-182`) turns a session log into the `QaBinding` that QA-report validation is checked against. Lines 170-178 read verbatim:
 
@@ -41,11 +41,13 @@ Every `.claude/lib/qa_report.py` line number in this ADR describes the file **be
 
 The raise fires whenever a session log's `episodeMetrics.comparison.head` and its resolved `endingCommit` are both full 40-character SHAs and differ. It is a plain field-equality check with no fallback, the same shape `validate_qa_report()` (`:185`) carried before ADR-096 replaced it with a code-change-aware check.
 
-### The two fields are documented to diverge, by this repository's own schema
+### `endingCommit` is carrying two contracts, and the check is what forces it to
 
-This is the finding that decides the ADR, and it is not the framing the issue anticipated.
+This is the finding that decides the ADR, and it is not the framing the issue anticipated. It is also not the framing an earlier draft of this ADR used; that draft claimed the two fields are advanced by unrelated operations at different times, and the measurement below refutes it.
 
-`.agents/schemas/session-log.schema.json:170-174` defines a sibling field whose entire reason for existing is the divergence the raise rejects:
+`endingCommit` has one documented contract: the session's own final commit. `.claude/rules/session-logs.md` MUST 2 requires it in a follow-up commit rather than an amend (issue #3618), MUST 3 requires re-pointing after a rebase, and `scripts/validate_session_json.py:684-687` checks it for reachability. Nothing in that contract mentions QA.
+
+`comparison.head` has a different job: it is the field QA rebinding advances to bind evidence to a fresh commit. `.agents/schemas/session-log.schema.json:170-174` adds a sibling field for exactly this reason:
 
 ```json
         "commitHead": {
@@ -55,16 +57,20 @@ This is the finding that decides the ADR, and it is not the framing the issue an
         },
 ```
 
-The episode extractor consumes it with the same understanding (`.claude/skills/memory/scripts/extract_session_episode.py:831-832`):
+described as "Latest commit authored by this session when QA rebinding advances comparison.head," and `.claude/skills/memory/scripts/extract_session_episode.py:831-832` carries the same understanding:
 
 ```python
     # commitHead separates episode ownership from a later comparison.head used
     # to bind QA evidence after another session changed the branch.
 ```
 
-So the committed schema and the extractor both state that QA rebinding advances `comparison.head` past the session's own last authored commit, and that `commitHead` was added to preserve episode ownership when it does. `endingCommit` moves on a different schedule and for different reasons: `.claude/rules/session-logs.md` MUST 2 requires it to be recorded in a follow-up commit rather than an amend (issue #3618), and MUST 3 requires it to be re-pointed after any rebase. Two fields, advanced by two unrelated operations at two different times, are then compared for equality and the log is rejected when they differ.
+The equality raise ties `endingCommit` and `comparison.head` together, and the tie is visible in history. Across the 1574 commits touching `.agents/sessions/`, 50 single-parent commits edit `comparison.head`. Of the 44 where `endingCommit` is present, 42 move it to the same commit in the same commit. Reproduce by walking `git log --all -- .agents/sessions/` and diffing `episodeMetrics.comparison.head` against `endingCommit` per single-parent commit.
 
-The raise therefore does not detect a corrupt log. It detects the state the schema was extended to accommodate.
+That lockstep is the defect, not the invariant. Each of those 42 commits moved `endingCommit` off the session's own final commit and onto a QA rebind target. A PR #4954 reviewer raised exactly this: `.agents/sessions/handoffs/2026-08-15-2840-handoff.md:207` records two findings against session-14695's and session-15001's `endingCommit` fields as "false historical session provenance," and records that the fix "requires relaxing `session_qa_binding()`'s enforced `endingCommit`/`comparison.head` equality." That session could not make the change: it was at commit 40 of a 40-commit ceiling. The findings were closed with a reply, not a fix.
+
+`commitHead` is the direct evidence, read correctly. During a rebind it is the field left alone: `handoff.md:80` records "`endingCommit`/`episodeMetrics.comparison.head` rebound to `0d0657c6b`. `episodeMetrics.commitHead` on both logs left untouched (correctly: it names each session's own last commit, not the rebind target)." The schema added `commitHead` to preserve session ownership because `endingCommit` had already stopped preserving it. That is a workaround for this check, not an endorsement of divergence between `comparison.head` and `endingCommit` themselves.
+
+The raise therefore does not detect a corrupt log. It forces a field with one contract (the session's own final commit) to serve two (that, and the QA rebind target), and the rebind churn is the cost of forcing agreement between them.
 
 ### What the binding commit is still used for after ADR-096
 
@@ -83,29 +89,39 @@ That asymmetry is what makes the equality raise look like a control and behave l
 
 ### Measured incidence
 
-Measured against `git ls-tree -r HEAD .agents/sessions/` at `9e1ebd2b8b2de2ef1887001631fa7dfbfa10de39`:
+Measured against `git ls-tree -r HEAD .agents/sessions/`:
 
 | Population | Count |
 |---|---|
-| Committed session logs examined | 1458 |
-| No full-SHA `comparison.head` (raise unreachable) | 1417 |
-| Both fields full SHAs (raise reachable) | 35 |
+| Committed session logs examined | 1459 |
+| No full-SHA `comparison.head` (raise unreachable) | 1418 |
+| Full `comparison.head`, `endingCommit` not a full SHA | 6 |
+| Both fields full SHAs | 35 |
 | Both fields full SHAs and equal | 34 |
 | Both fields full SHAs and unequal | 1 |
 
-The single disagreeing log is `.agents/sessions/2026-08-06-session-10003-review-pending-checkout-changes-update.json`, carrying `comparison.head` `609b314e5a6ed63332fa193f4644683067740590` against `endingCommit` `bb30860ac61d4b62654653b0f6b67658d9594653`. Reproduce with the query above rather than trusting the table.
+The 6-log third bucket is not inert. `session_qa_binding()` resolves an abbreviated `endingCommit` through the `resolve_commit` callable (`:167-175`), which `validate_qa_report_evidence()` supplies, so those logs reach the comparison too. An earlier draft of this ADR omitted the row and its table did not sum to the examined count.
 
-State plainly what this does and does not establish. That log's `protocolCompliance.sessionEnd.qaValidation` is `null`, and `validate_qa_report_evidence()` returns at `:937-938` when `qaValidation` is not a dict, so `session_qa_binding()` is never called for it and it does not fail today. The corpus proves the drift shape exists in committed data and that the check engages on 35 of 1458 logs. It does not prove a committed log is currently blocked. The live cost is the interactive one the issue documents: `.agents/sessions/handoffs/2026-08-15-2840-handoff.md` carries 23 occurrences of "rebind" across 15 review rounds on PR #4954 (reproduce with `grep -ci rebind` against the tracked file), and round 15 names this function as the fix that would close that chain. A 2026-08-21 session on branch `claude/qa-gate-pr-feedback-miammt` traced the still-live pattern to this same raise after finding ADR-096's merged fix landed on the other function.
+**This corpus does not measure how often the check engages, and an earlier draft wrongly said it engages on 35 of 1458 logs.** Committed logs are validated with `--existing-log`, and `validate_session_log()` gates the entire QA-evidence block behind `not existing_log and not creation_mode` (`:1189`). The pre-commit hook never reaches it either: `scripts/validation/git_hook_policy.py:1954` always passes `--creation-mode` or `--pre-commit --existing-log`. The check engages on exactly one population: `committed_session_validation_modes()`'s residual set (`scripts/validation/session_scope.py:348-370`, "everything else stays on the full validation path with no mode flag"), a branch-new session log whose creating commit is no longer HEAD, validated in CI. That is the mid-PR rebind case, which is where the cost is paid.
 
-The corpus also undercounts by construction, and the mechanism matters more than the number. The rebind churn is the act of editing a disagreeing log back into agreement before it is committed. Every round of that loop that succeeded left an agreeing log in the tree, so the 34 agreeing logs include an unknown number that reached agreement by paying the cost this ADR removes. A count of committed disagreements can only see the loops nobody bothered to close. Treat the 1 as a floor on incidence, not an estimate of it, and treat the handoff's 23 mentions as the measurement of what the loop costs when it runs.
+Two commits in the repository's whole history committed a genuine disagreement, both in `f7fc4ef88`:
 
-Neither SHA in that log resolves, and the reason is not clone depth. This tree was a 50-commit shallow clone during the ADR's drafting, which is the limit ADR-096's review recorded. After `git fetch --unshallow origin` (2613 commits), `git log -1` on both `609b314e5a...` and `bb30860ac6...` still reports `fatal: bad object`. They are orphaned, which this repository expects: `scripts/validate_session_json.py:697-703` names squash merge as the most likely cause of an unreachable recorded SHA, because it orphans every branch SHA a session log records.
+- `.agents/sessions/2026-08-05-session-2.json`: `afae287fa...` against `f1a805fc5...`
+- `.agents/sessions/2026-08-06-session-10003-review-pending-checkout-changes-update.json`: `609b314e5a6ed63332fa193f4644683067740590` against `bb30860ac61d4b62654653b0f6b67658d9594653`
 
-That sharpens the argument rather than weakening it. In the one committed log where the two fields disagree, neither field names a commit that exists. No ancestry or ordering claim is possible about them, so the equality check could not have adjudicated which field was right even in principle. It could only report that they differ, which is what this ADR makes it do.
+The second is still divergent at HEAD today. It sits there because pre-commit never checked it and its `protocolCompliance.sessionEnd.qaValidation` is `null`, so `validate_qa_report_evidence()` returns at `:936-937` when `qaValidation` is not a dict. That is the honest picture of the check's reach: it cannot see the one disagreement that has actually persisted in the tree.
+
+Do not read the low disagreement count as evidence the check is harmless. The 42-of-44 lockstep measured above is what the low count is made of: the disagreement is repaired before it lands, and the repair is the cost. The issue's cited interactive cost is real but is not this check's: `.agents/sessions/handoffs/2026-08-15-2840-handoff.md` carries 23 occurrences of "rebind" across 15 review rounds on PR #4954 (reproduce with `grep -ci rebind` against the tracked file), and `handoff.md:227` attributes those rounds to a different mechanism, `QA_EVIDENCE_PREFIXES` boundary churn: "the analysis file alone has now triggered rebinds six separate times." That figure measures a check ADR-096 already relaxed at the other call site, not this one; citing it here overstated this raise's cost by roughly an order of magnitude, and it is corrected out of the Alternatives table below.
+
+Neither SHA in the second log resolves, and the reason is not clone depth. `git log -1` on both `609b314e5a...` and `bb30860ac6...` reports `fatal: bad object` against a full unshallowed clone. They are orphaned, which this repository expects: `scripts/validate_session_json.py:697-703` names squash merge as the most likely cause of an unreachable recorded SHA, because it orphans every branch SHA a session log records.
+
+That sharpens the argument rather than weakening it. In the one persisting committed disagreement, neither field names a commit that exists. No ancestry or ordering claim is possible about them, so the equality check could not have adjudicated which field was right even in principle. It could only report that they differ, which is what this ADR makes it do.
 
 ### What ADR-096 already settled, and what it left
 
 ADR-096 replaced `validate_qa_report()`'s equality raise with `post_qa_code_changes()`, which walks the commits between two SHAs, filters `QA_EVIDENCE_PREFIXES` (`.claude/lib/qa_report.py:21-25`), and returns only non-evidence paths. That fix is merged (`46049e1`, PR #5167) and is not revisited here. ADR-096 scoped this function out for two stated reasons: the invariant is different in kind, and its 50-commit sample did not observe this check firing. The first reason is upheld by this ADR and drives the design away from a mechanical copy. The second is now answered by the corpus measurement above.
+
+`handoff.md:207` names relaxing this equality as required "at minimum" for the PR #4954 round-15 reviewer's remedy, and `handoff.md:219` records the recommended fix as a dedicated QA-freshness field in the session-log schema, distinct from `endingCommit`. This ADR is the prerequisite, not the remedy. The remedy is tracked as a follow-up (see References).
 
 ## Decision
 
@@ -178,11 +194,17 @@ The issue suggests reusing `post_qa_code_changes()` here the way ADR-096 did. Th
 
 Deleting the raise and returning silently is the smaller diff and is rejected. `.claude/rules/ci-scripts.md` SHOULD 4 treats a repair to a silent failure as itself a silent-failure candidate, and a relaxation that removes the only signal on `comparison.head` is that shape. The warning keeps the observation the raise was making, in the one place that has a channel for it, while removing the blocking verdict the observation does not support. `result.warnings` is the established non-blocking channel in this file; `:669-673` already uses it for the adjacent `changesCommitted` and `endingCommit` case.
 
-### The drift can run either way, and the laxer direction fails closed
+State the diagnostic's reach honestly. The warning is emitted only where the binding is computed, which per Measured Incidence above is the CI full-validation residual: a branch-new session log whose creating commit is no longer HEAD. It never fires under pre-commit (`git_hook_policy.py:1954` always passes a mode flag) and never under `--existing-log`. So the diagnostic does not restore observability over committed logs generally; it preserves the observation on the one path where the raise previously produced a verdict. `.claude/rules/ci-scripts.md` SHOULD 4 is satisfied in that the signal is not deleted, and not more than that.
+
+### The laxer direction is bounded, not impossible
 
 The strongest objection to keeping `comparison.head` is that the drift is not always in the direction the schema describes. Two directions exist. QA rebinding advances `comparison.head` past the session's own last authored commit, which is the case `commitHead` was added for. But `.claude/rules/session-logs.md` MUST 2 and MUST 3 advance `endingCommit` on a separate schedule, so a log whose episode was extracted before the follow-up commit carries an `endingCommit` newer than `comparison.head`. Selecting `comparison.head` there selects the older SHA, and an older head means a shorter staleness range, which is the laxer choice.
 
-That case cannot fail open. When `binding.commit` is used as the head, `post_qa_code_changes()` first runs `git merge-base --is-ancestor report.commit head` and raises "QA commit is not an ancestor of validation head" on return code 1. A QA report validated at a commit later than the selected head is exactly the non-ancestor case, so the shorter range is rejected rather than silently accepted. The laxness is bounded to reports whose commit is genuinely an ancestor of the older field, where the range really does contain no later work.
+That matters only on the fallback path. On the normal path `validation_head` is already live `HEAD` (`:1647`), so `binding.commit` is not used as the head at all and the selection has no effect on staleness.
+
+On the fallback path, where `git rev-parse HEAD` itself failed and `head = binding.commit`, `post_qa_code_changes()` runs `git merge-base --is-ancestor report.commit head` and raises "QA commit is not an ancestor of validation head" when `report.commit` is not an ancestor. That rejects a QA report validated *later* than the selected head. It does **not** catch the case where `report.commit` is a genuine ancestor of the older `comparison.head`: the range `report.commit..comparison_head` then excludes any non-evidence work between `comparison.head` and `endingCommit`, and that work goes unreported. An earlier draft of this ADR claimed this case "cannot fail open" and that "the range really does contain no later work." The second clause is circular: the range excludes the later work by construction, which is the failure, not the proof of safety.
+
+The exposure is bounded by how the fallback is reached. It requires live-`HEAD` resolution to fail, on the fresh-validation path, on a log whose two fields disagree with `comparison.head` older. No test covers it; every existing test mocks `post_qa_code_changes` at the seam that would exercise it (see Implementation Notes).
 
 ### Why `comparison.head` keeps precedence
 
@@ -217,7 +239,7 @@ Preferring `endingCommit` was considered and rejected. `comparison.head` is the 
 
 - **Has the original problem changed?** Yes. The schema now documents `comparison.head` advancing independently, and names the field added to accommodate it. The check contradicts the data model it validates.
 - **Is there a better solution now?** Yes, and it is smaller than ADR-096's. The binding commit's only remaining consumer is a rarely-taken fallback head, so a documented precedence plus a warning covers what the raise was reaching for, with no new I/O.
-- **What are the risks of change?** A genuinely corrupt log now warns instead of failing. Bounded by three things: `endingCommit` keeps its independent reachability check (`validate_session_json.py:696-706`); the schema pattern still constrains both fields; and `post_qa_code_changes()` still fails closed on ancestry whenever `binding.commit` is used as a head. The corpus above bounds the exposure at 35 of 1458 logs where the check engages at all.
+- **What are the risks of change?** A genuinely corrupt log now warns instead of failing. Bounded by three things, one weaker than it looks: `endingCommit` keeps its independent reachability check (`validate_session_json.py:684-687`), but that check fails open on a shallow clone (`--is-shallow-repository`, per `.claude/rules/session-logs.md` MUST 2), a pre-existing gap this ADR does not introduce or fix; the schema pattern still constrains both fields; and `post_qa_code_changes()` still fails closed on ancestry whenever `binding.commit` is used as a head, on the normal (non-fallback) path. The corpus above does not bound "how often the check engages" to a number; see Measured Incidence for the actual reachable population.
 
 ## Rationale
 
@@ -225,12 +247,12 @@ Preferring `endingCommit` was considered and rejected. `comparison.head` is the 
 
 | Alternative | Pros | Cons | Why Not Chosen |
 |-------------|------|------|----------------|
-| Status quo (keep the raise) | Zero change; the check reads like a control | Rejects the state `session-log.schema.json:170-174` documents as normal; blocks the whole QA-evidence check to protect a value normally never read; the churn in the 23-mention, 15-round chain on PR #4954 is the measured cost | The check contradicts the schema it validates, and the issue was filed to remove it |
+| Status quo (keep the raise) | Zero change; the check reads like a control | Rejects the state described under "`endingCommit` is carrying two contracts" above as normal; blocks the whole QA-evidence check to protect a value normally never read; forces the 42-of-44 lockstep pattern that corrupts `endingCommit`'s own provenance | The check contradicts the invariant it validates, and the issue was filed to remove it |
 | Mechanically reuse `post_qa_code_changes()`, as ADR-096 did (the issue's suggested direction) | Consistent with the sibling function; reuses tested code; would tolerate evidence-only drift | Adds two git subprocesses and a `repo_root` parameter to a function that touches no process today; re-answers a staleness question `validate_qa_report()` already answers one call later, about a different pair of commits; inherits the unrelated-SHA ancestry raise that names neither commit, on the pair most likely to be unrelated | Answers the wrong question at the wrong layer for a value that is a fallback; the issue explicitly offered this as a suggestion to be justified, and it does not survive the justification |
 | Prefer `endingCommit` over `comparison.head` on disagreement | `endingCommit` has an independent reachability check, so the chosen SHA would be verified | Contradicts the schema's stated purpose for `comparison.head` during rebinding; changes which SHA is selected on a case where today's code selects the other; no corpus evidence that `endingCommit` is the more accurate field | Reverses the documented intent of the rebind workflow to gain a check that applies to a fallback value |
 | Delete the raise with no diagnostic | Smallest possible diff | Removes the only signal on `comparison.head` and leaves nothing in its place; this is the silent-relaxation shape `.claude/rules/ci-scripts.md` SHOULD 4 names | Keeps the false positive's cost while discarding its one true observation |
-| Widen the schema to forbid `endingCommit` when `comparison.head` is present | Removes the ambiguity at the source | Breaks 34 agreeing logs and every producer that writes both; a schema change is a larger blast radius than the validator change it would justify | Disproportionate to a check that engages on 35 of 1458 logs |
-| **Documented precedence plus a warning on the binding (chosen)** | Removes the false positive; keeps the observation; no new I/O, no new parameter on the function; identical behavior on 1451 of 1458 committed logs | Adds a field to a value object for a diagnostic; a genuinely inconsistent log now warns rather than fails | Matches the invariant's real strength: two self-attested fields disagreeing is worth reporting and is not worth rejecting a log over |
+| Widen the schema to forbid `endingCommit` when `comparison.head` is present | Removes the ambiguity at the source | Breaks 34 agreeing logs and every producer that writes both; a schema change is a larger blast radius than the validator change it would justify | Disproportionate to a check that engages only on the CI full-validation residual (see Measured Incidence), not on the whole corpus |
+| **Documented precedence plus a warning on the binding (chosen)** | Removes the false positive; keeps the observation; no new I/O, no new parameter on the function; identical behavior on at least 1452 of 1459 committed logs (1418 unreachable plus 34 both-full-and-agreeing) | Adds a field to a value object for a diagnostic; a genuinely inconsistent log now warns rather than fails | Matches the invariant's real strength: two self-attested fields disagreeing is worth reporting and is not worth rejecting a log over |
 
 ### Trade-offs
 
@@ -243,14 +265,15 @@ The design trades a hard verdict for an accurate one. The raise asserted that a 
 - Removes a hard failure on a state the committed schema documents as expected, which is the churn source PR #4954 round 15 identified.
 - Adds no git subprocess calls; `session_qa_binding()` stays a pure mapping-to-value function with no `repo_root`.
 - Keeps the disagreement visible. The reader gets both SHAs and the selection made, which the previous message did not include.
-- Byte-identical behavior on 1451 of the 1458 committed session logs (1417 where the raise is unreachable plus 34 where the fields agree).
+- Byte-identical behavior on at least 1452 of the 1459 committed session logs (1418 where the raise is unreachable plus 34 where both fields are full SHAs and agree). The 6-log third bucket (full `comparison.head`, abbreviated `endingCommit`) and the 1 persisting disagreement are the only populations where behavior can differ.
 
 ### Negative
 
 - A session log made inconsistent by a hand-edit or a broken producer is no longer rejected. It warns and binds to `comparison.head`.
 - `QaBinding` grows a field that exists only to carry a diagnostic, which mixes an observation about provenance into a value object describing identity.
 - The warning only appears on the fresh-validation path, since `validate_session_log()` gates the whole QA-evidence block behind `not existing_log and not creation_mode` (`scripts/validate_session_json.py:1169,1178`). A committed log validated with `--existing-log` never reaches the function and never emits it. This matches ADR-096's scope and is not widened here.
-- An abbreviated `comparison.head` stays invisible to this function. The schema allows 7 to 40 characters (`session-log.schema.json` `comparison.head` pattern `^[0-9a-f]{7,40}$`), but `:170-172` tests `_FULL_COMMIT_PATTERN` and falls through to `endingCommit` on anything shorter, with no attempt to resolve it through the `resolve_commit` callable the way `endingCommit` gets at `:160-168`. That asymmetry predates this ADR and is not changed by it. It is named here because the corpus figure above depends on it: 1417 of 1458 logs are counted as "raise unreachable" partly for this reason.
+- An abbreviated `comparison.head` stays invisible to this function. The schema allows 7 to 40 characters (`session-log.schema.json` `comparison.head` pattern `^[0-9a-f]{7,40}$`), but `:170-172` tests `_FULL_COMMIT_PATTERN` and falls through to `endingCommit` on anything shorter, with no attempt to resolve it through the `resolve_commit` callable the way `endingCommit` gets at `:160-168`. That asymmetry predates this ADR and is not changed by it. It is named here because the corpus figure above depends on it: most of the 1418 logs counted as "raise unreachable" are counted so partly for this reason.
+- `.claude/skills/memory/scripts/extract_session_episode.py`'s `_collect_shas` seeds from `commitHead`, then `comparison.head`, then `endingCommit`. This ADR does not change that precedence, and the raise never protected it, but a disagreeing `comparison.head` with no `commitHead` present (the schema does not require it) can still attribute a foreign commit to a session's episode. Pre-existing, folded into the follow-up issue below rather than fixed here.
 - The residuals ADR-096 recorded and left open are untouched: `post_qa_code_changes()` still reports every path a catch-up merge picked up, and the `QA_EVIDENCE_PREFIXES` boundary gaps (instruction-prose coverage, the self-referential `.agents/qa/` entry, `AI_AGENTS_ARTIFACT_ROOT` desync) remain a separate follow-up.
 
 ### Neutral
@@ -281,12 +304,20 @@ The design trades a hard verdict for an accurate one. The raise asserted that a 
 5. Regenerate the mirror with `uv run python build/scripts/build_all.py` and confirm `diff -q` reports the two `qa_report.py` copies identical.
 6. Re-run the corpus query from Context against the branch head and quote the result in the PR. `.claude/rules/ci-scripts.md` MUST 13 governs a PR that introduces a gate; this PR removes one, so the corpus figure is offered as the blast-radius measurement rather than as MUST-13 compliance.
 7. Grep for `session_qa_binding` and `QaBinding(` before merging and re-verify the caller inventory in the Impact table against the branch's actual diff.
+8. Add a test for the fallback head path: `validation_head=None`, `comparison.head` older than `endingCommit`, `report.commit` a genuine ancestor of `comparison.head`, and a non-evidence change between the two fields. Assert the current behavior explicitly, including that the change goes unreported, so the bound described under "The laxer direction is bounded, not impossible" is pinned rather than asserted.
+
+## Follow-ups (not in scope here)
+
+1. A dedicated QA-freshness field in `session-log.schema.json`, distinct from `endingCommit` (`handoff.md:219`, the round-15 reviewer's recommended remedy). This ADR unblocks that design; it does not implement it.
+2. The `validate_session_json.py` fallback that binds `head` to `binding.commit` when live-`HEAD` resolution fails. It is the only place this ADR's laxer-direction exposure lives; dropping it and deciding explicitly what should happen instead is a smaller, separable fix.
+3. `QA_EVIDENCE_PREFIXES` boundary churn (`handoff.md:227`), the actual driver of the 23-mention, 15-round rebind chain on PR #4954. Already named as a separate, still-open gap in Negative consequences.
+4. `.agents/sessions/2026-08-06-session-10003-review-pending-checkout-changes-update.json` has carried two unresolvable, disagreeing commit fields since 2026-08-06 and is this ADR's central exhibit. Nobody owns cleaning it up.
 
 ## Related Decisions
 
 - ADR-096. Relaxed `validate_qa_report()`'s equality to a code-change-aware check and scoped this function out; this ADR is the follow-up it named.
 - Issue #5217. The issue this ADR resolves.
-- Issue #2840, PR #4954 round 15. Identified this function's equality as the fix that would close a 15-round rebind chain.
+- Issue #2840, PR #4954 round 15. Named relaxing this function's equality as required "at minimum" for its recommended remedy, a dedicated QA-freshness schema field; this ADR is the prerequisite, not that remedy.
 - Issue #5164, PR #5167. ADR-096's issue and implementing PR, whose Reviewer Expectations named this follow-up.
 - ADR-034. QA skip semantics, which decide when the QA-evidence block runs at all.
 
@@ -297,9 +328,12 @@ The design trades a hard verdict for an accurate one. The raise asserted that a 
 - `scripts/validate_session_json.py:960-986`. `validate_qa_report_evidence`, the only production caller.
 - `scripts/validate_session_json.py:1641-1642`. Live-`HEAD` resolution that makes `binding.commit` a fallback rather than the normal head.
 - `scripts/validate_session_json.py:696-706`. `endingCommit`'s independent reachability check.
+- `scripts/validation/git_hook_policy.py:1954`. The pre-commit mode flags that keep this check unreachable from pre-commit.
+- `scripts/validation/session_scope.py:348-370`. `committed_session_validation_modes()`, whose residual population is where this check actually engages.
 - `.agents/schemas/session-log.schema.json:170-174`. `commitHead`, and its statement that QA rebinding advances `comparison.head`.
 - `.claude/skills/memory/scripts/extract_session_episode.py:831-832`. The extractor comment carrying the same understanding.
 - `.claude/rules/session-logs.md` MUST 2, MUST 3. Why `endingCommit` moves on a separate schedule.
 - `.claude/rules/ci-scripts.md` MUST-NOT-2, SHOULD 4. Validator-change ADR requirement; repairs to silent failures.
 - `.agents/critique/ADR-096-debate-log.md`. The review pattern this ADR follows.
-- `.agents/sessions/handoffs/2026-08-15-2840-handoff.md`. The 23-mention, 15-round rebind evidence.
+- `.agents/critique/ADR-099-debate-log.md`. Round 3: the six-independent-agent re-review, the overruled Block, and the corpus and citation corrections this ADR incorporates.
+- `.agents/sessions/handoffs/2026-08-15-2840-handoff.md`. The 23-mention, 15-round rebind evidence, attributed at `:227` to `QA_EVIDENCE_PREFIXES` churn rather than to this check; the round-15 findings against `endingCommit`'s "false historical session provenance" at `:207`; the round-15 recommended remedy at `:219`; and the rebind-preserves-`commitHead` observation at `:80`.
