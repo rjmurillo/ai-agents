@@ -1,0 +1,19 @@
+{
+  "id": "episode-2026-08-21-session-99927-9e1ebd2-qa-gate-pr-feedback",
+  "session": "2026-08-21-session-99927-9e1ebd2-qa-gate-pr-feedback",
+  "timestamp": "2026-08-21T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Reduce QA-gate back-and-forth on PRs (\"same gate, same correct complaint - QA evidence is bound to the previous commit\"). Investigation found ADR-096 already fixed the main offender (validate_qa_report's staleness check, merged in PR #5167) but left its frontmatter implemented:false; corrected that. Found the still-live source of the complaint is session_qa_binding()'s separate, stricter equality check (.claude/lib/qa_report.py:170-178), which ADR-096 explicitly scoped out and told a future session to file a follow-up issue for. User chose the follow-up-issue-only path over a full ADR + 6-agent debate this session; filed issue #5217 with the evidence (PR #4954 round 15, this session's report) instead of implementing a code change.",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}
