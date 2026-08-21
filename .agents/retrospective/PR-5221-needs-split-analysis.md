@@ -29,8 +29,8 @@ document is the prescribed AI-agent retrospective for a PR carrying
    costs: 1 content commit + 1 `endingCommit` follow-up + 1 `qaCommit`
    rebind = 3 commits minimum, before counting the fix itself. Across three
    rounds of automated (Copilot, Cursor Bugbot, `ai-spec-validation`) review
-   plus manual diagnosis of CI failures, this pattern alone accounts for 33
-   of the 48 commits (`docs(sessions)` + `docs(qa)`).
+   plus manual diagnosis of CI failures, this pattern alone accounts for 27
+   of the 48 commits (`docs(sessions)` 18 + `docs(qa)` 9 = 27, 56%).
 
 2. **Upstream churn during a long review window.** `origin/main` advanced
    five times while this PR was in flight (PR #5219, two PYSEC pip-pin
@@ -74,7 +74,7 @@ will recur with it independent of any contributor's behavior.
 
 ## Failure Mode Classification
 
-**Class**: Not applicable—no agent failure. This analysis documents a mechanical
+**Class**: Not applicable: no agent failure. This analysis documents a mechanical
 consequence of existing governance rules (`session-logs.md` MUST 2, ADR-096
 staleness contract) interacting with the commit-limit policy under sustained
 multi-round automated review. The commit accumulation is the expected, correct
@@ -82,8 +82,8 @@ behavior of compliant agents following the session-log and QA-rebind protocol;
 it is not a failure mode per `.agents/governance/FAILURE-MODES.md`.
 
 If a class must be assigned for traceability: closest match is **Class 2
-(Continuation Reset After Compaction)** in shape only—long sessions accumulate
-state—but the root cause differs. Class 2 describes agents losing track of
+(Continuation Reset After Compaction)** in shape only, since long sessions
+accumulate state, but the root cause differs. Class 2 describes agents losing track of
 in-progress work; here the agent correctly tracked and committed every required
 bookkeeping step, which is why the count grew.
 
@@ -103,4 +103,4 @@ bookkeeping step, which is why the count grew.
 |--------|-------|--------|
 | Apply `commit-limit-bypass` label to unblock PR #5221 | Human reviewer | Pending |
 | Consider raising the post-merge limit or exempting bookkeeping-only commits in a future ADR | Process owner (TBD via issue) | Not started |
-| No code or governance change required for this specific PR | — | N/A |
+| No code or governance change required for this specific PR | n/a | N/A |
