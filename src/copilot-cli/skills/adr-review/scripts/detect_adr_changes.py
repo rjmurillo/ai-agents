@@ -167,14 +167,15 @@ def _has_duplicate_top_level_keys(frontmatter: str) -> bool:
     class _Loader(yaml.SafeLoader):
         pass
 
-    def _check(loader, node):  # type: ignore[no-untyped-def]
+    def _check(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict[object, object]:
         seen: list[object] = []
         for key_node, _ in node.value:
             key = loader.construct_object(key_node, deep=True)
             if any(key == earlier for earlier in seen):
                 raise _Dup
             seen.append(key)
-        return loader.construct_mapping(node, deep=True)
+        mapping: dict[object, object] = loader.construct_mapping(node, deep=True)
+        return mapping
 
     _Loader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _check)
 

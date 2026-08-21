@@ -37,9 +37,7 @@ mod = import_skill_script(".claude/skills/adr-review/scripts/detect_adr_changes.
 class TestUndecodableRecords:
     """A record with a stray byte is skipped or unknown, never a traceback."""
 
-    def test_get_adr_status_returns_unknown_for_invalid_utf8(
-        self, tmp_path: Path
-    ) -> None:
+    def test_get_adr_status_returns_unknown_for_invalid_utf8(self, tmp_path: Path) -> None:
         """The undecodable state joins the other undeclared states.
 
         The caller is written around STATUS_UNKNOWN meaning 'this record does
@@ -51,9 +49,7 @@ class TestUndecodableRecords:
 
         assert mod._get_adr_status(bad) == mod.STATUS_UNKNOWN
 
-    def test_get_adr_status_still_reads_a_decodable_record(
-        self, tmp_path: Path
-    ) -> None:
+    def test_get_adr_status_still_reads_a_decodable_record(self, tmp_path: Path) -> None:
         """Negative control: the new arm does not swallow good input.
 
         Without this, a handler that returned STATUS_UNKNOWN unconditionally
@@ -64,9 +60,7 @@ class TestUndecodableRecords:
 
         assert mod._get_adr_status(good) == "accepted"
 
-    def test_dependent_scan_skips_an_undecodable_record(
-        self, tmp_path: Path
-    ) -> None:
+    def test_dependent_scan_skips_an_undecodable_record(self, tmp_path: Path) -> None:
         """One corrupt record must not abort the scan of the rest.
 
         This site was NOT in the bug report. Fixing only the reported handler
@@ -133,17 +127,13 @@ class TestDuplicateStatusKeys:
 
         assert mod._get_adr_status(adr) == mod.STATUS_UNKNOWN
 
-    def test_a_single_declaration_still_reports_its_status(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_single_declaration_still_reports_its_status(self, tmp_path: Path) -> None:
         """Negative control.
 
         A guard returning STATUS_UNKNOWN unconditionally would satisfy both
         tests above and be indistinguishable from a correct one.
         """
         adr = tmp_path / "ADR-001.md"
-        adr.write_text(
-            "---\nid: ADR-001\nstatus: accepted\n---\n# T\n", encoding="utf-8"
-        )
+        adr.write_text("---\nid: ADR-001\nstatus: accepted\n---\n# T\n", encoding="utf-8")
 
         assert mod._get_adr_status(adr) == "accepted"
