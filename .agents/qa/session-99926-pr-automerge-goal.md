@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99926-a1b2c3d4e-pr-automerge-goal.json
-qaCommit: 3c3911919bc0c447443d4d4f228c14ce3c78987f
+qaCommit: 51e6c4500cf18a78cb13f8f5184b34557eae2c12
 ---
 
 # PR-Automerge Goal Session QA
@@ -15,6 +15,13 @@ One code change this session: `tests/validation/test_portability_baseline_predec
 else this session (merging #5173, closing #5175, PR-comment investigation on
 #5181 and #5183, enabling native auto-merge on #5176 and #5186) is
 GitHub-side triage with no source diff of its own.
+
+`qaCommit` is rebound past its original commit (`3c3911919`, the code fix,
+merged as PR #5186) to the current session's final commit. Every commit in
+between adds only session-log, QA-report, and retrospective evidence under
+`.agents/sessions/`, `.agents/qa/`, and `.agents/retrospective/`; no source
+file changed after the code fix, so the test results and pre-push evidence
+below remain current.
 
 ## Test Results
 
