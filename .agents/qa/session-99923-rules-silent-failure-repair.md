@@ -138,6 +138,52 @@ repository gates on, which is why it did not have to be traded against coverage.
 Whether it is free to a contributor editing `tests/` is a different question and
 the answer there is no.
 
+## Why the two mirrors carry different globs
+
+The PR description calls the divergence "generator-designed". The spec validator
+asked who verified that, noting the description "does not cite a test or
+verification". Fair: it was my word. Here is the source.
+
+`build/scripts/generate_rules.py:92` declares the filter:
+
+```python
+_INTERNAL_PATH_PREFIXES = (".agents/", ".claude/", ".serena/")
+```
+
+with the reason above it: those directories "do not ship in any downstream
+install", so emitting them would produce "dead `applyTo` entries that would never
+match a vendor-side file path".
+
+The per-destination switch is `keep_internal`, and the generator's own docstring
+states which destination gets which behavior:
+
+> `keep_internal` (issue #2892): when True, the internal-glob filter is skipped so
+> `.claude/**` and siblings survive verbatim. This is set for output destinations
+> that coexist with the internal dirs in the same repo (the in-repo
+> `.github/instructions` tree), where the in-repo Copilot agent edits `.claude/`
+> sources and needs those rules to auto-load. Distributed destinations (the plugin
+> `src/copilot-cli/instructions` tree, installed where `.claude/` does not exist)
+> keep filtering so they do not carry dead references.
+
+So the behavior is intentional, reasoned, and carries an issue number. It is also
+pinned by tests rather than only by prose:
+
+```
+$ uv run --frozen python -m pytest tests/build_scripts/test_generate_rules.py -q -k internal
+11 passed, 32 deselected
+```
+
+Those include `test_internal_paths_filtered_from_apply_to`,
+`test_block_list_paths_internal_globs_filtered`, and
+`test_all_internal_paths_skips_rule_for_plugin_destination`.
+
+**What that does not settle.** Design-by-intent is not the same as adequate for
+this rule. The consequence still stands: a Copilot CLI session editing
+`.claude/commands/` does not load SHOULD 4, so one of the two trees the item was
+expanded for is covered on one harness only. The generator is behaving correctly
+and the coverage gap is real at the same time. That is a decision for the owner,
+not something this evidence closes, and it is raised as focus area 1.
+
 ## Verification output, persisted rather than asserted
 
 Two of this PR's acceptance criteria are about the artifacts rather than the rule,
