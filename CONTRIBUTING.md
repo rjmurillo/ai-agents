@@ -838,30 +838,34 @@ Routine version bumps do not require an ADR edit. See `.serena/memories/copilot/
 
 ### Commit Count Thresholds
 
-PRs with many commits often indicate scope creep or should be split into smaller PRs. The repository enforces commit thresholds automatically:
+PRs with many commits often indicate scope creep or should be split into smaller PRs. The repository flags large commit counts advisorily; it does not block a PR on commit count:
 
 | Commit Count | Action | Label Applied |
 |--------------|--------|---------------|
 | 10 commits | Warning notice in PR | `needs-split` |
 | 15 commits | Alert warning in PR | `needs-split` |
-| Above active limit | PR blocked from merge | `needs-split` |
 
 #### What This Means
 
 - **10 commits**: The workflow adds a notice. Consider whether the PR should be split.
 - **15 commits**: The workflow adds an alert. Splitting is strongly recommended.
-- **Above active limit**: The workflow blocks the PR. You MUST split the PR, or ask a human maintainer to decide on the `commit-limit-bypass` label. That label is human-only (see "Bypassing the Limit" below); do not apply it yourself.
 
-The active limit is 20 by default. Validation may raise it to 40 after detecting
-a qualifying base merge. Exactly 20 or 40 commits remains an alert, not a block.
+There is no hard ceiling and no bypass label: a large PR is never blocked from
+merge on commit count alone. The former 20/40-commit block and its
+`commit-limit-bypass` human-only label were removed (issue #5230). That gate
+required local, pre-push verification of a GitHub label, which is not always
+possible: a sandboxed harness without `gh`/API access could not confirm a
+label that was already correctly applied, and the only way through was an
+expensive workaround (an entirely new stacked branch and PR) that a local
+check could not distinguish from a genuine violation.
 
 #### Handling `needs-split` Labels
 
 **For contributors**:
 
 1. Review the commit history to identify logical groupings
-2. Split into smaller, focused PRs where possible
-3. If splitting is not practical, add a comment explaining why and request the `commit-limit-bypass` label
+2. Split into smaller, focused PRs where practical
+3. It is fine to leave a large PR unsplit when splitting is not practical; the label is a suggestion, not a requirement
 
 **For AI agents (pr-review, pr-comment-responder)**:
 
@@ -871,14 +875,6 @@ When encountering a PR with the `needs-split` label:
 2. **Analyze commit history**: Group commits by logical change to identify potential split points
 3. **Provide recommendations**: Suggest how the work could be divided into smaller PRs
 4. **Document findings**: Save analysis to `.agents/retrospective/PR-[number]-needs-split-analysis.md` for future reference
-
-#### Bypassing the Limit
-
-To bypass the active commit limit:
-
-1. A human maintainer MUST add the `commit-limit-bypass` label
-2. The bypass is visible in the PR labels and auditable
-3. Use this sparingly for genuinely large, atomic changes that cannot be split
 
 ### PR Description Validation
 
