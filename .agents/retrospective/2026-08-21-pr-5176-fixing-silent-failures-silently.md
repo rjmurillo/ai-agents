@@ -29,8 +29,8 @@ The session encountered this class repeatedly in three shapes:
    and reading as deliberate.
 
 **Secondary**: FM-4 (False Completion Markers). The controls that passed without
-proving anything are FM-10 at the mechanism layer; the visible symptom—a green
-check that claims coverage it does not have—is FM-4.
+proving anything are FM-10 at the mechanism layer. The visible symptom, a green
+check that claims coverage it does not have, is FM-4.
 
 ## What the change became
 
