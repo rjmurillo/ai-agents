@@ -2018,7 +2018,7 @@ def test_branch_context_blocks_a_locally_tampered_upstream_log(tmp_path: Path) -
 
     # Tamper the working-tree copy without committing: same path, different
     # content than what is upstream.
-    imported.write_text(json.dumps({"session": {"branch": "feature/tampered"}}))
+    _write_lf(imported, json.dumps({"session": {"branch": "feature/tampered"}}))
     os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
 
     assert policy.check_branch_context(repo) == 1
