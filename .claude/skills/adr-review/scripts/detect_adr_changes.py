@@ -58,7 +58,7 @@ def _get_dependent_adrs(adr_name: str, base_path: Path) -> list[str]:
         for adr_file in dir_path.glob("ADR-*.md"):
             try:
                 content = adr_file.read_text(encoding="utf-8")
-            except OSError:
+            except (OSError, UnicodeDecodeError):
                 continue
             if adr_name in content:
                 dependents.append(str(adr_file))
@@ -232,7 +232,7 @@ def _get_adr_status(file_path: Path) -> str:
         return STATUS_UNKNOWN
     try:
         content = file_path.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return STATUS_UNKNOWN
     frontmatter, _body = _split_frontmatter(content)
     if not frontmatter:

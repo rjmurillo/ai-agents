@@ -223,7 +223,7 @@ def _read_record(path: Path, number: int, rel: str) -> tuple[Record, Violation |
     """Parse one ADR. The violation is non-None when the frontmatter is unusable."""
     try:
         text = path.read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         empty = Record(number, rel, None, "")
         return empty, Violation("frontmatter-parses", rel, f"could not be read: {exc}")
     raw, body = _split_frontmatter(text)
@@ -574,7 +574,7 @@ def read_baseline(path: Path) -> dict[str, int] | str:
     """Baseline counts, or a one-line reason the file cannot be used."""
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         return f"baseline {path} could not be read: {exc}"
     except json.JSONDecodeError as exc:
         return f"baseline {path} is not valid JSON: {exc}"
