@@ -1,13 +1,13 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 3dabdf773bb007f7fcd286e36dc24f6c02bbee55
+qaCommit: 86ccc330dd1ec6b1846c8daaf74066a1a9861d57
 ---
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `3dabdf773bb007f7fcd286e36dc24f6c02bbee55`
+**Validated at commit**: `86ccc330dd1ec6b1846c8daaf74066a1a9861d57`
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -458,4 +458,89 @@ restored                       -> passed
 Recorded because the tempting resolutions were both wrong. Taking main's
 version wholesale would have re-introduced the drift this PR fixed; taking mine
 wholesale would have discarded a genuine improvement from another author.
+
+## Addendum 6: Copilot review, and the record this PR silently broke
+
+### The duplicate-key forgery vector
+
+`yaml.safe_load` resolves duplicate mapping keys last-wins and reports nothing:
+
+```
+yaml.safe_load("id: A\nstatus: proposed\nstatus: accepted")
+-> {'id': 'A', 'status': 'accepted'}
+```
+
+So a record could declare `status: proposed` near the top and `status: accepted`
+lower in the same block, and every reader in this PR would enforce accepted
+while a human scanning the first lines sees proposed. In a PR whose subject is
+making ADR lifecycle trustworthy, that is a forgery vector rather than a
+formatting nit.
+
+The repo already knew. `detect_adr_changes` carries
+`_has_duplicate_top_level_keys`, documented as catching "a second `status:` line
+masking the first", and fails its frontmatter-only exemption closed on it. It
+guarded the exemption path and nothing else, so the status path and the
+exemption path disagreed about whether such a record is readable at all.
+
+Fixed in all three readers, with the mechanism chosen per site rather than
+copied: `detect_adr_changes` defers to the existing tested helper;
+`check_adr_lifecycle` scans top-level lines and returns the offending key so the
+violation can name it, deliberately not touching the shared `yaml_utils` helper
+whose other consumers this change has no mandate to alter; `generate_adr_index`
+subclasses `SafeLoader` so duplicates nested inside a mapping value are caught
+too, which a line scan cannot do.
+
+### The record this PR broke, and why nothing caught it
+
+ADR-063 carried no frontmatter. Its machine-readable status was a bare
+`status: accepted` line inside the body of its `## Status` prose, at line 12,
+which resolved only because the parser searched the whole document. That is
+exactly the defect #5189 closed here, so fixing the parser silently changed
+ADR-063 from `accepted` to `unknown`.
+
+Three tests covered ADR-063's status and none noticed, because each
+reimplemented the old regex instead of calling the parser. Measured from one
+file before the repair:
+
+```
+docstring claims          "proposed"
+test assertion requires   "accepted"
+canonical parser returns  "unknown"
+```
+
+The docstring and the assertion contradicted each other in the same file, and
+both contradicted the parser they claimed to mirror. This is the
+canonical-source-mirror rule earning its place: a test that copies a contract
+instead of calling it will pass through the contract changing underneath it.
+
+ADR-063 now carries frontmatter transcribing the acceptance its prose has
+recorded since 2026-06-17, the orphan body line is gone, and the tests call
+`_get_adr_status`. Debate log:
+`.agents/critique/ADR-063-frontmatter-transcription-debate-log.md`.
+
+### A template overreach, corrected
+
+The template comment told authors to name lifecycle sections anything but
+`## Status`. ADR-073 says the opposite verbatim: it retains that section as "the
+human-readable secondary rendering", says it "may carry the nuance the enum
+cannot", and lists under Neutral that it "is retained, so human reading habits
+do not change".
+
+Removing the pre-filled duplication was right and is what the owner asked for.
+Telling authors not to use the section was an overreach past both the review
+comments and the ADR. **This is the second time in this campaign the same
+mistake was made**: the `status-section-present` check turned the same MAY into
+a MUST in the opposite direction. Recording the repeat, because one instance is
+an error and two is a pattern worth naming.
+
+Re-verified at this commit:
+
+```
+check_adr_lifecycle    99 passed
+generate_adr_index     60 passed
+detect_adr_changes     56 passed across four trees
+ADR-063 structural     26 passed
+mypy ratchet           clean after annotating the loader
+taste ratchet          within baseline
+```
 
