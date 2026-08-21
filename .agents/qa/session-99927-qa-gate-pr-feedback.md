@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99927-9e1ebd2-qa-gate-pr-feedback.json
-qaCommit: 26daf217f6c22e1c251b0bd5206102feb68c542b
+qaCommit: cedd4a346cb86470d82898ee99442c3db9fb04b4
 ---
 # QA Report: session 99927, QA-gate PR feedback
 
@@ -13,7 +13,7 @@ Content changes through commit `26daf217f`:
 2. `.agents/sessions/2026-08-21-session-99927-9e1ebd2-qa-gate-pr-feedback.json`: this session's log (plus its generated episode).
 3. `tests/ci/test_validate_vendor_provenance.py`: repinned `test_workflow_sets_up_uv`'s expected SHA to match `.github/workflows/vendor-provenance.yml`'s current `astral-sh/setup-uv` pin (PR #5215 bumped the workflow to v10.0.1 without updating this co-located test, leaving it red on `main` itself; confirmed by running the test against a fresh `origin/main` worktree before touching it).
 
-This report itself was first bound to `fd1786fb8` (item 1-2 only); rebound to `26daf217f` after item 3 landed, since `tests/ci/*.py` is a real (non-evidence-path) change and correctly triggered ADR-096's `post_qa_code_changes` staleness check rather than being silently accepted.
+This report itself was first bound to `fd1786fb8` (item 1-2 only), then `26daf217f` after item 3 landed, then `cedd4a346` after addressing a Copilot review round that touched this same test file again (parsing the workflow YAML instead of a substring match) plus this log and this report. Each rebind was triggered correctly: `tests/ci/*.py` is a real (non-evidence-path) change, so ADR-096's `post_qa_code_changes` staleness check flagged it rather than silently accepting it.
 
 No library or generated-mirror path changed. The corresponding follow-up work item (relaxing `session_qa_binding()`'s equality check) is tracked as issue #5217, not implemented in this change.
 
