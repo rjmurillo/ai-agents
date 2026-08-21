@@ -4,7 +4,7 @@
   "timestamp": "2026-08-20T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
-  "task": "Evaluate whether the pull request commit-count and per-commit file-count push gates earn their cost, and structurally solve what the evidence shows. Produced ADR-100 (retire the size ceilings) and ADR-101 (enforcement planes), carried through eleven rounds of six-role adr-review plus continuing external bot review. The round count is stated rather than a finding count, because a count of findings here goes stale on every subsequent round and this field is copied verbatim into the episode artifact. Consensus was reached twice: at round 6, on text later shown to hold more than a dozen factual errors, and at round 11 on the current text. The difference between them is that rounds 8 through 11 assigned verification against the tree, after which every substantive finding came from running or reading a primary source rather than from re-reading prose.",
+  "task": "Evaluate whether the pull request commit-count and per-commit file-count push gates earn their cost, and structurally solve what the evidence shows. Produced ADR-100 (retire the size ceilings) and ADR-101 (enforcement planes), carried through eleven rounds of six-role adr-review plus continuing external bot review. The round count is stated rather than a finding count, because a count of findings here goes stale on every subsequent round and this field is copied verbatim into the episode artifact. Consensus was reached twice: at round 6, on text later shown to hold more than a dozen factual errors, and at round 11 on the revision under review at that time. **Not on the current text**, and an earlier revision of this field said so, which was false by the time it was written and matters more here than elsewhere because extract_session_episode.py copies this field verbatim into the episode that feeds memory retrieval. Material ADR changes landed after round 11 and the panel has not seen them, because the ten-round cap forecloses a round 12. The difference between them is that rounds 8 through 11 assigned verification against the tree, after which every substantive finding came from running or reading a primary source rather than from re-reading prose.",
   "decisions": [
     {
       "id": "d001",
@@ -917,7 +917,10 @@
         "e067",
         "e069"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e070",
+        "e072"
+      ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
@@ -933,6 +936,44 @@
         "e068"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e070",
+      "timestamp": "2026-08-21T16:30:22+00:00",
+      "type": "milestone",
+      "content": "Counted the open threads properly and found five more, three of them real defects",
+      "caused_by": [
+        "e068"
+      ],
+      "leads_to": [
+        "e071"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e071",
+      "timestamp": "2026-08-21T16:32:00+00:00",
+      "type": "milestone",
+      "content": "Transported ADR-101 again and the drift returned, one round after a zero-drift pass",
+      "caused_by": [
+        "e070",
+        "e072"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e072",
+      "timestamp": "2026-08-21T16:30:22+00:00",
+      "type": "commit",
+      "content": "Commit: a6f495e6440c3cf18d7e934cff9f6a626743813a",
+      "caused_by": [
+        "e068"
+      ],
+      "leads_to": [
+        "e071"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     }
   ],
   "metrics": {
@@ -940,7 +981,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 43,
+    "commits": 44,
     "files_changed": 10
   },
   "lessons": []
