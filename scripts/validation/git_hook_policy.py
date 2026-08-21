@@ -46,9 +46,9 @@ from scripts.hook_utilities.utilities import recent_host_session_dates
 from scripts.test_selection import select_tests
 from scripts.validation.object_id import ZERO_SHA_LENGTHS, is_full_object_id
 from scripts.validation.pr_commit_count import (
-    BLOCK_THRESHOLD,
-    MAIN_MERGE_BLOCK_THRESHOLD,
-    main_first_parent_shas,
+    ALERT_THRESHOLD,
+    WARNING_THRESHOLD,
+    classify_count,
 )
 from scripts.validation.session_scope import (
     added_session_paths_in_index,
@@ -5968,82 +5968,48 @@ def _check_push_updates(updates: Sequence[PushUpdate], repo_root: Path) -> int:
     return 2 if config_failed else 0
 
 
-def _contains_main_merge(update: PushUpdate, repo_root: Path) -> bool:
-    result = _run_git(repo_root, ["rev-list", "--merges", update.range_spec])
-    if result.returncode != 0:
-        return False
-    merges = [merge_sha for merge_sha in result.stdout.splitlines() if merge_sha]
-    if not merges:
-        return False
-    # Every merge is read against the same trunk, and a push may carry many.
-    # Reading it here keeps the walk once per push rather than once per merge.
-    # main_first_parent_shas is the shared implementation; contains_main_merge
-    # in pr_commit_count uses it too so both gates use the same predicate. This
-    # module's _run_git goes with it so a hook keeps the scrubbed git env and
-    # the timeout it applies to every other git call it makes.
-    trunk = main_first_parent_shas(repo_root, run_git=_run_git)
-    return any(_merge_has_main_parent(merge_sha, repo_root, trunk) for merge_sha in merges)
-
-
-def _merge_has_main_parent(
-    merge_sha: str,
-    repo_root: Path,
-    trunk: frozenset[str] | None = None,
-) -> bool:
-    # `log.showSignature` makes `show` report the signature check before the
-    # commit, and the first field of the split is then a word of that report
-    # rather than the merge's own first parent. Skipping the first field would
-    # then leave the first parent in the parents searched for main, and a merge
-    # of a side branch would read as a merge of main and double the commit
-    # limit. What this gate accepts is not a display preference.
-    result = _run_git(
-        repo_root,
-        ["show", "-s", "--no-show-signature", "--format=%P", merge_sha],
-    )
-    if result.returncode != 0:
-        return False
-    parents = result.stdout.split()[1:]
-    if trunk is None:
-        trunk = main_first_parent_shas(repo_root, run_git=_run_git)
-    return any(parent in trunk for parent in parents)
-
-
 def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
-    """Report, but never block, when a push exceeds the commit ceiling.
+    """Print an advisory notice for a large branch. Never blocks (issue #5233).
 
-    This local pre-push check used to block an over-limit push unless
-    scripts/validation/check_pr_bypass_label.py could confirm the
-    `commit-limit-bypass` label on gh, which made gh reachability a hard
-    requirement for pushing at all: a session where gh cannot authenticate
-    (issue #5232) could never push past the ceiling, with no way to verify or
-    prove a bypass label already granted on GitHub. Demoted to a report per
-    ADR-100 ("retire the pull request size ceilings"), item 1: "the second
-    site is local and fires earlier: `_check_commit_limit` in
-    `scripts/validation/git_hook_policy.py` ... Demote it to a report
-    alongside the CI site, or the ceiling survives in the place it does the
-    most damage." .github/workflows/pr-validation.yml ("Enforce
-    Blocking Issues" step) is the canonical, always-authenticated enforcer of
-    this gate and is unaffected by this change; it still runs before merge.
+    The 20/40-commit block, its `commit-limit-bypass` human-only label, and the
+    main-merge relief that raised the ceiling to 40 are removed: the block
+    required local verification of a GitHub label that this hook cannot always
+    perform (`gh` has no API access in some sandboxed sessions), which forced
+    authors into an expensive workaround -- an entirely new stacked branch and
+    PR -- to route around a check that could not confirm a fact that was
+    already true. `needs-split` (an advisory-only label with no local
+    enforcement) is unaffected.
     """
     result = _run_git(repo_root, ["rev-list", "--count", update.range_spec])
     if result.returncode != 0:
         _print_process_output(result)
-        return 2
+        print(
+            f"WARNING: could not measure commit count for '{update.destination_branch}'; "
+            "skipping the advisory notice. This is never blocking (issue #5233).",
+            file=sys.stderr,
+        )
+        return 0
     try:
         commit_count = int(result.stdout.strip())
     except ValueError:
-        return 2
-    limit = (
-        MAIN_MERGE_BLOCK_THRESHOLD if _contains_main_merge(update, repo_root) else BLOCK_THRESHOLD
-    )
-    if commit_count <= limit:
+        print(
+            f"WARNING: could not parse commit count for '{update.destination_branch}' "
+            f"(got {result.stdout.strip()!r}); skipping the advisory notice. "
+            "This is never blocking (issue #5233).",
+            file=sys.stderr,
+        )
         return 0
-    print(
-        f"NOTE: push has {commit_count} commits, limit is {limit}. This is a "
-        "local report only and does not block the push; "
-        ".github/workflows/pr-validation.yml still enforces the ceiling "
-        "before merge.",
-    )
+    status = classify_count(commit_count)
+    if status == "ALERT":
+        print(
+            f"NOTE: branch has {commit_count} commits (>= {ALERT_THRESHOLD}). "
+            "Consider splitting; this is advisory only and does not block.",
+        )
+    elif status == "WARNING":
+        print(
+            f"NOTE: branch has {commit_count} commits (>= {WARNING_THRESHOLD}). "
+            "Consider splitting; this is advisory only and does not block.",
+        )
     return 0
 
 

@@ -32,7 +32,7 @@ Vocabulary, defined once: an "instrument" is a script whose output you read, not
 | Lib drift | Do `.claude/lib/` copies match `scripts/` canonical modules? | `uv run python ./scripts/sync_plugin_lib.py --check` |
 | Coverage | Is changed code actually exercised by tests? | `uv run pytest <tests> --cov=<module> --cov-branch` |
 | Eval A/B | Did a prompt or agent change alter behavior, measurably? | `uv run python ./scripts/eval/eval-prompt-change.py --scenarios <file> --dry-run` |
-| Commit count | Am I approaching the 20-commit PR cap? | `git rev-list --count HEAD ^origin/main` |
+| Commit count | Advisory-only signal, not a cap (ADR-099) | `git rev-list --count HEAD ^origin/main` |
 
 ## Process
 
