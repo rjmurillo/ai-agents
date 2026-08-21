@@ -4,7 +4,7 @@
   "timestamp": "2026-08-21T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
-  "task": "Land the testing.md control-validity rule from the PR #5176 retrospective as its own change, since claude-agents.md MUST NOT 2 forbids bundling a rule change with code",
+  "task": "Land the testing.md control-validity rule from the PR #5176 retrospective as its own change. PR #5176 already carries the needs-split label at 17 changed files, so adding two rule items to it grows a diff a reviewer has asked to shrink. No rule requires the split: an earlier wording here cited claude-agents.md MUST NOT 2, which reads \"MUST NOT bundle skill code changes with memory changes in the same PR\" and governs a different pairing. Copilot found it.",
   "decisions": [],
   "events": [
     {

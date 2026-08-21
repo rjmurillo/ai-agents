@@ -5,7 +5,7 @@
     "date": "2026-08-21",
     "branch": "claude/issue-5187-control-validity",
     "startingCommit": "2dd747176",
-    "objective": "Land the testing.md control-validity rule from the PR #5176 retrospective as its own change, since claude-agents.md MUST NOT 2 forbids bundling a rule change with code"
+    "objective": "Land the testing.md control-validity rule from the PR #5176 retrospective as its own change. PR #5176 already carries the needs-split label at 17 changed files, so adding two rule items to it grows a diff a reviewer has asked to shrink. No rule requires the split: an earlier wording here cited claude-agents.md MUST NOT 2, which reads \"MUST NOT bundle skill code changes with memory changes in the same PR\" and governs a different pairing. Copilot found it."
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -42,7 +42,7 @@
       "constraintsRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read knowledge-persistence.md (MUST 2 regenerate mirrors in the same change) and claude-agents.md (MUST NOT 2, no bundling with code) before editing."
+        "Evidence": "Read knowledge-persistence.md (MUST 2 regenerate mirrors in the same change) before editing. Also read claude-agents.md, but the earlier wording here paraphrased its MUST NOT 2 as \"no bundling with code\". The item reads \"MUST NOT bundle skill code changes with memory changes in the same PR\", which does not govern a rule change split out of a code PR, so the citation is withdrawn rather than restated. Copilot found it."
       },
       "serenaInstructions": {
         "level": "MUST",
