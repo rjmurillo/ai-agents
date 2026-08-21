@@ -247,6 +247,69 @@ gone a fourth round of the same staleness before #5208 was filed: five actions
 had landed and none had a row, so the record understated the work exactly as the
 scope line above overstated its own precision.
 
+## Corrections
+
+### 2026-08-21: the Remediation section cited a rule that does not say what it was cited for
+
+The Remediation section states that the two rule follow-ups cannot ride on PR
+#5176 because `.claude/rules/claude-agents.md` MUST NOT 2 "forbids bundling with
+code". That is wrong. The item reads, verbatim:
+
+> MUST NOT bundle skill code changes with memory changes in the same PR
+> (separate concerns).
+
+Different pairing on both sides. Neither follow-up touches a Serena memory, and
+PR #5176 changed command and test code rather than skill code. The item does not
+reach the decision at all.
+
+**The decision itself stands, on a fact rather than a rule.** PR #5176 carried
+the `needs-split` label at 17 changed files, so adding two rule items would have
+grown a diff a reviewer had already asked to shrink. The citation is withdrawn
+rather than swapped for a different one, because reaching for a rule to justify
+a decision already made is how the wrong one got cited in the first place.
+
+**Blast radius, because this is the interesting part.** The same misreading
+reached three PR bodies, two session logs, two extracted episodes, this
+retrospective, several review-thread replies, and a spec validator that echoed
+it back as a verified requirement, which is what made it feel settled rather
+than assumed. The correct reading was already in-tree, in a 2026-07-26 session
+log, before any of it was written. Copilot filed it three times on PR #5204,
+against the session objective, the compliance evidence, and the episode; it was
+corrected there in `0b81de54f` and in PR #5206 in `dc99b4502`.
+
+**Why nothing caught it.** No gate in this repository checks that a cited rule
+item says what the citation claims it says. The rule that does name this shape is
+`.claude/rules/canonical-source-mirror.md`, in "Behavioral claims: read the body,
+not the name":
+
+> A function's name is not evidence of its behavior. Neither is its call site, a
+> prior PR description, or your memory of it. Open the file and read the body.
+
+It closes by widening past the word "mirrors": "This section binds any assertion
+about another component's behavior, whatever words carry it. The trigger is not a
+phrase like 'mirrors'; the trigger is that you told the reader what some other
+code does." A rule item is such a component, and the failure here was reading its
+name and number rather than its body. Guidance a reviewer enforces, not a check.
+
+**This paragraph first cited the wrong rule, and the wrongness is the same one.**
+It named `knowledge-persistence.md` MUST NOT 3. That item is about a different
+failure: presenting an *operator preference* as a repository rule, where the
+remedy is to "grep the rule tree for X and cite the file and item number, or drop
+the attribution". Here a real repository rule was misread, and the original
+paragraph already cited the correct file and the correct item number, so MUST NOT
+3's remedy would have passed it. Citing a rule for a shape it does not name,
+inside a correction about citing a rule for something it does not say, is the
+same error one level further down. Copilot found it on PR #5212.
+
+That makes this an instance of Finding 5's theme one level up: the durable record
+carried a claim that was never measured, and every restatement of it looked like
+corroboration.
+
+**Appended rather than edited in place**, per `.claude/rules/retros.md` MUST NOT
+1: corrections to a landed retro append a new section with a date and rationale.
+The original paragraph is left standing above so a reader can see what was
+believed and what replaced it.
+
 ## References
 
 - PR #5176, issue #5094.
