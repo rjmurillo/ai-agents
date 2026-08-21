@@ -15,9 +15,9 @@
         "evidence": "Serena MCP tools are not exposed in this session; ToolSearch for mcp__serena__* returned no matching deferred tools. Fell back to reading .claude/rules/*.md and .agents/ governance files directly, per the AGENTS.md fallback."
       },
       "skillScriptsListed": {
-        "complete": false,
+        "complete": true,
         "level": "SHOULD",
-        "evidence": "Not run. Work was scoped to ruff violations and the existing ratchet wiring; no GitHub skill scripts were invoked."
+        "evidence": "Checked ai-agents-generation-and-release skill: editing .claude/skills/style-enforcement/scripts/check_style.py triggers the regenerate-mirrors runbook. The workLog documents regeneration via sync_plugin_lib.py then build_all.py to resolve Generated Artifact Staleness for the Copilot mirror."
       },
       "sessionLogCreated": {
         "complete": true,
