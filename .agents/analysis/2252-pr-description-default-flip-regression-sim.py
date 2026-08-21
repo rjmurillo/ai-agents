@@ -18,6 +18,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = REPO_ROOT / ".agents" / "analysis" / "2252-regression-data"
@@ -111,7 +112,9 @@ def main() -> None:
     sample_path = DATA_DIR / "sample_prs.txt"
     pr_nums = [int(x) for x in sample_path.read_text(encoding="utf-8").splitlines() if x.strip()]
     totals = {p: 0 for p in POLICIES}
-    rows = []
+    # Heterogeneous row: int counts alongside list[str] of removed paths. The
+    # explicit Any keeps the per-key reads below from resolving to object.
+    rows: list[dict[str, Any]] = []
     for n in pr_nums:
         body_path = DATA_DIR / "pr_bodies" / f"{n}.md"
         files_path = DATA_DIR / "pr_files" / f"{n}.txt"
