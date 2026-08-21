@@ -189,11 +189,31 @@
     {
       "task": "Merge origin/main a second time to pick up the pip-audit pin fix",
       "outcome": "Clean merge (f170c11c6013cf565a5e3d553b313e9c8f1240c5), no conflicts; branch-context suite re-verified passing; rebound qaCommit/endingCommit again for the same staleness reason"
+    },
+    {
+      "task": "Read the AI spec-coverage and PR-validation bot comments on PR #5226 instead of dismissing them as noise",
+      "outcome": "Spec coverage returned PARTIAL with two evidenced findings: issue #5220's second proposed fix (name the failed precondition) was unimplemented, and _read_upstream_default_blob duplicated the new resolver's fallback logic with looser existence-checking"
+    },
+    {
+      "task": "Consolidate both trunk-resolvers onto one shared _resolve_upstream_default (renamed from _merged_history_upstream) and implement the message-differentiation fix",
+      "outcome": "check_branch_context now names git remote set-head origin --auto only when the branch owns a log and no upstream ref resolves at all; two new tests (capsys-based) pin the two message shapes"
+    },
+    {
+      "task": "Fix a self-inflicted taste-lints complexity finding (check_branch_context at 11, ceiling 10)",
+      "outcome": "Extracted _print_branch_context_mismatch; taste-lints clean, 23/23 branch-context tests still pass"
+    },
+    {
+      "task": "Diagnose a third push's single pytest failure in an unrelated lease-renewal test before retrying",
+      "outcome": "test_pr_autofix_late_live_state_gate.py::test_fast_exit_reports_lease_loss_after_wait, a file this PR never touches, confirmed as a pre-existing timing flake: a standalone full-suite run (27659+ tests) on the identical clean tree passed it cleanly moments earlier; retried the push rather than widening the PR"
+    },
+    {
+      "task": "Rebind qaCommit/endingCommit a third time after the two code-consolidation commits",
+      "outcome": "Updated QA report and this log to point at the final commit"
     }
   ],
-  "endingCommit": "f170c11c6013cf565a5e3d553b313e9c8f1240c5",
+  "endingCommit": "b3c0d7f12c6f770807e2f535ecafc5d5d87707a5",
   "nextSteps": [
-    "Push the merge commit and watch PR #5226's CI settle",
+    "Push the final commit and watch PR #5226's CI settle",
     "Keep the scheduled hourly check-in running until the PR is merged or closed"
   ]
 }

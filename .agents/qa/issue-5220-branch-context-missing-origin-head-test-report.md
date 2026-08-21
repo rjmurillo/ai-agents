@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5220-session-log-false-positive.json
-qaCommit: f170c11c6013cf565a5e3d553b313e9c8f1240c5
+qaCommit: b3c0d7f12c6f770807e2f535ecafc5d5d87707a5
 ---
 
 # QA Report: Issue #5220, check_branch_context hard-blocks after a merge when origin/HEAD is unset
@@ -68,12 +68,14 @@ behavior findings; all confirmed clean by direct read of the affected code.
 
 | Check | Result |
 |-------|--------|
-| `uv run --frozen python -m pytest tests/test_lefthook_integration.py -k "branch_context" -q` | 22 passed |
-| `uv run --frozen python -m pytest tests/test_lefthook_integration.py -q` | 865 passed, 1 skipped |
+| `uv run --frozen python -m pytest tests/test_lefthook_integration.py -k "branch_context" -q` | 23 passed |
+| `uv run --frozen python -m pytest tests/test_lefthook_integration.py tests/test_validate_session_json.py -q` | 1239 passed, 1 skipped |
 | `uv run --frozen ruff check scripts/validation/git_hook_policy.py tests/test_lefthook_integration.py` | All checks passed |
 | `uv run --frozen mypy scripts/validation/git_hook_policy.py` | Success: no issues found in 1 source file |
 | `uv run --frozen python scripts/validation/pre_pr.py` | 57 passed, 0 failed, 0 skipped; re-run against the final tree after the SEC-001 fix |
+| `uv run --frozen python scripts/validation/git_hook_policy.py taste scripts/validation/git_hook_policy.py` | `taste-lints: 1 files scanned, no violations found` (post complexity-extraction fix) |
 | Mutation check: reintroduce the local-`main` rung, re-run the new negative test | Fails (`assert 0 == 1`), confirming the test discriminates; reverted and re-confirmed byte-identical to the source file |
+| `AI_AGENTS_PYTEST_WORKER_CAP=4 uv run --frozen python scripts/validation/git_hook_policy.py pytest` (full suite, matches the pre-push job exactly) | 27659 passed, 73 skipped + 24 passed + 46 passed, 9 deselected + 30 passed, across zero errors on a clean tree |
 
 ## Coverage
 
@@ -124,6 +126,51 @@ after this branch's prior merge point. Merged `origin/main` again (merge
 commit `f170c11c6013cf565a5e3d553b313e9c8f1240c5`, no conflicts) rather than
 patching the pin locally, and rebound `qaCommit` to it for the same
 staleness reason as the first merge.
+
+## Automated PR review findings, addressed
+
+The `Validate Spec Coverage` check returned PARTIAL on the PR as first opened,
+correctly identifying two real gaps by direct code reading (not surface
+pattern-matching):
+
+- Issue #5220's second proposed fix ("say which precondition failed") was
+  unimplemented. `check_branch_context` now distinguishes "branch owns a log
+  but no upstream ref resolves at all" from ordinary co-mingling, naming
+  `git remote set-head origin --auto` only in the former case. New tests:
+  `test_branch_context_merged_history_exemption_needs_an_upstream` (extended
+  with a `capsys` assertion) and
+  `test_branch_context_message_stays_generic_without_an_owned_log`.
+- `_read_upstream_default_blob` (a pre-existing, unrelated call site) carried
+  its own duplicate `origin/HEAD` → `origin/main` fallback with looser
+  existence-checking than the new resolver, and neither cited the other.
+  Consolidated onto one shared `_resolve_upstream_default`, which also renamed
+  from `_merged_history_upstream` since it now serves two call sites.
+
+The message-selection branch added for the first finding pushed
+`check_branch_context` to cyclomatic complexity 11 (repo ceiling 10, caught by
+`taste-lints`, self-inflicted). Extracted `_print_branch_context_mismatch` to
+hold it back at 10; no behavior change, re-confirmed by the full branch-context
+suite.
+
+The `Validate PR` check separately flagged the PR description as not matching
+the diff; the description was rewritten to reflect the consolidation and
+message-improvement commits once they landed, rather than describing only the
+original two-rung fix.
+
+## A confirmed-flaky, unrelated local test
+
+A `python-tests` pre-push run failed exactly one test:
+`tests/test_pr_autofix_late_live_state_gate.py::test_fast_exit_reports_lease_loss_after_wait[src/copilot-cli/skills/pr-autofix/SKILL.md]`,
+asserting on a race-sensitive lease-renewal message
+(`LEASE_RENEWAL_INTERVAL_SECONDS=0.05` in the test fixture) under the full
+parallel pre-push job group's resource contention. This file is untouched by
+this PR. Confirmed as a pre-existing flake, not a regression: a standalone
+`AI_AGENTS_PYTEST_WORKER_CAP=4 uv run --frozen python scripts/validation/git_hook_policy.py pytest`
+run against the identical clean tree, immediately before the failing push,
+passed both parametrizations of that exact test along with all 27,659 other
+collected tests. Per `.claude/rules/testing.md`'s flake-handling guidance this
+was the one confirmatory re-run; the push was retried rather than the test
+suite widened.
 
 ## Pre-existing findings, out of scope
 

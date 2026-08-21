@@ -248,6 +248,64 @@
       "caused_by": [
         "e021"
       ],
+      "leads_to": [
+        "e031"
+      ],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read the AI spec-coverage and PR-validation bot comments on PR #5226 instead of dismissing them as noise",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Consolidate both trunk-resolvers onto one shared _resolve_upstream_default (renamed from _merged_history_upstream) and implement the message-differentiation fix",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix a self-inflicted taste-lints complexity finding (check_branch_context at 11, ceiling 10)",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnose a third push's single pytest failure in an unrelated lease-renewal test before retrying",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebind qaCommit/endingCommit a third time after the two code-consolidation commits",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e031",
+      "timestamp": "2026-08-21T17:38:03+00:00",
+      "type": "commit",
+      "content": "Commit: b3c0d7f12c6f770807e2f535ecafc5d5d87707a5",
+      "caused_by": [
+        "e025"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-5220-session-log-false-positive"
     }
@@ -257,7 +315,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 5,
     "files_changed": 5
   },
   "lessons": []
