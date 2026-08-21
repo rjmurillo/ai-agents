@@ -995,16 +995,27 @@ class TestWorkflowContract:
     def test_workflow_sets_up_uv(self) -> None:
         """vendor-provenance.yml must install uv, pinned to a SHA.
 
-        Asserts the property the docstring has always claimed (uv is
-        installed) plus the one `.claude/rules/universal.md` MUST 8 requires
-        (the reference is pinned to a commit SHA, never a floating tag). It
-        does not pin one specific SHA: this assertion previously hardcoded
-        `ae62891f...`, which Renovate invalidated in PR #5215 when it bumped
-        the workflow to v10.0.1. That left the test red on main for every
-        contributor while asserting nothing the bump had actually broken.
+        Parses the ``provenance`` job's steps and asserts on the ``Setup uv``
+        step's ``uses`` field (testing.md MUST 9: a raw substring search would
+        still pass if the step were deleted and its ``uses:`` line survived in
+        a comment or an unrelated step). Asserts a SHA-pin pattern rather than
+        one exact SHA: this assertion previously hardcoded `ae62891f...`,
+        which Renovate invalidated in PR #5215 when it bumped the workflow to
+        v10.0.1, leaving the test red on main for every contributor while
+        asserting nothing the bump had actually broken. Pinning to a fresh
+        exact SHA reintroduces the same trap on the next bump; a pattern check
+        still enforces `.claude/rules/universal.md` MUST 8 (a commit SHA, not
+        a floating tag) without going stale when Renovate advances it.
         """
+        import yaml
+
         wf = Path(".github/workflows/vendor-provenance.yml").read_text()
-        assert re.search(r"astral-sh/setup-uv@[0-9a-f]{40}\b", wf) is not None
+        steps = yaml.safe_load(wf)["jobs"]["provenance"]["steps"]
+        setup_uv_steps = [step for step in steps if step.get("name") == "Setup uv"]
+        assert len(setup_uv_steps) == 1, "expected exactly one 'Setup uv' step"
+        assert re.fullmatch(
+            r"astral-sh/setup-uv@[0-9a-f]{40}", setup_uv_steps[0]["uses"]
+        )
 
     def test_required_check_context_matches_job_name(self) -> None:
         """The documented required-check context must be the emitted context.
