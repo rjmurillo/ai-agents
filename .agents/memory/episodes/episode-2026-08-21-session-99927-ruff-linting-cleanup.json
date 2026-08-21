@@ -180,6 +180,19 @@
       "caused_by": [
         "e016"
       ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-21T18:28:00+00:00",
+      "type": "commit",
+      "content": "Commit: ccd2c41c278c0108040a2a12d32ddec5d5f35de6",
+      "caused_by": [
+        "e017"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
     }
@@ -189,7 +202,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 5,
     "files_changed": 18
   },
   "lessons": []

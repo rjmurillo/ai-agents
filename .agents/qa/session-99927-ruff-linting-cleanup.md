@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99927-ruff-linting-cleanup.json
-qaCommit: a7306bb6f8bd1f6ee1ff14819f92b0d9cff9a864
+qaCommit: ccd2c41c278c0108040a2a12d32ddec5d5f35de6
 ---
 
 # QA Report: repo-wide ruff cleanup and zero-baseline guard
