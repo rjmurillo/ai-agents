@@ -9,14 +9,15 @@
 ## Plugin Consumer Guide
 
 When installed as a Claude Code plugin, this project creates an `.agents/` directory in
-consumer project roots. This directory stores optional session logs, analysis artifacts, and governance
-documents used by the plugin's hooks and skills.
+consumer project roots. This directory stores analysis artifacts and governance
+documents used by the plugin's hooks and skills. Session log creation is
+discontinued; the plugin no longer writes new files under `.agents/sessions/`.
 
 ### Directory Structure
 
 | Path | Purpose | Safe to Delete |
 |------|---------|----------------|
-| `.agents/sessions/` | Session logs (JSON) for audit trail | Yes, loses history |
+| `.agents/sessions/` | Historical session logs (JSON), creation discontinued | Yes, loses history |
 | `.agents/analysis/` | Generated analysis reports | Yes, regenerated on demand |
 | `.agents/architecture/` | ADRs and design decisions | No, contains governance |
 | `.agents/governance/` | Project constraints and policies | No, contains enforcement rules |
@@ -48,9 +49,6 @@ root is read-only, set `CLAUDE_PROJECT_DIR` to a writable location.
 
 1. Copy contents to your ai-agents repository's `.agents/` directory
 2. Follow phase prompts in `PHASE-PROMPTS.md` for specific work
-3. Write an optional JSON session log by hand against
-   `.agents/schemas/session-log.schema.json` when you want a committed one
-   (see `.claude/rules/session-logs.md`)
 
 ---
 
@@ -83,7 +81,7 @@ root is read-only, set `CLAUDE_PROJECT_DIR` to a writable location.
 
 ```bash
 # In your ai-agents repository
-mkdir -p .agents/planning .agents/prompts .agents/sessions .agents/governance .agents/specs .agents/steering
+mkdir -p .agents/planning .agents/prompts .agents/governance .agents/specs .agents/steering
 
 # Copy files
 cp AGENT-INSTRUCTIONS.md .agents/
@@ -146,15 +144,13 @@ src/claude/*.md → load agent-prompts.md steering
 
 **Start**:
 1. Read context files (AGENT-SYSTEM, AGENT-INSTRUCTIONS, HANDOFF, PROJECT-PLAN)
-2. Create session log
-3. Identify current phase/task
-4. Delegate to orchestrator
+2. Identify current phase/task
+3. Delegate to orchestrator
 
 **Execute**:
 1. Work incrementally
 2. Commit frequently (conventional commits)
-3. Update session log
-4. Check off tasks
+3. Check off tasks
 
 **End**:
 1. Run retrospective agent

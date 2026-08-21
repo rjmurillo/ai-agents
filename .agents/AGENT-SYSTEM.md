@@ -1212,9 +1212,10 @@ At session end, create a handoff document:
 - [path/to/file]: [Change type]
 ```
 
-#### Session Log Location
+#### Session Log Location (historical only, creation discontinued)
 
-`.agents/sessions/YYYY-MM-DD-[scope].md`
+Historical logs live at `.agents/sessions/YYYY-MM-DD-session-NN[-slug].json`.
+Do not create new ones; see `.claude/rules/session-logs.md`.
 
 ### 5.2 Memory Protocol
 
@@ -1270,7 +1271,7 @@ Skills extracted from retrospectives are stored with:
 | `.agents/roadmap/` | Epic definitions | roadmap |
 | `.agents/devops/` | Pipeline configs | devops |
 | `.agents/security/` | Threat models | security |
-| `.agents/sessions/` | Session context | memory |
+| `.agents/sessions/` | Historical session context (creation discontinued) | memory |
 | `.agents/skills/` | Skill files | skillbook |
 | `.agents/specs/requirements/` | EARS requirements (Phase 1+) | spec-generator |
 | `.agents/specs/design/` | Design documents (Phase 1+) | architect |
@@ -1338,7 +1339,6 @@ Before launching parallel agents, verify:
 - [ ] Rate limit checked (sufficient API budget)
 - [ ] Worktree directories prepared (if needed)
 - [ ] Orchestrator can aggregate results
-- [ ] Session log created for coordination
 ```
 
 #### Execution Steps
@@ -1347,12 +1347,11 @@ Before launching parallel agents, verify:
 1. Orchestrator creates task list with clear boundaries
 2. Orchestrator verifies prerequisites (rate limit, independence)
 3. Orchestrator dispatches N parallel agents
-4. Each agent creates individual session log
-5. Each agent writes results to designated output location
-6. Orchestrator monitors completion (polling or callbacks)
-7. Orchestrator aggregates results after all complete
-8. Orchestrator resolves any conflicts
-9. Orchestrator commits with all session IDs referenced
+4. Each agent writes results to designated output location
+5. Orchestrator monitors completion (polling or callbacks)
+6. Orchestrator aggregates results after all complete
+7. Orchestrator resolves any conflicts
+8. Orchestrator commits with all changes referenced
 ```
 
 #### Rate Limit Pre-Check
@@ -1461,33 +1460,24 @@ Majority: [A] (2/3)
 
 ### 6.8 Session Coordination Protocol
 
-When running parallel agents, coordinate session logs:
-
-#### Individual Agent Sessions
-
-Each parallel agent creates its own session log:
-
-```text
-.agents/sessions/2025-12-29-session-19-parallel-pr-300.md
-.agents/sessions/2025-12-29-session-20-parallel-pr-301.md
-.agents/sessions/2025-12-29-session-21-parallel-pr-302.md
-```
+Session log creation is discontinued (`.claude/rules/session-logs.md` MUST 1).
+When running parallel agents, coordinate through per-issue handoffs and
+Serena memory instead of per-agent session logs.
 
 #### Orchestrator Aggregation
 
 After all agents complete, orchestrator:
 
-1. Reads all parallel session logs
+1. Reads each agent's per-issue handoff or transcript evidence
 2. Aggregates outcomes into summary
 3. Updates Serena memory with cross-session context
-4. Creates single commit referencing all session IDs
+4. Creates single commit referencing all PRs/issues
 
 #### Commit Message Format
 
 ```text
 docs: parallel execution of PRs #300, #301, #302
 
-Sessions: 19, 20, 21
 - PR #300: [outcome]
 - PR #301: [outcome]
 - PR #302: [outcome]
@@ -1562,7 +1552,7 @@ Commit after all complete.
 | **Context loss** | Parallel agents don't share learnings | Post-aggregation synthesis |
 | **Coordination overhead** | 10-20% time spent on dispatch/aggregation | Accept as cost of parallelism |
 | **Error propagation** | One agent failure affects overall result | Independent error handling per agent |
-| **Memory fragmentation** | Multiple session logs to consolidate | Orchestrator aggregation protocol |
+| **Memory fragmentation** | Multiple per-issue handoffs to consolidate | Orchestrator aggregation protocol |
 
 ### 6.11 Anti-Patterns to Avoid
 
