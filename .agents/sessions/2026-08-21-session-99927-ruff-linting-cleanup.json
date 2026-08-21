@@ -116,8 +116,8 @@
       "result": "Verified OLD_PATTERN.pattern is byte-identical to the pre-change pattern and re.MULTILINE is retained; verified NEW_TEMPLATE.format(exit_code=2) still compiles, still contains the ALREADY_MIGRATED_MARKER and sys.exit(2), and emits the same message text. tests/test_req003_migration.py asserts on those markers, not the template text, and passes."
     },
     {
-      "action": "Wrapped two E501 lines in .agents/security/benchmarks/vulnerable_samples/cwe22_path_traversal.py.",
-      "result": "Both lines sit inside the SAFE helpers (test_safe_file_path's containment return and export_data_secure's ValueError), not inside a VULNERABLE payload, so the benchmark's detection answer key is unchanged. The I001 fixes in that file and cwe77_command_injection.py removed a blank line after the imports only."
+      "action": "Reverted this branch's edits to the two security benchmark sample files.",
+      "result": "The pre-push security-scan job feeds changed files to semgrep, so touching cwe77_command_injection.py put its intentional shell=True payloads in scope and semgrep blocked the push on three CWE-78 findings. Reverted both files to origin/main and widened the existing .agents/security/benchmarks/**/*.py per-file-ignore from RUF100 to also cover I001 and E501. The corpus is now byte-identical to main and ruff still reports 0. This is the only place the zero count rests on a waiver."
     },
     {
       "action": "Searched for existing ruff guard infrastructure before proposing a new one.",
@@ -144,7 +144,7 @@
       "result": "It reported only a duplicate-module collision between the canonical skill script and its generated mirror. run_mypy's _mypy_invocations already splits basename collisions into separate invocations, so the real gate never sees that error. Reading the gate rather than trusting the ad-hoc command is what surfaced the three genuine errors."
     }
   ],
-  "endingCommit": "611af7893f3fdb3c7b7ce00835d7f438dc8368be",
+  "endingCommit": "839eb53a44032f34a9a1b9076dcb276c4dca539e",
   "nextSteps": [
     "Watch the ruff count ratchet on the PR: with the baseline at 0 any new violation now blocks rather than being absorbed by slack.",
     "Consider whether packages/semantic-hooks/pyproject.toml should inherit the root ruff per-file-ignores instead of redeclaring its own select list, so the two configs cannot drift again."

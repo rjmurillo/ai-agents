@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99927-ruff-linting-cleanup.json
-qaCommit: 611af7893f3fdb3c7b7ce00835d7f438dc8368be
+qaCommit: 839eb53a44032f34a9a1b9076dcb276c4dca539e
 ---
 
 # QA Report: repo-wide ruff cleanup and zero-baseline guard
@@ -10,10 +10,12 @@ Session 99927. Branch `claude/ruff-linting-cleanup-hizsp7`. Starting commit `9e1
 
 ## Scope under test
 
-Twelve Python files edited to clear 27 ruff violations, plus one baseline integer
-lowered from 27 to 0. No behavior change was intended in any file; every edit is
-a reflow, an import reorder, a dead-directive removal, an unused-loop-variable
-rename, or a condition collapse.
+Eleven Python files edited to clear 27 ruff violations, plus two config changes:
+`scripts/ci/ruff_count_baseline.txt` lowered from 27 to 0, and one
+`per-file-ignores` entry widened for the security benchmark corpus. No behavior
+change was intended in any file; every edit is a reflow, an import reorder, a
+dead-directive removal, an unused-loop-variable rename, a condition collapse, or
+a type annotation.
 
 ## Evidence
 
@@ -117,18 +119,28 @@ indentation the migration inserts it at. The emitted message text is unchanged:
     )
 ```
 
-`.agents/security/benchmarks/vulnerable_samples/cwe22_path_traversal.py` is a
-deliberately vulnerable detection benchmark, so its answer key must not move.
-Both reflowed lines sit inside the SAFE helpers, `test_safe_file_path`'s
-containment `return` and `export_data_secure`'s `ValueError`, not inside any
-function marked VULNERABLE. The `I001` fix in that file and in
-`cwe77_command_injection.py` removed one blank line after the import block and
-reordered nothing that a scanner reads. No new attack surface is introduced, so
-`.claude/rules/security.md` MUST-5 requires no benchmark update.
+The security benchmark corpus is not edited at all. The branch initially
+reformatted `cwe22_path_traversal.py` and `cwe77_command_injection.py`, and the
+pre-push `security-scan` job then blocked on three CWE-78 `shell=True` findings
+in the latter. That job feeds changed files to semgrep, so touching the file at
+all put its intentional payloads in scope. Those payloads are the benchmark's
+reason to exist.
+
+Both files were reverted to their `origin/main` content, and the existing
+`per-file-ignores` entry for `.agents/security/benchmarks/**/*.py`, which
+already waived `RUF100` with an answer-key rationale, was widened to `I001` and
+`E501`. Verified: `git diff --name-only origin/main...HEAD` lists neither file,
+so the corpus is byte-identical to main and `.claude/rules/security.md` MUST-5
+needs no benchmark update.
+
+This is the one place the zero count rests on a waiver rather than a code fix,
+and it covers three files in a corpus that is graded by external scanners rather
+than executed as product code. Every other violation was fixed in the source.
 
 ### Syntax
 
-All eight non-test edited files parse under `ast.parse`.
+All non-test edited files parse under `ast.parse`. `mypy` reports Success on the
+changed set, and the changed-line mypy ratchet gate returns True.
 
 ## Gaps
 

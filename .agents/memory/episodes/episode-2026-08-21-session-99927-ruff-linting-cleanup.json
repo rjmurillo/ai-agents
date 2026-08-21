@@ -123,6 +123,28 @@
       "type": "commit",
       "content": "Commit: 611af7893f3fdb3c7b7ce00835d7f438dc8368be",
       "caused_by": [],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reverted this branch's edits to the two security benchmark sample files.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-21T16:56:37+00:00",
+      "type": "commit",
+      "content": "Commit: 839eb53a44032f34a9a1b9076dcb276c4dca539e",
+      "caused_by": [
+        "e012"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
     }
@@ -132,8 +154,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 17
+    "commits": 2,
+    "files_changed": 18
   },
   "lessons": []
 }
