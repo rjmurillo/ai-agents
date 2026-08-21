@@ -201,11 +201,15 @@ producer's derived schema, not only its envelope level.
 ### Review passes
 
 Every round of review after the first PASS found real defects, several of them
-mine and several the same shape twice. Each round is recorded under its own
-heading in `session-99923-pr-autofix-review-passes.md`, split out when this file
-crossed the 500-line taste rule; count the headings there rather than trusting a
-number here, because this sentence carried one and it went stale on the next
-round, which Copilot caught.
+mine and several the same shape twice. Count the headings in the companions
+rather than trusting a number here, because this sentence carried one and it
+went stale on the next round, which Copilot caught.
+
+Two companions, both split out when a file crossed the 500-line taste rule:
+`session-99923-pr-autofix-review-passes.md` holds the numbered passes in order,
+where the recurring theme is a coverage gate narrower than its claim, and
+`session-99923-pr-autofix-later-findings.md` holds what came after them, where
+the theme is the fix opening a case or breaking something.
 
 ### The fix opened a case, so the fix closes it
 
