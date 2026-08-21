@@ -205,9 +205,9 @@ def test_id_naming_a_different_number_is_a_violation(tmp_path):
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 7, _valid(7, id="ADR-008"), _STATUS_SECTION)
 
-    assert "names ADR-008 but the filename says ADR-007" in _hits(
-        tmp_path, "id-matches-filename"
-    )[0]
+    assert (
+        "names ADR-008 but the filename says ADR-007" in _hits(tmp_path, "id-matches-filename")[0]
+    )
 
 
 @pytest.mark.parametrize("raw_id", ["ADR-7", "adr-007", "ADR_7", 7])
@@ -221,9 +221,7 @@ def test_id_reference_forms_all_resolve(tmp_path, raw_id):
 # --- status-enum ------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "status", ["proposed", "accepted", "rejected", "deprecated", "superseded"]
-)
+@pytest.mark.parametrize("status", ["proposed", "accepted", "rejected", "deprecated", "superseded"])
 def test_every_adr073_status_is_accepted(tmp_path, status):
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 1, _valid(1, status=status, implemented="false"), f"\n## Status\n\n{status}\n")
@@ -885,7 +883,9 @@ def test_level_three_status_subsection_is_not_the_record_status(tmp_path):
     """
     adr_dir = _adr_dir(tmp_path)
     _write(
-        adr_dir, 1, _valid(1),
+        adr_dir,
+        1,
+        _valid(1),
         "\n## Acceptance Evidence\n\nRatified in PR #963.\n"
         "\n## Migration Phases\n\n### Phase 1\n\n### Status\n\nProposed\n",
     )
@@ -902,7 +902,9 @@ def test_inline_status_label_deep_in_body_is_not_the_record_status(tmp_path):
     """
     adr_dir = _adr_dir(tmp_path)
     _write(
-        adr_dir, 1, _valid(1),
+        adr_dir,
+        1,
+        _valid(1),
         "\n## Provenance\n\nRenumbered by PR #1604.\n"
         "\n## Migration\n\n**Status**: COMPLETE (2025-12-29)\n"
         "\n## Exceptions\n\n**Status**: APPROVED\n",
@@ -915,7 +917,9 @@ def test_record_status_is_still_found_when_it_is_the_first_section(tmp_path):
     """Positive control: scoping must not stop the gate seeing a real drift."""
     adr_dir = _adr_dir(tmp_path)
     _write(
-        adr_dir, 1, _valid(1),
+        adr_dir,
+        1,
+        _valid(1),
         "\n## Status\n\nProposed\n\n## Context\n\nWords.\n",
     )
 
@@ -936,7 +940,9 @@ def test_a_status_section_after_another_section_is_still_checked(tmp_path):
     """
     adr_dir = _adr_dir(tmp_path)
     _write(
-        adr_dir, 1, _valid(1),
+        adr_dir,
+        1,
+        _valid(1),
         "\n## Context\n\nWords.\n\n## Status\n\nProposed\n",
     )
 
@@ -952,7 +958,9 @@ def test_a_level_three_status_subsection_is_not_the_records_status(tmp_path):
     """
     adr_dir = _adr_dir(tmp_path)
     _write(
-        adr_dir, 1, _valid(1),
+        adr_dir,
+        1,
+        _valid(1),
         "\n## Context\n\nWords.\n\n### Status\n\nProposed\n",
     )
 
@@ -967,7 +975,9 @@ def test_a_bold_status_label_at_the_top_is_the_records_status(tmp_path):
     """
     adr_dir = _adr_dir(tmp_path)
     _write(
-        adr_dir, 1, _valid(1),
+        adr_dir,
+        1,
+        _valid(1),
         "\n**Status**: Proposed\n\n## Context\n\nWords.\n",
     )
 
@@ -984,7 +994,9 @@ def test_a_bold_status_label_deep_in_the_body_is_not_the_records_status(tmp_path
     """
     adr_dir = _adr_dir(tmp_path)
     _write(
-        adr_dir, 1, _valid(1),
+        adr_dir,
+        1,
+        _valid(1),
         "\n## Context\n\nWords.\n\n**Status**: COMPLETE\n",
     )
 
@@ -1011,9 +1023,7 @@ def test_a_record_that_is_not_valid_utf8_is_a_violation_not_a_crash(tmp_path):
     assert counts["frontmatter-parses"] == 1
     # `_hits` returns details; the record is on the violation's `path` field,
     # so the identification is asserted there rather than in the message text.
-    offenders = [
-        v.path for v in scan(adr_dir, tmp_path) if v.check == "frontmatter-parses"
-    ]
+    offenders = [v.path for v in scan(adr_dir, tmp_path) if v.check == "frontmatter-parses"]
     assert offenders == [".agents/architecture/ADR-002-thing.md"], offenders
 
 

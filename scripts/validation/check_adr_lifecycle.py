@@ -370,8 +370,7 @@ def _check_identity(record: Record) -> list[Violation]:
         found.append(Violation("id-matches-filename", record.path, detail))
     elif number != record.number:
         detail = (
-            f"frontmatter `id` names ADR-{number:03d} but the filename says "
-            f"ADR-{record.number:03d}"
+            f"frontmatter `id` names ADR-{number:03d} but the filename says ADR-{record.number:03d}"
         )
         found.append(Violation("id-matches-filename", record.path, detail))
     if _status_of(record) not in LIFECYCLE_STATUSES:
@@ -526,8 +525,7 @@ def _edge_targets(
             detail = f"`{field}` names itself (ADR-{number:03d}); a record cannot supersede itself"
         elif number not in known:
             detail = (
-                f"`{field}` names ADR-{number:03d}, which has no file under "
-                ".agents/architecture/"
+                f"`{field}` names ADR-{number:03d}, which has no file under .agents/architecture/"
             )
         else:
             targets.append(number)
