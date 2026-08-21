@@ -2,19 +2,19 @@
 
 **Subject**: `.agents/architecture/ADR-099-session-qa-binding-field-precedence.md`, addressing issue #5217.
 
-**Round**: 1 of up to 10 (per adr-review debate protocol).
+**Round**: 3 of up to 10, concluded with consensus (per adr-review debate protocol). Round 1 below is a superseded single-reviewer pass, kept for the record; skip to "Round 3 (the genuine six-agent debate, and its conflict resolution)" below for the debate that actually cleared the multi-agent bar, and to "Outcome (Round 3, final)" for the consensus result.
 
-## How this review was conducted, and what that costs
+## How this review was conducted, and what that costs (Round 1, superseded)
 
-Read this section before weighing anything below it.
+**This section describes Round 1 only, and Round 1 was superseded by Round 3.** Read it for the historical record of what a single-reviewer pass looked like and why it was insufficient; do not read it as the current review-conduct state of this ADR. The genuine six-agent debate is in "Round 3 (the genuine six-agent debate, and its conflict resolution)" further down this file, and it reached consensus (see "Outcome (Round 3, final)").
 
-The `adr-review` protocol calls for six independent agents (architect, critic, independent-thinker, security, analyst, high-level-advisor). **No independent agent processes ran.** The harness serving this session registers no subagent-spawn tool: `Task` and `Agent` are absent from the tool set, and a `ToolSearch` for delegation returned only `TaskStop`, `SendMessage`, `EnterWorktree`, and the GitHub Copilot coding-agent delegator, none of which spawn a reviewing agent against a local file. The available cross-session mechanism (`create_session`) spawns siblings into this same environment and working tree, on a branch this session is instructed not to disturb, which is a worse risk than the one it would mitigate.
+The `adr-review` protocol calls for six independent agents (architect, critic, independent-thinker, security, analyst, high-level-advisor). **No independent agent processes ran in Round 1.** The harness serving that session registers no subagent-spawn tool: `Task` and `Agent` are absent from the tool set, and a `ToolSearch` for delegation returned only `TaskStop`, `SendMessage`, `EnterWorktree`, and the GitHub Copilot coding-agent delegator, none of which spawn a reviewing agent against a local file. The available cross-session mechanism (`create_session`) spawns siblings into this same environment and working tree, on a branch that session was instructed not to disturb, which is a worse risk than the one it would mitigate.
 
-What ran instead: one session applied the six review lenses as six separate passes, each writing findings before the next began, and each finding was either verified against the repository or dropped. That is a single-reviewer review. The `adr-review` skill names "Single-agent ADR review" as a process anti-pattern, and this log does not claim otherwise.
+What ran instead in Round 1: one session applied the six review lenses as six separate passes, each writing findings before the next began, and each finding was either verified against the repository or dropped. That is a single-reviewer review. The `adr-review` skill names "Single-agent ADR review" as a process anti-pattern, and this log did not claim otherwise at the time.
 
-The gate this log satisfies is structural. `check_adr_review_policy` (`scripts/validation/git_hook_policy.py:1382-1417`) requires a staged debate log under `.agents/critique/` whose content references the staged ADR's ID. It does not and cannot verify that six agents ran. A log asserting a 6/6 agent tally here would pass the same gate and would be a fabricated approval signal, which is the failure mode the skill's own acceptance checklist names ("a forgeable approval signal"). So the tally below is recorded as lens-by-lens findings, not as votes.
+The gate this log satisfies is structural. `check_adr_review_policy` (`scripts/validation/git_hook_policy.py:1382-1417`) requires a staged debate log under `.agents/critique/` whose content references the staged ADR's ID. It does not and cannot verify that six agents ran. A log asserting a 6/6 agent tally here would pass the same gate and would be a fabricated approval signal, which is the failure mode the skill's own acceptance checklist names ("a forgeable approval signal"). So the Round 1 tally below is recorded as lens-by-lens findings, not as votes.
 
-**What a maintainer should do with this.** The findings are verified and the ADR is stronger for them. The independence the protocol buys is missing. Re-running the real six-agent debate on a harness that has the tooling is cheap relative to the change, and is the recommended path before this ADR is treated as having cleared the multi-agent bar. That recommendation is repeated in the implementing PR.
+**What Round 1 recommended, and what happened next.** The Round 1 findings were verified and the ADR was stronger for them, but the independence the protocol buys was missing. Round 1 recommended re-running the real six-agent debate on a harness that has the tooling; that recommendation was carried out in Round 3 below, on an orchestrating session with genuine subagent-spawn tooling, and reached consensus.
 
 ## Findings by lens
 
