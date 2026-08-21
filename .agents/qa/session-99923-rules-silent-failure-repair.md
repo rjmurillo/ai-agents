@@ -161,6 +161,32 @@ the fix, which is the gap.
 | Repository-wide validation | `scripts/validation/pre_pr.py` | all validations passed |
 | Session log valid, SHA reachable | `scripts/validate_session_json.py` | PASS |
 
+## The rule's own evidence is now checkable in-tree
+
+When SHOULD 4 was written, its four measured repairs lived on PR #5176's
+unmerged branch, so the item quoted them. That PR merged to `main` at 2026-08-21
+06:03:28 UTC as `15f95d2b6`, and `origin/main` is merged into this branch, so
+the code the item describes is here.
+
+The third repair is the one worth checking, because it is the one that granted a
+merge: a bare `tostring` coerced the string `"true"` into boolean `true`, so
+malformed evidence satisfied the guard built to reject it. Checked rather than
+assumed. `.claude/commands/pr-autofix.md:462` now reads:
+
+```
+PAGES_COMPLETE=$(printf '%s' "$MERGE_READY" | jq -r 'if (.fetched_pages_complete | type) == "boolean" then (.fetched_pages_complete | tostring) else "unknown" end')
+```
+
+The type check precedes the coercion, and lines 457 to 458 above it carry the
+comment naming the defect the rule cites. So the item's central claim, that
+converting instead of validating fails open on exactly the path the guard exists
+to protect, has a fix in the tree a reader can open.
+
+Line numbers drift. Re-derive with `grep -n "fetched_pages_complete | type"
+.claude/commands/pr-autofix.md` rather than trusting the number here; that is
+the same discipline the rule asks for and this report has already broken twice
+by pinning a measurement where a property belonged.
+
 ## What is deliberately not claimed
 
 The item is a SHOULD and nothing enforces it. A gate that could enforce it would
