@@ -33,6 +33,59 @@
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-21-session-99927-9e1ebd2b8-python-security-checks-ci"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Local pre-push gate's python-tests job failed tests/ci/test_validate_vendor_provenance.py::TestWorkflowContract::test_workflow_sets_up_uv, unrelated to this branch's diff. Reproduced identically against git show origin/main:.github/workflows/vendor-provenance.yml: the test hardcodes the pre-Renovate-bump astral-sh/setup-uv SHA (ae62891f...) while the workflow file already carries the SHA PR #5215 bumped it to (20cfd1bf..., v10.0.1), a stale assertion pre-existing on main.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-python-security-checks-ci"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the full local pre-push gate to completion after both fixes.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-python-security-checks-ci"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "test",
+      "content": "Ran the full local pre-push gate to completion after both fixes.      python-tests: 27655 passed, 73 skipped, 0 failed. pre-pr-validation: all validations passed once this session log carried the complete required checklist.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-python-security-checks-ci"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-21T16:00:28+00:00",
+      "type": "commit",
+      "content": "Commit: 8856bea",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-python-security-checks-ci"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-21T16:13:14+00:00",
+      "type": "commit",
+      "content": "Commit: ed791858e3ed9faae9f2538bf4f19c121dae32f4",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-python-security-checks-ci"
     }
   ],
   "metrics": {
@@ -40,8 +93,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 3
+    "commits": 2,
+    "files_changed": 4
   },
   "lessons": []
 }
