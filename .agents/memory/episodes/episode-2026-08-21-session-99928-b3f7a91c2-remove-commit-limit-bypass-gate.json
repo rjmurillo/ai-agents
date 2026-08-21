@@ -129,7 +129,9 @@
       "caused_by": [
         "e005",
         "e011",
-        "e012"
+        "e012",
+        "e026",
+        "e027"
       ],
       "leads_to": [
         "e015"
@@ -237,6 +239,59 @@
       "caused_by": [
         "e021"
       ],
+      "leads_to": [
+        "e028"
+      ],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "GitHub Copilot automated review on PR #5234 landed three findings: a real fail-closed bug in _check_commit_limit (both failure branches returned 2 despite the never-blocks docstring), a dependency sweep of 6 stale skill/doc files plus 2 misattributing docstrings, and a correctly-cited process gap: the mandatory six-role adr-review panel had not been run on ADR-099 (single-author simulated pass shipped instead)",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "origin/main had advanced 13 commits since the last push, including a real edit to AGENTS.md in the same Gates section this branch touches. Merged main in",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "test",
+      "content": "origin/main had advanced 13 commits since the last push, including a real edit to AGENTS.md in the same Gates section this branch touches. Merged main in      git merge-tree confirmed a real conflict in AGENTS.md before merging: this branch's Mid-gate line and main's Start/End-gate lines (session-log-creation discontinued, unrelated commit) sat in the same 3-line hunk without overlapping content. Resolved by keeping both non-overlapping edits (df86736a4); scripts/validation/git_hook_policy.py and tests/test_lefthook_integration.py auto-merged cleanly with no conflict. Ran the full pytest suite fresh post-merge with no concurrent git operations: 27714 passed, 74 skipped, 0 failed (an earlier attempt mid-merge had raced a mutation-harness integrity check against the merge itself and produced one self-inflicted failure, confirmed by re-running that isolated test alone on the static tree: 11 passed). Ran pre_pr.py: 55 of 57 passed, the 2 failures being the QA-report-stale check (resolved by this rebind) and a portability-ratchet baseline needing to tighten after a genuine improvement (5e0b0d26b).",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "error",
+      "content": "origin/main had advanced 13 commits since the last push, including a real edit to AGENTS.md in the same Gates section this branch touches. Merged main in      git merge-tree confirmed a real conflict in AGENTS.md before merging: this branch's Mid-gate line and main's Start/End-gate lines (session-log-creation discontinued, unrelated commit) sat in the same 3-line hunk without overlapping content. Resolved by keeping both non-overlapping edits (df86736a4); scripts/validation/git_hook_policy.py and tests/test_lefthook_integration.py auto-merged cleanly with no conflict. Ran the full pytest suite fresh post-merge with no concurrent git operations: 27714 passed, 74 skipped, 0 failed (an earlier attempt mid-merge had raced a mutation-harness integrity check against the merge itself and produced one self-inflicted failure, confirmed by re-running that isolated test alone on the static tree: 11 passed). Ran pre_pr.py: 55 of 57 passed, the 2 failures being the QA-report-stale check (resolved by this rebind) and a portability-ratchet baseline needing to tighten after a genuine improvement (5e0b0d26b).",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-08-21T21:43:59+00:00",
+      "type": "commit",
+      "content": "Commit: 5e0b0d26bdfeb848d76cb147138c8986f4be1963",
+      "caused_by": [
+        "e023"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
     }
@@ -244,10 +299,10 @@
   "metrics": {
     "duration_minutes": null,
     "tool_calls": null,
-    "errors": 8,
+    "errors": 10,
     "recoveries": 0,
-    "commits": 5,
-    "files_changed": 33
+    "commits": 6,
+    "files_changed": 49
   },
   "lessons": []
 }
