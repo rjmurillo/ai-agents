@@ -152,9 +152,12 @@ harness running the check has no GitHub credentials.
   plumbing (`contains_main_merge`, `ReliefEvidence`, `main_merge_evidence`,
   `main_first_parent_shas`) are deleted rather than left as dead code guarding
   nothing.
-- The CI job's `Checkout repository` step no longer needs `fetch-depth: 0`
-  (it existed only to read `origin/main`'s trunk for the 40-commit relief),
-  saving an unshallow ~165 MiB fetch on every PR-validation run.
+- `fetch-depth: 0` on the `Checkout repository` step stays. An earlier draft
+  of this change removed it, reasoning only the commit-count gate needed
+  unshallow history; that was wrong; the merge-tree ratchet and several count
+  ratchets running later in the same job also read `origin/main`'s trunk and
+  depend on it. Reverted with a corrected comment naming the real dependency;
+  no fetch savings materialize from this change.
 
 ### Negative
 
@@ -177,7 +180,7 @@ harness running the check has no GitHub credentials.
 |---|---|---|---|
 | `scripts/ci/enforce_pr_validation.py` | Direct | Drop the `commit_status == "BLOCKED"` branch and the label fetch | Low |
 | `scripts/validation/git_hook_policy.py` | Direct | Drop `_check_needs_split_bypass`, main-merge-relief helpers; `_check_commit_limit` becomes advisory-only | Low |
-| `.github/workflows/pr-validation.yml` | Direct | Drop `COMMIT_STATUS`/`COMMIT_LIMIT` env vars, the `BLOCKED` condition on the needs-split step, and the `fetch-depth: 0` unshallow checkout | Low |
+| `.github/workflows/pr-validation.yml` | Direct | Drop `COMMIT_STATUS`/`COMMIT_LIMIT` env vars and the `BLOCKED` condition on the needs-split step. `fetch-depth: 0` stays; the merge-tree and count ratchets in the same job need it independently of this change | Low |
 | `scripts/validation/check_pr_bypass_label.py` | Direct | Deleted (only caller was the removed block) | Low |
 | `CONTRIBUTING.md`, `.claude/skills/ai-agents-change-control/references/gate-ladder.md`, `AGENTS.md`, critic agent prompts | Documentation | Describe the gate as advisory-only; remove human-only-label instructions | Low |
 | Tests (`tests/validation/test_pr_commit_count.py`, `tests/test_check_pr_bypass_label.py`, `tests/ci/test_pr_validation_workflow.py`, `tests/validation/test_git_hook_policy_atomic_commit.py`, `tests/workflows/test_pr_validation_needs_split.py`, `tests/validation/test_human_only_label_guidance.py`, `tests/test_lefthook_integration.py`) | Direct | Updated or deleted to match the advisory-only behavior | Medium (coverage of the removed block must not silently vanish; replaced with coverage of the advisory path) |

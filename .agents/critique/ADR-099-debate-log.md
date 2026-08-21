@@ -90,3 +90,17 @@ describes, on PR #5209's own stack), not an issue. The independent-thinker's
 suggested root-cause fix was filed as issue #5232; the tracking issue for
 this change itself was filed as issue #5233 once the citation error was
 caught. All "#5230" references were corrected to "#5233".
+
+## Post-accept correction 2: stale fetch-depth claim
+
+ADR-099's Consequences and Impact sections both stated that the CI job's
+`Checkout repository` step no longer needed `fetch-depth: 0` and that
+dropping it would save an unshallow fetch on every PR-validation run. That
+was true of an early implementation draft, which was reverted before merge:
+the merge-tree ratchet and several count ratchets running later in the same
+job also read `origin/main`'s trunk and depend on unshallow history
+independently of the commit-count gate. The shipped `pr-validation.yml` keeps
+`fetch-depth: 0`. PR #5234's automated spec validator caught the mismatch
+between the ADR's prose and the actual diff after the initial push; both
+passages are corrected to state that the step stays and that no fetch
+savings materialize from this change.
