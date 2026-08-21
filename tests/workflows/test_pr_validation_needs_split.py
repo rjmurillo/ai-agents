@@ -254,12 +254,13 @@ class TestRemoveNeedsSplitStep:
         assert "issues/{pr_number}/labels" in script
 
 
-class TestBlockTierStillFails:
-    """Sanity: the BLOCK tier (20+ commits) MUST still fail the job.
+class TestEnforceStepStillReportsOverallStatus:
+    """Sanity: `Enforce Blocking Issues` still fails the job on OVERALL_STATUS.
 
-    The fix relaxes the advisory tier only. The hard limit at 20 commits is
-    enforced in `Enforce Blocking Issues` and must remain a blocking gate
-    (exit 1 unless `commit-limit-bypass` label is set).
+    ADR-099 removed the 20-commit BLOCK tier and its `commit-limit-bypass`
+    label check entirely: the commit count is advisory only now. What remains
+    a real, unconditional gate is the description/standards OVERALL_STATUS
+    check (FAIL or ERROR), which this class still pins.
     """
 
     def test_enforce_step_exists(self) -> None:
@@ -273,33 +274,38 @@ class TestBlockTierStillFails:
             f"{_ENFORCE_STEP_NAME!r} is the real gate — it must NOT set `continue-on-error: true`"
         )
 
-    def test_enforce_step_exits_on_block_status(self) -> None:
+    def test_enforce_step_exits_on_overall_status_failure(self) -> None:
         step = _find_step(_ENFORCE_STEP_NAME)
         assert step is not None
         run = step.get("run") or ""
         script = _script_text(_ENFORCE_SCRIPT)
         assert "python3 scripts/ci/enforce_pr_validation.py" in run
-        assert 'commit_status == "BLOCKED"' in script, (
-            f"{_ENFORCE_STEP_NAME!r} must still branch on COMMIT_STATUS == "
-            "BLOCKED to enforce the 20-commit cap"
+        assert 'overall_status in {"FAIL", "ERROR"}' in script, (
+            f"{_ENFORCE_STEP_NAME!r} must still branch on OVERALL_STATUS"
         )
         assert "return LOGIC_ERROR" in script, (
-            f"{_ENFORCE_STEP_NAME!r} must still exit 1 on the BLOCK tier"
+            f"{_ENFORCE_STEP_NAME!r} must still exit 1 on a failed OVERALL_STATUS"
         )
 
-    def test_enforce_step_reads_bypass_label_via_rest_and_fails_closed(self) -> None:
+    def test_enforce_step_no_longer_reads_a_bypass_label(self) -> None:
+        """ADR-099: there is no more label to fetch for this gate.
+
+        The script's module docstring names `commit-limit-bypass` historically
+        (why the label check was removed), so this checks operative code, not
+        a blanket substring: no label-fetch endpoint, and no BYPASS_LABEL
+        attribute left to reintroduce the check against.
+        """
         step = _find_step(_ENFORCE_STEP_NAME)
         assert step is not None
         run = _executable_lines(step.get("run") or "")
         script = _script_text(_ENFORCE_SCRIPT)
         assert "python3 scripts/ci/enforce_pr_validation.py" in run
-        assert "gh pr view" not in run, (
-            f"{_ENFORCE_STEP_NAME!r} must not use GraphQL-backed `gh pr view` "
-            "for bypass-label reads"
+        assert "gh pr view" not in run
+        assert "issues/{pr_number}/labels" not in script
+        import importlib
+
+        enforce_module = importlib.import_module(
+            "scripts.ci.enforce_pr_validation"
         )
-        assert "issues/{pr_number}/labels" in script
-        assert "Failed to fetch PR labels" in script
-        assert "return LOGIC_ERROR" in script, (
-            f"{_ENFORCE_STEP_NAME!r} must fail closed when the bypass-label "
-            "REST read fails"
-        )
+        assert not hasattr(enforce_module, "BYPASS_LABEL")
+        assert not hasattr(enforce_module, "_fetch_labels")
