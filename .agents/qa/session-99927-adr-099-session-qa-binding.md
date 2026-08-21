@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding.json
-qaCommit: 5484cc8a273ab9706cd9ffc5a22fe048002500f8
+qaCommit: c6d7f388ffc85e3b0c8ebbcef7f65e722249b2bb
 ---
 
 # ADR-099 Session QA
@@ -77,6 +77,21 @@ validations passed` on this commit. The full `lefthook` pre-push suite,
 including `python-tests` and `pre-pr-validation`, ran green on this commit
 before the follow-up commits that only touch `.agents/sessions/` and
 `.agents/qa/` (evidence-only paths per `QA_EVIDENCE_PREFIXES`).
+
+## Post-Merge Rebind
+
+`qaCommit` moved from `5484cc8a2` to `c6d7f388f` (a merge of `origin/main`,
+which brought in PR #5219's ADR-096 frontmatter flip and an independent
+setup-uv SHA-pin fix in `tests/ci/test_validate_vendor_provenance.py` that
+conflicted with this branch's own generic-pattern version of the same fix).
+Per `post_qa_code_changes()`'s documented merge-diff behavior (ADR-096
+Negative consequence 1), a catch-up merge always reports as a code change
+regardless of whether this branch's own diff changed, since `git log -m`
+diffs against both parents. The merge conflict was resolved by combining
+both fixes (parse the YAML structure per `testing.md` MUST 9, assert a
+SHA-pattern rather than one exact SHA to avoid re-introducing the staleness
+trap PR #5215 caused). `uv run pytest tests/test_validate_session_json.py -q`
+re-run clean at 379 passed on the merge commit.
 
 ## Verdict
 
