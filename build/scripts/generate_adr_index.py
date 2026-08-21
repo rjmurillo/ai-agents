@@ -149,6 +149,7 @@ class AdrRecord:
     summary: str
     successor: str | None
     blocker: str
+    review_by: str
 
 
 # --- Parsing --------------------------------------------------------------
@@ -299,6 +300,34 @@ def _blocking_condition(body: str) -> str:
     return _LEADING_PROPOSED_RE.sub("", paragraph).strip()
 
 
+def _blocker_cell(record: AdrRecord) -> str:
+    """What is blocking a proposed record: its review date, its prose, or both.
+
+    Issue #5198 specifies the Proposed table carries "the condition **or review
+    date** blocking acceptance". ``review-by`` is the machine-readable half and
+    the prose ``## Status`` paragraph is the human half, so a record may declare
+    either, both, or neither.
+
+    A past-due date is marked rather than silently rendered. The whole reason the
+    field exists (issue #5193) is that ADR-002 and ADR-039 sat seven months past a
+    provisional window nobody could see, and an index that prints a stale deadline
+    as though it were pending reproduces exactly that failure at the corpus front
+    door.
+
+    Today's date is not read here. This renderer is required to be deterministic
+    (same input, byte-identical output), and a wall-clock comparison would make
+    output depend on run date. Past-due detection belongs in the lifecycle gate,
+    which can be tested against a frozen clock; this cell only surfaces the date
+    so a reader can see it at all.
+    """
+    if not record.review_by:
+        return record.blocker
+    stamped = f"review by {record.review_by}"
+    if not record.blocker:
+        return stamped
+    return f"{stamped}; {record.blocker}"
+
+
 def build_record(path: Path) -> AdrRecord:
     """Parse one ADR file into an index row. Raises AdrIndexError on defects."""
     match = _ADR_FILENAME_RE.match(path.name)
@@ -311,6 +340,7 @@ def build_record(path: Path) -> AdrRecord:
 
     status = _status_of(frontmatter, path) if frontmatter is not None else None
     successor = _scalar(frontmatter, "superseded-by") if frontmatter else ""
+    review_by = _scalar(frontmatter, "review-by") if frontmatter else ""
     date = _scalar(frontmatter, "date") if frontmatter else ""
 
     return AdrRecord(
@@ -323,6 +353,7 @@ def build_record(path: Path) -> AdrRecord:
         summary=_decision_summary(body),
         successor=successor or None,
         blocker=_blocking_condition(body),
+        review_by=review_by,
     )
 
 
@@ -446,7 +477,7 @@ def _status_section(
             continue
         row = [_link(record), _cell(record.title), _cell(record.date), _cell(record.summary)]
         if with_blocker:
-            row.append(_cell(record.blocker))
+            row.append(_cell(_blocker_cell(record)))
         rows.append(row)
     return _table(header, rows)
 

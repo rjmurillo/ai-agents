@@ -797,3 +797,75 @@ def test_supersession_cycle_terminates_instead_of_hanging(tmp_path: Path) -> Non
 
     assert "ADR-010" in retired
     assert "ADR-011" in retired
+
+
+def test_proposed_row_renders_the_review_by_date(tmp_path: Path) -> None:
+    """#5198 specifies the Proposed table carries the condition OR review date.
+
+    `review-by` shipped in ADR-TEMPLATE.md in this campaign and nothing read it.
+    A field no consumer reads is the shape ADR-073 warns about, and it is how the
+    ADR-002/ADR-039 provisional window sat seven months past due unnoticed.
+    """
+    adr_dir = tmp_path / "architecture"
+    _write_adr(
+        adr_dir, 77, "timeboxed",
+        frontmatter="status: proposed\nreview-by: 2026-09-27",
+        body=_standard_body(77, "Timeboxed"),
+    )
+
+    proposed = _section(_render(adr_dir), "Proposed")
+
+    assert "review by 2026-09-27" in proposed
+
+
+def test_review_by_and_prose_blocker_both_render(tmp_path: Path) -> None:
+    adr_dir = tmp_path / "architecture"
+    body = _standard_body(87, "Both").replace(
+        "## Status\n\nProposed", "## Status\n\nProposed. Awaiting a held-out eval."
+    )
+    _write_adr(
+        adr_dir, 87, "both",
+        frontmatter="status: proposed\nreview-by: 2026-10-18",
+        body=body,
+    )
+
+    proposed = _section(_render(adr_dir), "Proposed")
+
+    assert "review by 2026-10-18" in proposed
+    assert "held-out eval" in proposed
+
+
+def test_proposed_row_without_review_by_is_unchanged(tmp_path: Path) -> None:
+    """Negative control: the optional field absent must not alter the old output."""
+    adr_dir = tmp_path / "architecture"
+    _write_adr(
+        adr_dir, 88, "nodate",
+        frontmatter="status: proposed",
+        body=_standard_body(88, "No Date"),
+    )
+
+    proposed = _section(_render(adr_dir), "Proposed")
+
+    assert "review by" not in proposed
+    assert "ADR-088" in proposed
+
+
+def test_review_by_rendering_does_not_read_the_wall_clock(tmp_path: Path) -> None:
+    """Determinism guard: a long-past date renders the same as a far-future one.
+
+    The renderer must be byte-identical for identical input. Past-due detection
+    belongs in the lifecycle gate, where a test can freeze the clock.
+    """
+    def render_with(date: str) -> str:
+        adr_dir = tmp_path / f"arch-{date}"
+        _write_adr(
+            adr_dir, 2, "provisional",
+            frontmatter=f"status: proposed\nreview-by: {date}",
+            body=_standard_body(2, "Provisional"),
+        )
+        return _section(_render(adr_dir), "Proposed")
+
+    past = render_with("2026-01-17")
+    future = render_with("2099-01-17")
+
+    assert past.replace("2026-01-17", "DATE") == future.replace("2099-01-17", "DATE")
