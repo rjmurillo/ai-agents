@@ -1,13 +1,13 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 2eb268f5bd157556869cf42e594faa6537fdf40a
+qaCommit: 73bba3511ae90cf25c8444fca14b38f7c2d36332
 ---
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `2eb268f5bd157556869cf42e594faa6537fdf40a`
+**Validated at commit**: `73bba3511ae90cf25c8444fca14b38f7c2d36332`
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -379,3 +379,40 @@ check_adr_links        0 violation(s)
 generate_adr_index     --check OK
 taste_count_ratchet    OK, 574 <= baseline 576, unchanged from pre-review
 ```
+
+### Concurrent fix by the Bugbot autofix agent, and what the merge broke
+
+The autofix agent fixed the same family on this branch while I was fixing it.
+Both fixes are real and both cover the same four sites, including
+`_get_dependent_adrs`, which the bug report did not name. Resolved toward this
+branch's version because it is a superset: distinct messages, comments stating
+why each arm exists, and nine falsifiable tests where theirs has none.
+
+**Git's automatic merge of `check_adr_lifecycle.py` was itself a defect.** It
+kept their broadened `except (OSError, UnicodeDecodeError) as exc` AND my narrow
+`except UnicodeDecodeError`, leaving the second arm unreachable and silently
+reverting the message to "could not be read". Nothing about that is visible in
+the merged text; both arms read as intentional.
+
+Three tests went red on it:
+
+```
+FAILED test_the_undecodable_message_names_utf8_not_unreadable
+FAILED test_a_baseline_that_is_not_valid_utf8_is_a_config_error
+FAILED test_a_corrupt_baseline_exits_config_rather_than_traceback
+```
+
+That is precisely why those tests assert the message text rather than only the
+absence of a traceback. A test that checked "does not crash" would have passed
+the broken merge, and the distinct diagnostic would have been lost with a green
+suite. Worth carrying forward: when two fixes for one defect meet in a merge,
+the risk is not a conflict git reports, it is the one it resolves.
+
+Re-verified at the merge commit:
+
+```
+300 passed   lifecycle, detect_adr_changes across all four trees, misc skills
+check_adr_lifecycle    [PASS] 71 violation(s), no check above its baseline
+taste_count_ratchet    OK, count == baseline 576
+```
+

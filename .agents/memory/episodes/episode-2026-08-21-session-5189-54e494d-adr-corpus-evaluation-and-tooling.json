@@ -127,6 +127,28 @@
       "caused_by": [
         "e009"
       ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge the Bugbot autofix agent's concurrent fix",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-21T16:21:13+00:00",
+      "type": "commit",
+      "content": "Commit: 73bba3511ae90cf25c8444fca14b38f7c2d36332",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
     }
@@ -136,7 +158,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
+    "commits": 8,
     "files_changed": 47
   },
   "lessons": []

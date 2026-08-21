@@ -164,9 +164,19 @@
         "tests/skills/adr-review/test_detect_adr_changes_encoding.py"
       ],
       "notes": "UnicodeDecodeError subclasses ValueError, so every except OSError arm around read_text let it through and one stray byte aborted the whole gate with a traceback. Reproduced before fixing. The bot named three sites; sweeping every read_text site in the PR's files found a fourth it missed, _get_dependent_adrs, and confirmed two others were already correct and must not be touched: generate_adr_index handles it at top level with ADR-035 exit 3, and check_adr_links reads with errors='replace'. Each guard was proven falsifiable by reverting it and watching the tests go dead, with a negative control in each pair that would catch an unconditional handler. The new cases pushed a test module past the 500-line ceiling and the ratchet from 574 to 575; extracted to its own module rather than suppressed, returning the ratchet to 574."
+    },
+    {
+      "task": "Merge the Bugbot autofix agent's concurrent fix",
+      "status": "complete",
+      "filesModified": [
+        "scripts/validation/check_adr_lifecycle.py",
+        ".claude/skills/adr-review/scripts/detect_adr_changes.py",
+        "src/copilot-cli/skills/adr-review/scripts/detect_adr_changes.py"
+      ],
+      "notes": "The autofix agent pushed two commits fixing the same UnicodeDecodeError family while this session was fixing it. Resolved toward this branch's version, a superset: distinct messages for 'is not valid UTF-8' versus 'could not be read', comments stating why each arm exists, and nine falsifiable tests where theirs has none. The interesting failure was git's automatic merge of check_adr_lifecycle.py, which kept both their broadened arm and my narrow one, leaving the second unreachable and silently reverting the message. Three tests caught it. A test asserting only 'does not crash' would have passed the broken merge. The lesson is that when two fixes for one defect meet, the danger is the conflict git resolves silently, not the one it reports."
     }
   ],
-  "endingCommit": "2eb268f5bd157556869cf42e594faa6537fdf40a",
+  "endingCommit": "73bba3511ae90cf25c8444fca14b38f7c2d36332",
   "nextSteps": [
     "Phase 2: backfill lifecycle frontmatter into the ADRs Phase 1 did not touch (issue #5190)",
     "Phase 2: add the seven missing Status sections and settle the canonical-versus-MADR structure question (issue #5196)",
