@@ -160,16 +160,35 @@ class _StrictLoader(yaml.SafeLoader):
 
 
 def _no_duplicate_keys(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict[Any, Any]:
-    seen: set[Any] = set()
+    """Reject a mapping that declares the same key twice.
+
+    Keys are collected in a list and compared with ``==`` rather than kept in a
+    set. A set looks like the natural choice and is wrong here, because a YAML
+    key need not be hashable: ``? [a, b]`` builds a list key, and both ``in``
+    and ``add`` raise ``TypeError`` on it. An earlier revision guarded only the
+    membership test, with a ``# pragma: no cover - unhashable keys are not
+    valid here`` comment asserting the case was unreachable. It is reachable,
+    the comment was wrong, and ``seen.add(key)`` then raised the same
+    ``TypeError`` one line later, escaping ``parse_frontmatter``'s
+    ``yaml.YAMLError`` conversion and ``main``'s exit-code handling to produce a
+    traceback instead of the documented exit 1. Copilot found it on PR #5230.
+
+    ``==`` is defined for every constructed value, so the comparison never
+    raises, and an unhashable key that is NOT duplicated falls through to
+    ``construct_mapping``, which raises PyYAML's own ``ConstructorError``
+    (a ``yaml.YAMLError``, verified by execution). Both paths now land inside
+    the error contract.
+
+    The list is O(n^2) against the mapping's own key count. Frontmatter blocks
+    hold single-digit key counts, so this is not worth a hashable fast path
+    that would reintroduce the two-code-path bug.
+    """
+    seen: list[Any] = []
     for key_node, _ in node.value:
         key = loader.construct_object(key_node, deep=True)
-        try:
-            duplicate = key in seen
-        except TypeError:  # pragma: no cover - unhashable keys are not valid here
-            duplicate = False
-        if duplicate:
+        if any(key == earlier for earlier in seen):
             raise _DuplicateKeyError(f"duplicate key {key!r} in frontmatter mapping")
-        seen.add(key)
+        seen.append(key)
     mapping: dict[Any, Any] = loader.construct_mapping(node, deep=True)
     return mapping
 
@@ -557,14 +576,22 @@ _INTRO = (
     "    if str(front.get('status', '')).strip().lower() == 'accepted':\n"
     "        print(front.get('id') or path.name)\n"
     "```\n\n"
-    "**Normalise before comparing, as above.** Every reader of this corpus lowers\n"
-    "and strips the value first: `_status_of` in\n"
+    "**Normalise before comparing, as above.** Both gates that bucket a record by\n"
+    "status lower and strip it first: `_status_of` in\n"
     "`scripts/validation/check_adr_lifecycle.py` returns\n"
-    "`str(value).strip().lower()`, and this generator does the same before\n"
-    "bucketing a record. So `status: Accepted` passes the `status-enum` gate and\n"
-    "lands under Accepted in the table below, while a bare `== 'accepted'` misses\n"
-    "it. Every record carries a lowercase value today, which is exactly why the\n"
-    "mismatch would not announce itself.\n\n"
+    "`str(value).strip().lower()`, and this generator does the same. So\n"
+    "`status: Accepted` passes the `status-enum` gate and lands under Accepted in\n"
+    "the table below, while a bare `== 'accepted'` misses it. Every record carries\n"
+    "a lowercase value today, which is exactly why the mismatch would not announce\n"
+    "itself.\n\n"
+    "**This snippet does not detect duplicate keys, and the gates do.**\n"
+    "`yaml.safe_load` resolves a repeated `status:` last-wins and silently, so a\n"
+    "record declaring `proposed` in the line a human reads and `accepted` lower in\n"
+    "the same block would print as accepted here. `check_adr_lifecycle` and this\n"
+    "generator both reject that at the parser, so a corpus passing the gates has\n"
+    "none. Run the gate before trusting a query on a tree you have not validated;\n"
+    "the snippet is a convenience for reading a known-good corpus, not an\n"
+    "independent check.\n\n"
     "Python rather than `yq` deliberately. Python is the repo's native tooling\n"
     "(ADR-042) and `yaml` is already a dependency, so this adds nothing. The `yq` on\n"
     "PATH here is the jq wrapper, which has no front-matter mode and fails on a\n"

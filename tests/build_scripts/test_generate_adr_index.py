@@ -1032,3 +1032,69 @@ def test_the_documented_recipe_skips_a_record_with_no_frontmatter(tmp_path):
     _write_adr(adr_dir, 1, "bare", frontmatter=None, body=_standard_body(1, "Bare"))
 
     assert _accepted_ids_via_recipe(adr_dir) == []
+
+
+# Unhashable YAML keys -------------------------------------------------------
+
+
+def test_an_unhashable_key_raises_inside_the_error_contract(tmp_path):
+    """`? [a, b]` builds a list key. It must not escape as a raw TypeError.
+
+    The duplicate guard first kept keys in a set, which raises `TypeError` on an
+    unhashable key. It caught that around the membership test only, under a
+    `# pragma: no cover - unhashable keys are not valid here` comment asserting
+    the case was unreachable. It is reachable, so `seen.add(key)` raised the same
+    TypeError one line later, past `parse_frontmatter`'s YAMLError conversion
+    and past `main`'s exit-code handling: a traceback instead of the documented
+    exit 1. Copilot found it on PR #5230.
+    """
+    from generate_adr_index import AdrIndexError, build_record
+
+    adr = tmp_path / "ADR-001-thing.md"
+    adr.write_text(
+        "---\n? [a, b]\n: value\nstatus: accepted\n---\n\n"
+        "# ADR-001: Thing\n\n## Decision\n\nDo the thing.\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AdrIndexError):
+        build_record(adr)
+
+
+def test_a_duplicated_unhashable_key_is_caught_as_a_duplicate(tmp_path):
+    """The set-based guard could not have caught this; the list-based one does.
+
+    With `except TypeError: duplicate = False`, an unhashable key was declared
+    not-a-duplicate by construction, so a repeated one was never reported. `==`
+    is defined for every constructed value, so the comparison both works and
+    never raises.
+    """
+    from generate_adr_index import AdrIndexError, build_record
+
+    adr = tmp_path / "ADR-001-thing.md"
+    adr.write_text(
+        "---\n? [a, b]\n: one\n? [a, b]\n: two\n---\n\n"
+        "# ADR-001: Thing\n\n## Decision\n\nDo the thing.\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AdrIndexError):
+        build_record(adr)
+
+
+@pytest.mark.parametrize(
+    "first_line", ['"status": proposed', "'status': proposed", "status : proposed"]
+)
+def test_quoting_does_not_launder_a_duplicate_past_the_strict_loader(tmp_path, first_line):
+    """Parser-level detection sees one key regardless of how it is spelled."""
+    from generate_adr_index import AdrIndexError, build_record
+
+    adr = tmp_path / "ADR-001-thing.md"
+    adr.write_text(
+        f"---\nid: ADR-001\n{first_line}\nstatus: accepted\n---\n\n"
+        "# ADR-001: Thing\n\n## Decision\n\nDo the thing.\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AdrIndexError):
+        build_record(adr)
