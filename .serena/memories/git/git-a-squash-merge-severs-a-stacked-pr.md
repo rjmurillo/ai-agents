@@ -195,15 +195,19 @@ files, so the weaker checks happened to agree here. That is luck, not evidence.
 
 ## Two side effects to expect
 
-**The push ceiling used to be able to trip; it cannot anymore (ADR-099,
-2026-08-21, issue #5233).** `_unpushed_commit_count`
-(`scripts/validation/git_hook_policy.py`) still counts with
-`git rev-list --count <sha> --not --exclude=origin/<branch> --remotes=origin`,
-so it still excludes commits carried by any *other* `refs/remotes/origin/*`
-ref (that part of this section is unchanged and still useful for
-understanding why the counted figure moves when a tracking ref is pruned).
-What changed is the consequence: `_check_commit_limit`, the function this
-count fed into, no longer blocks a push at any threshold, and the
+**The push ceiling used to be able to trip; it cannot anymore, and the
+counting mechanism itself changed (ADR-099, 2026-08-21, issue #5233).**
+`_unpushed_commit_count` is deleted, not merely defanged; it no longer exists
+in `scripts/validation/git_hook_policy.py`. Its
+`git rev-list --count <sha> --not --exclude=origin/<branch> --remotes=origin`
+query, which excluded commits carried by any *other* `refs/remotes/origin/*`
+ref, is gone with it. The surviving `_check_commit_limit` computes its count
+directly with `git rev-list --count <merge-base>..<head>` (no
+exclude-remotes special-casing), so the "count moves once a tracking ref is
+pruned" behavior this section used to describe no longer applies: nothing
+in the current advisory path reads other remote-tracking refs at all.
+`_check_commit_limit` (`scripts/validation/git_hook_policy.py`) no longer
+blocks a push at any threshold, and the
 `commit-limit-bypass` label and its human-only-maintainer step were removed
 entirely, because the label could not be reliably verified from inside a
 sandboxed Claude Code session. If a repair merge like this one now pushes a
