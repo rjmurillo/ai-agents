@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding.json
-qaCommit: b71f0bd7707275e603082970783b5e8392330bc8
+qaCommit: d4b017fb1c093d7c26764bc07d896b92cf38374b
 ---
 
 # ADR-099 Session QA
@@ -214,6 +214,29 @@ clean at 381 passed on the merged tree.
 `post_qa_code_changes('b71f0bd7707275e603082970783b5e8392330bc8', 'HEAD', ...)`
 confirmed empty against the two session-log-only follow-up commits made
 after it.
+
+## Post-Review Rebind: A Second Copilot Round, Three Staleness Findings
+
+A second automated Copilot review pass on PR #5221 (after the fix-batch
+push above) found three more real findings, all staleness bugs rather
+than design pushback: the session log's `changesCommitted.Evidence` still
+carried a frozen commit-count list the episode extractor's own SHA count
+had outgrown; this report's Test Results table claimed 380 passed where
+the file now has 381, and its second row restricted a keyword-filtered
+run to this single file while reporting a count (565) larger than that
+file's own total; and ADR-099's "Why Change Now" section stated the
+fallback-path condition backwards (`binding.commit`-as-head bounded
+"on the normal (non-fallback) path" when `scripts/validate_session_json.py:992`
+shows it is exactly the fallback path). All three fixed: the session log's
+Evidence field now describes the commit shape instead of a number,
+this report's table above carries freshly re-run accurate numbers
+(381 passed; 567 passed / 27354 deselected once the file restriction was
+removed), and the ADR sentence now states the fallback condition directly.
+
+`qaCommit` moves from `b71f0bd77` to `d4b017fb1`, the commit carrying the
+ADR fix and its debate-log entry;
+`post_qa_code_changes('d4b017fb1c093d7c26764bc07d896b92cf38374b', 'HEAD', ...)`
+confirmed empty against the endingCommit follow-up made after it.
 
 ## Verdict
 
