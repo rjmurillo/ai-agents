@@ -55,7 +55,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
     _paths_added.append(str(PROJECT_ROOT))
 try:
-    from claude_skills_import import import_skill_script  # noqa: E402
+    from claude_skills_import import import_skill_script
 
     _detector = import_skill_script(
         ".claude/skills/adr-review/scripts/detect_adr_changes.py"
