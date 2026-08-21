@@ -1,0 +1,38 @@
+{
+  "id": "episode-2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling",
+  "session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling",
+  "timestamp": "2026-08-21T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Evaluate the 98-record ADR corpus for gaps, deterministic-tooling opportunities, and inconsistencies that misdirect a low-effort model; file an issue per finding and drive each to closure",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Audit the ADR corpus for gaps, tooling opportunities, and low-effort-model confusion",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix _get_adr_status frontmatter parsing (issue #5189)",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 2
+  },
+  "lessons": []
+}

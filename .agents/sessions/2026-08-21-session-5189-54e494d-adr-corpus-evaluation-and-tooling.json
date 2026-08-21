@@ -1,0 +1,150 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 5189,
+    "date": "2026-08-21",
+    "branch": "claude/adr-evaluation-tooling-6od8rd",
+    "startingCommit": "54e494d",
+    "objective": "Evaluate the 98-record ADR corpus for gaps, deterministic-tooling opportunities, and inconsistencies that misdirect a low-effort model; file an issue per finding and drive each to closure"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": "Serena MCP tools are not exposed in this session; no mcp__serena__* tool resolves via ToolSearch. Used the file fallback AGENTS.md sanctions and read committed memories under .serena/memories/ directly. Memory context was also auto-injected by the UserPromptSubmit hook."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": "initial_instructions unavailable for the same reason. Substituted the committed equivalents: AGENTS.md, CLAUDE.md, and .claude/rules/*.md, all loaded into context at session start."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "SessionStart hook auto-injected .agents/retrospective/2026-08-19-review-and-land-fleet-campaign-prs.md. .agents/HANDOFF.md is READ-ONLY per ADR-014 and was not modified."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file. Created when the branch-context-policy lefthook job blocked the first commit: the mtime-newest recent log was 2026-08-20-session-99923 on branch claude/autoplan-nlvjlh, which contradicted the current branch. Created a log for this branch, which is the first of the three fixes the hook's own error message names. No hook was bypassed."
+      },
+      "skillScriptsListed": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Skill catalog delivered in the session system prompt; ADR tooling surveyed directly via ls scripts/validation/ and ls scripts/ci/."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/rules/universal.md, code-quality.md, pragmatic-programmer.md, voice.md, builder-ethos.md, knowledge-persistence.md, search-before-building.md, and claude-model-patches.md all loaded at session start via CLAUDE.md."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "UserPromptSubmit hook auto-recalled adr-constraint-checking, dod-003-action-item-blocking, review-004-read-actual-code-not-just-summaries-92, quality-gate-baseline-phase1, skills-autonomous-execution-index, and new-script-placement."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned claude/adr-evaluation-tooling-6od8rd, matching the branch this task designates."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On claude/adr-evaluation-tooling-6od8rd, not main. Confirmed by the branch-policy lefthook job passing."
+      },
+      "gitStatusVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git status --short was clean at session start and after the audit phase; audit scripts were written to the session scratchpad, never into the tree."
+      },
+      "startingCommitNoted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "54e494d, recorded above via git rev-parse --short HEAD."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": "Session in progress. Phase 1 workstreams are still landing."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md untouched per ADR-014."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Deferred to session end. Serena MCP is unavailable, so any memory write will go to .serena/memories/ directly with a hand-added row in memory-index.md per .claude/rules/knowledge-persistence.md MUST-5."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": "Deferred; runs as part of scripts/validation/pre_pr.py before push."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": "Deferred. Per-workstream verification runs as each lands; the consolidated report will be written to .agents/qa/2026-08-21-adr-corpus-campaign-qa.md before push."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": "In progress. Commits are atomic per workstream at five or fewer authored files, per AGENTS.md."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": "pre_pr.py runs before push."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Five phase-level tasks tracked with explicit blockedBy edges."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Deferred to session end."
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "None triggered."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Audit the ADR corpus for gaps, tooling opportunities, and low-effort-model confusion",
+      "status": "complete",
+      "filesModified": [],
+      "notes": "Measured 98 ADRs. Findings: 59 carry no lifecycle frontmatter, so the canonical parser reported ADR-042 (the binding Python-first mandate) and ADR-005 (superseded) both as proposed; 23 records miss at least one template-required section and two incompatible structures are in use (canonical and MADR); three supersessions are one-sided; ADR-002 and ADR-039 have sat in a provisional window that expired 2026-01-17; ADR-050 mandates a deleted script; ADR-030 is not a decision record; six records are status proposed with implemented true, three of which are already enforced as binding elsewhere; ADR-055 prescribes an exception marker citing ADR-032, which governs EARS syntax; 22 files carry broken ADR links. Filed 13 issues, #5189 through #5201."
+    },
+    {
+      "task": "Fix _get_adr_status frontmatter parsing (issue #5189)",
+      "status": "complete",
+      "filesModified": [
+        ".claude/skills/adr-review/scripts/detect_adr_changes.py",
+        "src/copilot-cli/skills/adr-review/scripts/detect_adr_changes.py",
+        ".claude/skills/adr-review/tests/test_detect_adr_changes.py",
+        "src/copilot-cli/skills/adr-review/tests/test_detect_adr_changes.py",
+        "tests/skills/adr-review/test_detect_adr_changes.py",
+        "tests/skills/test_misc_skill_scripts.py"
+      ],
+      "notes": "Parses only the leading frontmatter block with yaml.safe_load and returns an unknown sentinel for every undeclared state instead of failing open to proposed. Two tests in tests/skills/test_misc_skill_scripts.py encoded the old behavior; their assertions were corrected to the contract issue #5189 specifies, and a third test was added pinning that a bare status line outside frontmatter is body text. No test was skipped, disabled, or deleted."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Land the remaining Phase 1 workstreams and verify each agent report independently before committing",
+    "Phase 2: backfill lifecycle frontmatter into the ADRs Phase 1 did not touch (issue #5190)",
+    "Phase 2: add the seven missing Status sections and settle the canonical-versus-MADR structure question (issue #5196)",
+    "Run pre_pr.py, push, open a draft PR, and subscribe to its activity",
+    "Post the consolidated owner-decision memo to the issues that need rjmurillo's call rather than an agent's"
+  ]
+}
