@@ -298,7 +298,7 @@
       "notes": "d9ce372be arrived on the branch unprompted. Its _status_prose fix was correct (verified across seven cases, preserves the bypass fix beneath it) but shipped NO test, so it was one edit from silent regression; test added and mutation-proven. Its sys.path cleanup left a dead noqa, removed. Its third change moved qaCommit BACK to 4488070a5 while editing check_adr_lifecycle.py in a later commit, creating the exact staleness Session End Validation catches. The Bugbot finding behind it was a false positive: qaCommit pointed at the last code commit, which is what the gate checks, and pre_pr.py passed before the 'fix'."
     }
   ],
-  "endingCommit": "4488070a5adfe28a29d4ffbad55e94fa3beb3534",
+  "endingCommit": "93e9768f59fcef17b7451bcccacbedc5324c884b",
   "nextSteps": [
     "Open a stacked PR from claude/adr-5209-review-fixes with base claude/adr-evaluation-tooling-6od8rd",
     "Merge it into #5209, or merge #5209 first and retarget this one at main",
