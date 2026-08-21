@@ -215,7 +215,7 @@ When a synthesis exceeds the cap, cut the weakest finding, not the strongest rec
 ## Completion Gate (Blocking)
 
 Session completion does not require a session log. Session log creation is
-discontinued (see `.claude/rules/session-logs.md`); do not create one.
+discontinued; do not create one.
 
 ### Pre-Close Sequence
 
