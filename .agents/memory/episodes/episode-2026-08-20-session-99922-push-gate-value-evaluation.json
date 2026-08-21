@@ -396,7 +396,8 @@
         "e030",
         "e033",
         "e034",
-        "e036"
+        "e036",
+        "e038"
       ],
       "leads_to": [
         "e032"
@@ -470,7 +471,57 @@
       "caused_by": [
         "e035"
       ],
+      "leads_to": [
+        "e039"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e038",
+      "timestamp": "2026-08-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Cleared the last five review threads and measured the gate a fifth time",
+      "caused_by": [],
+      "leads_to": [
+        "e031"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e039",
+      "timestamp": "2026-08-21T01:39:04+00:00",
+      "type": "commit",
+      "content": "Commit: 20e4ba5ab7ffdbf48875d52d727d45bc6630514e",
+      "caused_by": [
+        "e037"
+      ],
+      "leads_to": [
+        "e041"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e040",
+      "timestamp": "2026-08-21T02:05:34+00:00",
+      "type": "commit",
+      "content": "Commit: 9422427243a8ba55d46653f0b746eb1dc8e045ff",
+      "caused_by": [
+        "e041"
+      ],
       "leads_to": [],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e041",
+      "timestamp": "2026-08-21T02:04:41+00:00",
+      "type": "commit",
+      "content": "Commit: 28287cc504387eb04739c861e80d5d1a7a94c37d",
+      "caused_by": [
+        "e039"
+      ],
+      "leads_to": [
+        "e040"
+      ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     }
   ],
@@ -479,7 +530,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 26,
+    "commits": 29,
     "files_changed": 10
   },
   "lessons": []
