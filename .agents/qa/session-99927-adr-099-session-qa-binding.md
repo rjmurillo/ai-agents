@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding.json
-qaCommit: c6d7f388ffc85e3b0c8ebbcef7f65e722249b2bb
+qaCommit: 06fa514b552933b3bb5003dd56a18db657fc65e6
 ---
 
 # ADR-099 Session QA
@@ -92,6 +92,20 @@ both fixes (parse the YAML structure per `testing.md` MUST 9, assert a
 SHA-pattern rather than one exact SHA to avoid re-introducing the staleness
 trap PR #5215 caused). `uv run pytest tests/test_validate_session_json.py -q`
 re-run clean at 379 passed on the merge commit.
+
+A second catch-up merge, `06fa514b5`, was required before the push
+succeeded: `origin/main` advanced again while the first push was in flight,
+landing PR #5225, which applied the exact same pip 26.1.2 to 26.2 bump this
+branch had already carried in `.github/workflows/pytest.yml` (for the same
+CVE, PYSEC-2026-3721) under a differently worded comment. `merge-tree-ratchet`
+(a pre-push job that runs `git merge-tree` against `origin/main` and rejects
+a push whose merged result would fail a registered ratchet) caught the
+resulting conflict before it ever reached CI. Resolved by keeping
+`origin/main`'s comment, which cites issue #5222 and is the version already
+merged to main; the pin value itself (`26.2`) was identical on both sides, so
+no code changed. `uv run pytest tests/test_validate_session_json.py -q`
+re-run clean at 379 passed again on `06fa514b5`, and
+`merge_tree_ratchet_check.py --base-ref origin/main` reported OK.
 
 ## Verdict
 
