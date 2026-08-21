@@ -130,8 +130,7 @@ Apply these without asking. Log each application for the final gate.
    the final gate instead of pausing mid-run.
 5. **Mirrors and gates.** Honor repo obligations without prompting: sync
    generated mirrors, update the per-issue handoff when needed, and keep commits
-   atomic. Session log creation is discontinued
-   (`.claude/rules/session-logs.md` MUST 1).
+   atomic. Session log creation is discontinued.
 
 Classify every decision the run surfaces; never promote silently.
 
