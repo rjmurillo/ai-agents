@@ -168,6 +168,46 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnose a pre-push python-tests failure on tests/ci/test_validate_vendor_provenance.py::TestWorkflowContract::test_workflow_sets_up_uv",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge origin/main to pick up the fix rather than patch the test locally",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebind qaCommit to the merge commit after Session End Validation flagged QA staleness",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-21T16:45:32+00:00",
+      "type": "commit",
+      "content": "Commit: 36bfb510b2858c5f22e164cd42342d04921a250a",
+      "caused_by": [
+        "e017"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-5220-session-log-false-positive"
     }
@@ -177,7 +217,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 5
   },
   "lessons": []

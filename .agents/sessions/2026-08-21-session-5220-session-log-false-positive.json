@@ -165,9 +165,21 @@
     {
       "task": "Unshallow the clone after the first push attempt failed the push-ref-policy hook",
       "outcome": "git fetch --unshallow origin per the hook's own remediation instruction, then pushed"
+    },
+    {
+      "task": "Diagnose a pre-push python-tests failure on tests/ci/test_validate_vendor_provenance.py::TestWorkflowContract::test_workflow_sets_up_uv",
+      "outcome": "Confirmed pre-existing and unrelated: the test passed against origin/main directly, and one commit landed on main after this branch started (PR #5219, a1ee96695) that re-pinned the same test's expected setup-uv SHA"
+    },
+    {
+      "task": "Merge origin/main to pick up the fix rather than patch the test locally",
+      "outcome": "Clean merge (36bfb510b2858c5f22e164cd42342d04921a250a), no conflicts; the pin test and the full branch-context suite both re-verified passing afterward"
+    },
+    {
+      "task": "Rebind qaCommit to the merge commit after Session End Validation flagged QA staleness",
+      "outcome": "The merge brought in real, non-evidence-path files (ADR-096, tests/ci/test_validate_vendor_provenance.py) after the prior qaCommit; updated the QA report and this log to point at the merge commit"
     }
   ],
-  "endingCommit": "c19f1e73c0786f5af43c67d8c6c14e7362f21d20",
+  "endingCommit": "36bfb510b2858c5f22e164cd42342d04921a250a",
   "nextSteps": [
     "Push claude/session-log-false-positive-n3s1nn and open a draft PR that fixes issue #5220",
     "Subscribe to PR activity and watch CI"

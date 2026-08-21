@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5220-session-log-false-positive.json
-qaCommit: c19f1e73c0786f5af43c67d8c6c14e7362f21d20
+qaCommit: 36bfb510b2858c5f22e164cd42342d04921a250a
 ---
 
 # QA Report: Issue #5220, check_branch_context hard-blocks after a merge when origin/HEAD is unset
@@ -95,6 +95,22 @@ behavior findings; all confirmed clean by direct read of the affected code.
   branch to own its own log before the exemption fires;
   `test_branch_context_fails_open_when_git_is_unavailable` still fails open
   when the `git` binary itself is missing.
+
+## Push attempts and the base-branch merge
+
+The first two push attempts failed the pre-push suite's `python-tests` job on
+`tests/ci/test_validate_vendor_provenance.py::TestWorkflowContract::test_workflow_sets_up_uv`,
+which asserted a stale `astral-sh/setup-uv` SHA pin. Confirmed this was not
+caused by this branch: the test passed against `origin/main` directly, and
+`git log 9e1ebd2..origin/main` showed exactly one new commit
+(`a1ee96695`, PR #5219, merged after this branch's own start) that re-pinned
+the same test to the current action SHA. Per the base-branch-recovered
+playbook, merged `origin/main` (merge commit
+`36bfb510b2858c5f22e164cd42342d04921a250a`, no conflicts) instead of patching
+the test locally, re-ran the pin test and the branch-context suite to confirm
+both still pass, and rebound `qaCommit` to the merge commit since it now
+carries real, non-evidence-path changes (the ADR-096 and vendor-provenance
+files from `origin/main`) after the prior `qaCommit`.
 
 ## Pre-existing findings, out of scope
 
