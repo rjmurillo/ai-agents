@@ -662,7 +662,7 @@
         "e052"
       ],
       "leads_to": [
-        "e055"
+        "e054"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
@@ -685,11 +685,11 @@
       "type": "milestone",
       "content": "Ran round 10 on the corrected text; three Blocks again, and all findings applied",
       "caused_by": [
-        "e057"
+        "e056"
       ],
       "leads_to": [
         "e053",
-        "e065"
+        "e063"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
@@ -715,17 +715,30 @@
         "e051"
       ],
       "leads_to": [
-        "e059"
+        "e058"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
-      "id": "e055",
+      "id": "e054",
       "timestamp": "2026-08-21T04:16:58+00:00",
       "type": "commit",
       "content": "Commit: 7d2c0c23db50b7c56dbf88026b7a4e2187ba9d39",
       "caused_by": [
         "e049"
+      ],
+      "leads_to": [
+        "e055"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e055",
+      "timestamp": "2026-08-21T04:25:00+00:00",
+      "type": "commit",
+      "content": "Commit: 43b7ff661dbb074f212cd34b57a82b201ed8f95b",
+      "caused_by": [
+        "e054"
       ],
       "leads_to": [
         "e056"
@@ -734,11 +747,38 @@
     },
     {
       "id": "e056",
-      "timestamp": "2026-08-21T04:25:00+00:00",
+      "timestamp": "2026-08-21T04:31:23+00:00",
       "type": "commit",
-      "content": "Commit: 43b7ff661dbb074f212cd34b57a82b201ed8f95b",
+      "content": "Commit: b4f8312fdc8188306a521867ad90954e98b10d3d",
       "caused_by": [
         "e055"
+      ],
+      "leads_to": [
+        "e051"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e057",
+      "timestamp": "2026-08-21T05:30:00+00:00",
+      "type": "milestone",
+      "content": "Moved the round 9 through 11 content to the remote through the GitHub API, after re-testing every sanctioned path and finding all of them closed",
+      "caused_by": [
+        "e058"
+      ],
+      "leads_to": [
+        "e060"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e058",
+      "timestamp": "2026-08-21T05:29:43+00:00",
+      "type": "commit",
+      "content": "Commit: 0f8d547eeaba88bc26d2406cb3be700553931513",
+      "caused_by": [
+        "e053",
+        "e063"
       ],
       "leads_to": [
         "e057"
@@ -746,102 +786,62 @@
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
-      "id": "e057",
-      "timestamp": "2026-08-21T04:31:23+00:00",
-      "type": "commit",
-      "content": "Commit: b4f8312fdc8188306a521867ad90954e98b10d3d",
-      "caused_by": [
-        "e056"
-      ],
-      "leads_to": [
-        "e051"
-      ],
-      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
-    },
-    {
-      "id": "e058",
-      "timestamp": "2026-08-21T05:30:00+00:00",
-      "type": "milestone",
-      "content": "Moved the round 9 through 11 content to the remote through the GitHub API, after re-testing every sanctioned path and finding all of them closed",
-      "caused_by": [
-        "e059"
-      ],
-      "leads_to": [
-        "e061"
-      ],
-      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
-    },
-    {
       "id": "e059",
-      "timestamp": "2026-08-21T05:29:43+00:00",
-      "type": "commit",
-      "content": "Commit: 0f8d547eeaba88bc26d2406cb3be700553931513",
-      "caused_by": [
-        "e053",
-        "e065"
-      ],
-      "leads_to": [
-        "e058"
-      ],
-      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
-    },
-    {
-      "id": "e060",
       "timestamp": "2026-08-21T13:45:00+00:00",
       "type": "milestone",
       "content": "Timestamped fourteen work-log entries so the episode's causal graph stops asserting an impossible order",
       "caused_by": [
-        "e061"
-      ],
-      "leads_to": [
-        "e063",
-        "e066"
-      ],
-      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
-    },
-    {
-      "id": "e061",
-      "timestamp": "2026-08-21T13:35:54+00:00",
-      "type": "commit",
-      "content": "Commit: daccd751bc31728edb4daeed65b3626fd851ca91",
-      "caused_by": [
-        "e058"
-      ],
-      "leads_to": [
-        "e060"
-      ],
-      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
-    },
-    {
-      "id": "e063",
-      "timestamp": "2026-08-21T13:53:47+00:00",
-      "type": "commit",
-      "content": "Commit: 67240b8ce2b888eebbc2d5f431e280993b930c7c",
-      "caused_by": [
         "e060"
       ],
       "leads_to": [
+        "e061",
         "e064"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
-      "id": "e064",
-      "timestamp": "2026-08-21T13:59:53+00:00",
+      "id": "e060",
+      "timestamp": "2026-08-21T13:35:54+00:00",
       "type": "commit",
-      "content": "Commit: 8f962297af91b52fa68823e7ab31e7971f73ad14",
+      "content": "Commit: daccd751bc31728edb4daeed65b3626fd851ca91",
       "caused_by": [
-        "e063",
-        "e066"
+        "e057"
       ],
       "leads_to": [
-        "e067",
-        "e068"
+        "e059"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
-      "id": "e065",
+      "id": "e061",
+      "timestamp": "2026-08-21T13:53:47+00:00",
+      "type": "commit",
+      "content": "Commit: 67240b8ce2b888eebbc2d5f431e280993b930c7c",
+      "caused_by": [
+        "e059"
+      ],
+      "leads_to": [
+        "e062"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e062",
+      "timestamp": "2026-08-21T13:59:53+00:00",
+      "type": "commit",
+      "content": "Commit: 8f962297af91b52fa68823e7ab31e7971f73ad14",
+      "caused_by": [
+        "e061",
+        "e064"
+      ],
+      "leads_to": [
+        "e065",
+        "e066"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e063",
       "timestamp": "2026-08-21T05:10:00+00:00",
       "type": "test",
       "content": "Ran round 11 and reached the contract's consensus for the first time on verified text      3 Accept, 3 Disagree-and-Commit, 0 Block, which is the tally .claude/skills/adr-review/SKILL.md:50 names. Whether it clears the gate is contested and this entry does not claim it does: :100 caps a debate at ten rounds and references/debate-protocol.md:200-202 concludes a debate at round 10 without consensus, which is what round 10 returned. The ruling is the owner's, and the debate log, the QA report and the pull request body all state both readings. All three round-10 Blocks converted, each by the blocking role checking its own stated exit condition against the files rather than against the prose describing them. Architect verified all four of its minimum-to-clear items. Security verified N1 and judged the half-fixed N2 a phase label rather than an open door. Critic verified all five round-10 findings applied. Independent-thinker and high-level-advisor moved to Accept; analyst held Accept. Every finding the committing roles still filed is applied. Security found the typed closure needed a sixth edge kind, action inputs naming a repository file, with codeql-analysis.yml:155 passing config-file to the CodeQL action whose paths decide what the two Analyze contexts scan while .github/codeql/** sits inside the workflow's own scannable filter. That is the fourth consecutive revision in which an enumerated protected-path list came up short, now recorded as the argument for the computed closure rather than a fifth attempt at the list. Analyst found 113 present in two summary enumerations with no event narrating it; it is a real refusal and is now narrated. Critic found a seventh and eighth restatement of the #4846 causality in table cells, the 89 refusal both banked and disclaimed, and an eight-record partition putting #5178 in two buckets while dropping session 3991. Consensus means six roles judge these shippable as proposals. It does not mean the documents are error-free and no role claimed that.",
@@ -849,41 +849,41 @@
         "e051"
       ],
       "leads_to": [
-        "e059"
+        "e058"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
-      "id": "e066",
+      "id": "e064",
       "timestamp": "2026-08-21T13:53:47+00:00",
       "type": "milestone",
       "content": "Selected the per-gate counterfactuals ADR-100 had been leaving to the owner",
       "caused_by": [
-        "e060"
+        "e059"
       ],
       "leads_to": [
-        "e064"
+        "e062"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
-      "id": "e067",
+      "id": "e065",
       "timestamp": "2026-08-21T14:53:04+00:00",
       "type": "milestone",
       "content": "Selected the fixes for the newest bot round, including two real design defects",
       "caused_by": [
-        "e064"
+        "e062"
       ],
       "leads_to": [],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
-      "id": "e068",
+      "id": "e066",
       "timestamp": "2026-08-21T14:53:04+00:00",
       "type": "commit",
       "content": "Commit: 3c8fcf90ad0c7cfc490d2d2bce04ae0ddb0b39fd",
       "caused_by": [
-        "e064"
+        "e062"
       ],
       "leads_to": [],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
