@@ -237,7 +237,7 @@
       "notes": "While rewriting the fix commit's message, a scaffold step ran `git commit --no-verify` to park the staged tree ahead of a `git reset --soft`. The scratch commit was discarded by that same reset and reaches no ref; the commit that survives ran the hooks in full, and no commit in history skipped one. But universal.md MUST-NOT-2 forbids the mechanism, not just the outcome, and the QA report carried an absolute 'no bypass' claim. Corrected the claim in place instead of dropping it, since a report that states an absolute and later proves to have an exception is worse than one that states the exception."
     }
   ],
-  "endingCommit": "b386b27cadbda6ee539b5e212beaad4c0d4eb88f",
+  "endingCommit": "48e418a47d67c5e5cca2893a33eae36569684690",
   "nextSteps": [
     "Open a stacked PR from claude/adr-5209-review-fixes with base claude/adr-evaluation-tooling-6od8rd",
     "Merge it into #5209, or merge #5209 first and retarget this one at main",
