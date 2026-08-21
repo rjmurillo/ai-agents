@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 66bd167c35df9d7ca76b336ac5382c582e9dd5c6
+qaCommit: 4488070a5adfe28a29d4ffbad55e94fa3beb3534
 ---
 
 # QA: PR #5209 review-round fixes, carried on a stacked branch
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `66bd167c35df9d7ca76b336ac5382c582e9dd5c6`
+**Validated at commit**: `4488070a5adfe28a29d4ffbad55e94fa3beb3534`
 
 ## Verdict
 

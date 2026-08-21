@@ -465,8 +465,11 @@ def _status_prose(body: str) -> str | None:
     heading = _STATUS_HEADING_RE.search(body)
     if heading is not None:
         for line in body[heading.end() :].splitlines():
-            if line.strip():
-                return line.strip()
+            stripped = line.strip()
+            if _LEVEL_TWO_HEADING_RE.match(line):
+                return ""
+            if stripped:
+                return stripped
         return ""
     inline = _INLINE_STATUS_RE.search(_record_header(body))
     return inline.group(1).strip() if inline is not None else None

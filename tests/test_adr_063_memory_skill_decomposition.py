@@ -47,16 +47,22 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ADR_PATH = PROJECT_ROOT / ".agents" / "architecture" / "ADR-063-memory-skill-decomposition.md"
 
 TESTS_SKILLS_DIR = str(PROJECT_ROOT / "tests" / "skills")
+_paths_added: list[str] = []
 if TESTS_SKILLS_DIR not in sys.path:
     sys.path.insert(0, TESTS_SKILLS_DIR)
+    _paths_added.append(TESTS_SKILLS_DIR)
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+    _paths_added.append(str(PROJECT_ROOT))
+try:
+    from claude_skills_import import import_skill_script  # noqa: E402
 
-from claude_skills_import import import_skill_script  # noqa: E402
-
-_detector = import_skill_script(
-    ".claude/skills/adr-review/scripts/detect_adr_changes.py"
-)
+    _detector = import_skill_script(
+        ".claude/skills/adr-review/scripts/detect_adr_changes.py"
+    )
+finally:
+    for p in _paths_added:
+        sys.path.remove(p)
 # U+2014 em-dash, U+2013 en-dash. Banned by .claude/rules/universal.md.
 _DASH_PATTERN = re.compile("[\\u2013\\u2014]")
 
