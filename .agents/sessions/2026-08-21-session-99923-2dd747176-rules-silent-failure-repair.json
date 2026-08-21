@@ -117,7 +117,7 @@
       "finding": "MUST 10 through 12 govern the original defect; nothing governed the fix. Four successive repairs to one silent-failure defect in PR #5176 each introduced a different silent failure, and three were caught by a reviewer rather than by the suite being written for that class."
     }
   ],
-  "endingCommit": "414513ea4241901b8b572d90a1062d3be5cf7539",
+  "endingCommit": "ea408a48cae4eed3b0e15bc3f8c4c5dfebcea8b4",
   "nextSteps": [
     "Open a draft PR from claude/issue-5188-silent-failure-repair referencing issue #5188"
   ]
