@@ -195,18 +195,25 @@ files, so the weaker checks happened to agree here. That is luck, not evidence.
 
 ## Two side effects to expect
 
-**The push ceiling can trip.** `_unpushed_commit_count`
-(`scripts/validation/git_hook_policy.py`) counts with
+**The push ceiling used to be able to trip; it cannot anymore (ADR-099,
+2026-08-21, issue #5233).** `_unpushed_commit_count`
+(`scripts/validation/git_hook_policy.py`) still counts with
 `git rev-list --count <sha> --not --exclude=origin/<branch> --remotes=origin`,
-so it excludes commits carried by any *other* `refs/remotes/origin/*` ref. That
-is a **local** ref namespace. Deleting the squashed PARENT branch on GitHub
-therefore changes nothing on its own; the count moves only once the local
-tracking ref is pruned, which is a separate event you control. Measured here
-with the PARENT tracking ref still present: raw 43, counted 21, limit 20,
-genuinely new 3. Removing that tracking ref raises the counted figure to 35
-rather than lowering it. Splitting is not the remedy for an overage the repair
-merge itself caused; the `commit-limit-bypass` label is, with the measurement
-recorded on the PR.
+so it still excludes commits carried by any *other* `refs/remotes/origin/*`
+ref (that part of this section is unchanged and still useful for
+understanding why the counted figure moves when a tracking ref is pruned).
+What changed is the consequence: `_check_commit_limit`, the function this
+count fed into, no longer blocks a push at any threshold, and the
+`commit-limit-bypass` label and its human-only-maintainer step were removed
+entirely, because the label could not be reliably verified from inside a
+sandboxed Claude Code session. If a repair merge like this one now pushes a
+count over the old 20/40 thresholds, the only visible effect is the
+advisory `needs-split` label and a WARNING/ALERT notice; nothing blocks the
+push. Measured here (before the removal) with the PARENT tracking ref still
+present: raw 43, counted 21, limit 20, genuinely new 3; removing that
+tracking ref raised the counted figure to 35. That specific measurement is
+kept as a worked example of how the count moves, not as a description of a
+live block.
 
 **The Commits tab looks heavier than the diff.** After the repair,
 `git rev-list --first-parent "$base".."$merge"` counts 35 here while the three
