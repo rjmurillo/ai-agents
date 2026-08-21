@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding.json
-qaCommit: bd36dcf779365bd0ac9eac93be7b272d596e9be2
+qaCommit: 0dc7d0a254e3aa253b9c9895e008265f06f496d8
 ---
 
 # ADR-099 Session QA
@@ -288,6 +288,27 @@ sweep.
 new wiring test; `post_qa_code_changes('bd36dcf779365bd0ac9eac93be7b272d596e9be2', 'HEAD', ...)`
 confirmed empty against the two session-log-only follow-up commits made
 after it.
+
+## Post-Review Rebind: Commit-Limit Block and Resolution
+
+The branch hit `push-ref-policy`'s 40-commit limit at 48, then 51 after
+the PR author merged a small `origin/main` update (`AGENTS.md`, no
+conflicts) directly to the branch. Wrote the prescribed needs-split
+retrospective, presented it to the user, and they applied the
+`commit-limit-bypass` label. A second, independent block then surfaced:
+this session's `gh` CLI has no working GitHub API access, so the local
+pre-push hook's label check fails closed regardless of the label's
+actual presence (confirmed via `gh auth status` and a direct run of
+`check_pr_bypass_label.py`, exit 3). Verified via the GitHub MCP tool
+(unaffected by the `gh` outage) that the label genuinely is on the PR,
+meaning CI's own copy of this check will honor it correctly. With the
+user's explicit authorization to skip only the `push-ref-policy` job,
+pushed with `LEFTHOOK_EXCLUDE=push-ref-policy`; every other pre-push
+check (tests, lint, security scan, etc.) ran normally and passed.
+
+`qaCommit` moves from `bd36dcf77` to `0dc7d0a25`, the commit recording
+this resolution; `post_qa_code_changes('0dc7d0a254e3aa253b9c9895e008265f06f496d8', 'HEAD', ...)`
+confirmed empty against the endingCommit follow-up made after it.
 
 ## Verdict
 
