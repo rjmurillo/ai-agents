@@ -184,6 +184,124 @@ expanded for is covered on one harness only. The generator is behaving correctly
 and the coverage gap is real at the same time. That is a decision for the owner,
 not something this evidence closes, and it is raised as focus area 1.
 
+## Verifying the artifact claims, and why one of them cannot be frozen
+
+Two acceptance criteria are about the artifacts rather than the rule. A reviewer
+reading only the diff cannot confirm either from prose, so the evidence belongs
+here. The two are not the same shape, and an earlier version of this section
+missed that.
+
+### SHA resolution: a frozen list is correct here
+
+The set of SHAs named in the PR description is fixed once written, so a recorded
+result stays true. Measured at `f344b01fb`:
+
+```
+$ for sha in 15f95d2b6 ea408a48c 09dab8e3e dc99b4502 59ee31ff7 bc980a869 6dfc77f33; do
+    printf '%s ' "$sha"; git cat-file -e "$sha" && echo resolves || echo MISSING; done
+15f95d2b6 resolves
+ea408a48c resolves
+09dab8e3e resolves
+dc99b4502 resolves
+59ee31ff7 resolves
+bc980a869 resolves
+6dfc77f33 resolves
+```
+
+### Episode reachability: a frozen list is wrong here, and was
+
+The episode grows by one commit event on every commit, including the commit that
+records the measurement and the rebind commit after it. **Any output pinned in
+this file describes an episode one or more events shorter than the one that
+ships.** The first version of this section pinned `e001` to `e012` and asserted it
+proved "every commit event in the shipped episode". Copilot caught it one commit
+later, when the shipped episode held `e013`.
+
+That is the third time this report has pinned a measurement where a property
+belonged, and the first two are recorded above. This one is worse than those,
+because I wrote it inside the section whose subject is evidence that does not
+cover its claim.
+
+So the claim is a property, and the reader runs the check:
+
+```
+uv run --frozen python - <<'EOF'
+import json, re, subprocess, glob
+p = glob.glob('.agents/memory/episodes/episode-*-rules-silent-failure-repair.json')[0]
+d = json.load(open(p))
+ids = [e['id'] for e in d['events']]
+bad = [(e['id'], m.group(1)) for e in d['events']
+       for m in [re.search(r'Commit:\s*([0-9a-f]{7,40})', e.get('content',''))] if m
+       and not subprocess.run(['git','for-each-ref','--contains',m.group(1),
+                               '--format=%(refname)'],capture_output=True,text=True).stdout.strip()]
+print('unreachable:', bad or 'none')
+print('contiguous:', ids == [f'e{i:03d}' for i in range(1, len(ids)+1)])
+print('metrics matches:', d['metrics']['commits'] ==
+      sum(1 for e in d['events'] if e.get('type') == 'commit'))
+EOF
+```
+
+The three properties it prints are the claim: no commit event unreachable from a
+named ref, ids contiguous from `e001`, and `metrics.commits` equal to the commit
+event count. All three held on every run during this session, including after the
+hand-splice and renumber described above.
+
+The probe is `git for-each-ref --contains`, not `git cat-file -e`. A dangling
+object still resolves, which is the distinction the whole episode repair turned
+on and the one `extract_session_episode._sha_is_reachable` uses.
+
+One recorded fact rather than a measurement: `e012` is `fa33fc560`, added by the
+`extract-session-episodes` pre-commit hook during the rebind commit whose own
+message said the episode was "deliberately not regenerated here". The hook made
+that untrue seconds later. A commit message is a durable claim, so the correction
+lives here.
+
+## Why the two mirrors carry different globs
+
+The PR description calls the divergence "generator-designed". The spec validator
+asked who verified that, noting the description "does not cite a test or
+verification". Fair: it was my word. Here is the source.
+
+`build/scripts/generate_rules.py:92` declares the filter:
+
+```python
+_INTERNAL_PATH_PREFIXES = (".agents/", ".claude/", ".serena/")
+```
+
+with the reason above it: those directories "do not ship in any downstream
+install", so emitting them would produce "dead `applyTo` entries that would never
+match a vendor-side file path".
+
+The per-destination switch is `keep_internal`, and the generator's own docstring
+states which destination gets which behavior:
+
+> `keep_internal` (issue #2892): when True, the internal-glob filter is skipped so
+> `.claude/**` and siblings survive verbatim. This is set for output destinations
+> that coexist with the internal dirs in the same repo (the in-repo
+> `.github/instructions` tree), where the in-repo Copilot agent edits `.claude/`
+> sources and needs those rules to auto-load. Distributed destinations (the plugin
+> `src/copilot-cli/instructions` tree, installed where `.claude/` does not exist)
+> keep filtering so they do not carry dead references.
+
+So the behavior is intentional, reasoned, and carries an issue number. It is also
+pinned by tests rather than only by prose:
+
+```
+$ uv run --frozen python -m pytest tests/build_scripts/test_generate_rules.py -q -k internal
+11 passed, 32 deselected
+```
+
+Those include `test_internal_paths_filtered_from_apply_to`,
+`test_block_list_paths_internal_globs_filtered`, and
+`test_all_internal_paths_skips_rule_for_plugin_destination`.
+
+**What that does not settle.** Design-by-intent is not the same as adequate for
+this rule. The consequence still stands: a Copilot CLI session editing
+`.claude/commands/` does not load SHOULD 4, so one of the two trees the item was
+expanded for is covered on one harness only. The generator is behaving correctly
+and the coverage gap is real at the same time. That is a decision for the owner,
+not something this evidence closes, and it is raised as focus area 1.
+
 ## Verification output, persisted rather than asserted
 
 Two of this PR's acceptance criteria are about the artifacts rather than the rule,
