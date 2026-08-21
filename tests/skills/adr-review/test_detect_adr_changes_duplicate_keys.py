@@ -81,3 +81,37 @@ class TestDuplicateKeySpellings:
         detector = import_skill_script(tree)
 
         assert detector._has_duplicate_top_level_keys("id: A\nmeta:\n  n: 1\n  other: 2\n") is False
+
+
+class TestExemptionFailsClosed:
+    """The end-to-end consequence: a duplicate must not win the exemption.
+
+    Moved here from ``test_detect_adr_changes.py`` alongside the spelling
+    matrix, which is the contract it depends on. It asserts the behaviour the
+    guard exists for, so keeping the two apart meant a reader could see either
+    the mechanism or its purpose but not both.
+    """
+
+    @pytest.mark.parametrize("tree", _DETECTOR_TREES)
+    def test_a_duplicated_status_line_denies_the_exemption(self, tree: str) -> None:
+        """A duplicated status line could hide an acceptance from the last-wins
+        map; fail closed so the adr-review gate still fires."""
+        detector = import_skill_script(tree)
+        old = "status: proposed\nimplemented: false\n"
+        new = "status: accepted\nimplemented: true\nstatus: proposed\n"
+
+        assert detector._only_non_decision_fields_changed(old, new) is False
+
+    @pytest.mark.parametrize("tree", _DETECTOR_TREES)
+    def test_a_quoted_duplicate_also_denies_the_exemption(self, tree: str) -> None:
+        """The spelling that used to evade the guard, exercised end to end.
+
+        Before parser-level detection this returned True, granting the
+        frontmatter-only exemption to a record whose enforced status differs
+        from the one a reviewer reads.
+        """
+        detector = import_skill_script(tree)
+        old = "status: proposed\nimplemented: false\n"
+        new = 'status: accepted\nimplemented: true\n"status": proposed\n'
+
+        assert detector._only_non_decision_fields_changed(old, new) is False

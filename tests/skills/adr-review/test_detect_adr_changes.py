@@ -371,13 +371,6 @@ class TestOnlyNonDecisionFieldsChanged:
         new = "status: accepted\nimplemented: true\n"
         assert _only_non_decision_fields_changed(old, new) is False
 
-    def test_duplicate_key_fails_closed(self) -> None:
-        # A duplicated status line could hide an acceptance from the last-wins
-        # map; fail closed so the gate still fires (review LOW finding).
-        old = "status: proposed\nimplemented: false\n"
-        new = "status: accepted\nimplemented: true\nstatus: proposed\n"
-        assert _only_non_decision_fields_changed(old, new) is False
-
 
 class TestFrontmatterFields:
     """Tests for the YAML frontmatter field parser."""
