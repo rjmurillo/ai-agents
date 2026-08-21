@@ -264,7 +264,7 @@
       "notes": "The parametrized whitespace case was an unquoted `status: accepted `, which passed against the OLD recipe too: YAML strips trailing spaces from a plain scalar, so the input reached the comparison as 'accepted' either way. Caught by running the mutation rather than assuming it: two of three cases died and one did not. Quoted it so the space survives the parser and .strip() is load-bearing. This is the control-that-cannot-fail failure mode, committed inside the fix for a different instance of it."
     }
   ],
-  "endingCommit": "48e418a47d67c5e5cca2893a33eae36569684690",
+  "endingCommit": "4488070a5adfe28a29d4ffbad55e94fa3beb3534",
   "nextSteps": [
     "Open a stacked PR from claude/adr-5209-review-fixes with base claude/adr-evaluation-tooling-6od8rd",
     "Merge it into #5209, or merge #5209 first and retarget this one at main",
