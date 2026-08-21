@@ -4,7 +4,7 @@
   "timestamp": "2026-08-20T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
-  "task": "Evaluate whether the pull request commit-count and per-commit file-count push gates earn their cost, and structurally solve what the evidence shows. Produced ADR-100 (retire the size ceilings) and ADR-101 (enforcement planes), carried through seven rounds of six-role adr-review plus continuing external bot review. External review changed the design repeatedly and falsified a substantial number of drafted claims; the counts are recorded in the debate log and QA report rather than here, because this field is copied into the episode artifact and a number stated here goes stale on every subsequent round. Round 7 re-ran the panel with verification against the tree assigned to every role, which found real defects in text eleven bot rounds had passed.",
+  "task": "Evaluate whether the pull request commit-count and per-commit file-count push gates earn their cost, and structurally solve what the evidence shows. Produced ADR-100 (retire the size ceilings) and ADR-101 (enforcement planes), carried through eleven rounds of six-role adr-review plus continuing external bot review. The round count is stated rather than a finding count, because a count of findings here goes stale on every subsequent round and this field is copied verbatim into the episode artifact. Consensus was reached twice: at round 6, on text later shown to hold more than a dozen factual errors, and at round 11 on the current text. The difference between them is that rounds 8 through 11 assigned verification against the tree, after which every substantive finding came from running or reading a primary source rather than from re-reading prose.",
   "decisions": [],
   "events": [
     {
@@ -394,13 +394,15 @@
         "e020",
         "e029",
         "e030",
-        "e033",
         "e034",
         "e036",
-        "e038"
+        "e038",
+        "e042",
+        "e043",
+        "e045"
       ],
       "leads_to": [
-        "e032"
+        "e033"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
@@ -410,7 +412,7 @@
       "type": "commit",
       "content": "Commit: 17d4dc70415a94cdde7e5bd4e2791c8ecd460a95",
       "caused_by": [
-        "e031"
+        "e033"
       ],
       "leads_to": [
         "e035"
@@ -419,12 +421,14 @@
     },
     {
       "id": "e033",
-      "timestamp": "2026-08-20T00:00:00+00:00",
+      "timestamp": "2026-08-21T00:27:30+00:00",
       "type": "milestone",
       "content": "Cleared the nineteen open review threads, six of which named live defects",
-      "caused_by": [],
-      "leads_to": [
+      "caused_by": [
         "e031"
+      ],
+      "leads_to": [
+        "e032"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
@@ -508,7 +512,9 @@
       "caused_by": [
         "e041"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e044"
+      ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
@@ -523,14 +529,213 @@
         "e040"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e042",
+      "timestamp": "2026-08-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the skip and the refusal back to back, with the sizes running the wrong way",
+      "caused_by": [],
+      "leads_to": [
+        "e031"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e043",
+      "timestamp": "2026-08-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Cleared an eleven-thread round, five of them stale against a head that had already moved",
+      "caused_by": [],
+      "leads_to": [
+        "e031"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e044",
+      "timestamp": "2026-08-21T02:37:42+00:00",
+      "type": "commit",
+      "content": "Commit: b6349d51f52b6c3a61922503577db935e82377ea",
+      "caused_by": [
+        "e040"
+      ],
+      "leads_to": [
+        "e046"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e045",
+      "timestamp": "2026-08-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran round 8 of the panel on the current heads, and it did not reach consensus",
+      "caused_by": [],
+      "leads_to": [
+        "e031"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e046",
+      "timestamp": "2026-08-21T03:14:22+00:00",
+      "type": "commit",
+      "content": "Commit: b8f20196e2b94d33567652e0ab72e3fe82e37a72",
+      "caused_by": [
+        "e044"
+      ],
+      "leads_to": [
+        "e048"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e047",
+      "timestamp": "2026-08-21T03:35:00+00:00",
+      "type": "milestone",
+      "content": "Tried a real git push after resetting local history to the remote head, and the refusal falsified a claim in ADR-100",
+      "caused_by": [
+        "e048"
+      ],
+      "leads_to": [
+        "e050"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e048",
+      "timestamp": "2026-08-21T03:30:17+00:00",
+      "type": "commit",
+      "content": "Commit: dfbd0d8ee204502906de165a46ddd70df07a450c",
+      "caused_by": [
+        "e046"
+      ],
+      "leads_to": [
+        "e047"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e049",
+      "timestamp": "2026-08-21T04:05:00+00:00",
+      "type": "milestone",
+      "content": "Ran round 9 of the panel on the corrected text; it returned three Blocks and every finding was applied",
+      "caused_by": [
+        "e052"
+      ],
+      "leads_to": [
+        "e055"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e050",
+      "timestamp": "2026-08-21T03:50:28+00:00",
+      "type": "commit",
+      "content": "Commit: 63605fe1900c4eeb1fe9f58ceed54b589f14b641",
+      "caused_by": [
+        "e047"
+      ],
+      "leads_to": [
+        "e052"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e051",
+      "timestamp": "2026-08-21T04:40:00+00:00",
+      "type": "milestone",
+      "content": "Ran round 10 on the corrected text; three Blocks again, and all findings applied",
+      "caused_by": [
+        "e057"
+      ],
+      "leads_to": [
+        "e053",
+        "e054"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e052",
+      "timestamp": "2026-08-21T03:58:51+00:00",
+      "type": "commit",
+      "content": "Commit: ae425baccabbb4691122ed268383249d26b74f74",
+      "caused_by": [
+        "e050"
+      ],
+      "leads_to": [
+        "e049"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e053",
+      "timestamp": "2026-08-21T05:10:00+00:00",
+      "type": "milestone",
+      "content": "Ran round 11 and reached the contract's consensus for the first time on verified text",
+      "caused_by": [
+        "e051"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e054",
+      "timestamp": "2026-08-21T05:10:00+00:00",
+      "type": "test",
+      "content": "Ran round 11 and reached the contract's consensus for the first time on verified text      3 Accept, 3 Disagree-and-Commit, 0 Block, satisfying .claude/skills/adr-review/SKILL.md:50. All three round-10 Blocks converted, each by the blocking role checking its own stated exit condition against the files rather than against the prose describing them. Architect verified all four of its minimum-to-clear items. Security verified N1 and judged the half-fixed N2 a phase label rather than an open door. Critic verified all five round-10 findings applied. Independent-thinker and high-level-advisor moved to Accept; analyst held Accept. Every finding the committing roles still filed is applied. Security found the typed closure needed a sixth edge kind, action inputs naming a repository file, with codeql-analysis.yml:155 passing config-file to the CodeQL action whose paths decide what the two Analyze contexts scan while .github/codeql/** sits inside the workflow's own scannable filter. That is the fourth consecutive revision in which an enumerated protected-path list came up short, now recorded as the argument for the computed closure rather than a fifth attempt at the list. Analyst found 113 present in two summary enumerations with no event narrating it; it is a real refusal and is now narrated. Critic found a seventh and eighth restatement of the #4846 causality in table cells, the 89 refusal both banked and disclaimed, and an eight-record partition putting #5178 in two buckets while dropping session 3991. Consensus means six roles judge these shippable as proposals. It does not mean the documents are error-free and no role claimed that.",
+      "caused_by": [
+        "e051"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e055",
+      "timestamp": "2026-08-21T04:16:58+00:00",
+      "type": "commit",
+      "content": "Commit: 7d2c0c23db50b7c56dbf88026b7a4e2187ba9d39",
+      "caused_by": [
+        "e049"
+      ],
+      "leads_to": [
+        "e056"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e056",
+      "timestamp": "2026-08-21T04:25:00+00:00",
+      "type": "commit",
+      "content": "Commit: 43b7ff661dbb074f212cd34b57a82b201ed8f95b",
+      "caused_by": [
+        "e055"
+      ],
+      "leads_to": [
+        "e057"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e057",
+      "timestamp": "2026-08-21T04:31:23+00:00",
+      "type": "commit",
+      "content": "Commit: b4f8312fdc8188306a521867ad90954e98b10d3d",
+      "caused_by": [
+        "e056"
+      ],
+      "leads_to": [
+        "e051"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     }
   ],
   "metrics": {
-    "duration_minutes": null,
+    "duration_minutes": 282,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 29,
+    "commits": 37,
     "files_changed": 10
   },
   "lessons": []
