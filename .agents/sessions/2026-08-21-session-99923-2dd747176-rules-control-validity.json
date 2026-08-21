@@ -43,6 +43,26 @@
         "level": "MUST",
         "Complete": true,
         "Evidence": "Read knowledge-persistence.md (MUST 2 regenerate mirrors in the same change) and claude-agents.md (MUST NOT 2, no bundling with code) before editing."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Carried from session 99923, where mcp__serena__initial_instructions returned the manual. This branch is a spin-out of that session; Serena was not re-activated because the project context did not change."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session 99923 read .serena/memories/memory-index.md and usage-mandatory.md. For this change the auto-recall hook surfaced adr-constraint-checking, skills-linting-index, and new-script-placement; none bears on a rule-text edit."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed in session 99923: ls .claude/skills/github/scripts/ -> gh-native, issue, milestone, notifications, pr, reactions, test_workflow_locally.py, utils. No skill script is used here; the only tooling is build/scripts/generate_rules.py."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md in session 99923 (skill-first incident log; ADR-085 retired the blocking hook but the MUST-level convention stands). No skill applies to a rule-text edit; the only tooling is the rules generator."
       }
     },
     "sessionEnd": {
@@ -58,8 +78,8 @@
       },
       "qaValidation": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "Documentation-only change to a rule file and its two generated mirrors. No code path changes, so there is no behavior to QA; mirror correctness is covered by the generator staleness check."
+        "Complete": true,
+        "Evidence": ".agents/qa/session-99923-rules-control-validity.md"
       },
       "markdownLintRun": {
         "level": "SHOULD",
