@@ -1,0 +1,101 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 99923,
+    "date": "2026-08-21",
+    "branch": "claude/issue-5187-control-validity",
+    "startingCommit": "2dd747176",
+    "objective": "Land the testing.md control-validity rule from the PR #5176 retrospective as its own change, since claude-agents.md MUST NOT 2 forbids bundling a rule change with code"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Continuation of session 99923, which activated Serena and read the initial instructions. This branch is a spin-out of that session, not a new one."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md earlier in session 99923; not modified here (read-only per ADR-014)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file. Created because branch-context-policy blocked the first commit: the newest log reachable from origin/main names another session's branch, and this branch had none of its own."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git checkout -B claude/issue-5187-control-validity origin/main, then reset --soft onto 2dd747176 when main advanced mid-change. Verified no overlap: git diff --name-only across that range touches only .agents/ artifacts, not testing.md or its mirrors."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On claude/issue-5187-control-validity"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "The pr-5175 branch was committed and pushed at f5a7d580c before branching, so nothing was carried across."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read knowledge-persistence.md (MUST 2 regenerate mirrors in the same change) and claude-agents.md (MUST NOT 2, no bundling with code) before editing."
+      }
+    },
+    "sessionEnd": {
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "One rule edit plus its two generated mirrors and this log, then a follow-up commit recording endingCommit per session-logs.md MUST 2."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "instruction_budget.py PASS; the rule is path-scoped to test trees, so the always-on ceiling is untouched, which matters because the .py always-on row had 764 bytes of headroom. build_all.py --check reports no staleness once the mirrors are committed. pre_pr.py all validations passed."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": "Documentation-only change to a rule file and its two generated mirrors. No code path changes, so there is no behavior to QA; mirror correctness is covered by the generator staleness check."
+      },
+      "markdownLintRun": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "pre-commit markdown-autofix and markdown-check ran on the staged rule file."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not applicable. knowledge-persistence.md routes a convention that must bind every harness to .claude/rules/, which is what this change does; a memory would duplicate it and risk drift."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items recorded with evidence."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "activity": "Added testing.md SHOULD 17",
+      "finding": "MUST 7 makes a harness distinguish DID-NOT-APPLY from SURVIVED, and SHOULD 10 asks a regression test to be justified by a discriminating input, but neither covers the control itself. A probe whose edit is behavior-preserving for the case under test passes and reads as evidence. Measured twice in PR #5176: an inverted-control probe flipping != T1 to != T9 while the case ran tier=T3, so T3 sat on the same side of both; and a comment-skip test whose comment carried no jq token, so the extractor never read it and deleting the guard changed nothing."
+    },
+    {
+      "activity": "Regenerated the instruction mirrors",
+      "finding": "build/scripts/generate_rules.py wrote 51 files and skipped 5 as all-internal scope. Both testing.instructions.md mirrors carry the new item, per knowledge-persistence.md MUST 2. No plugin manifest touched, per ADR-092."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Open a draft PR from claude/issue-5187-control-validity referencing issue #5187",
+    "Land the sibling rule change for issue #5188 on its own branch, in a different rule file so the two PRs cannot conflict"
+  ]
+}
