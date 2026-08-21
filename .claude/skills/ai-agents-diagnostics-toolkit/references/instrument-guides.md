@@ -130,7 +130,7 @@ uv run python ./scripts/eval/eval-agent-vs-baseline.py --agent <name> --fixtures
 git rev-list --count HEAD ^origin/main
 ```
 
-Cap 20 commits per PR (or 40 if the branch merges main), notice at 10, warning at 15 (AGENTS.md Mid gate; enforced by `pr-validation.yml` and the pre-push hook; thresholds in `scripts/validation/pr_commit_count.py`). Current reading on a fresh main checkout: 0. Run it mid-session, not at push time, so you can split the branch while it is still cheap.
+Advisory only, never blocking: `needs-split` label at 10 commits, WARNING notice at 10, ALERT notice at 15 (AGENTS.md Mid gate, advisory only per ADR-099; the notice is surfaced by `pr-validation.yml` and the pre-push hook; thresholds in `scripts/validation/pr_commit_count.py`). Current reading on a fresh main checkout: 0. Run it mid-session, not at push time, so you can split the branch while it is still cheap.
 
 ## Current Baselines Summary (as of 2026-07-29)
 

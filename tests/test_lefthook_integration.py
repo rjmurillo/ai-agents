@@ -56,7 +56,6 @@ POLICY_SUPPORT_FILES = (
     "scripts/validation/push_ref_staleness.py",
     "scripts/validation/sha_pinning.py",
     "scripts/validation/__init__.py",
-    "scripts/validation/check_pr_bypass_label.py",
     "scripts/validation/validate_review_marker.py",
     "build/scripts/validate_plugin_version_bump.py",
 )
@@ -643,9 +642,7 @@ def test_handle_retrospective_uses_stdin_derived_paths_when_available(
     leaves empty once {push_files} is dropped from the job), so the
     documentation-only bypass can still fire for a genuinely docs-only push.
     """
-    monkeypatch.setattr(
-        policy, "_push_range_changed_files", lambda _stream, _root: {"README.md"}
-    )
+    monkeypatch.setattr(policy, "_push_range_changed_files", lambda _stream, _root: {"README.md"})
     args = argparse.Namespace(paths=[], repo_root=str(tmp_path))
 
     assert policy._handle_retrospective(args) == 0
@@ -674,9 +671,7 @@ def test_handle_retrospective_falls_back_to_args_paths_when_stdin_unresolvable(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """An unresolvable push range (None) preserves the old args.paths behavior."""
-    monkeypatch.setattr(
-        policy, "_push_range_changed_files", lambda _stream, _root: None
-    )
+    monkeypatch.setattr(policy, "_push_range_changed_files", lambda _stream, _root: None)
     args = argparse.Namespace(paths=[], repo_root=str(tmp_path))
 
     assert policy._handle_retrospective(args) == 1
@@ -765,9 +760,7 @@ def test_configuration_uses_named_native_jobs() -> None:
     assert str(pre_commit["root-hygiene-policy"]["run"]).endswith(
         "git_hook_policy.py root-hygiene {staged_files}"
     )
-    assert str(pre_push["retrospective-policy"]["run"]).endswith(
-        "git_hook_policy.py retrospective"
-    )
+    assert str(pre_push["retrospective-policy"]["run"]).endswith("git_hook_policy.py retrospective")
     assert pre_push["retrospective-policy"]["use_stdin"] is True
     pre_commit_names = [str(job["name"]) for job in _flatten_jobs(config["pre-commit"]["jobs"])]
     assert pre_commit_names.index("memory-token-update") < pre_commit_names.index("memory-size")
@@ -927,9 +920,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         # tests/validation/test_check_generated_staleness.py.
         "PRE_PR_OUTER_CAP_SECONDS": "900",
     }
-    assert pre_push_jobs["python-tests"]["env"] == {
-        "AI_AGENTS_PYTEST_WORKER_CAP": "4"
-    }
+    assert pre_push_jobs["python-tests"]["env"] == {"AI_AGENTS_PYTEST_WORKER_CAP": "4"}
     assert pre_push_jobs["push-ref-policy"]["use_stdin"] is True
     assert pre_push_jobs["security-scan"]["use_stdin"] is True
     assert pre_push_jobs["security-suppression-policy"]["use_stdin"] is True
@@ -2331,9 +2322,7 @@ def test_root_hygiene_allowlist_matches_current_tracked_root(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(policy, "_merge_in_progress", lambda _root: False)
-    root_entries = set(
-        _git(PROJECT_ROOT, "ls-tree", "--name-only", "HEAD").stdout.splitlines()
-    )
+    root_entries = set(_git(PROJECT_ROOT, "ls-tree", "--name-only", "HEAD").stdout.splitlines())
 
     assert policy.ALLOWED_REPO_ROOT_ENTRIES == root_entries
     assert policy.check_root_hygiene(sorted(root_entries), PROJECT_ROOT) == 0
@@ -2351,8 +2340,7 @@ def test_root_hygiene_blocks_staged_root_scratch_file(
 
     assert policy.check_root_hygiene(["scratch-notes.txt"], repo) == 1
     assert (
-        "scripts/validation/git_hook_policy.py:ALLOWED_REPO_ROOT_ENTRIES"
-        in capsys.readouterr().err
+        "scripts/validation/git_hook_policy.py:ALLOWED_REPO_ROOT_ENTRIES" in capsys.readouterr().err
     )
 
 
@@ -6143,34 +6131,6 @@ def test_check_push_refs_multi_ref_catches_second_rewrite(
     assert "not a fast-forward" in capsys.readouterr().err
 
 
-def test_commit_limit_queries_the_destination_branch(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    update = policy.PushUpdate(
-        source=policy.PushRef("refs/heads/local", "1" * 40, "refs/heads/other", "2" * 40),
-        base="origin/main",
-        head="1" * 40,
-        range_spec="origin/main..head",
-        destination_branch="other",
-    )
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "21\n"))
-    captured: list[str] = []
-
-    def fake_command(
-        args: Sequence[str],
-        _root: Path,
-        **_kwargs: object,
-    ) -> subprocess.CompletedProcess[str]:
-        captured.extend(args)
-        return _completed(0, "bypass present\n")
-
-    monkeypatch.setattr(policy, "_run_command", fake_command)
-
-    assert policy._check_commit_limit(update, tmp_path) == 0
-    assert captured[-2:] == ["--branch", "other"]
-
-
 def test_plugin_version_policy_passes_exact_base_and_head(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -6774,70 +6734,63 @@ def test_push_update_aggregation_returns_configuration_error(
 
 
 @pytest.mark.parametrize(
-    ("git_result", "expected"),
-    [
-        (_completed(1, stderr="git failed\n"), 2),
-        (_completed(0, "not-a-number\n"), 2),
-        (_completed(0, "20\n"), 0),
-    ],
+    "git_result",
+    [_completed(1, stderr="git failed\n"), _completed(0, "not-a-number\n")],
 )
-def test_commit_limit_handles_git_count_results(
+def test_commit_limit_degrades_measurement_failures_to_a_warning(
     git_result: subprocess.CompletedProcess[str],
-    expected: int,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    update = _push_update(None)
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: git_result)
-
-    assert policy._check_commit_limit(update, tmp_path) == expected
-
-
-def test_commit_limit_blocks_when_bypass_check_fails(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    update = policy.PushUpdate(
-        source=policy.PushRef("refs/heads/local", "1" * 40, "refs/tags/v1", "2" * 40),
-        base="base",
-        head="head",
-        range_spec="base..head",
-        destination_branch=None,
-    )
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "21\n"))
-    monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: _completed(1, stderr="no bypass\n"),
-    )
-
-    assert policy._check_commit_limit(update, tmp_path) == 1
-
-
-def test_commit_limit_prints_bypass_explanation_with_blocking_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    update = policy.PushUpdate(
-        source=policy.PushRef("refs/heads/local", "1" * 40, "refs/tags/v1", "2" * 40),
-        base="base",
-        head="head",
-        range_spec="base..head",
-        destination_branch=None,
-    )
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "21\n"))
+    """A `git rev-list` failure or an unparseable count MUST NOT block the
+    push (issue #5233's contract: the commit-count check never blocks).
+    Both branches previously returned 2, which `_check_push_updates`
+    aggregates into a nonzero, push-blocking result; a Copilot review on
+    PR #5234 caught the contradiction between that behavior and this
+    function's own "Never blocks" docstring.
+    """
+    update = _push_update(None)
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: git_result)
+
+    assert policy._check_commit_limit(update, tmp_path) == 0
+    assert "WARNING" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("commit_count", "expect_note"),
+    [
+        (policy.WARNING_THRESHOLD - 1, False),
+        (policy.WARNING_THRESHOLD, True),
+        (policy.WARNING_THRESHOLD + 4, True),
+        (policy.ALERT_THRESHOLD, True),
+        (policy.ALERT_THRESHOLD + 6, True),
+    ],
+)
+def test_commit_limit_notice_covers_below_warning_through_alert(
+    commit_count: int,
+    expect_note: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Never blocks at any count, and prints the advisory NOTE only from
+    WARNING_THRESHOLD upward; below it, the push is silent.
+    """
+    update = _push_update(None)
     monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: _completed(1, stdout="no open PR for local\n"),
+        policy, "_run_git", lambda *_args: _completed(0, f"{commit_count}\n")
     )
 
-    assert policy._check_commit_limit(update, tmp_path) == 1
+    result = policy._check_commit_limit(update, tmp_path)
 
-    captured = capsys.readouterr()
-    assert captured.out == ""
-    assert captured.err == "no open PR for local\nERROR: push has 21 commits, limit is 20\n"
+    assert result == 0
+    out = capsys.readouterr().out
+    if expect_note:
+        assert f"NOTE: branch has {commit_count} commits" in out
+        assert "does not block" in out
+    else:
+        assert out == ""
 
 
 def test_advisory_failure_prints_process_explanation_with_warning(
@@ -6848,476 +6801,6 @@ def test_advisory_failure_prints_process_explanation_with_warning(
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err == "reason\nWARNING: plugin version check failed without blocking\n"
-
-
-def test_commit_limit_relaxes_for_merge_from_main(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    update = _push_update()
-
-    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
-        if args[:2] == ["rev-list", "--count"]:
-            return _completed(0, "30\n")
-        if args[:2] == ["rev-list", "--merges"]:
-            return _completed(0, "merge-sha\n")
-        if args[0] == "show" and "--format=%P" in args:
-            return _completed(0, "first-parent main-parent\n")
-        return _completed(0)
-
-    monkeypatch.setattr(policy, "_run_git", fake_git)
-    # main_first_parent_shas is imported into git_hook_policy's namespace; patch
-    # there so _contains_main_merge sees the correct trunk without a real git repo.
-    # The double takes run_git because the hook passes its own hardened runner.
-    monkeypatch.setattr(
-        policy,
-        "main_first_parent_shas",
-        lambda _root, run_git=None: frozenset(["main-parent", "older-main"]),
-    )
-
-    assert policy._check_commit_limit(update, tmp_path) == 0
-
-
-def test_commit_limit_holds_when_the_merged_parent_is_off_main_trunk(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The negative control for the test above.
-
-    Only the trunk answer changes. A parent main can reach but did not reach
-    by first parent is a branch main landed, and the wider limit is refused.
-    """
-    update = _push_update()
-
-    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
-        if args[:2] == ["rev-list", "--count"]:
-            return _completed(0, "30\n")
-        if args[:2] == ["rev-list", "--merges"]:
-            return _completed(0, "merge-sha\n")
-        if args[0] == "show" and "--format=%P" in args:
-            return _completed(0, "first-parent landed-parent\n")
-        return _completed(0)
-
-    monkeypatch.setattr(policy, "_run_git", fake_git)
-    # Trunk contains a different commit; "landed-parent" is not on first-parent
-    # history, so the wider limit must be refused.
-    monkeypatch.setattr(
-        policy,
-        "main_first_parent_shas",
-        lambda _root, run_git=None: frozenset(["some-other-main-commit"]),
-    )
-    monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: _completed(1, stderr="no bypass\n"),
-    )
-
-    assert policy._check_commit_limit(update, tmp_path) == 1
-
-
-def test_main_merge_detection_handles_git_errors(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    update = _push_update()
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(1))
-
-    assert not policy._contains_main_merge(update, tmp_path)
-    assert not policy._merge_has_main_parent("merge", tmp_path)
-
-
-def test_needs_split_bypass_allows_small_push_on_large_branch(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """needs-split label + <= 5 new commits bypasses the limit (issue #3895).
-
-    PR #3688 scenario: branch has 52 commits (over limit) but only adds
-    3 new commits in this push to address review feedback. The push must
-    succeed because splitting is already in progress.
-    """
-    update = policy.PushUpdate(
-        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
-        base="base",
-        head="head",
-        range_spec="base..head",
-        destination_branch="fix/big",
-    )
-
-    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
-        if args[:2] == ["rev-list", "--count"] and "^origin/" in " ".join(args):
-            # New commits only: 3
-            return _completed(0, "3\n")
-        if args[:2] == ["rev-list", "--count"]:
-            # Total branch commits: 52
-            return _completed(0, "52\n")
-        return _completed(0)
-
-    call_count = [0]
-
-    def fake_command(
-        args: Sequence[str], _root: Path, **_kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
-        call_count[0] += 1
-        if "--label" in args and "needs-split" in args:
-            return _completed(0, "needs-split present on PR #3688\n")
-        # commit-limit-bypass not present
-        return _completed(1, stdout="no commit-limit-bypass label (PR #3688)\n")
-
-    monkeypatch.setattr(policy, "_run_git", fake_git)
-    monkeypatch.setattr(policy, "_run_command", fake_command)
-
-    assert policy._check_commit_limit(update, tmp_path) == 0
-    assert "needs-split" in capsys.readouterr().out
-
-
-def test_needs_split_bypass_blocks_when_new_commits_exceed_cap(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """needs-split label does NOT bypass when this push is itself large (issue #3895).
-
-    If the author is adding 10 commits to an already-over-limit branch, the
-    needs-split bypass must not apply. Only commit-limit-bypass unlocks this.
-    """
-    update = policy.PushUpdate(
-        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
-        base="base",
-        head="head",
-        range_spec="base..head",
-        destination_branch="fix/big",
-    )
-
-    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
-        if args[:2] == ["rev-list", "--count"] and "^origin/" in " ".join(args):
-            # New commits: 10 (over the cap of 5)
-            return _completed(0, "10\n")
-        if args[:2] == ["rev-list", "--count"]:
-            return _completed(0, "52\n")
-        return _completed(0)
-
-    def fake_command(
-        args: Sequence[str], _root: Path, **_kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
-        if "--label" in args and "needs-split" in args:
-            return _completed(0, "needs-split present on PR #3688\n")
-        return _completed(1, stdout="no commit-limit-bypass label (PR #3688)\n")
-
-    monkeypatch.setattr(policy, "_run_git", fake_git)
-    monkeypatch.setattr(policy, "_run_command", fake_command)
-
-    assert policy._check_commit_limit(update, tmp_path) == 1
-
-
-def test_needs_split_bypass_absent_falls_through_to_block(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """When neither bypass label is present, the block stands (issue #3895)."""
-    update = policy.PushUpdate(
-        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
-        base="base",
-        head="head",
-        range_spec="base..head",
-        destination_branch="fix/big",
-    )
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "52\n"))
-    monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: _completed(1, stdout="no label\n"),
-    )
-
-    assert policy._check_commit_limit(update, tmp_path) == 1
-
-
-def test_needs_split_bypass_allows_push_at_exact_cap(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """needs-split bypass allows exactly _NEEDS_SPLIT_NEW_COMMIT_CAP new commits.
-
-    The boundary: 5 new commits on a 52-commit over-limit branch must succeed.
-    6 new commits must not. This test covers cap=5 exactly so the <= vs < mutation
-    is detected.
-    """
-    update = policy.PushUpdate(
-        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
-        base="base",
-        head="head",
-        range_spec="base..head",
-        destination_branch="fix/big",
-    )
-
-    def _fake_git_with_new(new_count: int) -> object:
-        def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
-            if args[:2] == ["rev-list", "--count"] and "^origin/" in " ".join(args):
-                return _completed(0, f"{new_count}\n")
-            return _completed(0, "52\n")
-
-        return fake_git
-
-    def fake_command(
-        args: Sequence[str], _root: Path, **_kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
-        if "--label" in args and "needs-split" in args:
-            return _completed(0, "needs-split\n")
-        return _completed(1, stdout="no commit-limit-bypass\n")
-
-    monkeypatch.setattr(policy, "_run_command", fake_command)
-
-    # Exactly at cap (5): must pass
-    monkeypatch.setattr(policy, "_run_git", _fake_git_with_new(policy._NEEDS_SPLIT_NEW_COMMIT_CAP))
-    assert policy._check_commit_limit(update, tmp_path) == 0
-
-    # One over the cap (6): must block
-    monkeypatch.setattr(
-        policy, "_run_git", _fake_git_with_new(policy._NEEDS_SPLIT_NEW_COMMIT_CAP + 1)
-    )
-    assert policy._check_commit_limit(update, tmp_path) == 1
-
-
-def test_main_merge_detection_rejects_non_main_second_parent(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    responses = iter([_completed(0, "first other\n"), _completed(1)])
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: next(responses))
-
-    assert not policy._merge_has_main_parent("merge", tmp_path)
-
-
-# A session fixture in tests/conftest.py injects `commit.gpgsign=false` through
-# GIT_CONFIG_COUNT, which outranks repo config. The command line outranks the
-# injection in turn, so signing is requested there and nowhere else.
-_SIGNING = ("-c", "commit.gpgsign=true")
-
-
-def _sign_with_ssh(repo: Path) -> None:
-    """Make this repo sign its commits, using the backend that needs no keyring.
-
-    Verification is left to fail. An unknown signer still makes git print a
-    verification line, which is the decoration under test.
-    """
-    keygen = shutil.which("ssh-keygen")
-    if keygen is None:
-        pytest.skip("ssh-keygen is required to build a signed history")
-    key = repo / "signing-key"
-    subprocess.run(
-        [keygen, "-q", "-t", "ed25519", "-N", "", "-C", "t", "-f", str(key)],
-        cwd=repo,
-        capture_output=True,
-        check=False,
-    )
-    if not key.with_suffix(".pub").exists():
-        pytest.skip("ssh-keygen produced no key on this host")
-    _git(repo, "config", "gpg.format", "ssh")
-    _git(repo, "config", "user.signingkey", str(key.with_suffix(".pub")))
-
-
-def _repo_with_a_signed_merge(tmp_path: Path, of_main: bool) -> tuple[Path, str]:
-    """Build a repo holding one signed merge, and ask to see the signatures.
-
-    `of_main` chooses which merge. False builds one whose second parent is a
-    side branch and whose first parent is an ancestor of `origin/main`, which
-    is not a merge of main and must not raise the commit limit. True builds a
-    real merge of main, the case the limit is raised for.
-    """
-    repo = tmp_path / ("merge-of-main" if of_main else "merge-of-side")
-    _init_repo(repo, branch="main")
-    _sign_with_ssh(repo)
-    _commit_file(repo, "base.md", "base\n")
-    # Named refs only. A raw sha as a branch point is not resolvable under this
-    # suite's git environment (Refs #3661).
-    _git(repo, "branch", "side")
-    _git(repo, "branch", "pivot")
-    main_head = _commit_file(repo, "main-only.md", "main\n")
-    _git(repo, "update-ref", "refs/remotes/origin/main", main_head)
-    _git(repo, "checkout", "-q", "side")
-    _commit_file(repo, "side-only.md", "side\n")
-    if of_main:
-        _git(repo, *_SIGNING, "merge", "-q", "--no-ff", "-m", "merge main", "main")
-    else:
-        _git(repo, "checkout", "-q", "pivot")
-        _git(repo, *_SIGNING, "merge", "-q", "--no-ff", "-m", "merge side", "side")
-    merge = _git(repo, "rev-parse", "HEAD").stdout.strip()
-    assert "gpgsig" in _git(repo, "cat-file", "commit", merge).stdout
-    # The setting under test lives in the developer's own config.
-    _git(repo, "config", "log.showSignature", "true")
-    return repo, merge
-
-
-def test_main_merge_detection_reads_a_signed_merge(tmp_path: Path) -> None:
-    """`log.showSignature` decorates `git show` as well as `git log`.
-
-    The parents are read by splitting that output and skipping the first
-    field, which is the merge's own first parent. Prefixed with a
-    verification report, the first field is a word of that report instead,
-    so the first parent joins the parents searched for main. A merge of a
-    side branch made from a commit main already holds then reports as a
-    merge of main, which doubles the commit limit this push is held to.
-    """
-    repo, merge = _repo_with_a_signed_merge(tmp_path, of_main=False)
-
-    assert policy._merge_has_main_parent(merge, repo) is False
-
-
-def test_main_merge_detection_still_reads_a_signed_merge_of_main(
-    tmp_path: Path,
-) -> None:
-    """The negative control for the test above.
-
-    Naming the signature behaviour must not stop a real merge of main from
-    being found, which is the case the raised limit exists for.
-    """
-    repo, merge = _repo_with_a_signed_merge(tmp_path, of_main=True)
-
-    assert policy._merge_has_main_parent(merge, repo) is True
-
-
-def _repo_where_main_has_landed_a_branch(tmp_path: Path, name: str) -> Path:
-    """Build a repo whose main landed a feature branch through a merge.
-
-    `origin/main` then contains that branch's tip, but the tip is the second
-    parent of the merge that landed it, not a commit on main's own trunk.
-    Branch `trunk-landing` names the landing merge, and main carries one
-    commit past it, so a merge of an older trunk commit can be told from a
-    merge of main's tip.
-    """
-    repo = tmp_path / name
-    _init_repo(repo, branch="main")
-    _commit_file(repo, "base.md", "base\n")
-    # Named refs only. A raw sha as a branch point is not resolvable under this
-    # suite's git environment (Refs #3661).
-    _git(repo, "branch", "local")
-    _git(repo, "branch", "landed")
-    _git(repo, "checkout", "-q", "landed")
-    _commit_file(repo, "landed.md", "landed\n")
-    _git(repo, "checkout", "-q", "main")
-    _git(repo, "merge", "-q", "--no-ff", "-m", "land the feature", "landed")
-    _git(repo, "branch", "trunk-landing")
-    _commit_file(repo, "after.md", "after\n")
-    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
-    _git(repo, "checkout", "-q", "local")
-    return repo
-
-
-def _merge_into_local(repo: Path, ref: str) -> str:
-    _git(repo, "merge", "-q", "--no-ff", "-m", f"merge {ref}", ref)
-    return _git(repo, "rev-parse", "HEAD").stdout.strip()
-
-
-def test_merging_a_branch_main_already_landed_is_not_a_merge_of_main(
-    tmp_path: Path,
-) -> None:
-    """A landed branch is an ancestor of main, and that is not enough.
-
-    Merging a branch main has already landed brings in no history main did
-    not already hand out, so it is not the case the raised limit exists for.
-    Reading the parent as main's because main can reach it lets any developer
-    take the wider limit by merging a branch whose pull request has landed,
-    which is ordinary git usage rather than an attack.
-    """
-    repo = _repo_where_main_has_landed_a_branch(tmp_path, "landed-branch")
-    merge = _merge_into_local(repo, "landed")
-
-    assert policy._merge_has_main_parent(merge, repo) is False
-
-
-def test_merging_main_itself_is_still_a_merge_of_main(tmp_path: Path) -> None:
-    """The negative control. The case the raised limit exists for still reads."""
-    repo = _repo_where_main_has_landed_a_branch(tmp_path, "merge-of-main")
-    merge = _merge_into_local(repo, "main")
-
-    assert policy._merge_has_main_parent(merge, repo) is True
-
-
-def test_merging_an_older_commit_on_main_is_a_merge_of_main(tmp_path: Path) -> None:
-    """Main's trunk is not just its tip.
-
-    A developer who merges main and then falls behind has still merged main,
-    so every commit main reaches by first parent counts, not only the newest.
-    """
-    repo = _repo_where_main_has_landed_a_branch(tmp_path, "older-main")
-    merge = _merge_into_local(repo, "trunk-landing")
-
-    assert policy._merge_has_main_parent(merge, repo) is True
-
-
-def test_a_landed_branch_does_not_widen_the_commit_limit(tmp_path: Path) -> None:
-    """The consumer reads the same way the detector does.
-
-    The limit is what this gate actually holds a push to, so the detector's
-    verdict is checked where it is spent as well as where it is made.
-    """
-    repo = _repo_where_main_has_landed_a_branch(tmp_path, "limit-landed")
-    base = _git(repo, "rev-parse", "local").stdout.strip()
-    for index in range(21):
-        _git(repo, "commit", "-q", "--allow-empty", "-m", f"local {index:02d}")
-    head = _merge_into_local(repo, "landed")
-    update = policy.PushUpdate(
-        policy.PushRef("refs/heads/local", head, "refs/heads/local", base),
-        base,
-        head,
-        f"{base}..{head}",
-        "local",
-    )
-
-    assert policy._contains_main_merge(update, repo) is False
-
-
-def test_a_merge_is_not_a_merge_of_main_when_there_is_no_origin_main(
-    tmp_path: Path,
-) -> None:
-    """The edge case. An unreadable trunk must not widen the limit.
-
-    A clone that has never fetched `origin/main` cannot say what main's trunk
-    holds. Reading nothing as reaching everything would hand the wider limit
-    to exactly the repos the gate knows least about.
-    """
-    repo = _repo_where_main_has_landed_a_branch(tmp_path, "no-origin")
-    _git(repo, "update-ref", "-d", "refs/remotes/origin/main")
-    merge = _merge_into_local(repo, "main")
-
-    assert policy.main_first_parent_shas(repo) == frozenset()
-    assert policy._merge_has_main_parent(merge, repo) is False
-
-
-def test_the_main_trunk_is_read_once_for_one_push(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Reading main's trunk per merge walks the same history many times.
-
-    The walk is cheap on a small repo and is not cheap on a long-lived one,
-    and a push may legitimately carry many merges. Reading it once per push
-    keeps the cost flat in the number of merges pushed.
-    """
-    update = _push_update()
-    trunk_reads: list[None] = []
-
-    def fake_first_parent_shas(_root: Path, run_git: object = None) -> frozenset[str]:
-        trunk_reads.append(None)
-        return frozenset(["a-main-commit"])
-
-    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
-        if args[:2] == ["rev-list", "--count"]:
-            return _completed(0, "5\n")
-        if args[:2] == ["rev-list", "--merges"]:
-            return _completed(0, "".join(f"merge-{index}\n" for index in range(25)))
-        if args[0] == "show" and "--format=%P" in args:
-            return _completed(0, "first-parent a-landed-branch\n")
-        return _completed(0)
-
-    monkeypatch.setattr(policy, "_run_git", fake_git)
-    # main_first_parent_shas is imported into git_hook_policy's namespace; patch
-    # it there so _contains_main_merge picks up the mock.
-    monkeypatch.setattr(policy, "main_first_parent_shas", fake_first_parent_shas)
-
-    assert policy._contains_main_merge(update, tmp_path) is False
-    assert len(trunk_reads) == 1
 
 
 def test_review_marker_reports_git_error(
@@ -10704,109 +10187,6 @@ def test_the_repository_itself_has_no_unfenced_conflict_markers() -> None:
             continue
         offenders.extend(policy._conflict_marker_violations(raw.decode(), data))
     assert offenders == []
-
-
-# ---------------------------------------------------------------------------
-# Issue #3610: the ceiling's only relief was a `commit-limit-bypass` label on an
-# open PR, which cannot exist on a branch's first push. A stacked branch that
-# inherits its ancestors' commits therefore deadlocked.
-# ---------------------------------------------------------------------------
-
-
-def _deny_bypass_label(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Fail only the bypass-label lookup, leaving real git calls intact.
-
-    `_run_git` is implemented on top of `_run_command`, so a blanket patch of
-    `_run_command` also breaks the rev-list the ceiling depends on and turns
-    every result into a config error.
-    """
-    real = policy._run_command
-
-    def fake(
-        argv: Sequence[str],
-        repo_root: Path,
-        **kwargs: Any,
-    ) -> subprocess.CompletedProcess[str]:
-        if any("check_pr_bypass_label" in str(part) for part in argv):
-            return _completed(1)
-        return real(argv, repo_root, **kwargs)
-
-    monkeypatch.setattr(policy, "_run_command", fake)
-
-
-def _stacked_repo(tmp_path: Path, first: int, second: int) -> tuple[Path, str]:
-    """Build origin/main plus a pushed featA and an unpushed featB stacked on it."""
-    remote = tmp_path / "remote.git"
-    work = tmp_path / "work"
-    subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
-    _init_repo(work, branch="main")
-    _commit_file(work, "README.md", "seed\n")
-    _git(work, "remote", "add", "origin", str(remote))
-    _git(work, "push", "-q", "origin", "main")
-
-    _git(work, "checkout", "-q", "-b", "featA")
-    for index in range(first):
-        _commit_file(work, f"a{index}.txt", f"{index}\n")
-    _git(work, "push", "-q", "origin", "featA")
-
-    _git(work, "checkout", "-q", "-b", "featB")
-    for index in range(second):
-        _commit_file(work, f"b{index}.txt", f"{index}\n")
-    head = _git(work, "rev-parse", "HEAD").stdout.strip()
-    return work, head
-
-
-def _update_for(branch: str, head: str) -> policy.PushUpdate:
-    source = policy.PushRef(f"refs/heads/{branch}", head, f"refs/heads/{branch}", "0" * 40)
-    return policy.PushUpdate(source, "origin/main", head, f"origin/main..{head}", branch)
-
-
-def test_a_stacked_branch_counts_only_the_commits_it_adds(tmp_path: Path) -> None:
-    work, head = _stacked_repo(tmp_path, first=15, second=10)
-    assert int(_git(work, "rev-list", "--count", "origin/main..HEAD").stdout) == 25
-    assert policy._unpushed_commit_count(_update_for("featB", head), work) == 10
-
-
-def test_a_re_push_of_the_same_branch_gets_no_relief(tmp_path: Path) -> None:
-    """Negative control: excluding the branch's own remote ref would retire the
-    ceiling for every branch pushed more than once."""
-    work, _ = _stacked_repo(tmp_path, first=15, second=0)
-    _git(work, "checkout", "-q", "featA")
-    for index in range(6):
-        _commit_file(work, f"a2_{index}.txt", f"{index}\n")
-    head = _git(work, "rev-parse", "HEAD").stdout.strip()
-    assert int(_git(work, "rev-list", "--count", "origin/main..HEAD").stdout) == 21
-    assert policy._unpushed_commit_count(_update_for("featA", head), work) == 21
-
-
-def test_the_commit_limit_lets_a_stacked_first_push_through(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """End to end: no PR exists, the bypass label check fails, relief still applies."""
-    work, head = _stacked_repo(tmp_path, first=15, second=10)
-    _deny_bypass_label(monkeypatch)
-    assert policy._check_commit_limit(_update_for("featB", head), work) == 0
-
-
-def test_the_commit_limit_still_blocks_an_unstacked_branch(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Negative control: 25 commits none of which another branch carries is blocked."""
-    work, _ = _stacked_repo(tmp_path, first=0, second=0)
-    _git(work, "checkout", "-q", "-b", "solo")
-    for index in range(25):
-        _commit_file(work, f"s{index}.txt", f"{index}\n")
-    head = _git(work, "rev-parse", "HEAD").stdout.strip()
-    _deny_bypass_label(monkeypatch)
-    assert policy._check_commit_limit(_update_for("solo", head), work) == 1
-
-
-def test_the_commit_ceilings_come_from_the_shared_module() -> None:
-    """Issue #3596: the hook must not restate the numbers CI enforces."""
-    from scripts.validation import pr_commit_count
-
-    assert policy.BLOCK_THRESHOLD == pr_commit_count.BLOCK_THRESHOLD == 20
-    assert policy.MAIN_MERGE_BLOCK_THRESHOLD == pr_commit_count.MAIN_MERGE_BLOCK_THRESHOLD == 40
 
 
 def test_taste_findings_stay_advisory(

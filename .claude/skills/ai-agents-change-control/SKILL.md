@@ -72,7 +72,7 @@ Drift-gate bypass exists but is not free. `[skip-drift-check]` anywhere in a com
 
 ### Phase 3: Run the gates, local to CI
 
-The gate ladder runs in feedback-cost order: pre-commit beats CI beats code review beats documentation, so catch violations at rung 1 (`uv run python scripts/validation/pre_pr.py`, `--quick` skips slow checks), not rung 4 (CI round-trip plus reviewer attention). Local hooks fire only after Lefthook is installed: `uv run --frozen lefthook install --reset-hooks-path`, then verify with `uv run --frozen lefthook check-install`. Commit-discipline caps: 5 files or fewer per commit, 20 commits per PR, or 40 when the branch merges main, blocking only above that cap (warn at 10, alert at 15, via `git rev-list --count HEAD ^origin/main`), and scope markdownlint to changed files only.
+The gate ladder runs in feedback-cost order: pre-commit beats CI beats code review beats documentation, so catch violations at rung 1 (`uv run python scripts/validation/pre_pr.py`, `--quick` skips slow checks), not rung 4 (CI round-trip plus reviewer attention). Local hooks fire only after Lefthook is installed: `uv run --frozen lefthook install --reset-hooks-path`, then verify with `uv run --frozen lefthook check-install`. Commit-discipline cap: 5 files or fewer per commit. Commit count is advisory only, never blocking (`needs-split` label plus a WARNING/ALERT notice at 10/15 commits, via `git rev-list --count HEAD ^origin/main`; ADR-099), and scope markdownlint to changed files only.
 
 The full four-rung ladder (shift-left runner, pre-commit, pre-push, CI required checks with their exact commands and exit codes), the commit-discipline enforcement points, and the PR #908 story that set the caps are in `references/gate-ladder.md`. Consult it before your first push in a session.
 
@@ -105,7 +105,7 @@ Six of the table's incidents compress a multi-round failure and are told in full
 | Anti-pattern | Why it fails here |
 |--------------|-------------------|
 | Editing a generated tree to silence a drift gate | Inverts the source of truth (2025-12-15 incident, reverted). Ask which side is canonical first |
-| Using `[skip-drift-check]` or `commit-limit-bypass` without a stated reason and human approval | Bypass markers are audited; unexplained use reads as the session 1187 pattern |
+| Using `[skip-drift-check]` without a stated reason and human approval | Bypass markers are audited; unexplained use reads as the session 1187 pattern |
 | Adding a `version` back to a plugin.json or marketplace entry | The gate fails on the field's presence (ADR-092). Freshness already tracks the commit SHA, so the field only re-creates the merge conflict it was deleted for |
 | Adding a fail-open wrapper so a broken hook "does not block anyone" | Rejected pattern (#2230, recorded in ADR-071): silent exit 0 disables the hook while looking like success, exactly the #2205 failure |
 | Classifying a mixed session as investigation-only | One staged file outside the ADR-034 allowlist voids the exemption; split the work |
@@ -122,7 +122,7 @@ Before you push, confirm:
 - [ ] `uv run --frozen lefthook check-install` exits 0
 - [ ] Touched `.claude/`, `src/claude/`, or `src/copilot-cli/`? The matching `plugin.json` still carries no `version` field (`python3 build/scripts/validate_plugin_version_bump.py` exits 0)
 - [ ] Touched a canonical generation source? `uv run python build/scripts/build_all.py --check` and `uv run python build/generate_agents.py --validate` both pass
-- [ ] Commit count under 20 (`git rev-list --count HEAD ^origin/main`), each commit 5 files or fewer
+- [ ] Each commit 5 files or fewer (commit count itself is advisory only; ADR-099)
 - [ ] Created or edited an ADR? `adr-review` gate acknowledged
 - [ ] No em or en dashes in changed files: `python3 -c "import sys; b=open(sys.argv[1],'rb').read(); print(b.count(chr(0x2014).encode())+b.count(chr(0x2013).encode()))" FILE` prints 0
 

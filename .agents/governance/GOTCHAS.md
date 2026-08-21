@@ -223,23 +223,29 @@ destination file, because the suppression becomes active at that boundary.
 
 Existing suppressions on `main` remain grandfathered unless the change makes
 them newly active. Refs #3940, #4049, #4051, and #4052.
-## The push blocks at 21 commits, and the check runs at push time
+## Large branches get an advisory notice, not a block (ADR-099)
 
-The pre-push `push-ref-policy` hook hard-fails at more than 20 commits ahead of
-`origin/main`. It runs at push time, so a long branch discovers the ceiling
-after the work is committed, not while it accumulates. Check it mid-session:
+The pre-push `push-ref-policy` hook and `pr-validation.yml` used to hard-fail a
+branch carrying more than 20 commits ahead of `origin/main` (40 after a
+main-merge), with relief only through a human-only `commit-limit-bypass`
+label. ADR-099 removed that block: the local verification step
+(`scripts/validation/check_pr_bypass_label.py`, since deleted) shelled out to
+`gh api`, and a Claude Code cloud session with no `gh`/API access could never
+satisfy it even when the label was already correctly applied, forcing an
+expensive stacked-branch-and-PR workaround (issue #5233) to route around a
+verification failure that had nothing to do with the PR's merits.
+
+A large branch still gets a `needs-split` label and a WARNING (>=10 commits)
+or ALERT (>=15 commits) notice, both from `scripts/validation/pr_commit_count.py`,
+but neither blocks a push or a merge. Check mid-session if you want to see it
+coming:
 
 ```
 git rev-list --count HEAD ^origin/main
 ```
 
-Relief is one of two sanctioned paths (CONTRIBUTING.md:854): split the PR,
-or ask a human maintainer to decide on the `commit-limit-bypass` label; only
-that maintainer may add it (CONTRIBUTING.md, "Bypassing the Limit"): ask for
-it, and do not apply it yourself. Refs #4782. Squashing is often the wrong repair,
-because the five-file atomic-commit rule then makes the collapsed commit a
-violation of a different rule. Ask for the label when the branch is one
-coherent thread, and split into a second PR when it is not.
+Splitting a large PR is still good practice for reviewability; it is no
+longer required by git.
 ## Never revert a source file with `git checkout` to negative-control a fix
 
 Negative-controlling a fix means reverting the source, confirming the new tests

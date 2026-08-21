@@ -48,7 +48,7 @@ These are preferences that SHOULD be followed:
   - Evidence: Launched 3 parallel agents (comment-analyzer, code-reviewer, code-simplifier). comment-analyzer found 2 critical factual inaccuracies (Python claim contradicts ADR-005, Forgetful tool name incorrect), code-reviewer found document purpose drift (.gemini/styleguide.md grew from routing-index to comprehensive reference)
 - Incoherence detection skill finds 10+ documentation inconsistencies across 6 dimensions - systematic pattern for identifying doc drift (Session 02, PR #871, 2026-01-11)
   - Evidence: Incoherence analysis identified 10 issues across 6 dimensions (A-K): ADR reference mismatches, terminology inconsistencies, examples contradicting constraints, etc. Created comprehensive report and GitHub issue #881 for tracking
-- Commit limit bypass requires explicit label addition via gh CLI - not automatic (Session 812, 2026-01-09)
+- Commit limit bypass requires explicit label addition via gh CLI - not automatic (Session 812, 2026-01-09). **Superseded 2026-08-21 (ADR-099, issue #5233): the commit-count block and the `commit-limit-bypass` label mechanism were removed entirely** (the label could not be reliably verified from inside a sandboxed Claude Code session, which forced authors into an expensive workaround). A large commit count is advisory only now; there is no bypass label to add.
   - Evidence: PR #853 had 26 commits (limit 20). Added commit-limit-bypass label via `gh issue edit 853 --add-label commit-limit-bypass`
 - Bot review comments require individual acknowledgment with fix details - document what was changed and why (Session 03, 2026-01-16)
   - Evidence: Batch 36 - Acknowledged each bot comment with specific fix details for clarity
