@@ -288,7 +288,7 @@ def main(argv: list[str] | None = None) -> int:
             baseline_path = repo_root / baseline_path
 
         findings = find_broken_adr_links(repo_root, baseline=load_allowlist(baseline_path))
-    except (OSError, subprocess.CalledProcessError) as exc:
+    except (OSError, subprocess.CalledProcessError, UnicodeDecodeError) as exc:
         print(f"check_adr_links: {exc}", file=sys.stderr)
         return 2
 
