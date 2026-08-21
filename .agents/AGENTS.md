@@ -54,7 +54,7 @@ flowchart TD
 
 | Directory/File | Purpose | Automated Actor |
 |----------------|---------|-----------------|
-| `sessions/` | Optional JSON logs and per-issue handoffs | Opt-in tools, all agents |
+| `sessions/` | Historical JSON logs (creation discontinued) and per-issue handoffs | Per-issue handoffs: all agents |
 | `HANDOFF.md` | Cross-session context bridge | All agents (on session end) |
 | `AGENT-SYSTEM.md` | System documentation | Architect/Orchestrator |
 
@@ -86,8 +86,8 @@ flowchart TD
 
 ### Session Log Validator
 
-**Role**: Validates a session log when one is staged; a log is optional
-(`.claude/rules/universal.md` MUST 9)
+**Role**: Validates a session log when one is staged; creation is discontinued
+(`.claude/rules/session-logs.md` MUST 1)
 
 | Attribute | Value |
 |-----------|-------|
@@ -155,9 +155,7 @@ sequenceDiagram
     participant Validation as Validators
 
     Agent->>Handoff: Read context (session start)
-    Agent->>Session: Create optional session log
     Agent->>Output: Write artifacts (analysis, plans, etc.)
-    Agent->>Session: Update optional session log
     Agent->>Handoff: Update summary (session end)
 
     Validation->>Session: Validate protocol compliance
@@ -212,7 +210,7 @@ Source: `skill-usage-mandatory` memory
 |--------|----------|---------|
 | Serena memories | `.serena/memories/` | Technical patterns, skills |
 | HANDOFF.md | `.agents/HANDOFF.md` | Session context |
-| Optional session logs | `.agents/sessions/*.json` | Opted-in decision history |
+| Session logs (historical only) | `.agents/sessions/*.json` | Past decision history; creation discontinued |
 | Per-issue handoffs | `.agents/sessions/handoffs/` | Active cross-session continuity |
 | Skills | `.agents/skills/` | Learned strategies |
 
@@ -234,7 +232,7 @@ Source: `skill-usage-mandatory` memory
 
 | Scenario | Behavior |
 |----------|----------|
-| Missing session log | No error; a session log is optional |
+| Missing session log | No error; session log creation is discontinued |
 | HANDOFF.md not updated | Validation warning |
 | Naming convention violation | Consistency check fails |
 | Orphan artifact | Logged for manual review |

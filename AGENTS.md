@@ -13,10 +13,10 @@
 
 ## Gates
 
-**Start**:Init Serena|Read HANDOFF+latest issue handoff|Resume check|Log(opt)|Search mem|Verify git
+**Start**:Init Serena|Read HANDOFF+latest issue handoff|Resume check|Search mem|Verify git
 **Mid**: `git rev-list --count HEAD ^origin/main` block >20; notice 10; warn 15
 **Pre-PR**: `uv run python scripts/validation/pre_pr.py`|No BLOCKING|Security scan|Style `.gemini/styleguide.md`
-**End**:Log if kept(opt)|Keep HANDOFF|Issue handoff if open|Update Serena|Lint|Commit|Check
+**End**:Keep HANDOFF|Issue handoff if open|Update Serena|Lint|Commit|Check
 
 ## Boundaries
 

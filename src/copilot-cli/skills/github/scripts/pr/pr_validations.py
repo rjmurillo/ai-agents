@@ -124,7 +124,8 @@ def _extract_validatable_session_logs(
     validate_session_json.py only accepts JSON. Legacy .md session logs
     are not validated here and are not migrated by any workflow: the
     ai-session-protocol.yml CI check that once migrated them was retired.
-    A session log is optional, so warn the author and move on.
+    Session log creation is discontinued; a staged log is validated if
+    present, never required.
 
     Returns a tuple so callers can distinguish "no session log at all"
     (both empty) from "legacy .md staged, no JSON to validate locally"
@@ -135,8 +136,9 @@ def _extract_validatable_session_logs(
     if legacy_md:
         print(
             f"  WARNING: legacy .md session log(s) staged ({legacy_md}); "
-            "these are not validated. A session log is optional; if you "
-            "keep one, use the JSON format that validate_session_json.py checks.",
+            "these are not validated. Session log creation is discontinued; "
+            "an existing one must use the JSON format that "
+            "validate_session_json.py checks.",
             file=sys.stderr,
         )
     return [f for f in matched if f.endswith(".json")], bool(legacy_md)
@@ -275,9 +277,8 @@ def run_validations(
             warnings.record(
                 "only legacy .md session log(s) staged; no JSON session log was validated here"
             )
-        else:
-            print("  WARNING: No session log found but .agents/ files changed", file=sys.stderr)
-            warnings.record("no session log found but .agents/ files changed")
+        # No session log at all is the expected case: session log creation
+        # is discontinued, so absence is not warning-worthy.
     elif diff_failed:
         print("  Skipped: git diff failed, changed files unknown (see warning above).")
     else:

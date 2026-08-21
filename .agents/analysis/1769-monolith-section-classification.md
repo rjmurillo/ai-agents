@@ -34,14 +34,32 @@ are template/example content, are excluded):
 
 | Monolith | Top-level `##` sections | Lines |
 |----------|-------------------------|-------|
-| `AGENT-SYSTEM.md` | 13 | 1990 |
-| `AGENT-INSTRUCTIONS.md` | 18 | 822 |
-| **Total** | **31** | **2812** |
+| `AGENT-SYSTEM.md` | 13 | 1908 |
+| `AGENT-INSTRUCTIONS.md` | 17 | 749 |
+| **Total** | **30** | **2657** |
 
 `SESSION-PROTOCOL.md` (10 sections, 324 lines) was one of the three
 always-loaded monoliths this audit covered; it was deleted 2026-08-20
 (Issue #5138), so its row and section table below are struck from the
 live count. Its classification table is kept for the historical record.
+
+`AGENT-INSTRUCTIONS.md`'s "Notes for Next Session" row below was a real
+top-level section in the pre-edit file, not a scanner defect: the retired
+session-log template nested a ` ```bash ` example inside its outer
+` ```markdown ` fence, and CommonMark does not support fence nesting. The
+first bare ` ``` ` line (closing the inner example) closed the OUTER fence
+too, so everything after it, including "## Notes for Next Session", parsed
+as ordinary document content rather than fenced example content. Verified
+against `markdown-it` (`4.2.0`): parsing the original nested structure
+produces a genuine `heading_open`/`heading_close` pair for "Notes for Next
+Session". `tests/test_monolith_section_classification.py`'s fence-aware
+scanner parsed this correctly per CommonMark; the template's fence
+structure was the defect, not the scanner. Discontinuing session log
+creation deleted that whole malformed template
+(`.claude/rules/session-logs.md` MUST 1), so the phantom heading is gone
+and the true count drops from 31 to 30. Its classification row is kept
+for the historical record, same as the SESSION-PROTOCOL.md convention
+above.
 
 ## Target Rule Files (Phase 2)
 
@@ -139,14 +157,18 @@ owner. The steering files and their scopes:
 Live count, `AGENT-SYSTEM.md` and `AGENT-INSTRUCTIONS.md` only
 (`SESSION-PROTOCOL.md` deleted 2026-08-20, Issue #5138); its 1
 ALWAYS-LOAD-RULE, 7 PATH-SCOPED-RULE, and 2 KEEP-IN-STEERING sections are
-struck from these counts.
+struck from these counts. `AGENT-INSTRUCTIONS.md`'s "Notes for
+Next Session" heading (see note above the per-monolith table) is also
+struck: its 1 PATH-SCOPED-RULE section was a genuine heading in the
+pre-edit document, removed along with the malformed template that exposed
+it, so it is no longer present in the current document.
 
 | Classification | Count |
 |----------------|-------|
 | ALWAYS-LOAD-RULE | 3 |
-| PATH-SCOPED-RULE | 20 |
+| PATH-SCOPED-RULE | 19 |
 | KEEP-IN-STEERING | 8 |
-| **Total sections** | **31** |
+| **Total sections** | **30** |
 
 ALWAYS-LOAD sections (the only content entering `agent-boundaries.md`):
 
