@@ -12,6 +12,40 @@ qaCommit: 42d82daa4e3fb2dec57d9b86da3482e8b62fa59c
 - Session log: `.agents/sessions/2026-08-21-session-99923-2dd747176-rules-silent-failure-repair.json`
 
 
+
+## A citation this session got wrong
+
+The session evidence justified splitting this rule change out of PR #5176 by
+citing `.claude/rules/claude-agents.md` MUST NOT 2 as a prohibition on bundling
+rule changes with code. That is not what the item says. Read verbatim:
+
+> 2. MUST NOT bundle skill code changes with memory changes in the same PR (separate concerns).
+
+It governs skill code against memory, and says nothing about rule changes or
+about code generally. Copilot found the misreading.
+
+The failure is worth recording because of its shape rather than its size. The
+claim named a real file and a real item number, so every artifact downstream
+inherited its authority without re-deriving it: this log, the extracted episode,
+the PR body, and several commit messages. `canonical-source-mirror.md` states
+the cost directly, that a wrong citation is worse than no citation because it
+weaponizes the next reader's trust, and `knowledge-persistence.md` MUST NOT 3
+prescribes the step that would have caught it: grep the rule tree and cite the
+file and item number, or drop the attribution and let the advice stand on its
+own reason.
+
+Two aggravating details. The correct reading was already in this repository: a
+2026-07-26 session log quotes the item verbatim and applies it correctly to a
+memory-plus-skill-code bundle, so contradicting evidence was in-tree and never
+searched for. And the error reached a generated memory record, which is why the
+repair regenerates the episode from the corrected log rather than editing the
+episode.
+
+The decision is unchanged, because it never needed the rule. PR #5176 already
+carries `needs-split` at 17 files, and adding three rule files plus six
+generated mirrors to a shell-and-tests fix makes it materially harder to review.
+That reason was always sufficient on its own.
+
 ## Scope corrected after review
 
 The rule shipped scoped to `scripts/**`, `build/**`, workflows, and skill

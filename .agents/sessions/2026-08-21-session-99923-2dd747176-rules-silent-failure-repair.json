@@ -62,7 +62,7 @@
       "constraintsRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read knowledge-persistence.md (MUST 2 mirrors, SHOULD 1 prefer an existing rule) and claude-agents.md (MUST NOT 2, no bundling with code)."
+        "Evidence": "Read knowledge-persistence.md (MUST 2 mirrors, SHOULD 1 prefer an existing rule). An earlier version of this evidence also cited claude-agents.md MUST NOT 2 as forbidding rule changes bundled with code. That citation was wrong: the item governs skill code against memory changes and says nothing about rule changes or about code generally. Copilot found the misreading. The split from PR #5176 stands on its own reason, which needs no rule: that PR already carries needs-split at 17 files, and adding three rule files plus six generated mirrors to a shell-and-tests fix makes it materially harder to review."
       }
     },
     "sessionEnd": {
