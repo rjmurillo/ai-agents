@@ -52,8 +52,6 @@ _JQ_PROGRAM = re.compile(r"jq\s[^|>']*'([^']*)'")
 # non-path character so `.b` in `.Data.a // .Data.b` starts a new match while
 # the `.a` inside `.Data.a` does not.
 _JQ_PATH = re.compile(r"(?:^|[^A-Za-z0-9_.])(\.[A-Za-z_][A-Za-z0-9_.]*)")
-# Bare `jq` as a command word. Independent of _JQ_PROGRAM on purpose; see
-# jq_invocation_lines for why the guard must not share the extractor's regex.
 # Bracket-notation field access, which `_JQ_PATH` cannot see. Not parsed into a
 # path deliberately; see unsupported_path_syntax for why it is reported instead.
 # The leading alternation is the whole check. A first version anchored only on a
@@ -68,7 +66,17 @@ _JQ_PATH = re.compile(r"(?:^|[^A-Za-z0-9_.])(\.[A-Za-z_][A-Za-z0-9_.]*)")
 # the bracket, and a literal opens after whitespace, `(`, or `,` rather than
 # after a path character.
 _JQ_BRACKET_PATH = re.compile(r"(?:\.|[A-Za-z0-9_\]])\s*\[\s*[\"']")
-_JQ_TOKEN = re.compile(r"(?:^|[|\s(])jq\s")
+# `jq` as a command word, followed by whitespace OR by a redirection. The
+# redirection half is what makes this an independent guard rather than a second
+# copy of the extractor. `_JQ_PROGRAM` requires whitespace after `jq`, so a
+# herestring invocation, `jq<<<"$JSON" '.Tier'`, yields no program; with `jq\s`
+# here it also yielded no invocation, and the two blindnesses cancelled into a
+# clean report. Counting it as an invocation the extractor did not parse routes
+# it to `unparsed_jq_invocations`, which fails the coverage guard and says to
+# extend the parser. Deliberately NOT mirrored into `_JQ_PROGRAM`: this is the
+# detector, and it only has to notice that a `jq` ran. CodeRabbit found the
+# gap.
+_JQ_TOKEN = re.compile(r"(?:^|[|\s(])jq[\s<]")
 _VAR_REF = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?")
 
 

@@ -382,6 +382,27 @@ def test_syntax_without_a_string_subscript_is_not_reported(program: str) -> None
     assert unsupported_path_syntax(body) == []
 
 
+def test_a_herestring_invocation_is_seen_even_though_it_is_not_parsed() -> None:
+    """The two blindnesses must not cancel.
+
+    `_JQ_PROGRAM` requires whitespace after `jq`, so `jq<<<"$JSON" '.Tier'`
+    yields no program. The invocation counter used the same boundary, so it
+    yielded no invocation either, and a read the parser could not see reported
+    as nothing to see. That is the failure `jq_invocation_lines` exists to
+    prevent, committed inside the helper written to prevent it; CodeRabbit
+    found it.
+
+    The counter now accepts a redirection after `jq`, so the invocation is
+    counted, the program still is not read, and the difference surfaces as an
+    unparsed invocation. Fail-closed rather than parsed: the extractor is
+    unchanged, and the guard says to extend it.
+    """
+    line = "X=$(jq<<<\"$JSON\" '.Tier')"
+
+    assert unparsed_jq_invocations(line) == 1
+    assert pathless_jq_programs(line) == []
+
+
 def test_dotted_paths_are_not_reported_as_unsupported() -> None:
     """Guard against a check that flags everything and looks strict."""
     line = 'X=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" | jq -r \'.Tier // "UNKNOWN"\')'

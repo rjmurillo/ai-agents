@@ -230,13 +230,16 @@ def test_no_read_needs_nested_field_checking(doc: Path) -> None:
     filed as a known limit and left as prose, which is worse than it sounds: a
     limit nobody can trip over is a limit nobody maintains.
 
-    Measured rather than assumed. All 16 reads in the command body are
-    single-segment, so the limit is latent, not active. The one nested path
-    anyone cites, `Data.superseded_by_base.fully_superseded`, lives in a comment
-    at line 378 and is not a read at all; the extractor excludes comment lines
-    by design, so it was never in scope. An earlier draft of the known limit
-    presented it as a live example, and two spec-validation runs reasoned from
-    that error.
+    Measured rather than assumed, and stated as the property rather than the
+    measurement: every read in the command body is single-segment, so the limit
+    is latent, not active. The one nested path anyone cites,
+    `Data.superseded_by_base.fully_superseded`, appears only in a comment and is
+    not a read at all; the extractor excludes comment lines by design, so it was
+    never in scope. An earlier draft of the known limit presented it as a live
+    example, and two spec-validation runs reasoned from that error. An earlier
+    draft of this docstring then pinned "all 16 reads" and a line number, which
+    is the count-where-a-property-belongs mistake this PR has now made in five
+    places; CodeRabbit caught this one.
 
     This guard turns the limit fail-closed. Adding a nested read fails here and
     says what to do, instead of silently landing under a check that cannot see
