@@ -66,14 +66,22 @@ def dispatched_tiers(text: str) -> frozenset[str] | None:
 
     The pass-through arm is the one written `T1|T2|...) ;;` with no body. A tier
     outside it either terminates or is unrecognized.
+
+    Every such arm is unioned, not just the first. `search` stopped at the first
+    match, which made this function blind to exactly the defect it exists to
+    catch: a second empty arm, `SKIP) ;;`, put `SKIP` back on the acting path
+    and both assertions in `test_skip_is_recognized_but_never_dispatched` still
+    passed, because `SKIP` was absent from the returned set and the set still
+    equalled `declared - {"SKIP"}`. A guard that reports green on its own
+    subject is the failure this suite is named for; CodeRabbit found this one.
     """
     block = _tier_case_block(text)
     if block is None:
         return None
-    match = _TIER_PASSTHROUGH.search(block)
-    if match is None:
-        return frozenset()
-    return frozenset(match.group(1).split("|"))
+    tiers: set[str] = set()
+    for match in _TIER_PASSTHROUGH.finditer(block):
+        tiers.update(match.group(1).split("|"))
+    return frozenset(tiers)
 
 
 def declared_tiers(script: str = "test_pr_merge_ready") -> tuple[str, ...] | None:

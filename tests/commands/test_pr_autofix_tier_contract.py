@@ -55,6 +55,44 @@ def test_the_guard_recognizes_exactly_what_the_producer_declares(doc: Path) -> N
     )
 
 
+def test_a_second_no_op_arm_is_visible_to_the_dispatch_extractor() -> None:
+    """The extractor must union every no-op arm, not stop at the first.
+
+    This is the negative control for the case above, and the case above cannot
+    supply it. `dispatched_tiers` used `search`, which returns the first match
+    and no more, so a `case` carrying a second empty arm put that arm's tiers
+    back on the acting path invisibly. Both assertions in
+    `test_skip_is_recognized_but_never_dispatched` still passed against such a
+    document: `SKIP` was absent from the returned set, and the set still equalled
+    `declared - {"SKIP"}`. The guard reported green on precisely the defect it
+    was written to catch.
+
+    The input is synthetic rather than the shipped document, because the shipped
+    document is correct and a control has to supply the shape the code gets
+    wrong (testing rule SHOULD 10). Restoring `search` fails this and nothing
+    else, which is what makes it the discriminating case.
+    """
+    two_arm_block = (
+        "# tier-dispatch:start\n"
+        'case "$TIER" in\n'
+        "    T1|T2|T3|T4|T5|BEHIND|BLOCKED|DIRTY) ;;\n"
+        "    SKIP) ;;\n"
+        "    *)\n"
+        '        echo "unknown"\n'
+        "        ;;\n"
+        "esac\n"
+        "# tier-dispatch:end\n"
+    )
+
+    dispatched = dispatched_tiers(two_arm_block)
+
+    assert dispatched is not None
+    assert "SKIP" in dispatched, (
+        "the extractor read only the first no-op arm, so a second one is invisible "
+        f"and SKIP silently reaches the gates; got {sorted(dispatched)}"
+    )
+
+
 @pytest.mark.parametrize("doc", [COMMAND_PATH, MIRROR_PATH])
 def test_skip_is_recognized_but_never_dispatched(doc: Path) -> None:
     """Recognized is not actionable, and conflating them put SKIP on the acting path.
