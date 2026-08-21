@@ -1,6 +1,8 @@
 # Debate Log: ADR-100 and ADR-101
 
-Seven rounds, six roles (architect, critic, independent-thinker, security, analyst, high-level-advisor). Convened 2026-08-20 on a proposal that began as one ADR and split into two. An earlier revision of this line said six after round 7 had already been recorded below.
+Eight rounds, six roles (architect, critic, independent-thinker, security, analyst, high-level-advisor). Convened 2026-08-20 on a proposal that began as one ADR and split into two. An earlier revision of this line said six after round 7 had already been recorded below, and then seven after round 8.
+
+**Read the round-8 section before anything else in this log. Round 8 returned 2 Accept, 3 Disagree-and-Commit and 1 Block on head `d75cd6690`, so consensus is NOT currently reached** and these proposals are not mergeable under `.claude/skills/adr-review/SKILL.md:50` until the Block is cleared. Everything below records how the text got here.
 
 **Council decision, round 6, all six roles run on the round-6 text: 3 Accept, 3 Disagree-and-Commit, 0 Block. Consensus reached** under this repository's contract, which requires every role to return Accept or Disagree-and-Commit.
 
@@ -52,7 +54,7 @@ Round 7 exists because a reviewer applied the contract correctly: consensus was 
 
 **Round 7 result: 1 Accept, 5 Disagree-and-Commit, 0 Block. Consensus reached** under the contract, which requires every role to return Accept or Disagree-and-Commit. **Scope that verdict to the revision it was rendered on, `a6bfda1b6`.** Review continued afterwards and changed both decisions again, so round 7 no longer covers the current text either, exactly as round 6 did not. Read this line together with the caveat at the top of this log rather than as a standing verdict.
 
-**The experiment returned a result, and it is the cheaper hypothesis.** Assigning verification produced real defects in text that had already survived eleven external bot rounds: an unreconciled contradiction between two lines of ADR-101, a rule satisfiable by relocating a condition, a decision item that named no component, a withdrawn inference surviving in two summary sentences, and a structural objection nobody had raised. So at least part of the panel's prior blindness was a missing role assignment, and that part costs one sentence per role prompt to fix. How much of the rest is vendor correlation is untested here and stays open until a role runs on a model from another vendor. Recorded as the actionable finding of this round, above the verdicts, because it transfers and the verdicts do not.
+**The experiment returned a result, and the result is narrower than a winner.** Assigning verification produced real defects in text that had already survived eleven external bot rounds: an unreconciled contradiction between two lines of ADR-101, a rule satisfiable by relocating a condition, a decision item that named no component, a withdrawn inference surviving in two summary sentences, and a structural objection nobody had raised. So at least part of the panel's prior blindness was a missing role assignment, and that part costs one sentence per role prompt to fix. How much of the rest is vendor correlation is untested here and stays open until a role runs on a model from another vendor. Recorded as the actionable finding of this round, above the verdicts, because it transfers and the verdicts do not.
 
 The analyst's Accept is the weakest signal in the table and should be read that way: it found nothing false partly because eleven rounds of bot review had already scrubbed the citations it checked. Its value is method independence, not the verdict.
 
@@ -241,6 +243,61 @@ Local and remote held identical trees with a divergent history, nine local commi
 
 Nine commits through, one commit refused, same branch, same range, same relief state, minutes apart. The gate is not deciding on size, or on reviewability, or on relief. It is deciding on whether the push carries a file whose bytes differ from the remote, which is a property of how the content travelled. Recorded here because it closes the question the first instance left open: the skip is not an edge case reachable only by an unusual transport, it is the normal behaviour of a job scheduled against a push-file set, and it can pass the larger change while blocking the smaller one.
 
+## Round 8: consensus not reached
+
+Round 8 exists because a bot reviewer applied the contract correctly, again: `.claude/skills/adr-review/SKILL.md:50` and `:100` require 6/6 Accept or Disagree-and-Commit on an ADR update, and neither round 6 nor round 7 covers the current heads. The panel was re-run on `d75cd6690`, with tree-verification assigned to every role as in round 7.
+
+**Result: 2 Accept, 3 Disagree-and-Commit, 1 Block. Consensus is NOT reached**, and this pull request is not mergeable under the repository's own contract until it is. State that before the findings, because the previous seven rounds all converged and this one did not.
+
+The Block is architect's, on ADR-101 only; architect records ADR-100 as sound after its own P1 items. Read that scoping, because it changes what the Block costs to clear.
+
+### The findings that matter, in the order they should be answered
+
+**One: requirement 1 was stated syntactically and is satisfiable by moving the condition down one level.** Round 7's architect raised this. It was not applied. Round 8's architect raised it again with the measurement, and the measurement is what makes it a P0: of the nine contexts pinned in `scripts/ci/ruleset_required_contexts.py`, seven are decided by a path filter, and most already use the step-relocated form the old wording permits (`codeql-analysis.yml:111-167`, `validate-generated-agents.yml:85-105`, `validate-paths.yml:73-97`, `pr-validation.yml:42-76`, `semantic-pr-title-check.yml:23-39`). An implementer repairing `pytest.yml` under the impact table would convert it to that shape and report the requirement met. Requirement 1 is now stated as the property rather than the syntax, with the advisory lint named and its limits stated. **Fixed.**
+
+Security added a fourth case the rule still missed and it is the sharper half: a required job with `needs:` on a head-defined job is removed when that dependency fails or skips, which no `if:` test detects. `ai-spec-validation.yml:96` (`Validate Spec Coverage`, pinned at `ruleset_required_contexts.py:21`) is the live instance, and unlike `pytest.yml` its filter list does not cover `.github/`, so it does not close on itself and needs no second pull request. `validate-plugin-version-bump.yml:75` is a third. **Not yet fixed.**
+
+**Two: the decision has no repair-the-gate alternative, and the repair is one flag this repository already applied to the other half of the same gate.** Independent-thinker's finding, and it is the strongest objection any round has produced against ADR-100. `git_hook_policy.py:6123` is `rev-list --count <range>` with no `--no-merges`, while `pr_commit_count.py:104-119` records the CI half counting authored non-merge deliberately, "total including branch-maintenance merges, kept for audit (issue #3920)". So the counting behaviour ADR-100 treats as intrinsic was diagnosed and fixed once, on the CI side, and never propagated.
+
+Four of this decision's own first-hand measurements dissolve under that one flag: the 42-against-37 discrepancy, the automated base merge drifting the count to 89, the relief consuming the budget it grants, and concurrent agents charging an author for merges they did not make. The Alternatives table considers widening the bypass, narrowing it, three replacement metrics, and retirement. It never considers fixing the counter, fixing the fail-closed relief check, or fixing the push-file scheduling, each of which is a defect this decision discovered and documented. **Not yet fixed, and it is the one that could change the decision rather than the wording.**
+
+**Three: this log is a P0 artifact by ADR-101's own table, and it is the only warrant for the consensus the owner is asked to weigh.** `ADR-101` classifies debate logs at P0, advisory only, and says of exactly this file class: "The author writes that file. Nothing attests that any agent ran." Rule 2 is "presence is not execution." Every verdict in this log, including round 7's experimental result and including this round's Block, is a self-written assertion produced by the loop whose compliance it certifies. PR #5177 is cited in ADR-101 as an incident precisely because a session declined to run the mandated review and the log did not know.
+
+Eight panel rounds and twelve bot rounds did not say this. It is recorded here rather than in the ADRs first, because the artifact it indicts is this one. **Not yet fixed.**
+
+**Four: the load-bearing causal claim in ADR-100 is not licensed by its sources.** Critic checked "what held #4846 was its own security and vendor-provenance gate", which ADR-100 calls the finding it rests on. `Validate Vendor Provenance` is not among the nine pinned required contexts, and its own workflow header is written in the future tense about becoming one. The cited retrospective records that a reviewer flagged the pull request to the owner rather than acting unilaterally, which is a pending human decision rather than a gate holding a merge. `mergeable_state: blocked` establishes that something blocked and not which check. **Not yet fixed.**
+
+**Five: the skipped-equals-success premise is contradicted by evidence in this repository.** Security found `pytest.yml:543`: "GitHub branch protection requires SUCCESS (not SKIPPED) for required checks. See: Issue #1168", which is why the pass-through job exists at all. ADR-101 files this correctly as an open question and then states it flatly in three body citations that drive the impact table. The two readings imply opposite repairs, and one of them makes several findings above disappear. **Must be resolved by probe before the impact table is acted on.**
+
+### The rest, recorded so the next round starts from a list rather than a re-read
+
+Architect: the two operative requirements are assigned to no phase, so under the expected Phases 0 and 1 outcome the decision's operative content ships nowhere; the impact table omits two required-context violations of the class it names; item 5 tells the implementer to hand-edit a generated mirror; Implementation Notes claim "no new surface" while item 6 adds an out-of-tree telemetry sink; two citation off-by-ones.
+
+Critic: ADR-100 rests its residual-risk case on correctness gates that ADR-101 classifies as forgeable P0 artifacts, and frames the residual as competence rather than forgeability; advisory-tier labeling is recounted as blocking cost in two restatements; Session 3468 is the gate working as designed, coded as a workaround, and its source says so in its own words; the eight-record corpus still prints no query.
+
+Independent-thinker: the invariant condemns roughly twenty-five gates in `lefthook.yml` and the pair spends it on three with no stated limiting rule; ADR-100's census is keyed to a CI-applied label and therefore cannot speak to the pre-push ceiling, which the document concedes for the future test and not for the past evidence; two round-7 findings were never dispositioned.
+
+Security: CODEOWNERS omits `.github/actions/`, `scripts/workflows/`, and `build/scripts/`, all of which decide required-context verdicts and one of which receives contained credentials; the publisher `integration_id` has no baseline and the existing drift detectors structurally cannot see it; the drift alarm has no liveness check; `pull_request_target` is absent from the decision, and the base-ref environment restriction hands secrets to every base-ref-evaluating trigger rather than to the one `closed` case the text reasons about.
+
+### What this round establishes about the review process itself
+
+Round 7 concluded that assigning verification was the cheap fix and that its result was narrower than a winner. Round 8 supports the first half and sharpens the second: with verification assigned, the panel produced its first Block in five rounds and found defects at a rate no prior round matched, including two of its own prior findings left undispositioned. So the assignment works, and the thing it reveals is that convergence in rounds 4 through 7 was partly the panel not looking.
+
+It also produces the exit-condition problem in its clearest form. Every round changes the text, which invalidates the consensus just recorded on it. High-level-advisor proposed the rule that terminates this and it is adopted here: **the frozen set is the two ADR bodies at named blob SHAs; verdicts bind to those blobs; this log is explicitly outside the frozen set and stays append-only.** A log entry recording a vote cannot invalidate the vote it records. Any edit to either ADR body reopens the vote on that body; edits to this log never do. The freeze cannot be applied yet, because a Block with two P0s is outstanding.
+
+| Role | Verdict | Load-bearing finding |
+|---|---|---|
+| architect | **Block** | Requirement 1 stated syntactically and satisfiable by relocating the condition; both operative requirements assigned to no phase |
+| security | Disagree-and-Commit | A required job with `needs:` on a head-defined job is removed when that dependency skips, which no `if:` test catches; `Validate Spec Coverage` is the live one-pull-request instance |
+| critic | Disagree-and-Commit | "Held by its own security and vendor-provenance gate" is not licensed: that context is not required, and the source records a pending human decision |
+| independent-thinker | Disagree-and-Commit | No repair-the-gate alternative, when `--no-merges` on one line is the fix the CI half already took under issue #3920 |
+| analyst | Accept | Zero refutations across ten citation targets; declined to confirm the combined-diff semantic from memory and routed it to measurement, which then confirmed it |
+| high-level-advisor | Accept | Shippable but for the consensus record itself; supplied the freeze rule adopted above |
+
+**Round 8 result: 2 Accept, 3 Disagree-and-Commit, 1 Block. Consensus not reached, scoped to `d75cd6690`.**
+
+One process note, recorded because it has now happened twice and it is a real hazard of the transport this branch is stuck with. Re-transcribing a file to move it through the API is not a copy; it is a rewrite, and both times the rewrite tightened sentences that were not part of the change being pushed. The per-file `git hash-object` comparison catches the divergence, which is what it is for, but the correct response is to take the pushed text back into the local copy rather than to reconcile by hand, because the pushed text is what the pull request head carries and therefore what any reviewer is reading. That is what was done here, and it is worth naming as a cost of the transport rather than a quirk of it.
+
 ### Where the review ends
 
 High-level-advisor's read, which the orchestrator accepts: freeze the text. Seven rounds on six files, with the external reviewers out-yielding the panel, means another round buys marginal prose and spends credibility the panel needs. What remains is not more review; it is the owner's decision on these proposals, including the disposition of the transport deviation recorded above, and then MUST-1 and MUST NOT 1 on the implementation pull requests that edit `.agents/governance/**`. Those rules do not gate this pull request, per the scope correction recorded at the top of this log.
@@ -256,3 +313,4 @@ High-level-advisor's read, which the orchestrator accepts: freeze the text. Seve
 | 5, corrected | Accept | D&C | Accept | Accept | D&C | Accept |
 | 6, council | Accept | D&C | D&C | D&C | Accept | Accept |
 | 7, verification assigned | D&C | D&C | D&C | D&C | Accept | D&C |
+| 8, on `d75cd6690` | **Block** | D&C | D&C | D&C | Accept | Accept |
