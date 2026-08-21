@@ -360,10 +360,10 @@ def test_adr_review_gate_requires_staged_debate_evidence(tmp_path: Path) -> None
 def test_generated_universal_instructions_do_not_mandate_logs(
     relative_path: str,
 ) -> None:
-    """Generated cross-harness instructions preserve optional-log semantics."""
+    """Generated cross-harness instructions never mandate session log creation."""
     text = (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
 
-    assert "Session logs are optional" in text
+    assert re.search(r"Session log creation is\s+discontinued", text)
     for pattern in _MANDATORY_LOG_PATTERNS:
         assert pattern.search(text) is None
 
