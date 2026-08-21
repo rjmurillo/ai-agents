@@ -113,8 +113,10 @@ PASS.
 
 ## Scope under test
 
-One item added to `.claude/rules/ci-scripts.md` (SHOULD 4) and its two instruction
-mirrors regenerated. No code, no test, no workflow.
+Two edits to `.claude/rules/ci-scripts.md`, plus its two instruction mirrors
+regenerated from both. SHOULD 4 is the new item. The frontmatter `paths:` gains
+`.claude/commands/**` and `tests/**`, so the item loads on the two trees the
+incident actually happened in. No code, no test, no workflow.
 
 ## The measurement that chose the file
 

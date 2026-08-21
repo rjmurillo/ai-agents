@@ -69,7 +69,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "The deliverable spans two commits: 14d6c91f1 added the rule to .claude/rules/ci-scripts.md, its two generated instruction mirrors, this session log, the QA report, and the extracted episode; 42d82daa corrected the path scope to include .claude/commands/**, src/copilot-cli/skills/**, and tests/**, regenerated both mirrors, and updated the session log and QA report."
+        "Evidence": "The deliverable spans six commits, all six changed files present from the first. 14d6c91f1 added SHOULD 4 to .claude/rules/ci-scripts.md, regenerated its two instruction mirrors, and added this session log, the QA report, and the extracted episode. 42d82daa4 expanded the rule's paths: to .claude/commands/**, src/copilot-cli/skills/**, and tests/**, the trees the incident happened in. dc99b4502 removed a misread citation of claude-agents.md MUST NOT 2, which governs skill code bundled with memory changes, not a rule change bundled with code. 268988b0d corrected this field's own earlier wording. ea408a48c corrected four claims about other components and dropped src/copilot-cli/skills/** as redundant against the pre-existing skills/**/scripts/** and skills/**/tests/** entries, so the shipped paths: adds .claude/commands/** and tests/** only. The remaining commits rebind endingCommit and qaCommit to each new content head, per session-logs.md MUST 2 and 3."
       },
       "validationPassed": {
         "level": "MUST",
