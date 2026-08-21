@@ -11,9 +11,7 @@ implemented: false
 
 # ADR-055: GitHub Actions Runner Selection
 
-## Status
-
-Accepted (2025-12-29). Supersedes ADR-024 and ADR-025, both now marked `status: superseded` with `superseded-by: ADR-055`.
+## Provenance
 
 **Duplicate title and slug.** ADR-024 carries the identical title "GitHub Actions Runner Selection" and the identical filename slug `github-actions-runner-selection`. The duplication is an artifact, not a design. Verified history for this file: it has a single commit, `3e24d2c0`, from PR #1604 on 2026-04-10, whose message is "fix(adr): renumber duplicate ADR-032 and ADR-051 to ADR-055 and ADR-056". This record was **ADR-032** until that day, colliding with `ADR-032-ears-requirements-syntax.md`. Neither file is renamed now, because inbound citations resolve by path and a rename breaks every one of them. This record is the live runner-selection decision; ADR-024 is retired.
 
