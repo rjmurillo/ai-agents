@@ -2,12 +2,27 @@
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
+_RUFF_COUNT_RATCHET = _REPO_ROOT / "scripts" / "ci" / "ruff_count_ratchet.py"
+
+
+def _parse_scan_globs() -> tuple[str, ...]:
+    """Extract _SCAN_GLOBS from ruff_count_ratchet.py via AST parsing."""
+    module = ast.parse(_RUFF_COUNT_RATCHET.read_text(encoding="utf-8"))
+    for node in module.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if any(isinstance(t, ast.Name) and t.id == "_SCAN_GLOBS" for t in node.targets):
+            value = ast.literal_eval(node.value)
+            assert isinstance(value, tuple) and all(isinstance(v, str) for v in value)
+            return value
+    raise AssertionError("_SCAN_GLOBS not found in ruff_count_ratchet.py")
 
 
 def _pre_push_jobs() -> list[dict[str, Any]]:
@@ -56,6 +71,18 @@ def test_whole_tree_ruff_count_ratchet_blocks_in_pre_push() -> None:
         "pyproject.toml",
         "scripts/ci/ruff_count_baseline.txt",
     ]
+
+
+def test_count_ratchet_globs_cover_scan_globs() -> None:
+    """Converse guard: every extension in _SCAN_GLOBS must have a corresponding glob."""
+    job = _job("python-lint-count-ratchet")
+    configured_globs = set(job["glob"])
+
+    for pattern in _parse_scan_globs():
+        expected_glob = f"**/{pattern}"
+        assert expected_glob in configured_globs, (
+            f"_SCAN_GLOBS has {pattern!r} but lefthook is missing {expected_glob!r}"
+        )
 
 
 def test_ruff_ratchets_have_distinct_local_blocking_jobs() -> None:
