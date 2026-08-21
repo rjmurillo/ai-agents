@@ -1,13 +1,13 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 46ba463681b370dad222097d906f0d7038e0bd0a
+qaCommit: 4faed59312edd5904d467a5dfdee1f05e7fc5d7e
 ---
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `46ba463681b370dad222097d906f0d7038e0bd0a`
+**Validated at commit**: `4faed59312edd5904d467a5dfdee1f05e7fc5d7e`
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -166,3 +166,34 @@ clock. Tracked on #5193.
 The generated README is byte-identical because no record sets `review-by` yet,
 so this adds the reader ahead of the first writer rather than leaving the field
 inert.
+
+
+## Addendum 2: owner-directed removal of prose status duplication (commit 4faed5931)
+
+The repository owner reviewed the PR and flagged ADR-005's prose status line as
+duplicating its frontmatter. He was right, and this campaign introduced the
+duplication: the record previously stated status, date and deciders once as inline
+labels, and this campaign added frontmatter restating all three.
+
+Honouring the edit tripped this campaign's own `status-section-present` check
+(7 to 8, ratchet fail). The check was removed rather than the edit reverted,
+because it overreached ADR-073 line 57 ("the prose section remains for humans and
+**may** carry the nuance the enum cannot", permissive) by turning a MAY into a
+MUST, and what it mandated was duplication on records with nothing to add.
+
+Lifecycle baseline falls 78 to 71. Seven violations were deleted with the rule
+that manufactured them, not hidden behind a raised ceiling. The full reasoning,
+including why four other records keep their prose sections, is at
+`.agents/critique/ADR-005-status-duplication-debate-log.md`.
+
+Re-verified at this commit:
+
+```
+388 passed in 7.40s
+check_adr_lifecycle    [PASS] 71 violation(s), no check above its baseline.
+check_adr_links        0 violation(s)
+generate_adr_index     --check OK (README byte-identical)
+```
+
+`prose-frontmatter-agree` is unchanged and still enforces what ADR-073 does state:
+when prose and frontmatter both speak and disagree, frontmatter wins.
