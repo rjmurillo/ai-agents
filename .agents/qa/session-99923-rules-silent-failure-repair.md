@@ -262,7 +262,7 @@ from Copilot's review:
 
 ```
 $ for sha in 15f95d2b6 ea408a48c 09dab8e3e dc99b4502 59ee31ff7 bc980a869 \
-             6dfc77f33 73769ed28; do
+             6dfc77f33 73769ed28 ba99c7cef; do
     printf '%s ' "$sha"; git cat-file -e "$sha" && echo resolves || echo MISSING; done
 15f95d2b6 resolves
 ea408a48c resolves
@@ -272,6 +272,7 @@ dc99b4502 resolves
 bc980a869 resolves
 6dfc77f33 resolves
 73769ed28 resolves
+ba99c7cef resolves
 
 $ for sha in 08c07dd28 db60e0e; do
     printf '%s ' "$sha"; git cat-file -e "$sha" && echo resolves || echo MISSING; done
@@ -282,6 +283,14 @@ db60e0e MISSING
 The second command is the load-bearing one. The first proves the references are
 good; only the second proves the two fabrications are still fabrications and were
 not quietly swapped for real objects when the row was edited.
+
+`ba99c7cef` is the commit that made these two repairs, and the description cites
+it in the rows recording them. It is in the list for the same reason `73769ed28`
+had to be added: a correction that names its own commit puts that commit inside
+the set the check covers, so a list frozen one commit earlier is already short.
+The generated set is not the commits on the branch, it is the SHAs the
+description presents as valid objects, which is why this list is short of the
+branch history and correct anyway.
 
 ### Episode reachability: a frozen list is wrong here, and was
 
