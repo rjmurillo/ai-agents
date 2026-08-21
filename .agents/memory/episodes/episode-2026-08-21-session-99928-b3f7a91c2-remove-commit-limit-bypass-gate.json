@@ -215,6 +215,28 @@
       "caused_by": [
         "e019"
       ],
+      "leads_to": [
+        "e023"
+      ],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pushed the stale-reference fix. Waited for the push to complete before committing further (previous session lesson: concurrent commits during an in-flight push corrupt the mutation-harness dirty-tree check). Spec-to-Implementation Validation re-ran twice more against the still-old head_sha while the push was in flight, repeating its prior finding, then a fresh run after the push landed surfaced a third real gap: ADR-099 lines 155-157 and 180 still claimed the checkout's fetch-depth: 0 was removed/should be dropped, contradicting the actually-shipped workflow (it was restored; the merge-tree and count ratchets in the same job need it independently)",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-21T19:36:50+00:00",
+      "type": "commit",
+      "content": "Commit: 7115df3d1c6b72c2ed50a181240b507206cef9d8",
+      "caused_by": [
+        "e021"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
     }
@@ -224,7 +246,7 @@
     "tool_calls": null,
     "errors": 8,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 5,
     "files_changed": 33
   },
   "lessons": []
