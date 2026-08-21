@@ -281,10 +281,10 @@ def test_extracts_qa_binding_from_full_ending_commit() -> None:
 
 
 def test_binds_to_comparison_head_when_commit_fields_disagree() -> None:
-    # ADR-099 replaces the raise this case used to assert. The two fields are
-    # advanced by unrelated operations (QA rebinding advances comparison.head;
-    # session-logs.md MUST 2 and MUST 3 advance endingCommit), so a
-    # disagreement is reported, not rejected.
+    # ADR-099 replaces the raise this case used to assert. The equality it
+    # enforced forced only 7 of 1459 committed logs into a hand-sync repair
+    # (a corpus measurement), not the naturally-independent pattern an
+    # earlier draft assumed, so a disagreement is now reported, not rejected.
     ending = "b" * 40
 
     binding = session_qa_binding(
@@ -302,6 +302,24 @@ def test_binds_to_comparison_head_when_commit_fields_disagree() -> None:
     # reopening the log.
     assert QA_COMMIT in binding.inconsistency
     assert ending in binding.inconsistency
+
+
+def test_inconsistency_is_excluded_from_binding_identity() -> None:
+    # QaBinding's docstring says inconsistency "is not part of that
+    # identity," but a plain dataclass field generates equality and
+    # hashing over every field by default, contradicting the docstring
+    # unless the field is explicitly excluded. Two bindings that agree on
+    # session_log and commit but disagree on inconsistency must still
+    # compare equal and hash equal, or callers that compare or dedupe
+    # bindings would see two different-diagnostic bindings as distinct
+    # identities.
+    with_diagnostic = QaBinding(
+        session_log=QA_SESSION_LOG, commit=QA_COMMIT, inconsistency="drift noted"
+    )
+    without_diagnostic = QaBinding(session_log=QA_SESSION_LOG, commit=QA_COMMIT)
+
+    assert with_diagnostic == without_diagnostic
+    assert hash(with_diagnostic) == hash(without_diagnostic)
 
 
 def test_reports_no_inconsistency_when_commit_fields_agree() -> None:
