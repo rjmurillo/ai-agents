@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding.json
-qaCommit: 21a23ec3918264467f5d27ebb32229d32e7f7c30
+qaCommit: 3386b3cc50e3ce6fed2dc56154ee1c9d4ab3e91c
 ---
 
 # ADR-099 Session QA
@@ -122,9 +122,28 @@ both that the report still passes and that the two `git` commands
 `post_qa_code_changes()` issues never name `endingCommit`, pinning the gap
 described in the ADR rather than leaving it asserted only in prose.
 `uv run pytest tests/test_validate_session_json.py -q` re-run clean at 380
-passed (the new test plus all 379 prior). `qaCommit` moves to `21a23ec39`,
+passed (the new test plus all 379 prior). `qaCommit` moved to `21a23ec39`,
 the commit carrying this test, since it is a real (non-evidence) change
 that would otherwise correctly flag this report stale.
+
+## Post-Review Rebind and a Cursor Bugbot Fix
+
+After the PR was marked ready for review, Cursor Bugbot flagged a Medium
+finding: this session log's `constraintsRead.Evidence` field attributed to
+`session-logs.md` MUST 2 and MUST 3 the claim that `endingCommit` moves
+independently of `comparison.head`, but those two MUST items only describe
+`endingCommit`'s own update schedule (a follow-up commit, then re-point
+after any rebase) and never mention `comparison.head` at all. Verified
+against the rule file directly and confirmed the finding; fixed the
+wording to describe only what the rule text actually says.
+
+Landing that fix required merging `origin/main` again, which had advanced
+by two commits (ADR-100 and ADR-101, both unrelated to this PR). Both new
+files live outside `QA_EVIDENCE_PREFIXES`, so `qaCommit` moved again to
+`3386b3cc5`, the commit carrying the Bugbot fix on top of the merge.
+`merge_tree_ratchet_check.py --base-ref origin/main` reported OK and
+`uv run pytest tests/test_validate_session_json.py -q` re-ran clean at 380
+passed on this commit.
 
 ## Verdict
 

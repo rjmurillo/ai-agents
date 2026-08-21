@@ -143,6 +143,10 @@
     {
       "activity": "ai-spec-validation's Implementation Completeness check found a real gap: ADR-099 Implementation Note 8 was unmet",
       "finding": "The spec validator returned PARTIAL, correctly identifying that ADR-099's own Implementation Note 8 asked for a test pinning the fallback-head-path exposure ('The laxer direction is bounded, not impossible') and no such test had been written. Added test_fallback_head_masks_a_real_change_between_the_two_fields to TestValidateQaReportEvidence: validation_head=None, comparison.head older than endingCommit, report.commit a genuine ancestor of comparison.head, asserting both that the report passes and that the two git commands issued never name endingCommit, so the gap is pinned rather than left in prose only. Updated ADR-099's Implementation Note 8 and the fallback-path paragraph under 'The laxer direction is bounded, not impossible' to cite the new test. 380 passed (379 plus the new test), ruff clean."
+    },
+    {
+      "activity": "Marked ready for review by the PR author; Cursor Bugbot flagged a Medium finding on this session log",
+      "finding": "constraintsRead.Evidence attributed to session-logs.md MUST 2 and MUST 3 the claim that endingCommit moves independently of comparison.head; those two MUST items only describe endingCommit's own update schedule (follow-up commit, re-point after rebase) and never mention comparison.head. Verified directly against the rule file and confirmed the finding, then fixed the wording to describe only what the rule text says. Landing the fix required merging origin/main again (two unrelated commits, ADR-100 and ADR-101), both outside QA_EVIDENCE_PREFIXES, so the QA report's qaCommit moved again to the post-merge commit. 380 passed, merge_tree_ratchet_check.py reported OK."
     }
   ],
   "endingCommit": "936abc5c7060cc40c200567d535a63ad99bb7950",
