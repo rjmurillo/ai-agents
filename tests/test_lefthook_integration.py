@@ -2004,6 +2004,47 @@ def test_branch_context_merged_history_survives_missing_origin_head(
     assert policy.check_branch_context(repo) == 0
 
 
+def test_branch_context_merged_history_does_not_trust_local_main(tmp_path: Path) -> None:
+    """A file merely present on local ``main`` must not grant the #3343 exemption.
+
+    Issue #682's co-mingling case is a session log landing on the wrong local
+    branch. A fallback to local ``main`` (dropped from ``_merged_history_upstream``
+    after security review of the #5220 fix, 2026-08-21) would treat exactly that
+    shape as settled upstream history: local ``main`` is writable by the same
+    developer the exemption would then excuse, unlike ``origin/main``, which
+    requires a push through review. This builds the file's real presence on a
+    local ``main`` branch via a disposable worktree, so ``_is_merged_history``
+    would find it there if it looked, then writes the same content directly into
+    the primary checkout (untracked) so ``_today_session_log`` still picks it up
+    as the newest-by-mtime candidate, without ever touching feature/x's own
+    branch state.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+
+    main_worktree = _worktree_on(repo, "main", tmp_path / "wt-main")
+    on_main = _write_session_log(
+        main_worktree, branch="feature/wrong", name="session-on-main", mtime=2_000_000_000.0
+    )
+    relative = on_main.relative_to(main_worktree).as_posix()
+    _git(main_worktree, "add", "--", relative)
+    _git(main_worktree, "commit", "-qm", "test: session log lands on local main")
+    _git(repo, "worktree", "remove", "-f", str(main_worktree))
+
+    _write_session_log(
+        repo, branch="feature/wrong", name="session-on-main", mtime=2_000_000_000.0
+    )
+    _write_session_log(repo, branch="feature/x", name="session-own", mtime=1_000_000_000.0)
+
+    # Negative control: no origin remote exists, so an exemption here could
+    # only come from trusting local main directly, never from resolving an
+    # upstream ref.
+    assert _git(repo, "remote").stdout.strip() == ""
+
+    assert policy.check_branch_context(repo) == 1
+
+
 def test_branch_context_blocks_a_newer_log_that_is_not_upstream(tmp_path: Path) -> None:
     """The issue #682 case must survive the #3343 fix.
 

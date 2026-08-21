@@ -1066,25 +1066,34 @@ def _merged_history_upstream(repo_root: Path) -> str | None:
     ``git clone`` sets it: a fetch into an already-cloned repo, a shallow or
     filtered clone, and several CI checkout actions leave it absent, which is
     exactly the shape a fresh remote-execution container has (issue #5220).
-    Falling back to ``origin/main`` and then local ``main`` mirrors the ladder
-    ``resolve_push_update`` already uses for push-base resolution
-    (``git_hook_policy.py``, the ``base = _merge_base(repo_root, "origin/main",
-    ...)`` / ``_merge_base(repo_root, "main", ...)`` pair): a repo without
-    ``origin/HEAD`` still has a trunk, and refusing to look at it turns a
-    missing convenience ref into a hard block on every subsequent commit.
+    Falling back to ``origin/main`` is a genuine equivalent: both name the
+    same remote-tracked trunk, so a log that exists on one exists on the
+    other whenever the local clone has fetched it.
+
+    Stricter than ``resolve_push_update`` on purpose: that function also
+    falls back to local ``main`` (``git_hook_policy.py``, the
+    ``_merge_base(repo_root, "main", ...)`` branch), because there a wrong
+    base only widens a scan and errs conservative. Here the resolved ref
+    feeds a co-mingling exemption (issue #682): a wrong answer grants a
+    bypass instead of widening a scan, so it errs permissive, and local
+    ``main`` is writable by the same developer the exemption would then
+    excuse. A security review of this fix (2026-08-21) confirmed dropping
+    that third rung: every scenario issue #5220 cites, a fetch into an
+    existing repo, a shallow or filtered clone, and CI checkout actions, all
+    populate ``origin/main``, so the stricter two-rung ladder already fixes
+    the reported bug without the permissive rung.
 
     Returns ``None`` when no candidate resolves, which keeps
     ``_is_merged_history`` failing closed for a repo that genuinely cannot
-    name its trunk (no remote, fully isolated clone).
+    name its remote trunk (no remote, fully isolated clone).
     """
     head = _run_git(repo_root, ["rev-parse", "--abbrev-ref", "origin/HEAD"])
     if head.returncode == 0:
         candidate = head.stdout.strip()
         if candidate:
             return candidate
-    for candidate in ("origin/main", "main"):
-        if _commit_ref_exists(repo_root, candidate):
-            return candidate
+    if _commit_ref_exists(repo_root, "origin/main"):
+        return "origin/main"
     return None
 
 
