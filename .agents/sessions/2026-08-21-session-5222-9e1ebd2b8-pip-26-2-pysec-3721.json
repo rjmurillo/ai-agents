@@ -115,11 +115,15 @@
     {
       "activity": "Established the failure is red on main, not on any one branch",
       "finding": "Main run 32486211457 at commit 63bca8796 lists Python Security Checks among its failed jobs. The newest main run reports success and looks like a refutation, but the job's conclusion there is skipped: the commit was documentation only and the path filter short-circuited it. A green run in which the job never executed is not evidence the job passes, and reading it as such would have closed this investigation with the wrong answer."
+    },
+    {
+      "activity": "Cherry-picked cb2297117 to clear main's second red",
+      "finding": "The pre-push hook refused this branch on test_workflow_sets_up_uv, which has nothing to do with pip. Cut from origin/main, this branch inherits the other failure main carries: Renovate #5215 bumped astral-sh/setup-uv in vendor-provenance.yml and left the old SHA restated in the test. Already fixed on the ADR branch, so cherry-picked rather than re-solved. The same commit now sits on two branches, which merges cleanly because both edits are byte-identical, so whichever lands first makes the other a no-op. The alternative was a PR that cannot pass its own pre-push hook, or bypassing that hook. No hook was bypassed."
     }
   ],
-  "endingCommit": "12aafc3a91916fc54b0278b37c6526e32efca59e",
+  "endingCommit": "f359df239005f1da41d46680b536357ed2af8e3c",
   "nextSteps": [
-    "Open a draft PR from claude/pip-26-2-pysec-3721 referencing issue #5222",
+    "Open a draft PR from claude/pip-26-2-pysec-3721 referencing issue #5222; it clears both of main's reds",
     "Confirm Python Security Checks is green on that PR before claiming the fix works",
     "Once merged, PR #5209 and every other open PR unblocks on the same check"
   ]

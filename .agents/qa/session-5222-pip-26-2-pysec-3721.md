@@ -1,13 +1,13 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5222-9e1ebd2b8-pip-26-2-pysec-3721.json
-qaCommit: 12aafc3a91916fc54b0278b37c6526e32efca59e
+qaCommit: f359df239005f1da41d46680b536357ed2af8e3c
 ---
 
 # QA: pip 26.1.2 to 26.2 for PYSEC-2026-3721 (issue #5222)
 
 **Branch**: `claude/pip-26-2-pysec-3721`
-**Validated at commit**: `12aafc3a91916fc54b0278b37c6526e32efca59e`
+**Validated at commit**: `f359df239005f1da41d46680b536357ed2af8e3c`
 **Session log**: `.agents/sessions/2026-08-21-session-5222-9e1ebd2b8-pip-26-2-pysec-3721.json`
 
 ## Verdict
@@ -112,3 +112,39 @@ the real dependency tree, and only that run settles it. The evidence above says
 the vulnerable version is gone and the ignores that were still needed are still
 present. The check itself is the gate, and it has not run yet at the time of
 writing.
+
+## Addendum: main's second red, cherry-picked in
+
+The pre-push hook refused this branch on `test_workflow_sets_up_uv`, which has
+nothing to do with pip. This branch is cut from `origin/main`, and that is the
+*other* failure `main` is carrying: Renovate #5215 bumped `astral-sh/setup-uv` in
+`vendor-provenance.yml` from `ae62891f` to `20cfd1bf` and left the old SHA
+restated as a literal in the test.
+
+Reproduced on this branch before touching anything:
+
+```
+$ uv run --frozen pytest tests/ci/test_validate_vendor_provenance.py::TestWorkflowContract::test_workflow_sets_up_uv
+E   AssertionError: assert 'astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d' in '...'
+1 failed
+```
+
+Commit `cb2297117` on `claude/adr-evaluation-tooling-6od8rd` already fixes it, so
+it was cherry-picked here rather than re-solved. The assertion now requires an
+`astral-sh/setup-uv` reference pinned to a full 40-character commit SHA, read
+from the workflow, which is the one place that owns it. A companion probe runs
+that pattern against six regression shapes and requires no match on each, and the
+control was proven falsifiable by mutation.
+
+```
+$ uv run --frozen pytest tests/ci/test_validate_vendor_provenance.py
+51 passed
+```
+
+The same commit is therefore present on two branches. That is deliberate and
+merges cleanly: both make byte-identical edits to the same file, so whichever
+lands first makes the other a no-op. The alternative was leaving this PR unable
+to pass its own pre-push hook, or bypassing that hook, and no hook was bypassed
+at any point.
+
+Both of `main`'s reds are now cleared by this one PR, which is the point of it.

@@ -13,6 +13,19 @@
       "type": "commit",
       "content": "Commit: 12aafc3a91916fc54b0278b37c6526e32efca59e",
       "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-21-session-5222-9e1ebd2b8-pip-26-2-pysec-3721"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-21T15:50:29+00:00",
+      "type": "commit",
+      "content": "Commit: f359df239005f1da41d46680b536357ed2af8e3c",
+      "caused_by": [
+        "e001"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-5222-9e1ebd2b8-pip-26-2-pysec-3721"
     }
@@ -22,8 +35,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 3
+    "commits": 2,
+    "files_changed": 5
   },
   "lessons": []
 }
