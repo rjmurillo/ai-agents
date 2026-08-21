@@ -120,23 +120,70 @@ def _parse_frontmatter(frontmatter: str) -> dict[str, object] | None:
 
 
 def _has_duplicate_top_level_keys(frontmatter: str) -> bool:
-    """True when a top-level frontmatter key appears more than once.
+    """True when a frontmatter mapping declares the same key twice.
 
     Duplicate keys are malformed YAML and can hide a governance change (a
     second ``status:`` line masking the first). PyYAML resolves duplicates
     last-wins without error, so this explicit check lets the exemption fail
     closed on them and the adr-review gate still fires.
+
+    Detected at the parser rather than by matching line prefixes. The earlier
+    regex recognised only ``^[A-Za-z0-9_-]+:``, which asks a different question
+    than YAML does. Measured on that revision, three of four spellings walked
+    through while ``yaml.safe_load`` enforced ``accepted`` for every one:
+
+        status: proposed   / status: accepted     caught
+        "status": proposed / status: accepted     MISSED
+        status : proposed  / status: accepted     MISSED
+        'status': proposed / status: accepted     MISSED
+
+    A guard against forgery that the forger evades with quotation marks is
+    worse than none, because it reports clean. Copilot found it on PR #5230.
+
+    Mirrors `_no_duplicate_keys` in build/scripts/generate_adr_index.py, which
+    is canonical. The detection is quoted verbatim from it:
+
+        seen: list[Any] = []
+        for key_node, _ in node.value:
+            key = loader.construct_object(key_node, deep=True)
+            if any(key == earlier for earlier in seen):
+                raise ...
+            seen.append(key)
+
+    Stricter/looser/different than canonical: identical detection; this returns
+    a bool because callers only branch on it, and it swallows a YAML parse error
+    as False because a malformed block is already handled by the callers'
+    own parse path. This file ships inside the plugin and may import only the
+    standard library and yaml, so the loader is duplicated here rather than
+    shared (`.claude/rules/plugin-self-containment.md`).
+
+    A list compared with ``==``, not a set: a YAML key need not be hashable
+    (``? [a, b]`` builds a list key) and a set raises ``TypeError`` on it.
     """
-    seen: set[str] = set()
-    for line in frontmatter.splitlines():
-        if line and (line[0] == " " or line[0] == "\t"):
-            continue
-        match = _FRONTMATTER_FIELD_RE.match(line)
-        if match:
-            key = match.group(1)
-            if key in seen:
-                return True
-            seen.add(key)
+
+    class _Dup(yaml.YAMLError):
+        pass
+
+    class _Loader(yaml.SafeLoader):
+        pass
+
+    def _check(loader, node):  # type: ignore[no-untyped-def]
+        seen: list[object] = []
+        for key_node, _ in node.value:
+            key = loader.construct_object(key_node, deep=True)
+            if any(key == earlier for earlier in seen):
+                raise _Dup
+            seen.append(key)
+        return loader.construct_mapping(node, deep=True)
+
+    _Loader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _check)
+
+    try:
+        yaml.load(frontmatter, Loader=_Loader)
+    except _Dup:
+        return True
+    except yaml.YAMLError:
+        return False
     return False
 
 
@@ -265,9 +312,7 @@ def _get_adr_status(file_path: Path) -> str:
     return str(status).strip().lower()
 
 
-def _is_frontmatter_only_change(
-    file_path: str, since_commit: str, base_path: Path
-) -> bool:
+def _is_frontmatter_only_change(file_path: str, since_commit: str, base_path: Path) -> bool:
     """Return True when a modified ADR changed only non-decision frontmatter.
 
     Compares the file body (content after the YAML frontmatter block) at
@@ -409,12 +454,14 @@ def main(argv: list[str] | None = None) -> int:
         for file_path in deleted:
             adr_name = Path(file_path).stem
             dependents = _get_dependent_adrs(adr_name, base_path)
-            deleted_details.append({
-                "Path": file_path,
-                "ADRName": adr_name,
-                "Status": "deleted",
-                "Dependents": dependents,
-            })
+            deleted_details.append(
+                {
+                    "Path": file_path,
+                    "ADRName": adr_name,
+                    "Status": "deleted",
+                    "Dependents": dependents,
+                }
+            )
 
         result_obj = {
             "Created": created,
