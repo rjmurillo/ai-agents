@@ -1,8 +1,21 @@
+---
+id: ADR-025
+status: superseded
+date: 2025-12-22
+decision-makers: []
+supersedes: []
+superseded-by: ADR-055
+explainer: null
+implemented: true
+---
+
 # ADR-025: GitHub Actions ARM Runner Migration
 
 ## Status
 
-Accepted
+Superseded by ADR-055 (2025-12-29). ADR-055 recorded the supersession in its own accepted prose before this change (`**Status**: Accepted (supersedes ADR-024, ADR-025)`) and now carries `supersedes: [ADR-024, ADR-025]` in frontmatter.
+
+Accepted 2025-12-22. The migration this record ordered completed: ADR-055 measured 89% ARM adoption (32 of 36 jobs) at 2025-12-29, and 111 of 132 `runs-on` declarations in `.github/workflows/*.yml` read `ubuntu-24.04-arm` today (`grep -rh 'runs-on:' .github/workflows/*.yml | sort | uniq -c`; the remaining 21 include 5 `${{ matrix.os }}` declarations that expand to further non-ARM jobs). ADR-055 carries the standing ARM-first policy and the exception marker. Refs issue #5192.
 
 ## Date
 

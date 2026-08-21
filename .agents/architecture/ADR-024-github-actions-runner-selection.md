@@ -1,8 +1,25 @@
+---
+id: ADR-024
+status: superseded
+date: 2025-12-23
+decision-makers: []
+supersedes: []
+superseded-by: ADR-055
+explainer: null
+implemented: true
+---
+
 # ADR-024: GitHub Actions Runner Selection
 
 ## Status
 
-Accepted
+Superseded by ADR-055 (2025-12-29). ADR-055 recorded the supersession in its own accepted prose before this change (`**Status**: Accepted (supersedes ADR-024, ADR-025)`) and now carries `supersedes: [ADR-024, ADR-025]` in frontmatter. ADR-055 restates the ARM-first policy this record established and owns the live exception marker.
+
+Accepted 2025-12-23 as ADR-014 in PR #224 (commit PR #224). Renumbered to ADR-024 by PR #476 (commit PR #476) on 2025-12-29. This record carries no `## Date` section because PR #224 review removed it ("Remove Date section from ADR-014, git history tracks this"); the date above is the first-commit date.
+
+ADR-055 carries the identical title and filename slug. Neither file is renamed, because inbound citations resolve by path. ADR-055 is the live record.
+
+The `# ADR-024 Exception:` marker prescribed below is retired. New workflow exceptions use `# ADR-055 Exception:`. Refs issues #5192, #5199.
 
 ## Context
 
@@ -81,7 +98,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
 ```
 
-Workflows requiring Windows or macOS:
+Workflows requiring Windows or macOS (retired format, superseded by ADR-055; use `# ADR-055 Exception:`):
 
 ```yaml
 jobs:
@@ -91,7 +108,7 @@ jobs:
     runs-on: windows-latest  # or macos-latest
 ```
 
-Workflows with ARM compatibility issues (if any):
+Workflows with ARM compatibility issues, if any (retired format, superseded by ADR-055; use `# ADR-055 Exception:`):
 
 ```yaml
 jobs:
