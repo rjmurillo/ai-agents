@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding.json
-qaCommit: 06fa514b552933b3bb5003dd56a18db657fc65e6
+qaCommit: 21a23ec3918264467f5d27ebb32229d32e7f7c30
 ---
 
 # ADR-099 Session QA
@@ -122,7 +122,9 @@ both that the report still passes and that the two `git` commands
 `post_qa_code_changes()` issues never name `endingCommit`, pinning the gap
 described in the ADR rather than leaving it asserted only in prose.
 `uv run pytest tests/test_validate_session_json.py -q` re-run clean at 380
-passed (the new test plus all 379 prior).
+passed (the new test plus all 379 prior). `qaCommit` moves to `21a23ec39`,
+the commit carrying this test, since it is a real (non-evidence) change
+that would otherwise correctly flag this report stale.
 
 ## Verdict
 
