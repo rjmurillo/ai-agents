@@ -1987,7 +1987,8 @@ def test_branch_context_survives_merged_import_when_current_branch_owns_no_log(
     os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
 
     # feature/never-logged owns no session log at all, today or otherwise.
-    assert policy._session_log_for_branch(repo / ".agents" / "sessions", "feature/never-logged") is None
+    sessions_dir = repo / ".agents" / "sessions"
+    assert policy._session_log_for_branch(sessions_dir, "feature/never-logged") is None
 
     assert policy.check_branch_context(repo) == 0
 
