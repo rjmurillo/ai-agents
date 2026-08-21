@@ -145,7 +145,7 @@
       "finding": "The spec validator returned PARTIAL, correctly identifying that ADR-099's own Implementation Note 8 asked for a test pinning the fallback-head-path exposure ('The laxer direction is bounded, not impossible') and no such test had been written. Added test_fallback_head_masks_a_real_change_between_the_two_fields to TestValidateQaReportEvidence: validation_head=None, comparison.head older than endingCommit, report.commit a genuine ancestor of comparison.head, asserting both that the report passes and that the two git commands issued never name endingCommit, so the gap is pinned rather than left in prose only. Updated ADR-099's Implementation Note 8 and the fallback-path paragraph under 'The laxer direction is bounded, not impossible' to cite the new test. 380 passed (379 plus the new test), ruff clean."
     }
   ],
-  "endingCommit": "c8900bc0ff064a52a20762d7af0fd0c9f085050a",
+  "endingCommit": "936abc5c7060cc40c200567d535a63ad99bb7950",
   "nextSteps": [
     "File a follow-up issue for a dedicated QA-freshness field in session-log.schema.json, distinct from endingCommit, per PR #4954 round 15's actual recommendation (ADR-099 Follow-ups item 1).",
     "File a follow-up issue for dropping the validate_session_json.py fallback that binds head to binding.commit when live-HEAD resolution fails (ADR-099 Follow-ups item 2).",
