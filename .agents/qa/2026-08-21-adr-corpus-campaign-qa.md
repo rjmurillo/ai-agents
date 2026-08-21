@@ -1,13 +1,13 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 4ec01f481df45507b90db4d18fdda1d0121a41dd
+qaCommit: 63c04c4029c289a973b29595cb516f2b0911c15c
 ---
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `4ec01f481df45507b90db4d18fdda1d0121a41dd`
+**Validated at commit**: `63c04c4029c289a973b29595cb516f2b0911c15c`
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
