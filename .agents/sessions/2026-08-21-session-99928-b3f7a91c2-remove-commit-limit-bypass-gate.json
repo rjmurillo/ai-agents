@@ -87,9 +87,9 @@
         "evidence": "Committed in atomic (<=5 file) commits on claude/commit-limit-bypass-8f2rur; endingCommit set in a follow-up commit per session-logs.md rule 2."
       },
       "qaValidation": {
-        "complete": false,
+        "complete": true,
         "level": "MUST",
-        "evidence": "No separate QA report file written under the configured QA artifact root. Validation evidence instead sits in workLog (the full test suite run) and in pre_pr.py's own output; marking incomplete because no artifact is named."
+        "evidence": ".agents/qa/session-99928-remove-commit-limit-bypass-gate.md"
       },
       "validationPassed": {
         "complete": true,
@@ -134,9 +134,13 @@
     {
       "action": "Ran the full affected-area test suite: tests/validation/, tests/ci/, tests/workflows/, tests/test_lefthook_integration.py",
       "result": "6848 passed, 20 skipped, 8 failed; all 8 failures are test_mutation_harness_ciperms.py refusing to run against an uncommitted working tree (a generic, pre-existing guard unrelated to this change's content), confirmed by inspecting the error text and git status"
+    },
+    {
+      "action": "Ran uv run python scripts/validation/pre_pr.py; 2 of 57 checks failed",
+      "result": "Session End Validation failed on an unbound qaValidation, resolved by writing .agents/qa/session-99928-remove-commit-limit-bypass-gate.md and rebinding this log. Skill Markdown Portability failed because removing pr_commit_count.py line-citations from gate-ladder.md genuinely lowered its vendor-portability marker's suppressed-ref count (8 to 7 in both copies); resolved with check_skill_md_portability.py --update-baseline --allow-baseline-shrink, confirmed clean on rerun"
     }
   ],
-  "endingCommit": "6b08df25c1cae8c696a52f7fb9ad05e47c017353",
+  "endingCommit": "54e516c4298a974ede9f212e75e23bc37554444d",
   "nextSteps": [
     "Run uv run python scripts/validation/pre_pr.py before pushing",
     "Commit endingCommit in a follow-up commit per session-logs.md rule 2 (never amend)",
