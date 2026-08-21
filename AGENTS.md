@@ -24,7 +24,7 @@
 **Always**: Python (ADR-042)|Verify branch|Check skills|Assign issues|PR template|Atomic commits <=5 files|Scoped lint|Pin Actions SHA|Run changed workflows pre-push|No manifest version (ADR-092)
 **Ask First**: Architecture|New ADRs|Breaking|Security
 **Autonomy Guardrail**: Internal+reversible: act|External/irreversible: confirm|Ambiguous: act minimal, flag rest
-**Never**: Commit secrets|Edit HANDOFF.md|New bash scripts|Logic in YAML (ADR-006)|Raw gh if skill exists|Force push|Skip hooks|Internal refs in src|Scratch in tree|Resolve security threads w/o fix|Ship unrun gen artifact|Report PR "blocked"/"has conflicts"/awaiting user w/o first running the merge-blocked or merge-resolver flow above
+**Never**: Commit secrets|Edit HANDOFF.md|New bash scripts|Logic in YAML (ADR-006)|Raw gh if skill exists|Force push|Skip hooks|Internal refs in src|Scratch in tree|Resolve security threads w/o fix|Ship unrun gen artifact|Report PR blocked/conflicted w/o fix
 
 ## Context
 
@@ -32,10 +32,9 @@ Knowledge -> context. Actions -> skills.
 
 ## Skill-First
 
-|PRs: GitHub|Reviews: pr-comment-responder|Conflicts: merge-resolver agent|Push: /push-pr
+|PRs: GitHub|Reviews: pr-comment-responder|Push: /push-pr
 |Security: security-detection|Quality: analyze|Learn: reflect|Lifecycle: /spec /plan /build /test /review /ship
-|Merge "blocked"/"conversation must be resolved": never stop and ask the user; run `github` skill's `why_pr_blocked.py` to diagnose, then `resolve_pr_review_thread.py --pull-request N --all` (covers outdated-but-unresolved threads too), then re-check before reporting status
-|Merge "has conflicts"/"must be resolved before continuing": never stop and ask the user; invoke merge-resolver agent to merge base into the PR branch and resolve, then push and re-check mergeability
+|Merge blocked/conflicted: don't ask; github skill (why_pr_blocked+resolve) or merge-resolver agent; re-check
 |CI-feedback sub-loop: cluster, ladder build->test->review->ship. See `.agents/governance/CI-FEEDBACK-SUBLOOP.md`
 |ADR-078: no skill -> autoplan; multi-step/cross-cutting -> orchestrator; no return loop
 |New capability: buy-vs-build Quick BEFORE /spec+baseline; >13wk no baseline = prune. Skip: bug/doc/refactor/approved-cap-extension
