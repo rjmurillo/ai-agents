@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate.json
-qaCommit: 5e0b0d26bdfeb848d76cb147138c8986f4be1963
+qaCommit: 52c346df2b2927909726599df3e70e881f57522f
 ---
 # QA Report: session 99928, remove commit-limit-bypass gate
 
@@ -77,6 +77,9 @@ part of this gate removal.
 | `git merge origin/main` (13 commits behind by the time all corrections landed) | Real conflict in `AGENTS.md`: this branch's Mid-gate line (advisory-only wording) and main's Start/End-gate lines (session-log-creation discontinued, unrelated commit `746e2c36a`) sat in the same 3-line hunk without overlapping content. Verified via `git merge-tree` before merging, resolved by keeping both non-overlapping edits, verified no other files conflicted (`scripts/validation/git_hook_policy.py` and `tests/test_lefthook_integration.py` auto-merged cleanly) (`df86736a4`). |
 | Full suite, clean tree, no `-x` (post-merge) | First attempt (`baz4rm41x`) failed 1 test: `tests/mutation/test_mutate_debate_log_path.py::test_m1_directory_name_reverted_is_detected` raised `MutationWorkspaceError: active mutation targets changed during isolated run: scripts/validation/git_hook_policy.py [MODIFIED]`, because the merge above ran concurrently with that background suite and auto-merged that exact file mid-run. Self-inflicted, not a real bug: confirmed by re-running the isolated test alone on the now-static, merged tree (`ben0zq34m`: 11 passed in 200.33s), then re-running the entire suite fresh with no concurrent git operations (`ba6rbw0im`): **27714 passed, 74 skipped, 0 failed, 1318.13s**. |
 | `uv run --frozen python scripts/validation/pre_pr.py` (post-merge, `bvw2j6ybq`) | 55 of 57 passed. `Session End Validation` failed only because the QA report (this file) was bound to a pre-merge commit; resolved by this rebind. `Skill Markdown Portability` failed because `provenance.md`'s fix genuinely dropped its suppressed-ref count from 29 to 28 (an unrelated upstream merge also improved `ai-agents-docs-of-record` from 26 to 25); ran `check_skill_md_portability.py --update-baseline --allow-baseline-shrink`, reran clean (`5e0b0d26b`). |
+| Fully green CI, then all 6 Copilot threads addressed and resolved (post-push) | Every check suite succeeded on `cd471d12f`. Replied to and resolved all 6 open Copilot review threads (fail-closed bug, dependency sweep, test coverage, missing panel, stale QA verdict, stale session-log evidence) citing the fix commits already recorded above; a fourth automated Spec-to-Implementation Validation round independently confirmed PASS (10/10 requirements, 7 in-scope covered, 3 explicitly N/A/deferred to #5232/#5238/#5239). |
+| A second Copilot review round (post-push) | One new, real finding: the `git-a-squash-merge-severs-a-stacked-pr.md` memory edit (from the earlier rebind) claimed `_unpushed_commit_count` "still counts", but the function is deleted, not merely defanged; `_check_commit_limit` now computes its count directly with `git rev-list --count <merge-base>..<head>`, with no exclude-remotes special-casing. Verified by grep against the live file (`_unpushed_commit_count` returns zero matches), then recast the memory section as historical and named the actual replacement mechanism (`5e161d1a3`). |
+| Fifth spec-validator round (post-push) | PASS again (7/7 in-scope requirements covered), with one cheap non-blocking observation: an em dash on `tests/workflows/test_pr_validation_needs_split.py:3`, predating this PR's edits to the same docstring but adjacent to them. Swept in the same commit (`52c346df2`) since it was one character and already flagged. |
 
 ## Findings
 

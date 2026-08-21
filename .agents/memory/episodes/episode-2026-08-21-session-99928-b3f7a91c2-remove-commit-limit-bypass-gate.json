@@ -292,6 +292,28 @@
       "caused_by": [
         "e023"
       ],
+      "leads_to": [
+        "e030"
+      ],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Push succeeded and all CI went green on cd471d12f (37 check suites). Replied to and resolved all 6 open Copilot review threads with fix commit citations; a fourth spec-validator round independently confirmed PASS. A second Copilot review round then flagged one new, real finding on this session's own earlier work: a Serena memory edit claimed the deleted _unpushed_commit_count helper still counts",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-08-21T22:21:51+00:00",
+      "type": "commit",
+      "content": "Commit: 52c346df2b2927909726599df3e70e881f57522f",
+      "caused_by": [
+        "e028"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
     }
@@ -301,7 +323,7 @@
     "tool_calls": null,
     "errors": 10,
     "recoveries": 0,
-    "commits": 6,
+    "commits": 7,
     "files_changed": 49
   },
   "lessons": []
