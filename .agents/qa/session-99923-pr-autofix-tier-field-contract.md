@@ -36,20 +36,27 @@ Three of the four are consequences of the first: correcting the tier read is
 what makes those paths reachable, so they are mirror obligations rather than
 adjacent work. That reasoning is set out in "The fix opened a case" below.
 
-The tests are three support modules under `tests/commands/`, each paired with the
-cases that drive it: `pr_autofix_field_parser.py` with
-`test_pr_autofix_field_contract.py` and `test_pr_autofix_coverage_guards.py` for
-the jq reads and the guards on that checker; `pr_autofix_tier_parser.py` with
-`test_pr_autofix_tier_contract.py` for the tier set; and
-`pr_autofix_dispatch_harness.py` with `test_pr_autofix_tier_dispatch_runtime.py`
-and `test_pr_autofix_earned_t1_exemption.py` for the runtime behavior.
+The tests live under `tests/commands/`, and the authoritative membership is
+whatever `git diff --name-only origin/main...HEAD -- tests/commands/` reports at
+the head this report is bound to. What follows is the structure, which is stable,
+rather than the list, which is not.
 
-This section has now gone stale twice, and the second time is the interesting
-one. First it described the one-line fix and three modules, so the PASS verdict
-was recorded against less work than the PR changed. The repair restated the
-scope as "six modules", which was accurate when written and wrong two commits
-later when the 500-line taste rule split two more out; Copilot caught both. The
-count is gone rather than corrected a third time, which is Finding 5 of the
+Most of the tree is a support module paired with the cases that drive it:
+`pr_autofix_field_parser.py` for the jq reads and the guards on that checker,
+`pr_autofix_tier_parser.py` for the tier set, and `pr_autofix_dispatch_harness.py`
+for the runtime behavior. One module stands alone,
+`test_pr_autofix_harness_isolation.py`, because its subject is the harness's own
+environment rather than anything the harness runs.
+
+This section has now gone stale three times, and each repair was narrower than
+the failure. First it described the one-line fix and three modules, so the PASS
+verdict was recorded against less work than the PR changed. The repair said "six
+modules", accurate when written and wrong two commits later when the 500-line
+taste rule split two more out. The second repair dropped the count but kept the
+enumeration, which went stale the moment a ninth module was added, because a list
+is a measurement of a moment exactly as a count is; Copilot caught all three. So
+the enumeration is gone too, and what remains is the structure plus the command
+that derives the membership. That is Finding 5 of the
 retrospective applied here: a count is a fact about a moment, and the pairing
 above is a fact about the tree that a reader can check against `git diff
 --name-only`.

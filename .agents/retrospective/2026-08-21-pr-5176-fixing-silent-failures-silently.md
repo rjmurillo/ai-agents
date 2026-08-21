@@ -6,12 +6,16 @@
 - **Trigger**: Owner instruction to review PR #5175 and drive it to closure. That PR
   carried a zero diff, so the work became: verify the defect still lived on `main`,
   implement it properly, open PR #5176, and drive that to green.
-- **Scope**: `.claude/commands/pr-autofix.md` and its generated Copilot mirror, plus
-  eight new modules under `tests/commands/`: five `test_*.py` files and three
-  support modules (two parsers and the bash harness). The count was six when this
-  was written and grew with two later splits, which is the same
-  measurement-versus-property mistake Finding 5 below is about, committed inside
-  the retrospective that names it.
+- **Scope**: `.claude/commands/pr-autofix.md`, its generated Copilot mirror, and new
+  modules under `tests/commands/`, whose membership is whatever
+  `git diff --name-only origin/main...HEAD -- tests/commands/` reports. This line
+  has now carried three wrong counts: six when first written, then eight, then
+  eight again after a ninth module was added. Each rewrite fixed the number and
+  kept the shape that produces wrong numbers, which is the
+  measurement-versus-property mistake Finding 5 below is about, committed three
+  times inside the retrospective that names it. Corrected rather than softened:
+  the count is not merely stale, it was restated wrongly twice after the lesson
+  was written down.
 
 ## Failure Mode Classification
 
