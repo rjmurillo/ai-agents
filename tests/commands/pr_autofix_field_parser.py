@@ -463,6 +463,8 @@ def contract_violations(text: str) -> list[str]:
     """
     problems: list[str] = []
     for lineno, line in logical_lines(text):
+        if line.lstrip().startswith("#"):
+            continue
         for program in unsupported_path_syntax(line):
             problems.append(
                 f"line {lineno}: jq program `{program}` uses bracket-notation field "
