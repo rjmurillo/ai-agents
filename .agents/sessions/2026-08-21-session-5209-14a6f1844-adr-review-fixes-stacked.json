@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/2026-08-21-adr-corpus-campaign-qa.md"
+        "Evidence": ".agents/qa/session-5209-adr-review-fixes-stacked.md"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -196,7 +196,7 @@
       "notes": "Three findings worth the round. First, yaml.safe_load is last-wins on duplicate keys, so a record declaring status twice enforces one value while showing another; fixed in all three readers with the mechanism chosen per site. Second, ADR-063 had no frontmatter and relied on the whole-file regex this PR removed, so the PR silently made it unknown, and three tests missed it because each reimplemented the old regex rather than calling the parser; its docstring, its assertion and the real parser gave three different answers. Third, the template told authors not to use the ## Status section that ADR-073 explicitly retains, which is the second time this campaign turned that ADR's MAY into a directive."
     }
   ],
-  "endingCommit": "8f2605d2507a3d3da227793e11452d4ec53fb8eb",
+  "endingCommit": "b386b27cadbda6ee539b5e212beaad4c0d4eb88f",
   "nextSteps": [
     "Open a stacked PR from claude/adr-5209-review-fixes with base claude/adr-evaluation-tooling-6od8rd",
     "Merge it into #5209, or merge #5209 first and retarget this one at main",

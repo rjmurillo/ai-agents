@@ -1,6 +1,6 @@
 ---
 qaVerdict: PASS
-qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
+qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
 qaCommit: b7b87c395677b7a1611e29390262af906324e466
 ---
 
@@ -8,7 +8,7 @@ qaCommit: b7b87c395677b7a1611e29390262af906324e466
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
 **Validated at commit**: `b7b87c395677b7a1611e29390262af906324e466`
-**Session log**: `.agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json`
+**Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
 

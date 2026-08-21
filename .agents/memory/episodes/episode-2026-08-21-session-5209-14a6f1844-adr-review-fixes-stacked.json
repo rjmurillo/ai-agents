@@ -76,6 +76,19 @@
       "type": "commit",
       "content": "Commit: 8f2605d2507a3d3da227793e11452d4ec53fb8eb",
       "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-21T17:40:28+00:00",
+      "type": "commit",
+      "content": "Commit: b386b27cadbda6ee539b5e212beaad4c0d4eb88f",
+      "caused_by": [
+        "e008"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
     }
@@ -85,8 +98,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 17
+    "commits": 2,
+    "files_changed": 19
   },
   "lessons": []
 }
