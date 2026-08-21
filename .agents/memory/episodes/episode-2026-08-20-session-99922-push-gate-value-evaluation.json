@@ -394,7 +394,8 @@
         "e020",
         "e029",
         "e030",
-        "e033"
+        "e033",
+        "e034"
       ],
       "leads_to": [
         "e032"
@@ -409,7 +410,9 @@
       "caused_by": [
         "e031"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e035"
+      ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
@@ -422,6 +425,28 @@
         "e031"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e034",
+      "timestamp": "2026-08-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found the push gate skipping entirely, while clearing the working tree at stop time",
+      "caused_by": [],
+      "leads_to": [
+        "e031"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e035",
+      "timestamp": "2026-08-21T00:55:10+00:00",
+      "type": "commit",
+      "content": "Commit: 056d8c3ce577557e9dde6c48255b1ee4ab303664",
+      "caused_by": [
+        "e032"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     }
   ],
   "metrics": {
@@ -429,7 +454,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 24,
+    "commits": 25,
     "files_changed": 10
   },
   "lessons": []
