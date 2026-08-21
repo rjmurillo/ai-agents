@@ -60,7 +60,7 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
@@ -158,8 +158,10 @@ class _StrictLoader(yaml.SafeLoader):
     """
 
 
-def _no_duplicate_keys(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict:
-    seen: set = set()
+def _no_duplicate_keys(
+    loader: yaml.SafeLoader, node: yaml.MappingNode
+) -> dict[Any, Any]:
+    seen: set[Any] = set()
     for key_node, _ in node.value:
         key = loader.construct_object(key_node, deep=True)
         try:
@@ -169,7 +171,8 @@ def _no_duplicate_keys(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict:
         if duplicate:
             raise _DuplicateKeyError(f"duplicate key {key!r} in frontmatter mapping")
         seen.add(key)
-    return loader.construct_mapping(node, deep=True)
+    mapping: dict[Any, Any] = loader.construct_mapping(node, deep=True)
+    return mapping
 
 
 _StrictLoader.add_constructor(
