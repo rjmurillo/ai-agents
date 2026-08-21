@@ -9,6 +9,29 @@
 - **Scope**: `.claude/commands/pr-autofix.md` and its generated Copilot mirror, plus
   six new test modules under `tests/commands/`.
 
+## Failure Mode Classification
+
+**Primary**: FM-10 (Silent Defaults and Guard-Clause Suppression,
+`.agents/governance/FAILURE-MODES.md` lines 315-401).
+
+The session encountered this class repeatedly in three shapes:
+
+1. **Controls that cannot fail.** A mutation probe whose discriminating input sits on
+   the same side of the original and inverted guard passes both, proving nothing.
+   This is FM-10's "the call site has no way to know the operation didn't actually do
+   what its name claims" applied to a test rather than production code.
+2. **Fixes that introduce new silent failures.** Four repairs to one silent-failure
+   defect each introduced a different silent failure (`2>/dev/null` hiding parse
+   errors, `//` firing on `false`, `tostring` accepting string `"true"`, missing
+   comment-skip guard).
+3. **Tests that assert defects as correct.** A test encoded the CWE-284 behavior as
+   desirable with a rationale that conflated two different actions, blocking the fix
+   and reading as deliberate.
+
+**Secondary**: FM-4 (False Completion Markers). The controls that passed without
+proving anything are FM-10 at the mechanism layer; the visible symptom—a green
+check that claims coverage it does not have—is FM-4.
+
 ## What the change became
 
 The reported defect was one `jq` path: `.Data.Tier` read from a producer that emits
@@ -181,6 +204,16 @@ finding.
 3. Ask "does my fix open this?" before deferring an adjacent finding.
 4. Scope formatters to touched files.
 5. Prefer properties over measurements in anything that outlives the commit.
+
+## Remediation
+
+| Action | Status | Owner/Tracking |
+|--------|--------|----------------|
+| Fix the `.Data.Tier` jq path and add contract gate | Complete | PR #5176 |
+| Add runtime gate executing command body under `bash -c` | Complete | PR #5176 |
+| Flip the round-cap test assertion and document the CWE-284 fix | Complete | PR #5176 |
+| Add control-validity check (SURVIVED vs DEAD) to mutation test guidance | Follow-up | `.claude/rules/testing.md` SHOULD-10 update (not yet filed) |
+| Document "repair to a silent failure is itself a silent-failure candidate" | Follow-up | Serena memory or `.claude/rules/` addition (not yet filed) |
 
 ## References
 
