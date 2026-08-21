@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "Measured the two size gates against real pull request data rather than accepting or rejecting them on principle",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e031"
+      ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
@@ -22,7 +24,9 @@
       "type": "milestone",
       "content": "Tested three successive designs against a six-role adversarial panel",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e031"
+      ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
@@ -31,7 +35,9 @@
       "type": "milestone",
       "content": "Verified every reviewer claim against primary sources before acting on it",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e031"
+      ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
@@ -40,7 +46,9 @@
       "type": "milestone",
       "content": "Found and recorded that the control plane is reachable from the tree",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e031"
+      ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
@@ -49,7 +57,9 @@
       "type": "milestone",
       "content": "Caught a tightening hiding inside a subtraction",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e031"
+      ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
@@ -225,7 +235,9 @@
       "type": "milestone",
       "content": "Searched this repository's own session logs, QA reports, and retrospectives for what the commit ceiling made authors do, after six rounds of review had accepted that no such evidence existed",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e031"
+      ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
@@ -234,7 +246,9 @@
       "type": "milestone",
       "content": "Traced where the commit ceiling actually blocks, after a reviewer showed the decision's own remediation would have retired nothing",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e031"
+      ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
@@ -349,6 +363,38 @@
       "caused_by": [
         "e028"
       ],
+      "leads_to": [
+        "e031"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-08-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Transported the branch content to the remote through the GitHub API after the pre-push commit ceiling refused the push and both of its reliefs proved unreachable",
+      "caused_by": [],
+      "leads_to": [
+        "e031"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e031",
+      "timestamp": "2026-08-21T00:08:45+00:00",
+      "type": "commit",
+      "content": "Commit: e4a5e55a5d16694ce096b3045da9ec07069e3d54",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e019",
+        "e020",
+        "e029",
+        "e030"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     }
@@ -358,7 +404,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 22,
+    "commits": 23,
     "files_changed": 10
   },
   "lessons": []

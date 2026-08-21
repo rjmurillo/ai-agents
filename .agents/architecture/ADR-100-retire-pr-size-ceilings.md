@@ -305,7 +305,7 @@ This trades a small, unproven protection against sprawl for the removal of a mea
 | Component | Dependency | Required update | Risk |
 |---|---|---|---|
 | `scripts/ci/enforce_pr_validation.py:64-84` | Direct | Remove the `COMMIT_STATUS == "BLOCKED"` branch and its bypass-label fetch. This is the CI block; `pr_commit_count.py` returns 0 on every classification path and must keep exiting 2 and 3 on its error paths, so demoting the size classification must not neutralize configuration and API failures | High |
-| `scripts/validation/git_hook_policy.py` `_check_commit_limit` | Direct | Demote to a report. This is the pre-push block every recorded workaround actually hit | High |
+| `scripts/validation/git_hook_policy.py` `_check_commit_limit` | Direct | Demote to a report, and land item 6's telemetry in the same change. This is the pre-push block every recorded workaround actually hit | High |
 | `scripts/validation/pr_commit_count.py` | Direct | Keep classifying and reporting. Already returns 0 on every classification path, though it still exits 2 and 3 on its error paths (`:461`, `:480`, `:483`), so no caller should read exit 0 as "classified" | Low |
 | `scripts/validation/git_hook_policy.py` | Direct | `check_atomic_commit` advisory | Medium |
 | `scripts/detect_scope_explosion.py` | Direct | Demote `BLOCK_THRESHOLD` (line 50) to advisory FIRST; then add process-record exclusions; then remove `SKIP_SCOPE_CHECK` at line 492. Removing the flag without the demotion ships a blocking gate with no relief | Medium |
@@ -318,9 +318,9 @@ This trades a small, unproven protection against sprawl for the removal of a mea
 
 ## Implementation Notes
 
-One phase. No dependency on repository configuration, no new gate, no new required check. Each item is independently revertible by restoring a return value.
+One phase. No dependency on repository configuration, no new gate, no new required check. Items 1, 2, and 3's threshold demotion are independently revertible by restoring a return value. Three are not, and a reviewer was right that an earlier revision claimed otherwise for all of them: item 5 changes merge-diff semantics in `post_qa_code_changes`, item 6 adds a telemetry write outside the branch, and the process-record partition in item 3 changes what the scope gate classifies as reviewable. Reverting those three means reverting a behavior change, not a return value.
 
-Order: fix the rebind churn at `post_qa_code_changes` per item 5; remove the CI block in `enforce_pr_validation.py` and demote `_check_commit_limit`; demote `check_atomic_commit` early, so that this change's own wide diff is not sliced by the cap it retires; demote the scope `BLOCK_THRESHOLD` and add the process-record exclusions; then remove `SKIP_SCOPE_CHECK`; then update the documents. The last two are ordered, not interchangeable, per Decision items 3 and 4.
+Order: fix the rebind churn at `post_qa_code_changes` per item 5; remove the CI block in `enforce_pr_validation.py` and demote `_check_commit_limit`, **landing item 6's telemetry in that same step rather than after it**, because a demotion that ships without the recording loses the push-time evidence permanently and the re-measure can never recover it; demote `check_atomic_commit` early, so that this change's own wide diff is not sliced by the cap it retires; demote the scope `BLOCK_THRESHOLD` and add the process-record exclusions; then remove `SKIP_SCOPE_CHECK`; then update the documents. The last two are ordered, not interchangeable, per Decision items 3 and 4.
 
 ### Time-box and re-measure
 
