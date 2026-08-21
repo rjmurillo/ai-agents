@@ -1,18 +1,18 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: a2f352ed4cc5a3ea6395e24e9ddf7e83adb1a5b9
+qaCommit: 46ba463681b370dad222097d906f0d7038e0bd0a
 ---
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `a2f352ed4cc5a3ea6395e24e9ddf7e83adb1a5b9`
+**Validated at commit**: `46ba463681b370dad222097d906f0d7038e0bd0a`
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
 
-PASS. 384 tests green, every gate at or below its baseline, `pre_pr.py` clean
+PASS. 388 tests green, every gate at or below its baseline, `pre_pr.py` clean
 apart from the session-end check this report exists to satisfy.
 
 ## Test evidence
@@ -26,7 +26,7 @@ uv run pytest tests/validation/test_check_adr_lifecycle.py \
               tests/validation/test_pre_pr_sequence_registry.py \
               .claude/skills/adr-review/tests/ -q
 
-============================= 384 passed in 8.91s ==============================
+============================= 388 passed in 6.98s ==============================
 ```
 
 Breakdown of new coverage:
@@ -35,7 +35,7 @@ Breakdown of new coverage:
 |---|---|---|
 | `test_check_adr_lifecycle.py` | 85 | The nine lifecycle checks, containment, cycle termination, never-mutates |
 | `test_check_adr_links.py` | 63 | Four link violation classes, historical-root exemption, fenced-block edges |
-| `test_generate_adr_index.py` | 53 | Section routing, failure policy, determinism, no-banner, chain walk |
+| `test_generate_adr_index.py` | 57 | Section routing, failure policy, determinism, no-banner, chain walk, review-by rendering |
 | `test_detect_adr_changes.py` (x3 trees) | 93 | Frontmatter-only parsing, `unknown` sentinel, fenced-yaml regression guard |
 
 Coverage measured on the new gates: `check_adr_links.py` 99% (single miss is the
@@ -134,3 +134,35 @@ Both are corrected on the issues so an implementer does not chase them.
 - The debate-log gate is forgeable (issue #5205), filed with a proven exploit.
 - Six governance forks deferred to the owner, four of which the tie-breaker
   judged decidable by evidence rather than taste.
+
+
+## Addendum: review-by renderer (commit 46ba46368)
+
+CI's spec-validation completeness reviewer returned PARTIAL naming a real gap:
+this campaign added `review-by` to `ADR-TEMPLATE.md` and shipped an index that
+never read it, while issue #5198 specifies the Proposed table carries "the
+condition or review date blocking acceptance".
+
+Fixed. The index now reads `review-by` from frontmatter and renders it in the
+Proposed blocking column, alone or alongside the prose blocker.
+
+Re-verified at this commit:
+
+```
+388 passed in 6.98s
+check_adr_lifecycle    [PASS] 78 violation(s), no check above its baseline.
+check_adr_links        0 violation(s)
+generate_adr_index     --check OK (README byte-identical)
+```
+
+Four added tests: the date renders; date and prose render together; absence
+leaves prior output unchanged (negative control); and a determinism guard that
+renders a long-past and a far-future date and asserts the output differs only in
+the date itself. That last one pins a deliberate limitation: the renderer does
+not compare against today, because it must be byte-identical for identical input.
+Past-due detection belongs in the lifecycle gate, where a test can freeze the
+clock. Tracked on #5193.
+
+The generated README is byte-identical because no record sets `review-by` yet,
+so this adds the reader ahead of the first writer rather than leaving the field
+inert.

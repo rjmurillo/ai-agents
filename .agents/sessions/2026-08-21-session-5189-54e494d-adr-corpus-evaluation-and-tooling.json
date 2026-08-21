@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Twelve atomic commits, each five or fewer authored files. No hook bypassed: --no-verify, LEFTHOOK=0 and LEFTHOOK_EXCLUDE were not used."
+        "Evidence": "Fifteen atomic commits, each five or fewer authored files. No hook bypassed: --no-verify, LEFTHOOK=0 and LEFTHOOK_EXCLUDE were not used."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "384 tests pass; check_adr_lifecycle, check_adr_links, check_adr_uniqueness, taste and ruff ratchets all at or below baseline. See the QA report."
+        "Evidence": "388 tests pass; check_adr_lifecycle, check_adr_links, check_adr_uniqueness, generate_adr_index --check, and the taste and ruff ratchets all clean at this commit. See the QA report addendum."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -144,7 +144,7 @@
       "notes": "Parses only the leading frontmatter block with yaml.safe_load and returns an unknown sentinel for every undeclared state instead of failing open to proposed. Two tests in tests/skills/test_misc_skill_scripts.py encoded the old behavior; their assertions were corrected to the contract issue #5189 specifies, and a third test was added pinning that a bare status line outside frontmatter is body text. No test was skipped, disabled, or deleted."
     }
   ],
-  "endingCommit": "a2f352ed4cc5a3ea6395e24e9ddf7e83adb1a5b9",
+  "endingCommit": "46ba463681b370dad222097d906f0d7038e0bd0a",
   "nextSteps": [
     "Land the remaining Phase 1 workstreams and verify each agent report independently before committing",
     "Phase 2: backfill lifecycle frontmatter into the ADRs Phase 1 did not touch (issue #5190)",
