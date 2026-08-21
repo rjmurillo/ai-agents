@@ -106,7 +106,7 @@ the required search:
 
 **Tier 1 (Semantic)**: facts, patterns, constraints.
 
-- Why does the PowerShell-only constraint exist? (ADR-005)
+- Why is Python the only sanctioned scripting language? (ADR-042, which superseded the PowerShell-only ADR-005)
 - Why do skills exist instead of raw CLI? (usage-mandatory)
 - What incidents led to BLOCKING gates? (protocol-blocking-gates)
 
