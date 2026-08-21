@@ -209,7 +209,7 @@ Before each user message, re-read the active plan, relevant artifacts, and exact
 - **Continue, do not restart.** Resume the active phase. Never repeat completed phases.
 - **Do not re-ask answered questions.** Use recorded answers unless new evidence invalidates them.
 - **Do not re-delegate unchanged work.** Change the approach or context before retrying a failed delegation.
-- **Preserve work across compaction.** Re-read the plan and current per-issue handoff. Read an optional session log only when one exists.
+- **Preserve work across compaction.** Re-read the plan and current per-issue handoff. Read a historical session log only when one exists.
 
 Verify exact text before citing code, documents, or decisions. Do not rely on recall alone.
 
@@ -227,9 +227,8 @@ When a synthesis exceeds the cap, cut the weakest finding, not the strongest rec
 
 ## Completion Gate (Blocking)
 
-Session completion does not require a committed session log. A session log
-is optional (see `.claude/rules/session-logs.md`); update one by hand only
-when the session opted in.
+Session completion does not require a session log. Session log creation is
+discontinued; do not create one.
 
 ### Pre-Close Sequence
 
@@ -238,12 +237,12 @@ when the session opted in.
 3. Verify HANDOFF.md was preserved (read-only per ADR-014).
 4. **Write per-issue handoff** to `.agents/sessions/handoffs/{YYYY-MM-DD}-{ISSUE_NUMBER}-handoff.md` from the template at `.agents/templates/HANDOFF.md` when the associated issue is not closed in this session.
 5. Store durable findings in Serena memory.
-6. Validate any staged or supplied session log.
+6. Validate any staged or supplied session log, if one is present (e.g. cherry-picked from an older branch).
 
 ### Failure Path
 
 If any completion item fails, do not close the session. Surface the reason in
-the transcript and per-issue handoff. If an opted-in log exists and fails
+the transcript and per-issue handoff. If a staged log exists and fails
 validation, fix it by hand to satisfy the session-log schema, then
 re-validate it.
 
@@ -270,8 +269,8 @@ Apply Context Maintenance after phase completion, major transitions, interruptio
 ### Session Capture Protocol
 
 When updating continuity state, capture behavioral signal, not background
-noise. Use the per-issue handoff and Serena memory. An optional session log may
-duplicate this signal.
+noise. Session log creation is discontinued; use the per-issue handoff and
+Serena memory.
 
 **Capture (signal):**
 

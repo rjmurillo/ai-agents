@@ -925,7 +925,8 @@ def _read_head_blob(repo_root: Path, relative_path: str) -> bytes | None:
 
 
 def _read_upstream_default_blob(repo_root: Path, relative_path: str) -> bytes | None:
-    upstream = _resolve_upstream_default(repo_root)
+    head = _run_git(repo_root, ["rev-parse", "--abbrev-ref", "origin/HEAD"])
+    upstream = head.stdout.strip() if head.returncode == 0 else "origin/main"
     if not upstream:
         return None
     result = _run_git_bytes(repo_root, ["show", f"{upstream}:{relative_path}"])
@@ -1058,57 +1059,8 @@ def _session_log_for_branch(sessions_dir: Path, branch: str) -> Path | None:
     return None
 
 
-def _resolve_upstream_default(repo_root: Path) -> str | None:
-    """Return the best available name for the upstream default branch.
-
-    ``origin/HEAD`` is the precise answer when it resolves, but only
-    ``git clone`` sets it: a fetch into an already-cloned repo, a shallow or
-    filtered clone, and several CI checkout actions leave it absent, which is
-    exactly the shape a fresh remote-execution container has (issue #5220).
-    Falling back to ``origin/main`` is a genuine equivalent: both name the
-    same remote-tracked trunk, so a log that exists on one exists on the
-    other whenever the local clone has fetched it.
-
-    Shared by ``_is_merged_history`` (the co-mingling exemption, issue #682)
-    and ``_read_upstream_default_blob`` (session-content-on-upstream checks).
-    A single resolver keeps their trunk-naming logic from drifting apart the
-    way it briefly did here: an earlier revision of this function lived only
-    under ``_is_merged_history`` while ``_read_upstream_default_blob`` carried
-    its own duplicate, unconditional ``origin/main`` fallback with no
-    existence probe.
-
-    Stricter than ``resolve_push_update`` on purpose: that function also
-    falls back to local ``main`` (``git_hook_policy.py``, the
-    ``_merge_base(repo_root, "main", ...)`` branch), because there a wrong
-    base only widens a scan and errs conservative. The co-mingling exemption
-    this resolver feeds errs the other way: a wrong answer grants a bypass
-    instead of widening a scan, and local ``main`` is writable by the same
-    developer the exemption would then excuse. A security review of this fix
-    (2026-08-21) confirmed dropping that third rung: every scenario issue
-    #5220 cites, a fetch into an existing repo, a shallow or filtered clone,
-    and CI checkout actions, all populate ``origin/main``, so the stricter
-    two-rung ladder already fixes the reported bug without the permissive
-    rung. ``_read_upstream_default_blob`` has no permissive exemption to
-    weaken, so sharing the stricter resolver only tightens it: it now also
-    probes existence before returning ``origin/main`` instead of trying it
-    unconditionally.
-
-    Returns ``None`` when no candidate resolves, which keeps callers failing
-    closed for a repo that genuinely cannot name its remote trunk (no remote,
-    fully isolated clone).
-    """
-    head = _run_git(repo_root, ["rev-parse", "--abbrev-ref", "origin/HEAD"])
-    if head.returncode == 0:
-        candidate = head.stdout.strip()
-        if candidate:
-            return candidate
-    if _commit_ref_exists(repo_root, "origin/main"):
-        return "origin/main"
-    return None
-
-
 def _is_merged_history(repo_root: Path, path: Path) -> bool:
-    """Return True when ``path`` already exists on the upstream default branch.
+    """Return True when ``path``'s on-disk content matches the upstream default branch.
 
     A committed merge of main imports the previously merged branch's session
     log. That file is newer by mtime than anything the current branch owns, so
@@ -1116,15 +1068,22 @@ def _is_merged_history(repo_root: Path, path: Path) -> bool:
     near (issue #3343). The MERGE_HEAD exemption cannot help: it expires when
     the merge commit is created, while the imported file stays forever.
 
-    Existing on the upstream default branch is the discriminator. A log that
-    merged is settled history, not a statement about what the developer is
-    working on now. A log authored on some other local branch is not there, so
-    the co-mingling case from issue #682 keeps its teeth.
+    Content matching the upstream default branch is the discriminator, not
+    mere path existence. A log whose bytes match upstream is settled history,
+    not a statement about what the developer is working on now. A log
+    authored on some other local branch is not there, so the co-mingling case
+    from issue #682 keeps its teeth. Byte comparison (via
+    ``_is_session_content_on_upstream_default``, shared with the
+    staged/committed session-log checks) also closes a narrower gap a path-only
+    existence probe would miss: a working-tree edit to an already-upstream
+    path (for example, a hand-edited ``branch`` field) that has not been
+    committed. The path still exists upstream under its old content, so an
+    existence-only probe would grant the exemption to genuinely tampered,
+    uncommitted content; comparing bytes catches that.
 
     Fails closed on every indeterminate answer it can observe: a path outside
-    the repo, no resolvable upstream candidate (``_resolve_upstream_default``
-    returns ``None``), or a failed probe all return False and the mismatch
-    still blocks.
+    the repo, an unreadable file, no resolvable ``origin/HEAD``/``origin/main``,
+    or a failed probe all return False and the mismatch still blocks.
 
     It cannot fail closed on git being unavailable, and does not claim to.
     ``_run_command`` catches only ``TimeoutExpired``, so a missing git binary
@@ -1139,11 +1098,11 @@ def _is_merged_history(repo_root: Path, path: Path) -> bool:
         relative = path.relative_to(repo_root).as_posix()
     except ValueError:
         return False
-    upstream = _resolve_upstream_default(repo_root)
-    if not upstream:
+    try:
+        content = path.read_bytes()
+    except OSError:
         return False
-    probe = _run_git(repo_root, ["cat-file", "-e", f"{upstream}:{relative}"])
-    return probe.returncode == 0
+    return _is_session_content_on_upstream_default(repo_root, relative, content)
 
 
 def _is_linked_worktree(repo_root: Path) -> bool:
@@ -1775,12 +1734,16 @@ def check_branch_context(repo_root: Path) -> int:
     another branch's newer session log into the tree, which would otherwise
     read as a mismatch. A committed merge is exempt on the same grounds but
     needs a different test, because ``MERGE_HEAD`` is gone by then while the
-    imported log stays and keeps winning the recency comparison forever. That
-    case requires both that the branch owns a recent log and that the newest
-    log already exists on the upstream default branch, which makes it settled
-    history rather than a claim about current work (issue #3343). A log
-    authored on another local branch is not upstream, so the co-mingling case
-    from issue #682 still blocks.
+    imported log stays and keeps winning the recency comparison forever. The
+    discriminator is whether the newest log already exists on the upstream
+    default branch, which makes it settled history rather than a claim about
+    current work (issue #3343). That is sufficient on its own: session log
+    creation is discontinued (``.claude/rules/session-logs.md`` MUST 1), so no
+    branch will ever again author its own same-day log to prove participation,
+    and a precondition requiring one would block every commit on every branch
+    the moment any other branch's same-day log lands upstream. A log authored
+    on another local branch and never merged is not upstream, so the
+    co-mingling case from issue #682 still blocks.
 
     A linked worktree gets a third exemption. Its ``.agents/sessions`` is a
     checkout of some branch's history, so a log present in ``HEAD`` names
@@ -1790,15 +1753,6 @@ def check_branch_context(repo_root: Path) -> int:
     The exemption is limited to logs present in the worktree's own ``HEAD``
     (the ``_is_committed_here`` probe): a log that exists only as an untracked
     working-tree file is a live claim, so a real mismatch there still blocks.
-
-    When none of the three exemptions clears the mismatch, the error message
-    is chosen by whether the branch already owns a session log and
-    ``_resolve_upstream_default`` can name a trunk at all. Those two facts
-    together (branch owns a log, trunk unresolvable) mean this checkout
-    cannot even ask whether the winning log is merged history, which is a
-    different failure than genuine co-mingling and points the reader at
-    ``git remote set-head origin --auto`` instead of the three co-mingling
-    remedies (issue #5220's second proposed fix).
     """
     try:
         if _merge_in_progress(repo_root):
@@ -1817,55 +1771,24 @@ def check_branch_context(repo_root: Path) -> int:
             return 0
         if current_branch == session_branch:
             return 0
-        branch_owns_a_log = _session_log_for_branch(sessions_dir, current_branch) is not None
-        if branch_owns_a_log and _is_merged_history(repo_root, session_log):
+        if _is_merged_history(repo_root, session_log):
             return 0
         if _is_linked_worktree(repo_root) and _is_committed_here(repo_root, session_log):
             return 0
-        _print_branch_context_mismatch(
-            repo_root, current_branch, session_branch, session_log, branch_owns_a_log
+        print(
+            "ERROR: branch context mismatch: "
+            f"current='{current_branch}', session='{session_branch}' "
+            f"(log: {session_log.name})",
+            file=sys.stderr,
+        )
+        print(
+            "  Fix: switch to the expected branch, or update the session log "
+            "branch field if this log is a staged/uncommitted mistake.",
+            file=sys.stderr,
         )
         return 1
     except Exception:
         return 0
-
-
-def _print_branch_context_mismatch(
-    repo_root: Path,
-    current_branch: str,
-    session_branch: str,
-    session_log: Path,
-    branch_owns_a_log: bool,
-) -> None:
-    """Print the ``check_branch_context`` block message, picking the right remedy.
-
-    Split out of ``check_branch_context`` to keep that function's cyclomatic
-    complexity at the repo ceiling of 10; this helper carries the branch that
-    chooses between the two remedy messages.
-    """
-    print(
-        "ERROR: branch context mismatch: "
-        f"current='{current_branch}', session='{session_branch}' "
-        f"(log: {session_log.name})",
-        file=sys.stderr,
-    )
-    if branch_owns_a_log and _resolve_upstream_default(repo_root) is None:
-        print(
-            "  This branch already owns a session log, so the mismatch may be "
-            "unresolvable trunk rather than co-mingling: neither origin/HEAD "
-            "nor origin/main resolves in this checkout. Try: git remote "
-            "set-head origin --auto (or fetch origin main), then re-run. If "
-            "the mismatch persists after that, switch to the expected "
-            "branch, update the session log branch field, or create a new "
-            "session log for the current branch.",
-            file=sys.stderr,
-        )
-    else:
-        print(
-            "  Fix: switch to the expected branch, update the session log branch "
-            "field, or create a new session log for the current branch.",
-            file=sys.stderr,
-        )
 
 
 def check_handoff(paths: Sequence[str], repo_root: Path) -> int:

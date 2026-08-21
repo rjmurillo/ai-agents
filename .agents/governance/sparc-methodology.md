@@ -94,7 +94,7 @@ Each phase produces artifacts. Quality gates block progression until criteria pa
 
 - Integration test results
 - Updated documentation
-- Session log with evidence
+- Per-issue handoff or transcript with evidence
 
 **Activities**:
 
@@ -165,8 +165,8 @@ The orchestrator selects the entry phase based on task complexity.
 
 ## Phase Tracking
 
-Track the current development phase in the plan or per-issue handoff. An
-optional session log may duplicate it.
+Track the current development phase in the plan or per-issue handoff. Session
+log creation is discontinued (`.claude/rules/session-logs.md` MUST 1).
 
 ```json
 {
@@ -203,7 +203,7 @@ Phase gates use the hybrid enforcement pattern from SKILL-PHASE-GATES.md:
 
 - Documentation gates in agent prompts (soft enforcement)
 - Script validation via `validate_phase_gates.py` (hard enforcement)
-- Session log tracking for audit trail
+- Per-issue handoff and Serena memory for audit trail (session log creation is discontinued)
 
 ## References
 

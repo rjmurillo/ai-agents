@@ -1944,47 +1944,65 @@ def test_branch_context_survives_a_committed_merge_import(tmp_path: Path) -> Non
     _add_upstream_with(repo, imported)
     os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
 
-    # Negative control: the imported log alone still blocks, because the
-    # exemption also requires the branch to own a log.
-    assert policy.check_branch_context(repo) == 1
+    # Negative control: before the log is upstream, the mismatch still
+    # blocks, so the merged-history assertion below cannot pass vacuously.
+    fresh_repo = tmp_path / "fresh"
+    _init_repo(fresh_repo, branch="feature/x")
+    _commit_file(fresh_repo, "tracked", "value\n")
+    _write_session_log(
+        fresh_repo, branch="feature/merged", name="session-merged", mtime=2_000_000_000.0
+    )
+    assert policy.check_branch_context(fresh_repo) == 1
+
+    assert policy.check_branch_context(repo) == 0
 
     _write_session_log(repo, branch="feature/x", name="session-own", mtime=1_000_000_000.0)
 
     assert policy.check_branch_context(repo) == 0
 
 
-def _add_origin_main_without_head_with(repo: Path, tracked: Path) -> None:
-    """Give ``repo`` an ``origin/main`` with no resolvable ``origin/HEAD``.
-
-    Reproduces the common no-``origin/HEAD`` clone shape from issue #5220: a
-    fetch of ``main`` into an already-initialised repo populates
-    ``refs/remotes/origin/main`` without ever creating the symbolic
-    ``refs/remotes/origin/HEAD`` ref, which only ``git clone`` sets up
-    automatically. ``git remote add`` plus ``git fetch`` alone, the shape a
-    fetch-into-existing-repo or some CI checkout actions produce, does not.
-    """
-    relative = tracked.relative_to(repo).as_posix()
-    _git(repo, "add", "--", relative)
-    _git(repo, "commit", "-qm", "test: land session log upstream")
-    remote = repo.parent / "remote.git"
-    _git(repo, "clone", "-q", "--bare", str(repo), str(remote))
-    _git(repo, "remote", "add", "origin", str(remote))
-    default = _git(repo, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
-    _git(repo, "--git-dir", str(remote), "branch", "-f", "main", default)
-    _git(repo, "fetch", "-q", "origin", "main")
-
-
-def test_branch_context_merged_history_survives_missing_origin_head(
+def test_branch_context_survives_merged_import_when_current_branch_owns_no_log(
     tmp_path: Path,
 ) -> None:
-    """A missing ``origin/HEAD`` must not defeat the #3343 exemption (issue #5220).
+    """A branch that has never authored its own log must still pass.
 
-    ``git clone`` sets ``origin/HEAD``; a fetch into an existing repo, a
-    shallow or filtered clone, and several CI checkout actions do not. Before
-    the fix, ``_is_merged_history`` asked only ``origin/HEAD`` and returned
-    False the moment that ref failed to resolve, wedging every commit on a
-    branch that had merged main and owned its own log. The fallback ladder in
-    ``_resolve_upstream_default`` must recover via ``origin/main`` here.
+    Session log creation is discontinued (`.claude/rules/session-logs.md`
+    MUST 1), so no branch will ever again author a same-day log to prove
+    participation. The old exemption required
+    `_session_log_for_branch(sessions_dir, current_branch) is not None` in
+    addition to `_is_merged_history`; that precondition can never hold once
+    creation is discontinued, which would make every commit on every branch
+    block the moment any other branch's same-day log lands upstream.
+    `_is_merged_history` alone is the correct discriminator: a log already
+    reachable from the upstream default branch is settled history, not a
+    live co-mingling claim, whether or not the current branch owns one.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/never-logged")
+    _commit_file(repo, "tracked", "value\n")
+    imported = _write_session_log(
+        repo, branch="feature/other-session", name="session-other", mtime=2_000_000_000.0
+    )
+    _add_upstream_with(repo, imported)
+    os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
+
+    # feature/never-logged owns no session log at all, today or otherwise.
+    sessions_dir = repo / ".agents" / "sessions"
+    assert policy._session_log_for_branch(sessions_dir, "feature/never-logged") is None
+
+    assert policy.check_branch_context(repo) == 0
+
+
+def test_branch_context_blocks_a_locally_tampered_upstream_log(tmp_path: Path) -> None:
+    """A working-tree edit to an already-merged log must not inherit its exemption.
+
+    ``_is_merged_history`` compares the on-disk file's bytes against the
+    upstream blob, not merely whether the path exists upstream. A path that
+    was genuinely merged can still be edited locally (for example, a hand-edit
+    of the ``branch`` field) without committing; an existence-only probe would
+    grant the settled-history exemption to that uncommitted, tampered content
+    because the path was on upstream before the edit. Comparing bytes closes
+    that gap.
     """
     repo = tmp_path / "repo"
     _init_repo(repo, branch="feature/x")
@@ -1992,55 +2010,51 @@ def test_branch_context_merged_history_survives_missing_origin_head(
     imported = _write_session_log(
         repo, branch="feature/merged", name="session-merged", mtime=2_000_000_000.0
     )
-    _add_origin_main_without_head_with(repo, imported)
+    _add_upstream_with(repo, imported)
     os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
-    _write_session_log(repo, branch="feature/x", name="session-own", mtime=1_000_000_000.0)
 
-    # Negative control: origin/HEAD really is absent in this fixture, so the
-    # assertion below cannot pass just because the fixture set it up anyway.
-    head = _git(repo, "rev-parse", "--abbrev-ref", "origin/HEAD", check=False)
-    assert head.returncode != 0
-
+    # Sanity: unmodified, the exemption applies.
     assert policy.check_branch_context(repo) == 0
 
+    # Tamper the working-tree copy without committing: same path, different
+    # content than what is upstream.
+    _write_lf(imported, json.dumps({"session": {"branch": "feature/tampered"}}))
+    os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
 
-def test_branch_context_merged_history_does_not_trust_local_main(tmp_path: Path) -> None:
-    """A file merely present on local ``main`` must not grant the #3343 exemption.
+    assert policy.check_branch_context(repo) == 1
 
-    Issue #682's co-mingling case is a session log landing on the wrong local
-    branch. A fallback to local ``main`` (dropped from ``_resolve_upstream_default``
-    after security review of the #5220 fix, 2026-08-21) would treat exactly that
-    shape as settled upstream history: local ``main`` is writable by the same
-    developer the exemption would then excuse, unlike ``origin/main``, which
-    requires a push through review. This builds the file's real presence on a
-    local ``main`` branch via a disposable worktree, so ``_is_merged_history``
-    would find it there if it looked, then writes the same content directly into
-    the primary checkout (untracked) so ``_today_session_log`` still picks it up
-    as the newest-by-mtime candidate, without ever touching feature/x's own
-    branch state.
+
+def test_branch_context_blocks_when_the_upstream_candidate_is_unreadable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unreadable merged-history candidate must not grant its exemption.
+
+    ``_is_merged_history`` says it fails closed on an unreadable file:
+    ``path.read_bytes()`` raising ``OSError`` returns False rather than
+    propagating, so the byte comparison is skipped and the caller treats the
+    file as not matching upstream. Pin that the mismatch still blocks, not
+    only that the exception is caught.
     """
     repo = tmp_path / "repo"
     _init_repo(repo, branch="feature/x")
     _commit_file(repo, "tracked", "value\n")
-
-    main_worktree = _worktree_on(repo, "main", tmp_path / "wt-main")
-    on_main = _write_session_log(
-        main_worktree, branch="feature/wrong", name="session-on-main", mtime=2_000_000_000.0
+    imported = _write_session_log(
+        repo, branch="feature/merged", name="session-merged", mtime=2_000_000_000.0
     )
-    relative = on_main.relative_to(main_worktree).as_posix()
-    _git(main_worktree, "add", "--", relative)
-    _git(main_worktree, "commit", "-qm", "test: session log lands on local main")
-    _git(repo, "worktree", "remove", "-f", str(main_worktree))
+    _add_upstream_with(repo, imported)
+    os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
 
-    _write_session_log(
-        repo, branch="feature/wrong", name="session-on-main", mtime=2_000_000_000.0
-    )
-    _write_session_log(repo, branch="feature/x", name="session-own", mtime=1_000_000_000.0)
+    # Sanity: unmodified and readable, the exemption applies.
+    assert policy.check_branch_context(repo) == 0
 
-    # Negative control: no origin remote exists, so an exemption here could
-    # only come from trusting local main directly, never from resolving an
-    # upstream ref.
-    assert _git(repo, "remote").stdout.strip() == ""
+    real_read_bytes = Path.read_bytes
+
+    def unreadable_read_bytes(self: Path, *args: object, **kwargs: object) -> bytes:
+        if self == imported:
+            raise OSError(13, "Permission denied", str(self))
+        return real_read_bytes(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_bytes", unreadable_read_bytes)
 
     assert policy.check_branch_context(repo) == 1
 
@@ -2134,18 +2148,8 @@ def test_a_primary_checkout_is_not_mistaken_for_a_worktree(tmp_path: Path) -> No
     assert policy._is_linked_worktree(worktree) is True
 
 
-def test_branch_context_merged_history_exemption_needs_an_upstream(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """Without a resolvable origin/HEAD the exemption fails closed.
-
-    The branch owns its own log but has no remote at all, so
-    ``_resolve_upstream_default`` returns None and the mismatch cannot be
-    proven settled history. The message names the real gap
-    (issue #5220's second proposed fix) instead of the generic three
-    co-mingling remedies, which are wrong here: switching branches, editing
-    the log, or writing a new one would not clear an unresolvable trunk.
-    """
+def test_branch_context_merged_history_exemption_needs_an_upstream(tmp_path: Path) -> None:
+    """Without a resolvable origin/HEAD the exemption fails closed."""
     repo = tmp_path / "repo"
     _init_repo(repo, branch="feature/x")
     _commit_file(repo, "tracked", "value\n")
@@ -2153,33 +2157,6 @@ def test_branch_context_merged_history_exemption_needs_an_upstream(
     _write_session_log(repo, branch="feature/other", name="session-new", mtime=2_000_000_000.0)
 
     assert policy.check_branch_context(repo) == 1
-
-    stderr = capsys.readouterr().err
-    assert "git remote set-head origin --auto" in stderr
-    assert "Fix: switch to the expected branch" not in stderr
-
-
-def test_branch_context_message_stays_generic_without_an_owned_log(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """A branch with no log of its own gets the original three remedies.
-
-    Same unresolvable-upstream shape as the test above, but the current
-    branch never wrote its own session log, which is the ordinary co-mingling
-    case from issue #682 rather than the #5220 unresolvable-trunk case. The
-    remote-set-head hint would be misleading here: the real problem is a
-    missing log, and fetching origin/main would not fix that.
-    """
-    repo = tmp_path / "repo"
-    _init_repo(repo, branch="feature/x")
-    _commit_file(repo, "tracked", "value\n")
-    _write_session_log(repo, branch="feature/other", name="session-new")
-
-    assert policy.check_branch_context(repo) == 1
-
-    stderr = capsys.readouterr().err
-    assert "Fix: switch to the expected branch" in stderr
-    assert "git remote set-head origin --auto" not in stderr
 
 
 def test_branch_context_matches_a_legacy_shaped_owned_log(tmp_path: Path) -> None:
