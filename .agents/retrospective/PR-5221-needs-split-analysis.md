@@ -13,7 +13,7 @@ document is the prescribed AI-agent retrospective for a PR carrying
 |---|---:|---:|
 | `docs(sessions)`: session-log content + `endingCommit` follow-up commits | 18 | 38% |
 | `docs(qa)`: QA report `qaCommit` rebind commits | 9 | 19% |
-| `docs(architecture)`: ADR-099 corrections across three review rounds | 6 | 13% |
+| `docs(architecture)`: ADR-102 corrections across three review rounds | 6 | 13% |
 | Catch-up merges of `origin/main` | 5 | 10% |
 | `test(qa-binding)` | 3 | 6% |
 | Everything else (one commit each: `style(validation)`, `fix(validation)`, `fix(tests)`, `fix(session)`, `fix(qa-report)`, `fix(ci)`, `docs(critique)`) | 7 | 15% |
@@ -48,7 +48,7 @@ for the verification record on each one).
 ## Is this one atomic change or several that should split?
 
 **One atomic change.** The PR is a single validator-behavior change
-(`session_qa_binding()`'s equality raise, ADR-099) plus its mandatory
+(`session_qa_binding()`'s equality raise, ADR-102) plus its mandatory
 governance trail (the ADR, its three-round debate log, the code, and the
 tests). `.claude/rules/ci-scripts.md` MUST-NOT-2 requires the ADR and
 implementation to land together; splitting the ADR from the code it accepts

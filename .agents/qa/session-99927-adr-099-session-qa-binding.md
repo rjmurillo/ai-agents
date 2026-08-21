@@ -4,7 +4,7 @@ qaSessionLog: .agents/sessions/2026-08-21-session-99927-9e1ebd2b8-adr-099-sessio
 qaCommit: 0dc7d0a254e3aa253b9c9895e008265f06f496d8
 ---
 
-# ADR-099 Session QA
+# ADR-102 Session QA
 
 ## Scope
 
@@ -19,7 +19,7 @@ wiring test and the fallback-head-path test added per Implementation Note 8,
 see below). Unrelated red-CI fixes
 carried on the same branch: `tests/ci/test_validate_vendor_provenance.py`
 (stale setup-uv SHA pin) and `.github/workflows/pytest.yml` (pip pin moved
-past PYSEC-2026-3721). Everything else on this branch is ADR-099 and its
+past PYSEC-2026-3721). Everything else on this branch is ADR-102 and its
 debate log, both documentation.
 
 ## Test Results
@@ -57,13 +57,13 @@ Separately reproduced the debate's lockstep-history measurement against
 (SHA-prefix-normalized), split 34 creations (fields born equal, nothing
 moved) and 8 modifications (7 genuine hand-syncs, 1 no-op), plus 2 genuine
 disagreements, both in commit `f7fc4ef88a5400be1c2102b40c9272c2629f0762`.
-All figures match what is now committed in ADR-099 and its debate log.
+All figures match what is now committed in ADR-102 and its debate log.
 
 ## Review Process
 
 `.claude/rules/ci-scripts.md` MUST-NOT-2 required an ADR before this code
-landed; `.agents/architecture/ADR-099-session-qa-binding-field-precedence.md`
-and its debate log (`.agents/critique/ADR-099-debate-log.md`) carry the
+landed; `.agents/architecture/ADR-102-session-qa-binding-field-precedence.md`
+and its debate log (`.agents/critique/ADR-102-debate-log.md`) carry the
 full record. The debate ran across three rounds: a disclosed single-reviewer
 pass, a genuine six-agent debate (five Accept/Disagree-and-Commit, one
 Block on the Context section's central claim), a Phase 2 conflict
@@ -112,7 +112,7 @@ re-run clean at 379 passed again on `06fa514b5`, and
 ## Fallback-Head-Path Test (Implementation Note 8)
 
 `ai-spec-validation`'s Implementation Completeness pass correctly flagged one
-gap: ADR-099 Implementation Note 8 asked for a test pinning the
+gap: ADR-102 Implementation Note 8 asked for a test pinning the
 fallback-head-path exposure named under "The laxer direction is bounded, not
 impossible", and no such test existed. Added
 `test_fallback_head_masks_a_real_change_between_the_two_fields`: with
@@ -181,7 +181,7 @@ rules for a settled multi-agent-reviewed decision.
 at 381 passed (380 plus the new identity test).
 `uv run ruff check .claude/lib/qa_report.py scripts/validate_session_json.py tests/test_validate_session_json.py src/copilot-cli/lib/qa_report.py`
 reported clean. A post-consensus entry documenting both fix classes was
-added to `.agents/critique/ADR-099-debate-log.md` in the same commit as the
+added to `.agents/critique/ADR-102-debate-log.md` in the same commit as the
 ADR prose fixes, since `git_hook_policy.py`'s `adr-review-policy` gate
 requires a debate log staged alongside any non-frontmatter ADR change.
 
@@ -224,7 +224,7 @@ carried a frozen commit-count list the episode extractor's own SHA count
 had outgrown; this report's Test Results table claimed 380 passed where
 the file now has 381, and its second row restricted a keyword-filtered
 run to this single file while reporting a count (565) larger than that
-file's own total; and ADR-099's "Why Change Now" section stated the
+file's own total; and ADR-102's "Why Change Now" section stated the
 fallback-path condition backwards (`binding.commit`-as-head bounded
 "on the normal (non-fallback) path" when `scripts/validate_session_json.py:992`
 shows it is exactly the fallback path). All three fixed: the session log's
