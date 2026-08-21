@@ -478,7 +478,7 @@ pre-push:
               - "**/*.py"
               - "**/*.pyi"
               - "**/*.ipynb"
-              - "pyproject.toml"
+              - "**/pyproject.toml"
               - "scripts/ci/ruff_count_baseline.txt"
           - name: taste-count-ratchet
             timeout: 5m

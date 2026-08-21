@@ -210,6 +210,19 @@ def test_the_filter_still_skips_tracked_session_markdown():
     )
 
 
+def test_the_filter_covers_a_nested_pyproject_toml():
+    """A ruff-config-only edit to a nested pyproject.toml can move the whole-tree
+    ruff count ratchet (packages/semantic-hooks/pyproject.toml declares its own
+    [tool.ruff]), so the CI gate must trigger on it, not only the repo-root file.
+    """
+    nested = "packages/semantic-hooks/pyproject.toml"
+    assert (REPO_ROOT / nested).is_file(), f"{nested} moved; update this test's target"
+    assert _selected(nested, _python_filter()), (
+        f"{nested} matches no entry in pytest.yml's `python` filter, so a push "
+        "touching only that nested ruff config skips the whole-tree count ratchet."
+    )
+
+
 class TestSelectPathsFilter:
     def test_a_decoy_step_carrying_filters_is_not_selected(self):
         decoy = {"name": "some later step", "with": {"filters": "python:\n  - '**/*.md'\n"}}

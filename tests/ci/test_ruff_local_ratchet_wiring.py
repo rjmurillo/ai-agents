@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import ast
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import yaml
@@ -68,7 +68,7 @@ def test_whole_tree_ruff_count_ratchet_blocks_in_pre_push() -> None:
         "**/*.py",
         "**/*.pyi",
         "**/*.ipynb",
-        "pyproject.toml",
+        "**/pyproject.toml",
         "scripts/ci/ruff_count_baseline.txt",
     ]
 
@@ -83,6 +83,20 @@ def test_count_ratchet_globs_cover_scan_globs() -> None:
         assert expected_glob in configured_globs, (
             f"_SCAN_GLOBS has {pattern!r} but lefthook is missing {expected_glob!r}"
         )
+
+
+def test_count_ratchet_glob_covers_nested_pyproject_toml() -> None:
+    """A ruff-config-only edit to a nested pyproject.toml can move the whole-tree
+    count (packages/semantic-hooks/pyproject.toml declares its own [tool.ruff]),
+    so the trigger glob must reach it, not only the repo-root file.
+    """
+    job = _job("python-lint-count-ratchet")
+
+    nested = "packages/semantic-hooks/pyproject.toml"
+    assert (_REPO_ROOT / nested).is_file(), f"{nested} moved; update this test's target"
+    assert any(
+        PurePosixPath(nested).full_match(pattern) for pattern in job["glob"]
+    ), f"{nested} matches no entry in {job['glob']!r}"
 
 
 def test_ruff_ratchets_have_distinct_local_blocking_jobs() -> None:

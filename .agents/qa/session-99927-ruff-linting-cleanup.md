@@ -138,9 +138,14 @@ reason to exist.
 Both files were reverted to their `origin/main` content, and the existing
 `per-file-ignores` entry for `.agents/security/benchmarks/**/*.py`, which
 already waived `RUF100` with an answer-key rationale, was widened to `I001` and
-`E501`. Verified: `git diff --name-only origin/main...HEAD` lists neither file,
-so the corpus is byte-identical to main and `.claude/rules/security.md` MUST-5
-needs no benchmark update.
+`E501`. A later commit narrowed that glob to
+`.agents/security/benchmarks/vulnerable_samples/**/*.py`, the only subtree
+carrying the long lines and `noqa: S###` directives the waiver exists for,
+after a Copilot review flagged the wider glob as an avoidable blind spot for
+`test_*.py` and `conftest.py`. Verified: `git diff --name-only
+origin/main...HEAD` lists neither `vulnerable_samples/` file, so the corpus is
+byte-identical to main and `.claude/rules/security.md` MUST-5 needs no
+benchmark update.
 
 This is the one place the zero count rests on a waiver rather than a code fix,
 and it covers three files in a corpus that is graded by external scanners rather
