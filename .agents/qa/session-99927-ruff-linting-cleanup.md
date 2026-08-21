@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99927-ruff-linting-cleanup.json
-qaCommit: 839eb53a44032f34a9a1b9076dcb276c4dca539e
+qaCommit: 8e88e13ba66770cf0a05f317c88226960723f424
 ---
 
 # QA Report: repo-wide ruff cleanup and zero-baseline guard
@@ -87,9 +87,13 @@ $ uv run pytest tests/test_req003_migration.py \
 
 $ uv run pytest tests/test_validate_pr_review_config.py -q
 57 passed in 0.65s
+
+$ uv run pytest <the four files above> tests/test_validate_pr_review_config.py \
+    tests/ci/test_validate_vendor_provenance.py -q
+155 passed in 11.19s
 ```
 
-105 tests, 0 failures.
+155 tests, 0 failures. Re-run after merging origin/main, which is the commit the qaCommit above names.
 
 ### Behavior-preservation probes for the two sensitive files
 
@@ -165,6 +169,6 @@ for prior art beyond what the repository files record.
 
 ## Verdict
 
-PASS. Lint clean at 0, the ratchet agrees at 0, 105 tests green, and both
+PASS. Lint clean at 0, the ratchet agrees at 0, 155 tests green, and both
 sensitive files carry direct behavior-preservation evidence rather than an
 inference from coverage.

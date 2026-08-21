@@ -142,11 +142,16 @@
     {
       "action": "Noted that a bare uv run mypy over the changed set is not the gate.",
       "result": "It reported only a duplicate-module collision between the canonical skill script and its generated mirror. run_mypy's _mypy_invocations already splits basename collisions into separate invocations, so the real gate never sees that error. Reading the gate rather than trusting the ad-hoc command is what surfaced the three genuine errors."
+    },
+    {
+      "action": "python-tests failed the pre-push gate on tests/ci/test_validate_vendor_provenance.py::test_workflow_sets_up_uv, a workflow this branch never touched.",
+      "result": "The test expected setup-uv pinned to ae62891f while the workflow carried 20cfd1bf. Reproduced the same disagreement on origin/main, so it was not this branch's. The branch was 2 commits behind, and caae865fb plus a1ee96695 had bumped the pin and its expectation together. git merge origin/main resolved it with no source edit, which is the first diagnostic step ci-scripts.md MUST-14 prescribes for exactly this shape."
     }
   ],
-  "endingCommit": "839eb53a44032f34a9a1b9076dcb276c4dca539e",
+  "endingCommit": "8e88e13ba66770cf0a05f317c88226960723f424",
   "nextSteps": [
     "Watch the ruff count ratchet on the PR: with the baseline at 0 any new violation now blocks rather than being absorbed by slack.",
-    "Consider whether packages/semantic-hooks/pyproject.toml should inherit the root ruff per-file-ignores instead of redeclaring its own select list, so the two configs cannot drift again."
+    "Consider whether packages/semantic-hooks/pyproject.toml should inherit the root ruff per-file-ignores instead of redeclaring its own select list, so the two configs cannot drift again.",
+    "Two merged session logs from other branches also carry session number 99927 (qa-gate-pr-feedback and python-security-checks-ci). Numbers are not unique across concurrent branches today; worth a follow-up if any tool assumes they are."
   ]
 }
