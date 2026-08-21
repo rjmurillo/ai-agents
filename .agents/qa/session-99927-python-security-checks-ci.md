@@ -1,12 +1,25 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99927-9e1ebd2b8-python-security-checks-ci.json
-qaCommit: ed791858e3ed9faae9f2538bf4f19c121dae32f4
+qaCommit: 6e3ebfd566c14dfff6a715421c328182bfa2cf41
 ---
 
 # Python Security Checks CI Session QA
 
 ## Scope
+
+`qaCommit` is rebound past its original commit (`ed791858e`, the
+vendor-provenance test fix) to `6e3ebfd56`, the merge of `origin/main` into
+this branch. Between those two commits, `origin/main` had independently
+landed the identical `test_workflow_sets_up_uv` fix (PR #5219, in parallel
+with this session) with a more robust implementation (parses the workflow
+YAML and asserts on the `Setup uv` step's `uses` field, rather than a raw
+substring search, per `testing.md` MUST 9). The merge conflicted on that
+one test; resolved by taking `origin/main`'s version in full (confirmed
+byte-identical to `origin/main`'s copy of the file post-merge). No other
+source file changed in the merge; the rest of the diff between the two
+`qaCommit` values is `origin/main`'s own unrelated ADR-096 frontmatter fix
+and its session/QA evidence files.
 
 Two source commits this session, both closing issue #5222's Python Security
 Checks CI red:

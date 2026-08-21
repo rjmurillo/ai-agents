@@ -74,7 +74,7 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Two commits: 8856bea (.github/workflows/pytest.yml pip pin bump, Fixes #5222) and ed791858e (tests/ci/test_validate_vendor_provenance.py stale-SHA repair, Refs #5222), plus this session log and its QA report."
+        "evidence": "Three commits: 8856bea (.github/workflows/pytest.yml pip pin bump, Fixes #5222), ed791858e (tests/ci/test_validate_vendor_provenance.py stale-SHA repair, Refs #5222), and this session log's own commit; plus a merge commit (6e3ebfd56) resolving a conflict against a concurrently-landed fix on origin/main (PR #5219)."
       },
       "validationPassed": {
         "complete": true,
@@ -118,9 +118,13 @@
     {
       "action": "Ran the full local pre-push gate to completion after both fixes.",
       "result": "python-tests: 27655 passed, 73 skipped, 0 failed. pre-pr-validation: all validations passed once this session log carried the complete required checklist."
+    },
+    {
+      "action": "PR #5225's mergeable_state was dirty against origin/main, which had moved by one commit (PR #5219) since this branch was cut. PR #5219 independently fixed the identical test_workflow_sets_up_uv bug this session also fixed, in parallel, with a more robust implementation (parses the workflow YAML and asserts on the Setup uv step's uses field, per testing.md MUST 9, instead of a raw substring search).",
+      "result": "Merged origin/main (6e3ebfd56); resolved the single conflict by taking origin/main's version of the test in full, confirmed byte-identical post-merge. Rebound this QA report's qaCommit and this log's endingCommit past the merge, per the same rebind pattern PR #5219's own session used and per session-logs.md rule 3 (re-point endingCommit after history-changing operations)."
     }
   ],
-  "endingCommit": "ed791858e3ed9faae9f2538bf4f19c121dae32f4",
+  "endingCommit": "6e3ebfd566c14dfff6a715421c328182bfa2cf41",
   "nextSteps": [
     "Push the branch and open the PR with Fixes #5222.",
     "Watch CI: Python Security Checks should go green on this PR now that pip 26.2 has no known vulnerabilities against the three retained ignores."

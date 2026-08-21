@@ -84,6 +84,28 @@
       "caused_by": [
         "e007"
       ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-python-security-checks-ci"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "PR #5225's mergeable_state was dirty against origin/main, which had moved by one commit (PR #5219) since this branch was cut. PR #5219 independently fixed the identical test_workflow_sets_up_uv bug this session also fixed, in parallel, with a more robust implementation (parses the workflow YAML and asserts on the Setup uv step's uses field, per testing.md MUST 9, instead of a raw substring search).",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-python-security-checks-ci"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-21T16:30:14+00:00",
+      "type": "commit",
+      "content": "Commit: 6e3ebfd566c14dfff6a715421c328182bfa2cf41",
+      "caused_by": [
+        "e008"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-99927-9e1ebd2b8-python-security-checks-ci"
     }
@@ -93,8 +115,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 4
+    "commits": 3,
+    "files_changed": 5
   },
   "lessons": []
 }
