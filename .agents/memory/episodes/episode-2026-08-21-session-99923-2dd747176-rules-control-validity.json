@@ -1,0 +1,81 @@
+{
+  "id": "episode-2026-08-21-session-99923-2dd747176-rules-control-validity",
+  "session": "2026-08-21-session-99923-2dd747176-rules-control-validity",
+  "timestamp": "2026-08-21T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Land the testing.md control-validity rule from the PR #5176 retrospective as its own change. PR #5176 already carries the needs-split label at 17 changed files, so adding two rule items to it grows a diff a reviewer has asked to shrink. No rule requires the split: an earlier wording here cited claude-agents.md MUST NOT 2, which reads \"MUST NOT bundle skill code changes with memory changes in the same PR\" and governs a different pairing. Copilot found it.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-21T02:04:03+00:00",
+      "type": "commit",
+      "content": "Commit: 51666a3a632902091cd81489c4c979df90815716",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-control-validity"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-21T04:57:29+00:00",
+      "type": "commit",
+      "content": "Commit: 7f3850a4a437c394509e2d0025364b88b8cb3e8f",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-control-validity"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-21T06:10:08+00:00",
+      "type": "commit",
+      "content": "Commit: 0b81de54f2610c83e807bd2e7d57f6a217dc50c4",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-control-validity"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-21T06:34:04+00:00",
+      "type": "commit",
+      "content": "Commit: cbb105059da3bea423c5d17dbcc217b0b59c6712",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-control-validity"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-21T06:57:39+00:00",
+      "type": "commit",
+      "content": "Commit: 8a3904182446dea6d133aafc2d07b5f16eb422f3",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-control-validity"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 5,
+    "files_changed": 6
+  },
+  "lessons": []
+}

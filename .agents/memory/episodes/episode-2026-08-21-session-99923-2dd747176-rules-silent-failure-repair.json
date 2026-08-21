@@ -1,0 +1,237 @@
+{
+  "id": "episode-2026-08-21-session-99923-2dd747176-rules-silent-failure-repair",
+  "session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair",
+  "timestamp": "2026-08-21T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Land the repair-to-a-silent-failure rule from the PR #5176 retrospective as its own change, in a different rule file from issue #5187 so the two PRs cannot conflict",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-21T02:18:39+00:00",
+      "type": "commit",
+      "content": "Commit: 14d6c91f1979747c56c1d76c2b24be7dfd59694b",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-21T05:09:20+00:00",
+      "type": "commit",
+      "content": "Commit: 42d82daa4e3fb2dec57d9b86da3482e8b62fa59c",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-21T05:23:47+00:00",
+      "type": "commit",
+      "content": "Commit: 414513ea4241901b8b572d90a1062d3be5cf7539",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-21T05:34:59+00:00",
+      "type": "commit",
+      "content": "Commit: ea408a48cae4eed3b0e15bc3f8c4c5dfebcea8b4",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-21T05:22:56+00:00",
+      "type": "commit",
+      "content": "Commit: 268988b0d",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-21T05:23:47+00:00",
+      "type": "commit",
+      "content": "Commit: dc99b4502",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-21T05:50:27+00:00",
+      "type": "commit",
+      "content": "Commit: 6027185de1e66e9ecdf74c7c90ad031cc7258262",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-21T06:00:26+00:00",
+      "type": "commit",
+      "content": "Commit: 09dab8e3e59e1f373bc0353d4ef193d0de3d974e",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-21T06:44:34+00:00",
+      "type": "commit",
+      "content": "Commit: fb50f3d5a282792b85a98f1b84d477149fd041ed",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-21T07:07:44+00:00",
+      "type": "commit",
+      "content": "Commit: 59ee31ff7d40cb88a586a8bc05d3125e4d157b21",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-21T07:17:31+00:00",
+      "type": "commit",
+      "content": "Commit: bc980a8698ffba26e510f86c254e7087b9e6dcbe",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-21T07:49:05+00:00",
+      "type": "commit",
+      "content": "Commit: fa33fc560c8982416b4e83f27f24b0f24595e7f5",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-21T08:18:55+00:00",
+      "type": "commit",
+      "content": "Commit: 6fb5d0e4bf17ab812665402ae2db5aa6b1ecabe8",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-21T08:29:31+00:00",
+      "type": "commit",
+      "content": "Commit: d1582d4a7157806b3cebb479fe9cc629d1da0ea6",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-21T08:40:34+00:00",
+      "type": "commit",
+      "content": "Commit: 73769ed28b0be52c76faf21e5f6fe227e520db85",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-21T08:51:47+00:00",
+      "type": "commit",
+      "content": "Commit: c85ee7e462774c30cbd1cb12a2fdf74b75862e02",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-21T08:55:03+00:00",
+      "type": "commit",
+      "content": "Commit: b23ff86e2ed739fe9adb1a855ef0fc65fdf7476e",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 17,
+    "files_changed": 6
+  },
+  "lessons": []
+}

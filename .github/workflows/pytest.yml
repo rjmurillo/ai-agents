@@ -490,19 +490,20 @@ jobs:
       - name: Run pip-audit
         run: |
           # Keep the audited environment on the first fixed pip release for
-          # PYSEC-2026-196. CI hit pip 26.1.1 after setup-code-env installed
-          # dependencies, and pip-audit reports the fixed version as 26.1.2.
+          # PYSEC-2026-3721 (fixed in 26.2; issue #5222). Pip 26.1.2 was the
+          # prior fix for PYSEC-2026-196 (issue #2438) and has since become
+          # the vulnerable version for PYSEC-2026-3721 itself.
 
           # Ignored CVEs (re-evaluate when upstream releases a fix):
           #   CVE-2026-4539: pygments 2.19.2, no fix available.
           #   CVE-2026-3219: historical pip 26.0/26.0.1 finding for
           #     concatenated tar/ZIP archives. The runner is upgraded to pip
-          #     26.1.2 below; keep this ignore only while pip-audit still
+          #     26.2 below; keep this ignore only while pip-audit still
           #     reports stale transitive runner metadata after that upgrade.
           #   CVE-2026-6357: historical pip 26.0.x finding in the same
           #     local-only class as CVE-2026-3219. Remove this ignore when
-          #     pip-audit no longer reports it after the pip 26.1.2 upgrade.
-          python -m pip install --upgrade "pip==26.1.2"
+          #     pip-audit no longer reports it after the pip 26.2 upgrade.
+          python -m pip install --upgrade "pip==26.2"
           pip-audit \
             --ignore-vuln CVE-2026-4539 \
             --ignore-vuln CVE-2026-3219 \
@@ -591,7 +592,7 @@ jobs:
           python-version: '3.14'
 
       - name: Install uv
-        uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v10.0.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
 
