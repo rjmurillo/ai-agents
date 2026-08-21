@@ -12,6 +12,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -992,9 +993,18 @@ class TestWorkflowContract:
     """Verify the workflow YAML passes both Copilot mirror args."""
 
     def test_workflow_sets_up_uv(self) -> None:
-        """vendor-provenance.yml must install uv before validation."""
+        """vendor-provenance.yml must install uv, pinned to a SHA.
+
+        Asserts the property the docstring has always claimed (uv is
+        installed) plus the one `.claude/rules/universal.md` MUST 8 requires
+        (the reference is pinned to a commit SHA, never a floating tag). It
+        does not pin one specific SHA: this assertion previously hardcoded
+        `ae62891f...`, which Renovate invalidated in PR #5215 when it bumped
+        the workflow to v10.0.1. That left the test red on main for every
+        contributor while asserting nothing the bump had actually broken.
+        """
         wf = Path(".github/workflows/vendor-provenance.yml").read_text()
-        assert "astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d" in wf
+        assert re.search(r"astral-sh/setup-uv@[0-9a-f]{40}\b", wf) is not None
 
     def test_required_check_context_matches_job_name(self) -> None:
         """The documented required-check context must be the emitted context.
