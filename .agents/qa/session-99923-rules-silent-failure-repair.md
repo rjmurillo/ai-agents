@@ -138,6 +138,56 @@ repository gates on, which is why it did not have to be traded against coverage.
 Whether it is free to a contributor editing `tests/` is a different question and
 the answer there is no.
 
+## Verification output, persisted rather than asserted
+
+Two of this PR's acceptance criteria are about the artifacts rather than the rule,
+and a reviewer reading only the diff cannot confirm either from prose. The spec
+validator said so: "the persisted artifact does not include command output proving
+each SHA resolution at review time", and reachability "is not directly provable
+from episode content itself". Both are fair. A criterion whose evidence lives only
+in a transcript is a claim wider than any available check, which is this rule's
+own subject pointed the other way. So the output lives here.
+
+Measured at `f344b01fb`. Re-run both before trusting them; a later commit changes
+the second block.
+
+Every commit SHA named in the PR description resolves:
+
+```
+$ for sha in 15f95d2b6 ea408a48c 09dab8e3e dc99b4502 59ee31ff7 bc980a869 6dfc77f33; do
+    printf '%s ' "$sha"; git cat-file -e "$sha" && echo resolves || echo MISSING; done
+15f95d2b6 resolves
+ea408a48c resolves
+09dab8e3e resolves
+dc99b4502 resolves
+59ee31ff7 resolves
+bc980a869 resolves
+6dfc77f33 resolves
+```
+
+Every commit event in the shipped episode is reachable from at least one named
+ref, ids are contiguous, and `metrics.commits` matches the event count. The
+reachability probe is `git for-each-ref --contains`, which is what
+`extract_session_episode._sha_is_reachable` uses and what `git cat-file -e` cannot
+substitute for: a dangling object still resolves.
+
+```
+e001 14d6c91f1 -> 2 ref(s)      e007 6027185de -> 2 ref(s)
+e002 42d82daa4 -> 2 ref(s)      e008 09dab8e3e -> 2 ref(s)
+e003 414513ea4 -> 2 ref(s)      e009 fb50f3d5a -> 2 ref(s)
+e004 ea408a48c -> 2 ref(s)      e010 59ee31ff7 -> 2 ref(s)
+e005 268988b0d -> 2 ref(s)      e011 bc980a869 -> 2 ref(s)
+e006 dc99b4502 -> 2 ref(s)      e012 fa33fc560 -> 2 ref(s)
+
+ids contiguous e001..e012: True
+metrics.commits == commit events: True
+```
+
+`e012` is `fa33fc560`, added by the `extract-session-episodes` pre-commit hook
+during the following rebind commit. That commit's message says the episode was
+"deliberately not regenerated here", which the hook made untrue seconds later.
+Recorded rather than left standing, because a commit message is a durable claim.
+
 ## Verdict
 
 PASS.
