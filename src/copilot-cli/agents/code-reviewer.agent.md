@@ -19,7 +19,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
 model: claude-haiku-4.5
-tier: builder
+role: executor
 ---
 
 # Code Reviewer Agent

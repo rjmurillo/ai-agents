@@ -11,7 +11,7 @@ tools:
   - github.vscode-pull-request-github/*
   - serena/*
 model: Claude Opus 4.6 (copilot)
-tier: manager
+role: coordinator
 ---
 # PR Comment Responder Agent
 

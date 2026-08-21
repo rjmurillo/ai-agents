@@ -3,7 +3,7 @@ name: architect
 description: Technical authority on system design who guards architectural coherence, enforces patterns, and maintains boundaries. Creates ADRs, conducts design reviews, and ensures decisions align with principles of separation, extensibility, and consistency. Use for governance, trade-off analysis, and blueprints that protect long-term system health.
 model: opus
 metadata:
-  tier: expert
+  role: strategic
 # Requires fresh context and separate tool state to make architecture decisions without inherited assumptions.
 isolation_required: true
 argument-hint: Describe the design decision, review request, or ADR topic

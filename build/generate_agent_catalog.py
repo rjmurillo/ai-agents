@@ -2,7 +2,7 @@
 """Generate docs/agent-catalog.md from templates/agents/*.shared.md.
 
 Reads each shared agent source under templates/agents/, parses its YAML
-frontmatter for the agent description and tier, derives the agent name from
+frontmatter for the agent description and role, derives the agent name from
 the filename, counts the file's lines of code, and emits a single markdown
 table to docs/agent-catalog.md.
 
@@ -12,7 +12,7 @@ changes. scripts/validation/validate_agent_catalog.py regenerates to a buffer
 and fails on drift so a stale catalog cannot ship.
 
 Agent name is derived from the filename (the ``<name>.shared.md`` stem) because
-the templates carry no ``name:`` field; the description and tier come from the
+the templates carry no ``name:`` field; the description and role come from the
 frontmatter.
 
 EXIT CODES (ADR-035):
@@ -60,13 +60,13 @@ _HEADER = (
     "> Validated by: `scripts/validation/validate_agent_catalog.py`.\n"
     "\n"
     "Auto-generated index of every agent template under `templates/agents/`.\n"
-    "Each row links the agent name to its tier, line count, and description.\n"
+    "Each row links the agent name to its role, line count, and description.\n"
     "Run `uv run python build/generate_agent_catalog.py` to refresh after a template\n"
     "change; CI fails if this file drifts from the templates.\n"
     "\n"
 )
 
-_TABLE_HEADER = "| Agent | Tier | LOC | Description |\n| --- | --- | --- | --- |\n"
+_TABLE_HEADER = "| Agent | Role | LOC | Description |\n| --- | --- | --- | --- |\n"
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,7 +74,7 @@ class AgentEntry:
     """One row of the catalog, derived from a single agent template."""
 
     name: str
-    tier: str
+    role: str
     loc: int
     description: str
 
@@ -151,6 +151,30 @@ def _require_frontmatter_string(frontmatter: dict[str, object], key: str, templa
     return stripped
 
 
+# Must stay in sync with _KNOWN_ROLES in scripts/openclaw_bridge.py and
+# _KNOWN_ROLES in scripts/validation/validate_copilot_agent_frontmatter.py.
+_KNOWN_ROLES = frozenset({"strategic", "coordinator", "executor", "support"})
+
+
+def _require_role(frontmatter: dict[str, object], template: Path) -> str:
+    """Return a role from the closed set, or raise CatalogError.
+
+    The Copilot frontmatter validator constrains this field and this generator
+    did not, so a typo passed here and rendered into docs/agent-catalog.md as
+    though it were a real role. Two consumers disagreeing about what counts as
+    valid is how a stale value survives one gate by going through the other.
+    Refs #5130 review.
+    """
+    role = _require_frontmatter_string(frontmatter, "role", template)
+    if role not in _KNOWN_ROLES:
+        known = ", ".join(sorted(_KNOWN_ROLES))
+        raise CatalogError(
+            f"frontmatter field 'role' in {template} is {role!r}; "
+            f"expected one of: {known}"
+        )
+    return role
+
+
 def build_entry(template: Path) -> AgentEntry:
     """Build a catalog entry from one agent template file."""
     try:
@@ -160,11 +184,11 @@ def build_entry(template: Path) -> AgentEntry:
 
     frontmatter = _parse_frontmatter(content, template)
     description = _require_frontmatter_string(frontmatter, "description", template)
-    tier = _require_frontmatter_string(frontmatter, "tier", template)
+    role = _require_role(frontmatter, template)
 
     return AgentEntry(
         name=_agent_name_from_path(template),
-        tier=tier,
+        role=role,
         loc=_count_loc(content),
         description=description,
     )
@@ -181,7 +205,7 @@ def render_catalog(entries: Sequence[AgentEntry]) -> str:
     """Render the full markdown catalog from the collected entries."""
     rows = [
         f"| [{entry.name}](../templates/agents/{entry.name}.shared.md) "
-        f"| {_escape_cell(entry.tier)} "
+        f"| {_escape_cell(entry.role)} "
         f"| {entry.loc} "
         f"| {_escape_cell(entry.description)} |"
         for entry in entries

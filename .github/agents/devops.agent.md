@@ -21,7 +21,7 @@ tools:
   - github/search_issues
   - github/search_repositories
   - serena/*
-tier: builder
+role: executor
 ---
 # DevOps Agent
 

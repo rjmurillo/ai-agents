@@ -19,7 +19,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
 model: claude-sonnet-4.6
-tier: integration
+role: support
 ---
 
 # Comment Analyzer Agent

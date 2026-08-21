@@ -1,5 +1,5 @@
 ---
-tier: builder
+role: executor
 model_tier: opus
 # Implements code in an isolated workspace with tool access and branch-local state.
 isolation_required: true

@@ -7,7 +7,7 @@ tools:
   - edit
   - cloudmcp-manager/*
   - serena/*
-tier: expert
+role: strategic
 ---
 
 # Roadmap Agent

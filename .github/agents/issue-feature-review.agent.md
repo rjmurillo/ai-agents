@@ -12,7 +12,7 @@ tools:
   - github/list_commits
   - cloudmcp-manager/*
   - serena/*
-tier: manager
+role: coordinator
 ---
 
 # Issue Feature Review Agent

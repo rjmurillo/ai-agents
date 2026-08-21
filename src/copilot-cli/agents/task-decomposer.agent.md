@@ -9,7 +9,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
 model: claude-opus-4.6
-tier: integration
+role: support
 ---
 # Task Decomposer Agent
 

@@ -9,7 +9,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
   - memory
-tier: integration
+role: support
 ---
 
 # Explainer Agent

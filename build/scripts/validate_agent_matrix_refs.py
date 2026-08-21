@@ -58,7 +58,8 @@ as an agent only when it opens with a YAML frontmatter block carrying a
 non-empty string ``description:`` key. Both fences must be complete lines: a
 substring search for ``\n---`` accepted ``---not-a-closing-fence`` and admitted
 a malformed document as an agent. Measured across all six trees that rule keeps
-all 175 agent files and excludes exactly four suffix-matching sibling documents:
+all 186 agent definitions out of 190 suffix-matching files, excluding exactly
+four sibling documents:
 ``.claude/agents/AGENTS.md``, ``.claude/agents/CLAUDE.md``,
 ``src/claude/AGENTS.md``, and ``src/claude/claude-instructions.template.md``. It
 also fully subsumes the uppercase-stem filter it replaced.
@@ -498,6 +499,22 @@ def nested_agent_definitions(
     references/`` already ships three such files, and they carry no agent
     frontmatter, so requiring frontmatter is what separates a misplaced agent
     from reference material.
+
+    A file whose frontmatter is BROKEN is reported too, under its own message.
+    Gating solely on :func:`is_agent_definition` left a hole that both the
+    ``critic`` and ``independent-thinker`` passes on PR #5177 found
+    independently: a malformed nested file is not a definition, so it was
+    skipped here, and the test-side corpus never sees it because
+    ``_agent_files`` globs each tree non-recursively. It therefore escaped this
+    guard, the fail-closed corpus guard, tree discovery, and all three role
+    consumers at once.
+
+    Broken means the file opens a fence and the block does not yield a YAML
+    mapping: unclosed, unparseable, or a scalar. A well-formed mapping that
+    simply carries no ``description`` stays silent, because that is a sidecar
+    note and not a botched agent. Splitting on brokenness rather than on the
+    presence of a fence is what keeps ``references/notes.md`` silent while
+    catching the unbalanced-quote case.
     """
     found: list[str] = []
     for path in sorted(tree_root.rglob(f"*{suffix}")):
@@ -505,15 +522,53 @@ def nested_agent_definitions(
             continue
         if not path.name[: -len(suffix)]:
             continue
-        if not is_agent_definition(path):
-            continue
         shown = path.relative_to(repo_root) if repo_root else path
         tree_shown = tree_root.relative_to(repo_root) if repo_root else tree_root
+        if not is_agent_definition(path):
+            if _frontmatter_is_broken(path):
+                found.append(
+                    f"{shown}: file in a subdirectory opens a frontmatter block "
+                    f"that does not parse. A broken agent is invisible to every "
+                    f"role guard, so fix the frontmatter and move it to "
+                    f"{tree_shown.as_posix()}/*{suffix}, or drop the opening "
+                    f"fence if it is reference material."
+                )
+            continue
         found.append(
             f"{shown}: agent definition in a subdirectory. Hosts load only the "
             f"flat form {tree_shown.as_posix()}/*{suffix}; move it up one level."
         )
     return found
+
+
+def _frontmatter_is_broken(path: Path) -> bool:
+    """Report whether ``path`` opens a frontmatter block that does not parse.
+
+    Answers True only for a file that declares frontmatter and then fails to
+    produce a YAML mapping from it. A file with no opening fence answers False
+    (it is prose), and so does one whose block loads cleanly but carries no
+    ``description`` (it is a sidecar note).
+
+    The fence rules are :func:`agent_frontmatter`'s, deliberately: a helper that
+    disagreed with it about where a block starts would report files that
+    function correctly, or miss ones that do not. Unreadable files answer False
+    because this helper only escalates a refusal that already happened, and an
+    unreadable file is not evidence of an intended definition.
+    """
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeDecodeError):
+        return False
+    if not (opened := FRONTMATTER_OPEN.match(text)):
+        return False
+    close = FRONTMATTER_CLOSE.search(text, opened.end())
+    if close is None:
+        return True
+    try:
+        block = yaml.load(text[opened.end() : close.start()], Loader=FrontmatterLoader)
+    except (DuplicateFrontmatterKey, yaml.YAMLError):
+        return True
+    return not isinstance(block, dict)
 
 
 def frontmatter_name_mismatches(repo_root: Path, tree: Path, suffix: str) -> list[NameMismatch]:

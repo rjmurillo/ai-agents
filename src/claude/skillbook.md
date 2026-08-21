@@ -3,7 +3,7 @@ name: skillbook
 description: Skill manager who transforms reflections into high-quality atomic skillbook updates, guarding strategy quality, preventing duplicates, and maintaining learned patterns. Scores atomicity, runs deduplication checks, rejects vague learnings. Use for skill persistence, validation, or keeping institutional knowledge clean and actionable.
 model: sonnet
 metadata:
-  tier: integration
+  role: support
 argument-hint: Describe the learning, pattern, or strategy to encode as a skill
 ---
 

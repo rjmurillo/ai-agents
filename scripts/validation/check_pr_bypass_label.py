@@ -58,6 +58,34 @@ EXIT_EXTERNAL = 3
 # and period; nothing else, and neither part may be empty.
 _OWNER_REPO_PATTERN = re.compile(r"[\w.-]+/[\w.-]+")
 
+# GitHub's secondary-limit and abuse-detection wording, and its primary quota
+# refusal. Restated here rather than imported, and kept character-for-character
+# identical to the canonical pair in scripts/github_core/api.py:330-337:
+#
+#     _SECONDARY_RATE_LIMIT_SIGNATURE = re.compile(
+#         r"secondary rate limit|abuse detection", re.IGNORECASE
+#     )
+#     _RATE_LIMIT_SIGNATURE = re.compile(r"rate limit (?:already )?exceeded", re.IGNORECASE)
+#
+# Quoted rather than paraphrased so a future edit can be checked against the
+# source by eye. That file's comment states the reason for the order: "Checked
+# before the primary pattern because both bodies say 'rate limit' and the
+# remedies differ: secondary clears in about a minute, primary waits for the
+# bucket reset."
+#
+# An earlier revision of this comment also claimed scripts/gh_retry_helpers.py
+# "carries the same signatures". It does not, and Copilot caught it on PR #5177.
+# That module has one broader RETRYABLE_GH_FAILURE regex (gh_retry_helpers.py:38-42)
+# that folds rate limits, timeouts, and 5xx into a single retryable class,
+# because it answers "retry?" rather than "which limiter?". Claiming parity with
+# it invited a future edit to sync against the wrong source.
+_SECONDARY_RATE_LIMIT_SIGNATURE = re.compile(
+    r"secondary rate limit|abuse detection", re.IGNORECASE
+)
+_PRIMARY_RATE_LIMIT_SIGNATURE = re.compile(
+    r"rate limit (?:already )?exceeded", re.IGNORECASE
+)
+
 # git-check-ref-format is broader than this, but every ref this tool queries is
 # an ordinary branch name. Refusing the rest costs nothing real and keeps a
 # crafted ref out of the query string.
@@ -182,6 +210,97 @@ def _run_gh_pr_view(branch: str | None) -> subprocess.CompletedProcess[str]:
     return proc
 
 
+def _describe_gh_failure(proc: subprocess.CompletedProcess[str]) -> str:
+    """Return an actionable one-line reason the label lookup failed.
+
+    The previous message was ``gh pr view failed (exit N)``, which was wrong on
+    both halves and told the reader nothing they could act on. This helper does
+    not change the verdict: an unverifiable label still blocks, because a local
+    check cannot confirm a permission only a maintainer can grant. It changes
+    what the reader is told, so a denied session is not mistaken for a missing
+    label.
+
+    Two corrections and one addition:
+
+    1. This module stopped using ``gh pr view`` (GraphQL) for the REST
+       list-pulls endpoint in issue #4690. Naming the wrong command sent a
+       reader to the wrong place. Every operator-facing string in this module
+       says "gh label lookup" for the same reason: an earlier fix corrected
+       only this function and left the timeout and unparseable-JSON paths
+       naming the old command, which the regression test did not catch because
+       it exercised one path. Refs #5130 review.
+    2. An authentication or egress-policy denial is not a transient failure and
+       will not pass on a retry. It is called out by name so the reader stops
+       re-running the push.
+    3. The two sanctioned routes are named. CONTRIBUTING.md:875 reads,
+       verbatim: "You MUST split the PR, or ask a human maintainer to decide
+       on the ``commit-limit-bypass`` label." An earlier revision of this
+       message also suggested landing the commits on another pushed branch so
+       they stop counting as new. That is a real effect of
+       ``_unpushed_commit_count``, but that function exists for genuine stacked
+       PRs (issue #3610), and describing it here read as instructions for
+       defeating the ceiling with a throwaway remote branch. Removed: an error
+       message from the enforcement mechanism itself is the last place that
+       should teach an evasion. Refs #5130 review (Copilot).
+
+    Measured on a Claude Code cloud session, 2026-08-20: ``gh auth status``
+    reported "The token in GH_TOKEN is invalid", and every REST call returned
+    HTTP 403 "GitHub access is not enabled for this session". The old message
+    rendered that as ``gh pr view failed (exit 1)``.
+    """
+    stderr = (proc.stderr or "") + (proc.stdout or "")
+    lowered = stderr.lower()
+    detail = f"exit {proc.returncode}"
+
+    # Order matters, and 403 must not be the first test. GitHub answers an
+    # exhausted rate limit with 403 too ("API rate limit exceeded", HTTP 403),
+    # so keying on the status code first labels a retryable condition
+    # "will not pass on retry", which is the opposite of the truth and the one
+    # thing this helper exists to get right. Match on the distinguishing
+    # wording, most specific first, and treat the status code only as a
+    # fallback signal. Refs #5130 review (Cursor Bugbot).
+    #
+    # Secondary is tested before primary because both bodies contain the words
+    # "rate limit" and the remedies differ. An earlier revision collapsed them
+    # and handed secondary-limit callers the primary remedy, which is actively
+    # wrong: there is no primary reset window to wait for, and retrying against
+    # a secondary limit keeps it engaged. Refs #5130 review (Copilot), #4690.
+    if _SECONDARY_RATE_LIMIT_SIGNATURE.search(stderr):
+        reason = (
+            "GitHub applied a secondary rate limit; stop concurrent gh calls "
+            "and back off for about a minute"
+        )
+    elif _PRIMARY_RATE_LIMIT_SIGNATURE.search(stderr):
+        # Deliberately does not claim which limiter. A secondary limit can emit
+        # this same generic body while `x-ratelimit-remaining` is still above
+        # zero, so the wording alone cannot tell them apart: only the failed
+        # response's headers can, which is what `classify_gh_failure_response`
+        # in scripts/github_core/api.py uses. This module does not have them.
+        # `gh api --include` would change the stdout the success path parses,
+        # and a second call to fetch headers would spend more of the budget
+        # this module exists to survive running out of (#4690). So the message
+        # gives the advice that is correct under either limiter and does not
+        # assert the one it cannot prove. Refs #5130 review (Copilot).
+        reason = (
+            "gh hit a rate limit, primary or secondary; the body alone cannot "
+            "tell which, so stop concurrent gh calls, back off, and retry"
+        )
+    elif "not enabled for this session" in lowered or "403" in lowered:
+        reason = "gh is denied by policy (HTTP 403); this will not pass on retry"
+    elif "401" in lowered or ("invalid" in lowered and "token" in lowered):
+        reason = "gh is not authenticated; check GH_TOKEN"
+    else:
+        reason = "gh label lookup failed"
+
+    return (
+        f"{reason} ({detail}). "
+        "The label cannot be verified locally, so the commit limit still "
+        "applies. Split the PR, or ask a human maintainer to decide on the "
+        "commit-limit-bypass label (CONTRIBUTING.md, 'Bypassing the Limit'); "
+        "that label is human-only, so do not apply it yourself."
+    )
+
+
 def check_bypass_label(label: str, branch: str | None) -> tuple[int, str]:
     """Return (exit_code, status_line) for the bypass-label check.
 
@@ -191,9 +310,18 @@ def check_bypass_label(label: str, branch: str | None) -> tuple[int, str]:
     try:
         proc = _run_gh_pr_view(branch)
     except FileNotFoundError:
-        return EXIT_EXTERNAL, "gh CLI not found; cannot check bypass label"
+        return EXIT_EXTERNAL, (
+            "gh CLI not found, so the label cannot be verified locally and the "
+            "commit limit still applies. Split the PR, or ask a human maintainer "
+            "to decide on the commit-limit-bypass label; that label is human-only."
+        )
     except subprocess.TimeoutExpired:
-        return EXIT_EXTERNAL, f"gh pr view timed out after {GH_TIMEOUT_SECONDS}s"
+        return EXIT_EXTERNAL, (
+            f"gh label lookup timed out after {GH_TIMEOUT_SECONDS}s. "
+            "The label cannot be verified locally, so the commit limit still "
+            "applies. Split the PR, or ask a human maintainer to decide on the "
+            "commit-limit-bypass label; that label is human-only."
+        )
 
     if proc.returncode != 0:
         stderr = (proc.stderr or "").lower()
@@ -204,12 +332,17 @@ def check_bypass_label(label: str, branch: str | None) -> tuple[int, str]:
         if "no pull request" in stderr or "no open pull request" in stderr:
             target = branch or "current branch"
             return EXIT_ABSENT, f"no open PR for {target}"
-        return EXIT_EXTERNAL, f"gh pr view failed (exit {proc.returncode})"
+        return EXIT_EXTERNAL, _describe_gh_failure(proc)
 
     try:
         payload = json.loads(proc.stdout)
     except json.JSONDecodeError:
-        return EXIT_EXTERNAL, "gh pr view returned unparseable JSON"
+        return EXIT_EXTERNAL, (
+            "gh label lookup returned unparseable JSON. "
+            "The label cannot be verified locally, so the commit limit still "
+            "applies. Split the PR, or ask a human maintainer to decide on the "
+            "commit-limit-bypass label; that label is human-only."
+        )
 
     number = payload.get("number")
     state = payload.get("state")

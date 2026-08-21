@@ -11,7 +11,7 @@ tools:
   - serena/*
   - memory
 model: Claude Sonnet 4.6 (copilot)
-tier: builder
+role: executor
 ---
 # Dependency Auditor
 
