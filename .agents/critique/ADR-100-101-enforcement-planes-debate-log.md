@@ -1,8 +1,8 @@
 # Debate Log: ADR-100 and ADR-101
 
-Eight rounds, six roles (architect, critic, independent-thinker, security, analyst, high-level-advisor). Convened 2026-08-20 on a proposal that began as one ADR and split into two. An earlier revision of this line said six after round 7 had already been recorded below, and then seven after round 8.
+Eleven rounds, six roles (architect, critic, independent-thinker, security, analyst, high-level-advisor). Convened 2026-08-20 on a proposal that began as one ADR and split into two. An earlier revision of this line said six after round 7 had already been recorded below, and then seven after round 8.
 
-**Read the round-8 section before anything else in this log. Round 8 returned 2 Accept, 3 Disagree-and-Commit and 1 Block on head `d75cd6690`, so consensus is NOT currently reached** and these proposals are not mergeable under `.claude/skills/adr-review/SKILL.md:50` until the Block is cleared. Everything below records how the text got here.
+**Read the round-11 section before anything else in this log. Round 11 returned 3 Accept, 3 Disagree-and-Commit and 0 Block, so consensus IS reached** under `.claude/skills/adr-review/SKILL.md:50`, which requires every role to return Accept or Disagree-and-Commit on the revision under review. It was reached once before, at round 6, on text that later proved to hold more than a dozen factual errors; the difference is that rounds 8 through 11 assigned verification against the tree and every substantive finding since has come from running or reading a primary source. Consensus means six roles judge these shippable as proposals. It does not mean the documents are error-free, and the round-11 section records what each committing role still filed. Everything below records how the text got here.
 
 **Council decision, round 6, all six roles run on the round-6 text: 3 Accept, 3 Disagree-and-Commit, 0 Block. Consensus reached** under this repository's contract, which requires every role to return Accept or Disagree-and-Commit.
 
@@ -98,7 +98,7 @@ What stands: no history was rewritten, no enumerated bypass was used, and every 
 
 The correction cuts both ways and both halves are now in the text. The throughput-cost argument weakens: the relief is not reliably a human decision, so it does not reliably cap throughput at human attention. The structural argument strengthens sharply: this is the cleanest instance in the repository of ADR-101's invariant, reached from the opposite direction. The commit ceiling is a P0 and P1 gate whose only relief is a P0-writable artifact that any write-access account can create, with nothing verifying the human maintainer CONTRIBUTING.md requires. The two decisions were written as separate arguments and turn out to describe one defect.
 
-**A counterfactual that cannot be computed.** A later external-review round replaced the 90 day rollback predicate with "replay both retired contracts over each merged pull request." A reviewer showed the local contract is not replayable: it evaluates push ranges rather than branch states, applies two reliefs computed at push time, and a squashed branch has erased the commits it saw. The decision's own PR #5178 case is the proof, with 12 commits in merged history against 33 the pre-push gate actually blocked. Narrowed to the CI contract, with the gap named: the pre-push ceiling has the most first-hand evidence against it and the least ability to be re-measured, and closing that needs push-time telemetry recorded when the ceilings are demoted rather than after. A later reviewer sharpened it again: the CI replay tests only the commit ceiling, so it cannot falsify the retirement of the scope or atomic caps either, and ADR-100 now states that limit and offers the split rather than implying one test covers three gates.
+**A counterfactual that cannot be computed.** (Round 10 narrowed the three reasons below: only the job not running is unique to the pre-push half, because the CI replay also consults run-time labels and reads the same squashed history. The narrowing is recorded in full in the round-10 section; this paragraph is left as written, with the marker.) A later external-review round replaced the 90 day rollback predicate with "replay both retired contracts over each merged pull request." A reviewer showed the local contract is not replayable: it applies two reliefs computed from remote state at push time (an earlier version of this line said "it evaluates push ranges rather than branch states", which round 9 falsified), the job does not always run, and a squashed branch has erased the commits it saw. The decision's own PR #5178 case is the proof, with 12 commits in merged history against 33 the pre-push gate actually blocked. Narrowed to the CI contract, with the gap named: the pre-push ceiling has the most first-hand evidence against it and the least ability to be re-measured, and closing that needs push-time telemetry recorded when the ceilings are demoted rather than after. A later reviewer sharpened it again: the CI replay tests only the commit ceiling, so it cannot falsify the retirement of the scope or atomic caps either, and ADR-100 now states that limit and offers the split rather than implying one test covers three gates.
 
 **Half the debate attestation has no unforgeable source.** Application A requires an attestation carrying the invocation set, the model identifiers, and the diff digest. The base-ref job computes the digest itself, so staleness detection is sound. Nothing in a diff yields which agents ran under which models, and rule 3 forbids trusting a head-produced artifact, so that half is the self-report the application exists to replace with a base-ref signature on it. Only two sources close it: the base-owned job invokes the agents itself, or the provider emits per-invocation signed receipts the base job verifies. Found after the go/no-go had already defaulted Phase 2 to abandoned, and recorded as a second independent reason for that default.
 
@@ -233,7 +233,7 @@ Both came from the branch rather than from a reviewer, and both sharpen claims t
 
 **The 403 that hides the bypass label is two different 403s, and an earlier revision flattened them.** That revision said REST answers 403 as well and stopped, which reads as one blanket denial. Rechecked: GraphQL returns `This GraphQL query is not enabled for this session, only the pinned set of PR-review operations is served` and points the caller at REST; REST returns `GitHub access is not enabled for this session`. The first is a query allowlist naming a working alternative, the second is the account-level denial that closes it. The correction does not change the verdict and does change the remedy: a relief check that fell back from GraphQL to REST would still fail here, so the fix is not a transport switch. What the pair actually establishes is that `_check_commit_limit` cannot separate an allowlist miss from an authorization denial from a network failure, because all three reach it as a non-zero exit it maps to relief-not-granted.
 
-**An automated base merge spends the relief that base merges grant.** While these threads were being cleared, an automated job merged `main` into this branch on the remote. The next push refused at `ERROR: push has 89 commits, limit is 40`, and the 40 is the tell: the main-merge relief was active the entire time. The local count is `git rev-list --count` over the push range and includes merges, so every base merge raises the number the ceiling tests by one. The relief is therefore self-consuming, and on a branch kept current by automation it is consumed with no author acting. The CI half counts authored non-merge commits and does not drift this way. This is the two-counting-rules finding recorded earlier in this log, restated as a rate rather than as a single discrepancy.
+**An automated base merge spends the relief that base merges grant.** While these threads were being cleared, an automated job merged `main` into this branch on the remote. The next push refused at `ERROR: push has 89 commits, limit is 40`, and the 40 is the tell: the main-merge relief was active the entire time. The local count is `git rev-list --count` over the branch measured against the trunk (corrected in round 9; this line read "over the push range" when written) and includes merges, so every base merge raises the number the ceiling tests by one. The relief is therefore self-consuming, and on a branch kept current by automation it is consumed with no author acting. The CI half counts authored non-merge commits and does not drift this way. This is the missing-`--no-merges` finding recorded earlier in this log, restated as a rate rather than as a single discrepancy (this line said "two-counting-rules" when written; round 9 narrowed it to one absent flag).
 
 ### The skip reproduced on demand, and this time the sizes ran the wrong way
 
@@ -298,6 +298,207 @@ It also produces the exit-condition problem in its clearest form. Every round ch
 
 One process note, recorded because it has now happened twice and it is a real hazard of the transport this branch is stuck with. Re-transcribing a file to move it through the API is not a copy; it is a rewrite, and both times the rewrite tightened sentences that were not part of the change being pushed. The per-file `git hash-object` comparison catches the divergence, which is what it is for, but the correct response is to take the pushed text back into the local copy rather than to reconcile by hand, because the pushed text is what the pull request head carries and therefore what any reviewer is reading. That is what was done here, and it is worth naming as a cost of the transport rather than a quirk of it.
 
+### After round 8: the gate refused again, and the refusal falsified a claim in ADR-100
+
+This one was not a review finding. It came from trying to push the round-8 record, and it is the strongest single correction in the log because the document was wrong about the mechanism it is arguing to retire.
+
+The push was refused at `ERROR: push has 113 commits, limit is 40`. That number is the whole branch measured against the trunk, not the one commit being pushed. Three revisions of ADR-100 said `_check_commit_limit` counts "over the push range", and all three were wrong. `resolve_push_update` sets the base at `git_hook_policy.py:5604`:
+
+```python
+base = _merge_base(repo_root, "origin/main", push_ref.local_sha)
+```
+
+and builds the range at `:5620` as `range_spec = f"{base}..{push_ref.local_sha}"`. The remote branch tip appears only as a fallback when that merge base cannot be resolved. So the pre-push gate reads the same population CI reads.
+
+The error mattered in two directions, and both flattered the argument.
+
+It inflated the "two gates, two counting rules" finding. The two sites take their thresholds from one place: `pr_commit_count.py:62-71` calls 20 and 40 "the single source of truth", and `git_hook_policy.py:49-50` imports both rather than restating them. Same base, same population, same numbers. The entire arithmetic difference is that `:6123` passes no `--no-merges`. Measured at remote head `b8f20196e`: 112 total, 14 merges, 98 authored, and GitHub reports 112 for the same range. One missing flag, not two counting rules.
+
+It also propped up the claim that the pre-push half "cannot be re-measured", which rested on the range being push-scoped and therefore unreconstructible. The range is not push-scoped, so that reasoning fails. What actually resists reconstruction is narrower and had to be restated: two reliefs computed from remote state at push time, squashing that erases the commits the gate saw, and the job not running at all on a push whose files already match the remote. The conclusion survives; the argument for it did not, and Decision item 6 now rests on the three real properties.
+
+Worth being precise about what this does and does not buy. Adding `--no-merges` would take this branch from 113 to 99. The limit is 40. Both numbers block, so the flag is a correction to the record and not a remedy for anything, and the log should not be read as proposing it as one.
+
+The Alternatives table now carries the row whose absence the round-8 Block named. It is written as a rejection with its arithmetic shown rather than as a dismissal: repairing the counter takes this pull request from 112 to 98 against a limit of 40, so the gate still refuses, and none of the eight recorded costs is a counting error. That is the honest form of the answer. It concedes the defect is real and worth fixing on its own merits, and it shows why fixing it relieves no measured case. Whether that satisfies the architect is the architect's call in round 9, not the author's to record here.
+
+Two things follow for the panel. First, the round-8 Block stands and this adds to it rather than answering it: the architect's objection was that no "repair the gate" alternative was ever considered, and a defect this small and this specific is exactly the kind of evidence that objection predicted would surface. Second, and less comfortable: this claim survived eight panel rounds, eleven bot reviews, and a QA pass whose stated method was checking every load-bearing claim against a primary source. It was found by running the gate, not by reading it. That is the same shape as the two findings already recorded above, where a stop-time working-tree check beat every review pass, and it is now three for three.
+
+## Round 9: three Blocks, and the panel finally earned its keep
+
+Run on the corrected local text after the push-range fix. **2 Accept-or-D&C short of consensus: 1 Accept, 2 Disagree-and-Commit, 3 Block.** That is worse than round 8 by the tally and better than every prior round by the content, and the two facts are the same fact: this was the first round in which three roles were asked to compute something rather than read something, and all three came back with defects that change the documents.
+
+### The finding that cuts against this decision, and it is the most important one in the log
+
+Independent-thinker blocked on the repair-the-counter row added after round 8, and was right in a way that is uncomfortable for ADR-100.
+
+The row claimed the repair "changes no outcome on the evidence", measured at 112 total against a limit of 40. That is selection on the dependent variable: it tests the repair only at the largest overshoot in the corpus. The gate blocks on `commit_count > limit` (`git_hook_policy.py:6133` returns 0 when the count is less than or equal), so the repair matters precisely in the band where authored is at or under the limit and total is over it, which is a width equal to the branch's merge count.
+
+Two of this decision's six first-hand refusals sit in that band:
+
+| Event | Total | Merges | Authored | Limit | With `--no-merges` |
+|---|---|---|---|---|---|
+| ADR-100:171 | 42 | 5 | 37 | 40 | **Passes** |
+| ADR-100:195 | 45 | at least 5 | at most 40 | 40 | **Passes** |
+| later refusals | 75, 106, 113 | at most 14 | 60+ | 40 | Blocks |
+| superseded in this row | 74 is a replay through the gate rather than a live push; 112 is the remote-head measurement; 89 is attributed to the counting defect rather than banked. An earlier revision listed all three here | | | | |
+
+Merges are monotone on this branch because no squash was taken, which is what licenses the second row. And the second row is the push that produced the single most-cited finding in ADR-100: the owner granted the bypass and the gate could not read it. With the flag present that push never reaches the relief check.
+
+Open PR #5176 is the same shape on a branch nobody would call an outlier: 40 authored against a relieved 40, plus at least its qualifying `main` merge, so it is over the local ceiling today while CI passes it. ADR-100 already states that case and had not noticed what it implied.
+
+So part of this decision's first-hand cost record is self-inflicted by a one-line defect that this repository already fixed on the other plane under issue #3920. ADR-100 now says so, in the Alternatives row and at the point where the events are introduced, and the cost case is explicitly re-based on the eight in-tree workarounds and the four later events, none of which is a counting error.
+
+### The security finding that makes ADR-101's case rather than dents it
+
+Security blocked, and its F1 is the strongest exhibit either document has.
+
+ADR-101 claimed the `pytest.yml` pass-through was not a one-pull-request exploit because the path filter covers `**/*.yml` and names `pytest.yml`, so any edit to the filter trips it. Both halves are true and the conclusion is false, because the filter's output is not what gates the job. `pytest.yml:60` reads `steps.determine.outputs.python-changed`, and `steps.determine` runs `scripts/workflows/determine_should_run_from_filters.py`. Editing that script trips the `**/*.py` filter exactly as predicted, and the edited script then discards the filter's `true` and returns false. `skip-tests` at `:546` reports success under the same required name.
+
+One pull request. And the same script decides six of the nine contexts pinned at `ruleset_required_contexts.py:11-22`, the tests that would catch the edit run inside the job the edit disables, and `scripts/workflows/` carries no CODEOWNERS entry and appeared in no impact row.
+
+Security also recorded the `needs:`-skip removal as a fourth evasion class (raised in round 8, never written down, live on two pinned contexts), and five `pull_request_target` workflows that ADR-101 had never mentioned, whose containment the Phase 0 base-ref restriction hands the secret rather than withholding it.
+
+### What the other three found
+
+Architect blocked on propagation rather than on substance: requirement 1 was restated as a property at `:136-140` and the two sites an implementer acts from still carried the withdrawn syntactic form, and the open question at `:366` hedged its safety on the deleted rule. Also caught ADR-100 instructing an edit to a generated mirror.
+
+Critic held Disagree-and-Commit and swept the falsified push-range premise out of the four documents that had not been swept, including the QA report certifying the correction two rows above where it still asserted the error. It also found that the re-grounded replayability claim asserts a pre-push/CI asymmetry its three replacement reasons do not support, since squashing and push-time relief state break the CI replay too.
+
+Analyst accepted, with all five new citations byte-exact.
+
+High-level-advisor held Disagree-and-Commit and made the observation this log should end on.
+
+### The pattern, now measured across nine rounds
+
+Three defects were caught this session by executing something. Zero were caught by re-reading the text. The counting range was found by a refused push, the eight workaround records by a working-tree `grep` after seventeen review passes accepted "no recoverable artifact" as a limitation, and the gate script by a role asked to follow a data flow.
+
+The freeze rule adopted after round 7 is not falsified by this, and it is aimed at the wrong axis. It should freeze against review-round prose edits and never against execution-derived corrections. As adopted it binds verdicts to blob SHAs, which makes finding a defect by running the code cost a full panel round; bind consensus to the Decision sections instead and let evidence corrections append.
+
+The harder conclusion is the one ADR-101 now carries about itself: a panel of six roles reading prose cannot verify a claim about code behaviour, and this one certified a wrong claim about a forty-line function whose source sat twenty lines from the citation. That is rule 2, presence is not execution, committed by the review of the decision proposing rule 2.
+
+### Verdict
+
+**Round 9: 1 Accept, 2 Disagree-and-Commit, 3 Block. Consensus not reached.** Most Block findings above were applied to the text. One was not, and round 10 caught the overclaim: architect's requirement-1 phase assignment was left undone while this line said every finding had been applied. It is applied now, in round 10. That does not convert the verdicts, which were rendered against the pre-fix revision and are recorded as cast; a round 10 on the current text is what would.
+
+## Round 10: three Blocks again, and this time only one finding came from outside the text
+
+Run on the text after most round-9 findings were applied; one was not, and round 10 caught the overclaim, as recorded four lines above. **1 Accept, 2 Disagree-and-Commit, 3 Block.** The same tally as round 9 with a different character, and the difference is the useful signal.
+
+### The verdicts
+
+| Role | Round 9 | Round 10 |
+|---|---|---|
+| analyst | Accept | Accept, all ten new citations verified, one line drift |
+| independent-thinker | Block | Disagree-and-Commit, block cleared |
+| high-level-advisor | D&C | Disagree-and-Commit |
+| architect | Block | **Block**, on one unapplied item and two wrong rows |
+| security | Block | **Block**, on two new findings |
+| critic | D&C | **Block**, on five internal-consistency defects |
+
+### The round corrected the previous round's fixes more than the documents
+
+Architect refuted both impact rows added in round 9, by opening the files the rows described.
+
+`ai-spec-validation.yml:100` carries `always()` in its condition, and the comment above it at `:98-99` exists to say why: "always() required: transitive dependency on debounce (which may be SKIPPED) would otherwise cause this job to be skipped even when check-paths succeeds." So the job evaluates rather than being removed. Round 9 had classified it as a `needs:`-skip removal and used that to exempt it from requirement 1. Both halves were wrong, and the second was worse than the first: it exempted a live requirement-1 violation from the requirement.
+
+`validate-plugin-version-bump.yml` was not a `needs:`-skip instance at all. Its `check-paths` carries no `if:`, its `validate` job is output-gated in the `pytest.yml` shape, and its pass-through is named `Validate Plugin Version Bump (Skipped)`, a different string from the pinned context. That last detail is worth keeping for the opposite reason to the one it was cited for: it is the only workflow examined here whose pass-through cannot satisfy the requirement it stands in for.
+
+The fourth evasion case therefore has **no confirmed live instance in this repository**. The mechanism is real and requirement 1 does not reach it, so it stays recorded, now with both refutations attached. A panel finding survived one round and was overturned in the next by someone opening the file.
+
+### Security found the enumeration defect inside the fix for the enumeration defect
+
+Phase 0's CODEOWNERS item listed the paths to protect. It omitted `scripts/workflows/`, the gate script the same document had just named as the sharpest item in its impact table and explicitly flagged as unowned twenty lines earlier. It also omitted `.github/actions/` and `build/scripts/`, which sit in the executed closure of pinned contexts rather than in their trigger surface: three `setup-code-env` uses in `pytest.yml`, one in `validate-plugin-version-bump.yml`, `workflow-debounce` and `ai-review` in `ai-spec-validation.yml`, and the verifier `build/scripts/validate_plugin_version_bump.py` behind its own pinned context.
+
+The list had been hand-written three times and was wrong all three. It is now fixed and, more usefully, labelled as a worked example of this decision's own rule that a closure must be computed and fail closed rather than enumerated.
+
+Security also recorded that requirements 1 and 2 owned no phase, which architect raised independently.
+
+### Critic found that the fixes had not propagated, again
+
+Five defects, all internal:
+
+The replayability paragraph still asserted a pre-push-only asymmetry on three reasons, two of which break the CI replay identically, while the QA report row corrected in the same round now said the opposite in plain terms. The document contradicted its own evidence artifact.
+
+The repair row's rejection listed "the relief that could not be read" among costs the repair does not touch, while the same cell states that with the flag present that push never reaches the relief check. The row rejected the repair using an exemplar it concedes the repair removes.
+
+The "six first-hand events" denominator does not reproduce. A refusal at 75 was omitted; 74 is a replay through the gate with a hand-built payload rather than a live push; and 112 was never a refusal at all, it is the remote-head measurement. The refusals are 42, 45, 75, 89, 106, and 113. No conclusion moved, and the count was wrong in four documents at once.
+
+Plus a duplicated clause left by round 9's own edit, and the `#4846` causal claim corrected in one place and left standing in three restatements, which high-level-advisor found independently.
+
+### What this round says about the process
+
+Round 9's three Blocks came from executing things. Round 10's three came almost entirely from reading the text against itself and against the files it cites. Only security's closure omission is a finding about the world rather than about the document.
+
+That is the shape of a review that has stopped improving the decision and started improving the prose about the decision, which is exactly what high-level-advisor predicted after round 7 and what the freeze rule was meant to catch. The corrections were all real and all worth making. None of them changed what either decision proposes.
+
+The one substantive movement is in the other direction: independent-thinker's round-9 Block permanently narrowed ADR-100's evidence base, and round 10 narrowed it again by making it list which of the eight in-tree records survive a counting repair. Three of the eight record only that the bypass was applied, two have unrecoverable merge counts, one is caused by the `-m` walk item 5 repairs. Two survive intact, and one of those, #4954 round 15 at 39 of 40 authored, is load-bearing on its own.
+
+A reader may reasonably conclude that base is thinner than a retirement warrants. That is why the alternative round 10 asked for is now in the table, written as the strongest surviving option rather than as a foil: retire the pre-push site only and keep the CI classification blocking.
+
+### A fifth and sixth paraphrase, found while transcribing rather than while reviewing
+
+Round 10 found three restatements of the withdrawn `#4846` causality still standing after the correction. Reading the file end to end for transport surfaced two more: the summary sentence opening the in-tree records section, and the Trade-offs paragraph, both still crediting a correctness gate with the blocking call the record does not attribute.
+
+Five paraphrases of one claim, across four separate sweeps, three of which were performed by roles specifically asked to check for exactly this. The reason is mechanical and worth stating as a rule rather than as an anecdote: a sweep searches for the phrasing it just corrected, and a summary, a heading, a table cell and a trade-off bullet restate the same claim in words that phrasing does not match. Searching for the corrected string finds the places already fixed.
+
+The practice that would have worked is the one this pull request keeps rediscovering: after correcting a claim, search for the **subject** rather than the sentence. Here that is every occurrence of `#4846`, not every occurrence of "held by its security gate".
+
+### Verdict
+
+**Round 10: 1 Accept, 2 Disagree-and-Commit, 3 Block. Consensus not reached.** All findings applied. Ten rounds, and the contract's 6/6 has been reached once, at round 6, on text that has since been corrected more than a dozen times.
+
+The panel's own record is now the clearest argument in this log: it converged on text holding a dozen errors when no role was asked to verify, and it has not converged since roles were asked to verify. That is not a failure of the roles. It is evidence that a prose panel cannot terminate on claims about code behaviour, which is the conclusion ADR-101 now carries about itself.
+
+## Round 11: consensus, reached for the first time on text anybody verified
+
+Run on the text after every round-10 finding was applied. **3 Accept, 3 Disagree-and-Commit, 0 Block.** That satisfies `.claude/skills/adr-review/SKILL.md:50`, which requires every role to return Accept or Disagree-and-Commit on the revision under review.
+
+| Role | Round 10 | Round 11 |
+|---|---|---|
+| analyst | Accept | Accept |
+| independent-thinker | D&C | **Accept** |
+| high-level-advisor | D&C | **Accept** |
+| architect | Block | **Disagree-and-Commit**, all four minimum-to-clear items verified |
+| security | Block | **Disagree-and-Commit**, N1 verified, N2 half fixed and judged not a Block |
+| critic | Block | **Disagree-and-Commit**, all five round-10 findings verified applied |
+
+Three Blocks converted. Each converting role verified its own stated exit condition against the files rather than against the text describing them, which is the property rounds 1 through 7 never had.
+
+### What the round still found, all of it applied
+
+Consensus is not the same as a clean bill, and every role that committed also filed. The findings are recorded because the contract is Disagree-**and-commit**, not disagree-and-forget.
+
+**Security's sixth edge kind.** The typed dependency closure named five edge kinds and needed a sixth: action inputs that name a repository file. `codeql-analysis.yml:155` passes `config-file: .github/codeql/codeql-config.yml`, whose `paths` and `paths-ignore` decide what `Analyze (python)` and `Analyze (actions)` scan, and `.github/codeql/**` is inside the workflow's own scannable filter, so narrowing those paths in one pull request triggers the analysis and has it scan nothing. Requirement 1 does not reach it, because requirement 1 governs conditions and this is scope configuration. The same kind reaches `.github/scripts/`, the `scripts/` root, and the `build/` root, none of which the protected-path list covered.
+
+That is the **fourth consecutive revision** in which an enumerated protected-path list was found short. Recorded as the argument for the computed closure and against the list, which is what the ADR now says in place of a fifth attempt at the list.
+
+**Analyst found a number with no event behind it.** `113` appeared in two summary enumerations and no paragraph narrated it. It is a real refusal, from the session that corrected this decision's arithmetic, and it is now narrated: a one-commit push refused at 121, an earlier attempt at 113, with `_unpushed_commit_count` reporting 115 for work that was one commit. It is also where the counting range was falsified, since the refusal quoted a number the prose could not account for.
+
+**Critic found a seventh and eighth restatement**, both in table cells, both saying #4846 failed its "security and vendor-provenance" gate as fact when the document establishes only the security scan. Eight paraphrases of one claim, five sweeps. It also found the 89 refusal simultaneously banked as load-bearing and disclaimed as a counting artifact, and an eight-record partition that put #5178 in two buckets and dropped session 3991 entirely. Seven records filling eight slots.
+
+**Architect and high-level-advisor independently found the same stale clause**, an Open Questions gloss still calling the `needs:`-skip removal a live evasion two hundred lines below the passage refuting it.
+
+### What consensus does and does not mean here
+
+It means six roles judge these shippable as proposals. It does not mean the documents are correct, and nobody on the panel claimed that. The honest summary of eleven rounds is that the error rate fell and never reached zero, and that the errors changed character: rounds 8 and 9 changed what the decisions claim about the repository, rounds 10 and 11 changed prose about those claims and found paraphrases surviving their own corrections.
+
+High-level-advisor's framing is the one to keep, because it explains why waiting for a clean round was never a strategy: each edit carries a nonzero defect rate, so a review loop over an editing process never returns empty. Both readings are true at once. The text has converged, and the panel would always find something. Consensus arrived when the severity curve collapsed, not when the count did.
+
+The strongest evidence for that reading is the panel's own record, and it belongs in the log rather than in a retrospective. Six roles reached consensus at round 6 on text holding more than a dozen factual errors, because no role had been asked to verify. The same six reached consensus again at round 11 after four rounds in which every substantive finding came from running or reading a primary source. Between those two identical-looking verdicts sits the whole difference between a review and a ritual.
+
+### A postscript the exhibit earned
+
+ADR-101's fifth Context exhibit argues that a prose panel cannot verify claims about code behaviour, and it was itself left stale: it said nine rounds when eleven had run, and it stopped at the three execution-caught defects known when it was written.
+
+Rounds 10 and 11 supplied two more of exactly the kind it describes. The Phase 0 protected-path list omitted `scripts/workflows/`, the gate script the same document names as its sharpest impact row twenty lines earlier. And the typed dependency closure was missing a sixth edge kind, action inputs that name a repository file, which the CodeQL configuration exercises against two pinned contexts.
+
+Both were found by opening files rather than by reading the decision, which is the exhibit's own thesis applied to the exhibit. It now counts five and says so.
+
+### One more, found by reading the file rather than reviewing it
+
+Transcribing ADR-100 end to end surfaced a duplication that round 11's own fix introduced: item 5 told the implementer to state the choice and pin it with a test twice, once in the inserted `-c` gap paragraph and once in the text it was inserted before. The second copy also listed only two of the three cases the paragraph had just established.
+
+Recorded because of where it came from. Eleven panel rounds and eleven bot passes did not see it; it appeared the moment someone read the file straight through for an unrelated reason. That is the same shape as the eight in-tree records, the counting range, and the gate script, and it is now the fourth time on this pull request that a linear read beat a review pass.
+
 ### Where the review ends
 
 High-level-advisor's read, which the orchestrator accepts: freeze the text. Seven rounds on six files, with the external reviewers out-yielding the panel, means another round buys marginal prose and spends credibility the panel needs. What remains is not more review; it is the owner's decision on these proposals, including the disposition of the transport deviation recorded above, and then MUST-1 and MUST NOT 1 on the implementation pull requests that edit `.agents/governance/**`. Those rules do not gate this pull request, per the scope correction recorded at the top of this log.
@@ -314,3 +515,6 @@ High-level-advisor's read, which the orchestrator accepts: freeze the text. Seve
 | 6, council | Accept | D&C | D&C | D&C | Accept | Accept |
 | 7, verification assigned | D&C | D&C | D&C | D&C | Accept | D&C |
 | 8, on `d75cd6690` | **Block** | D&C | D&C | D&C | Accept | Accept |
+| 9, after the push-range fix | **Block** | D&C | **Block** | **Block** | Accept | D&C |
+| 10, after the round-9 fixes | **Block** | **Block** | D&C | **Block** | Accept | D&C |
+| 11, after the round-10 fixes | D&C | D&C | **Accept** | D&C | Accept | **Accept** |
