@@ -226,6 +226,16 @@ def _read_record(path: Path, number: int, rel: str) -> tuple[Record, Violation |
     except OSError as exc:
         empty = Record(number, rel, None, "")
         return empty, Violation("frontmatter-parses", rel, f"could not be read: {exc}")
+    except UnicodeDecodeError as exc:
+        # UnicodeDecodeError subclasses ValueError, not OSError, so the handler
+        # above never sees it. Without this arm one record with a stray byte
+        # aborts the whole gate with a traceback, which reports nothing about
+        # the other 97 records and reads as tooling breakage rather than as a
+        # finding about the corpus. Reported as its own violation with a
+        # distinct message, because "not valid UTF-8" and "could not be read"
+        # call for different fixes.
+        empty = Record(number, rel, None, "")
+        return empty, Violation("frontmatter-parses", rel, f"is not valid UTF-8: {exc}")
     raw, body = _split_frontmatter(text)
     frontmatter = _parse_yaml_frontmatter(text)
     if frontmatter is None:
@@ -576,6 +586,12 @@ def read_baseline(path: Path) -> dict[str, int] | str:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except OSError as exc:
         return f"baseline {path} could not be read: {exc}"
+    except UnicodeDecodeError as exc:
+        # Same class as _read_record above: ValueError, not OSError. A corrupt
+        # baseline must degrade to the same one-line reason every other
+        # unusable-baseline path returns, so the caller keeps its single
+        # decision point instead of meeting a traceback.
+        return f"baseline {path} is not valid UTF-8: {exc}"
     except json.JSONDecodeError as exc:
         return f"baseline {path} is not valid JSON: {exc}"
     if not isinstance(payload, dict) or not isinstance(payload.get("counts"), dict):

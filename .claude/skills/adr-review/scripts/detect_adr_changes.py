@@ -58,7 +58,13 @@ def _get_dependent_adrs(adr_name: str, base_path: Path) -> list[str]:
         for adr_file in dir_path.glob("ADR-*.md"):
             try:
                 content = adr_file.read_text(encoding="utf-8")
-            except OSError:
+            except (OSError, UnicodeDecodeError):
+                # UnicodeDecodeError subclasses ValueError, not OSError, so the
+                # bare OSError arm never caught it and one record with a stray
+                # byte aborted the whole dependent scan. Skipping matches the
+                # OSError behaviour already chosen here: an unreadable record
+                # cannot be searched for a reference, and this helper's job is
+                # to list the records that DO reference the ADR.
                 continue
             if adr_name in content:
                 dependents.append(str(adr_file))
@@ -232,7 +238,10 @@ def _get_adr_status(file_path: Path) -> str:
         return STATUS_UNKNOWN
     try:
         content = file_path.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
+        # UnicodeDecodeError subclasses ValueError, not OSError. Without it a
+        # record with a stray byte raises past this handler instead of taking
+        # the unknown-status path the caller is written to expect.
         return STATUS_UNKNOWN
     frontmatter, _body = _split_frontmatter(content)
     if not frontmatter:
