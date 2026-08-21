@@ -406,8 +406,11 @@ fi
 # hidden marker comment on the PR (same storage pattern as
 # pr_autofix_lease.py's ADR-076 lease) and returns Data.action=ESCALATE when
 # either the round count or the wall-clock budget is exceeded. Call it once
-# per pass through this loop for a T3/T4 PR, immediately after the tier is
-# known, before any thread-lifecycle or CI-fix action.
+# per pass through this loop for a T3/T4 PR, after the tier is known and after
+# the auto-merge disarm gate below, before any thread-lifecycle or CI-fix
+# action. It used to say "immediately after the tier is known", which was true
+# until the disarm gate moved ahead of it to close CWE-284; the disarm gate and
+# the unknown-tier exit now both run in between.
 # Tier comes from test_pr_merge_ready.py, the authoritative tier source;
 # check_pr_live_state.py emits no tier field, so reading $LIVE here pins TIER
 # at UNKNOWN. Computed once, also consumed by the auto-merge disarm gate below.
@@ -907,11 +910,11 @@ Per PR processed:
 
 - [ ] Lease acquired before per-PR action (issue #3413): `pr_autofix_lease.py acquire --pull-request $PR --session $SESSION_ID`. Exit 1 = SKIP (reason `held-by:<owner>` is contention; reason `lease-store-unavailable` is a store outage that fails CLOSED, issue #4966); exit 0 = ACT. Lease released after PR work completes or on live-state SKIP.
 - [ ] Tier classification recorded (T1-T5).
-- [ ] Round-cap circuit breaker ran on every pass through a T3/T4 PR, immediately after the tier was known (issue #5056): `check_pr_round_cap.py --pull-request $PR --output-format json`. `Data.action=ACT` recorded and work continued; `Data.action=ESCALATE` stopped the thread-fix loop for that PR (round cap or wall-clock budget exceeded) and the script's own PR comment carries the reason, so nothing further was posted by the agent.
 - [ ] Branch lease acquired via `pr_autofix_lease.py acquire` before any branch mutation (issue #3413). SKIP result caused early exit; ACT result recorded with `base_sha`.
 - [ ] Remote mutations stayed under renewal supervision and were re-verified immediately before the mutation; if renewal ownership was lost, the mutation was blocked and the lease was released first.
 - [ ] Per-PR live-state gate ran immediately before the tier's action (issue #2455): `check_pr_live_state.py --pull-request $PR --skip-fetch --output-format json`. Verdict `Data.action=ACT` recorded; `Data.action=SKIP` aborted the action and recorded the reason (merged, closed, draft, or fully superseded by base).
 - [ ] Auto-merge disarm ran after live-state ACT on any PR that is not provably T1 (issue #3913, and issue #5094 for the completeness half): that is every non-T1 PR, and also a T1 whose `fetched_pages_complete` was not the boolean `true`, since a tier derived from a truncated fetch has not earned the exemption. `auto_merge_method` was null or `set_pr_auto_merge.py --disable` succeeded and returned `AutoMergeEnabled: false` before any push.
+- [ ] Round-cap circuit breaker ran on every pass through a T3/T4 PR, after the tier was known and after the auto-merge disarm gate above (issue #5056, ordering per issue #5094): `check_pr_round_cap.py --pull-request $PR --output-format json`. `Data.action=ACT` recorded and work continued; `Data.action=ESCALATE` stopped the thread-fix loop for that PR (round cap or wall-clock budget exceeded) and the script's own PR comment carries the reason, so nothing further was posted by the agent. The breaker's ESCALATE exit hands the PR to a human, so the disarm above has to have run first.
 - [ ] Live-state gate re-ran immediately before any base refresh or conflict resolution (issue #4349): stale gate result from the start of the session is not sufficient; the PR can merge mid-cycle.
 - [ ] Every base refresh, rebase, push, auto-merge change, and direct merge ran through `run_pr_mutation_if_live` immediately before mutation (issue #4349).
 - [ ] Late mutation checks matched the head SHA, base ref, and base SHA captured by the current readiness cycle; any mismatch stopped mutation and restarted readiness checks.

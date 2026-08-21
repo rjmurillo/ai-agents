@@ -269,6 +269,47 @@ def test_flat_producer_keys_include_the_fields_the_command_reads() -> None:
 
 
 @pytest.mark.parametrize("doc", [COMMAND_PATH, MIRROR_PATH])
+def test_the_checklist_orders_the_disarm_before_the_round_cap(doc: Path) -> None:
+    """The checklist must not describe the gate order the reorder replaced.
+
+    Sibling of the guard below, and it exists because that guard's subject had
+    a twin nobody looked at. Copilot found the disarm item describing a
+    condition the gate no longer had, and it got a guard. Two other lines
+    described the *ordering* the gate no longer had, and got neither: the block
+    comment and this checklist item both said the breaker runs "immediately
+    after the tier is known", which stopped being true when the disarm gate
+    moved ahead of it to close CWE-284. The checklist also listed the two items
+    in the old order. The spec validator caught it on a later run.
+
+    That matters more than a stale comment usually would, because this
+    checklist is the artifact agents report compliance against. An agent
+    reading it in order would disarm after escalating, which is the CWE-284
+    sequence this PR exists to remove, and would report itself compliant.
+
+    Position rather than wording, because ordering is the property that
+    drifted. A guard that tried to parse "after the disarm gate" out of English
+    would fail for the wrong reasons.
+    """
+    body = doc.read_text(encoding="utf-8")
+    lines = body.splitlines()
+
+    disarm = [i for i, line in enumerate(lines) if line.startswith("- [ ] Auto-merge disarm ran")]
+    round_cap = [
+        i for i, line in enumerate(lines) if line.startswith("- [ ] Round-cap circuit breaker ran")
+    ]
+
+    assert len(disarm) == 1, f"expected exactly one disarm checklist item, found {len(disarm)}"
+    assert len(round_cap) == 1, (
+        f"expected exactly one round-cap checklist item, found {len(round_cap)}"
+    )
+    assert disarm[0] < round_cap[0], (
+        f"{doc.name} lists the round-cap breaker before the auto-merge disarm, which is the "
+        "order the gates had before the CWE-284 reorder; an agent working the checklist in "
+        "order would hand an escalated PR to a human with auto-merge still armed"
+    )
+
+
+@pytest.mark.parametrize("doc", [COMMAND_PATH, MIRROR_PATH])
 def test_the_verification_checklist_covers_the_completeness_half(doc: Path) -> None:
     """Prose that agents report compliance against must track the gate.
 
