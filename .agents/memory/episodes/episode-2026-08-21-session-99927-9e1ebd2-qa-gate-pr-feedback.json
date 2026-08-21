@@ -1,0 +1,68 @@
+{
+  "id": "episode-2026-08-21-session-99927-9e1ebd2-qa-gate-pr-feedback",
+  "session": "2026-08-21-session-99927-9e1ebd2-qa-gate-pr-feedback",
+  "timestamp": "2026-08-21T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Reduce QA-gate back-and-forth on PRs (\"same gate, same correct complaint - QA evidence is bound to the previous commit\"). Investigation found ADR-096 already fixed the main offender (validate_qa_report's staleness check, merged in PR #5167) but left its frontmatter implemented:false; corrected that. Found the still-live source of the complaint is session_qa_binding()'s separate, stricter equality check (.claude/lib/qa_report.py:170-178), which ADR-096 explicitly scoped out and told a future session to file a follow-up issue for. User chose the follow-up-issue-only path over a full ADR + 6-agent debate this session; filed issue #5217 with the evidence (PR #4954 round 15, this session's report) instead of implementing a code change.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-21T13:49:54+00:00",
+      "type": "commit",
+      "content": "Commit: fd1786fb8235c89cca0e1b2fcdf9a50275ce868b",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2-qa-gate-pr-feedback"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-21T14:16:53+00:00",
+      "type": "commit",
+      "content": "Commit: 26daf217f6c22e1c251b0bd5206102feb68c542b",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2-qa-gate-pr-feedback"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-21T15:56:14+00:00",
+      "type": "commit",
+      "content": "Commit: cedd4a346cb86470d82898ee99442c3db9fb04b4",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2-qa-gate-pr-feedback"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-21T16:11:38+00:00",
+      "type": "commit",
+      "content": "Commit: e14c6aac974f1a7a11a0e8e5c0777180ea8f9bae",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2-qa-gate-pr-feedback"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 4,
+    "files_changed": 5
+  },
+  "lessons": []
+}
