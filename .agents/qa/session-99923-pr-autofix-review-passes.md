@@ -182,6 +182,36 @@ before fixing (one read, zero violations, zero unparsed). Reported rather than
 parsed, since nothing uses bracket notation today and the first read that does
 should fail loudly rather than pass unseen.
 
+### The escalation path handed PRs to humans still able to merge themselves
+
+Copilot filed this as CWE-284. The round-cap breaker's ESCALATE path terminates
+the PR, and while the breaker ran first that exit came before the disarm gate,
+so a T3 or T4 PR that burned its rounds was handed to a human with native
+auto-merge still armed. GitHub does not wait for this loop's completion gate, so
+the PR could land on its own with readiness never proven, arriving on exactly
+the PRs most in need of a human.
+
+Third case now where this PR's own fix opened the hole rather than passing it
+by, and for the same mechanism each time: a pinned UNKNOWN never matched T3 or
+T4, so the breaker never fired and the disarm gate reached every armed PR
+anyway. Correcting the tier read makes the escalation path reachable for the
+first time.
+
+**The test asserted the defect was correct.** It read:
+
+    assert not run.disarmed, "the loop kept acting after the round cap escalated"
+
+That conflates disarming with acting. Disarming is not acting on a PR, it is
+taking a capability away from one, so it was never the thing the escalation
+needed to stop. A test that encodes the wrong contract is worse than an absent
+one, because it also blocks the fix and reads as deliberate. Flipped rather than
+deleted, with the old assertion quoted in its docstring.
+
+Fixed by reordering the two gates rather than duplicating the disarm into the
+escalation branch: one gate in one place cannot drift from a copy, and there is
+no tier it is unsafe to run first. Control: swapping the blocks back fails the
+flipped test on both docs and nothing else, restore byte-identical.
+
 Two of those controls assert behavior the static gate cannot see at all. The
 round-cap breaker firing on T3 and T4, and the T1 PR keeping the auto-merge it
 earned, are properties of the shell conditions, not of the `jq` path.

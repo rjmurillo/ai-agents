@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract.json
-qaCommit: 169a72bd003a8a4b22120484735594fec5f48373
+qaCommit: 81fbe39f91399b542e5b653f01b4d21c4cfebd87
 ---
 
 # QA Report: session 99923, pr-autofix tier field contract
@@ -9,7 +9,7 @@ qaCommit: 169a72bd003a8a4b22120484735594fec5f48373
 - Issue: #5094
 - PR: #5176
 - Session log: `.agents/sessions/2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract.json`
-- QA commit: `169a72bd003a8a4b22120484735594fec5f48373`
+- QA commit: `81fbe39f91399b542e5b653f01b4d21c4cfebd87`
 - Branch: `claude/pr-5175-review-v21yk2`
 
 ## Verdict
@@ -122,22 +122,33 @@ The guard now fails and names the missed lines. Restored; the suite passes.
 
 ### Test results
 
+Every command below exited 0 at the head this report is bound to, with no
+failures and no errors.
+
 | Command | Result |
 |---|---|
-| `uv run pytest tests/commands/test_pr_autofix_field_contract.py` | 19 passed |
-| `uv run pytest tests/commands/test_pr_autofix_coverage_guards.py` | 24 passed |
-| `uv run pytest tests/commands/test_pr_autofix_tier_contract.py` | 4 passed |
-| `uv run pytest tests/commands/test_pr_autofix_tier_dispatch_runtime.py` | 42 passed |
-| `uv run pytest tests/commands/ tests/skills/pr-autofix/` | 457 passed, 1 skipped |
-| the four `tests/test_pr_autofix_*.py` files plus `tests/commands/ tests/skills/pr-autofix/` | 695 passed, 1 skipped |
-
+| `uv run pytest tests/commands/test_pr_autofix_field_contract.py` | all pass |
+| `uv run pytest tests/commands/test_pr_autofix_coverage_guards.py` | all pass |
+| `uv run pytest tests/commands/test_pr_autofix_tier_contract.py` | all pass |
+| `uv run pytest tests/commands/test_pr_autofix_tier_dispatch_runtime.py` | all pass |
+| `uv run pytest tests/commands/test_pr_autofix_earned_t1_exemption.py` | all pass |
+| `uv run pytest tests/commands/ tests/skills/pr-autofix/` | all pass |
+| the four `tests/test_pr_autofix_*.py` files plus the two directories above | all pass |
 | `uv run ruff check tests/commands/` | All checks passed |
 | `uv run python build/scripts/build_all.py --check` | no staleness |
 | `uv run python scripts/validation/pre_pr.py` | All validations passed |
 
-Re-measured at the head this report is bound to. The first two rows were one
-row reading 38 before the coverage guards were split into their own file; a
-count carried across a split describes a file that no longer exists.
+**Why no pass counts.** They were here and went stale four times: carried
+across a file split so a row described a file that no longer had those cases,
+then again on each commit that added one, and Copilot caught the last two. The
+PR body already applies this rule everywhere else and names this report as the
+one place counts were still allowed, which is what kept the failure alive. A
+count is a fact about a moment; the property that every command exits 0 is a
+fact about the head, and re-running the table checks it either way.
+
+Counts still belong in a mutation control, where the number *is* the finding
+("fails 4, and only those 4"), and those are measured per run and quoted with
+the mutation that produced them.
 
 ### Coverage shape
 
