@@ -442,6 +442,19 @@
       "caused_by": [
         "e033"
       ],
+      "leads_to": [
+        "e035"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e035",
+      "timestamp": "2026-08-21T03:48:51+00:00",
+      "type": "commit",
+      "content": "Commit: 3a91c4de7bac1988a1f06f3900ac4f57299c4740",
+      "caused_by": [
+        "e034"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
     }
@@ -451,8 +464,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 34,
-    "files_changed": 16
+    "commits": 35,
+    "files_changed": 17
   },
   "lessons": [
     "Derive a producer's output schema statically and check consumers against it. Parse the producer with ast to determine envelope level and top-level keys, then fail the build on any consumer read that disagrees.",
