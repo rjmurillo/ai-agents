@@ -201,11 +201,18 @@ no scope precision
 `:559-580`).
 
 **What changed**: `scripts/validation/pre_pr.py` (local shift-left validation),
-the 20-commit PR cap enforced in CI, scoped lint (only changed files, ever).
-Root-cause memories: `.serena/memories/root-cause-governance-enforcement.md`,
+a 20-commit PR cap enforced in CI at the time, scoped lint (only changed
+files, ever). Root-cause memories:
+`.serena/memories/root-cause-governance-enforcement.md`,
 `root-cause-late-feedback.md`, `root-cause-scope-creep-tools.md`.
 
-**Status**: SETTLED. The caps and pre_pr.py are the fossils of this incident.
+**Status**: SETTLED. `pre_pr.py` and scoped lint are the fossils of this
+incident. The commit-count cap itself was later removed (ADR-099, issue
+#5233): its local verification depended on a GitHub label a sandboxed
+harness cannot always check, which forced the same kind of PR-sprawl
+workaround (a whole new stacked branch and PR) the cap existed to prevent.
+Commit count is advisory only now (`needs-split` label, WARNING/ALERT
+notices at 10/15).
 
 ## Incident 7: 2025-12-15 Drift Inversion (edited the source of truth)
 

@@ -14,7 +14,7 @@
 ## Gates
 
 **Start**:Init Serena|Read HANDOFF+latest issue handoff|Resume check|Search mem|Verify git
-**Mid**: `git rev-list --count HEAD ^origin/main` block >20; notice 10; warn 15
+**Mid**: `git rev-list --count HEAD ^origin/main` notice 10; alert 15 (advisory only, no block; issue #5233)
 **Pre-PR**: `uv run python scripts/validation/pre_pr.py`|No BLOCKING|Security scan|Style `.gemini/styleguide.md`
 **End**:Keep HANDOFF|Issue handoff if open|Update Serena|Lint|Commit|Check
 

@@ -381,58 +381,10 @@ def test_enforce_fails_on_validation_error(
     assert "::error::PR validation failed: ERROR" in capsys.readouterr().err
 
 
-def test_enforce_blocks_commit_limit_without_bypass(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-):
-    monkeypatch.setenv("OVERALL_STATUS", "PASS")
-    monkeypatch.setenv("COMMIT_STATUS", "BLOCKED")
-    monkeypatch.setenv("COMMIT_COUNT", "21")
-    monkeypatch.setenv("PR_NUMBER", "42")
-    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
-    monkeypatch.setattr(
-        enforce_mod,
-        "_fetch_labels",
-        lambda repository, pr_number: (0, ["bug"]),
-    )
-
-    assert enforce_mod.main() == 1
-    assert "PR has 21 commits" in capsys.readouterr().err
 
 
-def test_enforce_allows_commit_limit_bypass(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-):
-    monkeypatch.setenv("OVERALL_STATUS", "PASS")
-    monkeypatch.setenv("COMMIT_STATUS", "BLOCKED")
-    monkeypatch.setenv("COMMIT_COUNT", "21")
-    monkeypatch.setenv("PR_NUMBER", "42")
-    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
-    monkeypatch.setattr(
-        enforce_mod,
-        "_fetch_labels",
-        lambda repository, pr_number: (0, ["commit-limit-bypass"]),
-    )
-
-    assert enforce_mod.main() == 0
-    output = capsys.readouterr().out
-    assert "::warning::Commit limit bypassed" in output
-    assert "✓ PR validation passed" in output
 
 
-def test_enforce_label_fetch_failure_is_blocking(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-):
-    monkeypatch.setenv("OVERALL_STATUS", "PASS")
-    monkeypatch.setenv("COMMIT_STATUS", "BLOCKED")
-    monkeypatch.setenv("PR_NUMBER", "42")
-    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
-    monkeypatch.setattr(enforce_mod, "_fetch_labels", lambda repository, pr_number: (3, []))
-
-    assert enforce_mod.main() == 1
-    assert "Failed to fetch PR labels" in capsys.readouterr().err
 
 
 def test_enforce_passes_when_no_blocking_inputs(
@@ -440,10 +392,23 @@ def test_enforce_passes_when_no_blocking_inputs(
     capsys: pytest.CaptureFixture[str],
 ):
     monkeypatch.setenv("OVERALL_STATUS", "PASS")
-    monkeypatch.setenv("COMMIT_STATUS", "OK")
 
     assert enforce_mod.main() == 0
     assert "✓ PR validation passed" in capsys.readouterr().out
+
+
+def test_enforce_ignores_the_commit_status_env_var(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ADR-099: the commit-count gate is advisory only; enforce_mod never reads it.
+
+    A leftover COMMIT_STATUS=BLOCKED in the environment (stale caller, a
+    workflow that has not been updated) must not resurrect the removed block.
+    """
+    monkeypatch.setenv("OVERALL_STATUS", "PASS")
+    monkeypatch.setenv("COMMIT_STATUS", "BLOCKED")
+
+    assert enforce_mod.main() == 0
 
 
 def test_workflow_delegates_all_pr_validation_blocks():
@@ -457,114 +422,6 @@ def test_workflow_delegates_all_pr_validation_blocks():
     assert "Write-Error \"PR has $env:COMMIT_COUNT commits" not in workflow
 
 
-class TestBlockedMessageNamesTheLimitThatWasApplied:
-    """The block message must report the ceiling the check actually used.
-
-    The main-merge relief lifts the ceiling from 20 to 40 for a branch that
-    merges its base (issue #3596), and `pr_commit_count` publishes the applied
-    value as
-    the `commit_limit` output. The workflow already binds it into the
-    environment as COMMIT_LIMIT. This script ignored it and printed a literal
-    20, so a branch blocked at 41 commits was told the limit was 20 and that
-    splitting to 25 would clear it. It would not.
-
-    The inline PowerShell this script replaced carried the same literal, and
-    the fix to read the variable was written against that inline body. The
-    extraction to Python landed separately and did not carry it across, so
-    the defect survived the rewrite that removed the code it lived in.
-    """
-
-    @staticmethod
-    def _run(monkeypatch: pytest.MonkeyPatch, capsys, **env: str) -> tuple[int, str]:
-        for key in ("OVERALL_STATUS", "COMMIT_STATUS", "COMMIT_COUNT", "COMMIT_LIMIT"):
-            monkeypatch.delenv(key, raising=False)
-        for key, value in env.items():
-            monkeypatch.setenv(key, value)
-        monkeypatch.setenv("PR_NUMBER", "1")
-        monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
-        monkeypatch.setattr(enforce_mod, "_fetch_labels", lambda *_: (0, []))
-        code = enforce_mod.main([])
-        return code, capsys.readouterr().err
-
-    def test_the_widened_ceiling_is_reported(self, monkeypatch, capsys) -> None:
-        """Positive: a main-merge branch is told 40, not 20."""
-        code, err = self._run(
-            monkeypatch,
-            capsys,
-            OVERALL_STATUS="PASS",
-            COMMIT_STATUS="BLOCKED",
-            COMMIT_COUNT="41",
-            COMMIT_LIMIT="40",
-        )
-        assert code == enforce_mod.LOGIC_ERROR
-        assert "limit: 40" in err
-        assert "limit: 20" not in err
-
-    def test_the_default_ceiling_is_reported(self, monkeypatch, capsys) -> None:
-        """Positive: the ordinary case still reads 20, from the variable."""
-        _, err = self._run(
-            monkeypatch,
-            capsys,
-            OVERALL_STATUS="PASS",
-            COMMIT_STATUS="BLOCKED",
-            COMMIT_COUNT="21",
-            COMMIT_LIMIT="20",
-        )
-        assert "limit: 20" in err
-
-    @pytest.mark.parametrize("value", ["", "  "])
-    def test_a_blank_limit_names_no_number(self, monkeypatch, capsys, value: str) -> None:
-        """Negative: with nothing to report, do not invent a ceiling.
-
-        Falling back to a literal 20 here would reintroduce the same wrong
-        claim this change removes, just on a narrower path.
-        """
-        _, err = self._run(
-            monkeypatch,
-            capsys,
-            OVERALL_STATUS="PASS",
-            COMMIT_STATUS="BLOCKED",
-            COMMIT_COUNT="41",
-            COMMIT_LIMIT=value,
-        )
-        assert "limit:" not in err
-        assert "41 commits" in err
-
-    def test_an_absent_limit_names_no_number(self, monkeypatch, capsys) -> None:
-        """Edge: unset is the same as blank, not a reason to guess."""
-        _, err = self._run(
-            monkeypatch,
-            capsys,
-            OVERALL_STATUS="PASS",
-            COMMIT_STATUS="BLOCKED",
-            COMMIT_COUNT="41",
-        )
-        assert "limit:" not in err
-        assert "41 commits" in err
-
-    def test_the_remediation_survives_every_shape(self, monkeypatch, capsys) -> None:
-        """Edge: the actionable half of the message is never dropped.
-
-        Since issue #4782 the actionable half is the split, and the label is
-        named only as a maintainer's decision, so the prohibition on
-        self-application is part of what this pins.
-        """
-        for limit in ("40", ""):
-            _, err = self._run(
-                monkeypatch,
-                capsys,
-                OVERALL_STATUS="PASS",
-                COMMIT_STATUS="BLOCKED",
-                COMMIT_COUNT="41",
-                COMMIT_LIMIT=limit,
-            )
-            assert enforce_mod.BYPASS_LABEL in err
-            assert "Split this PR" in err
-            assert "do not apply it yourself" in err
-
-    def test_the_workflow_still_supplies_the_variable(self) -> None:
-        """Edge: the fix is inert unless the workflow binds COMMIT_LIMIT."""
-        assert "COMMIT_LIMIT:" in WORKFLOW.read_text(encoding="utf-8")
 
 
 class TestModelPinEnforcementIsWiredIntoCI:
@@ -647,17 +504,23 @@ class TestModelPinEnforcementIsWiredIntoCI:
 
 
 class TestTheCommitCountGateCanReadMainsTrunk:
-    """The commit-limit relief needs origin/main in the runner (issue #3997).
+    """The checkout hosting `pr_commit_count.py` must keep full history.
 
-    ``pr_commit_count.contains_main_merge`` decides the 20 vs 40 ceiling by
-    asking whether a merge parent sits on ``origin/main``'s first-parent trunk,
-    and it reads that trunk with ``git rev-list`` against the checkout. A default
-    ``actions/checkout`` is shallow and creates only ``refs/remotes/pull/<n>/
-    merge``, so the read fails, the predicate fails closed, and a branch that
-    genuinely merges main is capped at 20 in CI while the pre-push hook grants
-    it 40. That is the divergence issue #3997 removed, so the checkout that
-    hosts the gate has to carry the ref. These tests pin the wiring; the
-    predicate itself is covered in tests/validation/test_commit_limit_parity.py.
+    Historical note: this class originally pinned issue #3997, where
+    ``pr_commit_count.contains_main_merge`` decided a 20-vs-40 commit ceiling
+    by reading ``origin/main``'s first-parent trunk, and a shallow checkout
+    made that predicate fail closed. ADR-099 removed that block and its trunk
+    read entirely: the commit count is advisory only now, and
+    `pr_commit_count.py` needs no history beyond the PR's own commits.
+
+    The checkout still has to stay unshallow, for an unrelated reason that
+    happens to share the same job: `Run merge-tree ratchet` and several count
+    ratchets run later in this same `validate-pr` job (issue #4572, #4518) and
+    need `origin/main` present and unsevered. A shallow checkout here would
+    leave `.git/shallow` in place for the whole job and break `git merge-tree`
+    with "refusing to merge unrelated histories". These tests still pin the
+    checkout wiring; they no longer pin anything about the commit-count gate
+    itself.
     """
 
     HOST_JOB = "validate-pr"
@@ -713,11 +576,11 @@ class TestTheCommitCountGateCanReadMainsTrunk:
         assert checkout.get("with", {}).get("fetch-depth") == 0
 
     def test_the_hosting_job_is_not_conditional(self) -> None:
-        """Edge: a skipped host job would report no ceiling at all.
+        """Edge: a skipped host job would report no status at all.
 
         ``validate-pr`` is a required check that always reports status, so it
-        carries no job-level ``if``. A path filter here would let a PR skip the
-        commit ceiling entirely.
+        carries no job-level ``if``. A path filter here would let a PR skip
+        the merge-tree ratchet and every other gate sharing this job.
         """
         assert "if" not in self._jobs()[self.HOST_JOB]
 
