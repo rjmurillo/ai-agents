@@ -44,6 +44,7 @@ from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 from scripts.ci import diff_line_scope
 from scripts.hook_utilities.utilities import recent_host_session_dates
 from scripts.test_selection import select_tests
+from scripts.validation.check_pr_bypass_label import EXIT_EXTERNAL as _BYPASS_CHECK_EXIT_EXTERNAL
 from scripts.validation.object_id import ZERO_SHA_LENGTHS, is_full_object_id
 from scripts.validation.pr_commit_count import (
     BLOCK_THRESHOLD,
@@ -6149,6 +6150,25 @@ def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
     bypass = _run_command(args, repo_root)
     if bypass.returncode == 0:
         print(bypass.stdout, end="")
+        return 0
+    if bypass.returncode == _BYPASS_CHECK_EXIT_EXTERNAL:
+        # check_pr_bypass_label.py cannot reach gh (unauthenticated, network
+        # error, gh missing) and reports that as EXIT_EXTERNAL rather than a
+        # confirmed "no label". Blocking here would make gh reachability a
+        # hard requirement for pushing at all, even though this local check
+        # is a shift-left convenience: .github/workflows/pr-validation.yml
+        # ("Enforce Blocking Issues" step) is the canonical enforcer of the
+        # commit-limit-bypass gate and still runs before merge regardless of
+        # whether this push succeeds. So allow the push and defer the
+        # decision to CI, rather than blocking on infrastructure the local
+        # environment cannot fix (issue #5232).
+        _print_process_output(bypass, stdout_stream=sys.stderr)
+        print(
+            "WARNING: could not verify commit-limit-bypass label locally "
+            f"(gh unreachable); allowing push of {commit_count} commits, "
+            f"limit is {limit}. CI still enforces this gate before merge.",
+            file=sys.stderr,
+        )
         return 0
     unpushed = _unpushed_commit_count(update, repo_root)
     if unpushed is not None and unpushed <= limit:

@@ -20,9 +20,23 @@ both forced by the pre-push context rather than by a policy change:
   pre-push time the PR number is not in the environment the way it is in the CI
   job; ``gh pr view`` with no number infers the PR from the checked-out branch.
 - On any gh failure (not authenticated, network error, gh missing) this helper
-  FAILS CLOSED: it exits non-zero so the caller keeps blocking. A transient gh
-  hiccup must not silently lift the commit-count limit. CI does not need this
-  fallback because the PR is guaranteed to exist when its workflow runs.
+  FAILS CLOSED at its own layer: it never guesses at the label and instead
+  exits EXIT_EXTERNAL (3), distinct from EXIT_ABSENT (1, a confirmed "no
+  label"). A transient gh hiccup must not be reported as a confirmed answer.
+  CI does not need this fallback because the PR is guaranteed to exist when
+  its workflow runs.
+- What the CALLER does with EXIT_EXTERNAL is the caller's decision, not this
+  module's. The commit-limit-bypass caller in
+  ``scripts/validation/git_hook_policy.py`` (``_check_commit_limit``) treats
+  EXIT_EXTERNAL as "cannot verify locally" and allows the push rather than
+  blocking on it: gh reachability is local infrastructure this module cannot
+  fix, and ``.github/workflows/pr-validation.yml`` ("Enforce Blocking
+  Issues" step) is the canonical, always-authenticated enforcer of this gate
+  and still runs before merge regardless of whether the local push succeeded
+  (issue #5232). The needs-split caller (``_check_needs_split_bypass``)
+  already treated any non-zero return, EXIT_EXTERNAL included, as "this
+  bypass does not apply" and falls through to the next check, so it needed
+  no change.
 
 Exit codes (ADR-035):
     0 - bypass label present on the current branch's open PR
@@ -294,10 +308,10 @@ def _describe_gh_failure(proc: subprocess.CompletedProcess[str]) -> str:
 
     return (
         f"{reason} ({detail}). "
-        "The label cannot be verified locally, so the commit limit still "
-        "applies. Split the PR, or ask a human maintainer to decide on the "
-        "commit-limit-bypass label (CONTRIBUTING.md, 'Bypassing the Limit'); "
-        "that label is human-only, so do not apply it yourself."
+        "The label cannot be verified locally. Split the PR, or ask a human "
+        "maintainer to decide on the commit-limit-bypass label "
+        "(CONTRIBUTING.md, 'Bypassing the Limit'); that label is human-only, "
+        "so do not apply it yourself."
     )
 
 
@@ -311,16 +325,16 @@ def check_bypass_label(label: str, branch: str | None) -> tuple[int, str]:
         proc = _run_gh_pr_view(branch)
     except FileNotFoundError:
         return EXIT_EXTERNAL, (
-            "gh CLI not found, so the label cannot be verified locally and the "
-            "commit limit still applies. Split the PR, or ask a human maintainer "
-            "to decide on the commit-limit-bypass label; that label is human-only."
+            "gh CLI not found, so the label cannot be verified locally. Ask a "
+            "human maintainer to decide on the commit-limit-bypass label if a "
+            "decision is needed; that label is human-only."
         )
     except subprocess.TimeoutExpired:
         return EXIT_EXTERNAL, (
             f"gh label lookup timed out after {GH_TIMEOUT_SECONDS}s. "
-            "The label cannot be verified locally, so the commit limit still "
-            "applies. Split the PR, or ask a human maintainer to decide on the "
-            "commit-limit-bypass label; that label is human-only."
+            "The label cannot be verified locally. Ask a human maintainer to "
+            "decide on the commit-limit-bypass label if a decision is needed; "
+            "that label is human-only."
         )
 
     if proc.returncode != 0:
@@ -339,9 +353,9 @@ def check_bypass_label(label: str, branch: str | None) -> tuple[int, str]:
     except json.JSONDecodeError:
         return EXIT_EXTERNAL, (
             "gh label lookup returned unparseable JSON. "
-            "The label cannot be verified locally, so the commit limit still "
-            "applies. Split the PR, or ask a human maintainer to decide on the "
-            "commit-limit-bypass label; that label is human-only."
+            "The label cannot be verified locally. Ask a human maintainer to "
+            "decide on the commit-limit-bypass label if a decision is needed; "
+            "that label is human-only."
         )
 
     number = payload.get("number")

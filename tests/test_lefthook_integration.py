@@ -6814,6 +6814,70 @@ def test_commit_limit_blocks_when_bypass_check_fails(
     assert policy._check_commit_limit(update, tmp_path) == 1
 
 
+def test_commit_limit_allows_push_when_gh_is_unreachable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """gh unauthenticated/unreachable defers to CI instead of blocking (#5232).
+
+    check_pr_bypass_label.py reports EXIT_EXTERNAL (3) when it cannot reach gh
+    at all, distinct from EXIT_ABSENT (1, a confirmed "no label"). Treating
+    both the same made a broken local gh session (GH_TOKEN invalid, GitHub
+    App not connected for the org) a hard requirement for pushing, even
+    though .github/workflows/pr-validation.yml is the canonical,
+    always-authenticated enforcer of this gate and still blocks merge.
+    """
+    update = policy.PushUpdate(
+        source=policy.PushRef("refs/heads/local", "1" * 40, "refs/tags/v1", "2" * 40),
+        base="base",
+        head="head",
+        range_spec="base..head",
+        destination_branch=None,
+    )
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "21\n"))
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: _completed(
+            3, stdout="gh is not authenticated; check GH_TOKEN (exit 1).\n"
+        ),
+    )
+
+    assert policy._check_commit_limit(update, tmp_path) == 0
+
+    captured = capsys.readouterr()
+    assert "allowing push of 21 commits" in captured.err
+    assert "CI still enforces this gate before merge" in captured.err
+
+
+def test_commit_limit_still_blocks_on_confirmed_absent_label(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A definitive EXIT_ABSENT (gh reachable, no label) keeps blocking.
+
+    The negative control for the test above: only a confirmed "gh could not
+    be reached" (EXIT_EXTERNAL) is treated as advisory. A confirmed "no
+    bypass label" answer (EXIT_ABSENT) is unaffected and still blocks.
+    """
+    update = policy.PushUpdate(
+        source=policy.PushRef("refs/heads/local", "1" * 40, "refs/tags/v1", "2" * 40),
+        base="base",
+        head="head",
+        range_spec="base..head",
+        destination_branch=None,
+    )
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "21\n"))
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: _completed(1, stdout="no commit-limit-bypass label (PR #1)\n"),
+    )
+
+    assert policy._check_commit_limit(update, tmp_path) == 1
+
+
 def test_commit_limit_prints_bypass_explanation_with_blocking_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

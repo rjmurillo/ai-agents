@@ -105,8 +105,8 @@ def test_returns_external_when_gh_fails(monkeypatch):
     assert "failed" in status
 
 
-def test_policy_denial_is_named_and_still_blocks(monkeypatch):
-    """A 403 must read as a denial, not as a missing label, and must not pass.
+def test_policy_denial_is_named_and_reported_as_unverifiable(monkeypatch):
+    """A 403 must read as a denial, not as a missing label, and not as success.
 
     Measured on a Claude Code cloud session, 2026-08-20: every gh REST call
     returned HTTP 403 "GitHub access is not enabled for this session" while the
@@ -126,11 +126,14 @@ def test_policy_denial_is_named_and_still_blocks(monkeypatch):
 
     code, status = mod.check_bypass_label("commit-limit-bypass", None)
 
-    # The verdict is unchanged: an unverifiable label still blocks.
+    # The verdict is unchanged: EXIT_EXTERNAL, never EXIT_PRESENT, on a denial.
+    # What a caller does with EXIT_EXTERNAL is the caller's decision (see
+    # scripts/validation/git_hook_policy.py:_check_commit_limit, issue #5232),
+    # not something this module asserts.
     assert code == mod.EXIT_EXTERNAL
     assert "denied by policy" in status
     assert "will not pass on retry" in status
-    assert "commit limit still applies" in status
+    assert "cannot be verified locally" in status
 
 
 def test_unauthenticated_gh_is_named(monkeypatch):
@@ -293,17 +296,19 @@ def test_no_external_path_names_gh_pr_view(monkeypatch, path):
 
 
 @pytest.mark.parametrize("path", sorted(_external_paths()))
-def test_every_external_path_states_the_limit_still_applies(monkeypatch, path):
-    """An unverifiable label blocks on every path, and each says so.
+def test_every_external_path_states_verification_is_unavailable(monkeypatch, path):
+    """An unverifiable label is reported as such on every path, and each says so.
 
-    A reader who hits the timeout branch needs the same two sanctioned routes
-    as one who hits the denial branch.
+    A reader who hits the timeout branch needs the same guidance as one who
+    hits the denial branch: the label cannot be confirmed locally, and only a
+    human maintainer may apply commit-limit-bypass. What a caller does with
+    that (block, or defer to CI per issue #5232) is not asserted here.
     """
     monkeypatch.setattr(mod, "_run_gh_pr_view", _external_paths()[path])
 
     _, status = mod.check_bypass_label("commit-limit-bypass", None)
 
-    assert "commit limit still applies" in status or "commit limit still" in status
+    assert "cannot be verified locally" in status
     assert "human-only" in status
 
 
