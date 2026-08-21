@@ -103,9 +103,27 @@ design." The 764-byte headroom on the `.py` row is a constraint on
 extension-scoped rules. It says nothing about adding a directory glob, which is
 what the fix needed. So an accurate number was applied to the wrong question.
 
-Measured after adding `.claude/commands/**`, `src/copilot-cli/skills/**`, and
+Measured after the final scope, `.claude/commands/**`, `.github/scripts/**`, and
 `tests/**`: the `.py` row reads 98236 / 99000 with 764 free, byte-identical to
-the baseline before the change. The expansion is free.
+the baseline before the change.
+
+Two corrections to how that number was first written up, both from review.
+
+`src/copilot-cli/skills/**` was in this sentence and is not in the shipped rule.
+It was added during the expansion and dropped two commits later as redundant
+against the pre-existing `skills/**/scripts/**` and `skills/**/tests/**`
+entries, and this line kept naming it, so a reader checking the frontmatter
+would not have found it.
+
+The expansion was also called **free**, which overstates what was measured.
+`instruction_budget.py` counts only language-universal globs, so a byte-identical
+`.py` row proves the *always-on* baseline is unchanged and proves nothing about
+total cost. A directory-scoped rule is still loaded, in full, by anyone editing a
+file the glob matches. The accurate claim is narrower and is the one that
+mattered for the decision: the expansion costs nothing against the ceiling this
+repository gates on, which is why it did not have to be traded against coverage.
+Whether it is free to a contributor editing `tests/` is a different question and
+the answer there is no.
 
 ## Verdict
 
