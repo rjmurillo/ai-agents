@@ -133,7 +133,7 @@
       "finding": "origin/main had landed an independent fix for the same defect this branch already fixed: tests/ci/test_validate_vendor_provenance.py's stale hardcoded setup-uv SHA. Combined both approaches (parse the workflow YAML per testing.md MUST 9, assert a SHA-pattern rather than one exact SHA per the staleness lesson from PR #5215) rather than picking one side. The merge also pulled in an unrelated pip-audit CVE fix this branch had already carried (PYSEC-2026-3721) with no conflict. Per ADR-096's documented merge-diff behavior, post_qa_code_changes then correctly reported the QA report as stale, since git log -m diffs a merge commit against both parents and the branch's own prior changes reappear as new relative to a pre-merge qaCommit. Rebound qaCommit to the merge commit (c6d7f388f) after re-running uv run pytest tests/test_validate_session_json.py -q clean at 379 passed, and confirmed uv run --frozen python -c \"...validate_session_end...\" returns PASS/True against the rebound report."
     }
   ],
-  "endingCommit": "8b53bce9da7c0a3436db7988ad2697d76147f91d",
+  "endingCommit": "d0084e597490354c3de1e8e10c7b58bd8346ac1d",
   "nextSteps": [
     "File a follow-up issue for a dedicated QA-freshness field in session-log.schema.json, distinct from endingCommit, per PR #4954 round 15's actual recommendation (ADR-099 Follow-ups item 1).",
     "File a follow-up issue for dropping the validate_session_json.py fallback that binds head to binding.commit when live-HEAD resolution fails (ADR-099 Follow-ups item 2).",
