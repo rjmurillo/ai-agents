@@ -1,6 +1,6 @@
 ---
 id: ADR-100
-status: proposed
+status: accepted
 date: 2026-08-20
 decision-makers: [rjmurillo]
 supersedes: []
@@ -13,7 +13,17 @@ implemented: false
 
 ## Status
 
-Proposed
+Accepted
+
+Accepted by rjmurillo on 2026-08-21, the sole entry in this record's
+`decision-makers`. `implemented` stays `false`: nothing in the Decision has
+landed, and every gate it retires is still blocking. Issue #5241 carries the
+work list and the two ordering couplings.
+
+Transcribed rather than decided here. ADR-073 warns that a hand-edit of
+frontmatter to `accepted` MUST NOT be treated as governance approval, which is
+exactly why this section names who accepted it and when: the frontmatter is the
+record of the decision, not the decision.
 
 ## Date
 

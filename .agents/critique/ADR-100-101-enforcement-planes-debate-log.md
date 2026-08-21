@@ -535,3 +535,39 @@ PR #5181 merged at `5b88ed23f` on the repository owner's direction, with the ten
 
 This is the fourteenth instance of the defect this pull request kept producing, and it landed in the load-bearing cell: the sentence rejecting the strongest surviving alternative rested on a characterization the cited source does not support. Worth recording plainly, because the merge went ahead while both were open.
 
+
+## Acceptance: ADR-100 accepted by owner decision, 2026-08-21
+
+ADR-100's frontmatter moves `proposed` to `accepted` on the direction of
+rjmurillo, the sole entry in its `decision-makers`. Recorded here because the
+status change is an edit to an ADR and this log is where its provenance lives.
+
+**This does not record consensus, and the distinction is the point.** The last
+panel result in this log is round 8: **2 Accept, 3 Disagree-and-Commit, 1
+Block, consensus NOT reached** against the 6/6 contract at
+`.claude/skills/adr-review/SKILL.md:50` and `:100`. No later round overturned
+it. The acceptance is an owner decision taken over a debate that did not
+converge, which the owner is entitled to make and which reads very differently
+from a debate that concluded in favor. A reader who finds `status: accepted`
+and stops there would infer the second. Hence this paragraph.
+
+**Nothing in "Unresolved and deliberately deferred" is resolved by this.** The
+survivorship limitation on ADR-100's blocking-value evidence stands: pull
+requests the ceiling deterred appear in no query, so the enumerated population
+containing no pull request the ceiling actually stopped is a statement about
+what is observable, not about what happened. Item 6's telemetry still has no
+chosen sink and no always-scheduled emitter. Both remain open against an
+accepted decision.
+
+**Accepted is not implemented.** `implemented` stays `false`. Every gate the
+Decision retires is still blocking: `BLOCK_THRESHOLD = 20` and
+`MAIN_MERGE_BLOCK_THRESHOLD = 40` live at
+`scripts/validation/pr_commit_count.py:65,71`, the CI block at
+`scripts/ci/enforce_pr_validation.py:64-84` still returns `LOGIC_ERROR` absent
+the bypass label, and `_check_commit_limit` still refuses the push. Issue #5241
+carries the work list, decomposed by enforcement site, with the two ordering
+couplings the Decision names.
+
+No new debate round was run for this entry, and none is claimed. The panel
+positions above are the ones on record; this appends the disposition, not an
+argument.
