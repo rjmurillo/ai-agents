@@ -1,0 +1,124 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 99923,
+    "date": "2026-08-21",
+    "branch": "claude/issue-5188-silent-failure-repair",
+    "startingCommit": "2dd747176",
+    "objective": "Land the repair-to-a-silent-failure rule from the PR #5176 retrospective as its own change, in a different rule file from issue #5187 so the two PRs cannot conflict"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Continuation of session 99923, which activated Serena and read the initial instructions. This branch is a spin-out of that session."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Carried from session 99923, where mcp__serena__initial_instructions returned the manual. Project context unchanged, so Serena was not re-activated."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md in session 99923; not modified here (read-only per ADR-014)."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session 99923 read memory-index.md and usage-mandatory.md. The auto-recall hook surfaced adr-constraint-checking, skills-linting-index, and new-script-placement for this change; adr-constraint-checking is the relevant one and was applied."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md in session 99923. No skill applies to a rule-text edit; the only tooling is build/scripts/generate_rules.py."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed in session 99923: ls .claude/skills/github/scripts/ -> gh-native, issue, milestone, notifications, pr, reactions, test_workflow_locally.py, utils."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file. branch-context-policy requires a log naming the current branch; a fresh branch off main has none."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git checkout -B claude/issue-5188-silent-failure-repair origin/main at 2dd747176"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On claude/issue-5188-silent-failure-repair"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Clean at branch creation; the #5187 branch was committed and pushed at 2c9938ad8 first."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read knowledge-persistence.md (MUST 2 mirrors, SHOULD 1 prefer an existing rule) and claude-agents.md (MUST NOT 2, no bundling with code)."
+      }
+    },
+    "sessionEnd": {
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "One rule edit plus its two generated mirrors and this log, then a follow-up commit recording endingCommit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "instruction_budget.py PASS with the .py row unchanged at 764 bytes headroom, which is the measurement that chose the target file. build_all.py --check no staleness. pre_pr.py all validations passed."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/session-99923-rules-silent-failure-repair.md"
+      },
+      "markdownLintRun": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "pre-commit markdown-autofix and markdown-check ran on the staged rule file."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not applicable. The lesson is a convention every harness should read, which knowledge-persistence.md routes to .claude/rules/ rather than to a memory."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items recorded with evidence."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "activity": "Chose the target rule file by measurement, not by fit alone",
+      "finding": "First draft went into pragmatic-programmer.md, whose scope is code extensions. instruction_budget.py then reported the .py always-on row at 100.7% and FAIL, 645 bytes over the ceiling, because any rule matching **/*.py enters the language baseline (11 files, not the 7 universal ones). A compressed version still left only 83 bytes headroom, a WARN under the 600-byte concurrent-merge reserve. Reverted both."
+    },
+    {
+      "activity": "Moved to ci-scripts.md, which is path-scoped",
+      "finding": "The budget's own action item 2 says to scope narrowly instead of **/*.<ext>. A path-scoped rule does not enter the language baseline, confirmed empirically: the .py row is byte-identical at 98236 before and after this change. ci-scripts.md is also the closest existing owner per knowledge-persistence.md SHOULD 1, since its MUST 10 through 12 already govern converting failure signals into non-zero exits and distinguishing a run that did nothing from one that succeeded."
+    },
+    {
+      "activity": "Added ci-scripts.md SHOULD 4",
+      "finding": "MUST 10 through 12 govern the original defect; nothing governed the fix. Four successive repairs to one silent-failure defect in PR #5176 each introduced a different silent failure, and three were caught by a reviewer rather than by the suite being written for that class."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Open a draft PR from claude/issue-5188-silent-failure-repair referencing issue #5188"
+  ]
+}

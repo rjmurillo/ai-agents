@@ -1,0 +1,19 @@
+{
+  "id": "episode-2026-08-21-session-99923-2dd747176-rules-silent-failure-repair",
+  "session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair",
+  "timestamp": "2026-08-21T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Land the repair-to-a-silent-failure rule from the PR #5176 retrospective as its own change, in a different rule file from issue #5187 so the two PRs cannot conflict",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 6
+  },
+  "lessons": []
+}
