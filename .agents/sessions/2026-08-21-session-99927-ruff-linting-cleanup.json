@@ -146,9 +146,13 @@
     {
       "action": "python-tests failed the pre-push gate on tests/ci/test_validate_vendor_provenance.py::test_workflow_sets_up_uv, a workflow this branch never touched.",
       "result": "The test expected setup-uv pinned to ae62891f while the workflow carried 20cfd1bf. Reproduced the same disagreement on origin/main, so it was not this branch's. The branch was 2 commits behind, and caae865fb plus a1ee96695 had bumped the pin and its expectation together. git merge origin/main resolved it with no source edit, which is the first diagnostic step ci-scripts.md MUST-14 prescribes for exactly this shape."
+    },
+    {
+      "action": "Verified and fixed two Copilot review findings on PR #5227: the benchmark ruff waiver covered the whole .agents/security/benchmarks/**/*.py tree, but the noqa directives and long lines it exists to waive live only under vulnerable_samples/; and lefthook's python-lint-count-ratchet job triggered only on **/*.py, while ruff_count_ratchet.py's own _SCAN_GLOBS also cover *.pyi and *.ipynb, and a ruff config edit in pyproject.toml can move the count without touching any .py file.",
+      "result": "Confirmed both by reading source (grep for noqa in the benchmark tree confirmed every S### directive is under vulnerable_samples/; scripts/ci/ruff_count_ratchet.py:62 confirmed _SCAN_GLOBS). Narrowed the pyproject.toml per-file-ignores glob to .agents/security/benchmarks/vulnerable_samples/**/*.py and widened the lefthook glob to add **/*.pyi, **/*.ipynb, and pyproject.toml, updating the wiring test in tests/ci/test_ruff_local_ratchet_wiring.py that pinned the old glob list. Verified ruff check . and the count ratchet both still pass at baseline 0."
     }
   ],
-  "endingCommit": "ccd2c41c278c0108040a2a12d32ddec5d5f35de6",
+  "endingCommit": "bf81d95c5ac09deefc52ca16c82c5746482b638f",
   "nextSteps": [
     "Watch the ruff count ratchet on the PR: with the baseline at 0 any new violation now blocks rather than being absorbed by slack.",
     "Consider whether packages/semantic-hooks/pyproject.toml should inherit the root ruff per-file-ignores instead of redeclaring its own select list, so the two configs cannot drift again.",

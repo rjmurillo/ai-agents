@@ -193,6 +193,28 @@
       "caused_by": [
         "e017"
       ],
+      "leads_to": [
+        "e020"
+      ],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified and fixed two Copilot review findings on PR #5227: the benchmark ruff waiver covered the whole .agents/security/benchmarks/**/*.py tree, but the noqa directives and long lines it exists to waive live only under vulnerable_samples/; and lefthook's python-lint-count-ratchet job triggered only on **/*.py, while ruff_count_ratchet.py's own _SCAN_GLOBS also cover *.pyi and *.ipynb, and a ruff config edit in pyproject.toml can move the count without touching any .py file.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-21T18:46:55+00:00",
+      "type": "commit",
+      "content": "Commit: bf81d95c5ac09deefc52ca16c82c5746482b638f",
+      "caused_by": [
+        "e018"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
     }
@@ -202,8 +224,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
-    "files_changed": 18
+    "commits": 6,
+    "files_changed": 20
   },
   "lessons": []
 }
