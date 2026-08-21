@@ -21,13 +21,22 @@ review-by: null           # optional: YYYY-MM-DD this record must be revisited; 
 
 # ADR-NNN: [Title]
 
-## Status
+<!--
+Lifecycle state lives in the frontmatter above and nowhere else. This template
+carried `## Status` and `## Date` prose sections until 2026-08-21; both restated
+frontmatter fields verbatim, and every record generated from it inherited the
+duplication. Two review comments on PR #5209 (ADR-005 "Duplicative. Already in
+frontmatter", ADR-024 "Redundant") rejected it.
 
-[Proposed | Accepted | Deprecated | Superseded by ADR-XXX]
+The rule: prose says what frontmatter cannot, and never restates what it carries.
 
-## Date
-
-[YYYY-MM-DD]
+Add a prose section only when it carries something the enum cannot, such as
+review evidence, provenance, or the condition blocking acceptance. Name it for
+what it holds (`## Acceptance Evidence`, `## Provenance`), not `## Status`. The
+lifecycle gate compares any `## Status` section against the frontmatter enum and
+requires the section to open with the enum word, so a section named Status is
+obliged to restate the enum. Naming it for its contents avoids that entirely.
+-->
 
 ## Context
 

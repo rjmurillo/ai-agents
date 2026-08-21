@@ -132,6 +132,10 @@ _STATUS_HEADING_RE = re.compile(r"(?m)^[ \t]{0,3}#{2,3}[ \t]+Status[ \t]*$", re.
 # code sample, not a status declaration, and must not be read as one.
 _INLINE_STATUS_RE = re.compile(r"(?m)^[ \t]{0,3}\*\*Status\*\*[ \t]*:[ \t]*(.+)$")
 
+# Level-2 headings only. `_record_header` uses these to bound the status search;
+# a level-3 `### Status` is a subsection of something, never the record's own.
+_LEVEL_TWO_HEADING_RE = re.compile(r"(?m)^[ \t]{0,3}##[ \t]+(.+?)[ \t]*$")
+
 # Leading lifecycle word through any decoration: "**Accepted**", "> Superseded
 # by ADR-094 (2026-08-15)", "`Proposed`. Supersedes ADR-036."
 _LEAD_WORD_RE = re.compile(r"^[*_`~>\[\s]*([A-Za-z]+)")
@@ -318,20 +322,47 @@ def _check_identity(record: Record) -> list[Violation]:
     return found
 
 
+def _record_header(body: str) -> str:
+    """The region that can hold a record's own lifecycle status.
+
+    Everything from the top of the body up to the first level-2 heading that is
+    not `## Status`. A record states its own status in its header, and any
+    `Status` label deeper in the document belongs to something else.
+
+    This bound is not cosmetic. Without it the search runs the whole document and
+    takes the first match anywhere, which is how ADR-042's `### Status` at line
+    171 (a subsection of a migration phase) and ADR-055's
+    `**Status**: COMPLETE` at line 119 (a phase result) and
+    `**Status**: APPROVED` at line 168 (an exception ruling) were read as those
+    records' lifecycle status. All three were masked while a real `## Status`
+    section sat higher in the file and surfaced the moment it was removed.
+
+    That is the same defect this campaign filed as issue #5189 against
+    `_get_adr_status`, which regexed `^status:` across an entire ADR instead of
+    its frontmatter. Scoping the search to the region that can legitimately hold
+    the answer is the fix in both cases.
+    """
+    for match in _LEVEL_TWO_HEADING_RE.finditer(body):
+        if match.group(1).strip().lower() != "status":
+            return body[: match.start()]
+    return body
+
+
 def _status_prose(body: str) -> str | None:
-    """First non-blank line of the status section, or None when there is none.
+    """First non-blank line of the record's status section, or None when absent.
 
     A `## Status` heading with nothing under it returns "", which keeps
     prose present while `prose-frontmatter-agree` reports
     the missing lifecycle word.
     """
-    heading = _STATUS_HEADING_RE.search(body)
+    header = _record_header(body)
+    heading = _STATUS_HEADING_RE.search(header)
     if heading is not None:
-        for line in body[heading.end() :].splitlines():
+        for line in header[heading.end() :].splitlines():
             if line.strip():
                 return line.strip()
         return ""
-    inline = _INLINE_STATUS_RE.search(body)
+    inline = _INLINE_STATUS_RE.search(header)
     return inline.group(1).strip() if inline is not None else None
 
 

@@ -873,3 +873,65 @@ def test_main_reports_no_check_ready_when_every_check_has_debt(tmp_path, capsys)
 
     assert main(["--repo-root", str(tmp_path), "--baseline", str(baseline)]) == EXIT_OK
     assert "No check is at zero yet" in capsys.readouterr().out
+
+
+def test_level_three_status_subsection_is_not_the_record_status(tmp_path):
+    """A `### Status` deep in the body belongs to a subsection, not the record.
+
+    Real case: ADR-042 carries `### Status` at line 171 inside a migration-phase
+    section. While a real `## Status` sat higher in the file the deeper heading was
+    masked; removing the redundant top section surfaced it and the gate read
+    "Proposed" as the record's lifecycle status against `status: accepted`.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir, 1, _valid(1),
+        "\n## Acceptance Evidence\n\nRatified in PR #963.\n"
+        "\n## Migration Phases\n\n### Phase 1\n\n### Status\n\nProposed\n",
+    )
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 0
+
+
+def test_inline_status_label_deep_in_body_is_not_the_record_status(tmp_path):
+    """`**Status**:` under a phase or exception heading is that thing's status.
+
+    Real case: ADR-055 carries `**Status**: COMPLETE` at line 119 (a migration
+    phase result) and `**Status**: APPROVED` at line 168 (an exception ruling).
+    Neither describes the record's lifecycle.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir, 1, _valid(1),
+        "\n## Provenance\n\nRenumbered by PR #1604.\n"
+        "\n## Migration\n\n**Status**: COMPLETE (2025-12-29)\n"
+        "\n## Exceptions\n\n**Status**: APPROVED\n",
+    )
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 0
+
+
+def test_record_status_is_still_found_when_it_is_the_first_section(tmp_path):
+    """Positive control: scoping must not stop the gate seeing a real drift."""
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir, 1, _valid(1),
+        "\n## Status\n\nProposed\n\n## Context\n\nWords.\n",
+    )
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 1
+
+
+def test_status_heading_after_another_section_is_out_of_scope(tmp_path):
+    """The header region ends at the first non-Status level-2 heading.
+
+    A record that opens with Context and only later carries a Status heading is
+    not stating its lifecycle in a header, and the gate does not guess.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir, 1, _valid(1),
+        "\n## Context\n\nWords.\n\n## Status\n\nProposed\n",
+    )
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 0
