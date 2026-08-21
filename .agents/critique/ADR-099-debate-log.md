@@ -6,16 +6,30 @@ advisory label and the WARNING/ALERT notices at the same 10/15 thresholds.
 
 **Authorization**: direct, explicit instruction from the repository owner
 (rjmurillo) in-session on 2026-08-21: "get rid of gate requiring
-commit-limit-bypass label." This is not a heavy, hard-to-reverse
-architectural decision (it deletes an enforcement mechanism and its dead
-supporting code; reverting is one revert away and the advisory signal it
-replaces is unchanged), so this log records the reasoning that would be
-raised by each debate perspective rather than convening the full six-role
-panel `.claude/skills/adr-review/` runs for genuinely contested ADRs. The
-2026-08-17 governance retrospective independently found that the full panel
-was being over-applied to exactly this class of reversible process change
-(`.agents/retrospective/2026-08-17-governance-bureaucracy-critical-review.md`,
-"ADR audit" finding).
+commit-limit-bypass label."
+
+**2026-08-21 correction: the sections below were a simulated pre-panel
+pass, not the mandated review.** The paragraph originally here argued that
+this ADR was not a heavy, hard-to-reverse decision and so did not need the
+full six-role `adr-review` panel, and recorded a single author's simulated
+version of each of the six perspectives instead of convening them. A
+Copilot automated review on PR #5234 correctly rejected that reasoning:
+`AGENTS.md` states "Any `ADR-*.md` edit fires adr-review" with no
+carved-out exemption for reversible process changes, and a single author
+narrating six roles is not a review, it is one perspective wearing six
+labels; it cannot surface a disagreement the author did not already think
+of. The sections immediately below ("Architect perspective" through
+"Verdict") are kept, relabeled, as a record of that first, inadequate pass,
+not deleted, per `.claude/rules/curating-memories.md`'s
+correct-rather-than-silently-delete discipline. The real panel's findings
+follow in the "Real six-role panel" section after them.
+
+## Simulated pre-panel perspectives (superseded, kept for the record)
+
+The subsections below were authored by one session narrating all six
+roles itself, not by convening the panel. Read them as a single author's
+guess at what six independent reviewers might say, already superseded by
+the real panel below.
 
 ## Architect perspective
 
@@ -104,3 +118,66 @@ independently of the commit-count gate. The shipped `pr-validation.yml` keeps
 between the ADR's prose and the actual diff after the initial push; both
 passages are corrected to state that the step stays and that no fetch
 savings materialize from this change.
+
+## Real six-role panel (2026-08-21)
+
+A GitHub Copilot automated review on PR #5234 flagged that this ADR had not
+gone through the mandatory `adr-review` panel, correctly citing `AGENTS.md`'s
+"Any `ADR-*.md` edit fires adr-review" with no exemption. In response, the
+`.claude/skills/adr-review/` skill was invoked for real: all six roles
+(architect, critic, independent-thinker, security, analyst,
+high-level-advisor) ran as independent agents against the full ADR-099 text
+above, per the skill's Phase 0-4 protocol.
+
+The panel's findings converged on two issues more consequential than
+anything the simulated pass above surfaced, neither of which a
+single-author simulation was positioned to find because both require
+reading files outside this ADR:
+
+1. **ADR-100 ("Retire the Pull Request Size Ceilings") and ADR-101
+   ("Enforcement Planes") already exist on `origin/main`** (`status:
+   proposed`, `implemented: false`, both dated 2026-08-20), decide the
+   identical retirement question this ADR decides, and were uncited here.
+   ADR-100 in particular reaches the same conclusion from a 292-PR measured
+   population and three reconstructed blocking cases, far stronger evidence
+   than this ADR's PR #5209/#4846 pair, and states two conditions ("Decision
+   item 6" telemetry, a 90-day re-measure follow-up issue in its "Time-box"
+   section) as necessary for its own retirement to be considered complete.
+   Independently re-verified in this session: `git fetch origin main && git
+   show origin/main:.agents/architecture/ADR-100-retire-pr-size-ceilings.md`
+   and the ADR-101 equivalent both resolve to real, substantial files, not a
+   stale reference.
+2. **This ADR's Context section stated a false premise**: "an agent could
+   not apply it to its own PR, only ask a maintainer to." Independently
+   re-verified in this session: `git show
+   origin/main:scripts/validation/git_hook_policy.py` lines 6062-6073 record
+   in the code's own comment that "an agent applied the label to PR #4735 on
+   2026-08-08 after this gate suggested it (issue #4782)," and that the
+   human-only restriction added afterward is advisory text in a failure
+   message, not a write-permission control. Both ADR-099's Context and its
+   own Prior Art Investigation section already named issue #4782 by number,
+   which should have been the tell; the simulated pass did not follow that
+   citation back to what #4782 was actually responding to.
+
+Both findings are corrected directly in ADR-099's body (Context, Related
+Decisions, References) rather than only recorded here. A third, lower-severity
+finding (two script docstrings, `scripts/ci/enforce_pr_validation.py` and
+`scripts/validation/pr_commit_count.py`, misattributing the CI-side gate's
+removal to the same session-sandboxing failure that motivated the local
+pre-push gate's removal, when the CI job runs under a working `GH_TOKEN` and
+never had that failure) was corrected in the same PR, independently verified
+by reading both files and by tracing the deleted
+`scripts/validation/check_pr_bypass_label.py`'s pre-deletion docstring via
+`git show 9afc68381~1:scripts/validation/check_pr_bypass_label.py`.
+
+A fourth item the panel raised, not a defect but a gap: neither this ADR nor
+its implementation ships push-ceiling telemetry or a 90-day re-measure
+commitment of the kind ADR-100 requires. `status: accepted` is kept per
+explicit agent guidance against inventing a new frontmatter enum value for
+"accepted, pending a follow-up commitment" (ADR-073 defines the enum as
+`proposed | accepted | rejected | deprecated | superseded`); the gap is
+closed instead with a "Confirmation and Reversal Triggers" section added to
+the ADR body and two follow-up issues filed at merge time.
+
+No panel role returned Block. The convergent verdict was Accept, conditioned
+on the corrections above landing in the same change, which they do.
