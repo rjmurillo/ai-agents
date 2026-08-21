@@ -43,6 +43,26 @@
         "level": "MUST",
         "Complete": true,
         "Evidence": "Read universal.md MUST 2 (issue linkage, filed #5222 before making the change) and MUST 4 (verify a red remote check with equivalent evidence, or report it unreproduced). The red was reproduced in a clean virtualenv, not asserted from the job name."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill scripts were listed in the parent ADR corpus session and that inventory carries here; this branch is a spin-out, not a new project context. The github skill served every issue and PR operation on this branch rather than raw gh, per AGENTS.md Skill-First. Recorded for the next reader: ai-agents-debugging-playbook declares the triggers 'triage this failure' and 'debug this CI red', which describe this branch, and the triage was run directly instead of through it. The result matches what that runbook prescribes, reproduce on main before blaming the branch and then reproduce the cause in isolation, both of which were done. Noting the skipped routing step rather than leaving it unsaid."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Carried from the parent session, which read .serena/memories/memory-index.md and usage-mandatory.md. For this change the auto-recall hook surfaced skills-gh-extensions-index, gh-extensions-notify and state-file-read-boundaries-fail-closed. None bears on a CI dependency pin. Searched the issue tracker instead, which is where the relevant prior art actually lived: issue #2438 set this same pin to 26.1.2 to escape PYSEC-2026-196, and #1778 owns retiring the --ignore-vuln flags."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md in the parent session (skill-first incident log; ADR-085 retired the blocking hook but the MUST-level convention stands). Recorded honestly under skillScriptsListed above: ai-agents-debugging-playbook covers this CI-red triage and was not invoked. Not claiming no skill applied, which would be an absence asserted without searching, forbidden by knowledge-persistence.md MUST NOT 4."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Carried from the parent ADR corpus session, where Serena was activated and the initial instructions read. This branch is a spin-out of that session; Serena was not re-activated because the project context did not change, only the branch."
       }
     },
     "sessionEnd": {
