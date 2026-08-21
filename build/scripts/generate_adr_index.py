@@ -135,6 +135,49 @@ class AdrIndexError(Exception):
     """An ADR record could not be parsed into an index row."""
 
 
+class _DuplicateKeyError(yaml.YAMLError):
+    """Raised when a mapping declares the same key twice."""
+
+
+class _StrictLoader(yaml.SafeLoader):
+    """SafeLoader that refuses duplicate mapping keys.
+
+    PyYAML resolves duplicates last-wins and reports nothing, so a record
+    carrying `status: proposed` near the top and `status: accepted` lower in the
+    same block parses as accepted while reading as proposed to a human scanning
+    the first lines. For a lifecycle gate that is a forgery vector, not a
+    formatting nit: the visible declaration and the enforced one differ.
+
+    The repo already treats this as a governance risk. `detect_adr_changes.py`
+    carries `_has_duplicate_top_level_keys` with the docstring "Duplicate keys
+    are malformed YAML and can hide a governance change (a second ``status:``
+    line masking the first)", and fails its frontmatter-only exemption closed on
+    them. That helper scans top-level lines with a regex; this loader hooks the
+    parser instead, so it also catches duplicates nested inside a mapping value
+    and is not fooled by quoting or comments.
+    """
+
+
+def _no_duplicate_keys(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict:
+    seen: set = set()
+    for key_node, _ in node.value:
+        key = loader.construct_object(key_node, deep=True)
+        try:
+            duplicate = key in seen
+        except TypeError:  # pragma: no cover - unhashable keys are not valid here
+            duplicate = False
+        if duplicate:
+            raise _DuplicateKeyError(f"duplicate key {key!r} in frontmatter mapping")
+        seen.add(key)
+    return loader.construct_mapping(node, deep=True)
+
+
+_StrictLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _no_duplicate_keys
+)
+
+
+
 @dataclass(frozen=True, slots=True)
 class AdrRecord:
     """One ADR reduced to its index row. ``status`` is ``None`` only for a record
@@ -174,7 +217,7 @@ def parse_frontmatter(
         return None, content
     body = match.group(2)
     try:
-        parsed = yaml.safe_load(match.group(1))
+        parsed = yaml.load(match.group(1), Loader=_StrictLoader)
     except yaml.YAMLError as exc:
         raise AdrIndexError(f"invalid YAML frontmatter in {path.name}: {exc}") from exc
     if parsed is None:

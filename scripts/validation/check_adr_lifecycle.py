@@ -219,6 +219,43 @@ def _frontmatter_reason(raw: str | None) -> str:
     return f"frontmatter is a {type(parsed).__name__}, not a YAML mapping"
 
 
+def _duplicate_top_level_key(raw: str | None) -> str | None:
+    """Return the first key declared twice at top level, or None.
+
+    PyYAML resolves duplicates last-wins and reports nothing, so a record
+    carrying `status: proposed` near the top and `status: accepted` lower in the
+    same block parses as accepted while reading as proposed to anyone scanning
+    the first lines. For a lifecycle gate that is a forgery vector, not a
+    formatting nit: the declaration a human sees and the one tooling enforces
+    are different values.
+
+    Checked here rather than inside `_parse_yaml_frontmatter`, which is shared
+    with other consumers (`scripts/validation/yaml_utils.py`) whose contract this
+    change has no mandate to alter.
+
+    Stricter/looser/different than canonical: `detect_adr_changes.py` carries
+    `_has_duplicate_top_level_keys`, quoted verbatim as "True when a top-level
+    frontmatter key appears more than once", and returns a bool. This returns the
+    offending key instead, so the violation can name it.
+    """
+    if raw is None:
+        return None
+    seen: set[str] = set()
+    for line in raw.splitlines():
+        if not line or line[0] in " \t":
+            continue
+        key, sep, _ = line.partition(":")
+        if not sep:
+            continue
+        key = key.strip()
+        if not key or key.startswith("#"):
+            continue
+        if key in seen:
+            return key
+        seen.add(key)
+    return None
+
+
 def _read_record(path: Path, number: int, rel: str) -> tuple[Record, Violation | None]:
     """Parse one ADR. The violation is non-None when the frontmatter is unusable."""
     try:
@@ -237,6 +274,17 @@ def _read_record(path: Path, number: int, rel: str) -> tuple[Record, Violation |
         empty = Record(number, rel, None, "")
         return empty, Violation("frontmatter-parses", rel, f"is not valid UTF-8: {exc}")
     raw, body = _split_frontmatter(text)
+    duplicate = _duplicate_top_level_key(raw)
+    if duplicate is not None:
+        return (
+            Record(number, rel, None, body),
+            Violation(
+                "frontmatter-parses",
+                rel,
+                f"declares `{duplicate}` twice; PyYAML keeps the last value "
+                f"silently, so the visible declaration and the enforced one differ",
+            ),
+        )
     frontmatter = _parse_yaml_frontmatter(text)
     if frontmatter is None:
         return (

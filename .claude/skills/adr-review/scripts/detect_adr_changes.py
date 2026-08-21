@@ -246,6 +246,16 @@ def _get_adr_status(file_path: Path) -> str:
     frontmatter, _body = _split_frontmatter(content)
     if not frontmatter:
         return STATUS_UNKNOWN
+    if _has_duplicate_top_level_keys(frontmatter):
+        # PyYAML resolves duplicates last-wins and reports nothing, so a record
+        # carrying `status: proposed` near the top and `status: accepted` lower
+        # in the same block parses as accepted while reading as proposed to
+        # anyone scanning the first lines. This module already treats that as a
+        # governance risk and fails its frontmatter-only exemption closed on it
+        # (see _frontmatter_only_change); the status path was not wired to the
+        # same helper, so the two disagreed about whether such a record is
+        # readable at all. Undeclared, not last-wins.
+        return STATUS_UNKNOWN
     fields = _parse_frontmatter(frontmatter)
     if fields is None:
         return STATUS_UNKNOWN
