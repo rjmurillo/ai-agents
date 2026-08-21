@@ -65,7 +65,9 @@
       "caused_by": [
         "e004"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e008"
+      ],
       "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
     },
     {
@@ -93,6 +95,17 @@
         "e004"
       ],
       "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-21T05:50:27+00:00",
+      "type": "commit",
+      "content": "Commit: 6027185de1e66e9ecdf74c7c90ad031cc7258262",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
     }
   ],
   "metrics": {
@@ -100,7 +113,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
+    "commits": 8,
     "files_changed": 6
   },
   "lessons": []
