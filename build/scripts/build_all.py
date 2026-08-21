@@ -41,6 +41,7 @@ if TYPE_CHECKING:
 _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 
+import generate_adr_index  # noqa: E402
 import generate_commands  # noqa: E402
 import generate_hooks  # noqa: E402
 import generate_rules  # noqa: E402
@@ -155,6 +156,44 @@ def _build_agent_catalog(repo_root: Path, _config_path: Path, _platform: str) ->
     result = GeneratorResult(artifact="agent-catalog", platform="docs", exit_code=rc)
     if templates_dir.is_dir():
         result.inputs = sum(1 for _ in templates_dir.glob("*.shared.md"))
+    result.outputs = 1 if output_path.is_file() else 0
+    return result
+
+
+def _build_adr_index(repo_root: Path, _config_path: Path, _platform: str) -> GeneratorResult:
+    """Regenerate .agents/architecture/README.md from the ADR corpus.
+
+    Repo-level like ``_build_agent_catalog``, not per-platform: there is one ADR
+    corpus and one index, and running it once per platform config would write the
+    same bytes N times. ``_run_generators`` calls it in the run-once block for
+    that reason.
+
+    ``.agents/architecture/README.md`` is registered in :data:`OWNED_PREFIXES` so
+    both ``--check`` consumers cover it: the staleness diff reports an ADR change
+    that landed without a regeneration, and the snapshot/restore guard keeps
+    ``--check`` read-only for this file the way it already does for
+    ``docs/agent-catalog.md``.
+    """
+    adr_dir = repo_root / ".agents" / "architecture"
+    output_path = adr_dir / "README.md"
+    if not adr_dir.is_dir():
+        result = GeneratorResult(artifact="adr-index", platform="docs", exit_code=0)
+        result.notices.append("ADR directory missing; skipped")
+        return result
+    rc = generate_adr_index.main(
+        [
+            "--adr-dir",
+            str(adr_dir),
+            "--output",
+            str(output_path),
+        ]
+    )
+    result = GeneratorResult(artifact="adr-index", platform="docs", exit_code=rc)
+    result.inputs = sum(
+        1
+        for path in adr_dir.glob("ADR-*.md")
+        if generate_adr_index.is_adr_filename(path.name)
+    )
     result.outputs = 1 if output_path.is_file() else 0
     return result
 
@@ -426,7 +465,7 @@ def _build_hooks(repo_root: Path, config_path: Path, platform: str) -> Generator
     return result
 
 
-# Order matters: agents → agent-catalog → skills → commands → rules → lib → hooks.
+# Order matters: agents → agent-catalog → adr-index → skills → commands → rules → lib → hooks.
 # The skills generator copies .claude/skills/* first; the commands bridge
 # layers user-invocable skills beside them; rules write to a separate dir
 # (.github/instructions/); lib MUST land before hooks so the manifest-
@@ -435,6 +474,7 @@ def _build_hooks(repo_root: Path, config_path: Path, platform: str) -> Generator
 GENERATORS: list[tuple[str, Callable[[Path, Path, str], GeneratorResult]]] = [
     ("agents", _build_agents),
     ("agent-catalog", _build_agent_catalog),
+    ("adr-index", _build_adr_index),
     ("skills", _build_skills),
     ("commands", _build_commands),
     ("rules", _build_rules),
@@ -818,7 +858,12 @@ def _select_platform_configs(
 #      read-only by reverting any generator writes under these prefixes.
 # Keep these in lock-step. If a new generator lands that writes to a
 # different prefix, add it here so both behaviors keep covering it.
-OWNED_PREFIXES: tuple[str, ...] = ("src/", ".github/instructions/", "docs/agent-catalog.md")
+OWNED_PREFIXES: tuple[str, ...] = (
+    "src/",
+    ".github/instructions/",
+    "docs/agent-catalog.md",
+    ".agents/architecture/README.md",
+)
 
 
 def _is_bytecode_artifact(path: Path) -> bool:
@@ -1150,6 +1195,7 @@ def _run_generators(
     for result in (
         _build_agents(repo_root, configs[0], "*"),
         _build_agent_catalog(repo_root, configs[0], "*"),
+        _build_adr_index(repo_root, configs[0], "*"),
     ):
         audit.results.append(result)
         if result.exit_code != 0:
@@ -1159,7 +1205,7 @@ def _run_generators(
     for cfg in configs:
         platform_name = cfg.stem
         for artifact, fn in GENERATORS:
-            if artifact in {"agents", "agent-catalog"}:
+            if artifact in {"agents", "agent-catalog", "adr-index"}:
                 continue  # ran once above
             result = fn(repo_root, cfg, platform_name)
             audit.results.append(result)
