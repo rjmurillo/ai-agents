@@ -169,7 +169,7 @@
         "e010"
       ],
       "leads_to": [
-        "e021"
+        "e038"
       ],
       "_source_session": "2026-08-21-session-5220-session-log-false-positive"
     },
@@ -206,7 +206,7 @@
       "type": "commit",
       "content": "Commit: 36bfb510b2858c5f22e164cd42342d04921a250a",
       "caused_by": [
-        "e017"
+        "e038"
       ],
       "leads_to": [
         "e025"
@@ -306,6 +306,86 @@
       "caused_by": [
         "e025"
       ],
+      "leads_to": [
+        "e039"
+      ],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e032",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reconcile Cursor Bugbot's independent autofix commit on the same branch",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e033",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Push attempt failed pre-push's merge-tree-ratchet: 'merge has conflicts against origin/main'",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e034",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read 746e2c36a in full rather than assuming a routine base-branch merge would resolve it",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e035",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verify empirically rather than trust the diff read: reproduce issue #5220's exact scenario against origin/main tip",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e036",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Conclude this branch's fix is superseded, not merely conflicting; close rather than reconcile in parallel",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e037",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge origin/main into this branch for a clean historical record instead of abandoning it mid-conflict",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e038",
+      "timestamp": "2026-08-21T16:27:40+00:00",
+      "type": "commit",
+      "content": "Commit: a1ee96695",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e039",
+      "timestamp": "2026-08-21T20:42:37+00:00",
+      "type": "commit",
+      "content": "Commit: 746e2c36a",
+      "caused_by": [
+        "e031"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-5220-session-log-false-positive"
     }
@@ -315,8 +395,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
-    "files_changed": 5
+    "commits": 7,
+    "files_changed": 3
   },
   "lessons": []
 }

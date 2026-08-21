@@ -181,6 +181,31 @@ as exceeding 500 lines (11397 lines) and two functions exceeding complexity 10
 and are unrelated to the branch-context tests added here; not addressed in this
 PR.
 
+## Superseded by 746e2c36a (PR #5229, issue #5228)
+
+After this QA report reached PASS, a subsequent `origin/main` fetch surfaced
+commit `746e2c36a` ("docs: discontinue session log file creation", PR #5229,
+issue #5228), which rewrote `_is_merged_history` and `check_branch_context` in
+`scripts/validation/git_hook_policy.py` more completely than this branch: it
+routes `_is_merged_history` through the pre-existing `_read_upstream_default_blob`,
+which already carried an `origin/HEAD` -> `origin/main` fallback before this
+branch or issue #5220 existed, and it drops the "current branch owns a
+same-day log" precondition entirely, since session log creation is now
+discontinued (`.claude/rules/session-logs.md` MUST 1) and that precondition
+can never be satisfied again.
+
+Verified empirically against `origin/main` at `746e2c36a` in an external
+worktree: reproduced issue #5220's exact scenario (fresh clone-shape repo,
+`origin/HEAD` unresolved, a same-day log from another branch imported by
+merge, current branch owning its own log). `check_branch_context` returned
+`0` (pass); the pre-fix code returns `1` (block).
+
+PR #5226 was closed unmerged as superseded; issue #5220 was closed as
+completed, both citing this evidence. This branch then merged `origin/main`
+and took its version of `scripts/validation/git_hook_policy.py` and
+`tests/test_lefthook_integration.py` entirely (`git checkout --theirs`); the
+post-merge diff against `origin/main` for both files is empty.
+
 ## Status
 
-QA COMPLETE.
+QA COMPLETE. Superseded: see above. No code from this branch merged to `main`.
