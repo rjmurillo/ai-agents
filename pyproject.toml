@@ -137,7 +137,7 @@ ignore = []
 # `.semgrepignore` would not help either: git_hook_policy.py's pre-push scan
 # invokes semgrep with --x-ignore-semgrepignore-files, so that file is
 # deliberately ignored and cannot scope this gate.
-".agents/security/benchmarks/**/*.py" = ["RUF100", "I001", "E501"]
+".agents/security/benchmarks/vulnerable_samples/**/*.py" = ["RUF100", "I001", "E501"]
 # sys.path manipulation required before imports for plugin-context path resolution
 ".claude/skills/github/scripts/**/*.py" = ["E402"]
 # Validation runners use sys.path.insert() before importing sibling modules

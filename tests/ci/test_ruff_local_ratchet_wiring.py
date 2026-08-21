@@ -49,7 +49,13 @@ def test_whole_tree_ruff_count_ratchet_blocks_in_pre_push() -> None:
     )
     assert "--exit-zero" not in job["run"]
     assert "--update" not in job["run"]
-    assert job["glob"] == ["**/*.py", "scripts/ci/ruff_count_baseline.txt"]
+    assert job["glob"] == [
+        "**/*.py",
+        "**/*.pyi",
+        "**/*.ipynb",
+        "pyproject.toml",
+        "scripts/ci/ruff_count_baseline.txt",
+    ]
 
 
 def test_ruff_ratchets_have_distinct_local_blocking_jobs() -> None:

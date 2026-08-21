@@ -476,6 +476,9 @@ pre-push:
             run: uv run --frozen --extra dev python scripts/ci/ruff_count_ratchet.py --base-ref origin/main
             glob:
               - "**/*.py"
+              - "**/*.pyi"
+              - "**/*.ipynb"
+              - "pyproject.toml"
               - "scripts/ci/ruff_count_baseline.txt"
           - name: taste-count-ratchet
             timeout: 5m
