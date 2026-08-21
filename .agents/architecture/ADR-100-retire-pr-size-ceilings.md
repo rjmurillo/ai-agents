@@ -304,7 +304,7 @@ That is not adopted here, for three reasons.
 
 - On the sample above it changes no outcome. #4846 did not merge, and the ceiling is not what stopped it, since it carried the bypass label. Which mechanism refused it is not determined; see "What actually stopped the bad one".
 - It is new machinery with no operating history, in a repository where the 2026-08-17 governance review measured 87 of 92 open issues (94%) as the repository's own automation breaking itself. A new required check with no baseline is a candidate to become issue 93.
-- Both of its inputs are forgeable by the actor it would gate. This repository's loop holds thread-resolution tooling, and no rule in `.claude/rules/` or `.agents/governance/` forbids resolving one's own review thread. A job skipped by a job-level `if:` reports as satisfying a required check, so a green run is cheap.
+- Both of its inputs are forgeable by the actor it would gate. This repository's loop holds thread-resolution tooling, and no rule in `.claude/rules/` or `.agents/governance/` forbids resolving one's own review thread. And a green run is cheap under either answer to the skipped-check question ADR-101:129 leaves open: if a `skipped` conclusion satisfies a required context then a job-level `if:` produces the green directly, and if it does not then the same-named pass-through supplies it, which is the shape `pytest.yml` already ships. An earlier revision of this bullet asserted the first answer as settled, which is the twelfth restatement of that claim found downstream of its own correction.
 
 If commit thrash later needs a control, it is a token-budget question, not a correctness question, and it needs its own evidence and its own decision. Filed rather than bundled.
 
