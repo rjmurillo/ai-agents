@@ -44,7 +44,6 @@ from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 from scripts.ci import diff_line_scope
 from scripts.hook_utilities.utilities import recent_host_session_dates
 from scripts.test_selection import select_tests
-from scripts.validation.check_pr_bypass_label import EXIT_EXTERNAL as _BYPASS_CHECK_EXIT_EXTERNAL
 from scripts.validation.object_id import ZERO_SHA_LENGTHS, is_full_object_id
 from scripts.validation.pr_commit_count import (
     BLOCK_THRESHOLD,
@@ -6009,127 +6008,23 @@ def _merge_has_main_parent(
     return any(parent in trunk for parent in parents)
 
 
-def _unpushed_commit_count(update: PushUpdate, repo_root: Path) -> int | None:
-    """Count commits in the push that no *other* remote branch already carries.
-
-    Issue #3610: the ceiling's only relief is a `commit-limit-bypass` label on an
-    open PR, and a first push has no PR to label, so a stacked branch deadlocks.
-    A third-level branch inherits its two ancestors' commits even though those
-    commits belong to their own PRs and already passed this gate.
-
-    The branch's own remote ref is deliberately kept in the count. Excluding it
-    would make every re-push measure only the newest commits, which would retire
-    the ceiling entirely for any branch pushed more than once.
-    """
-    branch = update.destination_branch or _branch_name(update.source.local_ref)
-    argv = ["rev-list", "--count", update.source.local_sha, "--not"]
-    if branch:
-        argv.append(f"--exclude=origin/{branch}")
-    argv.append("--remotes=origin")
-    result = _run_git(repo_root, argv)
-    if result.returncode != 0:
-        return None
-    try:
-        return int(result.stdout.strip())
-    except ValueError:
-        return None
-
-
-def _new_commits_for_branch(update: PushUpdate, branch: str | None, repo_root: Path) -> int | None:
-    """Count commits in this push that are not yet on the remote branch.
-
-    Returns None on any git failure. Used for the needs-split bypass: a PR
-    labelled needs-split may still receive small fix commits even when the
-    branch is over the total limit (issue #3895).
-    """
-    if not branch:
-        return None
-    result = _run_git(
-        repo_root,
-        ["rev-list", "--count", update.source.local_sha, f"^origin/{branch}"],
-    )
-    if result.returncode != 0:
-        return None
-    try:
-        return int(result.stdout.strip())
-    except ValueError:
-        return None
-
-
-# Maximum new commits allowed through the needs-split bypass per push.
-# The bypass is for small fix/merge commits while the PR awaits splitting, not
-# for landing an entirely new batch of work (issue #3895).
-_NEEDS_SPLIT_NEW_COMMIT_CAP = 5
-
-_NEEDS_SPLIT_LABEL = "needs-split"
-
-# Every message that names `commit-limit-bypass` carries this clause with it.
-# CONTRIBUTING.md, section "Bypassing the Limit", is the canonical authority;
-# CONTRIBUTING.md:880 reads, verbatim:
-#     1. A human maintainer MUST add the `commit-limit-bypass` label
-# Naming the label as the reader's next step tells whoever tripped the gate to
-# grant themselves a permission they do not hold. An agent reads that as
-# sanctioned remediation because it arrives from the enforcement mechanism
-# itself, and one did: an agent applied the label to PR #4735 on 2026-08-08
-# after this gate suggested it (issue #4782). Same shape as the atomic-commit
-# message, which states the local remedy and then closes the bypass door
-# ("Split this commit. This local pre-commit check has no PR-label bypass.",
-# added in commit e1fbc5a7a, PR #4245).
-#
-# Stricter/looser/different than canonical: CONTRIBUTING.md:880 states only
-# who MAY add the label (a human maintainer). This message additionally
-# states who may NOT (the reader), because the load-bearing half for an
-# autonomous reader is the prohibition, not the permission; the canonical
-# line alone did not stop the PR #4735 agent from self-applying the label.
-_COMMIT_LIMIT_BYPASS_IS_HUMAN_ONLY = (
-    "The 'commit-limit-bypass' label lifts the ceiling, but CONTRIBUTING.md "
-    '("Bypassing the Limit") requires a human maintainer to add it: ask a '
-    "maintainer to decide, and do not apply it yourself."
-)
-
-
-def _check_needs_split_bypass(
-    update: PushUpdate, branch: str | None, repo_root: Path
-) -> int | None:
-    """Return 0 if needs-split label permits this push, None if not.
-
-    Checks the PR for a needs-split label and validates that the number of new
-    commits in this push stays within _NEEDS_SPLIT_NEW_COMMIT_CAP (issue #3895).
-    """
-    split_args = [
-        sys.executable,
-        "scripts/validation/check_pr_bypass_label.py",
-        "--label",
-        _NEEDS_SPLIT_LABEL,
-    ]
-    if branch:
-        split_args.extend(["--branch", branch])
-    split_check = _run_command(split_args, repo_root)
-    if split_check.returncode != 0:
-        return None
-    new_count = _new_commits_for_branch(update, branch, repo_root)
-    if new_count is not None and new_count <= _NEEDS_SPLIT_NEW_COMMIT_CAP:
-        print(
-            f"NOTE: PR is labelled {_NEEDS_SPLIT_LABEL!r}; this push adds "
-            f"{new_count} new commit(s) (cap {_NEEDS_SPLIT_NEW_COMMIT_CAP}). "
-            "Allowing while splitting is in progress.",
-        )
-        return 0
-    cap_msg = (
-        f"{new_count} new commit(s) exceeds the needs-split cap ({_NEEDS_SPLIT_NEW_COMMIT_CAP})"
-        if new_count is not None
-        else "could not count new commits"
-    )
-    print(
-        f"NOTE: PR has {_NEEDS_SPLIT_LABEL!r} but {cap_msg}. "
-        "Split the branch and push the parts separately. "
-        f"{_COMMIT_LIMIT_BYPASS_IS_HUMAN_ONLY}",
-        file=sys.stderr,
-    )
-    return None
-
-
 def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
+    """Report, but never block, when a push exceeds the commit ceiling.
+
+    This local pre-push check used to block an over-limit push unless
+    scripts/validation/check_pr_bypass_label.py could confirm the
+    `commit-limit-bypass` label on gh, which made gh reachability a hard
+    requirement for pushing at all: a session where gh cannot authenticate
+    (issue #5232) could never push past the ceiling, with no way to verify or
+    prove a bypass label already granted on GitHub. Demoted to a report per
+    ADR-100 ("retire the pull request size ceilings"), item 1: "the second
+    site is local and fires earlier: `_check_commit_limit` in
+    `scripts/validation/git_hook_policy.py` ... Demote it to a report
+    alongside the CI site, or the ceiling survives in the place it does the
+    most damage." .github/workflows/pr-validation.yml ("Enforce
+    Blocking Issues" step) is the canonical, always-authenticated enforcer of
+    this gate and is unaffected by this change; it still runs before merge.
+    """
     result = _run_git(repo_root, ["rev-list", "--count", update.range_spec])
     if result.returncode != 0:
         _print_process_output(result)
@@ -6143,52 +6038,13 @@ def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
     )
     if commit_count <= limit:
         return 0
-    branch = update.destination_branch or _branch_name(update.source.local_ref)
-    args = [sys.executable, "scripts/validation/check_pr_bypass_label.py"]
-    if branch:
-        args.extend(["--branch", branch])
-    bypass = _run_command(args, repo_root)
-    if bypass.returncode == 0:
-        print(bypass.stdout, end="")
-        return 0
-    if bypass.returncode == _BYPASS_CHECK_EXIT_EXTERNAL:
-        # check_pr_bypass_label.py cannot reach gh (unauthenticated, network
-        # error, gh missing) and reports that as EXIT_EXTERNAL rather than a
-        # confirmed "no label". Blocking here would make gh reachability a
-        # hard requirement for pushing at all, even though this local check
-        # is a shift-left convenience: .github/workflows/pr-validation.yml
-        # ("Enforce Blocking Issues" step) is the canonical enforcer of the
-        # commit-limit-bypass gate and still runs before merge regardless of
-        # whether this push succeeds. So allow the push and defer the
-        # decision to CI, rather than blocking on infrastructure the local
-        # environment cannot fix (issue #5232).
-        _print_process_output(bypass, stdout_stream=sys.stderr)
-        print(
-            "WARNING: could not verify commit-limit-bypass label locally "
-            f"(gh unreachable); allowing push of {commit_count} commits, "
-            f"limit is {limit}. CI still enforces this gate before merge.",
-            file=sys.stderr,
-        )
-        return 0
-    unpushed = _unpushed_commit_count(update, repo_root)
-    if unpushed is not None and unpushed <= limit:
-        print(
-            f"NOTE: push has {commit_count} commits from origin/main, but only "
-            f"{unpushed} are not already carried by another pushed branch; "
-            f"limit is {limit}.",
-        )
-        return 0
-    # needs-split bypass (issue #3895): a PR labelled needs-split is already
-    # scheduled for splitting. Block only when this push itself is large; allow
-    # small fix pushes (up to _NEEDS_SPLIT_NEW_COMMIT_CAP new commits) so the
-    # author can address review comments without being forced onto --no-verify.
-    # commit-limit-bypass (checked above) remains the unconditional escape.
-    needs_split_rc = _check_needs_split_bypass(update, branch, repo_root)
-    if needs_split_rc is not None:
-        return needs_split_rc
-    _print_process_output(bypass, stdout_stream=sys.stderr)
-    print(f"ERROR: push has {commit_count} commits, limit is {limit}", file=sys.stderr)
-    return 1
+    print(
+        f"NOTE: push has {commit_count} commits, limit is {limit}. This is a "
+        "local report only and does not block the push; "
+        ".github/workflows/pr-validation.yml still enforces the ceiling "
+        "before merge.",
+    )
+    return 0
 
 
 def _check_review_marker(update: PushUpdate, repo_root: Path) -> int:

@@ -56,7 +56,6 @@ POLICY_SUPPORT_FILES = (
     "scripts/validation/push_ref_staleness.py",
     "scripts/validation/sha_pinning.py",
     "scripts/validation/__init__.py",
-    "scripts/validation/check_pr_bypass_label.py",
     "scripts/validation/validate_review_marker.py",
     "build/scripts/validate_plugin_version_bump.py",
 )
@@ -6143,34 +6142,6 @@ def test_check_push_refs_multi_ref_catches_second_rewrite(
     assert "not a fast-forward" in capsys.readouterr().err
 
 
-def test_commit_limit_queries_the_destination_branch(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    update = policy.PushUpdate(
-        source=policy.PushRef("refs/heads/local", "1" * 40, "refs/heads/other", "2" * 40),
-        base="origin/main",
-        head="1" * 40,
-        range_spec="origin/main..head",
-        destination_branch="other",
-    )
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "21\n"))
-    captured: list[str] = []
-
-    def fake_command(
-        args: Sequence[str],
-        _root: Path,
-        **_kwargs: object,
-    ) -> subprocess.CompletedProcess[str]:
-        captured.extend(args)
-        return _completed(0, "bypass present\n")
-
-    monkeypatch.setattr(policy, "_run_command", fake_command)
-
-    assert policy._check_commit_limit(update, tmp_path) == 0
-    assert captured[-2:] == ["--branch", "other"]
-
-
 def test_plugin_version_policy_passes_exact_base_and_head(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -6793,40 +6764,21 @@ def test_commit_limit_handles_git_count_results(
     assert policy._check_commit_limit(update, tmp_path) == expected
 
 
-def test_commit_limit_blocks_when_bypass_check_fails(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    update = policy.PushUpdate(
-        source=policy.PushRef("refs/heads/local", "1" * 40, "refs/tags/v1", "2" * 40),
-        base="base",
-        head="head",
-        range_spec="base..head",
-        destination_branch=None,
-    )
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "21\n"))
-    monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: _completed(1, stderr="no bypass\n"),
-    )
-
-    assert policy._check_commit_limit(update, tmp_path) == 1
-
-
-def test_commit_limit_allows_push_when_gh_is_unreachable(
+def test_commit_limit_reports_but_never_blocks_an_over_limit_push(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """gh unauthenticated/unreachable defers to CI instead of blocking (#5232).
+    """An over-limit push is reported, never blocked, and gh is never invoked.
 
-    check_pr_bypass_label.py reports EXIT_EXTERNAL (3) when it cannot reach gh
-    at all, distinct from EXIT_ABSENT (1, a confirmed "no label"). Treating
-    both the same made a broken local gh session (GH_TOKEN invalid, GitHub
-    App not connected for the org) a hard requirement for pushing, even
-    though .github/workflows/pr-validation.yml is the canonical,
-    always-authenticated enforcer of this gate and still blocks merge.
+    Demoted per ADR-100 item 1: the local pre-push commit-count gate used to
+    shell out to check_pr_bypass_label.py (gh) to decide whether to block,
+    which made gh reachability a hard requirement for pushing at all. A
+    session where gh cannot authenticate (issue #5232) had no way to push
+    past the ceiling, with no way to verify or prove a bypass label already
+    granted on GitHub. .github/workflows/pr-validation.yml ("Enforce
+    Blocking Issues" step) is the canonical, always-authenticated enforcer
+    of this gate and is unaffected: it still runs before merge.
     """
     update = policy.PushUpdate(
         source=policy.PushRef("refs/heads/local", "1" * 40, "refs/tags/v1", "2" * 40),
@@ -6836,72 +6788,18 @@ def test_commit_limit_allows_push_when_gh_is_unreachable(
         destination_branch=None,
     )
     monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "21\n"))
-    monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: _completed(
-            3, stdout="gh is not authenticated; check GH_TOKEN (exit 1).\n"
-        ),
-    )
+
+    def _run_command_must_not_be_called(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("gh-shelling _run_command must not be called")
+
+    monkeypatch.setattr(policy, "_run_command", _run_command_must_not_be_called)
 
     assert policy._check_commit_limit(update, tmp_path) == 0
 
     captured = capsys.readouterr()
-    assert "allowing push of 21 commits" in captured.err
-    assert "CI still enforces this gate before merge" in captured.err
-
-
-def test_commit_limit_still_blocks_on_confirmed_absent_label(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A definitive EXIT_ABSENT (gh reachable, no label) keeps blocking.
-
-    The negative control for the test above: only a confirmed "gh could not
-    be reached" (EXIT_EXTERNAL) is treated as advisory. A confirmed "no
-    bypass label" answer (EXIT_ABSENT) is unaffected and still blocks.
-    """
-    update = policy.PushUpdate(
-        source=policy.PushRef("refs/heads/local", "1" * 40, "refs/tags/v1", "2" * 40),
-        base="base",
-        head="head",
-        range_spec="base..head",
-        destination_branch=None,
-    )
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "21\n"))
-    monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: _completed(1, stdout="no commit-limit-bypass label (PR #1)\n"),
-    )
-
-    assert policy._check_commit_limit(update, tmp_path) == 1
-
-
-def test_commit_limit_prints_bypass_explanation_with_blocking_error(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    update = policy.PushUpdate(
-        source=policy.PushRef("refs/heads/local", "1" * 40, "refs/tags/v1", "2" * 40),
-        base="base",
-        head="head",
-        range_spec="base..head",
-        destination_branch=None,
-    )
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "21\n"))
-    monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: _completed(1, stdout="no open PR for local\n"),
-    )
-
-    assert policy._check_commit_limit(update, tmp_path) == 1
-
-    captured = capsys.readouterr()
-    assert captured.out == ""
-    assert captured.err == "no open PR for local\nERROR: push has 21 commits, limit is 20\n"
+    assert "push has 21 commits, limit is 20" in captured.out
+    assert "does not block the push" in captured.out
+    assert "pr-validation.yml still enforces the ceiling" in captured.out
 
 
 def test_advisory_failure_prints_process_explanation_with_warning(
@@ -6942,14 +6840,16 @@ def test_commit_limit_relaxes_for_merge_from_main(
     assert policy._check_commit_limit(update, tmp_path) == 0
 
 
-def test_commit_limit_holds_when_the_merged_parent_is_off_main_trunk(
+def test_commit_limit_reports_when_the_merged_parent_is_off_main_trunk(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """The negative control for the test above.
 
     Only the trunk answer changes. A parent main can reach but did not reach
-    by first parent is a branch main landed, and the wider limit is refused.
+    by first parent is a branch main landed, so the narrower (un-relieved)
+    limit applies. 30 exceeds it, and the gate reports rather than blocks.
     """
     update = _push_update()
 
@@ -6964,19 +6864,15 @@ def test_commit_limit_holds_when_the_merged_parent_is_off_main_trunk(
 
     monkeypatch.setattr(policy, "_run_git", fake_git)
     # Trunk contains a different commit; "landed-parent" is not on first-parent
-    # history, so the wider limit must be refused.
+    # history, so the narrower limit applies.
     monkeypatch.setattr(
         policy,
         "main_first_parent_shas",
         lambda _root, run_git=None: frozenset(["some-other-main-commit"]),
     )
-    monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: _completed(1, stderr="no bypass\n"),
-    )
 
-    assert policy._check_commit_limit(update, tmp_path) == 1
+    assert policy._check_commit_limit(update, tmp_path) == 0
+    assert "push has 30 commits, limit is 20" in capsys.readouterr().out
 
 
 def test_main_merge_detection_handles_git_errors(
@@ -6988,159 +6884,6 @@ def test_main_merge_detection_handles_git_errors(
 
     assert not policy._contains_main_merge(update, tmp_path)
     assert not policy._merge_has_main_parent("merge", tmp_path)
-
-
-def test_needs_split_bypass_allows_small_push_on_large_branch(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """needs-split label + <= 5 new commits bypasses the limit (issue #3895).
-
-    PR #3688 scenario: branch has 52 commits (over limit) but only adds
-    3 new commits in this push to address review feedback. The push must
-    succeed because splitting is already in progress.
-    """
-    update = policy.PushUpdate(
-        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
-        base="base",
-        head="head",
-        range_spec="base..head",
-        destination_branch="fix/big",
-    )
-
-    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
-        if args[:2] == ["rev-list", "--count"] and "^origin/" in " ".join(args):
-            # New commits only: 3
-            return _completed(0, "3\n")
-        if args[:2] == ["rev-list", "--count"]:
-            # Total branch commits: 52
-            return _completed(0, "52\n")
-        return _completed(0)
-
-    call_count = [0]
-
-    def fake_command(
-        args: Sequence[str], _root: Path, **_kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
-        call_count[0] += 1
-        if "--label" in args and "needs-split" in args:
-            return _completed(0, "needs-split present on PR #3688\n")
-        # commit-limit-bypass not present
-        return _completed(1, stdout="no commit-limit-bypass label (PR #3688)\n")
-
-    monkeypatch.setattr(policy, "_run_git", fake_git)
-    monkeypatch.setattr(policy, "_run_command", fake_command)
-
-    assert policy._check_commit_limit(update, tmp_path) == 0
-    assert "needs-split" in capsys.readouterr().out
-
-
-def test_needs_split_bypass_blocks_when_new_commits_exceed_cap(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """needs-split label does NOT bypass when this push is itself large (issue #3895).
-
-    If the author is adding 10 commits to an already-over-limit branch, the
-    needs-split bypass must not apply. Only commit-limit-bypass unlocks this.
-    """
-    update = policy.PushUpdate(
-        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
-        base="base",
-        head="head",
-        range_spec="base..head",
-        destination_branch="fix/big",
-    )
-
-    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
-        if args[:2] == ["rev-list", "--count"] and "^origin/" in " ".join(args):
-            # New commits: 10 (over the cap of 5)
-            return _completed(0, "10\n")
-        if args[:2] == ["rev-list", "--count"]:
-            return _completed(0, "52\n")
-        return _completed(0)
-
-    def fake_command(
-        args: Sequence[str], _root: Path, **_kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
-        if "--label" in args and "needs-split" in args:
-            return _completed(0, "needs-split present on PR #3688\n")
-        return _completed(1, stdout="no commit-limit-bypass label (PR #3688)\n")
-
-    monkeypatch.setattr(policy, "_run_git", fake_git)
-    monkeypatch.setattr(policy, "_run_command", fake_command)
-
-    assert policy._check_commit_limit(update, tmp_path) == 1
-
-
-def test_needs_split_bypass_absent_falls_through_to_block(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """When neither bypass label is present, the block stands (issue #3895)."""
-    update = policy.PushUpdate(
-        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
-        base="base",
-        head="head",
-        range_spec="base..head",
-        destination_branch="fix/big",
-    )
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "52\n"))
-    monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: _completed(1, stdout="no label\n"),
-    )
-
-    assert policy._check_commit_limit(update, tmp_path) == 1
-
-
-def test_needs_split_bypass_allows_push_at_exact_cap(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """needs-split bypass allows exactly _NEEDS_SPLIT_NEW_COMMIT_CAP new commits.
-
-    The boundary: 5 new commits on a 52-commit over-limit branch must succeed.
-    6 new commits must not. This test covers cap=5 exactly so the <= vs < mutation
-    is detected.
-    """
-    update = policy.PushUpdate(
-        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
-        base="base",
-        head="head",
-        range_spec="base..head",
-        destination_branch="fix/big",
-    )
-
-    def _fake_git_with_new(new_count: int) -> object:
-        def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
-            if args[:2] == ["rev-list", "--count"] and "^origin/" in " ".join(args):
-                return _completed(0, f"{new_count}\n")
-            return _completed(0, "52\n")
-
-        return fake_git
-
-    def fake_command(
-        args: Sequence[str], _root: Path, **_kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
-        if "--label" in args and "needs-split" in args:
-            return _completed(0, "needs-split\n")
-        return _completed(1, stdout="no commit-limit-bypass\n")
-
-    monkeypatch.setattr(policy, "_run_command", fake_command)
-
-    # Exactly at cap (5): must pass
-    monkeypatch.setattr(policy, "_run_git", _fake_git_with_new(policy._NEEDS_SPLIT_NEW_COMMIT_CAP))
-    assert policy._check_commit_limit(update, tmp_path) == 0
-
-    # One over the cap (6): must block
-    monkeypatch.setattr(
-        policy, "_run_git", _fake_git_with_new(policy._NEEDS_SPLIT_NEW_COMMIT_CAP + 1)
-    )
-    assert policy._check_commit_limit(update, tmp_path) == 1
 
 
 def test_main_merge_detection_rejects_non_main_second_parent(
@@ -10777,27 +10520,6 @@ def test_the_repository_itself_has_no_unfenced_conflict_markers() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _deny_bypass_label(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Fail only the bypass-label lookup, leaving real git calls intact.
-
-    `_run_git` is implemented on top of `_run_command`, so a blanket patch of
-    `_run_command` also breaks the rev-list the ceiling depends on and turns
-    every result into a config error.
-    """
-    real = policy._run_command
-
-    def fake(
-        argv: Sequence[str],
-        repo_root: Path,
-        **kwargs: Any,
-    ) -> subprocess.CompletedProcess[str]:
-        if any("check_pr_bypass_label" in str(part) for part in argv):
-            return _completed(1)
-        return real(argv, repo_root, **kwargs)
-
-    monkeypatch.setattr(policy, "_run_command", fake)
-
-
 def _stacked_repo(tmp_path: Path, first: int, second: int) -> tuple[Path, str]:
     """Build origin/main plus a pushed featA and an unpushed featB stacked on it."""
     remote = tmp_path / "remote.git"
@@ -10825,44 +10547,27 @@ def _update_for(branch: str, head: str) -> policy.PushUpdate:
     return policy.PushUpdate(source, "origin/main", head, f"origin/main..{head}", branch)
 
 
-def test_a_stacked_branch_counts_only_the_commits_it_adds(tmp_path: Path) -> None:
-    work, head = _stacked_repo(tmp_path, first=15, second=10)
-    assert int(_git(work, "rev-list", "--count", "origin/main..HEAD").stdout) == 25
-    assert policy._unpushed_commit_count(_update_for("featB", head), work) == 10
-
-
-def test_a_re_push_of_the_same_branch_gets_no_relief(tmp_path: Path) -> None:
-    """Negative control: excluding the branch's own remote ref would retire the
-    ceiling for every branch pushed more than once."""
-    work, _ = _stacked_repo(tmp_path, first=15, second=0)
-    _git(work, "checkout", "-q", "featA")
-    for index in range(6):
-        _commit_file(work, f"a2_{index}.txt", f"{index}\n")
-    head = _git(work, "rev-parse", "HEAD").stdout.strip()
-    assert int(_git(work, "rev-list", "--count", "origin/main..HEAD").stdout) == 21
-    assert policy._unpushed_commit_count(_update_for("featA", head), work) == 21
-
-
-def test_the_commit_limit_lets_a_stacked_first_push_through(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_the_commit_limit_end_to_end_never_blocks_regardless_of_stacking(
+    tmp_path: Path,
 ) -> None:
-    """End to end: no PR exists, the bypass label check fails, relief still applies."""
-    work, head = _stacked_repo(tmp_path, first=15, second=10)
-    _deny_bypass_label(monkeypatch)
-    assert policy._check_commit_limit(_update_for("featB", head), work) == 0
+    """End to end, real git, no gh: an over-limit push is always allowed.
 
+    `_check_commit_limit` no longer distinguishes a stacked branch (commits
+    another pushed branch already carries) from a solo one; both used to
+    route through a gh-shelling relief check, and neither blocks now. This
+    drives the real function against a real git repository (no `_run_git`/
+    `_run_command` mocks) to prove no subprocess call to gh is on the path
+    at all, not merely that a mock of it went unused.
+    """
+    stacked_work, stacked_head = _stacked_repo(tmp_path / "stacked", first=15, second=10)
+    assert policy._check_commit_limit(_update_for("featB", stacked_head), stacked_work) == 0
 
-def test_the_commit_limit_still_blocks_an_unstacked_branch(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Negative control: 25 commits none of which another branch carries is blocked."""
-    work, _ = _stacked_repo(tmp_path, first=0, second=0)
-    _git(work, "checkout", "-q", "-b", "solo")
+    solo_work, _ = _stacked_repo(tmp_path / "solo", first=0, second=0)
+    _git(solo_work, "checkout", "-q", "-b", "solo")
     for index in range(25):
-        _commit_file(work, f"s{index}.txt", f"{index}\n")
-    head = _git(work, "rev-parse", "HEAD").stdout.strip()
-    _deny_bypass_label(monkeypatch)
-    assert policy._check_commit_limit(_update_for("solo", head), work) == 1
+        _commit_file(solo_work, f"s{index}.txt", f"{index}\n")
+    solo_head = _git(solo_work, "rev-parse", "HEAD").stdout.strip()
+    assert policy._check_commit_limit(_update_for("solo", solo_head), solo_work) == 0
 
 
 def test_the_commit_ceilings_come_from_the_shared_module() -> None:
