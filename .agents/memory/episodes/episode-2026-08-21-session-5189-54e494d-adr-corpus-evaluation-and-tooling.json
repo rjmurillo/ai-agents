@@ -3,7 +3,7 @@
   "session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling",
   "timestamp": "2026-08-21T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Evaluate the 98-record ADR corpus for gaps, deterministic-tooling opportunities, and inconsistencies that misdirect a low-effort model; file an issue per finding and drive each to closure",
   "decisions": [],
   "events": [
@@ -24,6 +24,15 @@
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-21T02:21:46+00:00",
+      "type": "commit",
+      "content": "Commit: a2f352ed4cc5a3ea6395e24e9ddf7e83adb1a5b9",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
     }
   ],
   "metrics": {
@@ -31,8 +40,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 2
+    "commits": 1,
+    "files_changed": 42
   },
   "lessons": []
 }
