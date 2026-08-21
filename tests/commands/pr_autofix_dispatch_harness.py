@@ -36,8 +36,36 @@ PREFIX_TIER_READ = "jq -r '.Data.Tier // \"UNKNOWN\"'"
 
 # Environment keys GitHub Actions always sets. The block does not read them, but
 # inheriting runner-only values is how a test passes locally and fails in CI
-# (testing rule SHOULD-12), so drop them unless a case supplies one.
+# (testing rule SHOULD-12), so they must never reach the subprocess.
 CI_ONLY_ENV = ("GITHUB_STEP_SUMMARY", "GITHUB_OUTPUT", "GITHUB_ENV", "CI")
+
+# The only ambient variables the extracted block is given. Everything else the
+# process inherited stays behind.
+#
+# This was a denylist, `os.environ` minus CI_ONLY_ENV, which is the wrong shape
+# for the thing being run: the block is text extracted from a file on the
+# branch, executed under `bash -c`, so its contents are whatever the branch
+# says. On a CI runner that process was handed the job's `GITHUB_TOKEN`, any
+# cloud credentials in scope, and on a developer machine the whole shell
+# environment. A branch that edits the command body could read them. CodeRabbit
+# reported it; the allowlist is the fix, because a denylist has to predict every
+# secret-bearing name and an allowlist only has to name what the harness needs.
+#
+# What is here and why: `PATH` resolves `bash` and `python3`, `HOME` and
+# `TMPDIR` keep the interpreter's own bookkeeping from landing somewhere
+# unexpected, and the locale pair keeps its I/O encoding predictable. None
+# carries a credential. `SYSTEMROOT` is inert on the platforms that run this
+# bash harness and is carried only so the allowlist does not have to change if
+# it ever runs somewhere that needs it.
+_ENV_ALLOWLIST = ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "SYSTEMROOT")
+
+# The SHOULD-12 rule above is now a consequence of the allowlist rather than a
+# separate filter, and this keeps that consequence checked instead of assumed.
+# Adding a runner-set name to the allowlist fails here at import.
+assert not set(CI_ONLY_ENV) & set(_ENV_ALLOWLIST), (
+    "an allowlisted variable is also a CI-only variable, so SHOULD-12's "
+    "passes-locally-fails-in-CI protection has been reopened"
+)
 
 
 def extract_dispatch(text: str) -> str:
@@ -252,7 +280,7 @@ for PR in 5176 5177; do
 done
 """
 
-    env = {k: v for k, v in os.environ.items() if k not in CI_ONLY_ENV}
+    env = {k: os.environ[k] for k in _ENV_ALLOWLIST if k in os.environ}
     env.update(
         {
             "CLEANUP_LOG": str(cleanup_log),
