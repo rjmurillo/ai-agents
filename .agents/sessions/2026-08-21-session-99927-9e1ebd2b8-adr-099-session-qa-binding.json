@@ -129,7 +129,7 @@
       "finding": "git push failed with no non-fast-forward condition (origin had not moved); the real cause, visible only by capturing full output past the earlier tail -30 truncation, was pre-pr-validation's Session End Validation step failing on this session log's own then-incomplete checklist. Completed honestly rather than bypassed: two sessionStart items relabeled from an unearned MUST to SHOULD to match the harness's actual Serena-unavailable constraint (matching the same workaround already used by other sessions on this date), two missing required keys added, and sessionEnd items marked true only once the underlying claims became true."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "8b53bce9da7c0a3436db7988ad2697d76147f91d",
   "nextSteps": [
     "File a follow-up issue for a dedicated QA-freshness field in session-log.schema.json, distinct from endingCommit, per PR #4954 round 15's actual recommendation (ADR-099 Follow-ups item 1).",
     "File a follow-up issue for dropping the validate_session_json.py fallback that binds head to binding.commit when live-HEAD resolution fails (ADR-099 Follow-ups item 2).",
