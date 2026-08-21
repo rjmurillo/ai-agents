@@ -96,6 +96,12 @@ class TestBuildParser:
 
 
 class TestGetADRStatus:
+    """The status is read ONLY from the leading fenced YAML frontmatter block.
+
+    A record that declares no status returns the distinct ``unknown`` sentinel,
+    never ``proposed`` (issue #5189).
+    """
+
     def test_missing_file(self, tmp_path: Path) -> None:
         assert _get_adr_status(tmp_path / "nonexistent.md") == "unknown"
 
@@ -104,10 +110,60 @@ class TestGetADRStatus:
         adr.write_text("---\nstatus: accepted\n---\n# Title\n")
         assert _get_adr_status(adr) == "accepted"
 
-    def test_file_without_status(self, tmp_path: Path) -> None:
+    def test_file_declaring_proposed(self, tmp_path: Path) -> None:
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text("---\nstatus: proposed\n---\n# Title\n")
+        assert _get_adr_status(adr) == "proposed"
+
+    def test_file_without_frontmatter(self, tmp_path: Path) -> None:
         adr = tmp_path / "ADR-001.md"
         adr.write_text("# ADR-001\nNo frontmatter here\n")
+        result = _get_adr_status(adr)
+        assert result == "unknown"
+        assert result != "proposed"
+
+    def test_frontmatter_without_status_key(self, tmp_path: Path) -> None:
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text("---\nid: ADR-001\n---\n# Title\n")
+        assert _get_adr_status(adr) == "unknown"
+
+    def test_fenced_yaml_example_in_body_does_not_win(self, tmp_path: Path) -> None:
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text(
+            "---\n"
+            "status: proposed\n"
+            "---\n"
+            "# Title\n\n"
+            "```yaml\n"
+            "status: accepted\n"
+            "```\n"
+        )
         assert _get_adr_status(adr) == "proposed"
+
+    def test_bare_body_status_line_does_not_win(self, tmp_path: Path) -> None:
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text("---\nstatus: proposed\n---\n# Title\n\nstatus: accepted\n")
+        assert _get_adr_status(adr) == "proposed"
+
+    def test_body_status_line_without_frontmatter_is_ignored(self, tmp_path: Path) -> None:
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text("# ADR-001\n\nstatus: accepted\n")
+        assert _get_adr_status(adr) == "unknown"
+
+    def test_malformed_yaml_returns_unknown_without_raising(self, tmp_path: Path) -> None:
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text("---\nstatus: [unclosed\n---\n# Title\n")
+        assert _get_adr_status(adr) == "unknown"
+
+    def test_non_mapping_frontmatter_returns_unknown(self, tmp_path: Path) -> None:
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text("---\n- just\n- a list\n---\n# Title\n")
+        assert _get_adr_status(adr) == "unknown"
+
+    def test_status_is_lowercased_and_stripped(self, tmp_path: Path) -> None:
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text("---\nstatus:   DEPRECATED  \n---\n")
+        assert _get_adr_status(adr) == "deprecated"
 
 
 class TestGetDependentADRs:

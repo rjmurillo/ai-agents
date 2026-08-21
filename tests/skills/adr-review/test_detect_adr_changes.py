@@ -34,7 +34,13 @@ main = mod.main
 
 
 class TestGetAdrStatus:
-    """Tests for _get_adr_status function."""
+    """Tests for _get_adr_status function.
+
+    The function reads ONLY the leading ``---`` fenced YAML frontmatter block
+    (issue #5189). Every state in which the record declares no status returns
+    the distinct ``unknown`` sentinel; ``proposed`` is returned only when the
+    frontmatter literally says ``status: proposed``.
+    """
 
     def test_returns_unknown_for_missing_file(self, tmp_path: Path) -> None:
         result = _get_adr_status(tmp_path / "nonexistent.md")
@@ -46,11 +52,80 @@ class TestGetAdrStatus:
         result = _get_adr_status(adr)
         assert result == "accepted"
 
-    def test_returns_proposed_when_no_status(self, tmp_path: Path) -> None:
+    def test_returns_proposed_only_when_frontmatter_declares_it(self, tmp_path: Path) -> None:
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text("---\nstatus: proposed\n---\n# Title\n")
+        result = _get_adr_status(adr)
+        assert result == "proposed"
+
+    def test_returns_unknown_when_no_frontmatter_block(self, tmp_path: Path) -> None:
+        """A record that declares nothing is not a record that declares proposed."""
         adr = tmp_path / "ADR-001.md"
         adr.write_text("# ADR-001\nSome content\n")
         result = _get_adr_status(adr)
-        assert result == "proposed"
+        assert result == "unknown"
+        assert result != "proposed"
+
+    def test_returns_unknown_when_frontmatter_is_unterminated(self, tmp_path: Path) -> None:
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text("---\nstatus: accepted\n\n# Title\nNo closing delimiter\n")
+        assert _get_adr_status(adr) == "unknown"
+
+    def test_returns_unknown_when_frontmatter_omits_status(self, tmp_path: Path) -> None:
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text("---\nid: ADR-001\nimplemented: false\n---\n# Title\n")
+        assert _get_adr_status(adr) == "unknown"
+
+    def test_returns_unknown_for_empty_frontmatter_block(self, tmp_path: Path) -> None:
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text("---\n---\n# Title\n")
+        assert _get_adr_status(adr) == "unknown"
+
+    def test_returns_unknown_for_explicit_null_status(self, tmp_path: Path) -> None:
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text("---\nstatus: null\n---\n# Title\n")
+        assert _get_adr_status(adr) == "unknown"
+
+    def test_fenced_yaml_example_in_body_does_not_win(self, tmp_path: Path) -> None:
+        """Regression guard for ADR-073, which embeds the enum in a fenced example."""
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text(
+            "---\n"
+            "status: proposed\n"
+            "---\n"
+            "# Title\n\n"
+            "```yaml\n"
+            "status: accepted\n"
+            "```\n"
+        )
+        assert _get_adr_status(adr) == "proposed"
+
+    def test_bare_status_line_in_body_does_not_win(self, tmp_path: Path) -> None:
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text("---\nstatus: proposed\n---\n# Title\n\nstatus: accepted\n")
+        assert _get_adr_status(adr) == "proposed"
+
+    def test_body_status_line_without_frontmatter_is_ignored(self, tmp_path: Path) -> None:
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text("# ADR-001\n\nstatus: accepted\n")
+        assert _get_adr_status(adr) == "unknown"
+
+    def test_malformed_yaml_returns_unknown_without_raising(self, tmp_path: Path) -> None:
+        """Malformed frontmatter must not crash the caller (documented behavior)."""
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text("---\nstatus: [unclosed\n---\n# Title\n")
+        assert _get_adr_status(adr) == "unknown"
+
+    def test_non_mapping_frontmatter_returns_unknown(self, tmp_path: Path) -> None:
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text("---\n- just\n- a list\n---\n# Title\n")
+        assert _get_adr_status(adr) == "unknown"
+
+    def test_returns_unknown_when_file_is_unreadable(self, tmp_path: Path) -> None:
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text("---\nstatus: accepted\n---\n")
+        with patch.object(Path, "read_text", side_effect=OSError("boom")):
+            assert _get_adr_status(adr) == "unknown"
 
     def test_normalizes_status_to_lowercase(self, tmp_path: Path) -> None:
         adr = tmp_path / "ADR-001.md"
@@ -63,6 +138,19 @@ class TestGetAdrStatus:
         adr.write_text("---\nstatus:   accepted  \n---\n")
         result = _get_adr_status(adr)
         assert result == "accepted"
+
+    def test_reads_the_real_adr_073_record(self) -> None:
+        """ADR-073 declares ``accepted`` and embeds the enum in a fenced example.
+
+        Independent end-to-end check against the canonical corpus rather than a
+        synthetic fixture: the body fence must not override the frontmatter.
+        """
+        adr = Path(PROJECT_ROOT) / ".agents" / "architecture" / (
+            "ADR-073-adr-lifecycle-frontmatter.md"
+        )
+        if not adr.is_file():
+            pytest.skip(f"canonical ADR not present at {adr}")
+        assert _get_adr_status(adr) == "accepted"
 
 
 class TestGetDependentAdrs:

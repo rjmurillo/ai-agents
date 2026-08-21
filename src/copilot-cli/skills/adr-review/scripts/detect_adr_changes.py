@@ -48,20 +48,6 @@ ADR_DIRECTORIES = (
 )
 
 
-def _get_adr_status(file_path: Path) -> str:
-    """Extract status from ADR frontmatter."""
-    if not file_path.exists():
-        return "unknown"
-    try:
-        content = file_path.read_text(encoding="utf-8")
-    except OSError:
-        return "unknown"
-    match = re.search(r"(?m)^status:\s*(.+)$", content)
-    if match:
-        return match.group(1).strip().lower()
-    return "proposed"
-
-
 def _get_dependent_adrs(adr_name: str, base_path: Path) -> list[str]:
     """Find ADRs that reference a given ADR."""
     dependents: list[str] = []
@@ -195,6 +181,69 @@ def _split_frontmatter(content: str) -> tuple[str, str]:
             body = "".join(lines[idx + 1 :])
             return frontmatter, body
     return "", content
+
+
+STATUS_UNKNOWN = "unknown"
+
+
+def _get_adr_status(file_path: Path) -> str:
+    """Return the ADR's declared lifecycle status, or ``unknown``.
+
+    Reads ONLY the leading ``---`` fenced YAML frontmatter block, parsed with
+    :func:`yaml.safe_load`. ADR-073
+    (.agents/architecture/ADR-073-adr-lifecycle-frontmatter.md:57) states the
+    contract this function implements verbatim:
+
+        The frontmatter `status` enum is authoritative for tooling. The prose
+        `## Status` section remains for humans and may carry the nuance the
+        enum cannot
+
+    and its Consequences at line 132 mandate the parser: "Mitigated by mandating
+    `yaml.safe_load` and validating frontmatter in CI."
+
+    The declared enum, quoted verbatim from the canonical template block at
+    ADR-073 line 48::
+
+        status: proposed | accepted | rejected | deprecated | superseded   # enum, no prose
+
+    Returns :data:`STATUS_UNKNOWN` for every state in which the record declares
+    no status: the file is missing or unreadable, there is no complete
+    frontmatter block, the frontmatter is malformed or is not a YAML mapping, or
+    the block carries no ``status`` key. ``unknown`` is a distinct sentinel and
+    callers MUST NOT treat it as ``proposed``; only a record that literally
+    declares ``status: proposed`` returns ``proposed``. Collapsing "declares
+    nothing" into "declares proposed" is the fail-open shape catalogued in
+    .agents/retrospective/2026-08-19-review-and-land-fleet-campaign-prs.md and is
+    the bug this function was rewritten to fix (issue #5189).
+
+    Malformed YAML never raises out of this function. Parsing is delegated to
+    :func:`_parse_frontmatter`, which returns ``None`` on
+    :class:`yaml.YAMLError` and on a non-mapping document; both map to
+    ``unknown`` here, so a broken frontmatter block reads as an undeclared
+    status rather than crashing the caller.
+
+    Stricter/looser/different than canonical: ADR-073 defines the enum but
+    Phase 1 leaves it unenforced ("optional, unenforced fields", line 18), so
+    this function does NOT validate the value against the enum. It lowercases
+    and strips whatever scalar the ``status`` key carries and returns it, which
+    is looser than the deferred Phase 3 gate at ADR-073 line 159.
+    """
+    if not file_path.exists():
+        return STATUS_UNKNOWN
+    try:
+        content = file_path.read_text(encoding="utf-8")
+    except OSError:
+        return STATUS_UNKNOWN
+    frontmatter, _body = _split_frontmatter(content)
+    if not frontmatter:
+        return STATUS_UNKNOWN
+    fields = _parse_frontmatter(frontmatter)
+    if fields is None:
+        return STATUS_UNKNOWN
+    status = fields.get("status")
+    if status is None:
+        return STATUS_UNKNOWN
+    return str(status).strip().lower()
 
 
 def _is_frontmatter_only_change(
