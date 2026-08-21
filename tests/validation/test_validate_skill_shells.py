@@ -26,7 +26,7 @@ import pytest
 _VALIDATION = Path(__file__).resolve().parents[2] / "scripts" / "validation"
 sys.path.insert(0, str(_VALIDATION))
 
-import validate_skill_shells as vss  # noqa: E402
+import validate_skill_shells as vss
 
 
 def _git(repo: Path, *args: str) -> None:
