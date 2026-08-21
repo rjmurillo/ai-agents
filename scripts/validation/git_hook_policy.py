@@ -1727,12 +1727,16 @@ def check_branch_context(repo_root: Path) -> int:
     another branch's newer session log into the tree, which would otherwise
     read as a mismatch. A committed merge is exempt on the same grounds but
     needs a different test, because ``MERGE_HEAD`` is gone by then while the
-    imported log stays and keeps winning the recency comparison forever. That
-    case requires both that the branch owns a recent log and that the newest
-    log already exists on the upstream default branch, which makes it settled
-    history rather than a claim about current work (issue #3343). A log
-    authored on another local branch is not upstream, so the co-mingling case
-    from issue #682 still blocks.
+    imported log stays and keeps winning the recency comparison forever. The
+    discriminator is whether the newest log already exists on the upstream
+    default branch, which makes it settled history rather than a claim about
+    current work (issue #3343). That is sufficient on its own: session log
+    creation is discontinued (``.claude/rules/session-logs.md`` MUST 1), so no
+    branch will ever again author its own same-day log to prove participation,
+    and a precondition requiring one would block every commit on every branch
+    the moment any other branch's same-day log lands upstream. A log authored
+    on another local branch and never merged is not upstream, so the
+    co-mingling case from issue #682 still blocks.
 
     A linked worktree gets a third exemption. Its ``.agents/sessions`` is a
     checkout of some branch's history, so a log present in ``HEAD`` names
@@ -1760,9 +1764,7 @@ def check_branch_context(repo_root: Path) -> int:
             return 0
         if current_branch == session_branch:
             return 0
-        if _session_log_for_branch(sessions_dir, current_branch) is not None and _is_merged_history(
-            repo_root, session_log
-        ):
+        if _is_merged_history(repo_root, session_log):
             return 0
         if _is_linked_worktree(repo_root) and _is_committed_here(repo_root, session_log):
             return 0
@@ -1773,8 +1775,8 @@ def check_branch_context(repo_root: Path) -> int:
             file=sys.stderr,
         )
         print(
-            "  Fix: switch to the expected branch, update the session log branch "
-            "field, or create a new session log for the current branch.",
+            "  Fix: switch to the expected branch, or update the session log "
+            "branch field if this log is a staged/uncommitted mistake.",
             file=sys.stderr,
         )
         return 1

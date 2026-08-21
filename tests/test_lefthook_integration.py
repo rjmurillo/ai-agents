@@ -1944,11 +1944,50 @@ def test_branch_context_survives_a_committed_merge_import(tmp_path: Path) -> Non
     _add_upstream_with(repo, imported)
     os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
 
-    # Negative control: the imported log alone still blocks, because the
-    # exemption also requires the branch to own a log.
-    assert policy.check_branch_context(repo) == 1
+    # Negative control: before the log is upstream, the mismatch still
+    # blocks, so the merged-history assertion below cannot pass vacuously.
+    fresh_repo = tmp_path / "fresh"
+    _init_repo(fresh_repo, branch="feature/x")
+    _commit_file(fresh_repo, "tracked", "value\n")
+    _write_session_log(
+        fresh_repo, branch="feature/merged", name="session-merged", mtime=2_000_000_000.0
+    )
+    assert policy.check_branch_context(fresh_repo) == 1
+
+    assert policy.check_branch_context(repo) == 0
 
     _write_session_log(repo, branch="feature/x", name="session-own", mtime=1_000_000_000.0)
+
+    assert policy.check_branch_context(repo) == 0
+
+
+def test_branch_context_survives_merged_import_when_current_branch_owns_no_log(
+    tmp_path: Path,
+) -> None:
+    """A branch that has never authored its own log must still pass.
+
+    Session log creation is discontinued (`.claude/rules/session-logs.md`
+    MUST 1), so no branch will ever again author a same-day log to prove
+    participation. The old exemption required
+    `_session_log_for_branch(sessions_dir, current_branch) is not None` in
+    addition to `_is_merged_history`; that precondition can never hold once
+    creation is discontinued, which would make every commit on every branch
+    block the moment any other branch's same-day log lands upstream.
+    `_is_merged_history` alone is the correct discriminator: a log already
+    reachable from the upstream default branch is settled history, not a
+    live co-mingling claim, whether or not the current branch owns one.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/never-logged")
+    _commit_file(repo, "tracked", "value\n")
+    imported = _write_session_log(
+        repo, branch="feature/other-session", name="session-other", mtime=2_000_000_000.0
+    )
+    _add_upstream_with(repo, imported)
+    os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
+
+    # feature/never-logged owns no session log at all, today or otherwise.
+    assert policy._session_log_for_branch(repo / ".agents" / "sessions", "feature/never-logged") is None
 
     assert policy.check_branch_context(repo) == 0
 
