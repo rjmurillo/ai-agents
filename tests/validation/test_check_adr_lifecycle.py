@@ -1015,3 +1015,87 @@ def test_a_corrupt_baseline_exits_config_rather_than_traceback(tmp_path):
     assert result.returncode == EXIT_CONFIG
     assert "Traceback" not in result.stderr
     assert "is not valid UTF-8" in result.stderr
+
+
+# ── Duplicate frontmatter keys are a forgery vector, not a formatting nit ─────
+#
+# PyYAML resolves duplicates last-wins and reports nothing, so a record carrying
+# `status: proposed` near the top and `status: accepted` lower in the same block
+# parses as accepted while reading as proposed to anyone scanning the first
+# lines. Reported by Copilot on PR #5209, which noted this repo already treats
+# it as a governance risk in detect_adr_changes._has_duplicate_top_level_keys.
+
+
+def test_a_duplicate_status_key_is_a_violation(tmp_path):
+    """The declaration a human sees and the one tooling enforces must agree."""
+    adr_dir = _adr_dir(tmp_path)
+    (adr_dir / "ADR-001-thing.md").write_text(
+        "---\nid: ADR-001\nstatus: proposed\ndate: 2026-08-21\n"
+        "status: accepted\n---\n\n# ADR-001: Thing\n",
+        encoding="utf-8",
+    )
+
+    (violation,) = scan(adr_dir, tmp_path)
+
+    assert violation.check == "frontmatter-parses"
+    assert "declares `status` twice" in violation.detail
+
+
+def test_the_duplicate_message_names_the_offending_key(tmp_path):
+    """Naming the key is the difference between a fix and a hunt."""
+    adr_dir = _adr_dir(tmp_path)
+    (adr_dir / "ADR-001-thing.md").write_text(
+        "---\nid: ADR-001\nid: ADR-002\nstatus: accepted\n---\n\n# ADR-001: Thing\n",
+        encoding="utf-8",
+    )
+
+    (violation,) = scan(adr_dir, tmp_path)
+
+    assert "declares `id` twice" in violation.detail
+
+
+def test_a_record_with_no_duplicates_is_not_flagged(tmp_path):
+    """Negative control.
+
+    A checker that returned the violation unconditionally would satisfy both
+    tests above and be indistinguishable from a correct one.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1))
+
+    assert _counts(tmp_path)["frontmatter-parses"] == 0
+
+
+def test_a_repeated_key_nested_under_a_mapping_is_not_a_top_level_duplicate(tmp_path):
+    """Indented keys belong to their parent and must not trip the check.
+
+    Without this, any record using a nested mapping would be reported as
+    malformed, which is a false positive on valid YAML.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    (adr_dir / "ADR-001-thing.md").write_text(
+        "---\nid: ADR-001\nstatus: accepted\ndate: 2026-08-21\n"
+        "decision-makers: []\nsupersedes: []\nsuperseded-by: null\n"
+        "explainer: null\nimplemented: true\n"
+        "meta:\n  note: a\n  note: b\n---\n\n# ADR-001: Thing\n",
+        encoding="utf-8",
+    )
+
+    hits = [v for v in scan(adr_dir, tmp_path) if v.check == "frontmatter-parses"]
+
+    assert hits == []
+
+
+def test_a_commented_out_repeat_is_not_a_duplicate(tmp_path):
+    """A commented line declares nothing and must not be counted."""
+    adr_dir = _adr_dir(tmp_path)
+    (adr_dir / "ADR-001-thing.md").write_text(
+        "---\nid: ADR-001\n# status: proposed\nstatus: accepted\ndate: 2026-08-21\n"
+        "decision-makers: []\nsupersedes: []\nsuperseded-by: null\n"
+        "explainer: null\nimplemented: true\n---\n\n# ADR-001: Thing\n",
+        encoding="utf-8",
+    )
+
+    hits = [v for v in scan(adr_dir, tmp_path) if v.check == "frontmatter-parses"]
+
+    assert hits == []

@@ -869,3 +869,67 @@ def test_review_by_rendering_does_not_read_the_wall_clock(tmp_path: Path) -> Non
     future = render_with("2099-01-17")
 
     assert past.replace("2026-01-17", "DATE") == future.replace("2099-01-17", "DATE")
+
+
+# ── Duplicate frontmatter keys must fail loudly, not resolve last-wins ────────
+#
+# PyYAML keeps the last value and reports nothing, so a record declaring two
+# conflicting statuses would be rendered in the index as one of them with no
+# indication the other exists. That contradicts this generator's stated
+# fail-loud contract for malformed frontmatter. Reported by Copilot on PR #5209.
+
+
+def test_duplicate_status_key_raises_rather_than_picking_one(tmp_path):
+    """The index must not silently choose between two declared statuses."""
+    from generate_adr_index import AdrIndexError, build_record
+
+    adr = tmp_path / "ADR-001-thing.md"
+    adr.write_text(
+        "---\nid: ADR-001\nstatus: proposed\nstatus: accepted\n---\n\n"
+        "# ADR-001: Thing\n\n## Decision\n\nDo the thing.\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AdrIndexError) as excinfo:
+        build_record(adr)
+
+    assert "duplicate key" in str(excinfo.value)
+    assert "ADR-001-thing.md" in str(excinfo.value)
+
+
+def test_a_record_without_duplicates_still_builds(tmp_path):
+    """Negative control: the strict loader does not reject valid frontmatter.
+
+    A loader that raised on every mapping would pass the test above and be
+    indistinguishable from a correct one.
+    """
+    from generate_adr_index import build_record
+
+    adr = tmp_path / "ADR-001-thing.md"
+    adr.write_text(
+        "---\nid: ADR-001\nstatus: accepted\ndate: 2026-08-21\n---\n\n"
+        "# ADR-001: Thing\n\n## Decision\n\nDo the thing.\n",
+        encoding="utf-8",
+    )
+
+    assert build_record(adr).status == "accepted"
+
+
+def test_a_repeated_key_inside_a_nested_mapping_is_also_rejected(tmp_path):
+    """The loader hooks the parser, so nesting does not hide a duplicate.
+
+    A line-scanning check would miss this. Recording the difference because it
+    is the reason a loader was used here rather than the regex helper
+    detect_adr_changes.py carries.
+    """
+    from generate_adr_index import AdrIndexError, build_record
+
+    adr = tmp_path / "ADR-001-thing.md"
+    adr.write_text(
+        "---\nid: ADR-001\nstatus: accepted\nmeta:\n  note: a\n  note: b\n---\n\n"
+        "# ADR-001: Thing\n\n## Decision\n\nDo the thing.\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AdrIndexError):
+        build_record(adr)
