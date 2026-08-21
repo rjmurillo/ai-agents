@@ -31,7 +31,6 @@ Pins the ratcheted ADR lifecycle gate. Coverage per check name:
 - prose-frontmatter-agree: pos (decorated prose still matches), neg (drift),
   edge (inline ``**Status**:`` counts as the section; an amendment-first line
   is flagged), and the ADR-073 invariant that the gate never rewrites prose
-- status-section-present: pos, neg
 
 Ratchet and CLI behavior: improvement passes, regression exits 1, baseline
 missing / malformed / stale exits 2, missing ADR directory exits 2,
@@ -485,7 +484,7 @@ def test_implemented_string_true_is_not_the_boolean(tmp_path):
     assert _counts(tmp_path)["implemented-implies-decided"] == 0
 
 
-# --- prose-frontmatter-agree / status-section-present -----------------------
+# --- prose-frontmatter-agree ------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -531,7 +530,6 @@ def test_inline_bold_status_counts_as_the_section(tmp_path):
 
     counts = _counts(tmp_path)
 
-    assert counts["status-section-present"] == 0
     assert counts["prose-frontmatter-agree"] == 0
 
 
@@ -539,26 +537,36 @@ def test_status_heading_is_matched_case_insensitively(tmp_path):
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 1, _valid(1), "\n### STATUS\n\nAccepted\n")
 
-    assert _counts(tmp_path)["status-section-present"] == 0
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 0
 
 
-def test_missing_status_section_is_a_violation(tmp_path):
+def test_absent_status_prose_is_not_a_violation(tmp_path):
+    """A record whose frontmatter fully states its status owes no prose restatement.
+
+    The repo owner rejected the opposite rule on review of ADR-005: with
+    `status: superseded` and `superseded-by: ADR-042` in frontmatter, a prose line
+    reading "Superseded by ADR-042" is duplication, not a reader service. ADR-073
+    line 57 agrees, saying the prose section "may carry" nuance rather than must.
+    """
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 1, _valid(1), "\n## Context\n\nWords.\n")
 
     counts = _counts(tmp_path)
 
-    assert counts["status-section-present"] == 1
-    assert counts["prose-frontmatter-agree"] == 0, "the section check owns this defect"
+    assert counts["prose-frontmatter-agree"] == 0
+    assert "status-section-present" not in counts
 
 
-def test_empty_status_section_is_present_but_drifted(tmp_path):
+def test_empty_status_section_still_drifts(tmp_path):
+    """Prose that opens the section and then says nothing is still a disagreement.
+
+    Absence is fine; a section that exists and contradicts the enum is not.
+    """
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 1, _valid(1), "\n## Status\n")
 
     counts = _counts(tmp_path)
 
-    assert counts["status-section-present"] == 0
     assert counts["prose-frontmatter-agree"] == 1
 
 

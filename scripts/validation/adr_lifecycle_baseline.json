@@ -9,7 +9,6 @@
     "supersession-target-exists": 0,
     "proposed-cannot-supersede": 0,
     "implemented-implies-decided": 6,
-    "prose-frontmatter-agree": 1,
-    "status-section-present": 7
+    "prose-frontmatter-agree": 1
   }
 }

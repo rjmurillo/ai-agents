@@ -61,12 +61,11 @@ Checks, each named so the baseline tracks them separately:
     proposed-cannot-supersede    a `proposed` record may not declare `supersedes`
     implemented-implies-decided  `implemented: true` with `status: proposed`
     prose-frontmatter-agree      the first `## Status` line matches the frontmatter enum
-    status-section-present       a record with frontmatter carries a `## Status` section
 
 Checks 2 to 9 need parseable frontmatter, so a record failing `frontmatter-parses`
 contributes one violation, not nine. The same containment runs downstream:
 `prose-frontmatter-agree` is skipped when the status section is absent
-(`status-section-present` owns that) or the enum value is invalid (`status-enum`
+(the record simply has no prose status) or the enum value is invalid (`status-enum`
 owns that), and `supersession-reciprocal` ignores an edge that
 `supersession-target-exists` already rejected. Without it one defect would
 inflate several counts and the baseline would move for reasons the author did
@@ -109,7 +108,6 @@ CHECKS: tuple[str, ...] = (
     "proposed-cannot-supersede",
     "implemented-implies-decided",
     "prose-frontmatter-agree",
-    "status-section-present",
 )
 
 # ADR-073 Decision section, verbatim: "status: proposed | accepted | rejected |
@@ -184,7 +182,7 @@ def _split_frontmatter(text: str) -> tuple[str | None, str]:
 
     Stricter/looser/different than canonical: identical boundaries, but this also
     returns the body, which that helper discards. The body is what
-    ``status-section-present`` and ``prose-frontmatter-agree`` read, so the split
+    ``prose-frontmatter-agree`` reads, so the split
     cannot be delegated. The parsed mapping still comes from the canonical helper
     (see :func:`_read_record`), so one parser decides what a valid mapping is.
     """
@@ -324,7 +322,7 @@ def _status_prose(body: str) -> str | None:
     """First non-blank line of the status section, or None when there is none.
 
     A `## Status` heading with nothing under it returns "", which keeps
-    `status-section-present` satisfied while `prose-frontmatter-agree` reports
+    prose present while `prose-frontmatter-agree` reports
     the missing lifecycle word.
     """
     heading = _STATUS_HEADING_RE.search(body)
@@ -338,15 +336,28 @@ def _status_prose(body: str) -> str | None:
 
 
 def _check_prose(record: Record) -> list[Violation]:
-    """`status-section-present` and `prose-frontmatter-agree` for one record."""
+    """`prose-frontmatter-agree` for one record.
+
+    A record with no prose status section is NOT a violation. An earlier revision
+    of this gate required one (`status-section-present`) and the repo owner
+    rejected it on review of ADR-005: with `status: superseded` and
+    `superseded-by: ADR-042` in frontmatter, a prose line reading "Superseded by
+    ADR-042" is duplication, and duplication is a drift surface rather than a
+    service to the reader.
+
+    The check also overreached its own citation. ADR-073 line 57 says the prose
+    section "remains for humans and **may** carry the nuance the enum cannot",
+    which is permissive. Requiring it turned a MAY into a MUST and forced the
+    duplication on exactly the records with nothing to add.
+
+    What survives is the rule ADR-073 does state: when prose and frontmatter both
+    speak and disagree, frontmatter wins and the author reconciles the prose.
+    Records like ADR-042 and ADR-055, whose prose carries debate-log citations and
+    supersession reasoning, keep their sections and are still checked here.
+    """
     prose = _status_prose(record.body)
     if prose is None:
-        detail = (
-            "frontmatter is present but the record has no `## Status` section and no "
-            "inline `**Status**:` line (ADR-073 retains the prose section as the "
-            "human rendering)"
-        )
-        return [Violation("status-section-present", record.path, detail)]
+        return []
     status = _status_of(record)
     if status not in LIFECYCLE_STATUSES:
         # `status-enum` owns this defect; comparing prose against an invalid enum
