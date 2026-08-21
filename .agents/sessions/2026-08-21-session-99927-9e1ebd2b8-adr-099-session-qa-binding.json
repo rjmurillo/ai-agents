@@ -149,7 +149,7 @@
       "finding": "constraintsRead.Evidence attributed to session-logs.md MUST 2 and MUST 3 the claim that endingCommit moves independently of comparison.head; those two MUST items only describe endingCommit's own update schedule (follow-up commit, re-point after rebase) and never mention comparison.head. Verified directly against the rule file and confirmed the finding, then fixed the wording to describe only what the rule text says. Landing the fix required merging origin/main again (two unrelated commits, ADR-100 and ADR-101), both outside QA_EVIDENCE_PREFIXES, so the QA report's qaCommit moved again to the post-merge commit. 380 passed, merge_tree_ratchet_check.py reported OK."
     }
   ],
-  "endingCommit": "936abc5c7060cc40c200567d535a63ad99bb7950",
+  "endingCommit": "577a512cbe37d8a29a9002ec38c85a018589086c",
   "nextSteps": [
     "File a follow-up issue for a dedicated QA-freshness field in session-log.schema.json, distinct from endingCommit, per PR #4954 round 15's actual recommendation (ADR-099 Follow-ups item 1).",
     "File a follow-up issue for dropping the validate_session_json.py fallback that binds head to binding.commit when live-HEAD resolution fails (ADR-099 Follow-ups item 2).",
