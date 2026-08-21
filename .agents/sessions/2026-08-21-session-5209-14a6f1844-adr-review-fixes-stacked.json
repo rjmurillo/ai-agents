@@ -262,6 +262,40 @@
         "tests/build_scripts/test_generate_adr_index.py"
       ],
       "notes": "The parametrized whitespace case was an unquoted `status: accepted `, which passed against the OLD recipe too: YAML strips trailing spaces from a plain scalar, so the input reached the comparison as 'accepted' either way. Caught by running the mutation rather than assuming it: two of three cases died and one did not. Quoted it so the space survives the parser and .strip() is load-bearing. This is the control-that-cannot-fail failure mode, committed inside the fix for a different instance of it."
+    },
+    {
+      "task": "Move duplicate-key detection into the parser in all three ADR readers",
+      "status": "complete",
+      "filesModified": [
+        "scripts/validation/check_adr_lifecycle.py",
+        ".claude/skills/adr-review/scripts/detect_adr_changes.py",
+        "src/copilot-cli/skills/adr-review/scripts/detect_adr_changes.py"
+      ],
+      "notes": "Copilot showed the guards forgeable. Measured: `\"status\": proposed` and `'status': proposed` evaded check_adr_lifecycle; those plus `status : proposed` evaded detect_adr_changes; yaml.safe_load enforced `accepted` for all four. A line scan compares raw prefixes, YAML compares constructed keys, so no regex widening fixes it. Retires this PR's own 'mechanism per site' argument, which was defensible as written and defeated by evidence. Plugin copies keep a local loader per plugin-self-containment; canonical implementation quoted per canonical-source-mirror."
+    },
+    {
+      "task": "Stop a TypeError escaping the ADR index error contract",
+      "status": "complete",
+      "filesModified": [
+        "build/scripts/generate_adr_index.py"
+      ],
+      "notes": "My own guard kept keys in a set and caught TypeError only around the membership test, under `# pragma: no cover - unhashable keys are not valid here`. They are valid: `? [a, b]` builds a list key, and seen.add raised the same TypeError one line later, past parse_frontmatter's YAMLError conversion and main's exit codes. Confident incorrectness in a pragma comment, asserted rather than tested. A list compared with == fixes both halves and gains detection of duplicated unhashable keys, which the set guard declared impossible by construction."
+    },
+    {
+      "task": "Blank code fences before searching for a status declaration",
+      "status": "complete",
+      "filesModified": [
+        "scripts/validation/check_adr_lifecycle.py"
+      ],
+      "notes": "Widening the search to the whole body let a `## Status` inside a fenced markdown sample count. ADR-022:521 carries one; latent only because ADR-022's real section is at line 3 and the search takes the first match. Same whole-file-scan defect the widening fixed, one layer down. Uses the repo's CommonMark helper; a parse failure returns None, matching how the gate already skips a record with no status section, rather than falling back to raw body which is the fail-open being closed."
+    },
+    {
+      "task": "Assess Cursor's unprompted autofix commit rather than accept it",
+      "status": "complete",
+      "filesModified": [
+        "tests/validation/test_check_adr_lifecycle.py"
+      ],
+      "notes": "d9ce372be arrived on the branch unprompted. Its _status_prose fix was correct (verified across seven cases, preserves the bypass fix beneath it) but shipped NO test, so it was one edit from silent regression; test added and mutation-proven. Its sys.path cleanup left a dead noqa, removed. Its third change moved qaCommit BACK to 4488070a5 while editing check_adr_lifecycle.py in a later commit, creating the exact staleness Session End Validation catches. The Bugbot finding behind it was a false positive: qaCommit pointed at the last code commit, which is what the gate checks, and pre_pr.py passed before the 'fix'."
     }
   ],
   "endingCommit": "4488070a5adfe28a29d4ffbad55e94fa3beb3534",

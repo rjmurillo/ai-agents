@@ -189,6 +189,42 @@
       ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Move duplicate-key detection into the parser in all three ADR readers",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Stop a TypeError escaping the ADR index error contract",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Blank code fences before searching for a status declaration",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Assess Cursor's unprompted autofix commit rather than accept it",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
     }
   ],
   "metrics": {

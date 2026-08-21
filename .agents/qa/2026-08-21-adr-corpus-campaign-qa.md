@@ -1,13 +1,13 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 66bd167c35df9d7ca76b336ac5382c582e9dd5c6
+qaCommit: 4ec01f481df45507b90db4d18fdda1d0121a41dd
 ---
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `66bd167c35df9d7ca76b336ac5382c582e9dd5c6`
+**Validated at commit**: `4ec01f481df45507b90db4d18fdda1d0121a41dd`
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -604,3 +604,15 @@ disagreed with all four real status readers, a frontmatter diagnostic that named
 the wrong defect, a mutation probe that turned out not to discriminate, and the
 corpus measurements showing both fixes latent. `.agents/architecture/README.md`
 is regenerated because the recipe ships inside it.
+
+
+## Addendum 9: rebound after the Bugbot and Copilot review round
+
+**Rebound to** `5ec9be82445ceaddfde320df60dcfd6473047d4f`.
+
+Nine findings across both reviewers, plus an unprompted autofix commit on the
+branch. Evidence lives in addenda 9 and 10 of
+`.agents/qa/session-5209-adr-review-fixes-stacked.md`. The headline: the
+duplicate-key guards this campaign added did not close the forgery vector they
+were built for, because a line scan compares raw prefixes and YAML compares
+constructed keys. All three readers now detect at the parser.

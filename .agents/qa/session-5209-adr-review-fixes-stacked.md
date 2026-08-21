@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 4488070a5adfe28a29d4ffbad55e94fa3beb3534
+qaCommit: 4ec01f481df45507b90db4d18fdda1d0121a41dd
 ---
 
 # QA: PR #5209 review-round fixes, carried on a stacked branch
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `4488070a5adfe28a29d4ffbad55e94fa3beb3534`
+**Validated at commit**: `4ec01f481df45507b90db4d18fdda1d0121a41dd`
 
 ## Verdict
 
@@ -278,3 +278,107 @@ wider question than a review-round fix. The stale claim in
 `.agents/critique/ADR-005-status-duplication-debate-log.md:77` stays held: what
 it should say depends on the ADR-073 dual-representation decision, which is the
 owner's.
+
+
+## Addendum 9: a review round that found the guards forgeable
+
+Bugbot and Copilot both reviewed `7f3dee78d`. Nine findings between them.
+Every one was reproduced by execution before anything was edited, which changed
+the disposition of three of them.
+
+### The duplicate-key guards did not close the vector they were built for
+
+This PR's own description argued that three different duplicate-key mechanisms
+were "chosen per site rather than copied". Copilot showed that two of the three
+are forgeable, and measurement was worse than the report implied. All spellings
+below are one key to PyYAML, which resolved every one to `accepted`:
+
+| Spelling | `check_adr_lifecycle` | `detect_adr_changes` |
+|---|---|---|
+| `status: proposed` | caught | caught |
+| `"status": proposed` | **MISSED** | **MISSED** |
+| `'status': proposed` | **MISSED** | **MISSED** |
+| `status : proposed` | caught | **MISSED** |
+
+A line scan compares raw prefixes; YAML compares constructed keys. `status` and
+`"status"` are one key to the parser and two strings to a scan, so the guard
+could not be repaired by widening the regex. A guard against forgery that the
+forger evades by adding quotation marks is worse than none, because it reports
+clean.
+
+All three readers now detect at the parser. The "mechanism per site" design is
+retired: it was defensible as written and is defeated by evidence. The plugin
+copies still carry their own loader, because `plugin-self-containment.md`
+forbids importing from `scripts/`, with the canonical implementation quoted.
+
+Parser-level detection also reaches duplicates nested in a mapping value, which
+a line scan structurally cannot. That flipped a test asserting the blindness was
+a feature; it now has a control proving distinct nested keys still pass.
+
+### A TypeError escaping the error contract, under a comment saying it could not
+
+`generate_adr_index` kept keys in a set. A YAML key need not be hashable
+(`? [a, b]` builds a list key). The guard caught `TypeError` around the
+membership test only, under this comment:
+
+    except TypeError:  # pragma: no cover - unhashable keys are not valid here
+
+The comment was wrong. `seen.add(key)` raised the same TypeError one line later,
+past `parse_frontmatter`'s YAMLError conversion and `main`'s exit-code handling:
+
+    *** TypeError escapes to the caller: cannot use 'list' as a set element
+
+That is the confident-incorrectness shape `canonical-source-mirror.md` names,
+written by me, with a pragma comment asserting the unreachability rather than
+testing it. A list compared with `==` fixes both halves and gains detection of a
+*duplicated* unhashable key, which the set guard declared impossible by
+construction.
+
+### A claim of mine that overreached, raised as a suppressed comment
+
+The index recipe note said "Every reader of this corpus lowers and strips the
+value first", printed directly above a snippet using plain `yaml.safe_load`. The
+sentence was true about normalization and false about the reader it sat next to:
+that snippet cannot see duplicate keys at all, so it would print exactly the
+masked status this PR classifies as a forgery vector. Narrowed to the two gates
+it describes, with the snippet's own limitation stated.
+
+### Fenced samples counted as status
+
+Widening `_status_prose` to the whole body let a `## Status` inside a markdown
+code block count. ADR-022:521 carries one, inside an ADR template it documents.
+Latent today only because ADR-022's real section sits at line 3 and the search
+takes the first match; removing that section, which is where this campaign is
+already heading, would expose it. That is the whole-file-scan defect the
+widening fixed, one layer down. Code blocks are blanked with the repository's
+CommonMark helper before any search.
+
+## Addendum 10: the autofix agent, assessed rather than accepted
+
+Cursor's autofix pushed `d9ce372be` to this branch unprompted. Two of its three
+changes were sound. The third broke a gate while claiming to fix it.
+
+**Its `_status_prose` fix was correct.** An empty `## Status` followed by
+`## Context` returned the next heading text instead of `""`, contradicting the
+docstring contract. Verified across seven cases, including that it preserves the
+bypass fix it sits on top of. **It shipped no test**, so the fix was one edit
+away from silent regression; the test is added here, and mutation-proven.
+
+**Its `sys.path` cleanup was reasonable** and left one dead `noqa`, removed.
+
+**Its qaCommit change created the failure it claimed to resolve.** Bugbot
+reported `endingCommit` and `qaCommit` as divergent. They were, legitimately:
+`qaCommit` pointed at the last *code* commit, which is what Session End
+Validation checks, and `pre_pr.py` passed. The autofix moved `qaCommit` back to
+`4488070a5` while itself editing `check_adr_lifecycle.py` in a later commit,
+which is precisely the staleness the gate exists to catch:
+
+```
+[FAIL] QA report is stale; code changed after its commit:
+       scripts/validation/check_adr_lifecycle.py,
+       tests/test_adr_063_memory_skill_decomposition.py
+```
+
+A false-positive finding, a fix for it, and a real gate failure introduced by
+that fix. Recorded because an autofix commit arrives looking like review
+feedback and is not: it is a diff, and it earns the same scrutiny as any other.
