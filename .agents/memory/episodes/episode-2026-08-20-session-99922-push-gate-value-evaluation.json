@@ -9,56 +9,56 @@
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-08-20T00:00:00+00:00",
+      "timestamp": "2026-08-20T17:53:23+00:00",
       "type": "milestone",
       "content": "Measured the two size gates against real pull request data rather than accepting or rejecting them on principle",
       "caused_by": [],
       "leads_to": [
-        "e031"
+        "e007"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
       "id": "e002",
-      "timestamp": "2026-08-20T00:00:00+00:00",
+      "timestamp": "2026-08-20T17:53:23+00:00",
       "type": "milestone",
       "content": "Tested three successive designs against a six-role adversarial panel",
       "caused_by": [],
       "leads_to": [
-        "e031"
+        "e007"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
       "id": "e003",
-      "timestamp": "2026-08-20T00:00:00+00:00",
+      "timestamp": "2026-08-20T17:53:23+00:00",
       "type": "milestone",
       "content": "Verified every reviewer claim against primary sources before acting on it",
       "caused_by": [],
       "leads_to": [
-        "e031"
+        "e007"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
       "id": "e004",
-      "timestamp": "2026-08-20T00:00:00+00:00",
+      "timestamp": "2026-08-20T17:53:23+00:00",
       "type": "milestone",
       "content": "Found and recorded that the control plane is reachable from the tree",
       "caused_by": [],
       "leads_to": [
-        "e031"
+        "e007"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
       "id": "e005",
-      "timestamp": "2026-08-20T00:00:00+00:00",
+      "timestamp": "2026-08-20T17:53:23+00:00",
       "type": "milestone",
       "content": "Caught a tightening hiding inside a subtraction",
       "caused_by": [],
       "leads_to": [
-        "e031"
+        "e007"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
@@ -79,6 +79,11 @@
       "type": "commit",
       "content": "Commit: 5beda2c685658571787f1b033dfb437783da0db1",
       "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
         "e006"
       ],
       "leads_to": [
@@ -225,29 +230,35 @@
         "e017"
       ],
       "leads_to": [
+        "e019",
+        "e020",
         "e021"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
       "id": "e019",
-      "timestamp": "2026-08-20T00:00:00+00:00",
+      "timestamp": "2026-08-20T21:22:49+00:00",
       "type": "milestone",
       "content": "Searched this repository's own session logs, QA reports, and retrospectives for what the commit ceiling made authors do, after six rounds of review had accepted that no such evidence existed",
-      "caused_by": [],
+      "caused_by": [
+        "e018"
+      ],
       "leads_to": [
-        "e031"
+        "e022"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
       "id": "e020",
-      "timestamp": "2026-08-20T00:00:00+00:00",
+      "timestamp": "2026-08-20T21:22:49+00:00",
       "type": "milestone",
       "content": "Traced where the commit ceiling actually blocks, after a reviewer showed the decision's own remediation would have retired nothing",
-      "caused_by": [],
+      "caused_by": [
+        "e018"
+      ],
       "leads_to": [
-        "e031"
+        "e022"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
@@ -270,6 +281,8 @@
       "type": "commit",
       "content": "Commit: a4ee873a8c6f562a8fc6bfb8a6939de348bf0994",
       "caused_by": [
+        "e019",
+        "e020",
         "e021"
       ],
       "leads_to": [
@@ -370,12 +383,14 @@
     },
     {
       "id": "e030",
-      "timestamp": "2026-08-20T00:00:00+00:00",
+      "timestamp": "2026-08-21T00:12:52+00:00",
       "type": "milestone",
       "content": "Transported the branch content to the remote through the GitHub API after the pre-push commit ceiling refused the push and both of its reliefs proved unreachable",
-      "caused_by": [],
-      "leads_to": [
+      "caused_by": [
         "e031"
+      ],
+      "leads_to": [
+        "e033"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
@@ -385,24 +400,10 @@
       "type": "commit",
       "content": "Commit: e4a5e55a5d16694ce096b3045da9ec07069e3d54",
       "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
-        "e005",
-        "e019",
-        "e020",
-        "e029",
-        "e030",
-        "e034",
-        "e036",
-        "e038",
-        "e042",
-        "e043",
-        "e045"
+        "e029"
       ],
       "leads_to": [
-        "e033"
+        "e030"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
@@ -425,7 +426,7 @@
       "type": "milestone",
       "content": "Cleared the nineteen open review threads, six of which named live defects",
       "caused_by": [
-        "e031"
+        "e030"
       ],
       "leads_to": [
         "e032"
@@ -434,12 +435,14 @@
     },
     {
       "id": "e034",
-      "timestamp": "2026-08-20T00:00:00+00:00",
+      "timestamp": "2026-08-21T00:58:48+00:00",
       "type": "milestone",
       "content": "Found the push gate skipping entirely, while clearing the working tree at stop time",
-      "caused_by": [],
+      "caused_by": [
+        "e035"
+      ],
       "leads_to": [
-        "e031"
+        "e037"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
@@ -452,18 +455,21 @@
         "e032"
       ],
       "leads_to": [
-        "e037"
+        "e034"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
       "id": "e036",
-      "timestamp": "2026-08-20T00:00:00+00:00",
+      "timestamp": "2026-08-21T01:28:38+00:00",
       "type": "milestone",
       "content": "Cleared a fourteen-thread review round, several of which corrected the author rather than the text",
-      "caused_by": [],
+      "caused_by": [
+        "e037"
+      ],
       "leads_to": [
-        "e031"
+        "e038",
+        "e039"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
@@ -473,21 +479,23 @@
       "type": "commit",
       "content": "Commit: 945edfa030559e7ce28315ff39c891ed2df2696d",
       "caused_by": [
-        "e035"
+        "e034"
       ],
       "leads_to": [
-        "e039"
+        "e036"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
       "id": "e038",
-      "timestamp": "2026-08-20T00:00:00+00:00",
+      "timestamp": "2026-08-21T01:39:04+00:00",
       "type": "milestone",
       "content": "Cleared the last five review threads and measured the gate a fifth time",
-      "caused_by": [],
+      "caused_by": [
+        "e036"
+      ],
       "leads_to": [
-        "e031"
+        "e041"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
@@ -497,7 +505,7 @@
       "type": "commit",
       "content": "Commit: 20e4ba5ab7ffdbf48875d52d727d45bc6630514e",
       "caused_by": [
-        "e037"
+        "e036"
       ],
       "leads_to": [
         "e041"
@@ -523,6 +531,7 @@
       "type": "commit",
       "content": "Commit: 28287cc504387eb04739c861e80d5d1a7a94c37d",
       "caused_by": [
+        "e038",
         "e039"
       ],
       "leads_to": [
@@ -532,23 +541,28 @@
     },
     {
       "id": "e042",
-      "timestamp": "2026-08-20T00:00:00+00:00",
+      "timestamp": "2026-08-21T02:43:23+00:00",
       "type": "milestone",
       "content": "Reproduced the skip and the refusal back to back, with the sizes running the wrong way",
-      "caused_by": [],
+      "caused_by": [
+        "e044"
+      ],
       "leads_to": [
-        "e031"
+        "e043"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
       "id": "e043",
-      "timestamp": "2026-08-20T00:00:00+00:00",
+      "timestamp": "2026-08-21T03:09:46+00:00",
       "type": "milestone",
       "content": "Cleared an eleven-thread round, five of them stale against a head that had already moved",
-      "caused_by": [],
+      "caused_by": [
+        "e042"
+      ],
       "leads_to": [
-        "e031"
+        "e045",
+        "e046"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
@@ -561,18 +575,20 @@
         "e040"
       ],
       "leads_to": [
-        "e046"
+        "e042"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
       "id": "e045",
-      "timestamp": "2026-08-20T00:00:00+00:00",
+      "timestamp": "2026-08-21T03:14:22+00:00",
       "type": "milestone",
       "content": "Ran round 8 of the panel on the current heads, and it did not reach consensus",
-      "caused_by": [],
+      "caused_by": [
+        "e043"
+      ],
       "leads_to": [
-        "e031"
+        "e048"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
@@ -582,7 +598,7 @@
       "type": "commit",
       "content": "Commit: b8f20196e2b94d33567652e0ab72e3fe82e37a72",
       "caused_by": [
-        "e044"
+        "e043"
       ],
       "leads_to": [
         "e048"
@@ -608,6 +624,7 @@
       "type": "commit",
       "content": "Commit: dfbd0d8ee204502906de165a46ddd70df07a450c",
       "caused_by": [
+        "e045",
         "e046"
       ],
       "leads_to": [
@@ -741,7 +758,9 @@
       "caused_by": [
         "e059"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e061"
+      ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
@@ -757,14 +776,63 @@
         "e058"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e060",
+      "timestamp": "2026-08-21T13:45:00+00:00",
+      "type": "milestone",
+      "content": "Timestamped fourteen work-log entries so the episode's causal graph stops asserting an impossible order",
+      "caused_by": [
+        "e061"
+      ],
+      "leads_to": [
+        "e062",
+        "e063"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e061",
+      "timestamp": "2026-08-21T13:35:54+00:00",
+      "type": "commit",
+      "content": "Commit: daccd751bc31728edb4daeed65b3626fd851ca91",
+      "caused_by": [
+        "e058"
+      ],
+      "leads_to": [
+        "e060"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e062",
+      "timestamp": "2026-08-21T13:53:47+00:00",
+      "type": "milestone",
+      "content": "Picked the per-gate counterfactuals ADR-100 had been leaving to the owner",
+      "caused_by": [
+        "e060"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e063",
+      "timestamp": "2026-08-21T13:53:47+00:00",
+      "type": "commit",
+      "content": "Commit: 67240b8ce2b888eebbc2d5f431e280993b930c7c",
+      "caused_by": [
+        "e060"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     }
   ],
   "metrics": {
-    "duration_minutes": 302,
+    "duration_minutes": 1216,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 38,
+    "commits": 40,
     "files_changed": 10
   },
   "lessons": []
