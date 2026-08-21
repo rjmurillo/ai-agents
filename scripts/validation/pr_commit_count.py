@@ -11,13 +11,25 @@ Behavior:
   the issue #362 thresholds (warning 10, alert 15). This is advisory only: a
   large commit count never blocks a push or a merge. The
   ``commit-limit-bypass`` label, the 20/40-commit block ceiling, and the
-  main-merge relief that used to raise it were removed (issue #5233) because
-  the hard block required local verification of a GitHub label that this
-  harness cannot always perform (`gh` has no API access in some sandboxed
-  sessions), which forced authors into expensive workarounds -- spinning up an
-  entirely new stacked branch and PR -- just to route around a check that
-  could not confirm a fact that was already true. ``needs-split`` stays: it is
-  a purely advisory label with no enforcement attached.
+  main-merge relief that used to raise it were removed (issue #5233).
+  ``needs-split`` stays: it is a purely advisory label with no enforcement
+  attached.
+
+  This script itself never had a GitHub-access availability problem: this
+  workflow step runs under ``GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}``
+  (``.github/workflows/pr-validation.yml``), so the ``gh`` calls below always
+  had working credentials in CI. The actual availability failure lived in a
+  different, now-deleted script, the local pre-push hook's
+  ``scripts/validation/check_pr_bypass_label.py``, which shelled out to
+  ``gh api`` to check for the bypass label from inside a sandboxed Claude Code
+  session that frequently has no GitHub token at all (403 "GitHub access is
+  not enabled for this session"). That local failure forced authors into an
+  expensive workaround -- spinning up an entirely new stacked branch and PR --
+  to route around a check that could not confirm a fact (the label was
+  already applied) that was already true. This CI-side block was removed in
+  the same change for consistency with ADR-099's decision to make the whole
+  commit-count signal advisory everywhere, not because this script suffered
+  the same access failure.
 * On a *transient* transport error (HTTP 503, "no server is currently
   available", connection reset, timeout), degrade to ``status=UNKNOWN`` and
   exit 0. A GitHub outage no longer affects this advisory check either way.
