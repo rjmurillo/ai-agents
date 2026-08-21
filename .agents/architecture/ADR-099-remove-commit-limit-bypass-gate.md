@@ -198,7 +198,7 @@ carries the same rationale for a reader who lands there without this file.
 
 - Issue #362 (original thresholds), #3596 (main-merge relief), #3610
   (stacked-PR relief), #3895 (needs-split small-fix relief), #4782 (human-only
-  label guidance), #5230 (this removal).
+  label guidance), #5233 (this removal).
 - `.agents/retrospective/2026-08-17-governance-bureaucracy-critical-review.md`,
   which independently flagged PR #4846's `commit-limit-bypass`/`needs-split`
   labels as a "review-driven PR spin" symptom, and which argues the full

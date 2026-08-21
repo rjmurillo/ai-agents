@@ -852,7 +852,7 @@ PRs with many commits often indicate scope creep or should be split into smaller
 
 There is no hard ceiling and no bypass label: a large PR is never blocked from
 merge on commit count alone. The former 20/40-commit block and its
-`commit-limit-bypass` human-only label were removed (issue #5230). That gate
+`commit-limit-bypass` human-only label were removed (issue #5233). That gate
 required local, pre-push verification of a GitHub label, which is not always
 possible: a sandboxed harness without `gh`/API access could not confirm a
 label that was already correctly applied, and the only way through was an

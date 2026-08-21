@@ -232,7 +232,7 @@ label. ADR-099 removed that block: the local verification step
 (`scripts/validation/check_pr_bypass_label.py`, since deleted) shelled out to
 `gh api`, and a Claude Code cloud session with no `gh`/API access could never
 satisfy it even when the label was already correctly applied, forcing an
-expensive stacked-branch-and-PR workaround (issue #5230) to route around a
+expensive stacked-branch-and-PR workaround (issue #5233) to route around a
 verification failure that had nothing to do with the PR's merits.
 
 A large branch still gets a `needs-split` label and a WARNING (>=10 commits)

@@ -80,3 +80,13 @@ bounded by the surviving advisory signal. Net positive.
 condition (advisory signal preserved) and the independent-thinker's
 complementary suggestion (connect the GitHub App) are both recorded in
 ADR-099 rather than dropped.
+
+## Post-accept correction
+
+ADR-099 and several implementation files initially cited "#5230" as the
+tracking issue for this change. #5230 is an unrelated draft PR opened by a
+different session the same day (hitting the identical gh-403 wall this ADR
+describes, on PR #5209's own stack), not an issue. The independent-thinker's
+suggested root-cause fix was filed as issue #5232; the tracking issue for
+this change itself was filed as issue #5233 once the citation error was
+caught. All "#5230" references were corrected to "#5233".
