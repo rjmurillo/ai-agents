@@ -15,13 +15,16 @@ BYPASS_LABEL = "commit-limit-bypass"
 #     1. A human maintainer MUST add the `commit-limit-bypass` label
 # So the blocked-PR annotation states the sanctioned action (split) and names the
 # label as a maintainer decision rather than as the reader's next step (issue
-# #4782). The clause is duplicated from
-# scripts/validation/git_hook_policy.py:_COMMIT_LIMIT_BYPASS_IS_HUMAN_ONLY rather
-# than imported: pr-validation.yml:212 runs this script as
+# #4782). This is CI's own standalone copy rather than an import:
+# pr-validation.yml:212 runs this script as
 # `python3 scripts/ci/enforce_pr_validation.py` with nothing installed and no
 # sys.path setup, and an import failure here takes the required check red on
-# every PR. tests/validation/test_human_only_label_guidance.py pins both copies
-# to the same policy.
+# every PR. There is no longer a local-hook counterpart to duplicate against:
+# the pre-push commit-count gate (scripts/validation/git_hook_policy.py:
+# _check_commit_limit) was demoted to a non-blocking report per ADR-100 and
+# issue #5232, and dropped its bypass-label wording along with the block.
+# tests/validation/test_human_only_label_guidance.py pins this message against
+# CONTRIBUTING.md's declared policy directly.
 HUMAN_ONLY_NOTICE = (
     f"The '{BYPASS_LABEL}' label lifts the ceiling, but CONTRIBUTING.md "
     '("Bypassing the Limit") requires a human maintainer to add it: ask a '

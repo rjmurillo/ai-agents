@@ -18,12 +18,15 @@ enforcement messages cite by name. ``test_contributing_declares_both_labels_
 human_only`` pins both the declarations and the headings, so a rename in
 ``CONTRIBUTING.md`` fails here rather than leaving three dangling citations.
 
-The three surfaces pinned below are the complete set of messages in the tree
-that name either label, measured with
+The two surfaces pinned below are the complete set of runtime messages in the
+tree that name either label, measured with
 ``grep -rn "commit-limit-bypass\\|description-validation-bypass" --include=*.py
-scripts/``: the pre-push gate, the CI blocker, and the description validator.
-The remaining hits in that grep are comments, the label-membership helper
-``check_pr_bypass_label.py`` (which reports presence and never recommends), and
+scripts/``: the CI blocker and the description validator. The local pre-push
+gate (`scripts/validation/git_hook_policy.py:_check_commit_limit`) no longer
+names or defers to either label at all; per ADR-100 ("retire the pull request
+size ceilings") it was demoted to a report that never blocks, so it has
+nothing left to guide a reader toward and dropped out of this file's scope
+(issue #5232). The remaining hits in that grep are comments and
 ``pr_commit_count.py`` (which defers enforcement without naming a remedy).
 
 Stricter than canonical: ``CONTRIBUTING.md`` states who may add the label.
@@ -35,14 +38,12 @@ from __future__ import annotations
 
 import importlib.util
 import re
-import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
 
-from scripts.validation import git_hook_policy as policy
 from scripts.validation.pr_description import DEFAULT_BYPASS_LABEL, validate_pr_description
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -184,73 +185,6 @@ def test_gotchas_defers_the_commit_limit_bypass_to_a_maintainer() -> None:
     assert "do not apply it yourself" in section, "GOTCHAS.md prohibition missing"
     match = _SELF_SERVICE_INSTRUCTION.search(section)
     assert match is None, f"reads as an instruction to apply the label: {match} in {section}"
-
-
-def _push_update() -> policy.PushUpdate:
-    return policy.PushUpdate(
-        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
-        base="base",
-        head="head",
-        range_spec="base..head",
-        destination_branch="fix/big",
-    )
-
-
-def _completed(returncode: int, stdout: str = "") -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess([], returncode, stdout, "")
-
-
-def _install_push_fakes(monkeypatch: pytest.MonkeyPatch, *, new_commits: int) -> None:
-    """Fake a 52-commit over-limit branch carrying needs-split and no bypass."""
-
-    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
-        if args[:2] == ["rev-list", "--count"] and "^origin/" in " ".join(args):
-            return _completed(0, f"{new_commits}\n")
-        if args[:2] == ["rev-list", "--count"]:
-            return _completed(0, "52\n")
-        return _completed(0)
-
-    def fake_command(
-        args: Sequence[str], _root: Path, **_kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
-        if "--label" in args and "needs-split" in args:
-            return _completed(0, "needs-split present on PR #4735\n")
-        if "check_pr_bypass_label.py" in " ".join(str(arg) for arg in args):
-            return _completed(1, "no commit-limit-bypass label (PR #4735)\n")
-        raise AssertionError(f"unstubbed command: {args}")
-
-    monkeypatch.setattr(policy, "_run_git", fake_git)
-    monkeypatch.setattr(policy, "_run_command", fake_command)
-
-
-def test_push_gate_over_the_needs_split_cap_defers_the_bypass_to_a_maintainer(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """The reported message (issue #4782), on the branch that blocks the push."""
-    _install_push_fakes(monkeypatch, new_commits=policy._NEEDS_SPLIT_NEW_COMMIT_CAP + 10)
-
-    assert policy._check_commit_limit(_push_update(), tmp_path) == 1
-
-    stderr = capsys.readouterr().err
-    assert "needs-split" in stderr
-    assert f"needs-split cap ({policy._NEEDS_SPLIT_NEW_COMMIT_CAP})" in stderr
-    _assert_defers_to_a_maintainer(stderr, "commit-limit-bypass", "split")
-
-
-def test_push_gate_under_the_cap_allows_the_push_without_naming_the_bypass(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """No over-fire: the allowed path stays silent about the bypass entirely."""
-    _install_push_fakes(monkeypatch, new_commits=policy._NEEDS_SPLIT_NEW_COMMIT_CAP - 2)
-
-    assert policy._check_commit_limit(_push_update(), tmp_path) == 0
-
-    captured = capsys.readouterr()
-    assert "commit-limit-bypass" not in captured.out + captured.err
 
 
 def _load_enforcer():
