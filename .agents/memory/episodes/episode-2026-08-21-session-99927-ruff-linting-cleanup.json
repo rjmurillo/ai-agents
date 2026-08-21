@@ -237,6 +237,28 @@
       "caused_by": [
         "e020"
       ],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "A further Copilot review on commit 903513da3 found the pre-push glob still misses a lockfile-only Ruff upgrade: python-lint-count-ratchet runs ruff from the frozen uv environment, so a uv.lock-only change can move the whole-tree count without touching any .py, .pyi, .ipynb, or pyproject.toml file, while pytest.yml's CI path filter already lists uv.lock (line 90).",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-21T20:20:53+00:00",
+      "type": "commit",
+      "content": "Commit: 1965b262fe455d30f8274a9c13c5be4f9ed81600",
+      "caused_by": [
+        "e022"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
     }
@@ -246,7 +268,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
+    "commits": 8,
     "files_changed": 22
   },
   "lessons": []

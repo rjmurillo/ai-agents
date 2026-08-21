@@ -154,9 +154,13 @@
     {
       "action": "Cursor Bugbot's autofix pushed a converse wiring test (_SCAN_GLOBS to lefthook glob), verified correct and synced locally. A follow-up Copilot review then found the bare 'pyproject.toml' entry added in the prior round still misses nested configs: packages/semantic-hooks/pyproject.toml declares its own [tool.ruff], so a push touching only that file could move the whole-tree count while both the lefthook job and pytest.yml's dorny/paths-filter (same bare 'pyproject.toml' entry) skip.",
       "result": "Proved the gap with this repo's own picomatch stand-in (PurePosixPath.full_match): 'pyproject.toml' does not match a nested path, '**/pyproject.toml' does. Changed both gates to the recursive pattern and added one wiring test per gate that asserts packages/semantic-hooks/pyproject.toml is actually selected, not only that the pattern string looks right. Also fixed a second finding: the QA report's benchmark-waiver paragraph still described the pre-narrowing glob."
+    },
+    {
+      "action": "A further Copilot review on commit 903513da3 found the pre-push glob still misses a lockfile-only Ruff upgrade: python-lint-count-ratchet runs ruff from the frozen uv environment, so a uv.lock-only change can move the whole-tree count without touching any .py, .pyi, .ipynb, or pyproject.toml file, while pytest.yml's CI path filter already lists uv.lock (line 90).",
+      "result": "Confirmed by reading pytest.yml:90 and the current lefthook.yml glob (no uv.lock entry). Added \"uv.lock\" to the python-lint-count-ratchet job glob, updated the pinned glob-list assertion in tests/ci/test_ruff_local_ratchet_wiring.py, and added test_count_ratchet_glob_covers_lockfile_only_ruff_upgrades asserting uv.lock is actually selected by the job's glob. Ran the wiring test file locally: 6/6 pass. Also posted a follow-up independent security review on the PR for commit 281a94b94 (the prior lefthook.yml/pytest.yml glob fix), closing the review gap noted at the end of the previous session."
     }
   ],
-  "endingCommit": "281a94b941d70579ba37ae2afeb727fd642d7106",
+  "endingCommit": "1965b262fe455d30f8274a9c13c5be4f9ed81600",
   "nextSteps": [
     "Watch the ruff count ratchet on the PR: with the baseline at 0 any new violation now blocks rather than being absorbed by slack.",
     "Consider whether packages/semantic-hooks/pyproject.toml should inherit the root ruff per-file-ignores instead of redeclaring its own select list, so the two configs cannot drift again.",
