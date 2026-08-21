@@ -11,7 +11,9 @@
 When installed as a Claude Code plugin, this project creates an `.agents/` directory in
 consumer project roots. This directory stores analysis artifacts and governance
 documents used by the plugin's hooks and skills. Session log creation is
-discontinued; the plugin no longer writes new files under `.agents/sessions/`.
+discontinued; the plugin no longer writes new JSON session log files under
+`.agents/sessions/`. Per-issue continuity handoffs under
+`.agents/sessions/handoffs/` are unaffected and remain actively written.
 
 ### Directory Structure
 
