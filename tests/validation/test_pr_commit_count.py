@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for scripts/validation/pr_commit_count.py (issue #3262, #5230).
+"""Tests for scripts/validation/pr_commit_count.py (issue #3262, #5233).
 
 Covers positive (threshold classification), negative (genuine errors), and
 transient-error (503 / no-server / timeout / unparseable body) paths, plus
