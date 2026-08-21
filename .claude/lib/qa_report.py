@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import subprocess
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -37,7 +37,7 @@ class QaBinding:
 
     session_log: str
     commit: str
-    inconsistency: str | None = None
+    inconsistency: str | None = field(default=None, compare=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,13 +178,18 @@ def session_qa_binding(
         comparison_head
     ):
         # comparison.head wins when both fields resolve, and a disagreement is
-        # reported rather than rejected (ADR-099, issue #5217). The two fields
-        # are advanced by unrelated operations, so drift is the documented
-        # state and not a corrupt log: QA rebinding advances comparison.head
-        # past the session's own last authored commit, which is what
-        # session-log.schema.json's commitHead field exists to record, while
-        # endingCommit advances on the follow-up commit and is re-pointed
-        # after a rebase (.claude/rules/session-logs.md MUST 2 and MUST 3).
+        # reported rather than rejected (ADR-099, issue #5217). This is not
+        # because the two fields naturally diverge: a corpus measurement found
+        # only 7 of 1459 committed logs where endingCommit was pulled off its
+        # own contract to satisfy the equality this replaces, out of 42
+        # agreeing edits (34 are session-log creations where nothing moved).
+        # That narrow, measured pattern is why the raise is replaced with a
+        # diagnostic rather than kept: comparison.head is the field QA
+        # rebinding advances past the session's own last authored commit
+        # (session-log.schema.json's commitHead field exists to preserve that
+        # ownership), while endingCommit advances on its own schedule, a
+        # follow-up commit re-pointed after a rebase (.claude/rules/
+        # session-logs.md MUST 2 and MUST 3).
         #
         # Both SHAs below have already passed _FULL_COMMIT_PATTERN, so the
         # message cannot carry unvalidated session-log content.
