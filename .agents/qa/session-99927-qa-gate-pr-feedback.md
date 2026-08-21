@@ -30,7 +30,7 @@ No library or generated-mirror path changed. The corresponding follow-up work it
 
 ## Findings
 
-No code defect. This is a documentation correction (stale ADR frontmatter) plus process work (filing a follow-up issue instead of implementing a new gate change without going through the required ADR + `adr-review` debate, per `.claude/rules/ci-scripts.md` MUST-NOT-2 and AGENTS.md's "Ask First: Architecture|New ADRs").
+One non-runtime code defect, fixed in this PR: `tests/ci/test_validate_vendor_provenance.py::test_workflow_sets_up_uv` asserted a stale `astral-sh/setup-uv` SHA that PR #5215 had already superseded in the workflow it tests, leaving the test (and `python-tests`, for every push on the repo) red on `main` itself. See Scope for the confirmation this predates this branch. Beyond that fix, the remaining changes are a documentation correction (stale ADR frontmatter) plus process work (filing a follow-up issue instead of implementing a new gate change without going through the required ADR + `adr-review` debate, per `.claude/rules/ci-scripts.md` MUST-NOT-2 and AGENTS.md's "Ask First: Architecture|New ADRs").
 
 ## Verdict
 

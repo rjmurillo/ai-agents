@@ -74,7 +74,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Single-line frontmatter edit to an already-accepted ADR; no code, script, or generated-mirror path touched, so pre_pr.py's code-focused validations do not apply. markdownlint and the ADR-review acceptance-transition gate are the relevant checks for this diff and both pass: the edit only flips a boolean already justified by the merged PR #5167 body text quoted in this session's commit message."
+        "Evidence": "The diff mixes a single-line ADR-096 frontmatter edit with a real fix: tests/ci/test_validate_vendor_provenance.py::test_workflow_sets_up_uv was pinned to a stale astral-sh/setup-uv SHA, red on main itself (see workLog). uv run --frozen pytest tests/ci/test_validate_vendor_provenance.py -q: 50 passed. The full pre-push python-tests suite (27,900+ tests) passed on the push that landed this branch. markdownlint and the ADR-review acceptance-transition gate both pass on the ADR file; no generated-mirror path is touched."
       },
       "qaValidation": {
         "level": "MUST",
@@ -132,6 +132,10 @@
     {
       "activity": "Third push attempt failed Session End Validation: QA report is stale",
       "finding": "The test-fix commit (26daf217f) is a real, non-evidence-path change landed after the QA report's qaCommit (fd1786fb8), so ADR-096's post_qa_code_changes correctly flagged it rather than silently accepting it. This is the exact mechanism this session set out to investigate, observed live. Rebound the QA report's qaCommit and this log's endingCommit to 26daf217f, and extended the report's Scope and Validation sections to cover the test fix."
+    },
+    {
+      "activity": "Copilot bot review on PR #5219: triaged 5 findings",
+      "finding": "Verified each against the actual code rather than accepting or dismissing on sight. Two were correct and fixed: validationPassed's evidence field was written before the test-fix and QA-rebind commits landed and had gone stale (contradicted this same log's own workLog), and the QA report's Findings section undersold the diff as pure documentation when it also fixes a real (non-runtime) test defect; both corrected here. A third was correct on the underlying critique (test_workflow_sets_up_uv used a raw substring match, testing.md MUST 9 requires parsed structure) and fixed by parsing the workflow YAML and asserting on the 'Setup uv' step's uses field. A fourth (claiming any ADR-*.md edit requires a fresh 6-agent adr-review round) is contradicted by the hook itself: check_adr_review_policy's _is_frontmatter_only_metadata_change/_only_implemented_field_changed (scripts/validation/git_hook_policy.py:1247-1267) is a purpose-built exemption for exactly this edit shape (body byte-identical, only the implemented key changed), and it already ran and passed locally on this branch's first commit. A fifth (delete the session-log artifacts because session-logs.md says logs are optional) is right that logs are optional but wrong that creating one here was improper: without it, branch-context-policy's exemption (a log for the current branch existing) could never fire on a fresh branch sharing a day with any other branch's log, which would have blocked every commit outright. Replied to both disagreements with citations rather than complying or staying silent."
     }
   ],
   "endingCommit": "26daf217f6c22e1c251b0bd5206102feb68c542b",
