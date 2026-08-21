@@ -62,7 +62,7 @@
       "startingCommitNoted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "54e494d, recorded above via git rev-parse --short HEAD."
+        "Evidence": "14a6f1844, the tip of origin/claude/adr-evaluation-tooling-6od8rd when this branch was cut. That is deliberately not the ADR campaign's original starting commit (54e494d): this branch starts where the pushed work ends, so its 9 commits are exactly the delta the stacked PR carries."
       },
       "usageMandatoryRead": {
         "level": "MUST",
