@@ -1822,32 +1822,50 @@ def check_branch_context(repo_root: Path) -> int:
             return 0
         if _is_linked_worktree(repo_root) and _is_committed_here(repo_root, session_log):
             return 0
-        print(
-            "ERROR: branch context mismatch: "
-            f"current='{current_branch}', session='{session_branch}' "
-            f"(log: {session_log.name})",
-            file=sys.stderr,
+        _print_branch_context_mismatch(
+            repo_root, current_branch, session_branch, session_log, branch_owns_a_log
         )
-        if branch_owns_a_log and _resolve_upstream_default(repo_root) is None:
-            print(
-                "  This branch already owns a session log, so the mismatch may be "
-                "unresolvable trunk rather than co-mingling: neither origin/HEAD "
-                "nor origin/main resolves in this checkout. Try: git remote "
-                "set-head origin --auto (or fetch origin main), then re-run. If "
-                "the mismatch persists after that, switch to the expected "
-                "branch, update the session log branch field, or create a new "
-                "session log for the current branch.",
-                file=sys.stderr,
-            )
-        else:
-            print(
-                "  Fix: switch to the expected branch, update the session log branch "
-                "field, or create a new session log for the current branch.",
-                file=sys.stderr,
-            )
         return 1
     except Exception:
         return 0
+
+
+def _print_branch_context_mismatch(
+    repo_root: Path,
+    current_branch: str,
+    session_branch: str,
+    session_log: Path,
+    branch_owns_a_log: bool,
+) -> None:
+    """Print the ``check_branch_context`` block message, picking the right remedy.
+
+    Split out of ``check_branch_context`` to keep that function's cyclomatic
+    complexity at the repo ceiling of 10; this helper carries the branch that
+    chooses between the two remedy messages.
+    """
+    print(
+        "ERROR: branch context mismatch: "
+        f"current='{current_branch}', session='{session_branch}' "
+        f"(log: {session_log.name})",
+        file=sys.stderr,
+    )
+    if branch_owns_a_log and _resolve_upstream_default(repo_root) is None:
+        print(
+            "  This branch already owns a session log, so the mismatch may be "
+            "unresolvable trunk rather than co-mingling: neither origin/HEAD "
+            "nor origin/main resolves in this checkout. Try: git remote "
+            "set-head origin --auto (or fetch origin main), then re-run. If "
+            "the mismatch persists after that, switch to the expected "
+            "branch, update the session log branch field, or create a new "
+            "session log for the current branch.",
+            file=sys.stderr,
+        )
+    else:
+        print(
+            "  Fix: switch to the expected branch, update the session log branch "
+            "field, or create a new session log for the current branch.",
+            file=sys.stderr,
+        )
 
 
 def check_handoff(paths: Sequence[str], repo_root: Path) -> int:
