@@ -49,8 +49,21 @@ subsumed by the pre-existing `src/copilot-cli/skills/**/scripts/**` and
 `.../tests/**`. The spec validator caught the redundancy.
 
 Not fixed here, because it is pre-existing and repo-wide: `ci-scripts.md` has two
-MUST items numbered 10 and `testing.md` has two numbered 12, so every ordinal
-citation to those items is ambiguous. Six such citations exist in tracked files.
+MUST items numbered 10 in its MUST section, and `testing.md` has two numbered 12
+in its own, so every ordinal citation to those four items is ambiguous.
+
+The count in an earlier version of this paragraph was six, which was a guess
+rather than a measurement and is the mistake this report exists to catch. Filed
+as issue #5211 with a real sweep instead: 13 ambiguous citations in tracked files
+at `7d76c4d7f`, 4 to `ci-scripts.md` MUST 10 and 9 to `testing.md` MUST 12.
+
+That number is recorded as a floor, not a total. Both regexes require the file
+name near the ordinal, so a bare "MUST 10" with the file named a sentence earlier
+does not match. The issue carries the commands so the next reader re-runs them
+rather than trusting the figure. Citations to `testing.md` MUST 10 and
+`ci-scripts.md` MUST 12 also exist and are **not** ambiguous, so the sweep cannot
+be done by ordinal alone.
+
 Renumbering touches every downstream reference and belongs in its own change.
 
 ## A citation this session got wrong
