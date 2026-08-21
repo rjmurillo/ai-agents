@@ -32,7 +32,7 @@
       "usageMandatoryRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "The security-critical file (scripts/validation/git_hook_policy.py) was already identified by the pre-commit hook's own detection, and .claude/skills/security-detection/SKILL.md itself directs skipping its detection utility and using the security agent directly when review is already known to be needed; did that (Task(subagent_type=\"security\")) rather than invoking the detection skill redundantly"
+        "Evidence": "The security-critical file (scripts/validation/git_hook_policy.py) matches security-detection's CRITICAL pattern list (SKILL.md line 94), and that skill's own docs direct going straight to the security agent instead of its detection utility when review is already known to be needed; did that (Task(subagent_type=\"security\"), workLog[9]) rather than invoking the detection skill redundantly"
       },
       "constraintsRead": {
         "level": "MUST",
