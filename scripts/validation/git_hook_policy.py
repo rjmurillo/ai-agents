@@ -1060,7 +1060,7 @@ def _session_log_for_branch(sessions_dir: Path, branch: str) -> Path | None:
 
 
 def _is_merged_history(repo_root: Path, path: Path) -> bool:
-    """Return True when ``path`` already exists on the upstream default branch.
+    """Return True when ``path``'s on-disk content matches the upstream default branch.
 
     A committed merge of main imports the previously merged branch's session
     log. That file is newer by mtime than anything the current branch owns, so
@@ -1068,14 +1068,22 @@ def _is_merged_history(repo_root: Path, path: Path) -> bool:
     near (issue #3343). The MERGE_HEAD exemption cannot help: it expires when
     the merge commit is created, while the imported file stays forever.
 
-    Existing on the upstream default branch is the discriminator. A log that
-    merged is settled history, not a statement about what the developer is
-    working on now. A log authored on some other local branch is not there, so
-    the co-mingling case from issue #682 keeps its teeth.
+    Content matching the upstream default branch is the discriminator, not
+    mere path existence. A log whose bytes match upstream is settled history,
+    not a statement about what the developer is working on now. A log
+    authored on some other local branch is not there, so the co-mingling case
+    from issue #682 keeps its teeth. Byte comparison (via
+    ``_is_session_content_on_upstream_default``, shared with the
+    staged/committed session-log checks) also closes a narrower gap a path-only
+    existence probe would miss: a working-tree edit to an already-upstream
+    path (for example, a hand-edited ``branch`` field) that has not been
+    committed. The path still exists upstream under its old content, so an
+    existence-only probe would grant the exemption to genuinely tampered,
+    uncommitted content; comparing bytes catches that.
 
     Fails closed on every indeterminate answer it can observe: a path outside
-    the repo, no resolvable ``origin/HEAD``, or a failed probe all return False
-    and the mismatch still blocks.
+    the repo, an unreadable file, no resolvable ``origin/HEAD``/``origin/main``,
+    or a failed probe all return False and the mismatch still blocks.
 
     It cannot fail closed on git being unavailable, and does not claim to.
     ``_run_command`` catches only ``TimeoutExpired``, so a missing git binary
@@ -1090,12 +1098,11 @@ def _is_merged_history(repo_root: Path, path: Path) -> bool:
         relative = path.relative_to(repo_root).as_posix()
     except ValueError:
         return False
-    head = _run_git(repo_root, ["rev-parse", "--abbrev-ref", "origin/HEAD"])
-    upstream = head.stdout.strip() if head.returncode == 0 else ""
-    if not upstream:
+    try:
+        content = path.read_bytes()
+    except OSError:
         return False
-    probe = _run_git(repo_root, ["cat-file", "-e", f"{upstream}:{relative}"])
-    return probe.returncode == 0
+    return _is_session_content_on_upstream_default(repo_root, relative, content)
 
 
 def _is_linked_worktree(repo_root: Path) -> bool:

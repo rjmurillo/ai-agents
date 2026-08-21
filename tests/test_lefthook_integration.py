@@ -1993,6 +1993,37 @@ def test_branch_context_survives_merged_import_when_current_branch_owns_no_log(
     assert policy.check_branch_context(repo) == 0
 
 
+def test_branch_context_blocks_a_locally_tampered_upstream_log(tmp_path: Path) -> None:
+    """A working-tree edit to an already-merged log must not inherit its exemption.
+
+    ``_is_merged_history`` compares the on-disk file's bytes against the
+    upstream blob, not merely whether the path exists upstream. A path that
+    was genuinely merged can still be edited locally (for example, a hand-edit
+    of the ``branch`` field) without committing; an existence-only probe would
+    grant the settled-history exemption to that uncommitted, tampered content
+    because the path was on upstream before the edit. Comparing bytes closes
+    that gap.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    imported = _write_session_log(
+        repo, branch="feature/merged", name="session-merged", mtime=2_000_000_000.0
+    )
+    _add_upstream_with(repo, imported)
+    os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
+
+    # Sanity: unmodified, the exemption applies.
+    assert policy.check_branch_context(repo) == 0
+
+    # Tamper the working-tree copy without committing: same path, different
+    # content than what is upstream.
+    imported.write_text(json.dumps({"session": {"branch": "feature/tampered"}}))
+    os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
+
+    assert policy.check_branch_context(repo) == 1
+
+
 def test_branch_context_blocks_a_newer_log_that_is_not_upstream(tmp_path: Path) -> None:
     """The issue #682 case must survive the #3343 fix.
 
