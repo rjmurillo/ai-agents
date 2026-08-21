@@ -136,7 +136,7 @@
       "result": "6848 passed, 20 skipped, 8 failed; all 8 failures are test_mutation_harness_ciperms.py refusing to run against an uncommitted working tree (a generic, pre-existing guard unrelated to this change's content), confirmed by inspecting the error text and git status"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "6b08df25c1cae8c696a52f7fb9ad05e47c017353",
   "nextSteps": [
     "Run uv run python scripts/validation/pre_pr.py before pushing",
     "Commit endingCommit in a follow-up commit per session-logs.md rule 2 (never amend)",

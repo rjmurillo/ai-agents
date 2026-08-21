@@ -49,7 +49,9 @@
       "type": "test",
       "content": "Stripped the commit-limit block out of scripts/validation/git_hook_policy.py (_check_commit_limit now prints an advisory notice only), deleted the now-dead _check_needs_split_bypass/_contains_main_merge/_unpushed_commit_count/_new_commits_for_branch and the human-only-label message, deleted the now-unused scripts/validation/check_pr_bypass_label.py (only caller removed)      tests/test_lefthook_integration.py: 839 passed, 1 skipped after removing 31 dead test functions/helpers via an AST-based line-range prune",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e013"
+      ],
       "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
     },
     {
@@ -103,7 +105,9 @@
       "type": "test",
       "content": "Ran the full affected-area test suite: tests/validation/, tests/ci/, tests/workflows/, tests/test_lefthook_integration.py      6848 passed, 20 skipped, 8 failed; all 8 failures are test_mutation_harness_ciperms.py refusing to run against an uncommitted working tree (a generic, pre-existing guard unrelated to this change's content), confirmed by inspecting the error text and git status",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e013"
+      ],
       "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
     },
     {
@@ -112,6 +116,21 @@
       "type": "error",
       "content": "Ran the full affected-area test suite: tests/validation/, tests/ci/, tests/workflows/, tests/test_lefthook_integration.py      6848 passed, 20 skipped, 8 failed; all 8 failures are test_mutation_harness_ciperms.py refusing to run against an uncommitted working tree (a generic, pre-existing guard unrelated to this change's content), confirmed by inspecting the error text and git status",
       "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-21T18:09:53+00:00",
+      "type": "commit",
+      "content": "Commit: 6b08df25c1cae8c696a52f7fb9ad05e47c017353",
+      "caused_by": [
+        "e005",
+        "e011",
+        "e012"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
     }
@@ -121,8 +140,8 @@
     "tool_calls": null,
     "errors": 8,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 2
+    "commits": 1,
+    "files_changed": 31
   },
   "lessons": []
 }
