@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding.json
-qaCommit: a85c4b08db3a8231fe0dd3930e3b1f2c435c87a2
+qaCommit: 6efe318f98357e6485b1ca3341ecdbca78f1860e
 ---
 
 # ADR-102 Session QA
@@ -329,6 +329,20 @@ the session log, and the PR needs-split retrospective. Regenerated
 `qaCommit` moves from `0dc7d0a25` to `a85c4b08d`, the `endingCommit`
 follow-up made after the renumbering's last content commit;
 `post_qa_code_changes('a85c4b08db3a8231fe0dd3930e3b1f2c435c87a2', 'HEAD', ...)`
+confirmed empty.
+
+## Post-Review Rebind: Merge of origin/main
+
+`origin/main`'s ADR-099 (the one that collided, above) turned out to remove
+the entire commit-limit-bypass gate this session had been fighting:
+`scripts/validation/check_pr_bypass_label.py` deleted, `pr_commit_count.py`
+and `git_hook_policy.py` cut substantially, `CONTRIBUTING.md`'s "Bypassing
+the Limit" section rewritten. `git merge-tree` against `origin/main`
+confirmed zero conflicts after the ADR-102 renumbering, so merged directly
+(`--no-edit`); 52 files changed, no conflict markers.
+
+`qaCommit` moves from `a85c4b08d` to `6efe318f9`, the merge commit itself;
+`post_qa_code_changes('6efe318f98357e6485b1ca3341ecdbca78f1860e', 'HEAD', ...)`
 confirmed empty.
 
 ## Verdict
