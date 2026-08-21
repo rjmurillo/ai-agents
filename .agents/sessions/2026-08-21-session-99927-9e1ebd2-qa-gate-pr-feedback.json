@@ -122,7 +122,7 @@
       "result": "https://github.com/rjmurillo/ai-agents/issues/5217, labeled enhancement/priority:P2/area-validation, citing PR #4954 round 15 and this session's live report as evidence, and naming the process requirement (ADR + adr-review debate) for whoever picks it up."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "fd1786fb8235c89cca0e1b2fcdf9a50275ce868b",
   "nextSteps": [
     "A future session should design and debate (adr-generator + adr-review) a code-change-aware relaxation of session_qa_binding()'s comparison.head/endingCommit equality check, per issue #5217.",
     "Push this branch and open a draft PR referencing issue #5217, per this repo's push/PR conventions."
