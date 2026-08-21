@@ -236,6 +236,28 @@
       "caused_by": [
         "e019"
       ],
+      "leads_to": [
+        "e026"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Unblock the push: merge main for the lowered ruff baseline",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-21T21:14:55+00:00",
+      "type": "commit",
+      "content": "Commit: 1a465379a690325a2b8f18013dffcc661b1034c0",
+      "caused_by": [
+        "e024"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
     }
@@ -245,7 +267,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
+    "commits": 6,
     "files_changed": 22
   },
   "lessons": []
