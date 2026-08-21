@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate.json
-qaCommit: 7729226c19ca13a4beb199327430cf24ec227e51
+qaCommit: 60b37660816e8bf9a0ebaf8ead08d4d96e8e7b59
 ---
 # QA Report: session 99928, remove commit-limit-bypass gate
 
@@ -69,13 +69,17 @@ part of this gate removal.
 | First push attempt | Failed: the pre-push hook's `python-tests` job ran the full suite while I was still committing follow-up fixes, and `tests/ci/test_mutation_harness_ciperms.py` correctly refused to run against a working tree that changed mid-run. Not a defect in this change; resolved by not committing again until the tree was static, then retrying. |
 | Second push attempt | Failed: `Session End Validation` correctly flagged the QA report as stale (ADR-096 `post_qa_code_changes`) after 4 more real-code commits landed (the citation fix) past the report's original binding. Resolved by rebinding this report and the session log to the new HEAD, which is what this revision of the report records. |
 | `uv run --frozen python scripts/validation/pre_pr.py` | First run: 55 of 57 passed. `Session End Validation` failed on `qaValidation` having no bound report, resolved by adding this report and rebinding the session log. `Skill Markdown Portability` failed because removing the `pr_commit_count.py:58`/`:64` line citations from `gate-ladder.md` (both copies) genuinely lowered the vendor-portability marker's suppressed-ref count from 8 to 7, which the ratchet reports as drift until the baseline is tightened to match; ran `check_skill_md_portability.py --update-baseline --allow-baseline-shrink`, then reran the checker clean (`No Markdown vendor-portability drift. 238 grandfathered refs across 93 files (baseline 238)`). |
+| Agent-Skill Discriminator Check (PR CI, post-push) | Failed: `critic` (touched only to drop stale gate references) scores 2/3 as a pre-existing skill-shape candidate whenever any of its files change, orthogonal to this PR's scope. Not a regression this change introduced. Resolved by adding the tool's own `[skill-discriminator: ...]` PR-description override token rather than scope-creeping into an unrelated agent-to-skill refactor. |
+| Spec-to-Implementation Validation (PR CI, post-push) | Failed with two real, confirmed gaps missed in the original sweep: (1) `tests/workflows/test_pr_validation_needs_split.py:3-5` docstring still described a 20-commit BLOCK tier as "enforced separately"; (2) both `ai-agents-change-control/SKILL.md` copies still listed "Commit count under 20" as a pre-push checklist item. Both fixed in commit `60b37660816e8bf9a0ebaf8ead08d4d96e8e7b59`; the `SKILL.md` mirror was regenerated via `build_all.py --platform copilot-cli`, confirmed byte-identical to the `.claude/` source, not hand-edited. The bot's third point (the 8 dirty-tree-guard failures in `test_mutation_harness_ciperms.py`) is addressed below, unchanged from the original verdict: the guard checks only the specific files each mutation targets against `git status`, not the whole tree, and none of those targets were among this session's uncommitted files at measurement time. |
 
 ## Findings
 
-None outside the two self-corrected items already listed above (the checkout
-`fetch-depth` revert, and the `POLICY_SUPPORT_FILES` stale-path fix). No
-review round was available before this report (no PR opened yet); this
-report documents the author's own verification before push.
+None outside the self-corrected items already listed above (the checkout
+`fetch-depth` revert, the `POLICY_SUPPORT_FILES` stale-path fix, and the two
+stale commit-count references the AI spec validator caught post-push). All
+three review passes available before merge (the discriminator check, the spec
+validator, and this report) surfaced real, actionable gaps, and all were
+resolved same-session rather than deferred.
 
 ## Verdict
 
@@ -83,4 +87,5 @@ PASS. The gate is removed with no surviving reference to `commit-limit-bypass`
 outside historical/explanatory prose (docstrings, retrospectives, this
 report), the advisory `needs-split`/WARNING/ALERT signal is unchanged, and the
 full affected-area test suite is green apart from a pre-existing, unrelated
-dirty-tree guard.
+dirty-tree guard whose scope (per-target-file, not whole-tree) was verified
+directly in `scripts/testing/mutation_workspace.py`.

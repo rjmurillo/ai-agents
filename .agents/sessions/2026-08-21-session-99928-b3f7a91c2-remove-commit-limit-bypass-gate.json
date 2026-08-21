@@ -150,13 +150,17 @@
     {
       "action": "Second push attempt failed: Session End Validation correctly flagged the QA report as stale (ADR-096 post_qa_code_changes) after the 4 citation-fix commits landed past its original binding",
       "result": "Rebound .agents/qa/session-99928-remove-commit-limit-bypass-gate.md and this log's endingCommit to the new HEAD"
+    },
+    {
+      "action": "Pushed and opened PR #5234. Two PR-time CI checks reported real findings after the push: Agent-Skill Discriminator Check failed on critic.md (score 2/3), and Spec-to-Implementation Validation FAILed citing two stale commit-count references the original sweep missed (tests/workflows/test_pr_validation_needs_split.py docstring, both ai-agents-change-control/SKILL.md copies)",
+      "result": "For the discriminator: verified critic's skill-shape score is pre-existing and orthogonal to this PR's scope (only stale references were touched, not the agent's shape); added the tool's own [skill-discriminator: ...] PR-description override token rather than scope-creeping into an unrelated refactor. For the spec validator: both stale references were real; fixed them, regenerated the SKILL.md mirror via build_all.py --platform copilot-cli (confirmed byte-identical), rebound the QA report and this log to the new HEAD"
     }
   ],
-  "endingCommit": "7729226c19ca13a4beb199327430cf24ec227e51",
+  "endingCommit": "60b37660816e8bf9a0ebaf8ead08d4d96e8e7b59",
   "nextSteps": [
-    "Run uv run python scripts/validation/pre_pr.py before pushing",
-    "Commit endingCommit in a follow-up commit per session-logs.md rule 2 (never amend)",
-    "Push claude/commit-limit-bypass-8f2rur and open a PR",
+    "Push the two follow-up commits (stale-reference fix, QA/session-log rebind) to claude/commit-limit-bypass-8f2rur",
+    "Re-verify Agent-Skill Discriminator Check and Spec-to-Implementation Validation both go green on the new head_sha",
+    "Continue driving PR #5234 to a mergeable, green state per the standing PR-subscription posture",
     "Consider (owner decision, not done here): connect the Claude GitHub App for this organization so gh/API access works in future cloud sessions, independent of this gate removal"
   ]
 }

@@ -193,6 +193,28 @@
       "caused_by": [
         "e015"
       ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pushed and opened PR #5234. Two PR-time CI checks reported real findings after the push: Agent-Skill Discriminator Check failed on critic.md (score 2/3), and Spec-to-Implementation Validation FAILed citing two stale commit-count references the original sweep missed (tests/workflows/test_pr_validation_needs_split.py docstring, both ai-agents-change-control/SKILL.md copies)",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-21T19:20:15+00:00",
+      "type": "commit",
+      "content": "Commit: 60b37660816e8bf9a0ebaf8ead08d4d96e8e7b59",
+      "caused_by": [
+        "e019"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
     }
@@ -202,7 +224,7 @@
     "tool_calls": null,
     "errors": 8,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 4,
     "files_changed": 33
   },
   "lessons": []
