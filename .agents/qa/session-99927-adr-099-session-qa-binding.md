@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding.json
-qaCommit: d4b017fb1c093d7c26764bc07d896b92cf38374b
+qaCommit: c7298e571d0449d73f6edd9ee04e2b1023e859ed
 ---
 
 # ADR-099 Session QA
@@ -237,6 +237,28 @@ removed), and the ADR sentence now states the fallback condition directly.
 ADR fix and its debate-log entry;
 `post_qa_code_changes('d4b017fb1c093d7c26764bc07d896b92cf38374b', 'HEAD', ...)`
 confirmed empty against the endingCommit follow-up made after it.
+
+## Post-Review Rebind: ai-spec-validation FAIL on Stale Debate-Log Framing
+
+`ai-spec-validation`'s Implementation Completeness check FAILed post-push,
+quoting the debate log's Round 1 disclosure (lines 11-17, honestly stating
+no independent agents ran in that round) as evidence the required
+six-agent debate never happened. That reading missed Round 3, further
+down the same file, which is the genuine six-agent debate that reached
+consensus. The real defect was navigational: the file's own
+`**Round**: 1 of up to 10` header and Round 1 section title never updated
+after Round 3 concluded, so a reader (bot or human) landing on the
+opening section had no forward pointer to what supersedes it. Fixed by
+updating the Round line to state Round 3 concluded with consensus and
+adding an explicit superseded-by-Round-3 note at the top of the Round 1
+section (commit b79ed5016). No finding content changed. This edit does
+not touch the ADR file itself, so `adr-review-policy`'s paired-debate-log
+requirement did not apply.
+
+`qaCommit` moves from `d4b017fb1` to `c7298e571`, the commit carrying the
+debate-log fix; `post_qa_code_changes('c7298e571d0449d73f6edd9ee04e2b1023e859ed', 'HEAD', ...)`
+confirmed empty against the two session-log-only follow-up commits made
+after it.
 
 ## Verdict
 
