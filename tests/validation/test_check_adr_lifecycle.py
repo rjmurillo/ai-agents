@@ -935,3 +935,83 @@ def test_status_heading_after_another_section_is_out_of_scope(tmp_path):
     )
 
     assert _counts(tmp_path)["prose-frontmatter-agree"] == 0
+
+
+# ── Invalid UTF-8 must be a finding, not a traceback ─────────────────────────
+#
+# UnicodeDecodeError subclasses ValueError, not OSError, so an `except OSError`
+# arm around read_text(encoding="utf-8") never sees it. Before the fix one
+# record with a stray byte aborted the whole gate: 97 clean records went
+# unreported and the run read as tooling breakage rather than as a finding.
+# Reported by Cursor Bugbot on PR #5209 and reproduced before fixing.
+
+
+def test_a_record_that_is_not_valid_utf8_is_a_violation_not_a_crash(tmp_path):
+    """One undecodable record is reported; the rest of the scan still runs."""
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1))
+    (adr_dir / "ADR-002-thing.md").write_bytes(b"\xff\xfe not utf-8")
+
+    counts = _counts(tmp_path)
+
+    assert counts["frontmatter-parses"] == 1
+    # `_hits` returns details; the record is on the violation's `path` field,
+    # so the identification is asserted there rather than in the message text.
+    offenders = [
+        v.path for v in scan(adr_dir, tmp_path) if v.check == "frontmatter-parses"
+    ]
+    assert offenders == [".agents/architecture/ADR-002-thing.md"], offenders
+
+
+def test_the_undecodable_message_names_utf8_not_unreadable(tmp_path):
+    """The message must distinguish corrupt bytes from a missing file.
+
+    'could not be read' sends the reader to permissions and paths. The fix for
+    a stray byte is a different action, so the two paths do not share wording.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    (adr_dir / "ADR-001-thing.md").write_bytes(b"\xff\xfe not utf-8")
+
+    (violation,) = scan(adr_dir, tmp_path)
+
+    assert "is not valid UTF-8" in violation.detail
+    assert "could not be read" not in violation.detail
+
+
+def test_a_clean_corpus_reports_no_utf8_violation(tmp_path):
+    """Negative control: the new arm does not fire on decodable records.
+
+    Without this, a handler that returned the violation unconditionally would
+    pass the two tests above and be indistinguishable from a correct one.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1))
+    _write(adr_dir, 2, _valid(2))
+
+    assert _counts(tmp_path)["frontmatter-parses"] == 0
+
+
+def test_a_baseline_that_is_not_valid_utf8_is_a_config_error(tmp_path):
+    """A corrupt baseline degrades to the same one-line reason as any other."""
+    from check_adr_lifecycle import read_baseline
+
+    baseline = tmp_path / "baseline.json"
+    baseline.write_bytes(b"\xff\xfe not utf-8")
+
+    reason = read_baseline(baseline)
+
+    assert isinstance(reason, str)
+    assert "is not valid UTF-8" in reason
+
+
+def test_a_corrupt_baseline_exits_config_rather_than_traceback(tmp_path):
+    """End to end: the process exits ADR-035 config, with no traceback."""
+    _adr_dir(tmp_path)
+    baseline = tmp_path / "baseline.json"
+    baseline.write_bytes(b"\xff\xfe not utf-8")
+
+    result = _run(tmp_path, "--baseline", str(baseline))
+
+    assert result.returncode == EXIT_CONFIG
+    assert "Traceback" not in result.stderr
+    assert "is not valid UTF-8" in result.stderr

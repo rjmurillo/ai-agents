@@ -127,6 +127,43 @@ class TestGetADRStatus:
         adr.write_text("---\nid: ADR-001\n---\n# Title\n")
         assert _get_adr_status(adr) == "unknown"
 
+    def test_invalid_utf8_returns_unknown_not_a_traceback(self, tmp_path: Path) -> None:
+        """Bytes that cannot be decoded are an undeclared status, not a crash.
+
+        UnicodeDecodeError subclasses ValueError, not OSError, so the handler
+        in _get_adr_status did not catch it and one record with a stray byte
+        raised through every caller. Reported by Cursor Bugbot on PR #5209.
+        """
+        adr = tmp_path / "ADR-001.md"
+        adr.write_bytes(b"\xff\xfe not utf-8")
+        assert _get_adr_status(adr) == "unknown"
+
+    def test_a_decodable_record_still_reports_its_status(self, tmp_path: Path) -> None:
+        """Negative control for the arm above.
+
+        A handler returning ``unknown`` unconditionally would pass the UTF-8
+        test and be indistinguishable from a correct one.
+        """
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text("---\nstatus: superseded\n---\n# Title\n")
+        assert _get_adr_status(adr) == "superseded"
+
+    def test_dependent_scan_skips_an_undecodable_record(self, tmp_path: Path) -> None:
+        """One corrupt record must not abort the scan of the rest.
+
+        This site was not in the bug report; the sweep found it. Fixing only
+        the reported handler would have left this one crashing on the same
+        input.
+        """
+        adr_dir = tmp_path / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        (adr_dir / "ADR-002-bad.md").write_bytes(b"\xff\xfe not utf-8")
+        (adr_dir / "ADR-003-refs.md").write_text("# ADR-003\n\nSee ADR-001.\n")
+
+        found = _get_dependent_adrs("ADR-001", tmp_path)
+
+        assert [Path(p).name for p in found] == ["ADR-003-refs.md"]
+
     def test_fenced_yaml_example_in_body_does_not_win(self, tmp_path: Path) -> None:
         adr = tmp_path / "ADR-001.md"
         adr.write_text(
