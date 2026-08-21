@@ -100,6 +100,42 @@
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Close the prose-drift bypass Copilot found in _status_prose",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-measure a figure I had carried forward, and correct the commit message",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bring the two lifecycle files under ruff format",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Record a --no-verify invocation rather than let an absolute claim stand",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
     }
   ],
   "metrics": {

@@ -1,13 +1,13 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: b7b87c395677b7a1611e29390262af906324e466
+qaCommit: b38d43b0fa5f293d0f68f07bab5183039dda68a6
 ---
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `b7b87c395677b7a1611e29390262af906324e466`
+**Validated at commit**: `b38d43b0fa5f293d0f68f07bab5183039dda68a6`
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -567,3 +567,27 @@ unblock-main PR) is fully redundant: main's pip block updated every comment that
 named the old version and kept all three CVE ignores, which is what that PR
 existed to do.
 
+
+
+## Addendum 7: rebound to the stacked branch's head
+
+**Rebound from** `b7b87c395677b7a1611e29390262af906324e466` **to** `b38d43b0fa5f293d0f68f07bab5183039dda68a6`.
+
+`scripts/validation/check_adr_lifecycle.py` and its test module changed again
+after the previous binding, so Session End Validation reported this report stale
+against them. That is the check working: a QA verdict that predates the code it
+attests to is not evidence.
+
+The two commits are `df9c75495` (close the `_status_prose` prose-drift bypass
+Copilot found, replacing a header bound applied to every status form with a
+three-way rule scoped by form) and `b38d43b0f` (bring both files under
+`ruff format`). The findings, the corpus measurements, the mutation proof, a
+figure I re-measured and corrected before pushing, and a `--no-verify`
+invocation I recorded rather than let an absolute claim paper over, all live in
+addendum 7 of `.agents/qa/session-5209-adr-review-fixes-stacked.md`. Not
+duplicated here: that report owns the stacked branch's evidence, and copying it
+would create two copies to keep in sync.
+
+Re-verified at this commit: `check_adr_lifecycle` 102 passed, the corpus gate
+`[PASS] 70 violation(s), no check above its baseline`, `ruff check` clean,
+`mypy` clean over all 19 changed Python files.
