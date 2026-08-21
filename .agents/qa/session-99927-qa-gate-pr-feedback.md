@@ -1,18 +1,21 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99927-9e1ebd2-qa-gate-pr-feedback.json
-qaCommit: fd1786fb8235c89cca0e1b2fcdf9a50275ce868b
+qaCommit: 26daf217f6c22e1c251b0bd5206102feb68c542b
 ---
 # QA Report: session 99927, QA-gate PR feedback
 
 ## Scope
 
-Two content changes at commit `fd1786fb8`:
+Content changes through commit `26daf217f`:
 
 1. `.agents/architecture/ADR-096-relax-qa-evidence-commit-equality.md`: frontmatter `implemented: false` -> `true`.
 2. `.agents/sessions/2026-08-21-session-99927-9e1ebd2-qa-gate-pr-feedback.json`: this session's log (plus its generated episode).
+3. `tests/ci/test_validate_vendor_provenance.py`: repinned `test_workflow_sets_up_uv`'s expected SHA to match `.github/workflows/vendor-provenance.yml`'s current `astral-sh/setup-uv` pin (PR #5215 bumped the workflow to v10.0.1 without updating this co-located test, leaving it red on `main` itself; confirmed by running the test against a fresh `origin/main` worktree before touching it).
 
-No script, library, or generated-mirror path changed. The corresponding follow-up work item (relaxing `session_qa_binding()`'s equality check) is tracked as issue #5217, not implemented in this change.
+This report itself was first bound to `fd1786fb8` (item 1-2 only); rebound to `26daf217f` after item 3 landed, since `tests/ci/*.py` is a real (non-evidence-path) change and correctly triggered ADR-096's `post_qa_code_changes` staleness check rather than being silently accepted.
+
+No library or generated-mirror path changed. The corresponding follow-up work item (relaxing `session_qa_binding()`'s equality check) is tracked as issue #5217, not implemented in this change.
 
 ## Validation
 
@@ -23,6 +26,7 @@ No script, library, or generated-mirror path changed. The corresponding follow-u
 | Mirror sync | `diff .claude/lib/qa_report.py src/copilot-cli/lib/qa_report.py` reports no difference. |
 | Session log schema + protocol compliance | `uv run --frozen python scripts/validate_session_json.py .agents/sessions/2026-08-21-session-99927-9e1ebd2-qa-gate-pr-feedback.json` after the retroactive-completion fixes described in this session's workLog. |
 | Issue #5217 exists and cites the right evidence | Created via `mcp__github__issue_write`; verified the returned URL resolves to `https://github.com/rjmurillo/ai-agents/issues/5217`. |
+| `test_workflow_sets_up_uv` fix is correct and scoped | `uv run --frozen pytest tests/ci/test_validate_vendor_provenance.py -q`: 50 passed. Confirmed the pre-fix SHA (`ae62891...`) matches neither the workflow's current pin nor any recent commit other than the one PR #5215 superseded; the fix uses the workflow's actual current pin (`20cfd1bf9...`), copied from the source file rather than retyped. |
 
 ## Findings
 

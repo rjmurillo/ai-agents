@@ -124,9 +124,17 @@
     {
       "activity": "First push attempt failed pre-pr-validation's Session End Validation",
       "finding": "The first draft of this log honestly recorded five sessionStart MUST items as not done and used a \"SKIPPED: docs-only\" qaValidation evidence value. validate_must_item hard-fails any MUST item with Complete:false regardless of stated reason (no N/A escape), and validate_qa_skip_scope's docs-only checker (test_docs_only_eligibility.py, _is_doc_file) only accepts .md paths, so it was always going to reject a diff containing .agents/sessions/*.json and .agents/memory/episodes/*.json. Fixed by actually performing the missing steps (reading HANDOFF.md, reading the Serena-fallback memory file, listing a skill's scripts directory) rather than marking them done without doing them, and by writing a real QA report instead of the disqualified skip."
+    },
+    {
+      "activity": "Second push attempt failed python-tests on a pre-existing, unrelated red test",
+      "finding": "tests/ci/test_validate_vendor_provenance.py::TestWorkflowContract::test_workflow_sets_up_uv asserted a SHA that PR #5215 (merged same day, unrelated to this branch) had already moved past in .github/workflows/vendor-provenance.yml without updating the co-located test. Confirmed pre-existing by running the same test against a fresh origin/main worktree before touching it. Fixed forward (repinned the test's expected SHA to the workflow's actual current pin) rather than bypassing the pre-push gate, per universal.md MUST NOT 2 and ci-scripts.md's own account of the cost of hook-bypass attempts (issue #4262)."
+    },
+    {
+      "activity": "Third push attempt failed Session End Validation: QA report is stale",
+      "finding": "The test-fix commit (26daf217f) is a real, non-evidence-path change landed after the QA report's qaCommit (fd1786fb8), so ADR-096's post_qa_code_changes correctly flagged it rather than silently accepting it. This is the exact mechanism this session set out to investigate, observed live. Rebound the QA report's qaCommit and this log's endingCommit to 26daf217f, and extended the report's Scope and Validation sections to cover the test fix."
     }
   ],
-  "endingCommit": "fd1786fb8235c89cca0e1b2fcdf9a50275ce868b",
+  "endingCommit": "26daf217f6c22e1c251b0bd5206102feb68c542b",
   "nextSteps": [
     "A future session should design and debate (adr-generator + adr-review) a code-change-aware relaxation of session_qa_binding()'s comparison.head/endingCommit equality check, per issue #5217.",
     "Push this branch and open a draft PR referencing issue #5217, per this repo's push/PR conventions."
