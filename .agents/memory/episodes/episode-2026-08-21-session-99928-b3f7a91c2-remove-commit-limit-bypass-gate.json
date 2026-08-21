@@ -1,0 +1,128 @@
+{
+  "id": "episode-2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate",
+  "session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate",
+  "timestamp": "2026-08-21T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Remove the commit-limit-bypass gate per direct owner instruction (/goal 'get rid of gate requiring commit-limit-bypass label'), after evidence gathered in-conversation showed the gate's local verification step cannot succeed in a Claude Code cloud session with no gh/API access, forcing an expensive stacked-branch-and-PR workaround.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the root cause live: gh auth status fails (invalid GH_TOKEN), gh api rate_limit succeeds, gh api repos/rjmurillo/ai-agents/pulls/5209 returns 403 'GitHub access is not enabled for this session'; GitHub MCP tools succeed for the same PR read in the same session",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote ADR-099 (accepted, owner-authorized in-session) and its debate log at .agents/critique/ADR-099-debate-log.md, covering architect/critic/security/independent-thinker/high-level-advisor perspectives",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote scripts/validation/pr_commit_count.py to drop BLOCK_THRESHOLD/MAIN_MERGE_BLOCK_THRESHOLD and all main-merge-relief plumbing (main_first_parent_shas, contains_main_merge, ReliefEvidence, main_merge_evidence); classify_count now returns only OK/WARNING/ALERT",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Stripped the commit-limit block out of scripts/validation/git_hook_policy.py (_check_commit_limit now prints an advisory notice only), deleted the now-dead _check_needs_split_bypass/_contains_main_merge/_unpushed_commit_count/_new_commits_for_branch and the human-only-label message, deleted the now-unused scripts/validation/check_pr_bypass_label.py (only caller removed)",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "test",
+      "content": "Stripped the commit-limit block out of scripts/validation/git_hook_policy.py (_check_commit_limit now prints an advisory notice only), deleted the now-dead _check_needs_split_bypass/_contains_main_merge/_unpushed_commit_count/_new_commits_for_branch and the human-only-label message, deleted the now-unused scripts/validation/check_pr_bypass_label.py (only caller removed)      tests/test_lefthook_integration.py: 839 passed, 1 skipped after removing 31 dead test functions/helpers via an AST-based line-range prune",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Simplified scripts/ci/enforce_pr_validation.py to drop the BYPASS_LABEL/_fetch_labels/BLOCKED branch, keeping only the OVERALL_STATUS FAIL/ERROR check",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected an over-broad first pass at .github/workflows/pr-validation.yml: initially removed fetch-depth: 0 from the main checkout, then discovered the merge-tree ratchet and several count ratchets later in the SAME job also depend on it (unrelated to the commit-count gate) and restored it with a corrected comment",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated CONTRIBUTING.md, AGENTS.md, GOTCHAS.md, gate-ladder.md (both .claude/ and generated src/copilot-cli/ copies), the ai-agents-change-control SKILL.md anti-pattern table, and the critic agent prompt (template + all 5 hand-maintained/generated copies) to drop commit-limit-bypass references",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Deleted tests/test_check_pr_bypass_label.py and tests/validation/test_commit_limit_parity.py (both entirely about the removed mechanism), rewrote tests/validation/test_human_only_label_guidance.py to cover only the surviving description-validation-bypass label",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the full affected-area test suite: tests/validation/, tests/ci/, tests/workflows/, tests/test_lefthook_integration.py",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "test",
+      "content": "Ran the full affected-area test suite: tests/validation/, tests/ci/, tests/workflows/, tests/test_lefthook_integration.py      6848 passed, 20 skipped, 8 failed; all 8 failures are test_mutation_harness_ciperms.py refusing to run against an uncommitted working tree (a generic, pre-existing guard unrelated to this change's content), confirmed by inspecting the error text and git status",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "error",
+      "content": "Ran the full affected-area test suite: tests/validation/, tests/ci/, tests/workflows/, tests/test_lefthook_integration.py      6848 passed, 20 skipped, 8 failed; all 8 failures are test_mutation_harness_ciperms.py refusing to run against an uncommitted working tree (a generic, pre-existing guard unrelated to this change's content), confirmed by inspecting the error text and git status",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 8,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 2
+  },
+  "lessons": []
+}
