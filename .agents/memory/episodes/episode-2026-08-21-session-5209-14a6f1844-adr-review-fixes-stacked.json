@@ -1,0 +1,92 @@
+{
+  "id": "episode-2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked",
+  "session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked",
+  "timestamp": "2026-08-21T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Carry the PR #5209 review-round fixes on a branch stacked on claude/adr-evaluation-tooling-6od8rd, because that branch cannot be pushed from this container. It sits at 47 commits against a 40 ceiling, and the commit-limit-bypass label the owner applied cannot be verified locally: check_pr_bypass_label.py shells out to gh, and gh has no GitHub access in this session (GraphQL and REST both return 403), so it fails closed on every label. Stacking clears the ceiling honestly rather than by exception: _unpushed_commit_count excludes commits another pushed branch already carries, so this push counts 9 rather than 47 (issue #3610).",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Audit the ADR corpus for gaps, tooling opportunities, and low-effort-model confusion",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix _get_adr_status frontmatter parsing (issue #5189)",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge origin/main, fix the setup-uv SHA duplication it exposed, file #5220",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix the UnicodeDecodeError family reported by Cursor Bugbot",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge the Bugbot autofix agent's concurrent fix",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge origin/main and combine two competing fixes to one test",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Address the Copilot review: duplicate-key class, ADR-063, template overreach",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-21T17:16:21+00:00",
+      "type": "commit",
+      "content": "Commit: 8f2605d2507a3d3da227793e11452d4ec53fb8eb",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 17
+  },
+  "lessons": []
+}
