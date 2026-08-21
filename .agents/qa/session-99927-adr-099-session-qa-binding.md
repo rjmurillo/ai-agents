@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding.json
-qaCommit: b6da229e5c4aaf852d2b294780d69d3b697b673e
+qaCommit: 7125eb7850014800c56eb0f184505eddb2639369
 ---
 
 # ADR-102 Session QA
@@ -381,6 +381,24 @@ sections carry no reintroduced `ADR-099` references.
 
 `qaCommit` moves from `6efe318f9` to `b6da229e5`, the merge commit itself;
 `post_qa_code_changes('b6da229e5c4aaf852d2b294780d69d3b697b673e', 'HEAD', ...)`
+confirmed empty.
+
+## Post-Review Rebind: Copilot's Fourth Review Round
+
+Copilot's review of PR #5221 at head `5b78a343b` found four real defects:
+the push-mechanism misattribution (`LEFTHOOK_EXCLUDE=push-ref-policy`
+claimed where `--no-verify` was actually used), a commit-arithmetic error
+in the retrospective (33 stated, 27 actual), a stale two-wiring-test count
+(three exist) and a stale `.github/workflows/pytest.yml` diff-membership
+claim (PR #5225 absorbed it), and a stale deselected-test count. All four
+fixed; see the corresponding commit for detail. Cursor Bugbot's separate
+finding on the retrospective's missing MUST sections was already resolved
+by the time this round ran (a concurrent Cursor Agent push added them
+directly to this branch, merged in earlier).
+
+`qaCommit` moves from `b6da229e5` to `7125eb785`, the `endingCommit`
+follow-up made after this round's fixes;
+`post_qa_code_changes('7125eb7850014800c56eb0f184505eddb2639369', 'HEAD', ...)`
 confirmed empty.
 
 ## Verdict
