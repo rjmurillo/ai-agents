@@ -874,7 +874,10 @@
       "caused_by": [
         "e062"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e067",
+        "e069"
+      ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
@@ -885,16 +888,59 @@
       "caused_by": [
         "e062"
       ],
+      "leads_to": [
+        "e067",
+        "e069"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e067",
+      "timestamp": "2026-08-21T16:00:34+00:00",
+      "type": "milestone",
+      "content": "Fixed three findings from the third bot round, two of them real design defects",
+      "caused_by": [
+        "e065",
+        "e066"
+      ],
+      "leads_to": [
+        "e068"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e068",
+      "timestamp": "2026-08-21T16:07:56+00:00",
+      "type": "milestone",
+      "content": "Transported the three files byte-exact, cleared the five open threads, rebound QA",
+      "caused_by": [
+        "e067",
+        "e069"
+      ],
       "leads_to": [],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e069",
+      "timestamp": "2026-08-21T16:00:34+00:00",
+      "type": "commit",
+      "content": "Commit: 5d7fc3c154ba99ec446cdbccc415cda982280348",
+      "caused_by": [
+        "e065",
+        "e066"
+      ],
+      "leads_to": [
+        "e068"
+      ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     }
   ],
   "metrics": {
-    "duration_minutes": 1259,
+    "duration_minutes": 1334,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 42,
+    "commits": 43,
     "files_changed": 10
   },
   "lessons": []
