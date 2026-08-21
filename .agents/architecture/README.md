@@ -47,6 +47,7 @@ These bind today.
 | [ADR-042](ADR-042-python-migration-strategy.md) | Python Migration Strategy | 2026-01-17 | Migrate the ai-agents project from PowerShell to Python as the primary scripting language over a 12-24 month phased migration period. |
 | [ADR-055](ADR-055-github-actions-runner-selection.md) | GitHub Actions Runner Selection | 2025-12-29 | Default to ARM64 runners for all Linux workflows unless documented architectural constraints exist. |
 | [ADR-057](ADR-057-prompt-behavioral-evaluation.md) | Prompt Behavioral Evaluation Methodology | 2026-04-19 | Adopt scenario-based LLM evaluation as the standard method for validating behavioral correctness of prompt changes. |
+| [ADR-063](ADR-063-memory-skill-decomposition.md) | Decompose the Memory Skill Into Focused Sub-Skills | 2026-06-01 | Decompose the monolithic `memory` skill into focused sub-skills split by operation, keep `memory` as a thin router that delegates, and preserve the `memory` skill name so existing callers do not... |
 | [ADR-066](ADR-066-hook-fail-open-reconciliation.md) | Hook Fail-Open Reconciliation (Prevention-First, Fail-Closed-and-Loud) | 2026-06-02 | Chosen option: 3 - prevention-first, fail-closed-and-loud, because the #2205 incident proved that launcher-level fail-open does not protect users. |
 | [ADR-068](ADR-068-consolidated-hook-dispatcher.md) | Consolidated Per-Event Hook Dispatcher | 2026-07-31 | Generate one dispatcher host entry per active, safely consolidatable Copilot hook event. |
 | [ADR-071](ADR-071-plugin-hook-runtime-contract-verification.md) | Plugin Hook Runtime-Contract Verification | - | Anchor every plugin hook command to the plugin root. |
@@ -161,7 +162,6 @@ No lifecycle frontmatter, so this index has no status to report. Nothing is infe
 | [ADR-060](ADR-060-rework-warning-session-log-persistence.md) | Rework Warning Evidence Persistence in Session Log JSON |
 | [ADR-061](ADR-061-hook-matcher-shims-delegate-pattern.md) | Hook Matcher Shims Delegate to Canonical Body |
 | [ADR-062](ADR-062-conditional-lsp-first-enforcement.md) | Conditional LSP-First Navigation Enforcement |
-| [ADR-063](ADR-063-memory-skill-decomposition.md) | Decompose the Memory Skill Into Focused Sub-Skills |
 | [ADR-064](ADR-064-commands-to-skills-migration.md) | Retire `.claude/commands/` as a Canonical Authoring Surface; Skills Are the Single User-Invocable Surface |
 | [ADR-065](ADR-065-orchestrator-as-router.md) | Orchestrator Is a Deterministic Router and Retry Policy, Not a Supervisor |
 | [ADR-067](ADR-067-validate-pr-change-claim-context.md) | validate-pr Check 1 default-flip - change-claim context required |
