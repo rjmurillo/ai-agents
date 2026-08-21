@@ -215,6 +215,28 @@
       "caused_by": [
         "e018"
       ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Cursor Bugbot's autofix pushed a converse wiring test (_SCAN_GLOBS to lefthook glob), verified correct and synced locally. A follow-up Copilot review then found the bare 'pyproject.toml' entry added in the prior round still misses nested configs: packages/semantic-hooks/pyproject.toml declares its own [tool.ruff], so a push touching only that file could move the whole-tree count while both the lefthook job and pytest.yml's dorny/paths-filter (same bare 'pyproject.toml' entry) skip.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-21T19:51:21+00:00",
+      "type": "commit",
+      "content": "Commit: 281a94b941d70579ba37ae2afeb727fd642d7106",
+      "caused_by": [
+        "e020"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
     }
@@ -224,8 +246,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
-    "files_changed": 20
+    "commits": 7,
+    "files_changed": 22
   },
   "lessons": []
 }

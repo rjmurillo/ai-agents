@@ -150,9 +150,13 @@
     {
       "action": "Verified and fixed two Copilot review findings on PR #5227: the benchmark ruff waiver covered the whole .agents/security/benchmarks/**/*.py tree, but the noqa directives and long lines it exists to waive live only under vulnerable_samples/; and lefthook's python-lint-count-ratchet job triggered only on **/*.py, while ruff_count_ratchet.py's own _SCAN_GLOBS also cover *.pyi and *.ipynb, and a ruff config edit in pyproject.toml can move the count without touching any .py file.",
       "result": "Confirmed both by reading source (grep for noqa in the benchmark tree confirmed every S### directive is under vulnerable_samples/; scripts/ci/ruff_count_ratchet.py:62 confirmed _SCAN_GLOBS). Narrowed the pyproject.toml per-file-ignores glob to .agents/security/benchmarks/vulnerable_samples/**/*.py and widened the lefthook glob to add **/*.pyi, **/*.ipynb, and pyproject.toml, updating the wiring test in tests/ci/test_ruff_local_ratchet_wiring.py that pinned the old glob list. Verified ruff check . and the count ratchet both still pass at baseline 0."
+    },
+    {
+      "action": "Cursor Bugbot's autofix pushed a converse wiring test (_SCAN_GLOBS to lefthook glob), verified correct and synced locally. A follow-up Copilot review then found the bare 'pyproject.toml' entry added in the prior round still misses nested configs: packages/semantic-hooks/pyproject.toml declares its own [tool.ruff], so a push touching only that file could move the whole-tree count while both the lefthook job and pytest.yml's dorny/paths-filter (same bare 'pyproject.toml' entry) skip.",
+      "result": "Proved the gap with this repo's own picomatch stand-in (PurePosixPath.full_match): 'pyproject.toml' does not match a nested path, '**/pyproject.toml' does. Changed both gates to the recursive pattern and added one wiring test per gate that asserts packages/semantic-hooks/pyproject.toml is actually selected, not only that the pattern string looks right. Also fixed a second finding: the QA report's benchmark-waiver paragraph still described the pre-narrowing glob."
     }
   ],
-  "endingCommit": "bf81d95c5ac09deefc52ca16c82c5746482b638f",
+  "endingCommit": "281a94b941d70579ba37ae2afeb727fd642d7106",
   "nextSteps": [
     "Watch the ruff count ratchet on the PR: with the baseline at 0 any new violation now blocks rather than being absorbed by slack.",
     "Consider whether packages/semantic-hooks/pyproject.toml should inherit the root ruff per-file-ignores instead of redeclaring its own select list, so the two configs cannot drift again.",
