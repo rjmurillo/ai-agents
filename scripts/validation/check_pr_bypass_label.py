@@ -229,10 +229,13 @@ def _describe_gh_failure(proc: subprocess.CompletedProcess[str]) -> str:
 
     The previous message was ``gh pr view failed (exit N)``, which was wrong on
     both halves and told the reader nothing they could act on. This helper does
-    not change the verdict: an unverifiable label still blocks, because a local
-    check cannot confirm a permission only a maintainer can grant. It changes
-    what the reader is told, so a denied session is not mistaken for a missing
-    label.
+    not change the exit code: an unverifiable label is still reported as
+    EXIT_EXTERNAL, distinct from a confirmed EXIT_ABSENT, because a local
+    check cannot confirm a permission only a maintainer can grant. What a
+    caller does with EXIT_EXTERNAL (block, or defer to CI, per the module
+    docstring's "What the CALLER does with EXIT_EXTERNAL" note) is the
+    caller's decision, not this helper's. This function only changes what the
+    reader is told, so a denied session is not mistaken for a missing label.
 
     Two corrections and one addition:
 
@@ -325,16 +328,17 @@ def check_bypass_label(label: str, branch: str | None) -> tuple[int, str]:
         proc = _run_gh_pr_view(branch)
     except FileNotFoundError:
         return EXIT_EXTERNAL, (
-            "gh CLI not found, so the label cannot be verified locally. Ask a "
-            "human maintainer to decide on the commit-limit-bypass label if a "
-            "decision is needed; that label is human-only."
+            "gh CLI not found, so the label cannot be verified locally. Split "
+            "the PR, or ask a human maintainer to decide on the "
+            "commit-limit-bypass label; that label is human-only, so do not "
+            "apply it yourself."
         )
     except subprocess.TimeoutExpired:
         return EXIT_EXTERNAL, (
             f"gh label lookup timed out after {GH_TIMEOUT_SECONDS}s. "
-            "The label cannot be verified locally. Ask a human maintainer to "
-            "decide on the commit-limit-bypass label if a decision is needed; "
-            "that label is human-only."
+            "The label cannot be verified locally. Split the PR, or ask a "
+            "human maintainer to decide on the commit-limit-bypass label; "
+            "that label is human-only, so do not apply it yourself."
         )
 
     if proc.returncode != 0:
@@ -353,9 +357,9 @@ def check_bypass_label(label: str, branch: str | None) -> tuple[int, str]:
     except json.JSONDecodeError:
         return EXIT_EXTERNAL, (
             "gh label lookup returned unparseable JSON. "
-            "The label cannot be verified locally. Ask a human maintainer to "
-            "decide on the commit-limit-bypass label if a decision is needed; "
-            "that label is human-only."
+            "The label cannot be verified locally. Split the PR, or ask a "
+            "human maintainer to decide on the commit-limit-bypass label; "
+            "that label is human-only, so do not apply it yourself."
         )
 
     number = payload.get("number")
