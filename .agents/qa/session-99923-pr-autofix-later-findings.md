@@ -208,6 +208,66 @@ never that the list covers it. The claim is now the property rather than the
 count, and the body is re-derived from `git diff --name-only origin/main...HEAD`
 rather than edited by hand.
 
+### CodeRabbit's pass: three guards that could not see their own subject
+
+Three findings, all on code this PR added, all the same family as the ones
+above, and all fixed with a control.
+
+**`dispatched_tiers` read only the first no-op arm.** It used
+`_TIER_PASSTHROUGH.search`, which returns one match and stops. A `case` block
+carrying a second empty arm, `SKIP) ;;` after the pass-through list, puts `SKIP`
+back on the acting path, and this extractor could not see it. Both assertions in
+`test_skip_is_recognized_but_never_dispatched` still passed against such a
+document: `SKIP` was absent from the returned set, and the set still equalled
+`declared - {"SKIP"}`. So the guard written to catch `SKIP` reaching the gates
+reported green while `SKIP` reached the gates. Fixed with `finditer` and a
+union. The control feeds a synthetic two-arm block, because the shipped document
+is correct and a control has to supply the shape the code gets wrong; restoring
+`search` fails that case and nothing else.
+
+**The harness handed the extracted block the ambient environment.** It built the
+subprocess environment as `os.environ` minus four CI-only names. The block is
+text taken from a document on the branch and run under `bash -c`, so on a runner
+it was handed the job's token and any cloud credentials in scope, and on a
+developer machine the whole shell environment. A branch that edits the command
+body could read them. Replaced with an allowlist, because a denylist has to
+predict every secret-bearing name and an allowlist only has to name what the
+harness needs. SHOULD-12's protection is now a consequence of the allowlist
+rather than a separate filter, so it is asserted at import and restated as a
+case. The isolation proof is its own module: the allowlist's definition cannot
+establish what the subprocess receives, and a later edit merging `os.environ`
+back in would leave every other test in the directory green, since none of them
+reads a variable the harness was never supposed to pass. The probe uses
+`${VAR-unset}` rather than `${VAR:-unset}`, so a harness passing the variable
+through as an empty string does not read as isolation, and its control reads a
+variable the harness does pass. Restoring the denylist prints
+`sentinel=secret-value` and fails exactly the two isolation cases.
+
+**A herestring invocation was invisible to both the extractor and its guard.**
+`_JQ_PROGRAM` requires whitespace after `jq`, so `jq<<<"$JSON" '.Tier'` yields no
+program. The invocation counter used the same boundary, so it yielded no
+invocation either, and the two blindnesses cancelled into a clean report. That is
+the failure `jq_invocation_lines` exists to prevent, committed inside the helper
+written to prevent it, and it is the sharpest instance on this PR of the pattern
+the whole change is about. The counter now accepts a redirection; the extractor
+is unchanged, so the invocation is counted, the program is still not read, and
+the difference surfaces as an unparsed invocation that fails the coverage guard
+and says to extend the parser. Fail-closed rather than parsed, the same
+disposition bracket notation already had.
+
+Two more findings were declined, with reasons. `--is-bot` is the known limit
+already recorded above and answered on its own thread; CodeRabbit recorded it as
+a learning rather than pressing it. An `lru_cache` on `derive_producer_schema`
+is a real speedup and was skipped because caching a function that reads a file
+trades a measurable cost this suite does not have for a staleness mode it does
+not want. A third, that `recognized_tiers` does not read an arm written with an
+inline body, is real and left alone: the failure is loud, a test fails on a
+correct document, so it is a maintenance cost rather than a hole, and the fix
+changes what recognition means on a PR that already carries `needs-split`.
+
+The count of stale figures corrected on this PR is now five, and the count of
+guards found unable to see their own subject is four.
+
 ### The unknown-tier arm exited one gate too early
 
 The fail-closed tier guard added by this change stops a PR whose tier the
