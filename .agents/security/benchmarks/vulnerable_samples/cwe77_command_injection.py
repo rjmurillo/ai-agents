@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 import subprocess
 
+
 # =============================================================================
 # CI-001: Unquoted variables in shell command
 # =============================================================================

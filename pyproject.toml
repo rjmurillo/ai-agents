@@ -126,7 +126,16 @@ ignore = []
 # external scanners that grade them. Those rule families are not in this
 # project's ruff select list, so RUF100 reads every one as dead. Removing them
 # would strip the benchmark's own answer key.
-".agents/security/benchmarks/**/*.py" = ["RUF100"]
+#
+# I001 and E501 are waived for the same reason, one step removed. This tree is
+# an answer key graded by external scanners, not ordinary source, and editing it
+# to satisfy a style linter has a cost the linter cannot see: the files carry
+# intentional `shell=True` payloads, so any commit that touches one puts it in
+# the changed set that the `security-scan` pre-push job feeds to semgrep, which
+# then blocks the push on three CWE-78 findings the corpus exists to contain.
+# Reformatting an answer key to trip a security gate is the wrong trade, and the
+# repository ships no `.semgrepignore` to scope that gate instead.
+".agents/security/benchmarks/**/*.py" = ["RUF100", "I001", "E501"]
 # sys.path manipulation required before imports for plugin-context path resolution
 ".claude/skills/github/scripts/**/*.py" = ["E402"]
 # Validation runners use sys.path.insert() before importing sibling modules
