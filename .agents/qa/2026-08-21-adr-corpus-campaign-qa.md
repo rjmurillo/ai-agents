@@ -1,13 +1,13 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 4faed59312edd5904d467a5dfdee1f05e7fc5d7e
+qaCommit: 1615ffa40cc6b8c976355923317c783415b6b539
 ---
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `4faed59312edd5904d467a5dfdee1f05e7fc5d7e`
+**Validated at commit**: `1615ffa40cc6b8c976355923317c783415b6b539`
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -197,3 +197,43 @@ generate_adr_index     --check OK (README byte-identical)
 
 `prose-frontmatter-agree` is unchanged and still enforces what ADR-073 does state:
 when prose and frontmatter both speak and disagree, frontmatter wins.
+
+
+## Addendum 3: status prose stops restating frontmatter (commits 1615ffa40 and the gate fix in this same push)
+
+A second owner review comment, on ADR-024 line 16 ("Redundant"), established the
+principle: prose says what frontmatter cannot and never restates what it carries.
+Every status section this campaign wrote opened by restating the enum and then
+narrating the frontmatter. Those openings are removed; the content frontmatter
+cannot hold moved under `## Provenance` (ADR-024, ADR-025, ADR-055) and
+`## Acceptance Evidence` (ADR-042).
+
+**A gate bug this surfaced.** With the redundant sections gone, the lifecycle
+checker began reading ADR-042's `### Status` at line 171 (a migration-phase
+subsection) and ADR-055's `**Status**: COMPLETE` at line 119 and
+`**Status**: APPROVED` at line 168 (a phase result and an exception ruling) as
+those records' lifecycle status. It had been searching the whole document and
+taking the first hit anywhere. The bug shipped green because a redundant Status
+section higher in each file masked it.
+
+That is the same defect this campaign filed as #5189 against `_get_adr_status`,
+reproduced inside the checker written to police it. Fixed by bounding the search
+to the record header, with two negative controls built from the records that
+broke.
+
+Re-verified at this commit:
+
+```
+392 passed
+check_adr_lifecycle    [PASS] 71 violation(s), no check above its baseline
+                       prose-frontmatter-agree 1/1 (ADR-068, pre-existing)
+check_adr_links        0 violation(s)
+generate_adr_index     --check OK
+```
+
+**One process note worth recording.** The first attempt to append this addendum
+used an unquoted heredoc, so the shell executed every backtick span and wrote a
+version with the heading names and file paths silently deleted. It read "moved
+under  (ADR-024...)". That is the defect class this PR exists to close, produced
+while documenting it, and caught only because the output was re-read rather than
+assumed. The fix was a quoted delimiter.

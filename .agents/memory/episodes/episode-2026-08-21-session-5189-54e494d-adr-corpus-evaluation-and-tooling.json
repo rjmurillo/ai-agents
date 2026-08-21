@@ -57,6 +57,32 @@
       "caused_by": [
         "e004"
       ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-21T13:59:37+00:00",
+      "type": "commit",
+      "content": "Commit: 626618bb4f0dc7a62e771523e6c7435f2daa07be",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-21T14:07:25+00:00",
+      "type": "commit",
+      "content": "Commit: 1615ffa40cc6b8c976355923317c783415b6b539",
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
     }
@@ -66,8 +92,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 44
+    "commits": 5,
+    "files_changed": 45
   },
   "lessons": []
 }

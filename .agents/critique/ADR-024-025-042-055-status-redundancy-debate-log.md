@@ -69,7 +69,7 @@ change revealed it.
 It is the same defect this campaign filed as issue #5189 against
 `_get_adr_status`, which regexed `^status:` across an entire ADR rather than its
 frontmatter. The fix is the same: bound the search to the region that can hold
-the answer. Committed separately as `ba9a7b089` with two negative controls built
+the answer. Committed alongside this change with two negative controls built
 from the records that broke.
 
 ## Verification

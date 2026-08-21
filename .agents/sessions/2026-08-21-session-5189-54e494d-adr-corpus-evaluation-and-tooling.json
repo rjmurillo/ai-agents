@@ -104,7 +104,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "388 tests pass; check_adr_lifecycle at baseline 71 (down from 78 after removing status-section-present per owner review), check_adr_links 0 violations, generate_adr_index --check clean. See the QA report addenda."
+        "Evidence": "392 tests pass; check_adr_lifecycle at baseline 71, check_adr_links 0 violations, generate_adr_index --check clean. See QA addenda 1 to 3."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -144,7 +144,7 @@
       "notes": "Parses only the leading frontmatter block with yaml.safe_load and returns an unknown sentinel for every undeclared state instead of failing open to proposed. Two tests in tests/skills/test_misc_skill_scripts.py encoded the old behavior; their assertions were corrected to the contract issue #5189 specifies, and a third test was added pinning that a bare status line outside frontmatter is body text. No test was skipped, disabled, or deleted."
     }
   ],
-  "endingCommit": "4faed59312edd5904d467a5dfdee1f05e7fc5d7e",
+  "endingCommit": "1615ffa40cc6b8c976355923317c783415b6b539",
   "nextSteps": [
     "Land the remaining Phase 1 workstreams and verify each agent report independently before committing",
     "Phase 2: backfill lifecycle frontmatter into the ADRs Phase 1 did not touch (issue #5190)",

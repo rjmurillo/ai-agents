@@ -7,6 +7,34 @@ exactly like a keyword match in an accepted one.
 Status comes from each record's YAML frontmatter (ADR-073), never from its prose.
 Regenerate after any ADR change with `uv run python build/scripts/build_all.py`.
 
+## Querying the corpus directly
+
+This table is a convenience, not the source of truth. The frontmatter is, and
+Python reads it with no extra dependency:
+
+```python
+import pathlib, yaml
+
+for path in sorted(pathlib.Path('.agents/architecture').glob('ADR-[0-9]*.md')):
+    text = path.read_text(encoding='utf-8')
+    if not text.startswith('---'):
+        continue  # no frontmatter: see Needs backfill below
+    front = yaml.safe_load(text[3 : text.index('\n---', 3)]) or {}
+    if front.get('status') == 'accepted':
+        print(front.get('id') or path.name)
+```
+
+Python rather than `yq` deliberately. Python is the repo's native tooling
+(ADR-042) and `yaml` is already a dependency, so this adds nothing. The `yq` on
+PATH here is the jq wrapper, which has no front-matter mode and fails on a
+markdown file; it needs a `sed` pre-extract and a subprocess per record. One
+documented method, not two, because a second one is redundancy that drifts.
+
+**Read the `continue` above before trusting any query.** A record with no
+frontmatter is invisible to every frontmatter query, so a count answers for the
+records that have it while appearing to answer for all of them. The Needs
+backfill section below is the honest denominator, and issue #5190 closes it.
+
 ## Accepted
 
 These bind today.
