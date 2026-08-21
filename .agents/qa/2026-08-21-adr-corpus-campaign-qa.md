@@ -1,13 +1,13 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: b38d43b0fa5f293d0f68f07bab5183039dda68a6
+qaCommit: 66bd167c35df9d7ca76b336ac5382c582e9dd5c6
 ---
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `b38d43b0fa5f293d0f68f07bab5183039dda68a6`
+**Validated at commit**: `66bd167c35df9d7ca76b336ac5382c582e9dd5c6`
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -591,3 +591,16 @@ would create two copies to keep in sync.
 Re-verified at this commit: `check_adr_lifecycle` 102 passed, the corpus gate
 `[PASS] 70 violation(s), no check above its baseline`, `ruff check` clean,
 `mypy` clean over all 19 changed Python files.
+
+
+## Addendum 8: rebound again for the two diagnostic fixes
+
+**Rebound to** `66bd167c35df9d7ca76b336ac5382c582e9dd5c6`.
+
+`build/scripts/generate_adr_index.py` and `scripts/validation/check_adr_lifecycle.py`
+changed again, so the previous binding went stale. Evidence lives in addendum 8
+of `.agents/qa/session-5209-adr-review-fixes-stacked.md`: a query recipe that
+disagreed with all four real status readers, a frontmatter diagnostic that named
+the wrong defect, a mutation probe that turned out not to discriminate, and the
+corpus measurements showing both fixes latent. `.agents/architecture/README.md`
+is regenerated because the recipe ships inside it.

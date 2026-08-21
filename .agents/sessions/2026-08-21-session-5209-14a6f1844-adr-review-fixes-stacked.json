@@ -235,6 +235,33 @@
         ".agents/qa/session-5209-adr-review-fixes-stacked.md"
       ],
       "notes": "While rewriting the fix commit's message, a scaffold step ran `git commit --no-verify` to park the staged tree ahead of a `git reset --soft`. The scratch commit was discarded by that same reset and reaches no ref; the commit that survives ran the hooks in full, and no commit in history skipped one. But universal.md MUST-NOT-2 forbids the mechanism, not just the outcome, and the QA report carried an absolute 'no bypass' claim. Corrected the claim in place instead of dropping it, since a report that states an absolute and later proves to have an exception is worse than one that states the exception."
+    },
+    {
+      "task": "Align the documented ADR query recipe with the four real status readers",
+      "status": "complete",
+      "filesModified": [
+        "build/scripts/generate_adr_index.py",
+        "tests/build_scripts/test_generate_adr_index.py",
+        ".agents/architecture/README.md"
+      ],
+      "notes": "The recipe compared `front.get('status') == 'accepted'` while check_adr_lifecycle._status_of, generate_adr_index._status_of and the status-enum gate all normalize with str(value).strip().lower(). `status: Accepted` therefore clears the gate, lands under Accepted in the table, and is invisible to the recipe printed above it. Counted the corpus first: 24 accepted / 13 proposed / 7 superseded / 1 rejected, all lowercase, so the divergence was latent. Pinned by extracting the python block from _INTRO and executing it against a fixture corpus rather than matching its text, since a restated copy would pass while the shipped recipe drifted."
+    },
+    {
+      "task": "Stop reporting an unterminated frontmatter block as an absent one",
+      "status": "complete",
+      "filesModified": [
+        "scripts/validation/check_adr_lifecycle.py",
+        "tests/validation/test_check_adr_lifecycle.py"
+      ],
+      "notes": "_split_frontmatter returns None both for 'does not start with ---' and for 'starts with --- but never closes'; _frontmatter_reason saw only the None. Probed it before changing anything, because the finding as filed implied a silent drop: the record is in fact counted and printed, so this was a wrong diagnosis rather than a disappearance, and worth less than filed but still worth fixing since the author is told to add frontmatter that is already there. Passing `text` lets the reason test exactly what the splitter tested; the yaml_utils boundary arithmetic is untouched. Flipped the test that asserted the old message as correct and added two controls. 0 real records take this path; corpus stays at 70."
+    },
+    {
+      "task": "Fix a mutation probe of mine that could not discriminate",
+      "status": "complete",
+      "filesModified": [
+        "tests/build_scripts/test_generate_adr_index.py"
+      ],
+      "notes": "The parametrized whitespace case was an unquoted `status: accepted `, which passed against the OLD recipe too: YAML strips trailing spaces from a plain scalar, so the input reached the comparison as 'accepted' either way. Caught by running the mutation rather than assuming it: two of three cases died and one did not. Quoted it so the space survives the parser and .strip() is load-bearing. This is the control-that-cannot-fail failure mode, committed inside the fix for a different instance of it."
     }
   ],
   "endingCommit": "48e418a47d67c5e5cca2893a33eae36569684690",

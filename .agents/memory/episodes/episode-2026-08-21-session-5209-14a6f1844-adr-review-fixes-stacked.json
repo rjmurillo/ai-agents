@@ -149,6 +149,33 @@
       ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Align the documented ADR query recipe with the four real status readers",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Stop reporting an unterminated frontmatter block as an absent one",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix a mutation probe of mine that could not discriminate",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
     }
   ],
   "metrics": {

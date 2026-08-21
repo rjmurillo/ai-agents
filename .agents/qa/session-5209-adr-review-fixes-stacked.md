@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: b38d43b0fa5f293d0f68f07bab5183039dda68a6
+qaCommit: 66bd167c35df9d7ca76b336ac5382c582e9dd5c6
 ---
 
 # QA: PR #5209 review-round fixes, carried on a stacked branch
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `b38d43b0fa5f293d0f68f07bab5183039dda68a6`
+**Validated at commit**: `66bd167c35df9d7ca76b336ac5382c582e9dd5c6`
 
 ## Verdict
 
@@ -179,3 +179,102 @@ configured in `pyproject.toml` with a per-file exclude list neither file is on;
 both are new in this campaign, so no other author inherits churn. Nothing gates
 on `ruff format` today, which is how they drifted. `git diff -w` shows the same
 hunks: line wrapping only.
+
+
+## Addendum 8: two diagnostics that named the wrong defect
+
+Both are Copilot findings from PR #5209. Both were confirmed by execution
+before anything was edited, and both turned out latent on the current corpus,
+which is the reason neither had ever surfaced.
+
+### The documented query recipe disagreed with every real reader
+
+The index intro tells readers the table is a convenience and the frontmatter is
+the source of truth, then hands them a recipe comparing the raw value:
+`front.get('status') == 'accepted'`. Every actual reader normalizes first.
+Measured across all four:
+
+| Reader | Comparison |
+|---|---|
+| `check_adr_lifecycle._status_of` | `str(value).strip().lower()` |
+| `generate_adr_index._status_of` | `raw.strip().lower()` |
+| `status-enum` gate | the same normalized value |
+| the documented recipe | raw `==`, no normalization |
+
+So `status: Accepted` clears `status-enum`, lands under Accepted in the table,
+and is invisible to the recipe printed directly above that table. It would
+print nothing and read as "no accepted ADRs" rather than as a query bug.
+
+Counted the corpus before deciding severity: 24 `'accepted'`, 13 `'proposed'`,
+7 `'superseded'`, 1 `'rejected'`, all lowercase. Recipe and generator return
+the same 24 today. Latent, not live.
+
+**Pinned by running it, not by matching it.** The test extracts the python
+block out of `_INTRO` and executes it against a fixture corpus, then asserts it
+returns the same ids as `build_record`. A test that restated the recipe would
+have passed while the shipped recipe drifted, which is the self-referential
+shape `canonical-source-mirror.md` rejects by name.
+
+### A probe that was not a control
+
+The parametrized whitespace case began as an unquoted `status: accepted `. The
+mutation run exposed it: with the old recipe restored, `Accepted` and
+`ACCEPTED` failed and that one still passed, because YAML strips a trailing
+space from a plain scalar, so the input never reached the comparison as
+anything but `'accepted'`. It could not move the thing it measured. Quoted to
+`'" accepted "'`, the space survives the parser and `.strip()` becomes
+load-bearing; all three inputs now fail against the old recipe.
+
+This is the failure mode the 2026-08-21 retrospective calls out, committed
+inside the fix for a different instance of it. Recording it because a control
+that cannot fail reads exactly like one that passed.
+
+### An unterminated frontmatter block was reported as an absent one
+
+`_split_frontmatter` returns None for two different defects: a file that does
+not start with `---`, and a file that starts with `---` but never closes.
+`_frontmatter_reason` received only that None, so the second was reported with
+the first's message.
+
+Probed it before deciding how much to change, because the finding as filed
+implied a silent drop:
+
+```
+All 1 violation(s):
+  - ADR-900-unterminated.md: [frontmatter-parses] no leading `---`
+    frontmatter block (ADR-073 schema absent)
+```
+
+The record is counted and printed. So this is a wrong diagnosis, not a
+disappearance, and the fix is worth less than the finding implied and still
+worth making: the file opens with `---` and carries `id`, `status` and `date`,
+and its author is being told to add frontmatter that is already there.
+
+Passing `text` lets the reason test exactly what the splitter tested. The
+boundary arithmetic mirroring `yaml_utils._parse_yaml_frontmatter` is
+untouched, so the two readers still agree on what a frontmatter block is.
+0 records in the real corpus take this path; the count stays 70.
+
+### Mirror obligation, and falsifiability
+
+`test_unterminated_fence_is_reported_as_absent` asserted the misleading message
+as correct. Flipped here, with two controls: a genuinely absent block still
+says absent, and an unterminated block still contributes one violation rather
+than cascading.
+
+Reverting either fix kills exactly its own test and leaves the controls green:
+
+```
+-- recipe reverted --   3 failed (Accepted, ACCEPTED, " accepted ")
+-- reason reverted --   1 failed, 2 passed (both controls survive)
+-- restored --          169 passed across the two modules
+```
+
+### Not touched
+
+`check_adr_links.py:208` (`Path.exists()` against a tracked inventory, so an
+untracked file makes a broken link pass locally) is a different file and a
+wider question than a review-round fix. The stale claim in
+`.agents/critique/ADR-005-status-duplication-debate-log.md:77` stays held: what
+it should say depends on the ADR-073 dual-representation decision, which is the
+owner's.
