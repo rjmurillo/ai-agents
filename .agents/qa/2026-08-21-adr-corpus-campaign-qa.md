@@ -1,13 +1,13 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 1615ffa40cc6b8c976355923317c783415b6b539
+qaCommit: cb22971178f07d8232ce7367c0d94b03f3cf5bf2
 ---
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `1615ffa40cc6b8c976355923317c783415b6b539`
+**Validated at commit**: `cb22971178f07d8232ce7367c0d94b03f3cf5bf2`
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -237,3 +237,67 @@ version with the heading names and file paths silently deleted. It read "moved
 under  (ADR-024...)". That is the defect class this PR exists to close, produced
 while documenting it, and caught only because the output was re-read rather than
 assumed. The fix was a quoted delimiter.
+
+## Addendum 4: merge of origin/main, and a base-branch failure fixed on the way through
+
+The branch merged `origin/main` (8 commits behind). Two things came with it that
+this report has to account for, because neither is about ADRs.
+
+**A red test inherited from main.** `caae865fb` (Renovate PR #5215) bumped
+`astral-sh/setup-uv` in `.github/workflows/vendor-provenance.yml` from
+`ae62891f` to `20cfd1bf`, and left the same SHA restated as a literal in
+`tests/ci/test_validate_vendor_provenance.py`. The test asserts only that the
+workflow installs uv; nothing it checks depends on which build of the action
+runs. So the bump broke it, it was already red on main before this branch
+touched anything, and every future bump would break it identically.
+
+Fixed at the duplication rather than by retyping the new SHA: the assertion now
+requires an `astral-sh/setup-uv` reference pinned to a full 40-character commit
+SHA, read from the workflow, which is the one place that owns it. That still
+enforces the property the repo actually cares about (universal.md MUST-8, no
+floating tags) and survives every bump.
+
+The control was proven falsifiable rather than observed passing
+(`.claude/rules/testing.md` SHOULD 17). With the workflow rewritten to
+`astral-sh/setup-uv@v10` the assertion goes DEAD; restored, it passes. A
+companion probe runs the shared pattern against six regression shapes (major
+tag, semver tag, branch ref, abbreviated SHA, wrong action, absent step) and
+requires no match on each.
+
+One SHA duplication was deliberately left alone. `PATHS_FILTER_PIN` in
+`tests/ci/test_pytest_paths_filter_covers_episodes.py` restates a
+`dorny/paths-filter` SHA, but that one is load-bearing: the test models the
+action's internal `MatchOptions`, so a version bump really does invalidate the
+model and has to fail loudly. Restating a SHA is correct exactly when the
+assertion depends on that specific build. Sweeping it would have removed a real
+control.
+
+**A gate that blocks every commit after a merge when `origin/HEAD` is unset.**
+The merge imported another branch's session log, and `check_branch_context`
+then blocked every commit with `branch context mismatch: current=...,
+session=...pr-automerge-goal.json`. The exemption written for exactly this case
+(issue #3343) requires `_is_merged_history`, which resolves the upstream default
+branch with `git rev-parse --abbrev-ref origin/HEAD`. This clone had no
+`origin/HEAD` set, so `upstream` was empty, the function failed closed as
+documented, and the exemption could not fire.
+
+Fixing the clone (`git remote set-head origin --auto`) cleared it, and the
+exemption then evaluated correctly (branch owns a log: yes; winner is merged
+history: True). No hook was bypassed at any point in this campaign. The
+fragility is worth recording anyway: on a clone without `origin/HEAD`, a routine
+`git merge main` hard-blocks all further commits, and the error message names
+none of the three real causes. Filed as #5220 with the reproduction and a
+two-part fix, rather than patched here, since it is outside this PR's subject.
+
+Re-verified at this commit:
+
+```
+414 passed   ADR lifecycle, links, index, detect_adr_changes (+2 mirrors),
+             misc skill scripts, pre_pr sequence registry
+ 51 passed   tests/ci/test_validate_vendor_provenance.py
+check_adr_lifecycle    [PASS] 71 violation(s), no check above its baseline
+check_adr_links        0 violation(s)
+generate_adr_index     --check OK, exit 0
+taste_count_ratchet    OK, 574 <= baseline 576
+pre_pr.py              all gates PASS
+```

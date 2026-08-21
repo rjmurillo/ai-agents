@@ -83,6 +83,28 @@
       "caused_by": [
         "e006"
       ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge origin/main, fix the setup-uv SHA duplication it exposed, file #5220",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-21T14:35:33+00:00",
+      "type": "commit",
+      "content": "Commit: cb22971178f07d8232ce7367c0d94b03f3cf5bf2",
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
     }
@@ -92,8 +114,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
-    "files_changed": 45
+    "commits": 6,
+    "files_changed": 46
   },
   "lessons": []
 }

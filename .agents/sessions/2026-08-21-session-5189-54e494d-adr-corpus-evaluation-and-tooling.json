@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "pre_pr.py ran the full gate sequence; every gate PASS except Session End Validation, which this commit satisfies."
+        "Evidence": "pre_pr.py ran the full gate sequence; every gate PASS after this commit rebinds the QA report to the merge and the setup-uv fix."
       },
       "qaValidation": {
         "level": "MUST",
@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Seventeen atomic commits, each five or fewer authored files. No hook bypassed: --no-verify, LEFTHOOK=0 and LEFTHOOK_EXCLUDE were not used at any point."
+        "Evidence": "23 commits on the branch, each five or fewer authored files. One is the merge of origin/main, which also lifts the push ceiling from 20 to 40 (pr_commit_count.MAIN_MERGE_BLOCK_THRESHOLD, issue #3596) via the sanctioned relief path rather than a bypass label. No hook was bypassed at any point: --no-verify, LEFTHOOK=0, LEFTHOOK_BIN, a lefthook config override, a hook edit and LEFTHOOK_EXCLUDE were all unused, per universal.md MUST-NOT-2."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "392 tests pass; check_adr_lifecycle at baseline 71, check_adr_links 0 violations, generate_adr_index --check clean. See QA addenda 1 to 3."
+        "Evidence": "414 tests pass across the ADR gates, index generator, detect_adr_changes and both mirrors, misc skill scripts and the pre_pr sequence registry; 51 more in tests/ci/test_validate_vendor_provenance.py. check_adr_lifecycle at baseline 71, check_adr_links 0 violations, generate_adr_index --check exit 0, taste_count_ratchet 574 <= 576, pre_pr.py all gates PASS. See QA addenda 1 to 4."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -142,14 +142,26 @@
         "tests/skills/test_misc_skill_scripts.py"
       ],
       "notes": "Parses only the leading frontmatter block with yaml.safe_load and returns an unknown sentinel for every undeclared state instead of failing open to proposed. Two tests in tests/skills/test_misc_skill_scripts.py encoded the old behavior; their assertions were corrected to the contract issue #5189 specifies, and a third test was added pinning that a bare status line outside frontmatter is body text. No test was skipped, disabled, or deleted."
+    },
+    {
+      "task": "Merge origin/main, fix the setup-uv SHA duplication it exposed, file #5220",
+      "status": "complete",
+      "filesModified": [
+        "tests/ci/test_validate_vendor_provenance.py",
+        ".agents/qa/2026-08-21-adr-corpus-campaign-qa.md",
+        ".agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json"
+      ],
+      "notes": "Merged origin/main (8 commits behind) to take the sanctioned commit-ceiling relief (20 to 40) instead of the human-only commit-limit-bypass label. The merge inherited a test red on main: Renovate #5215 bumped astral-sh/setup-uv in vendor-provenance.yml and left the old SHA restated as a literal in the test, so every future bump breaks it identically. Fixed at the duplication, asserting a 40-character SHA pin read from the workflow (universal.md MUST-8) rather than retyping the new SHA. Proven falsifiable by mutation: DEAD on astral-sh/setup-uv@v10, PASS restored, plus a probe over six regression shapes (testing.md SHOULD 17). The dorny/paths-filter SHA duplicated in test_pytest_paths_filter_covers_episodes.py was deliberately left alone: it is load-bearing, since that test models the action's internal MatchOptions and a bump genuinely invalidates the model. Separately, the merge exposed that check_branch_context hard-blocks every commit when origin/HEAD is unset, because _is_merged_history cannot resolve the trunk and the issue #3343 exemption never fires. Cleared with git remote set-head origin --auto and filed as #5220 with a two-part fix; no hook was bypassed."
     }
   ],
-  "endingCommit": "1615ffa40cc6b8c976355923317c783415b6b539",
+  "endingCommit": "cb22971178f07d8232ce7367c0d94b03f3cf5bf2",
   "nextSteps": [
-    "Land the remaining Phase 1 workstreams and verify each agent report independently before committing",
     "Phase 2: backfill lifecycle frontmatter into the ADRs Phase 1 did not touch (issue #5190)",
     "Phase 2: add the seven missing Status sections and settle the canonical-versus-MADR structure question (issue #5196)",
     "Run pre_pr.py, push, open a draft PR, and subscribe to its activity",
-    "Post the consolidated owner-decision memo to the issues that need rjmurillo's call rather than an agent's"
+    "Post the consolidated owner-decision memo to the issues that need rjmurillo's call rather than an agent's",
+    "PR #5209 is at the 40-commit ceiling path, not the 20; it can be pushed without the human-only commit-limit-bypass label.",
+    "Fix #5220: _is_merged_history must fall back to origin/main when origin/HEAD is unset, and the mismatch message must name that precondition.",
+    "Bump pip 26.1.2 to 26.2 in .github/workflows/pytest.yml to clear PYSEC-2026-3721; unrelated to this PR, offered not applied."
   ]
 }
