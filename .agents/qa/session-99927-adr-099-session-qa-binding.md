@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding.json
-qaCommit: 9d8a6c28755fbd673a2fce59d4727f0fdbf072c2
+qaCommit: b71f0bd7707275e603082970783b5e8392330bc8
 ---
 
 # ADR-099 Session QA
@@ -190,6 +190,30 @@ batch that touches a non-evidence path;
 `post_qa_code_changes('9d8a6c28755fbd673a2fce59d4727f0fdbf072c2', 'HEAD', ...)`
 was run directly against the two session-log-only follow-up commits made
 after it and confirmed to return `[]`.
+
+## Post-Review Rebind: Push Retry, Thread Resolution, and a Ruff Baseline Merge
+
+The fix batch pushed clean (`72001d139`) after one transient proxy 502/503
+on the first attempt, confirmed via the agent proxy's own status endpoint
+as an upstream gateway failure rather than a local misconfiguration. All
+eight Copilot review threads were replied to (citing the exact commit and
+file:line that fixed each) and resolved.
+
+CI then failed one check, `pytest (bulk)`, on
+`ruff_count_ratchet.py: BASELINE ABOVE BASE. This tree records 27,
+FETCH_HEAD records 0 (+27)`. Diagnosed per `.claude/rules/ci-scripts.md`
+MUST 14: `origin/main` had merged PR #5227, a repo-wide ruff cleanup that
+lowered the baseline from 27 to 0, after this branch's base was fetched,
+so the branch reported a false regression rather than a real one. Fixed
+by merging `origin/main` (commit `b71f0bd77`, 80 files, no conflicts),
+which picked up the lowered baseline.
+`uv run --frozen pytest tests/test_validate_session_json.py -q` re-ran
+clean at 381 passed on the merged tree.
+
+`qaCommit` moves from `9d8a6c287` to `b71f0bd77`, the merge commit;
+`post_qa_code_changes('b71f0bd7707275e603082970783b5e8392330bc8', 'HEAD', ...)`
+confirmed empty against the two session-log-only follow-up commits made
+after it.
 
 ## Verdict
 
