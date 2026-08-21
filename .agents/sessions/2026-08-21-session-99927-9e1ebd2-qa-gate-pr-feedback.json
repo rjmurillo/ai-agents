@@ -142,7 +142,7 @@
       "finding": "The QA report's Scope heading still said 'Content changes through commit 26daf217f' after the report had already been rebound to cedd4a346 in the same edit that fixed the prior round's findings; the heading was never updated alongside the frontmatter qaCommit and the paragraph below it. Fixed. Also, this log's nextSteps still listed 'push this branch and open a draft PR', already done (PR #5219, open, non-draft); removed it so a future session reading nextSteps does not duplicate work already complete."
     }
   ],
-  "endingCommit": "cedd4a346cb86470d82898ee99442c3db9fb04b4",
+  "endingCommit": "e14c6aac974f1a7a11a0e8e5c0777180ea8f9bae",
   "nextSteps": [
     "A future session should design and debate (adr-generator + adr-review) a code-change-aware relaxation of session_qa_binding()'s comparison.head/endingCommit equality check, per issue #5217."
   ]
