@@ -16,6 +16,7 @@ supersedes: []
 superseded-by: null
 explainer: null
 implemented: false
+review-by: null           # optional: YYYY-MM-DD this record must be revisited; null when the decision carries no deadline
 ---
 
 # ADR-NNN: [Title]
@@ -112,6 +113,23 @@ depend on the changed file and describe the required updates.]
 
 - [External references, documentation, or standards]
 ```
+
+## `review-by` Frontmatter Field (Optional)
+
+Set `review-by` when the ADR's prose commits to a revisit date: a provisional
+window, a trial period, a re-review checkpoint, a sunset date. Use `null`
+(the default) when the decision carries no deadline, including when the revisit
+is condition-triggered rather than calendar-triggered.
+
+| Value | Meaning |
+|-------|---------|
+| `null` | No calendar deadline. The default. |
+| `YYYY-MM-DD` | The date by which this record must be revisited. |
+
+The field is optional and unenforced, matching the `explainer` and `implemented`
+precedent in ADR-073 Phase 1. It records the deadline the prose already states;
+it does not create one. Whichever section states the deadline stays authoritative
+prose, and the date here must match it.
 
 ## Coded Consequences Convention (Optional)
 

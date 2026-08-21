@@ -7,6 +7,7 @@ supersedes: []
 superseded-by: null
 explainer: null
 implemented: false
+review-by: null           # optional: YYYY-MM-DD this record must be revisited; null when the decision carries no deadline
 ---
 
 # ADR-NNN: [Title]
