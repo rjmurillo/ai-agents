@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99923-2dd747176-rules-control-validity.json
-qaCommit: 7f3850a4a437c394509e2d0025364b88b8cb3e8f
+qaCommit: 0b81de54f2610c83e807bd2e7d57f6a217dc50c4
 ---
 
 # QA Report: testing.md control-validity rule (issue #5187)
@@ -9,7 +9,7 @@ qaCommit: 7f3850a4a437c394509e2d0025364b88b8cb3e8f
 - Issue: #5187
 - Branch: `claude/issue-5187-control-validity`
 - Session log: `.agents/sessions/2026-08-21-session-99923-2dd747176-rules-control-validity.json`
-- QA commit: `7f3850a4a437c394509e2d0025364b88b8cb3e8f`
+- QA commit: `0b81de54f2610c83e807bd2e7d57f6a217dc50c4`
 
 ## Verdict
 

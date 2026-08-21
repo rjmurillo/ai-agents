@@ -26,6 +26,19 @@
       "caused_by": [
         "e001"
       ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-control-validity"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-21T06:10:08+00:00",
+      "type": "commit",
+      "content": "Commit: 0b81de54f2610c83e807bd2e7d57f6a217dc50c4",
+      "caused_by": [
+        "e002"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-99923-2dd747176-rules-control-validity"
     }
@@ -35,7 +48,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 6
   },
   "lessons": []

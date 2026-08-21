@@ -113,7 +113,7 @@
       "finding": "build/scripts/generate_rules.py wrote 51 files and skipped 5 as all-internal scope. Both testing.instructions.md mirrors carry the new item, per knowledge-persistence.md MUST 2. No plugin manifest touched, per ADR-092."
     }
   ],
-  "endingCommit": "7f3850a4a437c394509e2d0025364b88b8cb3e8f",
+  "endingCommit": "0b81de54f2610c83e807bd2e7d57f6a217dc50c4",
   "nextSteps": [
     "Open a draft PR from claude/issue-5187-control-validity referencing issue #5187",
     "Land the sibling rule change for issue #5188 on its own branch, in a different rule file so the two PRs cannot conflict"
