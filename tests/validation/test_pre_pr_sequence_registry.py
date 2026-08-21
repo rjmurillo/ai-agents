@@ -59,6 +59,8 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Workflow YAML Validation',
     'Copilot CLI Version Pin',
     'CI Dependency Pins',
+    'ADR Lifecycle Frontmatter (ratchet)',
+    'ADR Link Resolution',
     'Design Review Frontmatter',
     'Build Command Exit Gates',
     'Stale Script References',
