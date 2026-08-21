@@ -165,7 +165,7 @@
       "finding": "ruff_count_ratchet.py reported 'BASELINE ABOVE BASE: this tree records 27, FETCH_HEAD records 0 (+27)'. Diagnosed via ci-scripts.md MUST 14: origin/main had merged PR #5227 lowering the ruff baseline from 27 to 0 (a repo-wide cleanup) after this branch's base was fetched, so the branch reported a false regression. Fixed by merging origin/main (commit b71f0bd77, no conflicts, 80 files), which picked up the lowered baseline; 381 passed, ruff clean on the merged tree."
     }
   ],
-  "endingCommit": "a154e463bc60a2d010de1b57693200ef85453693",
+  "endingCommit": "0416154b083f38f1f058a49dfa76a6bc52dc3815",
   "nextSteps": [
     "File a follow-up issue for a dedicated QA-freshness field in session-log.schema.json, distinct from endingCommit, per PR #4954 round 15's actual recommendation (ADR-099 Follow-ups item 1).",
     "File a follow-up issue for dropping the validate_session_json.py fallback that binds head to binding.commit when live-HEAD resolution fails (ADR-099 Follow-ups item 2).",
