@@ -69,6 +69,8 @@ def test_whole_tree_ruff_count_ratchet_blocks_in_pre_push() -> None:
         "**/*.pyi",
         "**/*.ipynb",
         "**/pyproject.toml",
+        "**/ruff.toml",
+        "**/.ruff.toml",
         "uv.lock",
         "scripts/ci/ruff_count_baseline.txt",
     ]
@@ -112,6 +114,22 @@ def test_count_ratchet_glob_covers_lockfile_only_ruff_upgrades() -> None:
     assert any(
         PurePosixPath("uv.lock").full_match(pattern) for pattern in job["glob"]
     ), f"uv.lock matches no entry in {job['glob']!r}"
+
+
+def test_count_ratchet_glob_covers_alternate_ruff_config_filenames() -> None:
+    """Ruff resolves config from pyproject.toml, ruff.toml, or .ruff.toml,
+    checked per directory in that precedence order. A push touching only a
+    ruff.toml or .ruff.toml (none exist in this repo today, but ruff accepts
+    either anywhere in the tree) could move the whole-tree count without
+    matching any *.py/*.pyi/*.ipynb/pyproject.toml entry.
+    """
+    job = _job("python-lint-count-ratchet")
+    patterns = job["glob"]
+
+    for candidate in ("ruff.toml", ".ruff.toml", "packages/semantic-hooks/ruff.toml"):
+        assert any(
+            PurePosixPath(candidate).full_match(pattern) for pattern in patterns
+        ), f"{candidate} matches no entry in {patterns!r}"
 
 
 def test_ruff_ratchets_have_distinct_local_blocking_jobs() -> None:

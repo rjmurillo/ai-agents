@@ -87,6 +87,8 @@ jobs:
               - 'scripts/ci/ruff_count_baseline.txt'
               - 'scripts/ci/subprocess_encoding_count_baseline.txt'
               - '**/pyproject.toml'
+              - '**/ruff.toml'
+              - '**/.ruff.toml'
               - 'uv.lock'
               - 'tests/conftest.py'
               - 'scripts/memory_enhancement/**'

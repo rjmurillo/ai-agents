@@ -17,6 +17,21 @@ change was intended in any file; every edit is a reflow, an import reorder, a
 dead-directive removal, an unused-loop-variable rename, a condition collapse, or
 a type annotation.
 
+Post-review, the scope grew to close four gate-completeness gaps found by
+review (each a case where a change to the Ruff config or its inputs could move
+the whole-tree count without matching the local pre-push glob or the CI path
+filter): the benchmark waiver glob was narrowed to `vulnerable_samples/**/*.py`;
+`lefthook.yml`'s `python-lint-count-ratchet` job glob and
+`.github/workflows/pytest.yml`'s `check-paths` filter were both widened to
+cover `**/*.pyi`, `**/*.ipynb`, `**/pyproject.toml`, `uv.lock`, `**/ruff.toml`,
+and `**/.ruff.toml`; and `tests/ci/test_ruff_local_ratchet_wiring.py` plus
+`tests/ci/test_pytest_paths_filter_covers_episodes.py` gained wiring tests
+proving each of those inputs is actually matched, not just that the pattern
+string looks right. `uv run pytest tests/ci/test_ruff_local_ratchet_wiring.py
+tests/ci/test_pytest_paths_filter_covers_episodes.py -q` reports 30 passed at
+commit `1965b262f` (pre-`ruff.toml`/`.ruff.toml` fix); re-run after the current
+`qaCommit` and all 30 remain green.
+
 ## Evidence
 
 ### Lint

@@ -479,6 +479,8 @@ pre-push:
               - "**/*.pyi"
               - "**/*.ipynb"
               - "**/pyproject.toml"
+              - "**/ruff.toml"
+              - "**/.ruff.toml"
               - "uv.lock"
               - "scripts/ci/ruff_count_baseline.txt"
           - name: taste-count-ratchet
