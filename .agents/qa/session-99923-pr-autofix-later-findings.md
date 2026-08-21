@@ -196,8 +196,79 @@ repeat, because the rewrite reintroduced it in the same two lines. What finally
 worked was not a note but a check: running the validator locally against the
 body before publishing it, which is now how the body gets edited.
 
-Verified after the fix: all 15 paths the extractor pulls from the body match the
-15 in the diff, and `Validate PR` went green on the next run.
+Verified after the fix: every path the extractor pulls from the body matched a
+path in the diff, and `Validate PR` went green on the next run.
+
+That verification then went stale in the way it was written. It recorded "all 15
+paths" against "the 15 in the diff", and Copilot pointed out at a later head that
+the PR had 16 files while the body still listed 15: the split that created this
+very file added a path nobody put back into `## Changes`. The validator cannot
+catch that direction, because it only proves each listed path is in the diff and
+never that the list covers it. The claim is now the property rather than the
+count, and the body is re-derived from `git diff --name-only origin/main...HEAD`
+rather than edited by hand.
+
+### The unknown-tier arm exited one gate too early
+
+The fail-closed tier guard added by this change stops a PR whose tier the
+producer never named. As it first shipped, that arm ran `cleanup_pr_autofix` and
+`continue` immediately, which is before the auto-merge disarm gate. So a producer
+crash on a PR with native auto-merge armed left it armed, and Copilot reported it
+as the one path where this loop still hands off a PR it never assessed. It also
+contradicted this PR's own claim that the set of PRs left armed only shrinks:
+before the tier read was fixed, a pinned `UNKNOWN` satisfied `TIER != T1` and the
+gate disarmed exactly this case.
+
+The finding is the same shape as the CWE-284 one above, and so is its cause.
+"Skip the PR" reads as one decision and is two: whether to act on it, and whether
+to leave a capability in place. Acting is the harm an unknown tier has to
+prevent; disarming is not acting, it is taking a capability away, which is the
+distinction the retrospective's Finding 4 already names. The arm now falls
+through to the disarm gate and stops immediately after it, before the round-cap
+breaker and before any tier action. SKIP keeps its earlier exit, and the reason
+is now written next to both: SKIP names a state, so stripping auto-merge from a
+draft, merged, or closed PR is either meaningless or destroys a deliberate
+choice, while an unknown tier names no state and is exactly "armed but not
+provably T1".
+
+The cost of the direction chosen is stated rather than hidden: a transient
+producer failure on a healthy T1 PR strips an auto-merge its author armed, and
+they have to arm it again. The other direction is not recoverable.
+
+A test pinned the old behavior with `assert not run.disarmed`, so it is flipped
+in the same change, which is the second time a test in this PR asserted a defect
+as correct. Controls: restoring the early exit fails exactly the three
+producer-failure cases against the source document and leaves the mirror's three
+passing, which is the isolation the mutation was supposed to have. A second case
+pins the other half, that an unknown tier with nothing armed calls no mutation at
+all, because "reaches the gate" on its own is compatible with an arm that
+disarms unconditionally.
+
+### The bracket-notation detector only saw root access
+
+`unsupported_path_syntax` was added earlier in this PR to fail closed on jq path
+syntax the extractor cannot read. Its regex anchored on a dot immediately before
+the bracket, which sees `.["tier"]` and misses every subscript that follows a
+path segment: `.Data["action"]` and `.Tier["nested"]` both put an identifier
+character there. Copilot reported it.
+
+`.Tier["nested"]` is the row worth naming. `_JQ_PATH` reduces it to the valid
+`.Tier`, so the field check passes on the prefix and the subscript is never
+examined by anything: not by the invocation guard, not by the pathless guard,
+not by the field check, and not by the syntax check meant to be the backstop.
+The detector now matches a string subscript after a dot, an identifier
+character, or a closing bracket.
+
+Widening a fail-closed check is the direction that breaks healthy input, which
+this PR has already done once with the missing comment skip, so the change ships
+with a negative control: `.Tier`, `.Tier // "UNKNOWN"`, `.[]`, and
+`.Data.auto_merge_method` are asserted unreported. `.[]` is the row that matters
+there, since it is a bracket immediately after a dot and would match a detector
+that looked for brackets rather than for a string subscript.
+
+Control: restoring the dot-anchored regex fails exactly the three rows the
+widening added and leaves the root-access row and all four negative-control rows
+passing.
 
 Two of those controls assert behavior the static gate cannot see at all. The
 round-cap breaker firing on T3 and T4, and the T1 PR keeping the auto-merge it

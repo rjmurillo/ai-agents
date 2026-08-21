@@ -177,7 +177,7 @@
       {
         "type": "test",
         "path": "tests/commands/test_pr_autofix_tier_dispatch_runtime.py",
-        "description": "Runtime suite that extracts the block between the tier-dispatch markers from both the source command and the generated mirror and executes it under bash with fake producers. Covers T1 keeping armed auto-merge, T3/T4 round-cap entry, escalation stopping before the disarm gate, every actionable tier dispatching on a non-zero exit, SKIP terminating before the gates instead of dispatching, unarmed PRs, unreadable auto-merge state, mutation exit 75 versus a real failure, and all three shapes of a producer that names no tier. Verified by mutation, including an inverted control that must survive. Counts are recorded in the QA report rather than here, so they cannot drift."
+        "description": "Runtime suite that extracts the block between the tier-dispatch markers from both the source command and the generated mirror and executes it under bash with fake producers. Covers T1 keeping armed auto-merge, T3/T4 round-cap entry, escalation running after the disarm gate, so an escalated PR is disarmed before a human sees it, every actionable tier dispatching on a non-zero exit, SKIP terminating before the gates instead of dispatching, unarmed PRs, unreadable auto-merge state, mutation exit 75 versus a real failure, and all three shapes of a producer that names no tier. Verified by mutation, including an inverted control that must survive. Counts are recorded in the QA report rather than here, so they cannot drift."
       }
     ]
   },

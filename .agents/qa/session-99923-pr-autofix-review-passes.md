@@ -29,12 +29,20 @@ from the tests I was writing, and I asserted its absence without looking.
 Closed rather than re-argued. The tier-dispatch block now carries
 `# tier-dispatch:start` / `:end` markers, and
 `tests/commands/test_pr_autofix_tier_dispatch_runtime.py` runs it against fake
-producers for both docs: 24 cases covering T1-armed, T3 and T4 round-cap entry,
-round-cap escalation stopping before the disarm gate, unarmed PRs, unreadable
-auto-merge state, mutation exit 75 versus a real failure, and a dead tier
-producer.
+producers for both docs, covering T1-armed, T3 and T4 round-cap entry, round-cap
+escalation, unarmed PRs, unreadable auto-merge state, mutation exit 75 versus a
+real failure, and a dead tier producer.
 
-Controls, each verified by putting the defect or a mutant back:
+Two things in that sentence were stale by the time it was read, both from
+writing a measurement where a property belonged. It said "24 cases", which was
+true at this pass and wrong at every commit after it. And it said escalation
+stops "before the disarm gate", which described the order as it then was: a
+later pass found that order to be CWE-284 and reversed it, so the disarm gate
+now runs first and an escalated PR is disarmed before a human sees it.
+
+Controls, each verified by putting the defect or a mutant back. The counts are
+what those runs reported at this pass, which is what a control's number is for;
+they are not a claim about the suite at any later head.
 
 | Mutation | Result |
 |---|---|

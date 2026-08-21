@@ -36,16 +36,23 @@ Three of the four are consequences of the first: correcting the tier read is
 what makes those paths reachable, so they are mirror obligations rather than
 adjacent work. That reasoning is set out in "The fix opened a case" below.
 
-The tests are six modules under `tests/commands/`: `pr_autofix_field_parser.py`
-with `test_pr_autofix_field_contract.py` and `test_pr_autofix_coverage_guards.py`
-for the jq reads and the guards on that checker; `pr_autofix_tier_parser.py`
-with `test_pr_autofix_tier_contract.py` for the tier set; and
+The tests are three support modules under `tests/commands/`, each paired with the
+cases that drive it: `pr_autofix_field_parser.py` with
+`test_pr_autofix_field_contract.py` and `test_pr_autofix_coverage_guards.py` for
+the jq reads and the guards on that checker; `pr_autofix_tier_parser.py` with
+`test_pr_autofix_tier_contract.py` for the tier set; and
 `pr_autofix_dispatch_harness.py` with `test_pr_autofix_tier_dispatch_runtime.py`
 and `test_pr_autofix_earned_t1_exemption.py` for the runtime behavior.
 
-This section was stale until Copilot caught it: it described the one-line fix
-and three of the six modules, so the PASS verdict was recorded against less work
-than the PR changes.
+This section has now gone stale twice, and the second time is the interesting
+one. First it described the one-line fix and three modules, so the PASS verdict
+was recorded against less work than the PR changed. The repair restated the
+scope as "six modules", which was accurate when written and wrong two commits
+later when the 500-line taste rule split two more out; Copilot caught both. The
+count is gone rather than corrected a third time, which is Finding 5 of the
+retrospective applied here: a count is a fact about a moment, and the pairing
+above is a fact about the tree that a reader can check against `git diff
+--name-only`.
 
 ## Evidence
 
