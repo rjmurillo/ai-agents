@@ -959,7 +959,9 @@
         "e070",
         "e072"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e073"
+      ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     },
     {
@@ -974,14 +976,77 @@
         "e071"
       ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e073",
+      "timestamp": "2026-08-21T17:10:00+00:00",
+      "type": "milestone",
+      "content": "Shipped the fifth bot round: three design defects, all in text this pull request had already corrected once",
+      "caused_by": [
+        "e071"
+      ],
+      "leads_to": [
+        "e077"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e074",
+      "timestamp": "2026-08-21T17:14:00+00:00",
+      "type": "milestone",
+      "content": "Re-measured the review-thread census with cursor pagination and corrected the published counts",
+      "caused_by": [
+        "e077"
+      ],
+      "leads_to": [
+        "e075"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e075",
+      "timestamp": "2026-08-21T17:16:00+00:00",
+      "type": "milestone",
+      "content": "Transported ADR-100 byte-exact, and the drift correlates with reconstruction rather than with size",
+      "caused_by": [
+        "e074"
+      ],
+      "leads_to": [
+        "e076"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e076",
+      "timestamp": "2026-08-21T17:25:00+00:00",
+      "type": "milestone",
+      "content": "Replied to and resolved four threads, rebound the QA report, left the three cap threads open",
+      "caused_by": [
+        "e075"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e077",
+      "timestamp": "2026-08-21T17:13:44+00:00",
+      "type": "commit",
+      "content": "Commit: c3ed70f5b1f06c30fa7ba4f6f8cecc62843bf220",
+      "caused_by": [
+        "e073"
+      ],
+      "leads_to": [
+        "e074"
+      ],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     }
   ],
   "metrics": {
-    "duration_minutes": 1358,
+    "duration_minutes": 1411,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 44,
+    "commits": 45,
     "files_changed": 10
   },
   "lessons": []
