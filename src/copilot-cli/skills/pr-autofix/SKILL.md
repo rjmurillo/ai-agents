@@ -466,8 +466,10 @@ PAGES_COMPLETE=$(printf '%s' "$MERGE_READY" | jq -r 'if (.fetched_pages_complete
 # producer failure, and the two failure shapes do not even agree with each other:
 # empty stdout (crash, or unparseable JSON) leaves TIER empty, while a JSON error
 # object leaves it UNKNOWN. Both skip the T3/T4 breaker below AND satisfy
-# TIER != T1 in the disarm gate, so the loop would strip auto-merge and keep
-# acting on a PR whose tier it never learned. Do not gate on exit status instead:
+# TIER != T1 in the disarm gate, so without this guard the loop would keep
+# acting on a PR whose tier it never learned. Acting is the harm here; disarming
+# is not, so the guard stops the acting and still runs the disarm gate.
+# Do not gate on exit status instead:
 # test_pr_merge_ready.py exits 1 for any not-merge-ready PR, so T2 through T4 are
 # legitimately non-zero.
 # The accepted set is the producer's own, quoted verbatim from
@@ -486,6 +488,23 @@ PAGES_COMPLETE=$(printf '%s' "$MERGE_READY" | jq -r 'if (.fetched_pages_complete
 # Letting it reach the disarm gate means TIER != T1 holds and auto-merge is
 # stripped from a PR that went draft, merged, or closed after the live-state
 # gate ran.
+# SKIP and an unknown tier both terminate the PR, but at different points, and
+# the difference is which one has a reason not to disarm. SKIP names a state:
+# the PR is a draft, merged, or closed, so stripping auto-merge is either
+# meaningless or destroys a choice its author made deliberately. An unknown tier
+# names no state at all, so "armed but not provably T1" is exactly true of it,
+# which is the disarm gate's own trigger condition. It therefore falls through
+# to that gate and stops immediately after, before the round-cap breaker and
+# before any tier action.
+# The cost of that direction is real and is accepted: a transient producer
+# failure on a healthy T1 PR strips an auto-merge its author armed, and they
+# have to arm it again. The other direction leaves a PR this session could not
+# assess free to land itself, which is not recoverable. Copilot reported the
+# arm as it first shipped, where it exited before the disarm gate; that made a
+# producer crash the one path where this loop leaves auto-merge armed on a PR
+# it never assessed, and contradicted this change's own claim that the armed
+# set only shrinks.
+TIER_KNOWN=yes
 case "$TIER" in
     SKIP)
         echo "Tier SKIP for #$PR (draft, merged, or closed); no action."
@@ -494,9 +513,8 @@ case "$TIER" in
         ;;
     T1|T2|T3|T4|T5|BEHIND|BLOCKED|DIRTY) ;;
     *)
-        echo "Cannot determine tier for #$PR (tier producer failed or emitted no tier); skipping."
-        cleanup_pr_autofix
-        continue
+        echo "Cannot determine tier for #$PR (tier producer failed or emitted no tier); disarming auto-merge if armed, then skipping."
+        TIER_KNOWN=no
         ;;
 esac
 # Ordered before the round-cap breaker deliberately, and this order is load
@@ -551,6 +569,12 @@ if [ "$AUTO_MERGE" != "null" ] && [ "$TIER_TRUSTED_T1" != "yes" ]; then
         cleanup_pr_autofix
         continue
     fi
+fi
+# The unknown-tier arm resumes here, one gate later than SKIP leaves. Everything
+# below needs a tier to mean anything, so it stops now.
+if [ "$TIER_KNOWN" = "no" ]; then
+    cleanup_pr_autofix
+    continue
 fi
 if [ "$TIER" = "T3" ] || [ "$TIER" = "T4" ]; then
     ROUND_CAP=$(python3 "$SCRIPTS_DIR/check_pr_round_cap.py" \

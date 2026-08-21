@@ -95,9 +95,11 @@ def test_non_t1_with_auto_merge_armed_is_disarmed(tmp_path: Path, doc: str) -> N
     assert "Auto-merge armed on non-T1 PR" in run.stdout
     assert run.reached_end
     # The flags, not just the fact of a call. The fake used to ignore argv, so
-    # `--disable` could be mutated to `--enable` with all 429 tests green: the
-    # gate that strips auto-merge before an unguarded push would instead arm it.
-    # Verified surviving before this assertion existed.
+    # `--disable` could be mutated to `--enable` and the whole suite stayed
+    # green: the gate that strips auto-merge before an unguarded push would
+    # instead arm it. Verified surviving before this assertion existed. Stated
+    # as that property rather than as the pass count it first carried, which was
+    # written as 429 and was wrong by the next commit that added a case.
     assert "--disable" in run.disarm_argv, (
         f"the disarm call did not pass --disable; argv was {run.disarm_argv.strip()!r}"
     )
@@ -161,16 +163,26 @@ def test_a_failed_mutation_is_reported(tmp_path: Path, doc: str) -> None:
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
 @pytest.mark.parametrize("failure", ["CRASH", "MALFORMED", "ERROR_OBJECT"])
-def test_a_producer_that_names_no_tier_skips_the_pr(tmp_path: Path, doc: str, failure: str) -> None:
-    """Fail closed when the tier is unknown, in all three failure shapes.
+def test_a_producer_that_names_no_tier_disarms_then_skips(
+    tmp_path: Path, doc: str, failure: str
+) -> None:
+    """An unknown tier takes the capability away, then stops. All three shapes.
 
-    An earlier version of this test asserted the opposite and called it the
-    sentinel asymmetry: no round cap, auto-merge disarmed. That codified a
-    fail-open as correct. Copilot caught it. Without `pipefail` `jq` masks the
-    producer's failure, and the shapes do not even agree: a crash or malformed
-    output leaves `TIER` empty, a JSON error object leaves it `UNKNOWN`. Both
-    skip the T3/T4 breaker *and* satisfy `TIER != T1`, so the loop would strip
-    auto-merge from a PR whose tier it never learned and then keep acting on it.
+    This assertion has now been written three ways, and the two rewrites are
+    the finding. The first version asserted no round cap and auto-merge
+    disarmed, but let the block run on to the tier actions, which is a
+    fail-open on the acting path. The repair moved the arm's exit ahead of the
+    disarm gate, which stopped the acting and, as Copilot then reported, made a
+    producer crash the single path where this loop leaves auto-merge armed on a
+    PR it never assessed. Both rewrites came from reading "skip the PR" as one
+    decision when it is two: whether to act, and whether to leave a capability
+    in place. Disarming is not acting on a PR, it is taking a capability away
+    from one, so the answers are independent and here they differ.
+
+    So: `TIER` unknown in all three shapes (a crash or malformed output leaves
+    it empty, a JSON error object leaves it `UNKNOWN`), auto-merge armed. The
+    block must disarm, must not call the round-cap breaker, and must not reach
+    a tier action.
     """
     run = run_dispatch(
         tmp_path,
@@ -183,10 +195,36 @@ def test_a_producer_that_names_no_tier_skips_the_pr(tmp_path: Path, doc: str, fa
 
     assert "Cannot determine tier" in run.stdout
     assert run.cleaned_up
-    assert not run.disarmed, "auto-merge was stripped on an unknown tier"
+    assert run.disarmed, "auto-merge was left armed on a PR whose tier is unknown"
+    assert "--disable" in run.disarm_argv, run.disarm_argv
     assert not run.round_cap_called
     assert not run.reached_end, "the loop kept acting without a valid tier"
     assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_an_unknown_tier_with_no_auto_merge_armed_calls_nothing(tmp_path: Path, doc: str) -> None:
+    """Falling through to the disarm gate is not the same as always disarming.
+
+    The case above proves the gate is reached on an unknown tier. On its own
+    that is compatible with an arm that calls `set_pr_auto_merge.py`
+    unconditionally, which would fire the mutation on a PR with nothing armed.
+    This pins the other half: same unknown tier, nothing armed, no mutation.
+    """
+    run = run_dispatch(
+        tmp_path,
+        doc,
+        tier="CRASH",
+        auto_merge="null",
+        round_action="ACT",
+    )
+
+    assert "Cannot determine tier" in run.stdout
+    assert not run.disarmed, "the disarm ran with no auto-merge armed"
+    assert not run.round_cap_called
+    assert not run.reached_end
+    assert run.cleaned_up
+    assert run.queue_completed
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
