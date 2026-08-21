@@ -965,6 +965,13 @@ def validate_qa_report_evidence(
             session_log=session_log,
             resolve_commit=_resolve_full_commit,
         )
+        # ADR-099: the session log's two commit fields are allowed to
+        # disagree, because unrelated operations advance them. Report the
+        # drift and carry on; warnings do not affect validity
+        # (scripts/validation/models.py). Appended before the report is
+        # validated so the observation survives an unrelated failure below.
+        if binding.inconsistency is not None:
+            result.warnings.append(binding.inconsistency)
         # ADR-096: `head` is required for staleness checking. Prefer an
         # explicitly resolved live-HEAD validation head, which catches
         # staleness from commits after the session's own recorded end
@@ -980,13 +987,6 @@ def validate_qa_report_evidence(
         # ADR-096 Decision: round-1 review characterized this as reachable
         # on `--existing-log`, which the ADR's own gating one level up
         # rules out).
-        # ADR-099: the session log's two commit fields are allowed to
-        # disagree, because unrelated operations advance them. Report the
-        # drift and carry on; warnings do not affect validity
-        # (scripts/validation/models.py). Appended before the report is
-        # validated so the observation survives an unrelated failure below.
-        if binding.inconsistency is not None:
-            result.warnings.append(binding.inconsistency)
         head = validation_head if validation_head is not None else binding.commit
         validate_qa_report(resolved_report, binding, head=head, repo_root=_PROJECT_ROOT)
     except ValueError as exc:
