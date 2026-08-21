@@ -490,11 +490,9 @@ jobs:
       - name: Run pip-audit
         run: |
           # Keep the audited environment on the first fixed pip release for
-          # PYSEC-2026-196. CI hit pip 26.1.1 after setup-code-env installed
-          # dependencies, and pip-audit reports the fixed version as 26.1.2.
-          # pip 26.1.2 itself was later flagged as PYSEC-2026-3721 (fixed in
-          # 26.2), so the pin moves forward again rather than gaining a fourth
-          # ignore; a fix version was available, unlike the three below.
+          # PYSEC-2026-3721 (fixed in 26.2; issue #5222). Pip 26.1.2 was the
+          # prior fix for PYSEC-2026-196 (issue #2438) and has since become
+          # the vulnerable version for PYSEC-2026-3721 itself.
 
           # Ignored CVEs (re-evaluate when upstream releases a fix):
           #   CVE-2026-4539: pygments 2.19.2, no fix available.
