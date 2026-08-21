@@ -104,7 +104,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "pytest tests/test_lefthook_integration.py: 864 passed, 1 skipped; ruff check: All checks passed; mypy scripts/validation/git_hook_policy.py: Success; scripts/validation/pre_pr.py: 57/57 validations passed"
+        "Evidence": "pytest tests/test_lefthook_integration.py: 865 passed, 1 skipped; ruff check: All checks passed; mypy scripts/validation/git_hook_policy.py: Success; scripts/validation/pre_pr.py: 57/57 validations passed, re-run against the final tree"
       },
       "reworkWarning": {
         "level": "SHOULD",
@@ -145,12 +145,30 @@
     {
       "task": "Create this session log for the current branch rather than touching the unrelated merged log or bypassing the hook",
       "outcome": "check_branch_context now resolves via this branch's own newest-mtime log instead of the stale merged one, independent of the origin/HEAD fix, closing this session's own instance of the false positive"
+    },
+    {
+      "task": "Run the security agent on the git_hook_policy.py change per .claude/rules/security.md MUST-1 before pushing",
+      "outcome": "Found SEC-001: the local-main fallback rung grants the #3343 exemption to a session log that only exists on local main, the exact issue #682 co-mingling shape; also SEC-002 (docstring overclaimed parity with resolve_push_update) and SEC-003 (rung had no test coverage)"
+    },
+    {
+      "task": "Drop the local-main rung, keeping only origin/HEAD -> origin/main",
+      "outcome": "Every scenario issue #5220 cites (fetch into an existing repo, shallow/filtered clone, CI checkout actions) populates origin/main, so the stricter two-rung ladder still fixes the reported bug without the permissive rung"
+    },
+    {
+      "task": "Add a negative test proving local main is never trusted, and prove it discriminates",
+      "outcome": "test_branch_context_merged_history_does_not_trust_local_main added; confirmed it fails (assert 0 == 1) when the local-main rung is temporarily reintroduced, then confirmed the source file was restored byte-identical"
+    },
+    {
+      "task": "Re-run the full suite, ruff, mypy, and pre_pr.py against the final tree",
+      "outcome": "865 passed, 1 skipped; ruff and mypy clean; pre_pr.py 57/57"
+    },
+    {
+      "task": "Unshallow the clone after the first push attempt failed the push-ref-policy hook",
+      "outcome": "git fetch --unshallow origin per the hook's own remediation instruction, then pushed"
     }
   ],
-  "endingCommit": "fb0f0fa15b6dd0d20c1f2d75650dcc991f78ebaf",
+  "endingCommit": "c19f1e73c0786f5af43c67d8c6c14e7362f21d20",
   "nextSteps": [
-    "Commit the code fix and test",
-    "Commit this session log with endingCommit set to the code-fix commit, per session-logs.md MUST-2",
     "Push claude/session-log-false-positive-n3s1nn and open a draft PR that fixes issue #5220",
     "Subscribe to PR activity and watch CI"
   ]

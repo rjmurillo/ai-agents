@@ -96,7 +96,77 @@
       "type": "commit",
       "content": "Commit: fb0f0fa15b6dd0d20c1f2d75650dcc991f78ebaf",
       "caused_by": [
-        "e007"
+        "e007",
+        "e015"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Run the security agent on the git_hook_policy.py change per .claude/rules/security.md MUST-1 before pushing",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Drop the local-main rung, keeping only origin/HEAD -> origin/main",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Add a negative test proving local main is never trusted, and prove it discriminates",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-run the full suite, ruff, mypy, and pre_pr.py against the final tree",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "test",
+      "content": "865 passed, 1 skipped; ruff and mypy clean; pre_pr.py 57/57",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Unshallow the clone after the first push attempt failed the push-ref-policy hook",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-21T16:27:34+00:00",
+      "type": "commit",
+      "content": "Commit: c19f1e73c0786f5af43c67d8c6c14e7362f21d20",
+      "caused_by": [
+        "e010"
       ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-5220-session-log-false-positive"
@@ -107,8 +177,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 2
+    "commits": 2,
+    "files_changed": 5
   },
   "lessons": []
 }
