@@ -91,6 +91,15 @@
       ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Correct the stale nine-check claims Copilot found",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
     }
   ],
   "metrics": {

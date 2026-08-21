@@ -194,6 +194,15 @@
         "tests/test_adr_063_memory_skill_decomposition.py"
       ],
       "notes": "Three findings worth the round. First, yaml.safe_load is last-wins on duplicate keys, so a record declaring status twice enforces one value while showing another; fixed in all three readers with the mechanism chosen per site. Second, ADR-063 had no frontmatter and relied on the whole-file regex this PR removed, so the PR silently made it unknown, and three tests missed it because each reimplemented the old regex rather than calling the parser; its docstring, its assertion and the real parser gave three different answers. Third, the template told authors not to use the ## Status section that ADR-073 explicitly retains, which is the second time this campaign turned that ADR's MAY into a directive."
+    },
+    {
+      "task": "Correct the stale nine-check claims Copilot found",
+      "status": "complete",
+      "filesModified": [
+        "scripts/validation/check_adr_lifecycle.py",
+        "tests/validation/test_check_adr_lifecycle.py"
+      ],
+      "notes": "Three places still said nine checks after status-section-present was removed: the module header's split rationale, the containment note claiming a frontmatter-parses failure contributes 'one violation, not nine', and the test file's file-size suppression rationale, which made the stated basis for exceeding the ceiling inaccurate. Measured with len(CHECKS) rather than counted by hand: 8. Copilot found all three."
     }
   ],
   "endingCommit": "b386b27cadbda6ee539b5e212beaad4c0d4eb88f",

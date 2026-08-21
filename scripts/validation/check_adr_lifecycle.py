@@ -7,7 +7,7 @@
 # per-check counts against a frozen baseline, rewrite that baseline atomically),
 # and `.claude/rules/unified-software-engineering.md` rejects "shallow
 # pass-through layers" and "wrappers that add names but no simplification".
-# Splitting a nine-check gate across four modules would put the check list, the
+# Splitting an eight-check gate across four modules would put the check list, the
 # violation type, and the ratchet arithmetic in different files that must be
 # read together to answer any question about the gate. Measured after a
 # compaction pass: 466 of the lines are executable code, so even stripping every
@@ -62,8 +62,8 @@ Checks, each named so the baseline tracks them separately:
     implemented-implies-decided  `implemented: true` with `status: proposed`
     prose-frontmatter-agree      the first `## Status` line matches the frontmatter enum
 
-Checks 2 to 9 need parseable frontmatter, so a record failing `frontmatter-parses`
-contributes one violation, not nine. The same containment runs downstream:
+Checks 2 to 8 need parseable frontmatter, so a record failing `frontmatter-parses`
+contributes one violation, not eight. The same containment runs downstream:
 `prose-frontmatter-agree` is skipped when the status section is absent
 (the record simply has no prose status) or the enum value is invalid (`status-enum`
 owns that), and `supersession-reciprocal` ignores an edge that

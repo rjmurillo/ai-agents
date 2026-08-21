@@ -1,7 +1,7 @@
 # taste-lint: ignore file-size
 #
 # file-size suppression rationale: this file is one test per behavior across the
-# nine checks `check_adr_lifecycle.py` owns, and `.claude/rules/testing.md` MUST 1
+# eight checks `check_adr_lifecycle.py` owns, and `.claude/rules/testing.md` MUST 1
 # and the TESTING-RIGOR pos+neg+edge bar are what set its length. Its line count
 # tracks how many behaviors the gate has, not how hard the module is to read;
 # every test is independent and none shares state, so the rule's remediation
