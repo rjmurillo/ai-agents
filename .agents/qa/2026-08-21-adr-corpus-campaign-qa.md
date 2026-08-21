@@ -1,13 +1,13 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: faa620b67196fc9ead3394160f3d19cfd2a2cfb5
+qaCommit: 3dabdf773bb007f7fcd286e36dc24f6c02bbee55
 ---
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `faa620b67196fc9ead3394160f3d19cfd2a2cfb5`
+**Validated at commit**: `3dabdf773bb007f7fcd286e36dc24f6c02bbee55`
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -431,4 +431,31 @@ not be read as making that claim anywhere it says `pre_pr.py` passed.
 Fixed by reading `ADR_DIRECTORIES[0]` from the module, which is also the more
 honest test: the behaviour under test is the scan over whatever directories the
 module declares.
+
+### Two fixes to one test, combined rather than chosen between
+
+PR #5219 landed a fix to `test_workflow_sets_up_uv` on main while this branch
+carried its own. Both are real and they close different holes:
+
+| Property | Source | What it catches |
+|---|---|---|
+| Parse the job's steps, require exactly one `Setup uv` | #5219 | The step deleted while its `uses:` line survives in a comment or on another step (testing.md MUST 9) |
+| Assert the pin *shape*, never the SHA | this branch | The next Renovate bump, which breaks any restated literal |
+
+Each version had the other's hole. #5219 asserts equality against `20cfd1bf`,
+so the next bump breaks it exactly as #5215 broke the literal before it. This
+branch searched the file as text, so a stray `uses:` line in a comment would
+have satisfied it. The resolution keeps both.
+
+Proven falsifiable on both axes rather than observed passing:
+
+```
+workflow pinned to @v10        -> FAILED   (pin-shape axis)
+step renamed to "Install uv"   -> FAILED   (structural axis)
+restored                       -> passed
+```
+
+Recorded because the tempting resolutions were both wrong. Taking main's
+version wholesale would have re-introduced the drift this PR fixed; taking mine
+wholesale would have discarded a genuine improvement from another author.
 

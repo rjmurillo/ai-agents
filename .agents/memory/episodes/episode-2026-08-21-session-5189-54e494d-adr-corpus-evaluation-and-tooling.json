@@ -162,6 +162,28 @@
       "caused_by": [
         "e013"
       ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge origin/main and combine two competing fixes to one test",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-21T16:36:12+00:00",
+      "type": "commit",
+      "content": "Commit: 3dabdf773bb007f7fcd286e36dc24f6c02bbee55",
+      "caused_by": [
+        "e014"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
     }
@@ -171,7 +193,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 9,
+    "commits": 10,
     "files_changed": 47
   },
   "lessons": []
