@@ -6,13 +6,23 @@
   "outcome": "success",
   "task": "Land the repair-to-a-silent-failure rule from the PR #5176 retrospective as its own change, in a different rule file from issue #5187 so the two PRs cannot conflict",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-21T02:18:39+00:00",
+      "type": "commit",
+      "content": "Commit: 14d6c91f1979747c56c1d76c2b24be7dfd59694b",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
+    }
+  ],
   "metrics": {
     "duration_minutes": null,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 6
   },
   "lessons": []
