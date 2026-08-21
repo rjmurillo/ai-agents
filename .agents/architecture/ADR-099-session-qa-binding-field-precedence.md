@@ -97,7 +97,9 @@ State plainly what this does and does not establish. That log's `protocolComplia
 
 The corpus also undercounts by construction, and the mechanism matters more than the number. The rebind churn is the act of editing a disagreeing log back into agreement before it is committed. Every round of that loop that succeeded left an agreeing log in the tree, so the 34 agreeing logs include an unknown number that reached agreement by paying the cost this ADR removes. A count of committed disagreements can only see the loops nobody bothered to close. Treat the 1 as a floor on incidence, not an estimate of it, and treat the handoff's 23 mentions as the measurement of what the loop costs when it runs.
 
-This working tree is a 50-commit shallow clone (`git rev-parse --is-shallow-repository` returns `true`), so the two SHAs above are not resolvable here and no ancestry or ordering claim about them is made. This is the same clone-depth limit ADR-096's review recorded.
+Neither SHA in that log resolves, and the reason is not clone depth. This tree was a 50-commit shallow clone during the ADR's drafting, which is the limit ADR-096's review recorded. After `git fetch --unshallow origin` (2613 commits), `git log -1` on both `609b314e5a...` and `bb30860ac6...` still reports `fatal: bad object`. They are orphaned, which this repository expects: `scripts/validate_session_json.py:697-703` names squash merge as the most likely cause of an unreachable recorded SHA, because it orphans every branch SHA a session log records.
+
+That sharpens the argument rather than weakening it. In the one committed log where the two fields disagree, neither field names a commit that exists. No ancestry or ordering claim is possible about them, so the equality check could not have adjudicated which field was right even in principle. It could only report that they differ, which is what this ADR makes it do.
 
 ### What ADR-096 already settled, and what it left
 
@@ -200,13 +202,13 @@ Preferring `endingCommit` was considered and rejected. `comparison.head` is the 
 ### What Currently Exists
 
 - **Structure being changed**: the equality raise at `.claude/lib/qa_report.py:173-177`, inside `session_qa_binding()` (`:142-182`), mirrored byte-identical at `src/copilot-cli/lib/qa_report.py:142-182` (verified with `diff -q`, which reports the two files identical).
-- **When introduced**: not determinable from this checkout. `git log -- .claude/lib/qa_report.py` returns two commits (`46049e1`, PR #5167, the ADR-096 implementation; `e6c196d`, PR #5135) because the clone is shallow at 50 commits. The check predates both: PR #5167 changed `validate_qa_report()` and left this function untouched, which ADR-096's "Explicitly out of scope" section states outright. Re-derive against a full fetch if the introducing commit matters.
-- **Original author and context**: the check guarantees that a session log cannot bind QA evidence to a commit while a second field in the same log names a different one. It is a data-consistency check on the log, not on the QA verdict, which is why ADR-096 declined to fold it in.
+- **When introduced**: `226bef0e4`, 2026-08-08, PR #4735, "fix(memory): replace #4707 duplicate path validator". That commit is the file's only `--diff-filter=A` entry and the only commit `git log -S "comparison head and endingCommit resolve to"` returns, so `.claude/lib/qa_report.py` arrived whole at 252 lines with this check already in it. Determined after `git fetch --unshallow` (2613 commits); an earlier draft recorded this as undeterminable from the 50-commit shallow clone.
+- **Original author and context**: the check guarantees that a session log cannot bind QA evidence to a commit while a second field in the same log names a different one. It is a data-consistency check on the log, not on the QA verdict, which is why ADR-096 declined to fold it in. Worth noting what the introducing PR was about: a duplicate path validator for the memory subsystem. The QA-binding module was written as supporting work inside it, which is consistent with the equality check never having had a design pass of its own.
 
 ### Historical Rationale
 
 - **Why was it built this way?** Field equality is the cheapest possible consistency check when two fields are believed to be redundant descriptions of one commit.
-- **What alternatives were considered?** None recorded at introduction. ADR-096 later built `post_qa_code_changes()` for the neighbouring function and explicitly declined to apply it here.
+- **What alternatives were considered?** None recorded at introduction, and the introducing commit supports that rather than merely asserting it: `226bef0e4` added all 252 lines of the module in one move, inside a PR about a duplicate path validator. ADR-096 later built `post_qa_code_changes()` for the neighbouring function and explicitly declined to apply it here.
 - **What constraints drove the design?** The belief that the two fields are redundant. `commitHead` (`session-log.schema.json:170-174`) is the evidence that belief was later abandoned in the schema without the check being revisited.
 
 ### Why Change Now
