@@ -392,7 +392,9 @@ fi
 # ACTION == "ACT": proceed with the tier's planned action set.
 
 # tier-dispatch:start
-# Step 2.5: Round-cap circuit breaker (BLOCKING for T3/T4, issue #5056).
+# Step 2.5: Tier read, then the auto-merge disarm gate, then the round-cap
+# circuit breaker (BLOCKING for T3/T4, issue #5056). The two gates run in that
+# order for the reason given at the disarm gate below; do not swap them back.
 # T3/T4 PRs iterate: post a fix, wait for CI or a bot review, repeat. Nothing
 # capped how many times that loop could run, and prose caps have been
 # ignored repeatedly (the documented failure mode, not a hypothetical one):
@@ -497,27 +499,23 @@ case "$TIER" in
         continue
         ;;
 esac
-if [ "$TIER" = "T3" ] || [ "$TIER" = "T4" ]; then
-    ROUND_CAP=$(python3 "$SCRIPTS_DIR/check_pr_round_cap.py" \
-        --pull-request "$PR" --output-format json)
-    ROUND_ACTION=$(echo "$ROUND_CAP" | jq -r '.Data.action // empty')
-    if [ "$ROUND_ACTION" != "ACT" ]; then
-        ROUND_REASON=$(echo "$ROUND_CAP" | jq -r '.Data.reason // "round-cap check failed"')
-        echo "Stopping thread-fix loop for #$PR: $ROUND_REASON"
-        # check_pr_round_cap.py already posted a human-readable PR comment
-        # naming the round count, wall-clock elapsed, and both caps
-        # (issue #5056 item 4: leave a note, do not just stop silently).
-        # A human must review the remaining thread(s)/CI failure(s) directly.
-        cleanup_pr_autofix
-        continue
-    fi
-fi
-
-# Step 3: Auto-merge disarm gate (BLOCKING, issue #3913).
+# Ordered before the round-cap breaker deliberately, and this order is load
+# bearing. The breaker's ESCALATE path terminates the PR, and while it sat first
+# that exit ran before this gate, so a T3 or T4 PR that reached its cap was
+# handed to a human with native auto-merge still armed: GitHub can then land it
+# on its own, with readiness never proven by this session (CWE-284). Copilot
+# found it. Like the completeness case above it was opened by the tier-read fix
+# rather than found beside it, since a pinned UNKNOWN never matched T3 or T4, so
+# the breaker never fired and this gate disarmed every armed PR anyway.
+# Disarming is not acting on a PR, it is taking a capability away from one, so
+# there is no tier this is unsafe to run first. A test asserted the opposite
+# contract and is flipped in the same change.
+# Step 2.6: Auto-merge disarm gate (BLOCKING, issue #3913). Numbered after the
+# tier read and before the round-cap breaker, which is where it now runs.
 # If the PR has auto-merge armed but is not T1-ready, a conflict refresh or CI
 # fix push could immediately land a PR whose readiness was never explicitly
 # verified in this session.  Disable auto-merge now, before any commit or push.
-# TIER was computed at Step 2.5 (round-cap gate) above.
+# TIER and PAGES_COMPLETE were both read from the single producer call above.
 CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
     --output-format json 2>/dev/null)
 AUTO_MERGE=$(printf '%s' "$CTX" | jq -r '.Data.auto_merge_method // "null"' 2>/dev/null)
@@ -554,6 +552,22 @@ if [ "$AUTO_MERGE" != "null" ] && [ "$TIER_TRUSTED_T1" != "yes" ]; then
         continue
     fi
 fi
+if [ "$TIER" = "T3" ] || [ "$TIER" = "T4" ]; then
+    ROUND_CAP=$(python3 "$SCRIPTS_DIR/check_pr_round_cap.py" \
+        --pull-request "$PR" --output-format json)
+    ROUND_ACTION=$(echo "$ROUND_CAP" | jq -r '.Data.action // empty')
+    if [ "$ROUND_ACTION" != "ACT" ]; then
+        ROUND_REASON=$(echo "$ROUND_CAP" | jq -r '.Data.reason // "round-cap check failed"')
+        echo "Stopping thread-fix loop for #$PR: $ROUND_REASON"
+        # check_pr_round_cap.py already posted a human-readable PR comment
+        # naming the round count, wall-clock elapsed, and both caps
+        # (issue #5056 item 4: leave a note, do not just stop silently).
+        # A human must review the remaining thread(s)/CI failure(s) directly.
+        cleanup_pr_autofix
+        continue
+    fi
+fi
+
 # tier-dispatch:end
 
 # Release the lease after all per-PR work (push + post-push CI wait + merge).

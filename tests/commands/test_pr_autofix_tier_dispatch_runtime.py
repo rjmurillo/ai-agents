@@ -47,7 +47,26 @@ def test_round_cap_runs_for_t3_and_t4(tmp_path: Path, doc: str, tier: str) -> No
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
-def test_round_cap_escalation_stops_before_the_disarm_gate(tmp_path: Path, doc: str) -> None:
+def test_round_cap_escalation_disarms_before_handing_the_pr_to_a_human(
+    tmp_path: Path, doc: str
+) -> None:
+    """The escalated PR must not be left able to merge itself.
+
+    This test asserted the opposite until Copilot filed it as CWE-284, and the
+    old assertion read `assert not run.disarmed, "the loop kept acting after the
+    round cap escalated"`. The reasoning was wrong in a way worth keeping on the
+    record: disarming is not acting on a PR, it is taking a capability away from
+    one, so it was never the thing the escalation needed to stop.
+
+    Leaving it armed is the harm. The breaker escalates precisely when a PR has
+    burned its rounds and needs a human, and native auto-merge does not wait for
+    this session's completion gate, so the PR could land on its own with
+    readiness never proven. The gates are now ordered so the disarm runs first.
+
+    Opened by this PR rather than found beside it: a pinned UNKNOWN never
+    matched T3 or T4, so the breaker never fired and the disarm gate reached
+    every armed PR anyway.
+    """
     run = run_dispatch(
         tmp_path,
         doc,
@@ -59,7 +78,11 @@ def test_round_cap_escalation_stops_before_the_disarm_gate(tmp_path: Path, doc: 
     assert run.round_cap_called
     assert "Stopping thread-fix loop" in run.stdout
     assert run.cleaned_up
-    assert not run.disarmed, "the loop kept acting after the round cap escalated"
+    assert run.disarmed, (
+        "an escalated PR was handed to a human with auto-merge still armed, so "
+        "it can land without this session ever proving it ready"
+    )
+    assert "--disable" in run.disarm_argv
     assert not run.reached_end
     assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
 
