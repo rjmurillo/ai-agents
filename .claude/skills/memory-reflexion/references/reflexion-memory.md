@@ -396,13 +396,15 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/mem
 
 ### With Session Protocol
 
-Episode extraction is part of the session end checklist:
+Session log creation is discontinued. Episode extraction from a session log
+now applies only when one already exists on the branch (carried over from
+before the discontinuation, or cherry-picked from an older one):
 
 ```markdown
 ## Session End (BLOCKING)
 
-- [ ] Complete session log
-- [ ] Extract episode: `.claude/skills/memory/scripts/extract_session_episode.py`
+- [ ] Update the per-issue handoff
+- [ ] Extract episode if a session log exists: `.claude/skills/memory/scripts/extract_session_episode.py`
 - [ ] Update Serena memory
 - [ ] Commit all changes (including .agents/memory/episodes/)
 ```

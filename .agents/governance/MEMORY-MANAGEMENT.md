@@ -108,7 +108,7 @@ mcp__serena__write_memory(
 
 ### Phase 1: Documentation Update (REQUIRED)
 1. Update Serena memory for cross-session context
-2. Complete an optional session log when one exists
+2. Do not create a session log; creation is discontinued (`.claude/rules/session-logs.md` MUST 1)
 3. DO NOT modify HANDOFF.md (read-only reference)
 ```
 
@@ -452,7 +452,8 @@ curl http://localhost:8020/mcp
 
 ### Track Export Coverage
 
-Add to session log:
+Session log creation is discontinued; record this in the per-issue handoff or
+transcript instead:
 
 ```markdown
 ### Memory Management
@@ -472,7 +473,7 @@ Before exporting, verify:
 - [ ] Memories have importance 7+ (only export high-value learnings)
 - [ ] Privacy review completed (no secrets, paths, PII)
 - [ ] Naming follows convention (YYYY-MM-DD-session-NNN-topic.json)
-- [ ] Session log documents export path
+- [ ] Export path documented in the per-issue handoff or transcript
 
 ---
 
