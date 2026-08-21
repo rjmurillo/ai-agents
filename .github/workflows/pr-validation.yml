@@ -77,7 +77,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # `Check PR commit count` no longer needs this (its main-merge trunk
-          # read was removed, issue #5230), but this job also runs the
+          # read was removed, issue #5233), but this job also runs the
           # merge-tree ratchet and several count ratchets further down
           # (issue #4572, #4518), and those steps share this same checkout.
           # A shallow checkout leaves `.git/shallow` in place for the rest of
@@ -160,13 +160,13 @@ jobs:
         # Thin wrapper (ADR-006): classification and transient-failure handling
         # live in the testable module. A transient GitHub API failure degrades
         # to status=UNKNOWN and exit 0 (issue #3262). The commit count is
-        # advisory only (issue #5230): no downstream step blocks on it.
+        # advisory only (issue #5233): no downstream step blocks on it.
         run: uv run --frozen python scripts/validation/pr_commit_count.py --pr-number "$PR_NUMBER"
 
       - name: Apply needs-split label
         # Fixes #2557: this step is ADVISORY and must never fail the job. It is
         # purely a suggestion label with no local enforcement attached (issue
-        # #5230 removed the commit-count block this used to accompany).
+        # #5233 removed the commit-count block this used to accompany).
         # `continue-on-error` is the belt; warnings (not throws) in the body
         # are the suspenders, so a label API outage shows as an annotation
         # rather than a red step outline.

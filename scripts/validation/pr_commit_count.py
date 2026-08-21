@@ -11,7 +11,7 @@ Behavior:
   the issue #362 thresholds (warning 10, alert 15). This is advisory only: a
   large commit count never blocks a push or a merge. The
   ``commit-limit-bypass`` label, the 20/40-commit block ceiling, and the
-  main-merge relief that used to raise it were removed (issue #5230) because
+  main-merge relief that used to raise it were removed (issue #5233) because
   the hard block required local verification of a GitHub label that this
   harness cannot always perform (`gh` has no API access in some sandboxed
   sessions), which forced authors into expensive workarounds -- spinning up an
@@ -58,7 +58,7 @@ from scripts.github_core.api import (  # noqa: E402
     resolve_repo_params,
 )
 
-# Commit-count thresholds (issue #362). Advisory only (issue #5230): neither
+# Commit-count thresholds (issue #362). Advisory only (issue #5233): neither
 # threshold blocks a push or a merge. WARNING_THRESHOLD and ALERT_THRESHOLD
 # only decide which notice is printed and which GitHub Actions annotation
 # level is used.
@@ -104,7 +104,7 @@ class CountResult:
 def classify_count(count: int) -> str:
     """Map a commit count to an advisory threshold status (issue #362).
 
-    Advisory only (issue #5230): there is no block tier. A PR of any size
+    Advisory only (issue #5233): there is no block tier. A PR of any size
     passes; this only decides which notice, if any, gets printed.
     """
     if count >= ALERT_THRESHOLD:

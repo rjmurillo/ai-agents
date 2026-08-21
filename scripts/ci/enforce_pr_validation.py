@@ -2,7 +2,7 @@
 """Enforce blocking PR validation results.
 
 The commit-count gate's BLOCKED status and its `commit-limit-bypass` label
-check were removed (issue #5230): that gate required local verification of a
+check were removed (issue #5233): that gate required local verification of a
 GitHub label that a sandboxed harness cannot always perform, which forced
 authors into an expensive workaround (an entirely new stacked branch and PR)
 to route around a check that could not confirm a fact that was already true.

@@ -5960,7 +5960,7 @@ def _check_push_updates(updates: Sequence[PushUpdate], repo_root: Path) -> int:
 
 
 def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
-    """Print an advisory notice for a large branch. Never blocks (issue #5230).
+    """Print an advisory notice for a large branch. Never blocks (issue #5233).
 
     The 20/40-commit block, its `commit-limit-bypass` human-only label, and the
     main-merge relief that raised the ceiling to 40 are removed: the block
