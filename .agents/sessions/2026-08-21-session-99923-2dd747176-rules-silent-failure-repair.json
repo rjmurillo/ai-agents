@@ -119,6 +119,8 @@
   ],
   "endingCommit": "bc980a8698ffba26e510f86c254e7087b9e6dcbe",
   "nextSteps": [
-    "Open a draft PR from claude/issue-5188-silent-failure-repair referencing issue #5188"
+    "PR #5206 is open and green; drive it to merge. It needs an approving review from someone other than rjmurillo, because GitHub rejects self-approval and CodeRabbit reports it lacks permission to submit a verdict on this repository.",
+    "Issue #5211: renumber the duplicate MUST ordinals in ci-scripts.md and testing.md, and repair the 13 ambiguous citations the sweep found. Not by matching an ordinal alone: citations to testing.md MUST 10 and ci-scripts.md MUST 12 are unambiguous and must be left alone.",
+    "extract_session_episode.py --preserve has two gaps this branch hit. It keeps a commit event whose SHA is reachable from zero refs, although the same file's _sha_is_reachable already implements that filter for commit-order validation. And _merge_metrics takes a per-key max, so metrics.commits cannot follow the event stream downward when an event is removed; it had to be lowered by hand. Both need their own issue and a code change, so neither belongs in this rule-only PR."
   ]
 }

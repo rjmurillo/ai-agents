@@ -146,8 +146,21 @@ PASS.
 
 Two edits to `.claude/rules/ci-scripts.md`, plus its two instruction mirrors
 regenerated from both. SHOULD 4 is the new item. The frontmatter `paths:` gains
-`.claude/commands/**` and `tests/**`, so the item loads on the two trees the
-incident actually happened in. No code, no test, no workflow.
+three globs:
+
+- `.claude/commands/**` and `tests/**`, the two trees the measured incident
+  happened in.
+- `.github/scripts/**`, which is not about the new item at all. The MUST item
+  "Prove the CLI exits nonzero on a failure the shell used to fail on" governs
+  "a script under `scripts/ci` or `.github/scripts` that defines `main`", and
+  `scripts/**` never matched that second tree, so the whole rule was absent
+  from a directory one of its own MUST items names by path. 18 files there
+  define `main` and six workflow steps invoke them.
+
+An earlier version of this section listed only the first two, which contradicted
+the measurement recorded further down in this same report. A reviewer caught it.
+
+No code, no test, no workflow.
 
 ## The measurement that chose the file
 
