@@ -17,7 +17,8 @@ discontinued; the plugin no longer writes new files under `.agents/sessions/`.
 
 | Path | Purpose | Safe to Delete |
 |------|---------|----------------|
-| `.agents/sessions/` | Historical session logs (JSON), creation discontinued | Yes, loses history |
+| `.agents/sessions/*.json` | Historical session logs (JSON), creation discontinued | Yes, loses history |
+| `.agents/sessions/handoffs/` | Active per-issue continuity records, still written by every agent | No, deletes an open issue's continuity |
 | `.agents/analysis/` | Generated analysis reports | Yes, regenerated on demand |
 | `.agents/architecture/` | ADRs and design decisions | No, contains governance |
 | `.agents/governance/` | Project constraints and policies | No, contains enforcement rules |
@@ -30,10 +31,13 @@ Add to your `.gitignore` if you do not want to track generated artifacts:
 
 ```gitignore
 # Optional: exclude regenerable plugin artifacts
-.agents/sessions/
+.agents/sessions/*.json
 .agents/analysis/
 .agents/critique/
 ```
+
+Do not exclude `.agents/sessions/handoffs/`: those files are the active
+per-issue continuity record, not regenerable history.
 
 Do not exclude `.agents/architecture/`, `.agents/governance/`, or `.agents/security/`.
 These contain decisions and policies that should be version-controlled.

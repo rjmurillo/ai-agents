@@ -1271,7 +1271,8 @@ Skills extracted from retrospectives are stored with:
 | `.agents/roadmap/` | Epic definitions | roadmap |
 | `.agents/devops/` | Pipeline configs | devops |
 | `.agents/security/` | Threat models | security |
-| `.agents/sessions/` | Historical session context (creation discontinued) | memory |
+| `.agents/sessions/*.json` | Historical session context (creation discontinued) | memory |
+| `.agents/sessions/handoffs/` | Active per-issue continuity records | all agents |
 | `.agents/skills/` | Skill files | skillbook |
 | `.agents/specs/requirements/` | EARS requirements (Phase 1+) | spec-generator |
 | `.agents/specs/design/` | Design documents (Phase 1+) | architect |
