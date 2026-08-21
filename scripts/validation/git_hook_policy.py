@@ -5974,11 +5974,22 @@ def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
     result = _run_git(repo_root, ["rev-list", "--count", update.range_spec])
     if result.returncode != 0:
         _print_process_output(result)
-        return 2
+        print(
+            f"WARNING: could not measure commit count for '{update.destination_branch}'; "
+            "skipping the advisory notice. This is never blocking (issue #5233).",
+            file=sys.stderr,
+        )
+        return 0
     try:
         commit_count = int(result.stdout.strip())
     except ValueError:
-        return 2
+        print(
+            f"WARNING: could not parse commit count for '{update.destination_branch}' "
+            f"(got {result.stdout.strip()!r}); skipping the advisory notice. "
+            "This is never blocking (issue #5233).",
+            file=sys.stderr,
+        )
+        return 0
     status = classify_count(commit_count)
     if status == "ALERT":
         print(

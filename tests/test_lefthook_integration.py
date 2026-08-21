@@ -6628,23 +6628,63 @@ def test_push_update_aggregation_returns_configuration_error(
 
 
 @pytest.mark.parametrize(
-    ("git_result", "expected"),
-    [
-        (_completed(1, stderr="git failed\n"), 2),
-        (_completed(0, "not-a-number\n"), 2),
-        (_completed(0, "20\n"), 0),
-    ],
+    "git_result",
+    [_completed(1, stderr="git failed\n"), _completed(0, "not-a-number\n")],
 )
-def test_commit_limit_handles_git_count_results(
+def test_commit_limit_degrades_measurement_failures_to_a_warning(
     git_result: subprocess.CompletedProcess[str],
-    expected: int,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
+    """A `git rev-list` failure or an unparseable count MUST NOT block the
+    push (issue #5233's contract: the commit-count check never blocks).
+    Both branches previously returned 2, which `_check_push_updates`
+    aggregates into a nonzero, push-blocking result; a Copilot review on
+    PR #5234 caught the contradiction between that behavior and this
+    function's own "Never blocks" docstring.
+    """
     update = _push_update(None)
     monkeypatch.setattr(policy, "_run_git", lambda *_args: git_result)
 
-    assert policy._check_commit_limit(update, tmp_path) == expected
+    assert policy._check_commit_limit(update, tmp_path) == 0
+    assert "WARNING" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("commit_count", "expect_note"),
+    [
+        (policy.WARNING_THRESHOLD - 1, False),
+        (policy.WARNING_THRESHOLD, True),
+        (policy.WARNING_THRESHOLD + 4, True),
+        (policy.ALERT_THRESHOLD, True),
+        (policy.ALERT_THRESHOLD + 6, True),
+    ],
+)
+def test_commit_limit_notice_covers_below_warning_through_alert(
+    commit_count: int,
+    expect_note: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Never blocks at any count, and prints the advisory NOTE only from
+    WARNING_THRESHOLD upward; below it, the push is silent.
+    """
+    update = _push_update(None)
+    monkeypatch.setattr(
+        policy, "_run_git", lambda *_args: _completed(0, f"{commit_count}\n")
+    )
+
+    result = policy._check_commit_limit(update, tmp_path)
+
+    assert result == 0
+    out = capsys.readouterr().out
+    if expect_note:
+        assert f"NOTE: branch has {commit_count} commits" in out
+        assert "does not block" in out
+    else:
+        assert out == ""
 
 
 def test_advisory_failure_prints_process_explanation_with_warning(
