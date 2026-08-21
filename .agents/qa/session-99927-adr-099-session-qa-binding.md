@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding.json
-qaCommit: 0dc7d0a254e3aa253b9c9895e008265f06f496d8
+qaCommit: a85c4b08db3a8231fe0dd3930e3b1f2c435c87a2
 ---
 
 # ADR-102 Session QA
@@ -309,6 +309,27 @@ check (tests, lint, security scan, etc.) ran normally and passed.
 `qaCommit` moves from `bd36dcf77` to `0dc7d0a25`, the commit recording
 this resolution; `post_qa_code_changes('0dc7d0a254e3aa253b9c9895e008265f06f496d8', 'HEAD', ...)`
 confirmed empty against the endingCommit follow-up made after it.
+
+## Post-Review Rebind: ADR-099 to ADR-102 Renumbering
+
+After the `--no-verify` push landed, `mergeable_state: "dirty"` and a
+`git merge-tree` preview against `origin/main` surfaced a genuine
+added-in-both conflict on `.agents/critique/ADR-099-debate-log.md`:
+`origin/main` had independently landed an unrelated ADR-099
+(commit-limit-bypass gate removal, same repo owner, a parallel session).
+Renumbered this session's ADR to ADR-102 (next free number after main's
+highest, ADR-101) across the ADR, its debate log, the code comments in
+`.claude/lib/qa_report.py` and `scripts/validate_session_json.py`, the
+test comments in `tests/test_validate_session_json.py`, this QA report,
+the session log, and the PR needs-split retrospective. Regenerated
+`src/copilot-cli/lib/qa_report.py`, confirmed byte-identical via `diff -q`.
+`uv run pytest tests/test_validate_session_json.py -q`: 382 passed
+(unchanged), `uv run ruff check`: clean.
+
+`qaCommit` moves from `0dc7d0a25` to `a85c4b08d`, the `endingCommit`
+follow-up made after the renumbering's last content commit;
+`post_qa_code_changes('a85c4b08db3a8231fe0dd3930e3b1f2c435c87a2', 'HEAD', ...)`
+confirmed empty.
 
 ## Verdict
 
