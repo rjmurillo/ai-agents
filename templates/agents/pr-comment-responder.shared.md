@@ -261,7 +261,7 @@ These gates implement RFC 2119 MUST requirements. Proceeding without passing cau
 ### Gate 0: Continuity
 
 Before work, read the current per-issue handoff when one exists. Session log
-creation is discontinued (`.claude/rules/session-logs.md` MUST 1).
+creation is discontinued.
 
 ```bash
 # Create the PR comment run log consumed by later gates.
