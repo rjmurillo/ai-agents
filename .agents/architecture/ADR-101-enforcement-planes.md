@@ -21,7 +21,7 @@ Proposed
 
 ## Context
 
-This repository opened 292 pull requests in the 14 days ending 2026-08-20, nearly all AI-authored. The operating goal is to run it without a human decision on any individual **ordinary** change. The qualifier is load-bearing and is not a hedge added late: Phase 0 below deliberately puts code-owner review in front of changes to the enforcement paths themselves, so the goal this decision pursues is zero human decisions over the code the loop is meant to change, and a retained human decision over the code that constrains it. The Negative consequences section states the same trade in full.
+This repository opened 292 pull requests over the date-bounded window 2026-08-06 to 2026-08-20, which is 14 days and 18 hours against an 18:00Z cutoff because `created:` is date-granular, nearly all AI-authored. The operating goal is to run it without a human decision on any individual **ordinary** change. The qualifier is load-bearing and is not a hedge added late: Phase 0 below deliberately puts code-owner review in front of changes to the enforcement paths themselves, so the goal this decision pursues is zero human decisions over the code the loop is meant to change, and a retained human decision over the code that constrains it. The Negative consequences section states the same trade in full.
 
 Three incidents on record share one shape.
 
@@ -292,7 +292,8 @@ This buys per-change autonomy at the cost of a single point of failure at the co
 | Repository Actions settings | Direct | Baseline default `GITHUB_TOKEN` scope and whether Actions may approve pull requests; 21 of 60 workflows declare no top-level `permissions:` | High |
 | `scripts/validation/check_ruleset_params_drift.py` | Direct | Make bidirectional; add bypass actors; route findings out of tree | High |
 | `.github/workflows/` | Direct | New required contexts from base-ref jobs; no `if:` or path filters on those jobs | High |
-| `.github/workflows/passive-context-budget.yml` | Direct | Skip-job pattern forbidden on any required context | Medium |
+| `.github/workflows/pytest.yml` | Direct | This is the **live** requirement-1 violation, not the passive one below: `test-result` (`:428`) and `skip-tests` (`:545`) share the name `Run Python Tests`, which is a pinned required context, and a path filter decides which runs. Replace the path gating with a job whose own logic decides pass or fail. An earlier revision listed only the passive workflow, so an implementer could complete this table and leave the required context path-gated | High |
+| `.github/workflows/passive-context-budget.yml` | Direct | Skip-job pattern forbidden on any required context. Its context is not required, so this is prevention rather than repair | Medium |
 | `scripts/validation/git_hook_policy.py` | Direct | `check_adr_review_policy` gains the digest check | Medium |
 | `lefthook.yml:198-199` | Direct | Remove `skip: merge` or enumerate it as a known bypass | Medium |
 | `.claude/rules/universal.md` MUST NOT 2 | Direct | Add the two unlisted bypasses | Low |
