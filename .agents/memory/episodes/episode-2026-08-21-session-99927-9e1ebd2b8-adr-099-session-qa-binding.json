@@ -1,0 +1,19 @@
+{
+  "id": "episode-2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding",
+  "session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding",
+  "timestamp": "2026-08-21T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Ship issue #5217: relax session_qa_binding()'s comparison.head/endingCommit equality raise in .claude/lib/qa_report.py. Per .claude/rules/ci-scripts.md MUST-NOT-2 this is a validator behavior change, so it needs its own ADR and review before any code lands. The design question the issue asks for is whether ADR-096's post_qa_code_changes relaxation is the right shape here; the answer reached is no, because this check protects session-log field consistency rather than QA staleness.",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 2
+  },
+  "lessons": []
+}
