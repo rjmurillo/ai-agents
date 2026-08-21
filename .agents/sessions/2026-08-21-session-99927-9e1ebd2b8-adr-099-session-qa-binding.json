@@ -69,7 +69,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "13 commits on claude/autoplan-ship-wi09a5, all pushed: be1e79b71 (ADR-099 accepted), 3b05b71d4 (code + tests + mirror), 359ced9f6 and a454130f9 and a00a676aa (ADR corrections from an unshallowed clone), 0d4089177 (unrelated red-main test-pin fix), 4a08172f5 (this session log, checkpointed), cca9b6166 (unrelated red-CI pip-audit fix, PYSEC-2026-3721), a031a5699 and 5484cc8a2 (ADR-099 rewritten per the genuine six-agent adr-review debate and its Phase 4 convergence check), plus this commit and the two that follow it (QA evidence, endingCommit)."
+        "Evidence": "All work is committed and pushed to claude/autoplan-ship-wi09a5, reproducible with `git log --oneline main..HEAD`. Session-authored commits span: be1e79b71 (ADR-099 accepted), 3b05b71d4 (code + tests + mirror), 359ced9f6/a454130f9/a00a676aa (ADR corrections from an unshallowed clone), 0d4089177 and cca9b6166 (two unrelated red-main fixes: a setup-uv SHA pin, PYSEC-2026-3721), a031a5699 and 5484cc8a2 (ADR-099 rewritten per the six-agent adr-review debate and its Phase 4 convergence check), 21a23ec39 (Implementation Note 8's fallback-head-path test), a13bcce2e/3386b3cc5 and c348f17a5 (a Cursor Bugbot Medium finding, independently duplicated by Cursor's Autofix and merged), 9abe35817/9d8a6c287 (the full Copilot automated-review response: the QaBinding identity bug and five stale-prose corrections), plus this commit and its endingCommit follow-up. This field intentionally does not assert a fixed commit count: the branch keeps gaining qaCommit/endingCommit rebind commits after each catch-up merge of origin/main, so a frozen number here goes stale on the next merge, which is exactly what a prior Copilot review round caught."
       },
       "validationPassed": {
         "level": "MUST",
@@ -163,6 +163,10 @@
     {
       "activity": "CI's pytest (bulk) job failed post-push on a ruff count ratchet baseline mismatch",
       "finding": "ruff_count_ratchet.py reported 'BASELINE ABOVE BASE: this tree records 27, FETCH_HEAD records 0 (+27)'. Diagnosed via ci-scripts.md MUST 14: origin/main had merged PR #5227 lowering the ruff baseline from 27 to 0 (a repo-wide cleanup) after this branch's base was fetched, so the branch reported a false regression. Fixed by merging origin/main (commit b71f0bd77, no conflicts, 80 files), which picked up the lowered baseline; 381 passed, ruff clean on the merged tree."
+    },
+    {
+      "activity": "A second Copilot review round found three more findings after the fix-batch push",
+      "finding": "All three confirmed real. This Evidence field claimed a frozen '13 commits' list that the episode extractor's SHA count had already outgrown; fixed by dropping the frozen count and describing the commit shape instead, since a static number here goes stale on every future catch-up merge. The QA report's Test Results table claimed 380 passed where the file now has 381, and its second row restricted a keyword-filtered run to this single file while reporting a count (565) larger than that file's own total, an impossible result; fixed both rows with freshly re-run, accurate numbers (381 passed; 567 passed / 27354 deselected once the file restriction was removed to match what the row actually claims to measure). ADR-099's 'Why Change Now' risk paragraph said post_qa_code_changes() fails closed on binding.commit-as-head 'on the normal (non-fallback) path', which is backwards: scripts/validate_session_json.py:992 shows binding.commit is used as head only when validation_head is None, i.e. only on the fallback path; fixed the wording to say so directly and cite the line."
     }
   ],
   "endingCommit": "0416154b083f38f1f058a49dfa76a6bc52dc3815",

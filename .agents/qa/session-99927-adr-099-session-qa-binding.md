@@ -26,8 +26,8 @@ debate log, both documentation.
 
 | Command | Result |
 |---|---|
-| `uv run pytest tests/test_validate_session_json.py -q` | 380 passed |
-| `uv run pytest tests/test_validate_session_json.py -k "qa_report or qa or session_json or session_log" -q` | 565 passed |
+| `uv run pytest tests/test_validate_session_json.py -q` | 381 passed |
+| `uv run pytest -k "qa_report or qa or session_json or session_log" -q` | 567 passed, 27354 deselected |
 | `uv run ruff check .claude/lib/qa_report.py scripts/validate_session_json.py tests/test_validate_session_json.py` | clean |
 | `diff -q .claude/lib/qa_report.py src/copilot-cli/lib/qa_report.py` | identical |
 
