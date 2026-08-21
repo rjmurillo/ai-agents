@@ -41,12 +41,12 @@
     },
     {
       "id": "wf-session-lifecycle",
-      "name": "Optional session log lifecycle",
+      "name": "Session continuity lifecycle",
       "trigger": "the start of any agent work session",
       "steps": [
-        {"order": 1, "action": "Write an optional session log by hand against .agents/schemas/session-log.schema.json when opting in"},
+        {"order": 1, "action": "Update the per-issue handoff and Serena memory for continuity"},
         {"order": 2, "action": "Execute tasks with per-task commits"},
-        {"order": 3, "action": "Validate a staged session log with scripts/validate_session_json.py"}
+        {"order": 3, "action": "Validate any existing session log with validate_session_json.py"}
       ],
       "source": "authored",
       "confidence": 0.5,

@@ -146,8 +146,8 @@ When creating a new AI-powered workflow with concurrency control:
 | MUST read .agents/HANDOFF.md before starting work | `templates/agents/implementer.shared.md` | Content in context |
 | MUST NOT modify HANDOFF.md during session | ADR-014 | HANDOFF.md unchanged |
 | MUST preserve incomplete issue state | ADR-014 | Per-issue handoff |
-| MUST validate a staged or supplied session log | `.claude/rules/session-logs.md` | Validator output |
-| MAY create and complete a session log | `.claude/rules/session-logs.md` | Valid JSON when opted in |
+| MUST validate a staged or supplied session log, if one is present | `.claude/rules/session-logs.md` | Validator output |
+| MUST NOT create a new session log (creation discontinued) | `.claude/rules/session-logs.md` MUST 1 | No new `.agents/sessions/*.json` file |
 
 **Reference**: [`.claude/rules/session-logs.md`](../../.claude/rules/session-logs.md)
 

@@ -67,7 +67,7 @@ Locate the skill-based memory to update:
 **Storage Locations**:
 
 - **Serena MCP (canonical)**: `.serena/memories/{skill-name}-observations.md` via `mcp__serena__write_memory`
-- **Contingency (Serena unavailable)**: Manually edit the same file in Git and note the manual update in the session log for later Serena sync
+- **Contingency (Serena unavailable)**: Manually edit the same file in Git and note the manual update in the per-issue handoff for later Serena sync
 
 ### Phase 2: Analyze the Conversation
 
