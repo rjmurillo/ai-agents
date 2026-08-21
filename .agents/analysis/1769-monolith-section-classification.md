@@ -35,13 +35,25 @@ are template/example content, are excluded):
 | Monolith | Top-level `##` sections | Lines |
 |----------|-------------------------|-------|
 | `AGENT-SYSTEM.md` | 13 | 1990 |
-| `AGENT-INSTRUCTIONS.md` | 18 | 822 |
-| **Total** | **31** | **2812** |
+| `AGENT-INSTRUCTIONS.md` | 17 | 822 |
+| **Total** | **30** | **2812** |
 
 `SESSION-PROTOCOL.md` (10 sections, 324 lines) was one of the three
 always-loaded monoliths this audit covered; it was deleted 2026-08-20
 (Issue #5138), so its row and section table below are struck from the
 live count. Its classification table is kept for the historical record.
+
+`AGENT-INSTRUCTIONS.md`'s "Notes for Next Session" row below was never a
+real top-level section: it was a `## ` heading inside a nested code fence
+in the retired session-log template, and the fence-aware scanner's
+single-level tracker (it does not track fence nesting depth) mis-closed
+on the template's inner ` ```bash ` block and briefly read the file as
+unfenced, counting the placeholder heading as live. Discontinuing session
+log creation deleted that whole template
+(`.claude/rules/session-logs.md` MUST 1), so the phantom heading is gone
+and the true count drops from 31 to 30. Its classification row is kept
+for the historical record, same as the SESSION-PROTOCOL.md convention
+above.
 
 ## Target Rule Files (Phase 2)
 
@@ -139,14 +151,16 @@ owner. The steering files and their scopes:
 Live count, `AGENT-SYSTEM.md` and `AGENT-INSTRUCTIONS.md` only
 (`SESSION-PROTOCOL.md` deleted 2026-08-20, Issue #5138); its 1
 ALWAYS-LOAD-RULE, 7 PATH-SCOPED-RULE, and 2 KEEP-IN-STEERING sections are
-struck from these counts.
+struck from these counts. `AGENT-INSTRUCTIONS.md`'s phantom "Notes for
+Next Session" heading (see note above the per-monolith table) is also
+struck: its 1 PATH-SCOPED-RULE section never existed in the live document.
 
 | Classification | Count |
 |----------------|-------|
 | ALWAYS-LOAD-RULE | 3 |
-| PATH-SCOPED-RULE | 20 |
+| PATH-SCOPED-RULE | 19 |
 | KEEP-IN-STEERING | 8 |
-| **Total sections** | **31** |
+| **Total sections** | **30** |
 
 ALWAYS-LOAD sections (the only content entering `agent-boundaries.md`):
 
