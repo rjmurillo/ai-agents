@@ -324,6 +324,64 @@ def test_bracket_notation_is_invisible_to_the_existing_guards() -> None:
     assert unsupported_path_syntax(line) == ['.Tier // .["tier"]']
 
 
+@pytest.mark.parametrize(
+    ("program", "why"),
+    [
+        ('.Tier // .["tier"]', "root subscript, the shape first reported"),
+        ('.Data["action"]', "subscript after a path segment"),
+        ('.Tier["nested"]', "subscript whose prefix is a real field"),
+        ('.a["b"]["c"]', "chained subscripts"),
+    ],
+)
+def test_every_bracket_position_is_reported(program: str, why: str) -> None:
+    """Position of the bracket must not decide whether the checker sees it.
+
+    The detector first anchored on a preceding dot, which covers only the root
+    form. `.Data["action"]` and `.Tier["nested"]` put an identifier character
+    before the bracket and were invisible; Copilot reported it. The third row
+    is the one that fails silently rather than loudly, because `_JQ_PATH`
+    reduces `.Tier["nested"]` to the valid `.Tier`, the field check passes on
+    that prefix, and the subscript is never examined. Parameterized by position
+    so a future narrowing of the regex fails on the row it narrows away, and
+    the failure names which position stopped being seen.
+    """
+    body = _piped_read("test_pr_merge_ready", program)
+
+    violations = contract_violations(body)
+
+    # Counted rather than compared against the whole list, because some rows
+    # legitimately raise a second, different violation: `.Data["action"]` also
+    # names a `Data` envelope this flat producer does not emit. Asserting a
+    # total of one would then fail on a correct report and push the next
+    # author to weaken the field check to make it pass.
+    bracket = [v for v in violations if "bracket-notation" in v]
+    assert len(bracket) == 1, f"{why}: {violations}"
+
+
+@pytest.mark.parametrize(
+    "program",
+    [
+        ".Tier",
+        '.Tier // "UNKNOWN"',
+        ".[]",
+        ".Data.auto_merge_method",
+    ],
+)
+def test_syntax_without_a_string_subscript_is_not_reported(program: str) -> None:
+    """The negative control for the widened detector.
+
+    Widening what a fail-closed check matches is the direction that breaks
+    healthy input, which this suite has already shipped once: the comment-skip
+    omission made prose documenting the defect fail the gate. `.[]` is the row
+    that matters, because it is a bracket immediately after a dot and would
+    match a detector that looked for brackets rather than for a string
+    subscript.
+    """
+    body = _piped_read("test_pr_merge_ready", program)
+
+    assert unsupported_path_syntax(body) == []
+
+
 def test_dotted_paths_are_not_reported_as_unsupported() -> None:
     """Guard against a check that flags everything and looks strict."""
     line = 'X=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" | jq -r \'.Tier // "UNKNOWN"\')'

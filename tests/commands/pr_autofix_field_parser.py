@@ -56,7 +56,18 @@ _JQ_PATH = re.compile(r"(?:^|[^A-Za-z0-9_.])(\.[A-Za-z_][A-Za-z0-9_.]*)")
 # jq_invocation_lines for why the guard must not share the extractor's regex.
 # Bracket-notation field access, which `_JQ_PATH` cannot see. Not parsed into a
 # path deliberately; see unsupported_path_syntax for why it is reported instead.
-_JQ_BRACKET_PATH = re.compile(r"\.\s*\[\s*[\"']")
+# The leading alternation is the whole check. A first version anchored only on a
+# preceding dot, which sees root access (`.["tier"]`) and misses every subscript
+# that follows a path segment: `.Data["action"]` and `.Tier["nested"]` both put
+# an identifier character immediately before the bracket. The second is the
+# worse miss, because `_JQ_PATH` reduces it to the perfectly valid `.Tier`, so
+# the field check passes on the prefix and the subscript is never examined at
+# all. Copilot reported it on PR #5176. A closing `]` is included so a chained
+# subscript (`.a["b"]["c"]`) is caught on every segment rather than the first.
+# Array syntax is unaffected: `.[]` and a literal `[1,2]` have no quote after
+# the bracket, and a literal opens after whitespace, `(`, or `,` rather than
+# after a path character.
+_JQ_BRACKET_PATH = re.compile(r"(?:\.|[A-Za-z0-9_\]])\s*\[\s*[\"']")
 _JQ_TOKEN = re.compile(r"(?:^|[|\s(])jq\s")
 _VAR_REF = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?")
 
