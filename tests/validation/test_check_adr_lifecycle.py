@@ -922,16 +922,70 @@ def test_record_status_is_still_found_when_it_is_the_first_section(tmp_path):
     assert _counts(tmp_path)["prose-frontmatter-agree"] == 1
 
 
-def test_status_heading_after_another_section_is_out_of_scope(tmp_path):
-    """The header region ends at the first non-Status level-2 heading.
+def test_a_status_section_after_another_section_is_still_checked(tmp_path):
+    """Section order must not decide whether the drift check runs.
 
-    A record that opens with Context and only later carries a Status heading is
-    not stating its lifecycle in a header, and the gate does not guess.
+    This asserted the opposite until Copilot found it on PR #5209. An earlier
+    revision bounded the search to the record header, so a `## Status` placed
+    after `## Context` was invisible and moving the section silently bypassed
+    `prose-frontmatter-agree`. Nothing in ADR-073 or issue #5191 constrains
+    section order, so nothing justified treating position as authority.
+
+    The fixture's frontmatter says `accepted` and its prose says `Proposed`.
+    That is drift, and it must be reported wherever the section sits.
     """
     adr_dir = _adr_dir(tmp_path)
     _write(
         adr_dir, 1, _valid(1),
         "\n## Context\n\nWords.\n\n## Status\n\nProposed\n",
+    )
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 1
+
+
+def test_a_level_three_status_subsection_is_not_the_records_status(tmp_path):
+    """`### Status` belongs to whatever contains it, never to the record.
+
+    ADR-042 carries one at line 171 reading "Proposed" inside a migration phase
+    while its frontmatter says `accepted`. Matching it manufactured a drift
+    violation out of a correct record.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir, 1, _valid(1),
+        "\n## Context\n\nWords.\n\n### Status\n\nProposed\n",
+    )
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 0
+
+
+def test_a_bold_status_label_at_the_top_is_the_records_status(tmp_path):
+    """The older records state status as a bold label, not a section.
+
+    ADR-006 line 3 and ADR-035 line 5 both predate `## Status` sections. The
+    inline form stays supported so their drift remains visible.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir, 1, _valid(1),
+        "\n**Status**: Proposed\n\n## Context\n\nWords.\n",
+    )
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 1
+
+
+def test_a_bold_status_label_deep_in_the_body_is_not_the_records_status(tmp_path):
+    """Unlike the section heading, the inline form stays header-bounded.
+
+    A bold label is not a section. ADR-055 carries `**Status**: COMPLETE` at
+    line 119 as a phase result and `**Status**: APPROVED` at line 168 as an
+    exception ruling; both were read as that record's lifecycle status before
+    this bound existed.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir, 1, _valid(1),
+        "\n## Context\n\nWords.\n\n**Status**: COMPLETE\n",
     )
 
     assert _counts(tmp_path)["prose-frontmatter-agree"] == 0

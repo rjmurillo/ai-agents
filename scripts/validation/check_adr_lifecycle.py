@@ -124,16 +124,19 @@ ADR_FILENAME_RE = re.compile(r"^ADR-(\d{2,})-[^/]+\.md$")
 # An id reference inside frontmatter: "ADR-091", "adr-91", or a bare integer.
 _ADR_REFERENCE_RE = re.compile(r"^ADR[-_ ]?(\d{1,4})$", re.IGNORECASE)
 
-# `## Status` or `### Status`, optionally indented, on its own line.
-_STATUS_HEADING_RE = re.compile(r"(?m)^[ \t]{0,3}#{2,3}[ \t]+Status[ \t]*$", re.IGNORECASE)
+# `## Status`, optionally indented, on its own line. Level two only: a
+# `### Status` is a subsection of whatever contains it, never the record's own.
+# See `_status_prose` for why this one is searched across the whole body while
+# the inline form below stays bounded to the record header.
+_STATUS_HEADING_RE = re.compile(r"(?m)^[ \t]{0,3}##[ \t]+Status[ \t]*$", re.IGNORECASE)
 
 # The inline form ADR-055 uses: `**Status**: Accepted (supersedes ADR-024, ...)`.
 # The bold marker is required. A bare body line reading `status: x` is prose or a
 # code sample, not a status declaration, and must not be read as one.
 _INLINE_STATUS_RE = re.compile(r"(?m)^[ \t]{0,3}\*\*Status\*\*[ \t]*:[ \t]*(.+)$")
 
-# Level-2 headings only. `_record_header` uses these to bound the status search;
-# a level-3 `### Status` is a subsection of something, never the record's own.
+# Level-2 headings only. `_record_header` uses these to bound the *inline*
+# status search; the `## Status` section search is not bounded this way.
 _LEVEL_TWO_HEADING_RE = re.compile(r"(?m)^[ \t]{0,3}##[ \t]+(.+?)[ \t]*$")
 
 # Leading lifecycle word through any decoration: "**Accepted**", "> Superseded
@@ -381,24 +384,27 @@ def _check_identity(record: Record) -> list[Violation]:
 
 
 def _record_header(body: str) -> str:
-    """The region that can hold a record's own lifecycle status.
+    """The region where a bold `**Status**:` label states the record's status.
 
     Everything from the top of the body up to the first level-2 heading that is
-    not `## Status`. A record states its own status in its header, and any
-    `Status` label deeper in the document belongs to something else.
+    not `## Status`. Used by `_status_prose` for the inline form only; the
+    `## Status` section is an explicit declaration and is searched everywhere.
 
-    This bound is not cosmetic. Without it the search runs the whole document and
-    takes the first match anywhere, which is how ADR-042's `### Status` at line
-    171 (a subsection of a migration phase) and ADR-055's
-    `**Status**: COMPLETE` at line 119 (a phase result) and
-    `**Status**: APPROVED` at line 168 (an exception ruling) were read as those
-    records' lifecycle status. All three were masked while a real `## Status`
-    section sat higher in the file and surfaced the moment it was removed.
+    This bound is not cosmetic for the inline form. Without it the search runs
+    the whole document and takes the first match anywhere, which is how
+    ADR-055's `**Status**: COMPLETE` at line 119 (a phase result) and
+    `**Status**: APPROVED` at line 168 (an exception ruling) were read as that
+    record's lifecycle status. Both were masked while a real `## Status` section
+    sat higher in the file and surfaced the moment it was removed.
 
     That is the same defect this campaign filed as issue #5189 against
     `_get_adr_status`, which regexed `^status:` across an entire ADR instead of
     its frontmatter. Scoping the search to the region that can legitimately hold
     the answer is the fix in both cases.
+
+    Bounding *every* form this way was an over-correction that opened a bypass;
+    see `_status_prose`. ADR-042's `### Status` at line 171 is excluded by
+    `_STATUS_HEADING_RE` matching level two only, not by this bound.
     """
     for match in _LEVEL_TWO_HEADING_RE.finditer(body):
         if match.group(1).strip().lower() != "status":
@@ -412,15 +418,37 @@ def _status_prose(body: str) -> str | None:
     A `## Status` heading with nothing under it returns "", which keeps
     prose present while `prose-frontmatter-agree` reports
     the missing lifecycle word.
+
+    Three forms, scoped by what each one *is* rather than by where it sits.
+    An earlier revision bounded every form to the record header, which fixed
+    one bug and opened another: a `## Status` section placed after `## Context`
+    became invisible, so moving the section silently bypassed the drift check.
+    Nothing in ADR-073 or issue #5191 constrains section order. Copilot found it.
+
+    `## Status`, level two, is searched across the **whole body**. It is an
+    explicit section heading declaring the record's lifecycle state, and it
+    means that wherever an author puts it.
+
+    `**Status**: X`, a bold inline label, is searched in the **header region
+    only**. A bold label is not a section, and it reads as the record's status
+    only at the top, which is how the older records state it (ADR-006 line 3,
+    ADR-035 line 5, both predating `## Status` sections). Deeper occurrences are
+    something else: ADR-055 carries `**Status**: COMPLETE` at line 119 as a
+    phase result and `**Status**: APPROVED` at line 168 as an exception ruling,
+    and both were read as that record's lifecycle status before this bound.
+
+    `### Status`, level three, is **never** matched. A level-three heading is a
+    subsection of whatever contains it. ADR-042 carries one at line 171 reading
+    "Proposed" inside a migration phase while its frontmatter says `accepted`;
+    matching it manufactured a drift violation out of a correct record.
     """
-    header = _record_header(body)
-    heading = _STATUS_HEADING_RE.search(header)
+    heading = _STATUS_HEADING_RE.search(body)
     if heading is not None:
-        for line in header[heading.end() :].splitlines():
+        for line in body[heading.end() :].splitlines():
             if line.strip():
                 return line.strip()
         return ""
-    inline = _INLINE_STATUS_RE.search(header)
+    inline = _INLINE_STATUS_RE.search(_record_header(body))
     return inline.group(1).strip() if inline is not None else None
 
 
