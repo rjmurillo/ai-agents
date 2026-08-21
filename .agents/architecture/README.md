@@ -103,6 +103,8 @@ Recorded, not yet binding. The last column is what each record says is holding i
 | [ADR-090](ADR-090-pr-branch-holder-lease.md) | PR Branch Holder Lease | 2026-07-27 | Adopt a fail-closed, PR-comment-backed holder lease for PR branch mutation. | This ADR amends ADR-076 for issue #3413. It records the decision before implementation because the change controls who may mutate a PR branch. |
 | [ADR-093](ADR-093-verify-red-checks-with-the-same-checker.md) | A local run clears a red remote check only when it is the same checker | 2026-08-07 | Add one MUST to `.claude/rules/universal.md`, which is always-on: | - |
 | [ADR-098](ADR-098-agent-role-metadata-replaces-tier-hierarchy.md) | Agent Role Metadata Replaces the Tier Hierarchy | 2026-08-20 | Retire the four-tier agent hierarchy. | - |
+| [ADR-100](ADR-100-retire-pr-size-ceilings.md) | Retire the Pull Request Size Ceilings | 2026-08-20 | Retire both size ceilings as blocking gates. | - |
+| [ADR-101](ADR-101-enforcement-planes.md) | Enforcement Planes | 2026-08-20 | Adopt enforcement plane classification as this repository's rule for gate design, and treat the control plane's current gaps as prerequisites rather than as background. | - |
 
 ## Retired
 
