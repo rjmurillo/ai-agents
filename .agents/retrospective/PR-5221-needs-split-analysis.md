@@ -71,3 +71,36 @@ PR that carries a session log through multiple automated-review cycles. A
 PR hitting three review rounds from three different bots is not a rare
 event in this repo's current CI setup. If that recurs, the 40-commit limit
 will recur with it independent of any contributor's behavior.
+
+## Failure Mode Classification
+
+**Class**: Not applicable—no agent failure. This analysis documents a mechanical
+consequence of existing governance rules (`session-logs.md` MUST 2, ADR-096
+staleness contract) interacting with the commit-limit policy under sustained
+multi-round automated review. The commit accumulation is the expected, correct
+behavior of compliant agents following the session-log and QA-rebind protocol;
+it is not a failure mode per `.agents/governance/FAILURE-MODES.md`.
+
+If a class must be assigned for traceability: closest match is **Class 2
+(Continuation Reset After Compaction)** in shape only—long sessions accumulate
+state—but the root cause differs. Class 2 describes agents losing track of
+in-progress work; here the agent correctly tracked and committed every required
+bookkeeping step, which is why the count grew.
+
+## Evidence
+
+| Artifact | Link |
+|----------|------|
+| PR under analysis | [#5221](https://github.com/rjmurillo/ai-agents/pull/5221) |
+| Commit-limit policy | `scripts/validation/pr_commit_count.py`, `.claude/rules/ci-scripts.md` MUST 14 |
+| Session-log endingCommit rule | `.claude/rules/session-logs.md` MUST 2 |
+| QA-rebind staleness contract | ADR-096 `post_qa_code_changes()` |
+| Push-time gate that triggered this analysis | `push-ref-policy` hook (Lefthook) |
+
+## Remediation
+
+| Action | Owner | Status |
+|--------|-------|--------|
+| Apply `commit-limit-bypass` label to unblock PR #5221 | Human reviewer | Pending |
+| Consider raising the post-merge limit or exempting bookkeeping-only commits in a future ADR | Process owner (TBD via issue) | Not started |
+| No code or governance change required for this specific PR | — | N/A |
