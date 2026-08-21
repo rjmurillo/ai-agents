@@ -69,7 +69,7 @@
       "markdownLintRun": {
         "complete": false,
         "level": "SHOULD",
-        "evidence": "No markdown files were authored this session; every change is Python plus one baseline integer."
+        "evidence": "This session did author a markdown file, .agents/qa/session-99927-ruff-linting-cleanup.md, but markdownlint was not run against it. .markdownlint-cli2.yaml:138 excludes .agents/** from the lint scope, so the skip is a scope exclusion rather than an absence of markdown to lint."
       },
       "handoffPreserved": {
         "complete": true,
