@@ -15,7 +15,7 @@ tools:
   - github/search_code
   - serena/*
   - perplexity/*
-tier: builder
+role: executor
 ---
 # Security Agent
 

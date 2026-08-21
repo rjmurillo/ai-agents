@@ -9,7 +9,7 @@ tools:
   - search
   - cloudmcp-manager/*
   - serena/*
-tier: builder
+role: executor
 ---
 # QA Agent
 

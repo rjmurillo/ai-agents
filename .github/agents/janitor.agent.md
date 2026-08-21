@@ -19,7 +19,7 @@ tools:
   - perplexity/*
   - cloudmcp-manager/*
   - serena/*
-tier: integration
+role: support
 ---
 
 # Janitor Agent

@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-tier: builder
+role: executor
 description: Use this agent when you need to review code changes for correctness, discovered project-convention compliance, and duplicated logic. Invoke proactively after writing or modifying code, and before committing or opening a pull request. Reviews an explicit diff, pull request, or named file set; defaults to the repository's current working changes when scope is omitted.
 ---
 

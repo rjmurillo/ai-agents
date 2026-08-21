@@ -206,101 +206,118 @@ def add_mandatory_agents(sequence, task_type, risk, file_patterns):
 
 ---
 
-## Phase 2.5: Validate Tier Compatibility
+## Phase 2.5: Detect Conflicts and Escalate
 
-After selecting agents, validate the delegation sequence respects the tier hierarchy.
+After the selected agents return, check their results for disagreement. There
+is no agent ranking to validate a sequence against: ADR-009 routes a hard
+conflict to `high-level-advisor`, so escalation is a single hop rather than a
+climb up a hierarchy.
+
+Quoted verbatim from
+`.agents/architecture/ADR-009-parallel-safe-multi-agent-design.md`:
+
+| Strategy | Use Case | Behavior |
+|----------|----------|----------|
+| **merge** | Non-conflicting outputs | Combine all outputs |
+| **vote** | Redundant execution | Select majority |
+| **escalate** | Conflicts detected | Route to high-level-advisor |
 
 ```python
-TIER_HIERARCHY = {
-    "expert": 1,
-    "manager": 2,
-    "builder": 3,
-    "integration": 4
+# Soft-conflict weights. ADR-009:90 grants exactly one ordering, quoted
+# verbatim: "Soft conflicts -> weighted vote (architect > implementer)".
+# That is the whole of the canonical source; ADR-009 defines no weight table
+# and names no other agent. This dict is the minimal encoding of that one
+# ordering, and an agent absent from it carries weight 1.
+#
+# An earlier revision also carried "security": 2 under this same "per ADR-009"
+# comment. ADR-009 does not grant it (`grep -c -i security` on the ADR returns
+# 0), so it was an invented authority grant wearing a canonical citation: a
+# security/qa disagreement would have resolved 2-1 for security instead of
+# escalating. Removed rather than renamed, per
+# `.claude/rules/canonical-source-mirror.md` ("a wrong citation is worse than
+# no citation; it weaponizes the next reader's trust"). Weighting any further
+# agent is an ADR-009 amendment, not a docs edit. Refs #5130 adr-review
+# (architect, critic).
+CONFLICT_VOTE_WEIGHTS = {
+    "architect": 2,
+    "implementer": 1,
 }
 
-AGENT_TIERS = {
-    # Expert
-    "high-level-advisor": "expert",
-    "independent-thinker": "expert",
-    "architect": "expert",
-    "roadmap": "expert",
-    # Manager
-    "orchestrator": "manager",
-    "milestone-planner": "manager",
-    "critic": "manager",
-    "issue-feature-review": "manager",
-    "pr-comment-responder": "manager",
-    # Builder
-    "implementer": "builder",
-    "qa": "builder",
-    "devops": "builder",
-    "security": "builder",
-    "debug": "builder",
-    # Integration
-    "analyst": "integration",
-    "explainer": "integration",
-    "task-decomposer": "integration",
-    "retrospective": "integration",
-    "backlog-generator": "integration",
-    "janitor": "integration",
-    "merge-resolver": "builder",
-    "memory": "integration",
-    "skillbook": "integration",
-}
 
-def validate_tier_sequence(agent_sequence):
+def resolve_disagreement(results):
     """
-    Validates that agent sequence respects tier hierarchy rules.
-    
-    Valid patterns:
-      - Higher tier delegates to lower tier (expert -> manager -> builder -> integration)
-      - Same tier agents execute in parallel
-    
-    Invalid patterns:
-      - Lower tier delegating to higher tier (use escalation instead)
+    Apply ADR-009's aggregation strategies to a set of agent results.
+
+    ADR-009 defines three outcomes, and disagreement alone does not mean
+    escalate. A soft conflict is settled by weighted vote; only a hard
+    conflict, one the vote cannot settle, routes onward. Escalating every
+    disagreement would skip the vote strategy entirely and contradict the
+    protocol quoted above.
+
+    Returns one of:
+      {"strategy": "merge",    ...}  no disagreement
+      {"strategy": "vote",     ...}  soft conflict, decided by weight
+      {"strategy": "escalate", ...}  hard conflict, routed to high-level-advisor
+
+    **The hard-conflict trigger below is this document's, not ADR-009's.**
+    ADR-009:88-91 grants the three strategies and the one vote ordering, and
+    stops there; it never says what makes a conflict hard. Some rule has to
+    decide, or "escalate" has no entry condition and the vote strategy is
+    unreachable. This document supplies one and labels it, rather than
+    attributing an invented contract to the ADR. If the semantics below are
+    ever relied on as governance rather than as this router's behavior, they
+    belong in ADR-009 by amendment. Refs #5177 review (Copilot).
+
+    A conflict is hard when the top weight is tied, so the vote has no winner,
+    or when any dissenting agent marked its position non-negotiable. The
+    orchestrator routes a hard conflict; it does not arbitrate it.
     """
-    for i in range(len(agent_sequence) - 1):
-        current = agent_sequence[i]
-        next_agent = agent_sequence[i + 1]
-
-        current_level = TIER_HIERARCHY[AGENT_TIERS[current]]
-        next_level = TIER_HIERARCHY[AGENT_TIERS[next_agent]]
-
-        if current_level <= next_level:
-            continue  # Valid: same tier (parallel) or delegation downward
-
-        raise TierViolationError(
-            f"Invalid delegation: {current} ({AGENT_TIERS[current]}) "
-            f"cannot delegate to {next_agent} ({AGENT_TIERS[next_agent]}). "
-            f"Use escalation instead."
-        )
-
-    return True
-
-
-def detect_escalation_need(results):
-    """
-    Detects when Builder-tier conflicts require Manager escalation.
-    """
-    builder_results = {
-        agent: result for agent, result in results.items()
-        if AGENT_TIERS.get(agent) == "builder"
+    recommendations = {
+        agent: result.get("recommendation")
+        for agent, result in results.items()
+        if result.get("recommendation") is not None
     }
 
-    if len(builder_results) < 2:
-        return False
+    if len(recommendations) < 2 or len(set(recommendations.values())) == 1:
+        return {"strategy": "merge", "recommendation": next(iter(recommendations.values()), None)}
 
-    recommendations = [r.get("recommendation") for r in builder_results.values()]
+    tallies = {}
+    for agent, recommendation in recommendations.items():
+        weight = CONFLICT_VOTE_WEIGHTS.get(agent, 1)
+        tallies[recommendation] = tallies.get(recommendation, 0) + weight
 
-    if len(set(recommendations)) > 1:
+    ranked = sorted(tallies.items(), key=lambda item: item[1], reverse=True)
+    tied = len(ranked) > 1 and ranked[0][1] == ranked[1][1]
+
+    # Only a *dissenting* non-negotiable makes the conflict hard, which is what
+    # the docstring says and what an earlier revision of this code did not do.
+    # Checking every voter escalated when the winner itself marked its position
+    # non-negotiable: architect=A/non-negotiable against implementer=B is an
+    # untied 2-1 for A, and the vote settled it. Holding firm on the position
+    # that won is agreement with the vote, not a block on it. Refs #5177 review
+    # (Copilot).
+    winner = None if tied else ranked[0][0]
+    blocking = any(
+        results[agent].get("non_negotiable")
+        for agent, recommendation in recommendations.items()
+        if recommendation != winner
+    )
+
+    if tied or blocking:
         return {
-            "escalate_to": "manager",
-            "reason": "Conflicting Builder recommendations",
-            "agents": list(builder_results.keys()),
-            "conflict": recommendations
+            "strategy": "escalate",
+            "escalate_to": "high-level-advisor",
+            "reason": "Tied weighted vote" if tied else "Dissenting non-negotiable position",
+            "agents": sorted(recommendations),
+            "conflict": sorted(tallies),
         }
 
-    return False
+    return {
+        "strategy": "vote",
+        "recommendation": ranked[0][0],
+        "tallies": tallies,
+        "agents": sorted(recommendations),
+    }
 ```
 
 ---
@@ -394,32 +411,76 @@ def collect_outputs(results):
 
 ### Step 4.2: Resolve Conflicts
 
-```python
-CONFLICT_RESOLUTION = {
-    # (agent_a, agent_b) -> winner
-    ("security", "implementer"): "security",  # Security concerns win
-    ("architect", "implementer"): "architect",  # Design wins
-    ("security", "devops"): "security",  # Security wins
-    ("critic", "milestone-planner"): "critic",  # Validation wins
-}
+One conflict algorithm, not two. An earlier revision of this document kept a
+pairwise `CONFLICT_RESOLUTION` table here alongside Phase 2.5's weighted vote,
+and a "Conflict Resolution Priority" table below it. Both disagreed with the
+weighted vote: `security` against `implementer` ties 1-1 under ADR-009's weights
+and escalates, while the pairwise table awarded it to `security` outright. The
+same inputs produced different outcomes depending on which phase read them.
+Copilot found the contradiction on PR #5177, and the `adr-review` debate found
+the same shape in `CONFLICT_VOTE_WEIGHTS`.
 
+The table is deleted rather than reconciled, for the same reason a `security: 2`
+weight was deleted from `CONFLICT_VOTE_WEIGHTS` one section above: ADR-009 grants
+exactly one weighting, `architect > implementer`. Every other precedence pair in
+that table (`security > implementer`, `security > devops`,
+`critic > milestone-planner`) was local invention with no ADR behind it, which is
+the same unenforced-hierarchy problem issue #5130 exists to remove. Adding a
+precedence rule is an ADR-009 amendment, not a docs edit.
+
+```python
 def resolve_conflicts(conflicts):
+    """Route every conflict through the single ADR-009 aggregation above.
+
+    `resolve_disagreement` returns one of three strategies: `merge` when the
+    agents agree, `vote` when a weighted tally has an outright winner, and
+    `escalate` when the vote ties or a dissenting agent marked its position
+    non-negotiable. Escalation names `high-level-advisor` as the arbiter, not
+    `architect`, because architect is a participant in these disputes and cannot
+    arbitrate one it is party to.
+
+    `conflict["positions"]` maps an agent to the position it took, and
+    `conflict["non_negotiable"]` is the set of agents that marked their position
+    as such. Both are carried into the shape `resolve_disagreement` consumes.
+
+    Carrying the flag is load-bearing, and an earlier revision of this adapter
+    dropped it. Copilot caught it on PR #5177: routing both phases through one
+    resolver does not unify them if the adapter discards the field the resolver
+    branches on. A dissenting non-negotiable position escalates in Phase 2.5 and
+    became an ordinary soft vote here, so the two phases still resolved
+    identical inputs differently, which is the exact defect the shared resolver
+    was introduced to fix.
+    """
     resolutions = []
     for conflict in conflicts:
-        agent_a, agent_b = conflict["between"]
+        positions = conflict["positions"]
+        non_negotiable = conflict.get("non_negotiable", frozenset())
+        outcome = resolve_disagreement({
+            agent: {
+                "recommendation": position,
+                "non_negotiable": agent in non_negotiable,
+            }
+            for agent, position in positions.items()
+        })
 
-        if (agent_a, agent_b) in CONFLICT_RESOLUTION:
-            winner = CONFLICT_RESOLUTION[(agent_a, agent_b)]
-        elif (agent_b, agent_a) in CONFLICT_RESOLUTION:
-            winner = CONFLICT_RESOLUTION[(agent_b, agent_a)]
-        else:
-            # Escalate to architect
-            winner = escalate_to_architect(conflict)
+        if outcome["strategy"] == "escalate":
+            # Escalation is not a pairwise winner. high-level-advisor is not a
+            # party to the dispute, so it has no entry in `positions`, and the
+            # arbiter decides rather than carrying a participant's position
+            # forward.
+            resolutions.append({
+                "conflict": conflict,
+                "resolution": "escalate",
+                "arbiter": outcome["escalate_to"],
+                "reason": outcome["reason"],
+                "recommendation": None,
+            })
+            continue
 
         resolutions.append({
             "conflict": conflict,
-            "resolution": winner,
-            "recommendation": conflict["positions"][winner]
+            "resolution": outcome["strategy"],
+            "recommendation": outcome["recommendation"],
         })
 
     return resolutions
@@ -427,12 +488,22 @@ def resolve_conflicts(conflicts):
 
 ### Conflict Resolution Priority
 
-| Higher Priority | Lower Priority | Reason |
-|-----------------|----------------|--------|
-| security | * | Security concerns are non-negotiable |
-| architect | implementer | Design decisions guide implementation |
-| critic | milestone-planner | Validation catches planning errors |
-| qa | implementer | Quality gates must be met |
+ADR-009 grants exactly one ordering, quoted verbatim from
+`.agents/architecture/ADR-009-parallel-safe-multi-agent-design.md:90`:
+
+> Soft conflicts -> weighted vote (architect > implementer)
+
+That is the whole of it. Every other conflict goes to a weighted vote in which
+the agents ADR-009 does not name carry equal weight, and a vote the weights
+cannot settle escalates to `high-level-advisor`.
+
+A table here previously granted standing precedence to four more pairs
+(`security` over everything, `critic` over `milestone-planner`, `qa` over
+`implementer`). No ADR grants those. It is recorded rather than silently
+dropped because the rankings are not unreasonable on their face, which is
+exactly what made them durable: a reader could not tell which line was
+canonical and which was invented. If any of them should bind, the route is an
+ADR-009 amendment, not a table in a routing document. Refs #5130 adr-review.
 
 ---
 

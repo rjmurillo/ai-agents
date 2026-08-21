@@ -105,6 +105,208 @@ def test_returns_external_when_gh_fails(monkeypatch):
     assert "failed" in status
 
 
+def test_policy_denial_is_named_and_still_blocks(monkeypatch):
+    """A 403 must read as a denial, not as a missing label, and must not pass.
+
+    Measured on a Claude Code cloud session, 2026-08-20: every gh REST call
+    returned HTTP 403 "GitHub access is not enabled for this session" while the
+    commit-limit-bypass label was in fact applied to the PR. The old message
+    rendered that as "gh pr view failed (exit 1)", which reads as a transient
+    error worth retrying.
+    """
+    monkeypatch.setattr(
+        mod,
+        "_run_gh_pr_view",
+        lambda branch: _proc(
+            1,
+            "",
+            "gh: GitHub access is not enabled for this session. (HTTP 403)",
+        ),
+    )
+
+    code, status = mod.check_bypass_label("commit-limit-bypass", None)
+
+    # The verdict is unchanged: an unverifiable label still blocks.
+    assert code == mod.EXIT_EXTERNAL
+    assert "denied by policy" in status
+    assert "will not pass on retry" in status
+    assert "commit limit still applies" in status
+
+
+def test_unauthenticated_gh_is_named(monkeypatch):
+    monkeypatch.setattr(
+        mod,
+        "_run_gh_pr_view",
+        lambda branch: _proc(1, "", "The token in GH_TOKEN is invalid. (HTTP 401)"),
+    )
+
+    code, status = mod.check_bypass_label("commit-limit-bypass", None)
+
+    assert code == mod.EXIT_EXTERNAL
+    assert "not authenticated" in status
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        # The realistic shape: GitHub answers an exhausted rate limit with 403,
+        # not 429. An earlier version of the classifier tested for "403" first
+        # and labelled this a policy denial that "will not pass on retry",
+        # which is the opposite of the truth. The original test used a body
+        # with no status code, so it passed while the real case was wrong.
+        # Refs #5130 review (Cursor Bugbot).
+        "gh: API rate limit exceeded for user ID 6811113. (HTTP 403)",
+        "You have exceeded a secondary rate limit. (HTTP 403)",
+        "API rate limit exceeded",
+    ],
+)
+def test_rate_limit_is_named_and_not_called_a_policy_denial(monkeypatch, stderr):
+    monkeypatch.setattr(mod, "_run_gh_pr_view", lambda branch: _proc(1, "", stderr))
+
+    code, status = mod.check_bypass_label("commit-limit-bypass", None)
+
+    assert code == mod.EXIT_EXTERNAL
+    assert "rate limit" in status
+    assert "denied by policy" not in status
+    assert "will not pass on retry" not in status
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "You have exceeded a secondary rate limit. (HTTP 403)",
+        "gh: You have triggered an abuse detection mechanism. (HTTP 403)",
+    ],
+)
+def test_secondary_limit_gets_back_off_advice_not_a_reset_window(monkeypatch, stderr):
+    """A secondary limit must not be handed the primary remedy.
+
+    Both bodies contain the words "rate limit", so an earlier revision matched
+    them with one branch and told secondary-limit callers to wait for a window
+    reset. There is no primary window to wait for, and retrying against a
+    secondary limit keeps it engaged. Refs #5130 review (Copilot), #4690.
+    """
+    monkeypatch.setattr(mod, "_run_gh_pr_view", lambda branch: _proc(1, "", stderr))
+
+    code, status = mod.check_bypass_label("commit-limit-bypass", None)
+
+    assert code == mod.EXIT_EXTERNAL
+    assert "secondary rate limit" in status
+    assert "back off" in status
+    assert "bucket resets" not in status
+    assert "denied by policy" not in status
+
+
+def test_generic_rate_limit_body_does_not_claim_which_limiter(monkeypatch):
+    """A generic body cannot prove primary exhaustion, so the message must not say so.
+
+    An earlier revision of this file asserted the opposite: it required the
+    words "bucket resets" on this input. Copilot pointed out on PR #5177 that a
+    secondary limit can emit the same generic body while `x-ratelimit-remaining`
+    is still above zero, which is exactly what `classify_gh_failure_response`
+    uses headers to distinguish. This module has no headers, so it gives the
+    advice that holds under either limiter rather than guessing.
+    """
+    monkeypatch.setattr(
+        mod,
+        "_run_gh_pr_view",
+        lambda branch: _proc(1, "", "gh: API rate limit exceeded for user ID 1. (HTTP 403)"),
+    )
+
+    code, status = mod.check_bypass_label("commit-limit-bypass", None)
+
+    assert code == mod.EXIT_EXTERNAL
+    assert "primary or secondary" in status
+    assert "back off" in status
+    assert "bucket resets" not in status
+    assert "denied by policy" not in status
+
+
+def test_message_does_not_advertise_a_throwaway_branch(monkeypatch):
+    """The error must not teach a way around the ceiling it enforces.
+
+    An earlier revision suggested landing the commits on another pushed branch
+    so they stop counting as new. CONTRIBUTING.md:875 sanctions two routes and
+    only two: split the PR, or have a human maintainer decide on the label.
+    Refs #5130 review (Copilot).
+    """
+    monkeypatch.setattr(
+        mod,
+        "_run_gh_pr_view",
+        lambda branch: _proc(1, "", "GitHub access is not enabled. (HTTP 403)"),
+    )
+
+    _, status = mod.check_bypass_label("commit-limit-bypass", None)
+
+    assert "another pushed branch" not in status
+    assert "stop counting as new" not in status
+    assert "Split the PR" in status
+    assert "do not apply it yourself" in status
+
+
+def test_policy_denial_still_wins_over_a_bare_403(monkeypatch):
+    """A 403 with no rate-limit wording is still a denial, not a rate limit."""
+    monkeypatch.setattr(
+        mod,
+        "_run_gh_pr_view",
+        lambda branch: _proc(1, "", "gh: Forbidden (HTTP 403)"),
+    )
+
+    _, status = mod.check_bypass_label("commit-limit-bypass", None)
+
+    assert "denied by policy" in status
+    assert "rate limit" not in status
+
+
+def _external_paths():
+    """Every way check_bypass_label can return EXIT_EXTERNAL.
+
+    Enumerated rather than sampled. The first version of this guard tested
+    only the non-zero-returncode path, so the timeout and unparseable-JSON
+    messages kept naming `gh pr view` and the test stayed green. Covering one
+    branch of a four-branch error surface is how a fix looks complete and is
+    not. Refs #5130 review.
+    """
+    return {
+        "gh missing": lambda branch: (_ for _ in ()).throw(FileNotFoundError()),
+        "timeout": lambda branch: (_ for _ in ()).throw(
+            subprocess.TimeoutExpired(cmd="gh", timeout=mod.GH_TIMEOUT_SECONDS)
+        ),
+        "nonzero exit": lambda branch: _proc(1, "", "could not connect to api.github.com"),
+        "unparseable json": lambda branch: _proc(0, "not json at all", ""),
+    }
+
+
+@pytest.mark.parametrize("path", sorted(_external_paths()))
+def test_no_external_path_names_gh_pr_view(monkeypatch, path):
+    """Regression guard: this module uses REST list-pulls, not `gh pr view`.
+
+    Issue #4690 moved this module off GraphQL; the operator-facing strings
+    lagged behind.
+    """
+    monkeypatch.setattr(mod, "_run_gh_pr_view", _external_paths()[path])
+
+    code, status = mod.check_bypass_label("commit-limit-bypass", None)
+
+    assert code == mod.EXIT_EXTERNAL
+    assert "gh pr view" not in status
+
+
+@pytest.mark.parametrize("path", sorted(_external_paths()))
+def test_every_external_path_states_the_limit_still_applies(monkeypatch, path):
+    """An unverifiable label blocks on every path, and each says so.
+
+    A reader who hits the timeout branch needs the same two sanctioned routes
+    as one who hits the denial branch.
+    """
+    monkeypatch.setattr(mod, "_run_gh_pr_view", _external_paths()[path])
+
+    _, status = mod.check_bypass_label("commit-limit-bypass", None)
+
+    assert "commit limit still applies" in status or "commit limit still" in status
+    assert "human-only" in status
+
+
 def test_returns_external_when_gh_missing(monkeypatch):
     def _raise(branch):
         raise FileNotFoundError("gh")

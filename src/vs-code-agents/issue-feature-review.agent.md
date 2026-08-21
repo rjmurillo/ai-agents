@@ -14,7 +14,7 @@ tools:
   - serena/*
   - memory
 model: Claude Sonnet 4.6 (copilot)
-tier: manager
+role: coordinator
 ---
 
 # Issue Feature Review Agent

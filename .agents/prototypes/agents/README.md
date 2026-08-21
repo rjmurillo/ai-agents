@@ -29,7 +29,7 @@ The issue's headline "30x reduction" reflects original sizes (orchestrator 1846,
 2. **Specificity >=30%**: name tools, scripts, files, CWEs, ADRs explicitly.
 3. **Positive directives**: replace "do not X" with "use Y instead" where possible (corpus finding: negative constraints plant ideas in retrieval).
 4. **Reference, do not duplicate**: link to `.agents/steering/`, `.claude/agents/AGENTS.md`, ADRs, Serena memories.
-5. **Frontmatter parity**: keep `name`, `description`, `model`, `metadata.tier`, `argument-hint` aligned with the baseline so a swap is metadata-compatible.
+5. **Frontmatter parity**: keep `name`, `description`, `model`, `metadata.role`, `argument-hint` aligned with the baseline so a swap is metadata-compatible. The field was `metadata.tier` until issue #5130 retired the tier hierarchy; the frozen `*.compressed.md` prototypes in this directory still carry `metadata.tier` on purpose, because rewriting them would alter a recorded issue #1738 measurement, and they are exempted by explicit file path in `tests/agent_metadata_helpers.py`. A *new* prototype must use `metadata.role`, or step 3 below will fail the migration guard the moment it is copied into `.claude/agents/`.
 
 ## How to A/B test
 

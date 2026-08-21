@@ -8,7 +8,7 @@ tools:
   - search
   - cloudmcp-manager/*
   - serena/*
-tier: manager
+role: coordinator
 ---
 
 # Milestone Planner Agent

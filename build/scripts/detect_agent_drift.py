@@ -153,8 +153,8 @@ _INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
 # silently hide regressions. The comparison label is part of the key so a
 # source-vendored baseline cannot hide install-copy drift.
 #
-# merge-resolver: src/claude/merge-resolver.md is the tier-hierarchy-enriched
-# prompt (PR #1426) with Core Mission / Key Responsibilities / Execution
+# merge-resolver: src/claude/merge-resolver.md is the enriched prompt
+# (PR #1426) with Core Mission / Key Responsibilities / Execution
 # Mindset / Handoff Protocol / Memory Protocol sections that the shared
 # template (templates/agents/merge-resolver.shared.md), and therefore the
 # generated VS Code copy, does not carry. Reconciling the two would rewrite an
@@ -164,8 +164,13 @@ _INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
 # #5074: the add/add rename-never-content-merge rule was added with identical
 # wording to both sides, which shifted the Jaccard section scores from the
 # prior 20.9% because the two shapes carry different surrounding prose.
+# Re-measured for issue #5130 after the tier hierarchy was removed from the
+# governance docs and ``tier:`` frontmatter became ``role:``: both comparisons
+# still measure 20.7%. The enrichment PR #1426 added is section structure, not
+# tier prose, and neither merge-resolver body ever carried the tier text, so
+# removing it moved nothing. The floors stay where they are.
 #
-# merge-resolver install copy (Issue #2715): the same tier-hierarchy enrichment
+# merge-resolver install copy (Issue #2715): the same enrichment
 # lives only in the Claude Code self-host copy (.claude/agents/merge-resolver.md);
 # the GitHub Copilot self-host copy (.github/agents/merge-resolver.agent.md)
 # carries the leaner generated prose. The other ten diverged install copies were

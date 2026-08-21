@@ -18,7 +18,7 @@ tools:
   - perplexity/*
   - cloudmcp-manager/*
   - serena/*
-tier: builder
+role: executor
 ---
 
 # Type Design Analyzer Agent
