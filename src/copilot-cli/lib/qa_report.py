@@ -27,10 +27,17 @@ QA_EVIDENCE_PREFIXES = (
 
 @dataclass(frozen=True, slots=True)
 class QaBinding:
-    """Session and commit identity that QA evidence must match."""
+    """Session and commit identity that QA evidence must match.
+
+    ``inconsistency`` is not part of that identity. It carries a
+    human-readable note about how ``commit`` was selected, set only when the
+    session log's two commit fields disagreed and one had to win (ADR-099).
+    Callers surface it as a warning; nothing branches on it.
+    """
 
     session_log: str
     commit: str
+    inconsistency: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -170,12 +177,29 @@ def session_qa_binding(
     if isinstance(comparison_head, str) and _FULL_COMMIT_PATTERN.fullmatch(
         comparison_head
     ):
+        # comparison.head wins when both fields resolve, and a disagreement is
+        # reported rather than rejected (ADR-099, issue #5217). The two fields
+        # are advanced by unrelated operations, so drift is the documented
+        # state and not a corrupt log: QA rebinding advances comparison.head
+        # past the session's own last authored commit, which is what
+        # session-log.schema.json's commitHead field exists to record, while
+        # endingCommit advances on the follow-up commit and is re-pointed
+        # after a rebase (.claude/rules/session-logs.md MUST 2 and MUST 3).
+        #
+        # Both SHAs below have already passed _FULL_COMMIT_PATTERN, so the
+        # message cannot carry unvalidated session-log content.
+        inconsistency = None
         if resolved_ending is not None and comparison_head != resolved_ending:
-            raise ValueError(
+            inconsistency = (
                 "Session log comparison head and endingCommit resolve to "
-                "different commits"
+                f"different commits ({comparison_head} != {resolved_ending}); "
+                "binding QA evidence to comparison head"
             )
-        return QaBinding(session_log=session_log, commit=comparison_head)
+        return QaBinding(
+            session_log=session_log,
+            commit=comparison_head,
+            inconsistency=inconsistency,
+        )
     if resolved_ending is not None:
         return QaBinding(session_log=session_log, commit=resolved_ending)
 

@@ -280,15 +280,89 @@ def test_extracts_qa_binding_from_full_ending_commit() -> None:
     assert binding == QaBinding(session_log=QA_SESSION_LOG, commit=QA_COMMIT)
 
 
-def test_rejects_qa_commit_disagreement() -> None:
-    with pytest.raises(ValueError, match="different commits"):
-        session_qa_binding(
-            {
-                "episodeMetrics": {"comparison": {"head": QA_COMMIT}},
-                "endingCommit": "b" * 40,
-            },
-            session_log=QA_SESSION_LOG,
-        )
+def test_binds_to_comparison_head_when_commit_fields_disagree() -> None:
+    # ADR-099 replaces the raise this case used to assert. The two fields are
+    # advanced by unrelated operations (QA rebinding advances comparison.head;
+    # session-logs.md MUST 2 and MUST 3 advance endingCommit), so a
+    # disagreement is reported, not rejected.
+    ending = "b" * 40
+
+    binding = session_qa_binding(
+        {
+            "episodeMetrics": {"comparison": {"head": QA_COMMIT}},
+            "endingCommit": ending,
+        },
+        session_log=QA_SESSION_LOG,
+    )
+
+    assert binding.commit == QA_COMMIT
+    assert binding.session_log == QA_SESSION_LOG
+    assert binding.inconsistency is not None
+    # Both SHAs must appear so a reader can act on the warning without
+    # reopening the log.
+    assert QA_COMMIT in binding.inconsistency
+    assert ending in binding.inconsistency
+
+
+def test_reports_no_inconsistency_when_commit_fields_agree() -> None:
+    binding = session_qa_binding(
+        {
+            "episodeMetrics": {"comparison": {"head": QA_COMMIT}},
+            "endingCommit": QA_COMMIT,
+        },
+        session_log=QA_SESSION_LOG,
+    )
+
+    assert binding == QaBinding(session_log=QA_SESSION_LOG, commit=QA_COMMIT)
+    assert binding.inconsistency is None
+
+
+def test_reports_no_inconsistency_when_ending_commit_is_absent() -> None:
+    # comparison.head alone has always won here. Nothing disagreed with it, so
+    # the diagnostic must stay silent rather than fire on a missing field.
+    binding = session_qa_binding(
+        {"episodeMetrics": {"comparison": {"head": QA_COMMIT}}},
+        session_log=QA_SESSION_LOG,
+    )
+
+    assert binding.commit == QA_COMMIT
+    assert binding.inconsistency is None
+
+
+def test_reports_disagreement_after_resolving_abbreviated_ending_commit() -> None:
+    # The resolver path at qa_report.py:160-168 turns an abbreviated
+    # endingCommit into a full SHA. A disagreement only becomes visible after
+    # that resolution, so it needs its own case.
+    resolved = "b" * 40
+
+    binding = session_qa_binding(
+        {
+            "episodeMetrics": {"comparison": {"head": QA_COMMIT}},
+            "endingCommit": "b" * 10,
+        },
+        session_log=QA_SESSION_LOG,
+        resolve_commit=lambda _commit: resolved,
+    )
+
+    assert binding.commit == QA_COMMIT
+    assert binding.inconsistency is not None
+    assert resolved in binding.inconsistency
+
+
+def test_reports_no_inconsistency_when_ending_commit_is_unresolvable() -> None:
+    # An endingCommit that never resolves cannot disagree with anything. This
+    # is the case a naive "the two fields differ" check would fire on wrongly.
+    binding = session_qa_binding(
+        {
+            "episodeMetrics": {"comparison": {"head": QA_COMMIT}},
+            "endingCommit": "b" * 10,
+        },
+        session_log=QA_SESSION_LOG,
+        resolve_commit=lambda _commit: None,
+    )
+
+    assert binding.commit == QA_COMMIT
+    assert binding.inconsistency is None
 
 
 def test_resolves_abbreviated_qa_ending_commit() -> None:
@@ -1403,6 +1477,58 @@ class TestValidateQaReportEvidence:
             )
 
         assert result.errors == []
+
+    @pytest.mark.parametrize(
+        ("ending_commit", "expects_warning"),
+        [("b" * 40, True), (COMMIT, False)],
+        ids=["fields-disagree", "fields-agree"],
+    )
+    def test_commit_field_disagreement_warns_without_blocking(
+        self,
+        tmp_path: Path,
+        ending_commit: str,
+        expects_warning: bool,
+    ) -> None:
+        # Wiring test (ADR-099). The unit tests above prove session_qa_binding
+        # produces the diagnostic; only this one proves the caller surfaces it,
+        # and that it is a warning rather than an error. Before ADR-099 the
+        # disagree case appended an error here, so `result.errors == []` is the
+        # assertion that pins the behavior change.
+        #
+        # Parametrized over both branches on purpose: a test that only ran the
+        # disagree case would pass against an implementation that warns
+        # unconditionally.
+        qa_root = tmp_path / "qa"
+        qa_root.mkdir()
+        report = qa_root / "report.md"
+        self._write_report(report)
+        data = {
+            "episodeMetrics": {"comparison": {"head": self.COMMIT}},
+            "endingCommit": ending_commit,
+        }
+        result = ValidationResult()
+
+        with (
+            mock.patch(
+                "scripts.validate_session_json.artifact_dir",
+                return_value=qa_root,
+            ),
+            mock.patch.object(_qa_report, "post_qa_code_changes", return_value=[]),
+        ):
+            validate_qa_report_evidence(
+                data,
+                self._session_end(str(report)),
+                result,
+                session_log=self.SESSION_LOG,
+            )
+
+        assert result.errors == []
+        if expects_warning:
+            assert len(result.warnings) == 1
+            assert self.COMMIT in result.warnings[0]
+            assert ending_commit in result.warnings[0]
+        else:
+            assert result.warnings == []
 
     def test_missing_report_fails_closed(self, tmp_path: Path) -> None:
         qa_root = tmp_path / "qa"
