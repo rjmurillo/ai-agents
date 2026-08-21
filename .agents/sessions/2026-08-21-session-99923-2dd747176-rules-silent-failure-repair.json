@@ -110,11 +110,11 @@
     },
     {
       "activity": "Moved to ci-scripts.md, which is path-scoped",
-      "finding": "The budget's own action item 2 says to scope narrowly instead of **/*.<ext>. A path-scoped rule does not enter the language baseline, confirmed empirically: the .py row is byte-identical at 98236 before and after this change. ci-scripts.md is also the closest existing owner per knowledge-persistence.md SHOULD 1, since its MUST 10 through 12 already govern converting failure signals into non-zero exits and distinguishing a run that did nothing from one that succeeded."
+      "finding": "The budget's own action item 2 says to scope narrowly instead of **/*.<ext>. A path-scoped rule does not enter the language baseline, confirmed empirically: the .py row is byte-identical at 98236 before and after this change. ci-scripts.md is also the closest existing owner per knowledge-persistence.md SHOULD 1, since the MUST items \"Convert every failure signal into a non-zero exit before the step ends\", \"Convert every detected violation into a non-zero exit\", and \"Distinguish a run that did nothing from a run that succeeded\" already govern converting failure signals into non-zero exits and distinguishing a run that did nothing from one that succeeded."
     },
     {
       "activity": "Added ci-scripts.md SHOULD 4",
-      "finding": "MUST 10 through 12 govern the original defect; nothing governed the fix. Four successive repairs to one silent-failure defect in PR #5176 each introduced a different silent failure, and three were caught by a reviewer rather than by the suite being written for that class."
+      "finding": "The must items \"convert every failure signal into a non-zero exit before the step ends\", \"convert every detected violation into a non-zero exit\", and \"distinguish a run that did nothing from a run that succeeded\" govern the original defect; nothing governed the fix. Four successive repairs to one silent-failure defect in PR #5176 each introduced a different silent failure, and three were caught by a reviewer rather than by the suite being written for that class."
     }
   ],
   "endingCommit": "6027185de1e66e9ecdf74c7c90ad031cc7258262",
