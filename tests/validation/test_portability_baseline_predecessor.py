@@ -302,7 +302,7 @@ class TestALookupThatFailsIsNotAnAbsentFloor:
         objects = root / ".git" / "objects"
         for blob in objects.rglob("*"):
             if blob.is_file() and blob.parent.name != "info":
-                blob.unlink()
+                blob.unlink(missing_ok=True)
 
         previous, problem = read_previous_sections(root, path)
 
