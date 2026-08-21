@@ -192,7 +192,7 @@ Both cited files, read at level 1:
 - `.github/instructions/ci-scripts.instructions.md` frontmatter carries
   `.claude/commands/**` and both `.claude/skills/**` globs. A Copilot CLI session
   editing `.claude/commands/` in this repository loads the rule.
-- `templates/platforms/copilot-cli.yaml:31-40` scopes `keepInternalGlobsFor` to
+- `templates/platforms/copilot-cli.yaml:35-42` scopes `keepInternalGlobsFor` to
   `.github/instructions` for exactly this reason, and states the premise for the
   other tree: it is "installed where `.claude/` does not exist", so a
   `.claude/commands/**` glob there would be a dead reference, not a missing rule.
