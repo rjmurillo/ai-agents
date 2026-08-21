@@ -13,6 +13,7 @@ last 30 days:
 Prints per-PR removed CRITICAL counts and totals.
 """
 from __future__ import annotations
+
 import json
 import re
 import sys
@@ -21,11 +22,14 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = REPO_ROOT / ".agents" / "analysis" / "2252-regression-data"
 sys.path.insert(0, str(REPO_ROOT))
-from scripts.validation.pr_description import (
-    _strip_informational_sections,
+# E402: the sys.path.insert above must run before this import, because the
+# repo root is not on sys.path when this standalone analysis script is invoked
+# by path. Scoped to this one statement rather than a per-file ignore.
+from scripts.validation.pr_description import (  # noqa: E402
     FILE_MENTION_PATTERNS,
-    normalize_path,
+    _strip_informational_sections,
     file_matches,
+    normalize_path,
 )
 
 CHANGE_CLAIM_SECTION_PATTERN = re.compile(
@@ -41,7 +45,7 @@ def _split_change_claim_regions(cleaned: str) -> list[tuple[int, int]]:
     regions: list[tuple[int, int]] = []
     # Find any H1/H2 to terminate each region
     boundary = re.compile(r"^#{1,2}(?!#)", re.MULTILINE)
-    for h_start, h_end in headings:
+    for _h_start, h_end in headings:
         # next H1/H2 after this heading line
         next_h = None
         for m in boundary.finditer(cleaned, pos=h_end):
@@ -114,7 +118,11 @@ def main() -> None:
         if not body_path.exists():
             continue
         body = body_path.read_text(encoding="utf-8")
-        actual = [x.strip() for x in files_path.read_text(encoding="utf-8").splitlines() if x.strip()]
+        actual = [
+            x.strip()
+            for x in files_path.read_text(encoding="utf-8").splitlines()
+            if x.strip()
+        ]
         results = {}
         for pol in POLICIES:
             m = extract_under_policy(body, pol)
@@ -130,9 +138,17 @@ def main() -> None:
             "removed_permissive": sorted(base_set - set(results["permissive"])),
             "removed_hybrid": sorted(base_set - set(results["hybrid"])),
         })
-    print(f"{'PR':>6} {'files':>6} " + " ".join(f"{p:>10}" for p in POLICIES) + "  removed_strict_examples")
+    print(
+        f"{'PR':>6} {'files':>6} "
+        + " ".join(f"{p:>10}" for p in POLICIES)
+        + "  removed_strict_examples"
+    )
     for r in rows:
-        ex = (r["removed_strict"][:2] + ["..."]) if len(r["removed_strict"]) > 2 else r["removed_strict"]
+        ex = (
+            (r["removed_strict"][:2] + ["..."])
+            if len(r["removed_strict"]) > 2
+            else r["removed_strict"]
+        )
         print(f"{r['pr']:>6} {r['actual_files']:>6} " +
               " ".join(f"{r[p+'_crit']:>10}" for p in POLICIES) +
               "  " + (",".join(ex) if ex else "-"))

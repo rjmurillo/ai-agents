@@ -12,7 +12,6 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-
 # =============================================================================
 # PT-001: startswith() without path normalization
 # =============================================================================
@@ -137,14 +136,19 @@ def test_safe_file_path(path: str, allowed_root: str) -> bool:
     normalized_root = os.path.realpath(allowed_root)
 
     # SAFE: Proper path containment check
-    return normalized_path.startswith(normalized_root + os.sep) or normalized_path == normalized_root
+    return (
+        normalized_path.startswith(normalized_root + os.sep)
+        or normalized_path == normalized_root
+    )
 
 
 def export_data_secure(output_file: str, memories_dir: str = "/app/memories") -> None:
     """SAFE: Uses validated path helper."""
     # SAFE: Uses validated path helper
     if not test_safe_file_path(output_file, memories_dir):
-        raise ValueError(f"Path traversal attempt detected: {output_file} is outside {memories_dir}")
+        raise ValueError(
+            f"Path traversal attempt detected: {output_file} is outside {memories_dir}"
+        )
 
     with open(output_file, "w") as f:
         f.write("sensitive data")
