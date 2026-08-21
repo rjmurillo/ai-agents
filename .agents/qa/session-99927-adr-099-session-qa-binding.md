@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding.json
-qaCommit: 6efe318f98357e6485b1ca3341ecdbca78f1860e
+qaCommit: b6da229e5c4aaf852d2b294780d69d3b697b673e
 ---
 
 # ADR-102 Session QA
@@ -343,6 +343,19 @@ confirmed zero conflicts after the ADR-102 renumbering, so merged directly
 
 `qaCommit` moves from `a85c4b08d` to `6efe318f9`, the merge commit itself;
 `post_qa_code_changes('6efe318f98357e6485b1ca3341ecdbca78f1860e', 'HEAD', ...)`
+confirmed empty.
+
+## Post-Review Rebind: Concurrent Cursor Agent Push to This Branch
+
+Attempting the push failed: `origin/claude/autoplan-ship-wi09a5` had
+advanced past the local tip with a commit from a Cursor Agent
+(`docs(retrospective): add missing MUST sections to PR-5221 needs-split
+analysis`) added directly to this branch. `git merge-tree` confirmed no
+conflicts; merged (`--no-edit`), and confirmed the new retrospective
+sections carry no reintroduced `ADR-099` references.
+
+`qaCommit` moves from `6efe318f9` to `b6da229e5`, the merge commit itself;
+`post_qa_code_changes('b6da229e5c4aaf852d2b294780d69d3b697b673e', 'HEAD', ...)`
 confirmed empty.
 
 ## Verdict
