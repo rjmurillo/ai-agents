@@ -54,12 +54,37 @@ carries both measurements inline: the exact expressions, the tier the case ran,
 and what each edit did or failed to do. That is deliberate, so the binding claim
 stands on its own and does not depend on a file the reader may not have.
 
-The fuller write-ups live on PR #5176's branch, in its QA companion and its
-retrospective. Those are named here as *contents of that PR*, reachable through
-it, and not as paths resolvable from this branch, because they are not: if this
-PR merges first they do not exist on `main` yet. Copilot flagged the earlier
-wording for exactly that reason. `.claude/rules/canonical-source-mirror.md`
-covers the general case under "True when you wrote it is not true at merge",
-and the remedy it names is the one applied here: keep the load-bearing evidence
-on the branch that carries the claim, and reference cross-branch material by PR
-rather than by path.
+The fuller write-ups were on PR #5176's branch, which is why an earlier version
+of this section named them as *contents of that PR* rather than as paths: if
+this PR had merged first they would not have existed on `main` yet. Copilot
+flagged the earlier wording for exactly that reason, and raised the sequencing
+question that follows from it.
+
+**Events answered that question.** PR #5176 merged to `main` at 2026-08-21
+06:03:28 UTC as `15f95d2b6`, and `origin/main` is merged into this branch, so
+the referenced artifacts now resolve here:
+
+- `tests/commands/pr_autofix_dispatch_harness.py`
+- `tests/commands/test_pr_autofix_tier_dispatch_runtime.py`
+- `.agents/qa/session-99923-pr-autofix-tier-field-contract.md`
+- `.agents/retrospective/2026-08-21-pr-5176-fixing-silent-failures-silently.md`
+
+The claim is therefore no longer quoted from another branch. It is checkable
+here, and was checked rather than assumed:
+
+| Command | Result |
+|---|---|
+| `pytest tests/commands/test_pr_autofix_earned_t1_exemption.py::test_the_inverted_control_can_fail -q` | 2 passed |
+| `pytest tests/commands/ -q` | 481 passed, 1 skipped |
+
+The first is the executable form of the very failure this rule describes: it
+asserts that the inverted control's discrimination probe can fail, so a probe
+that measures nothing is exposed instead of quietly passing. Its passing on this
+branch is the measurement the rule cites, run here rather than quoted.
+
+The rule text still carries both measurements inline (the exact expressions, the
+tier the case ran, what each edit did or failed to do), and that stays
+deliberate: `.claude/rules/canonical-source-mirror.md` covers the general case
+under "True when you wrote it is not true at merge", and a rule outlives the PR
+that motivated it. The inline detail is what keeps the binding claim readable
+without the harness; the merge is what makes it reproducible with one.
