@@ -1,0 +1,240 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 99923,
+    "date": "2026-08-20",
+    "branch": "claude/pr-5175-review-v21yk2",
+    "startingCommit": "f79e70c",
+    "objective": "Review PR #5175 and drive it to closure; found the PR carried a zero-diff branch, so reimplemented the described pr-autofix tier field fix and added a producer field-contract test"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP was still connecting at session start; activated once available and called mcp__serena__initial_instructions, which returned the Serena Instructions Manual."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md (116 lines, read-only per ADR-014). Confirms session context belongs in session logs and Serena memory, not HANDOFF.md."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file, created mid-session when the branch-context-policy pre-commit hook blocked on the previous session's log naming branch claude/tool-use-hooks-perf-ht7zhx."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git checkout -B claude/pr-5175-review-v21yk2 origin/main; branch confirmed via git branch -a"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On claude/pr-5175-review-v21yk2"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short clean at start; HEAD at f79e70c, 0 commits behind origin/main per the checkout freshness check"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions returned the manual (54.9KB, persisted to the session tool-results directory)."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/memory-index.md and .serena/memories/usage-mandatory.md. The auto-recall hook also surfaced skills-graphql-index, pr-review/batch-thread-resolution, and pr-review/pr-002-independent-comment-parsing."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md (skill-first incident log; ADR-085 retired the blocking hook but the MUST-level convention stands)."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md; Language Constraints applied (Python-first per ADR-042, no new bash scripts)."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ls .claude/skills/github/scripts/ -> gh-native, issue, milestone, notifications, pr, reactions, test_workflow_locally.py, utils (8 entries)"
+      }
+    },
+    "sessionEnd": {
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Every commit on claude/pr-5175-review-v21yk2 touches five authored files or fewer, one logical change each: the fix and mirror, the contract gate and its parser split, the hardening passes driven by spec-validation findings, the tier-dispatch runtime suite, and the session/QA evidence rebinds. No count is recorded here on purpose, because correcting the log is itself a commit, so any number written into it is stale the moment it lands."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ruff check and ruff format clean on the changed test tree; the contract suite, the tier-dispatch runtime suite, tests/commands and tests/skills/pr-autofix all green; build_all.py --check reports no staleness; pre_pr.py all validations passed. Exact counts live in the QA report, which is rebound to a commit and re-measured whenever the head moves, so no number is duplicated here to go stale (Cursor Bugbot flagged the previous copy at 32 against an actual 34)."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/session-99923-pr-autofix-tier-field-contract.md"
+      },
+      "markdownLintRun": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "pre_pr.py Markdown Linting passed; the pre-commit markdown-autofix and markdown-check jobs both passed on every commit."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No new memory written. The durable findings are recorded in this log's learnings block, the command-body comment, and the test module docstring; a memory would duplicate them."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUST items recorded with evidence; pre_pr.py re-run after fixing the taste ratchet and session validation failures."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "activity": "Reviewed PR #5175",
+      "finding": "The PR branch copilot/fix-pr-autofix-tier-issue carries one commit titled 'Initial plan' and an empty diff against its merge base. git diff --name-only origin/main...origin/copilot/fix-pr-autofix-tier-issue returns nothing. The PR body describes a completed fix, a regenerated mirror, and a new test, none of which were ever pushed; the body itself notes the local push was blocked by a sandbox network restriction on the security-scan pre-push hook."
+    },
+    {
+      "activity": "Verified the described defect still exists on main",
+      "finding": ".claude/commands/pr-autofix.md read '.Data.Tier' from test_pr_merge_ready.py. That script has no --output-format flag and emits its result dict directly via print(json.dumps(result, indent=2)), so there is no Data envelope. TIER was pinned at UNKNOWN, which broke the two downstream gates in OPPOSITE directions: the round-cap breaker tests TIER = T3 or T4 and so went inert, while the auto-merge disarm gate tests TIER != T1 and so fired on every armed PR, stripping auto-merge from genuine T1 PRs. The initial write-up called both 'disabled'; Copilot caught the inversion on PR #5176."
+    },
+    {
+      "activity": "Applied the fix and regenerated the mirror",
+      "finding": "Changed the read to '.Tier' in .claude/commands/pr-autofix.md and regenerated src/copilot-cli/skills/pr-autofix/SKILL.md with build/scripts/generate_commands.py. Regeneration touched only the intended file."
+    },
+    {
+      "activity": "Added tests/commands/test_pr_autofix_field_contract.py",
+      "finding": "Statically binds all 16 jq reads in the command body to their producer scripts, derives each producer's real output shape with ast, and fails on any envelope-level or field-name mismatch. Envelope detection keys off the github_core.output emitter call rather than a Success field, because flat producers can carry their own top-level Success key (test_pr_merge_ready.py does)."
+    },
+    {
+      "activity": "Audited the remaining reads",
+      "finding": "All 16 reads bind to a producer with zero unbound. The other 15 were already correct: 13 Data-wrapped reads against check_pr_live_state.py, pr_autofix_lease.py, check_pr_round_cap.py, and get_pr_context.py, plus a flat '.merged' read against test_pr_merged.py."
+    },
+    {
+      "activity": "Addressed spec-validation findings on PR #5176",
+      "finding": "The bot correctly found the first gate did not catch the defect issue #5094 reported: field names were checked only for flat producers, so `.Data.tier` from check_pr_live_state.py passed clean. Extended derivation to wrapped producers by unioning keys across every write_skill_output/write_skill_error payload. Also had to teach _keys_bound_to about ast.AnnAssign, since get_pr_context.py builds its payload that way and an Assign-only walk would have failed the valid `.Data.auto_merge_method` read as a phantom field. Closed two further gaps: multi-path jq programs, and a coverage guard that shared the extractor's regex and so went blind in lockstep with it."
+    },
+    {
+      "activity": "Third hardening pass on the coverage guard",
+      "finding": "Spec validation found the invocation-coverage guard could still be masked: it compared parsed paths against jq invocation count, and a multi-path program supplies enough paths to cover for a sibling the parser never read. Reproduced at 2 invocations / 2 paths / 1 program, where the old comparison read the line as fully reached. Now compares programs to invocations plus a pathless-program check. Same failure shape as the previous round, one level down."
+    },
+    {
+      "activity": "Addressed Copilot review on PR #5176",
+      "finding": "Three findings, all verified against the code and all real. (1) The 'two disabled gates' claim was half wrong: the disarm gate tests TIER != T1, so UNKNOWN made it fire always rather than never. Corrected in the command comment, test docstring, session log, QA report, and PR body, with a truth table so the asymmetry is explicit. (2) The session-log deliverable still said 22 tests; the module has 32. (3) The TIER invocation does not pass --is-bot, so bot PRs now classify T2-T4 instead of T5. That third one is real but out of scope here: get_pr_context.py emits author as a login string with no bot flag, and it is fetched after the TIER call, so closing it means either a producer change or a login heuristic plus a fetch reorder. Raised on the thread with a proposal instead of pushing it."
+    },
+    {
+      "activity": "Closed the behavioral-verification gap after a bot refuted the reason it was left open",
+      "finding": "The QA report and PR body claimed behavioral verification of the two gates needed the live PR loop rather than a static gate. Copilot's second review filed a suppressed finding naming tests/test_pr_autofix_late_live_state_gate.py, which already extracts a marker-delimited block from this same command (_extract_guard at :38-43), writes fake producer scripts (_write_fake_scripts at :54), and runs the block under bash -c (_run_race at :238-352) parameterized over the source and the mirror. Checked the premise, found the claim false, and closed the gap: added tier-dispatch markers to the block and tests/commands/test_pr_autofix_tier_dispatch_runtime.py, 24 cases over both docs. Controls: restoring .Data.Tier fails 10, weakening the disarm gate's T1 exemption fails 2, making the round-cap breaker inert fails 6, and a comment-only edit inside the block passes 24 as the inverted control."
+    },
+    {
+      "activity": "Closed a fourth instance of the aggregate-over-the-line bug",
+      "finding": "Copilot found that extract_field_reads bound every jq path on a logical line to the first producer on that line, so a line with two producer pipelines checked its second read against the first producer's schema. The invocation-coverage guard permits several jq commands per line, so the hole was reachable. Fixed by pairing each jq program with the window of text that feeds it, breaking ties inside the window toward the nearer of a direct invocation and a captured-variable reference. Two regression cases added; restoring the per-line binding fails both and nothing else. Also hardened the runtime harness after two further Copilot findings: every case now asserts exit 0 and empty stderr rather than one case asserting the status, and the negative control requires exactly one occurrence to mutate instead of replacing all."
+    },
+    {
+      "activity": "Cleared the 20-commit pre-push ceiling without a bypass",
+      "finding": "push-ref-policy blocked at 24 commits against a limit of 20. The needs-split relief could not be read: check_pr_bypass_label.py calls `gh api repos/{owner}/{repo}/pulls`, and this remote session's GitHub proxy answers HTTP 403 'GitHub access is not enabled for this session' for that endpoint, so the helper fails closed as designed. An earlier diagnosis blamed GraphQL and the helper's use of `gh pr view`; both were wrong, since the helper already moved to REST for exactly that reason and the misleading 'gh pr view failed' text is a legacy message on the REST path at :207. The owner then authorized --no-verify, but origin/main had advanced by one commit in the interim, so merging it was independently justified and _contains_main_merge raises the ceiling from BLOCK_THRESHOLD 20 to MAIN_MERGE_BLOCK_THRESHOLD 40. 25 <= 40, push-ref-policy returns 0, and no gate was skipped. Every blocking pre-push job was also run by hand beforehand and passed."
+    },
+    {
+      "activity": "Closed a fail-open the runtime suite had codified as correct",
+      "finding": "Copilot found that a tier producer emitting no valid payload still let the loop act. Without pipefail jq masks the failure, and the shapes disagree: empty stdout (crash or unparseable JSON) leaves TIER empty while a JSON error object leaves it UNKNOWN. Both skip the T3/T4 breaker and satisfy TIER != T1, so the loop stripped auto-merge and continued without a tier. Worse, the PRODUCER_FAILURE runtime case asserted exactly that as expected behavior. Added a case statement validating TIER against the declared tiers and skipping otherwise, deliberately not gating on exit status because test_pr_merge_ready.py exits 1 for any not-merge-ready PR. Replaced the offending test with three failure shapes plus a case pinning that a valid tier arriving with exit 1 is still dispatched, and moved the negative control onto the new observable outcome rather than leaving it asserting the old one. Also removed the dead _bound_source helper and reconciled a converse guard the Cursor agent pushed concurrently down to a single copy."
+    },
+    {
+      "activity": "Fixed a fail-closed guard that closed on healthy input",
+      "finding": "The tier guard I had just added listed T1 through T5, taken from the tier ladder in the command's own prose rather than from the producer. test_pr_merge_ready.py:1103 declares _TIER_ORDER = (T1..T5, BEHIND, BLOCKED, DIRTY, SKIP), and classify_tier's docstring names that tuple as the range of its return value. The guard rejected the four merge-path and skip values as producer failures, so a PR that went BEHIND mid-loop was skipped with a false 'producer failed' message and the documented BEHIND and DIRTY handling never ran. Found by Cursor Bugbot. This is the same defect class the PR exists to close, committed while closing it: a consumer written against a remembered contract instead of the canonical source, which .claude/rules/canonical-source-mirror.md requires a lookup for before the first commit. Fixed by quoting _TIER_ORDER verbatim in the command comment and adding declared_tiers/accepted_tiers plus a test asserting the two are equal over source and mirror, so the sets cannot drift again. Controls: restoring the ladder fails 10, deleting the guard fails 10."
+    }
+  ],
+  "outcomes": {
+    "deliverables": [
+      {
+        "type": "code",
+        "path": ".claude/commands/pr-autofix.md",
+        "description": "Tier read corrected from .Data.Tier to .Tier, arming the T3/T4 round-cap circuit breaker (previously inert) and letting the auto-merge disarm gate discriminate (previously fired on every armed PR, including genuine T1)"
+      },
+      {
+        "type": "code",
+        "path": "src/copilot-cli/skills/pr-autofix/SKILL.md",
+        "description": "Generated Copilot mirror refreshed via build/scripts/generate_commands.py so the shipped plugin carries the same fix"
+      },
+      {
+        "type": "test",
+        "path": "tests/commands/test_pr_autofix_field_contract.py",
+        "description": "Statically binds every jq read in the command body to its producer script, derives each producer's real output shape with ast, and fails on any envelope-level or field-name mismatch. Negative controls for both envelope directions, unknown fields on both producer styles, a violation reached through a captured shell variable, and one in the second path of a multi-path program. Coverage guards: every read binds to a producer, the extractor reaches every jq invocation, wrapped payload keys are derivable, the annotated-assignment form resolves, each read binds to the producer feeding its own invocation, and every consumed producer carries an envelope pin. Counts are recorded in the QA report rather than here, so they cannot drift."
+      },
+      {
+        "type": "test",
+        "path": "tests/commands/test_pr_autofix_tier_dispatch_runtime.py",
+        "description": "Runtime suite that extracts the block between the tier-dispatch markers from both the source command and the generated mirror and executes it under bash with fake producers. Covers T1 keeping armed auto-merge, T3/T4 round-cap entry, escalation running after the disarm gate, so an escalated PR is disarmed before a human sees it, every actionable tier dispatching on a non-zero exit, SKIP terminating before the gates instead of dispatching, unarmed PRs, unreadable auto-merge state, mutation exit 75 versus a real failure, and all three shapes of a producer that names no tier. Verified by mutation, including an inverted control that must survive. Counts are recorded in the QA report rather than here, so they cannot drift."
+      }
+    ]
+  },
+  "learnings": {
+    "patterns": [
+      {
+        "pattern": "Derive a producer's output schema statically and check consumers against it",
+        "context": "Shell command bodies read producer JSON through jq. A wrong path yields null, the // default fires, and the gate silently passes with no evidence.",
+        "application": "Parse the producer with ast to determine envelope level and top-level keys, then fail the build on any consumer read that disagrees."
+      },
+      {
+        "pattern": "Marker-delimited shell blocks make a prose command executable under test",
+        "context": "A command body is markdown, so its shell is documentation until something runs it. Marker comments carve out a block that a test can extract from every generated copy.",
+        "application": "Wrap the block in start/end comments, extract between them, stub the helper functions and producer scripts, run under bash -c, and parameterize over the source and each generated mirror so a stale mirror fails."
+      }
+    ],
+    "avoidances": [
+      {
+        "antipattern": "Trusting a PR body's description of completed work without reading the diff",
+        "consequence": "PR #5175's body described a fix, a regenerated mirror, and a new test against a branch whose diff was empty. Reviewing the prose would have approved nothing.",
+        "correction": "Check git diff against the merge base before reading the description."
+      },
+      {
+        "antipattern": "Using a Success field to detect the Data envelope",
+        "consequence": "test_pr_merge_ready.py emits a flat object that carries its own top-level Success key, so a Success probe misclassifies it as enveloped and the check inverts.",
+        "correction": "Key envelope detection off the github_core.output emitter call, which is the thing that actually wraps the payload."
+      },
+      {
+        "antipattern": "Fixing a silent-fallback bug at the instance instead of the class",
+        "consequence": "The issue #5094 repair moved the read to the right producer but kept the wrong envelope, reproducing the identical silent-UNKNOWN defect one script over.",
+        "correction": "Ship a gate covering every read of the same shape, not only the one that was reported."
+      },
+      {
+        "antipattern": "Building a coverage guard on the same regex as the thing it guards",
+        "consequence": "test_extractor_reaches_every_jq_invocation first reused _JQ_PROGRAM. Mutating that pattern to match nothing blinded the extractor and the guard together, so the guard passed vacuously and certified the blindness it exists to catch.",
+        "correction": "Detect with an independent, weaker pattern (_JQ_TOKEN spots the word jq). Prove the decoupling by re-running the mutation and watching the guard fail."
+      },
+      {
+        "antipattern": "Choosing a coverage comparison a sibling item can balance out",
+        "consequence": "The invocation guard was wrong three times in the same way: line presence let a second jq command hide behind a parsed first; path count let a multi-path program cover for an unread sibling. Each version looked like it counted the right thing.",
+        "correction": "Compare at the granularity of the thing that must be checked, one row per invocation, not an aggregate over the line. Prove it by restoring the old comparison and watching a named test fail."
+      },
+      {
+        "antipattern": "Describing a stuck sentinel as 'the gate turns off' without reading each comparison",
+        "consequence": "TIER=UNKNOWN was written up as disabling both downstream gates. It disabled the one testing equality (TIER = T3/T4) and stuck ON the one testing inequality (TIER != T1), which stripped auto-merge from every armed PR including genuine T1s. The write-up shipped in five artifacts before a reviewer caught it.",
+        "correction": "For a sentinel that reaches more than one branch, tabulate the sentinel against each condition before describing the impact. Equality and inequality tests on the same stuck value fail in opposite directions."
+      },
+      {
+        "antipattern": "Declaring a gap unreachable without searching the repository for the technique",
+        "consequence": "A known limit in the QA report and the PR body claimed behavioral verification of the two gates 'needs the live PR loop, not a static gate', and asked reviewers to accept that. tests/test_pr_autofix_late_live_state_gate.py already extracted a marked block from this same command, faked the producer scripts, and ran it under bash -c. The claim was an absence asserted from no search, and it shipped through three review rounds before a bot filed it as a suppressed finding.",
+        "correction": "An absence claim needs a search, the same as a presence claim, and it is the more dangerous of the two because nothing later trips over it. Before writing that something cannot be tested here, grep the test tree for the shape you say is missing."
+      }
+    ]
+  },
+  "endingCommit": "ef4f2e60cdbfa0c1d68f49a32cdbfe839e3cd55c",
+  "nextSteps": [
+    "Open a draft PR from claude/pr-5175-review-v21yk2 referencing issue #5094",
+    "Report on PR #5175 that its branch carries no diff so the owner can decide whether to close it in favor of this change"
+  ]
+}

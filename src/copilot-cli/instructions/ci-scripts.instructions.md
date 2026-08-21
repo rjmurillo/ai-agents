@@ -1,5 +1,5 @@
 ---
-applyTo: scripts/validation/**,scripts/**,.github/workflows/**,.github/actions/**,build/**,src/copilot-cli/skills/**/scripts/**,src/copilot-cli/skills/**/tests/**
+applyTo: scripts/validation/**,scripts/**,.github/workflows/**,.github/actions/**,build/**,src/copilot-cli/skills/**/scripts/**,src/copilot-cli/skills/**/tests/**,.github/scripts/**,tests/**
 ---
 
 # CI and Validation Script Rules
@@ -43,6 +43,22 @@ Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate eve
 1. **Thin workflows**. Workflow YAML SHOULD delegate to a testable module (ADR-006). No inline multi-step logic.
 2. **Logging structure**. If another script, workflow step, or test parses a script's stdout, that script SHOULD emit JSON or `key=value` lines for the parsed fields, and the parser test SHOULD consume a real sample from that output shape. Human-only logs are exempt.
 3. **Use skills when available**. SHOULD prefer `.claude/skills/<name>` over inline `gh`, `git`, or shell commands.
+4. **Treat a repair to a silent failure as a silent-failure candidate.** The three MUST items on converting failure signals and detected violations into a non-zero exit, and on distinguishing a run that did nothing from one that succeeded, govern the original defect; this governs the fix. The tests written for the
+   original exercise the original's inputs, and a repair usually changes which
+   **values** the code can see rather than which branches it has, so every existing
+   case keeps passing while the new value goes unexercised. After fixing one,
+   enumerate the values the repaired expression can now receive and find the one the
+   old code never saw. Measured across one defect in PR #5176, where four successive
+   repairs each introduced a different silent failure and three were caught by a
+   reviewer rather than by the suite being written for that class: redirecting stderr
+   to quieten a producer also hid its parse errors; a default operator chosen without
+   checking what it fires on triggered on `false` as well as `null`, collapsing a
+   legitimate negative into unreadable; a coercion added to fix that did not check
+   its input type, so the string `"true"` became boolean `true` and malformed
+   evidence satisfied the guard built to reject it, invisible to five passing tests;
+   and a new guard shipped without the comment skip its siblings had, so documenting
+   the defect would have failed the gate. The third is the shape to fear: converting
+   instead of validating fails open on the path the guard exists to protect.
 
 ## MUST NOT
 
