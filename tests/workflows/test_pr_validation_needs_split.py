@@ -1,6 +1,6 @@
 """Contract tests for the needs-split label steps in pr-validation.yml (Issue #2557).
 
-The `needs-split` label is *advisory* — it cosmetically marks PRs with 10+
+The `needs-split` label is *advisory*: it cosmetically marks PRs with 10+
 commits ("consider squashing or splitting"). It is NOT a gate: no commit-count
 tier can block a PR (the former 20/40-commit BLOCK tier was removed by
 ADR-099; `Enforce Blocking Issues` no longer reads commit count at all).
