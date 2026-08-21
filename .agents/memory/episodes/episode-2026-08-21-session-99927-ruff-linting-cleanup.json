@@ -259,6 +259,28 @@
       "caused_by": [
         "e022"
       ],
+      "leads_to": [
+        "e026"
+      ],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "A further Copilot review on commit 1d99431fd found both gates still miss the alternate Ruff config filenames ruff.toml and .ruff.toml: ruff resolves config from pyproject.toml, ruff.toml, or .ruff.toml per directory, and neither of the latter two matched any existing glob entry in lefthook.yml or pytest.yml.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-21T20:41:51+00:00",
+      "type": "commit",
+      "content": "Commit: feac6df2ccba6d44c3138511f92c81010d89ac5d",
+      "caused_by": [
+        "e024"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
     }
@@ -268,7 +290,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 8,
+    "commits": 9,
     "files_changed": 22
   },
   "lessons": []

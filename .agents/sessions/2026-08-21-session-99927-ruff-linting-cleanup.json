@@ -158,9 +158,13 @@
     {
       "action": "A further Copilot review on commit 903513da3 found the pre-push glob still misses a lockfile-only Ruff upgrade: python-lint-count-ratchet runs ruff from the frozen uv environment, so a uv.lock-only change can move the whole-tree count without touching any .py, .pyi, .ipynb, or pyproject.toml file, while pytest.yml's CI path filter already lists uv.lock (line 90).",
       "result": "Confirmed by reading pytest.yml:90 and the current lefthook.yml glob (no uv.lock entry). Added \"uv.lock\" to the python-lint-count-ratchet job glob, updated the pinned glob-list assertion in tests/ci/test_ruff_local_ratchet_wiring.py, and added test_count_ratchet_glob_covers_lockfile_only_ruff_upgrades asserting uv.lock is actually selected by the job's glob. Ran the wiring test file locally: 6/6 pass. Also posted a follow-up independent security review on the PR for commit 281a94b94 (the prior lefthook.yml/pytest.yml glob fix), closing the review gap noted at the end of the previous session."
+    },
+    {
+      "action": "A further Copilot review on commit 1d99431fd found both gates still miss the alternate Ruff config filenames ruff.toml and .ruff.toml: ruff resolves config from pyproject.toml, ruff.toml, or .ruff.toml per directory, and neither of the latter two matched any existing glob entry in lefthook.yml or pytest.yml.",
+      "result": "Confirmed ruff's documented per-directory config resolution order and that neither filename currently exists anywhere in this repo (find returned nothing), so the gap is real but currently unexercised, same shape as the two prior fixes. Widened both gates to **/ruff.toml and **/.ruff.toml, added test_count_ratchet_glob_covers_alternate_ruff_config_filenames and test_the_filter_covers_alternate_ruff_config_filenames asserting synthetic root-level and nested-package paths are matched (existence cannot be asserted since no such file exists yet). Also posted a follow-up independent security review for commit 1965b262f (the uv.lock glob fix), and fixed the QA report's scope section, flagged stale by the same review for omitting the lefthook.yml/pytest.yml/test-file changes. Ran both wiring test files locally: 30/30 pass."
     }
   ],
-  "endingCommit": "1965b262fe455d30f8274a9c13c5be4f9ed81600",
+  "endingCommit": "feac6df2ccba6d44c3138511f92c81010d89ac5d",
   "nextSteps": [
     "Watch the ruff count ratchet on the PR: with the baseline at 0 any new violation now blocks rather than being absorbed by slack.",
     "Consider whether packages/semantic-hooks/pyproject.toml should inherit the root ruff per-file-ignores instead of redeclaring its own select list, so the two configs cannot drift again.",
