@@ -6,13 +6,23 @@
   "outcome": "success",
   "task": "Land the testing.md control-validity rule from the PR #5176 retrospective as its own change, since claude-agents.md MUST NOT 2 forbids bundling a rule change with code",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-21T02:04:03+00:00",
+      "type": "commit",
+      "content": "Commit: 51666a3a632902091cd81489c4c979df90815716",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99923-2dd747176-rules-control-validity"
+    }
+  ],
   "metrics": {
     "duration_minutes": null,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 5
   },
   "lessons": []
