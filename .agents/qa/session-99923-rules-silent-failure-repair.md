@@ -11,6 +11,28 @@ qaCommit: 14d6c91f1979747c56c1d76c2b24be7dfd59694b
 - QA commit: `14d6c91f1979747c56c1d76c2b24be7dfd59694b`
 - Session log: `.agents/sessions/2026-08-21-session-99923-2dd747176-rules-silent-failure-repair.json`
 
+
+## Scope corrected after review
+
+The rule shipped scoped to `scripts/**`, `build/**`, workflows, and skill
+scripts, and the PR body defended that as a trade-off forced by the always-on
+instruction budget. Copilot pointed out the consequence: two of the four
+measured instances lived in `.claude/commands/pr-autofix.md` and under
+`tests/commands/`, so the lesson did not load on the surfaces that produced it.
+
+The trade-off was not real, and the error is worth recording because the
+measurement behind it was sound. `scripts/validation/instruction_budget.py`
+counts only rules whose generated `applyTo` is language-universal (`**`,
+`**/*`, or `**/*.<ext>`); its own docstring says "Directory scoped rules (for
+example `tests/**`) are situational, not always-on, so they are excluded by
+design." The 764-byte headroom on the `.py` row is a constraint on
+extension-scoped rules. It says nothing about adding a directory glob, which is
+what the fix needed. So an accurate number was applied to the wrong question.
+
+Measured after adding `.claude/commands/**`, `src/copilot-cli/skills/**`, and
+`tests/**`: the `.py` row reads 98236 / 99000 with 764 free, byte-identical to
+the baseline before the change. The expansion is free.
+
 ## Verdict
 
 PASS.

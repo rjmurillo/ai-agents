@@ -1,5 +1,5 @@
 ---
-applyTo: scripts/validation/**,scripts/**,.github/workflows/**,.github/actions/**,build/**,src/copilot-cli/skills/**/scripts/**,src/copilot-cli/skills/**/tests/**
+applyTo: scripts/validation/**,scripts/**,.github/workflows/**,.github/actions/**,build/**,src/copilot-cli/skills/**/scripts/**,src/copilot-cli/skills/**/tests/**,src/copilot-cli/skills/**,tests/**
 ---
 
 # CI and Validation Script Rules

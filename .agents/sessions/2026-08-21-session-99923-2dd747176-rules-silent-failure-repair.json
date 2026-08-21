@@ -69,7 +69,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "One rule edit plus its two generated mirrors and this log, then a follow-up commit recording endingCommit."
+        "Evidence": "Commit 14d6c91f1 carried six files: the rule edit to .claude/rules/ci-scripts.md, its two generated instruction mirrors, this session log, the QA report, and the extracted episode. A follow-up commit recorded endingCommit, per session-logs.md MUST 2. The earlier wording named four of the six and omitted the QA report and the episode, so it understated the commit while the episode's own files_changed said 6; Copilot found the disagreement."
       },
       "validationPassed": {
         "level": "MUST",
