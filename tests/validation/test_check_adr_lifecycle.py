@@ -1167,11 +1167,18 @@ def test_a_record_with_no_duplicates_is_not_flagged(tmp_path):
     assert _counts(tmp_path)["frontmatter-parses"] == 0
 
 
-def test_a_repeated_key_nested_under_a_mapping_is_not_a_top_level_duplicate(tmp_path):
-    """Indented keys belong to their parent and must not trip the check.
+def test_a_repeated_key_nested_under_a_mapping_is_now_caught_too(tmp_path):
+    """A duplicate inside a nested mapping is a duplicate.
 
-    Without this, any record using a nested mapping would be reported as
-    malformed, which is a false positive on valid YAML.
+    This asserted the opposite while the check was a line scan, which could see
+    only top-level keys and called that a feature. Moving detection into the
+    parser (PR #5230, after Copilot showed quoting evades a line scan) makes the
+    nested case visible, and there was never a reason to want it hidden: PyYAML
+    resolves `note: a` / `note: b` last-wins here exactly as it does at the top
+    level.
+
+    Kept as its own case rather than folded into the spelling matrix below,
+    because it is the one a line scan structurally cannot reach.
     """
     adr_dir = _adr_dir(tmp_path)
     (adr_dir / "ADR-001-thing.md").write_text(
@@ -1184,7 +1191,63 @@ def test_a_repeated_key_nested_under_a_mapping_is_not_a_top_level_duplicate(tmp_
 
     hits = [v for v in scan(adr_dir, tmp_path) if v.check == "frontmatter-parses"]
 
+    assert len(hits) == 1
+    assert "declares `note` twice" in hits[0].detail
+
+
+def test_a_valid_nested_mapping_is_still_clean(tmp_path):
+    """Negative control for the case above.
+
+    The original test existed to stop nested mappings being reported wholesale.
+    That concern is real, so it keeps a test: distinct nested keys must pass.
+    Without this, a checker that flagged every nested mapping would satisfy the
+    positive case above and be indistinguishable from a correct one.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    (adr_dir / "ADR-001-thing.md").write_text(
+        "---\nid: ADR-001\nstatus: accepted\ndate: 2026-08-21\n"
+        "decision-makers: []\nsupersedes: []\nsuperseded-by: null\n"
+        "explainer: null\nimplemented: true\n"
+        "meta:\n  note: a\n  other: b\n---\n\n# ADR-001: Thing\n",
+        encoding="utf-8",
+    )
+
+    hits = [v for v in scan(adr_dir, tmp_path) if v.check == "frontmatter-parses"]
+
     assert hits == []
+
+
+@pytest.mark.parametrize(
+    "first_line",
+    [
+        "status: proposed",
+        '"status": proposed',
+        "'status': proposed",
+        "status : proposed",
+    ],
+)
+def test_every_yaml_spelling_of_a_duplicate_status_is_caught(tmp_path, first_line):
+    """Quoting must not launder a duplicate past the guard.
+
+    All four spellings are one key to PyYAML, which resolves every one of them
+    to `accepted`. The line scan this replaced compared raw prefixes, so it
+    asked a different question than the parser did and missed two of the four
+    (`"status"` and `'status'`). A guard against forgery that the forger evades
+    by adding quotation marks is worse than none, because it reports clean.
+    Copilot found it on PR #5230.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    (adr_dir / "ADR-001-thing.md").write_text(
+        f"---\nid: ADR-001\n{first_line}\nstatus: accepted\ndate: 2026-08-21\n"
+        "decision-makers: []\nsupersedes: []\nsuperseded-by: null\n"
+        "explainer: null\nimplemented: true\n---\n\n# ADR-001: Thing\n",
+        encoding="utf-8",
+    )
+
+    hits = [v for v in scan(adr_dir, tmp_path) if v.check == "frontmatter-parses"]
+
+    assert len(hits) == 1
+    assert "declares `status` twice" in hits[0].detail
 
 
 def test_a_commented_out_repeat_is_not_a_duplicate(tmp_path):
@@ -1200,3 +1263,74 @@ def test_a_commented_out_repeat_is_not_a_duplicate(tmp_path):
     hits = [v for v in scan(adr_dir, tmp_path) if v.check == "frontmatter-parses"]
 
     assert hits == []
+
+
+# --- status prose: empty sections and fenced samples -------------------------
+
+
+def test_an_empty_status_section_does_not_borrow_the_next_heading(tmp_path):
+    """`## Status` with nothing under it means "", not the next section's title.
+
+    Widening the search to the whole body (PR #5230) broke this contract, which
+    `_status_prose`'s docstring still promised: the scan ran to EOF and returned
+    the first non-blank line, which for an empty section is the next `##`
+    heading. The gate then compared the frontmatter enum against the literal
+    text `## Context` and reported drift on a record whose only fault was an
+    empty section. Bugbot found it; the fix arrived without a test, which is
+    what this is.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), "\n## Status\n\n## Context\n\nWords.\n")
+
+    hits = _hits(tmp_path, "prose-frontmatter-agree")
+
+    assert len(hits) == 1
+    assert "Context" not in hits[0], "the next heading is not this record's status"
+
+
+def test_a_status_section_with_prose_still_reads_its_prose(tmp_path):
+    """Negative control: the empty-section guard must not blank real prose."""
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), "\n## Status\n\nAccepted\n\n## Context\n\nWords.\n")
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 0
+
+
+def test_a_status_heading_inside_a_code_fence_is_not_the_records_status(tmp_path):
+    """A `## Status` in a markdown sample belongs to the sample.
+
+    ADR-022 carries exactly this at line 521, inside an ADR template it
+    documents. It is masked today only because ADR-022's real `## Status` sits
+    at line 3 and the search takes the first match; removing that section, the
+    direction this campaign is already moving in, would expose it. Searching the
+    whole body without blanking code blocks is the same whole-file-scan defect
+    the search was widened to fix, one layer down.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        _valid(1),
+        "\n## Context\n\nWords.\n\n```markdown\n## Status\n\nProposed\n```\n",
+    )
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 0, (
+        "a fenced sample must not be read as the record's own status"
+    )
+
+
+def test_a_real_status_after_a_fenced_sample_is_still_found(tmp_path):
+    """Negative control: blanking code must not blank the real section.
+
+    Without this, a checker that discarded the whole body would satisfy the
+    fenced case above and be indistinguishable from a correct one.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        _valid(1),
+        "\n```markdown\n## Status\n\nAccepted\n```\n\n## Status\n\nProposed\n",
+    )
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 1

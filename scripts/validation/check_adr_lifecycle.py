@@ -89,6 +89,10 @@ from typing import Any
 
 import yaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.utils.markdown_parser import blank_code_block_lines
+
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
@@ -243,8 +247,55 @@ def _frontmatter_reason(raw: str | None, text: str) -> str:
     return f"frontmatter is a {type(parsed).__name__}, not a YAML mapping"
 
 
-def _duplicate_top_level_key(raw: str | None) -> str | None:
-    """Return the first key declared twice at top level, or None.
+class _DuplicateKey(yaml.YAMLError):
+    """A frontmatter mapping declared the same key twice. Carries the key."""
+
+    def __init__(self, key: object) -> None:
+        super().__init__(f"duplicate key {key!r}")
+        self.key = key
+
+
+class _StrictLoader(yaml.SafeLoader):
+    """SafeLoader that rejects duplicate mapping keys instead of taking the last."""
+
+
+def _reject_duplicate_keys(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict[Any, Any]:
+    """Mirror of `_no_duplicate_keys` in build/scripts/generate_adr_index.py.
+
+    Quoted verbatim from that file, which is the canonical implementation:
+
+        seen: list[Any] = []
+        for key_node, _ in node.value:
+            key = loader.construct_object(key_node, deep=True)
+            if any(key == earlier for earlier in seen):
+                raise _DuplicateKeyError(...)
+            seen.append(key)
+
+    Stricter/looser/different than canonical: identical detection, but this
+    raises an error carrying the key object so `_read_record` can name it in the
+    violation. The index generator only needs to fail the build.
+
+    A list compared with `==`, not a set: a YAML key need not be hashable
+    (`? [a, b]` builds a list key), and a set raises `TypeError` on it. See the
+    canonical docstring for the escape that shape produced.
+    """
+    seen: list[Any] = []
+    for key_node, _ in node.value:
+        key = loader.construct_object(key_node, deep=True)
+        if any(key == earlier for earlier in seen):
+            raise _DuplicateKey(key)
+        seen.append(key)
+    mapping: dict[Any, Any] = loader.construct_mapping(node, deep=True)
+    return mapping
+
+
+_StrictLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _reject_duplicate_keys
+)
+
+
+def _duplicate_key(raw: str | None) -> str | None:
+    """Return the first key declared twice, rendered for the message, or None.
 
     PyYAML resolves duplicates last-wins and reports nothing, so a record
     carrying `status: proposed` near the top and `status: accepted` lower in the
@@ -253,30 +304,37 @@ def _duplicate_top_level_key(raw: str | None) -> str | None:
     formatting nit: the declaration a human sees and the one tooling enforces
     are different values.
 
-    Checked here rather than inside `_parse_yaml_frontmatter`, which is shared
-    with other consumers (`scripts/validation/yaml_utils.py`) whose contract this
-    change has no mandate to alter.
+    Detected at the parser, not by scanning lines. An earlier revision compared
+    raw line prefixes, which asks a different question than YAML does: `status`
+    and `"status"` are one key to the parser and two distinct strings to a line
+    scan. Measured on that revision, two of four spellings walked straight
+    through the guard while `yaml.safe_load` enforced `accepted` for all four:
 
-    Stricter/looser/different than canonical: `detect_adr_changes.py` carries
-    `_has_duplicate_top_level_keys`, quoted verbatim as "True when a top-level
-    frontmatter key appears more than once", and returns a bool. This returns the
-    offending key instead, so the violation can name it.
+        status: proposed  / status: accepted      caught
+        "status": proposed / status: accepted     MISSED
+        status : proposed / status: accepted      caught
+        'status': proposed / status: accepted     MISSED
+
+    A guard against forgery that the forger can evade by adding quotation marks
+    is worse than none, because it reports clean. Copilot found it on PR #5230.
+
+    Widened by the same change: the parser sees nested mappings too, so a
+    duplicate inside a mapping value is now caught. A line scan structurally
+    cannot do that, which is why the three ADR readers no longer each use a
+    different mechanism.
+
+    Malformed YAML returns None rather than raising. This runs before
+    `_parse_yaml_frontmatter`, and `_frontmatter_reason` owns the parse-failure
+    message; reporting it here too would count one defect twice.
     """
     if raw is None:
         return None
-    seen: set[str] = set()
-    for line in raw.splitlines():
-        if not line or line[0] in " \t":
-            continue
-        key, sep, _ = line.partition(":")
-        if not sep:
-            continue
-        key = key.strip()
-        if not key or key.startswith("#"):
-            continue
-        if key in seen:
-            return key
-        seen.add(key)
+    try:
+        yaml.load(raw, Loader=_StrictLoader)
+    except _DuplicateKey as exc:
+        return exc.key if isinstance(exc.key, str) else repr(exc.key)
+    except yaml.YAMLError:
+        return None
     return None
 
 
@@ -298,7 +356,7 @@ def _read_record(path: Path, number: int, rel: str) -> tuple[Record, Violation |
         empty = Record(number, rel, None, "")
         return empty, Violation("frontmatter-parses", rel, f"is not valid UTF-8: {exc}")
     raw, body = _split_frontmatter(text)
-    duplicate = _duplicate_top_level_key(raw)
+    duplicate = _duplicate_key(raw)
     if duplicate is not None:
         return (
             Record(number, rel, None, body),
@@ -457,21 +515,41 @@ def _status_prose(body: str) -> str | None:
     phase result and `**Status**: APPROVED` at line 168 as an exception ruling,
     and both were read as that record's lifecycle status before this bound.
 
+    Fenced and indented code blocks are blanked before any of this runs, so a
+    `## Status` inside a markdown sample is not read as the record's own.
+    ADR-022 carries exactly such a sample at line 521, inside an ADR template it
+    documents. It is masked today only because ADR-022's real `## Status` sits
+    at line 3 and the search takes the first match; removing that section, which
+    is the direction this campaign is already moving in, would expose it. A
+    whole-body search without this is the same whole-file-scan defect the search
+    was widened to fix, one layer down. Copilot found it on PR #5230.
+
     `### Status`, level three, is **never** matched. A level-three heading is a
     subsection of whatever contains it. ADR-042 carries one at line 171 reading
     "Proposed" inside a migration phase while its frontmatter says `accepted`;
     matching it manufactured a drift violation out of a correct record.
     """
-    heading = _STATUS_HEADING_RE.search(body)
+    try:
+        prose = blank_code_block_lines(body)
+    except Exception:
+        # A record whose markdown will not parse has no determinable prose
+        # status. Returning None skips `prose-frontmatter-agree` for it, which
+        # is what the gate already does for a record with no status section
+        # (see `_check_prose`), rather than guessing from a source the parser
+        # could not segment. Deliberately not falling back to the raw body:
+        # that is the fail-open this blanking exists to close.
+        return None
+
+    heading = _STATUS_HEADING_RE.search(prose)
     if heading is not None:
-        for line in body[heading.end() :].splitlines():
+        for line in prose[heading.end() :].splitlines():
             stripped = line.strip()
             if _LEVEL_TWO_HEADING_RE.match(line):
                 return ""
             if stripped:
                 return stripped
         return ""
-    inline = _INLINE_STATUS_RE.search(_record_header(body))
+    inline = _INLINE_STATUS_RE.search(_record_header(prose))
     return inline.group(1).strip() if inline is not None else None
 
 
