@@ -329,3 +329,48 @@ def test_dotted_paths_are_not_reported_as_unsupported() -> None:
     line = 'X=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" | jq -r \'.Tier // "UNKNOWN"\')'
 
     assert unsupported_path_syntax(line) == []
+
+
+def test_bracket_notation_in_a_comment_is_not_a_violation() -> None:
+    """Prose explaining the defect must not be read as committing it.
+
+    The bracket-notation check shipped without the comment skip that every
+    other scanner in the parser has, so a comment documenting `.["tier"]`
+    would have failed the contract gate as a false positive. That is the
+    fail-closed-guard-that-closes-on-healthy-input mistake, and this is its
+    second instance in this PR: the tier guard first listed only the T1-T5
+    ladder and rejected the producer's four real merge-state tiers.
+
+    No such comment exists in the command today, which is exactly why nothing
+    failed and a reviewer had to catch it. This test supplies the input the
+    suite was missing rather than trusting that none will ever be written.
+    """
+    # The comment has to carry a real `jq` invocation. A first version of
+    # this test used prose that merely mentioned the bracket form, which
+    # `jq_programs` never reads because there is no `jq` token, so it passed
+    # with the comment skip removed and covered nothing. Testing rule
+    # SHOULD-10: pick an input the unfixed code gets wrong, then prove it by
+    # restoring the defect.
+    body = (
+        "# Never write: jq -r '.Tier // .[\"tier\"]', the second field is unchecked.\n"
+        "X=$(python3 \"$SCRIPTS_DIR/test_pr_merge_ready.py\" | jq -r '.Tier')\n"
+    )
+
+    assert contract_violations(body) == []
+
+
+def test_a_real_bracket_read_is_still_caught_beside_a_comment() -> None:
+    """The skip must not swallow the finding it sits next to.
+
+    A guard that stops reporting is indistinguishable from a guard that has
+    nothing to report, so the comment skip needs the case where both appear.
+    """
+    body = (
+        '# Bracket notation is unsupported: .["tier"]\n'
+        'X=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" | jq -r \'.Tier // .["tier"]\')\n'
+    )
+
+    violations = contract_violations(body)
+
+    assert len(violations) == 1
+    assert "line 2" in violations[0]
