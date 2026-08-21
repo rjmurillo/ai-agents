@@ -2024,6 +2024,41 @@ def test_branch_context_blocks_a_locally_tampered_upstream_log(tmp_path: Path) -
     assert policy.check_branch_context(repo) == 1
 
 
+def test_branch_context_blocks_when_the_upstream_candidate_is_unreadable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unreadable merged-history candidate must not grant its exemption.
+
+    ``_is_merged_history`` says it fails closed on an unreadable file:
+    ``path.read_bytes()`` raising ``OSError`` returns False rather than
+    propagating, so the byte comparison is skipped and the caller treats the
+    file as not matching upstream. Pin that the mismatch still blocks, not
+    only that the exception is caught.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    imported = _write_session_log(
+        repo, branch="feature/merged", name="session-merged", mtime=2_000_000_000.0
+    )
+    _add_upstream_with(repo, imported)
+    os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
+
+    # Sanity: unmodified and readable, the exemption applies.
+    assert policy.check_branch_context(repo) == 0
+
+    real_read_bytes = Path.read_bytes
+
+    def unreadable_read_bytes(self: Path, *args: object, **kwargs: object) -> bytes:
+        if self == imported:
+            raise OSError(13, "Permission denied", str(self))
+        return real_read_bytes(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_bytes", unreadable_read_bytes)
+
+    assert policy.check_branch_context(repo) == 1
+
+
 def test_branch_context_blocks_a_newer_log_that_is_not_upstream(tmp_path: Path) -> None:
     """The issue #682 case must survive the #3343 fix.
 
