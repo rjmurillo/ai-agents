@@ -265,7 +265,8 @@ class TestRunValidations:
         assert validator_ran is False
         assert "not found at feat/branch" in capsys.readouterr().err
 
-    def test_agents_changed_no_session_log_warns(self, tmp_path, capsys):
+    def test_agents_changed_no_session_log_does_not_warn(self, tmp_path, capsys):
+        """Session log creation is discontinued; absence is expected, not a warning."""
         changed = ".agents/HANDOFF.md\n"
         with patch(
             "subprocess.run",
@@ -273,7 +274,7 @@ class TestRunValidations:
         ):
             run_validations(str(tmp_path), "main", "feat/branch")
         stderr = capsys.readouterr().err
-        assert "WARNING" in stderr
+        assert "No session log found" not in stderr
 
     def test_agents_changed_legacy_md_session_log_only_warns_once(
         self, tmp_path, capsys
