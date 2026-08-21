@@ -44,9 +44,14 @@ rather than the list, which is not.
 Most of the tree is a support module paired with the cases that drive it:
 `pr_autofix_field_parser.py` for the jq reads and the guards on that checker,
 `pr_autofix_tier_parser.py` for the tier set, and `pr_autofix_dispatch_harness.py`
-for the runtime behavior. One module stands alone,
-`test_pr_autofix_harness_isolation.py`, because its subject is the harness's own
-environment rather than anything the harness runs.
+for the runtime behavior. One module inverts that relationship rather than
+standing outside it: `test_pr_autofix_harness_isolation.py` imports the dispatch
+harness like every other case module, but its subject is the harness's own
+environment rather than the command block the harness runs, so it verifies its
+collaborator instead of being driven by it. An earlier wording here said it
+"stands alone", which reads as importing nothing and is false. Grepping that
+module for `^from tests.commands` returns the dispatch-harness import, same as
+every sibling.
 
 This section has now gone stale three times, and each repair was narrower than
 the failure. First it described the one-line fix and three modules, so the PASS
