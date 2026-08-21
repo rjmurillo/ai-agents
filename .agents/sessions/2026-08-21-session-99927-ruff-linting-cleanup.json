@@ -148,7 +148,7 @@
       "result": "The test expected setup-uv pinned to ae62891f while the workflow carried 20cfd1bf. Reproduced the same disagreement on origin/main, so it was not this branch's. The branch was 2 commits behind, and caae865fb plus a1ee96695 had bumped the pin and its expectation together. git merge origin/main resolved it with no source edit, which is the first diagnostic step ci-scripts.md MUST-14 prescribes for exactly this shape."
     }
   ],
-  "endingCommit": "8e88e13ba66770cf0a05f317c88226960723f424",
+  "endingCommit": "a7306bb6f8bd1f6ee1ff14819f92b0d9cff9a864",
   "nextSteps": [
     "Watch the ruff count ratchet on the PR: with the baseline at 0 any new violation now blocks rather than being absorbed by slack.",
     "Consider whether packages/semantic-hooks/pyproject.toml should inherit the root ruff per-file-ignores instead of redeclaring its own select list, so the two configs cannot drift again.",
