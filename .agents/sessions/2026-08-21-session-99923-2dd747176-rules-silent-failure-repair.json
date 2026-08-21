@@ -32,7 +32,7 @@
       "usageMandatoryRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read .serena/memories/usage-mandatory.md in session 99923. No skill applies to a rule-text edit; the only tooling is build/scripts/generate_rules.py."
+        "Evidence": "Read .serena/memories/usage-mandatory.md in session 99923. A skill does apply: ai-agents-generation-and-release owns .claude/rules/ mirror regeneration and directs the contributor to build/scripts/build_all.py. The earlier wording claimed no skill applied, which is an absence asserted without searching the skill tree, the shape knowledge-persistence.md MUST NOT 4 forbids. Copilot found it."
       },
       "skillScriptsListed": {
         "level": "MUST",
@@ -42,7 +42,7 @@
       "sessionLogCreated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "This file. branch-context-policy requires a log naming the current branch; a fresh branch off main has none."
+        "Evidence": "This file. branch-context-policy did not require a log for a fresh branch: check_branch_context returns 0 when no log exists for today (scripts/validation/git_hook_policy.py, the `if session_log is None: return 0` guard). It errors only when another recent log names a different branch, and a log naming the current branch is one of several remedies. The earlier wording asserted an unconditional requirement the gate does not have; Copilot found it."
       },
       "branchVerified": {
         "level": "MUST",

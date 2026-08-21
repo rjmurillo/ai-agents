@@ -13,6 +13,46 @@ qaCommit: 414513ea4241901b8b572d90a1062d3be5cf7539
 
 
 
+
+## Claims this session got wrong about other components
+
+Four, all found by reviewers, none by a gate. Three share one shape: a statement
+about what some other code or rule does, written without opening it.
+
+| Claim as written | What the source actually says |
+|---|---|
+| `claude-agents.md` MUST NOT 2 forbids bundling rule changes with code | It forbids bundling skill code changes with memory changes. Nothing about rule changes or code generally. |
+| `branch-context-policy` requires a log naming the current branch | `check_branch_context` returns 0 when no log exists for today. It errors only when another recent log names a different branch, and a current-branch log is one of several remedies. |
+| No skill applies to a rule-text edit | `ai-agents-generation-and-release` owns `.claude/rules/` mirror regeneration and names `build_all.py`. |
+| SHOULD 4 cites "MUST 10 through 12" | `10.` appears twice in this file's MUST section, so the ordinal resolves two ways. The item now names the three headings. |
+
+`canonical-source-mirror.md` has a section for the first three, "Behavioral claims:
+read the body, not the name", and `knowledge-persistence.md` MUST NOT 4 covers the
+third specifically, since "no skill applies" is an absence asserted from no search.
+Both rules were loaded for the whole session.
+
+The cost is visible rather than hypothetical. The misread citation reached this
+log, the extracted episode, three PR bodies, several commit messages, and then an
+automated spec validator, which listed "Not bundled with code (claude-agents.md
+MUST NOT 2)" as a requirement it had verified. A wrong citation that names a real
+file and a real item number does not read as a guess, so downstream readers adopt
+it without re-deriving it.
+
+One near-miss worth recording. The first check of the duplicate-numbering claim
+used `head -20`, which truncated before the second `10.` at line 48 and returned a
+clean 1-to-20 sequence. That output looked like disconfirming evidence. The claim
+survived only because the reviewer cited line 48 and line 48 was absent from the
+output. A vaguer report would have been "refuted" with a plausible transcript.
+
+Also removed: `src/copilot-cli/skills/**`, added during the scope expansion and
+subsumed by the pre-existing `src/copilot-cli/skills/**/scripts/**` and
+`.../tests/**`. The spec validator caught the redundancy.
+
+Not fixed here, because it is pre-existing and repo-wide: `ci-scripts.md` has two
+MUST items numbered 10 and `testing.md` has two numbered 12, so every ordinal
+citation to those items is ambiguous. Six such citations exist in tracked files.
+Renumbering touches every downstream reference and belongs in its own change.
+
 ## A citation this session got wrong
 
 The session evidence justified splitting this rule change out of PR #5176 by
@@ -104,7 +144,7 @@ and still breach once merged.
 ## Why ci-scripts.md is also the right home on the merits, not just the budget
 
 `knowledge-persistence.md` SHOULD 1 prefers an existing rule over a new file.
-`ci-scripts.md` MUST 10 through 12 already govern converting every failure signal
+`ci-scripts.md`'s three MUST items on non-zero exits already govern converting every failure signal
 into a non-zero exit, converting every detected violation into a non-zero exit, and
 distinguishing a run that did nothing from a run that succeeded. That is the
 silent-failure family. Those items govern the original defect; the new item governs
