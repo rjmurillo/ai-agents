@@ -201,7 +201,7 @@ def _split_frontmatter(text: str) -> tuple[str | None, str]:
     return text[4:end_index].strip(), text[end_index + len("\n---") :]
 
 
-def _frontmatter_reason(raw: str | None) -> str:
+def _frontmatter_reason(raw: str | None, text: str) -> str:
     """Human-readable reason a frontmatter block is unusable.
 
     ``_parse_yaml_frontmatter`` collapses "absent", "malformed", and "not a
@@ -210,8 +210,29 @@ def _frontmatter_reason(raw: str | None) -> str:
     ``scripts/validation/validate_copilot_agent_frontmatter.py``, whose comment
     states the same rationale: "that helper swallows the error to None, but
     issue #2500 requires the YAML parser error in the message".
+
+    ``raw`` is None for two different defects, and ``text`` is what separates
+    them. ``_split_frontmatter`` returns None when the file does not start with
+    ``---`` (the block is absent) and also when it starts with ``---`` but no
+    closing fence follows (the block is unterminated). Reporting both as
+    "no leading `---` frontmatter block" sends an author to add frontmatter that
+    is already there: a record can open with ``---`` and carry ``id``,
+    ``status`` and ``date``, and still be told its schema is absent. The record
+    was always reported, so this is a wrong diagnosis rather than a silent drop,
+    and no count moves.
+
+    The two branches test exactly what ``_split_frontmatter`` tested, so the
+    message always describes why the split returned None. It deliberately does
+    not re-derive markdown semantics: a leading ``----`` horizontal rule is
+    reported as an unterminated block because that is how the splitter, and the
+    canonical helper it mirrors, classify it.
     """
     if raw is None:
+        if text.startswith("---"):
+            return (
+                "frontmatter block opens with `---` but no closing `---` fence "
+                "follows, so the whole block is unreadable (ADR-073 schema unparsed)"
+            )
         return "no leading `---` frontmatter block (ADR-073 schema absent)"
     try:
         parsed = yaml.safe_load(raw)
@@ -292,7 +313,7 @@ def _read_record(path: Path, number: int, rel: str) -> tuple[Record, Violation |
     if frontmatter is None:
         return (
             Record(number, rel, None, body),
-            Violation("frontmatter-parses", rel, _frontmatter_reason(raw)),
+            Violation("frontmatter-parses", rel, _frontmatter_reason(raw, text)),
         )
     return Record(number, rel, frontmatter, body), None
 

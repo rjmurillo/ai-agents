@@ -20,9 +20,18 @@ for path in sorted(pathlib.Path('.agents/architecture').glob('ADR-[0-9]*.md')):
     if not text.startswith('---'):
         continue  # no frontmatter: see Needs backfill below
     front = yaml.safe_load(text[3 : text.index('\n---', 3)]) or {}
-    if front.get('status') == 'accepted':
+    if str(front.get('status', '')).strip().lower() == 'accepted':
         print(front.get('id') or path.name)
 ```
+
+**Normalise before comparing, as above.** Every reader of this corpus lowers
+and strips the value first: `_status_of` in
+`scripts/validation/check_adr_lifecycle.py` returns
+`str(value).strip().lower()`, and this generator does the same before
+bucketing a record. So `status: Accepted` passes the `status-enum` gate and
+lands under Accepted in the table below, while a bare `== 'accepted'` misses
+it. Every record carries a lowercase value today, which is exactly why the
+mismatch would not announce itself.
 
 Python rather than `yq` deliberately. Python is the repo's native tooling
 (ADR-042) and `yaml` is already a dependency, so this adds nothing. The `yq` on

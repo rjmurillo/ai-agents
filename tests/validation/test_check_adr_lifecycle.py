@@ -157,13 +157,50 @@ def test_malformed_yaml_is_a_violation_not_a_crash(tmp_path):
     assert "did not parse" in details[0]
 
 
-def test_unterminated_fence_is_reported_as_absent(tmp_path):
-    adr_dir = _adr_dir(tmp_path)
-    (adr_dir / "ADR-001-thing.md").write_text("---\nid: ADR-001\n\n# ADR-001\n", encoding="utf-8")
+def test_an_unterminated_fence_is_not_reported_as_an_absent_one(tmp_path):
+    """The record opens with `---` and carries `id`. Telling its author the block
+    is absent sends them to add what is already there.
 
-    assert _hits(tmp_path, "frontmatter-parses") == [
-        "no leading `---` frontmatter block (ADR-073 schema absent)"
-    ]
+    This asserted the opposite until Copilot raised it on PR #5209.
+    `_split_frontmatter` returns None for two different defects, and the message
+    named only one of them. The record was always counted, so this is a wrong
+    diagnosis rather than a silent drop, and the fix moves no count.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    (adr_dir / "ADR-001-thing.md").write_text(
+        "---\nid: ADR-001\nstatus: accepted\n\n# ADR-001\n", encoding="utf-8"
+    )
+
+    detail = _hits(tmp_path, "frontmatter-parses")
+
+    assert len(detail) == 1
+    assert "no closing `---` fence" in detail[0]
+    assert "absent" not in detail[0], "the block is present, just unterminated"
+
+
+def test_a_genuinely_absent_block_still_says_absent(tmp_path):
+    """Negative control. Narrowing the message must not swallow the other case."""
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, None, "\n# ADR-001\n")
+
+    detail = _hits(tmp_path, "frontmatter-parses")
+
+    assert len(detail) == 1
+    assert detail[0] == "no leading `---` frontmatter block (ADR-073 schema absent)"
+
+
+def test_an_unterminated_block_is_still_only_one_violation(tmp_path):
+    """Containment holds for the new branch as it does for the old one."""
+    adr_dir = _adr_dir(tmp_path)
+    (adr_dir / "ADR-001-thing.md").write_text(
+        "---\nid: ADR-999\nstatus: nonsense\nimplemented: true\n\n## Status\n\nProposed\n",
+        encoding="utf-8",
+    )
+
+    counts = _counts(tmp_path)
+
+    assert counts["frontmatter-parses"] == 1
+    assert sum(counts.values()) == 1, "an unreadable block must not cascade"
 
 
 def test_non_mapping_frontmatter_is_reported_with_its_type(tmp_path):

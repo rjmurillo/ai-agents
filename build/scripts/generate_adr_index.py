@@ -53,6 +53,7 @@ EXIT CODES (ADR-035):
   2  - Configuration error (ADR directory missing)
   3  - External error (an ADR file could not be read or decoded)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -158,9 +159,7 @@ class _StrictLoader(yaml.SafeLoader):
     """
 
 
-def _no_duplicate_keys(
-    loader: yaml.SafeLoader, node: yaml.MappingNode
-) -> dict[Any, Any]:
+def _no_duplicate_keys(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict[Any, Any]:
     seen: set[Any] = set()
     for key_node, _ in node.value:
         key = loader.construct_object(key_node, deep=True)
@@ -175,10 +174,7 @@ def _no_duplicate_keys(
     return mapping
 
 
-_StrictLoader.add_constructor(
-    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _no_duplicate_keys
-)
-
+_StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _no_duplicate_keys)
 
 
 @dataclass(frozen=True, slots=True)
@@ -201,9 +197,7 @@ class AdrRecord:
 # --- Parsing --------------------------------------------------------------
 
 
-def parse_frontmatter(
-    content: str, path: Path
-) -> tuple[dict[str, object] | None, str]:
+def parse_frontmatter(content: str, path: Path) -> tuple[dict[str, object] | None, str]:
     """Split one ADR into (frontmatter mapping, body).
 
     The mapping is ``None`` when there is no frontmatter block. Every other
@@ -416,9 +410,7 @@ def collect_records(adr_dir: Path) -> list[AdrRecord]:
     """Every canonical ADR under ``adr_dir``, sorted by the parsed integer, not
     by filename and not by iteration order, so output is filesystem-independent."""
     records = [
-        build_record(path)
-        for path in sorted(adr_dir.glob(_ADR_GLOB))
-        if is_adr_filename(path.name)
+        build_record(path) for path in sorted(adr_dir.glob(_ADR_GLOB)) if is_adr_filename(path.name)
     ]
     records.sort(key=lambda r: r.number)
     return records
@@ -562,9 +554,17 @@ _INTRO = (
     "    if not text.startswith('---'):\n"
     "        continue  # no frontmatter: see Needs backfill below\n"
     "    front = yaml.safe_load(text[3 : text.index('\\n---', 3)]) or {}\n"
-    "    if front.get('status') == 'accepted':\n"
+    "    if str(front.get('status', '')).strip().lower() == 'accepted':\n"
     "        print(front.get('id') or path.name)\n"
     "```\n\n"
+    "**Normalise before comparing, as above.** Every reader of this corpus lowers\n"
+    "and strips the value first: `_status_of` in\n"
+    "`scripts/validation/check_adr_lifecycle.py` returns\n"
+    "`str(value).strip().lower()`, and this generator does the same before\n"
+    "bucketing a record. So `status: Accepted` passes the `status-enum` gate and\n"
+    "lands under Accepted in the table below, while a bare `== 'accepted'` misses\n"
+    "it. Every record carries a lowercase value today, which is exactly why the\n"
+    "mismatch would not announce itself.\n\n"
     "Python rather than `yq` deliberately. Python is the repo's native tooling\n"
     "(ADR-042) and `yaml` is already a dependency, so this adds nothing. The `yq` on\n"
     "PATH here is the jq wrapper, which has no front-matter mode and fails on a\n"
@@ -588,13 +588,11 @@ _BLURBS: tuple[tuple[str, str], ...] = (
     ),
     (
         "Retired",
-        "Superseded or deprecated. Do not cite these. The last column is where the "
-        "decision moved.",
+        "Superseded or deprecated. Do not cite these. The last column is where the decision moved.",
     ),
     (
         "Rejected",
-        "Considered and declined. Kept visible so the proposal is findable and does "
-        "not return.",
+        "Considered and declined. Kept visible so the proposal is findable and does not return.",
     ),
     (
         "Needs backfill",
@@ -652,12 +650,20 @@ def _run_check(adr_dir: Path, output_path: Path) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Generate the ADR current-state index.")
-    p.add_argument("--adr-dir", type=Path, default=_ADR_DIR_RELATIVE,
-                   help="Directory holding ADR-NNN-slug.md records.")
-    p.add_argument("--output", type=Path, default=_OUTPUT_RELATIVE,
-                   help="Path of the generated index.")
-    p.add_argument("--check", action="store_true",
-                   help="Exit 1 if the committed index differs from the generated one.")
+    p.add_argument(
+        "--adr-dir",
+        type=Path,
+        default=_ADR_DIR_RELATIVE,
+        help="Directory holding ADR-NNN-slug.md records.",
+    )
+    p.add_argument(
+        "--output", type=Path, default=_OUTPUT_RELATIVE, help="Path of the generated index."
+    )
+    p.add_argument(
+        "--check",
+        action="store_true",
+        help="Exit 1 if the committed index differs from the generated one.",
+    )
     return p
 
 
