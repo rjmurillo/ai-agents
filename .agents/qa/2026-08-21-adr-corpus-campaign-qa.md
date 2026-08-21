@@ -1,13 +1,13 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 86ccc330dd1ec6b1846c8daaf74066a1a9861d57
+qaCommit: b7b87c395677b7a1611e29390262af906324e466
 ---
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `86ccc330dd1ec6b1846c8daaf74066a1a9861d57`
+**Validated at commit**: `b7b87c395677b7a1611e29390262af906324e466`
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -543,4 +543,27 @@ ADR-063 structural     26 passed
 mypy ratchet           clean after annotating the loader
 taste ratchet          within baseline
 ```
+
+### A UTF-8 site my own sweep missed
+
+The autofix agent found one I did not: `check_adr_links.py:291`, a handler whose
+`except (OSError, subprocess.CalledProcessError)` guarded a read several lines
+above it. My sweep grepped for `read_text` calls and inspected the four lines
+after each, so a handler sitting further from its read fell outside the window.
+Merged from `ade5308fc`.
+
+Recording the method failure, not just the miss. A proximity heuristic finds
+handlers that hug their read and silently reports clean on the ones that do not,
+which is the same shape as the whole-document scan this campaign has now hit
+three times: a search whose scope is not the scope of the question. The reliable
+sweep is over exception handlers, asking which reads each one guards, rather
+than over reads, guessing which handler catches them.
+
+### Both of this PR's inherited reds are now fixed on main
+
+`#5225` bumped the audited pip to 26.2 (issue #5222) and `#5219` fixed
+`test_workflow_sets_up_uv`. Both are merged, so `PR #5223` (this session's
+unblock-main PR) is fully redundant: main's pip block updated every comment that
+named the old version and kept all three CVE ignores, which is what that PR
+existed to do.
 
