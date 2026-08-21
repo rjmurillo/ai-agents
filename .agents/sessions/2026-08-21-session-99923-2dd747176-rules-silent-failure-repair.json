@@ -117,7 +117,7 @@
       "finding": "The must items \"convert every failure signal into a non-zero exit before the step ends\", \"convert every detected violation into a non-zero exit\", and \"distinguish a run that did nothing from a run that succeeded\" govern the original defect; nothing governed the fix. Four successive repairs to one silent-failure defect in PR #5176 each introduced a different silent failure, and three were caught by a reviewer rather than by the suite being written for that class."
     }
   ],
-  "endingCommit": "fb50f3d5a282792b85a98f1b84d477149fd041ed",
+  "endingCommit": "59ee31ff7d40cb88a586a8bc05d3125e4d157b21",
   "nextSteps": [
     "Open a draft PR from claude/issue-5188-silent-failure-repair referencing issue #5188"
   ]
