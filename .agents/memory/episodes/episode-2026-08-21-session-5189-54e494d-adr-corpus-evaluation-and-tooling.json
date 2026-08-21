@@ -105,6 +105,28 @@
       "caused_by": [
         "e007"
       ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix the UnicodeDecodeError family reported by Cursor Bugbot",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-21T16:15:13+00:00",
+      "type": "commit",
+      "content": "Commit: 2eb268f5bd157556869cf42e594faa6537fdf40a",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
     }
@@ -114,8 +136,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
-    "files_changed": 46
+    "commits": 7,
+    "files_changed": 47
   },
   "lessons": []
 }

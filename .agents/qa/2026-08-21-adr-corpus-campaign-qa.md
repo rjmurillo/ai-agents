@@ -1,13 +1,13 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: cb22971178f07d8232ce7367c0d94b03f3cf5bf2
+qaCommit: 2eb268f5bd157556869cf42e594faa6537fdf40a
 ---
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `cb22971178f07d8232ce7367c0d94b03f3cf5bf2`
+**Validated at commit**: `2eb268f5bd157556869cf42e594faa6537fdf40a`
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -300,4 +300,82 @@ check_adr_links        0 violation(s)
 generate_adr_index     --check OK, exit 0
 taste_count_ratchet    OK, 574 <= baseline 576
 pre_pr.py              all gates PASS
+```
+
+## Addendum 5: UnicodeDecodeError is not an OSError (Cursor Bugbot, PR #5209)
+
+A review bot reported that `Path.read_text(encoding="utf-8")` wrapped in
+`except OSError` never catches `UnicodeDecodeError`, because that subclasses
+`ValueError`. It named three locations. The finding is correct and was
+reproduced before any fix:
+
+```
+_read_record   ESCAPED: UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff
+read_baseline  ESCAPED: UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff
+```
+
+The consequence is worse than a crash. One ADR with a stray byte aborted the
+whole lifecycle gate with a traceback, so the other 97 records went unreported
+and the run read as tooling breakage rather than as a finding about the corpus.
+That is this PR's own subject matter reproduced in the gate written to police
+it, which now makes three times in this campaign.
+
+**The sweep found more than the report.** Every `read_text` site in this PR's
+files was checked rather than only the three named:
+
+| Site | State | Action |
+|---|---|---|
+| `check_adr_lifecycle._read_record` | `except OSError` | fixed (reported) |
+| `check_adr_lifecycle.read_baseline` | `except OSError` | fixed (reported) |
+| `detect_adr_changes:234` | `except OSError` | fixed (reported) |
+| `detect_adr_changes:60` | `except OSError` | **fixed (not reported)** |
+| `detect_adr_changes:274` | already catches `ValueError` | unchanged |
+| `generate_adr_index.main` | already catches `UnicodeDecodeError`, exit 3 | unchanged |
+| `check_adr_links:222` | reads `errors="replace"`, cannot raise | unchanged |
+
+`_get_dependent_adrs` at line 60 is the one the report missed. Fixing only the
+named handlers would have left the dependent scan crashing on the same input,
+which is the partial-guard failure the mirror obligation exists to prevent.
+
+Two sites were verified correct and deliberately left alone rather than
+"fixed". `generate_adr_index` already handles it at the top level with an
+ADR-035 exit 3, and `check_adr_links` reads with `errors="replace"` so it cannot
+raise at all. Those two contracts differ on purpose: a validator that must
+report corruption should surface it, not silently substitute characters, which
+is why the gates report and the link reader replaces.
+
+**Messages distinguish the two failures.** "is not valid UTF-8" and "could not
+be read" send a reader to different fixes, so they do not share wording.
+
+**Every guard proven falsifiable, not observed passing** (`testing.md`
+SHOULD 17). Reverting each arm and re-running:
+
+```
+check_adr_lifecycle   4 failed, 1 passed   (restored: 5 passed)
+detect_adr_changes    3 failed, 1 passed   (restored: 4 passed)
+```
+
+The one test passing either way in each pair is the negative control. It
+catches a handler that returns the violation or the `unknown` sentinel
+unconditionally, which would satisfy every positive test and be
+indistinguishable from a correct fix.
+
+**A violation I introduced and then removed.** The new cases took
+`test_detect_adr_changes.py` from 490 to 562 lines, past the 500-line ceiling,
+and the taste ratchet from 574 to 575. The baseline had two slots of slack, so
+it would have passed. Extracted to `test_detect_adr_changes_encoding.py`
+instead; the ratchet is back to 574, its pre-change value. A scoped suppression
+was available and is what the repo does for a few tightly-paired harnesses, but
+`code-quality.md` ranks the idiomatic fix above it and these cases are cohesive
+enough to stand alone.
+
+Re-verified at this commit:
+
+```
+429 passed   ADR gates, index, detect_adr_changes across all four trees,
+             misc skill scripts, pre_pr sequence registry
+check_adr_lifecycle    [PASS] 71 violation(s), no check above its baseline
+check_adr_links        0 violation(s)
+generate_adr_index     --check OK
+taste_count_ratchet    OK, 574 <= baseline 576, unchanged from pre-review
 ```

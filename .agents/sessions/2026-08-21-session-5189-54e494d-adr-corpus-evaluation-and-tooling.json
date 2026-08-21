@@ -152,9 +152,21 @@
         ".agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json"
       ],
       "notes": "Merged origin/main (8 commits behind) to take the sanctioned commit-ceiling relief (20 to 40) instead of the human-only commit-limit-bypass label. The merge inherited a test red on main: Renovate #5215 bumped astral-sh/setup-uv in vendor-provenance.yml and left the old SHA restated as a literal in the test, so every future bump breaks it identically. Fixed at the duplication, asserting a 40-character SHA pin read from the workflow (universal.md MUST-8) rather than retyping the new SHA. Proven falsifiable by mutation: DEAD on astral-sh/setup-uv@v10, PASS restored, plus a probe over six regression shapes (testing.md SHOULD 17). The dorny/paths-filter SHA duplicated in test_pytest_paths_filter_covers_episodes.py was deliberately left alone: it is load-bearing, since that test models the action's internal MatchOptions and a bump genuinely invalidates the model. Separately, the merge exposed that check_branch_context hard-blocks every commit when origin/HEAD is unset, because _is_merged_history cannot resolve the trunk and the issue #3343 exemption never fires. Cleared with git remote set-head origin --auto and filed as #5220 with a two-part fix; no hook was bypassed."
+    },
+    {
+      "task": "Fix the UnicodeDecodeError family reported by Cursor Bugbot",
+      "status": "complete",
+      "filesModified": [
+        "scripts/validation/check_adr_lifecycle.py",
+        ".claude/skills/adr-review/scripts/detect_adr_changes.py",
+        "src/copilot-cli/skills/adr-review/scripts/detect_adr_changes.py",
+        "tests/validation/test_check_adr_lifecycle.py",
+        "tests/skills/adr-review/test_detect_adr_changes_encoding.py"
+      ],
+      "notes": "UnicodeDecodeError subclasses ValueError, so every except OSError arm around read_text let it through and one stray byte aborted the whole gate with a traceback. Reproduced before fixing. The bot named three sites; sweeping every read_text site in the PR's files found a fourth it missed, _get_dependent_adrs, and confirmed two others were already correct and must not be touched: generate_adr_index handles it at top level with ADR-035 exit 3, and check_adr_links reads with errors='replace'. Each guard was proven falsifiable by reverting it and watching the tests go dead, with a negative control in each pair that would catch an unconditional handler. The new cases pushed a test module past the 500-line ceiling and the ratchet from 574 to 575; extracted to its own module rather than suppressed, returning the ratchet to 574."
     }
   ],
-  "endingCommit": "cb22971178f07d8232ce7367c0d94b03f3cf5bf2",
+  "endingCommit": "2eb268f5bd157556869cf42e594faa6537fdf40a",
   "nextSteps": [
     "Phase 2: backfill lifecycle frontmatter into the ADRs Phase 1 did not touch (issue #5190)",
     "Phase 2: add the seven missing Status sections and settle the canonical-versus-MADR structure question (issue #5196)",
