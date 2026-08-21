@@ -364,6 +364,19 @@
       "caused_by": [
         "e027"
       ],
+      "leads_to": [
+        "e029"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-08-21T23:50:06+00:00",
+      "type": "commit",
+      "content": "Commit: cdbb80ff1f5b81c6560fa52a9d4c77a59faee788",
+      "caused_by": [
+        "e028"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
     }
@@ -373,7 +386,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 28,
+    "commits": 29,
     "files_changed": 14
   },
   "lessons": []
