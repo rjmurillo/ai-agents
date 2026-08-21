@@ -155,7 +155,11 @@ class TestGetADRStatus:
         the reported handler would have left this one crashing on the same
         input.
         """
-        adr_dir = tmp_path / ".agents" / "architecture"
+        # Path read from the module, never spelled here. A shipped skill test
+        # that hard-codes ".agents/architecture" asserts this repository's
+        # layout on a consumer who may use any of ADR_DIRECTORIES, and the
+        # vendor-portability ratchet (issue #2050) fails the push for it.
+        adr_dir = tmp_path / _mod.ADR_DIRECTORIES[0]
         adr_dir.mkdir(parents=True)
         (adr_dir / "ADR-002-bad.md").write_bytes(b"\xff\xfe not utf-8")
         (adr_dir / "ADR-003-refs.md").write_text("# ADR-003\n\nSee ADR-001.\n")
