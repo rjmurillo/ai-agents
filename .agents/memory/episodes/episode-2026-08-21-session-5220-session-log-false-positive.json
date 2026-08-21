@@ -1,0 +1,114 @@
+{
+  "id": "episode-2026-08-21-session-5220-session-log-false-positive",
+  "session": "2026-08-21-session-5220-session-log-false-positive",
+  "timestamp": "2026-08-21T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Stop the fresh-checkout mtime-collision false positive in check_branch_context by fixing the root cause in issue #5220, instead of repeating a previous session's workaround of touching an unrelated merged session log or bypassing the hook",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduce the reported false positive locally before trusting the goal directive's framing",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Search open GitHub issues instead of assuming no prior report existed",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirm the specific precondition issue #5220 names: origin/HEAD does not resolve in this checkout",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implement the fallback ladder in scripts/validation/git_hook_policy.py: extract _merged_history_upstream trying origin/HEAD, then origin/main, then main",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Add a regression test mirroring test_branch_context_fails_open_when_git_is_unavailable's shape",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Run the branch-context test slice, then the full test_lefthook_integration.py suite, ruff, and mypy on changed files",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "test",
+      "content": "21/21 branch-context tests pass including the new one; 864 passed, 1 skipped on the full file; ruff and mypy both clean",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Run scripts/validation/pre_pr.py end to end before pushing",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Create this session log for the current branch rather than touching the unrelated merged log or bypassing the hook",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-21T16:17:41+00:00",
+      "type": "commit",
+      "content": "Commit: fb0f0fa15b6dd0d20c1f2d75650dcc991f78ebaf",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5220-session-log-false-positive"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}

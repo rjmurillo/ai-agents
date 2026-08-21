@@ -1,0 +1,157 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 5220,
+    "date": "2026-08-21",
+    "branch": "claude/session-log-false-positive-n3s1nn",
+    "startingCommit": "9e1ebd2b8b2d",
+    "objective": "Stop the fresh-checkout mtime-collision false positive in check_branch_context by fixing the root cause in issue #5220, instead of repeating a previous session's workaround of touching an unrelated merged session log or bypassing the hook"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__activate_project is unavailable in this remote execution environment (confirmed via ToolSearch, no match). Used the AGENTS.md-documented fallback instead: read .serena/memories/pr-review/pr-co-mingling-root-cause-2025-12-31.md directly."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unreachable this session; substituted the fallback memory read above plus the always-on rule context injected at session start"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as the read-only reference it declares itself to be; superseded by session logs and Serena memory per its own 2025-12-22 notice"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used scripts/validate_session_json.py and scripts/validation/pre_pr.py directly rather than an unlisted ad hoc script"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Followed skill-first routing per .claude/rules; no skill covered this task's git-hook-policy code fix, so worked directly per AGENTS.md Autonomy Guardrail (internal, reversible: act)"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read: Python-for-new-scripts and skill-first constraints confirmed already satisfied by this change"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Auto-recalled memory context at session start, plus .serena/memories/pr-review/pr-co-mingling-root-cause-2025-12-31.md read directly for the co-mingling background"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current reported claude/session-log-false-positive-n3s1nn before any commit"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On claude/session-log-false-positive-n3s1nn, 0 commits behind origin/main at session start"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status reported a clean working tree at session start"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "9e1ebd2b8b2d"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified above"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not touched"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run python scripts/validation/pre_pr.py includes Markdown Linting; PASS"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/issue-5220-branch-context-missing-origin-head-test-report.md"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new memory needed: this is a code fix for an already-filed, already-documented issue (#5220), not a new pattern to persist"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See endingCommit and workLog"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pytest tests/test_lefthook_integration.py: 864 passed, 1 skipped; ruff check: All checks passed; mypy scripts/validation/git_hook_policy.py: Success; scripts/validation/pre_pr.py: 57/57 validations passed"
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Reproduce the reported false positive locally before trusting the goal directive's framing",
+      "outcome": "check_branch_context(repo_root) returned 1 on this fresh checkout: _today_session_log picked an already-merged log (branch claude/pr-automerge-goal-eu2soz) as newest by mtime because every .agents/sessions/*.json file shares a near-identical checkout-time mtime"
+    },
+    {
+      "task": "Search open GitHub issues instead of assuming no prior report existed",
+      "outcome": "Found issue #5220, filed the same day, describing the exact log names this reproduction produced and proposing a fallback-ladder fix for _is_merged_history"
+    },
+    {
+      "task": "Confirm the specific precondition issue #5220 names: origin/HEAD does not resolve in this checkout",
+      "outcome": "git rev-parse --abbrev-ref origin/HEAD exited 128 (ambiguous argument); git rev-parse --abbrev-ref origin/main resolved cleanly, confirming the proposed fallback would work here"
+    },
+    {
+      "task": "Implement the fallback ladder in scripts/validation/git_hook_policy.py: extract _merged_history_upstream trying origin/HEAD, then origin/main, then main",
+      "outcome": "_is_merged_history now uses the extracted resolver instead of asking origin/HEAD alone; mirrors the existing origin/main -> main ladder in resolve_push_update per canonical-source-mirror.md"
+    },
+    {
+      "task": "Add a regression test mirroring test_branch_context_fails_open_when_git_is_unavailable's shape",
+      "outcome": "test_branch_context_merged_history_survives_missing_origin_head in tests/test_lefthook_integration.py, with a new _add_origin_main_without_head_with fixture helper and a negative control proving origin/HEAD is genuinely absent in the fixture"
+    },
+    {
+      "task": "Run the branch-context test slice, then the full test_lefthook_integration.py suite, ruff, and mypy on changed files",
+      "outcome": "21/21 branch-context tests pass including the new one; 864 passed, 1 skipped on the full file; ruff and mypy both clean"
+    },
+    {
+      "task": "Run scripts/validation/pre_pr.py end to end before pushing",
+      "outcome": "57/57 validations passed, 0 failed, 0 skipped"
+    },
+    {
+      "task": "Create this session log for the current branch rather than touching the unrelated merged log or bypassing the hook",
+      "outcome": "check_branch_context now resolves via this branch's own newest-mtime log instead of the stale merged one, independent of the origin/HEAD fix, closing this session's own instance of the false positive"
+    }
+  ],
+  "endingCommit": "fb0f0fa15b6dd0d20c1f2d75650dcc991f78ebaf",
+  "nextSteps": [
+    "Commit the code fix and test",
+    "Commit this session log with endingCommit set to the code-fix commit, per session-logs.md MUST-2",
+    "Push claude/session-log-false-positive-n3s1nn and open a draft PR that fixes issue #5220",
+    "Subscribe to PR activity and watch CI"
+  ]
+}
