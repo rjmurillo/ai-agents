@@ -177,12 +177,37 @@ Those include `test_internal_paths_filtered_from_apply_to`,
 `test_block_list_paths_internal_globs_filtered`, and
 `test_all_internal_paths_skips_rule_for_plugin_destination`.
 
-**What that does not settle.** Design-by-intent is not the same as adequate for
-this rule. The consequence still stands: a Copilot CLI session editing
-`.claude/commands/` does not load SHOULD 4, so one of the two trees the item was
-expanded for is covered on one harness only. The generator is behaving correctly
-and the coverage gap is real at the same time. That is a decision for the owner,
-not something this evidence closes, and it is raised as focus area 1.
+**Withdrawn: the coverage gap I asserted here does not exist.** I wrote that a
+Copilot CLI session editing `.claude/commands/` does not load SHOULD 4, and
+raised it to the owner as a decision. Copilot's review on PR #5206 said the claim
+was incorrect. It is. I had reasoned from the distributed mirror alone and never
+opened the other one.
+
+Both cited files, read at level 1:
+
+- `.agents/steering/README.md:19` states the loading contract verbatim: "Claude
+  Code reads `.claude/rules/*.md` via the directive in root `CLAUDE.md`. Copilot
+  CLI auto-loads `.github/instructions/*.instructions.md`." So the in-repo Copilot
+  entry point is the `.github` tree, not the distributed one.
+- `.github/instructions/ci-scripts.instructions.md` frontmatter carries
+  `.claude/commands/**` and both `.claude/skills/**` globs. A Copilot CLI session
+  editing `.claude/commands/` in this repository loads the rule.
+- `templates/platforms/copilot-cli.yaml:31-40` scopes `keepInternalGlobsFor` to
+  `.github/instructions` for exactly this reason, and states the premise for the
+  other tree: it is "installed where `.claude/` does not exist", so a
+  `.claude/commands/**` glob there would be a dead reference, not a missing rule.
+
+Both trees are covered on both harnesses. The in-repo tree keeps the glob because
+`.claude/` is here; the distributed tree drops it because `.claude/` is not there
+to match. There is no harness that edits `.claude/commands/` without loading this
+rule, so there is no decision for the owner and focus area 1 is withdrawn, not
+narrowed.
+
+The error is the one this whole document is about, committed against my own
+subject matter: I checked one of two mirrors and stated a conclusion whose scope
+was both. `canonical-source-mirror.md` requires reading the body of what you cite;
+I cited a generator behavior correctly and then asserted a consequence about a
+file I had not opened.
 
 ## The SHA check I said precedes publishing, and did not
 
@@ -224,10 +249,20 @@ missed that.
 ### SHA resolution: a frozen list is correct here
 
 The set of SHAs named in the PR description is fixed once written, so a recorded
-result stays true. Measured at `f344b01fb`:
+result stays true. Two corrections since the first version of this block, both
+from Copilot's review:
+
+- The list omitted `73769ed28`, which the description presents as a real commit
+  in the row correcting `db60e0e`. A list that skips one of the objects it claims
+  to cover is the narrower-unit failure again, inside the check written to stop it.
+- The claim was written as "every SHA named in the description resolves" while
+  the description deliberately names two that do not. As written it could not be
+  true. It is now scoped to the SHAs the description **presents as valid objects**,
+  and the two exceptions get their own negative check rather than an exemption.
 
 ```
-$ for sha in 15f95d2b6 ea408a48c 09dab8e3e dc99b4502 59ee31ff7 bc980a869 6dfc77f33; do
+$ for sha in 15f95d2b6 ea408a48c 09dab8e3e dc99b4502 59ee31ff7 bc980a869 \
+             6dfc77f33 73769ed28; do
     printf '%s ' "$sha"; git cat-file -e "$sha" && echo resolves || echo MISSING; done
 15f95d2b6 resolves
 ea408a48c resolves
@@ -236,7 +271,17 @@ dc99b4502 resolves
 59ee31ff7 resolves
 bc980a869 resolves
 6dfc77f33 resolves
+73769ed28 resolves
+
+$ for sha in 08c07dd28 db60e0e; do
+    printf '%s ' "$sha"; git cat-file -e "$sha" && echo resolves || echo MISSING; done
+08c07dd28 MISSING
+db60e0e MISSING
 ```
+
+The second command is the load-bearing one. The first proves the references are
+good; only the second proves the two fabrications are still fabrications and were
+not quietly swapped for real objects when the row was edited.
 
 ### Episode reachability: a frozen list is wrong here, and was
 
