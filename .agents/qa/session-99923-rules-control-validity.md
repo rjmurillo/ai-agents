@@ -74,13 +74,65 @@ here, and was checked rather than assumed:
 
 | Command | Result |
 |---|---|
-| `pytest tests/commands/test_pr_autofix_earned_t1_exemption.py::test_the_inverted_control_can_fail -q` | 2 passed |
-| `pytest tests/commands/ -q` | 481 passed, 1 skipped |
+| `uv run --frozen python -m pytest tests/commands/test_pr_autofix_earned_t1_exemption.py::test_the_inverted_control_can_fail -q` | 2 passed |
+| `uv run --frozen python -m pytest tests/commands/ -q` | 481 passed, 1 skipped |
+
+An earlier version of this table wrote those as bare `pytest`. That is not the
+command that ran, and the difference matters rather than being pedantic: bare
+`pytest` resolves the ambient interpreter while `uv run --frozen` resolves the
+locked environment, so the two can disagree about which dependencies exist.
+`AGENTS.md` specifies the `uv run` form. Recording a command you did not run is
+the same defect class this rule is about, one level up. Copilot found it.
 
 The first is the executable form of the very failure this rule describes: it
 asserts that the inverted control's discrimination probe can fail, so a probe
 that measures nothing is exposed instead of quietly passing. Its passing on this
 branch is the measurement the rule cites, run here rather than quoted.
+
+### The second measurement, run rather than quoted
+
+The rule's other instance is the comment-skip guard whose test used prose that
+merely mentioned the syntax the guard rejects. Running a suite does not test
+that: the guard is present, so the case passes either way. The measurement is a
+mutation, so it was run as one.
+
+Mutation: delete the comment skip in `contract_violations`
+(`tests/commands/pr_autofix_field_parser.py`), the two lines reading
+`if line.lstrip().startswith("#"): continue` before the
+`unsupported_path_syntax` scan.
+
+| Step | Command | Result |
+|---|---|---|
+| Guard removed | `uv run --frozen python -m pytest tests/commands/test_pr_autofix_field_contract.py -q -k comment` | 1 failed, 2 passed |
+| Guard restored | same | 3 passed |
+
+**DEAD, which is the required outcome for a discrimination probe.** The case
+that failed is `test_bracket_notation_in_a_comment_is_not_a_violation`, and it
+failed on the comment's own line, reporting the bracket-notation program
+`.Tier // .["tier"]` as unreadable by the path extractor. The other two comment
+cases passed with the defect present, which is the point restated as a
+measurement.
+
+The half the rule actually turns on was checked separately, because a passing
+mutation proves the fixed test discriminates and says nothing about why the
+original did not. With the guard still removed, calling `contract_violations`
+directly:
+
+| Comment body | Violations |
+|---|---|
+| prose mentioning the bracket form, no quoted jq program | `[]` |
+| a real `jq -r '...'` invocation inside the comment | 1 |
+
+So a comment of the first shape is invisible to the check even with the guard
+gone: deleting the guard under test changes nothing, and the case passes having
+measured nothing. That is the SURVIVED-is-a-finding shape, observed here rather
+than quoted. Stated at the level actually measured: the original test's exact
+prose is recorded on PR #5176, and what was reproduced here is the mechanism it
+tripped over, not that specific string.
+
+Restore verified byte-identical with `cmp -s` against a copy taken before the
+edit, and `__pycache__` under `tests/commands/` cleared between the mutation and
+the rerun, per `testing.md` SHOULD 8.
 
 The rule text still carries both measurements inline (the exact expressions, the
 tier the case ran, what each edit did or failed to do), and that stays

@@ -57,12 +57,12 @@
       "skillScriptsListed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Listed in session 99923: ls .claude/skills/github/scripts/ -> gh-native, issue, milestone, notifications, pr, reactions, test_workflow_locally.py, utils. No skill script is used here; the only tooling is build/scripts/generate_rules.py."
+        "Evidence": "Listed in session 99923: ls .claude/skills/github/scripts/ -> gh-native, issue, milestone, notifications, pr, reactions, test_workflow_locally.py, utils. The earlier wording here said no skill script is used and named build/scripts/generate_rules.py as the only tooling. That understated it: .claude/skills/ai-agents-generation-and-release/SKILL.md carries the trigger \"regenerate the mirrors\" and its generator inventory maps .claude/rules/*.md to both instruction trees through build/scripts/build_all.py, so the applicable runbook was that skill and it was not invoked. The mirrors were regenerated through build_all.py, which is what the skill directs, so the outcome matches; the process step was skipped. Copilot found it."
       },
       "usageMandatoryRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read .serena/memories/usage-mandatory.md in session 99923 (skill-first incident log; ADR-085 retired the blocking hook but the MUST-level convention stands). No skill applies to a rule-text edit; the only tooling is the rules generator."
+        "Evidence": "Read .serena/memories/usage-mandatory.md in session 99923 (skill-first incident log; ADR-085 retired the blocking hook but the MUST-level convention stands). The earlier wording claimed no skill applies to a rule-text edit. That is an absence asserted without searching the skill tree, which knowledge-persistence.md MUST NOT 4 forbids, and it is false: ai-agents-generation-and-release owns .claude/rules/ mirror regeneration. Copilot found it."
       }
     },
     "sessionEnd": {
