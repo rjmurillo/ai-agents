@@ -44,14 +44,26 @@ rather than the list, which is not.
 Most of the tree is a support module paired with the cases that drive it:
 `pr_autofix_field_parser.py` for the jq reads and the guards on that checker,
 `pr_autofix_tier_parser.py` for the tier set, and `pr_autofix_dispatch_harness.py`
-for the runtime behavior. One module inverts that relationship rather than
-standing outside it: `test_pr_autofix_harness_isolation.py` imports the dispatch
-harness like every other case module, but its subject is the harness's own
-environment rather than the command block the harness runs, so it verifies its
-collaborator instead of being driven by it. An earlier wording here said it
-"stands alone", which reads as importing nothing and is false. Grepping that
-module for `^from tests.commands` returns the dispatch-harness import, same as
-every sibling.
+for the runtime behavior. Three case modules import the dispatch harness and call
+`run_dispatch`: `test_pr_autofix_tier_dispatch_runtime.py`,
+`test_pr_autofix_earned_t1_exemption.py`, and
+`test_pr_autofix_harness_isolation.py`. The other three import parser helpers
+instead. What separates the isolation module from its two harness siblings is the
+**subject under test**, not the dependency: they assert what the extracted command
+block does with a given tier, completeness flag, and auto-merge state, while it
+asserts what the harness itself puts into the subprocess environment. That is why
+the allowlist's own definition cannot stand in for it.
+
+Two earlier wordings of this paragraph were wrong, in the document whose subject
+is claims narrower than the evidence behind them. The first said the module
+"stands alone", which reads as importing nothing. The replacement said it "imports
+the dispatch harness like every other case module" and "verifies its collaborator
+instead of being driven by it": the first half overcounts, since only three of six
+do, and the second half is false, because it calls `run_dispatch` at lines 54 and
+88 and therefore drives the harness exactly as its two siblings do. Copilot found
+both. Re-derive the membership with
+`grep -ln "pr_autofix_dispatch_harness" tests/commands/test_pr_autofix_*.py`
+rather than trusting this list.
 
 This section has now gone stale three times, and each repair was narrower than
 the failure. First it described the one-line fix and three modules, so the PASS

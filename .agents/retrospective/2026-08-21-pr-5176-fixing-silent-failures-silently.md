@@ -278,12 +278,32 @@ against the session objective, the compliance evidence, and the episode; it was
 corrected there in `0b81de54f` and in PR #5206 in `dc99b4502`.
 
 **Why nothing caught it.** No gate in this repository checks that a cited rule
-item says what the citation claims it says. `.claude/rules/knowledge-persistence.md`
-MUST NOT 3 names exactly this shape and requires grepping the rule tree and
-citing file and item number, or dropping the attribution; it is guidance a
-reviewer enforces, not a check. That makes this an instance of Finding 5's
-theme one level up: the durable record carried a claim that was never measured,
-and every restatement of it looked like corroboration.
+item says what the citation claims it says. The rule that does name this shape is
+`.claude/rules/canonical-source-mirror.md`, in "Behavioral claims: read the body,
+not the name":
+
+> A function's name is not evidence of its behavior. Neither is its call site, a
+> prior PR description, or your memory of it. Open the file and read the body.
+
+It closes by widening past the word "mirrors": "This section binds any assertion
+about another component's behavior, whatever words carry it. The trigger is not a
+phrase like 'mirrors'; the trigger is that you told the reader what some other
+code does." A rule item is such a component, and the failure here was reading its
+name and number rather than its body. Guidance a reviewer enforces, not a check.
+
+**This paragraph first cited the wrong rule, and the wrongness is the same one.**
+It named `knowledge-persistence.md` MUST NOT 3. That item is about a different
+failure: presenting an *operator preference* as a repository rule, where the
+remedy is to "grep the rule tree for X and cite the file and item number, or drop
+the attribution". Here a real repository rule was misread, and the original
+paragraph already cited the correct file and the correct item number, so MUST NOT
+3's remedy would have passed it. Citing a rule for a shape it does not name,
+inside a correction about citing a rule for something it does not say, is the
+same error one level further down. Copilot found it on PR #5212.
+
+That makes this an instance of Finding 5's theme one level up: the durable record
+carried a claim that was never measured, and every restatement of it looked like
+corroboration.
 
 **Appended rather than edited in place**, per `.claude/rules/retros.md` MUST NOT
 1: corrections to a landed retro append a new section with a date and rationale.
