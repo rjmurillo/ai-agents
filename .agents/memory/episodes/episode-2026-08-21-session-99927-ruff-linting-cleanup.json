@@ -1,0 +1,103 @@
+{
+  "id": "episode-2026-08-21-session-99927-ruff-linting-cleanup",
+  "session": "2026-08-21-session-99927-ruff-linting-cleanup",
+  "timestamp": "2026-08-21T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Drive repo-wide ruff violations to zero and convert the existing whole-tree count ratchet into a zero gate so the clean state is enforced rather than documented.",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "design",
+      "context": "",
+      "chosen": "Chose to lower scripts/ci/ruff_count_baseline.txt from 27 to 0 instead of adding a second guard mechanism.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran uv run ruff check . repo-wide rather than only the eight violations quoted in the request.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked why SIM103 and E501 fired under packages/ when pyproject.toml waives both for packages/**/*.py.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed the three RUF100 findings were genuinely dead before deleting the directives.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reflowed two E501 lines in scripts/migrations/req003_inline_plugin_root_bootstrap.py, one inside a compiled regex and one inside the generated-code template NEW_TEMPLATE.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrapped two E501 lines in .agents/security/benchmarks/vulnerable_samples/cwe22_path_traversal.py.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Searched for existing ruff guard infrastructure before proposing a new one.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Chose to lower scripts/ci/ruff_count_baseline.txt from 27 to 0 instead of adding a second guard mechanism.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Hit a pre-commit block from branch-context-policy on the first commit.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}

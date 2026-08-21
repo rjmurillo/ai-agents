@@ -1,0 +1,140 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 99927,
+    "date": "2026-08-21",
+    "branch": "claude/ruff-linting-cleanup-hizsp7",
+    "startingCommit": "9e1ebd2b8b2de2ef1887001631fa7dfbfa10de39",
+    "objective": "Drive repo-wide ruff violations to zero and convert the existing whole-tree count ratchet into a zero gate so the clean state is enforced rather than documented."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "memoriesLoaded": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP tools are not exposed in this session; ToolSearch for mcp__serena__* returned no matching deferred tools. Fell back to reading .claude/rules/*.md and .agents/ governance files directly, per the AGENTS.md fallback."
+      },
+      "skillScriptsListed": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not run. Work was scoped to ruff violations and the existing ratchet wiring; no GitHub skill scripts were invoked."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, created mid-session to satisfy branch-context-policy's exemption for a branch whose newest dated log belongs to another branch (the PR #5202 log for claude/pr-automerge-goal-eu2soz is committed on origin/main and wins the recency comparison)."
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "mcp__serena__activate_project is unavailable in this session; see memoriesLoaded."
+      },
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git status --short --branch reported claude/ruff-linting-cleanup-hizsp7 with a clean working tree at 9e1ebd2."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch is claude/ruff-linting-cleanup-hizsp7, not main."
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "AGENTS.md, CLAUDE.md, and the path-scoped rules under .claude/rules/ were injected as system-reminder context and read before editing."
+      },
+      "constraintsRead": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": ".agents/governance/PROJECT-CONSTRAINTS.md was not opened. .claude/rules/ci-scripts.md, code-quality.md, python.md, security.md, and testing.md were read and governed the changes."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "mcp__serena__initial_instructions is unavailable in this session; see serenaActivated."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": ".agents/HANDOFF.md was read at session start as a read-only reference."
+      }
+    },
+    "sessionEnd": {
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP write tools are unavailable in this session. The durable finding (packages/semantic-hooks carries its own ruff config, so root per-file-ignores never reach it) is recorded in this log and in the PR body instead."
+      },
+      "markdownLintRun": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "No markdown files were authored this session; every change is Python plus one baseline integer."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md was not modified (read-only per ADR-014)."
+      },
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This checklist, completed at session end."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Six commits on claude/ruff-linting-cleanup-hizsp7 pushed to origin and opened as a draft PR."
+      },
+      "qaValidation": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/qa/session-99927-ruff-linting-cleanup.md"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "scripts/validation/pre_pr.py run before push; see workLog."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Ran uv run ruff check . repo-wide rather than only the eight violations quoted in the request.",
+      "result": "27 violations across 10 files, not 8. The extra 19 were a third dead noqa in tests/validation/test_validate_sync_registry.py plus I001, E402, B007, B905, N806, SIM103, and further E501 findings in .agents/, docs/eval/, .claude/skills/, and packages/."
+    },
+    {
+      "action": "Checked why SIM103 and E501 fired under packages/ when pyproject.toml waives both for packages/**/*.py.",
+      "result": "packages/semantic-hooks/pyproject.toml declares its own [tool.ruff] with select including SIM and no per-file-ignores. Ruff resolves config from the nearest pyproject.toml, so the root waiver never applies to that subtree. Fixed the code rather than either config."
+    },
+    {
+      "action": "Confirmed the three RUF100 findings were genuinely dead before deleting the directives.",
+      "result": "pyproject.toml already carries \"tests/validation/**/*.py\" = [\"E402\"], so E402 is disabled for those files and the inline noqa suppressed nothing."
+    },
+    {
+      "action": "Reflowed two E501 lines in scripts/migrations/req003_inline_plugin_root_bootstrap.py, one inside a compiled regex and one inside the generated-code template NEW_TEMPLATE.",
+      "result": "Verified OLD_PATTERN.pattern is byte-identical to the pre-change pattern and re.MULTILINE is retained; verified NEW_TEMPLATE.format(exit_code=2) still compiles, still contains the ALREADY_MIGRATED_MARKER and sys.exit(2), and emits the same message text. tests/test_req003_migration.py asserts on those markers, not the template text, and passes."
+    },
+    {
+      "action": "Wrapped two E501 lines in .agents/security/benchmarks/vulnerable_samples/cwe22_path_traversal.py.",
+      "result": "Both lines sit inside the SAFE helpers (test_safe_file_path's containment return and export_data_secure's ValueError), not inside a VULNERABLE payload, so the benchmark's detection answer key is unchanged. The I001 fixes in that file and cwe77_command_injection.py removed a blank line after the imports only."
+    },
+    {
+      "action": "Searched for existing ruff guard infrastructure before proposing a new one.",
+      "result": "Two ratchets already exist and are wired into both CI and pre-push: scripts/ci/ruff_ratchet.py (diff-scoped, pytest.yml:208 and lefthook.yml:469) and scripts/ci/ruff_count_ratchet.py (whole tree, pytest.yml:257/266 and lefthook.yml:476). The whole-tree gate is a ceiling ratchet whose baseline stood at 27, exactly the pre-existing count, which is why the violations were permitted rather than blocked."
+    },
+    {
+      "action": "Chose to lower scripts/ci/ruff_count_baseline.txt from 27 to 0 instead of adding a second guard mechanism.",
+      "result": "At baseline 0 the existing ceiling ratchet is a zero gate, enforced in CI and pre-push, and its --base-ref comparison already blocks any PR that tries to raise the number back. .claude/rules/ci-scripts.md requires a real improvement to be recorded and forbids raising a baseline, so this is the sanctioned action rather than new infrastructure. Adding a parallel must-be-zero check would have duplicated knowledge the ratchet already owns."
+    },
+    {
+      "action": "Hit a pre-commit block from branch-context-policy on the first commit.",
+      "result": "check_branch_context in scripts/validation/git_hook_policy.py found the newest dated session log naming claude/pr-automerge-goal-eu2soz. That log is committed on origin/main via PR #5202, so it satisfies _is_merged_history and the only missing half of the documented exemption was a log for the current branch. Created this log rather than bypassing the hook."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Watch the ruff count ratchet on the PR: with the baseline at 0 any new violation now blocks rather than being absorbed by slack.",
+    "Consider whether packages/semantic-hooks/pyproject.toml should inherit the root ruff per-file-ignores instead of redeclaring its own select list, so the two configs cannot drift again."
+  ]
+}
