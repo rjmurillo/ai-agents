@@ -283,8 +283,17 @@ def test_the_verification_checklist_covers_the_completeness_half(doc: Path) -> N
     """
     body = doc.read_text(encoding="utf-8")
     block = body[body.index("# tier-dispatch:start") : body.index("# tier-dispatch:end")]
-    if "PAGES_COMPLETE" not in block:
-        pytest.skip("the gate no longer reads a completeness field")
+    # Asserted, not skipped. The first version called `pytest.skip` when the
+    # gate stopped reading a completeness field, which turns deleting the gate
+    # into a green run and needs a tracking issue under testing.md MUST NOT 2.
+    # Worse, it is the guard's own subject: a test that disappears exactly when
+    # the thing it protects is removed protects nothing. This PR requires the
+    # gate, so its absence is a failure.
+    assert "PAGES_COMPLETE" in block, (
+        "the dispatch block no longer reads a completeness field, so the earned-T1 "
+        "exemption this PR added is gone; if that removal is intended, delete this "
+        "guard and the checklist clause together"
+    )
 
     checklist = [
         line

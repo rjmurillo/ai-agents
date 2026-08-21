@@ -18,15 +18,34 @@ PASS.
 
 ## Scope under test
 
-One-line behavior change in `.claude/commands/pr-autofix.md` (tier read moved
-from `.Data.Tier` to `.Tier`) plus tier-dispatch marker comments, its generated
-mirror in `src/copilot-cli/skills/pr-autofix/SKILL.md`, two static gates and
-their parsers (`pr_autofix_field_parser.py` with
-`test_pr_autofix_field_contract.py` for the jq reads,
-`pr_autofix_tier_parser.py` with `test_pr_autofix_tier_contract.py` for the
-tier set), and the runtime suite in
-`tests/commands/test_pr_autofix_tier_dispatch_runtime.py`. All under
-`tests/commands/`.
+Four behavior changes in `.claude/commands/pr-autofix.md`, plus tier-dispatch
+marker comments, and its generated mirror in
+`src/copilot-cli/skills/pr-autofix/SKILL.md`:
+
+1. The tier read moves from `.Data.Tier` to `.Tier`, the reported defect.
+2. A fail-closed guard skips a PR whose tier the producer never declared, with
+   `SKIP` given its own terminating arm because recognized and actionable are
+   different questions.
+3. The auto-merge disarm gate spares a T1 only when `fetched_pages_complete` is
+   the boolean `true`, so a tier derived from a truncated fetch does not keep
+   auto-merge.
+4. That gate now runs before the round-cap breaker, so a PR the breaker
+   escalates to a human is disarmed on the way out.
+
+Three of the four are consequences of the first: correcting the tier read is
+what makes those paths reachable, so they are mirror obligations rather than
+adjacent work. That reasoning is set out in "The fix opened a case" below.
+
+The tests are six modules under `tests/commands/`: `pr_autofix_field_parser.py`
+with `test_pr_autofix_field_contract.py` and `test_pr_autofix_coverage_guards.py`
+for the jq reads and the guards on that checker; `pr_autofix_tier_parser.py`
+with `test_pr_autofix_tier_contract.py` for the tier set; and
+`pr_autofix_dispatch_harness.py` with `test_pr_autofix_tier_dispatch_runtime.py`
+and `test_pr_autofix_earned_t1_exemption.py` for the runtime behavior.
+
+This section was stale until Copilot caught it: it described the one-line fix
+and three of the six modules, so the PASS verdict was recorded against less work
+than the PR changes.
 
 ## Evidence
 
@@ -44,7 +63,7 @@ reads it, and the two downstream gates compare it in opposite directions:
 | Gate | Condition | `TIER=UNKNOWN` before the fix | After the fix |
 |---|---|---|---|
 | Round-cap circuit breaker | `TIER = T3` or `TIER = T4` | never fired: the breaker was inert | fires on real T3/T4 |
-| Auto-merge disarm | `TIER != T1` | fired on **every** armed PR | spares genuine T1 |
+| Auto-merge disarm | `TIER != T1` | fired on **every** armed PR | spares a T1 only when the fetch behind it was complete |
 
 Both conditions live between the `# tier-dispatch:start` and `:end` markers in
 `.claude/commands/pr-autofix.md`. Earlier drafts of this table cited absolute
