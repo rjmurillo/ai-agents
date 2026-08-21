@@ -169,7 +169,7 @@
       "finding": "All three confirmed real. This Evidence field claimed a frozen '13 commits' list that the episode extractor's SHA count had already outgrown; fixed by dropping the frozen count and describing the commit shape instead, since a static number here goes stale on every future catch-up merge. The QA report's Test Results table claimed 380 passed where the file now has 381, and its second row restricted a keyword-filtered run to this single file while reporting a count (565) larger than that file's own total, an impossible result; fixed both rows with freshly re-run, accurate numbers (381 passed; 567 passed / 27354 deselected once the file restriction was removed to match what the row actually claims to measure). ADR-099's 'Why Change Now' risk paragraph said post_qa_code_changes() fails closed on binding.commit-as-head 'on the normal (non-fallback) path', which is backwards: scripts/validate_session_json.py:992 shows binding.commit is used as head only when validation_head is None, i.e. only on the fallback path; fixed the wording to say so directly and cite the line."
     }
   ],
-  "endingCommit": "0416154b083f38f1f058a49dfa76a6bc52dc3815",
+  "endingCommit": "d4b017fb1c093d7c26764bc07d896b92cf38374b",
   "nextSteps": [
     "File a follow-up issue for a dedicated QA-freshness field in session-log.schema.json, distinct from endingCommit, per PR #4954 round 15's actual recommendation (ADR-099 Follow-ups item 1).",
     "File a follow-up issue for dropping the validate_session_json.py fallback that binds head to binding.commit when live-HEAD resolution fails (ADR-099 Follow-ups item 2).",
