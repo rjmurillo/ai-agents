@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract.json
-qaCommit: 10ac1f3f61430885134f309263023f4975143d01
+qaCommit: 28753b74247d977ce9f410cc90196457bf3e2ed3
 ---
 
 # QA Report: session 99923, pr-autofix tier field contract
@@ -9,7 +9,7 @@ qaCommit: 10ac1f3f61430885134f309263023f4975143d01
 - Issue: #5094
 - PR: #5176
 - Session log: `.agents/sessions/2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract.json`
-- QA commit: `10ac1f3f61430885134f309263023f4975143d01`
+- QA commit: `28753b74247d977ce9f410cc90196457bf3e2ed3`
 - Branch: `claude/pr-5175-review-v21yk2`
 
 ## Verdict
