@@ -1,0 +1,74 @@
+# ADR-099 Debate Log
+
+**Subject**: `.agents/architecture/ADR-099-session-qa-binding-field-precedence.md`, addressing issue #5217.
+
+**Round**: 1 of up to 10 (per adr-review debate protocol).
+
+## How this review was conducted, and what that costs
+
+Read this section before weighing anything below it.
+
+The `adr-review` protocol calls for six independent agents (architect, critic, independent-thinker, security, analyst, high-level-advisor). **No independent agent processes ran.** The harness serving this session registers no subagent-spawn tool: `Task` and `Agent` are absent from the tool set, and a `ToolSearch` for delegation returned only `TaskStop`, `SendMessage`, `EnterWorktree`, and the GitHub Copilot coding-agent delegator, none of which spawn a reviewing agent against a local file. The available cross-session mechanism (`create_session`) spawns siblings into this same environment and working tree, on a branch this session is instructed not to disturb, which is a worse risk than the one it would mitigate.
+
+What ran instead: one session applied the six review lenses as six separate passes, each writing findings before the next began, and each finding was either verified against the repository or dropped. That is a single-reviewer review. The `adr-review` skill names "Single-agent ADR review" as a process anti-pattern, and this log does not claim otherwise.
+
+The gate this log satisfies is structural. `check_adr_review_policy` (`scripts/validation/git_hook_policy.py:1382-1417`) requires a staged debate log under `.agents/critique/` whose content references the staged ADR's ID. It does not and cannot verify that six agents ran. A log asserting a 6/6 agent tally here would pass the same gate and would be a fabricated approval signal, which is the failure mode the skill's own acceptance checklist names ("a forgeable approval signal"). So the tally below is recorded as lens-by-lens findings, not as votes.
+
+**What a maintainer should do with this.** The findings are verified and the ADR is stronger for them. The independence the protocol buys is missing. Re-running the real six-agent debate on a harness that has the tooling is cheap relative to the change, and is the recommended path before this ADR is treated as having cleared the multi-agent bar. That recommendation is repeated in the implementing PR.
+
+## Findings by lens
+
+Every finding below names the check that confirmed or refuted it. Findings that did not survive verification are recorded as refuted rather than deleted.
+
+### Analyst (evidence, feasibility)
+
+- **P1, confirmed and fixed.** The draft cited the mirror generator as `copy_lib_to_platform`, a name carried in from the task framing. No such function exists. `grep -rn "copy_lib_to_platform" build/scripts/` returns nothing; the generator is `_build_lib` (`build/scripts/build_all.py:316-335`), which delegates to `_build_directory_copy` and mirrors the whole of `.claude/lib/`. Corrected in the Impact table. This is exactly the citation class `.claude/rules/canonical-source-mirror.md` exists for: the claim read as verified because it was specific.
+- **P1, confirmed.** No `sync_plugin_lib.py` involvement. `SYNC_PAIRS` (`scripts/sync_plugin_lib.py:27-31`) names three package directories and `SYNC_FILE_PAIRS` (`:41-47`) names two files; `qa_report.py` is in neither. The ADR now cites both line ranges rather than asserting the absence.
+- **P1, confirmed.** `.claude/skills/session-end/scripts/complete_session_log.py`, which ADR-096 named as a second caller on 2026-08-19, does not exist at `9e1ebd2b8`. `find . -name complete_session_log.py` returns nothing and `.claude/skills/session-end/` is absent. `grep -rn session_qa_binding` finds one production caller (`scripts/validate_session_json.py:963`), one mirror definition, and eight test call sites.
+- **P1, confirmed.** The claim that `validate_qa_report()` never reads `expected.commit` is checkable and checked: the function body (`.claude/lib/qa_report.py:199-209`) references `expected.session_log` once and `expected.commit` never. This is load-bearing for the whole argument, because it is what makes the binding commit a fallback rather than the compared value.
+- **P2, noted.** The 50-commit shallow clone blocks any ancestry or ordering claim about the two SHAs in the one disagreeing log, and blocks recovering the check's introducing commit. Both limits are annotated in the ADR rather than worked around, matching ADR-096's handling of the same limit.
+
+### Critic (gaps, risks, completeness)
+
+- **P0 candidate, verified and resolved.** The ADR's central promise is that the disagreement becomes non-blocking. If `result.warnings` fed any strict mode or exit path, that promise would be false and the change would swap one hard failure for another. Verified: `scripts/validation/models.py:20-21` states "A result with no errors is valid. Warnings do not affect validity," and `main()` returns `0 if result.is_valid else 1`. The ADR now quotes the invariant instead of asserting it. Had this gone the other way it would have invalidated the design, not merely the prose.
+- **P1, refuted.** Concern that adding a field to `QaBinding` breaks the seven untouched test call sites that compare against a two-argument construction. It does not: the field is last and defaults to `None`, so both constructions produce equal instances. Recorded in the Impact table as an explicit no-change row rather than left silent.
+- **P1, confirmed and fixed.** `.claude/rules/ci-scripts.md` MUST 13 governs a PR that introduces a gate. This PR removes one and adds a warning, so MUST 13 does not bind. The ADR previously left this to inference; it now says so and offers the corpus figure as a blast-radius measurement rather than as MUST-13 compliance. Claiming compliance with a rule that does not apply is its own defect.
+- **P2, confirmed and fixed.** Acceptance criteria named a wiring test but the Implementation Notes did not. `.claude/rules/testing.md` SHOULD 6 wants a test that drives the consumer's real entry point, because a unit test on `session_qa_binding()` cannot observe whether `validate_qa_report_evidence()` ever reaches `result.warnings`. Now named in both places.
+
+### Independent-thinker (challenge the assumptions)
+
+- **P1, confirmed and fixed. The strongest finding in this review.** The ADR's argument leans on the schema's statement that QA rebinding advances `comparison.head`, and then treats `comparison.head` as the safely-newer field. That is only one of two drift directions. `.claude/rules/session-logs.md` MUST 2 and MUST 3 advance `endingCommit` independently, so a log extracted before its follow-up commit carries `endingCommit` newer than `comparison.head`, and selecting `comparison.head` there selects the *older* SHA and therefore the shorter, laxer staleness range. The draft did not state this and would have shipped with its central justification covering half the cases.
+  Verified rebuttal, now in the ADR as its own section: the laxer direction cannot fail open, because `post_qa_code_changes()` runs `git merge-base --is-ancestor report.commit head` first (`.claude/lib/qa_report.py:230-242`) and raises on return code 1. A report validated later than the selected head is precisely the non-ancestor case. The design survives the objection; the draft's reasoning did not, and the difference is what this pass was for.
+- **P1, confirmed and fixed.** The corpus measurement (1 disagreement in 1458 logs) reads as evidence the problem is negligible, and taken alone it argues against the change. It undercounts by construction: the rebind loop's whole nature is editing a disagreeing log into agreement *before* committing it, so every closed loop is filed under the 34 agreeing logs. The ADR now states the 1 is a floor rather than an estimate, and points at the handoff's 23 mentions across 15 rounds for the cost-per-occurrence. Presenting the corpus figure without this caveat would have been the more dishonest option, since the figure superficially favors the conclusion the ADR argues against.
+- **P2, considered and rejected.** Whether the `inconsistency` field is over-engineering versus a bare deletion of the raise. Kept: seven lines against the loss of the only signal on `comparison.head`, and `.claude/rules/ci-scripts.md` SHOULD 4 treats a repair to a silent failure as itself a silent-failure candidate.
+
+### Security (threat model)
+
+- **Confirmed, no new capability.** The relaxation does not widen what an attacker can do. Both fields live in one self-attested file authored by the same actor the check judges, so defeating the equality check has always cost one extra edit. ADR-096 recorded this trust model for the QA report; it applies more strongly to two fields of the same document. Nothing here is an adversarial control before or after.
+- **Confirmed, fail-closed preserved.** The ancestry check in `post_qa_code_changes()` is the real containment and is untouched. See the independent-thinker finding above for the case that depends on it.
+- **P2, confirmed and fixed.** Both SHAs are interpolated into a warning string that reaches operator output. Verified that neither can carry arbitrary session-log content: `comparison_head` passes `_FULL_COMMIT_PATTERN.fullmatch` at `:170-172` before the branch is entered, and `resolved_ending` is assigned only under the same pattern on both paths (`:158-159`, `:167-168`). Stated in the ADR rather than left for a reader to re-derive.
+- **Noted, out of scope.** The `QA_EVIDENCE_PREFIXES` boundary gaps that ADR-096's security review raised (instruction-prose coverage, the self-referential `.agents/qa/` entry, `AI_AGENTS_ARTIFACT_ROOT` desync) are untouched here and remain a separate follow-up. This ADR does not widen that surface.
+
+### Architect (structure, governance, coherence)
+
+- **P2, confirmed and fixed.** `QaBinding`'s docstring reads "Session and commit identity that QA evidence must match." The new field is not identity; it is an observation about how identity was selected. Implementation Notes now require the docstring to change in the same edit, so the class does not silently acquire a second responsibility.
+- **P2, confirmed and fixed.** An abbreviated `comparison.head` (the schema permits 7 to 40 characters) is invisible to this function: `:170-172` tests the full-SHA pattern and falls through, with none of the `resolve_commit` handling `endingCommit` gets at `:160-168`. Pre-existing and untouched, but it is load-bearing for the corpus figure, since it is part of why 1417 of 1458 logs never reach the check. Now recorded as a named residual instead of an unexplained gap in the measurement.
+- **Confirmed.** Template conformance against `.agents/architecture/ADR-TEMPLATE.md`, frontmatter enum (`status: proposed`, `implemented: false`, `superseded-by: null`, `explainer: null`), and number uniqueness (`check_adr_uniqueness.py` reports all unique, next free 100).
+- **Confirmed.** Scope holds. The ADR touches one function and one caller and declines to widen into `QA_EVIDENCE_PREFIXES` or the schema.
+
+### High-level-advisor (priority, proportionality)
+
+- The change is proportionate: one raise deleted, one field added, one warning wired, on a P2 issue with a documented interactive cost. It does not attempt the second-system rewrite an ADR in this area could easily become.
+- The alternatives table carries a real recommendation with real trade-offs and rejects the issue's own suggested direction on stated grounds, which is what the issue asked for. Rejecting a suggestion from the issue author is the correct output when the analysis supports it, and the ADR gives three specific reasons rather than a preference.
+- Sequencing is correct: ADR accepted before code, per `.claude/rules/ci-scripts.md` MUST-NOT-2, which is the gate ADR-096 failed on its own first two heads.
+- The one open risk is process, not design: the missing agent independence recorded at the top of this log.
+
+## Resolution
+
+Seven findings were applied to the ADR in place. Two of them (the drift-direction gap and the corpus undercount) changed the argument rather than the prose, and one (the `copy_lib_to_platform` citation) corrected a claim that was specific and wrong. No finding challenged the decision itself, and the design survived the one objection that could have unseated it.
+
+## Outcome
+
+**The ADR is considered implementation-ready on its technical merits, with a recorded process gap.** The six lenses were applied and their findings resolved; the six independent agents were not available and did not run. That gap is disclosed here and in the implementing PR rather than papered over with a tally. A maintainer who wants the multi-agent bar met should re-run `adr-review` on a harness with subagent tooling before treating this ADR as having cleared it.
+
+The frontmatter `status` transitions to `accepted` in the same change as this log, per ADR-073's Phase-3 acceptance gate and the precedent ADR-096 set after failing it twice.
