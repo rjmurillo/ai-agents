@@ -222,12 +222,30 @@ finding.
 | Flip the round-cap test assertion and document the CWE-284 fix | Complete | PR #5176 |
 | Add control-validity check (SURVIVED vs DEAD) to mutation test guidance | Follow-up | Issue #5187 |
 | Document "repair to a silent failure is itself a silent-failure candidate" | Follow-up | Issue #5188 |
+| Disarm auto-merge before an unknown tier stops the PR | Complete | PR #5176 |
+| Widen the bracket detector to any subscript position | Complete | PR #5176 |
+| Union every no-op arm in the dispatch extractor | Complete | PR #5176 |
+| Give the shell harness an environment allowlist | Complete | PR #5176 |
+| Correct the ordering prose the CWE-284 reorder left behind | Complete | PR #5176 |
+| Forward verified bot identity to the tier producer | Follow-up | Issue #5208 |
 
-Both follow-ups change `.claude/rules/` or Serena memory, which
+The rows below the first three were added as review found them, which is the
+table doing its job rather than a sign it was written badly; five of the eight
+entries here came from a reviewer rather than from the author.
+
+The two rule follow-ups change `.claude/rules/` or Serena memory, which
 `.claude/rules/claude-agents.md` MUST NOT 2 forbids bundling with code, so
-neither can ride on PR #5176. They were filed rather than left unowned because
-`.claude/rules/retros.md` MUST 4 requires every remediation row to carry an
-owner or an issue, and Copilot flagged the two rows that carried neither.
+neither can ride on PR #5176. The third, #5208, is held out for a different
+reason: it is not opened by this change. It is wrong on `main` today and wrong
+in the same way afterwards, so it fails the does-my-fix-open-this test that
+decided every other deferral here.
+
+All three were filed rather than left unowned because `.claude/rules/retros.md`
+MUST 4 requires every remediation row to carry an owner or an issue, and
+Copilot flagged two rows that carried neither. Worth noting that this table had
+gone a fourth round of the same staleness before #5208 was filed: five actions
+had landed and none had a row, so the record understated the work exactly as the
+scope line above overstated its own precision.
 
 ## References
 
