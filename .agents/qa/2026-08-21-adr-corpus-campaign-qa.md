@@ -1,13 +1,13 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 73bba3511ae90cf25c8444fca14b38f7c2d36332
+qaCommit: faa620b67196fc9ead3394160f3d19cfd2a2cfb5
 ---
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `73bba3511ae90cf25c8444fca14b38f7c2d36332`
+**Validated at commit**: `faa620b67196fc9ead3394160f3d19cfd2a2cfb5`
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -415,4 +415,20 @@ Re-verified at the merge commit:
 check_adr_lifecycle    [PASS] 71 violation(s), no check above its baseline
 taste_count_ratchet    OK, count == baseline 576
 ```
+
+### A defect `pre_pr.py` cannot see
+
+The colocated test added above spelled `.agents/architecture` literally. Those
+tests ship inside the plugin, so on a consumer using any other entry in
+`ADR_DIRECTORIES` it asserts a path their repository does not have. The
+vendor-portability ratchet (issue #2050) blocked the push for it.
+
+`pre_pr.py` reported all 133 gates PASS with that defect present. The ratchet
+lives in the pre-push pytest sweep rather than the pre-PR sequence, so a green
+`pre_pr` run is not the same claim as "ready to push", and this report should
+not be read as making that claim anywhere it says `pre_pr.py` passed.
+
+Fixed by reading `ADR_DIRECTORIES[0]` from the module, which is also the more
+honest test: the behaviour under test is the scan over whatever directories the
+module declares.
 

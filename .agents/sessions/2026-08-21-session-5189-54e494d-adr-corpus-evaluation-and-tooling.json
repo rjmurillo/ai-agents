@@ -176,7 +176,7 @@
       "notes": "The autofix agent pushed two commits fixing the same UnicodeDecodeError family while this session was fixing it. Resolved toward this branch's version, a superset: distinct messages for 'is not valid UTF-8' versus 'could not be read', comments stating why each arm exists, and nine falsifiable tests where theirs has none. The interesting failure was git's automatic merge of check_adr_lifecycle.py, which kept both their broadened arm and my narrow one, leaving the second unreachable and silently reverting the message. Three tests caught it. A test asserting only 'does not crash' would have passed the broken merge. The lesson is that when two fixes for one defect meet, the danger is the conflict git resolves silently, not the one it reports."
     }
   ],
-  "endingCommit": "73bba3511ae90cf25c8444fca14b38f7c2d36332",
+  "endingCommit": "faa620b67196fc9ead3394160f3d19cfd2a2cfb5",
   "nextSteps": [
     "Phase 2: backfill lifecycle frontmatter into the ADRs Phase 1 did not touch (issue #5190)",
     "Phase 2: add the seven missing Status sections and settle the canonical-versus-MADR structure question (issue #5196)",
