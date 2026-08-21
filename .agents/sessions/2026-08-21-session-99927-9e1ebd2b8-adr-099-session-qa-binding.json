@@ -185,7 +185,7 @@
       "finding": "git merge-tree against the post-push origin/main surfaced an added-in-both conflict on .agents/critique/ADR-099-debate-log.md, explaining the mergeable_state: dirty GitHub reported. Resolved by renumbering this session ADR from ADR-099 to ADR-102 (next free number after main highest, ADR-101, confirmed via git ls-tree -r --name-only origin/main -- .agents/architecture/): git mv on both the ADR and its debate log, then updated every real ADR-099 reference across the ADR, debate log, code comments in .claude/lib/qa_report.py and scripts/validate_session_json.py, test comments in tests/test_validate_session_json.py, this session log, the QA report, and the PR needs-split retrospective. Test-fixture files that use \"ADR-099\" as an arbitrary example string (tests/skills/adr-review and its copilot-cli mirror, tests/validation/test_session_log_optional.py, tests/validation/test_git_hook_policy_causal_restore.py, tests/build_scripts/test_generate_commands_copilot_contract.py) were correctly left untouched. Regenerated src/copilot-cli/lib/qa_report.py and confirmed byte-identical via diff -q. Full suite re-run: 382 passed, unchanged from before the rename; ruff clean."
     }
   ],
-  "endingCommit": "0dc7d0a254e3aa253b9c9895e008265f06f496d8",
+  "endingCommit": "b129f20377ef2bf5a20b5bf63a9613b79c5d0a91",
   "nextSteps": [
     "File a follow-up issue for a dedicated QA-freshness field in session-log.schema.json, distinct from endingCommit, per PR #4954 round 15's actual recommendation (ADR-102 Follow-ups item 1).",
     "File a follow-up issue for dropping the validate_session_json.py fallback that binds head to binding.commit when live-HEAD resolution fails (ADR-102 Follow-ups item 2).",
