@@ -181,3 +181,11 @@ the ADR body and two follow-up issues filed at merge time.
 
 No panel role returned Block. The convergent verdict was Accept, conditioned
 on the corrections above landing in the same change, which they do.
+
+## Follow-up issues filed
+
+The two follow-ups named above are filed: issue #5238 ("Re-measure the
+retired commit-count ceiling (ADR-099/ADR-100, 90 days)") and issue #5239
+("Record push-ceiling telemetry at commit-limit demotion time (ADR-099/
+ADR-100 item 6)"). Both are cross-referenced from ADR-099's "Confirmation and
+Reversal Triggers" section and References.

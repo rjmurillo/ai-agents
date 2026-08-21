@@ -216,7 +216,8 @@ conditions for its own, much more broadly evidenced retirement of the same
 gates to be considered complete, and neither was built in the change this ADR
 ships with. Two commitments close that gap rather than leaving it implicit:
 
-1. **Re-measure.** File a follow-up issue at merge time, modeled on ADR-100's
+1. **Re-measure.** Issue #5238 ("Re-measure the retired commit-count ceiling
+   (ADR-099/ADR-100, 90 days)"), filed at merge time, modeled on ADR-100's
    "Re-measure the retired size ceilings," due 90 days after this PR merges.
    Owner: the repository owner or a delegate the owner names in that issue,
    never the implementing agent or this ADR's author (ADR-101's
@@ -230,13 +231,14 @@ ships with. Two commitments close that gap rather than leaving it implicit:
    plausibly have caught, or its size was later shown to have caused a
    correctness gate to fail on `main` that would have run pre-merge had the
    PR been split, restore the CI-side block.
-2. **Telemetry.** File a follow-up issue to instrument `_check_commit_limit`
-   (or whatever replaces it) so a demoted-but-still-computed verdict is
-   recorded append-only, outside the branch under measurement, before the
-   90-day window in item 1 elapses. Until this exists, the pre-push half of
-   this decision has no observable behavior after demotion, and the
-   re-measure in item 1 cannot cover the half of the gate that produced every
-   workaround this ADR's Context section describes.
+2. **Telemetry.** Issue #5239 ("Record push-ceiling telemetry at
+   commit-limit demotion time (ADR-099/ADR-100 item 6)"), to instrument
+   `_check_commit_limit` (or whatever replaces it) so a demoted-but-still-
+   computed verdict is recorded append-only, outside the branch under
+   measurement, before the 90-day window in item 1 elapses. Until this
+   exists, the pre-push half of this decision has no observable behavior
+   after demotion, and the re-measure in item 1 cannot cover the half of the
+   gate that produced every workaround this ADR's Context section describes.
 
 These two commitments mirror ADR-100's Time-box section and Decision item 6
 because ADR-100 (proposed, not yet accepted as of this writing) reaches the
@@ -288,7 +290,9 @@ rather than not adopting it at all.
 
 - Issue #362 (original thresholds), #3596 (main-merge relief), #3610
   (stacked-PR relief), #3895 (needs-split small-fix relief), #4782 (human-only
-  label guidance), #5233 (this removal).
+  label guidance), #5233 (this removal), #5238 (90-day re-measure follow-up,
+  per "Confirmation and Reversal Triggers" above), #5239 (push-ceiling
+  telemetry follow-up, same section).
 - `.agents/retrospective/2026-08-17-governance-bureaucracy-critical-review.md`,
   which independently flagged PR #4846's `commit-limit-bypass`/`needs-split`
   labels as a "review-driven PR spin" symptom.
