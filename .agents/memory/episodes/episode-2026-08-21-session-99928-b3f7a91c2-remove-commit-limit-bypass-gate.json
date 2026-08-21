@@ -153,6 +153,46 @@
       "caused_by": [
         "e013"
       ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Discovered, via mcp__github__issue_read, that '#5230' (cited throughout ADR-099, its debate log, and several implementation files as the tracking issue) is actually an unrelated draft PR from a different session opened the same day, not an issue",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "First push attempt failed: python-tests (the pre-push hook's full suite) ran while I was still committing the citation fixes, and test_mutation_harness_ciperms.py correctly refused a working tree that changed mid-run",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Second push attempt failed: Session End Validation correctly flagged the QA report as stale (ADR-096 post_qa_code_changes) after the 4 citation-fix commits landed past its original binding",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-21T18:31:58+00:00",
+      "type": "commit",
+      "content": "Commit: 7729226c19ca13a4beb199327430cf24ec227e51",
+      "caused_by": [
+        "e015"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate"
     }
@@ -162,8 +202,8 @@
     "tool_calls": null,
     "errors": 8,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 32
+    "commits": 3,
+    "files_changed": 33
   },
   "lessons": []
 }

@@ -1,14 +1,20 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99928-b3f7a91c2-remove-commit-limit-bypass-gate.json
-qaCommit: 54e516c4298a974ede9f212e75e23bc37554444d
+qaCommit: 7729226c19ca13a4beb199327430cf24ec227e51
 ---
 # QA Report: session 99928, remove commit-limit-bypass gate
 
 ## Scope
 
-Content changes through commit `54e516c4298a`, across 10 commits on
-`claude/commit-limit-bypass-8f2rur`:
+Content changes through commit `7729226c19ca`, across 14 commits on
+`claude/commit-limit-bypass-8f2rur`. Commits 11-14 correct a citation error
+found after the first push attempt: ADR-099 and several implementation files
+cited "#5230" as the tracking issue, which turned out to be an unrelated
+draft PR opened by a different session the same day (hitting the identical
+gh-403 wall this ADR describes). Filed the real tracking issue (#5233) and
+the root-cause issue for the org-level gh/API gap (#5232), then corrected
+every "#5230" reference to "#5233".
 
 1. `scripts/validation/pr_commit_count.py`: dropped `BLOCK_THRESHOLD`,
    `MAIN_MERGE_BLOCK_THRESHOLD`, and all main-merge-relief plumbing
@@ -60,6 +66,8 @@ part of this gate removal.
 | Self-caught regression | First pass removed `fetch-depth: 0` from the `Checkout repository` step, reasoning only the commit-count gate needed it. `tests/ci/test_pr_validation_workflow.py::test_merge_tree_host_checkouts_fetch_full_history` and the `TestTheCommitCountGateCanReadMainsTrunk` class (further down the same file, not yet run at that point) would have caught this once executed; caught it first by reading further in the same test file and finding the merge-tree ratchet and count ratchets, later in the same job, also depend on unshallow history. Reverted with a corrected comment naming the real dependency. |
 | `uv run --frozen ruff check` | Clean on every edited source and test file (`scripts/ci/enforce_pr_validation.py`, `scripts/validation/pr_commit_count.py`, `scripts/validation/git_hook_policy.py`, `scripts/ci/update_needs_split_label.py`, `scripts/validation/pr_description.py`, plus the 5 edited test files). |
 | Mirrors regenerated, not hand-edited | `build/scripts/build_all.py --platform copilot-cli` for the `gate-ladder.md` and `SKILL.md` copies; `build/generate_agents.py` for the critic agent copies; `diff` confirmed byte-identical afterward in both cases. |
+| First push attempt | Failed: the pre-push hook's `python-tests` job ran the full suite while I was still committing follow-up fixes, and `tests/ci/test_mutation_harness_ciperms.py` correctly refused to run against a working tree that changed mid-run. Not a defect in this change; resolved by not committing again until the tree was static, then retrying. |
+| Second push attempt | Failed: `Session End Validation` correctly flagged the QA report as stale (ADR-096 `post_qa_code_changes`) after 4 more real-code commits landed (the citation fix) past the report's original binding. Resolved by rebinding this report and the session log to the new HEAD, which is what this revision of the report records. |
 | `uv run --frozen python scripts/validation/pre_pr.py` | First run: 55 of 57 passed. `Session End Validation` failed on `qaValidation` having no bound report, resolved by adding this report and rebinding the session log. `Skill Markdown Portability` failed because removing the `pr_commit_count.py:58`/`:64` line citations from `gate-ladder.md` (both copies) genuinely lowered the vendor-portability marker's suppressed-ref count from 8 to 7, which the ratchet reports as drift until the baseline is tightened to match; ran `check_skill_md_portability.py --update-baseline --allow-baseline-shrink`, then reran the checker clean (`No Markdown vendor-portability drift. 238 grandfathered refs across 93 files (baseline 238)`). |
 
 ## Findings

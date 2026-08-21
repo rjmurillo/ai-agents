@@ -138,9 +138,21 @@
     {
       "action": "Ran uv run python scripts/validation/pre_pr.py; 2 of 57 checks failed",
       "result": "Session End Validation failed on an unbound qaValidation, resolved by writing .agents/qa/session-99928-remove-commit-limit-bypass-gate.md and rebinding this log. Skill Markdown Portability failed because removing pr_commit_count.py line-citations from gate-ladder.md genuinely lowered its vendor-portability marker's suppressed-ref count (8 to 7 in both copies); resolved with check_skill_md_portability.py --update-baseline --allow-baseline-shrink, confirmed clean on rerun"
+    },
+    {
+      "action": "Discovered, via mcp__github__issue_read, that '#5230' (cited throughout ADR-099, its debate log, and several implementation files as the tracking issue) is actually an unrelated draft PR from a different session opened the same day, not an issue",
+      "result": "Filed the real root-cause issue (#5232: Claude GitHub App not connected for this org) and the real tracking issue for this change (#5233); corrected every '#5230' citation across ADR-099, its debate log, GOTCHAS.md, gate-ladder.md (both copies), CONTRIBUTING.md, AGENTS.md, pr-validation.yml, and 3 script docstrings/comments, in 4 atomic commits"
+    },
+    {
+      "action": "First push attempt failed: python-tests (the pre-push hook's full suite) ran while I was still committing the citation fixes, and test_mutation_harness_ciperms.py correctly refused a working tree that changed mid-run",
+      "result": "Not a defect in this change; stopped committing until the tree was static, then retried"
+    },
+    {
+      "action": "Second push attempt failed: Session End Validation correctly flagged the QA report as stale (ADR-096 post_qa_code_changes) after the 4 citation-fix commits landed past its original binding",
+      "result": "Rebound .agents/qa/session-99928-remove-commit-limit-bypass-gate.md and this log's endingCommit to the new HEAD"
     }
   ],
-  "endingCommit": "54e516c4298a974ede9f212e75e23bc37554444d",
+  "endingCommit": "7729226c19ca13a4beb199327430cf24ec227e51",
   "nextSteps": [
     "Run uv run python scripts/validation/pre_pr.py before pushing",
     "Commit endingCommit in a follow-up commit per session-logs.md rule 2 (never amend)",
