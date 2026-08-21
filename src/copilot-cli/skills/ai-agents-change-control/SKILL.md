@@ -105,7 +105,7 @@ Six of the table's incidents compress a multi-round failure and are told in full
 | Anti-pattern | Why it fails here |
 |--------------|-------------------|
 | Editing a generated tree to silence a drift gate | Inverts the source of truth (2025-12-15 incident, reverted). Ask which side is canonical first |
-| Using `[skip-drift-check]` or `commit-limit-bypass` without a stated reason and human approval | Bypass markers are audited; unexplained use reads as the session 1187 pattern |
+| Using `[skip-drift-check]` without a stated reason and human approval | Bypass markers are audited; unexplained use reads as the session 1187 pattern |
 | Adding a `version` back to a plugin.json or marketplace entry | The gate fails on the field's presence (ADR-092). Freshness already tracks the commit SHA, so the field only re-creates the merge conflict it was deleted for |
 | Adding a fail-open wrapper so a broken hook "does not block anyone" | Rejected pattern (#2230, recorded in ADR-071): silent exit 0 disables the hook while looking like success, exactly the #2205 failure |
 | Classifying a mixed session as investigation-only | One staged file outside the ADR-034 allowlist voids the exemption; split the work |
