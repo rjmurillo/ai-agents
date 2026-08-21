@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99923-2dd747176-rules-silent-failure-repair.json
-qaCommit: 54fd840da5fda5d1c3cbd81218c8a129a61a569f
+qaCommit: 414513ea4241901b8b572d90a1062d3be5cf7539
 ---
 
 # QA Report: repair-to-a-silent-failure rule (issue #5188)
 
 - Issue: #5188
 - Branch: `claude/issue-5188-silent-failure-repair`
-- QA commit: `54fd840da5fda5d1c3cbd81218c8a129a61a569f`
+- QA commit: `414513ea4241901b8b572d90a1062d3be5cf7539`
 - Session log: `.agents/sessions/2026-08-21-session-99923-2dd747176-rules-silent-failure-repair.json`
 
 
