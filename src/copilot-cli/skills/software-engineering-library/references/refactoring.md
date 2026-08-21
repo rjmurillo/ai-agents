@@ -113,7 +113,7 @@ These shapes appear under the label "refactoring" but break the discipline. Reje
 
 ai-agents has conventions that interact with this rule. Honor them.
 
-- **Per-PR commit budget**: refactoring steps count toward the active limit documented in CONTRIBUTING.md. Plan against 20 commits. Validation may allow 40 after a qualifying base merge. If a refactoring needs more steps than your budget allows, split along a seam and land each half on its own PR.
+- **Per-PR commit count**: refactoring steps count toward the advisory signal documented in CONTRIBUTING.md (a `needs-split` label plus a WARNING/ALERT notice at 10/15 commits; no hard cap, ADR-099). If a refactoring runs long enough to trip that notice, consider splitting along a seam and landing each half on its own PR.
 - **Atomic commits (≤5 files)**: AGENTS.md sets the per-commit file budget. Each refactoring step is a separate commit and stays within that budget. If a transformation cannot fit, pick a smaller transformation.
 - **Conventional commits**: `refactor(<scope>):` for pure structure, `feat(<scope>):` and `fix(<scope>):` for behavior. Do not relabel a `feat` as a `refactor` to dodge review.
 - **Session protocol**: refactoring sessions still produce a session log with evidence. The evidence for a refactoring is "tests passed before, tests passed after, no behavior change."
