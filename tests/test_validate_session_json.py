@@ -1548,6 +1548,53 @@ class TestValidateQaReportEvidence:
         else:
             assert result.warnings == []
 
+    def test_disagreement_warning_survives_a_subsequent_validation_failure(
+        self, tmp_path: Path
+    ) -> None:
+        # Ordering-contract wiring test. The code comment and ADR-099 both
+        # say the disagreement warning is appended before validate_qa_report()
+        # runs "so the observation survives an unrelated failure below", but
+        # the parametrized wiring test above only exercises a passing report
+        # (post_qa_code_changes mocked to return []), so both parametrize
+        # cases hit result.errors == []. A regression that moved the
+        # result.warnings.append() call after the validate_qa_report() call
+        # would silently drop the warning whenever validation raises, and
+        # every existing test would stay green: this one forces both a
+        # disagreement AND a validation failure in the same call so that
+        # exact regression fails it.
+        qa_root = tmp_path / "qa"
+        qa_root.mkdir()
+        report = qa_root / "report.md"
+        self._write_report(report)
+        data = {
+            "episodeMetrics": {"comparison": {"head": self.COMMIT}},
+            "endingCommit": "b" * 40,
+        }
+        result = ValidationResult()
+
+        with (
+            mock.patch(
+                "scripts.validate_session_json.artifact_dir",
+                return_value=qa_root,
+            ),
+            mock.patch.object(
+                _qa_report, "post_qa_code_changes", return_value=["scripts/new_code.py"]
+            ),
+        ):
+            validate_qa_report_evidence(
+                data,
+                self._session_end(str(report)),
+                result,
+                session_log=self.SESSION_LOG,
+            )
+
+        assert len(result.warnings) == 1
+        assert self.COMMIT in result.warnings[0]
+        assert ("b" * 40) in result.warnings[0]
+        assert result.errors == [
+            "QA report is stale; code changed after its commit: scripts/new_code.py"
+        ]
+
     def test_fallback_head_masks_a_real_change_between_the_two_fields(
         self, tmp_path: Path
     ) -> None:
