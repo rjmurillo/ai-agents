@@ -34,9 +34,9 @@ are template/example content, are excluded):
 
 | Monolith | Top-level `##` sections | Lines |
 |----------|-------------------------|-------|
-| `AGENT-SYSTEM.md` | 13 | 1990 |
-| `AGENT-INSTRUCTIONS.md` | 17 | 822 |
-| **Total** | **30** | **2812** |
+| `AGENT-SYSTEM.md` | 13 | 1908 |
+| `AGENT-INSTRUCTIONS.md` | 17 | 749 |
+| **Total** | **30** | **2657** |
 
 `SESSION-PROTOCOL.md` (10 sections, 324 lines) was one of the three
 always-loaded monoliths this audit covered; it was deleted 2026-08-20
@@ -157,9 +157,11 @@ owner. The steering files and their scopes:
 Live count, `AGENT-SYSTEM.md` and `AGENT-INSTRUCTIONS.md` only
 (`SESSION-PROTOCOL.md` deleted 2026-08-20, Issue #5138); its 1
 ALWAYS-LOAD-RULE, 7 PATH-SCOPED-RULE, and 2 KEEP-IN-STEERING sections are
-struck from these counts. `AGENT-INSTRUCTIONS.md`'s phantom "Notes for
+struck from these counts. `AGENT-INSTRUCTIONS.md`'s "Notes for
 Next Session" heading (see note above the per-monolith table) is also
-struck: its 1 PATH-SCOPED-RULE section never existed in the live document.
+struck: its 1 PATH-SCOPED-RULE section was a genuine heading in the
+pre-edit document, removed along with the malformed template that exposed
+it, so it is no longer present in the current document.
 
 | Classification | Count |
 |----------------|-------|
