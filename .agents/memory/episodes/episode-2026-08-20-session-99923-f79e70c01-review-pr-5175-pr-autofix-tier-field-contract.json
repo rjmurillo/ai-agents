@@ -1,0 +1,520 @@
+{
+  "id": "episode-2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract",
+  "session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract",
+  "timestamp": "2026-08-20T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Review PR #5175 and drive it to closure; found the PR carried a zero-diff branch, so reimplemented the described pr-autofix tier field fix and added a producer field-contract test",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-20T01:19:42+00:00",
+      "type": "commit",
+      "content": "Commit: e98baa7548c6e1ebf2928383a496738f44e25086",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-20T01:26:06+00:00",
+      "type": "commit",
+      "content": "Commit: ee7db91b1a5f5c9d40a6f4235af9f0d1f173b108",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-20T01:51:21+00:00",
+      "type": "commit",
+      "content": "Commit: c8ef39989bef26b36a032bd559c3c05ba10a1cf3",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-20T02:08:37+00:00",
+      "type": "commit",
+      "content": "Commit: f0cfc4af1ac13eb88502a499ecc76d18e4bd3383",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-20T03:06:39+00:00",
+      "type": "commit",
+      "content": "Commit: c2d32bf478e1005a4fa96902f92f595e65528313",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-20T04:14:37+00:00",
+      "type": "commit",
+      "content": "Commit: 8c301f43758aa07cadab58a701e06169df372609",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-20T16:49:02+00:00",
+      "type": "commit",
+      "content": "Commit: bcf83e6d1b5e3eb4d539163e75d83b5be09d7bc2",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-20T17:10:13+00:00",
+      "type": "commit",
+      "content": "Commit: 4b0b1ba6172b6ebed5581fffbbecddb2f2dc707c",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-20T17:23:58+00:00",
+      "type": "commit",
+      "content": "Commit: 6c79df17144d29b068e65d5830089ce63d96f12e",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-20T17:25:13+00:00",
+      "type": "commit",
+      "content": "Commit: 1dc128c13633a9617e85bbb6bfe278e7602adb2c",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-20T17:50:21+00:00",
+      "type": "commit",
+      "content": "Commit: 24bd807c1fc341399eb9b6be07d88d18c67dbb85",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-20T18:12:43+00:00",
+      "type": "commit",
+      "content": "Commit: 8b6768075f4d634c22228958b0e90755d1a0ec91",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-20T18:16:27+00:00",
+      "type": "commit",
+      "content": "Commit: 2d1f1d1544eaee43d52fcaf2ab1fb9c1bbcbccb4",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-20T18:44:00+00:00",
+      "type": "commit",
+      "content": "Commit: 9ebcc21d258d1b30ea253a0e8152d7afecdae4ad",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-20T19:15:08+00:00",
+      "type": "commit",
+      "content": "Commit: 533b83d9d234c883089e02065e6cc69e007be929",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-20T19:38:03+00:00",
+      "type": "commit",
+      "content": "Commit: b933155a58f78652ed09289e561f867616ddb0b7",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-20T20:18:09+00:00",
+      "type": "commit",
+      "content": "Commit: 843e3fe0d8130e7efc532a6513dbb2e5a8197b0c",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-20T20:31:57+00:00",
+      "type": "commit",
+      "content": "Commit: 9bb4652c6a9eeeee5d503f48e1efd044a37b20ec",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-20T20:52:53+00:00",
+      "type": "commit",
+      "content": "Commit: e2e5ab1f8b443f097f4e355ef21240212b3e13e2",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e020"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-20T21:30:20+00:00",
+      "type": "commit",
+      "content": "Commit: d9068f9d708bdf4effea2fceccdf579310477301",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-20T21:49:52+00:00",
+      "type": "commit",
+      "content": "Commit: 9b77cb6dd18e851419c3e3e34e0d85fac41f245c",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-20T22:25:51+00:00",
+      "type": "commit",
+      "content": "Commit: ae7dfd753ec2ec0b3006b8ce13a8574214d3c63b",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": [
+        "e023"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-20T22:44:37+00:00",
+      "type": "commit",
+      "content": "Commit: 1ebd8f808f81ac41a9dfaf08a41c8dce40ca0aa9",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-20T22:52:26+00:00",
+      "type": "commit",
+      "content": "Commit: 1d0d1e5a60d46c475eb7570847a66ef610c3d1b6",
+      "caused_by": [
+        "e023"
+      ],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-20T23:08:31+00:00",
+      "type": "commit",
+      "content": "Commit: 2d5b9f7facfa22f45e56dbe7cc0c3ca18c2ff053",
+      "caused_by": [
+        "e024"
+      ],
+      "leads_to": [
+        "e026"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-20T23:28:42+00:00",
+      "type": "commit",
+      "content": "Commit: 40f0aebe8dc37530914a5d51a3592ed219033e86",
+      "caused_by": [
+        "e025"
+      ],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-08-20T23:47:20+00:00",
+      "type": "commit",
+      "content": "Commit: 169a72bd003a8a4b22120484735594fec5f48373",
+      "caused_by": [
+        "e026"
+      ],
+      "leads_to": [
+        "e028"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-08-21T00:00:58+00:00",
+      "type": "commit",
+      "content": "Commit: 81fbe39f91399b542e5b653f01b4d21c4cfebd87",
+      "caused_by": [
+        "e027"
+      ],
+      "leads_to": [
+        "e029"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-08-21T00:12:21+00:00",
+      "type": "commit",
+      "content": "Commit: 423d4951d1c39f610d16d5c56b50b3c60bbbe684",
+      "caused_by": [
+        "e028"
+      ],
+      "leads_to": [
+        "e030"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-08-21T00:35:09+00:00",
+      "type": "commit",
+      "content": "Commit: 284b7e7e31dc57581d63787c004229d18db3d837",
+      "caused_by": [
+        "e029"
+      ],
+      "leads_to": [
+        "e031"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e031",
+      "timestamp": "2026-08-21T00:47:38+00:00",
+      "type": "commit",
+      "content": "Commit: dfb47fcf18d475778fb6724a01347656a45275b1",
+      "caused_by": [
+        "e030"
+      ],
+      "leads_to": [
+        "e032"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e032",
+      "timestamp": "2026-08-21T01:21:22+00:00",
+      "type": "commit",
+      "content": "Commit: 10ac1f3f61430885134f309263023f4975143d01",
+      "caused_by": [
+        "e031"
+      ],
+      "leads_to": [
+        "e033"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e033",
+      "timestamp": "2026-08-21T02:30:11+00:00",
+      "type": "commit",
+      "content": "Commit: 28753b74247d977ce9f410cc90196457bf3e2ed3",
+      "caused_by": [
+        "e032"
+      ],
+      "leads_to": [
+        "e034"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e034",
+      "timestamp": "2026-08-21T02:59:44+00:00",
+      "type": "commit",
+      "content": "Commit: aee342eb91f8eba75541ab9a133870504e68a15b",
+      "caused_by": [
+        "e033"
+      ],
+      "leads_to": [
+        "e035"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e035",
+      "timestamp": "2026-08-21T03:48:51+00:00",
+      "type": "commit",
+      "content": "Commit: 3a91c4de7bac1988a1f06f3900ac4f57299c4740",
+      "caused_by": [
+        "e034"
+      ],
+      "leads_to": [
+        "e036"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e036",
+      "timestamp": "2026-08-21T04:15:44+00:00",
+      "type": "commit",
+      "content": "Commit: 558e65caa05e2a17d57c3cdcb68acf4722012311",
+      "caused_by": [
+        "e035"
+      ],
+      "leads_to": [
+        "e037"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e037",
+      "timestamp": "2026-08-21T04:18:47+00:00",
+      "type": "commit",
+      "content": "Commit: ed7f90f545eeb79b6d246ebf26f327621501dc82",
+      "caused_by": [
+        "e036"
+      ],
+      "leads_to": [
+        "e038"
+      ],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    },
+    {
+      "id": "e038",
+      "timestamp": "2026-08-21T04:30:08+00:00",
+      "type": "commit",
+      "content": "Commit: ef4f2e60cdbfa0c1d68f49a32cdbfe839e3cd55c",
+      "caused_by": [
+        "e037"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-20-session-99923-f79e70c01-review-pr-5175-pr-autofix-tier-field-contract"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 38,
+    "files_changed": 17
+  },
+  "lessons": [
+    "Derive a producer's output schema statically and check consumers against it. Parse the producer with ast to determine envelope level and top-level keys, then fail the build on any consumer read that disagrees.",
+    "Avoid: Trusting a PR body's description of completed work without reading the diff. Check git diff against the merge base before reading the description.",
+    "Avoid: Using a Success field to detect the Data envelope. Key envelope detection off the github_core.output emitter call, which is the thing that actually wraps the payload.",
+    "Avoid: Fixing a silent-fallback bug at the instance instead of the class. Ship a gate covering every read of the same shape, not only the one that was reported.",
+    "Avoid: Building a coverage guard on the same regex as the thing it guards. Detect with an independent, weaker pattern (_JQ_TOKEN spots the word jq). Prove the decoupling by re-running the mutation and watching the guard fail.",
+    "Avoid: Choosing a coverage comparison a sibling item can balance out. Compare at the granularity of the thing that must be checked, one row per invocation, not an aggregate over the line. Prove it by restoring the old comparison and watching a named test fail.",
+    "Avoid: Describing a stuck sentinel as 'the gate turns off' without reading each comparison. For a sentinel that reaches more than one branch, tabulate the sentinel against each condition before describing the impact. Equality and inequality tests on the same stuck value fail in opposite directions.",
+    "Marker-delimited shell blocks make a prose command executable under test. Wrap the block in start/end comments, extract between them, stub the helper functions and producer scripts, run under bash -c, and parameterize over the source and each generated mirror so a stale mirror fails.",
+    "Avoid: Declaring a gap unreachable without searching the repository for the technique. An absence claim needs a search, the same as a presence claim, and it is the more dangerous of the two because nothing later trips over it. Before writing that something cannot be tested here, grep the test tree for the shape you say is missing."
+  ]
+}
