@@ -1944,13 +1944,119 @@ def test_branch_context_survives_a_committed_merge_import(tmp_path: Path) -> Non
     _add_upstream_with(repo, imported)
     os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
 
-    # Negative control: the imported log alone still blocks, because the
-    # exemption also requires the branch to own a log.
-    assert policy.check_branch_context(repo) == 1
+    # Negative control: before the log is upstream, the mismatch still
+    # blocks, so the merged-history assertion below cannot pass vacuously.
+    fresh_repo = tmp_path / "fresh"
+    _init_repo(fresh_repo, branch="feature/x")
+    _commit_file(fresh_repo, "tracked", "value\n")
+    _write_session_log(
+        fresh_repo, branch="feature/merged", name="session-merged", mtime=2_000_000_000.0
+    )
+    assert policy.check_branch_context(fresh_repo) == 1
+
+    assert policy.check_branch_context(repo) == 0
 
     _write_session_log(repo, branch="feature/x", name="session-own", mtime=1_000_000_000.0)
 
     assert policy.check_branch_context(repo) == 0
+
+
+def test_branch_context_survives_merged_import_when_current_branch_owns_no_log(
+    tmp_path: Path,
+) -> None:
+    """A branch that has never authored its own log must still pass.
+
+    Session log creation is discontinued (`.claude/rules/session-logs.md`
+    MUST 1), so no branch will ever again author a same-day log to prove
+    participation. The old exemption required
+    `_session_log_for_branch(sessions_dir, current_branch) is not None` in
+    addition to `_is_merged_history`; that precondition can never hold once
+    creation is discontinued, which would make every commit on every branch
+    block the moment any other branch's same-day log lands upstream.
+    `_is_merged_history` alone is the correct discriminator: a log already
+    reachable from the upstream default branch is settled history, not a
+    live co-mingling claim, whether or not the current branch owns one.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/never-logged")
+    _commit_file(repo, "tracked", "value\n")
+    imported = _write_session_log(
+        repo, branch="feature/other-session", name="session-other", mtime=2_000_000_000.0
+    )
+    _add_upstream_with(repo, imported)
+    os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
+
+    # feature/never-logged owns no session log at all, today or otherwise.
+    sessions_dir = repo / ".agents" / "sessions"
+    assert policy._session_log_for_branch(sessions_dir, "feature/never-logged") is None
+
+    assert policy.check_branch_context(repo) == 0
+
+
+def test_branch_context_blocks_a_locally_tampered_upstream_log(tmp_path: Path) -> None:
+    """A working-tree edit to an already-merged log must not inherit its exemption.
+
+    ``_is_merged_history`` compares the on-disk file's bytes against the
+    upstream blob, not merely whether the path exists upstream. A path that
+    was genuinely merged can still be edited locally (for example, a hand-edit
+    of the ``branch`` field) without committing; an existence-only probe would
+    grant the settled-history exemption to that uncommitted, tampered content
+    because the path was on upstream before the edit. Comparing bytes closes
+    that gap.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    imported = _write_session_log(
+        repo, branch="feature/merged", name="session-merged", mtime=2_000_000_000.0
+    )
+    _add_upstream_with(repo, imported)
+    os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
+
+    # Sanity: unmodified, the exemption applies.
+    assert policy.check_branch_context(repo) == 0
+
+    # Tamper the working-tree copy without committing: same path, different
+    # content than what is upstream.
+    _write_lf(imported, json.dumps({"session": {"branch": "feature/tampered"}}))
+    os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
+
+    assert policy.check_branch_context(repo) == 1
+
+
+def test_branch_context_blocks_when_the_upstream_candidate_is_unreadable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unreadable merged-history candidate must not grant its exemption.
+
+    ``_is_merged_history`` says it fails closed on an unreadable file:
+    ``path.read_bytes()`` raising ``OSError`` returns False rather than
+    propagating, so the byte comparison is skipped and the caller treats the
+    file as not matching upstream. Pin that the mismatch still blocks, not
+    only that the exception is caught.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    imported = _write_session_log(
+        repo, branch="feature/merged", name="session-merged", mtime=2_000_000_000.0
+    )
+    _add_upstream_with(repo, imported)
+    os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
+
+    # Sanity: unmodified and readable, the exemption applies.
+    assert policy.check_branch_context(repo) == 0
+
+    real_read_bytes = Path.read_bytes
+
+    def unreadable_read_bytes(self: Path, *args: object, **kwargs: object) -> bytes:
+        if self == imported:
+            raise OSError(13, "Permission denied", str(self))
+        return real_read_bytes(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_bytes", unreadable_read_bytes)
+
+    assert policy.check_branch_context(repo) == 1
 
 
 def test_branch_context_blocks_a_newer_log_that_is_not_upstream(tmp_path: Path) -> None:
