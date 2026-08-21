@@ -7,7 +7,11 @@
   carried a zero diff, so the work became: verify the defect still lived on `main`,
   implement it properly, open PR #5176, and drive that to green.
 - **Scope**: `.claude/commands/pr-autofix.md` and its generated Copilot mirror, plus
-  six new test modules under `tests/commands/`.
+  eight new modules under `tests/commands/`: five `test_*.py` files and three
+  support modules (two parsers and the bash harness). The count was six when this
+  was written and grew with two later splits, which is the same
+  measurement-versus-property mistake Finding 5 below is about, committed inside
+  the retrospective that names it.
 
 ## Failure Mode Classification
 
@@ -212,8 +216,14 @@ finding.
 | Fix the `.Data.Tier` jq path and add contract gate | Complete | PR #5176 |
 | Add runtime gate executing command body under `bash -c` | Complete | PR #5176 |
 | Flip the round-cap test assertion and document the CWE-284 fix | Complete | PR #5176 |
-| Add control-validity check (SURVIVED vs DEAD) to mutation test guidance | Follow-up | `.claude/rules/testing.md` SHOULD-10 update (not yet filed) |
-| Document "repair to a silent failure is itself a silent-failure candidate" | Follow-up | Serena memory or `.claude/rules/` addition (not yet filed) |
+| Add control-validity check (SURVIVED vs DEAD) to mutation test guidance | Follow-up | Issue #5187 |
+| Document "repair to a silent failure is itself a silent-failure candidate" | Follow-up | Issue #5188 |
+
+Both follow-ups change `.claude/rules/` or Serena memory, which
+`.claude/rules/claude-agents.md` MUST NOT 2 forbids bundling with code, so
+neither can ride on PR #5176. They were filed rather than left unowned because
+`.claude/rules/retros.md` MUST 4 requires every remediation row to carry an
+owner or an issue, and Copilot flagged the two rows that carried neither.
 
 ## References
 

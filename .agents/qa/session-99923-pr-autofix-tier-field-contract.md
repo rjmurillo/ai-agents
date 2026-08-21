@@ -200,10 +200,12 @@ producer's derived schema, not only its envelope level.
 
 ### Review passes
 
-Eight further rounds of review found real defects after the first PASS, several
-of them mine and several the same shape twice. They are recorded in
-`session-99923-pr-autofix-review-passes.md`, split out when this file crossed
-the 500-line taste rule.
+Every round of review after the first PASS found real defects, several of them
+mine and several the same shape twice. Each round is recorded under its own
+heading in `session-99923-pr-autofix-review-passes.md`, split out when this file
+crossed the 500-line taste rule; count the headings there rather than trusting a
+number here, because this sentence carried one and it went stale on the next
+round, which Copilot caught.
 
 ### The fix opened a case, so the fix closes it
 
