@@ -32,7 +32,7 @@
       "usageMandatoryRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Followed skill-first routing per .claude/rules; no skill covered this task's git-hook-policy code fix, so worked directly per AGENTS.md Autonomy Guardrail (internal, reversible: act)"
+        "Evidence": "Followed skill-first routing per .claude/rules; checked security-detection skill whose CRITICAL patterns include scripts/validation/git_hook_policy.py (line 94); security agent was invoked per workLog[9] before pushing"
       },
       "constraintsRead": {
         "level": "MUST",
