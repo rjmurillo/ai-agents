@@ -47,7 +47,7 @@
       "constraintsRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read ci-scripts.md (MUST-NOT-2 validator-change ADR requirement, MUST 13 corpus demonstration, SHOULD 4 silent-failure repairs), session-logs.md (MUST 2 and MUST 3, which are the evidence that endingCommit moves independently of comparison.head), testing.md (SHOULD 6 wiring tests, SHOULD 10 discrimination probes), universal.md, python.md, code-quality.md, canonical-source-mirror.md and security.md."
+        "Evidence": "Read ci-scripts.md (MUST-NOT-2 validator-change ADR requirement, MUST 13 corpus demonstration, SHOULD 4 silent-failure repairs), session-logs.md (MUST 2 and MUST 3, which establish that endingCommit is updated on its own schedule: a follow-up commit, then re-pointed after any rebase; they do not themselves mention comparison.head, but this schedule is what leaves the two fields able to disagree), testing.md (SHOULD 6 wiring tests, SHOULD 10 discrimination probes), universal.md, python.md, code-quality.md, canonical-source-mirror.md and security.md."
       },
       "memoriesLoaded": {
         "level": "SHOULD",
