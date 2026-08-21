@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5220-session-log-false-positive.json
-qaCommit: 36bfb510b2858c5f22e164cd42342d04921a250a
+qaCommit: f170c11c6013cf565a5e3d553b313e9c8f1240c5
 ---
 
 # QA Report: Issue #5220, check_branch_context hard-blocks after a merge when origin/HEAD is unset
@@ -111,6 +111,19 @@ the test locally, re-ran the pin test and the branch-context suite to confirm
 both still pass, and rebound `qaCommit` to the merge commit since it now
 carries real, non-evidence-path changes (the ADR-096 and vendor-provenance
 files from `origin/main`) after the prior `qaCommit`.
+
+## Second push attempt and a second base-branch merge
+
+A subsequent push's `Python Security Checks` CI job failed on a newly
+disclosed `pip-audit` finding, `PYSEC-2026-3721` in the pinned `pip==26.1.2`,
+unrelated to this PR's diff. Confirmed via `mcp__github__actions_list`
+(`list_workflow_runs` for `pytest.yml` on `main`) that `main`'s own most
+recent run at the time (`ce4860ea60`) had already fixed this: PR #5225,
+"fix(ci): bump audited pip pin to 26.2 for PYSEC-2026-3721", merged to `main`
+after this branch's prior merge point. Merged `origin/main` again (merge
+commit `f170c11c6013cf565a5e3d553b313e9c8f1240c5`, no conflicts) rather than
+patching the pin locally, and rebound `qaCommit` to it for the same
+staleness reason as the first merge.
 
 ## Pre-existing findings, out of scope
 
