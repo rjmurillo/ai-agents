@@ -49,8 +49,17 @@ rather than in a Serena memory, but binding means "every harness reads it", not
 
 ## Evidence for the rule's own claim
 
-The item asserts a failure mode measured twice in PR #5176. Both measurements
-are recorded with their commands and outcomes in
-`.agents/qa/session-99923-pr-autofix-later-findings.md` and
-`.agents/retrospective/2026-08-21-pr-5176-fixing-silent-failures-silently.md`,
-which land on that PR rather than this one.
+The item asserts a failure mode measured twice in PR #5176, and the rule text
+carries both measurements inline: the exact expressions, the tier the case ran,
+and what each edit did or failed to do. That is deliberate, so the binding claim
+stands on its own and does not depend on a file the reader may not have.
+
+The fuller write-ups live on PR #5176's branch, in its QA companion and its
+retrospective. Those are named here as *contents of that PR*, reachable through
+it, and not as paths resolvable from this branch, because they are not: if this
+PR merges first they do not exist on `main` yet. Copilot flagged the earlier
+wording for exactly that reason. `.claude/rules/canonical-source-mirror.md`
+covers the general case under "True when you wrote it is not true at merge",
+and the remedy it names is the one applied here: keep the load-bearing evidence
+on the branch that carries the claim, and reference cross-branch material by PR
+rather than by path.
