@@ -396,7 +396,8 @@
         "e030",
         "e033",
         "e034",
-        "e036"
+        "e036",
+        "e038"
       ],
       "leads_to": [
         "e032"
@@ -471,6 +472,17 @@
         "e035"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
+    },
+    {
+      "id": "e038",
+      "timestamp": "2026-08-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Cleared the last five review threads and measured the gate a fifth time",
+      "caused_by": [],
+      "leads_to": [
+        "e031"
+      ],
       "_source_session": "2026-08-20-session-99922-push-gate-value-evaluation"
     }
   ],
