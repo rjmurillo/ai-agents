@@ -69,6 +69,7 @@ def test_whole_tree_ruff_count_ratchet_blocks_in_pre_push() -> None:
         "**/*.pyi",
         "**/*.ipynb",
         "**/pyproject.toml",
+        "uv.lock",
         "scripts/ci/ruff_count_baseline.txt",
     ]
 
@@ -97,6 +98,20 @@ def test_count_ratchet_glob_covers_nested_pyproject_toml() -> None:
     assert any(
         PurePosixPath(nested).full_match(pattern) for pattern in job["glob"]
     ), f"{nested} matches no entry in {job['glob']!r}"
+
+
+def test_count_ratchet_glob_covers_lockfile_only_ruff_upgrades() -> None:
+    """The ratchet job runs ruff from the frozen uv environment, so a
+    lockfile-only Ruff version bump can move the whole-tree count without
+    touching any .py, .pyi, .ipynb, or pyproject.toml file. The trigger glob
+    must reach uv.lock, matching pytest.yml's CI path filter.
+    """
+    job = _job("python-lint-count-ratchet")
+
+    assert (_REPO_ROOT / "uv.lock").is_file(), "uv.lock moved; update this test's target"
+    assert any(
+        PurePosixPath("uv.lock").full_match(pattern) for pattern in job["glob"]
+    ), f"uv.lock matches no entry in {job['glob']!r}"
 
 
 def test_ruff_ratchets_have_distinct_local_blocking_jobs() -> None:
