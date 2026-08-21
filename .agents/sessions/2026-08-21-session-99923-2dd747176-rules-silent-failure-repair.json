@@ -117,7 +117,7 @@
       "finding": "The must items \"convert every failure signal into a non-zero exit before the step ends\", \"convert every detected violation into a non-zero exit\", and \"distinguish a run that did nothing from a run that succeeded\" govern the original defect; nothing governed the fix. Four successive repairs to one silent-failure defect in PR #5176 each introduced a different silent failure, and three were caught by a reviewer rather than by the suite being written for that class."
     }
   ],
-  "endingCommit": "73769ed28b0be52c76faf21e5f6fe227e520db85",
+  "endingCommit": "c85ee7e462774c30cbd1cb12a2fdf74b75862e02",
   "nextSteps": [
     "PR #5206 is open and green; drive it to merge. It needs an approving review from someone other than rjmurillo, because GitHub rejects self-approval and CodeRabbit reports it lacks permission to submit a verdict on this repository.",
     "Issue #5211: renumber the duplicate MUST ordinals in ci-scripts.md and testing.md, and repair the 13 ambiguous citations the sweep found. Not by matching an ordinal alone: citations to testing.md MUST 10 and ci-scripts.md MUST 12 are unambiguous and must be left alone.",
