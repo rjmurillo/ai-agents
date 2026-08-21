@@ -43,13 +43,19 @@ always-loaded monoliths this audit covered; it was deleted 2026-08-20
 (Issue #5138), so its row and section table below are struck from the
 live count. Its classification table is kept for the historical record.
 
-`AGENT-INSTRUCTIONS.md`'s "Notes for Next Session" row below was never a
-real top-level section: it was a `## ` heading inside a nested code fence
-in the retired session-log template, and the fence-aware scanner's
-single-level tracker (it does not track fence nesting depth) mis-closed
-on the template's inner ` ```bash ` block and briefly read the file as
-unfenced, counting the placeholder heading as live. Discontinuing session
-log creation deleted that whole template
+`AGENT-INSTRUCTIONS.md`'s "Notes for Next Session" row below was a real
+top-level section in the pre-edit file, not a scanner defect: the retired
+session-log template nested a ` ```bash ` example inside its outer
+` ```markdown ` fence, and CommonMark does not support fence nesting. The
+first bare ` ``` ` line (closing the inner example) closed the OUTER fence
+too, so everything after it, including "## Notes for Next Session", parsed
+as ordinary document content rather than fenced example content. Verified
+against `markdown-it` (`4.2.0`): parsing the original nested structure
+produces a genuine `heading_open`/`heading_close` pair for "Notes for Next
+Session". `tests/test_monolith_section_classification.py`'s fence-aware
+scanner parsed this correctly per CommonMark; the template's fence
+structure was the defect, not the scanner. Discontinuing session log
+creation deleted that whole malformed template
 (`.claude/rules/session-logs.md` MUST 1), so the phantom heading is gone
 and the true count drops from 31 to 30. Its classification row is kept
 for the historical record, same as the SESSION-PROTOCOL.md convention
