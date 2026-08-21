@@ -31,7 +31,7 @@ class QaBinding:
 
     ``inconsistency`` is not part of that identity. It carries a
     human-readable note about how ``commit`` was selected, set only when the
-    session log's two commit fields disagreed and one had to win (ADR-099).
+    session log's two commit fields disagreed and one had to win (ADR-102).
     Callers surface it as a warning; nothing branches on it.
     """
 
@@ -178,7 +178,7 @@ def session_qa_binding(
         comparison_head
     ):
         # comparison.head wins when both fields resolve, and a disagreement is
-        # reported rather than rejected (ADR-099, issue #5217). This is not
+        # reported rather than rejected (ADR-102, issue #5217). This is not
         # because the two fields naturally diverge: a corpus measurement found
         # only 7 of 1459 committed logs where endingCommit was pulled off its
         # own contract to satisfy the equality this replaces, out of 42

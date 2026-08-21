@@ -281,7 +281,7 @@ def test_extracts_qa_binding_from_full_ending_commit() -> None:
 
 
 def test_binds_to_comparison_head_when_commit_fields_disagree() -> None:
-    # ADR-099 replaces the raise this case used to assert. The equality it
+    # ADR-102 replaces the raise this case used to assert. The equality it
     # enforced forced only 7 of 1459 committed logs into a hand-sync repair
     # (a corpus measurement), not the naturally-independent pattern an
     # earlier draft assumed, so a disagreement is now reported, not rejected.
@@ -1507,9 +1507,9 @@ class TestValidateQaReportEvidence:
         ending_commit: str,
         expects_warning: bool,
     ) -> None:
-        # Wiring test (ADR-099). The unit tests above prove session_qa_binding
+        # Wiring test (ADR-102). The unit tests above prove session_qa_binding
         # produces the diagnostic; only this one proves the caller surfaces it,
-        # and that it is a warning rather than an error. Before ADR-099 the
+        # and that it is a warning rather than an error. Before ADR-102 the
         # disagree case appended an error here, so `result.errors == []` is the
         # assertion that pins the behavior change.
         #
@@ -1551,7 +1551,7 @@ class TestValidateQaReportEvidence:
     def test_disagreement_warning_survives_a_subsequent_validation_failure(
         self, tmp_path: Path
     ) -> None:
-        # Ordering-contract wiring test. The code comment and ADR-099 both
+        # Ordering-contract wiring test. The code comment and ADR-102 both
         # say the disagreement warning is appended before validate_qa_report()
         # runs "so the observation survives an unrelated failure below", but
         # the parametrized wiring test above only exercises a passing report
@@ -1598,7 +1598,7 @@ class TestValidateQaReportEvidence:
     def test_fallback_head_masks_a_real_change_between_the_two_fields(
         self, tmp_path: Path
     ) -> None:
-        # ADR-099 Implementation Note 8. Pins the laxer-direction exposure
+        # ADR-102 Implementation Note 8. Pins the laxer-direction exposure
         # named in "The laxer direction is bounded, not impossible": when
         # live-HEAD resolution fails (validation_head=None, simulating that
         # failure) and the two commit fields disagree with comparison.head

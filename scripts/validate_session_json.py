@@ -965,7 +965,7 @@ def validate_qa_report_evidence(
             session_log=session_log,
             resolve_commit=_resolve_full_commit,
         )
-        # ADR-099: the session log's two commit fields are allowed to
+        # ADR-102: the session log's two commit fields are allowed to
         # disagree. A corpus measurement found the equality this replaces
         # forced only 7 of 1459 committed logs into a hand-sync repair, not
         # the "naturally independent" pattern an earlier draft assumed.
