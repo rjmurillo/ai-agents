@@ -23,6 +23,8 @@ Accepted. Requested by issue #5217 (labels `enhancement`, `priority:P2`, `area-v
 
 ## Context
 
+Every `.claude/lib/qa_report.py` line number in this ADR describes the file **before** this change, which is the state the argument is about. The change adds roughly 28 lines, so a reader checking these citations against a post-merge working tree should navigate by symbol name instead.
+
 `session_qa_binding()` (`.claude/lib/qa_report.py:142-182`) turns a session log into the `QaBinding` that QA-report validation is checked against. Lines 170-178 read verbatim:
 
 ```python
@@ -180,7 +182,7 @@ Deleting the raise and returning silently is the smaller diff and is rejected. `
 
 The strongest objection to keeping `comparison.head` is that the drift is not always in the direction the schema describes. Two directions exist. QA rebinding advances `comparison.head` past the session's own last authored commit, which is the case `commitHead` was added for. But `.claude/rules/session-logs.md` MUST 2 and MUST 3 advance `endingCommit` on a separate schedule, so a log whose episode was extracted before the follow-up commit carries an `endingCommit` newer than `comparison.head`. Selecting `comparison.head` there selects the older SHA, and an older head means a shorter staleness range, which is the laxer choice.
 
-That case cannot fail open. When `binding.commit` is used as the head, `post_qa_code_changes()` first runs `git merge-base --is-ancestor report.commit head` (`.claude/lib/qa_report.py:230-242`) and raises "QA commit is not an ancestor of validation head" on return code 1. A QA report validated at a commit later than the selected head is exactly the non-ancestor case, so the shorter range is rejected rather than silently accepted. The laxness is bounded to reports whose commit is genuinely an ancestor of the older field, where the range really does contain no later work.
+That case cannot fail open. When `binding.commit` is used as the head, `post_qa_code_changes()` first runs `git merge-base --is-ancestor report.commit head` and raises "QA commit is not an ancestor of validation head" on return code 1. A QA report validated at a commit later than the selected head is exactly the non-ancestor case, so the shorter range is rejected rather than silently accepted. The laxness is bounded to reports whose commit is genuinely an ancestor of the older field, where the range really does contain no later work.
 
 ### Why `comparison.head` keeps precedence
 
