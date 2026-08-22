@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 890da965b710b153be17aeb617ad895d2ec6dbf6
+qaCommit: 9007119b7200197e146d026470fe240feb55dcd0
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -984,3 +984,20 @@ after committing both `detect_adr_changes.py` copies together (mid-edit,
 before committing, `--check` correctly reports the uncommitted mirror as
 "regen drift" under `OWNED_PREFIXES` for `src/`; that is the check
 working as designed on an in-progress edit, not a defect).
+
+**Addendum 16 correction.** Cursor Bugbot reviewed the round-6 push
+minutes after it landed and found one more defect, in the round's own
+new test: `test_git_ls_markdown_raises_on_a_non_utf8_tracked_filename`
+wrote a raw `0xff` byte into a filename with no platform guard. ext4
+accepts arbitrary bytes in filenames; APFS (macOS) and NTFS (Windows)
+validate UTF-8 or reject the byte at file-creation time, so the test
+would fail before it could exercise `git_ls_markdown` at all on those
+filesystems. This repo's CI only runs this suite on
+`ubuntu-latest`/`ubuntu-24.04-arm` (the Windows pytest job filters to
+`@pytest.mark.windows_path` only), so CI itself was never at risk; the
+guard protects a contributor running the full suite locally on a
+non-Linux machine. Fixed with
+`@pytest.mark.skipif(sys.platform != "linux", reason=...)`, matching
+this repo's established `sys.platform == "win32"` skip convention
+(`tests/test_check_doc_interpreter_portability.py` and others). 85
+tests still pass.

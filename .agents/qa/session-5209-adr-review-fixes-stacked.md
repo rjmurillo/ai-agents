@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 890da965b710b153be17aeb617ad895d2ec6dbf6
+qaCommit: 9007119b7200197e146d026470fe240feb55dcd0
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -605,3 +605,12 @@ related docstring both said "twenty entries, three absolute", stale since
 round 5, corrected to the measured 19 and 2 with a self-verifying test.
 93 tests pass across the two touched suites (85 in `check_adr_links`, 8
 new in `test_detect_adr_changes_status_scalar.py`).
+
+**Addendum 18 correction.** Cursor Bugbot found one more defect in the
+round's own new test minutes after the push: a raw `0xff`-byte filename
+with no platform guard, which would fail on filesystems that reject
+non-UTF-8 names (APFS, NTFS) before the assertion under test could run.
+Fixed with `@pytest.mark.skipif(sys.platform != "linux", reason=...)`,
+matching this repo's existing `sys.platform == "win32"` skip convention.
+CI itself was never at risk (the suite runs on Ubuntu only); this guards
+a contributor running locally on a different OS. 85 tests still pass.
