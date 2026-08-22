@@ -306,7 +306,7 @@
       "notes": "pre-push python-lint-count-ratchet blocked: main lowered scripts/ci/ruff_count_baseline.txt from 27 to 0 and this branch was behind, so the tree measured 27 against a ceiling of 0. This branch never edited that file, which is the case the ratchet's message says to fix by merging. Clean merge; tree now measures 0 with `ruff check .` clean. Regenerated the ADR index because main added ADR-100 and ADR-101. Separately: the push reported exit 0 while failing, because the exit code came from `tail` at the end of the pipeline rather than from git push, and that same tail broke the pipe that carried the failing job's detail."
     }
   ],
-  "endingCommit": "1a465379a690325a2b8f18013dffcc661b1034c0",
+  "endingCommit": "5205bf29d366afe80d2174302a1d5326be6fae16",
   "nextSteps": [
     "Open a stacked PR from claude/adr-5209-review-fixes with base claude/adr-evaluation-tooling-6od8rd",
     "Merge it into #5209, or merge #5209 first and retarget this one at main",
