@@ -188,11 +188,11 @@ Default for ambiguous-but-low-cost cases: act minimally, flag what you assumed, 
 
 ### Unattended runs
 
-Unattended: no human reads `AskUserQuestion` within the run (a scheduled trigger, a fleet worker, a headless session). Never end one on a question: unread, it stalls.
+Unattended: no human reads `AskUserQuestion` in the run (a scheduled trigger, a fleet worker, a headless session). Never end one on a question: unread, it stalls.
 
 Instead: record the ambiguity, options, and branch taken to the per-issue handoff, not `.agents/HANDOFF.md`; take the safest reversible branch and continue.
 
-Ask First items (architecture, ADRs, breaking, security) get no guess: record it, halt only that branch, continue on independent work.
+Ask First items (architecture, new ADRs, breaking, security) get no guess: record it, halt only that branch, continue on independent work.
 
 ## Ownership: See Something, Say Something
 
