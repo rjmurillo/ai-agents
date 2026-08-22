@@ -368,11 +368,19 @@ def scan_file(repo_root: Path, file: str, tracked: frozenset[str]) -> list[Findi
     review corrected an earlier version of this same docstring, which said the
     length refinement was deferred because "no fence in this corpus nests
     same-character runs of different lengths" -- true of the corpus at the
-    time, not a property the scanner can rely on going forward). Indented
-    (4-space) code blocks and inline single-backtick spans are still out of
-    scope, per the module docstring's "Links inside fenced code blocks... are
-    skipped": both are a full CommonMark parse away, which this line-scanner
-    deliberately is not (PR #5209 review).
+    time, not a property the scanner can rely on going forward). A
+    fence-shaped line only closes the block when its character and length
+    match or exceed the opener AND the rest of the line is whitespace-only,
+    per CommonMark's closing-fence rule (spec.commonmark.org/0.31.2/
+    #fenced-code-blocks): a line such as ``` ```python ``` inside an
+    already-open ``` block is content (an inner example), not a close,
+    because CommonMark closing fences take no info string (Copilot, PR
+    #5209 round-9 review). Any other fence-shaped line while inside a fence
+    is likewise content, not a delimiter. Indented (4-space) code blocks and
+    inline single-backtick spans are still out of scope, per the module
+    docstring's "Links inside fenced code blocks... are skipped": both are a
+    full CommonMark parse away, which this line-scanner deliberately is not
+    (PR #5209 review).
 
     Reads strictly (no ``errors="replace"``): this is a file read, not one of
     the ``subprocess`` text-capture calls ``check_subprocess_encoding.py``
@@ -398,13 +406,27 @@ def scan_file(repo_root: Path, file: str, tracked: frozenset[str]) -> list[Findi
         if match:
             run = match.group("marker")
             char, length = run[0], len(run)
+            # A closing fence may be followed only by spaces or tabs, per
+            # CommonMark (spec.commonmark.org/0.31.2/#fenced-code-blocks,
+            # quoted verbatim): "The closing code fence may be preceded by
+            # up to three spaces of indentation, and may be followed only by
+            # spaces or tabs, which are ignored." An opening fence has no
+            # such restriction; its info string can carry any text (a
+            # language tag, a shell prompt). Before this fix, a line like
+            # "```python" inside an already-open ``` block matched the same
+            # char/length as the opener and closed it, so the block's real
+            # closing fence was then read as a new opener: a nested example
+            # in the fenced content could report links, and a broken link in
+            # the live prose that followed could be silently skipped
+            # (Copilot, PR #5209 round-9 review).
+            trailing_is_whitespace_only = not line[match.end() :].strip()
             if fence_char is None:
                 fence_char, fence_length = char, length
-            elif char == fence_char and length >= fence_length:
+            elif char == fence_char and length >= fence_length and trailing_is_whitespace_only:
                 fence_char, fence_length = None, 0
             # else: a fence-shaped line that does not close (wrong character,
-            # or the same character in a shorter run than the opener) is
-            # content, not a delimiter; fence_char/fence_length hold.
+            # a shorter run than the opener, or trailing text after the
+            # marker) is content, not a delimiter; fence_char/fence_length hold.
             continue
         if fence_char is not None:
             continue
@@ -488,11 +510,30 @@ def _scannable_files(repo_root: Path) -> list[str]:
 
 
 def validate_adr_links(repo_root: Path) -> bool:
-    """Print broken ADR links and return True when none are found."""
+    """Print broken ADR links and return True when none are found.
+
+    Checks the examined-file count before scanning, not after: a
+    ``repo_root`` that resolves to a real git repository with zero tracked
+    markdown files (wrong path, or a checkout outside this repo) makes
+    ``git ls-files`` succeed with empty output, so ``find_broken_adr_links``
+    would scan nothing and return ``[]``, printing the same "0 violation(s)"
+    a genuinely clean full-corpus scan prints. A wrong-but-valid repository
+    root must not manufacture a green result (Copilot, PR #5209 round-9
+    review). ``main()`` below already fails on a fully-invalid path (not a
+    git repository at all) via its ``subprocess.CalledProcessError`` handler;
+    this closes the narrower, valid-git-empty-result case that handler
+    cannot catch.
+    """
+    examined = len(_scannable_files(repo_root))
+    if examined == 0:
+        print(
+            f"check_adr_links: no tracked markdown files found under {repo_root}",
+            file=sys.stderr,
+        )
+        return False
     findings = find_broken_adr_links(repo_root)
     for finding in findings:
         print(finding.format())
-    examined = len(_scannable_files(repo_root))
     print(
         f"check_adr_links: {len(findings)} violation(s) across "
         f"{examined} tracked markdown file(s)"
@@ -523,6 +564,23 @@ def main(argv: list[str] | None = None) -> int:
         if not baseline_path.is_absolute():
             baseline_path = repo_root / baseline_path
 
+        # A repo_root that resolves to a real git repository with zero
+        # tracked markdown files (wrong path, or a checkout outside this
+        # repo) makes `git ls-files` succeed with empty output, so the scan
+        # below would find nothing and print the same "0 violation(s)" a
+        # genuinely clean full-corpus scan prints. The
+        # subprocess.CalledProcessError handler below already covers a path
+        # that is not a git repository at all; this closes the narrower,
+        # valid-git-empty-result case that handler cannot catch (Copilot,
+        # PR #5209 round-9 review).
+        examined = len(_scannable_files(repo_root))
+        if examined == 0:
+            print(
+                f"check_adr_links: no tracked markdown files found under {repo_root}",
+                file=sys.stderr,
+            )
+            return 2
+
         findings = find_broken_adr_links(repo_root, baseline=load_allowlist(baseline_path))
     except (OSError, subprocess.CalledProcessError, UnicodeDecodeError, ValueError) as exc:
         print(f"check_adr_links: {exc}", file=sys.stderr)
@@ -530,7 +588,6 @@ def main(argv: list[str] | None = None) -> int:
 
     for finding in findings:
         print(finding.format())
-    examined = len(_scannable_files(repo_root))
     print(
         f"check_adr_links: {len(findings)} violation(s) across "
         f"{examined} tracked markdown file(s)"

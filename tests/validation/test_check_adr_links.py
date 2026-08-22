@@ -355,6 +355,34 @@ def test_a_different_fence_character_inside_a_block_does_not_close_it(tmp_path: 
     assert findings[0].target == "./ADR-998-nope.md"
 
 
+def test_a_fence_shaped_line_with_trailing_text_does_not_close_it(tmp_path: Path) -> None:
+    """CommonMark's closing fence takes no info string: only spaces or tabs
+    may follow the marker. A ```` ```python ```` line inside an already-open
+    ``` block is content (an inner example showing a fenced code sample), not
+    a close, even though its character and length match the opener. Treating
+    any matching fence-shaped line as a close regardless of trailing text
+    gets this backwards on both ends: it closes on the inner ```` ```python
+    ```` line, so the still-fenced ADR-999 example is scanned as broken (false
+    positive), and it then reopens on the real closing fence, swallowing the
+    live ADR-998 link that follows into a fence that never closes (false
+    negative), (Copilot, PR #5209 round-9 review).
+    """
+    doc = write(
+        tmp_path,
+        "docs/example.md",
+        "```\n"
+        "```python\n"
+        "[ADR-999](./ADR-999-does-not-exist.md)\n"
+        "```\n"
+        "[ADR-998](./ADR-998-nope.md)\n",
+    )
+
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
+
+    assert kinds(findings) == ["unresolved"]
+    assert findings[0].target == "./ADR-998-nope.md"
+
+
 @pytest.mark.parametrize(
     "root",
     [
@@ -777,6 +805,42 @@ def test_main_reports_the_examined_file_count(tmp_path: Path, capsys) -> None:
 
     assert exit_code == 0
     assert "0 violation(s) across 2 tracked markdown file(s)" in capsys.readouterr().out
+
+
+def test_main_fails_closed_on_a_valid_repo_with_no_tracked_markdown(
+    tmp_path: Path, capsys
+) -> None:
+    """A wrong-but-valid repository root must not manufacture a green result.
+
+    `repo_root` pointing at a real git repository that happens to track zero
+    markdown files makes `git ls-files` succeed with empty output, so an
+    unguarded scan would find nothing and print the same "0 violation(s)" a
+    genuinely clean full-corpus scan prints. That is a different failure
+    shape than "not a git repository at all," which the
+    `subprocess.CalledProcessError` handler already covers (Copilot,
+    PR #5209 round-9 review).
+    """
+    write(tmp_path, "not_markdown.py", "x = 1\n")
+    _init_repo(tmp_path)
+
+    exit_code = main(["--repo-root", str(tmp_path), "--baseline", str(tmp_path / "none.txt")])
+
+    err = capsys.readouterr().err
+    assert exit_code == 2
+    assert "no tracked markdown files found" in err
+
+
+def test_validate_adr_links_fails_closed_on_a_valid_repo_with_no_tracked_markdown(
+    tmp_path: Path, capsys
+) -> None:
+    write(tmp_path, "not_markdown.py", "x = 1\n")
+    _init_repo(tmp_path)
+
+    result = validate_adr_links(tmp_path)
+
+    err = capsys.readouterr().err
+    assert result is False
+    assert "no tracked markdown files found" in err
 
 
 def test_validate_adr_links_reports_the_examined_file_count(tmp_path: Path, capsys) -> None:
