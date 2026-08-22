@@ -48,65 +48,83 @@ def kinds(findings: list[Finding]) -> list[str]:
 
 
 def test_resolvable_adr_link_passes(tmp_path: Path) -> None:
-    write(tmp_path, "adr/ADR-005-powershell-only-scripting.md", "# target\n")
+    target = write(tmp_path, "adr/ADR-005-powershell-only-scripting.md", "# target\n")
     doc = write(
         tmp_path,
         "adr/ADR-032-ears.md",
         "See [ADR-005: PowerShell](ADR-005-powershell-only-scripting.md) for detail.\n",
     )
 
-    assert find_broken_adr_links(tmp_path, files=[doc], baseline=set()) == []
+    assert (
+        find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset({target}))
+        == []
+    )
 
 
 def test_relative_hop_out_of_directory_resolves(tmp_path: Path) -> None:
-    write(tmp_path, "critique/ADR-045-debate-log.md", "# log\n")
+    target = write(tmp_path, "critique/ADR-045-debate-log.md", "# log\n")
     doc = write(
         tmp_path,
         "architecture/ADR-045-framework.md",
         "- [6-Agent Review Debate Log](../critique/ADR-045-debate-log.md)\n",
     )
 
-    assert find_broken_adr_links(tmp_path, files=[doc], baseline=set()) == []
+    assert (
+        find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset({target}))
+        == []
+    )
 
 
 def test_anchor_suffix_is_stripped_before_resolution(tmp_path: Path) -> None:
-    write(tmp_path, "adr/ADR-035-exit-code-standardization.md", "# target\n")
+    target = write(tmp_path, "adr/ADR-035-exit-code-standardization.md", "# target\n")
     doc = write(
         tmp_path,
         "adr/ADR-033-gates.md",
         "See [ADR-035](./ADR-035-exit-code-standardization.md#contract).\n",
     )
 
-    assert find_broken_adr_links(tmp_path, files=[doc], baseline=set()) == []
+    assert (
+        find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset({target}))
+        == []
+    )
 
 
 def test_link_title_suffix_is_stripped_before_resolution(tmp_path: Path) -> None:
-    write(tmp_path, "adr/ADR-035-exit-code-standardization.md", "# target\n")
+    target = write(tmp_path, "adr/ADR-035-exit-code-standardization.md", "# target\n")
     doc = write(
         tmp_path,
         "adr/ADR-033-gates.md",
         'See [ADR-035](./ADR-035-exit-code-standardization.md "Exit codes").\n',
     )
 
-    assert find_broken_adr_links(tmp_path, files=[doc], baseline=set()) == []
+    assert (
+        find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset({target}))
+        == []
+    )
 
 
 def test_angle_bracket_destination_resolves(tmp_path: Path) -> None:
-    write(tmp_path, "adr/ADR-035-exit-code-standardization.md", "# target\n")
+    target = write(tmp_path, "adr/ADR-035-exit-code-standardization.md", "# target\n")
     doc = write(
         tmp_path,
         "adr/ADR-033-gates.md",
         "See [ADR-035](<./ADR-035-exit-code-standardization.md>).\n",
     )
 
-    assert find_broken_adr_links(tmp_path, files=[doc], baseline=set()) == []
+    assert (
+        find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset({target}))
+        == []
+    )
 
 
 def test_zero_padding_difference_is_not_a_mismatch(tmp_path: Path) -> None:
-    write(tmp_path, "adr/ADR-080-model-pin.md", "# target\n")
+    target = write(tmp_path, "adr/ADR-080-model-pin.md", "# target\n")
     doc = write(tmp_path, "adr/index.md", "See [ADR-80](ADR-080-model-pin.md).\n")
 
-    assert find_broken_adr_links(tmp_path, files=[doc], baseline=set()) == []
+    assert (
+        find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset({target}))
+        == []
+    )
 
 
 # Negative: each violation class fires
@@ -119,29 +137,73 @@ def test_unresolved_target_is_reported(tmp_path: Path) -> None:
         "- [ADR-005: PowerShell](ADR-005-powershell-only.md) - stale slug\n",
     )
 
-    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set())
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
 
     assert kinds(findings) == ["unresolved"]
     assert findings[0].target == "ADR-005-powershell-only.md"
     assert findings[0].line == 1
 
 
+def test_untracked_file_on_disk_still_reports_unresolved(tmp_path: Path) -> None:
+    """An untracked target file must not make a broken link pass locally.
+
+    ``check_adr_links.py`` used ``Path.exists()`` before this fix, so a target
+    written to disk but never ``git add``-ed passed here while the identical
+    commit failed in a clean checkout (PR #5209 review). Writing the file and
+    passing an empty ``tracked`` set reproduces exactly that gap: the file is
+    real on this filesystem and absent from the tracked inventory.
+    """
+    write(tmp_path, "adr/ADR-005-powershell-only-scripting.md", "# target\n")
+    doc = write(
+        tmp_path,
+        "adr/ADR-032-ears.md",
+        "See [ADR-005: PowerShell](ADR-005-powershell-only-scripting.md) for detail.\n",
+    )
+
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
+
+    assert kinds(findings) == ["unresolved"]
+
+
+def test_target_outside_the_repository_root_is_rejected(tmp_path: Path) -> None:
+    """A relative climb past the repository root must never resolve.
+
+    Even a ``tracked`` set that happens to contain a same-named entry must not
+    match: ``../../etc/passwd``-shaped traversal is rejected before the
+    membership check runs, per the review's "reject paths outside the
+    repository" requirement.
+    """
+    doc = write(
+        tmp_path,
+        "adr/ADR-032-ears.md",
+        "- [Escape](../../../ADR-999-quirk.md)\n",
+    )
+
+    findings = find_broken_adr_links(
+        tmp_path, files=[doc], baseline=set(), tracked=frozenset({"ADR-999-quirk.md"})
+    )
+
+    assert kinds(findings) == ["unresolved"]
+
+
 def test_absolute_target_is_reported(tmp_path: Path) -> None:
-    write(tmp_path, "critique/ADR-023-debate-log.md", "# log\n")
+    target = write(tmp_path, "critique/ADR-023-debate-log.md", "# log\n")
     doc = write(
         tmp_path,
         "architecture/ADR-023-quality-gate.md",
         "- [Debate Log](/.agents/critique/ADR-023-debate-log.md)\n",
     )
 
-    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set())
+    findings = find_broken_adr_links(
+        tmp_path, files=[doc], baseline=set(), tracked=frozenset({target})
+    )
 
     assert kinds(findings) == ["absolute"]
     assert "does not resolve" in findings[0].detail
 
 
 def test_number_mismatch_is_reported_when_target_resolves(tmp_path: Path) -> None:
-    write(tmp_path, "adr/ADR-035-exit-code-standardization.md", "# target\n")
+    target = write(tmp_path, "adr/ADR-035-exit-code-standardization.md", "# target\n")
     doc = write(
         tmp_path,
         "adr/ADR-033-gates.md",
@@ -149,7 +211,9 @@ def test_number_mismatch_is_reported_when_target_resolves(tmp_path: Path) -> Non
         "(./ADR-035-exit-code-standardization.md).\n",
     )
 
-    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set())
+    findings = find_broken_adr_links(
+        tmp_path, files=[doc], baseline=set(), tracked=frozenset({target})
+    )
 
     assert kinds(findings) == ["number-mismatch"]
     assert findings[0].detail == "text says ADR-032, target is ADR-035"
@@ -162,7 +226,7 @@ def test_number_mismatch_and_unresolved_are_reported_together(tmp_path: Path) ->
         "see [ADR-032](./ADR-035-exit-code-standardization.md)\n",
     )
 
-    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set())
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
 
     assert kinds(findings) == ["number-mismatch", "unresolved"]
 
@@ -174,7 +238,7 @@ def test_malformed_bracket_inside_destination_is_reported(tmp_path: Path) -> Non
         "by [ADR-080](./ADR-080-model-pin-justification-policy.md]) here\n",
     )
 
-    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set())
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
 
     assert kinds(findings) == ["malformed"]
     assert findings[0].detail == "bracket inside destination"
@@ -187,21 +251,24 @@ def test_malformed_unterminated_destination_is_reported(tmp_path: Path) -> None:
         "by [ADR-080](./ADR-080-model-pin-justification-policy.md\n",
     )
 
-    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set())
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
 
     assert kinds(findings) == ["malformed"]
     assert findings[0].detail == "destination never closed"
 
 
 def test_missing_leading_dot_directory_is_reported(tmp_path: Path) -> None:
-    write(tmp_path, ".agents/architecture/ADR-036-two-source.md", "# target\n")
+    target = write(tmp_path, ".agents/architecture/ADR-036-two-source.md", "# target\n")
     doc = write(
         tmp_path,
         "templates/AGENTS.md",
         "See [ADR-036](../agents/architecture/ADR-036-two-source.md).\n",
     )
 
-    assert kinds(find_broken_adr_links(tmp_path, files=[doc], baseline=set())) == ["unresolved"]
+    findings = find_broken_adr_links(
+        tmp_path, files=[doc], baseline=set(), tracked=frozenset({target})
+    )
+    assert kinds(findings) == ["unresolved"]
 
 
 # Edge: things that must NOT be reported
@@ -215,7 +282,7 @@ def test_link_inside_fenced_block_is_ignored(tmp_path: Path, fence: str) -> None
         f"{fence}\n[ADR-999](./ADR-999-does-not-exist.md)\n```\n",
     )
 
-    assert find_broken_adr_links(tmp_path, files=[doc], baseline=set()) == []
+    assert find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset()) == []
 
 
 def test_link_after_a_closed_fence_is_still_scanned(tmp_path: Path) -> None:
@@ -225,7 +292,7 @@ def test_link_after_a_closed_fence_is_still_scanned(tmp_path: Path) -> None:
         "```\n[ADR-999](./ADR-999-nope.md)\n```\n[ADR-998](./ADR-998-nope.md)\n",
     )
 
-    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set())
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
 
     assert kinds(findings) == ["unresolved"]
     assert findings[0].target == "./ADR-998-nope.md"
@@ -244,7 +311,7 @@ def test_link_after_a_closed_fence_is_still_scanned(tmp_path: Path) -> None:
 def test_historical_roots_are_exempt(tmp_path: Path, root: str) -> None:
     doc = write(tmp_path, f"{root}note.md", "[ADR-005](ADR-005-gone.md)\n")
 
-    assert find_broken_adr_links(tmp_path, files=[doc], baseline=set()) == []
+    assert find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset()) == []
 
 
 def test_non_markdown_files_are_never_scanned(tmp_path: Path) -> None:
@@ -263,28 +330,31 @@ def test_external_url_containing_an_adr_filename_is_ignored(tmp_path: Path) -> N
         "[ADR-005](https://example.invalid/ADR-005-powershell-only.md)\n",
     )
 
-    assert find_broken_adr_links(tmp_path, files=[doc], baseline=set()) == []
+    assert find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset()) == []
 
 
 def test_non_adr_markdown_link_is_ignored(tmp_path: Path) -> None:
     doc = write(tmp_path, "docs/example.md", "[readme](./README-gone.md)\n")
 
-    assert find_broken_adr_links(tmp_path, files=[doc], baseline=set()) == []
+    assert find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset()) == []
 
 
 def test_link_text_without_an_adr_number_skips_the_number_rule(tmp_path: Path) -> None:
-    write(tmp_path, "adr/ADR-045-debate-log.md", "# log\n")
+    target = write(tmp_path, "adr/ADR-045-debate-log.md", "# log\n")
     doc = write(
         tmp_path,
         "adr/index.md",
         "[6-Agent Review Debate Log](ADR-045-debate-log.md)\n",
     )
 
-    assert find_broken_adr_links(tmp_path, files=[doc], baseline=set()) == []
+    assert (
+        find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset({target}))
+        == []
+    )
 
 
 def test_missing_file_on_disk_yields_no_findings(tmp_path: Path) -> None:
-    assert scan_file(tmp_path, "docs/never-written.md") == []
+    assert scan_file(tmp_path, "docs/never-written.md", frozenset()) == []
 
 
 # Baseline behavior
@@ -294,7 +364,7 @@ def test_baseline_entry_suppresses_the_matching_finding(tmp_path: Path) -> None:
     doc = write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
     key = "adr/index.md:ADR-005-gone.md"
 
-    assert find_broken_adr_links(tmp_path, files=[doc], baseline={key}) == []
+    assert find_broken_adr_links(tmp_path, files=[doc], baseline={key}, tracked=frozenset()) == []
 
 
 def test_whole_file_baseline_entry_suppresses_every_finding(tmp_path: Path) -> None:
@@ -304,7 +374,10 @@ def test_whole_file_baseline_entry_suppresses_every_finding(tmp_path: Path) -> N
         "[ADR-005](ADR-005-gone.md)\n[ADR-006](ADR-006-gone.md)\n",
     )
 
-    assert find_broken_adr_links(tmp_path, files=[doc], baseline={"adr/index.md"}) == []
+    assert (
+        find_broken_adr_links(tmp_path, files=[doc], baseline={"adr/index.md"}, tracked=frozenset())
+        == []
+    )
 
 
 def test_baseline_does_not_suppress_a_different_target_in_the_same_file(tmp_path: Path) -> None:
@@ -315,7 +388,7 @@ def test_baseline_does_not_suppress_a_different_target_in_the_same_file(tmp_path
     )
     baseline = {"adr/index.md:ADR-005-gone.md"}
 
-    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=baseline)
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=baseline, tracked=frozenset())
 
     assert [finding.target for finding in findings] == ["ADR-006-gone.md"]
 
