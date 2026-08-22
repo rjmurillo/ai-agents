@@ -64,6 +64,7 @@ These bind today.
 | [ADR-094](ADR-094-govern-copilot-cli-compatibility.md) | Govern Copilot CLI Compatibility Through Executable Surfaces | 2026-08-15 | Supersede ADR-044 in full. |
 | [ADR-096](ADR-096-relax-qa-evidence-commit-equality.md) | Relax QA-Evidence Commit Equality to a Code-Change-Aware Check | 2026-08-19 | Redesign `validate_qa_report()` to require an explicit `head` argument and to perform the staleness check itself, rather than leaving staleness detection as a second call a caller can forget: |
 | [ADR-097](ADR-097-zero-tool-use-hooks.md) | Zero Tool-Use Hooks | 2026-08-19 | Retire all five currently-registered tool-call hooks, and retire the generated Copilot dispatcher machinery that their removal leaves with nothing to run. |
+| [ADR-099](ADR-099-remove-commit-limit-bypass-gate.md) | Remove the commit-count block and its commit-limit-bypass label | 2026-08-21 | Remove the commit-count block and the `commit-limit-bypass` label mechanism entirely, from both the CI workflow (`pr-validation.yml`, `scripts/ci/enforce_pr_validation.py`) and the local pre-push... |
 
 ## Proposed
 
@@ -84,6 +85,8 @@ Recorded, not yet binding. The last column is what each record says is holding i
 | [ADR-090](ADR-090-pr-branch-holder-lease.md) | PR Branch Holder Lease | 2026-07-27 | Adopt a fail-closed, PR-comment-backed holder lease for PR branch mutation. | This ADR amends ADR-076 for issue #3413. It records the decision before implementation because the change controls who may mutate a PR branch. |
 | [ADR-093](ADR-093-verify-red-checks-with-the-same-checker.md) | A local run clears a red remote check only when it is the same checker | 2026-08-07 | Add one MUST to `.claude/rules/universal.md`, which is always-on: | - |
 | [ADR-098](ADR-098-agent-role-metadata-replaces-tier-hierarchy.md) | Agent Role Metadata Replaces the Tier Hierarchy | 2026-08-20 | Retire the four-tier agent hierarchy. | - |
+| [ADR-100](ADR-100-retire-pr-size-ceilings.md) | Retire the Pull Request Size Ceilings | 2026-08-20 | Retire both size ceilings as blocking gates. | - |
+| [ADR-101](ADR-101-enforcement-planes.md) | Enforcement Planes | 2026-08-20 | Adopt enforcement plane classification as this repository's rule for gate design, and treat the control plane's current gaps as prerequisites rather than as background. | - |
 
 ## Retired
 
