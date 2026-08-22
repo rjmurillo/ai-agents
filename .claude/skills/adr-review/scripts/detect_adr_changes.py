@@ -134,17 +134,12 @@ def _has_duplicate_keys(frontmatter: str) -> bool:
     closed on them and the adr-review gate still fires.
 
     Detected at the parser rather than by matching line prefixes. The earlier
-    regex recognised only ``^[A-Za-z0-9_-]+:``, which asks a different question
-    than YAML does. Measured on that revision, three of four spellings walked
-    through while ``yaml.safe_load`` enforced ``accepted`` for every one:
-
-        status: proposed   / status: accepted     caught
-        "status": proposed / status: accepted     MISSED
-        status : proposed  / status: accepted     MISSED
-        'status': proposed / status: accepted     MISSED
-
-    A guard against forgery that the forger evades with quotation marks is
-    worse than none, because it reports clean. Copilot found it on PR #5230.
+    regex recognised only ``^[A-Za-z0-9_-]+:``, a different question than
+    YAML asks: three of ``status: proposed``, ``"status": proposed``,
+    ``status : proposed``, and ``'status': proposed`` walked through it while
+    ``yaml.safe_load`` enforced ``accepted`` for every one (Copilot, PR
+    #5230). A guard the forger evades with quotation marks is worse than
+    none, since it reports clean.
 
     Mirrors `_no_duplicate_keys` in build/scripts/generate_adr_index.py, which
     is canonical. The detection is quoted verbatim from it:
