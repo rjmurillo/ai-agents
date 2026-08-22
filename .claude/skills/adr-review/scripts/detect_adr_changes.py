@@ -260,27 +260,26 @@ def _get_adr_status(file_path: Path) -> str:
 
         status: proposed | accepted | rejected | deprecated | superseded   # enum, no prose
 
-    Returns :data:`STATUS_UNKNOWN` for every state in which the record declares
-    no status: the file is missing or unreadable, there is no complete
-    frontmatter block, the frontmatter is malformed or is not a YAML mapping, or
-    the block carries no ``status`` key. ``unknown`` is a distinct sentinel and
-    callers MUST NOT treat it as ``proposed``; only a record that literally
-    declares ``status: proposed`` returns ``proposed``. Collapsing "declares
-    nothing" into "declares proposed" is the fail-open shape catalogued in
-    .agents/retrospective/2026-08-19-review-and-land-fleet-campaign-prs.md and is
-    the bug this function was rewritten to fix (issue #5189).
-
-    Malformed YAML never raises out of this function. Parsing is delegated to
-    :func:`_parse_frontmatter`, which returns ``None`` on
-    :class:`yaml.YAMLError` and on a non-mapping document; both map to
-    ``unknown`` here, so a broken frontmatter block reads as an undeclared
-    status rather than crashing the caller.
+    Returns :data:`STATUS_UNKNOWN` when the record declares no status: file
+    missing or unreadable, no complete frontmatter block, malformed or
+    non-mapping frontmatter, no ``status`` key, or a non-scalar value (a YAML
+    sequence or mapping, e.g. ``status:\n  - accepted``). ``unknown`` is a
+    distinct sentinel; callers MUST NOT treat it as ``proposed``. Collapsing
+    "declares nothing" into "declares proposed" is the fail-open shape
+    catalogued in
+    .agents/retrospective/2026-08-19-review-and-land-fleet-campaign-prs.md
+    (issue #5189). Malformed YAML never raises: :func:`_parse_frontmatter`
+    returns ``None`` on :class:`yaml.YAMLError` or a non-mapping document,
+    both mapped to ``unknown`` here.
 
     Stricter/looser/different than canonical: ADR-073 defines the enum but
-    Phase 1 leaves it unenforced ("optional, unenforced fields", line 18), so
-    this function does NOT validate the value against the enum. It lowercases
-    and strips whatever scalar the ``status`` key carries and returns it, which
-    is looser than the deferred Phase 3 gate at ADR-073 line 159.
+    Phase 1 leaves it unenforced (line 18), so this does not validate against
+    it; it lowercases whatever scalar ``status`` carries. The non-scalar
+    rejection mirrors ``check_adr_lifecycle.py._status_of()`` verbatim
+    (``value is None or isinstance(value, (list, dict))``, :409-414):
+    previously a non-scalar reached ``str(status).lower()`` and returned a
+    repr like ``"['accepted']"`` instead of ``unknown`` (Copilot, PR #5209
+    round-6).
     """
     if not file_path.exists():
         return STATUS_UNKNOWN
@@ -308,7 +307,7 @@ def _get_adr_status(file_path: Path) -> str:
     if fields is None:
         return STATUS_UNKNOWN
     status = fields.get("status")
-    if status is None:
+    if status is None or isinstance(status, (list, dict)):
         return STATUS_UNKNOWN
     return str(status).strip().lower()
 
