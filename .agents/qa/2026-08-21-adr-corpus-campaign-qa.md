@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 853b61fad7b09b6887c4c13e2cda92ff8f3f5922
+qaCommit: 5205bf29d366afe80d2174302a1d5326be6fae16
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -712,3 +712,72 @@ both records) rather than a new debate log, since neither is a
 governance decision. 316 tests pass across `check_adr_lifecycle`,
 `generate_adr_index`, the `adr-review` skill (all trees), and the
 ADR-063 structural test.
+
+## Addendum 13: a third Copilot review round, five fixed, one filed
+
+**Rebound to** `5205bf29d366afe80d2174302a1d5326be6fae16`.
+
+A further Copilot review on this branch's own head found six findings.
+Commits `17e0a15f3` and `5205bf29d`:
+
+- **`generate_adr_index.py`'s successor lookup missed non-padded and
+  bare-integer `superseded-by` references** (`ADR-91`, bare `91`) that
+  `check_adr_lifecycle.py`'s `_normalize_reference` already accepts. A
+  record naming either form passed lifecycle validation while the index
+  printed it as an unlinked plain-text reference. Fixed with a
+  `_normalize_adr_id` helper mirroring the lifecycle gate's acceptance
+  regex, at both the initial lookup and the chain-walk lookup.
+  Mutation-proven: reverting the fix fails exactly the new test,
+  `test_successor_lookup_accepts_non_padded_and_bare_int_references`.
+- **`check_adr_links.py`'s external-scheme check was case-sensitive.**
+  URI schemes are case-insensitive (RFC 3986 section 3.1);
+  `HTTPS://example.test/ADR-005-x.md` was treated as a repository-relative
+  path and reported as a false `unresolved` finding. Fixed by
+  lower-casing before the scheme comparison. Mutation-proven.
+- **A bare filename in `check_adr_links_baseline.txt` was a silent,
+  unbounded wildcard.** A `finding.file in allowed` branch let one
+  file-only baseline entry suppress every current and future ADR-link
+  defect in that file, though the baseline file's own header requires
+  `<kind>:<file>:<target>` and forbids anything looser. Fixed two ways:
+  the wildcard branch is removed, and the baseline is now validated
+  against that exact shape at load time, failing loudly (a `ValueError`
+  config error, not a silent empty result) on a malformed entry. The
+  existing test that asserted the old wildcard behavior,
+  `test_whole_file_baseline_entry_suppresses_every_finding`, is flipped
+  to `test_whole_file_baseline_entry_is_rejected_as_malformed`, asserting
+  the new rejection instead of the forgeable old behavior.
+- **The "ten records repaired" count was off by one.** `60b9ee306`
+  (already on this branch) gave ADR-063 the frontmatter its prose had
+  claimed since 2026-06-17, a lifecycle repair by the same definition as
+  the other ten; the PR description's bolded list never counted it.
+  Corrected to eleven records. The frontmatter/backfill counts also
+  corrected, 54 to 53, confirmed by direct measurement:
+  `adr_lifecycle_baseline.json`'s `frontmatter-parses` reads 53 and the
+  generated index's Needs backfill section lists 53 rows.
+- **Two debate logs had gone stale**, corrected in commit `5205bf29d`:
+  `ADR-corpus-repair-5189-5201-debate-log.md`'s resolution table still
+  described ADR-055 as `implemented: false` after the second round's
+  correction reversed it; `ADR-023-032-033-link-repair-debate-log.md`'s
+  verdict said ADR-023 was "left without frontmatter" and named a
+  `status-section-present` check that is not one of the seven shipped
+  checks. Both corrected in place with a note explaining what changed
+  and why, rather than silently rewriting the historical record.
+- **Deferred, filed as issue #5270**: neither `check_adr_lifecycle.py`'s
+  `--write-baseline` nor `check_adr_links.py`'s baseline file enforces
+  that its ceiling can only fall relative to the PR's base branch, so a
+  branch could in principle raise either and commit the raised version
+  alongside the regression it should have caught. Same forgeability
+  class already proven against the debate-log gate in #5205; filed for
+  follow-up rather than expanding this already-oversized review-response
+  round further.
+
+Test counts: `check_adr_links` 79 tests (up from 66, +13: the malformed-baseline
+coverage plus the two new scheme-case parametrize entries), `generate_adr_index`
+73 tests (up from 72, +1). All four touched suites plus
+`test_pre_pr_sequence_registry.py` pass together: 272 tests. `check_adr_links.py
+--repo-root .` and `check_adr_lifecycle.py --repo-root .` both re-run clean
+against the full corpus (0 violations; 64 baselined violations, no check above
+its baseline). `generate_adr_index.py --check` confirms the generated index
+still matches: the real corpus has no non-padded or bare-integer
+`superseded-by` value today, so the normalization fix is latent-defect
+coverage, the same shape as the original `_get_adr_status` fix.

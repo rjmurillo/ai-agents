@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 853b61fad7b09b6887c4c13e2cda92ff8f3f5922
+qaCommit: 5205bf29d366afe80d2174302a1d5326be6fae16
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -507,3 +507,26 @@ by execution and corrected; ADR-024's Provenance line conflated PR
 numbers with commit identifiers; two absolute "no hook was bypassed"
 claims (session log, campaign QA file) are corrected to the accurate
 scope. 316 tests pass.
+
+## Addendum 15: a third Copilot review round, five fixed, one filed
+
+**Rebound to** `5205bf29d366afe80d2174302a1d5326be6fae16`.
+
+Full detail in Addendum 13 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`:
+six findings. Five fixed in commits `17e0a15f3` and `5205bf29d`:
+`generate_adr_index.py`'s successor lookup missed non-padded and bare-int
+`superseded-by` references the lifecycle gate already accepts, fixed with
+a `_normalize_adr_id` helper mirroring that gate's regex; `check_adr_links.py`'s
+external-scheme check was case-sensitive, fixed by lower-casing before
+comparison; a bare filename in the ADR-links baseline was a silent,
+unbounded wildcard through a `finding.file in allowed` branch, fixed by
+removing that branch and validating the baseline's `<kind>:<file>:<target>`
+shape at load time; the "ten records repaired" count omitted ADR-063's
+frontmatter fix (already on this branch), corrected to eleven, with the
+54-to-53 frontmatter/backfill counts corrected to match; two debate logs
+had gone stale after the second round's ADR-055 reversal and are corrected
+in place. The sixth finding, that neither ADR baseline gate enforces its
+ceiling can only fall relative to the PR's base branch, is filed as issue
+#5270 rather than fixed here, following the #5205 precedent for a proven
+gate-forgeability class found in this PR's own shipped code. 272 tests
+pass across the four touched suites plus the pre-PR sequence registry.
