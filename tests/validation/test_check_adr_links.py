@@ -394,6 +394,30 @@ def test_baseline_entry_suppresses_the_matching_finding(tmp_path: Path) -> None:
     assert find_broken_adr_links(tmp_path, files=[doc], baseline={key}, tracked=frozenset()) == []
 
 
+def test_a_second_identical_finding_is_not_covered_by_one_allowance(tmp_path: Path) -> None:
+    """One baseline entry allows one match, not every match sharing its key.
+
+    ``Finding.key()`` is ``kind:file:target`` with no line number, so the same
+    broken link cited twice in one file produces two findings with an
+    identical key. A plain ``in`` membership check against the baseline set
+    would suppress both from a single entry, meaning a second, later-added
+    occurrence of an already-baselined dead link stays invisible forever.
+    The real corpus had exactly this shape: ``docs/search-dont-load.md``
+    cited the same absolute ADR-007 link on two lines under one baseline
+    entry (Copilot, PR #5209); both are now fixed rather than double-baselined.
+    """
+    doc = write(
+        tmp_path,
+        "adr/index.md",
+        "[ADR-005](ADR-005-gone.md)\nSee also [ADR-005 again](ADR-005-gone.md)\n",
+    )
+    baseline = {"unresolved:adr/index.md:ADR-005-gone.md"}
+
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=baseline, tracked=frozenset())
+
+    assert [finding.line for finding in findings] == [2]
+
+
 def test_whole_file_baseline_entry_is_rejected_as_malformed(tmp_path: Path) -> None:
     """A bare filename must not become a silent, unbounded wildcard.
 

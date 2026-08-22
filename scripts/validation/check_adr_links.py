@@ -362,13 +362,25 @@ def find_broken_adr_links(
             f"<kind>:<file>:<target> with kind in {{{allowed_kinds}}}:\n  {listed}"
         )
 
+    # Each baseline entry allows exactly one matching finding, not every finding
+    # that ever shares its key. Finding.key() is `kind:file:target`, with no line
+    # number, so two occurrences of the same broken link in one file (or a new
+    # occurrence added later that happens to name the same file and target as an
+    # already-baselined one) share a key. A plain `in` membership check against
+    # `allowed` suppresses both forever; consuming the entry from a working copy
+    # after its first match means only the baselined occurrence is exempt, and a
+    # second, genuinely new occurrence of the same kind:file:target still surfaces
+    # as a finding (Copilot, PR #5209).
+    remaining_allowances = set(allowed)
     findings: list[Finding] = []
     for file in sorted(candidates):
         normalized = file.replace("\\", "/")
         if is_historical_path(normalized):
             continue
         for finding in scan_file(repo_root, normalized, resolved_tracked):
-            if finding.key() in allowed:
+            key = finding.key()
+            if key in remaining_allowances:
+                remaining_allowances.discard(key)
                 continue
             findings.append(finding)
     return findings

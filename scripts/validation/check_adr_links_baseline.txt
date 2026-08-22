@@ -55,7 +55,6 @@ unresolved:.agents/security/benchmarks/README.md:../../architecture/ADR-042-pyth
 # the file is ADR-037-memory-router-implementation.md.
 absolute:.agents/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md:/.agents/architecture/ADR-007-memory-first-architecture.md
 absolute:.agents/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md:/.agents/architecture/ADR-037-memory-router-architecture.md
-absolute:docs/search-dont-load.md:/.agents/architecture/ADR-007-memory-first-architecture.md
 
 # One ../ hop short: the skill sits three levels below the repository root.
 # The copilot-cli copy is generated from the .claude source, so repairing the
