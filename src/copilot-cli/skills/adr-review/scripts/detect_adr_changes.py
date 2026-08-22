@@ -120,23 +120,71 @@ def _parse_frontmatter(frontmatter: str) -> dict[str, object] | None:
 
 
 def _has_duplicate_top_level_keys(frontmatter: str) -> bool:
-    """True when a top-level frontmatter key appears more than once.
+    """True when a frontmatter mapping declares the same key twice.
 
     Duplicate keys are malformed YAML and can hide a governance change (a
     second ``status:`` line masking the first). PyYAML resolves duplicates
     last-wins without error, so this explicit check lets the exemption fail
     closed on them and the adr-review gate still fires.
+
+    Detected at the parser rather than by matching line prefixes. The earlier
+    regex recognised only ``^[A-Za-z0-9_-]+:``, which asks a different question
+    than YAML does. Measured on that revision, three of four spellings walked
+    through while ``yaml.safe_load`` enforced ``accepted`` for every one:
+
+        status: proposed   / status: accepted     caught
+        "status": proposed / status: accepted     MISSED
+        status : proposed  / status: accepted     MISSED
+        'status': proposed / status: accepted     MISSED
+
+    A guard against forgery that the forger evades with quotation marks is
+    worse than none, because it reports clean. Copilot found it on PR #5230.
+
+    Mirrors `_no_duplicate_keys` in build/scripts/generate_adr_index.py, which
+    is canonical. The detection is quoted verbatim from it:
+
+        seen: list[Any] = []
+        for key_node, _ in node.value:
+            key = loader.construct_object(key_node, deep=True)
+            if any(key == earlier for earlier in seen):
+                raise ...
+            seen.append(key)
+
+    Stricter/looser/different than canonical: identical detection; this returns
+    a bool because callers only branch on it, and it swallows a YAML parse error
+    as False because a malformed block is already handled by the callers'
+    own parse path. This file ships inside the plugin and may import only the
+    standard library and yaml, so the loader is duplicated here rather than
+    shared (`.claude/rules/plugin-self-containment.md`).
+
+    A list compared with ``==``, not a set: a YAML key need not be hashable
+    (``? [a, b]`` builds a list key) and a set raises ``TypeError`` on it.
     """
-    seen: set[str] = set()
-    for line in frontmatter.splitlines():
-        if line and (line[0] == " " or line[0] == "\t"):
-            continue
-        match = _FRONTMATTER_FIELD_RE.match(line)
-        if match:
-            key = match.group(1)
-            if key in seen:
-                return True
-            seen.add(key)
+
+    class _Dup(yaml.YAMLError):
+        pass
+
+    class _Loader(yaml.SafeLoader):
+        pass
+
+    def _check(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict[object, object]:
+        seen: list[object] = []
+        for key_node, _ in node.value:
+            key = loader.construct_object(key_node, deep=True)
+            if any(key == earlier for earlier in seen):
+                raise _Dup
+            seen.append(key)
+        mapping: dict[object, object] = loader.construct_mapping(node, deep=True)
+        return mapping
+
+    _Loader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _check)
+
+    try:
+        yaml.load(frontmatter, Loader=_Loader)
+    except _Dup:
+        return True
+    except yaml.YAMLError:
+        return False
     return False
 
 
@@ -246,6 +294,16 @@ def _get_adr_status(file_path: Path) -> str:
     frontmatter, _body = _split_frontmatter(content)
     if not frontmatter:
         return STATUS_UNKNOWN
+    if _has_duplicate_top_level_keys(frontmatter):
+        # PyYAML resolves duplicates last-wins and reports nothing, so a record
+        # carrying `status: proposed` near the top and `status: accepted` lower
+        # in the same block parses as accepted while reading as proposed to
+        # anyone scanning the first lines. This module already treats that as a
+        # governance risk and fails its frontmatter-only exemption closed on it
+        # (see _frontmatter_only_change); the status path was not wired to the
+        # same helper, so the two disagreed about whether such a record is
+        # readable at all. Undeclared, not last-wins.
+        return STATUS_UNKNOWN
     fields = _parse_frontmatter(frontmatter)
     if fields is None:
         return STATUS_UNKNOWN
@@ -255,9 +313,7 @@ def _get_adr_status(file_path: Path) -> str:
     return str(status).strip().lower()
 
 
-def _is_frontmatter_only_change(
-    file_path: str, since_commit: str, base_path: Path
-) -> bool:
+def _is_frontmatter_only_change(file_path: str, since_commit: str, base_path: Path) -> bool:
     """Return True when a modified ADR changed only non-decision frontmatter.
 
     Compares the file body (content after the YAML frontmatter block) at
@@ -399,12 +455,14 @@ def main(argv: list[str] | None = None) -> int:
         for file_path in deleted:
             adr_name = Path(file_path).stem
             dependents = _get_dependent_adrs(adr_name, base_path)
-            deleted_details.append({
-                "Path": file_path,
-                "ADRName": adr_name,
-                "Status": "deleted",
-                "Dependents": dependents,
-            })
+            deleted_details.append(
+                {
+                    "Path": file_path,
+                    "ADRName": adr_name,
+                    "Status": "deleted",
+                    "Dependents": dependents,
+                }
+            )
 
         result_obj = {
             "Created": created,

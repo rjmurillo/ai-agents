@@ -108,23 +108,30 @@ def check_skill_gate(repo_root: Path) -> bool:
 def check_session_log_gate(repo_root: Path) -> bool:
     """Advisory session-log presence check. Always returns True.
 
-    The committed session-log gate is retired: a session log is optional. A
-    missing sessions directory or the absence of a log for today is advisory
-    (a [WARN] line), never a blocking failure. When a log IS present it is still
-    inspected: the gate prints [PASS] and warns on missing structural fields.
+    Session log creation is discontinued (`.claude/rules/session-logs.md`):
+    AGENTS.md's Start checklist no longer lists it, so its absence is the
+    expected case, not something worth flagging. A missing sessions directory
+    or the absence of a log for today therefore prints [PASS], not [WARN];
+    [WARN] is reserved for a log that exists but is structurally incomplete.
+
+    Stricter/looser/different than canonical: `.claude/rules/session-logs.md`
+    describes a validate-if-present pre-commit gate that returns 0 silently
+    when nothing is staged. This gate prints one confirming [PASS] line
+    instead of full silence, so the "Session Start Gate" summary this
+    function reports into still shows Gate 3 ran rather than vanishing.
     """
     print("\n=== Gate 3: Session Log Verification ===")
     sessions_dir = repo_root / ".agents" / "sessions"
 
     if not sessions_dir.exists():
-        print(f"[WARN] Sessions directory not found (advisory): {sessions_dir}")
+        print("[PASS] No session log for today (creation discontinued; optional)")
         return True
 
     today = date.today().isoformat()
     today_sessions = sorted(sessions_dir.glob(f"{today}-session-*.json"), reverse=True)
 
     if not today_sessions:
-        print(f"[WARN] No session log found for today ({today}) (advisory)")
+        print("[PASS] No session log for today (creation discontinued; optional)")
         return True
 
     latest = today_sessions[0]

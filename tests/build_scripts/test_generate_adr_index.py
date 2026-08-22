@@ -190,9 +190,7 @@ def test_proposed_row_carries_the_blocking_condition(adr_dir: Path) -> None:
 
 def test_proposed_blocker_drops_the_redundant_status_token(adr_dir: Path) -> None:
     proposed_row = next(
-        line
-        for line in _section(_render(adr_dir), "Proposed").splitlines()
-        if "ADR-002" in line
+        line for line in _section(_render(adr_dir), "Proposed").splitlines() if "ADR-002" in line
     )
 
     assert "Proposed." not in proposed_row
@@ -200,9 +198,7 @@ def test_proposed_blocker_drops_the_redundant_status_token(adr_dir: Path) -> Non
 
 def test_accepted_row_carries_the_frontmatter_date(adr_dir: Path) -> None:
     accepted_row = next(
-        line
-        for line in _section(_render(adr_dir), "Accepted").splitlines()
-        if "ADR-001" in line
+        line for line in _section(_render(adr_dir), "Accepted").splitlines() if "ADR-001" in line
     )
 
     assert "2026-01-02" in accepted_row
@@ -236,9 +232,7 @@ def test_record_without_frontmatter_goes_to_needs_backfill(adr_dir: Path) -> Non
 
 
 def test_record_without_frontmatter_is_assigned_no_status(adr_dir: Path) -> None:
-    record = next(
-        r for r in generate_adr_index.collect_records(adr_dir) if r.number == 6
-    )
+    record = next(r for r in generate_adr_index.collect_records(adr_dir) if r.number == 6)
 
     assert record.status is None
 
@@ -286,9 +280,7 @@ def test_malformed_yaml_does_not_silently_write_an_index(tmp_path: Path) -> None
     assert not output.exists()
 
 
-def test_non_mapping_frontmatter_exits_non_zero_naming_the_file(
-    tmp_path: Path, capsys
-) -> None:
+def test_non_mapping_frontmatter_exits_non_zero_naming_the_file(tmp_path: Path, capsys) -> None:
     directory = tmp_path / "architecture"
     _write_adr(
         directory,
@@ -342,9 +334,7 @@ def test_out_of_enum_status_is_never_silently_dropped(tmp_path: Path) -> None:
         generate_adr_index.collect_records(directory)
 
 
-def test_record_without_an_h1_exits_non_zero_naming_the_file(
-    tmp_path: Path, capsys
-) -> None:
+def test_record_without_an_h1_exits_non_zero_naming_the_file(tmp_path: Path, capsys) -> None:
     directory = tmp_path / "architecture"
     _write_adr(
         directory,
@@ -412,9 +402,7 @@ def test_record_with_neither_decision_heading_yields_the_title_alone(
     )
 
     row = next(
-        line
-        for line in _section(_render(directory), "Accepted").splitlines()
-        if "ADR-013" in line
+        line for line in _section(_render(directory), "Accepted").splitlines() if "ADR-013" in line
     )
 
     assert "No Decision Heading" in row
@@ -477,9 +465,7 @@ def test_numbered_decision_list_yields_only_its_first_item(tmp_path: Path) -> No
     )
 
     row = next(
-        line
-        for line in _section(_render(directory), "Accepted").splitlines()
-        if "ADR-015" in line
+        line for line in _section(_render(directory), "Accepted").splitlines() if "ADR-015" in line
     )
 
     assert "Supersede ADR-044 in full." in row
@@ -545,9 +531,7 @@ def test_pipe_in_a_title_is_escaped_so_the_table_survives(tmp_path: Path) -> Non
     )
 
     row = next(
-        line
-        for line in _section(_render(directory), "Accepted").splitlines()
-        if "ADR-018" in line
+        line for line in _section(_render(directory), "Accepted").splitlines() if "ADR-018" in line
     )
 
     assert "A \\| B Routing" in row
@@ -646,9 +630,7 @@ def test_generate_writes_the_index_and_exits_zero(tmp_path: Path) -> None:
     _corpus(directory)
     output = tmp_path / "README.md"
 
-    exit_code = generate_adr_index.main(
-        ["--adr-dir", str(directory), "--output", str(output)]
-    )
+    exit_code = generate_adr_index.main(["--adr-dir", str(directory), "--output", str(output)])
 
     assert exit_code == 0
     assert output.read_text(encoding="utf-8").startswith("# Architecture Decision Records")
@@ -667,9 +649,7 @@ def test_check_passes_when_the_committed_index_is_current(tmp_path: Path) -> Non
     assert exit_code == 0
 
 
-def test_check_fails_when_an_adr_changed_without_a_regeneration(
-    tmp_path: Path, capsys
-) -> None:
+def test_check_fails_when_an_adr_changed_without_a_regeneration(tmp_path: Path, capsys) -> None:
     directory = tmp_path / "architecture"
     _corpus(directory)
     output = tmp_path / "README.md"
@@ -713,9 +693,7 @@ def test_check_does_not_write_the_index(tmp_path: Path) -> None:
     _corpus(directory)
     output = tmp_path / "README.md"
 
-    generate_adr_index.main(
-        ["--adr-dir", str(directory), "--output", str(output), "--check"]
-    )
+    generate_adr_index.main(["--adr-dir", str(directory), "--output", str(output), "--check"])
 
     assert not output.exists()
 
@@ -753,17 +731,23 @@ def test_two_hop_supersession_redirects_to_the_terminal_record(tmp_path: Path) -
     """
     adr_dir = tmp_path / "architecture"
     _write_adr(
-        adr_dir, 79, "first",
+        adr_dir,
+        79,
+        "first",
         frontmatter="status: superseded\nsuperseded-by: ADR-091",
         body=_standard_body(79, "First"),
     )
     _write_adr(
-        adr_dir, 91, "second",
+        adr_dir,
+        91,
+        "second",
         frontmatter="status: superseded\nsuperseded-by: ADR-092",
         body=_standard_body(91, "Second"),
     )
     _write_adr(
-        adr_dir, 92, "third",
+        adr_dir,
+        92,
+        "third",
         frontmatter="status: accepted",
         body=_standard_body(92, "Third"),
     )
@@ -783,12 +767,16 @@ def test_supersession_cycle_terminates_instead_of_hanging(tmp_path: Path) -> Non
     """
     adr_dir = tmp_path / "architecture"
     _write_adr(
-        adr_dir, 10, "alpha",
+        adr_dir,
+        10,
+        "alpha",
         frontmatter="status: superseded\nsuperseded-by: ADR-011",
         body=_standard_body(10, "Alpha"),
     )
     _write_adr(
-        adr_dir, 11, "beta",
+        adr_dir,
+        11,
+        "beta",
         frontmatter="status: superseded\nsuperseded-by: ADR-010",
         body=_standard_body(11, "Beta"),
     )
@@ -808,7 +796,9 @@ def test_proposed_row_renders_the_review_by_date(tmp_path: Path) -> None:
     """
     adr_dir = tmp_path / "architecture"
     _write_adr(
-        adr_dir, 77, "timeboxed",
+        adr_dir,
+        77,
+        "timeboxed",
         frontmatter="status: proposed\nreview-by: 2026-09-27",
         body=_standard_body(77, "Timeboxed"),
     )
@@ -824,7 +814,9 @@ def test_review_by_and_prose_blocker_both_render(tmp_path: Path) -> None:
         "## Status\n\nProposed", "## Status\n\nProposed. Awaiting a held-out eval."
     )
     _write_adr(
-        adr_dir, 87, "both",
+        adr_dir,
+        87,
+        "both",
         frontmatter="status: proposed\nreview-by: 2026-10-18",
         body=body,
     )
@@ -839,7 +831,9 @@ def test_proposed_row_without_review_by_is_unchanged(tmp_path: Path) -> None:
     """Negative control: the optional field absent must not alter the old output."""
     adr_dir = tmp_path / "architecture"
     _write_adr(
-        adr_dir, 88, "nodate",
+        adr_dir,
+        88,
+        "nodate",
         frontmatter="status: proposed",
         body=_standard_body(88, "No Date"),
     )
@@ -856,10 +850,13 @@ def test_review_by_rendering_does_not_read_the_wall_clock(tmp_path: Path) -> Non
     The renderer must be byte-identical for identical input. Past-due detection
     belongs in the lifecycle gate, where a test can freeze the clock.
     """
+
     def render_with(date: str) -> str:
         adr_dir = tmp_path / f"arch-{date}"
         _write_adr(
-            adr_dir, 2, "provisional",
+            adr_dir,
+            2,
+            "provisional",
             frontmatter=f"status: proposed\nreview-by: {date}",
             body=_standard_body(2, "Provisional"),
         )
@@ -869,3 +866,235 @@ def test_review_by_rendering_does_not_read_the_wall_clock(tmp_path: Path) -> Non
     future = render_with("2099-01-17")
 
     assert past.replace("2026-01-17", "DATE") == future.replace("2099-01-17", "DATE")
+
+
+# ── Duplicate frontmatter keys must fail loudly, not resolve last-wins ────────
+#
+# PyYAML keeps the last value and reports nothing, so a record declaring two
+# conflicting statuses would be rendered in the index as one of them with no
+# indication the other exists. That contradicts this generator's stated
+# fail-loud contract for malformed frontmatter. Reported by Copilot on PR #5209.
+
+
+def test_duplicate_status_key_raises_rather_than_picking_one(tmp_path):
+    """The index must not silently choose between two declared statuses."""
+    from generate_adr_index import AdrIndexError, build_record
+
+    adr = tmp_path / "ADR-001-thing.md"
+    adr.write_text(
+        "---\nid: ADR-001\nstatus: proposed\nstatus: accepted\n---\n\n"
+        "# ADR-001: Thing\n\n## Decision\n\nDo the thing.\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AdrIndexError) as excinfo:
+        build_record(adr)
+
+    assert "duplicate key" in str(excinfo.value)
+    assert "ADR-001-thing.md" in str(excinfo.value)
+
+
+def test_a_record_without_duplicates_still_builds(tmp_path):
+    """Negative control: the strict loader does not reject valid frontmatter.
+
+    A loader that raised on every mapping would pass the test above and be
+    indistinguishable from a correct one.
+    """
+    from generate_adr_index import build_record
+
+    adr = tmp_path / "ADR-001-thing.md"
+    adr.write_text(
+        "---\nid: ADR-001\nstatus: accepted\ndate: 2026-08-21\n---\n\n"
+        "# ADR-001: Thing\n\n## Decision\n\nDo the thing.\n",
+        encoding="utf-8",
+    )
+
+    assert build_record(adr).status == "accepted"
+
+
+def test_a_repeated_key_inside_a_nested_mapping_is_also_rejected(tmp_path):
+    """The loader hooks the parser, so nesting does not hide a duplicate.
+
+    A line-scanning check would miss this. Recording the difference because it
+    is the reason a loader was used here rather than the regex helper
+    detect_adr_changes.py carries.
+    """
+    from generate_adr_index import AdrIndexError, build_record
+
+    adr = tmp_path / "ADR-001-thing.md"
+    adr.write_text(
+        "---\nid: ADR-001\nstatus: accepted\nmeta:\n  note: a\n  note: b\n---\n\n"
+        "# ADR-001: Thing\n\n## Decision\n\nDo the thing.\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AdrIndexError):
+        build_record(adr)
+
+
+# The documented query recipe --------------------------------------------------
+
+
+def _documented_recipe() -> str:
+    """The python block from the index intro, extracted rather than restated.
+
+    Restating it here would pin the recipe to a copy of itself: the test would
+    keep passing while the shipped recipe drifted. `canonical-source-mirror.md`
+    names that shape ("self-referential test that mirrors the producer's own
+    output") and requires exercising the contract independently instead.
+    """
+    from generate_adr_index import _INTRO
+
+    opening = "```python\n"
+    start = _INTRO.index(opening) + len(opening)
+    return _INTRO[start : _INTRO.index("```", start)]
+
+
+def _accepted_ids_via_recipe(adr_dir: Path) -> list[str]:
+    """Run the documented recipe against `adr_dir` and collect what it prints."""
+    printed: list[str] = []
+    source = _documented_recipe().replace("'.agents/architecture'", repr(str(adr_dir)))
+    # exec is the point: the contract under test is that the shipped recipe
+    # RUNS and agrees with the generator. Asserting on its text would pin the
+    # recipe to a copy of itself. Input is our own module constant, never
+    # user data. (No suppression needed; ruff's S rules are not enabled here.)
+    exec(
+        compile(source, "<documented-recipe>", "exec"),
+        {"print": printed.append},
+    )
+    return printed
+
+
+def _accepted_ids_via_generator(adr_dir: Path) -> list[str]:
+    from generate_adr_index import build_record
+
+    return [
+        record.adr_id
+        for path in sorted(adr_dir.glob("ADR-[0-9]*.md"))
+        if (record := build_record(path)).status == "accepted"
+    ]
+
+
+def test_the_documented_recipe_agrees_with_the_generator_on_lowercase_status(tmp_path):
+    """Positive control: the two agree on the shape the corpus actually has."""
+    adr_dir = tmp_path / "architecture"
+    _write_adr(
+        adr_dir,
+        1,
+        "yes",
+        frontmatter="id: ADR-001\nstatus: accepted",
+        body=_standard_body(1, "Yes"),
+    )
+    _write_adr(
+        adr_dir, 2, "no", frontmatter="id: ADR-002\nstatus: proposed", body=_standard_body(2, "No")
+    )
+
+    assert _accepted_ids_via_recipe(adr_dir) == _accepted_ids_via_generator(adr_dir)
+    assert _accepted_ids_via_generator(adr_dir) == ["ADR-001"]
+
+
+@pytest.mark.parametrize("raw_status", ["Accepted", "ACCEPTED", '" accepted "'])
+def test_the_documented_recipe_agrees_with_the_generator_on_odd_casing(tmp_path, raw_status):
+    """The case Copilot found: a bare `== 'accepted'` misses these, the gate does not.
+
+    `_status_of` in scripts/validation/check_adr_lifecycle.py returns
+    `str(value).strip().lower()`, and `_status_of` here does the same, so
+    `status: Accepted` clears `status-enum` and is bucketed as accepted. A
+    recipe comparing the raw value would print nothing and read as "no accepted
+    ADRs" rather than as a query bug.
+
+    This test fails against the recipe as first shipped, on all three inputs.
+    Every record in the real corpus carries a lowercase value, which is why the
+    mismatch was latent and had to be found by reading rather than by running.
+
+    The whitespace case is quoted on purpose. An unquoted `status: accepted `
+    is NOT a discriminating input: YAML strips a trailing space from a plain
+    scalar, so the old recipe passed it too, and a probe that cannot move the
+    thing it measures reports nothing while looking like a control. Quoting
+    forces the space through the parser so `.strip()` is actually load-bearing.
+    """
+    adr_dir = tmp_path / "architecture"
+    _write_adr(
+        adr_dir,
+        1,
+        "odd",
+        frontmatter=f"id: ADR-001\nstatus: {raw_status}",
+        body=_standard_body(1, "Odd"),
+    )
+
+    assert _accepted_ids_via_generator(adr_dir) == ["ADR-001"]
+    assert _accepted_ids_via_recipe(adr_dir) == ["ADR-001"]
+
+
+def test_the_documented_recipe_skips_a_record_with_no_frontmatter(tmp_path):
+    """Negative control for the `continue` the intro tells readers to notice."""
+    adr_dir = tmp_path / "architecture"
+    _write_adr(adr_dir, 1, "bare", frontmatter=None, body=_standard_body(1, "Bare"))
+
+    assert _accepted_ids_via_recipe(adr_dir) == []
+
+
+# Unhashable YAML keys -------------------------------------------------------
+
+
+def test_an_unhashable_key_raises_inside_the_error_contract(tmp_path):
+    """`? [a, b]` builds a list key. It must not escape as a raw TypeError.
+
+    The duplicate guard first kept keys in a set, which raises `TypeError` on an
+    unhashable key. It caught that around the membership test only, under a
+    `# pragma: no cover - unhashable keys are not valid here` comment asserting
+    the case was unreachable. It is reachable, so `seen.add(key)` raised the same
+    TypeError one line later, past `parse_frontmatter`'s YAMLError conversion
+    and past `main`'s exit-code handling: a traceback instead of the documented
+    exit 1. Copilot found it on PR #5230.
+    """
+    from generate_adr_index import AdrIndexError, build_record
+
+    adr = tmp_path / "ADR-001-thing.md"
+    adr.write_text(
+        "---\n? [a, b]\n: value\nstatus: accepted\n---\n\n"
+        "# ADR-001: Thing\n\n## Decision\n\nDo the thing.\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AdrIndexError):
+        build_record(adr)
+
+
+def test_a_duplicated_unhashable_key_is_caught_as_a_duplicate(tmp_path):
+    """The set-based guard could not have caught this; the list-based one does.
+
+    With `except TypeError: duplicate = False`, an unhashable key was declared
+    not-a-duplicate by construction, so a repeated one was never reported. `==`
+    is defined for every constructed value, so the comparison both works and
+    never raises.
+    """
+    from generate_adr_index import AdrIndexError, build_record
+
+    adr = tmp_path / "ADR-001-thing.md"
+    adr.write_text(
+        "---\n? [a, b]\n: one\n? [a, b]\n: two\n---\n\n"
+        "# ADR-001: Thing\n\n## Decision\n\nDo the thing.\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AdrIndexError):
+        build_record(adr)
+
+
+@pytest.mark.parametrize(
+    "first_line", ['"status": proposed', "'status': proposed", "status : proposed"]
+)
+def test_quoting_does_not_launder_a_duplicate_past_the_strict_loader(tmp_path, first_line):
+    """Parser-level detection sees one key regardless of how it is spelled."""
+    from generate_adr_index import AdrIndexError, build_record
+
+    adr = tmp_path / "ADR-001-thing.md"
+    adr.write_text(
+        f"---\nid: ADR-001\n{first_line}\nstatus: accepted\n---\n\n"
+        "# ADR-001: Thing\n\n## Decision\n\nDo the thing.\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AdrIndexError):
+        build_record(adr)

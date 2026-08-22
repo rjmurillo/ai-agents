@@ -53,6 +53,7 @@ EXIT CODES (ADR-035):
   2  - Configuration error (ADR directory missing)
   3  - External error (an ADR file could not be read or decoded)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -60,7 +61,7 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
@@ -135,6 +136,66 @@ class AdrIndexError(Exception):
     """An ADR record could not be parsed into an index row."""
 
 
+class _DuplicateKeyError(yaml.YAMLError):
+    """Raised when a mapping declares the same key twice."""
+
+
+class _StrictLoader(yaml.SafeLoader):
+    """SafeLoader that refuses duplicate mapping keys.
+
+    PyYAML resolves duplicates last-wins and reports nothing, so a record
+    carrying `status: proposed` near the top and `status: accepted` lower in the
+    same block parses as accepted while reading as proposed to a human scanning
+    the first lines. For a lifecycle gate that is a forgery vector, not a
+    formatting nit: the visible declaration and the enforced one differ.
+
+    The repo already treats this as a governance risk. `detect_adr_changes.py`
+    carries `_has_duplicate_top_level_keys` with the docstring "Duplicate keys
+    are malformed YAML and can hide a governance change (a second ``status:``
+    line masking the first)", and fails its frontmatter-only exemption closed on
+    them. That helper scans top-level lines with a regex; this loader hooks the
+    parser instead, so it also catches duplicates nested inside a mapping value
+    and is not fooled by quoting or comments.
+    """
+
+
+def _no_duplicate_keys(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict[Any, Any]:
+    """Reject a mapping that declares the same key twice.
+
+    Keys are collected in a list and compared with ``==`` rather than kept in a
+    set. A set looks like the natural choice and is wrong here, because a YAML
+    key need not be hashable: ``? [a, b]`` builds a list key, and both ``in``
+    and ``add`` raise ``TypeError`` on it. An earlier revision guarded only the
+    membership test, with a ``# pragma: no cover - unhashable keys are not
+    valid here`` comment asserting the case was unreachable. It is reachable,
+    the comment was wrong, and ``seen.add(key)`` then raised the same
+    ``TypeError`` one line later, escaping ``parse_frontmatter``'s
+    ``yaml.YAMLError`` conversion and ``main``'s exit-code handling to produce a
+    traceback instead of the documented exit 1. Copilot found it on PR #5230.
+
+    ``==`` is defined for every constructed value, so the comparison never
+    raises, and an unhashable key that is NOT duplicated falls through to
+    ``construct_mapping``, which raises PyYAML's own ``ConstructorError``
+    (a ``yaml.YAMLError``, verified by execution). Both paths now land inside
+    the error contract.
+
+    The list is O(n^2) against the mapping's own key count. Frontmatter blocks
+    hold single-digit key counts, so this is not worth a hashable fast path
+    that would reintroduce the two-code-path bug.
+    """
+    seen: list[Any] = []
+    for key_node, _ in node.value:
+        key = loader.construct_object(key_node, deep=True)
+        if any(key == earlier for earlier in seen):
+            raise _DuplicateKeyError(f"duplicate key {key!r} in frontmatter mapping")
+        seen.append(key)
+    mapping: dict[Any, Any] = loader.construct_mapping(node, deep=True)
+    return mapping
+
+
+_StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _no_duplicate_keys)
+
+
 @dataclass(frozen=True, slots=True)
 class AdrRecord:
     """One ADR reduced to its index row. ``status`` is ``None`` only for a record
@@ -155,9 +216,7 @@ class AdrRecord:
 # --- Parsing --------------------------------------------------------------
 
 
-def parse_frontmatter(
-    content: str, path: Path
-) -> tuple[dict[str, object] | None, str]:
+def parse_frontmatter(content: str, path: Path) -> tuple[dict[str, object] | None, str]:
     """Split one ADR into (frontmatter mapping, body).
 
     The mapping is ``None`` when there is no frontmatter block. Every other
@@ -174,7 +233,7 @@ def parse_frontmatter(
         return None, content
     body = match.group(2)
     try:
-        parsed = yaml.safe_load(match.group(1))
+        parsed = yaml.load(match.group(1), Loader=_StrictLoader)
     except yaml.YAMLError as exc:
         raise AdrIndexError(f"invalid YAML frontmatter in {path.name}: {exc}") from exc
     if parsed is None:
@@ -370,9 +429,7 @@ def collect_records(adr_dir: Path) -> list[AdrRecord]:
     """Every canonical ADR under ``adr_dir``, sorted by the parsed integer, not
     by filename and not by iteration order, so output is filesystem-independent."""
     records = [
-        build_record(path)
-        for path in sorted(adr_dir.glob(_ADR_GLOB))
-        if is_adr_filename(path.name)
+        build_record(path) for path in sorted(adr_dir.glob(_ADR_GLOB)) if is_adr_filename(path.name)
     ]
     records.sort(key=lambda r: r.number)
     return records
@@ -516,9 +573,25 @@ _INTRO = (
     "    if not text.startswith('---'):\n"
     "        continue  # no frontmatter: see Needs backfill below\n"
     "    front = yaml.safe_load(text[3 : text.index('\\n---', 3)]) or {}\n"
-    "    if front.get('status') == 'accepted':\n"
+    "    if str(front.get('status', '')).strip().lower() == 'accepted':\n"
     "        print(front.get('id') or path.name)\n"
     "```\n\n"
+    "**Normalise before comparing, as above.** Both gates that bucket a record by\n"
+    "status lower and strip it first: `_status_of` in\n"
+    "`scripts/validation/check_adr_lifecycle.py` returns\n"
+    "`str(value).strip().lower()`, and this generator does the same. So\n"
+    "`status: Accepted` passes the `status-enum` gate and lands under Accepted in\n"
+    "the table below, while a bare `== 'accepted'` misses it. Every record carries\n"
+    "a lowercase value today, which is exactly why the mismatch would not announce\n"
+    "itself.\n\n"
+    "**This snippet does not detect duplicate keys, and the gates do.**\n"
+    "`yaml.safe_load` resolves a repeated `status:` last-wins and silently, so a\n"
+    "record declaring `proposed` in the line a human reads and `accepted` lower in\n"
+    "the same block would print as accepted here. `check_adr_lifecycle` and this\n"
+    "generator both reject that at the parser, so a corpus passing the gates has\n"
+    "none. Run the gate before trusting a query on a tree you have not validated;\n"
+    "the snippet is a convenience for reading a known-good corpus, not an\n"
+    "independent check.\n\n"
     "Python rather than `yq` deliberately. Python is the repo's native tooling\n"
     "(ADR-042) and `yaml` is already a dependency, so this adds nothing. The `yq` on\n"
     "PATH here is the jq wrapper, which has no front-matter mode and fails on a\n"
@@ -542,13 +615,11 @@ _BLURBS: tuple[tuple[str, str], ...] = (
     ),
     (
         "Retired",
-        "Superseded or deprecated. Do not cite these. The last column is where the "
-        "decision moved.",
+        "Superseded or deprecated. Do not cite these. The last column is where the decision moved.",
     ),
     (
         "Rejected",
-        "Considered and declined. Kept visible so the proposal is findable and does "
-        "not return.",
+        "Considered and declined. Kept visible so the proposal is findable and does not return.",
     ),
     (
         "Needs backfill",
@@ -606,12 +677,20 @@ def _run_check(adr_dir: Path, output_path: Path) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Generate the ADR current-state index.")
-    p.add_argument("--adr-dir", type=Path, default=_ADR_DIR_RELATIVE,
-                   help="Directory holding ADR-NNN-slug.md records.")
-    p.add_argument("--output", type=Path, default=_OUTPUT_RELATIVE,
-                   help="Path of the generated index.")
-    p.add_argument("--check", action="store_true",
-                   help="Exit 1 if the committed index differs from the generated one.")
+    p.add_argument(
+        "--adr-dir",
+        type=Path,
+        default=_ADR_DIR_RELATIVE,
+        help="Directory holding ADR-NNN-slug.md records.",
+    )
+    p.add_argument(
+        "--output", type=Path, default=_OUTPUT_RELATIVE, help="Path of the generated index."
+    )
+    p.add_argument(
+        "--check",
+        action="store_true",
+        help="Exit 1 if the committed index differs from the generated one.",
+    )
     return p
 
 

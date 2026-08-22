@@ -182,9 +182,21 @@
         "tests/ci/test_validate_vendor_provenance.py"
       ],
       "notes": "PR #5219 fixed test_workflow_sets_up_uv on main while this branch carried its own fix. Each had the other's hole: #5219 asserts equality against the SHA so the next Renovate bump breaks it, and this branch searched the file as text so a stray uses: line in a comment would satisfy it. Combined: parse the job's steps, require exactly one Setup uv step, then assert its uses matches the pin shape without restating the SHA. Proven falsifiable on both axes by mutation. Both tempting resolutions were wrong, one re-introducing the drift this PR fixes and the other discarding another author's real improvement."
+    },
+    {
+      "task": "Address the Copilot review: duplicate-key class, ADR-063, template overreach",
+      "status": "complete",
+      "filesModified": [
+        "scripts/validation/check_adr_lifecycle.py",
+        "build/scripts/generate_adr_index.py",
+        ".claude/skills/adr-review/scripts/detect_adr_changes.py",
+        ".agents/architecture/ADR-063-memory-skill-decomposition.md",
+        "tests/test_adr_063_memory_skill_decomposition.py"
+      ],
+      "notes": "Three findings worth the round. First, yaml.safe_load is last-wins on duplicate keys, so a record declaring status twice enforces one value while showing another; fixed in all three readers with the mechanism chosen per site. Second, ADR-063 had no frontmatter and relied on the whole-file regex this PR removed, so the PR silently made it unknown, and three tests missed it because each reimplemented the old regex rather than calling the parser; its docstring, its assertion and the real parser gave three different answers. Third, the template told authors not to use the ## Status section that ADR-073 explicitly retains, which is the second time this campaign turned that ADR's MAY into a directive."
     }
   ],
-  "endingCommit": "3dabdf773bb007f7fcd286e36dc24f6c02bbee55",
+  "endingCommit": "b7b87c395677b7a1611e29390262af906324e466",
   "nextSteps": [
     "Phase 2: backfill lifecycle frontmatter into the ADRs Phase 1 did not touch (issue #5190)",
     "Phase 2: add the seven missing Status sections and settle the canonical-versus-MADR structure question (issue #5196)",

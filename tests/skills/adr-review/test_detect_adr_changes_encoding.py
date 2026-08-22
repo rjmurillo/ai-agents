@@ -37,9 +37,7 @@ mod = import_skill_script(".claude/skills/adr-review/scripts/detect_adr_changes.
 class TestUndecodableRecords:
     """A record with a stray byte is skipped or unknown, never a traceback."""
 
-    def test_get_adr_status_returns_unknown_for_invalid_utf8(
-        self, tmp_path: Path
-    ) -> None:
+    def test_get_adr_status_returns_unknown_for_invalid_utf8(self, tmp_path: Path) -> None:
         """The undecodable state joins the other undeclared states.
 
         The caller is written around STATUS_UNKNOWN meaning 'this record does
@@ -51,9 +49,7 @@ class TestUndecodableRecords:
 
         assert mod._get_adr_status(bad) == mod.STATUS_UNKNOWN
 
-    def test_get_adr_status_still_reads_a_decodable_record(
-        self, tmp_path: Path
-    ) -> None:
+    def test_get_adr_status_still_reads_a_decodable_record(self, tmp_path: Path) -> None:
         """Negative control: the new arm does not swallow good input.
 
         Without this, a handler that returned STATUS_UNKNOWN unconditionally
@@ -64,9 +60,7 @@ class TestUndecodableRecords:
 
         assert mod._get_adr_status(good) == "accepted"
 
-    def test_dependent_scan_skips_an_undecodable_record(
-        self, tmp_path: Path
-    ) -> None:
+    def test_dependent_scan_skips_an_undecodable_record(self, tmp_path: Path) -> None:
         """One corrupt record must not abort the scan of the rest.
 
         This site was NOT in the bug report. Fixing only the reported handler
@@ -96,3 +90,50 @@ class TestUndecodableRecords:
         )
 
         assert mod._get_dependent_adrs("ADR-001", tmp_path) == []
+
+
+class TestDuplicateStatusKeys:
+    """A record declaring status twice is undeclared, not last-wins.
+
+    PyYAML resolves duplicates last-wins and reports nothing, so a record
+    carrying `status: proposed` near the top and `status: accepted` lower in the
+    same block parses as accepted while reading as proposed to anyone scanning
+    the first lines. This module already treated that as a governance risk and
+    failed its frontmatter-only exemption closed on it, but the status path was
+    not wired to the same helper, so the two disagreed about whether such a
+    record is readable at all. Reported by Copilot on PR #5209.
+    """
+
+    def test_duplicate_status_returns_unknown(self, tmp_path: Path) -> None:
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text(
+            "---\nid: ADR-001\nstatus: proposed\nstatus: accepted\n---\n# T\n",
+            encoding="utf-8",
+        )
+
+        assert mod._get_adr_status(adr) == mod.STATUS_UNKNOWN
+
+    def test_duplicate_of_any_key_returns_unknown(self, tmp_path: Path) -> None:
+        """The helper this defers to is about ambiguity, not the status key.
+
+        A record whose identity is ambiguous cannot have its status trusted
+        either, so the guard is not narrowed to `status`.
+        """
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text(
+            "---\nid: ADR-001\nid: ADR-002\nstatus: accepted\n---\n# T\n",
+            encoding="utf-8",
+        )
+
+        assert mod._get_adr_status(adr) == mod.STATUS_UNKNOWN
+
+    def test_a_single_declaration_still_reports_its_status(self, tmp_path: Path) -> None:
+        """Negative control.
+
+        A guard returning STATUS_UNKNOWN unconditionally would satisfy both
+        tests above and be indistinguishable from a correct one.
+        """
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text("---\nid: ADR-001\nstatus: accepted\n---\n# T\n", encoding="utf-8")
+
+        assert mod._get_adr_status(adr) == "accepted"

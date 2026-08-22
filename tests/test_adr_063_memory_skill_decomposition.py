@@ -9,22 +9,36 @@ depend on:
 - It carries the canonical section headings (Status, Date, Context, Decision,
   Prior Art Investigation, Rationale with an Alternatives Considered table,
   Reversibility and Kill Criteria, Consequences, References).
-- Its status resolves to "proposed" via the adr-review detector contract
-  (`status: proposed`), so the BLOCKING adr-review debate gate fires.
+- Its status resolves to "accepted" by calling the canonical adr-review
+  detector, not by replicating it.
 - It cross-references the boundary ADRs the issue requires (ADR-007, ADR-056)
   and the gate ADR (ADR-070, renumbered from the former ADR-062 collision per
   #2228).
 - It contains no em-dash (U+2014) or en-dash (U+2013) per universal.md.
 
-The status-detection assertion mirrors the canonical detector contract at
-`.claude/skills/adr-review/scripts/detect_adr_changes.py:_get_adr_status`,
-which extracts status with the regex `^status:\\s*(.+)$` and returns "proposed"
-when no such line exists.
+The status assertion CALLS `_get_adr_status` from
+`.claude/skills/adr-review/scripts/detect_adr_changes.py` rather than
+reimplementing it. An earlier revision replicated the parser's whole-file regex
+`^status:\\s*(.+)$` and documented it as the canonical contract. That regex was
+the defect issue #5189 fixed, so once the parser was corrected this file
+asserted the opposite of the thing it claimed to mirror, and still passed,
+because it never consulted the parser. Its docstring said the status resolved to
+"proposed" while its assertion required "accepted" and the real parser returned
+"unknown": three answers in one file.
+
+ADR-063 had no frontmatter. The bare `status: accepted` line it carried in the
+body of its Status section existed only because the broken parser searched the
+whole document. Fixing the parser silently made this record undeclared, which
+these tests could not see. The record now carries real frontmatter transcribing
+the maintainer acceptance already recorded in its prose, and the orphan body
+line is gone. Calling the parser is what keeps the two from diverging again
+(`.claude/rules/canonical-source-mirror.md`).
 """
 
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -32,8 +46,23 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ADR_PATH = PROJECT_ROOT / ".agents" / "architecture" / "ADR-063-memory-skill-decomposition.md"
 
-# Mirrors detect_adr_changes.py:_get_adr_status (the adr-review detector).
-_STATUS_FRONTMATTER = re.compile(r"(?m)^status:\s*(.+)$")
+TESTS_SKILLS_DIR = str(PROJECT_ROOT / "tests" / "skills")
+_paths_added: list[str] = []
+if TESTS_SKILLS_DIR not in sys.path:
+    sys.path.insert(0, TESTS_SKILLS_DIR)
+    _paths_added.append(TESTS_SKILLS_DIR)
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+    _paths_added.append(str(PROJECT_ROOT))
+try:
+    from claude_skills_import import import_skill_script
+
+    _detector = import_skill_script(
+        ".claude/skills/adr-review/scripts/detect_adr_changes.py"
+    )
+finally:
+    for p in _paths_added:
+        sys.path.remove(p)
 # U+2014 em-dash, U+2013 en-dash. Banned by .claude/rules/universal.md.
 _DASH_PATTERN = re.compile("[\\u2013\\u2014]")
 
@@ -44,12 +73,9 @@ def adr_text() -> str:
     return ADR_PATH.read_text(encoding="utf-8")
 
 
-def _resolve_status(content: str) -> str:
-    """Replicate the adr-review detector's status resolution."""
-    match = _STATUS_FRONTMATTER.search(content)
-    if match:
-        return match.group(1).strip().lower()
-    return "proposed"
+def _resolve_status() -> str:
+    """Ask the canonical detector. Never reimplement it here."""
+    return _detector._get_adr_status(ADR_PATH)
 
 
 class TestExistenceAndTitle:
@@ -57,10 +83,18 @@ class TestExistenceAndTitle:
         assert ADR_PATH.is_file()
 
     def test_title_names_the_decomposition_decision(self, adr_text: str) -> None:
-        first_line = adr_text.splitlines()[0]
-        assert first_line.startswith("# ADR-063:")
-        assert "memory" in first_line.lower()
-        assert "decompos" in first_line.lower()
+        """The H1 is found, not assumed to be line one.
+
+        This asserted `splitlines()[0]` until frontmatter was added, at which
+        point the first line became `---` and the test failed for a reason
+        unrelated to the title. Anchoring an assertion to a position rather than
+        to the structure it means is the same coupling that let a body
+        `status:` line pass as frontmatter for months.
+        """
+        titles = [ln for ln in adr_text.splitlines() if ln.startswith("# ADR-063:")]
+        assert len(titles) == 1, f"expected exactly one H1 title, found {len(titles)}"
+        assert "memory" in titles[0].lower()
+        assert "decompos" in titles[0].lower()
 
 
 class TestRequiredSections:
@@ -112,16 +146,28 @@ class TestAcceptedStatus:
         assert "Accepted" in status_block
         assert "Proposed" not in status_block
 
-    def test_detector_resolves_status_to_accepted(self, adr_text: str) -> None:
-        # The adr-review detector contract: the `status: accepted` frontmatter
-        # line resolves to "accepted", satisfying the debate gate.
-        assert _resolve_status(adr_text) == "accepted"
+    def test_detector_resolves_status_to_accepted(self) -> None:
+        """The canonical detector reports accepted, asked rather than mimicked."""
+        assert _resolve_status() == "accepted"
 
-    def test_machine_readable_status_line_is_accepted(self, adr_text: str) -> None:
-        # The machine-readable status line records the maintainer acceptance.
-        match = _STATUS_FRONTMATTER.search(adr_text)
-        assert match is not None, "Missing machine-readable status line"
-        assert match.group(1).strip().lower() == "accepted"
+    def test_status_is_declared_in_frontmatter_not_the_body(
+        self, adr_text: str
+    ) -> None:
+        """The declaration must sit in frontmatter, where ADR-073 puts it.
+
+        This record previously declared status only as a bare line inside its
+        prose Status section, which resolved solely because the parser searched
+        the whole document. That is the defect issue #5189 closed, so a body
+        declaration must not come back: it would read as machine-readable while
+        being invisible to every corrected reader.
+        """
+        assert adr_text.startswith("---\n"), "frontmatter block missing"
+        head, _, body = adr_text[4:].partition("\n---\n")
+        assert re.search(r"(?m)^status:\s*accepted\s*$", head), head
+        assert not re.search(r"(?m)^status:", body), (
+            "a bare status: line survives in the body; it is invisible to the "
+            "frontmatter-only parser and duplicates the frontmatter declaration"
+        )
 
 
 class TestRequiredCrossReferences:

@@ -13,20 +13,31 @@ review-by: null           # optional: YYYY-MM-DD this record must be revisited; 
 # ADR-NNN: [Title]
 
 <!--
-Lifecycle state lives in the frontmatter above and nowhere else. This template
-carried `## Status` and `## Date` prose sections until 2026-08-21; both restated
-frontmatter fields verbatim, and every record generated from it inherited the
-duplication. Two review comments on PR #5209 (ADR-005 "Duplicative. Already in
-frontmatter", ADR-024 "Redundant") rejected it.
+The frontmatter above is authoritative for tooling (ADR-073). This template
+carried `## Status` and `## Date` prose sections until 2026-08-21 as *required*
+scaffolding; both restated frontmatter fields verbatim, and every record
+generated from it inherited the duplication with nothing added. Two review
+comments on PR #5209 (ADR-005 "Duplicative. Already in frontmatter", ADR-024
+"Redundant") rejected that. They are no longer pre-filled here.
 
-The rule: prose says what frontmatter cannot, and never restates what it carries.
+The rule: prose says what frontmatter cannot, and never restates it alone.
 
-Add a prose section only when it carries something the enum cannot, such as
-review evidence, provenance, or the condition blocking acceptance. Name it for
-what it holds (`## Acceptance Evidence`, `## Provenance`), not `## Status`. The
-lifecycle gate compares any `## Status` section against the frontmatter enum and
-requires the section to open with the enum word, so a section named Status is
-obliged to restate the enum. Naming it for its contents avoids that entirely.
+`## Status` remains available and is NOT discouraged. ADR-073 retains it as the
+human-readable secondary rendering, and says it "may carry the nuance the enum
+cannot": a review verdict, the condition still blocking acceptance, the
+conditional state ADR-072 uses. Include it whenever you have such nuance. When
+you do, open it with the enum word, because the lifecycle gate reconciles the
+two and frontmatter wins on disagreement; "Accepted. Conditional on X shipping."
+satisfies both the gate and the reader.
+
+Omit it when you have nothing the enum does not already say. A section reading
+only "Superseded by ADR-042" beside `superseded-by: ADR-042` is drift surface,
+not a service to the reader. Omitting it is not a violation: the gate treats a
+missing prose status as fine, because ADR-073 says "may", not "must".
+
+Where the nuance is not about lifecycle at all, name the section for what it
+holds (`## Acceptance Evidence`, `## Provenance`) so no reader mistakes it for a
+second source of truth about state.
 -->
 
 ## Context

@@ -1,13 +1,13 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 3dabdf773bb007f7fcd286e36dc24f6c02bbee55
+qaCommit: 63c04c4029c289a973b29595cb516f2b0911c15c
 ---
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `3dabdf773bb007f7fcd286e36dc24f6c02bbee55`
+**Validated at commit**: `63c04c4029c289a973b29595cb516f2b0911c15c`
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -459,3 +459,160 @@ Recorded because the tempting resolutions were both wrong. Taking main's
 version wholesale would have re-introduced the drift this PR fixed; taking mine
 wholesale would have discarded a genuine improvement from another author.
 
+## Addendum 6: Copilot review, and the record this PR silently broke
+
+### The duplicate-key forgery vector
+
+`yaml.safe_load` resolves duplicate mapping keys last-wins and reports nothing:
+
+```
+yaml.safe_load("id: A\nstatus: proposed\nstatus: accepted")
+-> {'id': 'A', 'status': 'accepted'}
+```
+
+So a record could declare `status: proposed` near the top and `status: accepted`
+lower in the same block, and every reader in this PR would enforce accepted
+while a human scanning the first lines sees proposed. In a PR whose subject is
+making ADR lifecycle trustworthy, that is a forgery vector rather than a
+formatting nit.
+
+The repo already knew. `detect_adr_changes` carries
+`_has_duplicate_top_level_keys`, documented as catching "a second `status:` line
+masking the first", and fails its frontmatter-only exemption closed on it. It
+guarded the exemption path and nothing else, so the status path and the
+exemption path disagreed about whether such a record is readable at all.
+
+Fixed in all three readers, with the mechanism chosen per site rather than
+copied: `detect_adr_changes` defers to the existing tested helper;
+`check_adr_lifecycle` scans top-level lines and returns the offending key so the
+violation can name it, deliberately not touching the shared `yaml_utils` helper
+whose other consumers this change has no mandate to alter; `generate_adr_index`
+subclasses `SafeLoader` so duplicates nested inside a mapping value are caught
+too, which a line scan cannot do.
+
+### The record this PR broke, and why nothing caught it
+
+ADR-063 carried no frontmatter. Its machine-readable status was a bare
+`status: accepted` line inside the body of its `## Status` prose, at line 12,
+which resolved only because the parser searched the whole document. That is
+exactly the defect #5189 closed here, so fixing the parser silently changed
+ADR-063 from `accepted` to `unknown`.
+
+Three tests covered ADR-063's status and none noticed, because each
+reimplemented the old regex instead of calling the parser. Measured from one
+file before the repair:
+
+```
+docstring claims          "proposed"
+test assertion requires   "accepted"
+canonical parser returns  "unknown"
+```
+
+The docstring and the assertion contradicted each other in the same file, and
+both contradicted the parser they claimed to mirror. This is the
+canonical-source-mirror rule earning its place: a test that copies a contract
+instead of calling it will pass through the contract changing underneath it.
+
+ADR-063 now carries frontmatter transcribing the acceptance its prose has
+recorded since 2026-06-17, the orphan body line is gone, and the tests call
+`_get_adr_status`. Debate log:
+`.agents/critique/ADR-063-frontmatter-transcription-debate-log.md`.
+
+### A template overreach, corrected
+
+The template comment told authors to name lifecycle sections anything but
+`## Status`. ADR-073 says the opposite verbatim: it retains that section as "the
+human-readable secondary rendering", says it "may carry the nuance the enum
+cannot", and lists under Neutral that it "is retained, so human reading habits
+do not change".
+
+Removing the pre-filled duplication was right and is what the owner asked for.
+Telling authors not to use the section was an overreach past both the review
+comments and the ADR. **This is the second time in this campaign the same
+mistake was made**: the `status-section-present` check turned the same MAY into
+a MUST in the opposite direction. Recording the repeat, because one instance is
+an error and two is a pattern worth naming.
+
+Re-verified at this commit:
+
+```
+check_adr_lifecycle    99 passed
+generate_adr_index     60 passed
+detect_adr_changes     56 passed across four trees
+ADR-063 structural     26 passed
+mypy ratchet           clean after annotating the loader
+taste ratchet          within baseline
+```
+
+### A UTF-8 site my own sweep missed
+
+The autofix agent found one I did not: `check_adr_links.py:291`, a handler whose
+`except (OSError, subprocess.CalledProcessError)` guarded a read several lines
+above it. My sweep grepped for `read_text` calls and inspected the four lines
+after each, so a handler sitting further from its read fell outside the window.
+Merged from `ade5308fc`.
+
+Recording the method failure, not just the miss. A proximity heuristic finds
+handlers that hug their read and silently reports clean on the ones that do not,
+which is the same shape as the whole-document scan this campaign has now hit
+three times: a search whose scope is not the scope of the question. The reliable
+sweep is over exception handlers, asking which reads each one guards, rather
+than over reads, guessing which handler catches them.
+
+### Both of this PR's inherited reds are now fixed on main
+
+`#5225` bumped the audited pip to 26.2 (issue #5222) and `#5219` fixed
+`test_workflow_sets_up_uv`. Both are merged, so `PR #5223` (this session's
+unblock-main PR) is fully redundant: main's pip block updated every comment that
+named the old version and kept all three CVE ignores, which is what that PR
+existed to do.
+
+
+
+## Addendum 7: rebound to the stacked branch's head
+
+**Rebound from** `b7b87c395677b7a1611e29390262af906324e466` **to** `b38d43b0fa5f293d0f68f07bab5183039dda68a6`.
+
+`scripts/validation/check_adr_lifecycle.py` and its test module changed again
+after the previous binding, so Session End Validation reported this report stale
+against them. That is the check working: a QA verdict that predates the code it
+attests to is not evidence.
+
+The two commits are `df9c75495` (close the `_status_prose` prose-drift bypass
+Copilot found, replacing a header bound applied to every status form with a
+three-way rule scoped by form) and `b38d43b0f` (bring both files under
+`ruff format`). The findings, the corpus measurements, the mutation proof, a
+figure I re-measured and corrected before pushing, and a `--no-verify`
+invocation I recorded rather than let an absolute claim paper over, all live in
+addendum 7 of `.agents/qa/session-5209-adr-review-fixes-stacked.md`. Not
+duplicated here: that report owns the stacked branch's evidence, and copying it
+would create two copies to keep in sync.
+
+Re-verified at this commit: `check_adr_lifecycle` 102 passed, the corpus gate
+`[PASS] 70 violation(s), no check above its baseline`, `ruff check` clean,
+`mypy` clean over all 19 changed Python files.
+
+
+## Addendum 8: rebound again for the two diagnostic fixes
+
+**Rebound to** `66bd167c35df9d7ca76b336ac5382c582e9dd5c6`.
+
+`build/scripts/generate_adr_index.py` and `scripts/validation/check_adr_lifecycle.py`
+changed again, so the previous binding went stale. Evidence lives in addendum 8
+of `.agents/qa/session-5209-adr-review-fixes-stacked.md`: a query recipe that
+disagreed with all four real status readers, a frontmatter diagnostic that named
+the wrong defect, a mutation probe that turned out not to discriminate, and the
+corpus measurements showing both fixes latent. `.agents/architecture/README.md`
+is regenerated because the recipe ships inside it.
+
+
+## Addendum 9: rebound after the Bugbot and Copilot review round
+
+**Rebound to** `5ec9be82445ceaddfde320df60dcfd6473047d4f`.
+
+Nine findings across both reviewers, plus an unprompted autofix commit on the
+branch. Evidence lives in addenda 9 and 10 of
+`.agents/qa/session-5209-adr-review-fixes-stacked.md`. The headline: the
+duplicate-key guards this campaign added did not close the forgery vector they
+were built for, because a line scan compares raw prefixes and YAML compares
+constructed keys. All three readers now detect at the parser.

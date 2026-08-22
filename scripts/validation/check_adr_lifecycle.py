@@ -7,7 +7,7 @@
 # per-check counts against a frozen baseline, rewrite that baseline atomically),
 # and `.claude/rules/unified-software-engineering.md` rejects "shallow
 # pass-through layers" and "wrappers that add names but no simplification".
-# Splitting a nine-check gate across four modules would put the check list, the
+# Splitting an eight-check gate across four modules would put the check list, the
 # violation type, and the ratchet arithmetic in different files that must be
 # read together to answer any question about the gate. Measured after a
 # compaction pass: 466 of the lines are executable code, so even stripping every
@@ -62,8 +62,8 @@ Checks, each named so the baseline tracks them separately:
     implemented-implies-decided  `implemented: true` with `status: proposed`
     prose-frontmatter-agree      the first `## Status` line matches the frontmatter enum
 
-Checks 2 to 9 need parseable frontmatter, so a record failing `frontmatter-parses`
-contributes one violation, not nine. The same containment runs downstream:
+Checks 2 to 8 need parseable frontmatter, so a record failing `frontmatter-parses`
+contributes one violation, not eight. The same containment runs downstream:
 `prose-frontmatter-agree` is skipped when the status section is absent
 (the record simply has no prose status) or the enum value is invalid (`status-enum`
 owns that), and `supersession-reciprocal` ignores an edge that
@@ -88,6 +88,10 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.utils.markdown_parser import blank_code_block_lines
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
@@ -124,16 +128,19 @@ ADR_FILENAME_RE = re.compile(r"^ADR-(\d{2,})-[^/]+\.md$")
 # An id reference inside frontmatter: "ADR-091", "adr-91", or a bare integer.
 _ADR_REFERENCE_RE = re.compile(r"^ADR[-_ ]?(\d{1,4})$", re.IGNORECASE)
 
-# `## Status` or `### Status`, optionally indented, on its own line.
-_STATUS_HEADING_RE = re.compile(r"(?m)^[ \t]{0,3}#{2,3}[ \t]+Status[ \t]*$", re.IGNORECASE)
+# `## Status`, optionally indented, on its own line. Level two only: a
+# `### Status` is a subsection of whatever contains it, never the record's own.
+# See `_status_prose` for why this one is searched across the whole body while
+# the inline form below stays bounded to the record header.
+_STATUS_HEADING_RE = re.compile(r"(?m)^[ \t]{0,3}##[ \t]+Status[ \t]*$", re.IGNORECASE)
 
 # The inline form ADR-055 uses: `**Status**: Accepted (supersedes ADR-024, ...)`.
 # The bold marker is required. A bare body line reading `status: x` is prose or a
 # code sample, not a status declaration, and must not be read as one.
 _INLINE_STATUS_RE = re.compile(r"(?m)^[ \t]{0,3}\*\*Status\*\*[ \t]*:[ \t]*(.+)$")
 
-# Level-2 headings only. `_record_header` uses these to bound the status search;
-# a level-3 `### Status` is a subsection of something, never the record's own.
+# Level-2 headings only. `_record_header` uses these to bound the *inline*
+# status search; the `## Status` section search is not bounded this way.
 _LEVEL_TWO_HEADING_RE = re.compile(r"(?m)^[ \t]{0,3}##[ \t]+(.+?)[ \t]*$")
 
 # Leading lifecycle word through any decoration: "**Accepted**", "> Superseded
@@ -198,7 +205,7 @@ def _split_frontmatter(text: str) -> tuple[str | None, str]:
     return text[4:end_index].strip(), text[end_index + len("\n---") :]
 
 
-def _frontmatter_reason(raw: str | None) -> str:
+def _frontmatter_reason(raw: str | None, text: str) -> str:
     """Human-readable reason a frontmatter block is unusable.
 
     ``_parse_yaml_frontmatter`` collapses "absent", "malformed", and "not a
@@ -207,8 +214,29 @@ def _frontmatter_reason(raw: str | None) -> str:
     ``scripts/validation/validate_copilot_agent_frontmatter.py``, whose comment
     states the same rationale: "that helper swallows the error to None, but
     issue #2500 requires the YAML parser error in the message".
+
+    ``raw`` is None for two different defects, and ``text`` is what separates
+    them. ``_split_frontmatter`` returns None when the file does not start with
+    ``---`` (the block is absent) and also when it starts with ``---`` but no
+    closing fence follows (the block is unterminated). Reporting both as
+    "no leading `---` frontmatter block" sends an author to add frontmatter that
+    is already there: a record can open with ``---`` and carry ``id``,
+    ``status`` and ``date``, and still be told its schema is absent. The record
+    was always reported, so this is a wrong diagnosis rather than a silent drop,
+    and no count moves.
+
+    The two branches test exactly what ``_split_frontmatter`` tested, so the
+    message always describes why the split returned None. It deliberately does
+    not re-derive markdown semantics: a leading ``----`` horizontal rule is
+    reported as an unterminated block because that is how the splitter, and the
+    canonical helper it mirrors, classify it.
     """
     if raw is None:
+        if text.startswith("---"):
+            return (
+                "frontmatter block opens with `---` but no closing `---` fence "
+                "follows, so the whole block is unreadable (ADR-073 schema unparsed)"
+            )
         return "no leading `---` frontmatter block (ADR-073 schema absent)"
     try:
         parsed = yaml.safe_load(raw)
@@ -217,6 +245,97 @@ def _frontmatter_reason(raw: str | None) -> str:
     if parsed is None:
         return "frontmatter block is empty"
     return f"frontmatter is a {type(parsed).__name__}, not a YAML mapping"
+
+
+class _DuplicateKey(yaml.YAMLError):
+    """A frontmatter mapping declared the same key twice. Carries the key."""
+
+    def __init__(self, key: object) -> None:
+        super().__init__(f"duplicate key {key!r}")
+        self.key = key
+
+
+class _StrictLoader(yaml.SafeLoader):
+    """SafeLoader that rejects duplicate mapping keys instead of taking the last."""
+
+
+def _reject_duplicate_keys(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict[Any, Any]:
+    """Mirror of `_no_duplicate_keys` in build/scripts/generate_adr_index.py.
+
+    Quoted verbatim from that file, which is the canonical implementation:
+
+        seen: list[Any] = []
+        for key_node, _ in node.value:
+            key = loader.construct_object(key_node, deep=True)
+            if any(key == earlier for earlier in seen):
+                raise _DuplicateKeyError(...)
+            seen.append(key)
+
+    Stricter/looser/different than canonical: identical detection, but this
+    raises an error carrying the key object so `_read_record` can name it in the
+    violation. The index generator only needs to fail the build.
+
+    A list compared with `==`, not a set: a YAML key need not be hashable
+    (`? [a, b]` builds a list key), and a set raises `TypeError` on it. See the
+    canonical docstring for the escape that shape produced.
+    """
+    seen: list[Any] = []
+    for key_node, _ in node.value:
+        key = loader.construct_object(key_node, deep=True)
+        if any(key == earlier for earlier in seen):
+            raise _DuplicateKey(key)
+        seen.append(key)
+    mapping: dict[Any, Any] = loader.construct_mapping(node, deep=True)
+    return mapping
+
+
+_StrictLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _reject_duplicate_keys
+)
+
+
+def _duplicate_key(raw: str | None) -> str | None:
+    """Return the first key declared twice, rendered for the message, or None.
+
+    PyYAML resolves duplicates last-wins and reports nothing, so a record
+    carrying `status: proposed` near the top and `status: accepted` lower in the
+    same block parses as accepted while reading as proposed to anyone scanning
+    the first lines. For a lifecycle gate that is a forgery vector, not a
+    formatting nit: the declaration a human sees and the one tooling enforces
+    are different values.
+
+    Detected at the parser, not by scanning lines. An earlier revision compared
+    raw line prefixes, which asks a different question than YAML does: `status`
+    and `"status"` are one key to the parser and two distinct strings to a line
+    scan. Measured on that revision, two of four spellings walked straight
+    through the guard while `yaml.safe_load` enforced `accepted` for all four:
+
+        status: proposed  / status: accepted      caught
+        "status": proposed / status: accepted     MISSED
+        status : proposed / status: accepted      caught
+        'status': proposed / status: accepted     MISSED
+
+    A guard against forgery that the forger can evade by adding quotation marks
+    is worse than none, because it reports clean. Copilot found it on PR #5230.
+
+    Widened by the same change: the parser sees nested mappings too, so a
+    duplicate inside a mapping value is now caught. A line scan structurally
+    cannot do that, which is why the three ADR readers no longer each use a
+    different mechanism.
+
+    Malformed YAML returns None rather than raising. This runs before
+    `_parse_yaml_frontmatter`, and `_frontmatter_reason` owns the parse-failure
+    message; reporting it here too would count one defect twice.
+    """
+    if raw is None:
+        return None
+    try:
+        yaml.load(raw, Loader=_StrictLoader)
+    except _DuplicateKey as exc:
+        return exc.key if isinstance(exc.key, str) else repr(exc.key)
+    except yaml.YAMLError:
+        return None
+    return None
 
 
 def _read_record(path: Path, number: int, rel: str) -> tuple[Record, Violation | None]:
@@ -237,11 +356,22 @@ def _read_record(path: Path, number: int, rel: str) -> tuple[Record, Violation |
         empty = Record(number, rel, None, "")
         return empty, Violation("frontmatter-parses", rel, f"is not valid UTF-8: {exc}")
     raw, body = _split_frontmatter(text)
+    duplicate = _duplicate_key(raw)
+    if duplicate is not None:
+        return (
+            Record(number, rel, None, body),
+            Violation(
+                "frontmatter-parses",
+                rel,
+                f"declares `{duplicate}` twice; PyYAML keeps the last value "
+                f"silently, so the visible declaration and the enforced one differ",
+            ),
+        )
     frontmatter = _parse_yaml_frontmatter(text)
     if frontmatter is None:
         return (
             Record(number, rel, None, body),
-            Violation("frontmatter-parses", rel, _frontmatter_reason(raw)),
+            Violation("frontmatter-parses", rel, _frontmatter_reason(raw, text)),
         )
     return Record(number, rel, frontmatter, body), None
 
@@ -319,8 +449,7 @@ def _check_identity(record: Record) -> list[Violation]:
         found.append(Violation("id-matches-filename", record.path, detail))
     elif number != record.number:
         detail = (
-            f"frontmatter `id` names ADR-{number:03d} but the filename says "
-            f"ADR-{record.number:03d}"
+            f"frontmatter `id` names ADR-{number:03d} but the filename says ADR-{record.number:03d}"
         )
         found.append(Violation("id-matches-filename", record.path, detail))
     if _status_of(record) not in LIFECYCLE_STATUSES:
@@ -333,24 +462,27 @@ def _check_identity(record: Record) -> list[Violation]:
 
 
 def _record_header(body: str) -> str:
-    """The region that can hold a record's own lifecycle status.
+    """The region where a bold `**Status**:` label states the record's status.
 
     Everything from the top of the body up to the first level-2 heading that is
-    not `## Status`. A record states its own status in its header, and any
-    `Status` label deeper in the document belongs to something else.
+    not `## Status`. Used by `_status_prose` for the inline form only; the
+    `## Status` section is an explicit declaration and is searched everywhere.
 
-    This bound is not cosmetic. Without it the search runs the whole document and
-    takes the first match anywhere, which is how ADR-042's `### Status` at line
-    171 (a subsection of a migration phase) and ADR-055's
-    `**Status**: COMPLETE` at line 119 (a phase result) and
-    `**Status**: APPROVED` at line 168 (an exception ruling) were read as those
-    records' lifecycle status. All three were masked while a real `## Status`
-    section sat higher in the file and surfaced the moment it was removed.
+    This bound is not cosmetic for the inline form. Without it the search runs
+    the whole document and takes the first match anywhere, which is how
+    ADR-055's `**Status**: COMPLETE` at line 119 (a phase result) and
+    `**Status**: APPROVED` at line 168 (an exception ruling) were read as that
+    record's lifecycle status. Both were masked while a real `## Status` section
+    sat higher in the file and surfaced the moment it was removed.
 
     That is the same defect this campaign filed as issue #5189 against
     `_get_adr_status`, which regexed `^status:` across an entire ADR instead of
     its frontmatter. Scoping the search to the region that can legitimately hold
     the answer is the fix in both cases.
+
+    Bounding *every* form this way was an over-correction that opened a bypass;
+    see `_status_prose`. ADR-042's `### Status` at line 171 is excluded by
+    `_STATUS_HEADING_RE` matching level two only, not by this bound.
     """
     for match in _LEVEL_TWO_HEADING_RE.finditer(body):
         if match.group(1).strip().lower() != "status":
@@ -364,15 +496,60 @@ def _status_prose(body: str) -> str | None:
     A `## Status` heading with nothing under it returns "", which keeps
     prose present while `prose-frontmatter-agree` reports
     the missing lifecycle word.
+
+    Three forms, scoped by what each one *is* rather than by where it sits.
+    An earlier revision bounded every form to the record header, which fixed
+    one bug and opened another: a `## Status` section placed after `## Context`
+    became invisible, so moving the section silently bypassed the drift check.
+    Nothing in ADR-073 or issue #5191 constrains section order. Copilot found it.
+
+    `## Status`, level two, is searched across the **whole body**. It is an
+    explicit section heading declaring the record's lifecycle state, and it
+    means that wherever an author puts it.
+
+    `**Status**: X`, a bold inline label, is searched in the **header region
+    only**. A bold label is not a section, and it reads as the record's status
+    only at the top, which is how the older records state it (ADR-006 line 3,
+    ADR-035 line 5, both predating `## Status` sections). Deeper occurrences are
+    something else: ADR-055 carries `**Status**: COMPLETE` at line 119 as a
+    phase result and `**Status**: APPROVED` at line 168 as an exception ruling,
+    and both were read as that record's lifecycle status before this bound.
+
+    Fenced and indented code blocks are blanked before any of this runs, so a
+    `## Status` inside a markdown sample is not read as the record's own.
+    ADR-022 carries exactly such a sample at line 521, inside an ADR template it
+    documents. It is masked today only because ADR-022's real `## Status` sits
+    at line 3 and the search takes the first match; removing that section, which
+    is the direction this campaign is already moving in, would expose it. A
+    whole-body search without this is the same whole-file-scan defect the search
+    was widened to fix, one layer down. Copilot found it on PR #5230.
+
+    `### Status`, level three, is **never** matched. A level-three heading is a
+    subsection of whatever contains it. ADR-042 carries one at line 171 reading
+    "Proposed" inside a migration phase while its frontmatter says `accepted`;
+    matching it manufactured a drift violation out of a correct record.
     """
-    header = _record_header(body)
-    heading = _STATUS_HEADING_RE.search(header)
+    try:
+        prose = blank_code_block_lines(body)
+    except Exception:
+        # A record whose markdown will not parse has no determinable prose
+        # status. Returning None skips `prose-frontmatter-agree` for it, which
+        # is what the gate already does for a record with no status section
+        # (see `_check_prose`), rather than guessing from a source the parser
+        # could not segment. Deliberately not falling back to the raw body:
+        # that is the fail-open this blanking exists to close.
+        return None
+
+    heading = _STATUS_HEADING_RE.search(prose)
     if heading is not None:
-        for line in header[heading.end() :].splitlines():
-            if line.strip():
-                return line.strip()
+        for line in prose[heading.end() :].splitlines():
+            stripped = line.strip()
+            if _LEVEL_TWO_HEADING_RE.match(line):
+                return ""
+            if stripped:
+                return stripped
         return ""
-    inline = _INLINE_STATUS_RE.search(header)
+    inline = _INLINE_STATUS_RE.search(_record_header(prose))
     return inline.group(1).strip() if inline is not None else None
 
 
@@ -450,8 +627,7 @@ def _edge_targets(
             detail = f"`{field}` names itself (ADR-{number:03d}); a record cannot supersede itself"
         elif number not in known:
             detail = (
-                f"`{field}` names ADR-{number:03d}, which has no file under "
-                ".agents/architecture/"
+                f"`{field}` names ADR-{number:03d}, which has no file under .agents/architecture/"
             )
         else:
             targets.append(number)

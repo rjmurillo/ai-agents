@@ -1,7 +1,7 @@
 # taste-lint: ignore file-size
 #
 # file-size suppression rationale: this file is one test per behavior across the
-# nine checks `check_adr_lifecycle.py` owns, and `.claude/rules/testing.md` MUST 1
+# eight checks `check_adr_lifecycle.py` owns, and `.claude/rules/testing.md` MUST 1
 # and the TESTING-RIGOR pos+neg+edge bar are what set its length. Its line count
 # tracks how many behaviors the gate has, not how hard the module is to read;
 # every test is independent and none shares state, so the rule's remediation
@@ -157,13 +157,50 @@ def test_malformed_yaml_is_a_violation_not_a_crash(tmp_path):
     assert "did not parse" in details[0]
 
 
-def test_unterminated_fence_is_reported_as_absent(tmp_path):
-    adr_dir = _adr_dir(tmp_path)
-    (adr_dir / "ADR-001-thing.md").write_text("---\nid: ADR-001\n\n# ADR-001\n", encoding="utf-8")
+def test_an_unterminated_fence_is_not_reported_as_an_absent_one(tmp_path):
+    """The record opens with `---` and carries `id`. Telling its author the block
+    is absent sends them to add what is already there.
 
-    assert _hits(tmp_path, "frontmatter-parses") == [
-        "no leading `---` frontmatter block (ADR-073 schema absent)"
-    ]
+    This asserted the opposite until Copilot raised it on PR #5209.
+    `_split_frontmatter` returns None for two different defects, and the message
+    named only one of them. The record was always counted, so this is a wrong
+    diagnosis rather than a silent drop, and the fix moves no count.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    (adr_dir / "ADR-001-thing.md").write_text(
+        "---\nid: ADR-001\nstatus: accepted\n\n# ADR-001\n", encoding="utf-8"
+    )
+
+    detail = _hits(tmp_path, "frontmatter-parses")
+
+    assert len(detail) == 1
+    assert "no closing `---` fence" in detail[0]
+    assert "absent" not in detail[0], "the block is present, just unterminated"
+
+
+def test_a_genuinely_absent_block_still_says_absent(tmp_path):
+    """Negative control. Narrowing the message must not swallow the other case."""
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, None, "\n# ADR-001\n")
+
+    detail = _hits(tmp_path, "frontmatter-parses")
+
+    assert len(detail) == 1
+    assert detail[0] == "no leading `---` frontmatter block (ADR-073 schema absent)"
+
+
+def test_an_unterminated_block_is_still_only_one_violation(tmp_path):
+    """Containment holds for the new branch as it does for the old one."""
+    adr_dir = _adr_dir(tmp_path)
+    (adr_dir / "ADR-001-thing.md").write_text(
+        "---\nid: ADR-999\nstatus: nonsense\nimplemented: true\n\n## Status\n\nProposed\n",
+        encoding="utf-8",
+    )
+
+    counts = _counts(tmp_path)
+
+    assert counts["frontmatter-parses"] == 1
+    assert sum(counts.values()) == 1, "an unreadable block must not cascade"
 
 
 def test_non_mapping_frontmatter_is_reported_with_its_type(tmp_path):
@@ -205,9 +242,9 @@ def test_id_naming_a_different_number_is_a_violation(tmp_path):
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 7, _valid(7, id="ADR-008"), _STATUS_SECTION)
 
-    assert "names ADR-008 but the filename says ADR-007" in _hits(
-        tmp_path, "id-matches-filename"
-    )[0]
+    assert (
+        "names ADR-008 but the filename says ADR-007" in _hits(tmp_path, "id-matches-filename")[0]
+    )
 
 
 @pytest.mark.parametrize("raw_id", ["ADR-7", "adr-007", "ADR_7", 7])
@@ -221,9 +258,7 @@ def test_id_reference_forms_all_resolve(tmp_path, raw_id):
 # --- status-enum ------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "status", ["proposed", "accepted", "rejected", "deprecated", "superseded"]
-)
+@pytest.mark.parametrize("status", ["proposed", "accepted", "rejected", "deprecated", "superseded"])
 def test_every_adr073_status_is_accepted(tmp_path, status):
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 1, _valid(1, status=status, implemented="false"), f"\n## Status\n\n{status}\n")
@@ -885,7 +920,9 @@ def test_level_three_status_subsection_is_not_the_record_status(tmp_path):
     """
     adr_dir = _adr_dir(tmp_path)
     _write(
-        adr_dir, 1, _valid(1),
+        adr_dir,
+        1,
+        _valid(1),
         "\n## Acceptance Evidence\n\nRatified in PR #963.\n"
         "\n## Migration Phases\n\n### Phase 1\n\n### Status\n\nProposed\n",
     )
@@ -902,7 +939,9 @@ def test_inline_status_label_deep_in_body_is_not_the_record_status(tmp_path):
     """
     adr_dir = _adr_dir(tmp_path)
     _write(
-        adr_dir, 1, _valid(1),
+        adr_dir,
+        1,
+        _valid(1),
         "\n## Provenance\n\nRenumbered by PR #1604.\n"
         "\n## Migration\n\n**Status**: COMPLETE (2025-12-29)\n"
         "\n## Exceptions\n\n**Status**: APPROVED\n",
@@ -915,23 +954,87 @@ def test_record_status_is_still_found_when_it_is_the_first_section(tmp_path):
     """Positive control: scoping must not stop the gate seeing a real drift."""
     adr_dir = _adr_dir(tmp_path)
     _write(
-        adr_dir, 1, _valid(1),
+        adr_dir,
+        1,
+        _valid(1),
         "\n## Status\n\nProposed\n\n## Context\n\nWords.\n",
     )
 
     assert _counts(tmp_path)["prose-frontmatter-agree"] == 1
 
 
-def test_status_heading_after_another_section_is_out_of_scope(tmp_path):
-    """The header region ends at the first non-Status level-2 heading.
+def test_a_status_section_after_another_section_is_still_checked(tmp_path):
+    """Section order must not decide whether the drift check runs.
 
-    A record that opens with Context and only later carries a Status heading is
-    not stating its lifecycle in a header, and the gate does not guess.
+    This asserted the opposite until Copilot found it on PR #5209. An earlier
+    revision bounded the search to the record header, so a `## Status` placed
+    after `## Context` was invisible and moving the section silently bypassed
+    `prose-frontmatter-agree`. Nothing in ADR-073 or issue #5191 constrains
+    section order, so nothing justified treating position as authority.
+
+    The fixture's frontmatter says `accepted` and its prose says `Proposed`.
+    That is drift, and it must be reported wherever the section sits.
     """
     adr_dir = _adr_dir(tmp_path)
     _write(
-        adr_dir, 1, _valid(1),
+        adr_dir,
+        1,
+        _valid(1),
         "\n## Context\n\nWords.\n\n## Status\n\nProposed\n",
+    )
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 1
+
+
+def test_a_level_three_status_subsection_is_not_the_records_status(tmp_path):
+    """`### Status` belongs to whatever contains it, never to the record.
+
+    ADR-042 carries one at line 171 reading "Proposed" inside a migration phase
+    while its frontmatter says `accepted`. Matching it manufactured a drift
+    violation out of a correct record.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        _valid(1),
+        "\n## Context\n\nWords.\n\n### Status\n\nProposed\n",
+    )
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 0
+
+
+def test_a_bold_status_label_at_the_top_is_the_records_status(tmp_path):
+    """The older records state status as a bold label, not a section.
+
+    ADR-006 line 3 and ADR-035 line 5 both predate `## Status` sections. The
+    inline form stays supported so their drift remains visible.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        _valid(1),
+        "\n**Status**: Proposed\n\n## Context\n\nWords.\n",
+    )
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 1
+
+
+def test_a_bold_status_label_deep_in_the_body_is_not_the_records_status(tmp_path):
+    """Unlike the section heading, the inline form stays header-bounded.
+
+    A bold label is not a section. ADR-055 carries `**Status**: COMPLETE` at
+    line 119 as a phase result and `**Status**: APPROVED` at line 168 as an
+    exception ruling; both were read as that record's lifecycle status before
+    this bound existed.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        _valid(1),
+        "\n## Context\n\nWords.\n\n**Status**: COMPLETE\n",
     )
 
     assert _counts(tmp_path)["prose-frontmatter-agree"] == 0
@@ -957,9 +1060,7 @@ def test_a_record_that_is_not_valid_utf8_is_a_violation_not_a_crash(tmp_path):
     assert counts["frontmatter-parses"] == 1
     # `_hits` returns details; the record is on the violation's `path` field,
     # so the identification is asserted there rather than in the message text.
-    offenders = [
-        v.path for v in scan(adr_dir, tmp_path) if v.check == "frontmatter-parses"
-    ]
+    offenders = [v.path for v in scan(adr_dir, tmp_path) if v.check == "frontmatter-parses"]
     assert offenders == [".agents/architecture/ADR-002-thing.md"], offenders
 
 
@@ -1015,3 +1116,221 @@ def test_a_corrupt_baseline_exits_config_rather_than_traceback(tmp_path):
     assert result.returncode == EXIT_CONFIG
     assert "Traceback" not in result.stderr
     assert "is not valid UTF-8" in result.stderr
+
+
+# ── Duplicate frontmatter keys are a forgery vector, not a formatting nit ─────
+#
+# PyYAML resolves duplicates last-wins and reports nothing, so a record carrying
+# `status: proposed` near the top and `status: accepted` lower in the same block
+# parses as accepted while reading as proposed to anyone scanning the first
+# lines. Reported by Copilot on PR #5209, which noted this repo already treats
+# it as a governance risk in detect_adr_changes._has_duplicate_top_level_keys.
+
+
+def test_a_duplicate_status_key_is_a_violation(tmp_path):
+    """The declaration a human sees and the one tooling enforces must agree."""
+    adr_dir = _adr_dir(tmp_path)
+    (adr_dir / "ADR-001-thing.md").write_text(
+        "---\nid: ADR-001\nstatus: proposed\ndate: 2026-08-21\n"
+        "status: accepted\n---\n\n# ADR-001: Thing\n",
+        encoding="utf-8",
+    )
+
+    (violation,) = scan(adr_dir, tmp_path)
+
+    assert violation.check == "frontmatter-parses"
+    assert "declares `status` twice" in violation.detail
+
+
+def test_the_duplicate_message_names_the_offending_key(tmp_path):
+    """Naming the key is the difference between a fix and a hunt."""
+    adr_dir = _adr_dir(tmp_path)
+    (adr_dir / "ADR-001-thing.md").write_text(
+        "---\nid: ADR-001\nid: ADR-002\nstatus: accepted\n---\n\n# ADR-001: Thing\n",
+        encoding="utf-8",
+    )
+
+    (violation,) = scan(adr_dir, tmp_path)
+
+    assert "declares `id` twice" in violation.detail
+
+
+def test_a_record_with_no_duplicates_is_not_flagged(tmp_path):
+    """Negative control.
+
+    A checker that returned the violation unconditionally would satisfy both
+    tests above and be indistinguishable from a correct one.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1))
+
+    assert _counts(tmp_path)["frontmatter-parses"] == 0
+
+
+def test_a_repeated_key_nested_under_a_mapping_is_now_caught_too(tmp_path):
+    """A duplicate inside a nested mapping is a duplicate.
+
+    This asserted the opposite while the check was a line scan, which could see
+    only top-level keys and called that a feature. Moving detection into the
+    parser (PR #5230, after Copilot showed quoting evades a line scan) makes the
+    nested case visible, and there was never a reason to want it hidden: PyYAML
+    resolves `note: a` / `note: b` last-wins here exactly as it does at the top
+    level.
+
+    Kept as its own case rather than folded into the spelling matrix below,
+    because it is the one a line scan structurally cannot reach.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    (adr_dir / "ADR-001-thing.md").write_text(
+        "---\nid: ADR-001\nstatus: accepted\ndate: 2026-08-21\n"
+        "decision-makers: []\nsupersedes: []\nsuperseded-by: null\n"
+        "explainer: null\nimplemented: true\n"
+        "meta:\n  note: a\n  note: b\n---\n\n# ADR-001: Thing\n",
+        encoding="utf-8",
+    )
+
+    hits = [v for v in scan(adr_dir, tmp_path) if v.check == "frontmatter-parses"]
+
+    assert len(hits) == 1
+    assert "declares `note` twice" in hits[0].detail
+
+
+def test_a_valid_nested_mapping_is_still_clean(tmp_path):
+    """Negative control for the case above.
+
+    The original test existed to stop nested mappings being reported wholesale.
+    That concern is real, so it keeps a test: distinct nested keys must pass.
+    Without this, a checker that flagged every nested mapping would satisfy the
+    positive case above and be indistinguishable from a correct one.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    (adr_dir / "ADR-001-thing.md").write_text(
+        "---\nid: ADR-001\nstatus: accepted\ndate: 2026-08-21\n"
+        "decision-makers: []\nsupersedes: []\nsuperseded-by: null\n"
+        "explainer: null\nimplemented: true\n"
+        "meta:\n  note: a\n  other: b\n---\n\n# ADR-001: Thing\n",
+        encoding="utf-8",
+    )
+
+    hits = [v for v in scan(adr_dir, tmp_path) if v.check == "frontmatter-parses"]
+
+    assert hits == []
+
+
+@pytest.mark.parametrize(
+    "first_line",
+    [
+        "status: proposed",
+        '"status": proposed',
+        "'status': proposed",
+        "status : proposed",
+    ],
+)
+def test_every_yaml_spelling_of_a_duplicate_status_is_caught(tmp_path, first_line):
+    """Quoting must not launder a duplicate past the guard.
+
+    All four spellings are one key to PyYAML, which resolves every one of them
+    to `accepted`. The line scan this replaced compared raw prefixes, so it
+    asked a different question than the parser did and missed two of the four
+    (`"status"` and `'status'`). A guard against forgery that the forger evades
+    by adding quotation marks is worse than none, because it reports clean.
+    Copilot found it on PR #5230.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    (adr_dir / "ADR-001-thing.md").write_text(
+        f"---\nid: ADR-001\n{first_line}\nstatus: accepted\ndate: 2026-08-21\n"
+        "decision-makers: []\nsupersedes: []\nsuperseded-by: null\n"
+        "explainer: null\nimplemented: true\n---\n\n# ADR-001: Thing\n",
+        encoding="utf-8",
+    )
+
+    hits = [v for v in scan(adr_dir, tmp_path) if v.check == "frontmatter-parses"]
+
+    assert len(hits) == 1
+    assert "declares `status` twice" in hits[0].detail
+
+
+def test_a_commented_out_repeat_is_not_a_duplicate(tmp_path):
+    """A commented line declares nothing and must not be counted."""
+    adr_dir = _adr_dir(tmp_path)
+    (adr_dir / "ADR-001-thing.md").write_text(
+        "---\nid: ADR-001\n# status: proposed\nstatus: accepted\ndate: 2026-08-21\n"
+        "decision-makers: []\nsupersedes: []\nsuperseded-by: null\n"
+        "explainer: null\nimplemented: true\n---\n\n# ADR-001: Thing\n",
+        encoding="utf-8",
+    )
+
+    hits = [v for v in scan(adr_dir, tmp_path) if v.check == "frontmatter-parses"]
+
+    assert hits == []
+
+
+# --- status prose: empty sections and fenced samples -------------------------
+
+
+def test_an_empty_status_section_does_not_borrow_the_next_heading(tmp_path):
+    """`## Status` with nothing under it means "", not the next section's title.
+
+    Widening the search to the whole body (PR #5230) broke this contract, which
+    `_status_prose`'s docstring still promised: the scan ran to EOF and returned
+    the first non-blank line, which for an empty section is the next `##`
+    heading. The gate then compared the frontmatter enum against the literal
+    text `## Context` and reported drift on a record whose only fault was an
+    empty section. Bugbot found it; the fix arrived without a test, which is
+    what this is.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), "\n## Status\n\n## Context\n\nWords.\n")
+
+    hits = _hits(tmp_path, "prose-frontmatter-agree")
+
+    assert len(hits) == 1
+    assert "Context" not in hits[0], "the next heading is not this record's status"
+
+
+def test_a_status_section_with_prose_still_reads_its_prose(tmp_path):
+    """Negative control: the empty-section guard must not blank real prose."""
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), "\n## Status\n\nAccepted\n\n## Context\n\nWords.\n")
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 0
+
+
+def test_a_status_heading_inside_a_code_fence_is_not_the_records_status(tmp_path):
+    """A `## Status` in a markdown sample belongs to the sample.
+
+    ADR-022 carries exactly this at line 521, inside an ADR template it
+    documents. It is masked today only because ADR-022's real `## Status` sits
+    at line 3 and the search takes the first match; removing that section, the
+    direction this campaign is already moving in, would expose it. Searching the
+    whole body without blanking code blocks is the same whole-file-scan defect
+    the search was widened to fix, one layer down.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        _valid(1),
+        "\n## Context\n\nWords.\n\n```markdown\n## Status\n\nProposed\n```\n",
+    )
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 0, (
+        "a fenced sample must not be read as the record's own status"
+    )
+
+
+def test_a_real_status_after_a_fenced_sample_is_still_found(tmp_path):
+    """Negative control: blanking code must not blank the real section.
+
+    Without this, a checker that discarded the whole body would satisfy the
+    fenced case above and be indistinguishable from a correct one.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        _valid(1),
+        "\n```markdown\n## Status\n\nAccepted\n```\n\n## Status\n\nProposed\n",
+    )
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 1

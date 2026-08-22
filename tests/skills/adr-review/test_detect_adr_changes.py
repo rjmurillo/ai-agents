@@ -89,15 +89,7 @@ class TestGetAdrStatus:
     def test_fenced_yaml_example_in_body_does_not_win(self, tmp_path: Path) -> None:
         """Regression guard for ADR-073, which embeds the enum in a fenced example."""
         adr = tmp_path / "ADR-001.md"
-        adr.write_text(
-            "---\n"
-            "status: proposed\n"
-            "---\n"
-            "# Title\n\n"
-            "```yaml\n"
-            "status: accepted\n"
-            "```\n"
-        )
+        adr.write_text("---\nstatus: proposed\n---\n# Title\n\n```yaml\nstatus: accepted\n```\n")
         assert _get_adr_status(adr) == "proposed"
 
     def test_bare_status_line_in_body_does_not_win(self, tmp_path: Path) -> None:
@@ -145,8 +137,11 @@ class TestGetAdrStatus:
         Independent end-to-end check against the canonical corpus rather than a
         synthetic fixture: the body fence must not override the frontmatter.
         """
-        adr = Path(PROJECT_ROOT) / ".agents" / "architecture" / (
-            "ADR-073-adr-lifecycle-frontmatter.md"
+        adr = (
+            Path(PROJECT_ROOT)
+            / ".agents"
+            / "architecture"
+            / ("ADR-073-adr-lifecycle-frontmatter.md")
         )
         if not adr.is_file():
             pytest.skip(f"canonical ADR not present at {adr}")
@@ -208,27 +203,37 @@ class TestMain:
         subprocess.run(["git", "init"], cwd=str(tmp_path), capture_output=True, check=True)
         subprocess.run(
             ["git", "config", "core.hooksPath", "/dev/null"],
-            cwd=str(tmp_path), capture_output=True, check=True,
+            cwd=str(tmp_path),
+            capture_output=True,
+            check=True,
         )
         subprocess.run(
             ["git", "config", "user.email", "test@test.com"],
-            cwd=str(tmp_path), capture_output=True, check=True,
+            cwd=str(tmp_path),
+            capture_output=True,
+            check=True,
         )
         subprocess.run(
             ["git", "config", "user.name", "Test"],
-            cwd=str(tmp_path), capture_output=True, check=True,
+            cwd=str(tmp_path),
+            capture_output=True,
+            check=True,
         )
         (tmp_path / "README.md").write_text("init")
         subprocess.run(["git", "add", "."], cwd=str(tmp_path), capture_output=True, check=True)
         subprocess.run(
             ["git", "commit", "-m", "init"],
-            cwd=str(tmp_path), capture_output=True, check=True,
+            cwd=str(tmp_path),
+            capture_output=True,
+            check=True,
         )
         (tmp_path / "README.md").write_text("updated")
         subprocess.run(["git", "add", "."], cwd=str(tmp_path), capture_output=True, check=True)
         subprocess.run(
             ["git", "commit", "-m", "update readme"],
-            cwd=str(tmp_path), capture_output=True, check=True,
+            cwd=str(tmp_path),
+            capture_output=True,
+            check=True,
         )
         return tmp_path
 
@@ -247,7 +252,9 @@ class TestMain:
         subprocess.run(["git", "add", "."], cwd=str(git_repo), capture_output=True, check=True)
         subprocess.run(
             ["git", "commit", "-m", "add ADR"],
-            cwd=str(git_repo), capture_output=True, check=True,
+            cwd=str(git_repo),
+            capture_output=True,
+            check=True,
         )
         exit_code = main(["--base-path", str(git_repo)])
         assert exit_code == 0
@@ -275,8 +282,14 @@ class TestMain:
         captured = capsys.readouterr()
         data = json.loads(captured.out)
         required_keys = [
-            "Created", "Modified", "Deleted", "DeletedDetails",
-            "HasChanges", "RecommendedAction", "Timestamp", "SinceCommit",
+            "Created",
+            "Modified",
+            "Deleted",
+            "DeletedDetails",
+            "HasChanges",
+            "RecommendedAction",
+            "Timestamp",
+            "SinceCommit",
         ]
         for key in required_keys:
             assert key in data
@@ -358,13 +371,6 @@ class TestOnlyNonDecisionFieldsChanged:
         new = "status: accepted\nimplemented: true\n"
         assert _only_non_decision_fields_changed(old, new) is False
 
-    def test_duplicate_key_fails_closed(self) -> None:
-        # A duplicated status line could hide an acceptance from the last-wins
-        # map; fail closed so the gate still fires (review LOW finding).
-        old = "status: proposed\nimplemented: false\n"
-        new = "status: accepted\nimplemented: true\nstatus: proposed\n"
-        assert _only_non_decision_fields_changed(old, new) is False
-
 
 class TestFrontmatterFields:
     """Tests for the YAML frontmatter field parser."""
@@ -391,9 +397,7 @@ class TestFrontmatterOnlyDetection:
     @pytest.fixture
     def adr_repo(self, tmp_path: Path) -> Path:
         def _git(*args: str) -> None:
-            subprocess.run(
-                ["git", *args], cwd=str(tmp_path), capture_output=True, check=True
-            )
+            subprocess.run(["git", *args], cwd=str(tmp_path), capture_output=True, check=True)
 
         _git("init")
         _git("config", "core.hooksPath", "/dev/null")
@@ -461,21 +465,21 @@ class TestFrontmatterOnlyDetection:
         adr2_rel = ".agents/architecture/ADR-002.md"
         adr2 = adr_repo / adr2_rel
         adr2.write_text("---\nstatus: proposed\n---\n# ADR-002\n\nOriginal.\n")
-        subprocess.run(
-            ["git", "add", "."], cwd=str(adr_repo), capture_output=True, check=True
-        )
+        subprocess.run(["git", "add", "."], cwd=str(adr_repo), capture_output=True, check=True)
         subprocess.run(
             ["git", "commit", "-m", "add ADR-002"],
-            cwd=str(adr_repo), capture_output=True, check=True,
+            cwd=str(adr_repo),
+            capture_output=True,
+            check=True,
         )
         # Unrelated commit so HEAD~1 contains ADR-002 (else it reads as Created).
         (adr_repo / "README.md").write_text("readme2\n")
-        subprocess.run(
-            ["git", "add", "."], cwd=str(adr_repo), capture_output=True, check=True
-        )
+        subprocess.run(["git", "add", "."], cwd=str(adr_repo), capture_output=True, check=True)
         subprocess.run(
             ["git", "commit", "-m", "readme2"],
-            cwd=str(adr_repo), capture_output=True, check=True,
+            cwd=str(adr_repo),
+            capture_output=True,
+            check=True,
         )
         # Working-tree edits (uncommitted): ADR-001 frontmatter-only flip,
         # ADR-002 body change.
