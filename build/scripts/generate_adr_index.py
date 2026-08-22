@@ -162,7 +162,7 @@ class _StrictLoader(yaml.SafeLoader):
     formatting nit: the visible declaration and the enforced one differ.
 
     The repo already treats this as a governance risk. `detect_adr_changes.py`
-    carries `_has_duplicate_top_level_keys` with the docstring "Duplicate keys
+    carries `_has_duplicate_keys` with the docstring "Duplicate keys
     are malformed YAML and can hide a governance change (a second ``status:``
     line masking the first)", and fails its frontmatter-only exemption closed on
     them. That helper scans top-level lines with a regex; this loader hooks the
@@ -809,32 +809,50 @@ def main(argv: Sequence[str] | None = None) -> int:
     adr_dir = _resolve(args.adr_dir)
     output_path = _resolve(args.output)
 
-    # .claude/rules/ci-scripts.md MUST 7: a script that resolves the repository
-    # root and then writes to it must confirm the caller's cwd sits inside that
-    # root before the first write. Relative --adr-dir/--output args are already
-    # anchored to _REPO_ROOT by _resolve() above, not to Path.cwd(); without this
-    # check, running the script from a different worktree (or via a symlink into
-    # this one) writes into _REPO_ROOT silently, with no signal that the write
-    # landed outside the caller's own checkout. Mirrors
-    # scripts/generate_third_party_notices.py:446-452 verbatim:
-    #   project_root = PROJECT_ROOT
-    #   if not Path.cwd().resolve().is_relative_to(project_root.resolve()):
-    #       print(f"ERROR: current directory is outside project root: {Path.cwd()}", ...)
-    #       return 2
-    if not Path.cwd().resolve().is_relative_to(_REPO_ROOT):
-        print(
-            f"Error: current directory is outside the repository root: {Path.cwd()}",
-            file=sys.stderr,
-        )
-        return 2
-
     if not adr_dir.is_dir():
         print(f"Error: ADR directory not found: {adr_dir}", file=sys.stderr)
+        return 2
+
+    # An emptied or misrouted corpus (a wrong --adr-dir, or every record moved
+    # out) still passes `adr_dir.is_dir()`, and `collect_records()` on zero
+    # matches renders every index section as `None` and exits 0: a missing
+    # corpus reads as valid generated output instead of failing loudly. Glob
+    # via `is_adr_filename()`, not a bare `_ADR_GLOB` count, so `ADR-TEMPLATE.md`
+    # sitting alone in the directory does not count as evidence records were
+    # examined (Copilot, PR #5209 round-7 review).
+    if not any(is_adr_filename(path.name) for path in adr_dir.glob(_ADR_GLOB)):
+        print(f"Error: no ADR records found in {adr_dir}", file=sys.stderr)
         return 2
 
     try:
         if args.check:
             return _run_check(adr_dir, output_path)
+
+        # .claude/rules/ci-scripts.md MUST 7: a script that resolves the
+        # repository root and then writes to it must confirm the caller's cwd
+        # sits inside that root before the first write. Relative
+        # --adr-dir/--output args are already anchored to _REPO_ROOT by
+        # _resolve() above, not to Path.cwd(); without this check, running the
+        # script from a different worktree (or via a symlink into this one)
+        # writes into _REPO_ROOT silently, with no signal that the write
+        # landed outside the caller's own checkout. Mirrors
+        # scripts/generate_third_party_notices.py:446-452 verbatim:
+        #   project_root = PROJECT_ROOT
+        #   if not Path.cwd().resolve().is_relative_to(project_root.resolve()):
+        #       print(f"ERROR: current directory is outside project root: {Path.cwd()}", ...)
+        #       return 2
+        #
+        # Scoped to this branch, not to every invocation: `_run_check()` above
+        # is read-only, so a caller passing absolute --adr-dir/--output paths
+        # from outside the repository has nothing to protect against there
+        # (Copilot, PR #5209 round-7 review).
+        if not Path.cwd().resolve().is_relative_to(_REPO_ROOT):
+            print(
+                f"Error: current directory is outside the repository root: {Path.cwd()}",
+                file=sys.stderr,
+            )
+            return 2
+
         generate(adr_dir, output_path)
     except AdrIndexError as exc:
         print(f"Error: {exc}", file=sys.stderr)

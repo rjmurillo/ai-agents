@@ -444,6 +444,38 @@ def test_missing_adr_directory_is_a_config_error(tmp_path: Path) -> None:
     assert exit_code == 2
 
 
+def test_empty_adr_directory_is_a_config_error(tmp_path: Path, capsys) -> None:
+    """An emptied or misrouted corpus must fail loudly, not render an empty index.
+
+    `collect_records()` on zero matches renders every index section as `None`
+    and `main()` would otherwise exit 0: a missing corpus reads as valid
+    generated output (Copilot, PR #5209 round-7 review).
+    """
+    directory = tmp_path / "architecture"
+    directory.mkdir()
+
+    exit_code = generate_adr_index.main(
+        ["--adr-dir", str(directory), "--output", str(tmp_path / "README.md")]
+    )
+
+    assert exit_code == 2
+    assert "no ADR records found" in capsys.readouterr().err
+
+
+def test_adr_directory_with_only_a_template_is_a_config_error(tmp_path: Path, capsys) -> None:
+    """`ADR-TEMPLATE.md` alone must not count as evidence records exist."""
+    directory = tmp_path / "architecture"
+    directory.mkdir()
+    (directory / "ADR-TEMPLATE.md").write_text("# Template\n", encoding="utf-8")
+
+    exit_code = generate_adr_index.main(
+        ["--adr-dir", str(directory), "--output", str(tmp_path / "README.md")]
+    )
+
+    assert exit_code == 2
+    assert "no ADR records found" in capsys.readouterr().err
+
+
 # Edge: heading forms, list decisions, template exclusion ---------------------
 
 
@@ -818,6 +850,30 @@ def test_cwd_outside_repo_root_is_a_config_error(
     assert exit_code == 2
     assert "outside the repository root" in capsys.readouterr().err
     assert not output.exists()
+
+
+def test_check_mode_ignores_cwd_outside_the_repository_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """`--check` never writes, so the worktree-identity guard must not apply to it.
+
+    Before this fix the guard ran unconditionally in `main()`, so a caller
+    using absolute `--adr-dir`/`--output` paths from a cwd outside the
+    repository got exit 2 for a check that reads and compares, never writes
+    (Copilot, PR #5209 round-7 review).
+    """
+    directory = tmp_path / "architecture"
+    _corpus(directory)
+    output = tmp_path / "README.md"
+    generate_adr_index.main(["--adr-dir", str(directory), "--output", str(output)])
+    monkeypatch.chdir(tmp_path)
+
+    exit_code = generate_adr_index.main(
+        ["--adr-dir", str(directory), "--output", str(output), "--check"]
+    )
+
+    assert exit_code == 0
+    assert "outside the repository root" not in capsys.readouterr().err
 
 
 # The build_all.py registration ----------------------------------------------
