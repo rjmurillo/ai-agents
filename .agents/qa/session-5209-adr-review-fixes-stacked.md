@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: db398cb4cabdfe1d114130eff627c01e59b99413
+qaCommit: 485b1db684a3cea5248f0e5d7dfa645f98a360b2
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -1005,3 +1005,21 @@ file's own renumbering (19-26).
 
 Full pytest re-verification, and the final `qaCommit` rebind, are recorded in
 a following addendum once complete.
+
+## Addendum 29: the merge's own regression, found by the push gate
+
+Same defect as Addendum 28 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`;
+full detail lives there. The merge in Addendum 28 above combined two
+independently-added `TestBlankNonProseBlockLines` classes in
+`tests/test_markdown_parser.py`, one from each branch, with no textual
+conflict since they landed at different line ranges. Python silently
+dropped the first at import time (`F811`), losing its assertions with no
+test failure; the push-time `ruff` lint ratchet caught it, not pytest.
+Consolidated into one class, mutation-verified (72 to 71 tests on removing
+one assertion), fixed in `485b1db68`. A separate em-dash the merge's own
+resolution prose introduced into the campaign file (not carried over from
+either branch) is also corrected there.
+
+Full pytest suite re-run clean: 28092 passed, 74 skipped, 0 failed.
+
+**Rebound to** `485b1db684a3cea5248f0e5d7dfa645f98a360b2`.

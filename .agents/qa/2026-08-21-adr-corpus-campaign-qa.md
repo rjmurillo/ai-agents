@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: db398cb4cabdfe1d114130eff627c01e59b99413
+qaCommit: 485b1db684a3cea5248f0e5d7dfa645f98a360b2
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1431,7 +1431,7 @@ review rounds:
   `None` (silently exempting an unparseable record from
   `prose-frontmatter-agree`). Origin's version let the exception propagate,
   to be caught one level up in `_check_prose` and converted into a
-  violation instead of a skip — exactly the fix origin's own PR #5209
+  violation instead of a skip, exactly the fix origin's own PR #5209
   review round made to this same defect. The non-conflicting, already-merged
   `_check_prose` body already implements the catch-and-report-violation
   side of that contract, so keeping this branch's internal catch would have
@@ -1455,3 +1455,35 @@ preference between two plausible edits.
 Full pytest re-verification, and the final `qaCommit` rebind for the
 resulting merge and any follow-up fixes, are recorded in a following
 addendum once complete.
+
+## Addendum 28: the merge's own regression, found by the push gate
+
+The merge in Addendum 27 introduced a defect the merge itself could not
+surface: `tests/test_markdown_parser.py` ended up with two classes both
+named `TestBlankNonProseBlockLines`, one from each branch's own round of
+adding coverage for `blank_non_prose_block_lines`. Git kept both bodies with
+no textual conflict, since they landed at different line ranges in the
+file. Python silently drops the first definition at import time (`F811`),
+so the first class's five assertions never ran again after the merge, with
+no test failure to flag it, since the second class still collected and
+passed cleanly. The push-time `python-lint-ratchet` job caught it (`ruff`'s
+`F811`), not the pytest run.
+
+Consolidated into one class carrying the union of both branches' distinct
+test behaviors, taking the stronger assertion where both covered the same
+case (a five-line fenced-code check over a three-line one). Verified by
+mutation: removing one of the merged class's assertions drops collection
+from 72 to 71 tests in that file, confirming the class is live and not
+shadowed. Fixed in `485b1db68`.
+
+**A second push-gate finding, unrelated to the merge conflict itself:** an
+em-dash in this file's own Addendum 27 prose (introduced while writing that
+addendum, not carried over from either branch) tripped the
+`em-dash-prohibition` gate. Corrected to a comma.
+
+Full pytest suite re-run clean after the `F811` fix: 28092 passed, 74
+skipped, 0 failed (`1324.62s`). `ruff count ratchet`, `python-lint-ratchet`,
+`merge-tree-ratchet`, `taste-count-ratchet` (576, at baseline), and
+`type-ignore-count-ratchet` all confirmed clean against the fix commit.
+
+**Rebound to** `485b1db684a3cea5248f0e5d7dfa645f98a360b2`.
