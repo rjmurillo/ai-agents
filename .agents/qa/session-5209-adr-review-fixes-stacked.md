@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 702e3819074c2d623fda38bea5d4900d69eb67f2
+qaCommit: 8a702a650b1bb4e4ae02916f4b777e448babf0ca
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -694,3 +694,21 @@ confirmed back at baseline. Full detail in the matching correction above
 Addendum 18 of the campaign report.
 
 **Rebound to** `702e3819074c2d623fda38bea5d4900d69eb67f2`.
+
+## Addendum 21: a ninth Copilot review round, two fixed, one filed, one rebutted
+
+A ninth Copilot review (queued against the pre-round-8 head `47492781b`)
+found four items: two genuine defects, fixed and mutation-proven
+(`check_adr_links.py` failing closed on an empty-but-valid repository root;
+`scan_file()`'s fence tracker no longer closing on a fence-shaped line with
+trailing text, per CommonMark's closing-fence rule); one real but
+too-large-to-fix-here defect (three ADR frontmatter parsers disagree on
+closing-fence strictness, confirmed by direct execution, filed as
+[#5275](https://github.com/rjmurillo/ai-agents/issues/5275)); and one
+re-raise of an already-considered worktree-guard scoping decision,
+rebutted in the docstring rather than changed. Full detail in Addendum 19
+of the campaign report. Two commits, three files, 215 tests pass across
+the two touched suites; `ruff check` and the taste-count ratchet (576, at
+baseline) both clean.
+
+**Rebound to** `8a702a650b1bb4e4ae02916f4b777e448babf0ca`.

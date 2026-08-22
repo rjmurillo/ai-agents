@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 702e3819074c2d623fda38bea5d4900d69eb67f2
+qaCommit: 8a702a650b1bb4e4ae02916f4b777e448babf0ca
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1195,3 +1195,95 @@ per-repo escape rather than split, matching `generate_adr_index.py`'s
 existing precedent for the same rule. Ratchet confirmed back at baseline.
 
 **Rebound to** `702e3819074c2d623fda38bea5d4900d69eb67f2`.
+
+## Addendum 19: a ninth Copilot review round, two fixed, one filed, one rebutted
+
+A ninth Copilot review landed while round-8's fixes were still local
+(queued against commit `47492781b`, the pre-round-8 head): two suppressed
+findings plus two inline review comments. Investigated all four before
+acting; two were genuine and fixed, one was a real defect too large to fix
+inline and was filed as a follow-up issue, and one was a re-raise of an
+already-considered and documented design decision.
+
+- **`check_adr_links.py` accepted an empty-but-valid repository root as
+  clean.** `find_broken_adr_links()`'s default path calls `git_ls_markdown()`
+  (`git ls-files -z *.md`), which succeeds with empty output when
+  `repo_root` resolves to a real git repository that happens to track zero
+  markdown files. `validate_adr_links()` and `main()` would then scan
+  nothing and print the identical "0 violation(s)" a genuinely clean
+  full-corpus scan prints, so a wrong-but-valid repository root
+  manufactured a green result. `main()`'s existing
+  `subprocess.CalledProcessError` handler already covers "not a git
+  repository at all"; this closed the narrower "valid git, empty result"
+  case that handler cannot catch. Both entry points now fail closed
+  (`main()` returns 2, `validate_adr_links()` returns `False`) when the
+  examined-file count is zero. New tests:
+  `test_main_fails_closed_on_a_valid_repo_with_no_tracked_markdown`,
+  `test_validate_adr_links_fails_closed_on_a_valid_repo_with_no_tracked_markdown`.
+  Mutation-proven.
+- **`scan_file()`'s fence tracker closed on any fence-shaped line matching
+  the opener's character and length, even with trailing text after the
+  marker.** Per CommonMark (spec.commonmark.org/0.31.2/#fenced-code-blocks,
+  quoted verbatim): "The closing code fence may be preceded by up to three
+  spaces of indentation, and may be followed only by spaces or tabs, which
+  are ignored." A line like `` ```python `` inside an already-open ` ``` `
+  block is content (an inner example), not a close. The old behavior closed
+  on it, then reopened on the real closing fence: a link inside the example
+  could be reported broken (false positive), and a broken link in the live
+  prose that followed could be silently swallowed into a fence that never
+  closes (false negative). Fixed by requiring the closing candidate's
+  trailing text to be whitespace-only; openers keep allowing any info
+  string. New test:
+  `test_a_fence_shaped_line_with_trailing_text_does_not_close_it`.
+  Mutation-proven: reverting the trailing-text check reproduces exactly the
+  false-positive-then-false-negative pattern the finding described (ADR-999
+  reported broken, ADR-998 silently swallowed).
+- **Three ADR frontmatter parsers disagree on closing-fence strictness**,
+  confirmed by direct execution: a closing `---` line with one trailing
+  space parses successfully via `scripts/validation/yaml_utils.py`'s
+  `_parse_yaml_frontmatter` (and therefore `check_adr_lifecycle.py`, which
+  deliberately mirrors it) and via `detect_adr_changes.py`'s
+  line-`.strip()`-based split, but `generate_adr_index.py`'s
+  `_FRONTMATTER_RE` requires the closing `---` to be followed immediately
+  by `\r?\n` with nothing else, so it raises `AdrIndexError` ("opens with
+  '---' but has no closing '---' fence; the frontmatter block is
+  unterminated") on the identical input. A record could pass the lifecycle
+  gate cleanly while crashing the index generator (and therefore
+  `build_all.py --check`, wired into CI) on a one-space authoring
+  difference. The complete fix means choosing one canonical closing-fence
+  contract and propagating it across at least three parser
+  implementations, one of which (`yaml_utils.py`) is a shared helper with
+  an unmapped blast radius beyond these three call sites ("other
+  validators" per its own docstring). Bigger and riskier than fits this
+  round; filed as
+  [#5275](https://github.com/rjmurillo/ai-agents/issues/5275), matching
+  this PR's own precedent (#5205, #5270, #5273, #5274).
+- **Re-raised, not fixed: `check_adr_lifecycle.py`'s `--write-baseline`
+  worktree-identity guard only fires when `--repo-root` is the implicit
+  default**, framed this round as "does not exempt explicit CLI targets"
+  and "running from worktree A with `--repo-root` pointing at worktree B
+  can still overwrite B's baseline." This is the same scoping round 4
+  already considered and documented, and the framing does not hold against
+  `.claude/rules/ci-scripts.md` MUST 7's own stated rationale, quoted
+  verbatim: the threat is a script's *implicit* resolution being silently
+  redirected by state the caller cannot see ("a local `core.worktree`
+  value or a `GIT_WORK_TREE` environment variable redirects it to a
+  directory you are not standing in ... the redirection is always
+  something a person or a tool set on purpose, which is exactly why a
+  script that inherits it has no way to notice"). A caller-typed
+  `--repo-root` is the opposite of that: nothing is inherited or hidden.
+  Worktree A/B is a possible user mistake, not an undetectable one, and no
+  mechanism could distinguish a mistaken B from an intentional one without
+  breaking every existing test that deliberately points `--repo-root` at
+  an unrelated `tmp_path` fixture. Strengthened the docstring to name this
+  specific re-raise and rebut it directly, so the next reviewer sees the
+  reasoning was already applied to this exact framing rather than
+  re-deriving it. No code change.
+
+Two commits, three files touched, 3 new test functions, both behavioral
+fixes mutation-proven. Test counts: `check_adr_links` 95 (up from 92, +3),
+`check_adr_lifecycle` unchanged at 120 (docstring only). Both suites
+together: 215 tests pass. `ruff check` and the whole-repo taste-count
+ratchet (576, at baseline) both clean.
+
+**Rebound to** `8a702a650b1bb4e4ae02916f4b777e448babf0ca`.
