@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-# taste-lint: ignore file-size, 192 of the 558 lines are comments and docstrings,
-# most of them the verbatim ADR-073 and check_adr_uniqueness.py quotes
-# .claude/rules/canonical-source-mirror.md requires. Logic alone is well under the
-# ceiling, so a split would move prose between files rather than reduce anything.
+# taste-lint: ignore file-size. A large share of the lines are comments and
+# docstrings, most of them the verbatim ADR-073 and check_adr_uniqueness.py
+# quotes .claude/rules/canonical-source-mirror.md requires. Logic alone is
+# well under the ceiling, so a split would move prose between files rather
+# than reduce anything. (Deliberately no exact line count here: an earlier
+# version cited "192 of the 558 lines" and it went stale on the very next
+# edit that added lines without updating the count, Copilot, PR #5209
+# round-10 review.)
 """Generate .agents/architecture/README.md, a current-state index of the ADR corpus.
 
 `AGENTS.md` points every agent at `.agents/architecture/ADR-*.md`. That is 98
