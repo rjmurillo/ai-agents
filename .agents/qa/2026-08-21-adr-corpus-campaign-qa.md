@@ -688,3 +688,15 @@ and this file (the one carrying this addendum) crossed 500 lines, a real
 taste-count ratchet regression against `origin/main`'s baseline (this file
 does not exist there). Suppressed with the documented per-repo escape
 rather than splitting; verified the whole-tree ratchet returns to baseline.
+
+
+## Addendum 16: the two stacked branches merged back together
+
+Merge commit `9f0e7d552d6a683c816f959fd894d3a009171905` on
+`claude/adr-5209-review-fixes`. Full detail in Addendum 17 of
+`.agents/qa/session-5209-adr-review-fixes-stacked.md`: this branch and PR
+#5209's branch had each independently fixed the same class of problem
+(an `origin/main` merge, an ADR-index regen, and an `AGENTS.md` budget
+fix), so merging them back together conflicted only in these two QA
+reports' addenda tails and frontmatter; resolved by renumbering into one
+consecutive sequence. 305 tests passed.

@@ -552,3 +552,41 @@ Full `pre_pr.py` run after both fixes: 58 of 59 passed, the one failure
 being this addendum's own not-yet-rebound `qaCommit` (the exact staleness
 this addendum resolves). `qaCommit` rebinds to
 `92304f8231a2de5977820f73d63452999b21b60f`.
+
+## Addendum 17: the two stacked branches merged back together
+
+PR #5209's mergeable_state showed `"dirty"` even after Addendum 15 landed on
+that branch, because `claude/adr-5209-review-fixes` (this branch, PR #5230)
+had continued to diverge with its own independent commits (addenda 12-14
+above) at the same time PR #5209's branch was fixing the identical class of
+problem independently (addenda 15-16). `git merge-tree --write-tree` against
+the two branch tips confirmed a real conflict, isolated to these two QA
+report files and `.agents/architecture/README.md`.
+
+`README.md` auto-merged cleanly (one row each for ADR-099 and ADR-102, no
+duplicates). All the code files PR #5209's branch had already fixed
+(`build/scripts/build_all.py`, `build/scripts/generate_adr_index.py`,
+`scripts/validation/check_adr_links.py` and their tests) auto-merged with no
+conflicts. The two QA reports conflicted only in their frontmatter
+`qaCommit` fields and in where each branch's independent addenda sequence
+was appended; resolved by keeping each branch's own addenda in place and
+renumbering the later ones into one consecutive sequence (this file's
+addenda 12-14 are this branch's own events; 15-16 are PR #5209's branch's
+parallel events, renumbered from its own 12-13).
+
+Merge commit: `9f0e7d552d6a683c816f959fd894d3a009171905`. Re-ran the full
+targeted suite plus the workspace-budget tests after resolving:
+
+```
+uv run pytest tests/ci/test_validate_vendor_provenance.py \
+  tests/validation/test_check_adr_links.py \
+  tests/build_scripts/test_generate_adr_index.py \
+  tests/build_scripts/test_build_all.py \
+  tests/test_validate_workspace_budget.py \
+  "tests/test_workspace_limits.py::test_per_file_limit[AGENTS.md]" -q
+305 passed
+```
+
+This addendum's own commit touches only `.agents/qa/*.md`, an evidence
+path, so `qaCommit` rebinds to that commit rather than to the merge commit
+itself.
