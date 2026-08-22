@@ -454,7 +454,7 @@ The last row is the common case and the easy one to skip. As of 2026-08-04,
 `code-quality.md` (14,152 bytes) already has a scenario file carrying four
 scenarios, added by PR #4017, and no scored result anywhere in
 `evals/reports/`. It is the only **book-derived** always-on rule left, rank 2
-in the corpus behind `voice.md` (18,166 bytes). `pragmatic-programmer.md`
+in the corpus behind `voice.md` (18,168 bytes). `pragmatic-programmer.md`
 (11,375 bytes) sits on the same footing with four scenarios of its own, and was
 itself always-on until PR #4424 narrowed its `applyTo` to source files, so it
 now loads on a code edit and not otherwise.
