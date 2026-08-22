@@ -160,14 +160,6 @@ Example, coverage-differentiated:
 >
 > Option B: extract a `requireSession` helper and route all four middlewares through it. Completeness: 9/10. Fixes the reported bug plus the three latent ones. Leaves the websocket path (separate auth flow) for a follow-up.
 
-Example, kind-differentiated:
-
-> Note: options differ in kind, not coverage. No completeness score.
->
-> Option A: Redis cache. Cuts auth check to 2ms. Adds a second store to operate.
->
-> Option B: in-process LRU. Cuts auth check to 5ms. No new infra, loses cache on every deploy.
-
 ## Confusion Protocol
 
 For high-stakes ambiguity, **stop and ask**. Do not guess. Do not pick the option that feels right and rationalize it after.
@@ -194,6 +186,14 @@ Do not trigger this protocol for:
 Triggering this protocol on routine work wastes the user's time and trains them to skim past genuine ambiguity. Not triggering it on high-stakes ambiguity ships against assumptions and costs weeks.
 
 Default for ambiguous-but-low-cost cases: act minimally, flag what you assumed, name what you skipped. The user can correct on the next turn.
+
+### Unattended runs
+
+Unattended: no human reads `AskUserQuestion` (scheduled trigger, fleet worker, headless session). Never end on a question: unread, it stalls.
+
+Instead: record the ambiguity, options with trade-offs, branch taken, and why, to the per-issue handoff or the run's report, not `.agents/HANDOFF.md`; take the safest reversible branch and continue.
+
+Ask First items (architecture, new ADRs, breaking, security) get no guess: halt only that branch; continue elsewhere.
 
 ## Ownership: See Something, Say Something
 
