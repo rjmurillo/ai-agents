@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 5205bf29d366afe80d2174302a1d5326be6fae16
+qaCommit: d1fc64595bf5bc6e9c2d54b6a4210ef194f7eff7
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -530,3 +530,32 @@ ceiling can only fall relative to the PR's base branch, is filed as issue
 #5270 rather than fixed here, following the #5205 precedent for a proven
 gate-forgeability class found in this PR's own shipped code. 272 tests
 pass across the four touched suites plus the pre-PR sequence registry.
+
+## Addendum 16: a fourth Copilot review round, two MUST-7 gaps, plus a backlog cleanup
+
+**Rebound to** `d1fc64595bf5bc6e9c2d54b6a4210ef194f7eff7`.
+
+Full detail in Addendum 14 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`.
+A fourth Copilot review found two `.claude/rules/ci-scripts.md` MUST-7
+worktree-identity gaps (`generate_adr_index.py:main()` and
+`check_adr_lifecycle.py --write-baseline` both wrote without verifying
+the caller's cwd), both fixed and mutation-proven. Five more findings
+from the same investigation, self-identified rather than bot-flagged: a
+status-null/empty conflation in `generate_adr_index.py`, a fence-character
+mismatch bug in `check_adr_links.py`, an HTML-block masking gap in
+`check_adr_lifecycle.py`'s prose-status search (fixed via a new
+`blank_non_prose_block_lines()` rather than widening the existing
+`blank_code_block_lines()`, which a different caller,
+`check_skill_md_portability.py`, depends on staying narrow), an ADR-042
+overclaim in `memory-gate/SKILL.md`, and a stale colocated test file under
+`.claude/skills/adr-review/tests/` (five unique cases ported before
+deletion, then split into a new sibling file to stay under the taste-lint
+file-size ceiling). Also closed out ten round-2/3 threads that were
+already fixed in code but never replied-to or resolved on GitHub, plus one
+genuinely still-stale debate log claim, all verified against current code
+and commit history rather than from memory.
+
+Test counts: `check_adr_lifecycle` 116 tests (up from 111), `check_adr_links`
+80 tests (up from 79), `generate_adr_index` 78 tests (up from 73), plus 12
+new tests split across `tests/test_markdown_parser.py` and
+`tests/skills/adr-review/test_detect_adr_changes_cli_contract.py`.

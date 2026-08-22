@@ -357,6 +357,97 @@
       "caused_by": [
         "e028"
       ],
+      "leads_to": [
+        "e030"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-08-22T06:35:41+00:00",
+      "type": "commit",
+      "content": "Commit: 6a1a34d2d",
+      "caused_by": [
+        "e029"
+      ],
+      "leads_to": [
+        "e031"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e031",
+      "timestamp": "2026-08-22T06:36:13+00:00",
+      "type": "commit",
+      "content": "Commit: b4d3de5b8",
+      "caused_by": [
+        "e030"
+      ],
+      "leads_to": [
+        "e032"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e032",
+      "timestamp": "2026-08-22T06:36:52+00:00",
+      "type": "commit",
+      "content": "Commit: 73afcc8ec",
+      "caused_by": [
+        "e031"
+      ],
+      "leads_to": [
+        "e033"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e033",
+      "timestamp": "2026-08-22T06:37:19+00:00",
+      "type": "commit",
+      "content": "Commit: d5160a628",
+      "caused_by": [
+        "e032"
+      ],
+      "leads_to": [
+        "e034"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e034",
+      "timestamp": "2026-08-22T06:37:50+00:00",
+      "type": "commit",
+      "content": "Commit: 32cef31ce",
+      "caused_by": [
+        "e033"
+      ],
+      "leads_to": [
+        "e035"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e035",
+      "timestamp": "2026-08-22T06:43:20+00:00",
+      "type": "commit",
+      "content": "Commit: 75e7b1ee2",
+      "caused_by": [
+        "e034"
+      ],
+      "leads_to": [
+        "e036"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e036",
+      "timestamp": "2026-08-22T06:58:50+00:00",
+      "type": "commit",
+      "content": "Commit: d1fc64595bf5bc6e9c2d54b6a4210ef194f7eff7",
+      "caused_by": [
+        "e035"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
     }
@@ -366,8 +457,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 9,
-    "files_changed": 21
+    "commits": 16,
+    "files_changed": 30
   },
   "lessons": []
 }

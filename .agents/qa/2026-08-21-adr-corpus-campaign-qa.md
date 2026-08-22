@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 5205bf29d366afe80d2174302a1d5326be6fae16
+qaCommit: d1fc64595bf5bc6e9c2d54b6a4210ef194f7eff7
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -781,3 +781,84 @@ its baseline). `generate_adr_index.py --check` confirms the generated index
 still matches: the real corpus has no non-padded or bare-integer
 `superseded-by` value today, so the normalization fix is latent-defect
 coverage, the same shape as the original `_get_adr_status` fix.
+
+## Addendum 14: a fourth Copilot review round, two MUST-7 gaps, plus a backlog cleanup
+
+**Rebound to** `d1fc64595bf5bc6e9c2d54b6a4210ef194f7eff7`.
+
+A fourth Copilot review on this branch's own head found two
+`.claude/rules/ci-scripts.md` MUST-7 worktree-identity gaps. Both fixed,
+mutation-proven:
+
+- **`generate_adr_index.py:main()` never verified the caller's cwd before
+  writing.** Relative `--adr-dir`/`--output` are anchored to `_REPO_ROOT`
+  (derived from `__file__`), not `Path.cwd()`. Added the identity check
+  MUST-7 requires, mirroring `scripts/generate_third_party_notices.py:446-452`
+  verbatim.
+- **`check_adr_lifecycle.py --write-baseline` had the same gap**, fixed with
+  a guard that fires only when `--repo-root` is the implicit `__file__`-derived
+  default: every existing `--write-baseline` test in this file passes
+  `--repo-root` explicitly, pointing at a synthetic `tmp_path` corpus
+  unrelated to cwd, and an explicit `--repo-root` is a stated write target
+  with no worktree-identity risk.
+
+Five more findings from the same investigation pass, self-identified rather
+than bot-flagged (all mutation-proven; real corpus and skill-portability
+suite re-verified unaffected):
+
+- **`generate_adr_index.py`'s `_status_of()` conflated an absent `status`
+  key with one present but null or empty**, both returning `None` via
+  `frontmatter.get("status")` and routing a record with partial, broken
+  metadata into the same Needs Backfill bucket as a record with zero
+  frontmatter. A present-but-broken status now raises, matching the
+  function's own out-of-enum contract.
+- **`check_adr_links.py`'s fence tracking was a bare open/closed toggle,
+  not fence-character-aware.** A `~~~`-opened block containing a line that
+  starts with backticks was incorrectly closed by that line under
+  CommonMark's actual same-character rule. Now tracks the opening marker.
+- **`check_adr_lifecycle.py`'s `_status_prose()` blanked code but not raw
+  HTML blocks before searching for `## Status`.** `blank_code_block_lines()`
+  deliberately keeps HTML visible for `check_skill_md_portability.py`, so
+  widening it in place would have regressed that caller. Added
+  `blank_non_prose_block_lines()` instead, sharing the existing blanking
+  loop under a wider token-type set.
+- **`memory-gate/SKILL.md` overclaimed Python as "the only sanctioned
+  scripting language."** ADR-042 deprecates PowerShell for new scripts
+  while explicitly keeping it for quick fixes and Windows-specific
+  operations. Reworded; copilot-cli mirror regenerated.
+- **`.claude/skills/adr-review/tests/test_detect_adr_changes.py` was a
+  stale, colocated test file**, violating `.claude/rules/testing.md` MUST 6.
+  Not a byte-for-byte duplicate of the relocated `tests/skills/adr-review/`
+  suite: five cases were genuinely unique and ported before the stale copy
+  (and its copilot-cli mirror) were deleted. Porting them pushed the
+  target file past the taste-lint file-size ceiling; split into a new
+  `test_detect_adr_changes_cli_contract.py` sibling instead of a
+  suppression, matching the existing `_encoding.py` / `_duplicate_keys.py`
+  split pattern in the same directory.
+
+Ten round-2/3 threads closed out this round that were already fixed in
+code but never replied-to or resolved on GitHub (compaction interrupted
+that step): duplicate-key rejection in both lifecycle files (`06c4b5abd`),
+the ADR-063 test calling the canonical parser (`aed2530fb`),
+`prose-frontmatter-agree` searching the whole body (`df9c75495`), ADR-link
+targets resolved against the tracked inventory (`01798f214`), the
+absent-vs-unterminated-frontmatter distinction (`a6e38f6b7`), the baseline
+key including violation `kind` (`e2cb80a44`), `build_all.py` failing loud
+on a missing ADR directory (`75a82f209`), `ADR-TEMPLATE.md` no longer
+forbidding `## Status` (`483f74adb`), the "checks 2 to 9" containment note
+corrected to "2 to 7" (`1d4960414`), and this description's own stale
+check/violation counts (already corrected in a prior round). One thread,
+`ADR-005-status-duplication-debate-log.md`'s claim that four records "keep
+their prose status sections," was genuinely still stale (their nuance
+moved to purpose-specific headings after the log was written) and is
+corrected in this round, verified against each file directly rather than
+from memory.
+
+Test counts: `check_adr_lifecycle` 116 tests (up from 111), `check_adr_links`
+80 tests (up from 79), `generate_adr_index` 78 tests (up from 73), plus 6
+new tests in `tests/test_markdown_parser.py` for `blank_non_prose_block_lines`
+and 6 new tests in `tests/skills/adr-review/test_detect_adr_changes_cli_contract.py`.
+`check_adr_lifecycle.py --repo-root .` and `check_adr_links.py --repo-root .`
+both re-run clean against the full corpus (64 baselined violations for the
+former, 0 for the latter, no check above its baseline). `taste_count_ratchet.py`
+confirmed at 576 (the baseline), after the file-size split above.
