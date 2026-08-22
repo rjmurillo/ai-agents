@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding.json
-qaCommit: 7125eb7850014800c56eb0f184505eddb2639369
+qaCommit: e45a562f5251ad3fb2517ecf1b5f6ef108dea986
 ---
 
 # ADR-102 Session QA
@@ -405,6 +405,27 @@ directly to this branch, merged in earlier).
 `qaCommit` moves from `b6da229e5` to `7125eb785`, the `endingCommit`
 follow-up made after this round's fixes;
 `post_qa_code_changes('7125eb7850014800c56eb0f184505eddb2639369', 'HEAD', ...)`
+confirmed empty.
+
+## Post-Review Rebind: Copilot's Fourth Review Round
+
+Copilot's fourth review round found the corpus measurement itself used
+`git log --all` instead of a named ref, violating `ci-scripts.md` MUST 9.
+Re-measured from `HEAD`: 44 edits/32 commits/38 both-present/36 agreeing
+(not 50/38/44/42), 33 creations + 3 unrelated field-backfills (not
+34/8/7 hand-syncs); the 2 disagreements are unchanged. Corrected the ADR,
+debate log, this QA report, code comments in `.claude/lib/qa_report.py`,
+`scripts/validate_session_json.py`, and `tests/test_validate_session_json.py`,
+and this session log. Also fixed the retrospective's declined failure-mode
+classification (now leads with Class 2 as the nearest match) and confirmed
+the "PR body is literally `$(cat ...)`" finding was stale (already fixed
+earlier this session, verified directly against the GitHub API). Declined
+to rename the retrospective to `YYYY-MM-DD-<slug>.md`: CONTRIBUTING.md
+prescribes its exact current path for this document type.
+
+`qaCommit` moves from `7125eb785` to `e45a562f5`, the `endingCommit`
+follow-up made after this round's fixes;
+`post_qa_code_changes('e45a562f5251ad3fb2517ecf1b5f6ef108dea986', 'HEAD', ...)`
 confirmed empty.
 
 ## Verdict
