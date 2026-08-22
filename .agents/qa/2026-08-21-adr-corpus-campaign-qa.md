@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 80ba38e0c39c111bb73c60246cf113e634aa124c
+qaCommit: 702e3819074c2d623fda38bea5d4900d69eb67f2
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1185,3 +1185,13 @@ only, no behavior change). All four suites together: 308 tests pass.
 `ruff check` clean across every touched file.
 
 **Rebound to** `80ba38e0c39c111bb73c60246cf113e634aa124c`.
+
+**Addendum 18 correction.** The round-8 diff above grew
+`check_adr_links.py` from 491 to 537 lines, crossing the 500-line
+taste-lint ceiling for the first time; `pre_pr.py`'s taste-count-ratchet
+caught it as a real +1 regression against the 576 baseline. 243 of the 537
+lines are comments and docstrings, so suppressed with the documented
+per-repo escape rather than split, matching `generate_adr_index.py`'s
+existing precedent for the same rule. Ratchet confirmed back at baseline.
+
+**Rebound to** `702e3819074c2d623fda38bea5d4900d69eb67f2`.

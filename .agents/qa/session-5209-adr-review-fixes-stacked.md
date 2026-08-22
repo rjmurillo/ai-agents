@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 80ba38e0c39c111bb73c60246cf113e634aa124c
+qaCommit: 702e3819074c2d623fda38bea5d4900d69eb67f2
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -685,3 +685,12 @@ commits, seven files, all mutation-proven; 308 tests pass across the four
 touched suites; `ruff check` clean.
 
 **Rebound to** `80ba38e0c39c111bb73c60246cf113e634aa124c`.
+
+**Addendum 20 correction.** The diff above pushed `check_adr_links.py`
+from 491 to 537 lines, a real taste-count-ratchet regression (+1 over the
+576 baseline). Suppressed with the documented per-repo file-size escape
+rather than split (243 of 537 lines are comments/docstrings); ratchet
+confirmed back at baseline. Full detail in the matching correction above
+Addendum 18 of the campaign report.
+
+**Rebound to** `702e3819074c2d623fda38bea5d4900d69eb67f2`.
