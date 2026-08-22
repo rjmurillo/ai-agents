@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding.json
-qaCommit: e45a562f5251ad3fb2517ecf1b5f6ef108dea986
+qaCommit: 8b4c73129c178402f2e2786e677973e5812b5318
 ---
 
 # ADR-102 Session QA
@@ -426,6 +426,34 @@ prescribes its exact current path for this document type.
 `qaCommit` moves from `7125eb785` to `e45a562f5`, the `endingCommit`
 follow-up made after this round's fixes;
 `post_qa_code_changes('e45a562f5251ad3fb2517ecf1b5f6ef108dea986', 'HEAD', ...)`
+confirmed empty.
+
+## Post-Review Rebind: Copilot's Fifth Review Round
+
+A fifth automated Copilot review pass found that the `inconsistency`
+warning's text overclaimed: `session_qa_binding()` only validates each
+field's shape against `_FULL_COMMIT_PATTERN` and never calls
+`resolve_commit()` on `comparison_head`, so "resolve to different
+commits" was not accurate to what the code checks. ADR-102's own central
+committed example (two orphaned SHAs that `git log -1` reports as
+`fatal: bad object`) makes the overclaim concrete. Reworded to "are
+different full commit SHAs" in `.claude/lib/qa_report.py` and the ADR's
+own quoted copy; regenerated the `src/copilot-cli/lib/qa_report.py`
+mirror (`diff -q` confirmed byte-identical). No test pinned the old
+wording verbatim, and the full 382-test suite in
+`tests/test_validate_session_json.py` stayed green. Also fixed: the
+retrospective's remediation table still marked the
+`commit-limit-bypass` label "Pending" after it was already applied to
+the PR (corrected to "Applied"); and the PR description's review-conduct
+and Testing sections had not yet absorbed the fourth round's `git log
+--all` correction and the `--no-verify` push-mechanism disclosure
+respectively (both rewritten directly via the GitHub API; no repository
+file carries PR-description text). Full detail in the debate log's
+"Post-consensus: a fifth Copilot review round" section.
+
+`qaCommit` moves from `e45a562f5` to `8b4c73129`, the `endingCommit`
+follow-up made after this round's fixes;
+`post_qa_code_changes('8b4c73129c178402f2e2786e677973e5812b5318', 'HEAD', ...)`
 confirmed empty.
 
 ## Verdict
