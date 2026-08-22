@@ -55,6 +55,18 @@ ADR-024 and ADR-025 do **not** clear on transcription: their own prose said `Acc
 | P1. ADR-024 cited bare SHAs unverifiable in a shallow clone. | independent-thinker, critic | Replaced with PR numbers. |
 | P1. The batch flipped ADR-042 but not six similar records, with no explanation. | independent-thinker | The asymmetry and its reason are now recorded in ADR-055's Status. |
 
+**Correction from a later review round.** The `implemented: false` row above no longer
+describes the final record. A later Copilot review on PR #5209's own head pointed out that
+111 of 132 `runs-on` declarations are already ARM, well past ADR-073's "first merged change"
+definition of `implemented`, which the P0 resolution above conflated with full compliance
+(the separate, still-open question is the 21-job gap and its exception-marker requirement).
+ADR-055's frontmatter was corrected back to `implemented: true`, with the 21-job gap kept in
+its Metrics section and tracked by issue #5199. This row is left as the batch decided at the
+time, not rewritten, so the record shows what was decided and why it changed. The full
+correction, including the same fix on ADR-024's provenance line, is recorded in
+`ADR-024-025-042-055-status-redundancy-debate-log.md`'s own "Corrections from a later Copilot
+review round on PR #5209" section.
+
 ## The corrected root cause, which the campaign originally got wrong
 
 Issue #5199 diagnosed the `# ADR-032 Exception:` marker as "a renumbering pass applied with the wrong offset." That is wrong, and the first draft of ADR-055's repair repeated the error.

@@ -77,7 +77,18 @@ red on a byte nobody in this campaign wrote. Rewritten as a colon.
 
 ACCEPT from architect, security, analyst and the tie-breaker. The
 independent-thinker recorded these as "mechanical and correct". The critic's P1
-stands and is not resolved here: ADR-023 was opened for repair and left without
-frontmatter, so it remains in the `id-matches-filename` and
-`status-section-present` violation sets. That is scope discipline, not an
-oversight, and it is named so the backfill picks it up.
+stands and is not resolved here: ADR-023 was opened for repair and left with an
+incomplete frontmatter block, so it remains in the `id-matches-filename`
+violation set (it carries `status`, `date`, `decision-makers`, `consulted`, and
+`informed`, but no `id` key). That is scope discipline, not an oversight, and
+it is named so issue #5190's backfill picks it up.
+
+**Correction from a later review round.** This closing claim was stale in two
+ways a later Copilot review on PR #5209's own head caught: it said ADR-023 was
+"left without frontmatter" when the record has a frontmatter block missing
+only `id`, and it named a `status-section-present` check that does not exist
+in the shipped seven-check `CHECKS` tuple
+(`scripts/validation/check_adr_lifecycle.py:111-119`: frontmatter-parses,
+id-matches-filename, status-enum, supersession-reciprocal,
+supersession-target-exists, proposed-cannot-supersede, prose-frontmatter-agree).
+Corrected above to name only the real, current violation.
