@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 9007119b7200197e146d026470fe240feb55dcd0
+qaCommit: bfad327fb752a4bc2a476a2e13fd6d01cd9cd773
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1001,3 +1001,13 @@ non-Linux machine. Fixed with
 this repo's established `sys.platform == "win32"` skip convention
 (`tests/test_check_doc_interpreter_portability.py` and others). 85
 tests still pass.
+
+**Rebound to** `bfad327fb752a4bc2a476a2e13fd6d01cd9cd773`. Cursor's own
+autofix agent pushed `602340af3` directly to this branch minutes after
+the local fix above, landing the identical fix
+(`@pytest.mark.skipif(sys.platform != "linux", ...)`) independently on
+top of the same parent commit. Merged rather than force-pushed over;
+the only conflict was the two skipif reason strings, resolved by
+keeping the local version's longer one (names the actual filesystems
+and cites the finding source). 85 tests pass after resolution; no other
+content differed between the two commits.

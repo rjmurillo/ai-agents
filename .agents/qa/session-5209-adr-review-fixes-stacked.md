@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 9007119b7200197e146d026470fe240feb55dcd0
+qaCommit: bfad327fb752a4bc2a476a2e13fd6d01cd9cd773
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -614,3 +614,9 @@ Fixed with `@pytest.mark.skipif(sys.platform != "linux", reason=...)`,
 matching this repo's existing `sys.platform == "win32"` skip convention.
 CI itself was never at risk (the suite runs on Ubuntu only); this guards
 a contributor running locally on a different OS. 85 tests still pass.
+
+**Rebound to** `bfad327fb752a4bc2a476a2e13fd6d01cd9cd773`. Cursor's
+autofix agent independently pushed the identical fix directly to this
+branch minutes later; merged (not force-pushed over), keeping the local
+reason string. Full detail in the campaign report's matching rebind
+note above Addendum 16.
