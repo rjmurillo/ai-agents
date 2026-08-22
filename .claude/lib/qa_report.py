@@ -198,8 +198,8 @@ def session_qa_binding(
         inconsistency = None
         if resolved_ending is not None and comparison_head != resolved_ending:
             inconsistency = (
-                "Session log comparison head and endingCommit resolve to "
-                f"different commits ({comparison_head} != {resolved_ending}); "
+                "Session log comparison head and endingCommit are different "
+                f"full commit SHAs ({comparison_head} != {resolved_ending}); "
                 "binding QA evidence to comparison head"
             )
         return QaBinding(

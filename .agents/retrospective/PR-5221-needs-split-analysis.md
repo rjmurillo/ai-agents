@@ -103,6 +103,6 @@ to force-fit Class 2.
 
 | Action | Owner | Status |
 |--------|-------|--------|
-| Apply `commit-limit-bypass` label to unblock PR #5221 | Human reviewer | Pending |
+| Apply `commit-limit-bypass` label to unblock PR #5221 | Human reviewer | Applied |
 | Consider raising the post-merge limit or exempting bookkeeping-only commits in a future ADR | Process owner (TBD via issue) | Not started |
 | No code or governance change required for this specific PR | n/a | N/A |
