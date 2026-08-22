@@ -30,6 +30,8 @@ The canonical set is `spec-compliance` as the Stage-1 gate plus 11 Stage-2 canon
 
 `/review` is a strict superset of CI only in deep-review mode, when it runs the full canonical set. Risk-selected `/review` can be narrower than CI, because it may skip axes that do not apply. The 3 local-only skill axes (`code-qualities-assessment`, `golden-principles`, `taste-lints`) need local code execution and repo state, so CI cannot run them, but they are language-agnostic and can be selected or pinned as always-on when relevant.
 
+**Self-audit round cap (hard stop).** `/review` itself runs each axis once per invocation and returns; it has no internal fix-and-re-review loop. The cap below binds the caller: any skill, command, or agent that chains "fix findings, re-invoke `/review` against the same diff base, repeat" without a human checkpoint in between MUST NOT run more than 3 such `/review` rounds. This is a hard stop, not a guideline, modeled on the PR-loop cap in `check_pr_round_cap.py` (issue #5056), built after PR #1887 ran 11+ review rounds over 46 hours with no cap. On the 3rd round: if the FINAL VERDICT is PASS (or a WARN the caller has explicitly acknowledged), ship. Otherwise stop and escalate to the operator, listing every open finding from that round (axis, verdict, location, recommendation). Never continue looping past the 3rd round silently.
+
 ## Path resolution (harness-agnostic)
 
 This skill runs in two layouts: the source Claude Code project (where `.claude/` is the repo root) and a vendored plugin install (Copilot CLI and similar harnesses) where the consumer repo has no `.claude/` directory and the plugin lives outside the consumer's tree.
