@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, 243 of the 537 lines are comments and
+# docstrings: the four-violation-class module docstring, the per-function
+# rationale for each detection rule, and the RFC 3986 section 3.1/4.2
+# citations backing is_adr_target()'s scheme and network-path checks
+# (PR #5209 round-8 review). Logic alone is well under the ceiling; a split
+# would move prose between files rather than reduce anything.
 r"""Detect ADR markdown links that do not resolve or that name the wrong ADR number.
 
 Scans tracked markdown files for links whose target matches ``ADR-\d+.*\.md`` and
