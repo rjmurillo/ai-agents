@@ -7,6 +7,8 @@ from datetime import date
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from scripts.invoke_session_start_gate import (
     check_branch_gate,
     check_memory_gate,
@@ -63,18 +65,28 @@ class TestCheckSessionLogGate:
 
         assert check_session_log_gate(tmp_path) is True
 
-    def test_advisory_when_no_sessions_dir(self, tmp_path: Path) -> None:
-        # The committed session-log gate is retired: a missing sessions
-        # directory is advisory (WARN), not a blocking failure.
+    def test_passes_silently_when_no_sessions_dir(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Session log creation is discontinued (session-logs.md), so a missing
+        # sessions directory is the expected case, not a warning-worthy one.
         assert check_session_log_gate(tmp_path) is True
+        out = capsys.readouterr().out
+        assert "[WARN]" not in out
+        assert "[PASS]" in out
 
-    def test_advisory_when_no_today_sessions(self, tmp_path: Path) -> None:
+    def test_passes_silently_when_no_today_sessions(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         sessions = tmp_path / ".agents" / "sessions"
         sessions.mkdir(parents=True)
         # Create a session from yesterday
         (sessions / "2020-01-01-session-1.json").write_text("{}", encoding="utf-8")
-        # No session log for today is advisory (WARN), not a blocking failure.
+        # No session log for today is the expected case now, not a warning.
         assert check_session_log_gate(tmp_path) is True
+        out = capsys.readouterr().out
+        assert "[WARN]" not in out
+        assert "[PASS]" in out
 
 
 class TestCheckBranchGate:

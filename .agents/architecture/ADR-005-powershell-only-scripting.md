@@ -1,8 +1,16 @@
+---
+id: ADR-005
+status: superseded
+date: 2025-12-18
+decision-makers: ["User", "Orchestrator Agent", "Implementer Agent"]
+supersedes: []
+superseded-by: ADR-042
+explainer: null
+implemented: true
+---
+
 # ADR-005: PowerShell-Only Scripting Standard
 
-**Status**: Superseded by [ADR-042](./ADR-042-python-migration-strategy.md)
-**Date**: 2025-12-18
-**Deciders**: User, Orchestrator Agent, Implementer Agent
 **Context**: PR #60 AI workflow implementation
 
 ---

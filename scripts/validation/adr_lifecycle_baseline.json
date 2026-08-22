@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "description": "Per-check ADR lifecycle violation ceiling (issue #5191). A count may fall but never rise. Regenerate with: uv run python scripts/validation/check_adr_lifecycle.py --write-baseline",
+  "counts": {
+    "frontmatter-parses": 53,
+    "id-matches-filename": 10,
+    "status-enum": 0,
+    "supersession-reciprocal": 0,
+    "supersession-target-exists": 0,
+    "proposed-cannot-supersede": 0,
+    "prose-frontmatter-agree": 1
+  }
+}

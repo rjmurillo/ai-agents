@@ -1,7 +1,7 @@
 # Search, Don't Load: Memory-First Evidence Protocol
 
 > **Status**: Active
-> **Related**: [ADR-007: Memory-First Architecture](/.agents/architecture/ADR-007-memory-first-architecture.md) | [AGENTS.md](/AGENTS.md) Retrieval gate
+> **Related**: [ADR-007: Memory-First Architecture](../.agents/architecture/ADR-007-memory-first-architecture.md) | [AGENTS.md](/AGENTS.md) Retrieval gate
 
 ## What This Pattern Means
 
@@ -81,6 +81,6 @@ memory index and load task-relevant memories before modifying files.
 
 ## References
 
-- [ADR-007: Memory-First Architecture](/.agents/architecture/ADR-007-memory-first-architecture.md)
+- [ADR-007: Memory-First Architecture](../.agents/architecture/ADR-007-memory-first-architecture.md)
 - [AGENTS.md, Retrieval](/AGENTS.md)
 - Serena memory: `init-003-memory-first-monitoring-gate` (30% efficiency data)
