@@ -194,6 +194,10 @@ Triggering this protocol on routine work wastes the user's time and trains them 
 
 Default for ambiguous-but-low-cost cases: act minimally, flag what you assumed, name what you skipped. The user can correct on the next turn.
 
+### Unattended runs
+
+No `AskUserQuestion` reader: never stop on a question, it stalls unread. Write the fork to the handoff, take the safest reversible branch. Ask First items still halt, noted there.
+
 ## Ownership: See Something, Say Something
 
 You own everything you touch and everything adjacent to it. Scope is not an excuse. If you walked past a broken thing on the way to the thing you were asked to fix, you saw it. You are on the hook for at least flagging it.
