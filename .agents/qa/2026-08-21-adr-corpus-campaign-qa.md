@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 63c04c4029c289a973b29595cb516f2b0911c15c
+qaCommit: 986ab2641b1b68cd326b68c5a06f314eccbeb79a
 ---
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
@@ -616,3 +616,20 @@ branch. Evidence lives in addenda 9 and 10 of
 duplicate-key guards this campaign added did not close the forgery vector they
 were built for, because a line scan compares raw prefixes and YAML compares
 constructed keys. All three readers now detect at the parser.
+
+
+## Addendum 10: PR #5209's own branch merged past `origin/main`, and one more fix landed
+
+**Rebound to** `986ab2641b1b68cd326b68c5a06f314eccbeb79a`.
+
+The frontmatter `qaCommit` had drifted from this file's own last `Rebound
+to` value (`5ec9be82445...` in Addendum 9); noted here rather than silently
+carried forward, since reconciling it is out of scope for this rebind.
+
+Full detail lives in Addendum 12 of
+`.agents/qa/session-5209-adr-review-fixes-stacked.md`: committed the
+already-drafted `build_all.py` ADR-index fix, merged `origin/main` to clear
+this branch's `mergeable_state: "dirty"` (one conflict, the same
+`tests/ci/test_validate_vendor_provenance.py` Renovate-drift collision
+already resolved on the stacked branch), and regenerated the ADR index for
+the resulting drift. 279 tests passed.

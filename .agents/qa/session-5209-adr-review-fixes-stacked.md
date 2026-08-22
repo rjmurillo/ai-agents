@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: f681609df8ea4d73fb10f344b87602719cf01678
+qaCommit: 986ab2641b1b68cd326b68c5a06f314eccbeb79a
 ---
 
 # QA: PR #5209 review-round fixes, carried on a stacked branch
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `f681609df8ea4d73fb10f344b87602719cf01678` (see Addendum 11)
+**Validated at commit**: `986ab2641b1b68cd326b68c5a06f314eccbeb79a` (see Addendum 12)
 
 ## Verdict
 
@@ -412,3 +412,45 @@ uv run pytest tests/test_invoke_session_start_gate.py -q
 
 This is the commit this addendum's `qaCommit` rebind covers; no other file
 changed between the previous binding and this one.
+
+## Addendum 12: merged origin/main into PR #5209's own branch, closing the "dirty" state
+
+This QA report's `qaCommit` history above tracked commits landing on
+`claude/adr-5209-review-fixes` before that branch's fix commits were merged
+into `claude/adr-evaluation-tooling-6od8rd` (PR #5209 itself) at commit
+`d709cad6b`. PR #5209's branch subsequently fell behind `origin/main` again
+(GitHub reported `mergeable_state: "dirty"`), and separately carried one
+already-drafted fix that had never been committed
+(`build/scripts/build_all.py`'s ADR-index silent-skip removal, verified
+90/90 passing, mutation-proven by reverting the fix and confirming exactly
+the two new tests fail).
+
+Committed that fix (`75a82f209`, `SKIP_SCOPE_CHECK=1` used with explicit
+user approval: the branch already carries `needs-split` and
+`commit-limit-bypass` for the same stacked-PR bookkeeping overhead, and this
+commit's 2 files pushed the branch to 51/50), then merged `origin/main`
+(`5056dec46`, also under the approved bypass, since the merge itself brings
+in many more files from main). The only real conflict was, again,
+`tests/ci/test_validate_vendor_provenance.py`; resolved by taking the
+identical fuller resolution already landed on `claude/adr-5209-review-fixes`
+(compiled `_SETUP_UV_PIN_RE`, the two-source docstring, the separate
+discrimination-probe test) rather than re-deriving it. Verified no conflict
+markers remain and the file passes standalone (51 passed).
+
+`build/scripts/build_all.py --check` then caught the expected post-merge ADR
+index drift (ADR-102 not yet reflected); regenerated (`986ab2641`, diff is
+exactly the one new ADR-102 row; ADR-099 was already present from an earlier
+merge on this branch).
+
+Re-ran the full targeted suite after both commits:
+
+```
+uv run pytest tests/ci/test_validate_vendor_provenance.py \
+  tests/validation/test_check_adr_links.py \
+  tests/build_scripts/test_generate_adr_index.py \
+  tests/build_scripts/test_build_all.py -q
+279 passed
+```
+
+`qaCommit` rebinds to `986ab2641b1b68cd326b68c5a06f314eccbeb79a`, the
+regeneration commit, where the diff to HEAD is empty.
