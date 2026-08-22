@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 986ab2641b1b68cd326b68c5a06f314eccbeb79a
+qaCommit: 92304f8231a2de5977820f73d63452999b21b60f
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -634,3 +634,16 @@ this branch's `mergeable_state: "dirty"` (one conflict, the same
 `tests/ci/test_validate_vendor_provenance.py` Renovate-drift collision
 already resolved on the stacked branch), and regenerated the ADR index for
 the resulting drift. 279 tests passed.
+
+
+## Addendum 11: workspace-budget fix and a real taste-lint ratchet regression
+
+**Rebound to** `92304f8231a2de5977820f73d63452999b21b60f`.
+
+Full detail in Addendum 13 of
+`.agents/qa/session-5209-adr-review-fixes-stacked.md`. Summary: `AGENTS.md`
+breached its 3000-byte budget as a merge side effect (fixed, 2984 bytes),
+and this file (the one carrying this addendum) crossed 500 lines, a real
+taste-count ratchet regression against `origin/main`'s baseline (this file
+does not exist there). Suppressed with the documented per-repo escape
+rather than splitting; verified the whole-tree ratchet returns to baseline.

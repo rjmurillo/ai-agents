@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 986ab2641b1b68cd326b68c5a06f314eccbeb79a
+qaCommit: 92304f8231a2de5977820f73d63452999b21b60f
 ---
 
 # QA: PR #5209 review-round fixes, carried on a stacked branch
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `986ab2641b1b68cd326b68c5a06f314eccbeb79a` (see Addendum 12)
+**Validated at commit**: `92304f8231a2de5977820f73d63452999b21b60f` (see Addendum 13)
 
 ## Verdict
 
@@ -454,3 +454,30 @@ uv run pytest tests/ci/test_validate_vendor_provenance.py \
 
 `qaCommit` rebinds to `986ab2641b1b68cd326b68c5a06f314eccbeb79a`, the
 regeneration commit, where the diff to HEAD is empty.
+
+## Addendum 13: workspace-budget fix and a real taste-lint ratchet regression
+
+`pre_pr.py`'s Count Ratchets caught two things after Addendum 12's merge:
+
+1. **`AGENTS.md` breached its 3000-byte budget** (3016 bytes) as a side
+   effect of that merge: this branch's own one-line edit combined with
+   `origin/main`'s independent one-line edits on non-overlapping lines,
+   and neither side alone exceeded the budget (2872 and 2992 bytes). Fixed
+   with the identical trim landed on `claude/adr-5209-review-fixes`
+   (commit `d08449061`): 2984 bytes, both budget tests pass.
+2. **A real taste-count ratchet regression**: 577 violations against
+   `origin/main`'s baseline of 576. The `+1` was
+   `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md` crossing 500 lines
+   (635) after this session's addenda; the file does not exist on
+   `origin/main`, so any violation in it is new by definition. Suppressed
+   with the documented per-repo escape (issue #3779) rather than
+   splitting (commit `92304f823`): this is an append-only QA audit trail
+   with sequentially numbered addenda, and splitting would break that
+   numbering and scatter one campaign's evidence across files. Verified
+   the suppression clears both the file-level scan and the whole-tree
+   ratchet (576 == baseline).
+
+Full `pre_pr.py` run after both fixes: 58 of 59 passed, the one failure
+being this addendum's own not-yet-rebound `qaCommit` (the exact staleness
+this addendum resolves). `qaCommit` rebinds to
+`92304f8231a2de5977820f73d63452999b21b60f`.
