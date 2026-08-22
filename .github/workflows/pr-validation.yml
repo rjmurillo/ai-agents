@@ -76,17 +76,13 @@ jobs:
         if: steps.should-run.outputs.skip != 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          # `Check PR commit count` reads origin/main's first-parent trunk to
-          # decide the 20 vs 40 commit ceiling (issue #3997). A default checkout
-          # is shallow and creates only refs/remotes/pull/<n>/merge, so
-          # `git rev-list --first-parent origin/main` fails, the predicate fails
-          # closed, and a branch that really does merge main is held to 20 here
-          # while the pre-push hook allows it 40. That is the exact divergence
-          # issue #3997 exists to remove, so the ref has to be present.
-          # Cost: an unshallow fetch of ~165 MiB against a 10-minute job budget,
-          # which is what 20+ workflows in this repo already pay. A shallower
-          # option would answer wrongly rather than fail closed, because a
-          # truncated trunk still reads as a trunk.
+          # `Check PR commit count` no longer needs this (its main-merge trunk
+          # read was removed, issue #5233), but this job also runs the
+          # merge-tree ratchet and several count ratchets further down
+          # (issue #4572, #4518), and those steps share this same checkout.
+          # A shallow checkout leaves `.git/shallow` in place for the rest of
+          # the job, which breaks `git merge-tree` with "refusing to merge
+          # unrelated histories". fetch-depth: 0 still has to stay here.
           fetch-depth: 0
 
       # Must precede every `uv run` in this job. `Check PR commit count` below
@@ -163,19 +159,18 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         # Thin wrapper (ADR-006): classification and transient-failure handling
         # live in the testable module. A transient GitHub API failure degrades
-        # to status=UNKNOWN and exit 0 (issue #3262); the downstream Enforce
-        # Blocking Issues step still enforces a real BLOCKED status.
+        # to status=UNKNOWN and exit 0 (issue #3262). The commit count is
+        # advisory only (issue #5233): no downstream step blocks on it.
         run: uv run --frozen python scripts/validation/pr_commit_count.py --pr-number "$PR_NUMBER"
 
       - name: Apply needs-split label
-        # Fixes #2557: this step is ADVISORY and must never fail the job.
-        # The real cap is enforced in `Enforce Blocking Issues`. The ceiling is
-        # 20, or 40 when the branch merges main (main-merge relief, issue #3596);
-        # both numbers live in scripts/validation/pr_commit_count.py.
+        # Fixes #2557: this step is ADVISORY and must never fail the job. It is
+        # purely a suggestion label with no local enforcement attached (issue
+        # #5233 removed the commit-count block this used to accompany).
         # `continue-on-error` is the belt; warnings (not throws) in the body
         # are the suspenders, so a label API outage shows as an annotation
         # rather than a red step outline.
-        if: steps.commit-check.outputs.status == 'WARNING' || steps.commit-check.outputs.status == 'ALERT' || steps.commit-check.outputs.status == 'BLOCKED'
+        if: steps.commit-check.outputs.status == 'WARNING' || steps.commit-check.outputs.status == 'ALERT'
         continue-on-error: true
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -193,9 +188,6 @@ jobs:
         if: steps.should-run.outputs.skip != 'true'
         env:
           OVERALL_STATUS: ${{ steps.report.outputs.overall_status }}
-          COMMIT_STATUS: ${{ steps.commit-check.outputs.status }}
-          COMMIT_COUNT: ${{ steps.commit-check.outputs.commit_count }}
-          COMMIT_LIMIT: ${{ steps.commit-check.outputs.commit_limit }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: python3 scripts/ci/enforce_pr_validation.py
 

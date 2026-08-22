@@ -41,7 +41,8 @@ HOOKS_DIR = REPO_ROOT / ".claude" / "hooks"
 OLD_PATTERN = re.compile(
     r"""# Bootstrap: find lib directory and set up imports \(see bootstrap\.py for details\)\n"""
     r"""_p = Path\(__file__\)\.resolve\(\)\.parent\n"""
-    r"""while _p\.parent != _p and not \(_p / "\.claude-plugin" / "plugin\.json"\)\.is_file\(\):\n"""
+    r"""while _p\.parent != _p and not \(_p """
+    r"""/ "\.claude-plugin" / "plugin\.json"\)\.is_file\(\):\n"""
     r"""    _p = _p\.parent\n"""
     r"""sys\.path\.insert\(0, str\(_p / "lib"\)\)\n"""
     r"""from bootstrap import setup_hook_lib_path  # noqa: E402\n"""
@@ -68,7 +69,11 @@ else:
             break
         _cur = _cur.parent
 if _lib_dir is None or not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {{_lib_dir}} (CLAUDE_PLUGIN_ROOT={{_plugin_root!r}})", file=sys.stderr)
+    print(
+        f"Plugin lib directory not found: {{_lib_dir}} "
+        f"(CLAUDE_PLUGIN_ROOT={{_plugin_root!r}})",
+        file=sys.stderr,
+    )
     sys.exit({exit_code})
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)'''

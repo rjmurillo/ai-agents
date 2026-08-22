@@ -5,9 +5,13 @@ applyTo: .agents/**
 # Session Log Mechanics
 
 `.agents/schemas/session-log.schema.json` describes what a session log
-contains. A session log is optional: nothing requires one to commit, push, or
-open a PR. This rule covers the mechanics that still apply once you choose to
-keep one.
+contains. **Session log creation is discontinued: do not create a new
+`.agents/sessions/*.json` file.** Nothing ever required one to commit, push, or
+open a PR. The existing logs under `.agents/sessions/` stay in the repository
+as history and remain readable by the `retrospective` skill, memory
+extraction, and the PreCompact hook. This rule covers the mechanics that still
+apply to a log that already exists on your branch (carried over from before
+this change, or cherry-picked from an older one).
 
 Scoped to `.agents/**` rather than `**` on purpose. The mechanics matter only
 when a change touches that tree, and the always-on instruction ceiling
@@ -19,10 +23,11 @@ universal; that is issue #4317, not a property of this rule.
 
 ## MUST
 
-1. **A session log is optional, and validated only when staged.** Staging
-   anything under `.agents/**` does NOT require a session log. When you DO stage
-   a log named `.agents/sessions/YYYY-MM-DD-session-NN<slug>.json`, the
-   `session-policy` pre-commit hook validates it
+1. **Do not create a new session log.** Session log creation is discontinued;
+   no start, end, commit, push, or PR gate ever required one, and none does
+   now. If a log named `.agents/sessions/YYYY-MM-DD-session-NN<slug>.json`
+   ends up staged anyway (for example, cherry-picked from an older branch),
+   the `session-policy` pre-commit hook still validates it
    (`scripts/validation/git_hook_policy.py session`, a validate-if-present gate):
    a malformed log still blocks that commit. When no log is staged, the gate
    returns 0 (`check_sessions` passes when there are no session paths, and also

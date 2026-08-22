@@ -24,7 +24,7 @@ SCRIPT = REPO_ROOT / "scripts" / "validation" / "validate_sync_registry.py"
 # sync_plugin_lib.
 sys.path.insert(0, str(REPO_ROOT / "scripts" / "validation"))
 
-import validate_sync_registry as vsr  # noqa: E402
+import validate_sync_registry as vsr
 
 
 def _make_package(parent: Path, name: str) -> Path:

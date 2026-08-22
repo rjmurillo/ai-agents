@@ -18,8 +18,8 @@ These rules apply to every change in this repository.
 7. **No secrets**. MUST NOT commit credentials, tokens, or API keys. Secrets live in environment variables or the secrets manager.
 8. **Pin Actions to SHA**. New GitHub Actions references MUST pin to a commit SHA, never a floating tag.
 9. **Session continuity**. Long-running issue work MUST preserve continuity in
-   the per-issue handoff and Serena memory. Session logs are optional and
-   validate only when staged or explicitly supplied.
+   the per-issue handoff and Serena memory. Session log creation is
+   discontinued; a log that is already staged still validates.
 10. **Git identity cannot prove a human acted.**
 
 ## SHOULD

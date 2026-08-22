@@ -30,7 +30,7 @@ _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 
-from validate_python_syntax import (  # noqa: E402
+from validate_python_syntax import (
     _read_python_source,
     _tracked_python_files,
     _walk_python_files,

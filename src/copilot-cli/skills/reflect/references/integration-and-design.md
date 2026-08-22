@@ -12,7 +12,7 @@ Run reflection at session end as part of retrospective:
 
 ```text
 ## Session End Checklist
-- [ ] Complete session log
+- [ ] Update the per-issue handoff
 - [ ] Run skill reflection (if skills were used)
 - [ ] Update Serena memory
 - [ ] Commit changes

@@ -60,17 +60,35 @@ context can appear twice with different conclusions. Collapsing naively kept
 the SKIPPED row and hid the SUCCESS, which produced a false report of a failing
 required check earlier in the same session.
 
-## The commit ceiling is a separate gate with its own escape hatch
+## The commit ceiling: superseded, no longer a merge gate (ADR-099, 2026-08-21)
 
-`Validate PR` can fail with `OVERALL_STATUS: PASS` and `COMMIT_STATUS: BLOCKED`:
+**Superseded.** The block and error message quoted below no longer exist.
+ADR-099 (issue #5233) removed the commit-count block and the
+`commit-limit-bypass` label mechanism entirely, from both `pr-validation.yml`
+and the local pre-push hook: the local check's only way to verify its own
+escape hatch was a `gh api` call that a Claude Code cloud/remote session
+structurally cannot make ("GitHub access is not enabled for this session"),
+which forced authors into an expensive stacked-branch-and-PR workaround even
+when the label was already correctly applied. `pr_commit_count.py` still
+classifies a PR's commit count into `OK`/`WARNING`(>=10)/`ALERT`(>=15) and
+`needs-split` still auto-applies at those thresholds, but neither status
+blocks a push or a merge anymore. If you hit a commit-count-shaped BLOCKED
+verdict on a PR after 2026-08-21, it is not this gate; keep reading the
+ruleset per the section above.
+
+The rest of this section is kept for historical diagnosis of PRs opened
+before the removal, or for anyone reading a stale CI log that still shows it.
+
+`Validate PR` used to be able to fail with `OVERALL_STATUS: PASS` and
+`COMMIT_STATUS: BLOCKED`:
 
 ```
 ##[error]PR has 21 commits (limit: 20). Add 'commit-limit-bypass' label to override or split this PR.
 ```
 
-The label is `commit-limit-bypass`, distinct from
-`description-validation-bypass`. Applying the label does not re-evaluate on its
-own; re-run the failed workflow afterward.
+The label was `commit-limit-bypass`, distinct from
+`description-validation-bypass`. Applying the label did not re-evaluate on its
+own; a re-run of the failed workflow was required afterward.
 
 Finding that run needs the workflow name, not the check name. The check is
 `Validate PR`; the workflow is `PR Validation`. `gh run list --workflow

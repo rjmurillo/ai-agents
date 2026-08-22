@@ -69,8 +69,8 @@ def add_label(repository: str, pr_number: str) -> int:
     if result.returncode != 0:
         print(
             f"::warning::Failed to add advisory '{LABEL}' label "
-            f"(exit code: {result.returncode}). Cosmetic only; the 20-commit cap "
-            "is still enforced by 'Enforce Blocking Issues'.",
+            f"(exit code: {result.returncode}). Cosmetic only; this label is "
+            "advisory and carries no enforcement.",
             file=sys.stderr,
         )
         return 0
@@ -102,8 +102,8 @@ def remove_label(repository: str, pr_number: str) -> int:
     if result.returncode != 0:
         print(
             f"::warning::Failed to remove advisory '{LABEL}' label "
-            f"(exit code: {result.returncode}). Cosmetic only; the gate logic "
-            "is unchanged.",
+            f"(exit code: {result.returncode}). Cosmetic only; this label is "
+            "advisory and carries no enforcement.",
             file=sys.stderr,
         )
         return 0
