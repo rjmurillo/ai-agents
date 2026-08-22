@@ -3,6 +3,7 @@ qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
 qaCommit: f3e8f7f0957a8424f25a7c096f4c486aa16d8f5f
 ---
+<!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
 # QA: PR #5209 review-round fixes, carried on a stacked branch
 
