@@ -119,8 +119,8 @@ def _parse_frontmatter(frontmatter: str) -> dict[str, object] | None:
     return loaded
 
 
-def _has_duplicate_top_level_keys(frontmatter: str) -> bool:
-    """True when a frontmatter mapping declares the same key twice.
+def _has_duplicate_keys(frontmatter: str) -> bool:
+    """True when a frontmatter mapping declares the same key twice, at any depth.
 
     Duplicate keys are malformed YAML and can hide a governance change (a
     second ``status:`` line masking the first). PyYAML resolves duplicates
@@ -131,34 +131,39 @@ def _has_duplicate_top_level_keys(frontmatter: str) -> bool:
     regex recognised only ``^[A-Za-z0-9_-]+:``, which asks a different question
     than YAML does. Measured on that revision, three of four spellings walked
     through while ``yaml.safe_load`` enforced ``accepted`` for every one:
+    ``status: proposed`` was caught but ``"status": proposed``, ``status :
+    proposed``, and ``'status': proposed`` all MISSED (all four are exercised
+    in ``TestDuplicateKeySpellings.test_every_spelling_is_caught``). A guard
+    against forgery that the forger evades with quotation marks is worse than
+    none, because it reports clean. Copilot found it on PR #5230.
 
-        status: proposed   / status: accepted     caught
-        "status": proposed / status: accepted     MISSED
-        status : proposed  / status: accepted     MISSED
-        'status': proposed / status: accepted     MISSED
-
-    A guard against forgery that the forger evades with quotation marks is
-    worse than none, because it reports clean. Copilot found it on PR #5230.
+    The constructor fires for every mapping node the loader builds, not only
+    the document root, so a duplicate nested one level down is caught the same
+    way (``test_a_nested_duplicate_is_caught``). The name once read
+    ``_has_duplicate_top_level_keys``, which undersold that (Copilot, PR #5209
+    round-7 review).
 
     Mirrors `_no_duplicate_keys` in build/scripts/generate_adr_index.py, which
-    is canonical. The detection is quoted verbatim from it:
+    is canonical. The detection is quoted verbatim from it
+    (`build/scripts/generate_adr_index.py:198-205`)::
 
         seen: list[Any] = []
         for key_node, _ in node.value:
             key = loader.construct_object(key_node, deep=True)
             if any(key == earlier for earlier in seen):
-                raise ...
+                raise _DuplicateKeyError(f"duplicate key {key!r} in frontmatter mapping")
             seen.append(key)
+        mapping: dict[Any, Any] = loader.construct_mapping(node, deep=True)
+        return mapping
 
     Stricter/looser/different than canonical: identical detection; this returns
-    a bool because callers only branch on it, and it swallows a YAML parse error
-    as False because a malformed block is already handled by the callers'
-    own parse path. This file ships inside the plugin and may import only the
+    a bool because callers only branch on it, and swallows a YAML parse error
+    as False because a malformed block is already handled by the callers' own
+    parse path. This file ships inside the plugin and may import only the
     standard library and yaml, so the loader is duplicated here rather than
-    shared (`.claude/rules/plugin-self-containment.md`).
-
-    A list compared with ``==``, not a set: a YAML key need not be hashable
-    (``? [a, b]`` builds a list key) and a set raises ``TypeError`` on it.
+    shared (`.claude/rules/plugin-self-containment.md`). Keys are compared with
+    ``==`` in a list, not a set: a YAML key need not be hashable (``? [a, b]``
+    builds a list key) and a set raises ``TypeError`` on it.
     """
 
     class _Dup(yaml.YAMLError):
@@ -201,9 +206,7 @@ def _only_non_decision_fields_changed(old_frontmatter: str, new_frontmatter: str
     frontmatter: a duplicated or unparseable governance key could otherwise
     mask a status change.
     """
-    if _has_duplicate_top_level_keys(old_frontmatter) or _has_duplicate_top_level_keys(
-        new_frontmatter
-    ):
+    if _has_duplicate_keys(old_frontmatter) or _has_duplicate_keys(new_frontmatter):
         return False
     old_fields = _parse_frontmatter(old_frontmatter)
     new_fields = _parse_frontmatter(new_frontmatter)
@@ -293,7 +296,7 @@ def _get_adr_status(file_path: Path) -> str:
     frontmatter, _body = _split_frontmatter(content)
     if not frontmatter:
         return STATUS_UNKNOWN
-    if _has_duplicate_top_level_keys(frontmatter):
+    if _has_duplicate_keys(frontmatter):
         # PyYAML resolves duplicates last-wins and reports nothing, so a record
         # carrying `status: proposed` near the top and `status: accepted` lower
         # in the same block parses as accepted while reading as proposed to

@@ -29,7 +29,7 @@ _DETECTOR_TREES = [
 class TestDuplicateKeySpellings:
     """Quoting must not launder a duplicate past the exemption guard.
 
-    `_has_duplicate_top_level_keys` matched `^[A-Za-z0-9_-]+:` line prefixes,
+    `_has_duplicate_keys` matched `^[A-Za-z0-9_-]+:` line prefixes,
     which asks a different question than YAML does. Measured on that revision,
     three of these four spellings walked through while `yaml.safe_load` resolved
     every one of them to `accepted`, so a record could declare `proposed` in the
@@ -55,14 +55,14 @@ class TestDuplicateKeySpellings:
         detector = import_skill_script(tree)
         frontmatter = f"id: A\n{first_line}\nstatus: accepted\n"
 
-        assert detector._has_duplicate_top_level_keys(frontmatter) is True
+        assert detector._has_duplicate_keys(frontmatter) is True
 
     @pytest.mark.parametrize("tree", _DETECTOR_TREES)
     def test_a_nested_duplicate_is_caught(self, tree: str) -> None:
         """A line scan structurally cannot reach this; the parser can."""
         detector = import_skill_script(tree)
 
-        assert detector._has_duplicate_top_level_keys("id: A\nmeta:\n  n: 1\n  n: 2\n") is True
+        assert detector._has_duplicate_keys("id: A\nmeta:\n  n: 1\n  n: 2\n") is True
 
     @pytest.mark.parametrize("tree", _DETECTOR_TREES)
     def test_clean_frontmatter_is_not_flagged(self, tree: str) -> None:
@@ -73,14 +73,14 @@ class TestDuplicateKeySpellings:
         """
         detector = import_skill_script(tree)
 
-        assert detector._has_duplicate_top_level_keys("id: A\nstatus: accepted\n") is False
+        assert detector._has_duplicate_keys("id: A\nstatus: accepted\n") is False
 
     @pytest.mark.parametrize("tree", _DETECTOR_TREES)
     def test_a_distinct_nested_mapping_is_not_flagged(self, tree: str) -> None:
         """Second negative control: nesting alone is not duplication."""
         detector = import_skill_script(tree)
 
-        assert detector._has_duplicate_top_level_keys("id: A\nmeta:\n  n: 1\n  other: 2\n") is False
+        assert detector._has_duplicate_keys("id: A\nmeta:\n  n: 1\n  other: 2\n") is False
 
 
 class TestExemptionFailsClosed:
