@@ -12,6 +12,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -992,12 +993,19 @@ class TestWorkflowContract:
     """Verify the workflow YAML passes both Copilot mirror args."""
 
     def test_workflow_sets_up_uv(self) -> None:
-        """vendor-provenance.yml must install uv before validation.
+        """vendor-provenance.yml must install uv, pinned to a SHA.
 
         Parses the ``provenance`` job's steps and asserts on the ``Setup uv``
-        step's ``uses`` field, rather than a raw substring search: a substring
-        match would still pass if the step were deleted and its ``uses:`` line
-        survived in a comment or an unrelated step (testing.md MUST 9).
+        step's ``uses`` field (testing.md MUST 9: a raw substring search would
+        still pass if the step were deleted and its ``uses:`` line survived in
+        a comment or an unrelated step). Asserts a SHA-pin pattern rather than
+        one exact SHA: this assertion previously hardcoded `ae62891f...`,
+        which Renovate invalidated in PR #5215 when it bumped the workflow to
+        v10.0.1, leaving the test red on main for every contributor while
+        asserting nothing the bump had actually broken. Pinning to a fresh
+        exact SHA reintroduces the same trap on the next bump; a pattern check
+        still enforces `.claude/rules/universal.md` MUST 8 (a commit SHA, not
+        a floating tag) without going stale when Renovate advances it.
         """
         import yaml
 
@@ -1005,9 +1013,8 @@ class TestWorkflowContract:
         steps = yaml.safe_load(wf)["jobs"]["provenance"]["steps"]
         setup_uv_steps = [step for step in steps if step.get("name") == "Setup uv"]
         assert len(setup_uv_steps) == 1, "expected exactly one 'Setup uv' step"
-        assert (
-            setup_uv_steps[0]["uses"]
-            == "astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d"
+        assert re.fullmatch(
+            r"astral-sh/setup-uv@[0-9a-f]{40}", setup_uv_steps[0]["uses"]
         )
 
     def test_required_check_context_matches_job_name(self) -> None:
