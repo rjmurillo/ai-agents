@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 8a702a650b1bb4e4ae02916f4b777e448babf0ca
+qaCommit: 416ef5e427de0fe97f7e3dcae61812d17ffe1791
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -712,3 +712,15 @@ the two touched suites; `ruff check` and the taste-count ratchet (576, at
 baseline) both clean.
 
 **Rebound to** `8a702a650b1bb4e4ae02916f4b777e448babf0ca`.
+
+**Addendum 21 correction.** The push surfaced six `test_validation_pre_pr.py`
+failures the local `pre_pr.py` runs did not catch (it does not run the full
+pytest suite; only the push-time `python-tests` job does). Root cause:
+`_healthy_git_run`'s blanket mock answers `git ls-files -z *.md` with
+`stdout=""`, which the new empty-corpus guard reads as a wrong repository
+root. Same class as round 7's `test_build_all.py` fixture fix. Fixed by
+adding "ADR Link Resolution" to the existing bypass set. Full detail in the
+matching correction above Addendum 19 of the campaign report. Full pytest
+suite re-run clean: 28090 passed, 74 skipped.
+
+**Rebound to** `416ef5e427de0fe97f7e3dcae61812d17ffe1791`.

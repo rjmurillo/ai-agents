@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 8a702a650b1bb4e4ae02916f4b777e448babf0ca
+qaCommit: 416ef5e427de0fe97f7e3dcae61812d17ffe1791
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1287,3 +1287,23 @@ together: 215 tests pass. `ruff check` and the whole-repo taste-count
 ratchet (576, at baseline) both clean.
 
 **Rebound to** `8a702a650b1bb4e4ae02916f4b777e448babf0ca`.
+
+**Addendum 19 correction.** The round-9 push surfaced six failures in
+`test_validation_pre_pr.py` that neither local `pre_pr.py` run (round 8 or
+round 9) caught, because `pre_pr.py` invoked directly does not run the full
+pytest suite; only the push-time lefthook `python-tests` job does. Root
+cause: `_healthy_git_run`'s blanket `subprocess.run` mock answers any git
+command other than `symbolic-ref`/`rev-parse` with `stdout=""`, so
+`git_ls_markdown()`'s `git ls-files -z *.md` call returns an empty list
+under the mock regardless of the real repo's tracked files, which the new
+empty-corpus guard correctly (but here spuriously) treats as a
+wrong-but-valid repository root. Fixed by adding "ADR Link Resolution" to
+the existing `corpus_gates` bypass set in
+`_sequence_with_passing_corpus_gates()`, the same treatment already given
+to the other real-filesystem-dependent gates in that test file. Same class
+of regression as round 7's `test_build_all.py` fixture fix (Addendum 17
+above): a new fail-closed guard exposing a pre-existing test mock that
+never modeled the corpus state the guard now checks. Full pytest suite
+re-run clean: 28090 passed, 74 skipped, 0 failed.
+
+**Rebound to** `416ef5e427de0fe97f7e3dcae61812d17ffe1791`.
