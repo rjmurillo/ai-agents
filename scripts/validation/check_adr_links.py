@@ -67,7 +67,7 @@ from stale_script_refs import HISTORICAL_ROOTS, load_allowlist  # noqa: E402
 
 DEFAULT_BASELINE = Path("scripts/validation/check_adr_links_baseline.txt")
 
-FENCE = re.compile(r"^\s*(?:```|~~~)")
+FENCE = re.compile(r"^\s*(?P<marker>```|~~~)")
 LINK = re.compile(r"\[(?P<text>[^\[\]\n]*)\]\((?P<dest>[^()\n]*)\)")
 UNTERMINATED = re.compile(r"\[(?P<text>[^\[\]\n]*)\]\((?P<dest>[^()\n]*)$")
 ADR_BASENAME = re.compile(r"^ADR-\d+.*\.md$", re.IGNORECASE)
@@ -287,20 +287,44 @@ def _link_findings(
 
 
 def scan_file(repo_root: Path, file: str, tracked: frozenset[str]) -> list[Finding]:
-    """Return every ADR-link finding in one tracked markdown file."""
+    """Return every ADR-link finding in one tracked markdown file.
+
+    Fence tracking keys on the opening marker character (`` ` `` or ``~``), not
+    a bare open/closed toggle. CommonMark closes a fence only with the same
+    character it opened with: a ``~~~`` block containing a line that starts
+    with backticks (a shell transcript showing a "```" example, say) is not
+    closed by that line, and treating any fence-shaped line as a toggle would
+    resume scanning real prose as though it were still inside the original
+    fence, or worse, treat a line of fenced example content as live prose one
+    fence early. Length is not tracked (a 4-backtick fence closes on any run of
+    3 or more): CommonMark also requires the closing run to be at least as long
+    as the opening one, but no fence in this corpus nests same-character runs
+    of different lengths, so that refinement is deferred rather than guessed
+    at. Indented (4-space) code blocks and inline single-backtick spans are
+    still out of scope, per the module docstring's "Links inside fenced code
+    blocks... are skipped": both are a full CommonMark parse away, which this
+    line-scanner deliberately is not (PR #5209 review).
+    """
     path = repo_root / file
     if not path.is_file():
         return []
 
     findings: list[Finding] = []
-    in_fence = False
+    fence_marker: str | None = None
     for line_number, line in enumerate(
         path.read_text(encoding="utf-8", errors="replace").splitlines(), 1
     ):
-        if FENCE.match(line):
-            in_fence = not in_fence
+        match = FENCE.match(line)
+        if match:
+            marker = match.group("marker")[0]
+            if fence_marker is None:
+                fence_marker = marker
+            elif fence_marker == marker:
+                fence_marker = None
+            # else: a fence-shaped line in the OTHER character while already
+            # inside a fence is content, not a delimiter; fence_marker holds.
             continue
-        if in_fence:
+        if fence_marker is not None:
             continue
 
         findings.extend(_malformed_findings(file, line_number, line))

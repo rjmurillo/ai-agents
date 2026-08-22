@@ -298,6 +298,33 @@ def test_link_after_a_closed_fence_is_still_scanned(tmp_path: Path) -> None:
     assert findings[0].target == "./ADR-998-nope.md"
 
 
+def test_a_different_fence_character_inside_a_block_does_not_close_it(tmp_path: Path) -> None:
+    """CommonMark closes a fence only with its own character. A ``~~~`` block
+    containing a line that opens with backticks (a transcript illustrating a
+    ```` ``` ```` example, say) must not be closed by that line: only a
+    matching ``~~~`` closes it. A bare open/close toggle over any fence-shaped
+    line gets this backwards on both ends: it would report the still-fenced
+    ADR-999 as broken (false positive on illustration content) and skip the
+    real ADR-998 defect just past the true close (false negative), because the
+    stray backtick line flips it out of the fence early and the real closing
+    ``~~~`` flips it back in (PR #5209 review).
+    """
+    doc = write(
+        tmp_path,
+        "docs/example.md",
+        "~~~\n"
+        "```\n"
+        "[ADR-999](./ADR-999-does-not-exist.md)\n"
+        "~~~\n"
+        "[ADR-998](./ADR-998-nope.md)\n",
+    )
+
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
+
+    assert kinds(findings) == ["unresolved"]
+    assert findings[0].target == "./ADR-998-nope.md"
+
+
 @pytest.mark.parametrize(
     "root",
     [
