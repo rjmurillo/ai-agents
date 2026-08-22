@@ -76,6 +76,17 @@ contemplates:
 ADR-005 was the only bare restatement among them. Deleting the others would lose
 information; deleting ADR-005's loses nothing.
 
+**Correction from a later review round.** The table above describes this
+decision as it stood when made: ADR-024, ADR-025, ADR-042, and ADR-055 each
+kept a `## Status` section carrying nuance the enum could not. Later,
+unrelated edits in this same campaign moved that nuance out of `## Status`
+into purpose-specific headings instead (`## Provenance` on ADR-024 and
+ADR-055, `## Documented Exceptions` on ADR-055, and equivalents on ADR-025
+and ADR-042). None of the four currently carries a `## Status` heading.
+The decision this log records, keep the four records' nuance rather than
+deleting it, still holds; only the container changed. Flagged by Copilot
+review, PR #5209 round 4.
+
 ## What still holds
 
 `prose-frontmatter-agree` survives unchanged, and it is the rule ADR-073 does
