@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 416ef5e427de0fe97f7e3dcae61812d17ffe1791
+qaCommit: c2055b1b91ddc7fb8406e15e6f9a84f41dfca220
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -724,3 +724,24 @@ matching correction above Addendum 19 of the campaign report. Full pytest
 suite re-run clean: 28090 passed, 74 skipped.
 
 **Rebound to** `416ef5e427de0fe97f7e3dcae61812d17ffe1791`.
+
+## Addendum 22: a tenth Copilot review round, four fixed, seven documented
+
+A tenth Copilot review found 13 items: four genuine defects, fixed and
+mutation-proven (`check_adr_links.py`'s `FENCE` regex accepting unbounded
+indentation before a fence marker, against CommonMark's three-space cap;
+`split_destination()` failing to strip angle brackets on a destination that
+also carries a title; `check_adr_lifecycle.py`'s `write_baseline()`
+truncating its only baseline file directly instead of writing atomically);
+one stale comment fixed alongside the atomic-write change ("eight-check
+gate" corrected to "seven-check gate"); three volatile-exact-count
+taste-lint suppressions reworded to drop counts that had already gone
+stale; and seven stale debate-log references to a renamed `## Status`
+section, corrected with two unifying notes rather than seven separate
+edits. Full detail in Addendum 20 of the campaign report. Four commits,
+eight files, six new test functions; `check_adr_links` 99 tests (was 95),
+`check_adr_lifecycle` 124 tests (was 122); 304 tests pass across the three
+touched suites; `ruff check` and the taste-count ratchet (576, at
+baseline) both clean.
+
+**Rebound to** `c2055b1b91ddc7fb8406e15e6f9a84f41dfca220`.

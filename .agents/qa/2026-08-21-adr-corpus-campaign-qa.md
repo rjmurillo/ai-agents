@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 416ef5e427de0fe97f7e3dcae61812d17ffe1791
+qaCommit: c2055b1b91ddc7fb8406e15e6f9a84f41dfca220
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1307,3 +1307,72 @@ never modeled the corpus state the guard now checks. Full pytest suite
 re-run clean: 28090 passed, 74 skipped, 0 failed.
 
 **Rebound to** `416ef5e427de0fe97f7e3dcae61812d17ffe1791`.
+
+## Addendum 20: a tenth Copilot review round, four fixed, seven documented
+
+A tenth Copilot review found 13 distinct items: 10 suppressed ("previously
+missed") findings plus 3 new inline comments. Four were genuine code
+defects, fixed and mutation-proven; one was a stale comment corrected
+alongside one of those fixes; two were volatile-exact-count taste-lint
+suppressions reworded per the review's own suggestion; seven were stale
+debate-log references corrected with two unifying notes (matching each
+file's own established correction pattern) rather than seven separate
+edits.
+
+- **`check_adr_links.py`'s `FENCE` regex accepted unbounded (and tab)
+  indentation before a fence marker.** CommonMark caps fence indentation at
+  three spaces (spec.commonmark.org/0.31.2/#fenced-code-blocks, quoted
+  verbatim: "Four spaces of indentation is too many"). A four-space-indented
+  ` ``` ` line put the scanner into fence mode anyway, silently hiding a
+  broken ADR link in what CommonMark actually treats as live prose. Capped
+  to `{0,3}` spaces. New tests confirm the four-space case is caught and the
+  three-space boundary case still opens a fence. Mutation-proven.
+- **`split_destination()` only stripped angle brackets when the raw
+  destination ended in `">"`**, but a legal CommonMark destination can
+  combine brackets with a title: `[ADR-005](<./ADR-005-x.md> "Title")`. The
+  trailing title text made `endswith(">")` false, so the brackets were
+  never stripped, `is_adr_target()`'s basename match failed, and a broken
+  or wrong-numbered link written this way bypassed the gate entirely. Fixed
+  by finding the closing `">"` explicitly instead of requiring it be last.
+  Mutation-proven.
+- **`check_adr_lifecycle.py`'s `write_baseline()` truncated and rewrote the
+  only baseline file directly**, despite the module's own docstring
+  claiming baseline rewrites are atomic. An interruption mid-write leaves
+  invalid JSON in place, blocking every subsequent `pre_pr.py` run until
+  someone reconstructs the baseline by hand. Fixed by writing through a
+  temp sibling file plus `os.replace()`, mirroring `scripts/
+  ai_review_common/cache_guard.py`'s `_atomic_write_text` verbatim. New
+  tests confirm no temp file survives a successful write, and a failed
+  `os.replace()` leaves the pre-existing baseline untouched. Mutation-proven.
+- **The same file's file-size taste-lint suppression said "an eight-check
+  gate"**, but the eighth check (`implemented-implies-decided`) was removed
+  two review rounds ago; the gate has seven. Corrected, and its other
+  volatile exact line/file counts (including a sibling file's line count)
+  dropped for the same reason as the next item.
+- **Three taste-lint file-size suppressions cited exact line or test-case
+  counts that had already gone stale** (`generate_adr_index.py`: "192 of
+  the 558 lines" against an actual 882; `test_generate_adr_index.py`: "51"
+  cases against 71+; `check_adr_links.py`: "243 of the 537 lines" against a
+  count that had already moved twice). Reworded all three to state the
+  ratio/rationale without a number that drifts on every subsequent edit,
+  per the review's own suggestion ("Avoid a volatile exact count here").
+- **Two debate logs described ADR-024, ADR-025, ADR-042 and ADR-055 as
+  gaining or carrying a `## Status` section**, accurate for the diffs those
+  logs record, but a later round (commit `1615ffa40`, "stop restating
+  frontmatter in status prose") renamed those sections: `## Provenance` for
+  ADR-024/025/055, `## Acceptance Evidence` for ADR-042, so a reader
+  following either log today looks for a section that no longer exists.
+  Added one correction note per file (matching each file's own established
+  "leave the historical record unrewritten, note what changed after it"
+  pattern, already used for the `implemented: true` reversal) rather than
+  rewriting the seven flagged bullets individually. Both point to
+  `ADR-024-025-042-055-status-redundancy-debate-log.md`, which already
+  documents the rename in full.
+
+Four commits, eight files touched, 6 new test functions, all three
+behavioral fixes mutation-proven. Test counts: `check_adr_links` 99 (up
+from 95, +4), `check_adr_lifecycle` 124 (up from 122, +2). All three
+touched suites together: 304 tests pass. `ruff check` and the whole-repo
+taste-count ratchet (576, at baseline) both clean.
+
+**Rebound to** `c2055b1b91ddc7fb8406e15e6f9a84f41dfca220`.
