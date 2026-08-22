@@ -179,13 +179,15 @@ def session_qa_binding(
     ):
         # comparison.head wins when both fields resolve, and a disagreement is
         # reported rather than rejected (ADR-102, issue #5217). This is not
-        # because the two fields naturally diverge: a corpus measurement found
-        # only 7 of 1459 committed logs where endingCommit was pulled off its
-        # own contract to satisfy the equality this replaces, out of 42
-        # agreeing edits (34 are session-log creations where nothing moved).
-        # That narrow, measured pattern is why the raise is replaced with a
-        # diagnostic rather than kept: comparison.head is the field QA
-        # rebinding advances past the session's own last authored commit
+        # because the two fields naturally diverge: PR #4954 independently
+        # documented the endingCommit-follows-comparison.head hand-sync
+        # pattern, though that finding was never fixed by a commit, so it
+        # does not appear in a HEAD-scoped corpus walk (ADR-102 Measured
+        # Incidence: 44 edits, 32 commits, 36 agreeing, all either
+        # first-commit creations or unrelated field backfills). That's why
+        # the raise is replaced with a diagnostic rather than kept:
+        # comparison.head is the field QA rebinding advances past the
+        # session's own last authored commit
         # (session-log.schema.json's commitHead field exists to preserve that
         # ownership), while endingCommit advances on its own schedule, a
         # follow-up commit re-pointed after a rebase (.claude/rules/

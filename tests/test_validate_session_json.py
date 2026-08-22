@@ -282,9 +282,10 @@ def test_extracts_qa_binding_from_full_ending_commit() -> None:
 
 def test_binds_to_comparison_head_when_commit_fields_disagree() -> None:
     # ADR-102 replaces the raise this case used to assert. The equality it
-    # enforced forced only 7 of 1459 committed logs into a hand-sync repair
-    # (a corpus measurement), not the naturally-independent pattern an
-    # earlier draft assumed, so a disagreement is now reported, not rejected.
+    # enforced would have forced a hand-sync repair for exactly this drift
+    # (PR #4954 documented the pattern, never fixed by a commit), not the
+    # naturally-independent pattern an earlier draft assumed, so a
+    # disagreement is now reported, not rejected.
     ending = "b" * 40
 
     binding = session_qa_binding(

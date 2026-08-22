@@ -966,10 +966,11 @@ def validate_qa_report_evidence(
             resolve_commit=_resolve_full_commit,
         )
         # ADR-102: the session log's two commit fields are allowed to
-        # disagree. A corpus measurement found the equality this replaces
-        # forced only 7 of 1459 committed logs into a hand-sync repair, not
-        # the "naturally independent" pattern an earlier draft assumed.
-        # Report the drift and carry on; warnings do not affect validity
+        # disagree. The equality this replaces would have forced a hand-sync
+        # repair for exactly this drift (PR #4954 documented the pattern,
+        # never fixed by a commit), not the "naturally independent" pattern
+        # an earlier draft assumed. Report the drift and carry on; warnings
+        # do not affect validity
         # (scripts/validation/models.py). Appended before the report is
         # validated so the observation survives an unrelated failure below.
         if binding.inconsistency is not None:
