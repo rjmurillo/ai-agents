@@ -76,6 +76,11 @@ TEXT_ADR_NUMBER = re.compile(r"\bADR[-\s]?(?P<number>\d{1,4})\b", re.IGNORECASE)
 FILE_ADR_NUMBER = re.compile(r"^ADR-(?P<number>\d+)", re.IGNORECASE)
 EXTERNAL_SCHEMES = ("http://", "https://", "mailto:", "ftp://")
 
+# The four violation classes a baseline entry can name. Mirrors the literal
+# strings passed to Finding(kind=...) below (search this file for
+# 'Finding(' to confirm the set stays exhaustive as classes are added).
+BASELINE_KINDS = frozenset({"unresolved", "absolute", "malformed", "number-mismatch"})
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -143,8 +148,17 @@ def split_destination(raw: str) -> str:
 
 
 def is_adr_target(path: str) -> bool:
-    """Return whether a link destination points at an ADR markdown file."""
-    if not path or path.startswith(EXTERNAL_SCHEMES):
+    """Return whether a link destination points at an ADR markdown file.
+
+    The scheme check lower-cases before comparing: URI schemes are
+    case-insensitive (RFC 3986 section 3.1), so ``HTTPS://example.test/ADR-005-x.md``
+    is an external link exactly like its lowercase spelling. Comparing the raw
+    string treated that variant as a repository-relative path instead, which
+    made an external, case-varied scheme link fail as an ``unresolved`` ADR
+    target: a false positive with no repository fix available (Copilot, PR
+    #5209).
+    """
+    if not path or path.lower().startswith(EXTERNAL_SCHEMES):
         return False
     basename = path.rsplit("/", 1)[-1]
     return bool(ADR_BASENAME.match(basename))
@@ -184,6 +198,31 @@ def _malformed_findings(file: str, line_number: int, line: str) -> list[Finding]
             )
         )
     return findings
+
+
+def _malformed_baseline_entries(entries: set[str]) -> list[str]:
+    """Return every entry not shaped ``<kind>:<file>:<target>``.
+
+    The baseline file's own header requires this exact shape and forbids a
+    looser one, but nothing enforced it: a bare filename such as
+    ``some/file.md`` matched every finding in that file through a
+    ``finding.file in allowed`` branch this gate used to carry, making one
+    line a silent, unbounded wildcard for every current and future ADR-link
+    defect anywhere in that file rather than the one defect it was meant to
+    record (Copilot, PR #5209). Validating the shape at load time turns a
+    malformed or over-broad entry into a loud config error instead of a
+    silent exemption.
+
+    ``split(":", 2)`` caps the split at two colons so a target containing one
+    (unlikely for a repo-relative path, but not forbidden) stays intact in
+    the third field rather than being cut.
+    """
+    malformed = []
+    for entry in sorted(entries):
+        parts = entry.split(":", 2)
+        if len(parts) != 3 or parts[0] not in BASELINE_KINDS or not parts[1] or not parts[2]:
+            malformed.append(entry)
+    return malformed
 
 
 def _resolves_to_tracked_file(file: str, path: str, tracked: frozenset[str]) -> bool:
@@ -290,6 +329,14 @@ def find_broken_adr_links(
     resolved_tracked = tracked if tracked is not None else frozenset(git_ls_markdown(repo_root))
     candidates = files if files is not None else sorted(resolved_tracked)
     allowed = baseline if baseline is not None else load_allowlist(repo_root / DEFAULT_BASELINE)
+    malformed = _malformed_baseline_entries(allowed)
+    if malformed:
+        listed = "\n  ".join(malformed)
+        allowed_kinds = ", ".join(sorted(BASELINE_KINDS))
+        raise ValueError(
+            f"check_adr_links baseline has {len(malformed)} entry(ies) not shaped "
+            f"<kind>:<file>:<target> with kind in {{{allowed_kinds}}}:\n  {listed}"
+        )
 
     findings: list[Finding] = []
     for file in sorted(candidates):
@@ -297,7 +344,7 @@ def find_broken_adr_links(
         if is_historical_path(normalized):
             continue
         for finding in scan_file(repo_root, normalized, resolved_tracked):
-            if finding.key() in allowed or finding.file in allowed:
+            if finding.key() in allowed:
                 continue
             findings.append(finding)
     return findings
@@ -336,7 +383,7 @@ def main(argv: list[str] | None = None) -> int:
             baseline_path = repo_root / baseline_path
 
         findings = find_broken_adr_links(repo_root, baseline=load_allowlist(baseline_path))
-    except (OSError, subprocess.CalledProcessError, UnicodeDecodeError) as exc:
+    except (OSError, subprocess.CalledProcessError, UnicodeDecodeError, ValueError) as exc:
         print(f"check_adr_links: {exc}", file=sys.stderr)
         return 2
 

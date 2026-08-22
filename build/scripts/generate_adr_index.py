@@ -83,6 +83,18 @@ _FRONTMATTER_RE = re.compile(r"^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$")
 # ADR-TEMPLATE.md, which the glob matches and whose id is the literal ADR-NNN.
 _ADR_FILENAME_RE = re.compile(r"^ADR-(\d{2,})-[^/]+\.md$")
 
+# An id reference inside frontmatter: "ADR-091", "adr-91", or a bare integer
+# rendered as a string by _scalar() below. Mirrors
+# scripts/validation/check_adr_lifecycle.py:132-133 verbatim:
+#   # An id reference inside frontmatter: "ADR-091", "adr-91", or a bare integer.
+#   _ADR_REFERENCE_RE = re.compile(r"^ADR[-_ ]?(\d{1,4})$", re.IGNORECASE)
+# The lifecycle gate is the schema's canonical reference parser (ADR-073 names
+# it as such); a `superseded-by` value that gate accepts as a valid reference
+# must resolve to the same record here, or a record can pass lifecycle
+# validation while the index silently fails to find its successor and prints
+# the raw, unlinked reference instead (Copilot, PR #5209).
+_ADR_REFERENCE_RE = re.compile(r"^ADR[-_ ]?(\d{1,4})$", re.IGNORECASE)
+
 _ADR_GLOB = "ADR-*.md"
 _ADR_DIR_RELATIVE = Path(".agents") / "architecture"
 _OUTPUT_RELATIVE = _ADR_DIR_RELATIVE / "README.md"
@@ -474,6 +486,27 @@ def _link(record: AdrRecord) -> str:
     return f"[{record.adr_id}]({record.filename})"
 
 
+def _normalize_adr_id(reference: str) -> str | None:
+    """Canonical ``ADR-NNN`` key for a frontmatter reference, or None.
+
+    Accepts exactly what ``check_adr_lifecycle.py``'s ``_normalize_reference``
+    accepts: ``ADR-091``, ``adr-91``, ``ADR 91``, ``ADR_91``, or a bare digit
+    string. ``by_id`` keys are always the zero-padded ``ADR-{n:03d}`` form
+    ``build_record`` assigns, so a non-padded or ADR-prefix-free reference such
+    as ``ADR-91`` or ``91`` must be normalized to ``ADR-091`` before lookup, or
+    a record that names a real, lifecycle-valid successor renders as an
+    unlinked plain-text reference instead (Copilot, PR #5209, discussion
+    flagging ``build/scripts/generate_adr_index.py:504``).
+    """
+    stripped = reference.strip()
+    match = _ADR_REFERENCE_RE.match(stripped)
+    if match is not None:
+        return f"ADR-{int(match.group(1)):03d}"
+    if stripped.isdigit():
+        return f"ADR-{int(stripped):03d}"
+    return None
+
+
 def _successor_cell(record: AdrRecord, by_id: dict[str, AdrRecord]) -> str:
     """Where a reader who followed a stale citation should go instead.
 
@@ -499,7 +532,8 @@ def _successor_cell(record: AdrRecord, by_id: dict[str, AdrRecord]) -> str:
     """
     if not record.successor:
         return "not recorded"
-    successor = by_id.get(record.successor.strip().upper())
+    successor_id = _normalize_adr_id(record.successor)
+    successor = by_id.get(successor_id) if successor_id is not None else None
     if successor is None:
         return _cell(record.successor)
 
@@ -511,7 +545,8 @@ def _successor_cell(record: AdrRecord, by_id: dict[str, AdrRecord]) -> str:
         seen.add(current.adr_id)
         if current.status not in _RETIRED_STATUSES or not current.successor:
             break
-        nxt = by_id.get(current.successor.strip().upper())
+        nxt_id = _normalize_adr_id(current.successor)
+        nxt = by_id.get(nxt_id) if nxt_id is not None else None
         if nxt is None:
             break
         current = nxt

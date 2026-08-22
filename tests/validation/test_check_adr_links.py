@@ -367,17 +367,24 @@ def test_baseline_entry_suppresses_the_matching_finding(tmp_path: Path) -> None:
     assert find_broken_adr_links(tmp_path, files=[doc], baseline={key}, tracked=frozenset()) == []
 
 
-def test_whole_file_baseline_entry_suppresses_every_finding(tmp_path: Path) -> None:
+def test_whole_file_baseline_entry_is_rejected_as_malformed(tmp_path: Path) -> None:
+    """A bare filename must not become a silent, unbounded wildcard.
+
+    Before this fix, ``{"adr/index.md"}`` in the baseline suppressed every
+    finding in that file, current and future, through a ``finding.file in
+    allowed`` branch this gate used to carry. The baseline file's own header
+    requires ``<kind>:<file>:<target>`` and forbids anything looser; a
+    file-only entry now fails loudly at load time instead of silently
+    exempting the whole file (Copilot, PR #5209).
+    """
     doc = write(
         tmp_path,
         "adr/index.md",
         "[ADR-005](ADR-005-gone.md)\n[ADR-006](ADR-006-gone.md)\n",
     )
 
-    assert (
+    with pytest.raises(ValueError, match="adr/index.md"):
         find_broken_adr_links(tmp_path, files=[doc], baseline={"adr/index.md"}, tracked=frozenset())
-        == []
-    )
 
 
 def test_baseline_does_not_suppress_a_different_target_in_the_same_file(tmp_path: Path) -> None:
@@ -419,6 +426,54 @@ def test_baseline_does_not_suppress_a_different_kind_on_the_same_pair(tmp_path: 
     assert kinds(findings) == ["number-mismatch"]
 
 
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "unresolved:adr/index.md:ADR-005-gone.md",
+        "absolute:docs/x.md:/ADR-007-x.md",
+        "malformed:adr/index.md:ADR-005-x.md",
+        "number-mismatch:adr/index.md:ADR-005-x.md",
+    ],
+)
+def test_malformed_baseline_entries_accepts_well_formed_lines(entry: str) -> None:
+    assert check_adr_links._malformed_baseline_entries({entry}) == []
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "adr/index.md",  # the file-only wildcard the review flagged
+        "ADR-005-gone.md",  # a bare target, no kind or file
+        "not-a-kind:adr/index.md:ADR-005-gone.md",  # unrecognized kind
+        "unresolved:adr/index.md",  # missing target
+        "unresolved::ADR-005-gone.md",  # empty file segment
+        "",
+    ],
+)
+def test_malformed_baseline_entries_rejects_the_rest(entry: str) -> None:
+    assert entry in check_adr_links._malformed_baseline_entries({entry})
+
+
+def test_find_broken_adr_links_rejects_a_malformed_baseline_before_scanning(
+    tmp_path: Path,
+) -> None:
+    """A config error, not a silently-empty result.
+
+    ``find_broken_adr_links`` must fail loudly on a malformed baseline rather
+    than returning ``[]`` (which reads identically to "no violations, and
+    every finding this run would have caught").
+    """
+    doc = write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
+
+    with pytest.raises(ValueError, match="not-a-kind"):
+        find_broken_adr_links(
+            tmp_path,
+            files=[doc],
+            baseline={"not-a-kind:adr/index.md:ADR-005-gone.md"},
+            tracked=frozenset(),
+        )
+
+
 # Helper units
 
 
@@ -447,6 +502,11 @@ def test_split_destination(raw: str, expected: str) -> None:
         ("ADR-005-x.txt", False),
         ("https://example.invalid/ADR-005-x.md", False),
         ("mailto:a@example.invalid/ADR-005-x.md", False),
+        # URI schemes are case-insensitive (RFC 3986 section 3.1); a
+        # case-varied scheme must not be mistaken for a repository-relative
+        # ADR path (Copilot, PR #5209).
+        ("HTTPS://example.invalid/ADR-005-x.md", False),
+        ("Http://example.invalid/ADR-005-x.md", False),
     ],
 )
 def test_is_adr_target(path: str, expected: bool) -> None:

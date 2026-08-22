@@ -790,6 +790,49 @@ def test_two_hop_supersession_redirects_to_the_terminal_record(tmp_path: Path) -
     assert "via ADR-091" in row
 
 
+def test_successor_lookup_accepts_non_padded_and_bare_int_references(tmp_path: Path) -> None:
+    """A ``superseded-by`` value the lifecycle gate accepts must also resolve here.
+
+    ``check_adr_lifecycle.py``'s ``_normalize_reference`` accepts ``ADR-91``
+    (non-padded) and a bare integer ``91`` as valid references to ADR-091, not
+    only the zero-padded ``ADR-091`` this index's own ``adr_id`` keys use. A
+    record naming either form passes lifecycle validation; before this fix, the
+    index's lookup compared the raw uppercased string against the padded key
+    and missed both, printing the reference as unlinked plain text instead of
+    resolving it (Copilot, PR #5209).
+    """
+    adr_dir = tmp_path / "architecture"
+    _write_adr(
+        adr_dir,
+        79,
+        "first",
+        frontmatter="status: superseded\nsuperseded-by: ADR-91",
+        body=_standard_body(79, "First"),
+    )
+    _write_adr(
+        adr_dir,
+        80,
+        "second",
+        # YAML parses this as an int; _scalar() renders it "91", the bare form.
+        frontmatter="status: superseded\nsuperseded-by: 91",
+        body=_standard_body(80, "Second"),
+    )
+    _write_adr(
+        adr_dir,
+        91,
+        "third",
+        frontmatter="status: accepted",
+        body=_standard_body(91, "Third"),
+    )
+
+    retired = _section(_render(adr_dir), "Retired")
+    row_79 = next(line for line in retired.splitlines() if "ADR-079" in line)
+    row_80 = next(line for line in retired.splitlines() if "ADR-080" in line)
+
+    assert "ADR-091-third.md" in row_79
+    assert "ADR-091-third.md" in row_80
+
+
 def test_supersession_cycle_terminates_instead_of_hanging(tmp_path: Path) -> None:
     """A cycle must not be discovered by this renderer looping forever.
 
