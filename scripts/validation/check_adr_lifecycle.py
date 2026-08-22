@@ -96,7 +96,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.utils.markdown_parser import blank_code_block_lines
+from scripts.utils.markdown_parser import blank_non_prose_block_lines
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
@@ -519,30 +519,39 @@ def _status_prose(body: str) -> str | None:
     phase result and `**Status**: APPROVED` at line 168 as an exception ruling,
     and both were read as that record's lifecycle status before this bound.
 
-    Fenced and indented code blocks are blanked before any of this runs, so a
-    `## Status` inside a markdown sample is not read as the record's own.
-    ADR-022 carries exactly such a sample at line 521, inside an ADR template it
-    documents. It is masked today only because ADR-022's real `## Status` sits
-    at line 3 and the search takes the first match; removing that section, which
-    is the direction this campaign is already moving in, would expose it. A
-    whole-body search without this is the same whole-file-scan defect the search
-    was widened to fix, one layer down. Copilot found it on PR #5230.
+    Fenced and indented code blocks, and raw HTML blocks, are blanked before
+    any of this runs, so a `## Status` inside a markdown sample or an HTML
+    comment is not read as the record's own. ADR-022 carries exactly such a
+    sample at line 521, inside an ADR template it documents. It is masked
+    today only because ADR-022's real `## Status` sits at line 3 and the
+    search takes the first match; removing that section, which is the
+    direction this campaign is already moving in, would expose it. A
+    whole-body search without this is the same whole-file-scan defect the
+    search was widened to fix, one layer down. Copilot found it on PR #5230.
+    HTML blocks specifically: `blank_code_block_lines` (used until this fix)
+    deliberately leaves HTML content visible for a different caller
+    (`check_skill_md_portability.py`), so an HTML comment documenting a former
+    `## Status` section, as ADR-TEMPLATE.md carries, was not masked and could
+    be read as a live status declaration one layer below where the fence check
+    already protects. `blank_non_prose_block_lines` closes that gap without
+    touching the other caller's contract (PR #5209 review).
 
     `### Status`, level three, is **never** matched. A level-three heading is a
     subsection of whatever contains it. ADR-042 carries one at line 171 reading
     "Proposed" inside a migration phase while its frontmatter says `accepted`;
     matching it manufactured a drift violation out of a correct record.
 
-    Raises whatever `blank_code_block_lines` raises on an unparseable body.
-    That helper's own contract (`scripts/utils/markdown_parser.py:175-180`)
-    requires the exception to propagate rather than be treated as clean prose;
-    catching it here and returning `None` would do exactly that, since `None`
-    means "no status section" to every caller and silently exempts the record
-    from `prose-frontmatter-agree`. Callers that need per-record diagnostics
-    catch this at the call site (see `_check_prose`) and turn it into a
-    violation, not into a skip. Copilot found this on PR #5209.
+    Raises whatever `blank_non_prose_block_lines` raises on an unparseable
+    body. That helper's own contract (`scripts/utils/markdown_parser.py`,
+    `_blank_block_lines`) requires the exception to propagate rather than be
+    treated as clean prose; catching it here and returning `None` would do
+    exactly that, since `None` means "no status section" to every caller and
+    silently exempts the record from `prose-frontmatter-agree`. Callers that
+    need per-record diagnostics catch this at the call site (see
+    `_check_prose`) and turn it into a violation, not into a skip. Copilot
+    found this on PR #5209.
     """
-    prose = blank_code_block_lines(body)
+    prose = blank_non_prose_block_lines(body)
     heading = _STATUS_HEADING_RE.search(prose)
     if heading is not None:
         for line in prose[heading.end() :].splitlines():
@@ -849,12 +858,56 @@ def _report(counts: dict[str, int], baseline: dict[str, int]) -> tuple[set[str],
     )
 
 
-def run(adr_dir: Path, repo_root: Path, baseline_path: Path, args: argparse.Namespace) -> int:
-    """Scan, then either write the baseline or compare against it."""
+def run(
+    adr_dir: Path,
+    repo_root: Path,
+    baseline_path: Path,
+    args: argparse.Namespace,
+    *,
+    repo_root_is_default: bool = False,
+) -> int:
+    """Scan, then either write the baseline or compare against it.
+
+    ``repo_root_is_default`` is True only when the caller did not pass
+    ``--repo-root`` explicitly (see ``main()``); it gates the worktree-identity
+    check below.
+    """
     violations = scan(adr_dir, repo_root)
     counts = tally(violations)
 
     if args.write_baseline:
+        # .claude/rules/ci-scripts.md MUST 7: a script that resolves the
+        # repository root and then writes to it must confirm the caller's cwd
+        # sits inside that root before the first write. Mirrors
+        # scripts/generate_third_party_notices.py:446-452 verbatim:
+        #   project_root = PROJECT_ROOT
+        #   if not Path.cwd().resolve().is_relative_to(project_root.resolve()):
+        #       print(f"ERROR: current directory is outside project root: {Path.cwd()}", ...)
+        #       return 2
+        #
+        # Stricter/looser/different than canonical: the canonical script's
+        # PROJECT_ROOT has no CLI override, so every invocation is the risky
+        # case. Here --repo-root is an explicit, user-stated argument that
+        # tests deliberately point at a synthetic tmp_path corpus unrelated to
+        # cwd (tests/validation/test_check_adr_lifecycle.py's `_run()` helper
+        # does exactly this for every case, including
+        # test_write_baseline_round_trips_and_then_passes). An explicit
+        # --repo-root carries no worktree-identity risk: the caller named the
+        # write target directly. The risk this check guards is narrower: the
+        # *default*, which resolves via __file__ (build_parser() below), not
+        # cwd, so running this script with no --repo-root override from an
+        # unexpected cwd would otherwise write the baseline into that
+        # __file__-derived checkout silently. So the check only fires when
+        # repo_root_is_default is True.
+        if repo_root_is_default and not Path.cwd().resolve().is_relative_to(
+            repo_root.resolve()
+        ):
+            print(
+                f"[CONFIG] current directory is outside repo root {repo_root}: "
+                f"{Path.cwd()}",
+                file=sys.stderr,
+            )
+            return EXIT_CONFIG
         write_baseline(baseline_path, counts)
         print(f"[OK] Wrote {baseline_path} from {len(violations)} violation(s):")
         for name in CHECKS:
@@ -898,7 +951,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--repo-root",
         type=Path,
-        default=Path(__file__).resolve().parents[2],
+        default=None,
         help="Repository root (defaults to two levels above this script).",
     )
     parser.add_argument(
@@ -923,14 +976,24 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    adr_dir = args.repo_root / ".agents" / "architecture"
+    repo_root_is_default = args.repo_root is None
+    repo_root = (
+        args.repo_root if args.repo_root is not None else Path(__file__).resolve().parents[2]
+    )
+    adr_dir = repo_root / ".agents" / "architecture"
     if not adr_dir.is_dir():
         print(f"[CONFIG] ADR directory not found: {adr_dir}", file=sys.stderr)
         return EXIT_CONFIG
     if args.limit < 1:
         print("[CONFIG] --limit must be at least 1", file=sys.stderr)
         return EXIT_CONFIG
-    return run(adr_dir, args.repo_root, args.baseline or _BASELINE_PATH, args)
+    return run(
+        adr_dir,
+        repo_root,
+        args.baseline or _BASELINE_PATH,
+        args,
+        repo_root_is_default=repo_root_is_default,
+    )
 
 
 def validate_adr_lifecycle(repo_root: Path) -> bool:

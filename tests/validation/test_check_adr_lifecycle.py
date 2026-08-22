@@ -574,14 +574,14 @@ def test_absent_status_prose_is_not_a_violation(tmp_path):
 def test_unparseable_markdown_is_a_violation_not_a_silent_skip(tmp_path):
     """A body that defeats the markdown parser is reported, not exempted.
 
-    `blank_code_block_lines` raises `MarkdownNestingError` when a document
-    nests past the parser's limit (`scripts/utils/markdown_parser.py:175-180`,
-    "Any exception the parser raises propagates to the caller, which must not
-    treat a parse failure as clean prose"). `_status_prose` used to catch that
-    exception and return `None`, which reads as "no status section" to
-    `_check_prose` and silently exempts the record from
-    `prose-frontmatter-agree`. Fixed to catch it in `_check_prose` instead and
-    report a violation. Copilot found this on PR #5209.
+    `blank_non_prose_block_lines` raises `MarkdownNestingError` when a document
+    nests past the parser's limit (`scripts/utils/markdown_parser.py`,
+    `_blank_block_lines`, "Any exception the parser raises propagates to the
+    caller, which must not treat a parse failure as clean prose").
+    `_status_prose` used to catch that exception and return `None`, which
+    reads as "no status section" to `_check_prose` and silently exempts the
+    record from `prose-frontmatter-agree`. Fixed to catch it in `_check_prose`
+    instead and report a violation. Copilot found this on PR #5209.
     """
     depth = 20
     quote = ">" * depth + " "
@@ -695,6 +695,54 @@ def test_write_baseline_round_trips_and_then_passes(tmp_path):
     assert payload["counts"]["proposed-cannot-supersede"] == 1
     assert list(payload["counts"]) == list(CHECKS)
     assert _run(tmp_path, "--baseline", str(baseline)).returncode == EXIT_OK
+
+
+# --- worktree-identity guard (.claude/rules/ci-scripts.md MUST 7) -----------
+#
+# --repo-root defaults to a path derived from __file__ (build_parser()), not
+# from cwd. The guard in run() only fires for that default: every other
+# --write-baseline test in this file passes --repo-root explicitly (pointing
+# at a synthetic tmp_path corpus unrelated to cwd, by design), and an explicit
+# --repo-root is a stated write target that carries no worktree-identity risk.
+
+
+def test_write_baseline_with_default_repo_root_succeeds_when_cwd_is_inside_it(
+    tmp_path, monkeypatch
+):
+    baseline = tmp_path / "baseline.json"
+    monkeypatch.chdir(REPO_ROOT)
+
+    exit_code = main(["--baseline", str(baseline), "--write-baseline"])
+
+    assert exit_code == EXIT_OK
+    assert baseline.exists()
+
+
+def test_write_baseline_with_default_repo_root_rejects_a_cwd_outside_it(tmp_path, monkeypatch):
+    baseline = tmp_path / "baseline.json"
+    monkeypatch.chdir(tmp_path)
+
+    exit_code = main(["--baseline", str(baseline), "--write-baseline"])
+
+    assert exit_code == EXIT_CONFIG
+    assert not baseline.exists()
+
+
+def test_write_baseline_with_explicit_repo_root_ignores_cwd(tmp_path, monkeypatch):
+    """An explicit --repo-root is a stated write target; the guard does not apply
+    even when cwd sits outside it entirely.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, None)
+    baseline = tmp_path / "baseline.json"
+    monkeypatch.chdir(tmp_path.parent)
+
+    exit_code = main(
+        ["--repo-root", str(tmp_path), "--baseline", str(baseline), "--write-baseline"]
+    )
+
+    assert exit_code == EXIT_OK
+    assert baseline.exists()
 
 
 def test_missing_baseline_is_a_config_error(tmp_path):
@@ -1343,6 +1391,44 @@ def test_a_real_status_after_a_fenced_sample_is_still_found(tmp_path):
         1,
         _valid(1),
         "\n```markdown\n## Status\n\nAccepted\n```\n\n## Status\n\nProposed\n",
+    )
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 1
+
+
+def test_a_status_heading_inside_an_html_comment_is_not_the_records_status(tmp_path):
+    """A `## Status` inside an HTML comment belongs to the comment.
+
+    `blank_code_block_lines` (used before this fix) blanks fenced/indented
+    code but deliberately leaves HTML block content, including comments,
+    visible: a different caller (`check_skill_md_portability.py`) needs that
+    content scannable. ADR-TEMPLATE.md carries exactly this shape, an HTML
+    comment documenting a former `## Status` section. `_status_prose` now
+    uses `blank_non_prose_block_lines`, which blanks HTML blocks too, so the
+    comment's text is masked the same way a fenced sample already was
+    (PR #5209 round-4 review).
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        _valid(1),
+        "\n## Context\n\nWords.\n\n<!--\n## Status\n\nProposed\n-->\n",
+    )
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 0, (
+        "an HTML comment must not be read as the record's own status"
+    )
+
+
+def test_a_real_status_after_an_html_comment_is_still_found(tmp_path):
+    """Negative control: blanking HTML must not blank the real section."""
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        _valid(1),
+        "\n<!--\n## Status\n\nAccepted\n-->\n\n## Status\n\nProposed\n",
     )
 
     assert _counts(tmp_path)["prose-frontmatter-agree"] == 1
