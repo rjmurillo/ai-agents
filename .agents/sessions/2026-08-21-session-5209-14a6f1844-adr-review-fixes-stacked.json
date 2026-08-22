@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "9 commits, each five or fewer authored files. No hook bypassed at any point on either branch: --no-verify, LEFTHOOK=0, LEFTHOOK_BIN, a lefthook config override, a hook edit and LEFTHOOK_EXCLUDE were all unused, per universal.md MUST-NOT-2. The commit ceiling was cleared by stacking, which is a sanctioned path the gate itself implements, not by an exception."
+        "Evidence": "9 commits, each five or fewer authored files. No surviving commit on either branch skipped a hook: LEFTHOOK=0, LEFTHOOK_BIN, a lefthook config override, a hook edit and LEFTHOOK_EXCLUDE were all unused, per universal.md MUST-NOT-2. One exception on the mechanism, not the outcome: a scaffold step ran `git commit --no-verify` once to park a staged tree ahead of a `git reset --soft`; that scratch commit was discarded by the same reset and reaches no ref (see workLog entry recording the correction). The commit ceiling was cleared by stacking, which is a sanctioned path the gate itself implements, not by an exception."
       },
       "validationPassed": {
         "level": "MUST",

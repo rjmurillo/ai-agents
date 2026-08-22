@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 92304f8231a2de5977820f73d63452999b21b60f
+qaCommit: 853b61fad7b09b6887c4c13e2cda92ff8f3f5922
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -83,8 +83,13 @@ says `accepted` and its Decision section contains a fenced YAML block whose
 
 Ten ADR records were modified. Every substantive edit routed through the
 mandatory six-role `adr-review` debate, which the pre-commit gate
-`check_adr_review_policy` enforces. No hook was bypassed; `--no-verify`,
-`LEFTHOOK=0`, and `LEFTHOOK_EXCLUDE` were not used at any point.
+`check_adr_review_policy` enforces. No surviving commit skipped a hook.
+`LEFTHOOK=0` and `LEFTHOOK_EXCLUDE` were unused throughout. `--no-verify`
+was invoked once, on a scratch commit that a `git reset --soft` discarded
+in the same command; it reaches no ref and no surviving commit used it
+(`.agents/qa/session-5209-adr-review-fixes-stacked.md:42-48` records the
+invocation, and Copilot on PR #5209 caught this section's earlier absolute
+claim).
 
 Consensus: 2 Accept (architect, high-level-advisor), 3 Disagree-and-Commit
 (independent-thinker, security, analyst), 1 Block (critic) whose blocking
@@ -284,7 +289,10 @@ documented, and the exemption could not fire.
 
 Fixing the clone (`git remote set-head origin --auto`) cleared it, and the
 exemption then evaluated correctly (branch owns a log: yes; winner is merged
-history: True). No hook was bypassed at any point in this campaign. The
+history: True). This specific gate was satisfied rather than bypassed; the
+campaign as a whole did use `--no-verify` once elsewhere, on a discarded
+scratch commit, per the correction above and
+`.agents/qa/session-5209-adr-review-fixes-stacked.md:42-48`. The
 fragility is worth recording anyway: on a clone without `origin/HEAD`, a routine
 `git merge main` hard-blocks all further commits, and the error message names
 none of the three real causes. Filed as #5220 with the reproduction and a
@@ -647,3 +655,60 @@ and this file (the one carrying this addendum) crossed 500 lines, a real
 taste-count ratchet regression against `origin/main`'s baseline (this file
 does not exist there). Suppressed with the documented per-repo escape
 rather than splitting; verified the whole-tree ratchet returns to baseline.
+
+
+## Addendum 12: a Copilot review round on this branch's own head, eight findings
+
+**Rebound to** `853b61fad7b09b6887c4c13e2cda92ff8f3f5922`.
+
+Copilot reviewed this branch's head directly (not the stacked #5230
+branch). Eight findings, all fixed and mutation-proven where the fix was
+code, none a design reversal:
+
+- **`_status_prose` swallowed a markdown parse failure into "no status
+  section"**, silently exempting an unparseable record from
+  `prose-frontmatter-agree`. `blank_code_block_lines`'s own contract
+  (`scripts/utils/markdown_parser.py:175-180`) requires the exception to
+  propagate. Fixed to catch it one level up, in `_check_prose`, and
+  report a violation instead. New test
+  `test_unparseable_markdown_is_a_violation_not_a_silent_skip`;
+  mutation-proven by reverting the fix, which fails exactly that test.
+- **`implemented-implies-decided` blocked a pattern the corpus already
+  uses by design.** ADR-073's schema comment defines `implemented` as
+  flipping "at first merged change", independent of `status`, and
+  ADR-098 documents `status: proposed` with `implemented: true` as
+  deliberate (a governance ADR cannot self-assert its own acceptance).
+  Removed the check; baseline drops from 78 to 64 (-6 from the removal,
+  -1 from a pre-existing, unrelated `frontmatter-parses` improvement
+  already present on this branch, confirmed via `git stash` comparison
+  before attributing it here).
+- **ADR-055's `implemented: false` was the same conflation, applied to a
+  live record.** 111 of 132 `runs-on` declarations are already ARM,
+  well past "first merged change". Set to `true`; the remaining 21-job
+  gap stays in the record's Metrics section and issue #5199.
+- **The query-recipe docstring in `generate_adr_index.py` had the
+  absent-vs-unterminated-frontmatter behavior backwards.** Verified by
+  execution: absent frontmatter `continue`s past the snippet's check;
+  unterminated frontmatter (opens with `---`, never closes) skips that
+  `continue` and raises `ValueError`. The snippet crashes on the
+  unterminated case rather than silently dropping it. Corrected,
+  README regenerated.
+- **ADR-024's Provenance line wrote "(commit PR #224)" and "(commit PR
+  #476)"**, conflating pull request numbers with commit identifiers.
+  Removed the parentheticals.
+- **The PR description's checks list and violation count were stale**
+  after the `implemented-implies-decided` removal (nine checks, 78
+  violations, now seven checks, 64). Corrected on the PR itself.
+- **Two absolute "no hook was bypassed" claims, in the session log and
+  in this file**, were contradicted by this campaign's own stacked-branch
+  QA report, which records one `git commit --no-verify` invocation on a
+  scratch commit a `git reset --soft` discarded in the same command.
+  Corrected both to the accurate scope: no *surviving* commit skipped a
+  hook, and the one invocation reaches no ref.
+
+The ADR-055 and ADR-024 corrections are appended to the existing
+`ADR-024-025-042-055-status-redundancy-debate-log.md` (already covers
+both records) rather than a new debate log, since neither is a
+governance decision. 316 tests pass across `check_adr_lifecycle`,
+`generate_adr_index`, the `adr-review` skill (all trees), and the
+ADR-063 structural test.
