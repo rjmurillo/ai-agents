@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: d2d1cc6d6b06950adb1bb5a8dcc0e1839106b2c6
+qaCommit: 7e8d3f850e184853e7fd8ff2f25d63e4b683dec4
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1076,4 +1076,19 @@ restored). 200 tests pass across the touched suites
 (`test_check_adr_lifecycle.py`, `test_generate_adr_index.py`, the
 `adr-review` suite).
 
-**Rebound to** `d2d1cc6d6b06950adb1bb5a8dcc0e1839106b2c6`.
+**Addendum 17 correction.** The full `pre_pr.py` push gate surfaced four
+`test_build_all.py` failures the round-7 diff above did not touch
+directly: fixtures that create `.agents/architecture` empty to test
+unrelated `build_all.py` behavior (skills generation, untracked-file
+detection, skill-mirror staleness). `_build_adr_index()` runs
+unconditionally inside `build_all.run()` by that function's own design
+(it deliberately does not pre-check and skip a missing corpus, per its
+docstring and PR #5209 review discussion_r3831902216), so every fixture
+driving `run()` now needs a real ADR record, not an empty directory.
+Added a `_write_minimal_adr()` helper and used it at the four affected
+call sites. 90 tests pass in `test_build_all.py`; the sibling
+stale-mirror test now fails for the mirror staleness it actually tests
+(confirmed by its own "STALENESS DETECTED" output), not a masked ADR
+error it had been coincidentally passing through before.
+
+**Rebound to** `7e8d3f850e184853e7fd8ff2f25d63e4b683dec4`.

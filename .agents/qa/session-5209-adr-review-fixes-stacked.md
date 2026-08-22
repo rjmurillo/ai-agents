@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: d2d1cc6d6b06950adb1bb5a8dcc0e1839106b2c6
+qaCommit: 7e8d3f850e184853e7fd8ff2f25d63e4b683dec4
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -645,3 +645,13 @@ round). The four-backtick fence gap Copilot re-raised was confirmed
 already resolved by a documented earlier-round decision; no action.
 Three commits, five files, 21 new/modified tests, all mutation-proven.
 200 tests pass.
+
+**Addendum 19 correction.** The push gate's full `pre_pr.py` run
+surfaced four `test_build_all.py` failures: fixtures creating an empty
+`.agents/architecture` for unrelated `build_all.py` tests, which now
+needs a real ADR record since `_build_adr_index()` runs unconditionally
+inside `build_all.run()` by design. Added a `_write_minimal_adr()`
+helper at the four affected sites. 90 tests pass; full detail in the
+matching correction above Addendum 17 of the campaign report.
+
+**Rebound to** `7e8d3f850e184853e7fd8ff2f25d63e4b683dec4`.
