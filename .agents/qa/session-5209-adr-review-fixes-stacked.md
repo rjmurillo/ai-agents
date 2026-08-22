@@ -1,21 +1,15 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: c2055b1b91ddc7fb8406e15e6f9a84f41dfca220
+qaCommit: 9d9cf3120ad407583d909cbd55ca57d43e36682f
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
-
 
 # QA: PR #5209 review-round fixes, carried on a stacked branch
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `853b61fad7b09b6887c4c13e2cda92ff8f3f5922` (see Addendum 14)
-
-This copy lives on `claude/adr-evaluation-tooling-6od8rd` itself (merged in
-earlier), not on the stacked branch its own header names. Addendum 14's
-rebind reflects this branch's own head, per the same reasoning as Addendum
-12's rebind above.
+**Validated at commit**: `9d9cf3120ad407583d909cbd55ca57d43e36682f` (see Addendum 31)
 
 ## Verdict
 
@@ -420,17 +414,88 @@ uv run pytest tests/test_invoke_session_start_gate.py -q
 This is the commit this addendum's `qaCommit` rebind covers; no other file
 changed between the previous binding and this one.
 
-## Addendum 12: merged origin/main into PR #5209's own branch, closing the "dirty" state
+## Addendum 12: rebind past the `origin/main` merge (ADR-099, ADR-102 land)
 
-This QA report's `qaCommit` history above tracked commits landing on
-`claude/adr-5209-review-fixes` before that branch's fix commits were merged
-into `claude/adr-evaluation-tooling-6od8rd` (PR #5209 itself) at commit
-`d709cad6b`. PR #5209's branch subsequently fell behind `origin/main` again
-(GitHub reported `mergeable_state: "dirty"`), and separately carried one
-already-drafted fix that had never been committed
-(`build/scripts/build_all.py`'s ADR-index silent-skip removal, verified
-90/90 passing, mutation-proven by reverting the fix and confirming exactly
-the two new tests fail).
+The push carrying Addendum 11 failed `merge-tree-ratchet`:
+`origin/main` had advanced four commits, most relevantly `6977b40f1`
+(PR #5221, ADR-102) touching `.claude/lib/qa_report.py`. `git merge-tree
+--write-tree HEAD origin/main` (non-mutating) isolated the only real
+conflict to `tests/ci/test_validate_vendor_provenance.py`, where both sides
+had independently fixed the same Renovate-drift bug in
+`test_workflow_sets_up_uv`. Ran the real `git merge origin/main --no-edit`,
+kept this branch's fuller resolution (compiled `_SETUP_UV_PIN_RE`, the
+two-source docstring, and the separate discrimination-probe test
+`test_setup_uv_pin_pattern_rejects_an_unpinned_reference`), and discarded
+`origin/main`'s simpler inline duplicate. Verified no conflict markers
+remain (`grep -n "^<<<<<<<\|^=======\|^>>>>>>>"` exits 1) and
+`tests/ci/test_validate_vendor_provenance.py` passes standalone (51 passed).
+Merge commit: `9f5df8d092baf5b2a977dfd06ca3b8c9dc2c98bb`.
+
+Confirmed the ADR-102 change to `.claude/lib/qa_report.py` only loosens the
+`session_qa_binding()` contract: a `comparison.head`/`endingCommit`
+disagreement now sets `QaBinding.inconsistency` and prefers
+`comparison.head`, instead of raising. That is strictly more permissive than
+the equality check this branch's own work depended on, so nothing in this
+report's prior verification is invalidated by the merge.
+
+Re-ran the full targeted suite after the merge:
+
+```
+uv run pytest tests/ci/test_validate_vendor_provenance.py \
+  tests/validation/test_check_adr_links.py \
+  tests/build_scripts/test_generate_adr_index.py \
+  tests/build_scripts/test_build_all.py -q
+272 passed
+uv run pytest tests/ -k "qa_binding or qa_report or session_json" -q
+384 passed
+```
+
+The merge brought in dozens of non-evidence files from `origin/main`
+(ADR-099, ADR-100, ADR-101, ADR-102 and their implementations), which is why
+`qaCommit` rebinds to the merge commit itself rather than to a narrower
+commit: `git diff <merge-commit>..HEAD` is empty at the moment this addendum
+lands, and this addendum's own commit touches only `.agents/qa/*.md`, an
+evidence path exempt from the staleness check.
+
+## Addendum 13: rebound past the post-merge index regeneration
+
+`pre_pr.py`'s Generated Artifact Staleness check caught that
+`.agents/architecture/README.md` had not been regenerated after the merge
+in Addendum 12 picked up ADR-099 and ADR-102. Regenerated with
+`build/scripts/build_all.py` (commit `9baa0a9fad1131b14ad203c016d5483025c30d61`);
+diff is exactly the two new ADR rows, nothing else. `.agents/architecture/README.md`
+is not an evidence path, so this rebinds `qaCommit` to that commit.
+
+## Addendum 14: workspace-budget fix, discovered mid-push
+
+The push carrying Addendum 13 got through most of the pre-push suite
+(count ratchets, security scan) before failing in `python-tests`:
+`AGENTS.md is 3016 bytes, exceeds 3000 byte ceiling`
+(`test_validate_workspace_budget.py`, `test_workspace_limits.py`). Root
+cause: the Addendum 12 merge combined this branch's own one-line edit to
+`AGENTS.md` with `origin/main`'s independent one-line edits on
+non-overlapping lines. Neither side's file exceeded the budget alone
+(2872 and 2992 bytes); git's line-based merge produced 3016.
+
+Trimmed three redundant phrases without dropping any referenced fact
+(the ADR-index pointer, the mid-gate advisory note, and "agent" after
+merge-resolver, already named as an agent elsewhere): 2984 bytes.
+Verified both budget tests pass. `qaCommit` rebinds to
+`2cc0faa83d63586f0a380fcfa26f2a72d09be5ed`.
+
+## Addendum 15: PR #5209's own branch independently merged `origin/main`, closing its "dirty" state
+
+Addenda 12 through 14 above happened on `claude/adr-5209-review-fixes`. In
+parallel, `claude/adr-evaluation-tooling-6od8rd` (PR #5209 itself) needed the
+same class of fix, worked independently rather than by fast-forwarding this
+branch's commits into it (the two branches had already diverged since the
+`d709cad6b` merge that first pulled this branch's fixes into PR #5209).
+
+PR #5209's branch had fallen behind `origin/main` again (GitHub reported
+`mergeable_state: "dirty"`), and separately carried one already-drafted fix
+that had never been committed (`build/scripts/build_all.py`'s ADR-index
+silent-skip removal, verified 90/90 passing, mutation-proven by reverting
+the fix and confirming exactly the two new tests fail).
 
 Committed that fix (`75a82f209`, `SKIP_SCOPE_CHECK=1` used with explicit
 user approval: the branch already carries `needs-split` and
@@ -462,9 +527,9 @@ uv run pytest tests/ci/test_validate_vendor_provenance.py \
 `qaCommit` rebinds to `986ab2641b1b68cd326b68c5a06f314eccbeb79a`, the
 regeneration commit, where the diff to HEAD is empty.
 
-## Addendum 13: workspace-budget fix and a real taste-lint ratchet regression
+## Addendum 16: PR #5209's own workspace-budget fix and a real taste-lint ratchet regression
 
-`pre_pr.py`'s Count Ratchets caught two things after Addendum 12's merge:
+`pre_pr.py`'s Count Ratchets caught two things after Addendum 15's merge:
 
 1. **`AGENTS.md` breached its 3000-byte budget** (3016 bytes) as a side
    effect of that merge: this branch's own one-line edit combined with
@@ -489,12 +554,216 @@ being this addendum's own not-yet-rebound `qaCommit` (the exact staleness
 this addendum resolves). `qaCommit` rebinds to
 `92304f8231a2de5977820f73d63452999b21b60f`.
 
+## Addendum 17: the two stacked branches merged back together
 
-## Addendum 14: a Copilot review round on PR #5209's own head, eight findings
+PR #5209's mergeable_state showed `"dirty"` even after Addendum 15 landed on
+that branch, because `claude/adr-5209-review-fixes` (this branch, PR #5230)
+had continued to diverge with its own independent commits (addenda 12-14
+above) at the same time PR #5209's branch was fixing the identical class of
+problem independently (addenda 15-16). `git merge-tree --write-tree` against
+the two branch tips predicted the merge would touch three files:
+`.agents/architecture/README.md` and these two QA reports. Only the two QA
+reports actually conflicted; the merge commit's own trailer (`9f0e7d5`)
+records conflict markers for exactly those two paths and none other.
+
+`.agents/architecture/README.md` was one of the three files `merge-tree`
+flagged as touched by both sides, but it auto-merged cleanly (one row each
+for ADR-099 and ADR-102, no duplicates, no conflict markers). All the code
+files PR #5209's branch had already fixed
+(`build/scripts/build_all.py`, `build/scripts/generate_adr_index.py`,
+`scripts/validation/check_adr_links.py` and their tests) auto-merged with no
+conflicts. The two QA reports conflicted only in their frontmatter
+`qaCommit` fields and in where each branch's independent addenda sequence
+was appended; resolved by keeping each branch's own addenda in place and
+renumbering the later ones into one consecutive sequence (this file's
+addenda 12-14 are this branch's own events; 15-16 are PR #5209's branch's
+parallel events, renumbered from its own 12-13).
+
+Merge commit: `9f0e7d552d6a683c816f959fd894d3a009171905`. Re-ran the full
+targeted suite plus the workspace-budget tests after resolving:
+
+```
+uv run pytest tests/ci/test_validate_vendor_provenance.py \
+  tests/validation/test_check_adr_links.py \
+  tests/build_scripts/test_generate_adr_index.py \
+  tests/build_scripts/test_build_all.py \
+  tests/test_validate_workspace_budget.py \
+  "tests/test_workspace_limits.py::test_per_file_limit[AGENTS.md]" -q
+305 passed
+```
+
+This addendum's own commit touches only `.agents/qa/*.md`, an evidence
+path, so `qaCommit` rebinds to that commit rather than to the merge commit
+itself.
+
+## Addendum 18: a review round on the merged head, seven findings
+
+Copilot reviewed the post-merge head (`7f3dee78d`, the same commit Addendum 9's
+round reviewed, re-scanned after the merge landed). Seven findings, six code
+and one description staleness. Each was reproduced before editing.
+
+### A hidden HTML comment could forge a status the same way a fenced sample could
+
+Addendum 9's fenced-sample fix blanked CommonMark code-block lines
+(`fence`/`code_block` tokens) before searching for `## Status`, but left
+`html_block` tokens untouched. A status hidden inside a bare HTML comment
+(`<!--\n## Status\nAccepted\n-->`) still won the first-match search over a real
+`## Status` section further down. Verified empirically:
+`_create_parser().parse()` tokenizes that block as its own `html_block`,
+distinct from `fence`/`code_block`, confirming the helper's token filter
+missed it by construction rather than by accident. Fixed by adding
+`blank_non_prose_block_lines` (`scripts/utils/markdown_parser.py`), extending
+the existing helper's token set with `html_block`, and switching
+`check_adr_lifecycle.py:_status_prose` to it. Mutation-proven: reverting to the
+code-only blanker fails exactly the new discriminating test
+(`test_a_status_heading_inside_an_html_comment_is_not_the_records_status`) and
+nothing else in the 114-test file.
+
+### Two ellipsis placeholders where the canonical-source-mirror rule requires a verbatim quote
+
+`check_adr_lifecycle.py:272` and `.claude/skills/adr-review/scripts/detect_adr_changes.py:151`
+each quoted `build/scripts/generate_adr_index.py`'s duplicate-key error as
+`raise ...` instead of the real expression,
+`raise _DuplicateKeyError(f"duplicate key {key!r} in frontmatter mapping")`.
+`canonical-source-mirror.md` requires the quote be exact so the mirror claim is
+auditable; an ellipsis is not a citation. Both fixed to the verbatim line. A
+third copy of the same ellipsis, in the generated Copilot mirror
+(`src/copilot-cli/skills/adr-review/scripts/detect_adr_changes.py:144`), is
+fixed by the same edit to the canonical `.claude/` source: the two files are
+byte-identical at this function (confirmed with `diff`), so there is one
+source location, not three.
+
+### A rationale paragraph left describing a design this same PR had already replaced
+
+`generate_adr_index.py:158`'s intro paragraph still described
+`detect_adr_changes.py`'s duplicate-key helper as using "a line scan" against
+this file's own parser-level hook, a distinction Addendum 9 had already
+erased when it rewrote that helper to hook the parser too. Rewritten to
+describe the current agreement: both readers detect at the parser and neither
+is fooled by quoting or comments.
+
+### A helper name that stated a scope its own behavior no longer had
+
+`_has_duplicate_top_level_keys` in both `detect_adr_changes.py` trees
+detects duplicates at every mapping depth since Addendum 9's rewrite (the
+PyYAML constructor it hooks fires for every mapping node, not only the
+top-level one), so "top_level" misstated the contract and invited a caller to
+add a second, redundant nested-key guard believing this one did not cover it.
+Renamed to `_has_duplicate_keys` across both shipped trees, their docstrings,
+and `tests/skills/adr-review/test_detect_adr_changes_duplicate_keys.py`.
+
+### The PR description described a diff that no longer existed
+
+Between this round's review and its fix, both branches merged `origin/main`
+and each other (Addendum 17), collapsing PR #5230's diff from the 108/168-file
+figures the description quoted down to the two QA evidence files in this
+PR's actual diff against its current base. The description's "Why the file
+count is large", "Files changed", and commit-ceiling sections were rewritten
+to describe the current 2-file diff rather than a snapshot that predated the
+merge; the earlier 108-vs-54 breakdown is not reproduced because re-deriving
+stale numbers against a since-moved base would be worse than removing the
+claim.
+
+Rewriting the description's own body created a new instance of the same
+class of defect it had just fixed: a `## Changes` heading described several
+already-merged historical fixes by filename
+(`build/scripts/generate_adr_index.py`, `detect_adr_changes.py`,
+`scripts/utils/markdown_parser.py`, `.agents/architecture/ADR-TEMPLATE.md`),
+none of which are in this PR's current 2-file diff. `scripts/validation/pr_description.py`'s
+own `extract_mentioned_files` treats a heading named `## Changes` as a
+change-claim section and holds every file path under it to a diff-presence
+check. Caught before submitting by importing that function directly and
+running it against the draft; the fix was renaming the heading to
+`## Background`, one of `_CONTEXTUAL_SECTION_NAMES`'s exact-match entries,
+which `extract_mentioned_files` strips entirely before extraction. Re-running
+the extractor against the final saved file confirmed only the two real diff
+files remain in the extracted set.
+
+### An audit trail that named a wider conflict than the merge actually recorded
+
+Addendum 17, above, described `git merge-tree --write-tree`'s prediction (three
+touched files: the two QA reports and `.agents/architecture/README.md`) as "a
+real conflict" spanning all three, then in the next sentence said `README.md`
+"auto-merged cleanly", an internal contradiction Copilot caught. The merge
+commit's own trailer (`9f0e7d552d6a683c816f959fd894d3a009171905`) is the
+ground truth: `git show 9f0e7d552 -s --format=%B` lists conflict markers for
+exactly `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md` and
+`.agents/qa/session-5209-adr-review-fixes-stacked.md`, and no others.
+`README.md` was touched by both sides and predicted as a merge candidate, but
+never actually conflicted. Addendum 17's wording above is corrected in place
+to distinguish "flagged as touched by both sides" from "actually conflicted",
+rather than adding a further addendum that would just restate the same three
+sentences with the word "conflict" removed.
+
+Full targeted suite after all six code fixes:
+
+```
+uv run pytest tests/validation/test_check_adr_lifecycle.py \
+  tests/build_scripts/test_generate_adr_index.py \
+  tests/skills/adr-review/ \
+  tests/test_markdown_parser.py \
+  .claude/skills/adr-review/tests/ -q
+355 passed
+```
+
+The six code fixes above landed as four atomic commits (each five files
+or fewer per `universal.md` MUST-6), not one: `700912b84` (the
+`blank_non_prose_block_lines` helper and its tests), `3a7eaff2d`
+(`check_adr_lifecycle.py`'s switch to it, plus its own ellipsis fix),
+`f424e5bb3` (the stale-rationale docstring correction), and `7108a372c`
+(the rename and its mirrored ellipsis fix, across both shipped trees and
+the test). `git status --short | wc -l` before the first of the four was
+8, over the 5-file atomic-commit ceiling for one commit; split by file
+group instead of using the branch-scope bypass, since these six fixes
+naturally decompose into four independent units.
+
+`7108a372c` is the last of the four and is itself a non-evidence commit,
+so it is not the rebind target. This addendum's own commit, immediately
+following, touches only `.agents/qa/session-5209-adr-review-fixes-stacked.md`
+(this file), an evidence path, so `qaCommit` rebinds to `7108a372c`
+(the last non-evidence commit that precedes it) rather than to this
+addendum's own SHA: `post_qa_code_changes()` walks `commit..head` for
+non-evidence paths, so binding to any commit at or after the last
+non-evidence change satisfies it, and `7108a372c` is already known at the
+time this text is written, unlike this commit's own not-yet-assigned SHA.
+
+## Addendum 19: the rename docstring itself tripped the ratchet it was fixing
+
+`git push` failed on the whole-tree taste-count ratchet (`ci-scripts.md`
+MUST 15): 577 violations against `origin/main`'s baseline of 576.
+`7108a372c`'s longer docstring pushed
+`.claude/skills/adr-review/scripts/detect_adr_changes.py` from 498 lines
+(a warning-level "approaching size limit") to 504 (the 500-line
+error-level `file-size` threshold), and the whole-tree ratchet counts
+errors, not warnings. Confirmed the exact cause by running
+`taste_lints.py` against the file's pre- and post-rename content
+directly, isolating the single new violation from the file's two
+pre-existing ones (both unchanged: the same `_extract_table` and
+`parse_sections` complexity findings this file already carried before
+this round).
+
+Fixed in `db398cb4c` by condensing the quoted-spelling illustration from
+an 8-line indented table to one inline sentence (same four spellings,
+same citation), back to 499 lines in both trees (confirmed byte-identical
+via `diff`). `taste_count_ratchet.py`: OK (count == baseline 576).
+`merge-tree-ratchet` against `origin/main`: OK, all four registered
+ratchets pass.
+
+`db398cb4c` is itself a non-evidence commit (touches both
+`detect_adr_changes.py` trees), landing after the `qaCommit` rebind two
+paragraphs above. `qaCommit` rebinds again, to `db398cb4c`, for the same
+reason stated there: it is the last non-evidence commit, known before
+this text is written.
+
+Full targeted suite unchanged at 355 passed; the fix only shortened a
+docstring comment, no code paths moved.
+
+
+## Addendum 20: a Copilot review round on PR #5209's own head, eight findings
 
 **Rebound to** `853b61fad7b09b6887c4c13e2cda92ff8f3f5922`.
 
-Full detail in Addendum 12 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`:
+Full detail in Addendum 19 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`:
 eight findings, all fixed. `_status_prose` swallowed a markdown parse
 failure into "no status section" instead of reporting it as a violation;
 `implemented-implies-decided` blocked a pattern (`status: proposed` with
@@ -508,11 +777,11 @@ numbers with commit identifiers; two absolute "no hook was bypassed"
 claims (session log, campaign QA file) are corrected to the accurate
 scope. 316 tests pass.
 
-## Addendum 15: a third Copilot review round, five fixed, one filed
+## Addendum 21: a third Copilot review round, five fixed, one filed
 
 **Rebound to** `5205bf29d366afe80d2174302a1d5326be6fae16`.
 
-Full detail in Addendum 13 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`:
+Full detail in Addendum 20 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`:
 six findings. Five fixed in commits `17e0a15f3` and `5205bf29d`:
 `generate_adr_index.py`'s successor lookup missed non-padded and bare-int
 `superseded-by` references the lifecycle gate already accepts, fixed with
@@ -531,11 +800,11 @@ ceiling can only fall relative to the PR's base branch, is filed as issue
 gate-forgeability class found in this PR's own shipped code. 272 tests
 pass across the four touched suites plus the pre-PR sequence registry.
 
-## Addendum 16: a fourth Copilot review round, two MUST-7 gaps, plus a backlog cleanup
+## Addendum 22: a fourth Copilot review round, two MUST-7 gaps, plus a backlog cleanup
 
 **Rebound to** `d1fc64595bf5bc6e9c2d54b6a4210ef194f7eff7`.
 
-Full detail in Addendum 14 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`.
+Full detail in Addendum 21 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`.
 A fourth Copilot review found two `.claude/rules/ci-scripts.md` MUST-7
 worktree-identity gaps (`generate_adr_index.py:main()` and
 `check_adr_lifecycle.py --write-baseline` both wrote without verifying
@@ -560,11 +829,11 @@ Test counts: `check_adr_lifecycle` 116 tests (up from 111), `check_adr_links`
 new tests split across `tests/test_markdown_parser.py` and
 `tests/skills/adr-review/test_detect_adr_changes_cli_contract.py`.
 
-## Addendum 17: a fifth Copilot review round, three findings fixed
+## Addendum 23: a fifth Copilot review round, three findings fixed
 
 **Rebound to** `fefa8bf5e0ddd4c6d416032c2e35e62070b82765`.
 
-Full detail in Addendum 15 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`.
+Full detail in Addendum 22 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`.
 A fifth Copilot review found three defects, all fixed and mutation-proven:
 `check_adr_links.py`'s baseline allowance suppressed every finding sharing a
 `kind:file:target` key rather than just the one baselined occurrence, fixed
@@ -582,11 +851,11 @@ semantics; the same docstring's separate overclaim that an overdue
 corrected (nothing in this codebase does that yet; the check belongs to
 issue #5193). 170 tests pass across the three touched suites.
 
-## Addendum 18: a sixth Copilot review round, four findings fixed
+## Addendum 24: a sixth Copilot review round, four findings fixed
 
 **Rebound to** `890da965b710b153be17aeb617ad895d2ec6dbf6`.
 
-Full detail in Addendum 16 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`.
+Full detail in Addendum 23 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`.
 A sixth Copilot review found four defects, all fixed and mutation-proven:
 `check_adr_links.py`'s `scan_file()` read tracked file content with
 `errors="replace"`, silently masking a malformed byte instead of raising
@@ -606,7 +875,7 @@ round 5, corrected to the measured 19 and 2 with a self-verifying test.
 93 tests pass across the two touched suites (85 in `check_adr_links`, 8
 new in `test_detect_adr_changes_status_scalar.py`).
 
-**Addendum 18 correction.** Cursor Bugbot found one more defect in the
+**Addendum 24 correction.** Cursor Bugbot found one more defect in the
 round's own new test minutes after the push: a raw `0xff`-byte filename
 with no platform guard, which would fail on filesystems that reject
 non-UTF-8 names (APFS, NTFS) before the assertion under test could run.
@@ -619,13 +888,13 @@ a contributor running locally on a different OS. 85 tests still pass.
 autofix agent independently pushed the identical fix directly to this
 branch minutes later; merged (not force-pushed over), keeping the local
 reason string. Full detail in the campaign report's matching rebind
-note above Addendum 16.
+note above Addendum 22.
 
-## Addendum 19: a seventh Copilot review round, five fixed, one filed
+## Addendum 25: a seventh Copilot review round, five fixed, one filed
 
 **Rebound to** `d2d1cc6d6b06950adb1bb5a8dcc0e1839106b2c6`.
 
-Full detail in Addendum 17 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`.
+Full detail in Addendum 24 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`.
 A seventh Copilot review found two new defects plus seven suppressed
 findings in code unchanged since the last review. Fixed: renamed
 `_has_duplicate_top_level_keys` to `_has_duplicate_keys` (it already
@@ -646,29 +915,28 @@ already resolved by a documented earlier-round decision; no action.
 Three commits, five files, 21 new/modified tests, all mutation-proven.
 200 tests pass.
 
-**Addendum 19 correction.** The push gate's full `pre_pr.py` run
+**Addendum 25 correction.** The push gate's full `pre_pr.py` run
 surfaced four `test_build_all.py` failures: fixtures creating an empty
 `.agents/architecture` for unrelated `build_all.py` tests, which now
 needs a real ADR record since `_build_adr_index()` runs unconditionally
 inside `build_all.run()` by design. Added a `_write_minimal_adr()`
 helper at the four affected sites. 90 tests pass; full detail in the
-matching correction above Addendum 17 of the campaign report.
+matching correction above Addendum 24 of the campaign report.
 
 **Rebound to** `7e8d3f850e184853e7fd8ff2f25d63e4b683dec4`.
 
-**Addendum 19, second correction.** Fixed `check_adr_links.py`'s
+**Addendum 25, second correction.** Fixed `check_adr_links.py`'s
 four-backtick fence gap this time (`FENCE` now tracks run length, not
 just character; mutation-proven, 86 tests pass). Filed
 [#5274](https://github.com/rjmurillo/ai-agents/issues/5274) for the
 matching gap in `generate_adr_index.py`'s summary extraction rather
 than fixed inline, since that scanner needs converting from a
 whole-body regex substitution to a stateful line scan across two
-functions. Full detail in the matching correction above Addendum 17 of
-the campaign report.
+functions. Full detail in the matching correction above Addendum 24 of the campaign report.
 
 **Rebound to** `1c6da1909c0f335c06e760fb31675cc6ca68add2`.
 
-## Addendum 20: an eighth Copilot review round, five fixes across five files
+## Addendum 26: an eighth Copilot review round, five fixes across five files
 
 Two separate Copilot review submissions landed on the same commit
 (`ebcf4f52f`), 35 minutes apart, each with a different suppressed-findings
@@ -680,22 +948,22 @@ internal references), and an examined-count addition to the success and
 failure messages of `check_adr_links.py`, `check_adr_lifecycle.py`, and
 `generate_adr_index.py --check` (a bare "0 violation(s)"/"OK" cannot
 distinguish a completed scan from one that silently scanned a narrowed or
-emptied scope). Full detail in Addendum 18 of the campaign report. Four
+emptied scope). Full detail in Addendum 25 of the campaign report. Four
 commits, seven files, all mutation-proven; 308 tests pass across the four
 touched suites; `ruff check` clean.
 
 **Rebound to** `80ba38e0c39c111bb73c60246cf113e634aa124c`.
 
-**Addendum 20 correction.** The diff above pushed `check_adr_links.py`
+**Addendum 26 correction.** The diff above pushed `check_adr_links.py`
 from 491 to 537 lines, a real taste-count-ratchet regression (+1 over the
 576 baseline). Suppressed with the documented per-repo file-size escape
 rather than split (243 of 537 lines are comments/docstrings); ratchet
 confirmed back at baseline. Full detail in the matching correction above
-Addendum 18 of the campaign report.
+Addendum 25 of the campaign report.
 
 **Rebound to** `702e3819074c2d623fda38bea5d4900d69eb67f2`.
 
-## Addendum 21: a ninth Copilot review round, two fixed, one filed, one rebutted
+## Addendum 27: a ninth Copilot review round, two fixed, one filed, one rebutted
 
 A ninth Copilot review (queued against the pre-round-8 head `47492781b`)
 found four items: two genuine defects, fixed and mutation-proven
@@ -706,26 +974,57 @@ too-large-to-fix-here defect (three ADR frontmatter parsers disagree on
 closing-fence strictness, confirmed by direct execution, filed as
 [#5275](https://github.com/rjmurillo/ai-agents/issues/5275)); and one
 re-raise of an already-considered worktree-guard scoping decision,
-rebutted in the docstring rather than changed. Full detail in Addendum 19
-of the campaign report. Two commits, three files, 215 tests pass across
+rebutted in the docstring rather than changed. Full detail in Addendum 26 of the campaign report. Two commits, three files, 215 tests pass across
 the two touched suites; `ruff check` and the taste-count ratchet (576, at
 baseline) both clean.
 
 **Rebound to** `8a702a650b1bb4e4ae02916f4b777e448babf0ca`.
 
-**Addendum 21 correction.** The push surfaced six `test_validation_pre_pr.py`
+**Addendum 27 correction.** The push surfaced six `test_validation_pre_pr.py`
 failures the local `pre_pr.py` runs did not catch (it does not run the full
 pytest suite; only the push-time `python-tests` job does). Root cause:
 `_healthy_git_run`'s blanket mock answers `git ls-files -z *.md` with
 `stdout=""`, which the new empty-corpus guard reads as a wrong repository
 root. Same class as round 7's `test_build_all.py` fixture fix. Fixed by
 adding "ADR Link Resolution" to the existing bypass set. Full detail in the
-matching correction above Addendum 19 of the campaign report. Full pytest
+matching correction above Addendum 26 of the campaign report. Full pytest
 suite re-run clean: 28090 passed, 74 skipped.
 
 **Rebound to** `416ef5e427de0fe97f7e3dcae61812d17ffe1791`.
 
-## Addendum 22: a tenth Copilot review round, four fixed, seven documented
+## Addendum 28: merge of `origin/claude/adr-evaluation-tooling-6od8rd` (PR #5209)
+
+Same merge as Addendum 27 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`;
+full detail lives there. This file's own conflict was limited to its
+frontmatter/header (`qaCommit`, `Validated at commit`) and its addenda tail:
+origin's Addenda 14-21 here continued its own local numbering from a shared
+"Addendum 13" point, unaware of this branch's own Addenda 12-19 inserted
+before it; both are kept, origin's renumbered to 20-27 with their
+cross-references into the sister campaign file corrected to match that
+file's own renumbering (19-26).
+
+Full pytest re-verification, and the final `qaCommit` rebind, are recorded in
+a following addendum once complete.
+
+## Addendum 29: the merge's own regression, found by the push gate
+
+Same defect as Addendum 28 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`;
+full detail lives there. The merge in Addendum 28 above combined two
+independently-added `TestBlankNonProseBlockLines` classes in
+`tests/test_markdown_parser.py`, one from each branch, with no textual
+conflict since they landed at different line ranges. Python silently
+dropped the first at import time (`F811`), losing its assertions with no
+test failure; the push-time `ruff` lint ratchet caught it, not pytest.
+Consolidated into one class, mutation-verified (72 to 71 tests on removing
+one test method), fixed in `485b1db68`. A separate em-dash the merge's own
+resolution prose introduced into the campaign file (not carried over from
+either branch) is also corrected there.
+
+Full pytest suite re-run clean: 28092 passed, 74 skipped, 0 failed.
+
+**Rebound to** `485b1db684a3cea5248f0e5d7dfa645f98a360b2`.
+
+## Addendum 30: a tenth Copilot review round, four fixed, seven documented
 
 A tenth Copilot review found 13 items: four genuine defects, fixed and
 mutation-proven (`check_adr_links.py`'s `FENCE` regex accepting unbounded
@@ -738,10 +1037,32 @@ gate" corrected to "seven-check gate"); three volatile-exact-count
 taste-lint suppressions reworded to drop counts that had already gone
 stale; and seven stale debate-log references to a renamed `## Status`
 section, corrected with two unifying notes rather than seven separate
-edits. Full detail in Addendum 20 of the campaign report. Four commits,
+edits. Full detail in Addendum 29 of the campaign report. Four commits,
 eight files, six new test functions; `check_adr_links` 99 tests (was 95),
 `check_adr_lifecycle` 124 tests (was 122); 304 tests pass across the three
 touched suites; `ruff check` and the taste-count ratchet (576, at
 baseline) both clean.
 
 **Rebound to** `c2055b1b91ddc7fb8406e15e6f9a84f41dfca220`.
+
+## Addendum 31: a second merge of `origin/claude/adr-evaluation-tooling-6od8rd`, closing this branch's own "dirty" state again
+
+Same merge as Addendum 30 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`;
+full detail lives there. This file's own conflict was the same shape as
+Addendum 28's: its frontmatter (`qaCommit`) and its addenda tail,
+where both branches independently continued the same numbering after
+the prior merge point. Origin's continuation (its own "Addendum 22")
+is kept as Addendum 30 above, with its internal cross-reference to
+"Addendum 20 of the campaign report" corrected to that file's
+Addendum 29.
+
+Also applied here, against this branch's prior head (`3cb5bb0af`):
+the "Validated at commit" header above updated past two stale rebinds,
+and the mutation-evidence wording in Addendum 29 corrected from
+"removing one assertion" to "removing one test method"
+(`test_blanks_a_block_level_html_comment`), since pytest collection
+counts test items, not assertions.
+
+Full pytest suite re-run clean: 28098 passed, 74 skipped, 0 failed.
+
+**Rebound to** `9d9cf3120ad407583d909cbd55ca57d43e36682f`.

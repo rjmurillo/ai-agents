@@ -177,7 +177,7 @@ def _blank_block_lines(markdown: str, token_types: frozenset[str]) -> str:
     """Shared blanking loop for `blank_code_block_lines` and
     `blank_non_prose_block_lines`. Every source line CommonMark attributes to
     a block whose type is in ``token_types`` is replaced by an empty string,
-    preserving line count so a caller matching against the result keeps
+    preserving line count and every other line's content so callers keep
     stable line numbers.
 
     Any exception the parser raises propagates to the caller, which must not

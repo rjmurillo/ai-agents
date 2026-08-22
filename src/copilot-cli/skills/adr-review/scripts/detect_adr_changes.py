@@ -120,7 +120,15 @@ def _parse_frontmatter(frontmatter: str) -> dict[str, object] | None:
 
 
 def _has_duplicate_keys(frontmatter: str) -> bool:
-    """True when a frontmatter mapping declares the same key twice, at any depth.
+    """True when a frontmatter mapping declares the same key twice, at any
+    mapping depth: the constructor below is registered for every YAML
+    mapping node PyYAML visits, top-level or nested, so a duplicate nested
+    one level down is caught the same way a top-level one is
+    (``test_a_nested_duplicate_is_caught``). Renamed from
+    `_has_duplicate_top_level_keys`, independently on both PR #5209 and PR
+    #5230's Copilot review rounds: that name was accurate before the
+    parser-level rewrite, when the detection was a top-level-only line
+    regex; it now misstates the contract.
 
     Duplicate keys are malformed YAML and can hide a governance change (a
     second ``status:`` line masking the first). PyYAML resolves duplicates
@@ -128,20 +136,12 @@ def _has_duplicate_keys(frontmatter: str) -> bool:
     closed on them and the adr-review gate still fires.
 
     Detected at the parser rather than by matching line prefixes. The earlier
-    regex recognised only ``^[A-Za-z0-9_-]+:``, which asks a different question
-    than YAML does. Measured on that revision, three of four spellings walked
-    through while ``yaml.safe_load`` enforced ``accepted`` for every one:
-    ``status: proposed`` was caught but ``"status": proposed``, ``status :
-    proposed``, and ``'status': proposed`` all MISSED (all four are exercised
-    in ``TestDuplicateKeySpellings.test_every_spelling_is_caught``). A guard
-    against forgery that the forger evades with quotation marks is worse than
-    none, because it reports clean. Copilot found it on PR #5230.
-
-    The constructor fires for every mapping node the loader builds, not only
-    the document root, so a duplicate nested one level down is caught the same
-    way (``test_a_nested_duplicate_is_caught``). The name once read
-    ``_has_duplicate_top_level_keys``, which undersold that (Copilot, PR #5209
-    round-7 review).
+    regex recognised only ``^[A-Za-z0-9_-]+:``, a different question than
+    YAML asks: three of ``status: proposed``, ``"status": proposed``,
+    ``status : proposed``, and ``'status': proposed`` walked through it while
+    ``yaml.safe_load`` enforced ``accepted`` for every one (Copilot, PR
+    #5230). A guard the forger evades with quotation marks is worse than
+    none, since it reports clean.
 
     Mirrors `_no_duplicate_keys` in build/scripts/generate_adr_index.py, which
     is canonical. The detection is quoted verbatim from it
@@ -202,9 +202,9 @@ def _only_non_decision_fields_changed(old_frontmatter: str, new_frontmatter: str
     (for example ``status: proposed`` -> ``accepted``) makes this False so the
     adr-review gate still fires (ADR-073).
 
-    Fails closed when either side has a duplicate top-level key or malformed
-    frontmatter: a duplicated or unparseable governance key could otherwise
-    mask a status change.
+    Fails closed when either side has a duplicate key (at any mapping depth)
+    or malformed frontmatter: a duplicated or unparseable governance key
+    could otherwise mask a status change.
     """
     if _has_duplicate_keys(old_frontmatter) or _has_duplicate_keys(new_frontmatter):
         return False
