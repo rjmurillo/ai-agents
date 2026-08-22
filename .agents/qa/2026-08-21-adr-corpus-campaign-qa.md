@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 7e8d3f850e184853e7fd8ff2f25d63e4b683dec4
+qaCommit: 1c6da1909c0f335c06e760fb31675cc6ca68add2
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1092,3 +1092,33 @@ stale-mirror test now fails for the mirror staleness it actually tests
 error it had been coincidentally passing through before.
 
 **Rebound to** `7e8d3f850e184853e7fd8ff2f25d63e4b683dec4`.
+
+**Addendum 17, second correction.** The round-7 review's remaining two
+findings, investigated after the two corrections above landed:
+
+- **`check_adr_links.py`'s four-backtick fence gap was re-raised as a
+  live, unresolved thread**, not merely a suppressed repeat: the
+  earlier docstring calling it "deferred rather than guessed at" was
+  itself the defect, since it staked the deferral on a corpus property
+  ("no fence in this corpus nests same-character runs of different
+  lengths") that was never something the scanner could rely on going
+  forward. Fixed this time: `FENCE` now captures the whole run, and
+  `scan_file` tracks the opening character and its length, closing only
+  on a fence-shaped line whose character matches and whose length is at
+  least as long, per CommonMark (spec.commonmark.org section 4.5). New
+  test mirrors the existing character-mismatch test; mutation-proven.
+  86 tests pass.
+- **`generate_adr_index.py`'s summary/title extraction has the same
+  class of gap** (`_FENCE_RE` matches only triple-backtick fences, and
+  `_section_body` searches for the section heading before any fence is
+  stripped, so a heading-shaped line inside a code example can match
+  instead of the real heading). Unlike the sibling fix above, this
+  scanner is a whole-body regex substitution, not a per-line state
+  machine, so converting it to the same stateful approach is a larger
+  change across two functions. Filed as
+  [#5274](https://github.com/rjmurillo/ai-agents/issues/5274) rather
+  than fixed inline, following the same-PR precedent (#5205, #5270,
+  #5273): this is a data-quality issue in a generated index cell, not a
+  gate that can pass or fail incorrectly.
+
+**Rebound to** `1c6da1909c0f335c06e760fb31675cc6ca68add2`.

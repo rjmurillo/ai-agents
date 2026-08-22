@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 7e8d3f850e184853e7fd8ff2f25d63e4b683dec4
+qaCommit: 1c6da1909c0f335c06e760fb31675cc6ca68add2
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -655,3 +655,15 @@ helper at the four affected sites. 90 tests pass; full detail in the
 matching correction above Addendum 17 of the campaign report.
 
 **Rebound to** `7e8d3f850e184853e7fd8ff2f25d63e4b683dec4`.
+
+**Addendum 19, second correction.** Fixed `check_adr_links.py`'s
+four-backtick fence gap this time (`FENCE` now tracks run length, not
+just character; mutation-proven, 86 tests pass). Filed
+[#5274](https://github.com/rjmurillo/ai-agents/issues/5274) for the
+matching gap in `generate_adr_index.py`'s summary extraction rather
+than fixed inline, since that scanner needs converting from a
+whole-body regex substitution to a stateful line scan across two
+functions. Full detail in the matching correction above Addendum 17 of
+the campaign report.
+
+**Rebound to** `1c6da1909c0f335c06e760fb31675cc6ca68add2`.
