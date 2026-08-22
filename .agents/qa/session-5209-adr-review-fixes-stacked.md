@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 485b1db684a3cea5248f0e5d7dfa645f98a360b2
+qaCommit: 9d9cf3120ad407583d909cbd55ca57d43e36682f
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -9,7 +9,7 @@ qaCommit: 485b1db684a3cea5248f0e5d7dfa645f98a360b2
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `485b1db684a3cea5248f0e5d7dfa645f98a360b2` (see Addendum 29)
+**Validated at commit**: `9d9cf3120ad407583d909cbd55ca57d43e36682f` (see Addendum 31)
 
 ## Verdict
 
@@ -1044,3 +1044,25 @@ touched suites; `ruff check` and the taste-count ratchet (576, at
 baseline) both clean.
 
 **Rebound to** `c2055b1b91ddc7fb8406e15e6f9a84f41dfca220`.
+
+## Addendum 31: a second merge of `origin/claude/adr-evaluation-tooling-6od8rd`, closing this branch's own "dirty" state again
+
+Same merge as Addendum 30 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`;
+full detail lives there. This file's own conflict was the same shape as
+Addendum 28's: its frontmatter (`qaCommit`) and its addenda tail,
+where both branches independently continued the same numbering after
+the prior merge point. Origin's continuation (its own "Addendum 22")
+is kept as Addendum 30 above, with its internal cross-reference to
+"Addendum 20 of the campaign report" corrected to that file's
+Addendum 29.
+
+Also applied here, against this branch's prior head (`3cb5bb0af`):
+the "Validated at commit" header above updated past two stale rebinds,
+and the mutation-evidence wording in Addendum 29 corrected from
+"removing one assertion" to "removing one test method"
+(`test_blanks_a_block_level_html_comment`), since pytest collection
+counts test items, not assertions.
+
+Full pytest suite re-run clean: 28098 passed, 74 skipped, 0 failed.
+
+**Rebound to** `9d9cf3120ad407583d909cbd55ca57d43e36682f`.

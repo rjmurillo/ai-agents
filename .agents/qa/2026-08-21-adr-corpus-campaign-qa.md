@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 485b1db684a3cea5248f0e5d7dfa645f98a360b2
+qaCommit: 9d9cf3120ad407583d909cbd55ca57d43e36682f
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1562,3 +1562,67 @@ touched suites together: 304 tests pass. `ruff check` and the whole-repo
 taste-count ratchet (576, at baseline) both clean.
 
 **Rebound to** `c2055b1b91ddc7fb8406e15e6f9a84f41dfca220`.
+
+## Addendum 30: a second merge of `origin/claude/adr-evaluation-tooling-6od8rd`, closing this branch's own "dirty" state again
+
+PR #5230's `mergeStateStatus` went `DIRTY` again after PR #5209's own
+round-10 review-fix commits landed on the base branch, 18 commits past
+this branch's Addendum 27 merge point. `check_pr_merge_state.py`
+confirmed it live, not a stale GitHub cache: `PR #5230
+mergeStateStatus=DIRTY. Pull request workflows are unreachable while
+this conflict persists.` A `git merge-tree <merge-base> A B` three-way
+diff had misleadingly reported the merge clean; only an actual trial
+merge in a disposable worktree (`git worktree add --detach`, `git
+merge --no-commit --no-ff`) surfaced the two real conflicts, both in
+this file and its sister.
+
+Both conflicts were the same shape as Addendum 27's: this file's own
+frontmatter (`qaCommit`) and its addenda tail, where both branches
+independently continued the same numbering after the prior merge
+point. Resolved the same way: kept both sides' addenda in one
+consecutive sequence, appending origin's continuation after this
+branch's own (this file's Addendum 29 above is origin's round-10
+addendum, renumbered from its own "Addendum 20"; the sister file's
+Addendum 30 is origin's shorter, cross-referencing version of the same
+round-10 addendum, renumbered from its own "Addendum 22", with its
+internal cross-reference to "Addendum 20 of the campaign report"
+corrected to point at this file's Addendum 29).
+
+Six non-conflicting files (both debate logs, three ADR gate scripts,
+their tests) merged automatically, since both branches touched the
+same functions with non-overlapping edits.
+
+**Three review findings against this branch's prior head (`3cb5bb0af`)
+applied in the same pass, since the content they flagged survives into
+this merge unchanged:**
+
+- **Two absolute "no hook was bypassed" claims** (this file's own
+  Governance Evidence section and its worktree-identity-guard
+  discussion) contradicted this same file's later correction note,
+  which discloses one `git commit --no-verify` invocation on a scratch
+  commit a `git reset --soft` discarded in the same command. Narrowed
+  both to "no surviving commit skipped a hook," matching the
+  correction note's own stated scope.
+- **The Addendum 28 mutation-evidence wording said "removing one of
+  the merged class's assertions"**, but pytest collection counts test
+  items, not assertions, so removing a single assertion cannot move a
+  collection count from 72 to 71. The actual mutation removed a whole
+  test method (`test_blanks_a_block_level_html_comment`). Reworded to
+  name the method, here and in the sister file.
+- **The sister file's human-readable "Validated at commit" header**
+  still pointed at a commit and addendum number two rebinds stale.
+  Updated to match the frontmatter's then-current binding before this
+  merge landed.
+
+**Two test-quality findings, also against the prior head, fixed in
+`tests/test_markdown_parser.py`:** `test_blanks_a_block_level_html_comment`
+and `test_keeps_inline_html_comment_on_a_prose_line` asserted only a
+substring ("Accepted" absent, "prose" present), which a mutant leaving
+the hidden heading intact while blanking only its content, or dropping
+the inline comment's own text, would still pass. Both now assert the
+exact transformed text.
+
+Full pytest suite re-run clean after all resolutions and fixes: 28098
+passed, 74 skipped, 0 failed. `ruff check` clean across the full tree.
+
+**Rebound to** `9d9cf3120ad407583d909cbd55ca57d43e36682f`.
