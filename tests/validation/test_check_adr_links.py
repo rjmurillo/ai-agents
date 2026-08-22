@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -669,6 +670,7 @@ def test_git_ls_markdown_returns_tracked_markdown_only(tmp_path: Path) -> None:
     assert git_ls_markdown(tmp_path) == ["docs/a.md"]
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="Only Linux filesystems accept invalid UTF-8 bytes in filenames")
 def test_git_ls_markdown_raises_on_a_non_utf8_tracked_filename(tmp_path: Path) -> None:
     """A tracked filename with an invalid UTF-8 byte must not vanish silently.
 
