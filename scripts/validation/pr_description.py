@@ -70,7 +70,6 @@ _EXT_BOUNDARY = r"(?![A-Za-z0-9_/\\]|\.[A-Za-z0-9_])"
 _LINE_SUFFIX = r"(?::\d+(?::\d+)?)?"
 
 # Default label name that bypasses CRITICAL description-validation failures.
-# Mirrors the existing 'commit-limit-bypass' pattern in pr-validation.yml.
 DEFAULT_BYPASS_LABEL = "description-validation-bypass"
 
 # Section names whose file mentions are contextual references, not change
