@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 63c04c4029c289a973b29595cb516f2b0911c15c
+qaCommit: f681609df8ea4d73fb10f344b87602719cf01678
 ---
 
 # QA: PR #5209 review-round fixes, carried on a stacked branch
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `63c04c4029c289a973b29595cb516f2b0911c15c`
+**Validated at commit**: `f681609df8ea4d73fb10f344b87602719cf01678` (see Addendum 11)
 
 ## Verdict
 
@@ -382,3 +382,33 @@ which is precisely the staleness the gate exists to catch:
 A false-positive finding, a fix for it, and a real gate failure introduced by
 that fix. Recorded because an autofix commit arrives looking like review
 feedback and is not: it is a diff, and it earns the same scrutiny as any other.
+
+## Addendum 11: Gate 3's false [WARN] on the now-normal absence of a session log
+
+A Copilot review comment on PR #5230 (`AGENTS.md:16`) pointed out that the
+Start checklist no longer lists session-log creation, since
+`.claude/rules/session-logs.md` discontinued it, but
+`scripts/invoke_session_start_gate.py::check_session_log_gate` still printed
+`[WARN]` on both absence branches (no sessions directory, no log for today).
+Every compliant session start saw a false warning for doing exactly what
+policy now expects.
+
+Fixed in `f681609df8ea4d73fb10f344b87602719cf01678`: both absence branches now
+print `[PASS]` instead. `[WARN]` stays for a log that exists but is
+structurally incomplete (missing fields, unparseable JSON). Two `capsys`-based
+tests added (`TestCheckSessionLogGate::test_passes_silently_when_no_sessions_dir`,
+`test_passes_silently_when_no_today_sessions`), asserting `[WARN]` is absent
+and `[PASS]` is present from stdout in both absence cases.
+
+Mutation-proven: reverted both `[PASS]` lines back to the original `[WARN]`
+wording, deleted `__pycache__` before rerunning per `testing.md` SHOULD 8,
+and confirmed exactly the two new tests fail while the other 11 in the file
+stay green; restored and reran clean (13 passed).
+
+```
+uv run pytest tests/test_invoke_session_start_gate.py -q
+13 passed
+```
+
+This is the commit this addendum's `qaCommit` rebind covers; no other file
+changed between the previous binding and this one.
