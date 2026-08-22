@@ -54,13 +54,19 @@ Sums to 1459. Re-running `session_qa_binding` over the corpus under the
 implemented behavior: exactly one log's behavior changes, matching the
 ADR's pre-implementation prediction.
 
-Separately reproduced the debate's lockstep-history measurement against
-`git log --all -- .agents/sessions/`: 50 edits to `comparison.head` across
-38 single-parent commits, 44 with `endingCommit` present, 42 agreeing
-(SHA-prefix-normalized), split 34 creations (fields born equal, nothing
-moved) and 8 modifications (7 genuine hand-syncs, 1 no-op), plus 2 genuine
-disagreements, both in commit `f7fc4ef88a5400be1c2102b40c9272c2629f0762`.
-All figures match what is now committed in ADR-102 and its debate log.
+Separately reproduced the debate's lockstep-history measurement, corrected
+to `git log HEAD -- .agents/sessions/` per `.claude/rules/ci-scripts.md`
+MUST 9 (the debate's original `--all` run reads every ref in the clone,
+1611 commits touching the path versus 1031 from `HEAD`, so it is not a
+claim about this branch): 44 edits to `comparison.head` across 32
+single-parent commits, 38 with `endingCommit` present, 36 agreeing
+(SHA-prefix-normalized), split 33 creations (fields born equal, nothing
+moved) and 3 modifications (none matching the hand-sync pattern; all three
+backfill a previously-absent `comparison.head` in an unrelated
+documentation-correction commit), plus 2 genuine disagreements, both in
+commit `f7fc4ef88a5400be1c2102b40c9272c2629f0762` (unchanged from the
+original measurement). All figures now match what is committed in ADR-102
+and its debate log's fourth Copilot-round correction.
 
 ## Review Process
 

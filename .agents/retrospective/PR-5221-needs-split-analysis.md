@@ -74,18 +74,20 @@ will recur with it independent of any contributor's behavior.
 
 ## Failure Mode Classification
 
-**Class**: Not applicable: no agent failure. This analysis documents a mechanical
-consequence of existing governance rules (`session-logs.md` MUST 2, ADR-096
-staleness contract) interacting with the commit-limit policy under sustained
-multi-round automated review. The commit accumulation is the expected, correct
-behavior of compliant agents following the session-log and QA-rebind protocol;
-it is not a failure mode per `.agents/governance/FAILURE-MODES.md`.
-
-If a class must be assigned for traceability: closest match is **Class 2
-(Continuation Reset After Compaction)** in shape only, since long sessions
-accumulate state, but the root cause differs. Class 2 describes agents losing track of
-in-progress work; here the agent correctly tracked and committed every required
-bookkeeping step, which is why the count grew.
+**Class**: **Class 2 (Continuation Reset After Compaction)**, nearest existing
+match, assigned per `.claude/rules/retros.md` MUST 2 rather than left
+unclassified. The fit is partial and stated honestly: Class 2 describes agents
+*losing track* of in-progress work across a long session; here the agent
+correctly tracked and committed every required bookkeeping step throughout,
+which is why the count grew rather than why work was lost. The shared shape is
+narrower than the class name suggests: both are long-session state-accumulation
+patterns, one from lost tracking, one from mechanically correct tracking that a
+downstream policy (the commit-count ratchet) was not designed to absorb. No
+existing class in `.agents/governance/FAILURE-MODES.md` describes "correct,
+compliant agent behavior that mechanically accumulates against a fixed
+threshold" as its own pattern; if this recurs (see the process-gap flag below),
+that gap is worth a proposed new class via a linked ADR rather than continuing
+to force-fit Class 2.
 
 ## Evidence
 
