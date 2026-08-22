@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: bfad327fb752a4bc2a476a2e13fd6d01cd9cd773
+qaCommit: d2d1cc6d6b06950adb1bb5a8dcc0e1839106b2c6
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -620,3 +620,28 @@ autofix agent independently pushed the identical fix directly to this
 branch minutes later; merged (not force-pushed over), keeping the local
 reason string. Full detail in the campaign report's matching rebind
 note above Addendum 16.
+
+## Addendum 19: a seventh Copilot review round, five fixed, one filed
+
+**Rebound to** `d2d1cc6d6b06950adb1bb5a8dcc0e1839106b2c6`.
+
+Full detail in Addendum 17 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`.
+A seventh Copilot review found two new defects plus seven suppressed
+findings in code unchanged since the last review. Fixed: renamed
+`_has_duplicate_top_level_keys` to `_has_duplicate_keys` (it already
+caught nested duplicates, not only top-level ones) and quoted its
+"Mirrors" canonical fragment verbatim instead of paraphrasing it;
+clarified `check_adr_lifecycle.py`'s module docstring on which
+historical defects the gate actually closes and fixed a "ninth check"
+miscount (the list holds seven, so the removed one was the eighth);
+both `check_adr_lifecycle.py` and `generate_adr_index.py` now reject an
+empty or misrouted ADR corpus instead of reporting it clean; and
+`generate_adr_index.py`'s worktree-identity guard no longer runs before
+the read-only `--check` path. Filed
+[#5273](https://github.com/rjmurillo/ai-agents/issues/5273) for the
+per-check ratchet's total-only comparison (same forgeability class as
+#5205/#5270, distinct mechanism, out of scope for inline repair in this
+round). The four-backtick fence gap Copilot re-raised was confirmed
+already resolved by a documented earlier-round decision; no action.
+Three commits, five files, 21 new/modified tests, all mutation-proven.
+200 tests pass.

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: bfad327fb752a4bc2a476a2e13fd6d01cd9cd773
+qaCommit: d2d1cc6d6b06950adb1bb5a8dcc0e1839106b2c6
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1011,3 +1011,69 @@ the only conflict was the two skipif reason strings, resolved by
 keeping the local version's longer one (names the actual filesystems
 and cites the finding source). 85 tests pass after resolution; no other
 content differed between the two commits.
+
+## Addendum 17: a seventh Copilot review round, five fixed, one filed
+
+A seventh Copilot review found two new defects plus seven suppressed
+("previously missed, code unchanged since last review") findings. Six
+fixed, one filed as follow-up, one confirmed already resolved by a
+documented earlier decision:
+
+- **`detect_adr_changes.py`'s `_has_duplicate_top_level_keys` undersold
+  its own behavior.** The PyYAML constructor it registers fires for
+  every mapping node the loader builds, not only the document root, so
+  a duplicate nested inside a mapping value is caught too; the existing
+  `test_a_nested_duplicate_is_caught` already proved it. Renamed to
+  `_has_duplicate_keys` across both shipped trees, the test file, and
+  the two files that reference it by name.
+- **The same function's "Mirrors" docstring quoted the canonical
+  `_no_duplicate_keys` with a `raise ...` placeholder**, not the real
+  line, violating `.claude/rules/canonical-source-mirror.md`'s
+  character-for-character requirement for a Mirrors claim. Replaced
+  with the actual fragment from `generate_adr_index.py:198-205`.
+- **`check_adr_lifecycle.py`'s module docstring listed four historical
+  defects as though this gate closes all of them**; two are
+  intentionally not violations (`implemented: true` + `proposed` is
+  deliberate per ADR-098; a missing `## Status` section is skipped, not
+  flagged, since the frontmatter enum is authoritative). Clarified
+  which two the gate actually closes.
+- **The removed check was mislabeled "a ninth check"** when the active
+  list holds seven, making it the eighth. Corrected.
+- **Both `check_adr_lifecycle.py` and `generate_adr_index.py` accepted
+  an empty or misrouted ADR corpus as clean.** `scan()`/`collect_records()`
+  on zero real `ADR-NNN-*.md` matches returns zero violations or an
+  index whose sections all read `None`, and each `main()` exited 0.
+  Both now reject a directory with no filename-pattern match before
+  scanning or generating, using each script's own filename regex so
+  `ADR-TEMPLATE.md` alone does not count as evidence records were
+  examined. Five existing `check_adr_lifecycle.py` config-error tests
+  wrote no ADR record and would have silently started passing for the
+  new reason instead of the one they assert; each got a valid ADR
+  fixture so the original assertion is still what runs.
+- **`generate_adr_index.py`'s worktree-identity guard ran before
+  `--check` too**, a read-only path with nothing to protect against,
+  so a caller with absolute paths and a cwd outside the repository got
+  exit 2 for a comparison that never writes. Scoped the guard to the
+  generation branch only.
+- **The per-check ratchet in `check_adr_lifecycle.py` compares only
+  totals**, so fixing one baselined violation and introducing a
+  different one under the same check nets to a pass. Same forgeability
+  class as #5205 and #5270 but a distinct mechanism (no base-ref
+  involved at all); filed as
+  [#5273](https://github.com/rjmurillo/ai-agents/issues/5273) rather
+  than redesigning the baseline format inline in an already-oversized
+  review-response round.
+- **The four-backtick CommonMark fence gap in `check_adr_links.py`**
+  Copilot re-raised is not new: the module's own docstring already
+  documents it as a deliberately deferred scope limit from an earlier
+  round ("Length is not tracked... deferred rather than guessed at,"
+  citing this same PR's review). No action; already resolved and
+  recorded.
+
+Three commits, five files, 21 new/modified tests, all mutation-proven
+(guard removed, target test fails for the stated reason, guard
+restored). 200 tests pass across the touched suites
+(`test_check_adr_lifecycle.py`, `test_generate_adr_index.py`, the
+`adr-review` suite).
+
+**Rebound to** `d2d1cc6d6b06950adb1bb5a8dcc0e1839106b2c6`.
