@@ -7,16 +7,20 @@
 # per-check counts against a frozen baseline, rewrite that baseline atomically),
 # and `.claude/rules/unified-software-engineering.md` rejects "shallow
 # pass-through layers" and "wrappers that add names but no simplification".
-# Splitting an eight-check gate across four modules would put the check list, the
+# Splitting a seven-check gate across four modules would put the check list, the
 # violation type, and the ratchet arithmetic in different files that must be
-# read together to answer any question about the gate. Measured after a
-# compaction pass: 466 of the lines are executable code, so even stripping every
-# docstring leaves the file over the 500-line ceiling, and those docstrings carry
-# the verbatim ADR-073 schema quote and the `_split_frontmatter` divergence
-# section that `.claude/rules/canonical-source-mirror.md` requires. Precedent in
-# this directory: `check_doc_interpreter_portability.py` (641 lines) carries the
-# same suppression for the same reason, "one CLI owns scan, ratchet, and atomic
-# update invariants". Issue #3779 documents this escape; issue #5191 is the work.
+# read together to answer any question about the gate. The executable code
+# alone, with every docstring stripped, is still well over the 500-line
+# ceiling (a volatile exact count is deliberately not repeated here: an
+# earlier version pinned this suppression's evidence to a specific line
+# count and a specific "eight-check" claim, and both drifted stale on the
+# very next edit, Copilot, PR #5209 round-10 review), and those docstrings
+# carry the verbatim ADR-073 schema quote and the `_split_frontmatter`
+# divergence section that `.claude/rules/canonical-source-mirror.md`
+# requires. Precedent in this directory: `check_doc_interpreter_portability.py`
+# carries the same suppression for the same reason, "one CLI owns scan,
+# ratchet, and atomic update invariants". Issue #3779 documents this escape;
+# issue #5191 is the work.
 """Ratcheted lifecycle gate over `.agents/architecture/ADR-NNN-*.md` (issue #5191).
 
 `check_adr_uniqueness.py` is the only other deterministic ADR gate and it reads
@@ -92,8 +96,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -824,13 +830,37 @@ def read_baseline(path: Path) -> dict[str, int] | str:
 
 
 def write_baseline(path: Path, counts: dict[str, int]) -> None:
-    """Record ``counts`` as the new ceiling. Fixed key order keeps diffs small."""
+    """Record ``counts`` as the new ceiling. Fixed key order keeps diffs small.
+
+    Writes through a temporary sibling file plus ``os.replace()`` rather than
+    truncating ``path`` directly. Mirrors ``scripts/ai_review_common/
+    cache_guard.py``'s ``_atomic_write_text`` verbatim: "Writes to a temp
+    file in the same directory, then os.replace swaps it into place, so a
+    crash or two concurrent writers cannot leave the file half-written or
+    truncated." A direct ``path.write_text()`` interrupted mid-write (a
+    killed process, a full disk) leaves invalid JSON in place, and this file
+    is the ratchet ceiling every subsequent ``pre_pr.py`` run reads: a
+    corrupted baseline blocks every push until someone reconstructs it by
+    hand (Copilot, PR #5209 round-10 review).
+    """
     payload = {
         "schema_version": "1",
         "description": _BASELINE_DESCRIPTION,
         "counts": {name: counts[name] for name in CHECKS},
     }
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    text = json.dumps(payload, indent=2) + "\n"
+    directory = path.parent
+    fd, tmp = tempfile.mkstemp(dir=directory, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def _print_violations(violations: list[Violation], checks: set[str], limit: int) -> None:
