@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 63c04c4029c289a973b29595cb516f2b0911c15c
+qaCommit: ce176cb339ac7f9d862afb74b7a0729df7d595b0
 ---
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
@@ -616,3 +616,14 @@ branch. Evidence lives in addenda 9 and 10 of
 duplicate-key guards this campaign added did not close the forgery vector they
 were built for, because a line scan compares raw prefixes and YAML compares
 constructed keys. All three readers now detect at the parser.
+
+
+## Addendum 10: rebound past the Gate 3 fix
+
+**Rebound to** `ce176cb339ac7f9d862afb74b7a0729df7d595b0`.
+
+`scripts/invoke_session_start_gate.py` and its test changed again (Gate 3's
+false `[WARN]` on the now-expected absence of a session log). Evidence lives
+in Addendum 11 of `.agents/qa/session-5209-adr-review-fixes-stacked.md`:
+mutation-proven by reverting to the old wording, which fails exactly the two
+new tests and nothing else in the file.
