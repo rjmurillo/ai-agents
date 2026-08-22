@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 9baa0a9fad1131b14ad203c016d5483025c30d61
+qaCommit: 2cc0faa83d63586f0a380fcfa26f2a72d09be5ed
 ---
 
 # QA: PR #5209 review-round fixes, carried on a stacked branch
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `9baa0a9fad1131b14ad203c016d5483025c30d61` (see Addendum 13)
+**Validated at commit**: `2cc0faa83d63586f0a380fcfa26f2a72d09be5ed` (see Addendum 14)
 
 ## Verdict
 
@@ -464,3 +464,20 @@ in Addendum 12 picked up ADR-099 and ADR-102. Regenerated with
 `build/scripts/build_all.py` (commit `9baa0a9fad1131b14ad203c016d5483025c30d61`);
 diff is exactly the two new ADR rows, nothing else. `.agents/architecture/README.md`
 is not an evidence path, so this rebinds `qaCommit` to that commit.
+
+## Addendum 14: workspace-budget fix, discovered mid-push
+
+The push carrying Addendum 13 got through most of the pre-push suite
+(count ratchets, security scan) before failing in `python-tests`:
+`AGENTS.md is 3016 bytes, exceeds 3000 byte ceiling`
+(`test_validate_workspace_budget.py`, `test_workspace_limits.py`). Root
+cause: the Addendum 12 merge combined this branch's own one-line edit to
+`AGENTS.md` with `origin/main`'s independent one-line edits on
+non-overlapping lines. Neither side's file exceeded the budget alone
+(2872 and 2992 bytes); git's line-based merge produced 3016.
+
+Trimmed three redundant phrases without dropping any referenced fact
+(the ADR-index pointer, the mid-gate advisory note, and "agent" after
+merge-resolver, already named as an agent elsewhere): 2984 bytes.
+Verified both budget tests pass. `qaCommit` rebinds to
+`2cc0faa83d63586f0a380fcfa26f2a72d09be5ed`.

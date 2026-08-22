@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 9baa0a9fad1131b14ad203c016d5483025c30d61
+qaCommit: 2cc0faa83d63586f0a380fcfa26f2a72d09be5ed
 ---
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
@@ -647,3 +647,13 @@ and invalidates none of this campaign's prior verification.
 
 `.agents/architecture/README.md` needed regenerating after the Addendum 11
 merge; see Addendum 13 of `.agents/qa/session-5209-adr-review-fixes-stacked.md`.
+
+
+## Addendum 13: workspace-budget fix, discovered mid-push
+
+**Rebound to** `2cc0faa83d63586f0a380fcfa26f2a72d09be5ed`.
+
+`AGENTS.md` breached its 3000-byte budget as a side effect of the Addendum
+11 merge (two independently-compliant sides combined past the ceiling by
+git's line-based merge). Full detail in Addendum 14 of
+`.agents/qa/session-5209-adr-review-fixes-stacked.md`.
