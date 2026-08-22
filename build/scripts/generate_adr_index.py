@@ -83,6 +83,18 @@ _FRONTMATTER_RE = re.compile(r"^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$")
 # ADR-TEMPLATE.md, which the glob matches and whose id is the literal ADR-NNN.
 _ADR_FILENAME_RE = re.compile(r"^ADR-(\d{2,})-[^/]+\.md$")
 
+# An id reference inside frontmatter: "ADR-091", "adr-91", or a bare integer
+# rendered as a string by _scalar() below. Mirrors
+# scripts/validation/check_adr_lifecycle.py:132-133 verbatim:
+#   # An id reference inside frontmatter: "ADR-091", "adr-91", or a bare integer.
+#   _ADR_REFERENCE_RE = re.compile(r"^ADR[-_ ]?(\d{1,4})$", re.IGNORECASE)
+# The lifecycle gate is the schema's canonical reference parser (ADR-073 names
+# it as such); a `superseded-by` value that gate accepts as a valid reference
+# must resolve to the same record here, or a record can pass lifecycle
+# validation while the index silently fails to find its successor and prints
+# the raw, unlinked reference instead (Copilot, PR #5209).
+_ADR_REFERENCE_RE = re.compile(r"^ADR[-_ ]?(\d{1,4})$", re.IGNORECASE)
+
 _ADR_GLOB = "ADR-*.md"
 _ADR_DIR_RELATIVE = Path(".agents") / "architecture"
 _OUTPUT_RELATIVE = _ADR_DIR_RELATIVE / "README.md"
@@ -205,8 +217,11 @@ _StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _n
 
 @dataclass(frozen=True, slots=True)
 class AdrRecord:
-    """One ADR reduced to its index row. ``status`` is ``None`` only for a record
-    with no frontmatter block, which routes it to Needs backfill unlabelled."""
+    """One ADR reduced to its index row. ``status`` is ``None`` for a record with
+    no frontmatter block, or one whose frontmatter omits the `status` key
+    entirely; both route to Needs backfill unlabelled. A `status` key present
+    but null, empty, or out of the ADR-073 enum is a distinct defect and raises
+    instead (see `_status_of`), rather than collapsing into the same `None`."""
 
     number: int
     adr_id: str
@@ -264,21 +279,38 @@ def parse_frontmatter(content: str, path: Path) -> tuple[dict[str, object] | Non
 
 
 def _status_of(frontmatter: dict[str, object], path: Path) -> str | None:
-    """Return the lower-cased status enum value, or ``None`` when unset.
+    """Return the lower-cased status enum value, or ``None`` when the key is
+    absent entirely.
 
     An out-of-enum value raises rather than defaulting: a defaulted status
-    printed in a current-state index reads exactly like a recorded one.
+    printed in a current-state index reads exactly like a recorded one. A
+    `status` key that IS present but null or empty is the same class of
+    defect, not the absent-key case: the author addressed the field and left
+    it broken, which is different from a record that has never been touched.
+    ``frontmatter.get("status")`` cannot tell those apart (both a missing key
+    and an explicit ``status: null`` return ``None``), so the presence check
+    below uses ``in`` first. Previously both collapsed to the same silent
+    ``None``, routing a record with partial, broken metadata into Needs
+    backfill exactly as if it had no schema at all (PR #5209 review).
     """
-    raw = frontmatter.get("status")
-    if raw is None:
+    if "status" not in frontmatter:
         return None
+    raw = frontmatter["status"]
+    if raw is None:
+        raise AdrIndexError(
+            f"frontmatter 'status' in {path.name} is present but null; omit the "
+            "key entirely if status has not been backfilled yet"
+        )
     if not isinstance(raw, str):
         raise AdrIndexError(
             f"frontmatter 'status' in {path.name} must be a string, got {type(raw).__name__}"
         )
     value = raw.strip().lower()
     if not value:
-        return None
+        raise AdrIndexError(
+            f"frontmatter 'status' in {path.name} is present but empty; omit the "
+            "key entirely if status has not been backfilled yet"
+        )
     if value not in _STATUS_ENUM:
         allowed = ", ".join(_STATUS_ENUM)
         raise AdrIndexError(
@@ -387,17 +419,22 @@ def _blocker_cell(record: AdrRecord) -> str:
     the prose ``## Status`` paragraph is the human half, so a record may declare
     either, both, or neither.
 
-    A past-due date is marked rather than silently rendered. The whole reason the
-    field exists (issue #5193) is that ADR-002 and ADR-039 sat seven months past a
-    provisional window nobody could see, and an index that prints a stale deadline
-    as though it were pending reproduces exactly that failure at the corpus front
-    door.
-
-    Today's date is not read here. This renderer is required to be deterministic
-    (same input, byte-identical output), and a wall-clock comparison would make
-    output depend on run date. Past-due detection belongs in the lifecycle gate,
-    which can be tested against a frozen clock; this cell only surfaces the date
-    so a reader can see it at all.
+    A past-due date is surfaced, not marked. This cell renders whatever
+    ``review-by`` says (``review by 2026-01-01``), current or overdue,
+    identically either way: there is no "(overdue)" suffix or other flag here,
+    and no other gate adds one either. Detecting that a date has passed
+    requires reading the wall clock, which this renderer must not do (it is
+    required to be deterministic: same input, byte-identical output, and a
+    clock read would make output depend on run date). ``check_adr_lifecycle.py``
+    does not fill that gap: its ``CHECKS`` tuple has no rule that reads
+    ``review-by`` at all, past-due or otherwise (verified: the string does not
+    appear in that file). So today, nothing in this codebase flags an overdue
+    ``review-by`` date; a reader has to notice one by eye. The whole reason the
+    field exists (issue #5193) is that ADR-002 and ADR-039 sat seven months past
+    a provisional window nobody could see, and until #5193 builds the check
+    this cell's plain rendering has the same blind spot, one layer less deep:
+    at least the date is visible here, where it was not visible at all before
+    this field existed (Copilot, PR #5209 round-5 review).
     """
     if not record.review_by:
         return record.blocker
@@ -481,6 +518,27 @@ def _link(record: AdrRecord) -> str:
     return f"[{record.adr_id}]({record.filename})"
 
 
+def _normalize_adr_id(reference: str) -> str | None:
+    """Canonical ``ADR-NNN`` key for a frontmatter reference, or None.
+
+    Accepts exactly what ``check_adr_lifecycle.py``'s ``_normalize_reference``
+    accepts: ``ADR-091``, ``adr-91``, ``ADR 91``, ``ADR_91``, or a bare digit
+    string. ``by_id`` keys are always the zero-padded ``ADR-{n:03d}`` form
+    ``build_record`` assigns, so a non-padded or ADR-prefix-free reference such
+    as ``ADR-91`` or ``91`` must be normalized to ``ADR-091`` before lookup, or
+    a record that names a real, lifecycle-valid successor renders as an
+    unlinked plain-text reference instead (Copilot, PR #5209, discussion
+    flagging ``build/scripts/generate_adr_index.py:504``).
+    """
+    stripped = reference.strip()
+    match = _ADR_REFERENCE_RE.match(stripped)
+    if match is not None:
+        return f"ADR-{int(match.group(1)):03d}"
+    if stripped.isdigit():
+        return f"ADR-{int(stripped):03d}"
+    return None
+
+
 def _successor_cell(record: AdrRecord, by_id: dict[str, AdrRecord]) -> str:
     """Where a reader who followed a stale citation should go instead.
 
@@ -506,7 +564,8 @@ def _successor_cell(record: AdrRecord, by_id: dict[str, AdrRecord]) -> str:
     """
     if not record.successor:
         return "not recorded"
-    successor = by_id.get(record.successor.strip().upper())
+    successor_id = _normalize_adr_id(record.successor)
+    successor = by_id.get(successor_id) if successor_id is not None else None
     if successor is None:
         return _cell(record.successor)
 
@@ -518,7 +577,8 @@ def _successor_cell(record: AdrRecord, by_id: dict[str, AdrRecord]) -> str:
         seen.add(current.adr_id)
         if current.status not in _RETIRED_STATUSES or not current.successor:
             break
-        nxt = by_id.get(current.successor.strip().upper())
+        nxt_id = _normalize_adr_id(current.successor)
+        nxt = by_id.get(nxt_id) if nxt_id is not None else None
         if nxt is None:
             break
         current = nxt
@@ -586,13 +646,18 @@ _INTRO = (
     "This table is a convenience, not the source of truth. The frontmatter is, and\n"
     "Python reads it with no extra dependency:\n\n"
     "```python\n"
-    "import pathlib, yaml\n"
+    "import pathlib, re, yaml\n"
+    "\n"
+    "_CLOSING_FENCE = re.compile(r'\\r?\\n---\\r?\\n')\n"
     "\n"
     "for path in sorted(pathlib.Path('.agents/architecture').glob('ADR-[0-9]*.md')):\n"
     "    text = path.read_text(encoding='utf-8')\n"
     "    if not text.startswith('---'):\n"
     "        continue  # no frontmatter: see Needs backfill below\n"
-    "    front = yaml.safe_load(text[3 : text.index('\\n---', 3)]) or {}\n"
+    "    closing = _CLOSING_FENCE.search(text, 3)\n"
+    "    if closing is None:\n"
+    "        raise ValueError(f'{path.name}: opens with --- but never closes it')\n"
+    "    front = yaml.safe_load(text[3 : closing.start()]) or {}\n"
     "    if str(front.get('status', '')).strip().lower() == 'accepted':\n"
     "        print(front.get('id') or path.name)\n"
     "```\n\n"
@@ -621,13 +686,32 @@ _INTRO = (
     "frontmatter is invisible to every frontmatter query, so a count answers for the\n"
     "records that have it while appearing to answer for all of them. The Needs\n"
     "backfill section below is the honest denominator, and issue #5190 closes it.\n\n"
-    "**This snippet cannot tell absent from unterminated.** `text.startswith('---')`\n"
-    "is false for a record with no schema and also false for one whose opening\n"
-    "`---` fence never closes, so both `continue` here identically. The real\n"
-    "generator does not: `parse_frontmatter` raises on an unterminated block\n"
-    "instead of silently placing it in Needs backfill, because a malformed\n"
-    "schema is an author's defect to see, not a record to drop quietly. Run the\n"
-    "gate rather than this snippet when that distinction matters.\n\n"
+    "**This snippet crashes on unterminated frontmatter; it does not silently\n"
+    "drop it.** `text.startswith('---')` is false only for a record with no\n"
+    "schema at all, which `continue`s past. A record whose opening `---` fence\n"
+    "never closes still starts with `---`, so it skips that `continue`, finds\n"
+    "no match for `_CLOSING_FENCE`, and raises `ValueError` (verified by\n"
+    "running both cases; Copilot found the original claim backwards on PR\n"
+    "#5209). The real generator's `parse_frontmatter` raises the same way, on\n"
+    "purpose: a malformed schema is an author's defect to see, not a record to\n"
+    "drop quietly into Needs backfill. Run the gate rather than this snippet\n"
+    "when that distinction matters.\n\n"
+    "**The closing fence must occupy its own line, not just start one.**\n"
+    "`generate_adr_index.py`'s `_FRONTMATTER_RE` is\n"
+    "``r\"^---\\r?\\n([\\s\\S]*?)\\r?\\n---\\r?\\n([\\s\\S]*)$\"``: the closing fence is\n"
+    "three dashes immediately followed by `\\r?\\n`, nothing else. An earlier\n"
+    "version of this snippet used `text.index('\\n---', 3)`, which finds any\n"
+    "line merely starting with three dashes, trailing characters or not. A\n"
+    "closing line padded with one trailing space (`\"--- \\n\"` instead of\n"
+    "`\"---\\n\"`, a plausible editor artifact) does not match `_FRONTMATTER_RE`,\n"
+    "so `parse_frontmatter` finds no valid closing fence and raises\n"
+    "`AdrIndexError`, the same as a fence that never closes at all. The old\n"
+    "`.index` call could not tell the difference: it matched the padded line\n"
+    "anyway and printed an answer with no error, silently disagreeing with the\n"
+    "generator's correctly-loud rejection of the same file (Copilot, PR #5209\n"
+    "round-5 review). `_CLOSING_FENCE` above requires the same `\\r?\\n` on both\n"
+    "sides of the dashes as `_FRONTMATTER_RE`, so a padded or otherwise\n"
+    "malformed fence now raises here too.\n\n"
 )
 
 # Heading order and the one-line orientation under each. Every heading renders
@@ -686,8 +770,21 @@ def generate(adr_dir: Path, output_path: Path) -> None:
 
 
 def _run_check(adr_dir: Path, output_path: Path) -> int:
-    """Compare the committed index to freshly generated content."""
-    generated = render_index(collect_records(adr_dir)).replace("\r\n", "\n")
+    """Compare the committed index to freshly generated content.
+
+    ``records`` is bound once, ahead of ``render_index()``, so the ``OK``
+    success line below can report how many ADR records were actually
+    examined: a byte-for-byte match against an emptied or narrowed corpus
+    would otherwise print the same unqualified ``OK`` as a match against
+    the full one (Copilot, PR #5209 round-8 review). Unlike the equivalent
+    fix in ``scripts/validation/check_adr_lifecycle.py`` and
+    ``scripts/validation/check_adr_links.py``, no second, duplicate-cost
+    read is needed here: ``render_index()`` already takes the record list
+    as its argument rather than recomputing it internally, so splitting the
+    one existing call is free.
+    """
+    records = collect_records(adr_dir)
+    generated = render_index(records).replace("\r\n", "\n")
     fix = "To fix: uv run python build/scripts/generate_adr_index.py"
     if not output_path.exists():
         print(f"MISSING: {output_path} does not exist", file=sys.stderr)
@@ -698,7 +795,7 @@ def _run_check(adr_dir: Path, output_path: Path) -> int:
         print(f"DRIFT: {output_path} differs from generated output", file=sys.stderr)
         print(fix, file=sys.stderr)
         return 1
-    print(f"OK: {output_path} matches {adr_dir}")
+    print(f"OK: {output_path} matches {adr_dir} ({len(records)} ADR record(s))")
     return 0
 
 
@@ -736,9 +833,46 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Error: ADR directory not found: {adr_dir}", file=sys.stderr)
         return 2
 
+    # An emptied or misrouted corpus (a wrong --adr-dir, or every record moved
+    # out) still passes `adr_dir.is_dir()`, and `collect_records()` on zero
+    # matches renders every index section as `None` and exits 0: a missing
+    # corpus reads as valid generated output instead of failing loudly. Glob
+    # via `is_adr_filename()`, not a bare `_ADR_GLOB` count, so `ADR-TEMPLATE.md`
+    # sitting alone in the directory does not count as evidence records were
+    # examined (Copilot, PR #5209 round-7 review).
+    if not any(is_adr_filename(path.name) for path in adr_dir.glob(_ADR_GLOB)):
+        print(f"Error: no ADR records found in {adr_dir}", file=sys.stderr)
+        return 2
+
     try:
         if args.check:
             return _run_check(adr_dir, output_path)
+
+        # .claude/rules/ci-scripts.md MUST 7: a script that resolves the
+        # repository root and then writes to it must confirm the caller's cwd
+        # sits inside that root before the first write. Relative
+        # --adr-dir/--output args are already anchored to _REPO_ROOT by
+        # _resolve() above, not to Path.cwd(); without this check, running the
+        # script from a different worktree (or via a symlink into this one)
+        # writes into _REPO_ROOT silently, with no signal that the write
+        # landed outside the caller's own checkout. Mirrors
+        # scripts/generate_third_party_notices.py:446-452 verbatim:
+        #   project_root = PROJECT_ROOT
+        #   if not Path.cwd().resolve().is_relative_to(project_root.resolve()):
+        #       print(f"ERROR: current directory is outside project root: {Path.cwd()}", ...)
+        #       return 2
+        #
+        # Scoped to this branch, not to every invocation: `_run_check()` above
+        # is read-only, so a caller passing absolute --adr-dir/--output paths
+        # from outside the repository has nothing to protect against there
+        # (Copilot, PR #5209 round-7 review).
+        if not Path.cwd().resolve().is_relative_to(_REPO_ROOT):
+            print(
+                f"Error: current directory is outside the repository root: {Path.cwd()}",
+                file=sys.stderr,
+            )
+            return 2
+
         generate(adr_dir, output_path)
     except AdrIndexError as exc:
         print(f"Error: {exc}", file=sys.stderr)

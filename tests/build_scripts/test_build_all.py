@@ -23,6 +23,25 @@ def _write_skill(skills_dir: Path, name: str) -> None:
     (skill / "SKILL.md").write_text(f"# {name}\n")
 
 
+def _write_minimal_adr(adr_dir: Path) -> None:
+    """Write one valid ADR record so `_build_adr_index` (always run by
+    `build_all.run()`, unconditionally per its own docstring) has a real
+    corpus to index instead of an empty directory.
+
+    `generate_adr_index.py` now rejects a directory with no
+    `ADR-NNN-*.md` match as a config error (Copilot, PR #5209 round-7
+    review), so a fixture that creates `.agents/architecture` empty to
+    test something unrelated (skills generation, untracked-file
+    detection) must still seed one parseable record.
+    """
+    adr_dir.mkdir(parents=True, exist_ok=True)
+    (adr_dir / "ADR-001-example.md").write_text(
+        "---\nid: ADR-001\nstatus: accepted\ndate: 2026-01-01\n---\n\n"
+        "# ADR-001: Example\n\n## Status\n\nAccepted.\n\n## Decision\n\nDo it.\n",
+        encoding="utf-8",
+    )
+
+
 def _write_agent_template(templates_dir: Path, name: str) -> None:
     templates_dir.mkdir(parents=True, exist_ok=True)
     (templates_dir / f"{name}.shared.md").write_text(
@@ -437,7 +456,7 @@ def test_run_emits_audit_and_returns_zero_on_clean_state(
     monkeypatch.setattr(build_all, "_git_diff_paths", lambda repo_root: [])
     repo = tmp_path / "repo"
     (repo / ".claude" / "skills").mkdir(parents=True)
-    (repo / ".agents" / "architecture").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
 
@@ -599,7 +618,7 @@ def test_run_returns_0_when_claude_lib_synced_before_build(
     monkeypatch.setattr(build_all, "_git_diff_paths", lambda repo_root: [])
     repo = tmp_path / "repo"
     (repo / ".claude" / "skills").mkdir(parents=True)
-    (repo / ".agents" / "architecture").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     # Simulate sync_plugin_lib.py having already updated .claude/lib.
     lib = repo / ".claude" / "lib" / "hook_utilities"
@@ -979,7 +998,7 @@ def test_run_check_clean_when_untracked_outside_owned_prefix(
     repo = tmp_path / "repo"
     _init_git_repo(repo)
     (repo / ".claude" / "skills").mkdir(parents=True)
-    (repo / ".agents" / "architecture").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     # Pre-generate and commit the ADR index so its first-ever creation is not
@@ -1410,7 +1429,7 @@ def _seed_repo_with_committed_skill_mirror(
 
     _init_git_repo(repo)
     (repo / ".claude" / "skills").mkdir(parents=True)
-    (repo / ".agents" / "architecture").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     monkeypatch.setattr(

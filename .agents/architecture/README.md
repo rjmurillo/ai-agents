@@ -13,13 +13,18 @@ This table is a convenience, not the source of truth. The frontmatter is, and
 Python reads it with no extra dependency:
 
 ```python
-import pathlib, yaml
+import pathlib, re, yaml
+
+_CLOSING_FENCE = re.compile(r'\r?\n---\r?\n')
 
 for path in sorted(pathlib.Path('.agents/architecture').glob('ADR-[0-9]*.md')):
     text = path.read_text(encoding='utf-8')
     if not text.startswith('---'):
         continue  # no frontmatter: see Needs backfill below
-    front = yaml.safe_load(text[3 : text.index('\n---', 3)]) or {}
+    closing = _CLOSING_FENCE.search(text, 3)
+    if closing is None:
+        raise ValueError(f'{path.name}: opens with --- but never closes it')
+    front = yaml.safe_load(text[3 : closing.start()]) or {}
     if str(front.get('status', '')).strip().lower() == 'accepted':
         print(front.get('id') or path.name)
 ```
@@ -53,13 +58,33 @@ frontmatter is invisible to every frontmatter query, so a count answers for the
 records that have it while appearing to answer for all of them. The Needs
 backfill section below is the honest denominator, and issue #5190 closes it.
 
-**This snippet cannot tell absent from unterminated.** `text.startswith('---')`
-is false for a record with no schema and also false for one whose opening
-`---` fence never closes, so both `continue` here identically. The real
-generator does not: `parse_frontmatter` raises on an unterminated block
-instead of silently placing it in Needs backfill, because a malformed
-schema is an author's defect to see, not a record to drop quietly. Run the
-gate rather than this snippet when that distinction matters.
+**This snippet crashes on unterminated frontmatter; it does not silently
+drop it.** `text.startswith('---')` is false only for a record with no
+schema at all, which `continue`s past. A record whose opening `---` fence
+never closes still starts with `---`, so it skips that `continue`, finds
+no match for `_CLOSING_FENCE`, and raises `ValueError` (verified by
+running both cases; Copilot found the original claim backwards on PR
+#5209). The real generator's `parse_frontmatter` raises the same way, on
+purpose: a malformed schema is an author's defect to see, not a record to
+drop quietly into Needs backfill. Run the gate rather than this snippet
+when that distinction matters.
+
+**The closing fence must occupy its own line, not just start one.**
+`generate_adr_index.py`'s `_FRONTMATTER_RE` is
+``r"^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$"``: the closing fence is
+three dashes immediately followed by `\r?\n`, nothing else. An earlier
+version of this snippet used `text.index('\n---', 3)`, which finds any
+line merely starting with three dashes, trailing characters or not. A
+closing line padded with one trailing space (`"--- \n"` instead of
+`"---\n"`, a plausible editor artifact) does not match `_FRONTMATTER_RE`,
+so `parse_frontmatter` finds no valid closing fence and raises
+`AdrIndexError`, the same as a fence that never closes at all. The old
+`.index` call could not tell the difference: it matched the padded line
+anyway and printed an answer with no error, silently disagreeing with the
+generator's correctly-loud rejection of the same file (Copilot, PR #5209
+round-5 review). `_CLOSING_FENCE` above requires the same `\r?\n` on both
+sides of the dashes as `_FRONTMATTER_RE`, so a padded or otherwise
+malformed fence now raises here too.
 
 ## Accepted
 

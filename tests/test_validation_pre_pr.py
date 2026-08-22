@@ -44,6 +44,17 @@ def _sequence_with_passing_corpus_gates() -> tuple[Any, ...]:
         # here it is real-git-state-dependent noise the same way the other
         # corpus gates are real-filesystem-dependent noise.
         "Git Hook Health (core.hooksPath)",
+        # check_adr_links.py's validate_adr_links() calls `git ls-files -z
+        # *.md` via git_ls_markdown(). _healthy_git_run's blanket
+        # `else: stdout = ""` branch answers that call (it matches neither
+        # "symbolic-ref" nor "rev-parse"), so git_ls_markdown() returns an
+        # empty list under this mock regardless of the real repo's tracked
+        # files. check_adr_links.py's round-9 fix (PR #5209) treats a
+        # zero-file result as a wrong-but-valid repository root and fails
+        # closed, which is correct against a real git invocation but is a
+        # mock artifact here, not a real empty corpus: real-filesystem-
+        # dependent noise the same way the other corpus gates above are.
+        "ADR Link Resolution",
     }
     return tuple(
         replace(gate, run=lambda _repo_root, _args: True)

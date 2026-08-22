@@ -114,11 +114,28 @@ def check_session_log_gate(repo_root: Path) -> bool:
     or the absence of a log for today therefore prints [PASS], not [WARN];
     [WARN] is reserved for a log that exists but is structurally incomplete.
 
+    "No longer lists it" is checked against `AGENTS.md:16` verbatim:
+
+        **Start**:Init Serena|Read HANDOFF+latest issue handoff|Resume check|Search mem|Verify git
+
+    No step in that pipe-delimited row names a session log.
+
     Stricter/looser/different than canonical: `.claude/rules/session-logs.md`
-    describes a validate-if-present pre-commit gate that returns 0 silently
-    when nothing is staged. This gate prints one confirming [PASS] line
-    instead of full silence, so the "Session Start Gate" summary this
-    function reports into still shows Gate 3 ran rather than vanishing.
+    MUST 1 (lines 27-35) describes a validate-if-present pre-commit gate,
+    quoted verbatim:
+
+        If a log named `.agents/sessions/YYYY-MM-DD-session-NN<slug>.json`
+        ends up staged anyway (for example, cherry-picked from an older branch),
+        the `session-policy` pre-commit hook still validates it
+        (`scripts/validation/git_hook_policy.py session`, a validate-if-present gate):
+        a malformed log still blocks that commit. When no log is staged, the gate
+        returns 0 (`check_sessions` passes when there are no session paths, and also
+        when `_merge_in_progress`).
+
+    That pre-commit gate returns 0 silently when nothing is staged. This
+    session-start gate prints one confirming [PASS] line instead of full
+    silence, so the "Session Start Gate" summary this function reports into
+    still shows Gate 3 ran rather than vanishing.
     """
     print("\n=== Gate 3: Session Log Verification ===")
     sessions_dir = repo_root / ".agents" / "sessions"

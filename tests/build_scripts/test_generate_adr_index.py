@@ -365,6 +365,59 @@ def test_out_of_enum_status_is_never_silently_dropped(tmp_path: Path) -> None:
         generate_adr_index.collect_records(directory)
 
 
+# Negative: a present-but-empty status is not the same defect as an absent key
+#
+# `frontmatter.get("status")` cannot distinguish "key absent" from "key present
+# as null", so both used to return `None` silently and route indistinguishably
+# from a record with zero frontmatter into Needs backfill (PR #5209 review).
+# An explicit `status: null` or `status: ""` means the author touched the
+# field and left it broken, which `_status_of` now raises on instead.
+
+
+def test_null_status_raises_instead_of_backfilling_silently(tmp_path: Path) -> None:
+    directory = tmp_path / "architecture"
+    _write_adr(
+        directory,
+        10,
+        "null-status",
+        frontmatter="id: ADR-010\nstatus: null\ndate: 2026-01-01\n",
+        body=_standard_body(10, "Null Status"),
+    )
+
+    with pytest.raises(generate_adr_index.AdrIndexError, match="present but null"):
+        generate_adr_index.collect_records(directory)
+
+
+def test_empty_string_status_raises_instead_of_backfilling_silently(tmp_path: Path) -> None:
+    directory = tmp_path / "architecture"
+    _write_adr(
+        directory,
+        10,
+        "empty-status",
+        frontmatter='id: ADR-010\nstatus: ""\ndate: 2026-01-01\n',
+        body=_standard_body(10, "Empty Status"),
+    )
+
+    with pytest.raises(generate_adr_index.AdrIndexError, match="present but empty"):
+        generate_adr_index.collect_records(directory)
+
+
+def test_absent_status_key_still_backfills_silently(tmp_path: Path) -> None:
+    """The one legitimate `None`: the key was never addressed at all."""
+    directory = tmp_path / "architecture"
+    _write_adr(
+        directory,
+        10,
+        "no-status-key",
+        frontmatter="id: ADR-010\ndate: 2026-01-01\n",
+        body=_standard_body(10, "No Status Key"),
+    )
+
+    (record,) = generate_adr_index.collect_records(directory)
+
+    assert record.status is None
+
+
 def test_record_without_an_h1_exits_non_zero_naming_the_file(tmp_path: Path, capsys) -> None:
     directory = tmp_path / "architecture"
     _write_adr(
@@ -389,6 +442,38 @@ def test_missing_adr_directory_is_a_config_error(tmp_path: Path) -> None:
     )
 
     assert exit_code == 2
+
+
+def test_empty_adr_directory_is_a_config_error(tmp_path: Path, capsys) -> None:
+    """An emptied or misrouted corpus must fail loudly, not render an empty index.
+
+    `collect_records()` on zero matches renders every index section as `None`
+    and `main()` would otherwise exit 0: a missing corpus reads as valid
+    generated output (Copilot, PR #5209 round-7 review).
+    """
+    directory = tmp_path / "architecture"
+    directory.mkdir()
+
+    exit_code = generate_adr_index.main(
+        ["--adr-dir", str(directory), "--output", str(tmp_path / "README.md")]
+    )
+
+    assert exit_code == 2
+    assert "no ADR records found" in capsys.readouterr().err
+
+
+def test_adr_directory_with_only_a_template_is_a_config_error(tmp_path: Path, capsys) -> None:
+    """`ADR-TEMPLATE.md` alone must not count as evidence records exist."""
+    directory = tmp_path / "architecture"
+    directory.mkdir()
+    (directory / "ADR-TEMPLATE.md").write_text("# Template\n", encoding="utf-8")
+
+    exit_code = generate_adr_index.main(
+        ["--adr-dir", str(directory), "--output", str(tmp_path / "README.md")]
+    )
+
+    assert exit_code == 2
+    assert "no ADR records found" in capsys.readouterr().err
 
 
 # Edge: heading forms, list decisions, template exclusion ---------------------
@@ -680,6 +765,30 @@ def test_check_passes_when_the_committed_index_is_current(tmp_path: Path) -> Non
     assert exit_code == 0
 
 
+def test_check_reports_the_examined_record_count(tmp_path: Path, capsys) -> None:
+    """The `OK` success line names how many ADR records were examined.
+
+    Before this fix, a byte-for-byte match against an emptied or narrowed
+    corpus printed the identical unqualified `OK: {path} matches {dir}` as a
+    match against the full six-record corpus below, so a regression that
+    silently narrowed the scan scope read as a clean, complete pass
+    (Copilot, PR #5209 round-8 review).
+    """
+    directory = tmp_path / "architecture"
+    _corpus(directory)
+    output = tmp_path / "README.md"
+    generate_adr_index.main(["--adr-dir", str(directory), "--output", str(output)])
+
+    exit_code = generate_adr_index.main(
+        ["--adr-dir", str(directory), "--output", str(output), "--check"]
+    )
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert "matches" in out
+    assert "(6 ADR record(s))" in out
+
+
 def test_check_fails_when_an_adr_changed_without_a_regeneration(tmp_path: Path, capsys) -> None:
     directory = tmp_path / "architecture"
     _corpus(directory)
@@ -727,6 +836,68 @@ def test_check_does_not_write_the_index(tmp_path: Path) -> None:
     generate_adr_index.main(["--adr-dir", str(directory), "--output", str(output), "--check"])
 
     assert not output.exists()
+
+
+# CLI: worktree-identity guard (.claude/rules/ci-scripts.md MUST 7) -----------
+#
+# _resolve() anchors relative --adr-dir/--output to _REPO_ROOT (a module
+# constant derived from __file__), not to Path.cwd(). Every test above passes
+# absolute paths, so it never exercises that anchoring; these two pin the
+# guard that stops main() from writing into _REPO_ROOT when the caller's cwd
+# is somewhere else entirely.
+
+
+def test_cwd_inside_repo_root_permits_generation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    directory = tmp_path / "architecture"
+    _corpus(directory)
+    output = tmp_path / "README.md"
+    monkeypatch.chdir(generate_adr_index._REPO_ROOT)
+
+    exit_code = generate_adr_index.main(["--adr-dir", str(directory), "--output", str(output)])
+
+    assert exit_code == 0
+    assert output.exists()
+
+
+def test_cwd_outside_repo_root_is_a_config_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    directory = tmp_path / "architecture"
+    _corpus(directory)
+    output = tmp_path / "README.md"
+    monkeypatch.chdir(tmp_path)
+
+    exit_code = generate_adr_index.main(["--adr-dir", str(directory), "--output", str(output)])
+
+    assert exit_code == 2
+    assert "outside the repository root" in capsys.readouterr().err
+    assert not output.exists()
+
+
+def test_check_mode_ignores_cwd_outside_the_repository_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """`--check` never writes, so the worktree-identity guard must not apply to it.
+
+    Before this fix the guard ran unconditionally in `main()`, so a caller
+    using absolute `--adr-dir`/`--output` paths from a cwd outside the
+    repository got exit 2 for a check that reads and compares, never writes
+    (Copilot, PR #5209 round-7 review).
+    """
+    directory = tmp_path / "architecture"
+    _corpus(directory)
+    output = tmp_path / "README.md"
+    generate_adr_index.main(["--adr-dir", str(directory), "--output", str(output)])
+    monkeypatch.chdir(tmp_path)
+
+    exit_code = generate_adr_index.main(
+        ["--adr-dir", str(directory), "--output", str(output), "--check"]
+    )
+
+    assert exit_code == 0
+    assert "outside the repository root" not in capsys.readouterr().err
 
 
 # The build_all.py registration ----------------------------------------------
@@ -788,6 +959,49 @@ def test_two_hop_supersession_redirects_to_the_terminal_record(tmp_path: Path) -
 
     assert "ADR-092-third.md" in row
     assert "via ADR-091" in row
+
+
+def test_successor_lookup_accepts_non_padded_and_bare_int_references(tmp_path: Path) -> None:
+    """A ``superseded-by`` value the lifecycle gate accepts must also resolve here.
+
+    ``check_adr_lifecycle.py``'s ``_normalize_reference`` accepts ``ADR-91``
+    (non-padded) and a bare integer ``91`` as valid references to ADR-091, not
+    only the zero-padded ``ADR-091`` this index's own ``adr_id`` keys use. A
+    record naming either form passes lifecycle validation; before this fix, the
+    index's lookup compared the raw uppercased string against the padded key
+    and missed both, printing the reference as unlinked plain text instead of
+    resolving it (Copilot, PR #5209).
+    """
+    adr_dir = tmp_path / "architecture"
+    _write_adr(
+        adr_dir,
+        79,
+        "first",
+        frontmatter="status: superseded\nsuperseded-by: ADR-91",
+        body=_standard_body(79, "First"),
+    )
+    _write_adr(
+        adr_dir,
+        80,
+        "second",
+        # YAML parses this as an int; _scalar() renders it "91", the bare form.
+        frontmatter="status: superseded\nsuperseded-by: 91",
+        body=_standard_body(80, "Second"),
+    )
+    _write_adr(
+        adr_dir,
+        91,
+        "third",
+        frontmatter="status: accepted",
+        body=_standard_body(91, "Third"),
+    )
+
+    retired = _section(_render(adr_dir), "Retired")
+    row_79 = next(line for line in retired.splitlines() if "ADR-079" in line)
+    row_80 = next(line for line in retired.splitlines() if "ADR-080" in line)
+
+    assert "ADR-091-third.md" in row_79
+    assert "ADR-091-third.md" in row_80
 
 
 def test_supersession_cycle_terminates_instead_of_hanging(tmp_path: Path) -> None:
@@ -1063,6 +1277,47 @@ def test_the_documented_recipe_skips_a_record_with_no_frontmatter(tmp_path):
     _write_adr(adr_dir, 1, "bare", frontmatter=None, body=_standard_body(1, "Bare"))
 
     assert _accepted_ids_via_recipe(adr_dir) == []
+
+
+def test_the_documented_recipe_agrees_with_the_generator_on_a_padded_closing_fence(tmp_path):
+    """Copilot's line-643 finding: the recipe's fence search does not require
+    the closing delimiter to occupy its own line, unlike `_FRONTMATTER_RE`.
+
+    `_FRONTMATTER_RE` is ``r"^---\\r?\\n([\\s\\S]*?)\\r?\\n---\\r?\\n([\\s\\S]*)$"``
+    (generate_adr_index.py, module scope): the closing fence must be exactly
+    three dashes immediately followed by `\\r?\\n`, nothing else. A closing
+    line with one trailing space, ``"--- \\n"`` instead of ``"---\\n"``, fails
+    that match. `parse_frontmatter` then finds no closing fence anywhere
+    (the trailing-space line does not qualify, and there is no other), so it
+    raises `AdrIndexError` for "opens with '---' but has no closing '---'
+    fence" (the same branch the already-documented "unterminated frontmatter"
+    paragraph above describes; this is a padded fence, not an absent one, but
+    the real parser treats both as the identical defect).
+
+    The recipe as first shipped used ``text.index('\\n---', 3)``, which finds
+    ANY "\\n---" substring, trailing space or not, and slices there with no
+    error. Against this fixture the old recipe printed ``['ADR-001']`` with
+    no sign anything was wrong, silently disagreeing with the generator's
+    correctly-loud rejection of the same file. This test fails against the
+    recipe as first shipped for that reason: it asserts the recipe raises
+    too, matching `AdrIndexError`, rather than asserting on a return value
+    the old recipe could satisfy by accident.
+    """
+    from generate_adr_index import AdrIndexError
+
+    adr_dir = tmp_path / "architecture"
+    adr_dir.mkdir(parents=True)
+    (adr_dir / "ADR-001-padded.md").write_text(
+        "---\nid: ADR-001\nstatus: accepted\n--- \n"
+        "# ADR-001: Padded\n\n## Decision\n\nDo it.\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AdrIndexError):
+        _accepted_ids_via_generator(adr_dir)
+
+    with pytest.raises(ValueError):
+        _accepted_ids_via_recipe(adr_dir)
 
 
 # Unhashable YAML keys -------------------------------------------------------

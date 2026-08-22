@@ -13,7 +13,7 @@ implemented: true
 
 ## Provenance
 
-Accepted 2025-12-23 as ADR-014 in PR #224 (commit PR #224). Renumbered to ADR-024 by PR #476 (commit PR #476) on 2025-12-29. This record carries no `## Date` section because PR #224 review removed it ("Remove Date section from ADR-014, git history tracks this"); the date above is the first-commit date.
+Accepted 2025-12-23 as ADR-014 in PR #224. Renumbered to ADR-024 by PR #476 on 2025-12-29. Both are pull request numbers, not commit identifiers; an earlier revision of this line wrote "(commit PR #224)" and "(commit PR #476)", which conflates the two (Copilot, PR #5209). This record carries no `## Date` section because PR #224 review removed it ("Remove Date section from ADR-014, git history tracks this"); the date above is the first-commit date.
 
 ADR-055 carries the identical title and filename slug. Neither file is renamed, because inbound citations resolve by path. ADR-055 is the live record.
 

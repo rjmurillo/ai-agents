@@ -7,7 +7,9 @@ baseline entries), and the CLI exit-code contract.
 
 from __future__ import annotations
 
+import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -298,6 +300,89 @@ def test_link_after_a_closed_fence_is_still_scanned(tmp_path: Path) -> None:
     assert findings[0].target == "./ADR-998-nope.md"
 
 
+def test_a_shorter_run_of_the_same_fence_character_does_not_close_it(tmp_path: Path) -> None:
+    """CommonMark requires the closing run to be at least as long as the
+    opener. A four-backtick fence containing a three-backtick line (a
+    transcript illustrating a ```` ``` ```` example) must not be closed by
+    that shorter run: only a run of four or more backticks closes it. Tracking
+    only the fence character, not its length, gets this backwards the same
+    way a same-character/different-length pair always does: it reports the
+    still-fenced ADR-999 as broken and skips the real ADR-998 defect past the
+    true close, because the three-backtick line flips the scanner out of the
+    fence early and the real four-backtick close flips it back in (Copilot,
+    PR #5209 round-7 review).
+    """
+    doc = write(
+        tmp_path,
+        "docs/example.md",
+        "````\n"
+        "```\n"
+        "[ADR-999](./ADR-999-does-not-exist.md)\n"
+        "````\n"
+        "[ADR-998](./ADR-998-nope.md)\n",
+    )
+
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
+
+    assert kinds(findings) == ["unresolved"]
+    assert findings[0].target == "./ADR-998-nope.md"
+
+
+def test_a_different_fence_character_inside_a_block_does_not_close_it(tmp_path: Path) -> None:
+    """CommonMark closes a fence only with its own character. A ``~~~`` block
+    containing a line that opens with backticks (a transcript illustrating a
+    ```` ``` ```` example, say) must not be closed by that line: only a
+    matching ``~~~`` closes it. A bare open/close toggle over any fence-shaped
+    line gets this backwards on both ends: it would report the still-fenced
+    ADR-999 as broken (false positive on illustration content) and skip the
+    real ADR-998 defect just past the true close (false negative), because the
+    stray backtick line flips it out of the fence early and the real closing
+    ``~~~`` flips it back in (PR #5209 review).
+    """
+    doc = write(
+        tmp_path,
+        "docs/example.md",
+        "~~~\n"
+        "```\n"
+        "[ADR-999](./ADR-999-does-not-exist.md)\n"
+        "~~~\n"
+        "[ADR-998](./ADR-998-nope.md)\n",
+    )
+
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
+
+    assert kinds(findings) == ["unresolved"]
+    assert findings[0].target == "./ADR-998-nope.md"
+
+
+def test_a_fence_shaped_line_with_trailing_text_does_not_close_it(tmp_path: Path) -> None:
+    """CommonMark's closing fence takes no info string: only spaces or tabs
+    may follow the marker. A ```` ```python ```` line inside an already-open
+    ``` block is content (an inner example showing a fenced code sample), not
+    a close, even though its character and length match the opener. Treating
+    any matching fence-shaped line as a close regardless of trailing text
+    gets this backwards on both ends: it closes on the inner ```` ```python
+    ```` line, so the still-fenced ADR-999 example is scanned as broken (false
+    positive), and it then reopens on the real closing fence, swallowing the
+    live ADR-998 link that follows into a fence that never closes (false
+    negative), (Copilot, PR #5209 round-9 review).
+    """
+    doc = write(
+        tmp_path,
+        "docs/example.md",
+        "```\n"
+        "```python\n"
+        "[ADR-999](./ADR-999-does-not-exist.md)\n"
+        "```\n"
+        "[ADR-998](./ADR-998-nope.md)\n",
+    )
+
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
+
+    assert kinds(findings) == ["unresolved"]
+    assert findings[0].target == "./ADR-998-nope.md"
+
+
 @pytest.mark.parametrize(
     "root",
     [
@@ -357,6 +442,39 @@ def test_missing_file_on_disk_yields_no_findings(tmp_path: Path) -> None:
     assert scan_file(tmp_path, "docs/never-written.md", frozenset()) == []
 
 
+def test_scan_file_raises_on_invalid_utf8_content(tmp_path: Path) -> None:
+    """A malformed byte inside a tracked file is a defect to surface, not paper over.
+
+    ``errors="replace"`` on this read (removed) would silently substitute
+    U+FFFD for the bad byte and scan the file as if it were valid text,
+    which can hide exactly the byte that broke a link's destination, or turn
+    a genuinely broken link into one that happens to re-parse as resolvable
+    (Copilot, PR #5209 round-6 review). This is a plain file read, not one of
+    the ``subprocess`` text-capture calls issue #4261's convention binds
+    (``check_subprocess_encoding.py`` scans only ``subprocess`` module
+    calls), so strict decoding is the correct default here, and `main()`
+    already has a `UnicodeDecodeError` handler (exit 2) for exactly this.
+    """
+    path = tmp_path / "adr" / "index.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"[ADR-005](\xffADR-005-gone.md)\n")
+
+    with pytest.raises(UnicodeDecodeError):
+        scan_file(tmp_path, "adr/index.md", frozenset())
+
+
+def test_main_returns_two_when_a_file_has_invalid_utf8_content(tmp_path: Path, capsys) -> None:
+    path = tmp_path / "adr" / "index.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"[ADR-005](\xffADR-005-gone.md)\n")
+    _init_repo(tmp_path)
+
+    exit_code = main(["--repo-root", str(tmp_path), "--baseline", str(tmp_path / "none.txt")])
+
+    assert exit_code == 2
+    assert "check_adr_links:" in capsys.readouterr().err
+
+
 # Baseline behavior
 
 
@@ -367,17 +485,48 @@ def test_baseline_entry_suppresses_the_matching_finding(tmp_path: Path) -> None:
     assert find_broken_adr_links(tmp_path, files=[doc], baseline={key}, tracked=frozenset()) == []
 
 
-def test_whole_file_baseline_entry_suppresses_every_finding(tmp_path: Path) -> None:
+def test_a_second_identical_finding_is_not_covered_by_one_allowance(tmp_path: Path) -> None:
+    """One baseline entry allows one match, not every match sharing its key.
+
+    ``Finding.key()`` is ``kind:file:target`` with no line number, so the same
+    broken link cited twice in one file produces two findings with an
+    identical key. A plain ``in`` membership check against the baseline set
+    would suppress both from a single entry, meaning a second, later-added
+    occurrence of an already-baselined dead link stays invisible forever.
+    The real corpus had exactly this shape: ``docs/search-dont-load.md``
+    cited the same absolute ADR-007 link on two lines under one baseline
+    entry (Copilot, PR #5209); both are now fixed rather than double-baselined.
+    """
+    doc = write(
+        tmp_path,
+        "adr/index.md",
+        "[ADR-005](ADR-005-gone.md)\nSee also [ADR-005 again](ADR-005-gone.md)\n",
+    )
+    baseline = {"unresolved:adr/index.md:ADR-005-gone.md"}
+
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=baseline, tracked=frozenset())
+
+    assert [finding.line for finding in findings] == [2]
+
+
+def test_whole_file_baseline_entry_is_rejected_as_malformed(tmp_path: Path) -> None:
+    """A bare filename must not become a silent, unbounded wildcard.
+
+    Before this fix, ``{"adr/index.md"}`` in the baseline suppressed every
+    finding in that file, current and future, through a ``finding.file in
+    allowed`` branch this gate used to carry. The baseline file's own header
+    requires ``<kind>:<file>:<target>`` and forbids anything looser; a
+    file-only entry now fails loudly at load time instead of silently
+    exempting the whole file (Copilot, PR #5209).
+    """
     doc = write(
         tmp_path,
         "adr/index.md",
         "[ADR-005](ADR-005-gone.md)\n[ADR-006](ADR-006-gone.md)\n",
     )
 
-    assert (
+    with pytest.raises(ValueError, match="adr/index.md"):
         find_broken_adr_links(tmp_path, files=[doc], baseline={"adr/index.md"}, tracked=frozenset())
-        == []
-    )
 
 
 def test_baseline_does_not_suppress_a_different_target_in_the_same_file(tmp_path: Path) -> None:
@@ -419,6 +568,54 @@ def test_baseline_does_not_suppress_a_different_kind_on_the_same_pair(tmp_path: 
     assert kinds(findings) == ["number-mismatch"]
 
 
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "unresolved:adr/index.md:ADR-005-gone.md",
+        "absolute:docs/x.md:/ADR-007-x.md",
+        "malformed:adr/index.md:ADR-005-x.md",
+        "number-mismatch:adr/index.md:ADR-005-x.md",
+    ],
+)
+def test_malformed_baseline_entries_accepts_well_formed_lines(entry: str) -> None:
+    assert check_adr_links._malformed_baseline_entries({entry}) == []
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "adr/index.md",  # the file-only wildcard the review flagged
+        "ADR-005-gone.md",  # a bare target, no kind or file
+        "not-a-kind:adr/index.md:ADR-005-gone.md",  # unrecognized kind
+        "unresolved:adr/index.md",  # missing target
+        "unresolved::ADR-005-gone.md",  # empty file segment
+        "",
+    ],
+)
+def test_malformed_baseline_entries_rejects_the_rest(entry: str) -> None:
+    assert entry in check_adr_links._malformed_baseline_entries({entry})
+
+
+def test_find_broken_adr_links_rejects_a_malformed_baseline_before_scanning(
+    tmp_path: Path,
+) -> None:
+    """A config error, not a silently-empty result.
+
+    ``find_broken_adr_links`` must fail loudly on a malformed baseline rather
+    than returning ``[]`` (which reads identically to "no violations, and
+    every finding this run would have caught").
+    """
+    doc = write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
+
+    with pytest.raises(ValueError, match="not-a-kind"):
+        find_broken_adr_links(
+            tmp_path,
+            files=[doc],
+            baseline={"not-a-kind:adr/index.md:ADR-005-gone.md"},
+            tracked=frozenset(),
+        )
+
+
 # Helper units
 
 
@@ -447,6 +644,22 @@ def test_split_destination(raw: str, expected: str) -> None:
         ("ADR-005-x.txt", False),
         ("https://example.invalid/ADR-005-x.md", False),
         ("mailto:a@example.invalid/ADR-005-x.md", False),
+        # URI schemes are case-insensitive (RFC 3986 section 3.1); a
+        # case-varied scheme must not be mistaken for a repository-relative
+        # ADR path (Copilot, PR #5209).
+        ("HTTPS://example.invalid/ADR-005-x.md", False),
+        ("Http://example.invalid/ADR-005-x.md", False),
+        # RFC 3986 section 3.1 defines "scheme" by shape (ALPHA followed by
+        # ALPHA/DIGIT/"+"/"-"/"."), not by enumeration; a scheme outside the
+        # old four-entry list must still be recognized as external rather
+        # than falling through to the ADR-basename check (Copilot, PR #5209
+        # round-8 review).
+        ("ssh://example.invalid/ADR-005-x.md", False),
+        ("git://example.invalid/ADR-005-x.md", False),
+        ("SSH://example.invalid/ADR-005-x.md", False),
+        # RFC 3986 section 4.2: a reference starting with two slashes is a
+        # network-path reference, naming a host, not a repository path.
+        ("//example.invalid/ADR-005-x.md", False),
     ],
 )
 def test_is_adr_target(path: str, expected: bool) -> None:
@@ -524,6 +737,47 @@ def test_git_ls_markdown_returns_tracked_markdown_only(tmp_path: Path) -> None:
     assert git_ls_markdown(tmp_path) == ["docs/a.md"]
 
 
+@pytest.mark.skipif(
+    sys.platform != "linux",
+    reason=(
+        "requires a filesystem that accepts arbitrary bytes in a filename; "
+        "ext4 does, APFS (macOS) and NTFS (Windows) validate UTF-8 or reject "
+        "the byte at create time (Cursor Bugbot, PR #5209 round-6 review)"
+    ),
+)
+def test_git_ls_markdown_raises_on_a_non_utf8_tracked_filename(tmp_path: Path) -> None:
+    """A tracked filename with an invalid UTF-8 byte must not vanish silently.
+
+    ``git ls-files -z`` emits raw filesystem bytes; decoding them with
+    ``errors="replace"`` (kept here because ``check_subprocess_encoding.py``
+    mandates it for every ``subprocess.run(text=True, encoding="utf-8", ...)``
+    call, issue #4261) turns the invalid byte into U+FFFD. Left unchecked,
+    ``scan_file()`` builds ``repo_root / file`` from that corrupted name,
+    ``Path.is_file()`` returns False for it (the real file on disk still has
+    the original byte, not the replacement), and the file is scanned as zero
+    findings, indistinguishable from a file that was never tracked at all
+    (Copilot, PR #5209 round-6 review). Raising here instead means ``main()``
+    reports the corrupted name and exits 2 rather than silently undercounting
+    the scanned corpus.
+
+    The filename byte cannot be written through ``pathlib.Path`` (it is not
+    valid UTF-8, so the surrogate-escaped str round-trips through the
+    filesystem but not through ordinary path construction); built as raw
+    bytes instead, which ext4 accepts. This repo's own CI only runs this
+    file's suite on ``ubuntu-latest``/``ubuntu-24.04-arm``
+    (`.github/workflows/pytest.yml`); the Windows job filters to
+    `@pytest.mark.windows_path` only, so this test was never exercised there.
+    The skip guard is for local runs on other filesystems, not a CI fix.
+    """
+    bad_path = os.fsencode(str(tmp_path)) + b"/ADR-005-\xffgone.md"
+    with open(bad_path, "wb") as handle:
+        handle.write(b"# x\n")
+    _init_repo(tmp_path)
+
+    with pytest.raises(ValueError, match="non-UTF-8 byte"):
+        git_ls_markdown(tmp_path)
+
+
 def test_main_returns_zero_when_the_tree_is_clean(tmp_path: Path, capsys) -> None:
     write(tmp_path, "adr/ADR-005-x.md", "# target\n")
     write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-x.md)\n")
@@ -533,6 +787,71 @@ def test_main_returns_zero_when_the_tree_is_clean(tmp_path: Path, capsys) -> Non
 
     assert exit_code == 0
     assert "0 violation(s)" in capsys.readouterr().out
+
+
+def test_main_reports_the_examined_file_count(tmp_path: Path, capsys) -> None:
+    """A clean "0 violation(s)" must be distinguishable from an empty scan.
+
+    Without the examined count, a `git_ls_markdown` regression that only
+    sees a handful of tracked files (or an accidentally narrowed scope)
+    prints the identical success line as a complete scan of the real corpus
+    (Copilot, PR #5209 round-8 review).
+    """
+    write(tmp_path, "adr/ADR-005-x.md", "# target\n")
+    write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-x.md)\n")
+    _init_repo(tmp_path)
+
+    exit_code = main(["--repo-root", str(tmp_path), "--baseline", str(tmp_path / "none.txt")])
+
+    assert exit_code == 0
+    assert "0 violation(s) across 2 tracked markdown file(s)" in capsys.readouterr().out
+
+
+def test_main_fails_closed_on_a_valid_repo_with_no_tracked_markdown(
+    tmp_path: Path, capsys
+) -> None:
+    """A wrong-but-valid repository root must not manufacture a green result.
+
+    `repo_root` pointing at a real git repository that happens to track zero
+    markdown files makes `git ls-files` succeed with empty output, so an
+    unguarded scan would find nothing and print the same "0 violation(s)" a
+    genuinely clean full-corpus scan prints. That is a different failure
+    shape than "not a git repository at all," which the
+    `subprocess.CalledProcessError` handler already covers (Copilot,
+    PR #5209 round-9 review).
+    """
+    write(tmp_path, "not_markdown.py", "x = 1\n")
+    _init_repo(tmp_path)
+
+    exit_code = main(["--repo-root", str(tmp_path), "--baseline", str(tmp_path / "none.txt")])
+
+    err = capsys.readouterr().err
+    assert exit_code == 2
+    assert "no tracked markdown files found" in err
+
+
+def test_validate_adr_links_fails_closed_on_a_valid_repo_with_no_tracked_markdown(
+    tmp_path: Path, capsys
+) -> None:
+    write(tmp_path, "not_markdown.py", "x = 1\n")
+    _init_repo(tmp_path)
+
+    result = validate_adr_links(tmp_path)
+
+    err = capsys.readouterr().err
+    assert result is False
+    assert "no tracked markdown files found" in err
+
+
+def test_validate_adr_links_reports_the_examined_file_count(tmp_path: Path, capsys) -> None:
+    write(tmp_path, "adr/ADR-005-x.md", "# target\n")
+    write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-x.md)\n")
+    _init_repo(tmp_path)
+
+    result = validate_adr_links(tmp_path)
+
+    assert result is True
+    assert "0 violation(s) across 2 tracked markdown file(s)" in capsys.readouterr().out
 
 
 def test_main_returns_one_when_a_link_is_broken(tmp_path: Path, capsys) -> None:
@@ -590,3 +909,27 @@ def test_gate_passes_against_the_repository_corpus() -> None:
     findings = find_broken_adr_links(REPO_ROOT)
 
     assert findings == [], "\n".join(finding.format() for finding in findings)
+
+
+def test_baseline_header_counts_match_the_live_file() -> None:
+    """The baseline file's own header comment must not drift from its content.
+
+    Round 5 removed a stale ``absolute`` entry (the fixed
+    ``docs/search-dont-load.md`` link) but left the header comment's "twenty
+    entries, three absolute" claim unchanged, dropping the real counts to
+    19 and 2 without anyone noticing (Copilot, PR #5209 round-6 review).
+    Asserting the counts directly against the file, rather than re-reading
+    the comment and trusting it, means a future edit that changes the entry
+    count without updating the header fails this test instead of drifting
+    silently again.
+    """
+    baseline_path = REPO_ROOT / check_adr_links.DEFAULT_BASELINE
+    lines = baseline_path.read_text(encoding="utf-8").splitlines()
+    entries = [line for line in (raw.strip() for raw in lines) if line and not line.startswith("#")]
+    absolute_entries = [entry for entry in entries if entry.startswith("absolute:")]
+
+    header = "\n".join(lines[:20])
+    assert f"{len(absolute_entries)} of the {len(entries)} entries" in header, (
+        f"baseline has {len(entries)} entries ({len(absolute_entries)} absolute), "
+        "but the header comment does not say so; update the comment to match"
+    )

@@ -733,3 +733,725 @@ error threshold). Full detail in Addendum 19 of
 condensing the docstring's quoted-spelling illustration, back to 499
 lines in both trees. `taste_count_ratchet.py`: OK (count == baseline
 576). 355 tests passed, unchanged.
+
+
+## Addendum 19: a Copilot review round on this branch's own head, eight findings
+
+**Rebound to** `853b61fad7b09b6887c4c13e2cda92ff8f3f5922`.
+
+Copilot reviewed this branch's head directly (not the stacked #5230
+branch). Eight findings, all fixed and mutation-proven where the fix was
+code, none a design reversal:
+
+- **`_status_prose` swallowed a markdown parse failure into "no status
+  section"**, silently exempting an unparseable record from
+  `prose-frontmatter-agree`. `blank_code_block_lines`'s own contract
+  (`scripts/utils/markdown_parser.py:175-180`) requires the exception to
+  propagate. Fixed to catch it one level up, in `_check_prose`, and
+  report a violation instead. New test
+  `test_unparseable_markdown_is_a_violation_not_a_silent_skip`;
+  mutation-proven by reverting the fix, which fails exactly that test.
+- **`implemented-implies-decided` blocked a pattern the corpus already
+  uses by design.** ADR-073's schema comment defines `implemented` as
+  flipping "at first merged change", independent of `status`, and
+  ADR-098 documents `status: proposed` with `implemented: true` as
+  deliberate (a governance ADR cannot self-assert its own acceptance).
+  Removed the check; baseline drops from 78 to 64 (-6 from the removal,
+  -1 from a pre-existing, unrelated `frontmatter-parses` improvement
+  already present on this branch, confirmed via `git stash` comparison
+  before attributing it here).
+- **ADR-055's `implemented: false` was the same conflation, applied to a
+  live record.** 111 of 132 `runs-on` declarations are already ARM,
+  well past "first merged change". Set to `true`; the remaining 21-job
+  gap stays in the record's Metrics section and issue #5199.
+- **The query-recipe docstring in `generate_adr_index.py` had the
+  absent-vs-unterminated-frontmatter behavior backwards.** Verified by
+  execution: absent frontmatter `continue`s past the snippet's check;
+  unterminated frontmatter (opens with `---`, never closes) skips that
+  `continue` and raises `ValueError`. The snippet crashes on the
+  unterminated case rather than silently dropping it. Corrected,
+  README regenerated.
+- **ADR-024's Provenance line wrote "(commit PR #224)" and "(commit PR
+  #476)"**, conflating pull request numbers with commit identifiers.
+  Removed the parentheticals.
+- **The PR description's checks list and violation count were stale**
+  after the `implemented-implies-decided` removal (nine checks, 78
+  violations, now seven checks, 64). Corrected on the PR itself.
+- **Two absolute "no hook was bypassed" claims, in the session log and
+  in this file**, were contradicted by this campaign's own stacked-branch
+  QA report, which records one `git commit --no-verify` invocation on a
+  scratch commit a `git reset --soft` discarded in the same command.
+  Corrected both to the accurate scope: no *surviving* commit skipped a
+  hook, and the one invocation reaches no ref.
+
+The ADR-055 and ADR-024 corrections are appended to the existing
+`ADR-024-025-042-055-status-redundancy-debate-log.md` (already covers
+both records) rather than a new debate log, since neither is a
+governance decision. 316 tests pass across `check_adr_lifecycle`,
+`generate_adr_index`, the `adr-review` skill (all trees), and the
+ADR-063 structural test.
+
+## Addendum 20: a third Copilot review round, five fixed, one filed
+
+**Rebound to** `5205bf29d366afe80d2174302a1d5326be6fae16`.
+
+A further Copilot review on this branch's own head found six findings.
+Commits `17e0a15f3` and `5205bf29d`:
+
+- **`generate_adr_index.py`'s successor lookup missed non-padded and
+  bare-integer `superseded-by` references** (`ADR-91`, bare `91`) that
+  `check_adr_lifecycle.py`'s `_normalize_reference` already accepts. A
+  record naming either form passed lifecycle validation while the index
+  printed it as an unlinked plain-text reference. Fixed with a
+  `_normalize_adr_id` helper mirroring the lifecycle gate's acceptance
+  regex, at both the initial lookup and the chain-walk lookup.
+  Mutation-proven: reverting the fix fails exactly the new test,
+  `test_successor_lookup_accepts_non_padded_and_bare_int_references`.
+- **`check_adr_links.py`'s external-scheme check was case-sensitive.**
+  URI schemes are case-insensitive (RFC 3986 section 3.1);
+  `HTTPS://example.test/ADR-005-x.md` was treated as a repository-relative
+  path and reported as a false `unresolved` finding. Fixed by
+  lower-casing before the scheme comparison. Mutation-proven.
+- **A bare filename in `check_adr_links_baseline.txt` was a silent,
+  unbounded wildcard.** A `finding.file in allowed` branch let one
+  file-only baseline entry suppress every current and future ADR-link
+  defect in that file, though the baseline file's own header requires
+  `<kind>:<file>:<target>` and forbids anything looser. Fixed two ways:
+  the wildcard branch is removed, and the baseline is now validated
+  against that exact shape at load time, failing loudly (a `ValueError`
+  config error, not a silent empty result) on a malformed entry. The
+  existing test that asserted the old wildcard behavior,
+  `test_whole_file_baseline_entry_suppresses_every_finding`, is flipped
+  to `test_whole_file_baseline_entry_is_rejected_as_malformed`, asserting
+  the new rejection instead of the forgeable old behavior.
+- **The "ten records repaired" count was off by one.** `60b9ee306`
+  (already on this branch) gave ADR-063 the frontmatter its prose had
+  claimed since 2026-06-17, a lifecycle repair by the same definition as
+  the other ten; the PR description's bolded list never counted it.
+  Corrected to eleven records. The frontmatter/backfill counts also
+  corrected, 54 to 53, confirmed by direct measurement:
+  `adr_lifecycle_baseline.json`'s `frontmatter-parses` reads 53 and the
+  generated index's Needs backfill section lists 53 rows.
+- **Two debate logs had gone stale**, corrected in commit `5205bf29d`:
+  `ADR-corpus-repair-5189-5201-debate-log.md`'s resolution table still
+  described ADR-055 as `implemented: false` after the second round's
+  correction reversed it; `ADR-023-032-033-link-repair-debate-log.md`'s
+  verdict said ADR-023 was "left without frontmatter" and named a
+  `status-section-present` check that is not one of the seven shipped
+  checks. Both corrected in place with a note explaining what changed
+  and why, rather than silently rewriting the historical record.
+- **Deferred, filed as issue #5270**: neither `check_adr_lifecycle.py`'s
+  `--write-baseline` nor `check_adr_links.py`'s baseline file enforces
+  that its ceiling can only fall relative to the PR's base branch, so a
+  branch could in principle raise either and commit the raised version
+  alongside the regression it should have caught. Same forgeability
+  class already proven against the debate-log gate in #5205; filed for
+  follow-up rather than expanding this already-oversized review-response
+  round further.
+
+Test counts: `check_adr_links` 79 tests (up from 66, +13: the malformed-baseline
+coverage plus the two new scheme-case parametrize entries), `generate_adr_index`
+73 tests (up from 72, +1). All four touched suites plus
+`test_pre_pr_sequence_registry.py` pass together: 272 tests. `check_adr_links.py
+--repo-root .` and `check_adr_lifecycle.py --repo-root .` both re-run clean
+against the full corpus (0 violations; 64 baselined violations, no check above
+its baseline). `generate_adr_index.py --check` confirms the generated index
+still matches: the real corpus has no non-padded or bare-integer
+`superseded-by` value today, so the normalization fix is latent-defect
+coverage, the same shape as the original `_get_adr_status` fix.
+
+## Addendum 21: a fourth Copilot review round, two MUST-7 gaps, plus a backlog cleanup
+
+**Rebound to** `d1fc64595bf5bc6e9c2d54b6a4210ef194f7eff7`.
+
+A fourth Copilot review on this branch's own head found two
+`.claude/rules/ci-scripts.md` MUST-7 worktree-identity gaps. Both fixed,
+mutation-proven:
+
+- **`generate_adr_index.py:main()` never verified the caller's cwd before
+  writing.** Relative `--adr-dir`/`--output` are anchored to `_REPO_ROOT`
+  (derived from `__file__`), not `Path.cwd()`. Added the identity check
+  MUST-7 requires, mirroring `scripts/generate_third_party_notices.py:446-452`
+  verbatim.
+- **`check_adr_lifecycle.py --write-baseline` had the same gap**, fixed with
+  a guard that fires only when `--repo-root` is the implicit `__file__`-derived
+  default: every existing `--write-baseline` test in this file passes
+  `--repo-root` explicitly, pointing at a synthetic `tmp_path` corpus
+  unrelated to cwd, and an explicit `--repo-root` is a stated write target
+  with no worktree-identity risk.
+
+Five more findings from the same investigation pass, self-identified rather
+than bot-flagged (all mutation-proven; real corpus and skill-portability
+suite re-verified unaffected):
+
+- **`generate_adr_index.py`'s `_status_of()` conflated an absent `status`
+  key with one present but null or empty**, both returning `None` via
+  `frontmatter.get("status")` and routing a record with partial, broken
+  metadata into the same Needs Backfill bucket as a record with zero
+  frontmatter. A present-but-broken status now raises, matching the
+  function's own out-of-enum contract.
+- **`check_adr_links.py`'s fence tracking was a bare open/closed toggle,
+  not fence-character-aware.** A `~~~`-opened block containing a line that
+  starts with backticks was incorrectly closed by that line under
+  CommonMark's actual same-character rule. Now tracks the opening marker.
+- **`check_adr_lifecycle.py`'s `_status_prose()` blanked code but not raw
+  HTML blocks before searching for `## Status`.** `blank_code_block_lines()`
+  deliberately keeps HTML visible for `check_skill_md_portability.py`, so
+  widening it in place would have regressed that caller. Added
+  `blank_non_prose_block_lines()` instead, sharing the existing blanking
+  loop under a wider token-type set.
+- **`memory-gate/SKILL.md` overclaimed Python as "the only sanctioned
+  scripting language."** ADR-042 deprecates PowerShell for new scripts
+  while explicitly keeping it for quick fixes and Windows-specific
+  operations. Reworded; copilot-cli mirror regenerated.
+- **`.claude/skills/adr-review/tests/test_detect_adr_changes.py` was a
+  stale, colocated test file**, violating `.claude/rules/testing.md` MUST 6.
+  Not a byte-for-byte duplicate of the relocated `tests/skills/adr-review/`
+  suite: five cases were genuinely unique and ported before the stale copy
+  (and its copilot-cli mirror) were deleted. Porting them pushed the
+  target file past the taste-lint file-size ceiling; split into a new
+  `test_detect_adr_changes_cli_contract.py` sibling instead of a
+  suppression, matching the existing `_encoding.py` / `_duplicate_keys.py`
+  split pattern in the same directory.
+
+Ten round-2/3 threads closed out this round that were already fixed in
+code but never replied-to or resolved on GitHub (compaction interrupted
+that step): duplicate-key rejection in both lifecycle files (`06c4b5abd`),
+the ADR-063 test calling the canonical parser (`aed2530fb`),
+`prose-frontmatter-agree` searching the whole body (`df9c75495`), ADR-link
+targets resolved against the tracked inventory (`01798f214`), the
+absent-vs-unterminated-frontmatter distinction (`a6e38f6b7`), the baseline
+key including violation `kind` (`e2cb80a44`), `build_all.py` failing loud
+on a missing ADR directory (`75a82f209`), `ADR-TEMPLATE.md` no longer
+forbidding `## Status` (`483f74adb`), the "checks 2 to 9" containment note
+corrected to "2 to 7" (`1d4960414`), and this description's own stale
+check/violation counts (already corrected in a prior round). One thread,
+`ADR-005-status-duplication-debate-log.md`'s claim that four records "keep
+their prose status sections," was genuinely still stale (their nuance
+moved to purpose-specific headings after the log was written) and is
+corrected in this round, verified against each file directly rather than
+from memory.
+
+Test counts: `check_adr_lifecycle` 116 tests (up from 111), `check_adr_links`
+80 tests (up from 79), `generate_adr_index` 78 tests (up from 73), plus 6
+new tests in `tests/test_markdown_parser.py` for `blank_non_prose_block_lines`
+and 6 new tests in `tests/skills/adr-review/test_detect_adr_changes_cli_contract.py`.
+`check_adr_lifecycle.py --repo-root .` and `check_adr_links.py --repo-root .`
+both re-run clean against the full corpus (64 baselined violations for the
+former, 0 for the latter, no check above its baseline). `taste_count_ratchet.py`
+confirmed at 576 (the baseline), after the file-size split above.
+
+## Addendum 22: a fifth Copilot review round, three findings fixed
+
+**Rebound to** `fefa8bf5e0ddd4c6d416032c2e35e62070b82765`.
+
+A fifth Copilot review on this branch's own head found three defects,
+all fixed and mutation-proven:
+
+- **`check_adr_links.py`'s baseline allowance was per-key, not per-finding.**
+  `Finding.key()` is `kind:file:target` with no line number, so two
+  occurrences of the same broken link sharing a key (or a later, genuinely
+  new occurrence that happens to match an already-baselined one) both
+  matched a single `in` membership test. One baseline entry silently
+  suppressed every finding sharing its key, forever.
+  `find_broken_adr_links()` now discards each baseline entry from a working
+  copy on its first match, so a second occurrence of the same key still
+  surfaces. The real corpus had exactly this shape: `docs/search-dont-load.md`
+  cited the same absolute ADR-007 link on two lines under one baseline
+  entry. Both are fixed (relative links) rather than double-baselined, and
+  the stale baseline entry is removed. New test:
+  `test_a_second_identical_finding_is_not_covered_by_one_allowance`; it
+  failed against the code as first shipped, on the `in`-check.
+- **`pre_pr.py` did not re-export `validate_adr_links`**, breaking its own
+  documented promise ("the imports below keep
+  `from scripts.validation.pre_pr import X` working for callers and tests")
+  for one caller. Fixed by adding the missing import. Writing the most
+  literal version of that contract as a test (identity comparison against
+  `pre_pr_sequence`'s bound names) surfaced the same promise already broken
+  for 15 unrelated pre-existing validators; that gap is filed as issue
+  #5272 rather than fixed here, matching this campaign's own precedent
+  (#5205, #5270) for a proven pre-existing defect found along the way. The
+  shipped test is narrowed to the two ADR validators this PR owns.
+- **`generate_adr_index.py`'s `_INTRO` carried two inaccurate claims about
+  its own documented query recipe.** First, `_blocker_cell()`'s docstring
+  claimed a past-due `review-by` date "is marked rather than silently
+  rendered"; false, the cell renders the date identically whether current
+  or overdue, and `check_adr_lifecycle.py`'s `CHECKS` tuple has no rule
+  that reads `review-by` at all (verified: the string does not appear in
+  that file). Corrected to say nothing today flags an overdue date, and
+  the check belongs to issue #5193. Second, the recipe's fence search
+  (`text.index('\n---', 3)`) matched any line merely starting with three
+  dashes, not the exact closing fence `_FRONTMATTER_RE` requires (three
+  dashes immediately followed by `\r?\n`). A closing line padded with one
+  trailing space (`"--- \n"`) fails `_FRONTMATTER_RE`, so the real
+  generator raises `AdrIndexError` for that file; the old recipe matched
+  the padded line anyway and printed an answer with no error, silently
+  disagreeing with the generator. Replaced with a regex requiring the
+  same `\r?\n` on both sides of the dashes. New test:
+  `test_the_documented_recipe_agrees_with_the_generator_on_a_padded_closing_fence`;
+  it failed against the recipe as first shipped (`DID NOT RAISE
+  ValueError`). `.agents/architecture/README.md` regenerated;
+  `generate_adr_index.py --check` confirms no further drift.
+
+Test counts: `check_adr_links` 81 tests (up from 80), `generate_adr_index`
+79 tests (up from 78), `pre_pr_sequence_registry` 10 tests (up from 9,
+including the new `TestPrePrReexportsTheAdrValidators` class). All three
+mutations were reverted before being re-verified as fixed (backup/restore
+via `/tmp`, never `git checkout --`, per the round-4 near-miss this
+campaign already recorded). `taste_count_ratchet.py` confirmed at 576
+(the baseline, unchanged).
+
+## Addendum 23: a sixth Copilot review round, four findings fixed
+
+**Rebound to** `890da965b710b153be17aeb617ad895d2ec6dbf6`.
+
+A sixth Copilot review round on this branch's own head found four
+defects, all fixed and mutation-proven:
+
+- **`check_adr_links.py`'s `scan_file()` read tracked file content with
+  `errors="replace"`.** A non-UTF-8 byte in a tracked markdown file was
+  silently substituted with U+FFFD and scanned as if it were valid text,
+  which could turn a genuinely broken link into one that happens to
+  re-parse as resolvable, or the reverse. Removed: this is a plain file
+  read, not one of the `subprocess` text-capture calls
+  `check_subprocess_encoding.py` mandates `errors="replace"` for (issue
+  #4261), so that convention does not reach it. `main()` already has a
+  `UnicodeDecodeError` handler (exit 2) for exactly this.
+- **`git_ls_markdown()`'s `subprocess.run()` IS one of those mandated
+  calls**, so `errors="replace"` stays there (per #4261's own reason,
+  quoted verbatim in the new docstring: "a child process on Windows can
+  emit bytes invalid for UTF-8"). But a replacement-corrupted tracked
+  filename doesn't match the real file on disk, so `scan_file()`'s
+  `path.is_file()` check silently treated it as absent: zero findings,
+  indistinguishable from an untracked file. Added a post-decode check
+  that raises when any returned entry still carries the replacement
+  character, closing the silent-skip without touching the mandated call.
+  New test builds a real git-tracked file with an invalid-UTF-8-byte
+  filename (raw bytes; not constructible through `pathlib.Path` directly)
+  and confirms the raise.
+- **`detect_adr_changes.py`'s `_get_adr_status()` accepted a non-scalar
+  `status` value.** A YAML sequence or mapping under `status:` (valid
+  YAML; ADR-073's schema never intends one) reached
+  `str(status).strip().lower()` unconditionally and returned a Python
+  repr such as `"['accepted']"` instead of `STATUS_UNKNOWN`. Fixed to
+  mirror `check_adr_lifecycle.py`'s canonical `_status_of()` verbatim
+  (`if value is None or isinstance(value, (list, dict)): return ""`).
+  Applied to both shipped trees, confirmed byte-identical before and
+  after; new tests parametrized across both. Trimming the added
+  docstring prose to fit the file back under the 500-line taste-lint
+  ceiling was needed on both trees (a 6-line net addition pushed each
+  from 498 to 511).
+- **The baseline header comment and a related docstring both said
+  "twenty entries, three absolute"**, stale since round 5 removed a
+  stale `absolute` entry; actual measured counts are 19 and 2. Corrected
+  both, and added a test that measures the live baseline file and
+  asserts the header states the true counts, so a future edit cannot
+  drift the same way silently again.
+
+Test counts: `check_adr_links` 85 tests (up from 81: the corrupted-filename
+raise, the strict-decode raise, a `main()`-level exit-2 case, and the
+baseline-header self-check), plus 8 new tests in
+`tests/skills/adr-review/test_detect_adr_changes_status_scalar.py`
+(parametrized across both trees). `taste_count_ratchet.py` regressed to
+577 after the `detect_adr_changes.py` docstring addition crossed 500
+lines on both trees (a genuinely new violation, unlike
+`test_check_adr_links.py`, which was already over 500 before this
+round); fixed by trimming the docstring rather than suppressing, back to
+576 (the baseline). `build/scripts/build_all.py --check` confirmed clean
+after committing both `detect_adr_changes.py` copies together (mid-edit,
+before committing, `--check` correctly reports the uncommitted mirror as
+"regen drift" under `OWNED_PREFIXES` for `src/`; that is the check
+working as designed on an in-progress edit, not a defect).
+
+**Addendum 23 correction.** Cursor Bugbot reviewed the round-6 push
+minutes after it landed and found one more defect, in the round's own
+new test: `test_git_ls_markdown_raises_on_a_non_utf8_tracked_filename`
+wrote a raw `0xff` byte into a filename with no platform guard. ext4
+accepts arbitrary bytes in filenames; APFS (macOS) and NTFS (Windows)
+validate UTF-8 or reject the byte at file-creation time, so the test
+would fail before it could exercise `git_ls_markdown` at all on those
+filesystems. This repo's CI only runs this suite on
+`ubuntu-latest`/`ubuntu-24.04-arm` (the Windows pytest job filters to
+`@pytest.mark.windows_path` only), so CI itself was never at risk; the
+guard protects a contributor running the full suite locally on a
+non-Linux machine. Fixed with
+`@pytest.mark.skipif(sys.platform != "linux", reason=...)`, matching
+this repo's established `sys.platform == "win32"` skip convention
+(`tests/test_check_doc_interpreter_portability.py` and others). 85
+tests still pass.
+
+**Rebound to** `bfad327fb752a4bc2a476a2e13fd6d01cd9cd773`. Cursor's own
+autofix agent pushed `602340af3` directly to this branch minutes after
+the local fix above, landing the identical fix
+(`@pytest.mark.skipif(sys.platform != "linux", ...)`) independently on
+top of the same parent commit. Merged rather than force-pushed over;
+the only conflict was the two skipif reason strings, resolved by
+keeping the local version's longer one (names the actual filesystems
+and cites the finding source). 85 tests pass after resolution; no other
+content differed between the two commits.
+
+## Addendum 24: a seventh Copilot review round, five fixed, one filed
+
+A seventh Copilot review found two new defects plus seven suppressed
+("previously missed, code unchanged since last review") findings. Six
+fixed, one filed as follow-up, one confirmed already resolved by a
+documented earlier decision:
+
+- **`detect_adr_changes.py`'s `_has_duplicate_top_level_keys` undersold
+  its own behavior.** The PyYAML constructor it registers fires for
+  every mapping node the loader builds, not only the document root, so
+  a duplicate nested inside a mapping value is caught too; the existing
+  `test_a_nested_duplicate_is_caught` already proved it. Renamed to
+  `_has_duplicate_keys` across both shipped trees, the test file, and
+  the two files that reference it by name.
+- **The same function's "Mirrors" docstring quoted the canonical
+  `_no_duplicate_keys` with a `raise ...` placeholder**, not the real
+  line, violating `.claude/rules/canonical-source-mirror.md`'s
+  character-for-character requirement for a Mirrors claim. Replaced
+  with the actual fragment from `generate_adr_index.py:198-205`.
+- **`check_adr_lifecycle.py`'s module docstring listed four historical
+  defects as though this gate closes all of them**; two are
+  intentionally not violations (`implemented: true` + `proposed` is
+  deliberate per ADR-098; a missing `## Status` section is skipped, not
+  flagged, since the frontmatter enum is authoritative). Clarified
+  which two the gate actually closes.
+- **The removed check was mislabeled "a ninth check"** when the active
+  list holds seven, making it the eighth. Corrected.
+- **Both `check_adr_lifecycle.py` and `generate_adr_index.py` accepted
+  an empty or misrouted ADR corpus as clean.** `scan()`/`collect_records()`
+  on zero real `ADR-NNN-*.md` matches returns zero violations or an
+  index whose sections all read `None`, and each `main()` exited 0.
+  Both now reject a directory with no filename-pattern match before
+  scanning or generating, using each script's own filename regex so
+  `ADR-TEMPLATE.md` alone does not count as evidence records were
+  examined. Five existing `check_adr_lifecycle.py` config-error tests
+  wrote no ADR record and would have silently started passing for the
+  new reason instead of the one they assert; each got a valid ADR
+  fixture so the original assertion is still what runs.
+- **`generate_adr_index.py`'s worktree-identity guard ran before
+  `--check` too**, a read-only path with nothing to protect against,
+  so a caller with absolute paths and a cwd outside the repository got
+  exit 2 for a comparison that never writes. Scoped the guard to the
+  generation branch only.
+- **The per-check ratchet in `check_adr_lifecycle.py` compares only
+  totals**, so fixing one baselined violation and introducing a
+  different one under the same check nets to a pass. Same forgeability
+  class as #5205 and #5270 but a distinct mechanism (no base-ref
+  involved at all); filed as
+  [#5273](https://github.com/rjmurillo/ai-agents/issues/5273) rather
+  than redesigning the baseline format inline in an already-oversized
+  review-response round.
+- **The four-backtick CommonMark fence gap in `check_adr_links.py`**
+  Copilot re-raised is not new: the module's own docstring already
+  documents it as a deliberately deferred scope limit from an earlier
+  round ("Length is not tracked... deferred rather than guessed at,"
+  citing this same PR's review). No action; already resolved and
+  recorded.
+
+Three commits, five files, 21 new/modified tests, all mutation-proven
+(guard removed, target test fails for the stated reason, guard
+restored). 200 tests pass across the touched suites
+(`test_check_adr_lifecycle.py`, `test_generate_adr_index.py`, the
+`adr-review` suite).
+
+**Addendum 24 correction.** The full `pre_pr.py` push gate surfaced four
+`test_build_all.py` failures the round-7 diff above did not touch
+directly: fixtures that create `.agents/architecture` empty to test
+unrelated `build_all.py` behavior (skills generation, untracked-file
+detection, skill-mirror staleness). `_build_adr_index()` runs
+unconditionally inside `build_all.run()` by that function's own design
+(it deliberately does not pre-check and skip a missing corpus, per its
+docstring and PR #5209 review discussion_r3831902216), so every fixture
+driving `run()` now needs a real ADR record, not an empty directory.
+Added a `_write_minimal_adr()` helper and used it at the four affected
+call sites. 90 tests pass in `test_build_all.py`; the sibling
+stale-mirror test now fails for the mirror staleness it actually tests
+(confirmed by its own "STALENESS DETECTED" output), not a masked ADR
+error it had been coincidentally passing through before.
+
+**Rebound to** `7e8d3f850e184853e7fd8ff2f25d63e4b683dec4`.
+
+**Addendum 24, second correction.** The round-7 review's remaining two
+findings, investigated after the two corrections above landed:
+
+- **`check_adr_links.py`'s four-backtick fence gap was re-raised as a
+  live, unresolved thread**, not merely a suppressed repeat: the
+  earlier docstring calling it "deferred rather than guessed at" was
+  itself the defect, since it staked the deferral on a corpus property
+  ("no fence in this corpus nests same-character runs of different
+  lengths") that was never something the scanner could rely on going
+  forward. Fixed this time: `FENCE` now captures the whole run, and
+  `scan_file` tracks the opening character and its length, closing only
+  on a fence-shaped line whose character matches and whose length is at
+  least as long, per CommonMark (spec.commonmark.org section 4.5). New
+  test mirrors the existing character-mismatch test; mutation-proven.
+  86 tests pass.
+- **`generate_adr_index.py`'s summary/title extraction has the same
+  class of gap** (`_FENCE_RE` matches only triple-backtick fences, and
+  `_section_body` searches for the section heading before any fence is
+  stripped, so a heading-shaped line inside a code example can match
+  instead of the real heading). Unlike the sibling fix above, this
+  scanner is a whole-body regex substitution, not a per-line state
+  machine, so converting it to the same stateful approach is a larger
+  change across two functions. Filed as
+  [#5274](https://github.com/rjmurillo/ai-agents/issues/5274) rather
+  than fixed inline, following the same-PR precedent (#5205, #5270,
+  #5273): this is a data-quality issue in a generated index cell, not a
+  gate that can pass or fail incorrectly.
+
+**Rebound to** `1c6da1909c0f335c06e760fb31675cc6ca68add2`.
+
+## Addendum 25: an eighth Copilot review round, five fixes across five files
+
+Copilot posted two separate review submissions on the same commit
+(`ebcf4f52f`), 35 minutes apart, each listing a different "previously
+missed" suppressed-findings set. The first submission's items (duplicate-key
+rename, the Mirrors verbatim fix, the defect-list docstring, the ordinal
+correction, the cwd-guard scope, the empty-corpus guard, the four-backtick
+fence fix) are Addendum 24 above. This addendum covers the second
+submission's six items, confirmed genuinely unprocessed by cross-referencing
+both reviews' timestamps and bodies before starting:
+
+- **`invoke_session_start_gate.py`'s `check_session_log_gate()` docstring
+  asserted two "Mirrors" claims (AGENTS.md no longer lists a session log;
+  the pre-commit gate validate-if-present contract) without quoting either
+  source**, violating `.claude/rules/canonical-source-mirror.md`'s
+  character-for-character requirement. Added both quotes: `AGENTS.md`'s
+  Start row (`Init Serena|Read HANDOFF+latest issue handoff|Resume
+  check|Search mem|Verify git`, no session-log step named) and
+  `.claude/rules/session-logs.md` MUST 1's validate-if-present description
+  verbatim.
+- **`check_adr_links.py`'s external-link detection used a fixed
+  `("http://", "https://", "mailto:", "ftp://")` tuple**, so `ssh://`,
+  `git://`, and any other valid URI scheme fell through and were treated as
+  a (broken) internal ADR reference. Replaced with a regex derived from RFC
+  3986 section 3.1's scheme ABNF (`scheme = ALPHA *( ALPHA / DIGIT / "+" /
+  "-" / "." )`), plus a `path.startswith("//")` check for the
+  protocol-relative form RFC 3986 section 4.2 names a "network-path
+  reference." New parametrize cases for `ssh://`, `git://`, mixed-case
+  `SSH://`, and `//example.invalid/...`; mutation-proven by reverting to
+  the old tuple check, which fails all four.
+- **`check_adr_links.py`'s `validate_adr_links()` and `main()` both printed
+  a bare violation count**, so "0 violation(s)" against an existing but
+  emptied or narrowed markdown-file scope reads identically to a completed
+  scan of the full one. Added a `_scannable_files()` helper (duplicating
+  `find_broken_adr_links()`'s default-path candidate computation rather
+  than changing that function's return type, which 30+ existing call sites
+  depend on as `list[Finding]`) and an examined-file count in both
+  messages. Mutation-proven at both call sites.
+- **`check_adr_lifecycle.py`'s `run()` had the same gap** in its `[OK]`
+  (write-baseline) and `[PASS]` messages. `main()` already rejects a fully
+  empty corpus before `run()` runs (Addendum 24's empty-corpus guard), so
+  this closes the case that guard cannot: a narrowed-but-nonzero scope.
+  Read the record count once via `collect_records()`, separately from
+  `scan()`'s own internal call, since `scan()`'s `list[Violation]` return
+  type also has many existing dependents. Mutation-proven at both
+  messages.
+- **`generate_adr_index.py`'s `_run_check()` had the same gap** in its `OK`
+  message. Unlike the two fixes above, no duplicate read was needed:
+  `render_index()` already takes the record list as an argument rather
+  than recomputing it internally, so splitting the existing
+  `collect_records()`/`render_index()` call into two statements was free.
+  Mutation-proven.
+
+Four commits, seven files (five source, two tests), 5 new/modified test
+functions, all mutation-proven (fix reverted, target test fails for the
+stated reason, fix restored). Test counts: `check_adr_links` 92 (up from
+90, +2), `check_adr_lifecycle` 120 (up from 118, +2), `generate_adr_index`
+83 (up from 82, +1), `invoke_session_start_gate` unchanged at 13 (docstring
+only, no behavior change). All four suites together: 308 tests pass.
+`ruff check` clean across every touched file.
+
+**Rebound to** `80ba38e0c39c111bb73c60246cf113e634aa124c`.
+
+**Addendum 25 correction.** The round-8 diff above grew
+`check_adr_links.py` from 491 to 537 lines, crossing the 500-line
+taste-lint ceiling for the first time; `pre_pr.py`'s taste-count-ratchet
+caught it as a real +1 regression against the 576 baseline. 243 of the 537
+lines are comments and docstrings, so suppressed with the documented
+per-repo escape rather than split, matching `generate_adr_index.py`'s
+existing precedent for the same rule. Ratchet confirmed back at baseline.
+
+**Rebound to** `702e3819074c2d623fda38bea5d4900d69eb67f2`.
+
+## Addendum 26: a ninth Copilot review round, two fixed, one filed, one rebutted
+
+A ninth Copilot review landed while round-8's fixes were still local
+(queued against commit `47492781b`, the pre-round-8 head): two suppressed
+findings plus two inline review comments. Investigated all four before
+acting; two were genuine and fixed, one was a real defect too large to fix
+inline and was filed as a follow-up issue, and one was a re-raise of an
+already-considered and documented design decision.
+
+- **`check_adr_links.py` accepted an empty-but-valid repository root as
+  clean.** `find_broken_adr_links()`'s default path calls `git_ls_markdown()`
+  (`git ls-files -z *.md`), which succeeds with empty output when
+  `repo_root` resolves to a real git repository that happens to track zero
+  markdown files. `validate_adr_links()` and `main()` would then scan
+  nothing and print the identical "0 violation(s)" a genuinely clean
+  full-corpus scan prints, so a wrong-but-valid repository root
+  manufactured a green result. `main()`'s existing
+  `subprocess.CalledProcessError` handler already covers "not a git
+  repository at all"; this closed the narrower "valid git, empty result"
+  case that handler cannot catch. Both entry points now fail closed
+  (`main()` returns 2, `validate_adr_links()` returns `False`) when the
+  examined-file count is zero. New tests:
+  `test_main_fails_closed_on_a_valid_repo_with_no_tracked_markdown`,
+  `test_validate_adr_links_fails_closed_on_a_valid_repo_with_no_tracked_markdown`.
+  Mutation-proven.
+- **`scan_file()`'s fence tracker closed on any fence-shaped line matching
+  the opener's character and length, even with trailing text after the
+  marker.** Per CommonMark (spec.commonmark.org/0.31.2/#fenced-code-blocks,
+  quoted verbatim): "The closing code fence may be preceded by up to three
+  spaces of indentation, and may be followed only by spaces or tabs, which
+  are ignored." A line like `` ```python `` inside an already-open ` ``` `
+  block is content (an inner example), not a close. The old behavior closed
+  on it, then reopened on the real closing fence: a link inside the example
+  could be reported broken (false positive), and a broken link in the live
+  prose that followed could be silently swallowed into a fence that never
+  closes (false negative). Fixed by requiring the closing candidate's
+  trailing text to be whitespace-only; openers keep allowing any info
+  string. New test:
+  `test_a_fence_shaped_line_with_trailing_text_does_not_close_it`.
+  Mutation-proven: reverting the trailing-text check reproduces exactly the
+  false-positive-then-false-negative pattern the finding described (ADR-999
+  reported broken, ADR-998 silently swallowed).
+- **Three ADR frontmatter parsers disagree on closing-fence strictness**,
+  confirmed by direct execution: a closing `---` line with one trailing
+  space parses successfully via `scripts/validation/yaml_utils.py`'s
+  `_parse_yaml_frontmatter` (and therefore `check_adr_lifecycle.py`, which
+  deliberately mirrors it) and via `detect_adr_changes.py`'s
+  line-`.strip()`-based split, but `generate_adr_index.py`'s
+  `_FRONTMATTER_RE` requires the closing `---` to be followed immediately
+  by `\r?\n` with nothing else, so it raises `AdrIndexError` ("opens with
+  '---' but has no closing '---' fence; the frontmatter block is
+  unterminated") on the identical input. A record could pass the lifecycle
+  gate cleanly while crashing the index generator (and therefore
+  `build_all.py --check`, wired into CI) on a one-space authoring
+  difference. The complete fix means choosing one canonical closing-fence
+  contract and propagating it across at least three parser
+  implementations, one of which (`yaml_utils.py`) is a shared helper with
+  an unmapped blast radius beyond these three call sites ("other
+  validators" per its own docstring). Bigger and riskier than fits this
+  round; filed as
+  [#5275](https://github.com/rjmurillo/ai-agents/issues/5275), matching
+  this PR's own precedent (#5205, #5270, #5273, #5274).
+- **Re-raised, not fixed: `check_adr_lifecycle.py`'s `--write-baseline`
+  worktree-identity guard only fires when `--repo-root` is the implicit
+  default**, framed this round as "does not exempt explicit CLI targets"
+  and "running from worktree A with `--repo-root` pointing at worktree B
+  can still overwrite B's baseline." This is the same scoping round 4
+  already considered and documented, and the framing does not hold against
+  `.claude/rules/ci-scripts.md` MUST 7's own stated rationale, quoted
+  verbatim: the threat is a script's *implicit* resolution being silently
+  redirected by state the caller cannot see ("a local `core.worktree`
+  value or a `GIT_WORK_TREE` environment variable redirects it to a
+  directory you are not standing in ... the redirection is always
+  something a person or a tool set on purpose, which is exactly why a
+  script that inherits it has no way to notice"). A caller-typed
+  `--repo-root` is the opposite of that: nothing is inherited or hidden.
+  Worktree A/B is a possible user mistake, not an undetectable one, and no
+  mechanism could distinguish a mistaken B from an intentional one without
+  breaking every existing test that deliberately points `--repo-root` at
+  an unrelated `tmp_path` fixture. Strengthened the docstring to name this
+  specific re-raise and rebut it directly, so the next reviewer sees the
+  reasoning was already applied to this exact framing rather than
+  re-deriving it. No code change.
+
+Two commits, three files touched, 3 new test functions, both behavioral
+fixes mutation-proven. Test counts: `check_adr_links` 95 (up from 92, +3),
+`check_adr_lifecycle` unchanged at 120 (docstring only). Both suites
+together: 215 tests pass. `ruff check` and the whole-repo taste-count
+ratchet (576, at baseline) both clean.
+
+**Rebound to** `8a702a650b1bb4e4ae02916f4b777e448babf0ca`.
+
+**Addendum 26 correction.** The round-9 push surfaced six failures in
+`test_validation_pre_pr.py` that neither local `pre_pr.py` run (round 8 or
+round 9) caught, because `pre_pr.py` invoked directly does not run the full
+pytest suite; only the push-time lefthook `python-tests` job does. Root
+cause: `_healthy_git_run`'s blanket `subprocess.run` mock answers any git
+command other than `symbolic-ref`/`rev-parse` with `stdout=""`, so
+`git_ls_markdown()`'s `git ls-files -z *.md` call returns an empty list
+under the mock regardless of the real repo's tracked files, which the new
+empty-corpus guard correctly (but here spuriously) treats as a
+wrong-but-valid repository root. Fixed by adding "ADR Link Resolution" to
+the existing `corpus_gates` bypass set in
+`_sequence_with_passing_corpus_gates()`, the same treatment already given
+to the other real-filesystem-dependent gates in that test file. Same class
+of regression as round 7's `test_build_all.py` fixture fix (Addendum 24
+above): a new fail-closed guard exposing a pre-existing test mock that
+never modeled the corpus state the guard now checks. Full pytest suite
+re-run clean: 28090 passed, 74 skipped, 0 failed.
+
+**Rebound to** `416ef5e427de0fe97f7e3dcae61812d17ffe1791`.
+
+## Addendum 27: merge of `origin/claude/adr-evaluation-tooling-6od8rd` (PR #5209), closing this branch's own "dirty" state
+
+PR #5230's base branch had moved 18 commits ahead of this branch's recorded
+base SHA (`886d353aa`), a separate review-fix campaign against PR #5209
+covering rounds 4 through 9 of Copilot/Cursor review on that branch's own
+head. `git merge origin/claude/adr-evaluation-tooling-6od8rd --no-edit`
+(no rebase, no force-push, per `universal.md` MUST-1).
+
+Eight files conflicted. Two were this file and its sister
+`session-5209-adr-review-fixes-stacked.md`: both branches had independently
+inserted new addenda after a shared "Addendum 11"/"Addendum 15" point (this
+file's own prior merge-back had already renumbered once), so origin's
+Addenda 12-19 here (and 14-21 in the sister file) are appended after this
+branch's own continuation and renumbered to a single consecutive sequence
+(19-26 here; 20-27 there) rather than dropped, with every internal
+cross-reference between the two files rewritten to match.
+
+Six were code/test conflicts, all real (not whitespace-only), because both
+branches independently fixed overlapping defects during their own Copilot
+review rounds:
+
+- `.claude/skills/adr-review/scripts/detect_adr_changes.py` (+ its
+  `src/copilot-cli/` mirror): both branches independently renamed
+  `_has_duplicate_top_level_keys` to `_has_duplicate_keys` for the same
+  reason (the constructor catches nested duplicates too, not only
+  top-level). Kept the more complete docstring, corrected to attribute the
+  rename to both PR #5209 and PR #5230's review rounds rather than either
+  alone.
+- `build/scripts/generate_adr_index.py`: cosmetic difference in how the
+  docstring cites `detect_adr_changes.py`'s rename; kept the fuller version
+  that names the rename explicitly.
+- `scripts/utils/markdown_parser.py`: both branches independently extracted
+  the same shared blanking helper behind `blank_code_block_lines` and
+  `blank_non_prose_block_lines`, under two different names
+  (`_blank_block_token_lines` vs `_blank_block_lines`) and two different
+  file layouts (helper-and-wrappers together vs. wrappers defined later in
+  the file). Resolved to origin's layout (`_blank_block_lines`, wrappers
+  defined later) since it matched the non-conflicting remainder of the file
+  and avoided a duplicate-definition mess the other layout would have left.
+- `scripts/validation/check_adr_lifecycle.py`: **a real behavioral
+  conflict, not just wording.** This branch's `_status_prose` caught any
+  exception from `blank_non_prose_block_lines` internally and returned
+  `None` (silently exempting an unparseable record from
+  `prose-frontmatter-agree`). Origin's version let the exception propagate,
+  to be caught one level up in `_check_prose` and converted into a
+  violation instead of a skip — exactly the fix origin's own PR #5209
+  review round made to this same defect. The non-conflicting, already-merged
+  `_check_prose` body already implements the catch-and-report-violation
+  side of that contract, so keeping this branch's internal catch would have
+  silently reintroduced the bug origin fixed, with `_check_prose`'s own
+  exception handler becoming dead code. Resolved to origin's version
+  (propagate, no internal catch).
+- `tests/validation/test_check_adr_lifecycle.py`: the two branches wrote a
+  same-named test (`test_a_status_heading_inside_an_html_comment_...`) for
+  two different scenarios: this branch's checked that a real status
+  elsewhere in the body is still found despite a misleading HTML comment
+  (1 violation expected); origin's checked that a comment-only "status"
+  with no real section elsewhere is not read as the record's status at all
+  (0 violations expected). Both are genuine, non-overlapping cases, so kept
+  both as two separate tests rather than picking one.
+
+The `check_adr_lifecycle.py` conflict is the one judgment call in this list
+that changes runtime behavior rather than only prose: verified against the
+non-conflicting `_check_prose` body before resolving, not merely by
+preference between two plausible edits.
+
+Full pytest re-verification, and the final `qaCommit` rebind for the
+resulting merge and any follow-up fixes, are recorded in a following
+addendum once complete.

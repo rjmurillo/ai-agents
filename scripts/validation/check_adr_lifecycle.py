@@ -24,7 +24,13 @@ filenames alone, so nothing reads what an ADR says about its own lifecycle state
 Every defect in the issue #5191 audit reached `main` unopposed: 59 of 98 records
 carry no frontmatter, 6 are `proposed` while `implemented: true`, ADR-091 claims
 to supersede ADR-079 while ADR-079 names ADR-092 as its successor, and 7 records
-carry frontmatter with no `## Status` section.
+carry frontmatter with no `## Status` section. This gate closes the first and
+third of those (`frontmatter-parses`, `supersession-target-exists`); the other
+two are intentionally not violations here, not gaps this gate missed:
+`implemented: true` with `proposed` is deliberate per ADR-098 (the removed
+eighth check below), and `prose-frontmatter-agree` skips a record with no
+`## Status` section instead of flagging it, since ADR-073 makes the frontmatter
+enum authoritative (Copilot, PR #5209 round-7 review).
 
 The schema enforced here is ADR-073 (`ADR-073-adr-lifecycle-frontmatter.md`),
 whose Decision section defines the block verbatim as::
@@ -59,11 +65,16 @@ Checks, each named so the baseline tracks them separately:
     supersession-reciprocal      X.superseded-by: Y implies Y.supersedes contains X
     supersession-target-exists   every named id resolves to a file; no self-supersession
     proposed-cannot-supersede    a `proposed` record may not declare `supersedes`
-    implemented-implies-decided  `implemented: true` with `status: proposed`
     prose-frontmatter-agree      the first `## Status` line matches the frontmatter enum
 
-Checks 2 to 8 need parseable frontmatter, so a record failing `frontmatter-parses`
-contributes one violation, not eight. The same containment runs downstream:
+An eighth check, `implemented-implies-decided` (`implemented: true` with
+`status: proposed`), was removed: ADR-073's own schema defines `implemented`
+as flipping at first merged change independent of decision state, and
+ADR-098 documents that exact pairing as deliberate. See `_check_lifecycle_rules`
+for the full removal rationale.
+
+Checks 2 to 7 need parseable frontmatter, so a record failing `frontmatter-parses`
+contributes one violation, not seven. The same containment runs downstream:
 `prose-frontmatter-agree` is skipped when the status section is absent
 (the record simply has no prose status) or the enum value is invalid (`status-enum`
 owns that), and `supersession-reciprocal` ignores an edge that
@@ -110,7 +121,6 @@ CHECKS: tuple[str, ...] = (
     "supersession-reciprocal",
     "supersession-target-exists",
     "proposed-cannot-supersede",
-    "implemented-implies-decided",
     "prose-frontmatter-agree",
 )
 
@@ -526,30 +536,33 @@ def _status_prose(body: str) -> str | None:
     search was widened to fix, one layer down. Copilot found it on PR #5230.
 
     A block-level HTML comment such as `<!--\n## Status\nAccepted\n-->` is
-    also blanked, not only fenced code: `blank_code_block_lines` blanks only
-    `fence`/`code_block` tokens, so a heading hidden inside an `html_block`
-    token would otherwise survive and be read as the record's real status
-    ahead of one placed later in the body. Copilot found this gap on PR #5230
-    too, in the same review round as the fenced-sample fix above.
-    `blank_non_prose_block_lines` (`scripts/utils/markdown_parser.py`) closes
-    both at once.
+    also blanked, not only fenced code: `blank_code_block_lines` (used until
+    this fix) deliberately leaves HTML content visible for a different caller
+    (`check_skill_md_portability.py`), so a heading hidden inside an
+    `html_block` token, such as the one ADR-TEMPLATE.md carries documenting a
+    former `## Status` section, would otherwise survive and be read as the
+    record's real status ahead of one placed later in the body. Copilot found
+    this gap independently on both PR #5230 and the PR #5209 review, in the
+    same round as the fenced-sample fix above. `blank_non_prose_block_lines`
+    (`scripts/utils/markdown_parser.py`) closes both at once, without
+    touching the other caller's contract.
 
     `### Status`, level three, is **never** matched. A level-three heading is a
     subsection of whatever contains it. ADR-042 carries one at line 171 reading
     "Proposed" inside a migration phase while its frontmatter says `accepted`;
     matching it manufactured a drift violation out of a correct record.
-    """
-    try:
-        prose = blank_non_prose_block_lines(body)
-    except Exception:
-        # A record whose markdown will not parse has no determinable prose
-        # status. Returning None skips `prose-frontmatter-agree` for it, which
-        # is what the gate already does for a record with no status section
-        # (see `_check_prose`), rather than guessing from a source the parser
-        # could not segment. Deliberately not falling back to the raw body:
-        # that is the fail-open this blanking exists to close.
-        return None
 
+    Raises whatever `blank_non_prose_block_lines` raises on an unparseable
+    body. That helper's own contract (`scripts/utils/markdown_parser.py`,
+    `_blank_block_lines`) requires the exception to propagate rather than be
+    treated as clean prose; catching it here and returning `None` would do
+    exactly that, since `None` means "no status section" to every caller and
+    silently exempts the record from `prose-frontmatter-agree`. Callers that
+    need per-record diagnostics catch this at the call site (see
+    `_check_prose`) and turn it into a violation, not into a skip. Copilot
+    found this on PR #5209.
+    """
+    prose = blank_non_prose_block_lines(body)
     heading = _STATUS_HEADING_RE.search(prose)
     if heading is not None:
         for line in prose[heading.end() :].splitlines():
@@ -582,8 +595,19 @@ def _check_prose(record: Record) -> list[Violation]:
     speak and disagree, frontmatter wins and the author reconciles the prose.
     Records like ADR-042 and ADR-055, whose prose carries debate-log citations and
     supersession reasoning, keep their sections and are still checked here.
+
+    A record whose markdown will not parse is reported as a violation of this
+    same check, not silently skipped. `_status_prose` lets the parser's
+    exception propagate rather than swallow it into "no status section";
+    catching it here and returning a violation is the difference between a
+    counted finding and a record that quietly bypasses drift detection because
+    its markdown happens to be unparseable (Copilot, PR #5209).
     """
-    prose = _status_prose(record.body)
+    try:
+        prose = _status_prose(record.body)
+    except Exception as exc:
+        detail = f"status prose could not be parsed: {exc}"
+        return [Violation("prose-frontmatter-agree", record.path, detail)]
     if prose is None:
         return []
     status = _status_of(record)
@@ -603,24 +627,31 @@ def _check_prose(record: Record) -> list[Violation]:
 
 
 def _check_lifecycle_rules(record: Record) -> list[Violation]:
-    """`proposed-cannot-supersede` and `implemented-implies-decided`."""
+    """`proposed-cannot-supersede`.
+
+    This function used to also own `implemented-implies-decided`, blocking
+    `implemented: true` with `status: proposed`. Removed (Copilot, PR #5209):
+    ADR-073's own schema comment defines `implemented` as flipping "at first
+    merged change", independent of decision state, and ADR-098 documents
+    `status: proposed` with `implemented: true` as a deliberate pairing for
+    exactly this reason (a governance ADR's own acceptance is a maintainer
+    act, not something its own debate log can self-assert). The corpus
+    already carries six such records by design (ADR-075, ADR-077, ADR-078,
+    ADR-089, ADR-093, ADR-098; see ADR-055's Provenance section), all
+    baselined at the removed check's full count. A blocking gate against a
+    pattern the canonical schema and a live record both call deliberate is a
+    gate encoding an invariant the corpus rejects, not the corpus drifting.
+    """
     if _status_of(record) != "proposed":
         return []
-    found: list[Violation] = []
     entries = _supersedes_entries(record)
-    if entries:
-        detail = (
-            f"status is proposed but it declares supersedes: {entries}. A proposal "
-            "cannot retire an accepted decision."
-        )
-        found.append(Violation("proposed-cannot-supersede", record.path, detail))
-    if _frontmatter_of(record).get("implemented") is True:
-        detail = (
-            "implemented: true with status: proposed. A record cannot be shipped "
-            "and undecided at once."
-        )
-        found.append(Violation("implemented-implies-decided", record.path, detail))
-    return found
+    if not entries:
+        return []
+    detail = (
+        f"status is proposed but it declares supersedes: {entries}. A proposal "
+        "cannot retire an accepted decision."
+    )
+    return [Violation("proposed-cannot-supersede", record.path, detail)]
 
 
 def _edge_targets(
@@ -838,14 +869,88 @@ def _report(counts: dict[str, int], baseline: dict[str, int]) -> tuple[set[str],
     )
 
 
-def run(adr_dir: Path, repo_root: Path, baseline_path: Path, args: argparse.Namespace) -> int:
-    """Scan, then either write the baseline or compare against it."""
+def run(
+    adr_dir: Path,
+    repo_root: Path,
+    baseline_path: Path,
+    args: argparse.Namespace,
+    *,
+    repo_root_is_default: bool = False,
+) -> int:
+    """Scan, then either write the baseline or compare against it.
+
+    ``repo_root_is_default`` is True only when the caller did not pass
+    ``--repo-root`` explicitly (see ``main()``); it gates the worktree-identity
+    check below.
+    """
     violations = scan(adr_dir, repo_root)
     counts = tally(violations)
+    # Read once, separately from scan()'s own collect_records() call, only for
+    # the pass-report's examined-record count below: an existing but emptied
+    # or narrowed corpus would otherwise print the identical
+    # "[PASS] 0 violation(s)" as a completed scan of the real one (Copilot,
+    # PR #5209 round-8 review). main() already rejects a fully empty corpus
+    # before run() is ever called, so this count is always >= 1 here; it
+    # exists to catch a narrowed-but-nonzero scope that guard cannot.
+    examined = len(collect_records(adr_dir, repo_root)[0])
 
     if args.write_baseline:
+        # .claude/rules/ci-scripts.md MUST 7: a script that resolves the
+        # repository root and then writes to it must confirm the caller's cwd
+        # sits inside that root before the first write. Mirrors
+        # scripts/generate_third_party_notices.py:446-452 verbatim:
+        #   project_root = PROJECT_ROOT
+        #   if not Path.cwd().resolve().is_relative_to(project_root.resolve()):
+        #       print(f"ERROR: current directory is outside project root: {Path.cwd()}", ...)
+        #       return 2
+        #
+        # Stricter/looser/different than canonical: the canonical script's
+        # PROJECT_ROOT has no CLI override, so every invocation is the risky
+        # case. Here --repo-root is an explicit, user-stated argument that
+        # tests deliberately point at a synthetic tmp_path corpus unrelated to
+        # cwd (tests/validation/test_check_adr_lifecycle.py's `_run()` helper
+        # does exactly this for every case, including
+        # test_write_baseline_round_trips_and_then_passes). An explicit
+        # --repo-root carries no worktree-identity risk: the caller named the
+        # write target directly. The risk this check guards is narrower: the
+        # *default*, which resolves via __file__ (build_parser() below), not
+        # cwd, so running this script with no --repo-root override from an
+        # unexpected cwd would otherwise write the baseline into that
+        # __file__-derived checkout silently. So the check only fires when
+        # repo_root_is_default is True.
+        #
+        # Re-raised (Copilot, PR #5209 round-9 review): "does not exempt
+        # explicit CLI targets," reading "running from worktree A with
+        # --repo-root pointing at worktree B can still overwrite B's
+        # baseline" as the cross-worktree write MUST 7 exists to prevent.
+        # It is not: MUST 7's own stated threat is a script's *implicit*
+        # resolution being silently redirected by state the caller cannot
+        # see, quoted verbatim from `.claude/rules/ci-scripts.md`: "a local
+        # `core.worktree` value or a `GIT_WORK_TREE` environment variable
+        # redirects it to a directory you are not standing in ... the
+        # redirection is always something a person or a tool set on
+        # purpose, which is exactly why a script that inherits it has no
+        # way to notice." A caller-typed `--repo-root` is the opposite of
+        # that: nothing is inherited or hidden, the target is exactly what
+        # was written on the command line. Worktree A/B is a possible
+        # *user* mistake, not an undetectable one, and no mechanism here
+        # could tell a mistaken B from an intentional one without breaking
+        # every test above that intentionally points --repo-root at an
+        # unrelated tmp_path fixture.
+        if repo_root_is_default and not Path.cwd().resolve().is_relative_to(
+            repo_root.resolve()
+        ):
+            print(
+                f"[CONFIG] current directory is outside repo root {repo_root}: "
+                f"{Path.cwd()}",
+                file=sys.stderr,
+            )
+            return EXIT_CONFIG
         write_baseline(baseline_path, counts)
-        print(f"[OK] Wrote {baseline_path} from {len(violations)} violation(s):")
+        print(
+            f"[OK] Wrote {baseline_path} from {len(violations)} violation(s) "
+            f"across {examined} ADR record(s):"
+        )
         for name in CHECKS:
             print(f"  {name}: {counts[name]}")
         return EXIT_OK
@@ -866,7 +971,10 @@ def run(adr_dir: Path, repo_root: Path, baseline_path: Path, args: argparse.Name
         _print_violations(violations, set(CHECKS), args.limit)
 
     if not regressed:
-        print(f"\n[PASS] {len(violations)} violation(s), no check above its baseline.")
+        print(
+            f"\n[PASS] {len(violations)} violation(s) across {examined} ADR record(s), "
+            "no check above its baseline."
+        )
         return EXIT_OK
 
     print(f"\n[FAIL] {len(regressed)} check(s) rose above the baseline:")
@@ -887,7 +995,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--repo-root",
         type=Path,
-        default=Path(__file__).resolve().parents[2],
+        default=None,
         help="Repository root (defaults to two levels above this script).",
     )
     parser.add_argument(
@@ -912,14 +1020,34 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    adr_dir = args.repo_root / ".agents" / "architecture"
+    repo_root_is_default = args.repo_root is None
+    repo_root = (
+        args.repo_root if args.repo_root is not None else Path(__file__).resolve().parents[2]
+    )
+    adr_dir = repo_root / ".agents" / "architecture"
     if not adr_dir.is_dir():
         print(f"[CONFIG] ADR directory not found: {adr_dir}", file=sys.stderr)
+        return EXIT_CONFIG
+    # An emptied or misrouted corpus (wrong --repo-root, or every record moved
+    # out) still passes the `is_dir()` check above. `scan()` would then walk
+    # zero records, `tally()` would report every check at 0, and `run()` would
+    # print "[PASS] 0 violation(s)": a missing corpus reads as a clean corpus
+    # instead of failing loudly. `ADR_FILENAME_RE` excludes ADR-TEMPLATE.md, so
+    # a template sitting alone does not count as evidence records were
+    # examined (Copilot, PR #5209 round-7 review).
+    if not any(ADR_FILENAME_RE.match(md.name) for md in adr_dir.glob("ADR-*.md")):
+        print(f"[CONFIG] no ADR records found: {adr_dir}", file=sys.stderr)
         return EXIT_CONFIG
     if args.limit < 1:
         print("[CONFIG] --limit must be at least 1", file=sys.stderr)
         return EXIT_CONFIG
-    return run(adr_dir, args.repo_root, args.baseline or _BASELINE_PATH, args)
+    return run(
+        adr_dir,
+        repo_root,
+        args.baseline or _BASELINE_PATH,
+        args,
+        repo_root_is_default=repo_root_is_default,
+    )
 
 
 def validate_adr_lifecycle(repo_root: Path) -> bool:

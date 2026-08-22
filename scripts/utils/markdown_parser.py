@@ -116,10 +116,15 @@ def _create_parser(max_nesting: int | None = None) -> MarkdownIt:
 # gets wrong.
 _CODE_BLOCK_TOKEN_TYPES = frozenset({"fence", "code_block"})
 
-# Adds ``html_block`` to `_CODE_BLOCK_TOKEN_TYPES`: a bare HTML comment or raw
-# HTML block that CommonMark segments as its own block (not inline HTML mixed
-# into a paragraph, which markdown-it keeps inside an ``inline`` token's
-# children and does not surface as a separate block token).
+# The above, widened with raw HTML blocks. A separate constant, not a
+# replacement: `blank_code_block_lines` deliberately keeps HTML block content
+# visible (`test_keeps_html_block` in tests/test_markdown_parser.py pins this
+# for `check_skill_md_portability.py`'s `_strip_code`, which needs an unquoted
+# `src=` path inside an `<img>` tag to stay scannable). A caller matching a
+# prose-only pattern, like `check_adr_lifecycle.py`'s `## Status` heading
+# search, needs the opposite: an HTML comment or `<details>` block is not
+# prose either, and a status-shaped line inside one must not be read as the
+# record's own declared status.
 _NON_PROSE_BLOCK_TOKEN_TYPES = _CODE_BLOCK_TOKEN_TYPES | frozenset({"html_block"})
 
 
@@ -168,13 +173,19 @@ def _raise_if_nesting_truncated(
         )
 
 
-def _blank_block_token_lines(markdown: str, token_types: frozenset[str]) -> str:
-    """Shared line-blanking pass behind `blank_code_block_lines` and
-    `blank_non_prose_block_lines`. Blanks every source line CommonMark
-    attributes to a block token whose type is in `token_types`, preserving
-    line count and every other line's content so callers keep stable line
-    numbers. See `blank_code_block_lines` for the fail-closed contract on
-    parser exceptions and nesting truncation, which this helper shares.
+def _blank_block_lines(markdown: str, token_types: frozenset[str]) -> str:
+    """Shared blanking loop for `blank_code_block_lines` and
+    `blank_non_prose_block_lines`. Every source line CommonMark attributes to
+    a block whose type is in ``token_types`` is replaced by an empty string,
+    preserving line count and every other line's content so callers keep
+    stable line numbers.
+
+    Any exception the parser raises propagates to the caller, which must not
+    treat a parse failure as clean prose. Failing closed here is deliberate: a
+    silent empty return would let an unparseable file bypass the calling
+    gate. For the same reason, input that nests past the parser's
+    ``maxNesting`` limit raises :class:`MarkdownNestingError` rather than
+    being scanned from a silently truncated token stream.
     """
     md = _create_parser()
     tokens = md.parse(markdown)
@@ -195,54 +206,32 @@ def blank_code_block_lines(markdown: str) -> str:
 
     Every source line that CommonMark attributes to a fenced or indented code
     block, including the fence marker lines, is replaced by an empty string.
-    Line count and every non-code line are preserved, so a caller that matches
-    against the result keeps stable line numbers.
+    Line count and every non-code line, including HTML blocks, are preserved,
+    so a caller that matches against the result keeps stable line numbers.
 
     Inline code spans are left intact; strip those separately when needed.
-    HTML blocks (a bare HTML comment or raw HTML on its own lines) are also
-    left intact; see `blank_non_prose_block_lines` for a variant that blanks
-    those too.
 
-    Any exception the parser raises propagates to the caller, which must not
-    treat a parse failure as clean prose. Failing closed here is deliberate: a
-    silent empty return would let an unparseable file bypass the portability
-    gate. For the same reason, input that nests past the parser's ``maxNesting``
-    limit raises :class:`MarkdownNestingError` rather than being scanned from a
-    silently truncated token stream.
+    HTML blocks are deliberately NOT blanked (see `blank_non_prose_block_lines`
+    for a caller that needs them blanked too): `check_skill_md_portability.py`'s
+    `_strip_code` depends on HTML content staying visible to catch a
+    portability defect, an unquoted `src=` path, hiding inside an `<img>` tag
+    (`test_keeps_html_block` in tests/test_markdown_parser.py pins this).
     """
-    return _blank_block_token_lines(markdown, _CODE_BLOCK_TOKEN_TYPES)
+    return _blank_block_lines(markdown, _CODE_BLOCK_TOKEN_TYPES)
 
 
 def blank_non_prose_block_lines(markdown: str) -> str:
-    """Return ``markdown`` with code AND HTML block lines blanked.
+    """Return ``markdown`` with fenced/indented code AND raw HTML block lines
+    blanked.
 
-    Extends `blank_code_block_lines` (fenced and indented code only) to also
-    blank ``html_block`` tokens: a bare HTML comment or raw HTML block that
-    CommonMark segments as its own block, such as::
-
-        <!--
-        ## Status
-        Accepted
-        -->
-
-    A heading search run against `blank_code_block_lines`'s result still
-    matches text hidden inside a block like that one, because ``html_block``
-    is not in `blank_code_block_lines`'s token set. This function closes that
-    gap for callers (such as `check_adr_lifecycle._status_prose`) that search
-    for a heading and must not read one out of a comment.
-
-    Verified empirically: `_create_parser().parse()` on a `<!--\\n## Status\\n
-    Accepted\\n-->` block segments it as a single ``html_block`` token
-    distinct from ``fence``/``code_block``, confirming the gap this closes is
-    real, not hypothetical.
-
-    Inline HTML comments and inline code spans (on the same line as prose,
-    not on their own block) are not blanked here. Same fail-closed contract
-    as `blank_code_block_lines`: an exception the parser raises (including
-    `MarkdownNestingError`) propagates rather than being treated as clean
-    prose.
+    Same contract as `blank_code_block_lines`, widened to also blank HTML
+    blocks (CommonMark's ``html_block`` token). Use this instead when the
+    caller matches a prose-only pattern that must not be read out of an HTML
+    comment or a `<details>` block: `check_adr_lifecycle.py`'s `_status_prose`
+    needs exactly this, since a lifecycle-status-shaped line inside an HTML
+    comment is documentation about status, not a declaration of it.
     """
-    return _blank_block_token_lines(markdown, _NON_PROSE_BLOCK_TOKEN_TYPES)
+    return _blank_block_lines(markdown, _NON_PROSE_BLOCK_TOKEN_TYPES)
 
 
 def _cell_text(content: str) -> str:

@@ -122,11 +122,13 @@ def _parse_frontmatter(frontmatter: str) -> dict[str, object] | None:
 def _has_duplicate_keys(frontmatter: str) -> bool:
     """True when a frontmatter mapping declares the same key twice, at any
     mapping depth: the constructor below is registered for every YAML
-    mapping node PyYAML visits, top-level or nested, so a duplicate inside a
-    nested mapping value is caught the same way a top-level one is. Renamed
-    from `_has_duplicate_top_level_keys` (Copilot review, PR #5230): that
-    name was accurate before the parser-level rewrite, when the detection
-    was a top-level-only line regex; it now misstates the contract.
+    mapping node PyYAML visits, top-level or nested, so a duplicate nested
+    one level down is caught the same way a top-level one is
+    (``test_a_nested_duplicate_is_caught``). Renamed from
+    `_has_duplicate_top_level_keys`, independently on both PR #5209 and PR
+    #5230's Copilot review rounds: that name was accurate before the
+    parser-level rewrite, when the detection was a top-level-only line
+    regex; it now misstates the contract.
 
     Duplicate keys are malformed YAML and can hide a governance change (a
     second ``status:`` line masking the first). PyYAML resolves duplicates
@@ -142,7 +144,8 @@ def _has_duplicate_keys(frontmatter: str) -> bool:
     none, since it reports clean.
 
     Mirrors `_no_duplicate_keys` in build/scripts/generate_adr_index.py, which
-    is canonical. The detection is quoted verbatim from it:
+    is canonical. The detection is quoted verbatim from it
+    (`build/scripts/generate_adr_index.py:198-205`)::
 
         seen: list[Any] = []
         for key_node, _ in node.value:
@@ -150,16 +153,17 @@ def _has_duplicate_keys(frontmatter: str) -> bool:
             if any(key == earlier for earlier in seen):
                 raise _DuplicateKeyError(f"duplicate key {key!r} in frontmatter mapping")
             seen.append(key)
+        mapping: dict[Any, Any] = loader.construct_mapping(node, deep=True)
+        return mapping
 
     Stricter/looser/different than canonical: identical detection; this returns
-    a bool because callers only branch on it, and it swallows a YAML parse error
-    as False because a malformed block is already handled by the callers'
-    own parse path. This file ships inside the plugin and may import only the
+    a bool because callers only branch on it, and swallows a YAML parse error
+    as False because a malformed block is already handled by the callers' own
+    parse path. This file ships inside the plugin and may import only the
     standard library and yaml, so the loader is duplicated here rather than
-    shared (`.claude/rules/plugin-self-containment.md`).
-
-    A list compared with ``==``, not a set: a YAML key need not be hashable
-    (``? [a, b]`` builds a list key) and a set raises ``TypeError`` on it.
+    shared (`.claude/rules/plugin-self-containment.md`). Keys are compared with
+    ``==`` in a list, not a set: a YAML key need not be hashable (``? [a, b]``
+    builds a list key) and a set raises ``TypeError`` on it.
     """
 
     class _Dup(yaml.YAMLError):
@@ -202,9 +206,7 @@ def _only_non_decision_fields_changed(old_frontmatter: str, new_frontmatter: str
     or malformed frontmatter: a duplicated or unparseable governance key
     could otherwise mask a status change.
     """
-    if _has_duplicate_keys(old_frontmatter) or _has_duplicate_keys(
-        new_frontmatter
-    ):
+    if _has_duplicate_keys(old_frontmatter) or _has_duplicate_keys(new_frontmatter):
         return False
     old_fields = _parse_frontmatter(old_frontmatter)
     new_fields = _parse_frontmatter(new_frontmatter)
@@ -261,27 +263,26 @@ def _get_adr_status(file_path: Path) -> str:
 
         status: proposed | accepted | rejected | deprecated | superseded   # enum, no prose
 
-    Returns :data:`STATUS_UNKNOWN` for every state in which the record declares
-    no status: the file is missing or unreadable, there is no complete
-    frontmatter block, the frontmatter is malformed or is not a YAML mapping, or
-    the block carries no ``status`` key. ``unknown`` is a distinct sentinel and
-    callers MUST NOT treat it as ``proposed``; only a record that literally
-    declares ``status: proposed`` returns ``proposed``. Collapsing "declares
-    nothing" into "declares proposed" is the fail-open shape catalogued in
-    .agents/retrospective/2026-08-19-review-and-land-fleet-campaign-prs.md and is
-    the bug this function was rewritten to fix (issue #5189).
-
-    Malformed YAML never raises out of this function. Parsing is delegated to
-    :func:`_parse_frontmatter`, which returns ``None`` on
-    :class:`yaml.YAMLError` and on a non-mapping document; both map to
-    ``unknown`` here, so a broken frontmatter block reads as an undeclared
-    status rather than crashing the caller.
+    Returns :data:`STATUS_UNKNOWN` when the record declares no status: file
+    missing or unreadable, no complete frontmatter block, malformed or
+    non-mapping frontmatter, no ``status`` key, or a non-scalar value (a YAML
+    sequence or mapping, e.g. ``status:\n  - accepted``). ``unknown`` is a
+    distinct sentinel; callers MUST NOT treat it as ``proposed``. Collapsing
+    "declares nothing" into "declares proposed" is the fail-open shape
+    catalogued in
+    .agents/retrospective/2026-08-19-review-and-land-fleet-campaign-prs.md
+    (issue #5189). Malformed YAML never raises: :func:`_parse_frontmatter`
+    returns ``None`` on :class:`yaml.YAMLError` or a non-mapping document,
+    both mapped to ``unknown`` here.
 
     Stricter/looser/different than canonical: ADR-073 defines the enum but
-    Phase 1 leaves it unenforced ("optional, unenforced fields", line 18), so
-    this function does NOT validate the value against the enum. It lowercases
-    and strips whatever scalar the ``status`` key carries and returns it, which
-    is looser than the deferred Phase 3 gate at ADR-073 line 159.
+    Phase 1 leaves it unenforced (line 18), so this does not validate against
+    it; it lowercases whatever scalar ``status`` carries. The non-scalar
+    rejection mirrors ``check_adr_lifecycle.py._status_of()`` verbatim
+    (``value is None or isinstance(value, (list, dict))``, :409-414):
+    previously a non-scalar reached ``str(status).lower()`` and returned a
+    repr like ``"['accepted']"`` instead of ``unknown`` (Copilot, PR #5209
+    round-6).
     """
     if not file_path.exists():
         return STATUS_UNKNOWN
@@ -309,7 +310,7 @@ def _get_adr_status(file_path: Path) -> str:
     if fields is None:
         return STATUS_UNKNOWN
     status = fields.get("status")
-    if status is None:
+    if status is None or isinstance(status, (list, dict)):
         return STATUS_UNKNOWN
     return str(status).strip().lower()
 
