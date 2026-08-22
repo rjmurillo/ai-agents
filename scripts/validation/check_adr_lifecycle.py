@@ -24,7 +24,13 @@ filenames alone, so nothing reads what an ADR says about its own lifecycle state
 Every defect in the issue #5191 audit reached `main` unopposed: 59 of 98 records
 carry no frontmatter, 6 are `proposed` while `implemented: true`, ADR-091 claims
 to supersede ADR-079 while ADR-079 names ADR-092 as its successor, and 7 records
-carry frontmatter with no `## Status` section.
+carry frontmatter with no `## Status` section. This gate closes the first and
+third of those (`frontmatter-parses`, `supersession-target-exists`); the other
+two are intentionally not violations here, not gaps this gate missed:
+`implemented: true` with `proposed` is deliberate per ADR-098 (the removed
+eighth check below), and `prose-frontmatter-agree` skips a record with no
+`## Status` section instead of flagging it, since ADR-073 makes the frontmatter
+enum authoritative (Copilot, PR #5209 round-7 review).
 
 The schema enforced here is ADR-073 (`ADR-073-adr-lifecycle-frontmatter.md`),
 whose Decision section defines the block verbatim as::
@@ -61,7 +67,7 @@ Checks, each named so the baseline tracks them separately:
     proposed-cannot-supersede    a `proposed` record may not declare `supersedes`
     prose-frontmatter-agree      the first `## Status` line matches the frontmatter enum
 
-A ninth check, `implemented-implies-decided` (`implemented: true` with
+An eighth check, `implemented-implies-decided` (`implemented: true` with
 `status: proposed`), was removed: ADR-073's own schema defines `implemented`
 as flipping at first merged change independent of decision state, and
 ADR-098 documents that exact pairing as deliberate. See `_check_lifecycle_rules`
@@ -983,6 +989,16 @@ def main(argv: list[str] | None = None) -> int:
     adr_dir = repo_root / ".agents" / "architecture"
     if not adr_dir.is_dir():
         print(f"[CONFIG] ADR directory not found: {adr_dir}", file=sys.stderr)
+        return EXIT_CONFIG
+    # An emptied or misrouted corpus (wrong --repo-root, or every record moved
+    # out) still passes the `is_dir()` check above. `scan()` would then walk
+    # zero records, `tally()` would report every check at 0, and `run()` would
+    # print "[PASS] 0 violation(s)": a missing corpus reads as a clean corpus
+    # instead of failing loudly. `ADR_FILENAME_RE` excludes ADR-TEMPLATE.md, so
+    # a template sitting alone does not count as evidence records were
+    # examined (Copilot, PR #5209 round-7 review).
+    if not any(ADR_FILENAME_RE.match(md.name) for md in adr_dir.glob("ADR-*.md")):
+        print(f"[CONFIG] no ADR records found: {adr_dir}", file=sys.stderr)
         return EXIT_CONFIG
     if args.limit < 1:
         print("[CONFIG] --limit must be at least 1", file=sys.stderr)

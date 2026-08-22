@@ -746,7 +746,8 @@ def test_write_baseline_with_explicit_repo_root_ignores_cwd(tmp_path, monkeypatc
 
 
 def test_missing_baseline_is_a_config_error(tmp_path):
-    _adr_dir(tmp_path)
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), _STATUS_SECTION)
 
     result = _run(tmp_path, "--baseline", str(tmp_path / "absent.json"))
 
@@ -755,7 +756,8 @@ def test_missing_baseline_is_a_config_error(tmp_path):
 
 
 def test_malformed_baseline_is_a_config_error(tmp_path):
-    _adr_dir(tmp_path)
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), _STATUS_SECTION)
     baseline = tmp_path / "baseline.json"
     baseline.write_text("{not json", encoding="utf-8")
 
@@ -766,7 +768,8 @@ def test_malformed_baseline_is_a_config_error(tmp_path):
 
 
 def test_baseline_missing_a_check_is_a_config_error(tmp_path):
-    _adr_dir(tmp_path)
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), _STATUS_SECTION)
     baseline = tmp_path / "baseline.json"
     baseline.write_text(json.dumps({"counts": {"status-enum": 0}}), encoding="utf-8")
 
@@ -777,7 +780,8 @@ def test_baseline_missing_a_check_is_a_config_error(tmp_path):
 
 
 def test_baseline_with_a_non_count_value_is_a_config_error(tmp_path):
-    _adr_dir(tmp_path)
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), _STATUS_SECTION)
     baseline = tmp_path / "baseline.json"
     counts = dict.fromkeys(CHECKS, 0)
     counts["status-enum"] = -1
@@ -805,6 +809,34 @@ def test_non_adr_files_in_the_directory_are_ignored(tmp_path):
     assert sum(_counts(tmp_path).values()) == 0
 
 
+def test_an_empty_adr_directory_is_a_config_error(tmp_path):
+    """An emptied directory must fail loudly, not report a clean scan.
+
+    ``scan()`` on zero records returns zero violations (see
+    ``test_non_adr_files_in_the_directory_are_ignored`` above), and without a
+    CLI-level guard that reads as "[PASS] 0 violation(s)": a wrong
+    ``--repo-root`` or a corpus emptied by accident looks identical to a
+    genuinely clean one (Copilot, PR #5209 round-7 review).
+    """
+    _adr_dir(tmp_path)
+
+    result = _run(tmp_path)
+
+    assert result.returncode == EXIT_CONFIG
+    assert "no ADR records found" in result.stderr
+
+
+def test_an_adr_directory_with_only_a_template_is_a_config_error(tmp_path):
+    """``ADR-TEMPLATE.md`` alone must not count as evidence records exist."""
+    adr_dir = _adr_dir(tmp_path)
+    (adr_dir / "ADR-TEMPLATE.md").write_text("# Template\n", encoding="utf-8")
+
+    result = _run(tmp_path)
+
+    assert result.returncode == EXIT_CONFIG
+    assert "no ADR records found" in result.stderr
+
+
 def test_main_returns_nonzero_on_a_regression(tmp_path):
     """CLI exit contract: the process, not just a helper, must report failure."""
     adr_dir = _adr_dir(tmp_path)
@@ -815,7 +847,8 @@ def test_main_returns_nonzero_on_a_regression(tmp_path):
 
 
 def test_main_returns_config_code_on_a_bad_limit(tmp_path):
-    _adr_dir(tmp_path)
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), _STATUS_SECTION)
 
     assert main(["--repo-root", str(tmp_path), "--limit", "0"]) == EXIT_CONFIG
 
@@ -838,7 +871,8 @@ def test_pre_pr_adapter_reports_true_when_the_gate_passes(tmp_path, monkeypatch)
 
 def test_pre_pr_adapter_reports_false_on_a_config_error(tmp_path, monkeypatch):
     """A gate that cannot read its baseline has not run; it must not report PASS."""
-    _adr_dir(tmp_path)
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), _STATUS_SECTION)
     monkeypatch.setattr("check_adr_lifecycle._BASELINE_PATH", tmp_path / "absent.json")
 
     assert validate_adr_lifecycle(tmp_path) is False
@@ -1167,7 +1201,8 @@ def test_a_baseline_that_is_not_valid_utf8_is_a_config_error(tmp_path):
 
 def test_a_corrupt_baseline_exits_config_rather_than_traceback(tmp_path):
     """End to end: the process exits ADR-035 config, with no traceback."""
-    _adr_dir(tmp_path)
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), _STATUS_SECTION)
     baseline = tmp_path / "baseline.json"
     baseline.write_bytes(b"\xff\xfe not utf-8")
 
@@ -1184,7 +1219,7 @@ def test_a_corrupt_baseline_exits_config_rather_than_traceback(tmp_path):
 # `status: proposed` near the top and `status: accepted` lower in the same block
 # parses as accepted while reading as proposed to anyone scanning the first
 # lines. Reported by Copilot on PR #5209, which noted this repo already treats
-# it as a governance risk in detect_adr_changes._has_duplicate_top_level_keys.
+# it as a governance risk in detect_adr_changes._has_duplicate_keys.
 
 
 def test_a_duplicate_status_key_is_a_violation(tmp_path):
