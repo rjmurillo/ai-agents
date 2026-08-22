@@ -1,7 +1,7 @@
 # taste-lint: ignore file-size
 #
 # file-size suppression rationale: this file is one test per behavior across the
-# eight checks `check_adr_lifecycle.py` owns, and `.claude/rules/testing.md` MUST 1
+# seven checks `check_adr_lifecycle.py` owns, and `.claude/rules/testing.md` MUST 1
 # and the TESTING-RIGOR pos+neg+edge bar are what set its length. Its line count
 # tracks how many behaviors the gate has, not how hard the module is to read;
 # every test is independent and none shares state, so the rule's remediation
@@ -26,8 +26,13 @@ Pins the ratcheted ADR lifecycle gate. Coverage per check name:
 - supersession-target-exists: pos, neg (self-supersession, dangling id,
   unparseable entry, non-list ``supersedes``)
 - proposed-cannot-supersede: pos, neg
-- implemented-implies-decided: pos (accepted + implemented), neg
-  (proposed + implemented), edge (``implemented: "true"`` is not the boolean)
+
+`implemented-implies-decided` (`implemented: true` with `status: proposed`) was
+removed after Copilot review on PR #5209: ADR-073's own schema comment defines
+`implemented` as flipping at first merged change regardless of decision state,
+and ADR-098 documents that exact pairing as deliberate. Its three tests are
+removed with it rather than left asserting a contract the gate no longer has.
+
 - prose-frontmatter-agree: pos (decorated prose still matches), neg (drift),
   edge (inline ``**Status**:`` counts as the section; an amendment-first line
   is flagged), and the ADR-073 invariant that the gate never rewrites prose
@@ -493,32 +498,6 @@ def test_proposed_record_may_not_supersede(tmp_path):
     assert _counts(tmp_path)["proposed-cannot-supersede"] == 1
 
 
-def test_accepted_and_implemented_is_clean(tmp_path):
-    adr_dir = _adr_dir(tmp_path)
-    _write(adr_dir, 1, _valid(1, implemented="true"), _STATUS_SECTION)
-
-    assert _counts(tmp_path)["implemented-implies-decided"] == 0
-
-
-def test_proposed_and_implemented_is_a_violation(tmp_path):
-    adr_dir = _adr_dir(tmp_path)
-    _write(
-        adr_dir, 1, _valid(1, status="proposed", implemented="true"), "\n## Status\n\nProposed\n"
-    )
-
-    assert _counts(tmp_path)["implemented-implies-decided"] == 1
-
-
-def test_implemented_string_true_is_not_the_boolean(tmp_path):
-    """Edge: only a YAML boolean flips the gate, so `"true"` must not trip it."""
-    adr_dir = _adr_dir(tmp_path)
-    _write(
-        adr_dir, 1, _valid(1, status="proposed", implemented='"true"'), "\n## Status\n\nProposed\n"
-    )
-
-    assert _counts(tmp_path)["implemented-implies-decided"] == 0
-
-
 # --- prose-frontmatter-agree ------------------------------------------------
 
 
@@ -590,6 +569,36 @@ def test_absent_status_prose_is_not_a_violation(tmp_path):
 
     assert counts["prose-frontmatter-agree"] == 0
     assert "status-section-present" not in counts
+
+
+def test_unparseable_markdown_is_a_violation_not_a_silent_skip(tmp_path):
+    """A body that defeats the markdown parser is reported, not exempted.
+
+    `blank_code_block_lines` raises `MarkdownNestingError` when a document
+    nests past the parser's limit (`scripts/utils/markdown_parser.py:175-180`,
+    "Any exception the parser raises propagates to the caller, which must not
+    treat a parse failure as clean prose"). `_status_prose` used to catch that
+    exception and return `None`, which reads as "no status section" to
+    `_check_prose` and silently exempts the record from
+    `prose-frontmatter-agree`. Fixed to catch it in `_check_prose` instead and
+    report a violation. Copilot found this on PR #5209.
+    """
+    depth = 20
+    quote = ">" * depth + " "
+    unparseable_body = (
+        "\n"
+        + quote
+        + "```\n"
+        + quote
+        + "## Status\n"
+        + quote
+        + "```\n"
+        + "\n## Status\n\nAccepted\n"
+    )
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), unparseable_body)
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 1
 
 
 def test_empty_status_section_still_drifts(tmp_path):
@@ -671,7 +680,10 @@ def test_write_baseline_round_trips_and_then_passes(tmp_path):
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 1, None)
     _write(
-        adr_dir, 2, _valid(2, status="proposed", implemented="true"), "\n## Status\n\nProposed\n"
+        adr_dir,
+        2,
+        _valid(2, status="proposed", supersedes="[ADR-001]"),
+        "\n## Status\n\nProposed\n",
     )
     baseline = tmp_path / "baseline.json"
 
@@ -680,7 +692,7 @@ def test_write_baseline_round_trips_and_then_passes(tmp_path):
     assert written.returncode == EXIT_OK
     payload = json.loads(baseline.read_text(encoding="utf-8"))
     assert payload["counts"]["frontmatter-parses"] == 1
-    assert payload["counts"]["implemented-implies-decided"] == 1
+    assert payload["counts"]["proposed-cannot-supersede"] == 1
     assert list(payload["counts"]) == list(CHECKS)
     assert _run(tmp_path, "--baseline", str(baseline)).returncode == EXIT_OK
 

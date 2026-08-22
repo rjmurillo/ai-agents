@@ -59,11 +59,16 @@ Checks, each named so the baseline tracks them separately:
     supersession-reciprocal      X.superseded-by: Y implies Y.supersedes contains X
     supersession-target-exists   every named id resolves to a file; no self-supersession
     proposed-cannot-supersede    a `proposed` record may not declare `supersedes`
-    implemented-implies-decided  `implemented: true` with `status: proposed`
     prose-frontmatter-agree      the first `## Status` line matches the frontmatter enum
 
-Checks 2 to 8 need parseable frontmatter, so a record failing `frontmatter-parses`
-contributes one violation, not eight. The same containment runs downstream:
+A ninth check, `implemented-implies-decided` (`implemented: true` with
+`status: proposed`), was removed: ADR-073's own schema defines `implemented`
+as flipping at first merged change independent of decision state, and
+ADR-098 documents that exact pairing as deliberate. See `_check_lifecycle_rules`
+for the full removal rationale.
+
+Checks 2 to 7 need parseable frontmatter, so a record failing `frontmatter-parses`
+contributes one violation, not seven. The same containment runs downstream:
 `prose-frontmatter-agree` is skipped when the status section is absent
 (the record simply has no prose status) or the enum value is invalid (`status-enum`
 owns that), and `supersession-reciprocal` ignores an edge that
@@ -110,7 +115,6 @@ CHECKS: tuple[str, ...] = (
     "supersession-reciprocal",
     "supersession-target-exists",
     "proposed-cannot-supersede",
-    "implemented-implies-decided",
     "prose-frontmatter-agree",
 )
 
@@ -528,18 +532,17 @@ def _status_prose(body: str) -> str | None:
     subsection of whatever contains it. ADR-042 carries one at line 171 reading
     "Proposed" inside a migration phase while its frontmatter says `accepted`;
     matching it manufactured a drift violation out of a correct record.
-    """
-    try:
-        prose = blank_code_block_lines(body)
-    except Exception:
-        # A record whose markdown will not parse has no determinable prose
-        # status. Returning None skips `prose-frontmatter-agree` for it, which
-        # is what the gate already does for a record with no status section
-        # (see `_check_prose`), rather than guessing from a source the parser
-        # could not segment. Deliberately not falling back to the raw body:
-        # that is the fail-open this blanking exists to close.
-        return None
 
+    Raises whatever `blank_code_block_lines` raises on an unparseable body.
+    That helper's own contract (`scripts/utils/markdown_parser.py:175-180`)
+    requires the exception to propagate rather than be treated as clean prose;
+    catching it here and returning `None` would do exactly that, since `None`
+    means "no status section" to every caller and silently exempts the record
+    from `prose-frontmatter-agree`. Callers that need per-record diagnostics
+    catch this at the call site (see `_check_prose`) and turn it into a
+    violation, not into a skip. Copilot found this on PR #5209.
+    """
+    prose = blank_code_block_lines(body)
     heading = _STATUS_HEADING_RE.search(prose)
     if heading is not None:
         for line in prose[heading.end() :].splitlines():
@@ -572,8 +575,19 @@ def _check_prose(record: Record) -> list[Violation]:
     speak and disagree, frontmatter wins and the author reconciles the prose.
     Records like ADR-042 and ADR-055, whose prose carries debate-log citations and
     supersession reasoning, keep their sections and are still checked here.
+
+    A record whose markdown will not parse is reported as a violation of this
+    same check, not silently skipped. `_status_prose` lets the parser's
+    exception propagate rather than swallow it into "no status section";
+    catching it here and returning a violation is the difference between a
+    counted finding and a record that quietly bypasses drift detection because
+    its markdown happens to be unparseable (Copilot, PR #5209).
     """
-    prose = _status_prose(record.body)
+    try:
+        prose = _status_prose(record.body)
+    except Exception as exc:
+        detail = f"status prose could not be parsed: {exc}"
+        return [Violation("prose-frontmatter-agree", record.path, detail)]
     if prose is None:
         return []
     status = _status_of(record)
@@ -593,24 +607,31 @@ def _check_prose(record: Record) -> list[Violation]:
 
 
 def _check_lifecycle_rules(record: Record) -> list[Violation]:
-    """`proposed-cannot-supersede` and `implemented-implies-decided`."""
+    """`proposed-cannot-supersede`.
+
+    This function used to also own `implemented-implies-decided`, blocking
+    `implemented: true` with `status: proposed`. Removed (Copilot, PR #5209):
+    ADR-073's own schema comment defines `implemented` as flipping "at first
+    merged change", independent of decision state, and ADR-098 documents
+    `status: proposed` with `implemented: true` as a deliberate pairing for
+    exactly this reason (a governance ADR's own acceptance is a maintainer
+    act, not something its own debate log can self-assert). The corpus
+    already carries six such records by design (ADR-075, ADR-077, ADR-078,
+    ADR-089, ADR-093, ADR-098; see ADR-055's Provenance section), all
+    baselined at the removed check's full count. A blocking gate against a
+    pattern the canonical schema and a live record both call deliberate is a
+    gate encoding an invariant the corpus rejects, not the corpus drifting.
+    """
     if _status_of(record) != "proposed":
         return []
-    found: list[Violation] = []
     entries = _supersedes_entries(record)
-    if entries:
-        detail = (
-            f"status is proposed but it declares supersedes: {entries}. A proposal "
-            "cannot retire an accepted decision."
-        )
-        found.append(Violation("proposed-cannot-supersede", record.path, detail))
-    if _frontmatter_of(record).get("implemented") is True:
-        detail = (
-            "implemented: true with status: proposed. A record cannot be shipped "
-            "and undecided at once."
-        )
-        found.append(Violation("implemented-implies-decided", record.path, detail))
-    return found
+    if not entries:
+        return []
+    detail = (
+        f"status is proposed but it declares supersedes: {entries}. A proposal "
+        "cannot retire an accepted decision."
+    )
+    return [Violation("proposed-cannot-supersede", record.path, detail)]
 
 
 def _edge_targets(
