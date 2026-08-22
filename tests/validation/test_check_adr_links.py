@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -669,6 +670,14 @@ def test_git_ls_markdown_returns_tracked_markdown_only(tmp_path: Path) -> None:
     assert git_ls_markdown(tmp_path) == ["docs/a.md"]
 
 
+@pytest.mark.skipif(
+    sys.platform != "linux",
+    reason=(
+        "requires a filesystem that accepts arbitrary bytes in a filename; "
+        "ext4 does, APFS (macOS) and NTFS (Windows) validate UTF-8 or reject "
+        "the byte at create time (Cursor Bugbot, PR #5209 round-6 review)"
+    ),
+)
 def test_git_ls_markdown_raises_on_a_non_utf8_tracked_filename(tmp_path: Path) -> None:
     """A tracked filename with an invalid UTF-8 byte must not vanish silently.
 
@@ -687,7 +696,11 @@ def test_git_ls_markdown_raises_on_a_non_utf8_tracked_filename(tmp_path: Path) -
     The filename byte cannot be written through ``pathlib.Path`` (it is not
     valid UTF-8, so the surrogate-escaped str round-trips through the
     filesystem but not through ordinary path construction); built as raw
-    bytes instead, which POSIX filesystems accept.
+    bytes instead, which ext4 accepts. This repo's own CI only runs this
+    file's suite on ``ubuntu-latest``/``ubuntu-24.04-arm``
+    (`.github/workflows/pytest.yml`); the Windows job filters to
+    `@pytest.mark.windows_path` only, so this test was never exercised there.
+    The skip guard is for local runs on other filesystems, not a CI fix.
     """
     bad_path = os.fsencode(str(tmp_path)) + b"/ADR-005-\xffgone.md"
     with open(bad_path, "wb") as handle:
