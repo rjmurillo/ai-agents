@@ -92,6 +92,7 @@ These bind today.
 | [ADR-096](ADR-096-relax-qa-evidence-commit-equality.md) | Relax QA-Evidence Commit Equality to a Code-Change-Aware Check | 2026-08-19 | Redesign `validate_qa_report()` to require an explicit `head` argument and to perform the staleness check itself, rather than leaving staleness detection as a second call a caller can forget: |
 | [ADR-097](ADR-097-zero-tool-use-hooks.md) | Zero Tool-Use Hooks | 2026-08-19 | Retire all five currently-registered tool-call hooks, and retire the generated Copilot dispatcher machinery that their removal leaves with nothing to run. |
 | [ADR-099](ADR-099-remove-commit-limit-bypass-gate.md) | Remove the commit-count block and its commit-limit-bypass label | 2026-08-21 | Remove the commit-count block and the `commit-limit-bypass` label mechanism entirely, from both the CI workflow (`pr-validation.yml`, `scripts/ci/enforce_pr_validation.py`) and the local pre-push... |
+| [ADR-102](ADR-102-session-qa-binding-field-precedence.md) | Replace session_qa_binding()'s Field-Equality Raise with Documented Precedence and a Diagnostic | 2026-08-21 | Delete the equality raise. |
 
 ## Proposed
 
