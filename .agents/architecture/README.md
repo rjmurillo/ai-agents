@@ -53,6 +53,14 @@ frontmatter is invisible to every frontmatter query, so a count answers for the
 records that have it while appearing to answer for all of them. The Needs
 backfill section below is the honest denominator, and issue #5190 closes it.
 
+**This snippet cannot tell absent from unterminated.** `text.startswith('---')`
+is false for a record with no schema and also false for one whose opening
+`---` fence never closes, so both `continue` here identically. The real
+generator does not: `parse_frontmatter` raises on an unterminated block
+instead of silently placing it in Needs backfill, because a malformed
+schema is an author's defect to see, not a record to drop quietly. Run the
+gate rather than this snippet when that distinction matters.
+
 ## Accepted
 
 These bind today.
