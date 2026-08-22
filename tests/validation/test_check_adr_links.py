@@ -300,6 +300,34 @@ def test_link_after_a_closed_fence_is_still_scanned(tmp_path: Path) -> None:
     assert findings[0].target == "./ADR-998-nope.md"
 
 
+def test_a_shorter_run_of_the_same_fence_character_does_not_close_it(tmp_path: Path) -> None:
+    """CommonMark requires the closing run to be at least as long as the
+    opener. A four-backtick fence containing a three-backtick line (a
+    transcript illustrating a ```` ``` ```` example) must not be closed by
+    that shorter run: only a run of four or more backticks closes it. Tracking
+    only the fence character, not its length, gets this backwards the same
+    way a same-character/different-length pair always does: it reports the
+    still-fenced ADR-999 as broken and skips the real ADR-998 defect past the
+    true close, because the three-backtick line flips the scanner out of the
+    fence early and the real four-backtick close flips it back in (Copilot,
+    PR #5209 round-7 review).
+    """
+    doc = write(
+        tmp_path,
+        "docs/example.md",
+        "````\n"
+        "```\n"
+        "[ADR-999](./ADR-999-does-not-exist.md)\n"
+        "````\n"
+        "[ADR-998](./ADR-998-nope.md)\n",
+    )
+
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
+
+    assert kinds(findings) == ["unresolved"]
+    assert findings[0].target == "./ADR-998-nope.md"
+
+
 def test_a_different_fence_character_inside_a_block_does_not_close_it(tmp_path: Path) -> None:
     """CommonMark closes a fence only with its own character. A ``~~~`` block
     containing a line that opens with backticks (a transcript illustrating a

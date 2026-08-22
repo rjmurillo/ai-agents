@@ -67,7 +67,7 @@ from stale_script_refs import HISTORICAL_ROOTS, load_allowlist  # noqa: E402
 
 DEFAULT_BASELINE = Path("scripts/validation/check_adr_links_baseline.txt")
 
-FENCE = re.compile(r"^\s*(?P<marker>```|~~~)")
+FENCE = re.compile(r"^\s*(?P<marker>`{3,}|~{3,})")
 LINK = re.compile(r"\[(?P<text>[^\[\]\n]*)\]\((?P<dest>[^()\n]*)\)")
 UNTERMINATED = re.compile(r"\[(?P<text>[^\[\]\n]*)\]\((?P<dest>[^()\n]*)$")
 ADR_BASENAME = re.compile(r"^ADR-\d+.*\.md$", re.IGNORECASE)
@@ -328,21 +328,26 @@ def _link_findings(
 def scan_file(repo_root: Path, file: str, tracked: frozenset[str]) -> list[Finding]:
     """Return every ADR-link finding in one tracked markdown file.
 
-    Fence tracking keys on the opening marker character (`` ` `` or ``~``), not
+    Fence tracking keys on the opening marker's character AND run length, not
     a bare open/closed toggle. CommonMark closes a fence only with the same
-    character it opened with: a ``~~~`` block containing a line that starts
-    with backticks (a shell transcript showing a "```" example, say) is not
-    closed by that line, and treating any fence-shaped line as a toggle would
-    resume scanning real prose as though it were still inside the original
-    fence, or worse, treat a line of fenced example content as live prose one
-    fence early. Length is not tracked (a 4-backtick fence closes on any run of
-    3 or more): CommonMark also requires the closing run to be at least as long
-    as the opening one, but no fence in this corpus nests same-character runs
-    of different lengths, so that refinement is deferred rather than guessed
-    at. Indented (4-space) code blocks and inline single-backtick spans are
-    still out of scope, per the module docstring's "Links inside fenced code
-    blocks... are skipped": both are a full CommonMark parse away, which this
-    line-scanner deliberately is not (PR #5209 review).
+    character it opened with, in a run at least as long as the opening one
+    (spec.commonmark.org section 4.5): a ```` ```` ```` (four-backtick) block
+    containing a three-backtick line (a shell transcript showing a ` ``` `
+    example, say) is not closed by that shorter run, and a bare open/closed
+    toggle would resume scanning that fenced example content as live prose one
+    fence early, or the reverse for a ``~~~`` block containing a backtick
+    example. ``FENCE`` captures the whole run (``` `{3,}` ``` or ``~{3,}``),
+    and a fence-shaped line only closes the block when both its character and
+    its length match or exceed the opener; any other fence-shaped line while
+    inside a fence is content, not a delimiter (Copilot, PR #5209 round-7
+    review corrected an earlier version of this same docstring, which said the
+    length refinement was deferred because "no fence in this corpus nests
+    same-character runs of different lengths" -- true of the corpus at the
+    time, not a property the scanner can rely on going forward). Indented
+    (4-space) code blocks and inline single-backtick spans are still out of
+    scope, per the module docstring's "Links inside fenced code blocks... are
+    skipped": both are a full CommonMark parse away, which this line-scanner
+    deliberately is not (PR #5209 review).
 
     Reads strictly (no ``errors="replace"``): this is a file read, not one of
     the ``subprocess`` text-capture calls ``check_subprocess_encoding.py``
@@ -361,19 +366,22 @@ def scan_file(repo_root: Path, file: str, tracked: frozenset[str]) -> list[Findi
         return []
 
     findings: list[Finding] = []
-    fence_marker: str | None = None
+    fence_char: str | None = None
+    fence_length = 0
     for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         match = FENCE.match(line)
         if match:
-            marker = match.group("marker")[0]
-            if fence_marker is None:
-                fence_marker = marker
-            elif fence_marker == marker:
-                fence_marker = None
-            # else: a fence-shaped line in the OTHER character while already
-            # inside a fence is content, not a delimiter; fence_marker holds.
+            run = match.group("marker")
+            char, length = run[0], len(run)
+            if fence_char is None:
+                fence_char, fence_length = char, length
+            elif char == fence_char and length >= fence_length:
+                fence_char, fence_length = None, 0
+            # else: a fence-shaped line that does not close (wrong character,
+            # or the same character in a shorter run than the opener) is
+            # content, not a delimiter; fence_char/fence_length hold.
             continue
-        if fence_marker is not None:
+        if fence_char is not None:
             continue
 
         findings.extend(_malformed_findings(file, line_number, line))
