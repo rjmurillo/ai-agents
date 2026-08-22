@@ -412,17 +412,22 @@ def _blocker_cell(record: AdrRecord) -> str:
     the prose ``## Status`` paragraph is the human half, so a record may declare
     either, both, or neither.
 
-    A past-due date is marked rather than silently rendered. The whole reason the
-    field exists (issue #5193) is that ADR-002 and ADR-039 sat seven months past a
-    provisional window nobody could see, and an index that prints a stale deadline
-    as though it were pending reproduces exactly that failure at the corpus front
-    door.
-
-    Today's date is not read here. This renderer is required to be deterministic
-    (same input, byte-identical output), and a wall-clock comparison would make
-    output depend on run date. Past-due detection belongs in the lifecycle gate,
-    which can be tested against a frozen clock; this cell only surfaces the date
-    so a reader can see it at all.
+    A past-due date is surfaced, not marked. This cell renders whatever
+    ``review-by`` says (``review by 2026-01-01``), current or overdue,
+    identically either way: there is no "(overdue)" suffix or other flag here,
+    and no other gate adds one either. Detecting that a date has passed
+    requires reading the wall clock, which this renderer must not do (it is
+    required to be deterministic: same input, byte-identical output, and a
+    clock read would make output depend on run date). ``check_adr_lifecycle.py``
+    does not fill that gap: its ``CHECKS`` tuple has no rule that reads
+    ``review-by`` at all, past-due or otherwise (verified: the string does not
+    appear in that file). So today, nothing in this codebase flags an overdue
+    ``review-by`` date; a reader has to notice one by eye. The whole reason the
+    field exists (issue #5193) is that ADR-002 and ADR-039 sat seven months past
+    a provisional window nobody could see, and until #5193 builds the check
+    this cell's plain rendering has the same blind spot, one layer less deep:
+    at least the date is visible here, where it was not visible at all before
+    this field existed (Copilot, PR #5209 round-5 review).
     """
     if not record.review_by:
         return record.blocker
@@ -634,13 +639,18 @@ _INTRO = (
     "This table is a convenience, not the source of truth. The frontmatter is, and\n"
     "Python reads it with no extra dependency:\n\n"
     "```python\n"
-    "import pathlib, yaml\n"
+    "import pathlib, re, yaml\n"
+    "\n"
+    "_CLOSING_FENCE = re.compile(r'\\r?\\n---\\r?\\n')\n"
     "\n"
     "for path in sorted(pathlib.Path('.agents/architecture').glob('ADR-[0-9]*.md')):\n"
     "    text = path.read_text(encoding='utf-8')\n"
     "    if not text.startswith('---'):\n"
     "        continue  # no frontmatter: see Needs backfill below\n"
-    "    front = yaml.safe_load(text[3 : text.index('\\n---', 3)]) or {}\n"
+    "    closing = _CLOSING_FENCE.search(text, 3)\n"
+    "    if closing is None:\n"
+    "        raise ValueError(f'{path.name}: opens with --- but never closes it')\n"
+    "    front = yaml.safe_load(text[3 : closing.start()]) or {}\n"
     "    if str(front.get('status', '')).strip().lower() == 'accepted':\n"
     "        print(front.get('id') or path.name)\n"
     "```\n\n"
@@ -672,13 +682,29 @@ _INTRO = (
     "**This snippet crashes on unterminated frontmatter; it does not silently\n"
     "drop it.** `text.startswith('---')` is false only for a record with no\n"
     "schema at all, which `continue`s past. A record whose opening `---` fence\n"
-    "never closes still starts with `---`, so it skips that `continue` and\n"
-    "reaches `text.index('\\n---', 3)`, which raises `ValueError` (verified by\n"
+    "never closes still starts with `---`, so it skips that `continue`, finds\n"
+    "no match for `_CLOSING_FENCE`, and raises `ValueError` (verified by\n"
     "running both cases; Copilot found the original claim backwards on PR\n"
     "#5209). The real generator's `parse_frontmatter` raises the same way, on\n"
     "purpose: a malformed schema is an author's defect to see, not a record to\n"
     "drop quietly into Needs backfill. Run the gate rather than this snippet\n"
     "when that distinction matters.\n\n"
+    "**The closing fence must occupy its own line, not just start one.**\n"
+    "`generate_adr_index.py`'s `_FRONTMATTER_RE` is\n"
+    "``r\"^---\\r?\\n([\\s\\S]*?)\\r?\\n---\\r?\\n([\\s\\S]*)$\"``: the closing fence is\n"
+    "three dashes immediately followed by `\\r?\\n`, nothing else. An earlier\n"
+    "version of this snippet used `text.index('\\n---', 3)`, which finds any\n"
+    "line merely starting with three dashes, trailing characters or not. A\n"
+    "closing line padded with one trailing space (`\"--- \\n\"` instead of\n"
+    "`\"---\\n\"`, a plausible editor artifact) does not match `_FRONTMATTER_RE`,\n"
+    "so `parse_frontmatter` finds no valid closing fence and raises\n"
+    "`AdrIndexError`, the same as a fence that never closes at all. The old\n"
+    "`.index` call could not tell the difference: it matched the padded line\n"
+    "anyway and printed an answer with no error, silently disagreeing with the\n"
+    "generator's correctly-loud rejection of the same file (Copilot, PR #5209\n"
+    "round-5 review). `_CLOSING_FENCE` above requires the same `\\r?\\n` on both\n"
+    "sides of the dashes as `_FRONTMATTER_RE`, so a padded or otherwise\n"
+    "malformed fence now raises here too.\n\n"
 )
 
 # Heading order and the one-line orientation under each. Every heading renders

@@ -1199,6 +1199,47 @@ def test_the_documented_recipe_skips_a_record_with_no_frontmatter(tmp_path):
     assert _accepted_ids_via_recipe(adr_dir) == []
 
 
+def test_the_documented_recipe_agrees_with_the_generator_on_a_padded_closing_fence(tmp_path):
+    """Copilot's line-643 finding: the recipe's fence search does not require
+    the closing delimiter to occupy its own line, unlike `_FRONTMATTER_RE`.
+
+    `_FRONTMATTER_RE` is ``r"^---\\r?\\n([\\s\\S]*?)\\r?\\n---\\r?\\n([\\s\\S]*)$"``
+    (generate_adr_index.py, module scope): the closing fence must be exactly
+    three dashes immediately followed by `\\r?\\n`, nothing else. A closing
+    line with one trailing space, ``"--- \\n"`` instead of ``"---\\n"``, fails
+    that match. `parse_frontmatter` then finds no closing fence anywhere
+    (the trailing-space line does not qualify, and there is no other), so it
+    raises `AdrIndexError` for "opens with '---' but has no closing '---'
+    fence" (the same branch the already-documented "unterminated frontmatter"
+    paragraph above describes; this is a padded fence, not an absent one, but
+    the real parser treats both as the identical defect).
+
+    The recipe as first shipped used ``text.index('\\n---', 3)``, which finds
+    ANY "\\n---" substring, trailing space or not, and slices there with no
+    error. Against this fixture the old recipe printed ``['ADR-001']`` with
+    no sign anything was wrong, silently disagreeing with the generator's
+    correctly-loud rejection of the same file. This test fails against the
+    recipe as first shipped for that reason: it asserts the recipe raises
+    too, matching `AdrIndexError`, rather than asserting on a return value
+    the old recipe could satisfy by accident.
+    """
+    from generate_adr_index import AdrIndexError
+
+    adr_dir = tmp_path / "architecture"
+    adr_dir.mkdir(parents=True)
+    (adr_dir / "ADR-001-padded.md").write_text(
+        "---\nid: ADR-001\nstatus: accepted\n--- \n"
+        "# ADR-001: Padded\n\n## Decision\n\nDo it.\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AdrIndexError):
+        _accepted_ids_via_generator(adr_dir)
+
+    with pytest.raises(ValueError):
+        _accepted_ids_via_recipe(adr_dir)
+
+
 # Unhashable YAML keys -------------------------------------------------------
 
 
