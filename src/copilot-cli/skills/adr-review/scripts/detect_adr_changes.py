@@ -119,8 +119,14 @@ def _parse_frontmatter(frontmatter: str) -> dict[str, object] | None:
     return loaded
 
 
-def _has_duplicate_top_level_keys(frontmatter: str) -> bool:
-    """True when a frontmatter mapping declares the same key twice.
+def _has_duplicate_keys(frontmatter: str) -> bool:
+    """True when a frontmatter mapping declares the same key twice, at any
+    mapping depth: the constructor below is registered for every YAML
+    mapping node PyYAML visits, top-level or nested, so a duplicate inside a
+    nested mapping value is caught the same way a top-level one is. Renamed
+    from `_has_duplicate_top_level_keys` (Copilot review, PR #5230): that
+    name was accurate before the parser-level rewrite, when the detection
+    was a top-level-only line regex; it now misstates the contract.
 
     Duplicate keys are malformed YAML and can hide a governance change (a
     second ``status:`` line masking the first). PyYAML resolves duplicates
@@ -147,7 +153,7 @@ def _has_duplicate_top_level_keys(frontmatter: str) -> bool:
         for key_node, _ in node.value:
             key = loader.construct_object(key_node, deep=True)
             if any(key == earlier for earlier in seen):
-                raise ...
+                raise _DuplicateKeyError(f"duplicate key {key!r} in frontmatter mapping")
             seen.append(key)
 
     Stricter/looser/different than canonical: identical detection; this returns
@@ -197,11 +203,11 @@ def _only_non_decision_fields_changed(old_frontmatter: str, new_frontmatter: str
     (for example ``status: proposed`` -> ``accepted``) makes this False so the
     adr-review gate still fires (ADR-073).
 
-    Fails closed when either side has a duplicate top-level key or malformed
-    frontmatter: a duplicated or unparseable governance key could otherwise
-    mask a status change.
+    Fails closed when either side has a duplicate key (at any mapping depth)
+    or malformed frontmatter: a duplicated or unparseable governance key
+    could otherwise mask a status change.
     """
-    if _has_duplicate_top_level_keys(old_frontmatter) or _has_duplicate_top_level_keys(
+    if _has_duplicate_keys(old_frontmatter) or _has_duplicate_keys(
         new_frontmatter
     ):
         return False
@@ -294,7 +300,7 @@ def _get_adr_status(file_path: Path) -> str:
     frontmatter, _body = _split_frontmatter(content)
     if not frontmatter:
         return STATUS_UNKNOWN
-    if _has_duplicate_top_level_keys(frontmatter):
+    if _has_duplicate_keys(frontmatter):
         # PyYAML resolves duplicates last-wins and reports nothing, so a record
         # carrying `status: proposed` near the top and `status: accepted` lower
         # in the same block parses as accepted while reading as proposed to
