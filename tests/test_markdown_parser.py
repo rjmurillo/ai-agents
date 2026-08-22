@@ -14,6 +14,7 @@ from scripts.utils.markdown_parser import (
     Section,
     TableRow,
     blank_code_block_lines,
+    blank_non_prose_block_lines,
     extract_lookup_references,
     find_checklist_item,
     find_section,
@@ -481,6 +482,58 @@ class TestBlankCodeBlockLinesInvariants:
     def test_no_code_is_returned_unchanged(self):
         text = "just prose /a and more\n"
         assert blank_code_block_lines(text) == text
+
+
+class TestBlankNonProseBlockLines:
+    """`blank_non_prose_block_lines` extends `blank_code_block_lines` to also
+    blank ``html_block`` tokens (discussion on PR #5230, review round 2)."""
+
+    def test_blanks_a_block_level_html_comment(self):
+        # Discrimination probe: a heading hidden inside a bare HTML comment
+        # block must not survive, unlike blank_code_block_lines's behavior.
+        text = "<!--\n## Status\nAccepted\n-->\n\n## Status\nProposed\n"
+        out = blank_non_prose_block_lines(text)
+        assert "Accepted" not in out
+        assert "Proposed" in out
+
+    def test_blank_code_block_lines_does_not_strip_the_same_comment(self):
+        # Control proving the two functions genuinely differ: the same input
+        # that blank_non_prose_block_lines scrubs survives the older,
+        # code-only function untouched.
+        text = "<!--\n## Status\nAccepted\n-->\n"
+        assert "Accepted" in blank_code_block_lines(text)
+
+    def test_still_blanks_fenced_code(self):
+        text = "keep /a\n```\ndrop /b\n```\nkeep /c\n"
+        out = blank_non_prose_block_lines(text).split("\n")
+        assert out[0] == "keep /a"
+        assert out[2] == ""
+        assert out[4] == "keep /c"
+
+    def test_keeps_inline_html_comment_on_a_prose_line(self):
+        # Only a comment CommonMark segments as its own block is blanked;
+        # one sharing a line with prose is not a separate html_block token.
+        text = "prose <!-- inline --> more prose\n"
+        assert "prose" in blank_non_prose_block_lines(text)
+
+    def test_preserves_line_count(self):
+        text = "a\n<!--\nb\nc\n-->\nd\n"
+        original = len(text.split("\n"))
+        assert len(blank_non_prose_block_lines(text).split("\n")) == original
+
+    def test_empty_string_returns_empty(self):
+        assert blank_non_prose_block_lines("") == ""
+
+    def test_parser_error_propagates_not_swallowed(self, monkeypatch):
+        import scripts.utils.markdown_parser as mp
+
+        class _Boom:
+            def parse(self, _text):
+                raise ValueError("boom")
+
+        monkeypatch.setattr(mp, "_create_parser", lambda *a, **k: _Boom())
+        with pytest.raises(ValueError, match="boom"):
+            mp.blank_non_prose_block_lines("anything")
 
 
 class TestBlankCodeBlockLinesAstBehavior:

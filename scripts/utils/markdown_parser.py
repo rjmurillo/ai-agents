@@ -116,6 +116,12 @@ def _create_parser(max_nesting: int | None = None) -> MarkdownIt:
 # gets wrong.
 _CODE_BLOCK_TOKEN_TYPES = frozenset({"fence", "code_block"})
 
+# Adds ``html_block`` to `_CODE_BLOCK_TOKEN_TYPES`: a bare HTML comment or raw
+# HTML block that CommonMark segments as its own block (not inline HTML mixed
+# into a paragraph, which markdown-it keeps inside an ``inline`` token's
+# children and does not surface as a separate block token).
+_NON_PROSE_BLOCK_TOKEN_TYPES = _CODE_BLOCK_TOKEN_TYPES | frozenset({"html_block"})
+
 
 def _block_token_shape(tokens: list) -> list:
     """Structural fingerprint of the block token stream.
@@ -162,6 +168,28 @@ def _raise_if_nesting_truncated(
         )
 
 
+def _blank_block_token_lines(markdown: str, token_types: frozenset[str]) -> str:
+    """Shared line-blanking pass behind `blank_code_block_lines` and
+    `blank_non_prose_block_lines`. Blanks every source line CommonMark
+    attributes to a block token whose type is in `token_types`, preserving
+    line count and every other line's content so callers keep stable line
+    numbers. See `blank_code_block_lines` for the fail-closed contract on
+    parser exceptions and nesting truncation, which this helper shares.
+    """
+    md = _create_parser()
+    tokens = md.parse(markdown)
+    _raise_if_nesting_truncated(markdown, tokens, md)
+    lines = markdown.split("\n")
+    line_count = len(lines)
+    for token in tokens:
+        if token.type not in token_types or token.map is None:
+            continue
+        start, end = token.map
+        for index in range(max(start, 0), min(end, line_count)):
+            lines[index] = ""
+    return "\n".join(lines)
+
+
 def blank_code_block_lines(markdown: str) -> str:
     """Return ``markdown`` with fenced and indented code block lines blanked.
 
@@ -171,6 +199,9 @@ def blank_code_block_lines(markdown: str) -> str:
     against the result keeps stable line numbers.
 
     Inline code spans are left intact; strip those separately when needed.
+    HTML blocks (a bare HTML comment or raw HTML on its own lines) are also
+    left intact; see `blank_non_prose_block_lines` for a variant that blanks
+    those too.
 
     Any exception the parser raises propagates to the caller, which must not
     treat a parse failure as clean prose. Failing closed here is deliberate: a
@@ -179,18 +210,39 @@ def blank_code_block_lines(markdown: str) -> str:
     limit raises :class:`MarkdownNestingError` rather than being scanned from a
     silently truncated token stream.
     """
-    md = _create_parser()
-    tokens = md.parse(markdown)
-    _raise_if_nesting_truncated(markdown, tokens, md)
-    lines = markdown.split("\n")
-    line_count = len(lines)
-    for token in tokens:
-        if token.type not in _CODE_BLOCK_TOKEN_TYPES or token.map is None:
-            continue
-        start, end = token.map
-        for index in range(max(start, 0), min(end, line_count)):
-            lines[index] = ""
-    return "\n".join(lines)
+    return _blank_block_token_lines(markdown, _CODE_BLOCK_TOKEN_TYPES)
+
+
+def blank_non_prose_block_lines(markdown: str) -> str:
+    """Return ``markdown`` with code AND HTML block lines blanked.
+
+    Extends `blank_code_block_lines` (fenced and indented code only) to also
+    blank ``html_block`` tokens: a bare HTML comment or raw HTML block that
+    CommonMark segments as its own block, such as::
+
+        <!--
+        ## Status
+        Accepted
+        -->
+
+    A heading search run against `blank_code_block_lines`'s result still
+    matches text hidden inside a block like that one, because ``html_block``
+    is not in `blank_code_block_lines`'s token set. This function closes that
+    gap for callers (such as `check_adr_lifecycle._status_prose`) that search
+    for a heading and must not read one out of a comment.
+
+    Verified empirically: `_create_parser().parse()` on a `<!--\\n## Status\\n
+    Accepted\\n-->` block segments it as a single ``html_block`` token
+    distinct from ``fence``/``code_block``, confirming the gap this closes is
+    real, not hypothetical.
+
+    Inline HTML comments and inline code spans (on the same line as prose,
+    not on their own block) are not blanked here. Same fail-closed contract
+    as `blank_code_block_lines`: an exception the parser raises (including
+    `MarkdownNestingError`) propagates rather than being treated as clean
+    prose.
+    """
+    return _blank_block_token_lines(markdown, _NON_PROSE_BLOCK_TOKEN_TYPES)
 
 
 def _cell_text(content: str) -> str:
