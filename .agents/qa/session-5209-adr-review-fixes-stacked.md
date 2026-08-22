@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: fefa8bf5e0ddd4c6d416032c2e35e62070b82765
+qaCommit: 890da965b710b153be17aeb617ad895d2ec6dbf6
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -581,3 +581,27 @@ semantics; the same docstring's separate overclaim that an overdue
 `review-by` date "is marked rather than silently rendered" is also
 corrected (nothing in this codebase does that yet; the check belongs to
 issue #5193). 170 tests pass across the three touched suites.
+
+## Addendum 18: a sixth Copilot review round, four findings fixed
+
+**Rebound to** `890da965b710b153be17aeb617ad895d2ec6dbf6`.
+
+Full detail in Addendum 16 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`.
+A sixth Copilot review found four defects, all fixed and mutation-proven:
+`check_adr_links.py`'s `scan_file()` read tracked file content with
+`errors="replace"`, silently masking a malformed byte instead of raising
+through `main()`'s existing `UnicodeDecodeError` handler, fixed by
+reading strictly (not one of the `subprocess` calls issue #4261's
+convention binds); `git_ls_markdown()`'s `subprocess.run()` correctly
+kept `errors="replace"` per that same mandatory convention, but gained a
+post-decode check that raises when a tracked filename still carries the
+replacement character, closing the silent-skip `scan_file()`'s
+`path.is_file()` check produced for a corrupted name without touching
+the mandated call; `detect_adr_changes.py`'s `_get_adr_status()` accepted
+a non-scalar `status` value and stringified it instead of returning
+`STATUS_UNKNOWN`, fixed by mirroring `check_adr_lifecycle.py._status_of()`
+verbatim across both shipped trees; and the baseline header comment and a
+related docstring both said "twenty entries, three absolute", stale since
+round 5, corrected to the measured 19 and 2 with a self-verifying test.
+93 tests pass across the two touched suites (85 in `check_adr_links`, 8
+new in `test_detect_adr_changes_status_scalar.py`).

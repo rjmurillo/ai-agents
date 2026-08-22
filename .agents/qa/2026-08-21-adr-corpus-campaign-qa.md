@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: fefa8bf5e0ddd4c6d416032c2e35e62070b82765
+qaCommit: 890da965b710b153be17aeb617ad895d2ec6dbf6
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -922,3 +922,65 @@ mutations were reverted before being re-verified as fixed (backup/restore
 via `/tmp`, never `git checkout --`, per the round-4 near-miss this
 campaign already recorded). `taste_count_ratchet.py` confirmed at 576
 (the baseline, unchanged).
+
+## Addendum 16: a sixth Copilot review round, four findings fixed
+
+**Rebound to** `890da965b710b153be17aeb617ad895d2ec6dbf6`.
+
+A sixth Copilot review round on this branch's own head found four
+defects, all fixed and mutation-proven:
+
+- **`check_adr_links.py`'s `scan_file()` read tracked file content with
+  `errors="replace"`.** A non-UTF-8 byte in a tracked markdown file was
+  silently substituted with U+FFFD and scanned as if it were valid text,
+  which could turn a genuinely broken link into one that happens to
+  re-parse as resolvable, or the reverse. Removed: this is a plain file
+  read, not one of the `subprocess` text-capture calls
+  `check_subprocess_encoding.py` mandates `errors="replace"` for (issue
+  #4261), so that convention does not reach it. `main()` already has a
+  `UnicodeDecodeError` handler (exit 2) for exactly this.
+- **`git_ls_markdown()`'s `subprocess.run()` IS one of those mandated
+  calls**, so `errors="replace"` stays there (per #4261's own reason,
+  quoted verbatim in the new docstring: "a child process on Windows can
+  emit bytes invalid for UTF-8"). But a replacement-corrupted tracked
+  filename doesn't match the real file on disk, so `scan_file()`'s
+  `path.is_file()` check silently treated it as absent: zero findings,
+  indistinguishable from an untracked file. Added a post-decode check
+  that raises when any returned entry still carries the replacement
+  character, closing the silent-skip without touching the mandated call.
+  New test builds a real git-tracked file with an invalid-UTF-8-byte
+  filename (raw bytes; not constructible through `pathlib.Path` directly)
+  and confirms the raise.
+- **`detect_adr_changes.py`'s `_get_adr_status()` accepted a non-scalar
+  `status` value.** A YAML sequence or mapping under `status:` (valid
+  YAML; ADR-073's schema never intends one) reached
+  `str(status).strip().lower()` unconditionally and returned a Python
+  repr such as `"['accepted']"` instead of `STATUS_UNKNOWN`. Fixed to
+  mirror `check_adr_lifecycle.py`'s canonical `_status_of()` verbatim
+  (`if value is None or isinstance(value, (list, dict)): return ""`).
+  Applied to both shipped trees, confirmed byte-identical before and
+  after; new tests parametrized across both. Trimming the added
+  docstring prose to fit the file back under the 500-line taste-lint
+  ceiling was needed on both trees (a 6-line net addition pushed each
+  from 498 to 511).
+- **The baseline header comment and a related docstring both said
+  "twenty entries, three absolute"**, stale since round 5 removed a
+  stale `absolute` entry; actual measured counts are 19 and 2. Corrected
+  both, and added a test that measures the live baseline file and
+  asserts the header states the true counts, so a future edit cannot
+  drift the same way silently again.
+
+Test counts: `check_adr_links` 85 tests (up from 81: the corrupted-filename
+raise, the strict-decode raise, a `main()`-level exit-2 case, and the
+baseline-header self-check), plus 8 new tests in
+`tests/skills/adr-review/test_detect_adr_changes_status_scalar.py`
+(parametrized across both trees). `taste_count_ratchet.py` regressed to
+577 after the `detect_adr_changes.py` docstring addition crossed 500
+lines on both trees (a genuinely new violation, unlike
+`test_check_adr_links.py`, which was already over 500 before this
+round); fixed by trimming the docstring rather than suppressing, back to
+576 (the baseline). `build/scripts/build_all.py --check` confirmed clean
+after committing both `detect_adr_changes.py` copies together (mid-edit,
+before committing, `--check` correctly reports the uncommitted mirror as
+"regen drift" under `OWNED_PREFIXES` for `src/`; that is the check
+working as designed on an in-progress edit, not a defect).
