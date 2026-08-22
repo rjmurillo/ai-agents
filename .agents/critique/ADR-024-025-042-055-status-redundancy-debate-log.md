@@ -76,3 +76,28 @@ from the records that broke.
 
 `prose-frontmatter-agree` returns to 1, its baseline, and that one is ADR-068,
 pre-existing and untouched here. Lifecycle total holds at 71. 89 tests pass.
+
+## Corrections from a later Copilot review round on PR #5209
+
+Two more factual defects in the records this log covers, both found by
+automated review, neither a governance decision:
+
+**ADR-024's Provenance line conflated pull request numbers with commit
+identifiers.** It read "Accepted 2025-12-23 as ADR-014 in PR #224 (commit PR
+#224). Renumbered to ADR-024 by PR #476 (commit PR #476)." Both parentheticals
+are wrong: #224 and #476 are pull request numbers, not commits. Removed the
+parentheticals; the PR numbers alone are unambiguous.
+
+**ADR-055's `implemented: false` conflated "fully compliant" with "acted on".**
+ADR-073's own schema comment defines the field as flipping "at first merged
+change", and this decision's Metrics section already recorded 111 of 132
+`runs-on` declarations migrated to ARM, well past that bar. Set to `true`; the
+remaining 21-job compliance gap (documented in the same Metrics section and in
+issue #5199) is a completeness question, not a reason to say the decision
+was never acted on.
+
+Neither correction changes a lifecycle status, a supersession, or an
+acceptance. Recorded here rather than in a new log because both are factual
+fixes to records this log already covers, and appending keeps the audit trail
+in one place instead of scattering it across a fifth file for a one-line
+fix each.

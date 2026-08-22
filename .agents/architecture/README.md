@@ -53,13 +53,16 @@ frontmatter is invisible to every frontmatter query, so a count answers for the
 records that have it while appearing to answer for all of them. The Needs
 backfill section below is the honest denominator, and issue #5190 closes it.
 
-**This snippet cannot tell absent from unterminated.** `text.startswith('---')`
-is false for a record with no schema and also false for one whose opening
-`---` fence never closes, so both `continue` here identically. The real
-generator does not: `parse_frontmatter` raises on an unterminated block
-instead of silently placing it in Needs backfill, because a malformed
-schema is an author's defect to see, not a record to drop quietly. Run the
-gate rather than this snippet when that distinction matters.
+**This snippet crashes on unterminated frontmatter; it does not silently
+drop it.** `text.startswith('---')` is false only for a record with no
+schema at all, which `continue`s past. A record whose opening `---` fence
+never closes still starts with `---`, so it skips that `continue` and
+reaches `text.index('\n---', 3)`, which raises `ValueError` (verified by
+running both cases; Copilot found the original claim backwards on PR
+#5209). The real generator's `parse_frontmatter` raises the same way, on
+purpose: a malformed schema is an author's defect to see, not a record to
+drop quietly into Needs backfill. Run the gate rather than this snippet
+when that distinction matters.
 
 ## Accepted
 

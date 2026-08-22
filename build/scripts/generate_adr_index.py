@@ -614,13 +614,16 @@ _INTRO = (
     "frontmatter is invisible to every frontmatter query, so a count answers for the\n"
     "records that have it while appearing to answer for all of them. The Needs\n"
     "backfill section below is the honest denominator, and issue #5190 closes it.\n\n"
-    "**This snippet cannot tell absent from unterminated.** `text.startswith('---')`\n"
-    "is false for a record with no schema and also false for one whose opening\n"
-    "`---` fence never closes, so both `continue` here identically. The real\n"
-    "generator does not: `parse_frontmatter` raises on an unterminated block\n"
-    "instead of silently placing it in Needs backfill, because a malformed\n"
-    "schema is an author's defect to see, not a record to drop quietly. Run the\n"
-    "gate rather than this snippet when that distinction matters.\n\n"
+    "**This snippet crashes on unterminated frontmatter; it does not silently\n"
+    "drop it.** `text.startswith('---')` is false only for a record with no\n"
+    "schema at all, which `continue`s past. A record whose opening `---` fence\n"
+    "never closes still starts with `---`, so it skips that `continue` and\n"
+    "reaches `text.index('\\n---', 3)`, which raises `ValueError` (verified by\n"
+    "running both cases; Copilot found the original claim backwards on PR\n"
+    "#5209). The real generator's `parse_frontmatter` raises the same way, on\n"
+    "purpose: a malformed schema is an author's defect to see, not a record to\n"
+    "drop quietly into Needs backfill. Run the gate rather than this snippet\n"
+    "when that distinction matters.\n\n"
 )
 
 # Heading order and the one-line orientation under each. Every heading renders

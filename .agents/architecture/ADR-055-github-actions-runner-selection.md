@@ -6,7 +6,7 @@ decision-makers: []
 supersedes: [ADR-024, ADR-025]
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 ---
 
 # ADR-055: GitHub Actions Runner Selection
@@ -203,6 +203,14 @@ The `0 (0%)` figure was the 2025-12-29 measurement and no longer holds. Measured
 non-ARM declarations (10 `ubuntu-latest`, 5 `${{ matrix.os }}`, 4 `ubuntu-24.04`, 2 `windows-latest`).
 **None of the 21 carries an exception marker in any spelling.** The ARM-first preference is in force;
 the exception-documentation requirement in this record is not. Tracked in issue #5199.
+
+**`implemented: true`, not full compliance.** ADR-073's schema comment defines the field as flipping
+"at first merged change", not at 100% conformance; 111 of 132 jobs migrated is well past that bar.
+An earlier revision of this record set `implemented: false` to avoid implying the compliance gap
+above was closed, which conflated two different questions: whether the decision has been acted on
+(yes, and has been since before this campaign) and whether every workflow conforms to it (no, 21
+gaps remain, tracked here and in issue #5199). The gap belongs in this Metrics section and in
+#5199, not in the `implemented` flag (Copilot, PR #5209).
 | Windows Jobs | 2 (5.5%) | 2 (6%) | 0 |
 | Cost Reduction | - | 5.5% | On migrated jobs |
 
