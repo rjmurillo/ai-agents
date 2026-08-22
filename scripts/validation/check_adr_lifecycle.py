@@ -880,6 +880,14 @@ def run(
     """
     violations = scan(adr_dir, repo_root)
     counts = tally(violations)
+    # Read once, separately from scan()'s own collect_records() call, only for
+    # the pass-report's examined-record count below: an existing but emptied
+    # or narrowed corpus would otherwise print the identical
+    # "[PASS] 0 violation(s)" as a completed scan of the real one (Copilot,
+    # PR #5209 round-8 review). main() already rejects a fully empty corpus
+    # before run() is ever called, so this count is always >= 1 here; it
+    # exists to catch a narrowed-but-nonzero scope that guard cannot.
+    examined = len(collect_records(adr_dir, repo_root)[0])
 
     if args.write_baseline:
         # .claude/rules/ci-scripts.md MUST 7: a script that resolves the
@@ -915,7 +923,10 @@ def run(
             )
             return EXIT_CONFIG
         write_baseline(baseline_path, counts)
-        print(f"[OK] Wrote {baseline_path} from {len(violations)} violation(s):")
+        print(
+            f"[OK] Wrote {baseline_path} from {len(violations)} violation(s) "
+            f"across {examined} ADR record(s):"
+        )
         for name in CHECKS:
             print(f"  {name}: {counts[name]}")
         return EXIT_OK
@@ -936,7 +947,10 @@ def run(
         _print_violations(violations, set(CHECKS), args.limit)
 
     if not regressed:
-        print(f"\n[PASS] {len(violations)} violation(s), no check above its baseline.")
+        print(
+            f"\n[PASS] {len(violations)} violation(s) across {examined} ADR record(s), "
+            "no check above its baseline."
+        )
         return EXIT_OK
 
     print(f"\n[FAIL] {len(regressed)} check(s) rose above the baseline:")

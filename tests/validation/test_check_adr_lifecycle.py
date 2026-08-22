@@ -639,6 +639,25 @@ def test_counts_at_baseline_exit_zero(tmp_path):
     assert "[PASS]" in result.stdout
 
 
+def test_pass_report_names_the_examined_record_count(tmp_path):
+    """A clean pass must be distinguishable from an idle run over no records.
+
+    Without the count, a narrowed corpus (a path bug that only reaches a
+    handful of the real ADRs) prints the identical "[PASS] 0 violation(s)"
+    as a completed scan of the whole corpus (Copilot, PR #5209 round-8
+    review).
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), _STATUS_SECTION)
+    _write(adr_dir, 2, _valid(2), _STATUS_SECTION)
+    baseline = _baseline(tmp_path)
+
+    result = _run(tmp_path, "--baseline", str(baseline))
+
+    assert result.returncode == EXIT_OK, result.stdout + result.stderr
+    assert "[PASS] 0 violation(s) across 2 ADR record(s)" in result.stdout
+
+
 def test_a_risen_count_fails_and_names_the_check(tmp_path):
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 1, None)
@@ -695,6 +714,19 @@ def test_write_baseline_round_trips_and_then_passes(tmp_path):
     assert payload["counts"]["proposed-cannot-supersede"] == 1
     assert list(payload["counts"]) == list(CHECKS)
     assert _run(tmp_path, "--baseline", str(baseline)).returncode == EXIT_OK
+
+
+def test_write_baseline_names_the_examined_record_count(tmp_path):
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), _STATUS_SECTION)
+    _write(adr_dir, 2, _valid(2), _STATUS_SECTION)
+    baseline = tmp_path / "baseline.json"
+
+    result = _run(tmp_path, "--baseline", str(baseline), "--write-baseline")
+
+    assert result.returncode == EXIT_OK, result.stdout + result.stderr
+    assert "[OK] Wrote" in result.stdout
+    assert "across 2 ADR record(s)" in result.stdout
 
 
 # --- worktree-identity guard (.claude/rules/ci-scripts.md MUST 7) -----------
