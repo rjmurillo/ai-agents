@@ -31,6 +31,60 @@ _is_frontmatter_only_change = mod._is_frontmatter_only_change
 _frontmatter_fields = mod._parse_frontmatter
 _only_non_decision_fields_changed = mod._only_non_decision_fields_changed
 main = mod.main
+build_parser = mod.build_parser
+
+
+def test_declared_adr_locations_are_monitored() -> None:
+    """`ADR_PATTERNS`/`ADR_DIRECTORIES` name every location `main()` scans.
+
+    Pinned so a location added to one tuple but not the other silently
+    narrows either the change-detection glob or the dependent-ADR search
+    without any test noticing. Ported from the stale copy this skill's tests
+    carried directly under `.claude/skills/adr-review/tests/`, which
+    predates the `tests/skills/` relocation and duplicated the module under
+    test via `importlib` instead of the shared `import_skill_script` shim
+    (`.claude/rules/testing.md` MUST 6, `.claude/rules/claude-agents.md`
+    MUST 3: tests live under repo `tests/`, never inside a shipped skill
+    directory). PR #5209 round-4 review.
+    """
+    assert mod.ADR_PATTERNS == (
+        ".agents/architecture/ADR-*.md",
+        "docs/adr/ADR-*.md",
+        "docs/architecture/ADR-*.md",
+        "docs/decisions/ADR-*.md",
+        "architecture/decisions/ADR-*.md",
+    )
+    assert mod.ADR_DIRECTORIES == (
+        ".agents/architecture",
+        "docs/adr",
+        "docs/architecture",
+        "docs/decisions",
+        "architecture/decisions",
+    )
+
+
+class TestBuildParser:
+    """Tests for build_parser(). Ported alongside test_declared_adr_locations_are_monitored."""
+
+    def test_defaults(self) -> None:
+        args = build_parser().parse_args([])
+        assert args.base_path == "."
+        assert args.since_commit == "HEAD~1"
+        assert args.include_untracked is False
+
+    def test_custom_args(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "--base-path",
+                "/tmp/repo",
+                "--since-commit",
+                "abc123",
+                "--include-untracked",
+            ]
+        )
+        assert args.base_path == "/tmp/repo"
+        assert args.since_commit == "abc123"
+        assert args.include_untracked is True
 
 
 class TestGetAdrStatus:
@@ -300,6 +354,59 @@ class TestMain:
         captured = capsys.readouterr()
         data = json.loads(captured.out)
         assert "HasChanges" in data
+
+    def test_detects_created_adr_under_docs_decisions(
+        self, git_repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """`main()` scans every `ADR_DIRECTORIES` entry, not only the primary one.
+
+        Every other TestMain case creates its ADR under `.agents/architecture`;
+        without this one, a regression that narrowed scanning to that single
+        directory would pass the whole class. Ported from the stale
+        `.claude/skills/adr-review/tests/` copy (see
+        test_declared_adr_locations_are_monitored's docstring).
+        """
+        adr_dir = git_repo / "docs" / "decisions"
+        adr_dir.mkdir(parents=True)
+        (adr_dir / "ADR-002.md").write_text("# Docs Decisions ADR")
+        subprocess.run(["git", "add", "."], cwd=str(git_repo), capture_output=True, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "add docs decision adr"],
+            cwd=str(git_repo),
+            capture_output=True,
+            check=True,
+        )
+        exit_code = main(["--base-path", str(git_repo)])
+        assert exit_code == 0
+        data = json.loads(capsys.readouterr().out)
+        assert data["HasChanges"] is True
+        assert data["Created"] == ["docs/decisions/ADR-002.md"]
+        assert data["RecommendedAction"] == "review"
+
+    def test_include_untracked_counts_an_uncommitted_new_adr(
+        self, git_repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """`--include-untracked` surfaces a new ADR before it is ever committed.
+
+        Without the flag an untracked file is invisible to a diff against
+        `--since-commit`; this is the only case in the class that exercises
+        the flag at all. Ported (see test_declared_adr_locations_are_monitored).
+        """
+        adr_dir = git_repo / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        (adr_dir / "ADR-099.md").write_text("# Untracked")
+        exit_code = main(
+            ["--base-path", str(git_repo), "--since-commit", "HEAD", "--include-untracked"]
+        )
+        assert exit_code == 0
+        data = json.loads(capsys.readouterr().out)
+        assert data["HasChanges"] is True
+        assert any("ADR-099" in f for f in data["Created"])
+
+    def test_help_exits_zero(self) -> None:
+        with pytest.raises(SystemExit) as exc_info:
+            main(["--help"])
+        assert exc_info.value.code == 0
 
 
 class TestSplitFrontmatter:
