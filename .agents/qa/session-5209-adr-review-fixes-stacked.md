@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: f681609df8ea4d73fb10f344b87602719cf01678
+qaCommit: 9f5df8d092baf5b2a977dfd06ca3b8c9dc2c98bb
 ---
 
 # QA: PR #5209 review-round fixes, carried on a stacked branch
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `f681609df8ea4d73fb10f344b87602719cf01678` (see Addendum 11)
+**Validated at commit**: `9f5df8d092baf5b2a977dfd06ca3b8c9dc2c98bb` (see Addendum 12)
 
 ## Verdict
 
@@ -412,3 +412,46 @@ uv run pytest tests/test_invoke_session_start_gate.py -q
 
 This is the commit this addendum's `qaCommit` rebind covers; no other file
 changed between the previous binding and this one.
+
+## Addendum 12: rebind past the `origin/main` merge (ADR-099, ADR-102 land)
+
+The push carrying Addendum 11 failed `merge-tree-ratchet`:
+`origin/main` had advanced four commits, most relevantly `6977b40f1`
+(PR #5221, ADR-102) touching `.claude/lib/qa_report.py`. `git merge-tree
+--write-tree HEAD origin/main` (non-mutating) isolated the only real
+conflict to `tests/ci/test_validate_vendor_provenance.py`, where both sides
+had independently fixed the same Renovate-drift bug in
+`test_workflow_sets_up_uv`. Ran the real `git merge origin/main --no-edit`,
+kept this branch's fuller resolution (compiled `_SETUP_UV_PIN_RE`, the
+two-source docstring, and the separate discrimination-probe test
+`test_setup_uv_pin_pattern_rejects_an_unpinned_reference`), and discarded
+`origin/main`'s simpler inline duplicate. Verified no conflict markers
+remain (`grep -n "^<<<<<<<\|^=======\|^>>>>>>>"` exits 1) and
+`tests/ci/test_validate_vendor_provenance.py` passes standalone (51 passed).
+Merge commit: `9f5df8d092baf5b2a977dfd06ca3b8c9dc2c98bb`.
+
+Confirmed the ADR-102 change to `.claude/lib/qa_report.py` only loosens the
+`session_qa_binding()` contract: a `comparison.head`/`endingCommit`
+disagreement now sets `QaBinding.inconsistency` and prefers
+`comparison.head`, instead of raising. That is strictly more permissive than
+the equality check this branch's own work depended on, so nothing in this
+report's prior verification is invalidated by the merge.
+
+Re-ran the full targeted suite after the merge:
+
+```
+uv run pytest tests/ci/test_validate_vendor_provenance.py \
+  tests/validation/test_check_adr_links.py \
+  tests/build_scripts/test_generate_adr_index.py \
+  tests/build_scripts/test_build_all.py -q
+272 passed
+uv run pytest tests/ -k "qa_binding or qa_report or session_json" -q
+384 passed
+```
+
+The merge brought in dozens of non-evidence files from `origin/main`
+(ADR-099, ADR-100, ADR-101, ADR-102 and their implementations), which is why
+`qaCommit` rebinds to the merge commit itself rather than to a narrower
+commit: `git diff <merge-commit>..HEAD` is empty at the moment this addendum
+lands, and this addendum's own commit touches only `.agents/qa/*.md`, an
+evidence path exempt from the staleness check.

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: ce176cb339ac7f9d862afb74b7a0729df7d595b0
+qaCommit: 9f5df8d092baf5b2a977dfd06ca3b8c9dc2c98bb
 ---
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
@@ -627,3 +627,15 @@ false `[WARN]` on the now-expected absence of a session log). Evidence lives
 in Addendum 11 of `.agents/qa/session-5209-adr-review-fixes-stacked.md`:
 mutation-proven by reverting to the old wording, which fails exactly the two
 new tests and nothing else in the file.
+
+
+## Addendum 11: rebound past the `origin/main` merge (ADR-099, ADR-102 land)
+
+**Rebound to** `9f5df8d092baf5b2a977dfd06ca3b8c9dc2c98bb`.
+
+Merge conflict resolution and full re-verification recorded in Addendum 12 of
+`.agents/qa/session-5209-adr-review-fixes-stacked.md`. Summary: the only real
+conflict was in `tests/ci/test_validate_vendor_provenance.py`, resolved by
+keeping this branch's fuller fix; ADR-102's change to
+`.claude/lib/qa_report.py` only loosens the `session_qa_binding()` contract
+and invalidates none of this campaign's prior verification.
