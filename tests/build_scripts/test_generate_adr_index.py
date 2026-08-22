@@ -765,6 +765,30 @@ def test_check_passes_when_the_committed_index_is_current(tmp_path: Path) -> Non
     assert exit_code == 0
 
 
+def test_check_reports_the_examined_record_count(tmp_path: Path, capsys) -> None:
+    """The `OK` success line names how many ADR records were examined.
+
+    Before this fix, a byte-for-byte match against an emptied or narrowed
+    corpus printed the identical unqualified `OK: {path} matches {dir}` as a
+    match against the full six-record corpus below, so a regression that
+    silently narrowed the scan scope read as a clean, complete pass
+    (Copilot, PR #5209 round-8 review).
+    """
+    directory = tmp_path / "architecture"
+    _corpus(directory)
+    output = tmp_path / "README.md"
+    generate_adr_index.main(["--adr-dir", str(directory), "--output", str(output)])
+
+    exit_code = generate_adr_index.main(
+        ["--adr-dir", str(directory), "--output", str(output), "--check"]
+    )
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert "matches" in out
+    assert "(6 ADR record(s))" in out
+
+
 def test_check_fails_when_an_adr_changed_without_a_regeneration(tmp_path: Path, capsys) -> None:
     directory = tmp_path / "architecture"
     _corpus(directory)

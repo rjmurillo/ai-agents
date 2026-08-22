@@ -763,8 +763,21 @@ def generate(adr_dir: Path, output_path: Path) -> None:
 
 
 def _run_check(adr_dir: Path, output_path: Path) -> int:
-    """Compare the committed index to freshly generated content."""
-    generated = render_index(collect_records(adr_dir)).replace("\r\n", "\n")
+    """Compare the committed index to freshly generated content.
+
+    ``records`` is bound once, ahead of ``render_index()``, so the ``OK``
+    success line below can report how many ADR records were actually
+    examined: a byte-for-byte match against an emptied or narrowed corpus
+    would otherwise print the same unqualified ``OK`` as a match against
+    the full one (Copilot, PR #5209 round-8 review). Unlike the equivalent
+    fix in ``scripts/validation/check_adr_lifecycle.py`` and
+    ``scripts/validation/check_adr_links.py``, no second, duplicate-cost
+    read is needed here: ``render_index()`` already takes the record list
+    as its argument rather than recomputing it internally, so splitting the
+    one existing call is free.
+    """
+    records = collect_records(adr_dir)
+    generated = render_index(records).replace("\r\n", "\n")
     fix = "To fix: uv run python build/scripts/generate_adr_index.py"
     if not output_path.exists():
         print(f"MISSING: {output_path} does not exist", file=sys.stderr)
@@ -775,7 +788,7 @@ def _run_check(adr_dir: Path, output_path: Path) -> int:
         print(f"DRIFT: {output_path} differs from generated output", file=sys.stderr)
         print(fix, file=sys.stderr)
         return 1
-    print(f"OK: {output_path} matches {adr_dir}")
+    print(f"OK: {output_path} matches {adr_dir} ({len(records)} ADR record(s))")
     return 0
 
 
