@@ -1334,3 +1334,29 @@ def test_a_real_status_after_a_fenced_sample_is_still_found(tmp_path):
     )
 
     assert _counts(tmp_path)["prose-frontmatter-agree"] == 1
+
+
+def test_a_status_heading_inside_an_html_comment_is_not_the_records_status(tmp_path):
+    """A `## Status` hidden in a block-level HTML comment must not mask drift.
+
+    Copilot found this on PR #5230, in the same review round as the fenced-
+    sample fix above: `blank_code_block_lines` blanks only `fence`/
+    `code_block` tokens, so a heading inside an `html_block` token (a bare
+    HTML comment on its own lines) survives and, since `_status_prose` takes
+    the first match, gets read as the record's real status ahead of one
+    placed later in the body. Frontmatter says `accepted`; the comment
+    forges an `Accepted` match while the real section, further down, says
+    `Proposed`. An unfixed scanner reports 0 violations here (the forged
+    match hides the real drift); the fix must report 1.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        _valid(1),
+        "\n<!--\n## Status\n\nAccepted\n-->\n\n## Status\n\nProposed\n",
+    )
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 1, (
+        "an HTML-comment-hidden status must not mask real drift"
+    )

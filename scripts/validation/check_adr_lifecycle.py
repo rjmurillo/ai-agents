@@ -91,7 +91,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.utils.markdown_parser import blank_code_block_lines
+from scripts.utils.markdown_parser import blank_non_prose_block_lines
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
@@ -268,7 +268,7 @@ def _reject_duplicate_keys(loader: yaml.SafeLoader, node: yaml.MappingNode) -> d
         for key_node, _ in node.value:
             key = loader.construct_object(key_node, deep=True)
             if any(key == earlier for earlier in seen):
-                raise _DuplicateKeyError(...)
+                raise _DuplicateKeyError(f"duplicate key {key!r} in frontmatter mapping")
             seen.append(key)
 
     Stricter/looser/different than canonical: identical detection, but this
@@ -515,14 +515,24 @@ def _status_prose(body: str) -> str | None:
     phase result and `**Status**: APPROVED` at line 168 as an exception ruling,
     and both were read as that record's lifecycle status before this bound.
 
-    Fenced and indented code blocks are blanked before any of this runs, so a
-    `## Status` inside a markdown sample is not read as the record's own.
-    ADR-022 carries exactly such a sample at line 521, inside an ADR template it
-    documents. It is masked today only because ADR-022's real `## Status` sits
-    at line 3 and the search takes the first match; removing that section, which
-    is the direction this campaign is already moving in, would expose it. A
-    whole-body search without this is the same whole-file-scan defect the search
-    was widened to fix, one layer down. Copilot found it on PR #5230.
+    Fenced and indented code blocks, and HTML blocks/comments, are blanked
+    before any of this runs, so a `## Status` inside a markdown sample or a
+    hidden HTML comment is not read as the record's own. ADR-022 carries a
+    fenced sample at line 521, inside an ADR template it documents. It is
+    masked today only because ADR-022's real `## Status` sits at line 3 and
+    the search takes the first match; removing that section, which is the
+    direction this campaign is already moving in, would expose it. A
+    whole-body search without this is the same whole-file-scan defect the
+    search was widened to fix, one layer down. Copilot found it on PR #5230.
+
+    A block-level HTML comment such as `<!--\n## Status\nAccepted\n-->` is
+    also blanked, not only fenced code: `blank_code_block_lines` blanks only
+    `fence`/`code_block` tokens, so a heading hidden inside an `html_block`
+    token would otherwise survive and be read as the record's real status
+    ahead of one placed later in the body. Copilot found this gap on PR #5230
+    too, in the same review round as the fenced-sample fix above.
+    `blank_non_prose_block_lines` (`scripts/utils/markdown_parser.py`) closes
+    both at once.
 
     `### Status`, level three, is **never** matched. A level-three heading is a
     subsection of whatever contains it. ADR-042 carries one at line 171 reading
@@ -530,7 +540,7 @@ def _status_prose(body: str) -> str | None:
     matching it manufactured a drift violation out of a correct record.
     """
     try:
-        prose = blank_code_block_lines(body)
+        prose = blank_non_prose_block_lines(body)
     except Exception:
         # A record whose markdown will not parse has no determinable prose
         # status. Returning None skips `prose-frontmatter-agree` for it, which
