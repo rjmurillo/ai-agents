@@ -7,6 +7,7 @@ baseline entries), and the CLI exit-code contract.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -384,6 +385,39 @@ def test_missing_file_on_disk_yields_no_findings(tmp_path: Path) -> None:
     assert scan_file(tmp_path, "docs/never-written.md", frozenset()) == []
 
 
+def test_scan_file_raises_on_invalid_utf8_content(tmp_path: Path) -> None:
+    """A malformed byte inside a tracked file is a defect to surface, not paper over.
+
+    ``errors="replace"`` on this read (removed) would silently substitute
+    U+FFFD for the bad byte and scan the file as if it were valid text,
+    which can hide exactly the byte that broke a link's destination, or turn
+    a genuinely broken link into one that happens to re-parse as resolvable
+    (Copilot, PR #5209 round-6 review). This is a plain file read, not one of
+    the ``subprocess`` text-capture calls issue #4261's convention binds
+    (``check_subprocess_encoding.py`` scans only ``subprocess`` module
+    calls), so strict decoding is the correct default here, and `main()`
+    already has a `UnicodeDecodeError` handler (exit 2) for exactly this.
+    """
+    path = tmp_path / "adr" / "index.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"[ADR-005](\xffADR-005-gone.md)\n")
+
+    with pytest.raises(UnicodeDecodeError):
+        scan_file(tmp_path, "adr/index.md", frozenset())
+
+
+def test_main_returns_two_when_a_file_has_invalid_utf8_content(tmp_path: Path, capsys) -> None:
+    path = tmp_path / "adr" / "index.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"[ADR-005](\xffADR-005-gone.md)\n")
+    _init_repo(tmp_path)
+
+    exit_code = main(["--repo-root", str(tmp_path), "--baseline", str(tmp_path / "none.txt")])
+
+    assert exit_code == 2
+    assert "check_adr_links:" in capsys.readouterr().err
+
+
 # Baseline behavior
 
 
@@ -635,6 +669,35 @@ def test_git_ls_markdown_returns_tracked_markdown_only(tmp_path: Path) -> None:
     assert git_ls_markdown(tmp_path) == ["docs/a.md"]
 
 
+def test_git_ls_markdown_raises_on_a_non_utf8_tracked_filename(tmp_path: Path) -> None:
+    """A tracked filename with an invalid UTF-8 byte must not vanish silently.
+
+    ``git ls-files -z`` emits raw filesystem bytes; decoding them with
+    ``errors="replace"`` (kept here because ``check_subprocess_encoding.py``
+    mandates it for every ``subprocess.run(text=True, encoding="utf-8", ...)``
+    call, issue #4261) turns the invalid byte into U+FFFD. Left unchecked,
+    ``scan_file()`` builds ``repo_root / file`` from that corrupted name,
+    ``Path.is_file()`` returns False for it (the real file on disk still has
+    the original byte, not the replacement), and the file is scanned as zero
+    findings, indistinguishable from a file that was never tracked at all
+    (Copilot, PR #5209 round-6 review). Raising here instead means ``main()``
+    reports the corrupted name and exits 2 rather than silently undercounting
+    the scanned corpus.
+
+    The filename byte cannot be written through ``pathlib.Path`` (it is not
+    valid UTF-8, so the surrogate-escaped str round-trips through the
+    filesystem but not through ordinary path construction); built as raw
+    bytes instead, which POSIX filesystems accept.
+    """
+    bad_path = os.fsencode(str(tmp_path)) + b"/ADR-005-\xffgone.md"
+    with open(bad_path, "wb") as handle:
+        handle.write(b"# x\n")
+    _init_repo(tmp_path)
+
+    with pytest.raises(ValueError, match="non-UTF-8 byte"):
+        git_ls_markdown(tmp_path)
+
+
 def test_main_returns_zero_when_the_tree_is_clean(tmp_path: Path, capsys) -> None:
     write(tmp_path, "adr/ADR-005-x.md", "# target\n")
     write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-x.md)\n")
@@ -701,3 +764,27 @@ def test_gate_passes_against_the_repository_corpus() -> None:
     findings = find_broken_adr_links(REPO_ROOT)
 
     assert findings == [], "\n".join(finding.format() for finding in findings)
+
+
+def test_baseline_header_counts_match_the_live_file() -> None:
+    """The baseline file's own header comment must not drift from its content.
+
+    Round 5 removed a stale ``absolute`` entry (the fixed
+    ``docs/search-dont-load.md`` link) but left the header comment's "twenty
+    entries, three absolute" claim unchanged, dropping the real counts to
+    19 and 2 without anyone noticing (Copilot, PR #5209 round-6 review).
+    Asserting the counts directly against the file, rather than re-reading
+    the comment and trusting it, means a future edit that changes the entry
+    count without updating the header fails this test instead of drifting
+    silently again.
+    """
+    baseline_path = REPO_ROOT / check_adr_links.DEFAULT_BASELINE
+    lines = baseline_path.read_text(encoding="utf-8").splitlines()
+    entries = [line for line in (raw.strip() for raw in lines) if line and not line.startswith("#")]
+    absolute_entries = [entry for entry in entries if entry.startswith("absolute:")]
+
+    header = "\n".join(lines[:20])
+    assert f"{len(absolute_entries)} of the {len(entries)} entries" in header, (
+        f"baseline has {len(entries)} entries ({len(absolute_entries)} absolute), "
+        "but the header comment does not say so; update the comment to match"
+    )

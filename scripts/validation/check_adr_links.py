@@ -102,8 +102,11 @@ class Finding:
         target if only the link text's cited number changed, since that new
         finding shares the same file and target as the baselined one (PR
         #5209 review, discussion_r3831835196). Verified against the live
-        corpus: three of this baseline's twenty entries are ``absolute``, not
-        ``unresolved``, so the conflation was not hypothetical.
+        corpus: 2 of this baseline's 19 entries are ``absolute``, not
+        ``unresolved``, so the conflation was not hypothetical. (Re-measured
+        after the round-5 fix removed a stale ``absolute`` entry; the prior
+        20/3 figures went stale one round before this comment was corrected
+        to match, Copilot, PR #5209 round-6 review.)
         """
         return f"{self.kind}:{self.file}:{self.target}"
 
@@ -119,7 +122,33 @@ def is_historical_path(path: str) -> bool:
 
 
 def git_ls_markdown(repo_root: Path) -> list[str]:
-    """Return tracked markdown paths, newest-git-state, normalized to forward slashes."""
+    """Return tracked markdown paths, newest-git-state, normalized to forward slashes.
+
+    ``errors="replace"`` on the subprocess decode is not a shortcut: it is the
+    mandatory convention ``scripts/validation/check_subprocess_encoding.py``
+    gates every ``subprocess.run(text=True, encoding="utf-8", ...)`` call
+    against (issue #4261). That gate's own failure message states the reason
+    verbatim: "a child process on Windows can emit bytes invalid for UTF-8"
+    and "Without errors='replace', the decode raises before the caller can
+    report the real failure." Removing it here to make a bad-encoding path
+    raise, as a reviewer suggested (Copilot, PR #5209), would fix this one
+    caller's silent-skip while reintroducing the exact crash-before-report
+    failure mode issue #4261 was filed to eliminate repo-wide, and would fail
+    the "Subprocess Encoding Convention" pre-PR gate.
+
+    So the replacement stays, and the silent-skip is closed a different way:
+    a tracked path that decoded with the U+FFFD replacement character is
+    exactly the input this convention exists to tolerate at the subprocess
+    boundary without crashing, but passing it on unnoticed is how it becomes
+    silent instead of merely tolerated. `scan_file()` builds
+    ``repo_root / file`` from this list and returns ``[]`` when the result is
+    not a real file (line 309), so a replacement-corrupted entry does not
+    fail loudly there either: it looks like a file that does not exist and is
+    scanned as zero findings, indistinguishable from a file that was never
+    tracked (Copilot, PR #5209 round-6 review). Raising here, once, with the
+    corrupted name visible, is the fail-loud path issue #4261 asks the
+    subprocess call itself not to take.
+    """
     result = subprocess.run(
         ["git", "ls-files", "-z", "*.md"],
         cwd=repo_root,
@@ -129,7 +158,17 @@ def git_ls_markdown(repo_root: Path) -> list[str]:
         errors="replace",
         encoding="utf-8",
     )
-    return sorted(entry.replace("\\", "/") for entry in result.stdout.split("\0") if entry)
+    entries = sorted(entry.replace("\\", "/") for entry in result.stdout.split("\0") if entry)
+    corrupted = [entry for entry in entries if "�" in entry]
+    if corrupted:
+        listed = "\n  ".join(corrupted)
+        raise ValueError(
+            f"git ls-files returned {len(corrupted)} markdown path(s) with a "
+            f"non-UTF-8 byte replaced by U+FFFD, so this tool cannot resolve "
+            f"them to real files and cannot scan them for broken ADR links:\n"
+            f"  {listed}"
+        )
+    return entries
 
 
 def split_destination(raw: str) -> str:
@@ -304,6 +343,18 @@ def scan_file(repo_root: Path, file: str, tracked: frozenset[str]) -> list[Findi
     still out of scope, per the module docstring's "Links inside fenced code
     blocks... are skipped": both are a full CommonMark parse away, which this
     line-scanner deliberately is not (PR #5209 review).
+
+    Reads strictly (no ``errors="replace"``): this is a file read, not one of
+    the ``subprocess`` text-capture calls ``check_subprocess_encoding.py``
+    gates (issue #4261), so that convention does not reach here. A tracked
+    file with a non-UTF-8 byte is a real defect in the file this gate exists
+    to scan, not a Windows subprocess quirk to tolerate; replacing the bad
+    byte would silently alter link syntax at the exact point the scan needs
+    to read it correctly, which could turn a genuinely broken link into one
+    that happens to re-parse as resolvable, or the reverse (Copilot, PR #5209
+    round-6 review). Raising lets ``main()``'s existing ``UnicodeDecodeError``
+    handler report the file and exit 2, the same config-error path an
+    unreadable file already takes.
     """
     path = repo_root / file
     if not path.is_file():
@@ -311,9 +362,7 @@ def scan_file(repo_root: Path, file: str, tracked: frozenset[str]) -> list[Findi
 
     findings: list[Finding] = []
     fence_marker: str | None = None
-    for line_number, line in enumerate(
-        path.read_text(encoding="utf-8", errors="replace").splitlines(), 1
-    ):
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         match = FENCE.match(line)
         if match:
             marker = match.group("marker")[0]
