@@ -383,6 +383,48 @@ def test_a_fence_shaped_line_with_trailing_text_does_not_close_it(tmp_path: Path
     assert findings[0].target == "./ADR-998-nope.md"
 
 
+def test_a_four_space_indented_fence_marker_does_not_open_a_fence(tmp_path: Path) -> None:
+    """CommonMark caps fence indentation at three spaces; a four-space-indented
+    marker is an indented code block, not a fence opener (spec.commonmark.org/
+    0.31.2/#fenced-code-blocks: "preceded by up to three spaces of
+    indentation"; the spec's own example 134 states "Four spaces of
+    indentation is too many"). Before this fix, `FENCE`'s unbounded `\\s*`
+    matched the four-space-indented marker anyway, putting the scanner into
+    fence mode and silently hiding the broken ADR-999 link that follows in
+    what CommonMark actually treats as live prose (Copilot, PR #5209
+    round-10 review).
+    """
+    doc = write(
+        tmp_path,
+        "docs/example.md",
+        "    ```\n"
+        "[ADR-999](./ADR-999-does-not-exist.md)\n",
+    )
+
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
+
+    assert kinds(findings) == ["unresolved"]
+    assert findings[0].target == "./ADR-999-does-not-exist.md"
+
+
+def test_a_three_space_indented_fence_marker_still_opens_a_fence(tmp_path: Path) -> None:
+    """The three-space boundary is inclusive: CommonMark allows up to three
+    spaces of indentation on a fence, so a three-space-indented marker still
+    opens one and content inside is still skipped.
+    """
+    doc = write(
+        tmp_path,
+        "docs/example.md",
+        "   ```\n"
+        "[ADR-999](./ADR-999-does-not-exist.md)\n"
+        "   ```\n",
+    )
+
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
+
+    assert findings == []
+
+
 @pytest.mark.parametrize(
     "root",
     [
@@ -625,6 +667,7 @@ def test_find_broken_adr_links_rejects_a_malformed_baseline_before_scanning(
         ("./ADR-005-x.md", "./ADR-005-x.md"),
         ('./ADR-005-x.md "Title"', "./ADR-005-x.md"),
         ("<./ADR-005-x.md>", "./ADR-005-x.md"),
+        ('<./ADR-005-x.md> "Title"', "./ADR-005-x.md"),
         ("./ADR-005-x.md#anchor", "./ADR-005-x.md"),
         ("   ", ""),
         ("<>", ""),
@@ -632,6 +675,29 @@ def test_find_broken_adr_links_rejects_a_malformed_baseline_before_scanning(
 )
 def test_split_destination(raw: str, expected: str) -> None:
     assert split_destination(raw) == expected
+
+
+def test_angle_bracket_destination_with_title_is_checked_for_a_broken_target(
+    tmp_path: Path,
+) -> None:
+    """A pointy-bracket destination followed by a title is legal CommonMark.
+
+    ``dest.endswith(">")`` was false for this form (the title text trails
+    the closing bracket), so the brackets were never stripped and the
+    unstripped ``<./ADR-999-does-not-exist.md>`` failed `is_adr_target()`'s
+    basename match, letting a broken link written this way bypass the gate
+    entirely (Copilot, PR #5209 round-10 review).
+    """
+    doc = write(
+        tmp_path,
+        "adr/index.md",
+        'See [ADR-999](<./ADR-999-does-not-exist.md> "Title").\n',
+    )
+
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
+
+    assert kinds(findings) == ["unresolved"]
+    assert findings[0].target == "./ADR-999-does-not-exist.md"
 
 
 @pytest.mark.parametrize(

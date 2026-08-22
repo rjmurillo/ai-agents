@@ -83,8 +83,12 @@ says `accepted` and its Decision section contains a fenced YAML block whose
 
 Ten ADR records were modified. Every substantive edit routed through the
 mandatory six-role `adr-review` debate, which the pre-commit gate
-`check_adr_review_policy` enforces. No hook was bypassed; `--no-verify`,
-`LEFTHOOK=0`, and `LEFTHOOK_EXCLUDE` were not used at any point.
+`check_adr_review_policy` enforces. No surviving commit skipped a hook: one
+`git commit --no-verify` invocation was recorded on the stacked branch, on a
+scratch commit a `git reset --soft` discarded in the same command, reaching
+no ref (see the correction below and Addendum 7 of
+`session-5209-adr-review-fixes-stacked.md`). `LEFTHOOK=0` and
+`LEFTHOOK_EXCLUDE` were not used at any point.
 
 Consensus: 2 Accept (architect, high-level-advisor), 3 Disagree-and-Commit
 (independent-thinker, security, analyst), 1 Block (critic) whose blocking
@@ -284,7 +288,8 @@ documented, and the exemption could not fire.
 
 Fixing the clone (`git remote set-head origin --auto`) cleared it, and the
 exemption then evaluated correctly (branch owns a log: yes; winner is merged
-history: True). No hook was bypassed at any point in this campaign. The
+history: True). No surviving commit skipped a hook at any point in this
+campaign (see the correction above on the one non-surviving invocation). The
 fragility is worth recording anyway: on a clone without `origin/HEAD`, a routine
 `git merge main` hard-blocks all further commits, and the error message names
 none of the three real causes. Filed as #5220 with the reproduction and a
@@ -1472,8 +1477,9 @@ passed cleanly. The push-time `python-lint-ratchet` job caught it (`ruff`'s
 Consolidated into one class carrying the union of both branches' distinct
 test behaviors, taking the stronger assertion where both covered the same
 case (a five-line fenced-code check over a three-line one). Verified by
-mutation: removing one of the merged class's assertions drops collection
-from 72 to 71 tests in that file, confirming the class is live and not
+mutation: removing one of the merged class's test methods
+(`test_blanks_a_block_level_html_comment`) drops collection from 72 to 71
+tests in that file, confirming the class is live and not
 shadowed. Fixed in `485b1db68`.
 
 **A second push-gate finding, unrelated to the merge conflict itself:** an
@@ -1487,3 +1493,72 @@ skipped, 0 failed (`1324.62s`). `ruff count ratchet`, `python-lint-ratchet`,
 `type-ignore-count-ratchet` all confirmed clean against the fix commit.
 
 **Rebound to** `485b1db684a3cea5248f0e5d7dfa645f98a360b2`.
+
+## Addendum 29: a tenth Copilot review round, four fixed, seven documented
+
+A tenth Copilot review found 13 distinct items: 10 suppressed ("previously
+missed") findings plus 3 new inline comments. Four were genuine code
+defects, fixed and mutation-proven; one was a stale comment corrected
+alongside one of those fixes; two were volatile-exact-count taste-lint
+suppressions reworded per the review's own suggestion; seven were stale
+debate-log references corrected with two unifying notes (matching each
+file's own established correction pattern) rather than seven separate
+edits.
+
+- **`check_adr_links.py`'s `FENCE` regex accepted unbounded (and tab)
+  indentation before a fence marker.** CommonMark caps fence indentation at
+  three spaces (spec.commonmark.org/0.31.2/#fenced-code-blocks, quoted
+  verbatim: "Four spaces of indentation is too many"). A four-space-indented
+  ` ``` ` line put the scanner into fence mode anyway, silently hiding a
+  broken ADR link in what CommonMark actually treats as live prose. Capped
+  to `{0,3}` spaces. New tests confirm the four-space case is caught and the
+  three-space boundary case still opens a fence. Mutation-proven.
+- **`split_destination()` only stripped angle brackets when the raw
+  destination ended in `">"`**, but a legal CommonMark destination can
+  combine brackets with a title: `[ADR-005](<./ADR-005-x.md> "Title")`. The
+  trailing title text made `endswith(">")` false, so the brackets were
+  never stripped, `is_adr_target()`'s basename match failed, and a broken
+  or wrong-numbered link written this way bypassed the gate entirely. Fixed
+  by finding the closing `">"` explicitly instead of requiring it be last.
+  Mutation-proven.
+- **`check_adr_lifecycle.py`'s `write_baseline()` truncated and rewrote the
+  only baseline file directly**, despite the module's own docstring
+  claiming baseline rewrites are atomic. An interruption mid-write leaves
+  invalid JSON in place, blocking every subsequent `pre_pr.py` run until
+  someone reconstructs the baseline by hand. Fixed by writing through a
+  temp sibling file plus `os.replace()`, mirroring `scripts/
+  ai_review_common/cache_guard.py`'s `_atomic_write_text` verbatim. New
+  tests confirm no temp file survives a successful write, and a failed
+  `os.replace()` leaves the pre-existing baseline untouched. Mutation-proven.
+- **The same file's file-size taste-lint suppression said "an eight-check
+  gate"**, but the eighth check (`implemented-implies-decided`) was removed
+  two review rounds ago; the gate has seven. Corrected, and its other
+  volatile exact line/file counts (including a sibling file's line count)
+  dropped for the same reason as the next item.
+- **Three taste-lint file-size suppressions cited exact line or test-case
+  counts that had already gone stale** (`generate_adr_index.py`: "192 of
+  the 558 lines" against an actual 882; `test_generate_adr_index.py`: "51"
+  cases against 71+; `check_adr_links.py`: "243 of the 537 lines" against a
+  count that had already moved twice). Reworded all three to state the
+  ratio/rationale without a number that drifts on every subsequent edit,
+  per the review's own suggestion ("Avoid a volatile exact count here").
+- **Two debate logs described ADR-024, ADR-025, ADR-042 and ADR-055 as
+  gaining or carrying a `## Status` section**, accurate for the diffs those
+  logs record, but a later round (commit `1615ffa40`, "stop restating
+  frontmatter in status prose") renamed those sections: `## Provenance` for
+  ADR-024/025/055, `## Acceptance Evidence` for ADR-042, so a reader
+  following either log today looks for a section that no longer exists.
+  Added one correction note per file (matching each file's own established
+  "leave the historical record unrewritten, note what changed after it"
+  pattern, already used for the `implemented: true` reversal) rather than
+  rewriting the seven flagged bullets individually. Both point to
+  `ADR-024-025-042-055-status-redundancy-debate-log.md`, which already
+  documents the rename in full.
+
+Four commits, eight files touched, 6 new test functions, all three
+behavioral fixes mutation-proven. Test counts: `check_adr_links` 99 (up
+from 95, +4), `check_adr_lifecycle` 124 (up from 122, +2). All three
+touched suites together: 304 tests pass. `ruff check` and the whole-repo
+taste-count ratchet (576, at baseline) both clean.
+
+**Rebound to** `c2055b1b91ddc7fb8406e15e6f9a84f41dfca220`.

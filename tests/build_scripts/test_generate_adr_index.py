@@ -1,6 +1,9 @@
-# taste-lint: ignore file-size, one test module per module under test. The 51
-# cases are the pos/neg/edge matrix TESTING-RIGOR requires for one contract;
-# splitting them hides whether that one contract is fully covered.
+# taste-lint: ignore file-size, one test module per module under test. The
+# cases here are the pos/neg/edge matrix TESTING-RIGOR requires for one
+# contract; splitting them hides whether that one contract is fully
+# covered. (Deliberately no exact case count: an earlier version cited "51"
+# and it went stale after later rounds added cases without updating the
+# number, Copilot, PR #5209 round-10 review.)
 """Tests for build/scripts/generate_adr_index.py (issue #5198, ADR-073 consumer).
 
 Every fixture is a synthetic ADR under ``tmp_path``. The real corpus is never

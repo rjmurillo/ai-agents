@@ -9,7 +9,7 @@ qaCommit: 485b1db684a3cea5248f0e5d7dfa645f98a360b2
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `db398cb4cabdfe1d114130eff627c01e59b99413` (see Addendum 19)
+**Validated at commit**: `485b1db684a3cea5248f0e5d7dfa645f98a360b2` (see Addendum 29)
 
 ## Verdict
 
@@ -1016,10 +1016,31 @@ conflict since they landed at different line ranges. Python silently
 dropped the first at import time (`F811`), losing its assertions with no
 test failure; the push-time `ruff` lint ratchet caught it, not pytest.
 Consolidated into one class, mutation-verified (72 to 71 tests on removing
-one assertion), fixed in `485b1db68`. A separate em-dash the merge's own
+one test method), fixed in `485b1db68`. A separate em-dash the merge's own
 resolution prose introduced into the campaign file (not carried over from
 either branch) is also corrected there.
 
 Full pytest suite re-run clean: 28092 passed, 74 skipped, 0 failed.
 
 **Rebound to** `485b1db684a3cea5248f0e5d7dfa645f98a360b2`.
+
+## Addendum 30: a tenth Copilot review round, four fixed, seven documented
+
+A tenth Copilot review found 13 items: four genuine defects, fixed and
+mutation-proven (`check_adr_links.py`'s `FENCE` regex accepting unbounded
+indentation before a fence marker, against CommonMark's three-space cap;
+`split_destination()` failing to strip angle brackets on a destination that
+also carries a title; `check_adr_lifecycle.py`'s `write_baseline()`
+truncating its only baseline file directly instead of writing atomically);
+one stale comment fixed alongside the atomic-write change ("eight-check
+gate" corrected to "seven-check gate"); three volatile-exact-count
+taste-lint suppressions reworded to drop counts that had already gone
+stale; and seven stale debate-log references to a renamed `## Status`
+section, corrected with two unifying notes rather than seven separate
+edits. Full detail in Addendum 29 of the campaign report. Four commits,
+eight files, six new test functions; `check_adr_links` 99 tests (was 95),
+`check_adr_lifecycle` 124 tests (was 122); 304 tests pass across the three
+touched suites; `ruff check` and the taste-count ratchet (576, at
+baseline) both clean.
+
+**Rebound to** `c2055b1b91ddc7fb8406e15e6f9a84f41dfca220`.

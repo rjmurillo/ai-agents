@@ -46,6 +46,7 @@ a regression (``.claude/rules/ci-scripts.md`` MUST 10 and 21).
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import textwrap
@@ -70,6 +71,7 @@ from check_adr_lifecycle import (
     scan,
     tally,
     validate_adr_lifecycle,
+    write_baseline,
 )
 
 # --- fixtures ---------------------------------------------------------------
@@ -714,6 +716,48 @@ def test_write_baseline_round_trips_and_then_passes(tmp_path):
     assert payload["counts"]["proposed-cannot-supersede"] == 1
     assert list(payload["counts"]) == list(CHECKS)
     assert _run(tmp_path, "--baseline", str(baseline)).returncode == EXIT_OK
+
+
+def test_write_baseline_leaves_no_temp_file_behind(tmp_path):
+    """A successful write cleans up its own temp file.
+
+    ``write_baseline()`` writes through a ``tempfile.mkstemp()`` sibling and
+    ``os.replace()``; the temp name must not survive a successful call, or
+    every ``--write-baseline`` invocation would leak one file (Copilot,
+    PR #5209 round-10 review, "baseline writes are not atomic as documented").
+    """
+    baseline = tmp_path / "baseline.json"
+
+    write_baseline(baseline, dict.fromkeys(CHECKS, 0))
+
+    assert baseline.exists()
+    leftovers = [p for p in tmp_path.iterdir() if p.suffix == ".tmp"]
+    assert leftovers == []
+
+
+def test_write_baseline_preserves_the_old_file_when_replace_fails(tmp_path, monkeypatch):
+    """A failed swap must not corrupt or half-write the existing baseline.
+
+    Simulates the crash-mid-write scenario the atomic-write fix closes:
+    ``os.replace()`` raising leaves the pre-existing baseline content
+    untouched (the temp file was fully written first, then discarded) rather
+    than a partially-written or truncated file.
+    """
+    baseline = tmp_path / "baseline.json"
+    original = '{"schema_version": "1", "counts": {}}'
+    baseline.write_text(original, encoding="utf-8")
+
+    def _boom(*_args, **_kwargs):
+        raise OSError("simulated replace failure")
+
+    monkeypatch.setattr(os, "replace", _boom)
+
+    with pytest.raises(OSError, match="simulated replace failure"):
+        write_baseline(baseline, dict.fromkeys(CHECKS, 0))
+
+    assert baseline.read_text(encoding="utf-8") == original
+    leftovers = [p for p in tmp_path.iterdir() if p.suffix == ".tmp"]
+    assert leftovers == []
 
 
 def test_write_baseline_names_the_examined_record_count(tmp_path):

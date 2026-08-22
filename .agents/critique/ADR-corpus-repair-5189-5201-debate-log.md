@@ -67,6 +67,22 @@ correction, including the same fix on ADR-024's provenance line, is recorded in
 `ADR-024-025-042-055-status-redundancy-debate-log.md`'s own "Corrections from a later Copilot
 review round on PR #5209" section.
 
+**Correction, `## Status` references above (PR #5209 round-10 review).** Every
+`## Status` section this batch added to ADR-024, ADR-025, ADR-042 and ADR-055
+(named above at "a real `## Status` section replacing an inline bold-label
+line" in CS-1, "changes not one character of the `## Status` body" in the
+central-question section, and both P1 resolution rows citing "`## Status` now
+names the debate log" and "recorded in ADR-055's Status") was later renamed by
+commit `1615ffa40` to stop the section restating what frontmatter already
+carries: `## Provenance` for ADR-024, ADR-025 and ADR-055, `## Acceptance
+Evidence` for ADR-042. That rename postdates this batch's own diff, which is
+accurately described above as leaving the section it added untouched; it is
+a *later* round's edit, not a correction to this one. Full detail, including
+the rationale for renaming rather than trimming, is in
+`ADR-024-025-042-055-status-redundancy-debate-log.md`. Left unrewritten above
+for the same reason as the `implemented` row: the record shows what this
+batch decided, and this note shows what changed after it.
+
 ## The corrected root cause, which the campaign originally got wrong
 
 Issue #5199 diagnosed the `# ADR-032 Exception:` marker as "a renumbering pass applied with the wrong offset." That is wrong, and the first draft of ADR-055's repair repeated the error.

@@ -495,10 +495,13 @@ class TestBlankNonProseBlockLines:
     def test_blanks_a_block_level_html_comment(self):
         # Discrimination probe: a heading hidden inside a bare HTML comment
         # block must not survive, unlike blank_code_block_lines's behavior.
+        # Asserts the exact transformed text, not just "Accepted" absent: a
+        # mutant that blanks only the "Accepted" line while leaving the
+        # comment's own "## Status" line intact would still pass a
+        # substring-only check.
         text = "<!--\n## Status\nAccepted\n-->\n\n## Status\nProposed\n"
         out = blank_non_prose_block_lines(text)
-        assert "Accepted" not in out
-        assert "Proposed" in out
+        assert out.split("\n") == ["", "", "", "", "", "## Status", "Proposed", ""]
 
     def test_blank_code_block_lines_does_not_strip_the_same_comment(self):
         # Control proving the two functions genuinely differ: the same input
@@ -519,8 +522,11 @@ class TestBlankNonProseBlockLines:
     def test_keeps_inline_html_comment_on_a_prose_line(self):
         # Only a comment CommonMark segments as its own block is blanked;
         # one sharing a line with prose is not a separate html_block token.
+        # Asserts the whole line is untouched, not just that "prose"
+        # survives somewhere in it: a substring-only check would pass even
+        # if the inline comment or trailing text were dropped.
         text = "prose <!-- inline --> more prose\n"
-        assert "prose" in blank_non_prose_block_lines(text)
+        assert blank_non_prose_block_lines(text) == text
 
     def test_preserves_line_count(self):
         text = "a\n<!--\nb\nc\n-->\nd\n"

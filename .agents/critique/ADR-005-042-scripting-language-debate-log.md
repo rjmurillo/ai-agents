@@ -72,6 +72,20 @@ artifacts, and states why the citation is there.
 This is the one substantive edit to ADR-042's prose in this change. It adds a
 citation; it does not alter the decision.
 
+**Correction, `## Status` references above (PR #5209 round-10 review).** "The
+change" section and this section both describe ADR-005 and ADR-042 gaining a
+`## Status` section; the central-question section's item 2 describes that
+section's body as unchanged from what "already read `Accepted` at HEAD." All
+three are accurate for this change-set's own diff. A later round (commit
+`1615ffa40`) renamed the section this change-set added: ADR-005's `## Status`
+became `## Provenance`, and ADR-042's became `## Acceptance Evidence`, to stop
+the section restating what frontmatter already carries. That rename is a
+later round's edit on top of this one, not a correction to what is described
+here. Full detail is in
+`ADR-024-025-042-055-status-redundancy-debate-log.md`. Left unrewritten above
+for the same reason the batch-level log gives: the record shows what this
+change-set decided, and this note shows what changed after it.
+
 ## The precedent does not extend
 
 Six records carry `implemented: true` against `status: proposed`: ADR-075,

@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-# taste-lint: ignore file-size, 243 of the 537 lines are comments and
+# taste-lint: ignore file-size. A large share of the lines are comments and
 # docstrings: the four-violation-class module docstring, the per-function
 # rationale for each detection rule, and the RFC 3986 section 3.1/4.2
 # citations backing is_adr_target()'s scheme and network-path checks
 # (PR #5209 round-8 review). Logic alone is well under the ceiling; a split
-# would move prose between files rather than reduce anything.
+# would move prose between files rather than reduce anything. (Deliberately
+# no exact line count here: an earlier version cited "243 of the 537 lines"
+# and it went stale twice in the two review rounds right after it was
+# written, Copilot, PR #5209 round-10 review.)
 r"""Detect ADR markdown links that do not resolve or that name the wrong ADR number.
 
 Scans tracked markdown files for links whose target matches ``ADR-\d+.*\.md`` and
@@ -73,7 +76,16 @@ from stale_script_refs import HISTORICAL_ROOTS, load_allowlist  # noqa: E402
 
 DEFAULT_BASELINE = Path("scripts/validation/check_adr_links_baseline.txt")
 
-FENCE = re.compile(r"^\s*(?P<marker>`{3,}|~{3,})")
+# CommonMark caps fence indentation at three spaces
+# (spec.commonmark.org/0.31.2/#fenced-code-blocks, quoted verbatim): a fenced
+# code block "begins with a code fence, preceded by up to three spaces of
+# indentation", and the spec's own example 134 states "Four spaces of
+# indentation is too many". `\s*` (unbounded, and matching tabs) previously
+# let a four-space-indented ``` ` ``` ` line put the scanner into fence
+# mode, hiding a broken ADR link in the live prose that followed, since
+# CommonMark treats that line as indented-code content, not a fence opener
+# (Copilot, PR #5209 round-10 review).
+FENCE = re.compile(r"^ {0,3}(?P<marker>`{3,}|~{3,})")
 LINK = re.compile(r"\[(?P<text>[^\[\]\n]*)\]\((?P<dest>[^()\n]*)\)")
 UNTERMINATED = re.compile(r"\[(?P<text>[^\[\]\n]*)\]\((?P<dest>[^()\n]*)$")
 ADR_BASENAME = re.compile(r"^ADR-\d+.*\.md$", re.IGNORECASE)
@@ -191,10 +203,24 @@ def split_destination(raw: str) -> str:
 
     Drops an optional ``"title"`` suffix, surrounding angle brackets, and any
     ``#anchor``. Returns an empty string when nothing path-like remains.
+
+    The angle-bracket form is closed by its own ``>``, not by the end of the
+    string: ``[ADR-005](<./ADR-005-x.md> "Title")`` is valid CommonMark (a
+    pointy-bracket destination followed by a title), but ``dest`` here also
+    carries that trailing title text, so ``dest.endswith(">")`` was false and
+    the brackets were never stripped. The unstripped ``<./ADR-005-x.md>``
+    then failed ``is_adr_target()``'s ``ADR_BASENAME`` match (its basename
+    ends in ``>``, not ``.md``), so a broken or wrong-numbered link written
+    with this legal syntax was silently treated as a non-ADR destination and
+    never checked (Copilot, PR #5209 round-10 review). Finding the closing
+    ``>`` explicitly, rather than requiring it to be the last character,
+    fixes both the bracket-only and bracket-plus-title forms.
     """
     dest = raw.strip()
-    if dest.startswith("<") and dest.endswith(">"):
-        dest = dest[1:-1].strip()
+    if dest.startswith("<"):
+        end = dest.find(">")
+        if end != -1:
+            dest = dest[1:end].strip()
     if not dest:
         return ""
     path = dest.split()[0]
