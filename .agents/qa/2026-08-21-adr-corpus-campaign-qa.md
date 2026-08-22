@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 9f5df8d092baf5b2a977dfd06ca3b8c9dc2c98bb
+qaCommit: 9baa0a9fad1131b14ad203c016d5483025c30d61
 ---
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
@@ -639,3 +639,11 @@ conflict was in `tests/ci/test_validate_vendor_provenance.py`, resolved by
 keeping this branch's fuller fix; ADR-102's change to
 `.claude/lib/qa_report.py` only loosens the `session_qa_binding()` contract
 and invalidates none of this campaign's prior verification.
+
+
+## Addendum 12: rebound past the post-merge index regeneration
+
+**Rebound to** `9baa0a9fad1131b14ad203c016d5483025c30d61`.
+
+`.agents/architecture/README.md` needed regenerating after the Addendum 11
+merge; see Addendum 13 of `.agents/qa/session-5209-adr-review-fixes-stacked.md`.

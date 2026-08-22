@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 9f5df8d092baf5b2a977dfd06ca3b8c9dc2c98bb
+qaCommit: 9baa0a9fad1131b14ad203c016d5483025c30d61
 ---
 
 # QA: PR #5209 review-round fixes, carried on a stacked branch
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `9f5df8d092baf5b2a977dfd06ca3b8c9dc2c98bb` (see Addendum 12)
+**Validated at commit**: `9baa0a9fad1131b14ad203c016d5483025c30d61` (see Addendum 13)
 
 ## Verdict
 
@@ -455,3 +455,12 @@ The merge brought in dozens of non-evidence files from `origin/main`
 commit: `git diff <merge-commit>..HEAD` is empty at the moment this addendum
 lands, and this addendum's own commit touches only `.agents/qa/*.md`, an
 evidence path exempt from the staleness check.
+
+## Addendum 13: rebound past the post-merge index regeneration
+
+`pre_pr.py`'s Generated Artifact Staleness check caught that
+`.agents/architecture/README.md` had not been regenerated after the merge
+in Addendum 12 picked up ADR-099 and ADR-102. Regenerated with
+`build/scripts/build_all.py` (commit `9baa0a9fad1131b14ad203c016d5483025c30d61`);
+diff is exactly the two new ADR rows, nothing else. `.agents/architecture/README.md`
+is not an evidence path, so this rebinds `qaCommit` to that commit.
