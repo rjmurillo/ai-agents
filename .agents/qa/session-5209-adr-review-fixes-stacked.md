@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 1c6da1909c0f335c06e760fb31675cc6ca68add2
+qaCommit: 80ba38e0c39c111bb73c60246cf113e634aa124c
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -667,3 +667,21 @@ functions. Full detail in the matching correction above Addendum 17 of
 the campaign report.
 
 **Rebound to** `1c6da1909c0f335c06e760fb31675cc6ca68add2`.
+
+## Addendum 20: an eighth Copilot review round, five fixes across five files
+
+Two separate Copilot review submissions landed on the same commit
+(`ebcf4f52f`), 35 minutes apart, each with a different suppressed-findings
+list. This addendum is the second submission's six items: the
+`invoke_session_start_gate.py` canonical-source-mirror citation fix, the
+`check_adr_links.py` external-scheme regex fix (RFC 3986 section 3.1,
+was a fixed 4-scheme tuple that let `ssh://`/`git://` fall through as
+internal references), and an examined-count addition to the success and
+failure messages of `check_adr_links.py`, `check_adr_lifecycle.py`, and
+`generate_adr_index.py --check` (a bare "0 violation(s)"/"OK" cannot
+distinguish a completed scan from one that silently scanned a narrowed or
+emptied scope). Full detail in Addendum 18 of the campaign report. Four
+commits, seven files, all mutation-proven; 308 tests pass across the four
+touched suites; `ruff check` clean.
+
+**Rebound to** `80ba38e0c39c111bb73c60246cf113e634aa124c`.

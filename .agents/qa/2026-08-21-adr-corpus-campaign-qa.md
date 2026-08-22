@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 1c6da1909c0f335c06e760fb31675cc6ca68add2
+qaCommit: 80ba38e0c39c111bb73c60246cf113e634aa124c
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1122,3 +1122,66 @@ findings, investigated after the two corrections above landed:
   gate that can pass or fail incorrectly.
 
 **Rebound to** `1c6da1909c0f335c06e760fb31675cc6ca68add2`.
+
+## Addendum 18: an eighth Copilot review round, five fixes across five files
+
+Copilot posted two separate review submissions on the same commit
+(`ebcf4f52f`), 35 minutes apart, each listing a different "previously
+missed" suppressed-findings set. The first submission's items (duplicate-key
+rename, the Mirrors verbatim fix, the defect-list docstring, the ordinal
+correction, the cwd-guard scope, the empty-corpus guard, the four-backtick
+fence fix) are Addendum 17 above. This addendum covers the second
+submission's six items, confirmed genuinely unprocessed by cross-referencing
+both reviews' timestamps and bodies before starting:
+
+- **`invoke_session_start_gate.py`'s `check_session_log_gate()` docstring
+  asserted two "Mirrors" claims (AGENTS.md no longer lists a session log;
+  the pre-commit gate validate-if-present contract) without quoting either
+  source**, violating `.claude/rules/canonical-source-mirror.md`'s
+  character-for-character requirement. Added both quotes: `AGENTS.md`'s
+  Start row (`Init Serena|Read HANDOFF+latest issue handoff|Resume
+  check|Search mem|Verify git`, no session-log step named) and
+  `.claude/rules/session-logs.md` MUST 1's validate-if-present description
+  verbatim.
+- **`check_adr_links.py`'s external-link detection used a fixed
+  `("http://", "https://", "mailto:", "ftp://")` tuple**, so `ssh://`,
+  `git://`, and any other valid URI scheme fell through and were treated as
+  a (broken) internal ADR reference. Replaced with a regex derived from RFC
+  3986 section 3.1's scheme ABNF (`scheme = ALPHA *( ALPHA / DIGIT / "+" /
+  "-" / "." )`), plus a `path.startswith("//")` check for the
+  protocol-relative form RFC 3986 section 4.2 names a "network-path
+  reference." New parametrize cases for `ssh://`, `git://`, mixed-case
+  `SSH://`, and `//example.invalid/...`; mutation-proven by reverting to
+  the old tuple check, which fails all four.
+- **`check_adr_links.py`'s `validate_adr_links()` and `main()` both printed
+  a bare violation count**, so "0 violation(s)" against an existing but
+  emptied or narrowed markdown-file scope reads identically to a completed
+  scan of the full one. Added a `_scannable_files()` helper (duplicating
+  `find_broken_adr_links()`'s default-path candidate computation rather
+  than changing that function's return type, which 30+ existing call sites
+  depend on as `list[Finding]`) and an examined-file count in both
+  messages. Mutation-proven at both call sites.
+- **`check_adr_lifecycle.py`'s `run()` had the same gap** in its `[OK]`
+  (write-baseline) and `[PASS]` messages. `main()` already rejects a fully
+  empty corpus before `run()` runs (Addendum 17's empty-corpus guard), so
+  this closes the case that guard cannot: a narrowed-but-nonzero scope.
+  Read the record count once via `collect_records()`, separately from
+  `scan()`'s own internal call, since `scan()`'s `list[Violation]` return
+  type also has many existing dependents. Mutation-proven at both
+  messages.
+- **`generate_adr_index.py`'s `_run_check()` had the same gap** in its `OK`
+  message. Unlike the two fixes above, no duplicate read was needed:
+  `render_index()` already takes the record list as an argument rather
+  than recomputing it internally, so splitting the existing
+  `collect_records()`/`render_index()` call into two statements was free.
+  Mutation-proven.
+
+Four commits, seven files (five source, two tests), 5 new/modified test
+functions, all mutation-proven (fix reverted, target test fails for the
+stated reason, fix restored). Test counts: `check_adr_links` 92 (up from
+90, +2), `check_adr_lifecycle` 120 (up from 118, +2), `generate_adr_index`
+83 (up from 82, +1), `invoke_session_start_gate` unchanged at 13 (docstring
+only, no behavior change). All four suites together: 308 tests pass.
+`ruff check` clean across every touched file.
+
+**Rebound to** `80ba38e0c39c111bb73c60246cf113e634aa124c`.
