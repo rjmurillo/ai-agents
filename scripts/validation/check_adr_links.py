@@ -74,7 +74,16 @@ ADR_BASENAME = re.compile(r"^ADR-\d+.*\.md$", re.IGNORECASE)
 ADR_ANYWHERE = re.compile(r"ADR-\d+[^\s)]*\.md", re.IGNORECASE)
 TEXT_ADR_NUMBER = re.compile(r"\bADR[-\s]?(?P<number>\d{1,4})\b", re.IGNORECASE)
 FILE_ADR_NUMBER = re.compile(r"^ADR-(?P<number>\d+)", re.IGNORECASE)
-EXTERNAL_SCHEMES = ("http://", "https://", "mailto:", "ftp://")
+
+# RFC 3986 section 3.1's ABNF, quoted verbatim (rfc-editor.org/rfc/rfc3986#section-3.1):
+#   scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
+# A colon-terminated scheme this shape, not a fixed enumeration, marks a
+# destination as external: enumerating http/https/mailto/ftp missed ssh://,
+# git://, and every other valid scheme, so a link like
+# "ssh://host/ADR-005-x.md" reached ADR_BASENAME and was reported as a false
+# "unresolved" repository-relative target instead of being recognized as
+# external (Copilot, PR #5209 round-8 review).
+EXTERNAL_SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 
 # The four violation classes a baseline entry can name. Mirrors the literal
 # strings passed to Finding(kind=...) below (search this file for
@@ -189,15 +198,25 @@ def split_destination(raw: str) -> str:
 def is_adr_target(path: str) -> bool:
     """Return whether a link destination points at an ADR markdown file.
 
-    The scheme check lower-cases before comparing: URI schemes are
-    case-insensitive (RFC 3986 section 3.1), so ``HTTPS://example.test/ADR-005-x.md``
-    is an external link exactly like its lowercase spelling. Comparing the raw
-    string treated that variant as a repository-relative path instead, which
-    made an external, case-varied scheme link fail as an ``unresolved`` ADR
-    target: a false positive with no repository fix available (Copilot, PR
-    #5209).
+    External detection matches the RFC 3986 scheme shape (``EXTERNAL_SCHEME_RE``)
+    rather than enumerating specific schemes: an earlier version listed only
+    ``http://``, ``https://``, ``mailto:``, and ``ftp://``, so a destination
+    like ``ssh://host/ADR-005-x.md`` or ``git://host/ADR-005-x.md`` fell
+    through to the ADR-basename check below and was reported as an
+    ``unresolved`` repository-relative target: a false positive with no
+    repository fix available, since the target is genuinely external
+    (Copilot, PR #5209 round-8 review). The scheme regex's character class
+    already covers both cases, so ``HTTPS://example.test/ADR-005-x.md``
+    matches the same as its lowercase spelling without a separate
+    ``.lower()`` call.
+
+    A network-path reference (``//host/ADR-005-x.md``, RFC 3986 section 4.2:
+    "A relative reference that begins with two slash characters is termed a
+    network-path reference") is external for the same reason a scheme is: it
+    names a host, not a path in this repository. It is checked before the
+    scheme regex because it carries no scheme of its own.
     """
-    if not path or path.lower().startswith(EXTERNAL_SCHEMES):
+    if not path or path.startswith("//") or EXTERNAL_SCHEME_RE.match(path):
         return False
     basename = path.rsplit("/", 1)[-1]
     return bool(ADR_BASENAME.match(basename))
@@ -443,12 +462,35 @@ def find_broken_adr_links(
     return findings
 
 
+def _scannable_files(repo_root: Path) -> list[str]:
+    """Tracked markdown files a default-argument scan would examine.
+
+    Excludes ``HISTORICAL_ROOTS`` the same way ``find_broken_adr_links``'s
+    per-file loop does. Used only to report the examined-file count
+    alongside the violation count, so a narrowed or empty scan scope is not
+    indistinguishable from a completed one: an existing but empty
+    ``.agents/architecture`` corpus, or a ``git_ls_markdown`` regression that
+    only sees a handful of tracked files, would otherwise still print
+    "0 violation(s)" and read as a clean, complete pass (Copilot, PR #5209
+    round-8 review). ``find_broken_adr_links`` computes its own candidate set
+    internally, including the ``files``/``tracked`` overrides tests pass, so
+    this duplicates its default-path computation rather than changing its
+    return type, which 30+ existing call sites depend on as ``list[Finding]``.
+    """
+    tracked = git_ls_markdown(repo_root)
+    return [f for f in tracked if not is_historical_path(f.replace("\\", "/"))]
+
+
 def validate_adr_links(repo_root: Path) -> bool:
     """Print broken ADR links and return True when none are found."""
     findings = find_broken_adr_links(repo_root)
     for finding in findings:
         print(finding.format())
-    print(f"check_adr_links: {len(findings)} violation(s)")
+    examined = len(_scannable_files(repo_root))
+    print(
+        f"check_adr_links: {len(findings)} violation(s) across "
+        f"{examined} tracked markdown file(s)"
+    )
     return not findings
 
 
@@ -482,7 +524,11 @@ def main(argv: list[str] | None = None) -> int:
 
     for finding in findings:
         print(finding.format())
-    print(f"check_adr_links: {len(findings)} violation(s)")
+    examined = len(_scannable_files(repo_root))
+    print(
+        f"check_adr_links: {len(findings)} violation(s) across "
+        f"{examined} tracked markdown file(s)"
+    )
 
     return 1 if findings else 0
 

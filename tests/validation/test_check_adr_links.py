@@ -621,6 +621,17 @@ def test_split_destination(raw: str, expected: str) -> None:
         # ADR path (Copilot, PR #5209).
         ("HTTPS://example.invalid/ADR-005-x.md", False),
         ("Http://example.invalid/ADR-005-x.md", False),
+        # RFC 3986 section 3.1 defines "scheme" by shape (ALPHA followed by
+        # ALPHA/DIGIT/"+"/"-"/"."), not by enumeration; a scheme outside the
+        # old four-entry list must still be recognized as external rather
+        # than falling through to the ADR-basename check (Copilot, PR #5209
+        # round-8 review).
+        ("ssh://example.invalid/ADR-005-x.md", False),
+        ("git://example.invalid/ADR-005-x.md", False),
+        ("SSH://example.invalid/ADR-005-x.md", False),
+        # RFC 3986 section 4.2: a reference starting with two slashes is a
+        # network-path reference, naming a host, not a repository path.
+        ("//example.invalid/ADR-005-x.md", False),
     ],
 )
 def test_is_adr_target(path: str, expected: bool) -> None:
@@ -748,6 +759,35 @@ def test_main_returns_zero_when_the_tree_is_clean(tmp_path: Path, capsys) -> Non
 
     assert exit_code == 0
     assert "0 violation(s)" in capsys.readouterr().out
+
+
+def test_main_reports_the_examined_file_count(tmp_path: Path, capsys) -> None:
+    """A clean "0 violation(s)" must be distinguishable from an empty scan.
+
+    Without the examined count, a `git_ls_markdown` regression that only
+    sees a handful of tracked files (or an accidentally narrowed scope)
+    prints the identical success line as a complete scan of the real corpus
+    (Copilot, PR #5209 round-8 review).
+    """
+    write(tmp_path, "adr/ADR-005-x.md", "# target\n")
+    write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-x.md)\n")
+    _init_repo(tmp_path)
+
+    exit_code = main(["--repo-root", str(tmp_path), "--baseline", str(tmp_path / "none.txt")])
+
+    assert exit_code == 0
+    assert "0 violation(s) across 2 tracked markdown file(s)" in capsys.readouterr().out
+
+
+def test_validate_adr_links_reports_the_examined_file_count(tmp_path: Path, capsys) -> None:
+    write(tmp_path, "adr/ADR-005-x.md", "# target\n")
+    write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-x.md)\n")
+    _init_repo(tmp_path)
+
+    result = validate_adr_links(tmp_path)
+
+    assert result is True
+    assert "0 violation(s) across 2 tracked markdown file(s)" in capsys.readouterr().out
 
 
 def test_main_returns_one_when_a_link_is_broken(tmp_path: Path, capsys) -> None:
