@@ -210,8 +210,11 @@ _StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _n
 
 @dataclass(frozen=True, slots=True)
 class AdrRecord:
-    """One ADR reduced to its index row. ``status`` is ``None`` only for a record
-    with no frontmatter block, which routes it to Needs backfill unlabelled."""
+    """One ADR reduced to its index row. ``status`` is ``None`` for a record with
+    no frontmatter block, or one whose frontmatter omits the `status` key
+    entirely; both route to Needs backfill unlabelled. A `status` key present
+    but null, empty, or out of the ADR-073 enum is a distinct defect and raises
+    instead (see `_status_of`), rather than collapsing into the same `None`."""
 
     number: int
     adr_id: str
@@ -269,21 +272,38 @@ def parse_frontmatter(content: str, path: Path) -> tuple[dict[str, object] | Non
 
 
 def _status_of(frontmatter: dict[str, object], path: Path) -> str | None:
-    """Return the lower-cased status enum value, or ``None`` when unset.
+    """Return the lower-cased status enum value, or ``None`` when the key is
+    absent entirely.
 
     An out-of-enum value raises rather than defaulting: a defaulted status
-    printed in a current-state index reads exactly like a recorded one.
+    printed in a current-state index reads exactly like a recorded one. A
+    `status` key that IS present but null or empty is the same class of
+    defect, not the absent-key case: the author addressed the field and left
+    it broken, which is different from a record that has never been touched.
+    ``frontmatter.get("status")`` cannot tell those apart (both a missing key
+    and an explicit ``status: null`` return ``None``), so the presence check
+    below uses ``in`` first. Previously both collapsed to the same silent
+    ``None``, routing a record with partial, broken metadata into Needs
+    backfill exactly as if it had no schema at all (PR #5209 review).
     """
-    raw = frontmatter.get("status")
-    if raw is None:
+    if "status" not in frontmatter:
         return None
+    raw = frontmatter["status"]
+    if raw is None:
+        raise AdrIndexError(
+            f"frontmatter 'status' in {path.name} is present but null; omit the "
+            "key entirely if status has not been backfilled yet"
+        )
     if not isinstance(raw, str):
         raise AdrIndexError(
             f"frontmatter 'status' in {path.name} must be a string, got {type(raw).__name__}"
         )
     value = raw.strip().lower()
     if not value:
-        return None
+        raise AdrIndexError(
+            f"frontmatter 'status' in {path.name} is present but empty; omit the "
+            "key entirely if status has not been backfilled yet"
+        )
     if value not in _STATUS_ENUM:
         allowed = ", ".join(_STATUS_ENUM)
         raise AdrIndexError(
@@ -762,6 +782,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     adr_dir = _resolve(args.adr_dir)
     output_path = _resolve(args.output)
+
+    # .claude/rules/ci-scripts.md MUST 7: a script that resolves the repository
+    # root and then writes to it must confirm the caller's cwd sits inside that
+    # root before the first write. Relative --adr-dir/--output args are already
+    # anchored to _REPO_ROOT by _resolve() above, not to Path.cwd(); without this
+    # check, running the script from a different worktree (or via a symlink into
+    # this one) writes into _REPO_ROOT silently, with no signal that the write
+    # landed outside the caller's own checkout. Mirrors
+    # scripts/generate_third_party_notices.py:446-452 verbatim:
+    #   project_root = PROJECT_ROOT
+    #   if not Path.cwd().resolve().is_relative_to(project_root.resolve()):
+    #       print(f"ERROR: current directory is outside project root: {Path.cwd()}", ...)
+    #       return 2
+    if not Path.cwd().resolve().is_relative_to(_REPO_ROOT):
+        print(
+            f"Error: current directory is outside the repository root: {Path.cwd()}",
+            file=sys.stderr,
+        )
+        return 2
 
     if not adr_dir.is_dir():
         print(f"Error: ADR directory not found: {adr_dir}", file=sys.stderr)

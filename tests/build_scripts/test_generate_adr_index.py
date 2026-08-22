@@ -365,6 +365,59 @@ def test_out_of_enum_status_is_never_silently_dropped(tmp_path: Path) -> None:
         generate_adr_index.collect_records(directory)
 
 
+# Negative: a present-but-empty status is not the same defect as an absent key
+#
+# `frontmatter.get("status")` cannot distinguish "key absent" from "key present
+# as null", so both used to return `None` silently and route indistinguishably
+# from a record with zero frontmatter into Needs backfill (PR #5209 review).
+# An explicit `status: null` or `status: ""` means the author touched the
+# field and left it broken, which `_status_of` now raises on instead.
+
+
+def test_null_status_raises_instead_of_backfilling_silently(tmp_path: Path) -> None:
+    directory = tmp_path / "architecture"
+    _write_adr(
+        directory,
+        10,
+        "null-status",
+        frontmatter="id: ADR-010\nstatus: null\ndate: 2026-01-01\n",
+        body=_standard_body(10, "Null Status"),
+    )
+
+    with pytest.raises(generate_adr_index.AdrIndexError, match="present but null"):
+        generate_adr_index.collect_records(directory)
+
+
+def test_empty_string_status_raises_instead_of_backfilling_silently(tmp_path: Path) -> None:
+    directory = tmp_path / "architecture"
+    _write_adr(
+        directory,
+        10,
+        "empty-status",
+        frontmatter='id: ADR-010\nstatus: ""\ndate: 2026-01-01\n',
+        body=_standard_body(10, "Empty Status"),
+    )
+
+    with pytest.raises(generate_adr_index.AdrIndexError, match="present but empty"):
+        generate_adr_index.collect_records(directory)
+
+
+def test_absent_status_key_still_backfills_silently(tmp_path: Path) -> None:
+    """The one legitimate `None`: the key was never addressed at all."""
+    directory = tmp_path / "architecture"
+    _write_adr(
+        directory,
+        10,
+        "no-status-key",
+        frontmatter="id: ADR-010\ndate: 2026-01-01\n",
+        body=_standard_body(10, "No Status Key"),
+    )
+
+    (record,) = generate_adr_index.collect_records(directory)
+
+    assert record.status is None
+
+
 def test_record_without_an_h1_exits_non_zero_naming_the_file(tmp_path: Path, capsys) -> None:
     directory = tmp_path / "architecture"
     _write_adr(
@@ -726,6 +779,44 @@ def test_check_does_not_write_the_index(tmp_path: Path) -> None:
 
     generate_adr_index.main(["--adr-dir", str(directory), "--output", str(output), "--check"])
 
+    assert not output.exists()
+
+
+# CLI: worktree-identity guard (.claude/rules/ci-scripts.md MUST 7) -----------
+#
+# _resolve() anchors relative --adr-dir/--output to _REPO_ROOT (a module
+# constant derived from __file__), not to Path.cwd(). Every test above passes
+# absolute paths, so it never exercises that anchoring; these two pin the
+# guard that stops main() from writing into _REPO_ROOT when the caller's cwd
+# is somewhere else entirely.
+
+
+def test_cwd_inside_repo_root_permits_generation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    directory = tmp_path / "architecture"
+    _corpus(directory)
+    output = tmp_path / "README.md"
+    monkeypatch.chdir(generate_adr_index._REPO_ROOT)
+
+    exit_code = generate_adr_index.main(["--adr-dir", str(directory), "--output", str(output)])
+
+    assert exit_code == 0
+    assert output.exists()
+
+
+def test_cwd_outside_repo_root_is_a_config_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    directory = tmp_path / "architecture"
+    _corpus(directory)
+    output = tmp_path / "README.md"
+    monkeypatch.chdir(tmp_path)
+
+    exit_code = generate_adr_index.main(["--adr-dir", str(directory), "--output", str(output)])
+
+    assert exit_code == 2
+    assert "outside the repository root" in capsys.readouterr().err
     assert not output.exists()
 
 
