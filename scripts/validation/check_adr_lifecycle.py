@@ -913,6 +913,25 @@ def run(
         # unexpected cwd would otherwise write the baseline into that
         # __file__-derived checkout silently. So the check only fires when
         # repo_root_is_default is True.
+        #
+        # Re-raised (Copilot, PR #5209 round-9 review): "does not exempt
+        # explicit CLI targets," reading "running from worktree A with
+        # --repo-root pointing at worktree B can still overwrite B's
+        # baseline" as the cross-worktree write MUST 7 exists to prevent.
+        # It is not: MUST 7's own stated threat is a script's *implicit*
+        # resolution being silently redirected by state the caller cannot
+        # see, quoted verbatim from `.claude/rules/ci-scripts.md`: "a local
+        # `core.worktree` value or a `GIT_WORK_TREE` environment variable
+        # redirects it to a directory you are not standing in ... the
+        # redirection is always something a person or a tool set on
+        # purpose, which is exactly why a script that inherits it has no
+        # way to notice." A caller-typed `--repo-root` is the opposite of
+        # that: nothing is inherited or hidden, the target is exactly what
+        # was written on the command line. Worktree A/B is a possible
+        # *user* mistake, not an undetectable one, and no mechanism here
+        # could tell a mistaken B from an intentional one without breaking
+        # every test above that intentionally points --repo-root at an
+        # unrelated tmp_path fixture.
         if repo_root_is_default and not Path.cwd().resolve().is_relative_to(
             repo_root.resolve()
         ):
