@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: f3e8f7f0957a8424f25a7c096f4c486aa16d8f5f
+qaCommit: 7108a372ca4b6017db46b0f7de44452e42903c52
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -700,3 +700,22 @@ Merge commit `9f0e7d552d6a683c816f959fd894d3a009171905` on
 fix), so merging them back together conflicted only in these two QA
 reports' addenda tails and frontmatter; resolved by renumbering into one
 consecutive sequence. 305 tests passed.
+
+
+## Addendum 17: rebound past PR #5230's second review-round fixes
+
+**Rebound to** `7108a372ca4b6017db46b0f7de44452e42903c52`.
+
+These commits landed only on `claude/adr-5209-review-fixes` (PR #5230),
+not yet on this file's own `claude/adr-evaluation-tooling-6od8rd`
+(PR #5209); rebinding here reflects that both QA reports live in the
+same working tree on the branch this session validated, and
+`post_qa_code_changes()` walks ancestry from the current `HEAD`, not from
+either PR's own remote branch tip. Full detail in Addendum 18 of
+`.agents/qa/session-5209-adr-review-fixes-stacked.md`: a hidden HTML
+comment could forge an ADR status the same way a fenced code sample
+could (Addendum 9's fix blanked `fence`/`code_block` tokens, not
+`html_block`); two ellipsis placeholders where the canonical-source-mirror
+rule requires a verbatim quote; a stale per-reader detection rationale;
+and `_has_duplicate_top_level_keys` renamed to `_has_duplicate_keys` since
+it stopped being top-level-only. 355 tests passed.

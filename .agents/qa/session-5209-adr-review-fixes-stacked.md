@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: f3e8f7f0957a8424f25a7c096f4c486aa16d8f5f
+qaCommit: 7108a372ca4b6017db46b0f7de44452e42903c52
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -9,7 +9,7 @@ qaCommit: f3e8f7f0957a8424f25a7c096f4c486aa16d8f5f
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `f3e8f7f0957a8424f25a7c096f4c486aa16d8f5f` (see Addendum 17)
+**Validated at commit**: `7108a372ca4b6017db46b0f7de44452e42903c52` (see Addendum 18)
 
 ## Verdict
 
@@ -561,11 +561,15 @@ that branch, because `claude/adr-5209-review-fixes` (this branch, PR #5230)
 had continued to diverge with its own independent commits (addenda 12-14
 above) at the same time PR #5209's branch was fixing the identical class of
 problem independently (addenda 15-16). `git merge-tree --write-tree` against
-the two branch tips confirmed a real conflict, isolated to these two QA
-report files and `.agents/architecture/README.md`.
+the two branch tips predicted the merge would touch three files:
+`.agents/architecture/README.md` and these two QA reports. Only the two QA
+reports actually conflicted; the merge commit's own trailer (`9f0e7d5`)
+records conflict markers for exactly those two paths and none other.
 
-`README.md` auto-merged cleanly (one row each for ADR-099 and ADR-102, no
-duplicates). All the code files PR #5209's branch had already fixed
+`.agents/architecture/README.md` was one of the three files `merge-tree`
+flagged as touched by both sides, but it auto-merged cleanly (one row each
+for ADR-099 and ADR-102, no duplicates, no conflict markers). All the code
+files PR #5209's branch had already fixed
 (`build/scripts/build_all.py`, `build/scripts/generate_adr_index.py`,
 `scripts/validation/check_adr_links.py` and their tests) auto-merged with no
 conflicts. The two QA reports conflicted only in their frontmatter
@@ -591,3 +595,134 @@ uv run pytest tests/ci/test_validate_vendor_provenance.py \
 This addendum's own commit touches only `.agents/qa/*.md`, an evidence
 path, so `qaCommit` rebinds to that commit rather than to the merge commit
 itself.
+
+## Addendum 18: a review round on the merged head, seven findings
+
+Copilot reviewed the post-merge head (`7f3dee78d`, the same commit Addendum 9's
+round reviewed, re-scanned after the merge landed). Seven findings, six code
+and one description staleness. Each was reproduced before editing.
+
+### A hidden HTML comment could forge a status the same way a fenced sample could
+
+Addendum 9's fenced-sample fix blanked CommonMark code-block lines
+(`fence`/`code_block` tokens) before searching for `## Status`, but left
+`html_block` tokens untouched. A status hidden inside a bare HTML comment
+(`<!--\n## Status\nAccepted\n-->`) still won the first-match search over a real
+`## Status` section further down. Verified empirically:
+`_create_parser().parse()` tokenizes that block as its own `html_block`,
+distinct from `fence`/`code_block`, confirming the helper's token filter
+missed it by construction rather than by accident. Fixed by adding
+`blank_non_prose_block_lines` (`scripts/utils/markdown_parser.py`), extending
+the existing helper's token set with `html_block`, and switching
+`check_adr_lifecycle.py:_status_prose` to it. Mutation-proven: reverting to the
+code-only blanker fails exactly the new discriminating test
+(`test_a_status_heading_inside_an_html_comment_is_not_the_records_status`) and
+nothing else in the 114-test file.
+
+### Two ellipsis placeholders where the canonical-source-mirror rule requires a verbatim quote
+
+`check_adr_lifecycle.py:272` and `.claude/skills/adr-review/scripts/detect_adr_changes.py:151`
+each quoted `build/scripts/generate_adr_index.py`'s duplicate-key error as
+`raise ...` instead of the real expression,
+`raise _DuplicateKeyError(f"duplicate key {key!r} in frontmatter mapping")`.
+`canonical-source-mirror.md` requires the quote be exact so the mirror claim is
+auditable; an ellipsis is not a citation. Both fixed to the verbatim line. A
+third copy of the same ellipsis, in the generated Copilot mirror
+(`src/copilot-cli/skills/adr-review/scripts/detect_adr_changes.py:144`), is
+fixed by the same edit to the canonical `.claude/` source: the two files are
+byte-identical at this function (confirmed with `diff`), so there is one
+source location, not three.
+
+### A rationale paragraph left describing a design this same PR had already replaced
+
+`generate_adr_index.py:158`'s intro paragraph still described
+`detect_adr_changes.py`'s duplicate-key helper as using "a line scan" against
+this file's own parser-level hook, a distinction Addendum 9 had already
+erased when it rewrote that helper to hook the parser too. Rewritten to
+describe the current agreement: both readers detect at the parser and neither
+is fooled by quoting or comments.
+
+### A helper name that stated a scope its own behavior no longer had
+
+`_has_duplicate_top_level_keys` in both `detect_adr_changes.py` trees
+detects duplicates at every mapping depth since Addendum 9's rewrite (the
+PyYAML constructor it hooks fires for every mapping node, not only the
+top-level one), so "top_level" misstated the contract and invited a caller to
+add a second, redundant nested-key guard believing this one did not cover it.
+Renamed to `_has_duplicate_keys` across both shipped trees, their docstrings,
+and `tests/skills/adr-review/test_detect_adr_changes_duplicate_keys.py`.
+
+### The PR description described a diff that no longer existed
+
+Between this round's review and its fix, both branches merged `origin/main`
+and each other (Addendum 17), collapsing PR #5230's diff from the 108/168-file
+figures the description quoted down to the two QA evidence files in this
+PR's actual diff against its current base. The description's "Why the file
+count is large", "Files changed", and commit-ceiling sections were rewritten
+to describe the current 2-file diff rather than a snapshot that predated the
+merge; the earlier 108-vs-54 breakdown is not reproduced because re-deriving
+stale numbers against a since-moved base would be worse than removing the
+claim.
+
+Rewriting the description's own body created a new instance of the same
+class of defect it had just fixed: a `## Changes` heading described several
+already-merged historical fixes by filename
+(`build/scripts/generate_adr_index.py`, `detect_adr_changes.py`,
+`scripts/utils/markdown_parser.py`, `.agents/architecture/ADR-TEMPLATE.md`),
+none of which are in this PR's current 2-file diff. `scripts/validation/pr_description.py`'s
+own `extract_mentioned_files` treats a heading named `## Changes` as a
+change-claim section and holds every file path under it to a diff-presence
+check. Caught before submitting by importing that function directly and
+running it against the draft; the fix was renaming the heading to
+`## Background`, one of `_CONTEXTUAL_SECTION_NAMES`'s exact-match entries,
+which `extract_mentioned_files` strips entirely before extraction. Re-running
+the extractor against the final saved file confirmed only the two real diff
+files remain in the extracted set.
+
+### An audit trail that named a wider conflict than the merge actually recorded
+
+Addendum 17, above, described `git merge-tree --write-tree`'s prediction (three
+touched files: the two QA reports and `.agents/architecture/README.md`) as "a
+real conflict" spanning all three, then in the next sentence said `README.md`
+"auto-merged cleanly", an internal contradiction Copilot caught. The merge
+commit's own trailer (`9f0e7d552d6a683c816f959fd894d3a009171905`) is the
+ground truth: `git show 9f0e7d552 -s --format=%B` lists conflict markers for
+exactly `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md` and
+`.agents/qa/session-5209-adr-review-fixes-stacked.md`, and no others.
+`README.md` was touched by both sides and predicted as a merge candidate, but
+never actually conflicted. Addendum 17's wording above is corrected in place
+to distinguish "flagged as touched by both sides" from "actually conflicted",
+rather than adding a further addendum that would just restate the same three
+sentences with the word "conflict" removed.
+
+Full targeted suite after all six code fixes:
+
+```
+uv run pytest tests/validation/test_check_adr_lifecycle.py \
+  tests/build_scripts/test_generate_adr_index.py \
+  tests/skills/adr-review/ \
+  tests/test_markdown_parser.py \
+  .claude/skills/adr-review/tests/ -q
+355 passed
+```
+
+The six code fixes above landed as four atomic commits (each five files
+or fewer per `universal.md` MUST-6), not one: `700912b84` (the
+`blank_non_prose_block_lines` helper and its tests), `3a7eaff2d`
+(`check_adr_lifecycle.py`'s switch to it, plus its own ellipsis fix),
+`f424e5bb3` (the stale-rationale docstring correction), and `7108a372c`
+(the rename and its mirrored ellipsis fix, across both shipped trees and
+the test). `git status --short | wc -l` before the first of the four was
+8, over the 5-file atomic-commit ceiling for one commit; split by file
+group instead of using the branch-scope bypass, since these six fixes
+naturally decompose into four independent units.
+
+`7108a372c` is the last of the four and is itself a non-evidence commit,
+so it is not the rebind target. This addendum's own commit, immediately
+following, touches only `.agents/qa/session-5209-adr-review-fixes-stacked.md`
+(this file), an evidence path, so `qaCommit` rebinds to `7108a372c`
+(the last non-evidence commit that precedes it) rather than to this
+addendum's own SHA: `post_qa_code_changes()` walks `commit..head` for
+non-evidence paths, so binding to any commit at or after the last
+non-evidence change satisfies it, and `7108a372c` is already known at the
+time this text is written, unlike this commit's own not-yet-assigned SHA.
