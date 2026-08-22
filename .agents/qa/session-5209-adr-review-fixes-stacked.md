@@ -1,14 +1,21 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 92304f8231a2de5977820f73d63452999b21b60f
+qaCommit: 853b61fad7b09b6887c4c13e2cda92ff8f3f5922
 ---
+<!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
+
 
 # QA: PR #5209 review-round fixes, carried on a stacked branch
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `92304f8231a2de5977820f73d63452999b21b60f` (see Addendum 13)
+**Validated at commit**: `853b61fad7b09b6887c4c13e2cda92ff8f3f5922` (see Addendum 14)
+
+This copy lives on `claude/adr-evaluation-tooling-6od8rd` itself (merged in
+earlier), not on the stacked branch its own header names. Addendum 14's
+rebind reflects this branch's own head, per the same reasoning as Addendum
+12's rebind above.
 
 ## Verdict
 
@@ -481,3 +488,22 @@ Full `pre_pr.py` run after both fixes: 58 of 59 passed, the one failure
 being this addendum's own not-yet-rebound `qaCommit` (the exact staleness
 this addendum resolves). `qaCommit` rebinds to
 `92304f8231a2de5977820f73d63452999b21b60f`.
+
+
+## Addendum 14: a Copilot review round on PR #5209's own head, eight findings
+
+**Rebound to** `853b61fad7b09b6887c4c13e2cda92ff8f3f5922`.
+
+Full detail in Addendum 12 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`:
+eight findings, all fixed. `_status_prose` swallowed a markdown parse
+failure into "no status section" instead of reporting it as a violation;
+`implemented-implies-decided` blocked a pattern (`status: proposed` with
+`implemented: true`) that ADR-073's own schema and ADR-098's prose both
+call deliberate, and is removed; ADR-055's `implemented: false` made the
+same conflation on a live record with 111 of 132 jobs already migrated,
+and is set to `true`; a query-recipe docstring in `generate_adr_index.py`
+had the absent-vs-unterminated-frontmatter behavior backwards, verified
+by execution and corrected; ADR-024's Provenance line conflated PR
+numbers with commit identifiers; two absolute "no hook was bypassed"
+claims (session log, campaign QA file) are corrected to the accurate
+scope. 316 tests pass.
