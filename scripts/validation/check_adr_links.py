@@ -88,8 +88,19 @@ class Finding:
     detail: str = ""
 
     def key(self) -> str:
-        """Return the line-independent baseline key for this finding."""
-        return f"{self.file}:{self.target}"
+        """Return the line-independent baseline key for this finding.
+
+        Includes ``kind``: a key of bare ``file:target`` conflates every
+        violation class that can name the same (file, target) pair. An
+        existing ``unresolved`` allowance for one link would also hide a
+        newly introduced ``number-mismatch`` on the identical file and
+        target if only the link text's cited number changed, since that new
+        finding shares the same file and target as the baselined one (PR
+        #5209 review, discussion_r3831835196). Verified against the live
+        corpus: three of this baseline's twenty entries are ``absolute``, not
+        ``unresolved``, so the conflation was not hypothetical.
+        """
+        return f"{self.kind}:{self.file}:{self.target}"
 
     def format(self) -> str:
         """Return the human and machine readable finding line."""

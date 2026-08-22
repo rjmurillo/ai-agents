@@ -1,9 +1,16 @@
 # Known broken ADR links that this gate reports but does not block on.
 #
-# Each entry is <file>:<target>, keyed without a line number so an unrelated
-# edit above the link does not invalidate the entry. Every entry is a real
-# defect. They are recorded rather than fixed because issue #5197 scoped the
-# repair to the ADR corpus and these live in files owned elsewhere.
+# Each entry is <kind>:<file>:<target>, keyed without a line number so an
+# unrelated edit above the link does not invalidate the entry. kind is
+# required: a bare <file>:<target> key conflates every violation class that
+# can name the same pair, so an allowance for one kind (say, unresolved)
+# would also silently hide a different, newly introduced kind (say,
+# number-mismatch) on the identical file and target (PR #5209 review,
+# discussion_r3831835196). Three of the twenty entries below are `absolute`,
+# not `unresolved`, which is exactly the mixed baseline that check was
+# written against. Every entry is a real defect. They are recorded rather
+# than fixed because issue #5197 scoped the repair to the ADR corpus and
+# these live in files owned elsewhere.
 #
 # Remove an entry when its link is repaired. MUST NOT add an entry to clear a
 # link the current change introduced (.claude/rules/ci-scripts.md MUST NOT 4
@@ -20,43 +27,43 @@
 # Sessions 86 to 90 in .agents/archive/sessions/ are the ADR-017 debate. The
 # reference is left in place rather than deleted or invented; the owner decides
 # whether to locate the artifact or replace the citation with prose.
-.agents/architecture/ADR-021-model-routing-strategy.md:../critique/ADR-019-debate-log.md
+unresolved:.agents/architecture/ADR-021-model-routing-strategy.md:../critique/ADR-019-debate-log.md
 
 # .agents/architecture/reviews/ is a review archive, not one of the roots
 # stale_script_refs.py exempts. Every target is written repo-root-relative with
 # a leading ./, which resolves under .agents/architecture/reviews/ instead.
-.agents/architecture/reviews/ADR-041-codeql-integration-REVIEW.md:./.agents/architecture/ADR-005-powershell-only-scripting.md
-.agents/architecture/reviews/ADR-041-codeql-integration-REVIEW.md:./.agents/architecture/ADR-006-thin-workflows-testable-modules.md
-.agents/architecture/reviews/ADR-041-codeql-integration-REVIEW.md:./.agents/architecture/ADR-035-exit-code-standardization.md
-.agents/architecture/reviews/ADR-041-codeql-integration-REVIEW.md:./.agents/architecture/ADR-041-codeql-integration.md
+unresolved:.agents/architecture/reviews/ADR-041-codeql-integration-REVIEW.md:./.agents/architecture/ADR-005-powershell-only-scripting.md
+unresolved:.agents/architecture/reviews/ADR-041-codeql-integration-REVIEW.md:./.agents/architecture/ADR-006-thin-workflows-testable-modules.md
+unresolved:.agents/architecture/reviews/ADR-041-codeql-integration-REVIEW.md:./.agents/architecture/ADR-035-exit-code-standardization.md
+unresolved:.agents/architecture/reviews/ADR-041-codeql-integration-REVIEW.md:./.agents/architecture/ADR-041-codeql-integration.md
 
 # Repo-root-relative targets written without the leading ../ hops needed from
 # the containing directory.
-.agents/audit/pr-req003-body.md:.agents/architecture/ADR-006-thin-workflows-testable-modules.md
-.agents/audit/pr-req003-body.md:.agents/critique/ADR-006-amendment-2026-04-28-debate-log.md
-.agents/metrics/workflow-coalescing.md:.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md
-scripts/eval/README.md:.agents/architecture/ADR-023-quality-gate-prompt-testing.md
-scripts/eval/README.md:.agents/architecture/ADR-057-prompt-behavioral-evaluation.md
+unresolved:.agents/audit/pr-req003-body.md:.agents/architecture/ADR-006-thin-workflows-testable-modules.md
+unresolved:.agents/audit/pr-req003-body.md:.agents/critique/ADR-006-amendment-2026-04-28-debate-log.md
+unresolved:.agents/metrics/workflow-coalescing.md:.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md
+unresolved:scripts/eval/README.md:.agents/architecture/ADR-023-quality-gate-prompt-testing.md
+unresolved:scripts/eval/README.md:.agents/architecture/ADR-057-prompt-behavioral-evaluation.md
 
 # Stale slugs. ADR-006 is ADR-006-thin-workflows-testable-modules.md and
 # ADR-042 is ADR-042-python-migration-strategy.md.
-.agents/guides/python-cicd-patterns.md:../architecture/ADR-006-thin-workflows.md
-.agents/security/benchmarks/README.md:../../architecture/ADR-042-python-first.md
+unresolved:.agents/guides/python-cicd-patterns.md:../architecture/ADR-006-thin-workflows.md
+unresolved:.agents/security/benchmarks/README.md:../../architecture/ADR-042-python-first.md
 
 # Leading-slash targets. GitHub resolves a leading slash against the site root,
 # not the blob tree, so these render broken. ADR-037 is also a stale slug:
 # the file is ADR-037-memory-router-implementation.md.
-.agents/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md:/.agents/architecture/ADR-007-memory-first-architecture.md
-.agents/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md:/.agents/architecture/ADR-037-memory-router-architecture.md
-docs/search-dont-load.md:/.agents/architecture/ADR-007-memory-first-architecture.md
+absolute:.agents/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md:/.agents/architecture/ADR-007-memory-first-architecture.md
+absolute:.agents/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md:/.agents/architecture/ADR-037-memory-router-architecture.md
+absolute:docs/search-dont-load.md:/.agents/architecture/ADR-007-memory-first-architecture.md
 
 # One ../ hop short: the skill sits three levels below the repository root.
 # The copilot-cli copy is generated from the .claude source, so repairing the
 # .claude file and regenerating fixes both.
-.claude/skills/memory-enhancement/SKILL.md:../../.agents/architecture/ADR-007-memory-first-architecture.md
-.claude/skills/memory-enhancement/SKILL.md:../../.agents/architecture/ADR-038-reflexion-memory-schema.md
-src/copilot-cli/skills/memory-enhancement/SKILL.md:../../.agents/architecture/ADR-007-memory-first-architecture.md
-src/copilot-cli/skills/memory-enhancement/SKILL.md:../../.agents/architecture/ADR-038-reflexion-memory-schema.md
+unresolved:.claude/skills/memory-enhancement/SKILL.md:../../.agents/architecture/ADR-007-memory-first-architecture.md
+unresolved:.claude/skills/memory-enhancement/SKILL.md:../../.agents/architecture/ADR-038-reflexion-memory-schema.md
+unresolved:src/copilot-cli/skills/memory-enhancement/SKILL.md:../../.agents/architecture/ADR-007-memory-first-architecture.md
+unresolved:src/copilot-cli/skills/memory-enhancement/SKILL.md:../../.agents/architecture/ADR-038-reflexion-memory-schema.md
 
 # Missing the leading dot: the directory is .agents/, not agents/.
-templates/AGENTS.md:../agents/architecture/ADR-036-two-source-agent-template-architecture.md
+unresolved:templates/AGENTS.md:../agents/architecture/ADR-036-two-source-agent-template-architecture.md

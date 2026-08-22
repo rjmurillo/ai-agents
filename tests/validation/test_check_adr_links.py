@@ -362,7 +362,7 @@ def test_missing_file_on_disk_yields_no_findings(tmp_path: Path) -> None:
 
 def test_baseline_entry_suppresses_the_matching_finding(tmp_path: Path) -> None:
     doc = write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
-    key = "adr/index.md:ADR-005-gone.md"
+    key = "unresolved:adr/index.md:ADR-005-gone.md"
 
     assert find_broken_adr_links(tmp_path, files=[doc], baseline={key}, tracked=frozenset()) == []
 
@@ -386,11 +386,37 @@ def test_baseline_does_not_suppress_a_different_target_in_the_same_file(tmp_path
         "adr/index.md",
         "[ADR-005](ADR-005-gone.md)\n[ADR-006](ADR-006-gone.md)\n",
     )
-    baseline = {"adr/index.md:ADR-005-gone.md"}
+    baseline = {"unresolved:adr/index.md:ADR-005-gone.md"}
 
     findings = find_broken_adr_links(tmp_path, files=[doc], baseline=baseline, tracked=frozenset())
 
     assert [finding.target for finding in findings] == ["ADR-006-gone.md"]
+
+
+def test_baseline_does_not_suppress_a_different_kind_on_the_same_pair(tmp_path: Path) -> None:
+    """The exact conflation the review named: kind must be part of the key.
+
+    An ``unresolved`` allowance for one (file, target) pair must not also
+    hide a ``number-mismatch`` that names the identical pair, or a baseline
+    entry silently widens from "this specific known-broken link" to "any
+    finding, of any kind, on this path" (PR #5209 review,
+    discussion_r3831835196).
+    """
+    doc = write(
+        tmp_path,
+        "adr/index.md",
+        "[ADR-032](./ADR-035-exit-code-standardization.md)\n",
+    )
+    baseline = {"unresolved:adr/index.md:./ADR-035-exit-code-standardization.md"}
+
+    findings = find_broken_adr_links(
+        tmp_path,
+        files=[doc],
+        baseline=baseline,
+        tracked=frozenset({"adr/ADR-035-exit-code-standardization.md"}),
+    )
+
+    assert kinds(findings) == ["number-mismatch"]
 
 
 # Helper units
@@ -453,7 +479,7 @@ def test_finding_format_includes_kind_and_detail() -> None:
     finding = Finding("a.md", 7, "unresolved", "ADR-005-x.md")
 
     assert finding.format() == "a.md:7: unresolved: ADR-005-x.md"
-    assert finding.key() == "a.md:ADR-005-x.md"
+    assert finding.key() == "unresolved:a.md:ADR-005-x.md"
 
 
 def test_finding_format_appends_detail_when_present() -> None:
@@ -524,7 +550,7 @@ def test_main_returns_one_when_a_link_is_broken(tmp_path: Path, capsys) -> None:
 def test_main_honors_a_baseline_file(tmp_path: Path) -> None:
     write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
     baseline = tmp_path / "baseline.txt"
-    baseline.write_text("# reason\nadr/index.md:ADR-005-gone.md\n", encoding="utf-8")
+    baseline.write_text("# reason\nunresolved:adr/index.md:ADR-005-gone.md\n", encoding="utf-8")
     _init_repo(tmp_path)
 
     assert main(["--repo-root", str(tmp_path), "--baseline", str(baseline)]) == 0
@@ -532,7 +558,9 @@ def test_main_honors_a_baseline_file(tmp_path: Path) -> None:
 
 def test_main_resolves_a_relative_baseline_against_the_repo_root(tmp_path: Path) -> None:
     write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
-    (tmp_path / "baseline.txt").write_text("adr/index.md:ADR-005-gone.md\n", encoding="utf-8")
+    (tmp_path / "baseline.txt").write_text(
+        "unresolved:adr/index.md:ADR-005-gone.md\n", encoding="utf-8"
+    )
     _init_repo(tmp_path)
 
     assert main(["--repo-root", str(tmp_path), "--baseline", "baseline.txt"]) == 0
