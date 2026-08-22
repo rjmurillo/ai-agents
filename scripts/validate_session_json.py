@@ -965,6 +965,16 @@ def validate_qa_report_evidence(
             session_log=session_log,
             resolve_commit=_resolve_full_commit,
         )
+        # ADR-102: the session log's two commit fields are allowed to
+        # disagree. The equality this replaces would have forced a hand-sync
+        # repair for exactly this drift (PR #4954 documented the pattern,
+        # never fixed by a commit), not the "naturally independent" pattern
+        # an earlier draft assumed. Report the drift and carry on; warnings
+        # do not affect validity
+        # (scripts/validation/models.py). Appended before the report is
+        # validated so the observation survives an unrelated failure below.
+        if binding.inconsistency is not None:
+            result.warnings.append(binding.inconsistency)
         # ADR-096: `head` is required for staleness checking. Prefer an
         # explicitly resolved live-HEAD validation head, which catches
         # staleness from commits after the session's own recorded end
