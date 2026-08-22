@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 7108a372ca4b6017db46b0f7de44452e42903c52
+qaCommit: db398cb4cabdfe1d114130eff627c01e59b99413
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -9,7 +9,7 @@ qaCommit: 7108a372ca4b6017db46b0f7de44452e42903c52
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `7108a372ca4b6017db46b0f7de44452e42903c52` (see Addendum 18)
+**Validated at commit**: `db398cb4cabdfe1d114130eff627c01e59b99413` (see Addendum 19)
 
 ## Verdict
 
@@ -726,3 +726,34 @@ addendum's own SHA: `post_qa_code_changes()` walks `commit..head` for
 non-evidence paths, so binding to any commit at or after the last
 non-evidence change satisfies it, and `7108a372c` is already known at the
 time this text is written, unlike this commit's own not-yet-assigned SHA.
+
+## Addendum 19: the rename docstring itself tripped the ratchet it was fixing
+
+`git push` failed on the whole-tree taste-count ratchet (`ci-scripts.md`
+MUST 15): 577 violations against `origin/main`'s baseline of 576.
+`7108a372c`'s longer docstring pushed
+`.claude/skills/adr-review/scripts/detect_adr_changes.py` from 498 lines
+(a warning-level "approaching size limit") to 504 (the 500-line
+error-level `file-size` threshold), and the whole-tree ratchet counts
+errors, not warnings. Confirmed the exact cause by running
+`taste_lints.py` against the file's pre- and post-rename content
+directly, isolating the single new violation from the file's two
+pre-existing ones (both unchanged: the same `_extract_table` and
+`parse_sections` complexity findings this file already carried before
+this round).
+
+Fixed in `db398cb4c` by condensing the quoted-spelling illustration from
+an 8-line indented table to one inline sentence (same four spellings,
+same citation), back to 499 lines in both trees (confirmed byte-identical
+via `diff`). `taste_count_ratchet.py`: OK (count == baseline 576).
+`merge-tree-ratchet` against `origin/main`: OK, all four registered
+ratchets pass.
+
+`db398cb4c` is itself a non-evidence commit (touches both
+`detect_adr_changes.py` trees), landing after the `qaCommit` rebind two
+paragraphs above. `qaCommit` rebinds again, to `db398cb4c`, for the same
+reason stated there: it is the last non-evidence commit, known before
+this text is written.
+
+Full targeted suite unchanged at 355 passed; the fix only shortened a
+docstring comment, no code paths moved.

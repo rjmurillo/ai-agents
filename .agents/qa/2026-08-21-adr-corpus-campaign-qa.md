@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 7108a372ca4b6017db46b0f7de44452e42903c52
+qaCommit: db398cb4cabdfe1d114130eff627c01e59b99413
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -719,3 +719,17 @@ could (Addendum 9's fix blanked `fence`/`code_block` tokens, not
 rule requires a verbatim quote; a stale per-reader detection rationale;
 and `_has_duplicate_top_level_keys` renamed to `_has_duplicate_keys` since
 it stopped being top-level-only. 355 tests passed.
+
+
+## Addendum 18: rebound past a self-inflicted taste-count ratchet trip
+
+**Rebound to** `db398cb4cabdfe1d114130eff627c01e59b99413`.
+
+The rename commit's own docstring addition tripped the whole-tree
+taste-count ratchet it had nothing to do with fixing: it pushed
+`detect_adr_changes.py` from 498 lines (warning) to 504 (the 500-line
+error threshold). Full detail in Addendum 19 of
+`.agents/qa/session-5209-adr-review-fixes-stacked.md`: fixed by
+condensing the docstring's quoted-spelling illustration, back to 499
+lines in both trees. `taste_count_ratchet.py`: OK (count == baseline
+576). 355 tests passed, unchanged.
