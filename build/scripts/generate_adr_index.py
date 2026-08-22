@@ -227,9 +227,22 @@ def parse_frontmatter(content: str, path: Path) -> tuple[dict[str, object] | Non
     lines. ADR-068 and ADR-085 open their block with the YAML comment
     ``# taste-lint: ignore file-size, ...``, which a whole-file H1 search reads as
     the title.
+
+    An opened-but-unterminated block (starts with ``---``, no closing ``---``
+    fence) is a distinct defect from a genuinely absent one, and
+    ``_FRONTMATTER_RE`` cannot match either without the closing fence, so it
+    collapses both to ``None``. Left uncorrected, that routes a record with
+    malformed lifecycle metadata into Needs backfill exactly as if it had
+    never carried a schema at all, silently rather than as a defect an author
+    would see (PR #5209 review, discussion_r3832255493).
     """
     match = _FRONTMATTER_RE.match(content)
     if match is None:
+        if content.startswith("---"):
+            raise AdrIndexError(
+                f"{path.name} opens with '---' but has no closing '---' fence; "
+                "the frontmatter block is unterminated"
+            )
         return None, content
     body = match.group(2)
     try:
@@ -601,6 +614,13 @@ _INTRO = (
     "frontmatter is invisible to every frontmatter query, so a count answers for the\n"
     "records that have it while appearing to answer for all of them. The Needs\n"
     "backfill section below is the honest denominator, and issue #5190 closes it.\n\n"
+    "**This snippet cannot tell absent from unterminated.** `text.startswith('---')`\n"
+    "is false for a record with no schema and also false for one whose opening\n"
+    "`---` fence never closes, so both `continue` here identically. The real\n"
+    "generator does not: `parse_frontmatter` raises on an unterminated block\n"
+    "instead of silently placing it in Needs backfill, because a malformed\n"
+    "schema is an author's defect to see, not a record to drop quietly. Run the\n"
+    "gate rather than this snippet when that distinction matters.\n\n"
 )
 
 # Heading order and the one-line orientation under each. Every heading renders

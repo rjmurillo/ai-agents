@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 2cc0faa83d63586f0a380fcfa26f2a72d09be5ed
+qaCommit: 92304f8231a2de5977820f73d63452999b21b60f
 ---
 
 # QA: PR #5209 review-round fixes, carried on a stacked branch
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `2cc0faa83d63586f0a380fcfa26f2a72d09be5ed` (see Addendum 14)
+**Validated at commit**: `92304f8231a2de5977820f73d63452999b21b60f` (see Addendum 17)
 
 ## Verdict
 
@@ -481,3 +481,74 @@ Trimmed three redundant phrases without dropping any referenced fact
 merge-resolver, already named as an agent elsewhere): 2984 bytes.
 Verified both budget tests pass. `qaCommit` rebinds to
 `2cc0faa83d63586f0a380fcfa26f2a72d09be5ed`.
+
+## Addendum 15: PR #5209's own branch independently merged `origin/main`, closing its "dirty" state
+
+Addenda 12 through 14 above happened on `claude/adr-5209-review-fixes`. In
+parallel, `claude/adr-evaluation-tooling-6od8rd` (PR #5209 itself) needed the
+same class of fix, worked independently rather than by fast-forwarding this
+branch's commits into it (the two branches had already diverged since the
+`d709cad6b` merge that first pulled this branch's fixes into PR #5209).
+
+PR #5209's branch had fallen behind `origin/main` again (GitHub reported
+`mergeable_state: "dirty"`), and separately carried one already-drafted fix
+that had never been committed (`build/scripts/build_all.py`'s ADR-index
+silent-skip removal, verified 90/90 passing, mutation-proven by reverting
+the fix and confirming exactly the two new tests fail).
+
+Committed that fix (`75a82f209`, `SKIP_SCOPE_CHECK=1` used with explicit
+user approval: the branch already carries `needs-split` and
+`commit-limit-bypass` for the same stacked-PR bookkeeping overhead, and this
+commit's 2 files pushed the branch to 51/50), then merged `origin/main`
+(`5056dec46`, also under the approved bypass, since the merge itself brings
+in many more files from main). The only real conflict was, again,
+`tests/ci/test_validate_vendor_provenance.py`; resolved by taking the
+identical fuller resolution already landed on `claude/adr-5209-review-fixes`
+(compiled `_SETUP_UV_PIN_RE`, the two-source docstring, the separate
+discrimination-probe test) rather than re-deriving it. Verified no conflict
+markers remain and the file passes standalone (51 passed).
+
+`build/scripts/build_all.py --check` then caught the expected post-merge ADR
+index drift (ADR-102 not yet reflected); regenerated (`986ab2641`, diff is
+exactly the one new ADR-102 row; ADR-099 was already present from an earlier
+merge on this branch).
+
+Re-ran the full targeted suite after both commits:
+
+```
+uv run pytest tests/ci/test_validate_vendor_provenance.py \
+  tests/validation/test_check_adr_links.py \
+  tests/build_scripts/test_generate_adr_index.py \
+  tests/build_scripts/test_build_all.py -q
+279 passed
+```
+
+`qaCommit` rebinds to `986ab2641b1b68cd326b68c5a06f314eccbeb79a`, the
+regeneration commit, where the diff to HEAD is empty.
+
+## Addendum 16: PR #5209's own workspace-budget fix and a real taste-lint ratchet regression
+
+`pre_pr.py`'s Count Ratchets caught two things after Addendum 15's merge:
+
+1. **`AGENTS.md` breached its 3000-byte budget** (3016 bytes) as a side
+   effect of that merge: this branch's own one-line edit combined with
+   `origin/main`'s independent one-line edits on non-overlapping lines,
+   and neither side alone exceeded the budget (2872 and 2992 bytes). Fixed
+   with the identical trim landed on `claude/adr-5209-review-fixes`
+   (commit `d08449061`): 2984 bytes, both budget tests pass.
+2. **A real taste-count ratchet regression**: 577 violations against
+   `origin/main`'s baseline of 576. The `+1` was
+   `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md` crossing 500 lines
+   (635) after this session's addenda; the file does not exist on
+   `origin/main`, so any violation in it is new by definition. Suppressed
+   with the documented per-repo escape (issue #3779) rather than
+   splitting (commit `92304f823`): this is an append-only QA audit trail
+   with sequentially numbered addenda, and splitting would break that
+   numbering and scatter one campaign's evidence across files. Verified
+   the suppression clears both the file-level scan and the whole-tree
+   ratchet (576 == baseline).
+
+Full `pre_pr.py` run after both fixes: 58 of 59 passed, the one failure
+being this addendum's own not-yet-rebound `qaCommit` (the exact staleness
+this addendum resolves). `qaCommit` rebinds to
+`92304f8231a2de5977820f73d63452999b21b60f`.

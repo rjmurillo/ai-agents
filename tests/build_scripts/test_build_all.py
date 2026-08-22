@@ -437,6 +437,7 @@ def test_run_emits_audit_and_returns_zero_on_clean_state(
     monkeypatch.setattr(build_all, "_git_diff_paths", lambda repo_root: [])
     repo = tmp_path / "repo"
     (repo / ".claude" / "skills").mkdir(parents=True)
+    (repo / ".agents" / "architecture").mkdir(parents=True)
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
 
@@ -598,6 +599,7 @@ def test_run_returns_0_when_claude_lib_synced_before_build(
     monkeypatch.setattr(build_all, "_git_diff_paths", lambda repo_root: [])
     repo = tmp_path / "repo"
     (repo / ".claude" / "skills").mkdir(parents=True)
+    (repo / ".agents" / "architecture").mkdir(parents=True)
     _write_skill(repo / ".claude" / "skills", "alpha")
     # Simulate sync_plugin_lib.py having already updated .claude/lib.
     lib = repo / ".claude" / "lib" / "hook_utilities"
@@ -783,6 +785,41 @@ def test_build_agent_catalog_skips_when_templates_missing(tmp_path: Path) -> Non
     assert any("templates dir missing" in notice for notice in result.notices)
 
 
+def test_build_adr_index_writes_the_readme(tmp_path: Path) -> None:
+    adr_dir = tmp_path / ".agents" / "architecture"
+    adr_dir.mkdir(parents=True)
+    (adr_dir / "ADR-001-example.md").write_text(
+        "---\nid: ADR-001\nstatus: accepted\ndate: 2026-01-01\n---\n\n"
+        "# ADR-001: Example\n\n## Status\n\nAccepted.\n\n## Decision\n\nDo it.\n",
+        encoding="utf-8",
+    )
+
+    result = build_all._build_adr_index(tmp_path, tmp_path / "unused.yaml", "*")
+
+    assert result.exit_code == 0
+    assert result.artifact == "adr-index"
+    assert result.inputs == 1
+    assert result.outputs == 1
+    assert (adr_dir / "README.md").is_file()
+
+
+def test_build_adr_index_fails_loud_when_the_adr_directory_is_missing(tmp_path: Path) -> None:
+    """A missing corpus is a config error, not a silent skip.
+
+    The wrapper used to pre-check ``adr_dir.is_dir()`` and return
+    ``exit_code=0`` with a "skipped" notice, which let ``build_all.py
+    --check`` report green after examining zero ADRs. The real generator,
+    ``generate_adr_index.main``, already returns ADR-035 exit 2 for exactly
+    this case; the wrapper must preserve that instead of shadowing it with a
+    looser contract (PR #5209 review, discussion_r3831902216).
+    """
+    result = build_all._build_adr_index(tmp_path, tmp_path / "unused.yaml", "*")
+
+    assert result.exit_code == 2
+    assert result.inputs == 0
+    assert result.outputs == 0
+
+
 # Regression: #2222 — untracked-file drift (PR #2285 review iteration 2) -----
 #
 # The CI gate added in PR #2285 wires `build_all.py --check` into
@@ -942,8 +979,13 @@ def test_run_check_clean_when_untracked_outside_owned_prefix(
     repo = tmp_path / "repo"
     _init_git_repo(repo)
     (repo / ".claude" / "skills").mkdir(parents=True)
+    (repo / ".agents" / "architecture").mkdir(parents=True)
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
+    # Pre-generate and commit the ADR index so its first-ever creation is not
+    # itself untracked drift inside an owned prefix; this fixture is only
+    # about scratch.md, which sits outside every owned prefix.
+    build_all._build_adr_index(repo, tmp_path / "unused.yaml", "*")
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
     subprocess.run(
         ["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True
@@ -1069,6 +1111,7 @@ def test_run_check_leaves_untracked_owned_path_untouched(
     repo = tmp_path / "repo"
     _init_git_repo(repo)
     (repo / ".claude" / "skills").mkdir(parents=True)
+    (repo / ".agents" / "architecture").mkdir(parents=True)
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
@@ -1274,6 +1317,7 @@ def test_run_check_removes_new_untracked_files_generators_created(
     repo = tmp_path / "repo"
     _init_git_repo(repo)
     (repo / ".claude" / "skills").mkdir(parents=True)
+    (repo / ".agents" / "architecture").mkdir(parents=True)
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
@@ -1318,6 +1362,7 @@ def test_run_without_check_does_not_snapshot_or_restore(
     repo = tmp_path / "repo"
     _init_git_repo(repo)
     (repo / ".claude" / "skills").mkdir(parents=True)
+    (repo / ".agents" / "architecture").mkdir(parents=True)
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
@@ -1365,6 +1410,7 @@ def _seed_repo_with_committed_skill_mirror(
 
     _init_git_repo(repo)
     (repo / ".claude" / "skills").mkdir(parents=True)
+    (repo / ".agents" / "architecture").mkdir(parents=True)
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     monkeypatch.setattr(

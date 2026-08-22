@@ -5,10 +5,13 @@ Scans tracked markdown files for links whose target matches ``ADR-\d+.*\.md`` an
 reports four violation classes:
 
 ``unresolved``
-    The target does not exist when resolved relative to the file containing the
-    link. Catches stale slugs left behind by an ADR rename, for example
-    ``ADR-005-powershell-only.md`` after the file became
-    ``ADR-005-powershell-only-scripting.md``.
+    The target is not a tracked file when resolved relative to the file
+    containing the link. Catches stale slugs left behind by an ADR rename, for
+    example ``ADR-005-powershell-only.md`` after the file became
+    ``ADR-005-powershell-only-scripting.md``. Resolution is against
+    ``git ls-files``, not the filesystem: an untracked file at the target path
+    must not make a broken tracked link pass locally when the same commit
+    fails in a clean checkout (PR #5209 review).
 
 ``absolute``
     The target starts with ``/``. A leading slash cannot resolve relative to the
@@ -44,6 +47,7 @@ Exit codes follow ADR-035: 0 clean, 1 violations found, 2 configuration error.
 from __future__ import annotations
 
 import argparse
+import posixpath
 import re
 import subprocess
 import sys
@@ -84,8 +88,19 @@ class Finding:
     detail: str = ""
 
     def key(self) -> str:
-        """Return the line-independent baseline key for this finding."""
-        return f"{self.file}:{self.target}"
+        """Return the line-independent baseline key for this finding.
+
+        Includes ``kind``: a key of bare ``file:target`` conflates every
+        violation class that can name the same (file, target) pair. An
+        existing ``unresolved`` allowance for one link would also hide a
+        newly introduced ``number-mismatch`` on the identical file and
+        target if only the link text's cited number changed, since that new
+        finding shares the same file and target as the baselined one (PR
+        #5209 review, discussion_r3831835196). Verified against the live
+        corpus: three of this baseline's twenty entries are ``absolute``, not
+        ``unresolved``, so the conflation was not hypothetical.
+        """
+        return f"{self.kind}:{self.file}:{self.target}"
 
     def format(self) -> str:
         """Return the human and machine readable finding line."""
@@ -171,10 +186,32 @@ def _malformed_findings(file: str, line_number: int, line: str) -> list[Finding]
     return findings
 
 
-def _link_findings(repo_root: Path, file: str, line_number: int, line: str) -> list[Finding]:
+def _resolves_to_tracked_file(file: str, path: str, tracked: frozenset[str]) -> bool:
+    """Return whether ``path``, taken relative to ``file``, names a tracked file.
+
+    Resolution is purely lexical against the ``git ls-files`` inventory
+    (``tracked``), never against the working-tree filesystem. An untracked
+    file sitting at the target path would make ``Path.exists()`` pass locally
+    for a link that is broken in a clean checkout, and the identical commit
+    would then fail in CI while looking clean on the author's machine.
+
+    ``posixpath.normpath`` collapses ``..`` segments without touching disk,
+    matching the forward-slash-normalized paths ``git_ls_markdown`` returns.
+    A result of ``..`` or one starting with ``../`` has walked out of the
+    repository root and is rejected outright, since nothing under
+    ``git ls-files`` can ever resolve there.
+    """
+    resolved = posixpath.normpath(posixpath.join(posixpath.dirname(file), path))
+    if resolved == ".." or resolved.startswith("../"):
+        return False
+    return resolved in tracked
+
+
+def _link_findings(
+    file: str, line_number: int, line: str, tracked: frozenset[str]
+) -> list[Finding]:
     """Return unresolved, absolute, and number-mismatch findings for one line."""
     findings: list[Finding] = []
-    containing_dir = (repo_root / file).parent
 
     for match in LINK.finditer(line):
         dest = match.group("dest")
@@ -204,13 +241,13 @@ def _link_findings(repo_root: Path, file: str, line_number: int, line: str) -> l
             findings.append(
                 Finding(file, line_number, "absolute", path, "does not resolve from this file")
             )
-        elif not (containing_dir / path).exists():
+        elif not _resolves_to_tracked_file(file, path, tracked):
             findings.append(Finding(file, line_number, "unresolved", path))
 
     return findings
 
 
-def scan_file(repo_root: Path, file: str) -> list[Finding]:
+def scan_file(repo_root: Path, file: str, tracked: frozenset[str]) -> list[Finding]:
     """Return every ADR-link finding in one tracked markdown file."""
     path = repo_root / file
     if not path.is_file():
@@ -228,7 +265,7 @@ def scan_file(repo_root: Path, file: str) -> list[Finding]:
             continue
 
         findings.extend(_malformed_findings(file, line_number, line))
-        findings.extend(_link_findings(repo_root, file, line_number, line))
+        findings.extend(_link_findings(file, line_number, line, tracked))
 
     return findings
 
@@ -238,9 +275,20 @@ def find_broken_adr_links(
     *,
     files: list[str] | None = None,
     baseline: set[str] | None = None,
+    tracked: frozenset[str] | None = None,
 ) -> list[Finding]:
-    """Return every non-exempt, non-baselined ADR-link finding in the tree."""
-    candidates = files if files is not None else git_ls_markdown(repo_root)
+    """Return every non-exempt, non-baselined ADR-link finding in the tree.
+
+    ``tracked`` defaults to the live ``git ls-files`` inventory (git is the
+    I/O boundary this function owns) and is always the full markdown corpus,
+    even when ``files`` narrows which files get scanned: a target-resolution
+    check must see every tracked file to answer "does this link's destination
+    exist", regardless of which subset is being linted this run. Callers that
+    already know the tracked set, or that run against a directory that is not
+    a git repository, may pass it explicitly to skip the subprocess call.
+    """
+    resolved_tracked = tracked if tracked is not None else frozenset(git_ls_markdown(repo_root))
+    candidates = files if files is not None else sorted(resolved_tracked)
     allowed = baseline if baseline is not None else load_allowlist(repo_root / DEFAULT_BASELINE)
 
     findings: list[Finding] = []
@@ -248,7 +296,7 @@ def find_broken_adr_links(
         normalized = file.replace("\\", "/")
         if is_historical_path(normalized):
             continue
-        for finding in scan_file(repo_root, normalized):
+        for finding in scan_file(repo_root, normalized, resolved_tracked):
             if finding.key() in allowed or finding.file in allowed:
                 continue
             findings.append(finding)

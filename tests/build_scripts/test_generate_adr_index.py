@@ -298,6 +298,37 @@ def test_non_mapping_frontmatter_exits_non_zero_naming_the_file(tmp_path: Path, 
     assert "ADR-008-scalar-frontmatter.md" in capsys.readouterr().err
 
 
+def test_parse_frontmatter_raises_on_an_unterminated_block(tmp_path: Path) -> None:
+    """Opens with '---', never closes: a distinct defect from no block at all.
+
+    `_FRONTMATTER_RE` cannot match without a closing fence, so both an absent
+    block and an unterminated one previously collapsed to the same `None`,
+    silently routing malformed lifecycle metadata into Needs backfill as if
+    the record had never carried a schema (PR #5209 review,
+    discussion_r3832255493).
+    """
+    path = tmp_path / "ADR-009-unterminated.md"
+    content = "---\nid: ADR-009\nstatus: accepted\n\n# ADR-009: Unterminated\n"
+
+    with pytest.raises(generate_adr_index.AdrIndexError, match="unterminated"):
+        generate_adr_index.parse_frontmatter(content, path)
+
+
+def test_unterminated_frontmatter_block_exits_non_zero(tmp_path: Path, capsys) -> None:
+    directory = tmp_path / "architecture"
+    _corpus(directory)
+    (directory / "ADR-009-unterminated.md").write_text(
+        "---\nid: ADR-009\nstatus: accepted\n\n# ADR-009: Unterminated\n", encoding="utf-8"
+    )
+
+    exit_code = generate_adr_index.main(
+        ["--adr-dir", str(directory), "--output", str(tmp_path / "README.md")]
+    )
+
+    assert exit_code != 0
+    assert "ADR-009-unterminated.md" in capsys.readouterr().err
+
+
 def test_status_outside_the_adr_073_enum_exits_non_zero_naming_the_file(
     tmp_path: Path, capsys
 ) -> None:

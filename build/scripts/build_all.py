@@ -173,13 +173,20 @@ def _build_adr_index(repo_root: Path, _config_path: Path, _platform: str) -> Gen
     that landed without a regeneration, and the snapshot/restore guard keeps
     ``--check`` read-only for this file the way it already does for
     ``docs/agent-catalog.md``.
+
+    A missing ``adr_dir`` is not pre-checked and turned into a silent skip
+    here: unlike the per-platform artifacts elsewhere in this module, there is
+    exactly one ADR corpus, required for the whole repo, and
+    ``generate_adr_index.main`` already fails loud on its absence (ADR-035
+    exit 2, "ADR directory not found"). A wrapper-level skip converted that
+    into an exit-0 "skipped" notice, so ``build_all.py --check`` could report
+    green after examining zero ADRs if the corpus directory were absent (PR
+    #5209 review, discussion_r3831902216). Calling ``main`` unconditionally
+    preserves its own contract instead of shadowing it with a second,
+    looser one.
     """
     adr_dir = repo_root / ".agents" / "architecture"
     output_path = adr_dir / "README.md"
-    if not adr_dir.is_dir():
-        result = GeneratorResult(artifact="adr-index", platform="docs", exit_code=0)
-        result.notices.append("ADR directory missing; skipped")
-        return result
     rc = generate_adr_index.main(
         [
             "--adr-dir",

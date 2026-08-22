@@ -1,8 +1,9 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 2cc0faa83d63586f0a380fcfa26f2a72d09be5ed
+qaCommit: 92304f8231a2de5977820f73d63452999b21b60f
 ---
+<!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
@@ -657,3 +658,33 @@ merge; see Addendum 13 of `.agents/qa/session-5209-adr-review-fixes-stacked.md`.
 11 merge (two independently-compliant sides combined past the ceiling by
 git's line-based merge). Full detail in Addendum 14 of
 `.agents/qa/session-5209-adr-review-fixes-stacked.md`.
+
+
+## Addendum 14: PR #5209's own branch independently merged `origin/main`, and one more fix landed
+
+**Rebound to** `986ab2641b1b68cd326b68c5a06f314eccbeb79a`.
+
+The frontmatter `qaCommit` had drifted from this file's own last `Rebound
+to` value (`5ec9be82445...` in Addendum 9); noted here rather than silently
+carried forward, since reconciling it was out of scope for that rebind.
+
+Full detail lives in Addendum 15 of
+`.agents/qa/session-5209-adr-review-fixes-stacked.md`: committed the
+already-drafted `build_all.py` ADR-index fix, merged `origin/main` to clear
+this branch's `mergeable_state: "dirty"` (one conflict, the same
+`tests/ci/test_validate_vendor_provenance.py` Renovate-drift collision
+already resolved independently on the stacked branch, addenda 10-13 above),
+and regenerated the ADR index for the resulting drift. 279 tests passed.
+
+
+## Addendum 15: PR #5209's own workspace-budget fix and a real taste-lint ratchet regression
+
+**Rebound to** `92304f8231a2de5977820f73d63452999b21b60f`.
+
+Full detail in Addendum 16 of
+`.agents/qa/session-5209-adr-review-fixes-stacked.md`. Summary: `AGENTS.md`
+breached its 3000-byte budget as a merge side effect (fixed, 2984 bytes),
+and this file (the one carrying this addendum) crossed 500 lines, a real
+taste-count ratchet regression against `origin/main`'s baseline (this file
+does not exist there). Suppressed with the documented per-repo escape
+rather than splitting; verified the whole-tree ratchet returns to baseline.
