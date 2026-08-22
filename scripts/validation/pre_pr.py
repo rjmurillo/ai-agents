@@ -49,10 +49,17 @@ if str(_SCRIPT_DIR) not in sys.path:
 # Shared infrastructure (subprocess wrapper, SKIP signal, base-ref helpers).
 from active_plan_closeout import validate_active_plan_closeout
 
-# Ratcheted ADR lifecycle gate (issue #5191). Re-exported here like every other
-# validator; the ordered row that RUNS it belongs in ``pre_pr_sequence._SEQUENCE``,
-# which is where the sequence moved in issue #3073.
+# Ratcheted ADR lifecycle gate (issue #5191) and the ADR link-integrity gate
+# (issue #5197). Re-exported here like every other validator; the ordered row
+# that RUNS each belongs in ``pre_pr_sequence._SEQUENCE``, which is where the
+# sequence moved in issue #3073. Both must be re-exported, not just the
+# lifecycle one: this module's own contract above promises every validator
+# stays importable from ``scripts.validation.pre_pr`` (issue #2223), and
+# ``check_adr_links`` was added in the same PR without the matching re-export
+# here, breaking `from scripts.validation.pre_pr import validate_adr_links`
+# (Copilot, PR #5209).
 from check_adr_lifecycle import validate_adr_lifecycle
+from check_adr_links import validate_adr_links
 from check_doc_interpreter_portability import (
     validate_doc_interpreter_portability,
 )
