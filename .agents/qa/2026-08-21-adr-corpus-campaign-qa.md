@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: d1fc64595bf5bc6e9c2d54b6a4210ef194f7eff7
+qaCommit: fefa8bf5e0ddd4c6d416032c2e35e62070b82765
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -862,3 +862,63 @@ and 6 new tests in `tests/skills/adr-review/test_detect_adr_changes_cli_contract
 both re-run clean against the full corpus (64 baselined violations for the
 former, 0 for the latter, no check above its baseline). `taste_count_ratchet.py`
 confirmed at 576 (the baseline), after the file-size split above.
+
+## Addendum 15: a fifth Copilot review round, three findings fixed
+
+**Rebound to** `fefa8bf5e0ddd4c6d416032c2e35e62070b82765`.
+
+A fifth Copilot review on this branch's own head found three defects,
+all fixed and mutation-proven:
+
+- **`check_adr_links.py`'s baseline allowance was per-key, not per-finding.**
+  `Finding.key()` is `kind:file:target` with no line number, so two
+  occurrences of the same broken link sharing a key (or a later, genuinely
+  new occurrence that happens to match an already-baselined one) both
+  matched a single `in` membership test. One baseline entry silently
+  suppressed every finding sharing its key, forever.
+  `find_broken_adr_links()` now discards each baseline entry from a working
+  copy on its first match, so a second occurrence of the same key still
+  surfaces. The real corpus had exactly this shape: `docs/search-dont-load.md`
+  cited the same absolute ADR-007 link on two lines under one baseline
+  entry. Both are fixed (relative links) rather than double-baselined, and
+  the stale baseline entry is removed. New test:
+  `test_a_second_identical_finding_is_not_covered_by_one_allowance`; it
+  failed against the code as first shipped, on the `in`-check.
+- **`pre_pr.py` did not re-export `validate_adr_links`**, breaking its own
+  documented promise ("the imports below keep
+  `from scripts.validation.pre_pr import X` working for callers and tests")
+  for one caller. Fixed by adding the missing import. Writing the most
+  literal version of that contract as a test (identity comparison against
+  `pre_pr_sequence`'s bound names) surfaced the same promise already broken
+  for 15 unrelated pre-existing validators; that gap is filed as issue
+  #5272 rather than fixed here, matching this campaign's own precedent
+  (#5205, #5270) for a proven pre-existing defect found along the way. The
+  shipped test is narrowed to the two ADR validators this PR owns.
+- **`generate_adr_index.py`'s `_INTRO` carried two inaccurate claims about
+  its own documented query recipe.** First, `_blocker_cell()`'s docstring
+  claimed a past-due `review-by` date "is marked rather than silently
+  rendered"; false, the cell renders the date identically whether current
+  or overdue, and `check_adr_lifecycle.py`'s `CHECKS` tuple has no rule
+  that reads `review-by` at all (verified: the string does not appear in
+  that file). Corrected to say nothing today flags an overdue date, and
+  the check belongs to issue #5193. Second, the recipe's fence search
+  (`text.index('\n---', 3)`) matched any line merely starting with three
+  dashes, not the exact closing fence `_FRONTMATTER_RE` requires (three
+  dashes immediately followed by `\r?\n`). A closing line padded with one
+  trailing space (`"--- \n"`) fails `_FRONTMATTER_RE`, so the real
+  generator raises `AdrIndexError` for that file; the old recipe matched
+  the padded line anyway and printed an answer with no error, silently
+  disagreeing with the generator. Replaced with a regex requiring the
+  same `\r?\n` on both sides of the dashes. New test:
+  `test_the_documented_recipe_agrees_with_the_generator_on_a_padded_closing_fence`;
+  it failed against the recipe as first shipped (`DID NOT RAISE
+  ValueError`). `.agents/architecture/README.md` regenerated;
+  `generate_adr_index.py --check` confirms no further drift.
+
+Test counts: `check_adr_links` 81 tests (up from 80), `generate_adr_index`
+79 tests (up from 78), `pre_pr_sequence_registry` 10 tests (up from 9,
+including the new `TestPrePrReexportsTheAdrValidators` class). All three
+mutations were reverted before being re-verified as fixed (backup/restore
+via `/tmp`, never `git checkout --`, per the round-4 near-miss this
+campaign already recorded). `taste_count_ratchet.py` confirmed at 576
+(the baseline, unchanged).

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: d1fc64595bf5bc6e9c2d54b6a4210ef194f7eff7
+qaCommit: fefa8bf5e0ddd4c6d416032c2e35e62070b82765
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -559,3 +559,25 @@ Test counts: `check_adr_lifecycle` 116 tests (up from 111), `check_adr_links`
 80 tests (up from 79), `generate_adr_index` 78 tests (up from 73), plus 12
 new tests split across `tests/test_markdown_parser.py` and
 `tests/skills/adr-review/test_detect_adr_changes_cli_contract.py`.
+
+## Addendum 17: a fifth Copilot review round, three findings fixed
+
+**Rebound to** `fefa8bf5e0ddd4c6d416032c2e35e62070b82765`.
+
+Full detail in Addendum 15 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`.
+A fifth Copilot review found three defects, all fixed and mutation-proven:
+`check_adr_links.py`'s baseline allowance suppressed every finding sharing a
+`kind:file:target` key rather than just the one baselined occurrence, fixed
+by consuming each allowance on first match (uncovered real link rot in
+`docs/search-dont-load.md`, now fixed rather than double-baselined);
+`pre_pr.py` did not re-export `validate_adr_links`, fixed, with the same
+gap found for 15 unrelated pre-existing validators filed as issue #5272
+rather than fixed here; and `generate_adr_index.py`'s documented query
+recipe used a fence search that matched any line merely starting with
+three dashes rather than the exact closing fence its own `_FRONTMATTER_RE`
+requires, silently disagreeing with the real generator on a padded closing
+line, fixed with a regex mirroring `_FRONTMATTER_RE`'s closing-fence
+semantics; the same docstring's separate overclaim that an overdue
+`review-by` date "is marked rather than silently rendered" is also
+corrected (nothing in this codebase does that yet; the check belongs to
+issue #5193). 170 tests pass across the three touched suites.
