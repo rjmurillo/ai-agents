@@ -246,7 +246,7 @@ def test_vm_bootstrap_configures_authenticated_github_cli() -> None:
 
     assert 'export GH_TOKEN="$GITHUB_TOKEN"' in function
     assert "gh auth status" in function
-    assert "gh api user --jq '.login'" in function
+    assert "gh api meta" in function
     assert "gh auth setup-git" in function
 
 

@@ -126,9 +126,11 @@ configure_github_cli() {
 
     # Verify both the credential and API access now. A missing scope or stale
     # token should fail during setup instead of surfacing later as a broken
-    # autonomous PR workflow.
+    # autonomous PR workflow. Use `meta` rather than `user`: `GET /user`
+    # returns 403 for Actions installation tokens, aborting bootstrap even
+    # when the token is valid for PR and issue operations.
     gh auth status
-    gh api user --jq '.login' >/dev/null
+    gh api meta >/dev/null
     gh auth setup-git
     echo "✓ GitHub CLI authenticated and configured for git operations"
 }
