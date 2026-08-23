@@ -69,7 +69,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "One workflow edit plus this log. No hook bypassed: --no-verify, LEFTHOOK=0, LEFTHOOK_BIN, a lefthook config override, a hook edit and LEFTHOOK_EXCLUDE were all unused, per universal.md MUST NOT 2."
+        "Evidence": "Five files: .github/workflows/pytest.yml (pip 26.2 pin, pip-audit ignores), tests/ci/test_validate_vendor_provenance.py (setup-uv pin contract, cherry-picked from main's second red), this log, its extracted episode under .agents/episodes/, and the QA report .agents/qa/session-5222-pip-26-2-pysec-3721.md. No hook bypassed: --no-verify, LEFTHOOK=0, LEFTHOOK_BIN, a lefthook config override, a hook edit and LEFTHOOK_EXCLUDE were all unused, per universal.md MUST NOT 2."
       },
       "validationPassed": {
         "level": "MUST",
