@@ -111,7 +111,29 @@ if ! command -v gh &>/dev/null; then
 fi
 gh --version
 
-[[ -n "${GITHUB_TOKEN:-}" ]] && export GH_TOKEN="$GITHUB_TOKEN"
+configure_github_cli() {
+    # gh reads GH_TOKEN without writing the credential to disk. GitHub-hosted
+    # environments commonly expose the same credential as GITHUB_TOKEN, so
+    # normalize it only when the caller did not provide GH_TOKEN explicitly.
+    if [[ -z "${GH_TOKEN:-}" && -n "${GITHUB_TOKEN:-}" ]]; then
+        export GH_TOKEN="$GITHUB_TOKEN"
+    fi
+
+    if [[ -z "${GH_TOKEN:-}" ]]; then
+        echo "WARNING: GitHub CLI is installed but unauthenticated; set GH_TOKEN to enable PR and issue operations." >&2
+        return 0
+    fi
+
+    # Verify both the credential and API access now. A missing scope or stale
+    # token should fail during setup instead of surfacing later as a broken
+    # autonomous PR workflow.
+    gh auth status
+    gh api user --jq '.login' >/dev/null
+    gh auth setup-git
+    echo "✓ GitHub CLI authenticated and configured for git operations"
+}
+
+configure_github_cli
 
 echo "=== Python uv ==="
 export PATH="$HOME/.local/bin:$PATH"
