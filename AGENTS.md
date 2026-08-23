@@ -13,10 +13,10 @@
 
 ## Gates
 
-**Start**:Init Serena|Read HANDOFF+latest issue handoff|Resume check|Log(opt)|Search mem|Verify git
-**Mid**: `git rev-list --count HEAD ^origin/main` block >20; notice 10; warn 15
+**Start**:Init Serena|Read HANDOFF+latest issue handoff|Resume check|Search mem|Verify git
+**Mid**: `git rev-list --count HEAD ^origin/main` notice 10; alert 15 (advisory only, no block; issue #5233)
 **Pre-PR**: `uv run python scripts/validation/pre_pr.py`|No BLOCKING|Security scan|Style `.gemini/styleguide.md`
-**End**:Log if kept(opt)|Keep HANDOFF|Issue handoff if open|Update Serena|Lint|Commit|Check
+**End**:Keep HANDOFF|Issue handoff if open|Update Serena|Lint|Commit|Check
 
 ## Boundaries
 
@@ -24,7 +24,7 @@
 **Always**: Python (ADR-042)|Verify branch|Check skills|Assign issues|PR template|Atomic commits <=5 files|Scoped lint|Pin Actions SHA|Run changed workflows pre-push|No manifest version (ADR-092)
 **Ask First**: Architecture|New ADRs|Breaking|Security
 **Autonomy Guardrail**: Internal+reversible: act|External/irreversible: confirm|Ambiguous: act minimal, flag rest
-**Never**: Commit secrets|Edit HANDOFF.md|New bash scripts|Logic in YAML (ADR-006)|Raw gh if skill exists|Force push|Skip hooks|Internal refs in src|Scratch in tree|Resolve security threads w/o fix|Ship unrun gen artifact
+**Never**: Commit secrets|Edit HANDOFF.md|New bash scripts|Logic in YAML (ADR-006)|Raw gh if skill exists|Force push|Skip hooks|Internal refs in src|Scratch in tree|Resolve security threads w/o fix|Ship unrun gen artifact|Report PR blocked/conflicted w/o fix
 
 ## Context
 
@@ -32,8 +32,9 @@ Knowledge -> context. Actions -> skills.
 
 ## Skill-First
 
-|PRs: GitHub|Reviews: pr-comment-responder|Conflicts: merge-resolver agent|Push: /push-pr
+|PRs: GitHub|Reviews: pr-comment-responder|Push: /push-pr
 |Security: security-detection|Quality: analyze|Learn: reflect|Lifecycle: /spec /plan /build /test /review /ship
+|Merge blocked/conflicted: don't ask; github skill (why_pr_blocked+resolve) or merge-resolver agent; re-check
 |CI-feedback sub-loop: cluster, ladder build->test->review->ship. See `.agents/governance/CI-FEEDBACK-SUBLOOP.md`
 |ADR-078: no skill -> autoplan; multi-step/cross-cutting -> orchestrator; no return loop
 |New capability: buy-vs-build Quick BEFORE /spec+baseline; >13wk no baseline = prune. Skip: bug/doc/refactor/approved-cap-extension

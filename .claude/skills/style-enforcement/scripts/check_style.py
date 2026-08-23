@@ -127,7 +127,7 @@ def find_editorconfig(start_path: Path) -> list:
             configs.append(editorconfig)
             # Check for root = true
             parsed = parse_editorconfig(editorconfig)
-            for section, props in parsed.items():
+            for props in parsed.values():
                 if props.get("root") == "true":
                     return configs
         current = current.parent
@@ -192,7 +192,7 @@ def get_config_for_file(file_path: Path, editorconfigs: list) -> StyleConfig:
     if file_path.suffix == ".cs":
         for editorconfig_path in editorconfigs:
             parsed = parse_editorconfig(editorconfig_path)
-            for section, props in parsed.items():
+            for props in parsed.values():
                 for key, value in props.items():
                     if "async" in key.lower() and "suffix" in value.lower():
                         config.async_suffix_required = True

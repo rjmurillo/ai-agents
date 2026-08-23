@@ -30,6 +30,12 @@ The canonical set is `spec-compliance` as the Stage-1 gate plus 11 Stage-2 canon
 
 `/review` is a strict superset of CI only in deep-review mode, when it runs the full canonical set. Risk-selected `/review` can be narrower than CI, because it may skip axes that do not apply. The 3 local-only skill axes (`code-qualities-assessment`, `golden-principles`, `taste-lints`) need local code execution and repo state, so CI cannot run them, but they are language-agnostic and can be selected or pinned as always-on when relevant.
 
+**Self-audit round cap (hard stop).** `/review` runs each axis once per invocation; no internal fix-and-re-review loop. The cap binds the caller: any skill, command, or agent chaining "fix, re-invoke `/review`, repeat" with no human checkpoint MUST NOT exceed 3 rounds for that invocation, even if it switches diff, branch, or PR mid-invocation. The caller tracks its own count for the whole invocation; `/review` holds no shared state. Only a new invocation, or a human checkpoint, resets the count. Hard stop, not a guideline. Round 3: `PASS` ships; `WARN`, `CRITICAL_FAIL`, or `UNKNOWN` escalates to the operator with every open finding (axis, verdict, location, recommendation); no self-acknowledging a `WARN` to ship. Never loop past round 3 silently.
+
+Modeled on `.claude/skills/github/scripts/pr/check_pr_round_cap.py` (issue #5056, after PR #1887 ran 11+ rounds over 46h uncapped). Quoted (lines 39-40, 188-189): "0 = round recorded, under both caps (ACT); 1 = a cap is exceeded (ESCALATE)"; `_DEFAULT_MAX_ROUNDS = 5`, `_DEFAULT_MAX_HOURS = 4.0`.
+
+**Stricter/looser/different than canonical**: stricter on round count (3 vs. default 5). Looser on time (canonical also caps elapsed hours; this has none) and persistence (canonical persists state across restarts via a PR-comment marker; this uses in-invocation tracking only). Different in kind: canonical only gates `ACT`/`ESCALATE`, never ships; round 3 here can ship `PASS`.
+
 ## Path resolution (harness-agnostic)
 
 This skill runs in two layouts: the source Claude Code project (where `.claude/` is the repo root) and a vendored plugin install (Copilot CLI and similar harnesses) where the consumer repo has no `.claude/` directory and the plugin lives outside the consumer's tree.
@@ -201,4 +207,4 @@ that is safe (idempotent in effect: the latest marker binds the current tip).
 (Spec, generator, and drift hook live outside the vendored surface and are
 not referenced from this skill body. Vendored installs work without them.)
 
-<!-- vendor-portability: declared. This skill body cites .claude/lib/ai_review_common/verdict.py (ships in the vendor install; the skill names the plugin-root-relative lib/ai_review_common/verdict.py fallback for the vendored layout) and mentions .agents/ only to assert that /review needs no .agents/ access and that no axis references it. No upstream-only runtime dependency. Issue #2050. -->
+<!-- vendor-portability: declared. This skill body cites .claude/lib/ai_review_common/verdict.py (ships in the vendor install; the skill names the plugin-root-relative lib/ai_review_common/verdict.py fallback for the vendored layout) and mentions .agents/ only to assert that /review needs no .agents/ access. Also cites .claude/skills/github/scripts/pr/check_pr_round_cap.py as canonical-source-mirror evidence (issue #5260): a sibling in-plugin script cited for its contract, not resolved or run by /review. No upstream-only runtime dependency. Issue #2050. -->

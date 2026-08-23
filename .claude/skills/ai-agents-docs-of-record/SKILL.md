@@ -9,8 +9,9 @@ description: Runbook for this repo's documents of record. Session logs, ADRs, re
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 This repo runs on verification-based governance. Continuity lives in per-issue
-handoffs and Serena memory. Session logs are optional records, while transcript
-and pull request evidence remain valid.
+handoffs and Serena memory. Session log creation is discontinued; transcript
+and pull request evidence remain valid, and the ~1,500 historical logs under
+`.agents/sessions/` stay in the repo as history.
 
 ## Triggers
 
@@ -24,7 +25,7 @@ and pull request evidence remain valid.
 
 | Record | Location | Create with | Validated by |
 |--------|----------|-------------|--------------|
-| Session log | `.agents/sessions/YYYY-MM-DD-session-NN[-slug].json` | hand-written against the schema | `scripts/validate_session_json.py`, validate-if-present via the `session-policy` pre-commit hook or on demand (a session log is optional) |
+| Session log (historical only, creation discontinued) | `.agents/sessions/YYYY-MM-DD-session-NN[-slug].json` | do not create new ones | `scripts/validate_session_json.py`, validate-if-present via the `session-policy` pre-commit hook, applies only if one is somehow staged |
 | Per-issue handoff | `.agents/sessions/handoffs/{YYYY-MM-DD}-{ISSUE}-handoff.md` | copy `.agents/templates/HANDOFF.md` | resume-verification checklist at next session start |
 | ADR | `.agents/architecture/ADR-NNN-slug.md` | `adr-generator` skill | `scripts/validation/check_adr_uniqueness.py`; `adr-review` debate gate |
 | Retrospective | `.agents/retrospective/` | auto-retro skeleton + `/retro fill`, or `retrospective` skill | `INDEX.md` row (auto-appended, incomplete; see Phase 4) |
@@ -37,7 +38,6 @@ and pull request evidence remain valid.
 
 | Situation | Record | Why |
 |-----------|--------|-----|
-| Operator requests a committed session record | Optional session log | Retained schema and validator |
 | Issue spans multiple sessions | Per-issue handoff | Cold-start continuity (Issue #1725: 95.8% protocol failure without file-based gates) |
 | Architectural or irreversible decision | ADR | Fires `adr-review` multi-agent debate |
 | Incident, failure, or "what went wrong" | Retrospective | Feeds the failure canon; see `ai-agents-failure-archaeology` |
@@ -49,23 +49,22 @@ One fact can need two records: an incident gets a retrospective AND a memory
 distilling the rule. The retro is the evidence; the memory is the searchable
 lesson.
 
-### Phase 2: Session logs
+### Phase 2: Session logs (historical only)
 
-Session logs are JSON, schema at `.agents/schemas/session-log.schema.json`
-(top-level required: `session`, `protocolCompliance` with `sessionStart` and
-`sessionEnd` subsections).
+Session log creation is discontinued (`.claude/rules/session-logs.md` MUST 1):
+do not create a new `.agents/sessions/*.json` file. The ~1,500 existing logs
+stay in the repo as history, schema at
+`.agents/schemas/session-log.schema.json` (top-level required: `session`,
+`protocolCompliance` with `sessionStart` and `sessionEnd` subsections), and
+remain readable by `retrospective`, memory extraction, and the PreCompact
+hook.
 
-Create a log only when the operator opts in. No start, end, commit, push, or
-pull request gate requires one.
+If a historical log is staged anyway (for example, cherry-picked from an
+older branch), it still needs to pass:
 
 ```bash
 uv run python3 scripts/validate_session_json.py .agents/sessions/<file>.json
 ```
-
-Write the JSON by hand against `.agents/schemas/session-log.schema.json`, name
-it `YYYY-MM-DD-session-NN[-slug].json` (host-local date, per Issue #4779; see
-`scripts/hook_utilities/utilities.py::host_session_date`), and validate it
-with the command above.
 
 Hard requirements enforced by `scripts/validate_session_json.py`:
 
@@ -73,7 +72,7 @@ Hard requirements enforced by `scripts/validate_session_json.py`:
 - Branch must match `^(feat|fix|docs|chore|refactor|test|ci)/`.
 - `startingCommit` must be a 7-40 char lowercase hex SHA.
 
-Naming in current practice may append a slug:
+Historical naming may carry a slug:
 `2026-06-30-session-2600-skill-tooling-hygiene-taste-lints-naming.json`. Never
 resolve a session-log merge conflict with `git checkout --ours`; the settled
 rule from the session 1187 incident is take `--theirs` and rename your own log
@@ -162,7 +161,7 @@ Tier model per ADR-014 and `.agents/sessions/handoffs/README.md`:
 
 | Tier | Location | Scope |
 |------|----------|-------|
-| Session log | `.agents/sessions/*.json` | Optional single-session record |
+| Session log | `.agents/sessions/*.json` | Historical only; creation discontinued |
 | Per-issue handoff | `.agents/sessions/handoffs/{date}-{issue}-handoff.md` | One issue across sessions; rewritten each session |
 | Per-branch handoff | `.agents/handoffs/{branch}/{session}.md` | Multi-session branch coordination |
 | Dashboard | `.agents/HANDOFF.md` | Project-wide, READ-ONLY, 5K hard cap |
@@ -221,7 +220,7 @@ into) the rest. Behavioral claims in docs are verified with `doc-accuracy`.
 | Anti-pattern | Why it burns you | Evidence |
 |--------------|------------------|----------|
 | Editing `.agents/HANDOFF.md` | Read-only per ADR-014; push guards and reviewers reject it | AGENTS.md "Never" list |
-| Creating a log only to satisfy a gate | Reintroduces the retired workflow | `.claude/rules/session-logs.md` MUST 1 |
+| Creating any new session log | Session log creation is discontinued | `.claude/rules/session-logs.md` MUST 1 |
 | Trusting an ADR number without reading the file | Numbers collided (058/062/063 dupes; 024 vs 055 same slug) | `check_adr_uniqueness.py` docstring |
 | Repo-wide `markdownlint --fix` | Reformatted 53 unrelated memory files in PR #908 | PR #908 retro Five Whys |
 | Bundling memory changes with skill code in one PR | Violates `claude-agents.md` MUST NOT 2; scope explosion | PR #908 retro |
@@ -250,7 +249,7 @@ relying on them:
 
 | Fact | Source | Re-verify |
 |------|--------|-----------|
-| Optional session-log contract | `.claude/rules/session-logs.md` MUST 1 | `grep -n "validate-if-present" .claude/rules/session-logs.md` |
+| Session-log creation discontinued | `.claude/rules/session-logs.md` MUST 1 | `grep -n "Do not create a new session log" .claude/rules/session-logs.md` |
 | Branch naming pattern | `scripts/validate_session_json.py` (`BRANCH_PATTERN`) | `grep -n "^BRANCH_PATTERN = re.compile" scripts/validate_session_json.py` |
 | Schema required keys, top level and nested session | `.agents/schemas/session-log.schema.json` | `python3 -c "import json;s=json.load(open('.agents/schemas/session-log.schema.json'));print(s['required'], s['properties']['session']['required'])"` |
 | ADR collision history, next-number helper | `scripts/validation/check_adr_uniqueness.py` docstring | `python3 scripts/validation/check_adr_uniqueness.py --print-next` |

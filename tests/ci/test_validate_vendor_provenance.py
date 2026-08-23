@@ -1002,17 +1002,19 @@ class TestWorkflowContract:
     def test_workflow_sets_up_uv(self) -> None:
         """vendor-provenance.yml must install uv, from a SHA-pinned action.
 
+        Parses the ``provenance`` job's steps and asserts on the ``Setup uv``
+        step's ``uses`` field (testing.md MUST 9: a raw substring search would
+        still pass if the step were deleted and its ``uses:`` line survived in
+        a comment or an unrelated step).
+
         The SHA is deliberately not restated here. Renovate bumps the pin in
         the workflow and a duplicated literal turns every such bump into an
         identical red run: PR #5215 moved this action from ae62891f to
         20cfd1bf, the workflow changed, this line did not, and the test went
-        red on main for a reason unrelated to anything it tests.
-
-        What the contract needs is that the step exists and is pinned to a
-        40-character commit SHA rather than a floating tag (universal.md
-        MUST-8). Both of those survive a version bump, so the assertion is
-        written against them and the SHA is read from the workflow, the one
-        place that owns it.
+        red on main for a reason unrelated to anything it tests. What the
+        contract needs is that the step exists and is pinned to a 40-character
+        commit SHA rather than a floating tag (universal.md MUST-8); both
+        survive a version bump.
 
         Contrast ``tests/ci/test_pytest_paths_filter_covers_episodes.py``,
         where the duplicated ``dorny/paths-filter`` SHA is load-bearing: that
@@ -1020,10 +1022,15 @@ class TestWorkflowContract:
         does invalidate the model. Restating a SHA is right only when the
         assertion depends on that specific build. This one does not.
         """
+        import yaml
+
         wf = Path(".github/workflows/vendor-provenance.yml").read_text()
-        assert _SETUP_UV_PIN_RE.search(wf) is not None, (
-            "vendor-provenance.yml must install uv via astral-sh/setup-uv "
-            "pinned to a full commit SHA; found none"
+        steps = yaml.safe_load(wf)["jobs"]["provenance"]["steps"]
+        setup_uv_steps = [step for step in steps if step.get("name") == "Setup uv"]
+        assert len(setup_uv_steps) == 1, "expected exactly one 'Setup uv' step"
+        assert _SETUP_UV_PIN_RE.fullmatch(setup_uv_steps[0]["uses"]) is not None, (
+            "the 'Setup uv' step must use astral-sh/setup-uv pinned to a full "
+            f"commit SHA; found {setup_uv_steps[0]['uses']!r}"
         )
 
     def test_setup_uv_pin_pattern_rejects_an_unpinned_reference(self) -> None:
@@ -1033,24 +1040,23 @@ class TestWorkflowContract:
         already satisfies it, so on its own that assertion proves nothing: a
         pattern loose enough to match anything would pass it too. This is the
         discriminating half (testing.md SHOULD 17). Each input below is a real
-        way the workflow could regress, and each must produce no match.
+        way the pin could regress, and each must produce no match.
         """
         rejected = {
-            "floating major tag": "uses: astral-sh/setup-uv@v10\n",
-            "floating semver tag": "uses: astral-sh/setup-uv@v10.0.1\n",
-            "branch ref": "uses: astral-sh/setup-uv@main\n",
-            "abbreviated sha": "uses: astral-sh/setup-uv@20cfd1bf\n",
-            "different action": "uses: actions/setup-python@" + "a" * 40 + "\n",
-            "step absent": "jobs:\n  provenance:\n    steps: []\n",
+            "floating major tag": "astral-sh/setup-uv@v10",
+            "floating semver tag": "astral-sh/setup-uv@v10.0.1",
+            "branch ref": "astral-sh/setup-uv@main",
+            "abbreviated sha": "astral-sh/setup-uv@20cfd1bf",
+            "different action": "actions/setup-python@" + "a" * 40,
+            "trailing comment": "astral-sh/setup-uv@" + "0" * 40 + " # v10.0.1",
         }
-        for label, content in rejected.items():
-            assert _SETUP_UV_PIN_RE.search(content) is None, (
+        for label, reference in rejected.items():
+            assert _SETUP_UV_PIN_RE.fullmatch(reference) is None, (
                 f"pin detector matched {label!r}, so it cannot fail and proves "
                 f"nothing about the real workflow"
             )
 
-        accepted = "uses: astral-sh/setup-uv@" + "0" * 40 + "  # v10.0.1\n"
-        assert _SETUP_UV_PIN_RE.search(accepted) is not None, (
+        assert _SETUP_UV_PIN_RE.fullmatch("astral-sh/setup-uv@" + "0" * 40), (
             "pin detector rejected a correctly SHA-pinned reference"
         )
 
