@@ -47,9 +47,14 @@ raise the baseline to clear it.
 The conflict is real and only one side could survive. The check loses, for two
 reasons.
 
-**It overreached its own citation.** ADR-073 line 57 reads: "The prose `## Status`
-section remains for humans and **may** carry the nuance the enum cannot." That is
-permissive. The check turned a MAY into a MUST.
+**It read a MUST into a citation that writes none.** ADR-073 does choose dual
+representation: its Decision retains the prose `## Status` section as a secondary
+rendering, so the section stays in the template and the gate reads it wherever it
+appears. But the sentence the check cited, line 57, reads: "The prose `## Status`
+section remains for humans and **may** carry the nuance the enum cannot." Nothing
+in the ADR says every record must restate the enum in prose. Mandating presence is
+a stronger rule than ADR-073 writes, and it is an amendment to that ADR rather
+than a validator default. Raised again by review on PR #5209.
 
 **What it mandated was duplication.** For a record whose frontmatter already says
 `status: superseded` and `superseded-by: ADR-042`, a prose line reading
