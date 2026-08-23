@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Bootstrap Ubuntu VM for ai-agents repository (DROID/Factory.ai)
-# Usage: GH_TOKEN=<pat> ./bootstrap-vm.sh
+# Usage: GITHUB_TOKEN=<pat> ./bootstrap-vm.sh
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
@@ -111,7 +111,36 @@ if ! command -v gh &>/dev/null; then
 fi
 gh --version
 
-[[ -n "${GITHUB_TOKEN:-}" ]] && export GH_TOKEN="$GITHUB_TOKEN"
+configure_github_cli() {
+    # Codex exposes secrets only while setup runs. Store the credential in
+    # gh's config so later agent and maintenance phases can use GitHub too.
+    # gh gives environment tokens precedence over stored credentials, so both
+    # variables must be removed before `auth login` writes the supplied token.
+    local github_token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+    unset GH_TOKEN GITHUB_TOKEN
+
+    if [[ -z "$github_token" ]]; then
+        echo "WARNING: GitHub CLI is installed but unauthenticated; set GITHUB_TOKEN in the Codex environment to enable PR and issue operations." >&2
+        return 0
+    fi
+
+    printf '%s\n' "$github_token" | gh auth login --with-token
+    unset github_token
+    gh auth status
+    gh api user --jq '.login' >/dev/null
+    gh auth setup-git
+    echo "✓ GitHub CLI authenticated and configured for git operations"
+}
+
+configure_github_cli
+
+# Codex checkouts may omit origin. Restore the canonical HTTPS remote so git
+# fetch, push, and GitHub CLI repository discovery work in later phases.
+if git remote get-url origin &>/dev/null; then
+    git remote set-url origin https://github.com/rjmurillo/ai-agents.git
+else
+    git remote add origin https://github.com/rjmurillo/ai-agents.git
+fi
 
 echo "=== Python uv ==="
 export PATH="$HOME/.local/bin:$PATH"

@@ -235,6 +235,46 @@ def test_vm_bootstrap_has_no_bare_apt_get_or_unguarded_dpkg_i() -> None:
             )
 
 
+def test_vm_bootstrap_configures_authenticated_github_cli() -> None:
+    """A setup-only token must be persisted and connected to git transport."""
+    text = VM_BOOTSTRAP_PATH.read_text(encoding="utf-8")
+    function = text[
+        text.index("configure_github_cli() {") : text.index(
+            "\n}\n", text.index("configure_github_cli() {")
+        )
+    ]
+
+    assert 'local github_token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"' in function
+    assert "unset GH_TOKEN GITHUB_TOKEN" in function
+    assert "gh auth login --with-token" in function
+    assert "gh auth status" in function
+    assert "gh api user --jq '.login'" in function
+    assert "gh auth setup-git" in function
+
+
+def test_vm_bootstrap_keeps_an_explicit_gh_token() -> None:
+    """GH_TOKEN takes precedence over the GitHub Actions token alias."""
+    text = VM_BOOTSTRAP_PATH.read_text(encoding="utf-8")
+
+    assert '${GH_TOKEN:-${GITHUB_TOKEN:-}}' in text
+
+
+def test_vm_bootstrap_explains_missing_github_credentials() -> None:
+    """CLI-only setup remains usable but names the missing credential."""
+    text = VM_BOOTSTRAP_PATH.read_text(encoding="utf-8")
+
+    assert "set GITHUB_TOKEN in the Codex environment" in text
+
+
+def test_vm_bootstrap_restores_canonical_origin() -> None:
+    """Codex checkouts without remotes must regain push and repo discovery."""
+    text = VM_BOOTSTRAP_PATH.read_text(encoding="utf-8")
+
+    assert "git remote get-url origin" in text
+    assert "git remote add origin https://github.com/rjmurillo/ai-agents.git" in text
+    assert "git remote set-url origin https://github.com/rjmurillo/ai-agents.git" in text
+
+
 class TestQuietAptGet:
     """Exercise the real quiet_run/quiet_apt_get bash functions (Issue #5169)
     against fake sudo/apt-get/dpkg executables. Extracts the function bodies
