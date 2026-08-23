@@ -491,25 +491,27 @@ jobs:
 
       - name: Run pip-audit
         run: |
-          # Keep the audited environment on the first fixed pip release for
-          # PYSEC-2026-3721 (fixed in 26.2; issue #5222). Pip 26.1.2 was the
-          # prior fix for PYSEC-2026-196 (issue #2438) and has since become
-          # the vulnerable version for PYSEC-2026-3721 itself.
+          # Keep the audited environment on a pip release pip-audit reports
+          # clean. This pin has moved once before: issue #2438 set it to
+          # 26.1.2 to escape PYSEC-2026-196, and 26.1.2 has since become the
+          # vulnerable version under PYSEC-2026-3721, whose fix is 26.2
+          # (issue #5222). Expect it to move again; the version below is the
+          # only place that decides which pip runs, so keep every mention of
+          # it in this block moving with it.
 
           # Ignored CVEs (re-evaluate when upstream releases a fix):
-          #   CVE-2026-4539: pygments 2.19.2, no fix available.
-          #   CVE-2026-3219: historical pip 26.0/26.0.1 finding for
-          #     concatenated tar/ZIP archives. The runner is upgraded to pip
-          #     26.2 below; keep this ignore only while pip-audit still
-          #     reports stale transitive runner metadata after that upgrade.
-          #   CVE-2026-6357: historical pip 26.0.x finding in the same
-          #     local-only class as CVE-2026-3219. Remove this ignore when
-          #     pip-audit no longer reports it after the pip 26.2 upgrade.
+          #   CVE-2026-4539: pygments 2.19.2, no fix available. This project
+          #     pins 2.19.2, so a clean virtualenv (which resolves 2.21.0)
+          #     says nothing about it; retiring this belongs to issue #1778,
+          #     measured against the real tree.
+          #
+          # The two historical pip findings, CVE-2026-3219 and CVE-2026-6357,
+          # were ignored only while the runner still carried pre-26.1 pip
+          # metadata. Run 32500970183 upgraded to 26.2 and pip-audit reported
+          # a single ignored vulnerability, so those two ignores now suppress
+          # nothing and would hide the findings if they ever recurred.
           python -m pip install --upgrade "pip==26.2"
-          pip-audit \
-            --ignore-vuln CVE-2026-4539 \
-            --ignore-vuln CVE-2026-3219 \
-            --ignore-vuln CVE-2026-6357
+          pip-audit --ignore-vuln CVE-2026-4539
 
       # Issue #2808: `|| true` masked both bandit crashes and genuine findings,
       # turning this step green regardless. Gate on high severity AND high

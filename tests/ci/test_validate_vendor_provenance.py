@@ -989,23 +989,38 @@ class TestCopilotConfigMirrorParity:
 
 # ── Workflow contract: both mirror arguments present ─────────────────────────
 
+# Matches an ``astral-sh/setup-uv`` reference pinned to a full 40-character
+# commit SHA. Shared by the contract test and its discrimination probe so the
+# property asserted and the property proven falsifiable are the same pattern,
+# not two that could drift apart.
+_SETUP_UV_PIN_RE = re.compile(r"astral-sh/setup-uv@[0-9a-f]{40}\b")
+
+
 class TestWorkflowContract:
     """Verify the workflow YAML passes both Copilot mirror args."""
 
     def test_workflow_sets_up_uv(self) -> None:
-        """vendor-provenance.yml must install uv, pinned to a SHA.
+        """vendor-provenance.yml must install uv, from a SHA-pinned action.
 
         Parses the ``provenance`` job's steps and asserts on the ``Setup uv``
         step's ``uses`` field (testing.md MUST 9: a raw substring search would
         still pass if the step were deleted and its ``uses:`` line survived in
-        a comment or an unrelated step). Asserts a SHA-pin pattern rather than
-        one exact SHA: this assertion previously hardcoded `ae62891f...`,
-        which Renovate invalidated in PR #5215 when it bumped the workflow to
-        v10.0.1, leaving the test red on main for every contributor while
-        asserting nothing the bump had actually broken. Pinning to a fresh
-        exact SHA reintroduces the same trap on the next bump; a pattern check
-        still enforces `.claude/rules/universal.md` MUST 8 (a commit SHA, not
-        a floating tag) without going stale when Renovate advances it.
+        a comment or an unrelated step).
+
+        The SHA is deliberately not restated here. Renovate bumps the pin in
+        the workflow and a duplicated literal turns every such bump into an
+        identical red run: PR #5215 moved this action from ae62891f to
+        20cfd1bf, the workflow changed, this line did not, and the test went
+        red on main for a reason unrelated to anything it tests. What the
+        contract needs is that the step exists and is pinned to a 40-character
+        commit SHA rather than a floating tag (universal.md MUST-8); both
+        survive a version bump.
+
+        Contrast ``tests/ci/test_pytest_paths_filter_covers_episodes.py``,
+        where the duplicated ``dorny/paths-filter`` SHA is load-bearing: that
+        test models the action's internal ``MatchOptions`` and a bump really
+        does invalidate the model. Restating a SHA is right only when the
+        assertion depends on that specific build. This one does not.
         """
         import yaml
 
@@ -1013,8 +1028,36 @@ class TestWorkflowContract:
         steps = yaml.safe_load(wf)["jobs"]["provenance"]["steps"]
         setup_uv_steps = [step for step in steps if step.get("name") == "Setup uv"]
         assert len(setup_uv_steps) == 1, "expected exactly one 'Setup uv' step"
-        assert re.fullmatch(
-            r"astral-sh/setup-uv@[0-9a-f]{40}", setup_uv_steps[0]["uses"]
+        assert _SETUP_UV_PIN_RE.fullmatch(setup_uv_steps[0]["uses"]) is not None, (
+            "the 'Setup uv' step must use astral-sh/setup-uv pinned to a full "
+            f"commit SHA; found {setup_uv_steps[0]['uses']!r}"
+        )
+
+    def test_setup_uv_pin_pattern_rejects_an_unpinned_reference(self) -> None:
+        """The pin detector goes dead on every shape it is meant to reject.
+
+        ``test_workflow_sets_up_uv`` matches a regex against a file that
+        already satisfies it, so on its own that assertion proves nothing: a
+        pattern loose enough to match anything would pass it too. This is the
+        discriminating half (testing.md SHOULD 17). Each input below is a real
+        way the pin could regress, and each must produce no match.
+        """
+        rejected = {
+            "floating major tag": "astral-sh/setup-uv@v10",
+            "floating semver tag": "astral-sh/setup-uv@v10.0.1",
+            "branch ref": "astral-sh/setup-uv@main",
+            "abbreviated sha": "astral-sh/setup-uv@20cfd1bf",
+            "different action": "actions/setup-python@" + "a" * 40,
+            "trailing comment": "astral-sh/setup-uv@" + "0" * 40 + " # v10.0.1",
+        }
+        for label, reference in rejected.items():
+            assert _SETUP_UV_PIN_RE.fullmatch(reference) is None, (
+                f"pin detector matched {label!r}, so it cannot fail and proves "
+                f"nothing about the real workflow"
+            )
+
+        assert _SETUP_UV_PIN_RE.fullmatch("astral-sh/setup-uv@" + "0" * 40), (
+            "pin detector rejected a correctly SHA-pinned reference"
         )
 
     def test_required_check_context_matches_job_name(self) -> None:

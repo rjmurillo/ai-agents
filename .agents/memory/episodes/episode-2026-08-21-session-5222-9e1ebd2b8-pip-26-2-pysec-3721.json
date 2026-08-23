@@ -1,0 +1,42 @@
+{
+  "id": "episode-2026-08-21-session-5222-9e1ebd2b8-pip-26-2-pysec-3721",
+  "session": "2026-08-21-session-5222-9e1ebd2b8-pip-26-2-pysec-3721",
+  "timestamp": "2026-08-21T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Bump the CI pip pin from 26.1.2 to 26.2 so Python Security Checks stops failing on PYSEC-2026-3721. Split out of the ADR corpus branch deliberately: the failure is red on main and blocks every open PR, and PR #5209 already carries the needs-split label at 46 files, so folding a dependency bump into it would widen a diff a reviewer has asked to shrink.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-21T15:38:11+00:00",
+      "type": "commit",
+      "content": "Commit: 12aafc3a91916fc54b0278b37c6526e32efca59e",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-21-session-5222-9e1ebd2b8-pip-26-2-pysec-3721"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-21T15:50:29+00:00",
+      "type": "commit",
+      "content": "Commit: f359df239005f1da41d46680b536357ed2af8e3c",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5222-9e1ebd2b8-pip-26-2-pysec-3721"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 5
+  },
+  "lessons": []
+}
