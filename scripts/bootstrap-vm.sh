@@ -124,11 +124,28 @@ configure_github_cli() {
         return 0
     fi
 
-    printf '%s\n' "$github_token" | gh auth login --with-token
+    if ! printf '%s\n' "$github_token" | gh auth login --with-token; then
+        echo "WARNING: gh auth login failed; continuing without GitHub authentication" >&2
+        unset github_token
+        return 0
+    fi
     unset github_token
-    gh auth status
-    gh api user --jq '.login' >/dev/null
-    gh auth setup-git
+
+    if ! gh auth status; then
+        echo "WARNING: gh auth status failed; continuing without GitHub authentication" >&2
+        return 0
+    fi
+
+    if ! gh api user --jq '.login' >/dev/null; then
+        echo "WARNING: gh api user check failed; continuing without GitHub authentication" >&2
+        return 0
+    fi
+
+    if ! gh auth setup-git; then
+        echo "WARNING: gh auth setup-git failed; continuing without GitHub authentication" >&2
+        return 0
+    fi
+
     echo "✓ GitHub CLI authenticated and configured for git operations"
 }
 
