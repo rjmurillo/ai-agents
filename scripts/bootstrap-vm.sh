@@ -142,7 +142,7 @@ configure_github_cli() {
     fi
 
     if ! gh auth setup-git; then
-        echo "WARNING: gh auth setup-git failed; continuing without GitHub authentication" >&2
+        echo "WARNING: GitHub CLI authentication succeeded but 'gh auth setup-git' failed, so git HTTPS operations will not use the gh credential helper; the token itself is valid" >&2
         return 0
     fi
 
@@ -151,13 +151,18 @@ configure_github_cli() {
 
 configure_github_cli
 
-# Codex checkouts may omit origin. Restore the canonical HTTPS remote so git
-# fetch, push, and GitHub CLI repository discovery work in later phases.
-if git remote get-url origin &>/dev/null; then
-    git remote set-url origin https://github.com/rjmurillo/ai-agents.git
-else
+restore_origin_remote() {
+    # Codex checkouts may omit origin. Add the canonical HTTPS remote only when
+    # origin is absent so git fetch, push, and GitHub CLI repository discovery
+    # work in later phases. An existing origin is left alone: bootstrapping a
+    # fork or an alternate checkout must not silently repoint it at upstream.
+    if git remote get-url origin &>/dev/null; then
+        return 0
+    fi
     git remote add origin https://github.com/rjmurillo/ai-agents.git
-fi
+}
+
+restore_origin_remote
 
 echo "=== Python uv ==="
 export PATH="$HOME/.local/bin:$PATH"
