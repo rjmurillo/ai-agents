@@ -8,7 +8,7 @@
 
 **Impact**: 8/10
 
-**Location**: `.githooks/pre-commit`
+**Location**: the `markdown-autofix` job in `lefthook.yml`, shimmed into `.git/hooks/pre-commit` by `lefthook install`
 
 ## Features
 
@@ -20,8 +20,12 @@
 ## Setup
 
 ```bash
-git config core.hooksPath .githooks
+uv run --frozen lefthook install
 ```
+
+Do not set `core.hooksPath` by hand. `.githooks` is not tracked here, and a
+`core.hooksPath` naming a missing directory makes git run no hook and print no
+warning (issue #5090). Repair an affected clone with `uv run --frozen lefthook install --reset-hooks-path`.
 
 ## Security Features
 
