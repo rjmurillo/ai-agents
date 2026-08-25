@@ -587,18 +587,19 @@ pre-push:
             run: uv run --frozen python scripts/validation/pre_pr.py
             env:
               SKIP_AUTOFIX: "1"
-              # The hook is `piped: true`, so this job cannot start unless the
-              # fast stage passed. Four of this runner's gates are the same
-              # checks the fast stage already ran as their own jobs (Count
-              # Ratchets against the eight ratchet jobs, Unreachable Code
-              # against python-unreachable-statements, Path Normalization and
-              # Planning Artifacts against their namesakes), and a second run
-              # cannot discover anything the first did not. Measured on a
-              # 4-CPU container: the ratchet re-run alone was 38.37s of this
-              # job's 103.25s. Only this job may set the flag; a hand-run
-              # `pre_pr.py` leaves it unset and gets the full sequence.
-              # See ADR-104.
-              AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"
+              # This job deliberately re-runs four checks the fast stage also
+              # runs (the eight count ratchets, unreachable code, path
+              # normalization, planning artifacts). Skipping them here looks
+              # free because the hook is `piped: true`, but piping proves only
+              # that no earlier job FAILED, not that one RAN: every fast-stage
+              # counterpart carries a `glob:` and this job carries none, so on
+              # a Markdown-only push the Python-globbed jobs never execute and
+              # the skip would remove the gate entirely. Measured on lefthook
+              # 2.1.10 against a fixture repo: a glob-filtered job prints
+              # `(skip) no matching push files` and the hook still exits 0, so
+              # a skipped job is indistinguishable from a passed one. The four
+              # gates here are whole-tree scans and are the drift backstop.
+              # Refs #5316; see ADR-104 "Rejected: deferral by scheduler claim".
               # This job's own timeout (above) in seconds, so the
               # generated-staleness gate can clamp its deadline to the
               # process's remaining share; a test pins the two values.

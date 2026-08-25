@@ -125,14 +125,6 @@ class _ValidationStateLike(Protocol):
     skipped: int
 
 
-# Set by the `pre-pr-validation` job in `lefthook.yml`, and only there. It
-# asserts that the pre-push fast stage ran and passed, which the hook's
-# `piped: true` scheduling guarantees, so gates carrying `already_run_by` can
-# be skipped instead of run a second time. Measured on a 4-CPU container: the
-# duplicate ratchet run alone was 38.37s of this job's 103.25s. See ADR-104.
-FAST_STAGE_RAN_ENV = "AI_AGENTS_PRE_PR_FAST_STAGE_RAN"
-
-
 @dataclass(frozen=True)
 class _Gate:
     """One row of the ordered sequence.
@@ -146,13 +138,15 @@ class _Gate:
     when truthy, bypasses ``run_validation`` entirely and only bumps the totals.
     Only ``--skip-tests`` behaves that way, and it predates the SKIP record.
 
-    ``already_run_by`` names the ``lefthook.yml`` pre-push job that runs this
-    same check in the fast stage. The pre-push hook is ``piped: true``, so
-    ``pre-pr-validation`` cannot start unless that fast-stage job already
-    passed, and a second run cannot discover anything the first did not. The
-    job sets :data:`FAST_STAGE_RAN_ENV` to claim that guarantee; every other
-    caller (a developer running ``pre_pr.py`` by hand, CI) leaves it unset and
-    gets the full sequence.
+    There is deliberately no "the pre-push fast stage already ran this" skip.
+    It was implemented and reverted: ``pre-push`` is ``piped: true``, which
+    proves no earlier job failed, not that a given job ran. Every fast-stage
+    counterpart carries a ``glob:`` while ``pre-pr-validation`` carries none,
+    so on a Markdown-only push the Python-globbed jobs are filtered out and the
+    skip would have removed the gate rather than deduplicated it. Measured on
+    lefthook 2.1.10: a glob-filtered job reports ``(skip) no matching push
+    files`` and the hook exits 0, so downstream cannot tell a skipped job from
+    a passed one. Refs #5316.
     """
 
     name: str
@@ -160,7 +154,6 @@ class _Gate:
     skip_when_quick: bool = False
     skip_flag: str | None = None
     skip_note: str = ""
-    already_run_by: str = ""
     notes: str = field(default="", repr=False)
 
 
@@ -222,18 +215,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Python Syntax (compile gate)", _root_only(validate_python_syntax)),
     # Second so the cheapest push-blocking signal arrives first. See the
     # checks_ratchet module docstring for why these run here (issue #4251).
-    _Gate(
-        "Count Ratchets",
-        _root_only(validate_count_ratchets),
-        already_run_by="the fast-stage ratchet jobs",
-    ),
+    _Gate("Count Ratchets", _root_only(validate_count_ratchets)),
     _Gate("Nested Test Detection", _root_only(validate_no_nested_tests)),
     _Gate("Duplicate Test Helper Detection", _root_only(validate_duplicate_test_helpers)),
-    _Gate(
-        "Unreachable Code Detection",
-        _root_only(validate_unreachable_code),
-        already_run_by="python-unreachable-statements",
-    ),
+    _Gate("Unreachable Code Detection", _root_only(validate_unreachable_code)),
     _Gate("Subprocess Encoding Convention", _root_only(validate_subprocess_encoding)),
     _Gate("Test Working Tree Writes", _root_only(validate_test_tree_writes)),
     _Gate("Push Lock Path Agreement", _root_only(validate_push_lock_paths)),
@@ -341,18 +326,8 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Issue #3426.
     _Gate("Active Plan Closeout Advisory", _root_only(validate_active_plan_closeout)),
     _Gate("YAML Style Validation", _root_only(validate_yaml_style), skip_when_quick=True),
-    _Gate(
-        "Path Normalization",
-        _root_only(validate_path_normalization),
-        skip_when_quick=True,
-        already_run_by="path-normalization",
-    ),
-    _Gate(
-        "Planning Artifacts",
-        _root_only(validate_planning_artifacts),
-        skip_when_quick=True,
-        already_run_by="planning-artifacts",
-    ),
+    _Gate("Path Normalization", _root_only(validate_path_normalization), skip_when_quick=True),
+    _Gate("Planning Artifacts", _root_only(validate_planning_artifacts), skip_when_quick=True),
     _Gate("Agent Drift Detection", _root_only(validate_agent_drift), skip_when_quick=True),
     # Changed-together sibling check; cheap, always on.
     _Gate("Install Parity (agents and rules)", _root_only(validate_install_parity)),
@@ -424,20 +399,9 @@ def run_all_validations(
 
     The order is ``_SEQUENCE``. Read that table, not this loop.
     """
-    fast_stage_ran = os.environ.get(FAST_STAGE_RAN_ENV) == "1"
     for gate in _SEQUENCE:
         if gate.skip_flag is not None and getattr(args, gate.skip_flag, False):
             print(f"[SKIP] {gate.name} ({gate.skip_note})")
-            state.total += 1
-            state.skipped += 1
-            continue
-
-        if fast_stage_ran and gate.already_run_by:
-            print(
-                f"[SKIP] {gate.name} (the pre-push fast stage already ran it as "
-                f"{gate.already_run_by}; the hook is piped, so this job could "
-                f"not have started unless that one passed)"
-            )
             state.total += 1
             state.skipped += 1
             continue
