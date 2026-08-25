@@ -307,7 +307,22 @@ since its own Implementation Notes read "It documents an already-landed gate; it
 does not change the gate."
 
 Three are `accepted` with `implemented: false`: ADR-010, ADR-018, ADR-028. The
-mirror image, decisions accepted and never built.
+mirror image, but **the label "never built" fits only two of them**, and the
+distinction matters because it is a limit of the derivation rule rather than a
+fact about the records.
+
+**ADR-018 chose a no-op on purpose.** Its decision was session-local caching and
+*no* git-tracked cache: the correct implementation of that decision is the
+absence of an artifact. An artifact check cannot represent a negative-space
+decision, so it reports `false` for a decision that was executed exactly as
+written. Do not triage ADR-018 as unbuilt work. If Phase 3 wants to distinguish
+these, the schema needs a value the current enum does not have.
+
+**ADR-028 is genuinely unbuilt but is still cited as live authority.**
+`.gemini/styleguide.md:15` routes output-schema questions to it. That is the same
+class of problem as ADR-030's, and it is disclosed in the PR body alongside it.
+
+ADR-010 is the only clean "accepted and never built" of the three.
 
 An earlier version of this paragraph said "four records" while listing five, and
 a sixth record (ADR-013) was in the group because its `implemented` value was
@@ -330,24 +345,31 @@ proposal is findable and does not return", which is the same concept, a proposal
 declined before acceptance and kept for findability.
 
 `status: rejected` was therefore chosen, and a paragraph was added to ADR-061's
-own `## Status` section recording that choice and its precedent. This is the
-only body edit in the change. It exists so the coercion leaves a trace in the
+own `## Status` section recording that choice and its precedent. This is one
+reconciliation among several: ADR-002, ADR-030, ADR-036, ADR-039, ADR-052, and
+ADR-055 all carry body edits too, each recorded in this document. It exists so the coercion leaves a trace in the
 document a human reads, rather than only in the machine-readable block. ADR-073
 line 57 requires that reconciliation happen by editing prose and never by a gate
 silently rewriting it; this edit is that reconciliation, performed by hand.
 
 ### ADR-052 and ADR-055: supersession left deliberately empty
 
-ADR-052's prose reads "Proposed. Supersedes ADR-036." ADR-055's reads "Accepted
-(supersedes ADR-024, ADR-025)". All three targets are deferred from this PR
-pending issue #5192, so they have no frontmatter to hold a reciprocal
-`superseded-by`. Writing `supersedes: [ADR-036]` now would create exactly the
-one-sided reference ADR-073's Phase 3 bidirectional check is meant to catch.
+**Both prose claims are now struck**, so this section describes what was done,
+not a live inconsistency.
 
-Both fields are therefore left `[]`, and the supersession remains recorded in
-prose where it already was. Whichever of #5190 or #5192 lands second owes the
-reciprocal edit on both ends. This is a known, deliberate incompleteness, not an
-oversight.
+ADR-052's `## Status` read "Proposed. Supersedes ADR-036." and ADR-055's inline
+`**Status**:` read "Accepted (supersedes ADR-024, ADR-025)". ADR-036 turned out
+never to have been superseded at all and ships here as `accepted`. ADR-024 and
+ADR-025 remain deferred to #5192, so they have no frontmatter to hold a
+reciprocal `superseded-by`, and asserting the relationship from one side only is
+exactly the dangling reference ADR-073's Phase 3 bidirectional check exists to
+catch.
+
+Both records therefore carry `supersedes: []`, and both prose claims were
+replaced with a dated note pointing at #5192 rather than left to contradict the
+frontmatter. ADR-055's note is dated 2026-08-25; ADR-052's rejection rationale
+carries the same date. **#5192, and PR #5209 which implements it, owe the
+reciprocal edit** if the ADR-024/ADR-025 supersession is ever restated.
 
 ### ADR-005 and ADR-042: the one reciprocal pair
 
@@ -392,21 +414,37 @@ the enum; `id` matches the filename number; `date` matches `YYYY-MM-DD`;
 agrees with the enum; and every supersession is reciprocal.
 
 Result, re-run against **all 67 records this PR touches**, not the original 53:
-**zero errors**. The earlier version of this line claimed only the 53 and was
-stale once the five status decisions and the ten #5290 records landed.
+**zero errors**.
 
-The same pass reports pre-existing problems in records this PR does not touch,
-recorded here because they were seen and should not be lost:
+**Read that claim narrowly. It is a shape check, not a correctness check.** The
+pass verifies that `date` matches `YYYY-MM-DD`; it cannot verify that the value
+is the right date. "Zero errors" therefore means "nothing is malformed", not
+"the dates are correct", and reading it the second way would be a mistake.
 
-- Ten ADRs carry a partial frontmatter block with a bare `status:` line and none
-  of the other five fields: ADR-003, ADR-020, ADR-023, ADR-027, ADR-034, ADR-057,
-  ADR-058, ADR-066, ADR-069, ADR-071. They were excluded from issue #5190's
-  59-record list because they are not frontmatter-free, but they are not
-  ADR-073-conformant either. ADR-071 additionally has no `date`. Completing
-  Phase 2 requires a pass over these ten.
-- ADR-091 declares `supersedes: [ADR-079]` while ADR-079 does not carry the
-  reciprocal `superseded-by`. This is the same class of defect as issue #5192
-  and ADR-079 is named there.
+That gap is not hypothetical. The full-state six-agent debate found **seven date
+values that were wrong while passing this check**, across three root causes the
+rule had not covered: dated `**Superseded by**:` and `**Amended by**:` trailer
+blocks outside any `## Status` heading (ADR-005, ADR-017), a `### Date`
+subheading nested under an amendment heading (ADR-042), and a date that was
+merely *quoted* from another ADR being mistaken for an update date (ADR-040,
+which had been "corrected" once already onto ADR-080's acceptance date). No bot
+round caught any of them. The lesson is that a schema validator and a reviewer
+who opens the file are not substitutes for each other.
+
+The same pass surfaced two problems in records outside the original 53. The
+first is now fixed in this PR; the second is not:
+
+- **Fixed here.** Ten ADRs carried a partial frontmatter block without `id`,
+  `supersedes`, `superseded-by`, `explainer`, or `implemented`: ADR-003, ADR-020,
+  ADR-023, ADR-027, ADR-034, ADR-057, ADR-058, ADR-066, ADR-069, ADR-071.
+  ADR-071 also had no `date`. They fell outside issue #5190's 59-record list
+  because they were not frontmatter-free, yet they were not ADR-073-conformant
+  either. Filed as #5290 and **completed in this PR**, which is why it carries a
+  closing keyword for that issue. See "The ten records from issue #5290" below.
+- **Still open.** ADR-091 declares `supersedes: [ADR-079]` while ADR-079 carries
+  no reciprocal `superseded-by`. Same class of defect as issue #5192, where
+  ADR-079 is already named, and PR #5209 is the change that handles it. Out of
+  scope here.
 
 ## Security review
 
@@ -524,7 +562,48 @@ much they should weigh on a reviewer:
 | ADR-070 | proposed | 2026-07-27 | [] | null | true |
 | ADR-072 | proposed | 2026-06-09 | [] | null | false |
 
-## The six-agent debate: per-role verdicts
+## Full-state debate: all 67 records (final round)
+
+A second six-agent round reviewed the **complete final state**, all 67 records at
+once, rather than the five status decisions alone. This is the round that
+satisfies the review-evidence requirement for the 62 mechanical records, which
+the first round did not cover.
+
+**Verdict: 3 ACCEPT, 2 DISAGREE-AND-COMMIT, 1 BLOCK (cleared). Not unanimous.**
+
+| Role | Verdict |
+|---|---|
+| security | ACCEPT |
+| analyst | ACCEPT |
+| high-level-advisor | ACCEPT |
+| architect | DISAGREE-AND-COMMIT |
+| critic | DISAGREE-AND-COMMIT |
+| independent-thinker | **BLOCK**, narrow, clearable by two specific fixes |
+
+The BLOCK was cleared by making the two fixes it named, not by overruling it.
+Both are in this PR: the seven date corrections below, and making three records'
+dates self-documenting in their own prose.
+
+**What this round found that no automated review did: seven wrong `date` values,
+all of which passed the schema validator.** Three root causes, one underlying
+gap. The rule matched a curated set of patterns rather than scanning each file
+for every date-shaped signal:
+
+| ADR | Was | Now | Why the rule missed it |
+|---|---|---|---|
+| ADR-005 | 2025-12-18 | 2026-01-17 | Dated `**Superseded by**:` trailer block, outside any `## Status` heading. Now agrees with ADR-042's own record of the same event. |
+| ADR-017 | 2025-12-23 | 2025-12-28 | Same trailer-block gap, via `**Amended by**:` Session 93 entries. |
+| ADR-042 | 2026-01-17 | 2026-04-13 | A `### Date` subheading nested under `## Amendment 1`. The amendment-heading scan did not look inside the heading's own subsection. Confirmed by commit `4d1aaa5e1` (PR #1647). |
+| ADR-040 | 2026-07-11 | 2026-08-14 | **Two bugs stacked.** `2026-07-11` is ADR-080's acceptance date, merely *quoted* inside ADR-040's supersession callout: a mentioned date mistaken for an update date, and it had already been "corrected" onto that wrong value once. Real last edit confirmed by commit `333a80b74` (74 insertions), and the file's own line 274 reads "As of 2026-08-14", a sentence that cannot have been written earlier. |
+| ADR-036, ADR-055, ADR-061 | 2026-08-25 | 2026-08-25 | Values were right; nothing in the records' prose let a reader derive them. Each now carries a short dated clause. |
+
+The ADR-040 case is the instructive one: a date-shaped string in a record is not
+evidence about that record. It may be a quotation about a different one. Any
+future automation over this field has to distinguish "the date this record was
+changed" from "a date this record mentions", and the current rule does that by
+context, not by pattern.
+
+## The five status decisions: per-role verdicts (first round)
 
 The roster below reviewed the five status decisions. **Consensus was
 DISAGREE-AND-COMMIT, not unanimous ACCEPT**, and the disagreement was
@@ -733,12 +812,15 @@ the six hook-bypass mechanisms `.claude/rules/universal.md` MUST-NOT-2 forbids.
 No other hook was skipped: every batch cleared `adr-review-policy`,
 `staged-dash-policy`, and markdown lint.
 
-The justification the gate asks for: the file count is set by issue #5190, which
-names all 53 records; the diff is one identical nine-line block per file, plus a
-single prose paragraph in ADR-061 and four pre-existing em dashes removed from
-records already on the path; and a validation pass over all 96
-frontmatter-bearing ADRs proves conformance mechanically. Reviewing 53 copies of
-one block is not the burden the 50-file limit exists to prevent.
+The justification the gate asks for: the file count is set by issue #5190 (53
+records) and issue #5290 (10 more), plus 4 records added for status decisions,
+giving **67 ADRs across 73 files**. Sixty-two of those carry one identical
+nine-line block and nothing else. The remainder is five status decisions with
+prose changes, seven dated clauses, a handful of em-dash repairs, and the
+taste-lints fix with its tests. A validation pass over all 100
+frontmatter-bearing ADRs proves conformance mechanically. Reviewing 62 copies of
+one block is not the burden the 50-file limit exists to prevent, and the 5 that
+are real decisions are argued individually above.
 
 ## Commit batches
 
@@ -773,3 +855,4 @@ the batch here as it lands.
 | 23 | ADR-069, ADR-071 |
 | 24 | ADR-002, ADR-030, ADR-039, ADR-052 |
 | 25 | ADR-030, ADR-036, ADR-055, ADR-061 |
+| 26 | ADR-005, ADR-017, ADR-026, ADR-036 |

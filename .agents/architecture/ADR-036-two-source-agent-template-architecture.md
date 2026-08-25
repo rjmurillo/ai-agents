@@ -13,7 +13,9 @@ implemented: true
 
 ## Status
 
-Accepted
+Accepted. (Updated 2026-08-25: two stale `Generate-Agents.ps1` references
+repointed to `build/generate_agents.py`, which this record already named
+correctly elsewhere. The decision itself is unchanged.)
 
 ## Date
 
