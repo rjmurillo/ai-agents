@@ -127,6 +127,46 @@ not surface a second one, but a future ADR-tooling change should expect it.
    dangling citation to a deleted script, and the ten ADRs carrying only a bare
    `status:` line that the #5190 record list did not cover.
 
+## Failure-Mode Classification
+
+**FM-10: Silent defaults and guard-clause suppression** (partial fit).
+
+The shallow-clone failure matches FM-10's core shape: a command succeeds,
+returns a plausible value, and is silently wrong. `git log --follow -1` on a
+shallow boundary returns a date; the date is the boundary commit, not the file's
+true origin. Nothing raises, nothing warns. The only symptom is that the value
+looks implausible if you already know what it should be.
+
+The fit is partial because FM-10 is primarily about code-level suppressions
+(`except: pass`, `or default`, verdict fall-through), and this failure is an
+environment precondition violation. But the unifying property holds: **the call
+site has no way to know the operation didn't actually do what its name claims.**
+`git log --follow -1 --format=%ad` claims to return the file's earliest date; on
+a shallow clone it returns the boundary date, and there is no return code or
+warning that distinguishes them.
+
+## Evidence
+
+| Artifact | Link |
+|----------|------|
+| Issue tracking the backfill | [#5190](https://github.com/rjmurillo/moq.analyzers/issues/5190) |
+| Debate log with `implemented` corrections | [ADR-073-phase2-backfill-debate-log.md](./../critique/ADR-073-phase2-backfill-debate-log.md) |
+| Commit exposing shallow-clone boundary | `2c85d254` (117 files, 35845 insertions, all-additions signature) |
+| ADR-073 lifecycle frontmatter schema | [ADR-073](../architecture/ADR-073-adr-lifecycle-frontmatter.md) |
+| Deferred supersession issues | [#5192](https://github.com/rjmurillo/moq.analyzers/issues/5192), [#5193](https://github.com/rjmurillo/moq.analyzers/issues/5193), [#5195](https://github.com/rjmurillo/moq.analyzers/issues/5195) |
+| ADR-policy gate weakness | [#5205](https://github.com/rjmurillo/moq.analyzers/issues/5205) |
+
+## Remediation
+
+| Action | Owner/Issue | Status |
+|--------|-------------|--------|
+| Add shallow-clone check rule (`.claude/rules/shallow-clone-guard.md`) | TBD | Pending |
+| Triage proposed-but-implemented mismatches (ADR-038, 049, 059, 067, 070) | TBD | Pending |
+| Triage accepted-but-unbuilt records (ADR-010, 018, 028) | TBD | Pending |
+| Fix ADR-073 dangling citation to `scripts/sync_adr_protocol.py` | TBD | Pending |
+| Complete Phase 2 for ten partial-frontmatter ADRs | [#5190](https://github.com/rjmurillo/moq.analyzers/issues/5190) | Pending |
+| Complete Phase 2 for six deferred ADRs | [#5192](https://github.com/rjmurillo/moq.analyzers/issues/5192), [#5193](https://github.com/rjmurillo/moq.analyzers/issues/5193), [#5195](https://github.com/rjmurillo/moq.analyzers/issues/5195) | Pending |
+
 ## Open at hand-off
 
 The PR is a draft and references #5190 with `Refs`, not `Fixes`. Six records

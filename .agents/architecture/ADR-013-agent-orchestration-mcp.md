@@ -6,7 +6,7 @@ decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: true
+implemented: false
 ---
 
 # ADR-013: Agent Orchestration MCP
