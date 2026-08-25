@@ -594,10 +594,11 @@ def _successor_cell(record: AdrRecord, by_id: dict[str, AdrRecord]) -> str:
         cycle = True
 
     if cycle:
-        # Show the full loop, record.adr_id included, so a one-hop
-        # self-reference (A names itself) is as legible as a longer ring
-        # (A -> B -> A): chain alone would be empty for the former.
-        loop = " -> ".join([record.adr_id, *(r.adr_id for r in chain), record.adr_id])
+        # Show the path from record through chain to the revisited node. Close
+        # on `current` (the node that triggered the cycle detection) so the
+        # message reflects the actual topology: A -> B -> C -> B when A merely
+        # enters a cycle among B and C, rather than claiming A participates.
+        loop = " -> ".join([record.adr_id, *(r.adr_id for r in chain), current.adr_id])
         return f"cycle, unresolved ({loop})"
 
     terminal = chain[-1] if chain else successor
