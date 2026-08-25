@@ -134,6 +134,51 @@ The value finally used is the artifact test: does the thing the ADR decided
 exist in the working tree now, or did it provably exist and merge before being
 removed? Every `implemented` value below was settled that way, by path.
 
+#### Deviation from ADR-073's literal text, and why
+
+This is a deliberate departure from the governing text, recorded here rather
+than applied quietly.
+
+**What the literal text says.** ADR-073's Implementation Notes, Phase 2, read:
+"`implemented` is derived from whether a merged change references the ADR."
+Issue #5190 repeats the same formulation. Read strictly, that is a
+reference-count rule: find a merged commit citing `ADR-NNN`, set the field true.
+
+**What was actually done.** Artifact verification. The field is true when the
+thing the decision called for demonstrably exists, or provably existed and was
+merged before later removal, established by opening the path rather than by
+counting citations.
+
+**Why the literal rule is wrong.** A reference-count rule produces answers that
+are wrong in both directions, and the errors do not cancel:
+
+- **It over-reports.** Commit messages cite neighbouring ADRs freely. The commit
+  implementing ADR-033 mentions ADR-032; the commit implementing ADR-017 mentions
+  ADR-018. A counting rule credits all four.
+- **It under-reports.** ADR-041 and ADR-046 have zero live id-references while
+  their artifacts (`codeql-analysis.yml`, the `codeql-scan` skill,
+  `milestone-planner.md`) plainly exist.
+- **It cannot express a reversion, which is the decisive case.** ADR-039's
+  assignments were merged and then reverted. A reference-count rule marks it
+  `implemented: true` permanently, because the merged references never
+  disappear. That is precisely backwards for a field whose stated job is gating
+  amend-versus-supersede: the record's decision is no longer in force, and
+  treating it as implemented would tell a future author to supersede where an
+  amendment is correct. ADR-039 is handled in this PR (see the status-decision
+  section) and is the counterexample that settles the question.
+
+**Why not recalculate to the literal rule.** Doing so would knowingly reintroduce
+answers already shown to be wrong, in order to match wording rather than intent.
+ADR-073 line 54 states the field's purpose in the schema itself,
+`# flips true at first merged change; gates amend-vs-supersede`. Artifact
+verification serves that purpose; citation counting only approximates it, and
+approximates it badly on the reversion case.
+
+**What a reviewer should do with this.** If the maintainer prefers the literal
+reading, the fix is to amend ADR-073's Phase 2 wording rather than to recompute
+53 records into known-wrong values. Either way the deviation is now on the
+record instead of buried in a script.
+
 **`supersedes` / `superseded-by`.** Populated only where both ends are in scope,
 so no one-sided reference is created. Exactly one pair qualifies.
 
@@ -473,3 +518,4 @@ the batch here as it lands.
 | 15 | ADR-014, ADR-033, ADR-040, ADR-041 |
 | 16 | ADR-047, ADR-060, ADR-061, ADR-062 |
 | 17 | ADR-063, ADR-070 |
+| 18 | ADR-055 |
