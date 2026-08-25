@@ -2,7 +2,7 @@
 
 This directory contains the shared agent template system for generating platform-specific agent definitions.
 
-> **Governing ADR**: [ADR-036: Two-Source Agent Template Architecture](../.agents/architecture/ADR-036-two-source-agent-template-architecture.md)
+> **Governing procedure**: [ADR-036: Two-Source Agent Template Architecture](../.agents/architecture/ADR-036-two-source-agent-template-architecture.md): superseded in governance by [ADR-052](../.agents/architecture/ADR-052-template-strategy.md), but ADR-036's procedure below is still what runs; ADR-052 is accepted target state, not yet implemented.
 
 ## Directory Structure
 
@@ -245,7 +245,7 @@ When drift is detected:
 
 ## Related Documentation
 
-- [ADR-036: Two-Source Agent Template Architecture](../.agents/architecture/ADR-036-two-source-agent-template-architecture.md) - Governing architecture decision
+- [ADR-036: Two-Source Agent Template Architecture](../.agents/architecture/ADR-036-two-source-agent-template-architecture.md) - Operative procedure (superseded in governance by ADR-052, not yet implemented)
 - [src/claude/AGENTS.md](../src/claude/AGENTS.md) - Claude agent synchronization rules
 - [.vscode/toolsets.jsonc](../.vscode/toolsets.jsonc) - VS Code native toolset definitions
 - [CONTRIBUTING.md](../CONTRIBUTING.md) - Full contribution guide
