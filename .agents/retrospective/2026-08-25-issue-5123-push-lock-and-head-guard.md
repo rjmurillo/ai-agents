@@ -88,9 +88,13 @@ reports the accurate "on this machine" scope).
 
 ## Remediation / follow-ups
 
-- No governance or instruction change proposed. The existing
-  `infrastructure-advisory` routing to security review already caught this;
-  the gap was in my own pre-review diligence, not in the repo's process.
+- This PR itself is the instruction change for the mechanism it adds: it
+  extends the canonical `.claude/rules/push-lock.md` with the new "Commit
+  guard" section (and its generated `.github/instructions/` mirror). No
+  separate governance change is proposed beyond that: the existing
+  `infrastructure-advisory` routing to security review already caught the
+  defects in the first draft, so the gap was in my own pre-review diligence,
+  not in the repo's process.
 - Recorded as a follow-up in the PR body rather than a new issue: consider
   isolating git-HEAD-reading test fixtures (`tests/skills/memory/
   test_repair_episode_causal_links.py` and similar) behind a throwaway repo
