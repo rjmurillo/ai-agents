@@ -244,6 +244,51 @@ exactly the contradiction class issue #5201 exists to eliminate.
     `Error`. Proved discriminating: reverted the guard in a scratch copy,
     confirmed the test failed with the predicted
     `'str' object has no attribute 'get'` traceback, then restored.
+  - A fourth Copilot review pass (PR #5283, commit `6639555b8`) found four
+    more schema-vs-validator disagreements, all the same "checked
+    truthiness/presence, not the declared JSON type" pattern, and one
+    "top-level input never type-checked" pattern:
+    - `validate_envelope`'s top level assumed `data` was already a dict.
+      The CLI passes `json.loads()`'s result straight through, and valid
+      JSON such as `null`, a number, a string, or an array reaches it
+      unchanged; each of those crashed with `TypeError` or
+      `AttributeError` instead of producing a finding. Fixed with an
+      `isinstance(data, dict)` guard at the top of `validate_envelope`,
+      and the parameter's type annotation changed from `dict` to `object`
+      to state honestly that any JSON value can arrive there.
+    - The schema's top-level `required` array added `Data` in an earlier
+      round but still omitted `Error`, so a `Success: true` envelope with
+      no `Error` key at all passed both the schema and the validator
+      (`data.get("Error")` cannot distinguish a missing key from an
+      explicit `null`). Fixed: `Error` added to the schema's `required`
+      array; `validate_envelope` now checks `"Error" not in data`
+      separately from `data.get("Error") is None`.
+    - `Metadata.Script` and `Metadata.Timestamp` are typed `"string"` in
+      the schema; the validator checked only truthiness, so
+      `{"Script": 1, "Timestamp": 1}` passed. Fixed with explicit
+      `isinstance(..., str)` checks (extracted into
+      `_validate_metadata_string_field`, shared by both fields).
+    - `Error.Message` (typed `"string"`) and `Error.Code` (typed
+      `"integer"`) had the same truthiness/presence-only gap. Fixed with
+      explicit type checks (extracted into
+      `_validate_error_message_and_code`). The `Code` check excludes
+      `bool` explicitly: Python's `bool` subclasses `int`, so
+      `isinstance(True, int)` is `True`, but a JSON boolean is not a JSON
+      integer; a naive `isinstance(code, int)` check would have accepted
+      `Code: true`.
+    All four fixes proved discriminating the same way as the earlier
+    rounds: each corresponding new test was run against a scratch copy
+    with that specific fix reverted and confirmed to fail (crash for the
+    top-level and missing-Error cases, silent pass for the type-check
+    cases; the bool-vs-int case specifically confirmed against a
+    deliberately naive `isinstance(code, int)` check, not just a removed
+    check). `tests/test_skill_output.py` grew past the 500-line taste-lint
+    gate as a result; the CLI subprocess-integration tests
+    (`TestValidateSkillOutputScript`) were split into a new
+    `tests/test_skill_output_cli.py`, a natural seam (in-process
+    `validate_envelope` calls vs. real subprocess invocations) that
+    predated this round's growth. `uv run pytest tests/test_skill_output.py
+    tests/test_skill_output_cli.py -q` -> 51 passed (up from 38).
 
 ## Related Decisions
 

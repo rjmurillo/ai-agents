@@ -4,7 +4,7 @@
   "title": "Skill Output Envelope",
   "description": "Standard envelope for all skill script outputs per ADR-056, corrected by ADR-103",
   "type": "object",
-  "required": ["Success", "Data", "Metadata"],
+  "required": ["Success", "Data", "Error", "Metadata"],
   "properties": {
     "Success": {
       "type": "boolean",

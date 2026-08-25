@@ -199,3 +199,51 @@ This did not require a fresh adr-review round: it is a mechanical
 defensive-check fix of the same shape as three findings already reviewed
 and accepted in Round 2, not a new decision. Recorded here rather than
 silently, per this repo's own evidence-hierarchy expectations.
+
+## Round 4: Copilot review, commit `6639555b8`
+
+Copilot's fourth pass on this PR found four more instances of the same two
+defect patterns Round 2 and Round 3 already established: a JSON Schema
+type ("string", "integer", "object") checked only for truthiness or
+presence, and (new this round) the envelope's top-level JSON type never
+checked at all before delegating to per-field helpers.
+
+1. `validate_envelope(data)` assumed `data` was a dict. The CLI passes
+   `json.loads()`'s result straight through; valid JSON that is not an
+   object (`null`, a number, a string, an array) reached the per-field
+   helpers unchanged and crashed with `TypeError` or `AttributeError`.
+2. The schema's top-level `required` array (already carrying `Data` from
+   Round 2) still omitted `Error`, so a `Success: true` envelope with no
+   `Error` key passed silently; `data.get("Error")` cannot distinguish a
+   missing key from an explicit `null`.
+3. `Metadata.Script`/`Metadata.Timestamp` (schema type `"string"`) and
+   `Error.Message`/`Error.Code` (schema types `"string"`/`"integer"`) were
+   each checked only for truthiness or presence, not their declared type.
+
+**Fix**: an `isinstance(data, dict)` guard at the top of
+`validate_envelope` (parameter type changed `dict` -> `object` to match);
+`Error` added to the schema's `required` array plus a separate
+`"Error" not in data` check; two new helpers,
+`_validate_metadata_string_field` and `_validate_error_message_and_code`,
+adding explicit `isinstance` checks for all four fields. The `Code` check
+excludes `bool` explicitly (`isinstance(True, int)` is `True` in Python,
+but a JSON boolean is not a JSON integer).
+
+Every new test was proven discriminating by reverting its corresponding
+fix in a scratch copy: the top-level and missing-`Error` cases reproduced
+the predicted crash or silent pass, the type-check cases reproduced a
+silent pass, and the boolean-`Code` case was checked specifically against
+a naive `isinstance(code, int)` guard (not just a removed guard), since
+that is the exact mistake the fix avoids.
+
+`tests/test_skill_output.py` crossed the 500-line taste-lint gate as a
+result of this round's additions (11 new tests). Split the CLI
+subprocess-integration class (`TestValidateSkillOutputScript`) into a new
+`tests/test_skill_output_cli.py`; this was a pre-existing natural seam
+(in-process function calls vs. real subprocess invocations), not a
+response to this round's findings specifically.
+
+`uv run pytest tests/test_skill_output.py tests/test_skill_output_cli.py -q`
+-> 51 passed (up from 38). Same as Round 3: a mechanical defensive-check
+fix of an already-reviewed pattern, not a new decision, so no fresh
+six-seat round was run.
