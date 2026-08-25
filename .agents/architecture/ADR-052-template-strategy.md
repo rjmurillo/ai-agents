@@ -31,7 +31,7 @@ rjmurillo-bot (autonomous session, Issue #124)
 
 ADR-036 (Two-Source Agent Template Architecture, 2026-01-01) established the current two-source system: `src/claude/` as the hand-maintained, non-generated Claude source, and `templates/agents/*.shared.md` as the shared source that generates Copilot CLI and VS Code variants only. **Correction (2026-08-25, from the adr-review debate on this acceptance): ADR-036 never claimed Claude Code agents were generated from templates: ADR-036 §Source 1: Claude-Specific states plainly that `src/claude/` files "are the authoritative source for Claude" and are "Not Generated" (a line-number citation here would drift the next time either file's frontmatter changes, as happened once already in this same change).** The similarity table below measures Claude-to-template divergence, a comparison ADR-036 itself never promised would converge; ADR-036 §Intentional Divergence (added 2026-01-01, before this ADR's evidence table) reads that same divergence as deliberate platform differentiation, not sync failure, and this ADR does not overrule that reading (see the note under "Evidence of Failure").
 
-What this ADR actually replaces is narrower than the original text claimed: not "Claude was templated and drifted," since ADR-036 never promised that convergence in the first place, but "the templates/agents/ layer that generates Copilot CLI and VS Code variants adds a maintenance surface without adding synchronization value for that specific purpose" (the same point made under "Evidence of Failure" below). ADR-052 replaces the template-first Copilot/VS Code generation model with a Claude-first one that formalizes Claude's existing canonical role.
+What this ADR actually replaces is narrower than the original text claimed: not "Claude was templated and drifted," since ADR-036 never promised that convergence in the first place. **Correction (2026-08-25, review): the templates layer does deliver synchronization value today.** `build/generate_agents.py` (module docstring, lines 4-6) reads `templates/agents/*.shared.md` as the single source generating both the VS Code and Copilot CLI outputs, and CI validates the generated output against that source, so the two derived platforms are kept in sync by construction, not merely in theory. What this ADR actually argues is narrower still: a Claude-first transformation can preserve that same generated-and-validated synchronization for VS Code and Copilot CLI while removing one source layer, going directly from `src/claude/` to the two derived outputs instead of from `templates/agents/` to the two derived outputs, dropping the maintenance surface from three trees (templates, Claude, derived) to two (Claude, derived). ADR-052 replaces the template-first Copilot/VS Code generation model with a Claude-first one that formalizes Claude's existing canonical role.
 
 ## Context
 
@@ -43,7 +43,7 @@ The project distributes agent prompts to three platforms: Claude Code, VS Code (
 
 The repository has also since grown two additional hand-or-generated agent surfaces this ADR's Migration Plan does not account for: `.claude/agents/` and `.github/agents/` (see `build/AGENTS.md:240`). The Migration Plan below targets the four-surface topology as it stood on 2026-03-01; re-scoping against the current six surfaces is tracked at issue #5282 and must happen before Phase 1 executes.
 
-A drift detection script (`build/scripts/detect_agent_drift.py`) compares Claude agents against VS Code and Copilot CLI variants using Jaccard similarity on word tokens across 16 named sections.
+A drift detection script (`build/scripts/detect_agent_drift.py`) compares Claude agents against VS Code variants (and separately, the `.claude/agents`/`.github/agents` install copies) using Jaccard similarity on word tokens across a named-section allowlist. **Correction (2026-08-25, review): the script does not compare against Copilot CLI agents at all** (module docstring, lines 4-33): `src/copilot-cli/agents` is held to an exact string match against its template source by `generate_agents.py --validate` instead. The allowlist currently has 23 entries, not 16; both figures are volatile and should be re-measured against the live script rather than trusted from this ADR.
 
 ### Evidence of Failure
 
@@ -60,7 +60,7 @@ A 2025-12-15 analysis (`.agents/analysis/drift-analysis-claude-vs-templates.md`)
 
 Templates and Claude agents share between 2-13% content.
 
-**Note (2026-08-25, adr-review debate):** ADR-036 §Intentional Divergence reads this same range as deliberate platform differentiation, not a synchronization defect: "Historical drift analysis showing 2-12% similarity between Claude and templates reflects this intentional platform differentiation, not maintenance failure." This ADR's acceptance does not overrule that reading: Claude was never meant to converge with the shared templates under either architecture. What this ADR's evidence actually supports is narrower: the shared-template layer's sole functional purpose is generating the Copilot CLI and VS Code variants, and a direct Claude-to-platform transformation removes an intermediate representation that added a maintenance surface without adding synchronization value for that purpose.
+**Note (2026-08-25, adr-review debate):** ADR-036 §Intentional Divergence reads this same range as deliberate platform differentiation, not a synchronization defect: "Historical drift analysis showing 2-12% similarity between Claude and templates reflects this intentional platform differentiation, not maintenance failure." This ADR's acceptance does not overrule that reading: Claude was never meant to converge with the shared templates under either architecture. **Correction (2026-08-25, review): the shared-template layer does currently deliver the synchronization it exists for**, per `build/generate_agents.py` (see the correction under "Prior Art" above). What this ADR's evidence actually supports is narrower: the shared-template layer's sole functional purpose is generating the Copilot CLI and VS Code variants, and a direct Claude-to-platform transformation can deliver that same synchronization with one fewer source, removing the template layer as an intermediate representation rather than removing a synchronization property it never had.
 
 ### Platform Differences
 
@@ -84,7 +84,7 @@ All changes start in shared templates. Platform variants are generated.
 
 - Pro: Single source of truth in theory
 - Con: Templates diverged 88-98% from Claude agents. The "source of truth" is neither maintained nor enforced. Two maintenance surfaces (templates AND Claude agents) with no synchronization guarantee.
-- Verdict: **Rejected.** The template layer earns its cost only if it delivers the synchronization it claims to. For its actual purpose (generating Copilot CLI/VS Code from a shared source), it demonstrably has not. This verdict does not rest on the Claude-to-template similarity figures below, which ADR-036 §Intentional Divergence already reads as deliberate, not as evidence of failure; see "Evidence of Failure" for that distinction.
+- Verdict: **Rejected.** **Correction (2026-08-25, review): not on a synchronization failure.** `build/generate_agents.py` generates and CI validates both platform outputs from `templates/agents/*.shared.md` today, so the template layer does deliver the synchronization it claims to for its stated purpose (generating Copilot CLI/VS Code from a shared source). The rejection rests instead on cost: keeping a third tree (templates) alongside `src/claude/` and the derived outputs is a duplicate-source maintenance surface that a direct Claude-to-platform transformation removes without losing that synchronization property. This verdict does not rest on the Claude-to-template similarity figures below, which ADR-036 §Intentional Divergence already reads as deliberate, not as evidence of failure; see "Evidence of Failure" for that distinction.
 
 #### Option B: Claude-First (Selected)
 
@@ -105,9 +105,9 @@ Each platform maintains its own agents. No generation, no synchronization.
 ### Rationale
 
 1. Claude agents are already the source of truth. This formalizes existing practice.
-2. The template layer adds a maintenance surface that has demonstrated zero synchronization value.
+2. The template layer adds a maintenance surface (correction, 2026-08-25 review: it does deliver its intended synchronization today, per `build/generate_agents.py`) that a direct Claude-to-platform transformation can eliminate without losing that synchronization property.
 3. A Claude-to-platform transformation is simpler than template-to-platform generation because it eliminates the intermediate representation.
-4. The drift detection script already operates on the correct model (comparing derived variants against Claude source).
+4. The drift detection script already operates on the correct model for the pairs it covers today (`src/claude` vs `src/vs-code-agents`, and `.claude/agents` vs `.github/agents`, both compared against Claude source); it does not yet cover `src/copilot-cli/agents`, which today is held to an exact-match generator check instead (see the correction under "Prior Art").
 
 ## Consequences
 

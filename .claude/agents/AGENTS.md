@@ -12,7 +12,7 @@ routing, generated Copilot agents, or runtime contracts, execute it through
 `ai-agents-portability-campaign`. Do not repeat vendor research already pinned
 in the reference sidecar.
 
-> **Governing procedure**: [ADR-036: Two-Source Agent Template Architecture](../../.agents/architecture/ADR-036-two-source-agent-template-architecture.md): superseded in governance by [ADR-052](../../.agents/architecture/ADR-052-template-strategy.md), but ADR-036's synchronization procedure below is still what runs; ADR-052 is accepted target state, not yet implemented.
+> **Governing procedure** (in the `rjmurillo/ai-agents` repository; ADR-036 and ADR-052 are not shipped with this installed plugin, so they are named here without links): ADR-036 (Two-Source Agent Template Architecture) is superseded in governance by ADR-052 (Template Strategy), but ADR-036's synchronization procedure below is still what runs; ADR-052 is accepted target state, not yet implemented.
 
 ## Source vs Installation Relationship
 
