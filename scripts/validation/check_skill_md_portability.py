@@ -1329,6 +1329,37 @@ def _run_update_baseline(
     )
 
 
+def _require_nonempty_extra_roots(
+    root: Path, scanned_by_root: dict[str, int]
+) -> int | None:
+    """Return exit code 2 (and print) when a required extra root scanned nothing.
+
+    ``missing_required_extra_roots()`` only catches an absent directory. A
+    generator can create its output directory and then fail to populate it
+    (a partial or failed run), which passes an ``is_dir()`` check and would
+    otherwise report a clean 0-refs scan indistinguishable from a real,
+    fully-generated empty tree. Treat "exists but produced nothing" the same
+    as "does not exist": both mean the shipped artifact this validator
+    exists to gate was never actually examined (issue #5214 review). Returns
+    ``None`` when every required extra root examined at least one file.
+    """
+    empty_required = [
+        name
+        for name in EXTRA_SCAN_ROOTS
+        if name in REQUIRED_EXTRA_ROOTS and scanned_by_root.get(name, 0) == 0
+    ]
+    if not empty_required:
+        return None
+    absent = ", ".join(empty_required)
+    print(
+        f"Required scan dir under {root} exists but examined zero Markdown "
+        f"files: {absent}. Treat an empty generated directory as a build "
+        "failure, not a clean scan.",
+        file=sys.stderr,
+    )
+    return 2
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     root = _resolve_root(args.repo_root)
@@ -1352,28 +1383,9 @@ def main(argv: list[str] | None = None) -> int:
     current, marker_current, scanned_by_root, drift_failures = counts
     drift_current = _drift_counts_from_failures(drift_failures)
 
-    # missing_required_extra_roots() above only catches an absent directory.
-    # A generator can create its output directory and then fail to populate
-    # it (a partial or failed run), which passes an is_dir() check and would
-    # otherwise report a clean 0-refs scan indistinguishable from a real,
-    # fully-generated empty tree. Treat "exists but produced nothing" the
-    # same as "does not exist": both mean the shipped artifact this
-    # validator exists to gate was never actually examined (issue #5214
-    # review).
-    empty_required = [
-        name
-        for name in EXTRA_SCAN_ROOTS
-        if name in REQUIRED_EXTRA_ROOTS and scanned_by_root.get(name, 0) == 0
-    ]
-    if empty_required:
-        absent = ", ".join(empty_required)
-        print(
-            f"Required scan dir under {root} exists but examined zero Markdown "
-            f"files: {absent}. Treat an empty generated directory as a build "
-            "failure, not a clean scan.",
-            file=sys.stderr,
-        )
-        return 2
+    empty_required_exit = _require_nonempty_extra_roots(root, scanned_by_root)
+    if empty_required_exit is not None:
+        return empty_required_exit
 
     if args.update_baseline:
         return _run_update_baseline(
