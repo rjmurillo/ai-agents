@@ -117,8 +117,11 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-from checks_common import _refresh_remote_base, _resolve_default_base_ref  # noqa: E402
-from subprocess_runner import _run_subprocess  # noqa: E402
+from checks_common import (  # noqa: E402
+    _refresh_remote_base,
+    _resolve_default_base_ref,
+    _run_subprocess,
+)
 from yaml_utils import _parse_yaml_frontmatter  # noqa: E402
 
 EXIT_OK = 0
