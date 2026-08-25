@@ -133,3 +133,58 @@ Fix: rewrote Decision items 2 and 6 to the shipped Python contract
 added a provenance note on the Decision section explaining the original
 2026-03-08 PowerShell-era wording and why it changed. No frontmatter change;
 ADR-056 remains `status: accepted`, `supersedes: [ADR-028]`.
+
+## Round 4: Copilot PR Review, second pass (post-merge-to-branch, PR #5283)
+
+Copilot re-reviewed after Round 3's fix and filed three more findings, two
+against files this file already covers and one new:
+
+1. **ADR-056 schema/validator drift (new).** Round 3's fix quoted
+   `scripts/github_core/output.py`'s full `valid_types` tuple in the ADR
+   Decision text, which included `RateLimitError` and `VerificationFailed`.
+   Copilot checked those two values against the enforcement artifacts and
+   found both `.agents/schemas/skill-output.schema.json` (line 33) and
+   `scripts/validate_skill_output.py` (`VALID_ERROR_TYPES`) enumerated only
+   6 of the 8 types `output.py` actually accepts. Verified directly: both
+   files' enums were missing `RateLimitError` and `VerificationFailed`, and
+   `tests/test_github_pr_diagnostics.py`, `tests/test_list_issues.py`, and
+   `tests/test_close_issue.py` already emit those two error types in
+   production code paths. A producer could emit an ADR-056-conformant
+   envelope the repository's own validator would reject: the exact
+   contradiction-between-live-artifacts class issue #5201 exists to fix,
+   just one layer down from ADR prose. Fix: widened both enums to the 8
+   values `output.py` accepts, and extended
+   `tests/test_skill_output.py::TestWriteSkillError::test_validates_error_types`
+   to cover all 8 (separate commit, non-ADR files, this repo's atomic-commit
+   cap requires ADR and non-ADR changes to split).
+
+2. **ADR-031 "Never implemented" claim wrong (previously missed, resurfaced).**
+   Round 2's ADR-031 rewrite claimed "Never implemented: no `gh_cli`/`daemon`
+   routing config or named-pipe daemon exists in the repository." Copilot
+   found this false: Strategy 1 (direct `gh` CLI calls for simple wrapper
+   skills) shipped under issue #286, closed `completed`, via PR #1588
+   (merged 2026-04-10). Verified directly: `docs/github-api-capabilities.md`
+   lines 232-236 list five gh-native shell scripts at
+   `.claude/skills/github/scripts/gh-native/`, and issue #286's
+   `closed_by_pull_requests` confirms PR #1588. Only Strategy 2 (the
+   named-pipe daemon, issue #287) was never built, closed `not planned`.
+   Per ADR-073, `implemented` flips true at the first merged change
+   implementing the decision; Strategy 1's merge is that change. Fix:
+   `implemented: false` -> `implemented: true`; rewrote the Status
+   paragraph to describe both strategies and their actual (partial)
+   disposition instead of the blanket "never implemented" claim. The
+   rejection verdict itself is unchanged: rejecting the record reflects that
+   the PowerShell performance problem it targeted no longer exists, not
+   that nothing in it ever shipped.
+
+3. **ADR-056 Trade-offs section still said `-OutputFormat` (previously
+   missed, resurfaced).** Round 3 fixed Decision items 2 and 6 but missed
+   the Trade-offs section's own mention of the same parameter under the old
+   PowerShell name, leaving the accepted ADR with two spellings of the same
+   argument. Fix: `-OutputFormat` -> `--output-format` at that line. The
+   "Alternatives Considered" table's `-OutputJson` entry is untouched: it
+   names a different, rejected alternative, not the chosen contract.
+
+None of these three findings change ADR-005, ADR-042, or the frontmatter
+status/supersession values already converged on in Rounds 1-3. Requested a
+fresh Copilot review after pushing this round's fixes.

@@ -6,7 +6,7 @@ decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 ---
 
 # ADR-031: Hybrid PowerShell Architecture for Claude Code Performance
@@ -15,16 +15,28 @@ implemented: false
 
 Rejected. Recorded so the proposal is findable and does not return (issue #5201).
 
-This record proposed a gh-CLI-vs-daemon routing split to cut PowerShell spawn
-overhead in Claude Code. Its premise depended on ADR-005 (PowerShell as the
-project's primary scripting language), cited directly under Architectural
-Constraints and Related Decisions below. ADR-042 (accepted 2026-01-17)
-superseded ADR-005 and moved new development to Python; the repository has
-since completed that migration and carries zero `.ps1` files as of this
-record's rejection (verified with `find . -name '*.ps1'` outside `.venv`).
-With no PowerShell skill invocation surface left, the gh-CLI/daemon routing
-this ADR designed has nothing to route. Never implemented: no `gh_cli`/`daemon`
-routing config or named-pipe daemon exists in the repository.
+This record proposed a two-strategy hybrid architecture to cut PowerShell spawn
+overhead in Claude Code: Strategy 1 (direct `gh` CLI calls for simple wrapper
+skills) and Strategy 2 (a persistent named-pipe PowerShell daemon for complex
+operations). Strategy 1 partially shipped: issue #286 closed `completed`, via
+PR #1588 (merged 2026-04-10), and five gh-native shell scripts exist today at
+`.claude/skills/github/scripts/gh-native/` (`docs/github-api-capabilities.md`
+lines 232-236), though written in bash for the Copilot CLI environment rather
+than the PowerShell-elimination framing this ADR proposed. Strategy 2 (the
+named-pipe daemon) was closed `not planned` under issue #287 and never built.
+Per ADR-073, `implemented` flips true at the first merged change implementing
+the decision; Strategy 1's merge is that change.
+
+Its premise depended on ADR-005 (PowerShell as the project's primary scripting
+language), cited directly under Architectural Constraints and Related
+Decisions below. ADR-042 (accepted 2026-01-17) superseded ADR-005 and moved
+new development to Python; the repository has since completed that migration
+and carries zero `.ps1` files as of this record's rejection (verified with
+`find . -name '*.ps1'` outside `.venv`). With no PowerShell skill invocation
+surface left, the PowerShell-specific routing this ADR designed (gh-CLI vs.
+PowerShell-daemon, for PowerShell skills) has nothing left to route. Rejecting
+the record, rather than reopening Strategy 2, reflects that the PowerShell
+performance problem this ADR set out to solve no longer exists.
 
 ## Date
 

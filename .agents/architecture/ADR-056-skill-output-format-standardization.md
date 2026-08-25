@@ -62,7 +62,7 @@ contradict the Python contract it is meant to standardize.
 
 ### Trade-offs
 
-- Adding `-OutputFormat` to every script increases parameter boilerplate, but output helper functions minimize this
+- Adding `--output-format` to every script increases parameter boilerplate, but output helper functions minimize this
 - Auto-detection may occasionally guess wrong, but explicit override is always available
 
 ## Consequences
