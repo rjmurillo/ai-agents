@@ -164,6 +164,8 @@ def test_check_push_not_in_flight_allows_on_detached_head(monkeypatch, tmp_path)
         ["git", "-C", str(repo), "rev-parse", "HEAD"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=True,
         timeout=10,
     ).stdout.strip()
