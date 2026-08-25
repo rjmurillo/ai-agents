@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: de0dcc1460d21d7dff3b0a0cecaae3a4c4d840fa
+qaCommit: a8a5150c7aed038b25644b798d1abdfe7773e318
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1751,4 +1751,6 @@ The concurrent session pushed 7 more commits (Addendum 30 above) while this sess
 - The module docstring carried a second, now-false claim from the concurrent session's own round: a paragraph asserting reference-style links "are not recognized at all" and filing issue #5312 to track it, written in the same review round this session's own `LINK_DEFINITION`/`REFERENCE_LINK`/`SHORTCUT_LINK` fix closed. Removed the false claim, replaced with one sentence noting issue #5312 is moot once this file carries the fix (which it now does).
 
 Re-verified after this second reconciliation: `tests/validation/test_check_adr_links.py` (148 tests, up from 142: the shared fixture fix plus none removed), `tests/validation/test_check_adr_lifecycle.py` (130 tests), `tests/test_adr_063_memory_skill_decomposition.py`, `ruff check` and the whole-tree `taste-count-ratchet` (within the 576 baseline), all clean.
+
+**Rebound to** `a8a5150c7aed038b25644b798d1abdfe7773e318`, the merge commit that reconciled this second round.
 
