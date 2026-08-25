@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 00e5903306bfdbe1bc8296799b6d0e9f5094b86c
+qaCommit: 29eb28e9451ca0b3c285325f022a52ae271a87bc
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1447,3 +1447,19 @@ the same evidence as Addendum 22; unchanged: `check_adr_lifecycle.py`
 baseline`, `check_adr_links.py` 0 violations across 1590 tracked files.
 
 **Rebound to** `00e5903306bfdbe1bc8296799b6d0e9f5094b86c`.
+
+## Addendum 24: merged `origin/main`, resolved 6 conflicts, fixed a merge-driven taste-lint regression
+
+`origin/main` had advanced with PR #5291 (a separate autonomous session's ADR-073 lifecycle-frontmatter campaign across 67 ADRs) and PR #5287 (an unrelated concurrent-commit guard). Merging it conflicted on `ADR-005`, `ADR-032`, `ADR-042`, `ADR-055`, `ADR-063`, and `tests/test_adr_063_memory_skill_decomposition.py`. Each was resolved by inspection, not by blindly taking one side:
+
+- `ADR-005`/`ADR-042`: `date`/`decision-makers` conflicts. PR #5291's campaign preserved the wrong extraction for both (a later-event date mistaken for the original decision date); this branch's values matched the files' own prose exactly, so kept, with `decision-makers: [rjmurillo]` adopted from the campaign's uniform convention.
+- `ADR-032`: a one-word grammar difference ("the template" vs "template"); kept this branch's more complete wording.
+- `ADR-055`: the interesting one. PR #5291 added ADR-055's frontmatter independently and deliberately left `supersedes: []` with a note that the ADR-024/ADR-025 reciprocal edit was "owed to issue #5192". This branch had already completed that reciprocal (`superseded-by: ADR-055` on both targets, commit `25b263d16`), so the merge keeps `supersedes: [ADR-024, ADR-025]` and drops the now-stale placeholder note, replacing it with a Provenance paragraph recording why.
+- `ADR-063`: `date` conflict, same shape as ADR-005/ADR-042 (this branch's value matched the file's own prose, `2026-06-01`; kept, plus PR #5291 dropped this branch's `review-by: null` field, which is a legitimate `ADR-TEMPLATE.md` field; restored).
+- `tests/test_adr_063_memory_skill_decomposition.py`: both sides independently fixed the same test for the same reason (frontmatter now precedes the H1); merged to the stronger implementation (finds the actual first H1 and asserts it is the ADR-063 title, not just uniqueness of a matching line) plus this branch's richer docstring.
+
+Merge commit `9f93fc1ef91f6ab28c59e320e12223402851f484`. Re-verified post-merge: `check_adr_lifecycle.py` improved to `[PASS] 1 violation(s) across 102 ADR record(s)` (down from 64, because PR #5291 fixed most of the corpus), `check_adr_links.py` 0 violations across 1590 files, the full `tests/test_adr_063_memory_skill_decomposition.py` suite (26 tests) passed, `ruff`/`mypy` clean on the merged test file.
+
+The full `python-tests` suite then surfaced a real, narrow regression: `tests/ci/test_count_ratchet_against_real_git.py::test_the_shipped_baseline_describes_the_tracked_tree[taste_count_baseline.txt-current_count]` failed, `577 violations > baseline 576`. Root-caused by diffing `list_violations()` output across three trees (`origin/main` alone, this branch alone pre-merge, and the merged tree, via disposable `git worktree add --detach` copies, each independently measuring exactly 576): the only new entry was `conftest.py` crossing 500 lines (544), a pure merge artifact of two branches each independently adding content to the same root fixture file while staying under budget alone. Not a design change worth a mid-merge refactor of shared pytest fixtures; suppressed with the documented per-repo escape (`# taste-lint: ignore file-size`, matching the pattern this report's own Addendum 11 used), reasoned and dated in the comment. Re-verified: `list_violations()` back to 576, `conftest.py` excluded, `ruff check conftest.py` clean.
+
+**Rebound to** `29eb28e9451ca0b3c285325f022a52ae271a87bc`, the commit carrying the suppression comment.

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 00e5903306bfdbe1bc8296799b6d0e9f5094b86c
+qaCommit: 29eb28e9451ca0b3c285325f022a52ae271a87bc
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -771,3 +771,14 @@ none touching ADR-tooling scripts. Full detail, including the re-run test
 evidence, in that addendum.
 
 **Rebound to** `00e5903306bfdbe1bc8296799b6d0e9f5094b86c`.
+
+## Addendum 26: same rebind as Addendum 24 of the campaign report
+
+A merge from `origin/main` (6 conflicts resolved: ADR-005, ADR-032,
+ADR-042, ADR-055, ADR-063, `tests/test_adr_063_memory_skill_decomposition.py`)
+plus a merge-driven `conftest.py` taste-lint regression, root-caused and
+suppressed. Full detail, including the per-file conflict resolution
+reasoning and the three-tree diff that isolated the regression, in that
+addendum.
+
+**Rebound to** `29eb28e9451ca0b3c285325f022a52ae271a87bc`.
