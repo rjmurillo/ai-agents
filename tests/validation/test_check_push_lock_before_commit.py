@@ -370,3 +370,14 @@ def test_main_prints_the_examined_branch_on_success(monkeypatch, tmp_path, capsy
     checker.main(["--repo-root", str(repo)])
 
     assert "main" in capsys.readouterr().out
+
+
+def test_main_exits_two_on_unknown_arguments(capsys):
+    """Copilot review, PR #5287: the module docstring's ADR-035 exit-code
+    table did not name argparse's own usage-error exit. main() parses argv
+    with argparse.ArgumentParser, which calls sys.exit(2) on an unknown or
+    malformed flag before this module's own logic runs."""
+    with pytest.raises(SystemExit) as excinfo:
+        checker.main(["--not-a-real-flag"])
+
+    assert excinfo.value.code == 2

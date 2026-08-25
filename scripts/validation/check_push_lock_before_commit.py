@@ -55,6 +55,8 @@ EXIT CODES (ADR-035):
       bypassed via SKIP_PUSH_LOCK_COMMIT_GUARD=1, or the branch could not
       be determined)
   1 - a push for this branch holds the lock right now; the commit is refused
+  2 - unknown or malformed CLI arguments (argparse's own usage-error exit;
+      not raised by this module's own logic)
 """
 
 from __future__ import annotations
