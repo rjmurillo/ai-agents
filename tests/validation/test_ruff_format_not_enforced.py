@@ -158,8 +158,8 @@ def test_python_rule_still_carries_the_instruction_this_module_backs() -> None:
     """
     text = " ".join(PYTHON_RULE.read_text(encoding="utf-8").split())
 
-    assert "`ruff format` is not this repo's formatter. Do not run it" in text
-    assert "never cite `ruff format --check` as a gate result" in text
+    assert "Never run `ruff format`" in text
+    assert "cite `ruff format --check` as a gate" in text
     assert Path(__file__).name in text, (
         "python.md should point at this module so a reader who changes the rule "
         "finds the guard that pins it"

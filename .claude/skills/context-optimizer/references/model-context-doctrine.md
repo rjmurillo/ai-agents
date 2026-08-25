@@ -176,7 +176,7 @@ as an implementer.
 
 Measured on this branch after `session-logs` dropped its optional-session-log mention from `knowledge-persistence`. Two numbers, and they are not interchangeable. The
 **always-on corpus is 7 rules, 70,471 bytes**: the ones that load regardless
-of what you touch. The **effective context on a `.py` edit is 98,874 bytes
+of what you touch. The **effective context on a `.py` edit is 98,398 bytes
 across 11 files**, which is the always-on corpus plus the path-scoped rules
 that a Python file activates. Use the first when arguing about what every
 session pays. Use the second when arguing about what a specific edit pays.

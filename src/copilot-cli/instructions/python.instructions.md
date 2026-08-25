@@ -12,9 +12,8 @@ blocking gate (`scripts/validation/validate_python_syntax.py`, issue #2655)
 requires every tracked file to parse at the hook-portability syntax floor,
 currently 3.10. Write to that floor: avoid syntax newer than 3.10, such as PEP
 695 generics (`def f[T]()`, 3.12+) and PEP 758 unparenthesized `except A, B:`
-(3.14). `ruff` targets that floor, not the install target
-(`target-version = "py310"`, issue #3126). Defer to `pyproject.toml`, `ruff`
-config, and `mypy` settings over personal preference.
+(3.14). Defer to `pyproject.toml`, `ruff` config, and `mypy` settings over
+personal preference.
 
 ## Typing
 
@@ -44,19 +43,15 @@ config, and `mypy` settings over personal preference.
 
 ## Tooling
 
-- `uv` for environments and dependency resolution; `ruff check` for lint (it
-  replaces isort and flake8); `mypy` for types; `pytest` for tests.
+- `uv` for environments and dependency resolution; `ruff check` for lint; `mypy`
+  for types; `pytest` for tests.
 - Tests follow Arrange/Act/Assert, one behavior per test, names that describe the
   behavior (`returns_empty_when_no_rows`). Mock only at I/O and process
   boundaries; never mock the function under test.
 - Pin the interpreter and dependencies. Do not rely on the system Python.
-- **`ruff format` is not this repo's formatter. Do not run it, and never cite
-  `ruff format --check` as a gate result.** Every ruff gate runs `ruff check`;
-  nothing runs the formatter, and main does not conform (1287 of 2061 tracked
-  files would reformat on `cdf688a`). A green check proves nothing, a red one is not a
-  finding, and running the formatter over a file or directory charges unrelated
-  drift to your diff. Cite `ruff check` on changed files instead. Issue #5304 and
-  `tests/validation/test_ruff_format_not_enforced.py` pin both facts.
+- **Never run `ruff format` or cite `ruff format --check` as a gate.**
+  No gate runs it; main does not conform. Issue #5304 and
+  `tests/validation/test_ruff_format_not_enforced.py` hold the evidence.
 
 ## Errors
 
