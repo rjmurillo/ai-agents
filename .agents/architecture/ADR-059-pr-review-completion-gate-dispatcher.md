@@ -1,3 +1,14 @@
+---
+id: ADR-059
+status: proposed
+date: 2026-05-08
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-059: /pr-review Completion Gate Dispatcher and pass_when DSL
 
 ## Status

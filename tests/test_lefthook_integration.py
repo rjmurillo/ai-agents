@@ -690,6 +690,7 @@ def test_configuration_uses_named_native_jobs() -> None:
     expected_pre_commit = {
         "repair-packed-refs",
         "branch-policy",
+        "push-lock-commit-guard",
         "handoff-protection",
         "root-hygiene-policy",
         "session-policy",
@@ -760,9 +761,16 @@ def test_configuration_uses_named_native_jobs() -> None:
     assert str(pre_commit["root-hygiene-policy"]["run"]).endswith(
         "git_hook_policy.py root-hygiene {staged_files}"
     )
+    assert str(pre_commit["push-lock-commit-guard"]["run"]).endswith(
+        "check_push_lock_before_commit.py"
+    )
+    assert pre_commit["push-lock-commit-guard"]["timeout"] == "30s"
     assert str(pre_push["retrospective-policy"]["run"]).endswith("git_hook_policy.py retrospective")
     assert pre_push["retrospective-policy"]["use_stdin"] is True
     pre_commit_names = [str(job["name"]) for job in _flatten_jobs(config["pre-commit"]["jobs"])]
+    assert pre_commit_names.index("push-lock-commit-guard") < pre_commit_names.index(
+        "markdown-autofix"
+    )
     assert pre_commit_names.index("memory-token-update") < pre_commit_names.index("memory-size")
     assert pre_commit_names.index("memory-size") < pre_commit_names.index("memory-cross-reference")
     assert pre_commit_names.index("memory-cross-reference") < pre_commit_names.index(

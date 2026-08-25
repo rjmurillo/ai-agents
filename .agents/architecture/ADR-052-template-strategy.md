@@ -1,8 +1,51 @@
+---
+id: ADR-052
+status: rejected
+date: 2026-08-25
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
+---
+
 # ADR-052: Template Strategy for Multi-Platform Agent Distribution
 
 ## Status
 
-Proposed. Supersedes ADR-036.
+Rejected (2026-08-25).
+
+The supersession of ADR-036 that this line used to claim is withdrawn, and the
+frontmatter carries `supersedes: []`. The proposal below never took effect, so
+there is nothing for it to have superseded. ADR-036 remains the live, operative
+architecture.
+
+### Rejection rationale (2026-08-25)
+
+This ADR proposed eliminating `templates/` in favour of generating platform
+variants from `src/claude/` (its "Option B"). More than five months on, none of
+that was built and the pattern it proposed to replace is still what runs:
+
+- `build/scripts/generate_platform_agents.py`, the generator this ADR specifies,
+  does not exist. Neither does `platform-overrides/`.
+- `templates/agents/*.shared.md` is still the live mechanism. There are 31 such
+  files, and `build/generate_agents.py` reads them on every build.
+
+The central evidence was also already answered before this ADR was written. It
+rests on a 2 to 13 percent similarity measurement between the templates and the
+Claude agents, presented as sync failure. ADR-036 had addressed exactly that
+measurement: "Claude agents contain Claude-specific sections (MCP tool
+references, Serena memory protocols, handoff instructions) that have no
+equivalent on other platforms. Similarity metrics comparing Claude to templates
+measure divergence that is **BY DESIGN**, not sync failure." This ADR does not
+engage that rebuttal anywhere.
+
+Issue #124 (the standing question of whether the two-source template pattern
+should continue, referenced in ADR-036) remains open and unresolved. This
+rejection closes ADR-052's specific proposal, not the underlying question.
+
+`implemented` is `false`, which is accurate: nothing this ADR proposed ever
+merged.
 
 ## Author
 

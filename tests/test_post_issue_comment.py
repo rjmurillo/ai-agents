@@ -245,6 +245,99 @@ class TestMainIdempotency:
         outputs = _read_outputs(output_file)
         assert outputs["updated"] == "true"
 
+    def test_update_replaces_stale_body_with_the_new_report(self, tmp_path, monkeypatch):
+        """Issue #5210: prove the comment CONTENT changes, not just the exit code.
+
+        The original bug exited 0 and printed "Success: True" on the
+        write-once skip path too, so a passing return code cannot
+        distinguish a report that actually updated from one that silently
+        kept showing the first run's stale verdict. Assert on what was
+        actually sent to ``update_issue_comment``.
+        """
+        _setup_output(tmp_path, monkeypatch)
+        existing_comments = [
+            {"id": 99, "body": "<!-- test-marker -->\nOLD REPORT: FAIL"}
+        ]
+        captured: dict[str, str] = {}
+
+        def fake_update(owner, repo, comment_id, body):
+            captured["body"] = body
+            return {"id": comment_id, "html_url": "https://ex.com", "updated_at": "now"}
+
+        with patch("subprocess.run", return_value=_completed(rc=0)), patch(
+            f"{_MODULE_NAME}.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            f"{_MODULE_NAME}.get_issue_comments",
+            return_value=existing_comments,
+        ), patch(
+            f"{_MODULE_NAME}.update_issue_comment",
+            side_effect=fake_update,
+        ):
+            rc = main([
+                "--issue", "1",
+                "--body", "NEW REPORT: PASS",
+                "--marker", "test-marker",
+                "--update-if-exists",
+            ])
+
+        assert rc == 0
+        assert "NEW REPORT: PASS" in captured["body"]
+        assert "OLD REPORT: FAIL" not in captured["body"]
+
+    def test_byte_identical_rerun_updates_in_place_not_a_duplicate(
+        self, tmp_path, monkeypatch
+    ):
+        """Negative/edge: an unchanged report must not create a second comment.
+
+        A re-run whose recomputed report is byte-identical to the existing
+        comment still takes the update path (same comment id, same body) and
+        never falls through to the create-new-comment POST branch.
+        """
+        _setup_output(tmp_path, monkeypatch)
+        existing_body = "<!-- test-marker -->\n\nSAME REPORT: PASS"
+        existing_comments = [{"id": 99, "body": existing_body}]
+
+        run_calls: list[list[str]] = []
+
+        def fake_run(args, **kwargs):
+            run_calls.append(args)
+            return _completed(rc=0)
+
+        def fake_update(owner, repo, comment_id, body):
+            return {"id": comment_id, "html_url": "https://ex.com", "updated_at": "now"}
+
+        with patch("subprocess.run", side_effect=fake_run), patch(
+            f"{_MODULE_NAME}.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            f"{_MODULE_NAME}.get_issue_comments",
+            return_value=existing_comments,
+        ), patch(
+            f"{_MODULE_NAME}.update_issue_comment",
+            side_effect=fake_update,
+        ) as update_mock:
+            rc = main([
+                "--issue", "1",
+                "--body", "SAME REPORT: PASS",
+                "--marker", "test-marker",
+                "--update-if-exists",
+            ])
+
+        assert rc == 0
+        update_mock.assert_called_once_with("o", "r", 99, existing_body)
+        # subprocess.run is only exercised for the auth check on this path;
+        # no "gh api ... -X POST ... comments" call means no duplicate was
+        # created. The create-comment call splits "comments" (in the URL
+        # argument) and "POST" (in a separate "-X POST" argument) across two
+        # list elements, so each must be checked across the whole call_args
+        # list rather than within a single argument.
+        assert not any(
+            any("comments" in str(arg) for arg in call_args)
+            and any("POST" in str(arg) for arg in call_args)
+            for call_args in run_calls
+        )
+
     def test_marker_not_found_posts_new(self, tmp_path, monkeypatch):
         output_file = _setup_output(tmp_path, monkeypatch)
         response = json.dumps({

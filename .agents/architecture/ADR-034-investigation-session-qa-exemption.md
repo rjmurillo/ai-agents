@@ -1,15 +1,19 @@
 ---
+id: ADR-034
 status: accepted
-date: 2025-12-30
-decision-makers:
-  - orchestrator
+date: 2026-07-08
+decision-makers: [orchestrator]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
 consulted:
-  - analyst
-  - architect
-  - security
-  - critic
-  - independent-thinker
-  - high-level-advisor
+- analyst
+- architect
+- security
+- critic
+- independent-thinker
+- high-level-advisor
 informed: []
 ---
 

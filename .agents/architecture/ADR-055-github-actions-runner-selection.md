@@ -1,6 +1,25 @@
+---
+id: ADR-055
+status: accepted
+date: 2026-08-25
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-055: GitHub Actions Runner Selection
 
-**Status**: Accepted (supersedes ADR-024, ADR-025)
+**Status**: Accepted
+
+> The supersession of ADR-024 and ADR-025 that this line used to assert is not
+> recorded in the frontmatter, which carries `supersedes: []`. Neither target has
+> ADR-073 frontmatter yet, so claiming the relationship here would leave a
+> one-sided reference with no reciprocal `superseded-by` on the other end. Issue
+> #5192 owns both targets and owes the reciprocal edit; the claim returns to this
+> record when it can be made from both sides at once. (Struck 2026-08-25.)
+
 **Date**: 2025-12-29
 **Authors**: DevOps Agent
 **Related**: Issue #197

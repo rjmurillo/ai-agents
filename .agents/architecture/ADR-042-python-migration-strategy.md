@@ -1,3 +1,14 @@
+---
+id: ADR-042
+status: accepted
+date: 2026-04-13
+decision-makers: [rjmurillo]
+supersedes: [ADR-005]
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-042: Python Migration Strategy
 
 ## Status
