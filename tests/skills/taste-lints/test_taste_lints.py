@@ -1033,8 +1033,26 @@ class TestSuppressionSurvivesFrontmatter:
 
         assert has_suppression(lines, "file-size") is False
 
-    def test_malformed_yaml_between_delimiters_falls_back_to_ten_lines(self) -> None:
+    def test_mapping_shaped_but_malformed_yaml_still_counts_as_frontmatter(self) -> None:
+        # `key: [unclosed` would fail a real YAML parse, but between two `---`
+        # at the top of a file it is frontmatter the author got wrong, not a
+        # horizontal rule. The window is deciding which of those two things it
+        # is looking at, and a broken value does not make it prose.
         lines = ["---\n", "key: [unclosed\n", "---\n", *["filler\n"] * 9, self.SUPPRESSION]
+
+        assert has_suppression(lines, "file-size") is True
+
+    def test_prose_with_a_colon_is_not_a_mapping(self) -> None:
+        # The discriminator is shape, so a sentence that happens to contain a
+        # colon must still be rejected: its key half is not a bare key.
+        lines = [
+            "---\n",
+            "Note: this document was written on a Tuesday, see below\n",
+            "and it continues without indentation\n",
+            "---\n",
+            *["filler\n"] * 9,
+            self.SUPPRESSION,
+        ]
 
         assert has_suppression(lines, "file-size") is False
 

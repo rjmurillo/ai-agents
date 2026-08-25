@@ -17,8 +17,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import yaml
-
 EXIT_SUCCESS = 0
 EXIT_ERROR = 1
 EXIT_VIOLATIONS = 10
@@ -402,6 +400,36 @@ def read_file_lines(filepath: str) -> list[str]:
         return []
 
 
+def _looks_like_yaml_mapping(block: list[str]) -> bool:
+    """True when ``block`` has the shape of a YAML mapping.
+
+    Deliberately a stdlib shape check rather than ``yaml.safe_load``. This
+    linter is invoked with a bare ``python3`` in seven places in its own
+    SKILL.md, and a job whose only preceding step is a checkout has installed
+    nothing, so a third-party import here fails at module load and takes the
+    gate red on every PR (`.claude/rules/ci-scripts.md` MUST-18). The question
+    is only "is this frontmatter or a horizontal rule", which does not need a
+    parser.
+
+    A mapping needs at least one top-level ``key:`` line, and every non-blank,
+    non-comment line must be either such a key or an indented continuation of
+    one. Prose under a horizontal rule fails on its first unindented line.
+    """
+    saw_key = False
+    for raw in block:
+        line = raw.rstrip("\n")
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if line[:1] in {" ", "\t"} or stripped.startswith("- "):
+            continue  # continuation: nested mapping, list item, folded scalar
+        key, sep, _ = stripped.partition(":")
+        if not sep or not key or key != key.strip():
+            return False
+        saw_key = True
+    return saw_key
+
+
 def _suppression_window(lines: list[str]) -> list[str]:
     """Lines a suppression may appear in: any frontmatter block, plus 10 more.
 
@@ -443,11 +471,7 @@ def _suppression_window(lines: list[str]) -> list[str]:
     for index in range(1, min(len(lines), _MAX_FRONTMATTER_LINES)):
         if lines[index].strip() not in {"---", "..."}:
             continue
-        try:
-            block = yaml.safe_load("".join(lines[1:index]))
-        except yaml.YAMLError:
-            return lines[:10]
-        if isinstance(block, dict):
+        if _looks_like_yaml_mapping(lines[1:index]):
             return lines[: index + 11]
         return lines[:10]
     return lines[:10]
