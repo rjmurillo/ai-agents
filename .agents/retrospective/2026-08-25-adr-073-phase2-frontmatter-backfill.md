@@ -206,7 +206,7 @@ Per `.claude/rules/retros.md` MUST-4, each item carries an owner or an issue.
 | 3 | Repair ADR-073's dangling citation to `scripts/sync_adr_protocol.py` | ADR amendment | rjmurillo/ai-agents#5289 | Filed |
 | 4 | Complete Phase 2 across the ten partial-frontmatter ADRs | Backfill | rjmurillo/ai-agents#5290 | Filed, folded into PR #5291 |
 | 5 | Triage the eight status/implementation mismatches surfaced by the schema (five `proposed` but shipped, three `accepted` but never built) | Governance triage | rjmurillo, needs an issue; not fixable in a metadata backfill because a status change is a governance act | Open |
-| 6 | Decide the review-evidence question for PR #5291: convene the full six-agent debate, or record acceptance of narrower evidence | Process decision | rjmurillo, on PR #5291 | Open |
+| 6 | Decide the review-evidence question for PR #5291: convene the full six-agent debate, or record acceptance of narrower evidence | Process decision | rjmurillo, on PR #5291 | **Done.** The full-state round ran over all 67 records: 3 ACCEPT, 2 DISAGREE-AND-COMMIT, 1 BLOCK cleared. It found seven wrong `date` values that no automated round caught, which is the empirical answer to whether the extra pass was worth its cost. |
 | 7 | Sweep the six ADR-030 citation sites, and decide where skill-first lives now that ADR-030 is rejected | Cleanup plus a governance decision | rjmurillo/ai-agents#5293 | Filed |
 
 ## What to carry forward

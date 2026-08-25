@@ -219,14 +219,20 @@ are wrong in both directions, and the errors do not cancel:
 - **It under-reports.** ADR-041 and ADR-046 have zero live id-references while
   their artifacts (`codeql-analysis.yml`, the `codeql-scan` skill,
   `milestone-planner.md`) plainly exist.
-- **It cannot express a reversion, which is the decisive case.** ADR-039's
-  assignments were merged and then reverted. A reference-count rule marks it
-  `implemented: true` permanently, because the merged references never
-  disappear. That is precisely backwards for a field whose stated job is gating
-  amend-versus-supersede: the record's decision is no longer in force, and
-  treating it as implemented would tell a future author to supersede where an
-  amendment is correct. ADR-039 is handled in this PR (see the status-decision
-  section) and is the counterexample that settles the question.
+- **It cannot see a reversion at all, and reversion is where the contract has to
+  be explicit.** ADR-039's assignments were merged and then reverted. A
+  reference-count rule reports `implemented: true` for it, which happens to be
+  the right answer, but reaches it by accident: the merged references simply
+  never disappear, so the rule would say `true` whether or not the code had ever
+  existed. It cannot distinguish "shipped, then removed" from "never shipped but
+  widely cited", and those need different answers.
+
+  The artifact rule distinguishes them, and this document states the contract
+  rather than leaving it implied: **`implemented` stays `true` for a decision
+  whose code shipped and was later removed** (line 182 above; ADR-039 and
+  ADR-002 both carry it for that reason). The field gates amend-versus-supersede,
+  and a record whose code once existed must not be silently amended just because
+  the code is gone now. ADR-039 is the worked example.
 
 **Why not recalculate to the literal rule.** Doing so would knowingly reintroduce
 answers already shown to be wrong, in order to match wording rather than intent.

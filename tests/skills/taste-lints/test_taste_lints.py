@@ -1066,6 +1066,42 @@ class TestSuppressionSurvivesFrontmatter:
 
         assert has_suppression(lines, "file-size") is True
 
+    def test_a_bare_url_in_prose_is_not_a_mapping_key(self) -> None:
+        # A URL scheme's colon is not a `key:` separator. Matching any colon
+        # classified this line as frontmatter and widened the window past the
+        # `---` below it, finding a suppression that is out of range.
+        lines = [
+            "---\n",
+            "See https://example.com for details\n",
+            "---\n",
+            *["filler\n"] * 8,
+            self.SUPPRESSION,
+        ]
+
+        assert _suppression_window(lines) == lines[:10]
+        assert has_suppression(lines, "file-size") is False
+
+    def test_a_key_whose_value_is_a_url_is_still_a_mapping(self) -> None:
+        # The other half of the same rule: the colon here is followed by a
+        # space, so `explainer` is a real key and this really is frontmatter.
+        lines = [
+            "---\n",
+            "id: ADR-035\n",
+            "explainer: https://example.com/design-doc\n",
+            "---\n",
+            *["filler\n"] * 9,
+            self.SUPPRESSION,
+        ]
+
+        assert has_suppression(lines, "file-size") is True
+
+    def test_a_key_with_an_empty_value_is_a_mapping(self) -> None:
+        # `key:` at end of line is valid YAML and must not be rejected by the
+        # requirement that a colon be followed by whitespace.
+        lines = ["---\n", "superseded-by:\n", "---\n", *["filler\n"] * 9, self.SUPPRESSION]
+
+        assert has_suppression(lines, "file-size") is True
+
     def test_prose_with_a_colon_is_not_a_mapping(self) -> None:
         # The discriminator is shape, so a sentence that happens to contain a
         # colon must still be rejected: its key half is not a bare key.

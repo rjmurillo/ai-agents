@@ -400,6 +400,15 @@ def read_file_lines(filepath: str) -> list[str]:
         return []
 
 
+# A YAML mapping key: a token with no whitespace or colon in it, then a colon
+# that is followed by whitespace or ends the line. The trailing requirement is
+# what separates `explainer: https://example.com` (a key whose value is a URL)
+# from `See https://example.com for details` (prose whose only colon belongs to
+# a URL scheme). Matching a bare colon anywhere in the line classified the
+# second as a mapping and widened the suppression window past an unrelated
+# `---` later in the file, which is the regression this whole check prevents.
+_YAML_KEY_LINE = re.compile(r"[^\s:]+\s*:(\s|$)")
+
 def _looks_like_yaml_mapping(block: list[str]) -> bool:
     """True when ``block`` has the shape of a YAML mapping.
 
@@ -423,8 +432,7 @@ def _looks_like_yaml_mapping(block: list[str]) -> bool:
             continue
         if line[:1] in {" ", "\t"} or stripped.startswith("- "):
             continue  # continuation: nested mapping, list item, folded scalar
-        key, sep, _ = stripped.partition(":")
-        if not sep or not key or key != key.strip():
+        if not _YAML_KEY_LINE.match(stripped):
             return False
         saw_key = True
     return saw_key
