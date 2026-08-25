@@ -1,3 +1,14 @@
+---
+id: ADR-005
+status: superseded
+date: 2025-12-18
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: ADR-042
+explainer: null
+implemented: true
+---
+
 # ADR-005: PowerShell-Only Scripting Standard
 
 **Status**: Superseded by [ADR-042](./ADR-042-python-migration-strategy.md)
