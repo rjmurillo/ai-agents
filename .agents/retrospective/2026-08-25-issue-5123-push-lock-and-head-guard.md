@@ -35,6 +35,32 @@ Issue ask #3 (isolating git-HEAD-reading test fixtures behind a throwaway
 repo) was scoped out as a broader test-suite refactor, not a bounded fix, and
 left as an explicit follow-up recommendation rather than implemented here.
 
+Those three commits were the initial submission to PR #5287. Two automated
+review passes (this repo's Copilot code review and Cursor Bugbot) then found
+further defects across several rounds; each was fixed in its own commit
+rather than folded back into the original three, so the branch's real history
+is 14 commits, not three:
+
+- `b035853ac` initial retrospective (superseded by this file's own later
+  corrections, below).
+- `e4545a9f3`, `9f327c269`, `277b3fe41`, `271f9d625`, `f43db7322` (the last
+  two resolved by merge commit `972824a6c`): subprocess-encoding and
+  git-environment-isolation fixes to the tests this PR added, none of which
+  changed the shipped guard's own logic.
+- `35a773096`: the dead-code fixture-injection bug described below
+  (`request: pytest.FixtureRequest | None = None`).
+- `342992121`: corrected a false `SKIP_CLI_E2E` precedent claim, registered
+  the new `SKIP_PUSH_LOCK_COMMIT_GUARD` flag in the config catalog, and
+  documented the commit guard's residual race window.
+- `452b41ca9`: added the missing lefthook wiring test for the new
+  `push-lock-commit-guard` job.
+- `7dcb5811e`, `d9329971a`: corrected this retrospective's own remediation
+  claim, then recorded the `35a773096` defect as a third instance of the
+  pattern this file already classifies.
+- `0f42efa97`, `2bcb83d27`: regenerated a stale generated mirror and raised a
+  vendor-portability baseline, both caught by this repo's own pre-push gates
+  rather than by a reviewer.
+
 ## Failure mode classification
 
 `.agents/governance/FAILURE-MODES.md` #9, **Confident-Incorrectness
