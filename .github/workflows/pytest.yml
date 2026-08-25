@@ -110,6 +110,29 @@ jobs:
               - '.claude/rules/**'
               - '.github/instructions/**'
               - 'src/copilot-cli/instructions/**'
+              # Issue #5316. Pre-push stopped executing the suite on a
+              # non-Python change (ADR-104) on the stated ground that CI
+              # executes it instead. These roots are read as test inputs by
+              # real tests and were absent from this filter, so a push touching
+              # only one of them ran no assertions locally AND skipped the
+              # matrix here: assertions did not run until the merge queue
+              # forced them. Each entry below has at least one test that opens
+              # it and asserts on its contents.
+              #   .claude/skills/**        tests/skills/**, e.g.
+              #                            security-review/test_skill_md.py
+              #   .serena/memories/**      tests/test_memory_verification.py
+              #   .agents/architecture/**  tests/build_scripts/test_hook_contract_knowledge.py
+              #   .agents/governance/**    tests/test_canonical_sources_registration.py
+              #   AGENTS.md, README.md     tests/test_knowledge_surface_consistency.py
+              #   .agents/AGENT-SYSTEM.md  tests/test_agent_role_metadata_migration.py
+              - '.claude/skills/**'
+              - 'src/copilot-cli/skills/**'
+              - '.serena/memories/**'
+              - '.agents/architecture/**'
+              - '.agents/governance/**'
+              - '.agents/AGENT-SYSTEM.md'
+              - 'AGENTS.md'
+              - 'README.md'
 
       - name: Determine if tests should run
         id: determine
