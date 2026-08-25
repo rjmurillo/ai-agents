@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: d331cba4f9ea50a32ca362ab0eb82f69b2188bb9
+qaCommit: 55fc50542fcb5a7b250bf0a28557478f995357e6
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `d331cba4f9ea50a32ca362ab0eb82f69b2188bb9` (see Addendum 41)
+**Validated at commit**: `55fc50542fcb5a7b250bf0a28557478f995357e6` (see Addendum 42)
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -2007,3 +2007,42 @@ Addendum 40. The sister report keeps the two fields in lockstep; this one
 had drifted for one round. Both now read the current commit.
 
 **Rebound to** `d331cba4f9ea50a32ca362ab0eb82f69b2188bb9`.
+
+## Addendum 42: a real title-test gap, and the file count drifting again
+
+Two more Copilot notifications arrived after the previous push.
+
+**A real gap in the ADR-063 title test, found by Copilot, fixed.** An
+earlier round's conflict resolution
+(`tests/test_adr_063_memory_skill_decomposition.py`) kept this branch's own
+implementation over the sibling branch's alternative, on the reasoning that
+no proof of superiority had been found by inspection. Copilot's review
+supplied that proof: `titles = [ln for ln in adr_text.splitlines() if
+ln.startswith("# ADR-063:")]` filters for a matching line anywhere in the
+document rather than checking the document's actual first H1, so a file
+beginning with `# Wrong title` followed later by the real title would still
+pass. Verified by mutating the fixture text (prepending a wrong H1) and
+confirming the old filter-based check passed on the mutant while a
+first-H1-by-position check correctly failed it. Fixed by locating the first
+H1 with `build/scripts/generate_adr_index.py:114`'s own `_H1_RE` regex
+(quoted verbatim per `canonical-source-mirror.md`) and asserting it, not a
+filtered line, is the ADR-063 title. All 26 tests in the file still pass
+against the real record. Commit `55fc50542`.
+
+**The file count drifted from 29 to 32 again**, this branch's own recurring
+pattern: the previous round's fix commits (`d331cba4f`, `a0912d444`) added
+four files to this branch's own contribution (`ADR-042`, `ADR-063`,
+`README.md`, the debate log) that the "Files changed" section had not yet
+folded into its primary count, instead noting them in an "Also touched"
+caveat. Re-measured against the base with `git diff --name-only
+origin/claude/adr-evaluation-tooling-6od8rd...HEAD`: 32 files total, split
+15 own-contribution (byte-differs from `origin/main`) versus 17 inherited
+(byte-identical to `origin/main`). PR description rewritten to fold the four
+files into the primary "own contribution" list rather than carrying a
+separate caveat, and the summary line updated to 32.
+
+`check_adr_lifecycle.py`: 1 violation across 102 records, no check above
+baseline (unchanged). `tests/test_adr_063_memory_skill_decomposition.py`:
+26 passed.
+
+**Rebound to** `55fc50542fcb5a7b250bf0a28557478f995357e6`.

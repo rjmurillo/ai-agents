@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: d331cba4f9ea50a32ca362ab0eb82f69b2188bb9
+qaCommit: 55fc50542fcb5a7b250bf0a28557478f995357e6
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -9,7 +9,7 @@ qaCommit: d331cba4f9ea50a32ca362ab0eb82f69b2188bb9
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `d331cba4f9ea50a32ca362ab0eb82f69b2188bb9` (see Addendum 42)
+**Validated at commit**: `55fc50542fcb5a7b250bf0a28557478f995357e6` (see Addendum 43)
 
 ## Verdict
 
@@ -1177,3 +1177,13 @@ the ADR index. Aligned this campaign's other QA report's drifted
 lives in that addendum. Commit `d331cba4f`.
 
 **Rebound to** `d331cba4f9ea50a32ca362ab0eb82f69b2188bb9`.
+
+## Addendum 43: same title-test fix and file-count reconciliation as Addendum 42 of the campaign report
+
+Same two Copilot findings, same fix: restored the ADR-063 title test's
+first-H1-by-position check (mutation-proven against a prepended wrong H1,
+commit `55fc50542`), and reconciled the PR description's file count from a
+stale 29 to the current 32 (15 own-contribution, 17 inherited). Full detail
+lives in that addendum.
+
+**Rebound to** `55fc50542fcb5a7b250bf0a28557478f995357e6`.
