@@ -52,20 +52,58 @@ check `git rev-parse --is-shallow-repository` first.
 `accepted`; the nuance stays in prose. No prose was rewritten to fit the enum,
 with one deliberate exception recorded under ADR-061 below.
 
-**`date`.** The most recent date the record states in a date-bearing field: the
-`## Date` section (its last value when it lists several) or an inline `**Date**:`
-or `**Revised**:` line. Where no such field exists, and only there, the value is
-`git log --follow -1 --format=%ad --date=short`. Two records needed the git
-fallback: ADR-001 (2025-12-13) and ADR-026 (2026-07-27).
+**`date`.** ADR-073 line 54 comments the field `# last updated`, so the value is
+the latest date the record states about *itself* anywhere in the file, not the
+first date field found. A date counts when it appears in a self-referential
+update context:
 
-Amendment dates appearing only inside `## Status` prose are deliberately not
-used. This is a real trade and it is recorded rather than hidden: ADR-040's
-prose records a partial supersession dated 2026-07-11 while its frontmatter
-`date` reads 2026-01-03, and ADR-062 and ADR-063 have the same shape. The rule
-was kept because the issue's acceptance criterion names the `## Date` section as
-the source, and because a rule that scrapes narrative prose for dates is exactly
-the brittleness ADR-073 exists to remove. The cost is that `date` means "last
-dated field", not "last touched".
+- a `## Date` section value (every value, when it lists several);
+- any `**Date**:`, `**Revised**:`, or `**Updated**:` field, **all** of them, not
+  just the first;
+- an amendment or revision heading (`## Amendment 2026-07-21`,
+  `### Current-State Amendment (2026-08-16)`);
+- a dated amendment, acceptance, supersession, or withdrawal statement inside
+  `## Status`.
+
+Dates in evidence tables, cited incidents, PR references, and measurement rows
+are excluded: those are dates the record mentions, not dates the record was
+changed.
+
+Where no such context exists, and only there, the value is
+`git log --follow -1 --format=%ad --date=short origin/main -- <path>`. Two
+records need that fallback: ADR-001 (2025-12-13) and ADR-026 (2026-07-27). The
+ref matters. Reading `HEAD` instead of `origin/main` returns this branch's own
+backfill commit, so every record would be dated the day the backfill ran, which
+is circular.
+
+**This rule replaced an earlier, narrower one, and the correction changed 13 of
+the 53 records.** The first version read only formal date fields and deliberately
+ignored amendment dates carried in headings or `## Status` prose. That was
+disclosed as a trade at the time, but it was wrong on ADR-073's own terms,
+because `# last updated` does not mean "last formal Date field". Copilot's
+automated review on PR #5291 raised it and the objection is correct.
+
+The narrow rule was also buggy independent of the policy question. It matched
+`**Date**:` with a single `re.search`, which returns the first hit, so ADR-006's
+second formal `**Date**: 2026-04-28` field (belonging to its 2026-04-28
+amendment) was never seen. That record was wrong under the old rule's own stated
+terms, not merely under the new one.
+
+Corrected records, with the context that supplied the new value:
+
+| ADR | was | now | source |
+|-----|-----|-----|--------|
+| ADR-006 | 2025-12-18 | 2026-04-29 | `## Round 3 amendment-of-amendment (2026-04-29)` |
+| ADR-007 | 2026-01-01 | 2026-08-16 | `### Current-State Amendment (2026-08-16)` |
+| ADR-008 | 2025-12-20 | 2026-08-19 | `### Amendment 2026-08-19 (Issue #5168, PR #5170)` |
+| ADR-014 | 2025-12-22 | 2026-08-16 | `### Current-State Amendment (2026-08-16)` |
+| ADR-033 | 2025-12-30 | 2026-08-16 | `### Current-State Amendment (2026-08-16)` |
+| ADR-040 | 2026-01-03 | 2026-07-11 | dated supersession statement in `## Status` |
+| ADR-041 | 2026-01-16 | 2026-07-21 | `## Amendment 2026-07-21: Retire Tier 3` |
+| ADR-047 | 2026-02-16 | 2026-04-29 | dated amendment statement in `## Status` |
+| ADR-060, ADR-061, ADR-062, ADR-063, ADR-070 | various | 2026-07-27 | `## Amendment 2026-07-27`, the ADR-088 citation repoint that touched all five |
+
+ADR-001 and ADR-026 were re-derived and confirmed unchanged.
 
 **`decision-makers`.** `[rjmurillo]` on all 53. This follows ADR-073's own
 frontmatter, which lists only `rjmurillo` even though its acceptance rested on a
@@ -150,15 +188,26 @@ nowhere in the tree), ADR-072.
 
 ### Records carrying a status/implementation mismatch, deliberately
 
-Four records are `proposed` with `implemented: true`: ADR-038, ADR-049, ADR-059,
-ADR-067, plus ADR-070. This is not an error. It is the field behaving as ADR-073
-specifies, and it surfaces a real governance gap the schema was built to make
-visible: decisions that shipped without ever being formally accepted. ADR-070 is
-the clearest case, since its own Implementation Notes read "It documents an
-already-landed gate; it does not change the gate."
+**Eight records, counted against the final frontmatter state rather than against
+an earlier draft of this paragraph.**
 
-Three records are `accepted` with `implemented: false`: ADR-010, ADR-018,
-ADR-028. These are the mirror image, decisions accepted and never built.
+Five are `proposed` with `implemented: true`: ADR-038, ADR-049, ADR-059, ADR-067,
+ADR-070. This is not an error. It is the field behaving as ADR-073 specifies, and
+it surfaces a real governance gap the schema was built to make visible: decisions
+that shipped without ever being formally accepted. ADR-070 is the clearest case,
+since its own Implementation Notes read "It documents an already-landed gate; it
+does not change the gate."
+
+Three are `accepted` with `implemented: false`: ADR-010, ADR-018, ADR-028. The
+mirror image, decisions accepted and never built.
+
+An earlier version of this paragraph said "four records" while listing five, and
+a sixth record (ADR-013) was in the group because its `implemented` value was
+wrong. Copilot's automated review on PR #5291 caught both. ADR-013 is an Agent
+Orchestration MCP that was never built: there is no `mcp/` tree, and its three
+sibling MCP proposals (ADR-011, ADR-012, ADR-048) all carry `implemented: false`
+for exactly that reason. It was corrected to `false`, which removes it from this
+group. The count above is now generated from the files rather than transcribed.
 
 Both groups are worth a follow-up triage issue. Neither is fixed here, because
 changing a status is a governance act and this PR is a metadata backfill.
@@ -304,7 +353,8 @@ much they should weigh on a reviewer:
 3. `decision-makers` is uniformly `[rjmurillo]`, discarding `**Deciders**` lines
    that name other parties.
 4. ADR-052 and ADR-055 carry deliberately empty `supersedes` pending #5192.
-5. `date` tracks the last dated field, not the last amendment recorded in prose.
+5. `date` now tracks the latest self-referential update date anywhere in the
+   record, including amendment headings. This corrected 13 of the 53.
 
 ## Status mapping for all 53 records reviewed
 
@@ -312,15 +362,15 @@ much they should weigh on a reviewer:
 |-----|--------|------|------------|---------------|-------------|
 | ADR-001 | accepted | 2025-12-13 | [] | null | true |
 | ADR-005 | superseded | 2025-12-18 | [] | ADR-042 | true |
-| ADR-006 | accepted | 2025-12-18 | [] | null | true |
-| ADR-007 | accepted | 2026-01-01 | [] | null | true |
-| ADR-008 | accepted | 2025-12-20 | [] | null | true |
+| ADR-006 | accepted | 2026-04-29 | [] | null | true |
+| ADR-007 | accepted | 2026-08-16 | [] | null | true |
+| ADR-008 | accepted | 2026-08-19 | [] | null | true |
 | ADR-009 | accepted | 2025-12-20 | [] | null | true |
 | ADR-010 | accepted | 2025-12-20 | [] | null | false |
 | ADR-011 | proposed | 2025-12-21 | [] | null | false |
 | ADR-012 | proposed | 2025-12-21 | [] | null | false |
-| ADR-013 | proposed | 2025-12-21 | [] | null | true |
-| ADR-014 | accepted | 2025-12-22 | [] | null | true |
+| ADR-013 | proposed | 2025-12-21 | [] | null | false |
+| ADR-014 | accepted | 2026-08-16 | [] | null | true |
 | ADR-015 | accepted | 2025-12-22 | [] | null | true |
 | ADR-016 | accepted | 2025-12-22 | [] | null | true |
 | ADR-017 | accepted | 2025-12-23 | [] | null | true |
@@ -333,17 +383,17 @@ much they should weigh on a reviewer:
 | ADR-029 | accepted | 2025-12-27 | [] | null | true |
 | ADR-031 | proposed | 2025-12-29 | [] | null | false |
 | ADR-032 | accepted | 2025-12-30 | [] | null | true |
-| ADR-033 | accepted | 2025-12-30 | [] | null | true |
+| ADR-033 | accepted | 2026-08-16 | [] | null | true |
 | ADR-035 | accepted | 2025-12-30 | [] | null | true |
 | ADR-037 | accepted | 2026-07-20 | [] | null | true |
 | ADR-038 | proposed | 2026-01-01 | [] | null | true |
-| ADR-040 | accepted | 2026-01-03 | [] | null | true |
-| ADR-041 | accepted | 2026-01-16 | [] | null | true |
+| ADR-040 | accepted | 2026-07-11 | [] | null | true |
+| ADR-041 | accepted | 2026-07-21 | [] | null | true |
 | ADR-042 | accepted | 2026-01-17 | [ADR-005] | null | true |
 | ADR-043 | accepted | 2026-01-21 | [] | null | true |
 | ADR-045 | accepted | 2026-02-07 | [] | null | true |
 | ADR-046 | accepted | 2026-02-08 | [] | null | true |
-| ADR-047 | accepted | 2026-02-16 | [] | null | true |
+| ADR-047 | accepted | 2026-04-29 | [] | null | true |
 | ADR-048 | proposed | 2026-02-23 | [] | null | false |
 | ADR-049 | proposed | 2026-02-24 | [] | null | true |
 | ADR-050 | accepted | 2026-02-21 | [] | null | true |
@@ -354,14 +404,14 @@ much they should weigh on a reviewer:
 | ADR-055 | accepted | 2025-12-29 | [] | null | true |
 | ADR-056 | accepted | 2026-03-08 | [] | null | true |
 | ADR-059 | proposed | 2026-05-08 | [] | null | true |
-| ADR-060 | accepted | 2026-05-25 | [] | null | true |
-| ADR-061 | rejected | 2026-05-27 | [] | null | false |
-| ADR-062 | accepted | 2026-05-31 | [] | null | true |
-| ADR-063 | accepted | 2026-06-01 | [] | null | true |
+| ADR-060 | accepted | 2026-07-27 | [] | null | true |
+| ADR-061 | rejected | 2026-07-27 | [] | null | false |
+| ADR-062 | accepted | 2026-07-27 | [] | null | true |
+| ADR-063 | accepted | 2026-07-27 | [] | null | true |
 | ADR-064 | proposed | 2026-06-01 | [] | null | false |
 | ADR-065 | proposed | 2026-05-29 | [] | null | false |
 | ADR-067 | proposed | 2026-06-02 | [] | null | true |
-| ADR-070 | proposed | 2026-05-31 | [] | null | true |
+| ADR-070 | proposed | 2026-07-27 | [] | null | true |
 | ADR-072 | proposed | 2026-06-09 | [] | null | false |
 
 ## Records excluded from this change
@@ -373,7 +423,7 @@ needs a decision that belongs to another open issue:
 |-----|--------|--------------|
 | ADR-002, ADR-039 | Status is a "provisional" window that expired 2026-01-17. No enum member represents it. | #5193 |
 | ADR-030 | Not a decision record. Skill documentation carrying a "Critical Update" status. Its fate is being decided elsewhere. | #5195 |
-| ADR-024, ADR-025, ADR-036 | Prose-marked Accepted but actually superseded. The reciprocal `superseded-by` fix belongs with the other dangling supersessions. | #5192 |
+| ADR-024, ADR-025 | Prose-marked Accepted but actually superseded. The reciprocal `superseded-by` fix belongs with the other dangling supersessions. | #5192 |
 
 Because these six are excluded, issue #5190's acceptance criterion that every
 `ADR-[0-9]*.md` carry frontmatter is not fully met by this change. It is
