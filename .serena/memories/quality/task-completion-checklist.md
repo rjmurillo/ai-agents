@@ -19,10 +19,16 @@ npx markdownlint-cli2 --fix "**/*.md"
 If not already enabled:
 
 ```bash
-git config core.hooksPath .githooks
+uv run --frozen lefthook install
 ```
 
 This will auto-fix markdown issues on commit.
+
+Do not set `core.hooksPath` by hand. `.githooks` is not tracked in this
+repository, so pointing `core.hooksPath` at it makes git run no hook and print
+no warning, which silently disabled every pre-commit and pre-push job twice
+(issue #5090, a repeat of the 2026-07-19 repair). To repair a clone that
+already carries the setting, run `uv run --frozen lefthook install --reset-hooks-path`.
 
 ### 3. Common Markdown Issues to Check
 

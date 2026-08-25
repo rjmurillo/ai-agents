@@ -37,11 +37,15 @@ npx markdownlint-cli2 --fix "**/*.md"
 ## Pre-commit Hook Setup
 
 ```bash
-# Enable the git hooks directory
-git config core.hooksPath .githooks
+# Install the lefthook-managed git hooks
+uv run --frozen lefthook install
 
 # This enables auto-fix of markdown on every commit
 ```
+
+Do not set `core.hooksPath` by hand. `.githooks` is not tracked here, and a
+`core.hooksPath` naming a missing directory makes git run no hook and print no
+warning (issue #5090). Repair an affected clone with `uv run --frozen lefthook install --reset-hooks-path`.
 
 ## Bypass Pre-commit (use sparingly)
 
