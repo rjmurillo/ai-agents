@@ -435,6 +435,26 @@ not obviously wrong, but it was never a decision either, and rule 9 makes it
 one: a local slot is earned by output the developer acts on before the PR
 exists, and an advisory read on the PR belongs on the PR.
 
+### The record crossed a size threshold, and the remediation was code-shaped
+
+Rules 9 and 10 took ADR-104 to 537 lines, and the taste count ratchet rejected
+the push at 577 against a baseline of 576. The linter's remediation is to split
+the file into helpers, types, and constants, which is advice for a module and
+means nothing for a decision record; the ten rules are cited by number from this
+log and from tests, so any split renumbers them. Declared as a frontmatter
+exception, the same form four other ADRs already carry.
+
+The way it surfaced is worth more than the decision. The first run of the
+ratchet was piped to `tail`, which reported the pipeline's exit 0 while the
+script had exited 1, and the regression was invisible for one turn. That is the
+same defect as the backgrounded-push false completion recorded in this session's
+opening retrospective: the exit code read was not the exit code that mattered.
+Twice in one session, in two different tools, from the same cause.
+
+It also argues for the tier boundary this record draws. The check that would
+have cost a full push round trip ran locally in under a second, which is rule
+2's case stated as an event rather than a principle.
+
 ### Still open after this round
 
 - The workstation declared worst case is 47.5 minutes against a 300s target.

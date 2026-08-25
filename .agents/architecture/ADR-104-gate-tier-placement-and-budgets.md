@@ -1,4 +1,5 @@
 ---
+# taste-lint: ignore file-size, ten numbered rules cited by number from the debate log and from tests; splitting renumbers them and the linter's suggested split into helpers, types, and constants has no meaning for a decision record.
 id: ADR-104
 status: proposed
 date: 2026-08-25
