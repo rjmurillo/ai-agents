@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 45ed8d7f41525a0b3cc838ca48d36e703d8e6934
+qaCommit: 00e5903306bfdbe1bc8296799b6d0e9f5094b86c
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -763,3 +763,11 @@ correction in the campaign report, none touching ADR-tooling scripts.
 Full detail, including the re-run test evidence, in that addendum.
 
 **Rebound to** `45ed8d7f41525a0b3cc838ca48d36e703d8e6934`.
+
+## Addendum 25: same rebind as Addendum 23 of the campaign report
+
+A retro remediation owner (issue #5301) and a session-log claim correction,
+none touching ADR-tooling scripts. Full detail, including the re-run test
+evidence, in that addendum.
+
+**Rebound to** `00e5903306bfdbe1bc8296799b6d0e9f5094b86c`.

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 45ed8d7f41525a0b3cc838ca48d36e703d8e6934
+qaCommit: 00e5903306bfdbe1bc8296799b6d0e9f5094b86c
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1430,3 +1430,20 @@ the same evidence as Addendum 21; unchanged: 504 tests pass,
 `generate_adr_index.py --check` matches.
 
 **Rebound to** `45ed8d7f41525a0b3cc838ca48d36e703d8e6934`.
+
+
+## Addendum 23: retro remediation owner and a session-log claim correction
+
+One more non-evidence commit (`00e590330`) touched
+`.agents/retrospective/2026-08-25-pr5209-push-notification-false-completion.md`
+(not one of the QA-evidence-exempt prefixes, so it re-triggers the staleness
+check) to give an unowned remediation item issue #5301, and corrected the
+2026-08-21 session log's `changesCommitted` evidence, which still claimed
+"--no-verify... were all unused" outright after this report's own record had
+already been corrected to "invoked once, on a scratch commit discarded via
+`git reset --soft`, reaching no ref". No ADR-tooling script changed. Re-ran
+the same evidence as Addendum 22; unchanged: `check_adr_lifecycle.py`
+`[PASS] 64 violation(s) across 102 ADR record(s), no check above its
+baseline`, `check_adr_links.py` 0 violations across 1590 tracked files.
+
+**Rebound to** `00e5903306bfdbe1bc8296799b6d0e9f5094b86c`.
