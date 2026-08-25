@@ -1,10 +1,11 @@
-"""Validate skill script output against the standard envelope schema (ADR-056).
+"""Validate skill script output against the standard envelope schema (ADR-056, ADR-103).
 
 Accepts JSON input from stdin or a file path and validates it against
 the skill-output.schema.json schema. Returns exit code 0 for valid,
 1 for invalid output.
 
 Related: ADR-056 (Skill Output Format Standardization)
+Related: ADR-103 (Python contract correction; Error.Type is required)
 
 Usage:
     python3 scripts/validate_skill_output.py < output.json
@@ -108,22 +109,31 @@ def validate_envelope(data: dict) -> list[str]:
         if not metadata.get("Timestamp"):
             errors.append("Metadata.Timestamp is required")
 
-    # Validate error envelope when Success=false
-    if data.get("Success") is False:
-        error_field = data.get("Error")
-        if error_field is None:
-            errors.append("Error field is required when Success is false")
-        elif isinstance(error_field, dict):
-            if not error_field.get("Message"):
-                errors.append("Error.Message is required")
-            if "Code" not in error_field:
-                errors.append("Error.Code is required")
-            error_type = error_field.get("Type")
-            if error_type and error_type not in VALID_ERROR_TYPES:
-                valid_str = ", ".join(sorted(VALID_ERROR_TYPES))
-                errors.append(
-                    f"Error.Type '{error_type}' is not valid. Must be one of: {valid_str}"
-                )
+    # Error is required when Success=false (envelope-level rule, not part of
+    # the schema's Error sub-object contract).
+    error_field = data.get("Error")
+    if data.get("Success") is False and error_field is None:
+        errors.append("Error field is required when Success is false")
+
+    # skill-output.schema.json's Error property is `oneOf(null, object)`
+    # with Message/Code/Type required on the object branch, independent of
+    # Success. Validate the Error object's shape whenever it is present,
+    # not only when Success is false, so a Success=true envelope carrying a
+    # malformed Error (still schema-invalid) does not pass silently
+    # (ADR-103, Copilot review on PR #5283).
+    if isinstance(error_field, dict):
+        if not error_field.get("Message"):
+            errors.append("Error.Message is required")
+        if "Code" not in error_field:
+            errors.append("Error.Code is required")
+        error_type = error_field.get("Type")
+        if not error_type:
+            errors.append("Error.Type is required")
+        elif error_type not in VALID_ERROR_TYPES:
+            valid_str = ", ".join(sorted(VALID_ERROR_TYPES))
+            errors.append(
+                f"Error.Type '{error_type}' is not valid. Must be one of: {valid_str}"
+            )
 
     return errors
 

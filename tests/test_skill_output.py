@@ -27,6 +27,15 @@ sys.path.insert(0, str(REPO_ROOT))
 from scripts.github_core.output import get_output_format, write_skill_error, write_skill_output  # noqa: E402
 from scripts.validate_skill_output import validate_envelope  # noqa: E402
 
+# Read the committed schema's Error.Type enum directly (ADR-103), not a
+# hardcoded copy, so this test fails if the schema and write_skill_error's
+# VALID_ERROR_TYPES tuple ever drift apart again.
+_SCHEMA_PATH = REPO_ROOT / ".agents" / "schemas" / "skill-output.schema.json"
+_SCHEMA = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+SCHEMA_ERROR_TYPE_ENUM = frozenset(
+    _SCHEMA["properties"]["Error"]["oneOf"][1]["properties"]["Type"]["enum"]
+)
+
 
 class TestGetOutputFormat:
     """Tests for get_output_format function."""
@@ -132,12 +141,24 @@ class TestWriteSkillError:
     def test_validates_error_types(
         self, error_type: str, capsys: pytest.CaptureFixture[str]
     ) -> None:
+        """Each error_type write_skill_error accepts must also pass validate_envelope
+        and appear in the committed JSON schema's enum (ADR-103). Round-tripping
+        through validate_envelope, not just checking write_skill_error's own
+        VALID_ERROR_TYPES tuple, is what catches the three contract copies
+        (output.py, skill-output.schema.json, validate_skill_output.py)
+        drifting apart again: a parametrize list checked only against
+        write_skill_error's own enum would stay green even if the schema or
+        the validator forgot one of these values.
+        """
         result = write_skill_error(
             "test", 1, error_type=error_type, output_format="json", script_name="test.py"
         )
         assert result is not None
         envelope = json.loads(result)
         assert envelope["Error"]["Type"] == error_type
+
+        assert validate_envelope(envelope) == []
+        assert error_type in SCHEMA_ERROR_TYPE_ENUM
 
     def test_rejects_invalid_error_type(self) -> None:
         with pytest.raises(ValueError, match="error_type must be one of"):
@@ -168,6 +189,54 @@ class TestValidateEnvelope:
     def test_missing_success_field(self) -> None:
         errors = validate_envelope({"Metadata": {"Script": "x", "Timestamp": "t"}})
         assert any("Missing required field: Success" in e for e in errors)
+
+    def test_missing_error_type_is_rejected(self) -> None:
+        """ADR-103: Error.Type is required, not merely valid-if-present.
+
+        Before ADR-103, validate_envelope only checked Type against
+        VALID_ERROR_TYPES when the field was truthy, so an envelope missing
+        Type entirely passed validation even though write_skill_error can
+        never construct one (error_type defaults to "General" and is never
+        omitted). This asserts the gap is closed: a hand-built envelope with
+        no Type is now rejected, matching skill-output.schema.json's
+        required: ["Message", "Code", "Type"].
+        """
+        envelope = {
+            "Success": False,
+            "Data": None,
+            "Error": {"Message": "fail", "Code": 1},
+            "Metadata": {"Script": "test.py", "Timestamp": "2026-03-08T12:00:00Z"},
+        }
+        errors = validate_envelope(envelope)
+        assert any("Error.Type is required" in e for e in errors)
+
+    def test_empty_error_type_is_rejected(self) -> None:
+        envelope = {
+            "Success": False,
+            "Data": None,
+            "Error": {"Message": "fail", "Code": 1, "Type": ""},
+            "Metadata": {"Script": "test.py", "Timestamp": "2026-03-08T12:00:00Z"},
+        }
+        errors = validate_envelope(envelope)
+        assert any("Error.Type is required" in e for e in errors)
+
+    def test_malformed_error_is_rejected_even_when_success_is_true(self) -> None:
+        """skill-output.schema.json's Error property is oneOf(null, object)
+        with Message/Code/Type required on the object branch, independent of
+        Success (schema lines 16-39). Before this fix, validate_envelope only
+        checked the Error object's internal shape inside `if Success is
+        False`, so a Success=true envelope carrying a malformed Error (here,
+        missing Type) passed validate_envelope while still failing the JSON
+        schema. Caught by adr-review critic seat on PR #5283 (ADR-103).
+        """
+        envelope = {
+            "Success": True,
+            "Data": {"Result": "ok"},
+            "Error": {"Message": "unexpected", "Code": 1},
+            "Metadata": {"Script": "test.py", "Timestamp": "2026-03-08T12:00:00Z"},
+        }
+        errors = validate_envelope(envelope)
+        assert any("Error.Type is required" in e for e in errors)
 
     def test_missing_metadata_field(self) -> None:
         errors = validate_envelope({"Success": True})

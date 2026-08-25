@@ -18,7 +18,7 @@
         { "type": "null" },
         {
           "type": "object",
-          "required": ["Message", "Code"],
+          "required": ["Message", "Code", "Type"],
           "properties": {
             "Message": {
               "type": "string",
@@ -31,7 +31,7 @@
             "Type": {
               "type": "string",
               "enum": ["NotFound", "ApiError", "AuthError", "InvalidParams", "RateLimitError", "Timeout", "General", "VerificationFailed"],
-              "description": "Machine-readable error category"
+              "description": "Machine-readable error category. Required per ADR-103."
             }
           }
         }
