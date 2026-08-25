@@ -478,6 +478,19 @@ def test_run_emits_audit_and_returns_zero_on_clean_state(
     assert audit.is_file()
     assert "skills | copilot-cli | 1 | 1" in audit.read_text()
 
+    # The adr-index generator is invoked manually in `_run_generators`
+    # (outside the `GENERATORS` per-platform loop, which skips it by name)
+    # rather than discovered from the `GENERATORS` tuple. A test asserting
+    # only tuple membership cannot tell that call apart from a deleted one:
+    # deleting it still leaves `("adr-index", _build_adr_index)` in
+    # `GENERATORS` and the per-platform loop still skips the name, so the
+    # README would silently stop regenerating with every other assertion
+    # in this file still green (Copilot, PR #5285 review).
+    adr_readme = repo / ".agents" / "architecture" / "README.md"
+    assert adr_readme.is_file()
+    assert "ADR-001" in adr_readme.read_text()
+    assert "adr-index" in audit.read_text()
+
 
 def test_run_returns_2_when_check_finds_drift(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
