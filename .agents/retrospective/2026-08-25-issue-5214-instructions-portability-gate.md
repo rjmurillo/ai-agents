@@ -60,8 +60,41 @@ artifact per repo push gates).
 
 ## Phase 2: Diagnosis
 
-No failures occurred in this session; the diagnosis section is limited to near
-misses.
+### Failure Mode Classification
+
+**Class**: 1 (Context reading failure) — partial fit
+
+The original issue #5214 documented a gate coverage gap where the
+`check_skill_md_portability.py` scanner never read `<plugin-root>/instructions/`
+directories. This meant upstream-only paths shipped in the generated Copilot
+instruction mirror (`src/copilot-cli/instructions/`) with no blocking gate. The
+failure shape matches Class 1: required context files exist and are discoverable,
+but the scanner's configured scan scope did not include them. Unlike a typical
+Class 1 failure (agent starts work without reading required files), this was a
+tooling scope gap in the scanner itself rather than an agent behavioral lapse.
+
+### Evidence
+
+| Artifact | Link |
+|----------|------|
+| Issue (reported gap) | [#5214](https://github.com/rjmurillo/moq.analyzers/issues/5214) |
+| Source fix commit | Commit extending `EXTRA_SCAN_ROOTS` in this session |
+| Rule fix commit | Commit adding `vendor-portability` marker to `ci-scripts.md` |
+
+### Remediation
+
+| Action | Status | Owner |
+|--------|--------|-------|
+| Add `src/copilot-cli/instructions` to `EXTRA_SCAN_ROOTS` | Applied | This session |
+| Fix `ci-scripts.md` with `vendor-portability` marker | Applied | This session |
+| Update baseline to grandfather pre-existing debt | Applied | This session |
+| Add tests for instructions/ scan root | Applied | This session |
+| Widen gate to `.claude/rules/*.md` | Pending (P3, out of scope) | Unassigned |
+
+### Session Outcome
+
+No agent failures occurred in this session; the diagnosis section below is
+limited to near misses.
 
 ### Successes (Tag: helpful)
 

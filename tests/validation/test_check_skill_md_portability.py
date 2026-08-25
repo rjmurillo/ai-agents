@@ -1001,6 +1001,36 @@ class TestInstructionsScanRoot:
         counts = cmp.scan_plugin_roots(tmp_path)
         assert "src/copilot-cli/instructions/annotated.instructions.md" not in counts
 
+    def test_every_plugin_instructions_dir_is_configured(self) -> None:
+        """Converse guard: every on-disk instructions/ tree under a plugin root is
+        either in EXTRA_SCAN_ROOTS or explicitly excluded.
+
+        Without this, a new ``src/claude/instructions`` or ``.claude/instructions``
+        tree would go unscanned and these tests would stay green. Issue #5214
+        closed one such gap; this test prevents recurrence.
+        """
+        repo_root = Path(__file__).resolve().parents[2]
+        excluded_instructions_dirs: frozenset[str] = frozenset({
+            ".github/instructions",
+        })
+        on_disk: set[str] = set()
+        for plugin_root in cmp.PLUGIN_ROOTS:
+            candidate = repo_root / plugin_root / "instructions"
+            if candidate.is_dir():
+                on_disk.add(f"{plugin_root}/instructions")
+        for root_name in (".claude", ".github"):
+            candidate = repo_root / root_name / "instructions"
+            if candidate.is_dir():
+                on_disk.add(f"{root_name}/instructions")
+        configured = set(cmp.EXTRA_SCAN_ROOTS) | excluded_instructions_dirs
+        uncovered = on_disk - configured
+        assert not uncovered, (
+            f"instructions/ directories not in EXTRA_SCAN_ROOTS or explicitly excluded: "
+            f"{uncovered}. Add them to EXTRA_SCAN_ROOTS in "
+            "scripts/validation/check_skill_md_portability.py or to "
+            "excluded_instructions_dirs in this test with a rationale."
+        )
+
 
 class TestReport:
     """The output branches. None had coverage before ``_report`` was extracted."""
