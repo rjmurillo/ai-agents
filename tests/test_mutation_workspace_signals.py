@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import signal
@@ -154,6 +155,21 @@ def _ready_workspace(process: subprocess.Popen[str]) -> dict[str, str]:
     return payload
 
 
+def _recover_if_left_behind(marker: Path) -> None:
+    """Recover a workspace orphaned by ``_wait_for_exit``'s forced kill.
+
+    ``_wait_for_exit`` SIGKILLs a child that overran the cap. SIGKILL bypasses
+    ``isolated_mutation_worktree``'s cleanup, so the marker and its scratch
+    worktree survive the failing test, and the next mutation-safety check
+    rejects the push for a workspace nothing owns any more. A test that fails
+    must not also block the next push, so every call site that knows its marker
+    recovers it here. Recovery is the same call the SIGKILL test already makes;
+    this only moves it onto the paths that lacked it. Issue #5108.
+    """
+    if marker.exists():
+        assert recover_marker(REPO_ROOT, marker) == EXIT_OK
+
+
 def _stop_process(process: subprocess.Popen[str], signum: signal.Signals) -> int:
     os.kill(process.pid, signum)
     return _wait_for_exit(process, f"the child sent {signum.name}")
@@ -275,11 +291,14 @@ def test_catchable_signal_removes_marker_and_scratch(
     process = _child_process()
     workspace = _ready_workspace(process)
 
-    returncode = _stop_process(process, signum)
+    try:
+        returncode = _stop_process(process, signum)
 
-    assert returncode == 128 + signum
-    assert not Path(workspace["marker"]).exists()
-    assert not Path(workspace["scratch"]).exists()
+        assert returncode == 128 + signum
+        assert not Path(workspace["marker"]).exists()
+        assert not Path(workspace["scratch"]).exists()
+    finally:
+        _recover_if_left_behind(Path(workspace["marker"]))
 
 
 @pytest.mark.timeout(SIGNAL_TEST_TIMEOUT_SECONDS)
@@ -290,12 +309,15 @@ def test_signal_during_cleanup_is_deferred_until_cleanup_completes() -> None:
     assert ready
     marker, scratch = (Path(value) for value in ready.split("|", maxsplit=1))
 
-    assert (
-        _wait_for_exit(process, "the child signalled during cleanup")
-        == 128 + signal.SIGTERM
-    )
-    assert not marker.exists()
-    assert not scratch.exists()
+    try:
+        assert (
+            _wait_for_exit(process, "the child signalled during cleanup")
+            == 128 + signal.SIGTERM
+        )
+        assert not marker.exists()
+        assert not scratch.exists()
+    finally:
+        _recover_if_left_behind(marker)
 
 
 @pytest.mark.timeout(SIGNAL_TEST_TIMEOUT_SECONDS)
@@ -352,6 +374,36 @@ def test_concurrent_runs_use_distinct_markers_and_worktrees() -> None:
             marker = Path(workspace["marker"])
             if marker.exists():
                 assert recover_marker(REPO_ROOT, marker) == EXIT_OK
+
+
+def test_recover_if_left_behind_is_a_no_op_when_nothing_was_orphaned(
+    tmp_path: Path,
+) -> None:
+    """Positive path: the passing case must not touch a marker that is gone."""
+    _recover_if_left_behind(tmp_path / "never-created.json")
+
+
+@pytest.mark.timeout(SIGNAL_TEST_TIMEOUT_SECONDS)
+def test_recover_if_left_behind_clears_a_real_orphan() -> None:
+    """Negative path: an orphan left by a forced kill is recovered, not left.
+
+    Without this, a test that already failed would also block the next push,
+    which is the compounding failure the helper exists to prevent.
+    """
+    process = _child_process()
+    workspace = _ready_workspace(process)
+    marker = Path(workspace["marker"])
+
+    # SIGKILL is the signal _wait_for_exit sends on the timeout path, and it
+    # bypasses the context manager's cleanup, so this reproduces the orphan
+    # rather than simulating it.
+    _stop_process(process, signal.SIGKILL)
+    assert marker.is_file(), "the orphan this test recovers was not created"
+
+    _recover_if_left_behind(marker)
+
+    assert not marker.exists()
+    assert not Path(workspace["scratch"]).exists()
 
 
 @pytest.mark.timeout(SIGNAL_TEST_TIMEOUT_SECONDS)
@@ -417,3 +469,50 @@ def test_wait_for_exit_fails_loudly_when_the_signal_is_never_handled(
             process.wait()
 
     assert process.poll() is not None, "the helper must not leak the child process"
+
+
+def _tests_that_wait_on_a_signalled_child() -> list[ast.FunctionDef]:
+    tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
+    waiting = {"_wait_for_exit", "_stop_process"}
+    return [
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name.startswith("test_")
+        and any(
+            isinstance(inner, ast.Call)
+            and isinstance(inner.func, ast.Name)
+            and inner.func.id in waiting
+            for inner in ast.walk(node)
+        )
+    ]
+
+
+def test_every_test_that_waits_on_a_signalled_child_raises_its_budget() -> None:
+    """Guard the coupling that makes the #5108 diagnostic reachable at all.
+
+    The wait cap only produces its diagnostic if the test outlives it. With the
+    global ``--timeout=120`` sitting below ``SIGNAL_EXIT_TIMEOUT_SECONDS``, a
+    test that waits without raising its own budget is killed by pytest-timeout
+    first and reports a bare timeout instead. Review caught one such test on
+    this PR by reading; this catches the next one by running.
+    """
+    unmarked = []
+    for node in _tests_that_wait_on_a_signalled_child():
+        budgets = [
+            decorator.args[0].id
+            for decorator in node.decorator_list
+            if isinstance(decorator, ast.Call)
+            and isinstance(decorator.func, ast.Attribute)
+            and decorator.func.attr == "timeout"
+            and decorator.args
+            and isinstance(decorator.args[0], ast.Name)
+        ]
+        if not budgets:
+            unmarked.append(node.name)
+
+    assert not unmarked, (
+        "These tests wait on a signalled child but carry no per-test "
+        f"pytest-timeout budget, so the global --timeout=120 preempts the "
+        f"#5108 diagnostic: {unmarked}"
+    )
