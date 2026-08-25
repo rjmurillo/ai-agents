@@ -28,10 +28,13 @@ and success metric" paragraph reads verbatim:
 
 So `status`, `date` and `superseded-by` are read from frontmatter and never from
 the body, running for every enum value the `status` query ADR-073 gives under
-"Positive Consequences". The id comes from the filename, because 10 of the 40
-backfilled records carry no `id` key while the filename is always present and is
-the link a reader clicks. Title, decision summary and blocking condition are
-quoted from the body; the helpers below name where each comes from.
+"Positive Consequences". The id comes from the filename, not from frontmatter:
+some backfilled records carry no `id` key at all, while the filename is always
+present and is the link a reader clicks. (Deliberately no fraction here: an
+earlier version cited "10 of the 40" and it went stale the moment the bulk
+frontmatter backfill dropped that count to near zero, Copilot, PR #5285
+review.) Title, decision summary and blocking condition are quoted from the
+body; the helpers below name where each comes from.
 
 Stricter/looser/different than canonical
 ----------------------------------------
@@ -457,10 +460,10 @@ def build_record(path: Path) -> AdrRecord:
     text = path.read_text(encoding="utf-8").replace("\r\n", "\n")
     frontmatter, body = parse_frontmatter(text, path)
 
-    # The id is authoritatively the filename (module docstring: 10 of the 40
-    # backfilled records carry no `id` key, while the filename is always
-    # present and is the link a reader clicks), so a present-but-absent `id`
-    # is not an error. A present `id` that disagrees with the filename is a
+    # The id is authoritatively the filename (module docstring: some
+    # backfilled records carry no `id` key at all, while the filename is
+    # always present and is the link a reader clicks), so a present-but-absent
+    # `id` is not an error. A present `id` that disagrees with the filename is a
     # different defect: it means two different identities are on record for
     # one file, and a `superseded-by` elsewhere naming the frontmatter id
     # would resolve to the wrong record or appear dangling. Fail loudly and
@@ -764,19 +767,18 @@ _INTRO = (
     "import pathlib, re, yaml\n"
     "\n"
     "_ADR_FILENAME_RE = re.compile(r'^ADR-(\\d{2,})-[^/]+\\.md$')\n"
-    "_OPENING_FENCE = re.compile(r'^---\\r?\\n')\n"
-    "_CLOSING_FENCE = re.compile(r'\\r?\\n---\\r?\\n')\n"
+    "_FRONTMATTER_RE = re.compile(r'^---\\r?\\n([\\s\\S]*?)\\r?\\n---\\r?\\n([\\s\\S]*)$')\n"
     "\n"
     "for path in sorted(pathlib.Path('.agents/architecture').glob('ADR-*.md')):\n"
     "    if not _ADR_FILENAME_RE.match(path.name):\n"
     "        continue  # not a canonical ADR record filename\n"
     "    text = path.read_text(encoding='utf-8')\n"
-    "    if not _OPENING_FENCE.match(text):\n"
+    "    match = _FRONTMATTER_RE.match(text)\n"
+    "    if match is None:\n"
+    "        if text.startswith('---'):\n"
+    "            raise ValueError(f'{path.name}: opens with --- but never closes it')\n"
     "        continue  # no frontmatter: see Needs backfill below\n"
-    "    closing = _CLOSING_FENCE.search(text, 3)\n"
-    "    if closing is None:\n"
-    "        raise ValueError(f'{path.name}: opens with --- but never closes it')\n"
-    "    front = yaml.safe_load(text[3 : closing.start()]) or {}\n"
+    "    front = yaml.safe_load(match.group(1)) or {}\n"
     "    if str(front.get('status', '')).strip().lower() == 'accepted':\n"
     "        print(front.get('id') or path.name)\n"
     "```\n\n"
@@ -812,35 +814,26 @@ _INTRO = (
     "frontmatter is invisible to every frontmatter query, so a count answers for the\n"
     "records that have it while appearing to answer for all of them. The Needs\n"
     "backfill section below is the honest denominator, and issue #5190 closes it.\n\n"
-    "**This snippet crashes on unterminated frontmatter; it does not silently\n"
-    "drop it.** `_OPENING_FENCE.match(text)` is false only for a record with no\n"
-    "schema at all (including a malformed opening line such as `--- ` with\n"
-    "trailing text before the newline, which this exact-fence regex rejects the\n"
-    "same way the generator's `_FRONTMATTER_RE` does), so those `continue` past.\n"
-    "A record whose opening `---` fence is well-formed but never closes still\n"
-    "matches `_OPENING_FENCE`, so it skips that `continue`, finds no match for\n"
-    "`_CLOSING_FENCE`, and raises `ValueError` (verified by running both cases;\n"
-    "Copilot found the original claim backwards on PR #5209). The real\n"
-    "generator's `parse_frontmatter` raises the same way, on purpose: a\n"
-    "malformed schema is an author's defect to see, not a record to drop\n"
-    "quietly into Needs backfill. Run the gate rather than this snippet when\n"
-    "that distinction matters.\n\n"
-    "**The closing fence must occupy its own line, not just start one.**\n"
-    "`generate_adr_index.py`'s `_FRONTMATTER_RE` is\n"
-    "``r\"^---\\r?\\n([\\s\\S]*?)\\r?\\n---\\r?\\n([\\s\\S]*)$\"``: the closing fence is\n"
-    "three dashes immediately followed by `\\r?\\n`, nothing else. An earlier\n"
-    "version of this snippet used `text.index('\\n---', 3)`, which finds any\n"
-    "line merely starting with three dashes, trailing characters or not. A\n"
-    "closing line padded with one trailing space (`\"--- \\n\"` instead of\n"
-    "`\"---\\n\"`, a plausible editor artifact) does not match `_FRONTMATTER_RE`,\n"
-    "so `parse_frontmatter` finds no valid closing fence and raises\n"
-    "`AdrIndexError`, the same as a fence that never closes at all. The old\n"
-    "`.index` call could not tell the difference: it matched the padded line\n"
-    "anyway and printed an answer with no error, silently disagreeing with the\n"
-    "generator's correctly-loud rejection of the same file (Copilot, PR #5209\n"
-    "round-5 review). `_CLOSING_FENCE` above requires the same `\\r?\\n` on both\n"
-    "sides of the dashes as `_FRONTMATTER_RE`, so a padded or otherwise\n"
-    "malformed fence now raises here too.\n\n"
+    "**This snippet crashes on unterminated or malformed frontmatter; it does\n"
+    "not silently drop it.** `_FRONTMATTER_RE` above is the generator's own\n"
+    "pattern, quoted verbatim, so `match = _FRONTMATTER_RE.match(text)` fails\n"
+    "to match for two different reasons the snippet must not conflate: a\n"
+    "record with no schema at all, and a record that opens with `---` but\n"
+    "never reaches a valid, exact closing fence (an unterminated block, or a\n"
+    "malformed opening line such as `\"--- \\n\"` with a trailing space before\n"
+    "the newline, which fails the same `^---\\r?\\n` the generator requires).\n"
+    "The snippet disambiguates them exactly as `parse_frontmatter` does: a\n"
+    "literal `text.startswith('---')` check, not a regex, decides `raise` from\n"
+    "`continue`. An earlier version of this snippet used its own\n"
+    "`_OPENING_FENCE` regex for that decision instead of the literal prefix\n"
+    "check, so a malformed opening line failed `_OPENING_FENCE` the same way it\n"
+    "failed `_FRONTMATTER_RE` and the snippet `continue`d past it as though the\n"
+    "record had no frontmatter, printing an incomplete accepted set for a\n"
+    "corpus the generator would reject outright (Copilot, PR #5285 review).\n"
+    "Reusing the exact `text.startswith('---')` predicate `parse_frontmatter`\n"
+    "uses is what keeps the two in agreement. The real generator raises here on\n"
+    "purpose: a malformed schema is an author's defect to see, not a record to\n"
+    "drop quietly into Needs backfill.\n\n"
 )
 
 # Heading order and the one-line orientation under each. Every heading renders

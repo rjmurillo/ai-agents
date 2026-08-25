@@ -1754,6 +1754,47 @@ def test_the_documented_recipe_agrees_with_the_generator_on_a_padded_closing_fen
         _accepted_ids_via_recipe(adr_dir)
 
 
+def test_the_documented_recipe_agrees_with_the_generator_on_a_padded_opening_fence(
+    tmp_path,
+):
+    """Copilot's line-775 finding: the recipe must not silently skip a
+    malformed opening fence as though it were absent frontmatter.
+
+    A file starting ``"--- \\n"`` (three dashes, a trailing space, then the
+    newline) fails `_FRONTMATTER_RE`'s exact ``^---\\r?\\n`` opening
+    requirement, the same way a padded closing fence does. `parse_frontmatter`
+    disambiguates "no schema" from "malformed schema" with a literal
+    ``content.startswith("---")`` check, not a regex, so this file still
+    starts with the three literal dashes and `parse_frontmatter` raises
+    `AdrIndexError` for "opens with '---' but has no closing '---' fence".
+
+    Before this fix, the recipe's opening check used its own exact-fence
+    regex (`_OPENING_FENCE`) instead of the generator's literal prefix check.
+    That regex failed to match this file too, but for the wrong reason in the
+    wrong branch: the recipe read the mismatch as "no frontmatter" and
+    `continue`d past the record silently, printing an incomplete accepted set
+    for a corpus the generator would reject outright (Copilot, PR #5285
+    review). This test asserts the recipe raises, matching `AdrIndexError`,
+    rather than asserting on a return value the old recipe could satisfy by
+    silently omitting the record.
+    """
+    from generate_adr_index import AdrIndexError
+
+    adr_dir = tmp_path / "architecture"
+    adr_dir.mkdir(parents=True)
+    (adr_dir / "ADR-001-padded-open.md").write_text(
+        "--- \nid: ADR-001\nstatus: accepted\n---\n"
+        "# ADR-001: Padded Open\n\n## Decision\n\nDo it.\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AdrIndexError):
+        _accepted_ids_via_generator(adr_dir)
+
+    with pytest.raises(ValueError):
+        _accepted_ids_via_recipe(adr_dir)
+
+
 # Unhashable YAML keys -------------------------------------------------------
 
 

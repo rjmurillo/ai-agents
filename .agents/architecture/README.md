@@ -16,19 +16,18 @@ Python reads it with no extra dependency:
 import pathlib, re, yaml
 
 _ADR_FILENAME_RE = re.compile(r'^ADR-(\d{2,})-[^/]+\.md$')
-_OPENING_FENCE = re.compile(r'^---\r?\n')
-_CLOSING_FENCE = re.compile(r'\r?\n---\r?\n')
+_FRONTMATTER_RE = re.compile(r'^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$')
 
 for path in sorted(pathlib.Path('.agents/architecture').glob('ADR-*.md')):
     if not _ADR_FILENAME_RE.match(path.name):
         continue  # not a canonical ADR record filename
     text = path.read_text(encoding='utf-8')
-    if not _OPENING_FENCE.match(text):
+    match = _FRONTMATTER_RE.match(text)
+    if match is None:
+        if text.startswith('---'):
+            raise ValueError(f'{path.name}: opens with --- but never closes it')
         continue  # no frontmatter: see Needs backfill below
-    closing = _CLOSING_FENCE.search(text, 3)
-    if closing is None:
-        raise ValueError(f'{path.name}: opens with --- but never closes it')
-    front = yaml.safe_load(text[3 : closing.start()]) or {}
+    front = yaml.safe_load(match.group(1)) or {}
     if str(front.get('status', '')).strip().lower() == 'accepted':
         print(front.get('id') or path.name)
 ```
@@ -70,36 +69,26 @@ frontmatter is invisible to every frontmatter query, so a count answers for the
 records that have it while appearing to answer for all of them. The Needs
 backfill section below is the honest denominator, and issue #5190 closes it.
 
-**This snippet crashes on unterminated frontmatter; it does not silently
-drop it.** `_OPENING_FENCE.match(text)` is false only for a record with no
-schema at all (including a malformed opening line such as `--- ` with
-trailing text before the newline, which this exact-fence regex rejects the
-same way the generator's `_FRONTMATTER_RE` does), so those `continue` past.
-A record whose opening `---` fence is well-formed but never closes still
-matches `_OPENING_FENCE`, so it skips that `continue`, finds no match for
-`_CLOSING_FENCE`, and raises `ValueError` (verified by running both cases;
-Copilot found the original claim backwards on PR #5209). The real
-generator's `parse_frontmatter` raises the same way, on purpose: a
-malformed schema is an author's defect to see, not a record to drop
-quietly into Needs backfill. Run the gate rather than this snippet when
-that distinction matters.
-
-**The closing fence must occupy its own line, not just start one.**
-`generate_adr_index.py`'s `_FRONTMATTER_RE` is
-``r"^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$"``: the closing fence is
-three dashes immediately followed by `\r?\n`, nothing else. An earlier
-version of this snippet used `text.index('\n---', 3)`, which finds any
-line merely starting with three dashes, trailing characters or not. A
-closing line padded with one trailing space (`"--- \n"` instead of
-`"---\n"`, a plausible editor artifact) does not match `_FRONTMATTER_RE`,
-so `parse_frontmatter` finds no valid closing fence and raises
-`AdrIndexError`, the same as a fence that never closes at all. The old
-`.index` call could not tell the difference: it matched the padded line
-anyway and printed an answer with no error, silently disagreeing with the
-generator's correctly-loud rejection of the same file (Copilot, PR #5209
-round-5 review). `_CLOSING_FENCE` above requires the same `\r?\n` on both
-sides of the dashes as `_FRONTMATTER_RE`, so a padded or otherwise
-malformed fence now raises here too.
+**This snippet crashes on unterminated or malformed frontmatter; it does
+not silently drop it.** `_FRONTMATTER_RE` above is the generator's own
+pattern, quoted verbatim, so `match = _FRONTMATTER_RE.match(text)` fails
+to match for two different reasons the snippet must not conflate: a
+record with no schema at all, and a record that opens with `---` but
+never reaches a valid, exact closing fence (an unterminated block, or a
+malformed opening line such as `"--- \n"` with a trailing space before
+the newline, which fails the same `^---\r?\n` the generator requires).
+The snippet disambiguates them exactly as `parse_frontmatter` does: a
+literal `text.startswith('---')` check, not a regex, decides `raise` from
+`continue`. An earlier version of this snippet used its own
+`_OPENING_FENCE` regex for that decision instead of the literal prefix
+check, so a malformed opening line failed `_OPENING_FENCE` the same way it
+failed `_FRONTMATTER_RE` and the snippet `continue`d past it as though the
+record had no frontmatter, printing an incomplete accepted set for a
+corpus the generator would reject outright (Copilot, PR #5285 review).
+Reusing the exact `text.startswith('---')` predicate `parse_frontmatter`
+uses is what keeps the two in agreement. The real generator raises here on
+purpose: a malformed schema is an author's defect to see, not a record to
+drop quietly into Needs backfill.
 
 ## Accepted
 
