@@ -19,9 +19,12 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
-
-import generate_adr_index  # noqa: E402
+_SCRIPTS_PATH = str(REPO_ROOT / "build" / "scripts")
+sys.path.insert(0, _SCRIPTS_PATH)
+try:
+    import generate_adr_index  # noqa: E402
+finally:
+    sys.path.remove(_SCRIPTS_PATH)
 
 # Helpers --------------------------------------------------------------------
 
@@ -906,15 +909,19 @@ def test_check_mode_ignores_cwd_outside_the_repository_root(
 # The build_all.py registration ----------------------------------------------
 
 
-def test_build_all_registers_the_adr_index_generator() -> None:
-    sys.path.insert(0, str(REPO_ROOT / "build"))
+def test_build_all_registers_the_adr_index_generator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.syspath_prepend(str(REPO_ROOT / "build"))
     import build_all
 
     assert "adr-index" in dict(build_all.GENERATORS)
 
 
-def test_build_all_owns_the_index_path_for_the_staleness_diff() -> None:
-    sys.path.insert(0, str(REPO_ROOT / "build"))
+def test_build_all_owns_the_index_path_for_the_staleness_diff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.syspath_prepend(str(REPO_ROOT / "build"))
     import build_all
 
     assert ".agents/architecture/README.md" in build_all.OWNED_PREFIXES

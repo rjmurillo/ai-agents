@@ -490,6 +490,7 @@ def test_run_returns_2_when_check_finds_drift(
     repo = tmp_path / "repo"
     (repo / ".claude" / "skills").mkdir(parents=True)
     _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_minimal_adr(repo / ".agents" / "architecture")
     _write_platform_with_skills(repo, provider="copilot-cli")
     monkeypatch.setattr(
         build_all,
@@ -642,6 +643,7 @@ def test_run_clean_purges_only_skill_outputs(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     (repo / ".claude" / "skills").mkdir(parents=True)
     _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_minimal_adr(repo / ".agents" / "architecture")
     _write_platform_with_skills(repo, provider="copilot-cli")
 
     skill_out = repo / "src" / "copilot-cli" / "skills" / "alpha"
@@ -1130,7 +1132,7 @@ def test_run_check_leaves_untracked_owned_path_untouched(
     repo = tmp_path / "repo"
     _init_git_repo(repo)
     (repo / ".claude" / "skills").mkdir(parents=True)
-    (repo / ".agents" / "architecture").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
@@ -1183,6 +1185,7 @@ def test_run_check_restores_owned_prefix_after_generator_writes(
     _init_git_repo(repo)
     (repo / ".claude" / "skills").mkdir(parents=True)
     _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_minimal_adr(repo / ".agents" / "architecture")
     _write_platform_with_skills(repo, provider="copilot-cli")
     # Pre-commit a tracked file under .github/instructions/ that is committed
     # at content A, and arrange for the run to (hypothetically) write content B.
