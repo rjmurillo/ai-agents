@@ -8,12 +8,28 @@ push recipe would take.
 
 from __future__ import annotations
 
-import fcntl
 import os
 import subprocess
+import sys
 from pathlib import Path
 
+import pytest
+
 from scripts.validation import check_push_lock_before_commit as checker
+
+# fcntl is POSIX-only; these tests hold the real lock via a second open() to
+# exercise checker._push_is_in_flight's POSIX branch, which only runs on
+# sys.platform != "win32". Importing fcntl unconditionally crashes collection
+# of this whole file on Windows CI (ModuleNotFoundError), taking down every
+# platform-agnostic test in it too, so the import itself is guarded here.
+if sys.platform != "win32":
+    import fcntl
+
+_posix_only = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="exercises the POSIX fcntl.flock branch of _push_is_in_flight; "
+    "the Windows msvcrt branch has no equivalent test here",
+)
 
 
 def _init_git_repo(repo: Path) -> None:
@@ -34,6 +50,7 @@ def _init_git_repo(repo: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+@_posix_only
 def test_push_is_in_flight_true_while_another_open_holds_the_lock(tmp_path):
     lock_path = tmp_path / "push-lock-held.lock"
     holder_fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT)
@@ -52,6 +69,7 @@ def test_push_is_in_flight_false_when_lock_file_is_untouched(tmp_path):
     assert checker._push_is_in_flight(lock_path) is False
 
 
+@_posix_only
 def test_push_is_in_flight_false_after_the_holder_releases(tmp_path):
     lock_path = tmp_path / "push-lock-released.lock"
     holder_fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT)
@@ -115,6 +133,7 @@ def test_check_push_not_in_flight_allows_when_lock_is_free(monkeypatch, tmp_path
     assert "lock is free" in message
 
 
+@_posix_only
 def test_check_push_not_in_flight_blocks_when_push_holds_the_lock(monkeypatch, tmp_path):
     repo = tmp_path / "repo"
     _init_git_repo(repo)
@@ -202,6 +221,7 @@ def test_main_exits_zero_when_lock_is_free(monkeypatch, tmp_path):
     assert checker.main(["--repo-root", str(repo)]) == 0
 
 
+@_posix_only
 def test_main_exits_one_when_push_holds_the_lock(monkeypatch, tmp_path):
     repo = tmp_path / "repo"
     _init_git_repo(repo)
@@ -228,6 +248,7 @@ def test_main_exits_zero_when_repo_root_is_not_a_git_repository(tmp_path):
     assert checker.main(["--repo-root", str(not_a_repo)]) == 0
 
 
+@_posix_only
 def test_main_exits_zero_and_skips_the_lock_check_when_bypass_env_is_set(
     monkeypatch, tmp_path
 ):
