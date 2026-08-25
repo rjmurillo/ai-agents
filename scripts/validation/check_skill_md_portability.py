@@ -43,16 +43,21 @@ Baseline ratchet:
   so the baseline can be tightened with ``--update-baseline``.
 
 Scope: ``*.md`` under the ``skills/`` tree of every plugin root listed in
-``PLUGIN_ROOTS``, plus the flat source trees in ``EXTRA_SCAN_ROOTS``
-(``.claude/commands`` and ``templates/agents``). These extra directories ship
-or generate shipped output, but sit outside plugin-root ``skills/`` sources.
+``PLUGIN_ROOTS``, plus the flat source and generated trees in
+``EXTRA_SCAN_ROOTS`` (``.claude/commands``, ``templates/agents``, and
+``src/copilot-cli/instructions``). These extra directories ship or generate
+shipped output, but sit outside plugin-root ``skills/`` sources.
 ``.claude/commands`` generates Copilot CLI skills under
 ``src/copilot-cli/skills/`` via ``build/scripts/generate_commands.py``; that
 mirror is scanned by the plugin-root pass. ``templates/agents`` generates
 Copilot CLI agents under ``src/copilot-cli/agents/`` via
 ``build/generate_agents.py``; this validator does not scan agent outputs, so
-the template source is the only covered surface. See issues #3578
-(plugin-root widening) and #3646 (commands and templates/agents widening).
+the template source is the only covered surface. ``src/copilot-cli/instructions``
+is the generated Copilot instruction mirror of ``.claude/rules/*.md`` via
+``build/scripts/generate_rules.py``, which copies each rule body unchanged;
+it is scanned directly because it is itself the shipped artifact, not a
+source that generates one. See issues #3578 (plugin-root widening), #3646
+(commands and templates/agents widening), and #5214 (instructions widening).
 
 Exit codes:
   0 - no drift (counts at or below baseline), or --update-baseline wrote the file
@@ -282,7 +287,23 @@ REQUIRED_SKILLS_ROOTS: frozenset[str] = frozenset({".claude", "src/copilot-cli"}
 # ``src/copilot-cli/agents``, which this validator deliberately does not scan.
 # Scanning these source trees covers the otherwise unscanned source surface and
 # avoids double-counting command mirrors. Issue #3646.
-EXTRA_SCAN_ROOTS: tuple[str, ...] = (".claude/commands", "templates/agents")
+#
+# ``src/copilot-cli/instructions`` is the generated Copilot instruction mirror
+# of ``.claude/rules/*.md`` (``build/scripts/generate_rules.py``, which copies
+# each rule body unchanged). It ships inside the ``src/copilot-cli`` plugin
+# root but sits outside every root's ``skills/`` tree, so neither the
+# plugin-root scan above nor the generator's ``applyTo``-only
+# ``_INTERNAL_PATH_PREFIXES`` filter ever reads its prose. Issue #5214 found
+# an undeclared upstream-only path shipped this way with no gate covering it.
+# ``.github/instructions`` is deliberately excluded: it is the in-repo
+# Copilot mirror, not a shipped plugin root (see
+# ``.claude/rules/plugin-self-containment.md``), so a repo-only reference
+# there is not a defect.
+EXTRA_SCAN_ROOTS: tuple[str, ...] = (
+    ".claude/commands",
+    "templates/agents",
+    "src/copilot-cli/instructions",
+)
 
 
 def has_portability_marker(text: str) -> bool:

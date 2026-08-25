@@ -921,6 +921,87 @@ class TestExtraScanDirs:
         assert ".claude/commands/annotated.md" not in counts
 
 
+class TestInstructionsScanRoot:
+    """``src/copilot-cli/instructions`` closes the coverage gap from issue #5214.
+
+    ``check_skill_md_portability.py`` scanned only ``skills/`` trees and a
+    handful of source dirs, so the generated Copilot instruction mirror
+    (``build/scripts/generate_rules.py``) shipped undeclared upstream-only
+    paths in prose with no gate reading it: neither the plugin-root ``skills/``
+    scan (wrong subtree) nor the generator's ``applyTo``-only
+    ``_INTERNAL_PATH_PREFIXES`` filter (globs, not body prose) covered it.
+    ``.github/instructions`` is the sibling in-repo Copilot mirror, not a
+    shipped plugin root, and MUST stay out of scope.
+    """
+
+    def _write_md(self, root: Path, rel: str, body: str) -> None:
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body, encoding="utf-8")
+        for required in cmp.REQUIRED_SKILLS_ROOTS:
+            placeholder = root / required / "skills" / "_placeholder" / "SKILL.md"
+            placeholder.parent.mkdir(parents=True, exist_ok=True)
+            placeholder.write_text("placeholder\n", encoding="utf-8")
+
+    def test_instructions_root_is_in_extra_scan_roots(self) -> None:
+        assert "src/copilot-cli/instructions" in cmp.EXTRA_SCAN_ROOTS
+
+    def test_instructions_dir_refs_are_included_in_scan(self, tmp_path: Path) -> None:
+        """A ref inside src/copilot-cli/instructions/ is counted by scan_plugin_roots."""
+        self._write_md(
+            tmp_path,
+            "src/copilot-cli/instructions/ci-scripts.instructions.md",
+            "Run scripts/validation/pre_pr.py before every push.\n",
+        )
+        counts = cmp.scan_plugin_roots(tmp_path)
+        assert "src/copilot-cli/instructions/ci-scripts.instructions.md" in counts
+        assert counts["src/copilot-cli/instructions/ci-scripts.instructions.md"] == 1
+
+    def test_github_instructions_mirror_is_not_scanned(self, tmp_path: Path) -> None:
+        """.github/instructions is the in-repo Copilot mirror, not a shipped
+        plugin root, so an upstream ref there must not be flagged."""
+        self._write_md(
+            tmp_path,
+            ".github/instructions/ci-scripts.instructions.md",
+            "Run scripts/validation/pre_pr.py before every push.\n",
+        )
+        counts = cmp.scan_plugin_roots(tmp_path)
+        assert ".github/instructions/ci-scripts.instructions.md" not in counts
+
+    def test_clean_instructions_file_not_in_counts(self, tmp_path: Path) -> None:
+        """An instructions file with no upstream refs does not appear in counts."""
+        self._write_md(
+            tmp_path,
+            "src/copilot-cli/instructions/clean.instructions.md",
+            "This file has no upstream refs.\n",
+        )
+        counts = cmp.scan_plugin_roots(tmp_path)
+        assert "src/copilot-cli/instructions/clean.instructions.md" not in counts
+
+    def test_instructions_dir_drift_causes_exit_1(self, tmp_path: Path) -> None:
+        """An unbaselined ref in an instructions/ file exits 1."""
+        self._write_md(
+            tmp_path,
+            "src/copilot-cli/instructions/drift.instructions.md",
+            "Write to .agents/sessions/output.md\n",
+        )
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text('{"files": {}}', encoding="utf-8")
+        code = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert code == 1
+
+    def test_vendor_marker_suppresses_instructions_dir_refs(self, tmp_path: Path) -> None:
+        """A vendor-portability marker in an instructions/ file silences its refs."""
+        self._write_md(
+            tmp_path,
+            "src/copilot-cli/instructions/annotated.instructions.md",
+            "<!-- vendor-portability: upstream refs only -->\n"
+            "Read .agents/sessions/ for context.\n",
+        )
+        counts = cmp.scan_plugin_roots(tmp_path)
+        assert "src/copilot-cli/instructions/annotated.instructions.md" not in counts
+
+
 class TestReport:
     """The output branches. None had coverage before ``_report`` was extracted."""
 
