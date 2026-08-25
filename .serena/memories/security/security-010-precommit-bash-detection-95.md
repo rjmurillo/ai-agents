@@ -1,8 +1,18 @@
 # Security: Precommit Bash Detection 95
 
+> **IMPORTANT (2026-08-25, issue #5201)**: ADR-005 (PowerShell-only
+> scripting) was superseded by ADR-042 (Python migration) on 2026-01-17.
+> The pattern below, and its "Use PowerShell (pwsh) instead" message, are
+> historical: current policy is Python for new scripts
+> (`.claude/rules/universal.md` SHOULD-3), not PowerShell. The underlying
+> security concern (CWE-78, shell-injection risk in generated CI code) is
+> still valid and still worth a pre-commit hook; only the "PowerShell over
+> Bash" prescription is stale. A current hook should reject unreviewed
+> shell/bash in CI paths without mandating a specific replacement language.
+
 ## Skill-Security-010: Pre-Commit Bash Detection (95%)
 
-**Statement**: Enforce ADR-005 with pre-commit hook rejecting bash in `.github/workflows/` and `.github/scripts/`.
+**Statement (historical, see banner above)**: Enforce ADR-005 with pre-commit hook rejecting bash in `.github/workflows/` and `.github/scripts/`.
 
 **Context**: When implementing or reviewing workflow files
 
