@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 333582acef3f29dd074741c833a36cd887689141
+qaCommit: 862457b56fbfa89292382f164e9c4d0d4d397ca6
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -2478,4 +2478,14 @@ clean on the three touched files. No em or en dashes in the merged prose.
 Addendum 46 ("ADR-042: date conflict. Origin's `2026-08-25` reflects a real, same-day frontmatter addition ... a legitimate last-updated value") and Addendum 51's own "Reconciling" section ("ADR-042: `date` taken from `main` ... bumped the date to match per ADR-073's last updated contract") both kept `2026-08-25`, reasoning from a same-day `supersedes: [ADR-005]` frontmatter addition and later a Downstream cross-reference line. Both were wrong, on the same mistake repeated twice: neither addition is a content edit to ADR-042 itself, and main already settled the correct value before either merge, in `d331cba4f` (merged via PR #5283's `cdf688a9f`, titled "fix(adr): correct ADR-042 and ADR-063 date to last-updated semantics"): ADR-042's frontmatter `date` is `2026-04-13`, matching its own `## Amendment 1` section (a real, deliberate content change, distinct from a passive cross-reference edit), per the debate log's already-deliberated table (`.agents/critique/ADR-073-phase2-backfill-debate-log.md:545`).
 
 Caught on this stacked branch's own merge of the base branch (PR #5209) into this branch: HEAD already carried `d331cba4f`'s fix (`2026-04-13`), origin carried this addendum's repeated `2026-08-25` mistake, and checking the file's own `## Date`/`## Amendment` sections plus main's already-merged history settled it. Fixed by keeping HEAD's value; `.agents/architecture/README.md`'s ADR-042 row corrected to match. Recorded here rather than silently overwriting Addenda 46 and 51's prose, since a QA report that erases its own repeated wrong call teaches the next reader that the mistake never happened, when it happened twice.
+
+## Addendum 54: the stack merge itself, plus `origin/main`, both complete
+
+GitHub reported the stack (this branch on top of PR #5209) as unable to merge, citing conflicts in this file, `session-5209-adr-review-fixes-stacked.md`, `ADR-042-python-migration-strategy.md`, and `.agents/architecture/README.md`. Merging `origin/claude/adr-evaluation-tooling-6od8rd` (PR #5209, at `2d6027f05`) into this branch surfaced exactly those four; the two ADR/README conflicts and the ADR-042 date correction above are covered in Addendum 53. Merge commit `8021a3a79`.
+
+`origin/main` had also advanced 3 commits past this branch's own last merge (to `dbe5c5dcd`, PR #5309: "ruff format is not this repo's enforced formatter"). Merged with no conflicts (`862457b56`); `build/scripts/build_all.py --check` confirmed `.agents/architecture/README.md` needed no regeneration beyond the ADR-042 row already fixed.
+
+**Full-suite evidence.** `uv run pytest tests/ -q --timeout=300` → 28297 passed, 77 skipped, real exit 0 (verified from the log's captured exit line). `scripts/validation/pre_pr.py`: two real failures on the first run (`merge-tree-ratchet`, since `origin/main` hadn't yet been merged; "QA commit is not an ancestor of validation head" on both session logs, since the stack merge hadn't yet been committed), both closed by completing the two merges above and rebinding `qaCommit` here. Second run: all validations pass.
+
+**Rebound to** `862457b56fbfa89292382f164e9c4d0d4d397ca6`.
 

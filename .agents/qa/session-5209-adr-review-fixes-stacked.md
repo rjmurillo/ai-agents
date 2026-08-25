@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 333582acef3f29dd074741c833a36cd887689141
+qaCommit: 862457b56fbfa89292382f164e9c4d0d4d397ca6
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -1330,4 +1330,10 @@ that reconciled this third round (Addendum 52 of the campaign report).
 ## Addendum 54: same rebind and same ADR-042 date correction as Addendum 53 of the campaign report
 
 Same discovery, same fix: two of the merge resolutions this file summarizes as Addenda 48 and 52 (full detail in the campaign report's corresponding Addenda 46 and 51) had kept ADR-042's frontmatter `date` at `2026-08-25`, reasoning from a passive cross-reference edit rather than the file's own real `## Amendment 1` content change. Both were wrong; the correct value, `2026-04-13`, was already settled on `main` via `d331cba4f` (PR #5283) and had never left this branch's own history. Fixed by keeping this branch's value on the merge; `.agents/architecture/README.md`'s ADR-042 row corrected to match. Full detail in the campaign report's Addendum 53.
+
+## Addendum 55: same stack merge and `origin/main` merge as Addendum 54 of the campaign report
+
+Same discovery, same fix: GitHub reported the stack unable to merge, citing conflicts in this file, the campaign report, `ADR-042-python-migration-strategy.md`, and `.agents/architecture/README.md`. Merged PR #5209's branch (`8021a3a79`), then `origin/main` (`862457b56`, PR #5309, no conflicts). Same full-suite evidence: 28297 tests passed, `pre_pr.py` closed both real failures (`merge-tree-ratchet`, the session-log ancestor check) by completing the merges and rebinding `qaCommit`. Full detail in the campaign report's Addendum 54.
+
+**Rebound to** `862457b56fbfa89292382f164e9c4d0d4d397ca6`.
 
