@@ -132,10 +132,13 @@ Both are corrected on the issues so an implementer does not chase them.
 
 ## Known gaps carried forward
 
-- 54 records still have no frontmatter (issue #5190). The ratchet holds the line;
-  the index's "Needs backfill" section is the live meter.
-- 21 pre-existing ADR link violations in files outside this change, each
-  baselined with a written diagnosis.
+- 53 records still have no frontmatter (issue #5190). The ratchet holds the line;
+  the index's "Needs backfill" section is the live meter. (Corrected from 54,
+  a stale carried-forward count; `check_adr_lifecycle.py` currently reports
+  `frontmatter-parses 53 / 53 at baseline`.)
+- 19 pre-existing ADR link violations in files outside this change, each
+  baselined with a written diagnosis. (Corrected from 21; `check_adr_links_baseline.txt`
+  currently holds 19 non-comment entries.)
 - 21 non-ARM `runs-on` declarations carry no exception marker (issue #5199).
 - The debate-log gate is forgeable (issue #5205), filed with a proven exploit.
 - Six governance forks deferred to the owner, four of which the tie-breaker
