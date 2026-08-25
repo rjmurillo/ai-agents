@@ -239,7 +239,7 @@ DEBATE_LOG_DECISION_RE = re.compile(
 # change was open and the calibration test caught it in CI.
 DEBATE_LOG_VERDICT_LABEL_RE = re.compile(
     r"\b(verdict|position|consensus|outcome|recommendation|decision|direction"
-    r"|governing evidence|ruling)s?\b",
+    r"|governing evidence|ruling|vote|stance)s?\b",
     re.IGNORECASE,
 )
 DEBATE_LOG_HEADING_RE = re.compile(r"(?m)^#{1,6} \S")
@@ -1515,6 +1515,24 @@ def _referenced_adr_ids(content: str) -> set[str]:
 
 
 def _has_verdict(content: str) -> bool:
+    """Return True when a decision sits within the window of a verdict label.
+
+    One bounded path, deliberately. There used to be a second, unbounded one:
+    any pipe-prefixed row anywhere in the document containing a role and a
+    decision word counted as a positions table. Review showed that accepted
+    prose notes that decide nothing, for instance::
+
+        | architect | Open issue | dependency remains blocked |
+
+    which names a role and contains "blocked" while recording an open issue.
+
+    The fallback is deleted rather than narrowed, because it turned out to be
+    redundant once ``DEBATE_LOG_VERDICT_LABEL_RE`` covered the words real
+    positions tables head their columns with (position, stance, vote). A table
+    header is itself a label line, and its rows fall inside the window, so the
+    bounded branch already accepts every genuine positions table. Measured with
+    the fallback removed: 0 of the 86 committed logs rejected. Issue #5205.
+    """
     lines = content.splitlines()
     for index, line in enumerate(lines):
         if not DEBATE_LOG_VERDICT_LABEL_RE.search(line):
@@ -1522,13 +1540,7 @@ def _has_verdict(content: str) -> bool:
         window = lines[index : index + DEBATE_LOG_VERDICT_WINDOW_LINES]
         if any(DEBATE_LOG_DECISION_RE.search(entry) for entry in window):
             return True
-    # A positions table records the same verdict one role per row.
-    return any(
-        line.lstrip().startswith("|")
-        and DEBATE_LOG_ROLE_RE.search(line)
-        and DEBATE_LOG_DECISION_RE.search(line)
-        for line in lines
-    )
+    return False
 
 
 def _evidence_byte_count(content: str) -> int:
@@ -1581,7 +1593,12 @@ def debate_log_evidence_gap(content: str) -> str | None:
             "or 'self-review')"
         )
     if not _has_verdict(content):
-        return "no verdict (a verdict label with a decision, or a per-role positions table)"
+        return (
+            "no verdict (a decision within "
+            f"{DEBATE_LOG_VERDICT_WINDOW_LINES} lines of a verdict, decision, "
+            "position, stance, vote or outcome label; a positions-table "
+            "header counts as that label)"
+        )
     unresolved = [
         placeholder
         for placeholder in DEBATE_LOG_TEMPLATE_PLACEHOLDERS

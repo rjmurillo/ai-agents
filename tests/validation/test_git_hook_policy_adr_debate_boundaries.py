@@ -207,6 +207,49 @@ _DEBATE_LOG_TEMPLATE_RE = re.compile(
 )
 
 
+def test_a_notes_table_row_is_not_a_positions_table_verdict() -> None:
+    """A role beside a decision word in prose notes decides nothing.
+
+    The fallback used to accept any pipe-prefixed row containing a role and a
+    decision word, anywhere in the document. This row names `architect` and
+    contains `blocked` while recording an open issue, not a verdict. Same
+    defect class as the unbounded reviewer regex: a token appearing somewhere
+    is not that token doing the job it is read as. Found by review.
+    """
+    notes = (
+        "# Log\n\n## Context\n\n"
+        + "The architect and security reviewers wrote this up. " * 8
+        + "\n\n## Open issues\n\n"
+        "| Agent | Issue | Note |\n|---|---|---|\n"
+        "| architect | Open issue | dependency remains blocked |\n"
+        "\n## Next\n\nNothing settled yet.\n"
+    )
+
+    assert not policy._has_verdict(notes)
+    gap = policy.debate_log_evidence_gap(notes)
+    assert gap is not None and gap.startswith("no verdict"), gap
+
+
+def test_a_positions_table_under_a_vote_header_is_a_verdict() -> None:
+    """Positive control: the committed corpus heads its table `Vote`, not `Position`.
+
+    Scoping the fallback to a header initially false-blocked
+    `ADR-084-rule-6-tool-use-bar-debate-log.md`, whose table is
+    `| Lens | Vote | Head finding |`. Real logs do not all use one word, so
+    the header vocabulary has to cover the ones they use.
+    """
+    voted = (
+        "# Log\n\n## Round 1 votes\n\n"
+        "| Lens | Vote | Head finding |\n|---|---|---|\n"
+        "| architect | BLOCK | The placement inverts rule 1. |\n"
+        "| security | Disagree-and-Commit | The carve-out moved. |\n"
+        "\n## Findings\n\n" + "Recorded in full below. " * 12
+    )
+
+    assert policy._has_verdict(voted)
+    assert policy.debate_log_evidence_gap(voted) is None
+
+
 def test_an_owner_direction_record_without_a_verdict_label_passes() -> None:
     """A decision recorded by an owner is a verdict, however it is headed.
 

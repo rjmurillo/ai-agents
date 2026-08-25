@@ -203,19 +203,32 @@ def test_self_review_log_without_a_full_roster_passes() -> None:
 
 
 def test_positions_table_counts_as_a_verdict() -> None:
-    """ADR-084's log records the verdict one role per table row, not as a label."""
-    # No verdict-label word appears anywhere, so the label branch cannot fire
-    # and only the table can supply the verdict. Without this the label branch
-    # short-circuits and the test passes even with the table branch removed.
+    """A per-role table records the verdict through its own column header.
+
+    The header line is itself the verdict label and the rows fall inside the
+    window, so this reaches the one bounded branch rather than a separate
+    unbounded one. The second branch that used to serve this shape accepted
+    any pipe row with a role and a decision word anywhere in the document, and
+    was deleted as both loose and redundant; the negative case is pinned by
+    ``test_a_notes_table_row_is_not_a_positions_table_verdict``.
+    """
     content = (
         "# ADR-084 Debate Log\n\n## Round 1\n\n### Agent stances\n\n"
         "| Agent | Stance | Note |\n|---|---|---|\n"
         "| architect | BLOCK | P0-1: placement inverts rule 1. |\n"
         "| security | BLOCK | P0-2: orphaned line-number citations. |\n"
     ) + "\nFurther discussion of ADR-084 and its consequences follows here.\n" * 4
-    assert not policy.DEBATE_LOG_VERDICT_LABEL_RE.search(content), (
-        "the fixture must not offer the label branch a way to short-circuit"
-    )
+
+    # The only label in the fixture is the table's own column header, so a
+    # header that stopped being read as a label would fail this test rather
+    # than let some other line supply the verdict.
+    labels = [
+        line
+        for line in content.splitlines()
+        if policy.DEBATE_LOG_VERDICT_LABEL_RE.search(line)
+    ]
+    assert labels == ["### Agent stances", "| Agent | Stance | Note |"], labels
+
     assert policy.debate_log_evidence_gap(content) is None
 
 
