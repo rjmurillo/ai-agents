@@ -129,7 +129,7 @@ class _ValidationStateLike(Protocol):
 # asserts that the pre-push fast stage ran and passed, which the hook's
 # `piped: true` scheduling guarantees, so gates carrying `already_run_by` can
 # be skipped instead of run a second time. Measured on a 4-CPU container: the
-# duplicate ratchet run alone was 38.37s of this job's 103.25s. See ADR-103.
+# duplicate ratchet run alone was 38.37s of this job's 103.25s. See ADR-104.
 FAST_STAGE_RAN_ENV = "AI_AGENTS_PRE_PR_FAST_STAGE_RAN"
 
 

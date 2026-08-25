@@ -597,7 +597,7 @@ pre-push:
               # 4-CPU container: the ratchet re-run alone was 38.37s of this
               # job's 103.25s. Only this job may set the flag; a hand-run
               # `pre_pr.py` leaves it unset and gets the full sequence.
-              # See ADR-103.
+              # See ADR-104.
               AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"
               # This job's own timeout (above) in seconds, so the
               # generated-staleness gate can clamp its deadline to the
@@ -617,7 +617,7 @@ pre-push:
           # the local copy was imitating. The 30m cap is the ceiling for the
           # opt-in `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` path; the default
           # path is bounded by the inner 300s collection budget, not by this.
-          # See ADR-103.
+          # See ADR-104.
           - name: python-tests
             timeout: 30m
             run: uv run --frozen python scripts/validation/git_hook_policy.py pytest

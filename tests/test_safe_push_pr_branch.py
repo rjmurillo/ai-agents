@@ -947,7 +947,7 @@ def _record_pytest_timeouts(
     # The budget-sharing contract these tests pin only exists when `run_pytest`
     # builds more than one command, which is the executing partition set. The
     # default pre-push path builds a single collection command instead
-    # (ADR-103), so opt into local execution to keep the multi-command
+    # (ADR-104), so opt into local execution to keep the multi-command
     # behaviour under test rather than asserting it against one command.
     monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
 
@@ -1061,7 +1061,7 @@ def test_run_pytest_budget_exhaustion_emits_exhaustion_message(
     exhaustion clarification naming the full budget.
     """
     # Suite-budget semantics live on the executing partition set; the
-    # default pre-push path builds one collection command (ADR-103).
+    # default pre-push path builds one collection command (ADR-104).
     monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
     budget = git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
     # Use almost all the budget for the first command, leaving 10s for the
@@ -1110,7 +1110,7 @@ def test_run_pytest_full_timeout_does_not_emit_exhaustion_message(
     message is emitted for it.  The generic timeout message is the right signal.
     """
     # Suite-budget semantics live on the executing partition set; the
-    # default pre-push path builds one collection command (ADR-103).
+    # default pre-push path builds one collection command (ADR-104).
     monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
     budget = git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
     clock = {"now": 1_000.0}

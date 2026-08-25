@@ -469,7 +469,7 @@ TEST_SUITE_TIMEOUT_SECONDS = 1_740
 TEST_COLLECTION_TIMEOUT_SECONDS = 300
 # Opt back into executing the whole suite inside pre-push. Unset is the default
 # because that run duplicates CI's `pytest.yml` partition matrix on the same
-# commit while costing the push minutes it does not have; see ADR-103.
+# commit while costing the push minutes it does not have; see ADR-104.
 PYTEST_FULL_SUITE_LOCALLY_ENV = "AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY"
 CLI_E2E_TIMEOUT_SECONDS = 1_140
 # Issue #4823: direct and CI bulk pytest use xdist `auto`, one worker per
@@ -6624,7 +6624,7 @@ def _full_suite_stand_in(repo_root: Path, reason: str) -> list[list[str]]:
         "  (.github/workflows/pytest.yml runs the full partition matrix on this "
         "commit).\n"
         f"  Set {PYTEST_FULL_SUITE_LOCALLY_ENV}=1 to execute the suite here "
-        "instead. See ADR-103.",
+        "instead. See ADR-104.",
         file=sys.stderr,
     )
     return [_pytest_collection_command(repo_root)]
