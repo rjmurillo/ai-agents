@@ -1,3 +1,5 @@
+<!-- # taste-lint: ignore file-size (review record covering 67 ADRs; the 500-line code-cohesion limit does not apply to a review log, and splitting it would break the adr-policy gate, which needs one staged debate log per ADR commit) -->
+
 # ADR-073 Phase 2 backfill: review and debate log
 
 Subject: ADR-073 lifecycle frontmatter across 68 records. Issues #5190 and

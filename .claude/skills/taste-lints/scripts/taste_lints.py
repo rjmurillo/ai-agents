@@ -395,9 +395,43 @@ def read_file_lines(filepath: str) -> list[str]:
         return []
 
 
+def _suppression_window(lines: list[str]) -> list[str]:
+    """Lines a suppression may appear in: any frontmatter block, plus 10 more.
+
+    The window means "near the top of the file", not "the first 10 bytes of
+    metadata". Both placements are in use in this repository and both must keep
+    working:
+
+    - Inside the frontmatter, as a YAML comment on line 2. ADR-068 and ADR-085
+      do this ("accepted append-only record; splitting breaks audit
+      continuity").
+    - After the frontmatter, as an HTML comment under the title. ADR-035 does
+      this.
+
+    A plain first-10-lines window only sees the first. ADR-073 lifecycle
+    frontmatter is exactly 10 lines (``---``, eight keys, ``---``), so on a
+    record carrying it the window closes before any content is read: ADR-035's
+    suppression sat at line 3, moved to line 14 when the issue #5190 backfill
+    added frontmatter, and silently stopped counting.
+
+    Widening rather than shifting is deliberate. This window is a strict
+    superset of the old one, so it cannot retire a suppression that works today.
+    An earlier attempt skipped the frontmatter instead and broke ADR-068 and
+    ADR-085, which is the failure this docstring exists to prevent recurring.
+
+    A closing delimiter is required. Without one, a leading ``---`` that is
+    really a horizontal rule would extend the window to the end of the file.
+    """
+    if lines and lines[0].strip() == "---":
+        for index in range(1, len(lines)):
+            if lines[index].strip() in {"---", "..."}:
+                return lines[: index + 11]
+    return lines[:10]
+
+
 def has_suppression(lines: list[str], rule: str) -> bool:
     """Check if file has a suppression comment for the given rule."""
-    for line in lines[:10]:
+    for line in _suppression_window(lines):
         match = SUPPRESSION_PATTERN.search(line)
         if match and match.group(1) == rule:
             return True

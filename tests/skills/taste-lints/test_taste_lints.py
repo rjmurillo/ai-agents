@@ -42,6 +42,8 @@ get_base_file_line_count = mod.get_base_file_line_count
 _parse_hunk_header = mod._parse_hunk_header
 _filter_violations_for_diff = mod._filter_violations_for_diff
 _lint_file_rules = mod._lint_file_rules
+has_suppression = mod.has_suppression
+_suppression_window = mod._suppression_window
 
 
 class TestCheckFileSize:
@@ -963,3 +965,78 @@ class TestDiffScopeLineFilteringTasteLints:
         assert not any(v.file == cplx for v in result.violations), (
             "pre-existing complexity violation on unchanged line 1 must be suppressed"
         )
+
+
+class TestSuppressionSurvivesFrontmatter:
+    """A suppression must be findable on a file carrying YAML frontmatter.
+
+    ADR-073 lifecycle frontmatter is exactly 10 lines, which is the whole
+    suppression window. ADR-035 lost a working `file-size` suppression this way
+    during the issue #5190 backfill.
+    """
+
+    FM = [
+        "---\n", "id: ADR-035\n", "status: accepted\n", "date: 2025-12-30\n",
+        "decision-makers: [rjmurillo]\n", "supersedes: []\n",
+        "superseded-by: null\n", "explainer: null\n", "implemented: true\n",
+        "---\n",
+    ]
+    SUPPRESSION = "<!-- # taste-lint: ignore file-size (prose ADR) -->\n"
+
+    def test_suppression_found_after_frontmatter(self) -> None:
+        lines = [*self.FM, "\n", "# ADR-035: Title\n", "\n", self.SUPPRESSION]
+
+        assert has_suppression(lines, "file-size") is True
+
+    def test_suppression_still_found_without_frontmatter(self) -> None:
+        lines = ["# ADR-035: Title\n", "\n", self.SUPPRESSION]
+
+        assert has_suppression(lines, "file-size") is True
+
+    def test_absent_suppression_still_reports_false(self) -> None:
+        lines = [*self.FM, "\n", "# ADR-035: Title\n", "\n", "Body text.\n"]
+
+        assert has_suppression(lines, "file-size") is False
+
+    def test_suppression_for_a_different_rule_does_not_match(self) -> None:
+        lines = [*self.FM, "<!-- # taste-lint: ignore long-function -->\n"]
+
+        assert has_suppression(lines, "file-size") is False
+
+    def test_suppression_far_below_frontmatter_is_still_out_of_window(self) -> None:
+        lines = [*self.FM, *["filler\n"] * 11, self.SUPPRESSION]
+
+        assert has_suppression(lines, "file-size") is False
+
+    def test_unterminated_frontmatter_does_not_swallow_the_body(self) -> None:
+        # A leading `---` with no closing delimiter is a horizontal rule, not
+        # frontmatter. Skipping to EOF would hide every suppression in the file.
+        lines = ["---\n", self.SUPPRESSION, "body\n"]
+
+        assert has_suppression(lines, "file-size") is True
+
+    def test_empty_file_is_safe(self) -> None:
+        assert has_suppression([], "file-size") is False
+
+    def test_suppression_inside_the_frontmatter_still_counts(self) -> None:
+        # ADR-068 and ADR-085 put it on line 2, as a YAML comment. Widening the
+        # window must not retire that placement.
+        lines = [
+            "---\n",
+            "# taste-lint: ignore file-size, accepted append-only record.\n",
+            *self.FM[1:],
+            "# ADR-068: Title\n",
+        ]
+
+        assert has_suppression(lines, "file-size") is True
+
+    def test_window_covers_frontmatter_plus_ten_content_lines(self) -> None:
+        lines = [*self.FM, *["filler\n"] * 9, self.SUPPRESSION]
+
+        assert _suppression_window(lines)[-1] == self.SUPPRESSION
+        assert has_suppression(lines, "file-size") is True
+
+    def test_window_is_ten_lines_without_a_block(self) -> None:
+        lines = ["# Title\n", "body\n"]
+
+        assert _suppression_window(lines) == lines
