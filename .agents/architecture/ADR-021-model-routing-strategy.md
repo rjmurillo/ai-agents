@@ -1,3 +1,14 @@
+---
+id: ADR-021
+status: accepted
+date: 2025-12-23
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-021: AI Review Model Routing Strategy
 
 ## Status
@@ -135,7 +146,7 @@ All three components (routing + evidence rules + escalation) are required.
 
 ### Negative
 
-1. **More false WARN**: By design—conservative stance shifts false PASS to false WARN
+1. **More false WARN**: By design: conservative stance shifts false PASS to false WARN
 2. **Higher cost for escalations**: Escalation to Opus increases cost/latency for borderline cases
 3. **PR resizing pressure**: Some PRs may require resizing to get PASS verdict
 4. **Operational complexity**: Routing logic, escalation triggers, fallback handling add complexity

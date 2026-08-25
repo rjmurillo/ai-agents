@@ -1,3 +1,14 @@
+---
+id: ADR-032
+status: accepted
+date: 2025-12-30
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-032: EARS Requirements Syntax Standard
 
 ## Status

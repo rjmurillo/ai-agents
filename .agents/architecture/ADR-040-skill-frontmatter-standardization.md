@@ -1,3 +1,14 @@
+---
+id: ADR-040
+status: accepted
+date: 2026-08-14
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-040: Skill Frontmatter Standardization and Model Identifier Strategy
 
 ## Status

@@ -2,7 +2,7 @@
 id: ADR-042
 status: accepted
 date: 2026-01-17
-decision-makers: ["Repository owner"]
+decision-makers: [rjmurillo]
 supersedes: [ADR-005]
 superseded-by: null
 explainer: null

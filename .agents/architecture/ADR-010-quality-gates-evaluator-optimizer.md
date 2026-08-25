@@ -1,3 +1,14 @@
+---
+id: ADR-010
+status: accepted
+date: 2025-12-20
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
+---
+
 # ADR-010: Quality Gates with Evaluator-Optimizer Pattern
 
 ## Status

@@ -2,7 +2,7 @@
 id: ADR-055
 status: accepted
 date: 2025-12-29
-decision-makers: []
+decision-makers: [rjmurillo]
 supersedes: [ADR-024, ADR-025]
 superseded-by: null
 explainer: null
@@ -18,6 +18,8 @@ implemented: true
 **Why this batch flipped some records and not others.** ADR-042 moved to `status: accepted` in the same campaign because a six-role debate log for it predates the change by seven months. Six records (ADR-075, ADR-077, ADR-078, ADR-089, ADR-093, ADR-098) carry `implemented: true` against `status: proposed` and were deliberately left alone: each has a debate log that explicitly withholds acceptance, and ADR-098 states the pair is intentional. ADR-042 is not precedent for flipping them.
 
 **Exception marker.** This record prescribes `# ADR-055 Exception:`. It previously prescribed `# ADR-032 Exception:`. That was not a typo: this file WAS ADR-032, so the marker was correct until PR #1604 renamed the file to ADR-055 on 2026-04-10 and swept the filename without sweeping the body. The number then silently came to mean `ADR-032-ears-requirements-syntax.md`, an unrelated decision. The root cause is a rename with no in-body reference sweep, and no gate checks that a record's self-references match its current number; PR #1604's own remediation notes describe that sweep as a manual `git grep`. Two further spellings are loose in the tree, `# ADR-024 Exception:` and `# ADR-014 Exception:`, from the separate lineage of ADR-024 (accepted as ADR-014, renumbered to ADR-024 by PR #476 on 2025-12-29). Both are void as markers. Neither points where it reads: ADR-024 is the runner record this one retires, and **ADR-014 today is `Distributed Handoff Architecture`, which is accepted, live, and unrelated to runners** (`.claude/rules/universal.md` MUST-3 still binds it). A reader who follows `# ADR-014 Exception:` to its number lands on the handoff decision. Existing markers outside this file still carry retired spellings and are tracked for migration in issue #5199. The `# ADR-055 Exception:` spelling is **new**, not a restoration: no marker in this spelling exists anywhere in the tree today, and no validator reads the pattern. Retiring three spellings and minting a fourth is a convention change, not a transcription of an existing one, and it is recorded here so the next reader does not mistake it for one.
+
+**Frontmatter reciprocity.** PR #5291's ADR-073 lifecycle-frontmatter campaign (`1d15e0d06`) added this record's frontmatter independently of this branch, and deliberately left `supersedes: []` with a struck note that the ADR-024/ADR-025 reciprocal `superseded-by` edit was owed to issue #5192. This branch completed that reciprocal in the same window, on `.agents/architecture/ADR-024-github-actions-runner-selection.md` and `.agents/architecture/ADR-025-github-actions-arm-runners.md` (both now carry `superseded-by: ADR-055`, commit `25b263d16`), so `supersedes: [ADR-024, ADR-025]` is reciprocally sound as of this merge and the campaign's placeholder note is dropped rather than carried forward stale.
 
 **Authors**: DevOps Agent
 **Related**: Issue #197, Issue #5192, Issue #5199

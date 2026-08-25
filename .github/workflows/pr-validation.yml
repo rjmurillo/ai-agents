@@ -140,7 +140,8 @@ jobs:
               python3 .github/scripts/post_issue_comment.py \
               --issue "$PR_NUMBER" \
               --body-file "pr-validation-report.md" \
-              --marker "PR-VALIDATION"
+              --marker "PR-VALIDATION" \
+              --update-if-exists
           fi
 
       - name: Set Job Summary

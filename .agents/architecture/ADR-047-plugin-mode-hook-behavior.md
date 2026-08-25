@@ -1,3 +1,14 @@
+---
+id: ADR-047
+status: accepted
+date: 2026-04-29
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-047: Plugin-Mode Hook Behavior
 
 ## Status
