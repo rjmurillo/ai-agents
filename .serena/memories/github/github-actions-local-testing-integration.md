@@ -4,6 +4,21 @@
 **Source**: Research session on workflow validation shift-left
 **Analysis**: `.agents/analysis/github-actions-local-testing-research.md`
 
+> **IMPORTANT (2026-08-25, issue #5201)**: the `act-test-runner` row below
+> rejects TypeScript as an "ADR-005 violation". ADR-005 (PowerShell-only
+> scripting) was superseded by ADR-042 (Python migration) on 2026-01-17, so
+> citing ADR-005 for that rejection is wrong on its own. ADR-042's own text
+> (`.agents/architecture/ADR-042-python-migration-strategy.md:165-168,228`)
+> proposes, but has not accepted, a further amendment permitting TypeScript
+> for user-facing distribution surfaces: that amendment's `### Status` reads
+> `Proposed` and its Amendment Log entry reads `Pending adr-review`. Until
+> that amendment is accepted, ADR-042's original Python-first mandate is
+> still current policy for this row, not a blanket TypeScript exception.
+> Re-evaluate this row's adoption recommendation against ADR-042's accepted
+> text (and re-check the amendment's status, in case it has since been
+> accepted) rather than the superseded ADR-005 rule quoted here (Copilot
+> review on PR #5283).
+
 ## Integration Summary
 
 Research evaluated tools for local GitHub Actions validation to reduce the expensive push-check-tweak OODA loop.
