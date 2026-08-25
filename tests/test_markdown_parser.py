@@ -506,9 +506,12 @@ class TestBlankNonProseBlockLines:
     def test_blank_code_block_lines_does_not_strip_the_same_comment(self):
         # Control proving the two functions genuinely differ: the same input
         # that blank_non_prose_block_lines scrubs survives the older,
-        # code-only function untouched.
+        # code-only function untouched. Asserts the entire output equals the
+        # input, not just that "Accepted" survives: a mutant that blanks the
+        # "Accepted" line while leaving the comment's own "## Status" line
+        # intact would still pass a substring-only check.
         text = "<!--\n## Status\nAccepted\n-->\n"
-        assert "Accepted" in blank_code_block_lines(text)
+        assert blank_code_block_lines(text) == text
 
     def test_still_blanks_fenced_code(self):
         text = "keep /a\n```\ndrop /b\n```\nkeep /c\n"
