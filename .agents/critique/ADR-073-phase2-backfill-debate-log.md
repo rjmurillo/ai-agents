@@ -863,3 +863,30 @@ the batch here as it lands.
 | 26 | ADR-005, ADR-017, ADR-026, ADR-036 |
 | 27 | ADR-039, ADR-040, ADR-042, ADR-055 |
 | 28 | ADR-061 |
+| 29 | ADR-042, ADR-063 |
+
+## Batch 29: restoring the deliberated ADR-042 and ADR-063 dates
+
+PR #5230's merge-conflict resolution had reverted both records' frontmatter
+`date` to the value in each file's own `## Date` section (`2026-01-17` for
+ADR-042, `2026-06-01` for ADR-063), reasoning that the campaign's bulk value
+was a mis-extraction. That reasoning checked only the top of each file. It
+missed that both records carry a later `## Amendment` section with real
+content changes and its own dated heading: ADR-042's "Amendment 1" is dated
+`2026-04-13` (line 169 of the record), and ADR-063's "Amendment 2026-07-27"
+updates a stale citation per ADR-088 (line 313). Per this ADR's own schema
+comment, `.agents/architecture/ADR-073-adr-lifecycle-frontmatter.md:49`,
+`date: YYYY-MM-DD # last updated`, the field tracks the most recent
+substantive edit, not initial adoption. The rows above (`ADR-042 | accepted |
+2026-04-13`, line 545; `ADR-063 | accepted | 2026-07-27`, line 563) already
+recorded the correct values, confirmed for ADR-042 by commit `4d1aaa5e1`
+(PR #1647, cited at line 601 above). The merge-conflict revert was the
+regression; the frontmatter and the generated index are restored to match
+this table.
+
+A Copilot review comment on PR #5230 flagged this same table row as "stale
+against the tree being merged" and asked for the row to be changed to match
+the (regressed) live frontmatter. Live verification against this record's own
+canonical schema definition and the amendment content showed the opposite
+direction was correct: the table was right, the frontmatter was wrong. Fixed
+by restoring the frontmatter rather than by editing this table.
