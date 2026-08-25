@@ -197,6 +197,8 @@ runs-on: windows-latest
 |--------|--------|-------|--------|
 | ARM Jobs | 32 (89%) | 34 (94%) | +2 |
 | x64 Jobs | 2 (5.5%) | 0 (0%) | -2 |
+| Windows Jobs | 2 (5.5%) | 2 (6%) | 0 |
+| Cost Reduction | - | 5.5% | On migrated jobs |
 
 The `0 (0%)` figure was the 2025-12-29 measurement and no longer holds. Measured 2026-08-21 across
 `.github/workflows/*.yml`: 111 of 132 `runs-on` declarations are `ubuntu-24.04-arm`, leaving 21
@@ -211,8 +213,6 @@ above was closed, which conflated two different questions: whether the decision 
 (yes, and has been since before this campaign) and whether every workflow conforms to it (no, 21
 gaps remain, tracked here and in issue #5199). The gap belongs in this Metrics section and in
 #5199, not in the `implemented` flag (Copilot, PR #5209).
-| Windows Jobs | 2 (5.5%) | 2 (6%) | 0 |
-| Cost Reduction | - | 5.5% | On migrated jobs |
 
 ### Performance Baseline
 
