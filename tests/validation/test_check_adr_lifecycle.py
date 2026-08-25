@@ -868,6 +868,95 @@ def test_write_baseline_with_explicit_repo_root_ignores_cwd(tmp_path, monkeypatc
     assert baseline.exists()
 
 
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True)
+
+
+def test_write_baseline_refuses_to_raise_a_check_above_the_base_ref(tmp_path):
+    """A branch must not launder a raised count through --write-baseline: the
+    recorded ceiling may only fall (issue #5191, Copilot PR #5209 round-11
+    review: "--write-baseline writes the current counts and exits 0 before
+    reading either the existing baseline or its value at the base ref...
+    Compare every proposed count with the baseline at the base ref ... and
+    reject any increase.").
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), _STATUS_SECTION)
+    baseline = tmp_path / "baseline.json"
+    _git(tmp_path, "init", "-q", "-b", "main")
+    _git(tmp_path, "config", "user.email", "t@example.com")
+    _git(tmp_path, "config", "user.name", "t")
+
+    # Base ref: a clean corpus, baseline committed recording zero everywhere.
+    write_args = ["--repo-root", str(tmp_path), "--baseline", str(baseline), "--write-baseline"]
+    assert main(write_args) == EXIT_OK
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "base: clean corpus, baseline at zero")
+
+    # Working tree regresses without a new commit: a malformed-frontmatter
+    # record raises frontmatter-parses from 0 to 1.
+    _write(adr_dir, 2, "id: ADR-002\nstatus: [unclosed\n", _STATUS_SECTION)
+
+    exit_code = main(write_args)
+
+    assert exit_code == EXIT_CONFIG
+    # The on-disk baseline is untouched: the refused write never ran.
+    assert json.loads(baseline.read_text(encoding="utf-8"))["counts"]["frontmatter-parses"] == 0
+
+
+def test_write_baseline_allows_bootstrap_when_base_ref_has_no_baseline(tmp_path):
+    """The commit that introduces this gate's baseline has no earlier value at
+    the base ref to compare against; --write-baseline must still succeed
+    (bootstrap), matching the finding's own "allow bootstrap only when that
+    ref has no baseline" requirement.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), _STATUS_SECTION)
+    _git(tmp_path, "init", "-q", "-b", "main")
+    _git(tmp_path, "config", "user.email", "t@example.com")
+    _git(tmp_path, "config", "user.name", "t")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "base: no baseline file committed yet")
+
+    baseline = tmp_path / "baseline.json"  # absent at HEAD; never committed
+
+    exit_code = main(
+        ["--repo-root", str(tmp_path), "--baseline", str(baseline), "--write-baseline"]
+    )
+
+    assert exit_code == EXIT_OK
+    assert baseline.exists()
+
+
+def test_write_baseline_ignores_base_ref_when_the_baseline_path_is_outside_repo_root(tmp_path):
+    """A `--baseline` path outside `--repo-root` (legal: they are independent
+    flags, see test_write_baseline_with_default_repo_root_succeeds_when_cwd_is_inside_it,
+    which points --baseline at a bare tmp_path file while --repo-root defaults
+    to the real checkout) has no tracked history in that repo to compare
+    against. `git show`/`git ls-tree` against an out-of-repo pathspec fails
+    outright rather than reporting "absent", so this must be skipped before
+    asking git anything, not surfaced as a false [CONFIG] failure.
+    """
+    repo_root = tmp_path / "repo"
+    adr_dir = _adr_dir(repo_root)
+    _write(adr_dir, 1, _valid(1), _STATUS_SECTION)
+    _git(repo_root, "init", "-q", "-b", "main")
+    _git(repo_root, "config", "user.email", "t@example.com")
+    _git(repo_root, "config", "user.name", "t")
+    _git(repo_root, "add", "-A")
+    _git(repo_root, "commit", "-q", "-m", "base")
+
+    outside_baseline = tmp_path / "elsewhere" / "baseline.json"
+    outside_baseline.parent.mkdir()
+
+    exit_code = main(
+        ["--repo-root", str(repo_root), "--baseline", str(outside_baseline), "--write-baseline"]
+    )
+
+    assert exit_code == EXIT_OK
+    assert outside_baseline.exists()
+
+
 def test_missing_baseline_is_a_config_error(tmp_path):
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 1, _valid(1), _STATUS_SECTION)

@@ -110,12 +110,15 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from scripts.ci.count_ratchet import baseline_absent_at_ref
 from scripts.utils.markdown_parser import blank_non_prose_block_lines
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+from checks_common import _refresh_remote_base, _resolve_default_base_ref  # noqa: E402
+from subprocess_runner import _run_subprocess  # noqa: E402
 from yaml_utils import _parse_yaml_frontmatter  # noqa: E402
 
 EXIT_OK = 0
@@ -843,10 +846,39 @@ def tally(violations: list[Violation]) -> dict[str, int]:
     return counts
 
 
+def _parse_baseline_payload(text: str, source: str) -> dict[str, int] | str:
+    """Validate baseline JSON already read from ``source``, or a one-line reason.
+
+    Split out of :func:`read_baseline` so :func:`_counts_at_ref` can run the
+    identical schema check against text read from ``git show <ref>:<path>``
+    instead of a live file. The two callers differ only in how the bytes
+    reached them; the validation a baseline must pass is one rule, not two.
+    """
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError as exc:
+        return f"baseline {source} is not valid JSON: {exc}"
+    if not isinstance(payload, dict) or not isinstance(payload.get("counts"), dict):
+        return f"baseline {source} has no `counts` mapping"
+    counts = payload["counts"]
+    missing = sorted(set(CHECKS) - set(counts))
+    unknown = sorted(set(counts) - set(CHECKS))
+    if missing or unknown:
+        return (
+            f"baseline {source} does not match the check list (missing: "
+            f"{missing or 'none'}, unknown: {unknown or 'none'}). "
+            "Regenerate it with --write-baseline."
+        )
+    for name, value in counts.items():
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            return f"baseline {source} entry {name} is {value!r}, not a count"
+    return {name: int(counts[name]) for name in CHECKS}
+
+
 def read_baseline(path: Path) -> dict[str, int] | str:
     """Baseline counts, or a one-line reason the file cannot be used."""
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
     except OSError as exc:
         return f"baseline {path} could not be read: {exc}"
     except UnicodeDecodeError as exc:
@@ -855,23 +887,40 @@ def read_baseline(path: Path) -> dict[str, int] | str:
         # unusable-baseline path returns, so the caller keeps its single
         # decision point instead of meeting a traceback.
         return f"baseline {path} is not valid UTF-8: {exc}"
-    except json.JSONDecodeError as exc:
-        return f"baseline {path} is not valid JSON: {exc}"
-    if not isinstance(payload, dict) or not isinstance(payload.get("counts"), dict):
-        return f"baseline {path} has no `counts` mapping"
-    counts = payload["counts"]
-    missing = sorted(set(CHECKS) - set(counts))
-    unknown = sorted(set(counts) - set(CHECKS))
-    if missing or unknown:
-        return (
-            f"baseline {path} does not match the check list (missing: "
-            f"{missing or 'none'}, unknown: {unknown or 'none'}). "
-            "Regenerate it with --write-baseline."
-        )
-    for name, value in counts.items():
-        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-            return f"baseline {path} entry {name} is {value!r}, not a count"
-    return {name: int(counts[name]) for name in CHECKS}
+    return _parse_baseline_payload(text, str(path))
+
+
+def _counts_at_ref(repo_root: Path, ref: str, baseline_path: Path) -> dict[str, int] | None:
+    """Per-check counts recorded at ``ref``, or None when unreadable.
+
+    Mirrors ``scripts/ci/count_ratchet.py``'s ``baseline_at_ref`` verbatim in
+    shape, quoted from that function's body::
+
+        rel = _baseline_rel(repo_root, baseline)
+        proc = _git_run(repo_root, ["show", f"{ref}:{rel}"])
+        ...
+        return int(proc.stdout.strip())
+
+    Stricter/looser/different than canonical: that helper parses a bare
+    integer because every other count ratchet in this repo baselines a
+    single number. This gate baselines one count per check in a JSON
+    mapping, so the final parse step is widened to
+    :func:`_parse_baseline_payload` instead of ``int()``; the git plumbing
+    (resolve the path relative to ``repo_root``, ``git show ref:rel``) is
+    unchanged.
+    """
+    try:
+        rel = baseline_path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        rel = baseline_path.as_posix()
+    exit_code, stdout, _stderr = _run_subprocess(
+        ["git", "-C", str(repo_root), "show", f"{ref}:{rel}"],
+        timeout=10,
+    )
+    if exit_code != 0:
+        return None
+    parsed = _parse_baseline_payload(stdout, f"{ref}:{rel}")
+    return parsed if isinstance(parsed, dict) else None
 
 
 def write_baseline(path: Path, counts: dict[str, int]) -> None:
@@ -925,7 +974,22 @@ def _marker(current: int, allowed: int) -> str:
 
 
 def _report(counts: dict[str, int], baseline: dict[str, int]) -> tuple[set[str], set[str]]:
-    """Print the per-check table. Returns ``(regressed, at_zero)`` check names."""
+    """Print the per-check table. Returns ``(regressed, at_zero)`` check names.
+
+    Known gap, not fixed here (Copilot, PR #5209 round-11 review): "The
+    ratchet compares only totals, so a branch can fix one baselined finding
+    and introduce a different finding under the same check without
+    increasing the count... Store and diff finding identities, at least
+    ``(check, path)``, rather than only per-check counts." That is correct
+    and unfixed. Every count ratchet in this repo (``scripts/ci/
+    count_ratchet.py``) shares the same total-only design; giving this one
+    gate per-finding identity tracking is a baseline schema change (the
+    JSON `counts` mapping would need to become, at minimum, a mapping of
+    `check` to a set of `(path, detail)` pairs), which is a scope larger
+    than a review-round fix and touches a shape every existing baseline
+    consumer and every test in this file currently assumes. Tracked for a
+    follow-up; not attempted in this change.
+    """
     width = max(len(name) for name in CHECKS)
     print("ADR lifecycle checks (current / baseline):")
     for name in CHECKS:
@@ -1016,6 +1080,62 @@ def run(
                 file=sys.stderr,
             )
             return EXIT_CONFIG
+
+        # issue #5191 (Copilot, PR #5209 round-11 review): "--write-baseline
+        # writes the current counts and exits 0 before reading either the
+        # existing baseline or its value at the base ref. A branch can
+        # therefore add a lifecycle violation, run the documented updater,
+        # commit the raised counts, and make pre_pr pass, despite this
+        # gate's 'may fall but never rise' contract." Every other count
+        # ratchet in this repo already refuses exactly this
+        # (scripts/ci/count_ratchet.py's `_base_ref_verdict`, invoked by
+        # `checks_ratchet.py` with `--base-ref`); this gate had no
+        # equivalent because it predates that shared module and writes a
+        # per-check JSON mapping instead of one scalar. `base_ref` is None
+        # only when no git ref resolves at all (this function's own test
+        # suite runs `--repo-root` against synthetic non-git `tmp_path`
+        # fixtures, per the worktree-identity comment above); the check is
+        # then a no-op rather than a hard failure, since "no ref resolves"
+        # is the harness the rest of this module already treats as
+        # permissive, not the raise this comparison exists to catch.
+        #
+        # `--baseline` is a separate flag from `--repo-root` (build_parser()
+        # above), so a caller may point it outside repo_root entirely, as
+        # test_write_baseline_with_default_repo_root_succeeds_when_cwd_is_inside_it
+        # does with a bare tmp_path file. A path with no tracked history in
+        # THIS repository has no "value at the base ref" to compare against;
+        # `git show`/`git ls-tree` against an out-of-repo pathspec fails
+        # outright rather than reporting "absent" (Copilot would have caught
+        # this as a false CONFIG failure had a test not already covered the
+        # case), so this is checked before asking git anything.
+        baseline_in_repo = True
+        try:
+            baseline_path.resolve().relative_to(repo_root.resolve())
+        except ValueError:
+            baseline_in_repo = False
+        base_ref = _resolve_default_base_ref(repo_root) if baseline_in_repo else None
+        if base_ref is not None:
+            _refresh_remote_base(base_ref, repo_root)
+            if not baseline_absent_at_ref(repo_root, base_ref, baseline_path):
+                base_counts = _counts_at_ref(repo_root, base_ref, baseline_path)
+                if base_counts is None:
+                    print(
+                        f"[CONFIG] could not read the baseline {baseline_path} "
+                        f"at {base_ref} to verify --write-baseline is not "
+                        "raising a check above it",
+                        file=sys.stderr,
+                    )
+                    return EXIT_CONFIG
+                raised = sorted(name for name in CHECKS if counts[name] > base_counts[name])
+                if raised:
+                    print(
+                        f"[CONFIG] --write-baseline would raise "
+                        f"{', '.join(raised)} above {base_ref}'s recorded "
+                        f"baseline. The baseline may only fall; fix the "
+                        "regression instead of recording it.",
+                        file=sys.stderr,
+                    )
+                    return EXIT_CONFIG
         write_baseline(baseline_path, counts)
         print(
             f"[OK] Wrote {baseline_path} from {len(violations)} violation(s) "
