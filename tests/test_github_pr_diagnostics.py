@@ -427,6 +427,68 @@ class TestAuditResume:
         assert [claim["pr_number"] for claim in audit["Claims"]] == [99]
 
 
+class TestAuditArtifactWriteFailure:
+    """The --artifact write path's OSError handler must not itself crash.
+
+    Copilot review on PR #5283 found this handler called
+    write_skill_error(..., error_type="IOError", ...), and "IOError" is not
+    in VALID_ERROR_TYPES (ADR-103's 8-value enum covers API/HTTP-shaped
+    categories, not filesystem errors). write_skill_error raises ValueError
+    on an unrecognized error_type, so a real artifact-write failure (a full
+    disk, a missing parent directory, a permissions error) turned a handled
+    OSError into an unhandled ValueError instead of the intended error
+    envelope. Fixed by mapping this caller to "General", the documented
+    catch-all, rather than widening the enum for one caller.
+    """
+
+    def test_artifact_write_failure_does_not_raise(self, tmp_path: Path) -> None:
+        nodes = [{"number": 1, "body": "no claims here", "baseRefName": "main"}]
+        # A path inside a directory that does not exist raises
+        # FileNotFoundError (an OSError subclass) from open(..., "w"),
+        # exercising the same except OSError branch a full disk or a
+        # permissions error would.
+        unwritable_artifact = str(tmp_path / "does-not-exist" / "artifact.json")
+
+        with (
+            patch(f"{_audit_mod.__name__}.assert_gh_authenticated"),
+            patch(
+                f"{_audit_mod.__name__}.resolve_repo_params",
+                return_value=_MOCK_REPO,
+            ),
+            patch(f"{_audit_mod.__name__}.fetch_open_prs", return_value=nodes),
+            patch(f"{_audit_mod.__name__}.write_skill_error") as write_error,
+        ):
+            result = _audit_mod.main(["--artifact", unwritable_artifact])  # must not raise
+
+        assert result == 3
+        write_error.assert_called_once()
+        assert write_error.call_args.kwargs["error_type"] == "General"
+
+    def test_artifact_write_failure_end_to_end_does_not_raise(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Same scenario, but write_skill_error is not mocked: the real
+        function runs, so a reintroduced invalid error_type (the pre-fix
+        "IOError") would surface as an unhandled ValueError propagating out
+        of main(), not merely a wrong mock call argument.
+        """
+        nodes = [{"number": 1, "body": "no claims here", "baseRefName": "main"}]
+        unwritable_artifact = str(tmp_path / "does-not-exist" / "artifact.json")
+
+        with (
+            patch(f"{_audit_mod.__name__}.assert_gh_authenticated"),
+            patch(
+                f"{_audit_mod.__name__}.resolve_repo_params",
+                return_value=_MOCK_REPO,
+            ),
+            patch(f"{_audit_mod.__name__}.fetch_open_prs", return_value=nodes),
+        ):
+            result = _audit_mod.main(["--artifact", unwritable_artifact, "--output-format", "json"])
+
+        assert result == 3
+        assert '"Error"' in capsys.readouterr().out
+
+
 class TestClosingReferencePagination:
     def test_resolves_references_by_repository_identity(self):
         references = [

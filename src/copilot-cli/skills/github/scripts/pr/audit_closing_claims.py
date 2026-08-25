@@ -411,8 +411,15 @@ def main(argv: list[str] | None = None) -> int:
             with open(args.artifact, "w", encoding="utf-8") as f:
                 json.dump(result, f, indent=2)
         except OSError as exc:
+            # "IOError" is not in VALID_ERROR_TYPES (ADR-103): the enum
+            # covers API/HTTP-shaped error categories, and no filesystem
+            # category exists or is warranted for one caller. Mapped to
+            # "General", the documented catch-all, rather than widening the
+            # enum. Before this fix, write_skill_error raised ValueError on
+            # this exact call, turning a handled OSError into an unhandled
+            # crash (Copilot review on PR #5283).
             write_skill_error(
-                f"Failed to write artifact: {exc}", 3, error_type="IOError",
+                f"Failed to write artifact: {exc}", 3, error_type="General",
                 output_format=fmt, script_name=_SCRIPT_NAME,
             )
             return 3
