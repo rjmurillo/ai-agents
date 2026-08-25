@@ -1,3 +1,14 @@
+---
+id: ADR-036
+status: accepted
+date: 2026-01-01
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-036: Two-Source Agent Template Architecture
 
 ## Status
@@ -50,7 +61,7 @@ Adopt a **two-source architecture**:
 - **Maintenance**: Manual edits, auto-generates outputs
 - **Content**: Shared prompts applicable to both Copilot platforms
 - **Files**: 18 template files
-- **Generates**: `src/copilot-cli/*.agent.md` and `src/vs-code-agents/*.md` via `build/Generate-Agents.ps1`
+- **Generates**: `src/copilot-cli/*.agent.md` and `src/vs-code-agents/*.md` via `build/generate_agents.py`
 
 ### Synchronization Requirement
 
@@ -98,7 +109,7 @@ The pre-commit hook handles generation but NOT content synchronization between s
 ### Neutral
 
 - Total agent count unchanged (18 agents x 3 platforms = 54 outputs)
-- Build complexity localized to `Generate-Agents.ps1`
+- Build complexity localized to `generate_agents.py`
 
 ## Implementation Notes
 

@@ -1,7 +1,24 @@
+---
+id: ADR-030
+status: rejected
+date: 2025-12-23
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
+---
+
 # ADR-030: Skills Pattern Superiority
 
 **Date**: 2025-12-23
 **Status**: Critical Update - Changes Recommendation
+
+> **Record note (2026-08-25).** This is an amendment memo to ADR-027 (GitHub MCP
+> Server with Agent Isolation Pattern, same date, still `proposed`), proposing
+> "Option E" (GitHub skill plus direct MCP access). Option E as specified was not
+> built: `.claude/skills/github/SKILL.md` wraps Python scripts rather than
+> declaring `allowed-tools: mcp__github__*`.
 
 ---
 

@@ -1,6 +1,61 @@
+---
+id: ADR-039
+status: deprecated
+date: 2026-01-03
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-039: Agent Model Cost Optimization
 
 ## Status
+
+Deprecated (2026-08-25). The provisional window below closed without
+validation, and the changes it made were reverted.
+
+### How the provisional window actually ended (recorded 2026-08-25)
+
+The original status is retained verbatim below. This section records what
+happened to it, because for seven months the record said "provisional pending
+validation" for a window that had already expired.
+
+**Zero of the four Final Acceptance Criteria were ever measured.** The criteria
+listed below call for monitoring data on error rates, missed security issues,
+architecture-decision quality, and user satisfaction.
+`.agents/governance/model-pin-evidence.json`, the sidecar that would hold such
+evidence, contains `"pins": []`. No validation verdict, pass or fail, was ever
+recorded anywhere.
+
+**The downgrades were reverted, but not through this ADR's rollback
+procedure.** The per-agent rollback documented in this record's Implementation
+section was never executed. The assignments were reverted incidentally on
+2026-02-07, three weeks after the window closed, as a side effect of commit
+`568af6775` (PR #1046, "migrate agent prompts from cloudmcp-manager to Memory
+Router (ADR-037)"), which rewrote 41 agent prompt files for an unrelated reason.
+That commit does not mention ADR-039 at all. Verified against the live tree: the
+six agents this ADR downgraded all read `model: opus` today, which is ADR-002's
+assignment.
+
+**`supersedes` is `[]`, deliberately.** This ADR claims to supersede ADR-002
+"pending validation". The validation never happened and the assignments were
+undone, so the supersession never took effect. Recording it in the frontmatter
+would assert a relationship that does not hold. ADR-002 is deprecated in the same
+change, on its own separate grounds.
+
+**Why `deprecated` and not `rejected`.** This repository uses `rejected` for a
+proposal declined before it was ever in force: ADR-095 ("Recorded so the proposal
+is findable and does not return") and ADR-061 (withdrawn before acceptance). That
+is not this record. ADR-039's changes were implemented and ran in production for
+roughly five weeks, from 2026-01-03 until the incidental revert. `deprecated`
+means "was in force, no longer is", which is what happened here. `implemented` is
+`true` for the same reason, and it stays true despite the revert: the field gates
+amend-versus-supersede, and a decision whose code shipped must not be silently
+amended even after that code is gone.
+
+### Original status (2026-01-03), retained
 
 **PROVISIONAL** (2026-01-03 to 2026-01-17)
 
