@@ -15,6 +15,7 @@ Both defects therefore get a regression test that fails without the fix.
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -48,6 +49,29 @@ reasonable. Template compliance confirmed against the canonical structure.
 P2 observation: evaluation order clarification added to the ADR text so a
 later reader does not have to reconstruct it from the implementation.
 """
+
+
+_DEBATE_LOG_TEMPLATE_DOC = (
+    _ROOT / ".claude" / "skills" / "adr-review" / "references" / "artifacts.md"
+)
+# The fence is keyed to the "Save to:" line above it so a later fence added to
+# the same document cannot be picked up by accident.
+_DEBATE_LOG_TEMPLATE_RE = re.compile(
+    r"Save to: `\.agents/critique/ADR-NNN-debate-log\.md`\s*\n+```markdown\n(.*?)\n```",
+    re.DOTALL,
+)
+
+
+def _canonical_debate_log_template() -> str:
+    """Return the debate-log template as the cited document actually holds it."""
+    source = _DEBATE_LOG_TEMPLATE_DOC.read_text(encoding="utf-8")
+    match = _DEBATE_LOG_TEMPLATE_RE.search(source)
+    assert match is not None, (
+        f"no debate-log template fence found in {_DEBATE_LOG_TEMPLATE_DOC}. "
+        "The gate's error message points committers at that document, so if "
+        "the template moved, the message is now wrong too."
+    )
+    return match.group(1)
 
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -223,22 +247,27 @@ def test_the_canonical_template_shape_passes() -> None:
     its roster "Agent Positions" and its table column "Agent", so a reviewer
     check that knew only the six role slugs blocked the committer and then sent
     them to the document they had followed.
+
+    This reads the fenced template out of that file rather than restating it.
+    A hardcoded copy makes the cross-file contract unobservable: an edit to the
+    document could start failing real template-based logs while a detached copy
+    kept this test green, which is the drift the test exists to prevent.
     """
-    template = (
-        "# ADR Debate Log: Example Title\n\n"
-        "## Summary\n\n"
-        "- **Rounds**: 2\n"
-        "- **Outcome**: Consensus\n"
-        "- **Final Status**: accepted\n\n"
-        "## Round 2 Summary\n\n"
-        "### Key Issues Addressed\n\n"
-        "- The trust boundary was not written down anywhere.\n"
-        "- The rollback path assumed a backup that is not taken.\n\n"
-        "### Agent Positions\n\n"
-        "| Agent | Position |\n|-------|----------|\n"
-        "| gpt-5 | Accept |\n| reviewer-two | Disagree-and-Commit |\n"
+    template = _canonical_debate_log_template()
+
+    # Guard the extraction itself. A regex that silently matched an empty or
+    # wrong fence would make the assertion below vacuous.
+    assert "Agent Positions" in template, (
+        "extracted the wrong fence from "
+        f"{_DEBATE_LOG_TEMPLATE_DOC}: no 'Agent Positions' roster in it"
     )
-    assert policy.debate_log_evidence_gap(template) is None
+
+    gap = policy.debate_log_evidence_gap(template)
+    assert gap is None, (
+        f"the canonical template at {_DEBATE_LOG_TEMPLATE_DOC} no longer clears "
+        f"the gate that cites it: {gap}. Either the template or the gate moved; "
+        "they have to move together."
+    )
 
 
 def test_an_unreadable_staged_log_cannot_satisfy_coverage(
