@@ -1,3 +1,14 @@
+---
+id: ADR-055
+status: accepted
+date: 2025-12-29
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-055: GitHub Actions Runner Selection
 
 **Status**: Accepted (supersedes ADR-024, ADR-025)
