@@ -1,7 +1,7 @@
 ---
 id: ADR-061
 status: rejected
-date: 2026-05-27
+date: 2026-07-27
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -13,15 +13,19 @@ implemented: false
 
 ## Status
 
-Withdrawn (2026-05-27, before acceptance, based on 6-agent debate verdict)
+Rejected (withdrawn 2026-05-27, before acceptance, based on 6-agent debate
+verdict).
 
-The ADR-073 lifecycle frontmatter on this record carries `status: rejected`. The
-schema enum is `proposed | accepted | rejected | deprecated | superseded` and has
-no `withdrawn` member. `rejected` is the enum value this repository already uses
-for a proposal that was declined before acceptance and is retained so it stays
-findable: see ADR-095, whose prose reads "Rejected. Recorded so the proposal is
-findable and does not return." The prose above remains the accurate account of
-what happened; the enum is the machine-readable approximation of it.
+The word used at the time was "withdrawn", and it is the accurate account of
+what happened: the author pulled the proposal rather than a reviewer declining
+it. The ADR-073 enum is `proposed | accepted | rejected | deprecated |
+superseded` and has no `withdrawn` member, so this record carries
+`status: rejected`, and the leading word here is `Rejected` so that the prose and
+the frontmatter agree on their first token as ADR-073 requires. `rejected` is the
+value this repository already uses for a proposal declined before acceptance and
+retained so it stays findable: see ADR-095, whose prose reads "Rejected. Recorded
+so the proposal is findable and does not return." The parenthetical carries the
+nuance the enum cannot.
 
 ## Date
 

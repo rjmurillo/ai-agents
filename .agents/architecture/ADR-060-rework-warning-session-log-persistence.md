@@ -1,7 +1,7 @@
 ---
 id: ADR-060
 status: accepted
-date: 2026-05-25
+date: 2026-07-27
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
