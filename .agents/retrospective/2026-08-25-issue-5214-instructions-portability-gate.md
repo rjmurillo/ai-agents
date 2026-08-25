@@ -100,7 +100,8 @@ corrected before its first commit.
 | Update baseline to grandfather pre-existing debt | Applied | This session |
 | Add tests for instructions/ scan root | Applied | This session |
 | Make the new scan root required (fail closed if absent) | Applied | This session |
-| Widen gate to `.claude/rules/*.md` | Pending (P3, out of scope) | Unassigned |
+| Widen the `vendor-portability` declaration to cover every upstream-only path in `ci-scripts.md`'s body (`AGENTS.md`, `tests/`, `lefthook.yml`), not only the six named in the issue | Applied | This session |
+| Widen the gate to `.claude/rules/*.md` | Tracked | [#5294](https://github.com/rjmurillo/ai-agents/issues/5294) |
 
 ### Successes (Tag: helpful)
 
@@ -192,11 +193,11 @@ None. Both learnings are narrow repo-mechanics facts about one validator's extra
 
 | Delta Item | Category | Priority | Destination | Reference |
 |------------|----------|----------|-------------|-----------|
-| `.claude/rules/*.md` itself ships as part of the `.claude/` plugin root but is not scanned by `check_skill_md_portability.py` (only `<root>/skills/`, `.claude/commands`, `templates/agents`, and now `src/copilot-cli/instructions` are) | Tool Gap | P3 | Skip | Out of scope for #5214; would grandfather a much larger, unmeasured debt corpus across every rule file. Worth its own issue if it matters. |
+| `.claude/rules/*.md` itself ships as part of the `.claude/` plugin root but is not scanned by `check_skill_md_portability.py` (only `<root>/skills/`, `.claude/commands`, `templates/agents`, and now `src/copilot-cli/instructions` are) | Tool Gap | P3 | Issue #5294 | Out of scope for #5214; would grandfather a much larger, unmeasured debt corpus across every rule file. Filed rather than skipped once review raised the same gap. |
 
 #### Issues Created
 
-None. The one delta item above is P3 and skipped rather than filed, per the triage above.
+[#5294](https://github.com/rjmurillo/ai-agents/issues/5294): Widen `check_skill_md_portability.py` to scan `.claude/rules/*.md`. The delta item above; filed once PR review on #5214 independently raised the same gap, rather than left as a skipped note.
 
 #### Backlog Items Stored
 
@@ -204,9 +205,9 @@ None.
 
 #### Skipped Items
 
-| Item | Reason |
-|------|--------|
-| Widen the portability gate to `.claude/rules/*.md` | Out of scope for #5214; not named in its acceptance criteria; unmeasured blast radius |
+None. The one candidate skip (widening the portability gate to `.claude/rules/*.md`)
+was instead filed as [#5294](https://github.com/rjmurillo/ai-agents/issues/5294); see
+Issues Created above.
 
 ### ROTI Assessment
 
@@ -214,7 +215,8 @@ None.
 
 **Benefits Received**:
 - Closed a real, previously-invisible gate coverage gap (not just the one reported file).
-- Left a precise, evidence-based follow-up note (not filed as a new issue, since it is P3 and speculative) instead of silently expanding scope.
+- Kept the PR scoped to #5214's acceptance criteria and filed the follow-up widening as
+  [#5294](https://github.com/rjmurillo/ai-agents/issues/5294) instead of silently expanding scope.
 
 **Time Invested**: One session, two commits.
 
