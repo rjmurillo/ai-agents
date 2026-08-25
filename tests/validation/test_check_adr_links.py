@@ -29,6 +29,9 @@ from scripts.validation.check_adr_links import (
     text_adr_number,
     validate_adr_links,
 )
+from scripts.validation.check_adr_links import (
+    _has_adr_corpus as has_adr_corpus,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -947,6 +950,62 @@ def test_validate_adr_links_fails_closed_on_a_valid_repo_with_no_tracked_markdow
     assert "no tracked markdown files found" in err
 
 
+def test_has_adr_corpus_true_when_a_scanned_file_is_adr_shaped() -> None:
+    assert has_adr_corpus(["adr/ADR-005-x.md"]) is True
+
+
+def test_has_adr_corpus_false_when_no_scanned_file_is_adr_shaped() -> None:
+    assert has_adr_corpus(["README.md", "docs/index.md"]) is False
+
+
+def test_has_adr_corpus_false_on_an_empty_scan() -> None:
+    assert has_adr_corpus([]) is False
+
+
+def test_has_adr_corpus_matches_regardless_of_directory_depth() -> None:
+    """The sentinel is a basename check, not a path check.
+
+    `check_adr_links.py` scans tracked markdown repo-wide (see the module
+    docstring's four violation classes), so a real ADR record can sit
+    anywhere a rename or reorganization left it. Anchoring the sentinel to a
+    directory would reject a real corpus the moment its layout changed.
+    """
+    assert has_adr_corpus(["nested/deeply/here/ADR-100-x.md"]) is True
+
+
+def test_main_fails_closed_on_a_valid_repo_with_markdown_but_no_adr_corpus(
+    tmp_path: Path, capsys
+) -> None:
+    """A wrong-but-plausible repository root must not manufacture a green result.
+
+    The round-9 guard alone only rejects zero tracked markdown files of any
+    kind, so an unrelated-yet-valid git repository containing a bare
+    `README.md` still passed it with a manufactured "0 violation(s)"
+    (Copilot, PR #5209 round-11 review).
+    """
+    write(tmp_path, "README.md", "# Some other project\n")
+    _init_repo(tmp_path)
+
+    exit_code = main(["--repo-root", str(tmp_path), "--baseline", str(tmp_path / "none.txt")])
+
+    err = capsys.readouterr().err
+    assert exit_code == 2
+    assert "no ADR records found" in err
+
+
+def test_validate_adr_links_fails_closed_on_a_valid_repo_with_markdown_but_no_adr_corpus(
+    tmp_path: Path, capsys
+) -> None:
+    write(tmp_path, "README.md", "# Some other project\n")
+    _init_repo(tmp_path)
+
+    result = validate_adr_links(tmp_path)
+
+    err = capsys.readouterr().err
+    assert result is False
+    assert "no ADR records found" in err
+
+
 def test_validate_adr_links_reports_the_examined_file_count(tmp_path: Path, capsys) -> None:
     write(tmp_path, "adr/ADR-005-x.md", "# target\n")
     write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-x.md)\n")
@@ -960,6 +1019,7 @@ def test_validate_adr_links_reports_the_examined_file_count(tmp_path: Path, caps
 
 def test_main_returns_one_when_a_link_is_broken(tmp_path: Path, capsys) -> None:
     write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
+    write(tmp_path, "adr/ADR-006-present.md", "# present\n")
     _init_repo(tmp_path)
 
     exit_code = main(["--repo-root", str(tmp_path), "--baseline", str(tmp_path / "none.txt")])
@@ -972,6 +1032,7 @@ def test_main_returns_one_when_a_link_is_broken(tmp_path: Path, capsys) -> None:
 
 def test_main_honors_a_baseline_file(tmp_path: Path) -> None:
     write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
+    write(tmp_path, "adr/ADR-006-present.md", "# present\n")
     baseline = tmp_path / "baseline.txt"
     baseline.write_text("# reason\nunresolved:adr/index.md:ADR-005-gone.md\n", encoding="utf-8")
     _init_repo(tmp_path)
@@ -981,6 +1042,7 @@ def test_main_honors_a_baseline_file(tmp_path: Path) -> None:
 
 def test_main_resolves_a_relative_baseline_against_the_repo_root(tmp_path: Path) -> None:
     write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
+    write(tmp_path, "adr/ADR-006-present.md", "# present\n")
     (tmp_path / "baseline.txt").write_text(
         "unresolved:adr/index.md:ADR-005-gone.md\n", encoding="utf-8"
     )
