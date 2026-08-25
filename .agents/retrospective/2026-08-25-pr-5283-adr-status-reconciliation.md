@@ -1,0 +1,35 @@
+# Retrospective: ADR Status Reconciliation (Issue #5201, PR #5283)
+
+## Session Info
+
+- **Date**: 2026-08-25
+- **Trigger**: `/goal autoplan https://github.com/rjmurillo/ai-agents/issues/5201`, a P1 bug report that four ADRs about scripting-language policy (ADR-005, ADR-028, ADR-031, ADR-042) had contradicting machine-readable statuses because none carried ADR-073 frontmatter.
+- **Scope**: PR #5283. Five ADRs given ADR-073 frontmatter (ADR-005, ADR-028, ADR-031, ADR-042, plus ADR-056 backfilled to make ADR-028's supersession reciprocal), two live citations fixed, a JSON schema and a Python validator widened to match an already-shipped contract, six commits total.
+
+## Failure mode classification
+
+Per `.agents/governance/FAILURE-MODES.md`, this session's pattern is closest to **FM #9, Confident-Incorrectness Recurrence**, though it does not cleanly match the canonical trigger (an unquoted "matches/mirrors" claim). What actually recurred, three times across two Copilot review passes on the same PR, was narrower: **asserting a fact about existing history or an existing artifact's contract without reading that history or artifact first**, then shipping the assertion with full confidence.
+
+1. **ADR-005 decision-makers.** The first commit set `decision-makers: [rjmurillo]` on ADR-005's new frontmatter without reading the ADR's own pre-existing `**Deciders**: User, Orchestrator Agent, Implementer Agent` line four lines below it. The file was open and read in full before editing; the deciders line was in view. The assumption "the current editor is the decision-maker" was applied by default instead of being checked against the record.
+2. **ADR-031 "Never implemented".** The Round 2 rewrite of ADR-031's Status section asserted "Never implemented: no `gh_cli`/`daemon` routing config or named-pipe daemon exists in the repository" from the fact that PowerShell had fully migrated to Python, without checking whether either of the ADR's two named strategies (issue #286: gh CLI migration; issue #287: named-pipe daemon) had actually shipped before that migration. Strategy 1 had: issue #286 closed `completed` via PR #1588, and five gh-native shell scripts still exist at `.claude/skills/github/scripts/gh-native/`.
+3. **ADR-056 Decision-vs-implementation drift, and the resulting schema/validator gap.** Round 3 fixed ADR-056's Decision section to quote `scripts/github_core/output.py`'s actual `valid_types` tuple, which correctly includes `RateLimitError` and `VerificationFailed`. That fix was not itself wrong, but it was not cross-checked against the two other artifacts that are supposed to enforce the same contract (`.agents/schemas/skill-output.schema.json`, `scripts/validate_skill_output.py`), both of which had silently drifted to only 6 of the 8 valid values. The pre-existing bug (unrelated to this PR) was real and live: a producer could already emit an ADR-056-conformant envelope the repository's own validator would reject. It surfaced only because Copilot's second review checked the three-way consistency this session had not.
+
+Each of the three was caught by GitHub Copilot's automated PR review, not by this session's own self-review or by the 6-agent `adr-review` debate that ran before the first push. The debate's six seats each independently verified the `.ps1`-file-count claim (a fact they could check by running a command), but none cross-checked the deciders line, the issue-closure state, or the schema/validator trio, because nothing in the debate prompts asked seats to check the parts of the diff that were prose-only and appeared, on the surface, uncontroversial.
+
+## What was measured
+
+- Three review rounds, six findings total, all confirmed real on independent verification (not dismissed or argued down): 1 in Round 1 pre-push (adr-review debate, ADR-028 `deprecated` vs `superseded`), 2 in Copilot's first pass (ADR-005 deciders, ADR-056 Decision-section wording), 3 in Copilot's second pass (ADR-056 schema/validator drift, ADR-031 implementation claim, ADR-056 leftover Trade-offs wording).
+- Every finding was verified against a primary source before fixing, per this repo's mirror-obligation rule (`.claude/rules/canonical-source-mirror.md`): `find` for the `.ps1` count, `git log`/issue reads for #286/#287/PR #1588, direct file reads of `output.py`, `skill-output.schema.json`, and `validate_skill_output.py`.
+- Zero findings were false positives. Six for six.
+
+## Decisions made
+
+1. **Fixed each finding by verifying against the cited source first, not by trusting the reviewer's framing.** Every fix commit's message and the debate-log addenda quote the specific line numbers and evidence that justified the change, per the mirror-obligation rule already binding this repo.
+2. **Widened the JSON schema and Python validator rather than narrowing ADR-056's Decision text to hide the two extra error types.** `output.py` is the running implementation and the two extra values are already used in production test paths (`tests/test_github_pr_diagnostics.py`, `tests/test_list_issues.py`, `tests/test_close_issue.py`); the schema and validator were the stale artifacts, not the ADR.
+3. **Split the schema/validator/test fix into its own non-ADR commit**, separate from the ADR-031/ADR-056 text fixes, to keep both commits under this repo's 5-authored-file atomic-commit cap while still satisfying the `adr-review-policy` pre-commit gate's requirement for a same-commit debate-log reference on the ADR-only commit.
+4. **Did not re-run the full 6-agent `adr-review` debate for the Copilot-caught fixes.** Wrote debate-log addenda (Round 2, Round 3, Round 4) documenting the finding, the verification, and the fix instead, reasoning that a single-reviewer-caught factual correction does not need six independent seats to re-litigate a decision none of them disputed; the original six-seat debate's *verdict* (superseded/rejected/accepted enum choices) was never in question, only the correctness of specific prose and one field value.
+
+## Next steps
+
+- No new governance or instruction change proposed from this session. The pattern (verify the parts of a diff that look uncontroversial, not just the parts that feel like judgment calls) is already covered in principle by the mirror-obligation rule and the "walk the gate" evidence hierarchy; the gap was in application, not in missing policy. Filing an ADR or rule change for a three-instance pattern within one PR would be process ceremony ahead of its evidence bar per this repo's own `.agents/retrospective/2026-08-17-governance-bureaucracy-critical-review.md` finding that most open issues are exactly this kind of self-generated governance overhead.
+- If this pattern recurs in a future session (a Copilot or other automated reviewer catching an unverified factual claim in agent-authored prose after the agent's own review passed it), that is the trigger to revisit whether `adr-review`'s agent prompts should explicitly instruct each seat to check every factual claim in the diff against its cited source, not only the claims framed as decisions.
