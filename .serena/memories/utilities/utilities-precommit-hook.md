@@ -8,7 +8,7 @@
 
 **Impact**: 8/10
 
-**Location**: `.githooks/pre-commit`
+**Location**: the `markdown-autofix` job in `lefthook.yml`, shimmed into `.git/hooks/pre-commit` by `lefthook install`
 
 ## Features
 

@@ -3,7 +3,7 @@
 ## Skill-Utility-002: Pre-commit Hook Auto-Fix
 
 - **Atomicity**: 90%
-- **Location**: `.githooks/pre-commit`
+- **Location**: the `markdown-autofix` job in `lefthook.yml`, shimmed into `.git/hooks/pre-commit` by `lefthook install`
 
 ### Purpose
 

@@ -87,10 +87,12 @@ would need is a template syntax error rather than a filter.
 ```toml
 # .config/wt.toml
 [post-create]
-# Install the lefthook-managed hooks. Do NOT set core.hooksPath by hand:
+# Install the lefthook-managed hooks. This is the live command from
+# .config/wt.toml: --reset-hooks-path clears a stale core.hooksPath and
+# check-install verifies the shims landed. Do NOT set core.hooksPath by hand:
 # .githooks is not tracked in this repository, and a core.hooksPath naming a
 # missing directory makes git run no hook and print no warning (issue #5090).
-configure-hooks = "uv run --frozen lefthook install"
+configure-hooks = "uv run --frozen --extra dev lefthook install --reset-hooks-path && uv run --frozen --extra dev lefthook check-install"
 
 # Copy gitignored files from main worktree to eliminate cold starts
 copy = "wt step copy-ignored"
