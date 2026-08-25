@@ -324,7 +324,7 @@ def test_padding_folding_does_not_make_unrelated_ids_match(repo: Path, capsys) -
 )
 def test_adr_id_normalization(raw: str, expected: str) -> None:
     """Edge: an all-zero id must fold to a key, not to the empty string."""
-    assert policy._normalize_adr_id(raw) == expected
+    assert policy._normalized_record_number(raw) == expected
 
 
 def test_an_incidental_mention_covers_a_staged_id(repo: Path) -> None:

@@ -408,21 +408,35 @@ def test_the_quoted_role_table_is_still_verbatim_in_the_skill() -> None:
     assert len(missing) == len(policy.DEBATE_LOG_ROLES) == 6
 
 
-def test_every_template_placeholder_is_still_in_the_canonical_template() -> None:
-    """Drift guard: the hardcoded literals must match the document they quote.
+def test_the_placeholder_set_matches_the_canonical_template_both_ways() -> None:
+    """Drift guard, in both directions.
 
     ``DEBATE_LOG_TEMPLATE_PLACEHOLDERS`` is a verbatim copy per
-    `.claude/rules/canonical-source-mirror.md`. If the template is reworded and
-    this list is not, the gate silently stops rejecting unfilled copies of the
-    new template while still claiming to.
+    `.claude/rules/canonical-source-mirror.md`. Checking only that each quoted
+    literal is still in the template catches a placeholder removed or reworded,
+    but not one *added*: the gate would then accept an unfilled copy of the new
+    template, and ``_filled_template`` would leave the new token in place while
+    the positive test still passed. Both halves have to be checked. Found by
+    review.
     """
     template = _canonical_debate_log_template()
-    missing = [
-        placeholder
-        for placeholder in policy.DEBATE_LOG_TEMPLATE_PLACEHOLDERS
-        if placeholder not in template
-    ]
-    assert not missing, (
-        f"these placeholders are no longer in {_DEBATE_LOG_TEMPLATE_DOC}, so the "
-        f"quoted copy has drifted from the template it mirrors: {missing}"
+    quoted = set(policy.DEBATE_LOG_TEMPLATE_PLACEHOLDERS)
+
+    stale = sorted(p for p in quoted if p not in template)
+    assert not stale, (
+        f"quoted placeholders no longer in {_DEBATE_LOG_TEMPLATE_DOC}, so the "
+        f"copy has drifted from the template it mirrors: {stale}"
+    )
+
+    # The other direction. Bracketed spans are the template's placeholder form;
+    # the ellipsis row is the one that is not bracketed, so it is named here
+    # rather than discovered.
+    in_template = set(re.findall(r"\[[^\]\n]*\]", template))
+    if "| ... | ... |" in template:
+        in_template.add("| ... | ... |")
+    unquoted = sorted(in_template - quoted)
+    assert not unquoted, (
+        f"{_DEBATE_LOG_TEMPLATE_DOC} grew placeholders the gate does not "
+        f"reject, so an unfilled copy of the new template would clear it, and "
+        f"_filled_template would leave them unanswered: {unquoted}"
     )

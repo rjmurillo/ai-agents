@@ -203,11 +203,14 @@ def test_m4_evidence_check_removed_is_detected(scratch_worktree: Path) -> None:
 # ---------------------------------------------------------------------------
 
 _M5_ORIGINAL = (
-    b"    return {staged for staged in adr_ids if _normalize_adr_id(staged) not in covered}\n"
+    b"    return {\n"
+    b"        staged for staged in adr_ids"
+    b" if _normalized_record_number(staged) not in covered\n"
+    b"    }\n"
 )
 _M5_MUTANT = (
     b"    # M5 mutant: any() semantics restored\n"
-    b"    normalized = {_normalize_adr_id(staged) for staged in adr_ids}\n"
+    b"    normalized = {_normalized_record_number(staged) for staged in adr_ids}\n"
     b"    return set() if (covered & normalized) else set(adr_ids)\n"
 )
 

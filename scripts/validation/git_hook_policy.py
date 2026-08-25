@@ -1496,20 +1496,6 @@ def _staged_debate_log_content(relative_path: str, repo_root: Path) -> str | Non
     return blob.decode("utf-8", errors="replace")
 
 
-def _normalize_adr_id(raw: str) -> str:
-    """Fold an ADR id to a zero-padding-insensitive key.
-
-    ``ADR_ID_RE`` matches the digits literally, so ``ADR-42`` and ``ADR-042``
-    are distinct strings. Filenames in this repository are zero-padded to three
-    digits and prose is not, so a genuine log writing ``ADR-42`` for
-    ``ADR-042-*.md`` would fail the coverage check. Under the old ``any()``
-    test a sibling log usually rescued that; requiring full coverage makes it
-    fatal, so the comparison folds the padding away. Issue #5205.
-    """
-    prefix, _, digits = raw.upper().partition("-")
-    return f"{prefix}-{digits.lstrip('0') or '0'}"
-
-
 def _referenced_adr_ids(content: str) -> set[str]:
     return {match.group(0).upper() for match in ADR_ID_RE.finditer(content)}
 
@@ -1646,12 +1632,22 @@ def _debate_log_evidence_error(contents: dict[str, str]) -> str | None:
 
 
 def _uncovered_adr_ids(adr_ids: set[str], contents: dict[str, str]) -> set[str]:
+    # Fold zero padding on both sides through the module's one normalizer.
+    # ADR_ID_RE matches digits literally, so ADR-42 and ADR-042 are distinct
+    # strings; filenames here pad to three digits and prose does not, so a
+    # genuine log writing ADR-42 for ADR-042-*.md would fail this check.
+    # Under the old any() test a sibling log usually rescued that; requiring
+    # full coverage made it fatal. Issue #5205.
     covered: set[str] = set()
     for content in contents.values():
-        covered |= {_normalize_adr_id(found) for found in _referenced_adr_ids(content)}
+        covered |= {
+            _normalized_record_number(found) for found in _referenced_adr_ids(content)
+        }
     # Compare on the normalized key, report the staged filename form so the
     # error names the id the committer will recognize.
-    return {staged for staged in adr_ids if _normalize_adr_id(staged) not in covered}
+    return {
+        staged for staged in adr_ids if _normalized_record_number(staged) not in covered
+    }
 
 
 def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
