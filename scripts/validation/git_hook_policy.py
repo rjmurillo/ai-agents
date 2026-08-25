@@ -453,7 +453,8 @@ SEMGREP_COMMAND_LENGTH_LIMIT = 24_000
 DEFAULT_SUBPROCESS_TIMEOUT_SECONDS = 90
 SEMGREP_TIMEOUT_SECONDS = 840
 MYPY_TIMEOUT_SECONDS = 840
-WORKFLOW_LOCAL_TIMEOUT_SECONDS = 1_740
+# Below the `workflow-local-run` lefthook cap (10m), same reason as above.
+WORKFLOW_LOCAL_TIMEOUT_SECONDS = 540
 # Scope the workflow-local gate to workflows this push changed versus the
 # origin/main merge base (three-dot diff). Lefthook's {push_files} is a
 # two-dot tree diff against the stale remote tip, so a rebase or force-push
@@ -461,7 +462,11 @@ WORKFLOW_LOCAL_TIMEOUT_SECONDS = 1_740
 # delta. Override the base ref for tests or non-standard remotes.
 WORKFLOW_LOCAL_BASE_REF_ENV = "WORKFLOW_LOCAL_BASE_REF"
 WORKFLOW_LOCAL_DEFAULT_BASE = "origin/main"
-TEST_SUITE_TIMEOUT_SECONDS = 1_740
+# Kept below the `python-tests` lefthook cap (15m) so this fires first and the
+# reader gets a diagnostic instead of a bare kill (ADR-086 Decision item 9).
+# Only the opt-in local-execution path can reach it; the default collection
+# path is bounded by TEST_COLLECTION_TIMEOUT_SECONDS.
+TEST_SUITE_TIMEOUT_SECONDS = 780
 # Ceiling for the collection smoke that stands in for a local full-suite run.
 # Collection imports every test module without running a single test body, so
 # it is bounded by import cost rather than test cost. Measured on a 4-CPU
