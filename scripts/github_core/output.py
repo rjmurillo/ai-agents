@@ -5,6 +5,7 @@ functions for consistent skill script output formatting. All skill scripts
 should use these helpers to produce either JSON or human-readable output.
 
 Related: ADR-056 (Skill Output Format Standardization)
+Related: ADR-103 (Python contract correction; Error.Type is required)
 Related: ADR-035 (Exit Code Standardization)
 """
 
@@ -15,6 +16,24 @@ import json
 import os
 import sys
 from datetime import UTC, datetime
+
+# The set of Error.Type values write_skill_error accepts. Module-level so it
+# is a single, importable source of truth: tests/test_skill_output.py derives
+# its parametrize list from this constant (rather than a second hardcoded
+# copy) and separately asserts it matches VALID_ERROR_TYPES in
+# scripts/validate_skill_output.py and the enum in
+# .agents/schemas/skill-output.schema.json, so the three contract copies
+# cannot drift unnoticed (ADR-103).
+VALID_ERROR_TYPES = (
+    "NotFound",
+    "ApiError",
+    "AuthError",
+    "InvalidParams",
+    "RateLimitError",
+    "Timeout",
+    "General",
+    "VerificationFailed",
+)
 
 
 def add_output_format_arg(parser: argparse.ArgumentParser) -> None:
@@ -132,12 +151,10 @@ def write_skill_error(
     Returns:
         JSON string when format is json, None when human.
     """
-    valid_types = (
-        "NotFound", "ApiError", "AuthError", "InvalidParams", "RateLimitError",
-        "Timeout", "General", "VerificationFailed",
-    )
-    if error_type not in valid_types:
-        raise ValueError(f"error_type must be one of {valid_types}, got: {error_type}")
+    if error_type not in VALID_ERROR_TYPES:
+        raise ValueError(
+            f"error_type must be one of {VALID_ERROR_TYPES}, got: {error_type}"
+        )
 
     resolved = get_output_format(output_format)
 
