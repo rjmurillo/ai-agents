@@ -618,11 +618,15 @@ def _successor_cell(record: AdrRecord, by_id: dict[str, AdrRecord]) -> str:
 
     Walks ``superseded-by`` to the terminal record rather than printing the
     immediate successor. The two differ whenever a record was superseded twice:
-    ADR-079 names ADR-091, which is itself retired in favour of ADR-092, so the
-    immediate successor is a second dead end at the corpus front door. The
-    frontmatter is right to name the immediate successor (ADR-073 supersession
-    is an edge, and the chain is the history); the index is a redirect, and a
-    redirect that lands on another redirect has not redirected.
+    if A names B, and B is itself retired in favour of C, then A's immediate
+    successor is a second dead end at the corpus front door. The frontmatter is
+    right to name the immediate successor (ADR-073 supersession is an edge, and
+    the chain is the history); the index is a redirect, and a redirect that
+    lands on another redirect has not redirected. (No two-hop chain exists in
+    the current corpus to cite by real id without the example rotting the next
+    time either record's frontmatter changes; see
+    ``test_two_hop_supersession_redirects_to_the_terminal_record`` for the
+    synthetic case this docstring describes.)
 
     When the walk passes through intermediates, they are named after the
     terminal record so the chain stays visible.
