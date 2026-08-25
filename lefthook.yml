@@ -583,7 +583,7 @@ pre-push:
         parallel: true
         jobs:
           - name: pre-pr-validation
-            timeout: 3m
+            timeout: 4m
             run: uv run --frozen python scripts/validation/pre_pr.py
             env:
               SKIP_AUTOFIX: "1"
@@ -603,7 +603,7 @@ pre-push:
               # This job's own timeout (above) in seconds, so the
               # generated-staleness gate can clamp its deadline to the
               # process's remaining share; a test pins the two values.
-              PRE_PR_OUTER_CAP_SECONDS: "180"
+              PRE_PR_OUTER_CAP_SECONDS: "240"
 
           - name: worktree-gc-report
             timeout: 2m

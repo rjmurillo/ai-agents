@@ -133,16 +133,16 @@ outlive its environment and take the push with it, leaving no diagnostic.
 
 `git_hook_policy._container_clamped` answers the second question.
 `_run_command` is the funnel every expensive job's work passes through, and it
-clamps its child's deadline to 180s when `_is_remote_container()` is true.
+clamps its child's deadline to 150s when `_is_remote_container()` is true.
 Workstations and CI are untouched. `tests/ci/test_lefthook_declared_budget.py`
 models that clamp against the declared caps and asserts the result:
 
 ```text
 declared, workstation   2370s   39.5 min
-container-clamped        630s   10.5 min
+container-clamped        660s   11.0 min
 ```
 
-630s is below the roughly 679s at which a reclamation was observed, so a hung
+660s is below the roughly 679s at which a reclamation was observed, so a hung
 child is killed by the clamp and the push fails with a message rather than
 dying silently with the container. The container detection is issue #2548's,
 imported rather than redefined; that issue established both the mechanism and
@@ -300,7 +300,7 @@ the tail this record does not close (issue #5318).
 
 The two e2e smokes at 20m each set the expensive group's declared cost, so they
 alone account for 1200s of the 2370s workstation total. Cutting those caps
-needs a measurement, not a guess. In a container they are clamped to 180s
+needs a measurement, not a guess. In a container they are clamped to 150s
 regardless, which is why the container bound does not wait on that
 measurement.
 
@@ -397,7 +397,7 @@ itself mean tests ran.
 - The workstation declared worst case is still 39.5 minutes against a 300s
   target, and the ratchet stops it rising rather than bringing it down. Closing
   that needs the unmeasured jobs measured (issue #5318). In a container the
-  bound is 630s and asserted, so the specific failure this record exists to
+  bound is 660s and asserted, so the specific failure this record exists to
   stop is closed; on a workstation a hung e2e smoke can still run for 20
   minutes, which is slow rather than destructive.
 

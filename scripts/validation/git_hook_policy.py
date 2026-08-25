@@ -474,12 +474,14 @@ WORKFLOW_LOCAL_DEFAULT_BASE = "origin/main"
 # workstation the same hang is an annoyance and the declared cap is the right
 # bound, so this clamp applies only where the environment can end the process.
 #
-# 180s is above every measured in-hook cost by a wide margin (the largest is
-# pre-pr-validation at 105.04s across three real pushes, and it does not route
-# through here) and far below the roughly 679s at which a container reclamation
-# was observed. Reuses the container detection issue #2548 introduced for
-# workflow-local-run rather than adding a second definition of "container".
-CONTAINER_SUBPROCESS_CEILING_SECONDS = 180.0
+# 150s is well above every measured in-hook cost of a job that routes through
+# here (the largest is python-tests at 38.84s, a 3.9x margin; semgrep is 13.43s)
+# and far below the roughly 679s at which a container reclamation was observed.
+# pre-pr-validation does not route through here and keeps its own cap, which is
+# why that cap is the expensive group's cost rather than this number.
+# Reuses the container detection issue #2548 introduced for workflow-local-run
+# rather than adding a second definition of "container".
+CONTAINER_SUBPROCESS_CEILING_SECONDS = 150.0
 
 TEST_SUITE_TIMEOUT_SECONDS = 780
 # Ceiling for the collection smoke that stands in for a local full-suite run.

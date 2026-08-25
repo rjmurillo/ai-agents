@@ -269,7 +269,7 @@ A workstation needs a long cap for a job with real work to do; a long cap costs
 patience there. A container is reclaimed after a period without progress, so
 the same cap is a job that can outlive its environment and take the push with
 it, leaving no diagnostic at all. `_run_command` is the funnel every expensive
-pre-push job's work passes through, so clamping its child's deadline to 180s
+pre-push job's work passes through, so clamping its child's deadline to 150s
 when `_is_remote_container()` is true bounds the container case without
 touching the workstation case or CI.
 
@@ -281,10 +281,10 @@ one.
 
 ```text
 declared, workstation   4170s -> 2370s   (69.5 -> 39.5 min)
-container-clamped         n/a ->  630s   (        10.5 min)
+container-clamped         n/a ->  660s   (        11.0 min)
 ```
 
-630s sits below the roughly 679s at which a reclamation was observed.
+660s sits below the roughly 679s at which a reclamation was observed.
 
 Two things this round is worth recording beyond the numbers.
 
@@ -313,7 +313,23 @@ their three largest contributors for that reason.
   The two e2e smokes account for 1200s of it and remain unmeasured while
   firing. Issue #5318. This is slow rather than destructive.
 - ADR-054's enforced 900s `security-scan` budget still contradicts the 300s
-  target. In a container the clamp bounds it at 180s regardless, which lowers
+  target. In a container the clamp bounds it at 150s regardless, which lowers
   the stakes but does not reconcile the two records.
 - The architect seat's A5, no placement rule for the six advisory reporters or
   the two local-state repair actions, is unaddressed for a fourth round.
+
+### Round 4 addendum: the first cap set was too tight in one place
+
+The fourth real push came back green at 142.47s, and it also showed
+`pre-pr-validation` at 106.34s against the 3m cap that round had just given it.
+1.7x headroom is thin, and a cap that blocks a legitimate push wastes the same
+time the whole record is about; a false block is not a safer failure than a
+slow push, only a different one.
+
+Rebalanced rather than accepted: the subprocess clamp drops 180s to 150s, which
+every job routing through it can afford (python-tests is the largest at 38.84s,
+a 3.9x margin), and the reclaimed budget goes to `pre-pr-validation` as a 4m
+cap, 2.3x over its measured cost. The container bound lands at 660s, exactly at
+the ceiling, so the graph now has no slack: any new pre-push job fails the
+assertion until something is measured and cut. That is the intended state for a
+ratchet, not an accident.
