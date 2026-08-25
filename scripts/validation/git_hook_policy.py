@@ -139,7 +139,31 @@ ADR_ID_RE = re.compile(r"ADR-\d+", re.IGNORECASE)
 DEBATE_LOG_MIN_BYTES = 300
 DEBATE_LOG_MIN_SECTIONS = 3
 DEBATE_LOG_VERDICT_WINDOW_LINES = 6
-# The six roles .claude/skills/adr-review/SKILL.md defines.
+# Canonical source: .claude/skills/adr-review/SKILL.md, "Agent Roster" table
+# (lines 80 to 88 at the time of writing). Quoted verbatim per
+# .claude/rules/canonical-source-mirror.md, which requires the contract itself
+# rather than a pointer to it:
+#
+#     | Agent | Focus | Tie-Breaker Role |
+#     |-------|-------|------------------|
+#     | **architect** | Structure, governance, coherence, ADR compliance | Structural questions |
+#     | **critic** | Gaps, risks, alignment, completeness | None |
+#     | **independent-thinker** | Challenge assumptions, surface contrarian views | None |
+#     | **security** | Threat models, security trade-offs | None |
+#     | **analyst** | Root cause, evidence, feasibility | None |
+#     | **high-level-advisor** | Priority, resolve conflicts, break ties | Decision paralysis |
+#
+# Stricter/looser/different than canonical: LOOSER, deliberately. The skill
+# names these six as the agents that conduct a review. This gate does not
+# require all six, or even any of them by name: DEBATE_LOG_REVIEWER_RE below
+# also accepts "self-review", "participants", "reviewers", and "agents". That
+# divergence is the resolution of issue #5205's proposed six-role roster, which
+# was measured to false-block 12 of the 79 committed logs (15%), including
+# genuine single-reviewer and self-review records. Acceptance criterion 3 of
+# that issue forbids false-blocking a genuine log, so the roster lost to the
+# requirement. The looseness is therefore intentional and load-bearing; do not
+# tighten these to the six roles without recalibrating against the corpus and
+# rewriting the logs the tightening would reject.
 DEBATE_LOG_ROLES = (
     "architect",
     "critic",
