@@ -1,3 +1,14 @@
+---
+id: ADR-007
+status: accepted
+date: 2026-08-16
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-007: Memory-First Architecture
 
 ## Status

@@ -1,3 +1,14 @@
+---
+id: ADR-063
+status: accepted
+date: 2026-07-27
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-063: Decompose the Memory Skill Into Focused Sub-Skills
 
 ## Status
@@ -8,8 +19,6 @@ Accepted by maintainer 2026-06-17. The maintainer authorization satisfies the
 adr-review gate for this status flip; this acceptance records the human decision
 and does not append a fabricated debate log. Architect-review record:
 `.agents/critique/ADR-063-debate-log.md`.
-
-status: accepted
 
 ## Date
 

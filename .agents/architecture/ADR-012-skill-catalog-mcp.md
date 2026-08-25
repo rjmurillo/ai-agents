@@ -1,3 +1,14 @@
+---
+id: ADR-012
+status: proposed
+date: 2025-12-21
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
+---
+
 # ADR-012: Skill Catalog MCP
 
 ## Status

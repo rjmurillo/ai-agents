@@ -1,3 +1,14 @@
+---
+id: ADR-050
+status: accepted
+date: 2026-02-21
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-050: ADR-to-Protocol Sync Process
 
 ## Status

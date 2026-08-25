@@ -1,3 +1,14 @@
+---
+id: ADR-072
+status: proposed
+date: 2026-06-09
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
+---
+
 # ADR-072: JTBD-Based Plugin Architecture with Per-Harness Emission
 
 ## Status
