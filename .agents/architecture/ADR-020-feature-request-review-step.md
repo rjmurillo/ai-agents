@@ -1,9 +1,18 @@
 ---
+id: ADR-020
 status: proposed
 date: 2025-12-19
-decision-makers: ["architect", "user"]
-consulted: ["analyst", "roadmap"]
-informed: ["implementer", "devops"]
+decision-makers: [architect, user]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
+consulted:
+- analyst
+- roadmap
+informed:
+- implementer
+- devops
 ---
 
 # ADR-020: Feature Request Review Step in Issue Triage Workflow
