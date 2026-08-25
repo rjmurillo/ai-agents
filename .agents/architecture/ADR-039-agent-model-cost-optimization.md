@@ -1,7 +1,7 @@
 ---
 id: ADR-039
 status: deprecated
-date: 2026-01-03
+date: 2026-08-25
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null

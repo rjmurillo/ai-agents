@@ -2,10 +2,10 @@
 
 # ADR-073 Phase 2 backfill: review and debate log
 
-Subject: ADR-073 lifecycle frontmatter across 68 records. Issues #5190 and
+Subject: ADR-073 lifecycle frontmatter across 67 records. Issues #5190 and
 #5290. Branch `claude/autoplan-goal-vd6pmg`.
 
-Scope: **67 distinct ADR files**, 70 files in the PR. That is 53 records which
+Scope: **67 distinct ADR files**, 73 files in the PR. That is 53 records which
 carried no frontmatter, 10 which carried a partial block (#5290), and 4 further
 records added for status decisions (ADR-002, ADR-030, ADR-036, ADR-039). A fifth
 status decision, ADR-052, was already among the 53, so counting the status
@@ -88,8 +88,26 @@ update context:
   just the first;
 - an amendment or revision heading (`## Amendment 2026-07-21`,
   `### Current-State Amendment (2026-08-16)`);
-- a dated amendment, acceptance, supersession, or withdrawal statement inside
-  `## Status`.
+- a dated amendment, acceptance, supersession, withdrawal, **deprecation, or
+  rejection** statement inside `## Status`, or a dated record note added when the
+  status changed.
+
+The deprecation and rejection wordings were missing from an earlier version of
+this list, and their absence was not cosmetic: the five status decisions in this
+PR are exactly the records whose new prose reads "Deprecated (2026-08-25)" or
+"Rejected (2026-08-25)", so the rule as first written did not recognise the
+statements it had just caused to be written. Cursor Bugbot caught the
+consequence. Four records now carry `date: 2026-08-25`, the day their status
+actually changed: **ADR-002, ADR-030, ADR-039, ADR-052**.
+
+**ADR-036 deliberately keeps `date: 2026-01-01`.** It is the fifth status
+decision, but its status did not change: it was `accepted` in prose and is
+`accepted` in frontmatter. The only edit was repointing two stale
+`Generate-Agents.ps1` references, which is a citation repair, not a decision
+change. This is the line the rule draws: `date` tracks when the decision content
+last changed as the record itself states it, not when the file was last touched.
+Were it the latter, all 67 records would read 2026-08-25 and the field would
+carry no information at all.
 
 Dates in evidence tables, cited incidents, PR references, and measurement rows
 are excluded: those are dates the record mentions, not dates the record was
@@ -470,7 +488,7 @@ much they should weigh on a reviewer:
 | ADR-049 | proposed | 2026-02-24 | [] | null | true |
 | ADR-050 | accepted | 2026-02-21 | [] | null | true |
 | ADR-051 | accepted | 2026-03-07 | [] | null | true |
-| ADR-052 | proposed | 2026-03-01 | [] | null | false |
+| ADR-052 | proposed | 2026-08-25 | [] | null | false |
 | ADR-053 | accepted | 2026-03-07 | [] | null | true |
 | ADR-054 | accepted | 2026-07-20 | [] | null | true |
 | ADR-055 | accepted | 2025-12-29 | [] | null | true |
@@ -686,3 +704,4 @@ the batch here as it lands.
 | 21 | ADR-003, ADR-020, ADR-023, ADR-027 |
 | 22 | ADR-034, ADR-057, ADR-058, ADR-066 |
 | 23 | ADR-069, ADR-071 |
+| 24 | ADR-002, ADR-030, ADR-039, ADR-052 |

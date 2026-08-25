@@ -1,7 +1,7 @@
 ---
 id: ADR-052
 status: rejected
-date: 2026-03-01
+date: 2026-08-25
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
