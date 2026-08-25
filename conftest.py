@@ -484,10 +484,13 @@ def _check_head_change(
     if call_failed:
         pytest.fail(
             f"#5123: {concurrent_commit_detail} The repository moved under "
-            "this test while it read live Git state, so the test's own "
-            "failure above is not meaningful. Do not debug it as a code "
-            "defect: wait for the in-flight push or commit in this worktree "
-            "to finish, then re-run.",
+            "this test's window while the test also failed, but that is "
+            "correlation, not proof: this autouse fixture cannot tell "
+            "whether this specific test actually read live Git state, so "
+            "the failure above may not be meaningful. Before debugging it "
+            "as a code defect, wait for the in-flight push or commit in "
+            "this worktree to finish and re-run: if the failure "
+            "disappears, it was this race.",
             pytrace=False,
         )
     warnings.warn(f"#3109: {concurrent_commit_detail}", stacklevel=2)

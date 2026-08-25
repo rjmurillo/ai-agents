@@ -547,7 +547,7 @@ def test_check_head_change_fails_loud_when_call_failed_and_commit_is_concurrent(
         )
 
     message = str(excinfo.value)
-    assert "not meaningful" in message
+    assert "may not be meaningful" in message
     assert "concurrent external commit" in message
 
 
@@ -853,6 +853,6 @@ def test_real_pytest_run_escalates_when_a_concurrent_commit_fails_the_test():
 
         assert result.returncode != 0, output
         assert "#5123" in output, output
-        assert "not meaningful" in output, output
+        assert "may not be meaningful" in output, output
     finally:
         shutil.rmtree(probe_dir, ignore_errors=True)
