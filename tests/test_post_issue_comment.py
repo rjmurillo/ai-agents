@@ -328,11 +328,14 @@ class TestMainIdempotency:
         update_mock.assert_called_once_with("o", "r", 99, existing_body)
         # subprocess.run is only exercised for the auth check on this path;
         # no "gh api ... -X POST ... comments" call means no duplicate was
-        # created.
+        # created. The create-comment call splits "comments" (in the URL
+        # argument) and "POST" (in a separate "-X POST" argument) across two
+        # list elements, so each must be checked across the whole call_args
+        # list rather than within a single argument.
         assert not any(
-            "comments" in str(arg) and "POST" in str(arg)
+            any("comments" in str(arg) for arg in call_args)
+            and any("POST" in str(arg) for arg in call_args)
             for call_args in run_calls
-            for arg in call_args
         )
 
     def test_marker_not_found_posts_new(self, tmp_path, monkeypatch):
