@@ -1116,6 +1116,17 @@ class TestSuppressionSurvivesFrontmatter:
 
         assert has_suppression(lines, "file-size") is False
 
+    def test_a_single_line_label_is_not_a_mapping(self) -> None:
+        # Copilot's finding on PR #5291: a single unindented line shaped like
+        # `Label: rest of sentence` matches `_YAML_KEY_LINE` on its own, with
+        # no second line to trip the continuation check the way
+        # `test_prose_with_a_colon_is_not_a_mapping` does. The discriminator
+        # has to reject it on the value half: "release details" is prose, not
+        # a YAML scalar, unlike the URL in `explainer: https://example.com`.
+        lines = ["---\n", "Note: release details\n", "---\n", *["filler\n"] * 9, self.SUPPRESSION]
+
+        assert has_suppression(lines, "file-size") is False
+
     def test_empty_file_is_safe(self) -> None:
         assert has_suppression([], "file-size") is False
 

@@ -409,6 +409,26 @@ def read_file_lines(filepath: str) -> list[str]:
 # `---` later in the file, which is the regression this whole check prevents.
 _YAML_KEY_LINE = re.compile(r"[^\s:]+\s*:(\s|$)")
 
+
+def _looks_like_yaml_value(value: str) -> bool:
+    """True when ``value`` has the shape of a YAML scalar, not free prose.
+
+    A real mapping value is empty (`superseded-by:`), a flow collection
+    (`[...]`, `{...}`), a quoted string, or a single unquoted token. Prose is
+    none of these: it is several bare words. Without this check, a key-shaped
+    regex alone accepts a sentence like `Note: release details` as a mapping,
+    because "Note" plus a colon plus a space matches `_YAML_KEY_LINE` exactly
+    the way `explainer:` does. Rejecting a multi-word, unquoted, unbracketed
+    remainder is what tells the two apart.
+    """
+    value = value.strip()
+    if not value:
+        return True
+    if value[0] in "[{'\"":
+        return True
+    return " " not in value
+
+
 def _looks_like_yaml_mapping(block: list[str]) -> bool:
     """True when ``block`` has the shape of a YAML mapping.
 
@@ -422,7 +442,9 @@ def _looks_like_yaml_mapping(block: list[str]) -> bool:
 
     A mapping needs at least one top-level ``key:`` line, and every non-blank,
     non-comment line must be either such a key or an indented continuation of
-    one. Prose under a horizontal rule fails on its first unindented line.
+    one. Prose under a horizontal rule fails on its first unindented line, or
+    on the value half of that same line when the sentence itself is shaped
+    like `Word: rest of the sentence` (see ``_looks_like_yaml_value``).
     """
     saw_key = False
     for raw in block:
@@ -432,7 +454,10 @@ def _looks_like_yaml_mapping(block: list[str]) -> bool:
             continue
         if line[:1] in {" ", "\t"} or stripped.startswith("- "):
             continue  # continuation: nested mapping, list item, folded scalar
-        if not _YAML_KEY_LINE.match(stripped):
+        match = _YAML_KEY_LINE.match(stripped)
+        if not match:
+            return False
+        if not _looks_like_yaml_value(stripped[match.end():]):
             return False
         saw_key = True
     return saw_key
