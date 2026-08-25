@@ -254,3 +254,66 @@ when the branch does not touch its inputs, and `workflow-local-run` is DEGRADED
 in a container because actionlint is absent. So they are unmeasured while
 firing, and a push whose glob fires one can still outlive a container. That is
 the honest residual, and it is issue #5318, not a claim this record can make.
+
+## Round 4: closing the container bound
+
+Round 3 cut the declared worst case from 4170s to 2610s and left the
+requirement open. The record said so plainly: a push whose glob fires an e2e
+smoke could still outlive a container, and cutting those caps without measuring
+them would be the guess MUST-16 forbids.
+
+The way out was not a better guess. It was noticing that a workstation and a
+container are asking different questions and had been given one answer.
+
+A workstation needs a long cap for a job with real work to do; a long cap costs
+patience there. A container is reclaimed after a period without progress, so
+the same cap is a job that can outlive its environment and take the push with
+it, leaving no diagnostic at all. `_run_command` is the funnel every expensive
+pre-push job's work passes through, so clamping its child's deadline to 180s
+when `_is_remote_container()` is true bounds the container case without
+touching the workstation case or CI.
+
+The detection was not invented for this. Issue #2548 already added it for
+`workflow-local-run`, and already established the precedent of degrading a
+pre-push job in a container rather than blocking on an environment gap. Reusing
+it was the difference between a new concept and an application of an existing
+one.
+
+```text
+declared, workstation   4170s -> 2370s   (69.5 -> 39.5 min)
+container-clamped         n/a ->  630s   (        10.5 min)
+```
+
+630s sits below the roughly 679s at which a reclamation was observed.
+
+Two things this round is worth recording beyond the numbers.
+
+**A 100x margin two files away was holding 900s in place.**
+`pre-pr-validation` could not drop below a 15m cap because its Generated
+Artifact Staleness gate clamps to `PRE_PR_OUTER_CAP_SECONDS` and a test pins
+budget plus grace at or under half that cap. The budget was 420s for work
+measured at 1s. Nothing in `lefthook.yml` mentions that constraint, and an
+earlier attempt to cut the cap failed the staleness test rather than any hook
+test. This is the same shape as the reverted deduplication: a local edit that
+looks free because the thing it depends on lives somewhere the edit does not
+touch.
+
+**Nine cap cuts silently hit the wrong hook.** The first pass edited by job
+name with a regex, and nine job names exist in both `pre-commit` and
+`pre-push`; the regex matched the pre-commit copy each time. It was caught only
+because the container assertion still failed afterward with
+`infrastructure-advisory=300` in its own failure message, a number that should
+have been 60. Without an assertion that printed the contributing jobs, the
+commit would have shipped looking correct. Both budget assertions now name
+their three largest contributors for that reason.
+
+### Still open after this round
+
+- The workstation declared worst case is 39.5 minutes against a 300s target.
+  The two e2e smokes account for 1200s of it and remain unmeasured while
+  firing. Issue #5318. This is slow rather than destructive.
+- ADR-054's enforced 900s `security-scan` budget still contradicts the 300s
+  target. In a container the clamp bounds it at 180s regardless, which lowers
+  the stakes but does not reconcile the two records.
+- The architect seat's A5, no placement rule for the six advisory reporters or
+  the two local-state repair actions, is unaddressed for a fourth round.

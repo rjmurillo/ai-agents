@@ -123,9 +123,37 @@ entries sum; a parallel group costs its slowest member; a piped group sums) and
 ratchets the total. It may only fall.
 
 That number was 4170s for pre-push, 69.5 minutes, against real pushes of
-142.39s. Seventeen caps were resized from in-hook measurements and it is now
-2610s, 43.5 minutes. The remaining 2100s is two job classes nobody has measured
-while their globs fire, both under Known non-conformances.
+142.39s. Caps resized from in-hook measurement bring it to 2370s.
+
+A workstation and a container are asking different questions, so they get
+different answers. A workstation needs a long cap for a job with legitimate
+work to do; the worst that a long cap costs there is patience. A container is
+reclaimed after a period without progress, so the same cap is a job that can
+outlive its environment and take the push with it, leaving no diagnostic.
+
+`git_hook_policy._container_clamped` answers the second question.
+`_run_command` is the funnel every expensive job's work passes through, and it
+clamps its child's deadline to 180s when `_is_remote_container()` is true.
+Workstations and CI are untouched. `tests/ci/test_lefthook_declared_budget.py`
+models that clamp against the declared caps and asserts the result:
+
+```text
+declared, workstation   2370s   39.5 min
+container-clamped        630s   10.5 min
+```
+
+630s is below the roughly 679s at which a reclamation was observed, so a hung
+child is killed by the clamp and the push fails with a message rather than
+dying silently with the container. The container detection is issue #2548's,
+imported rather than redefined; that issue established both the mechanism and
+the precedent of degrading a pre-push job in a container.
+
+Unpicking one coupling made the rest possible, and it is worth recording
+because it is the same shape as the reverted deduplication. `pre-pr-validation`
+was pinned at a 15m cap by its Generated Artifact Staleness gate, whose budget
+plus grace must fit in half that cap. That budget was 420s for work measured at
+1s, a 100x margin holding 900s of the graph's worst case in place two files
+away from anything that mentions it.
 
 The other instrument is rule 3, which says what a tier may do. Where rule 3 is
 applied, the target is redundant with it.
@@ -171,6 +199,13 @@ applied, the target is redundant with it.
    in-hook run and ratcheted.** MUST-16 forbids sizing a pre-push cap from a
    standalone run. A cap nobody revisits drifts upward one job at a time, which
    is how the declared worst case reached 29x the real one.
+
+8. **A local tier MUST NOT be able to outlive the environment it runs in.**
+   Where an environment can end the process, the tier's bound is that
+   environment's tolerance, not the cap that suits a workstation. A hung job
+   killed with a diagnostic is strictly better than one reclaimed with none,
+   so the clamp is not a weakening of the gate: without it the gate produces
+   no verdict at all.
 
 ### Rejected: deferral by scheduler claim
 
@@ -264,8 +299,10 @@ firing**, and they are the pushes that can still outlive a container. That is
 the tail this record does not close (issue #5318).
 
 The two e2e smokes at 20m each set the expensive group's declared cost, so they
-alone account for 1200s of the 2610s total. Cutting them needs a measurement
-first, not a guess.
+alone account for 1200s of the 2370s workstation total. Cutting those caps
+needs a measurement, not a guess. In a container they are clamped to 180s
+regardless, which is why the container bound does not wait on that
+measurement.
 
 ADR-054's 900s budget for `security-scan` is three times the 300s pre-push
 target. The target does not overturn it. Whichever record is wrong, they cannot
@@ -357,10 +394,12 @@ itself mean tests ran.
   escape hatch nobody exercises rots. Its wiring is covered by a test.
 - The duplication between `pre-pr-validation` and the fast stage stays, and
   costs roughly 40s per push, because the cheap way to remove it was unsound.
-- Neither tier target is enforced at runtime, and the declared worst case is
-  still 43.5 minutes against a 300s target. The ratchet stops it rising and
-  does not bring it down; only measuring the two unmeasured job classes can do
-  that. A push whose glob fires an e2e smoke can still outlive a container.
+- The workstation declared worst case is still 39.5 minutes against a 300s
+  target, and the ratchet stops it rising rather than bringing it down. Closing
+  that needs the unmeasured jobs measured (issue #5318). In a container the
+  bound is 630s and asserted, so the specific failure this record exists to
+  stop is closed; on a workstation a hung e2e smoke can still run for 20
+  minutes, which is slow rather than destructive.
 
 ### Neutral
 
