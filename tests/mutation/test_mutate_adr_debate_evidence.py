@@ -1,9 +1,9 @@
 """Mutation harness for the ADR debate-log evidence gate (issue #5205).
 
 A red-on-main figure pasted into a PR description is a claim. This module is
-the check: each mutant reverts one of the two defects #5205 reported, and the
-#5205 regression suite has to come back red. If it does not, those tests are
-decoration.
+the check: each mutant reverts one defect this gate is supposed to stop, and
+the #5205 regression suite has to come back red. If it does not, those tests
+are decoration.
 
 Four mutants and one inverted control. Two revert the defects #5205
 reported; two revert defects found by review of this PR, which are as much
