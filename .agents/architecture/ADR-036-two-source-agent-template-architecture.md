@@ -1,8 +1,21 @@
+---
+id: ADR-036
+status: superseded
+date: 2026-08-25
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: ADR-052
+explainer: null
+implemented: true
+---
+
 # ADR-036: Two-Source Agent Template Architecture
 
 ## Status
 
-Accepted
+**Superseded by ADR-052 (2026-08-25) as the governing decision.** Recorded via owner authorization plus the 6-agent `adr-review` debate at `.agents/critique/ADR-052-debate-log.md`, resolving the dangling supersession issue #5192 opened against this pair.
+
+**Still operative as procedure.** ADR-052 is accepted as target state and is not yet implemented (`implemented: false`). The synchronization requirement below, and the two-source mechanics it describes, remain the procedure every contributor and agent follows until ADR-052's Migration Plan Phase 2 merges: 31 `templates/agents/*.shared.md` files, `build/generate_agents.py`, the generation and staging jobs at `lefthook.yml:252-276`, and the CI checks in `.github/workflows/validate-generated-agents.yml` and `.github/workflows/agent-drift-detection.yml`. This record's Platform Capability Matrix and §Intentional Divergence section (below) are not withdrawn by the supersession, and ADR-052 does not contest that reading: see ADR-052's Status.
 
 ## Date
 
@@ -50,7 +63,7 @@ Adopt a **two-source architecture**:
 - **Maintenance**: Manual edits, auto-generates outputs
 - **Content**: Shared prompts applicable to both Copilot platforms
 - **Files**: 18 template files
-- **Generates**: `src/copilot-cli/*.agent.md` and `src/vs-code-agents/*.md` via `build/Generate-Agents.ps1`
+- **Generates**: `src/copilot-cli/*.agent.md` and `src/vs-code-agents/*.md` via `build/generate_agents.py` (corrected 2026-08-25; this section previously cited a nonexistent `build/Generate-Agents.ps1`, contradicting this file's own References section)
 
 ### Synchronization Requirement
 
@@ -98,7 +111,7 @@ The pre-commit hook handles generation but NOT content synchronization between s
 ### Neutral
 
 - Total agent count unchanged (18 agents x 3 platforms = 54 outputs)
-- Build complexity localized to `Generate-Agents.ps1`
+- Build complexity localized to `build/generate_agents.py`
 
 ## Implementation Notes
 
@@ -210,17 +223,13 @@ Historical drift analysis showing 2-12% similarity between Claude and templates 
 
 ## Strategic Dependency
 
-Issue #124 (P1, opened 2025-12-20) requests strategic decision on whether to continue the two-source pattern documented here. This ADR records the **current architecture**. Issue #124 addresses whether that architecture should evolve.
+Issue #124 (P1, opened 2025-12-20, closed 2026-03-01) requested a strategic decision on whether to continue the two-source pattern documented here. This ADR recorded the architecture that was **current** at the time. Issue #124's output was ADR-052, which this ADR is now superseded by (2026-08-25): see Status above.
 
-**Relationship**: Complementary
-
-- **ADR-036**: Documents current state ("What is our architecture?")
-- **Issue #124**: Evaluates future state ("Should we change our architecture?")
-
-This ADR does NOT resolve Issue #124. Both documents serve distinct purposes.
+**Amendment (2026-08-25)**: Issue #124 is resolved: its output, ADR-052, is accepted as the target architecture. The relationship it originally described no longer holds ("this ADR does NOT resolve Issue #124": it now does, via ADR-052). What remains open is *implementation*, tracked at issue #5282, not the strategic question #124 asked.
 
 ## Related Decisions
 
+- ADR-052: Template Strategy for Multi-Platform Agent Distribution (supersedes this ADR in governance; this ADR's architecture remains operative until ADR-052's migration lands, tracked at issue #5282)
 - ADR-029: Skill File Line Ending Normalization (related build tooling)
 - ADR-086: Lefthook for Local Git Hook Orchestration
 
@@ -230,6 +239,7 @@ This ADR does NOT resolve Issue #124. Both documents serve distinct purposes.
 
 - `build/generate_agents.py`: Generation script for Copilot CLI and VS Code variants
 - `lefthook.yml`: Pre-commit generation and staging jobs
+- `.agents/critique/ADR-052-debate-log.md`: 6-agent adr-review debate recording the ADR-052 supersession
 
 ### Planning & Design Documents
 
