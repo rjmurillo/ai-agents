@@ -68,6 +68,12 @@ working tree:
 | `supersession-reciprocal` | 1 | 0 |
 | ADR link violations | 26 | 0 against baseline, 21 pre-existing elsewhere |
 
+The "After" column is this campaign's own measurement, taken at the time of the
+run, and is left as measured. Both figures moved again afterwards for reasons
+outside this campaign; the current numbers and what moved them are in "Known
+gaps carried forward" below. Read that section, not this table, for the live
+state.
+
 `_get_adr_status` before and after, on real corpus files:
 
 ```
@@ -132,10 +138,13 @@ Both are corrected on the issues so an implementer does not chase them.
 
 ## Known gaps carried forward
 
-- 53 records still have no frontmatter (issue #5190). The ratchet holds the line;
-  the index's "Needs backfill" section is the live meter. (Corrected from 54,
-  a stale carried-forward count; `check_adr_lifecycle.py` currently reports
-  `frontmatter-parses 53 / 53 at baseline`.)
+- Closed. This gap read 54 when the campaign filed it, was corrected to 53 as a
+  stale carried-forward count, and is now 0: `1d15e0d06` (PR #5291, "ADR-073
+  lifecycle frontmatter across 67 ADRs") merged into this branch and backfilled
+  the remainder for issue #5190. Re-measured at this commit:
+  `check_adr_lifecycle.py` reports `frontmatter-parses 0 / 0`, and the index's
+  "Needs backfill" section, which this bullet named as the live meter, reads
+  "None." No follow-up work remains behind this line.
 - 19 pre-existing ADR link violations in files outside this change, each
   baselined with a written diagnosis. (Corrected from 21; `check_adr_links_baseline.txt`
   currently holds 19 non-comment entries.)

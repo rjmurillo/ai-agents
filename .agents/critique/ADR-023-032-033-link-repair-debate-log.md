@@ -88,7 +88,17 @@ ways a later Copilot review on PR #5209's own head caught: it said ADR-023 was
 "left without frontmatter" when the record has a frontmatter block missing
 only `id`, and it named a `status-section-present` check that does not exist
 in the shipped seven-check `CHECKS` tuple
-(`scripts/validation/check_adr_lifecycle.py:111-119`: frontmatter-parses,
+(`scripts/validation/check_adr_lifecycle.py:125-133`: frontmatter-parses,
 id-matches-filename, status-enum, supersession-reciprocal,
 supersession-target-exists, proposed-cannot-supersede, prose-frontmatter-agree).
 Corrected above to name only the real, current violation.
+
+**Second correction, the deferred violation is now closed.** The `id` gap the
+Verdicts paragraph defers is gone. `1d15e0d06` (PR #5291, "ADR-073 lifecycle
+frontmatter across 67 ADRs"), merged into this branch, gave the record
+`id: ADR-023` (`.agents/architecture/ADR-023-quality-gate-prompt-testing.md:2`).
+Re-measured at this commit, `check_adr_lifecycle.py` reports
+`id-matches-filename 0 / 0`, so ADR-023 is in no violation set. The deferral was
+correct when written; issue #5190's backfill picked it up as the paragraph
+predicted. The paragraph is left as the round decided, with this note carrying
+the outcome.
