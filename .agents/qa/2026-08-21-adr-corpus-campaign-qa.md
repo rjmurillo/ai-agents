@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: f06b2aef9eb4d242eaac673857e55ba074848b10
+qaCommit: 30cb898b272a42d114822238d9293fd9757d06dc
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1698,3 +1698,30 @@ Commit `f06b2aef9`. Re-verified:
 check` clean on both touched files, no em/en dashes.
 
 **Rebound to** `f06b2aef9eb4d242eaac673857e55ba074848b10`.
+
+## Addendum 32: merged Cursor Bugbot's own autofix of the identical finding
+
+The push above failed: `remote tip d47763245efb ... is not present in the
+local object store`. Cursor Bugbot Autofix (enabled on this repo) had
+pushed `d47763245` directly to the branch while this session was still
+working the finding, titled &#34;fix(tests): add ADR corpus fixture to UTF-8
+and bool return tests&#34;. Diffed it against this session&#39;s own commit
+`f06b2aef9` before merging: both add the identical
+`write(tmp_path, &#34;adr/ADR-006-present.md&#34;, &#34;# present\n&#34;)` fixture line to
+both tests; this session&#39;s commit additionally strengthens the UTF-8
+test&#39;s assertion to require `codec can&#39;t decode` in the output (Bugbot&#39;s
+version left the original weak `&#34;check_adr_links:&#34; in err` assertion,
+which cannot distinguish the guard&#39;s message from the real
+`UnicodeDecodeError` message, the exact ambiguity this whole finding was
+about). This session&#39;s version is a strict superset, so kept it rather
+than discarding for Bugbot&#39;s: `git merge origin/... --no-edit` auto-merged
+cleanly (git recognized the fixture-line insertions as textually
+identical), no manual conflict resolution needed.
+
+Re-verified post-merge: `check_adr_lifecycle.py` `[PASS] 1 violation(s)
+across 103 ADR record(s)`; `check_adr_links.py` `0 violation(s) across
+1591 tracked markdown file(s)`; `taste_count_ratchet.py` `575 <= baseline
+576`; `tests/validation/test_check_adr_links.py` 107 tests passed; `ruff
+check` clean.
+
+**Rebound to** `30cb898b272a42d114822238d9293fd9757d06dc`.

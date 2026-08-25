@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: f06b2aef9eb4d242eaac673857e55ba074848b10
+qaCommit: 30cb898b272a42d114822238d9293fd9757d06dc
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -858,3 +858,12 @@ confirmed bot-side prompt-budget limit, not a code defect. Full detail
 in that addendum.
 
 **Rebound to** `f06b2aef9eb4d242eaac673857e55ba074848b10`.
+
+## Addendum 34: same rebind as Addendum 32 of the campaign report
+
+Cursor Bugbot Autofix pushed its own identical fixture fix directly to
+the branch while this session worked the same finding; merged rather
+than discarded this session's version, since it additionally strengthens
+the UTF-8 test's assertion. Full detail in that addendum.
+
+**Rebound to** `30cb898b272a42d114822238d9293fd9757d06dc`.
