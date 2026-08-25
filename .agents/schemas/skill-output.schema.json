@@ -30,7 +30,7 @@
             },
             "Type": {
               "type": "string",
-              "enum": ["NotFound", "ApiError", "AuthError", "InvalidParams", "Timeout", "General"],
+              "enum": ["NotFound", "ApiError", "AuthError", "InvalidParams", "RateLimitError", "Timeout", "General", "VerificationFailed"],
               "description": "Machine-readable error category"
             }
           }

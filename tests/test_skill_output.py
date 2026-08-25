@@ -118,7 +118,16 @@ class TestWriteSkillError:
 
     @pytest.mark.parametrize(
         "error_type",
-        ["NotFound", "ApiError", "AuthError", "InvalidParams", "Timeout", "General"],
+        [
+            "NotFound",
+            "ApiError",
+            "AuthError",
+            "InvalidParams",
+            "RateLimitError",
+            "Timeout",
+            "General",
+            "VerificationFailed",
+        ],
     )
     def test_validates_error_types(
         self, error_type: str, capsys: pytest.CaptureFixture[str]

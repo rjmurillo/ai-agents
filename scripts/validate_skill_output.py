@@ -20,7 +20,16 @@ import sys
 from pathlib import Path
 
 VALID_ERROR_TYPES = frozenset(
-    ("NotFound", "ApiError", "AuthError", "InvalidParams", "Timeout", "General")
+    (
+        "NotFound",
+        "ApiError",
+        "AuthError",
+        "InvalidParams",
+        "RateLimitError",
+        "Timeout",
+        "General",
+        "VerificationFailed",
+    )
 )
 
 
