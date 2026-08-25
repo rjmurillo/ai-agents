@@ -1588,9 +1588,18 @@ round-10 addendum, renumbered from its own "Addendum 22", with its
 internal cross-reference to "Addendum 20 of the campaign report"
 corrected to point at this file's Addendum 29).
 
-Six non-conflicting files (both debate logs, three ADR gate scripts,
-their tests) merged automatically, since both branches touched the
-same functions with non-overlapping edits.
+Nine non-conflicting files merged automatically, since both branches
+touched the same functions with non-overlapping edits: both debate
+logs, three ADR gate scripts (`generate_adr_index.py`,
+`check_adr_lifecycle.py`, `check_adr_links.py`), and four test files
+(the three gate scripts' own tests plus `tests/test_markdown_parser.py`).
+Verified against `git show --stat` on the merge commit
+(`9d9cf3120ad407583d909cbd55ca57d43e36682f`), which lists 11 changed
+files total: 9 non-conflicting plus the 2 QA files that conflicted and
+were resolved by hand above. An earlier revision of this addendum said
+six; Copilot flagged the mismatch (PR #5230) and a follow-up count of
+eight also undercounted, since three ADR gate scripts have four test
+files between them, not three.
 
 **Three review findings against this branch's prior head (`3cb5bb0af`)
 applied in the same pass, since the content they flagged survives into

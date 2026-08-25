@@ -145,7 +145,7 @@ def _has_duplicate_keys(frontmatter: str) -> bool:
 
     Mirrors `_no_duplicate_keys` in build/scripts/generate_adr_index.py, which
     is canonical. The detection is quoted verbatim from it
-    (`build/scripts/generate_adr_index.py:198-205`)::
+    (`build/scripts/generate_adr_index.py:209-216`)::
 
         seen: list[Any] = []
         for key_node, _ in node.value:
