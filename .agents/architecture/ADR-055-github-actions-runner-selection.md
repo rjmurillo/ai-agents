@@ -1,7 +1,7 @@
 ---
 id: ADR-055
 status: accepted
-date: 2025-12-29
+date: 2026-08-25
 decision-makers: [rjmurillo]
 supersedes: [ADR-024, ADR-025]
 superseded-by: null
@@ -23,6 +23,11 @@ implemented: true
 
 **Authors**: DevOps Agent
 **Related**: Issue #197, Issue #5192, Issue #5199
+
+**Frontmatter date.** The frontmatter `date` above reflects this record's
+most recent content update per ADR-073's `date: ... # last updated`
+contract, not the 2025-12-29 acceptance date preserved in the `## Date`
+section below (Copilot, PR #5209 round-11 review).
 
 ## Date
 
