@@ -944,6 +944,13 @@ def _record_pytest_timeouts(
     seen: list[float] = []
     clock = {"now": 1_000.0}
 
+    # The budget-sharing contract these tests pin only exists when `run_pytest`
+    # builds more than one command, which is the executing partition set. The
+    # default pre-push path builds a single collection command instead
+    # (ADR-103), so opt into local execution to keep the multi-command
+    # behaviour under test rather than asserting it against one command.
+    monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
+
     def fake_monotonic() -> float:
         return clock["now"]
 
@@ -978,6 +985,34 @@ def test_run_pytest_shares_one_timeout_budget_across_commands(
         assert timeout == pytest.approx(budget - spent * index)
     assert sum(seen) <= budget * len(seen)
     assert seen[-1] < budget
+
+
+def test_run_pytest_gives_the_collection_stand_in_the_smaller_budget(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The default pre-push path is bounded by collection, not by the suite.
+
+    `_pytest_budget_seconds` is unit-tested next to the selector; this is the
+    end-to-end pin that `run_pytest` actually hands that budget to the child,
+    because the deadline arithmetic sits between the two and a regression
+    there would restore a 29-minute ceiling on a push that never runs a test.
+    """
+    monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
+    seen: list[float] = []
+
+    def fake_run_command(args: Any, repo_root: Any, **kwargs: Any):
+        seen.append(kwargs["timeout_seconds"])
+        return subprocess.CompletedProcess(list(args), 0, "", "")
+
+    monkeypatch.setattr(git_hook_policy, "_run_command", fake_run_command)
+    monkeypatch.setattr(git_hook_policy, "_print_process_output", lambda result: None)
+
+    assert git_hook_policy.run_pytest(tmp_path) == 0
+
+    assert len(seen) == 1
+    assert seen[0] <= git_hook_policy.TEST_COLLECTION_TIMEOUT_SECONDS
+    assert seen[0] > git_hook_policy.TEST_COLLECTION_TIMEOUT_SECONDS - 5
 
 
 def test_run_pytest_refuses_to_start_a_command_past_the_budget(
@@ -1025,6 +1060,9 @@ def test_run_pytest_budget_exhaustion_emits_exhaustion_message(
     reading like a hung test.  With the fix, stderr also contains an
     exhaustion clarification naming the full budget.
     """
+    # Suite-budget semantics live on the executing partition set; the
+    # default pre-push path builds one collection command (ADR-103).
+    monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
     budget = git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
     # Use almost all the budget for the first command, leaving 10s for the
     # second.  Simulate the second command timing out (returncode 3).
@@ -1071,6 +1109,9 @@ def test_run_pytest_full_timeout_does_not_emit_exhaustion_message(
     """Negative: when the first command uses the full budget, no exhaustion
     message is emitted for it.  The generic timeout message is the right signal.
     """
+    # Suite-budget semantics live on the executing partition set; the
+    # default pre-push path builds one collection command (ADR-103).
+    monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
     budget = git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
     clock = {"now": 1_000.0}
 
@@ -1098,6 +1139,10 @@ def test_run_pytest_full_timeout_does_not_emit_exhaustion_message(
     # used the full budget (remaining == budget at call time).
     assert "budget exhaustion" not in err.lower()
     assert "exhausted" not in err.lower()
+    # The helper opts into local execution, which announces itself. That line
+    # is a selection notice, not a diagnostic about the budget, so it must not
+    # be what satisfies the two assertions above.
+    assert "executing it locally" in err
 
 
 def test_run_pytest_budget_exhaustion_cosmetic_change_survives(
@@ -1112,8 +1157,15 @@ def test_run_pytest_budget_exhaustion_cosmetic_change_survives(
     _record_pytest_timeouts(monkeypatch, elapsed_per_command=1.0)
     rc = git_hook_policy.run_pytest(tmp_path)
     assert rc == 0
-    # No error output on clean run.
-    assert capsys.readouterr().err == ""
+    # A clean run emits the selection notice and nothing else. Asserting the
+    # whole of stderr, rather than only the absence of a failure word, keeps
+    # this a control the mutation harness can trust: any new diagnostic on the
+    # success path shows up here.
+    assert capsys.readouterr().err.splitlines() == [
+        "pytest selection: full suite (the diff against origin/main is "
+        "unavailable); executing it locally because "
+        f"{git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV}=1."
+    ]
 
 
 # The #4293 pre-push guard must not reject this script's own lease push

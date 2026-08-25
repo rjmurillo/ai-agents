@@ -462,6 +462,15 @@ WORKFLOW_LOCAL_TIMEOUT_SECONDS = 1_740
 WORKFLOW_LOCAL_BASE_REF_ENV = "WORKFLOW_LOCAL_BASE_REF"
 WORKFLOW_LOCAL_DEFAULT_BASE = "origin/main"
 TEST_SUITE_TIMEOUT_SECONDS = 1_740
+# Ceiling for the collection smoke that stands in for a local full-suite run.
+# Collection imports every test module without running a single test body, so
+# it is bounded by import cost rather than test cost: 34.62s for 27878 tests on
+# a 4-CPU container while the suite it replaces took 475s there.
+TEST_COLLECTION_TIMEOUT_SECONDS = 300
+# Opt back into executing the whole suite inside pre-push. Unset is the default
+# because that run duplicates CI's `pytest.yml` partition matrix on the same
+# commit while costing the push minutes it does not have; see ADR-103.
+PYTEST_FULL_SUITE_LOCALLY_ENV = "AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY"
 CLI_E2E_TIMEOUT_SECONDS = 1_140
 # Issue #4823: direct and CI bulk pytest use xdist `auto`, one worker per
 # logical CPU. Local pre-push is different because it shares the machine with
@@ -6567,19 +6576,80 @@ def _pytest_commands_for_subset(repo_root: Path, test_files: Sequence[str]) -> l
     return commands
 
 
+def _pytest_collection_command(repo_root: Path) -> list[str]:
+    """Collect every non-integration test without executing any of them.
+
+    Collection imports each test module and instantiates each item, so it still
+    fails on a broken import, a syntax error, a duplicate test id, and a
+    fixture signature no fixture satisfies. Those are the defects that would
+    otherwise burn a whole CI matrix before reporting the same thing.
+    """
+    return [
+        sys.executable,
+        "-m",
+        "pytest",
+        "--collect-only",
+        "-q",
+        "-m",
+        "not integration",
+        str(repo_root / "tests"),
+    ]
+
+
+def _full_suite_stand_in(repo_root: Path, reason: str) -> list[list[str]]:
+    """Return what pre-push runs when the import graph cannot narrow the diff.
+
+    Executing every test here duplicates CI's `pytest.yml` partition matrix on
+    the same commit. Measured on a 4-CPU container, that duplicate cost 475s of
+    a 679s push, and a push that long does not survive a container restart, so
+    the local copy of a remote gate was the thing preventing the push from
+    reaching the remote gate at all. Collect instead and let CI execute.
+
+    ``AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`` restores the execution behavior
+    for anyone who wants it on a machine that can afford it.
+    """
+    if os.environ.get(PYTEST_FULL_SUITE_LOCALLY_ENV) == "1":
+        print(
+            f"pytest selection: full suite ({reason}); executing it locally "
+            f"because {PYTEST_FULL_SUITE_LOCALLY_ENV}=1.",
+            file=sys.stderr,
+        )
+        return _pytest_commands(repo_root)
+    print(
+        f"pytest selection: no import-graph subset ({reason}).\n"
+        "  Collecting every test instead of executing them. Collection catches "
+        "import,\n"
+        "  syntax, duplicate-id, and fixture-signature breakage; execution is "
+        "CI's job\n"
+        "  (.github/workflows/pytest.yml runs the full partition matrix on this "
+        "commit).\n"
+        f"  Set {PYTEST_FULL_SUITE_LOCALLY_ENV}=1 to execute the suite here "
+        "instead. See ADR-103.",
+        file=sys.stderr,
+    )
+    return [_pytest_collection_command(repo_root)]
+
+
 def _resolve_pytest_commands(
     repo_root: Path,
     changed_files: Sequence[str] | None,
 ) -> list[list[str]]:
-    """Return the pytest commands to run: an import-graph subset or the full suite.
+    """Return the pytest commands to run: an import-graph subset or a stand-in.
 
-    Any failure to determine the diff, and any fail-safe verdict from the
-    selector, returns the full partition set. The subset is only used when the
-    graph maps every changed file with certainty.
+    The subset is used only when the graph maps every changed file with
+    certainty. Any failure to determine the diff, and any fail-safe verdict from
+    the selector, falls back to `_full_suite_stand_in`, which collects rather
+    than executes unless the caller opted back into local execution.
 
     Raises:
         ValueError: the worker override is invalid (from `_pytest_parallel_flags`).
     """
+    # Validate the worker override before choosing commands, not as a side
+    # effect of building one. The collection stand-in takes no parallel flags,
+    # so a check that rode along inside the executing partitions would let an
+    # invalid AI_AGENTS_PYTEST_WORKERS pass unreported on the default path: the
+    # developer asked for a worker count, did not get it, and was not told.
+    _pytest_parallel_flags()
     if changed_files is None:
         changed = select_tests.changed_from_git(repo_root, WORKFLOW_LOCAL_DEFAULT_BASE)
     else:
@@ -6588,10 +6658,12 @@ def _resolve_pytest_commands(
     # assert a clean success path keep passing. Only a narrowed subset, the new
     # behavior, announces itself.
     if changed is None:
-        return _pytest_commands(repo_root)
+        return _full_suite_stand_in(
+            repo_root, f"the diff against {WORKFLOW_LOCAL_DEFAULT_BASE} is unavailable"
+        )
     selection = select_tests.select(changed, repo_root)
     if selection.full:
-        return _pytest_commands(repo_root)
+        return _full_suite_stand_in(repo_root, selection.reason)
     print(
         f"pytest selection: {len(selection.tests)} test file(s) via import graph "
         f"(from {len(changed)} changed file(s)); reason: {selection.reason}",
@@ -6600,6 +6672,18 @@ def _resolve_pytest_commands(
     for rel in selection.tests:
         print(f"  {rel}", file=sys.stderr)
     return _pytest_commands_for_subset(repo_root, selection.tests)
+
+
+def _pytest_budget_seconds(commands: Sequence[Sequence[str]]) -> int:
+    """Seconds the whole pytest step may spend, sized to what it actually runs.
+
+    A collection stand-in imports modules and exits, so holding it to the
+    execution suite's ceiling would let an import hang block a push for 29
+    minutes. Anything that executes tests keeps the suite budget.
+    """
+    if len(commands) == 1 and "--collect-only" in commands[0]:
+        return TEST_COLLECTION_TIMEOUT_SECONDS
+    return TEST_SUITE_TIMEOUT_SECONDS
 
 
 def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> int:
@@ -6625,17 +6709,18 @@ def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> i
         return 2
     # The parent consumes this control before pytest starts. Leaving it in the
     # child environment changes tests that verify the default worker policy.
-    # TEST_SUITE_TIMEOUT_SECONDS is a budget for the whole suite, not per
-    # command. Splitting the suite across processes must not multiply how long
+    # The budget covers the whole pytest step, not one command. Splitting
+    # the suite across processes must not multiply how long
     # pre-push can block, or the hook outlives lefthook's own deadline and the
     # timeout looks nondeterministic.
-    deadline = time.monotonic() + TEST_SUITE_TIMEOUT_SECONDS
+    budget = _pytest_budget_seconds(commands)
+    deadline = time.monotonic() + budget
     for index, command in enumerate(commands):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             print(
                 "ERROR: pytest suite exceeded the "
-                f"{TEST_SUITE_TIMEOUT_SECONDS}s budget before running {command}",
+                f"{budget}s budget before running {command}",
                 file=sys.stderr,
             )
             return 1
@@ -6658,16 +6743,16 @@ def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> i
                 print(
                     "ERROR: pytest suite timed out; the first command "
                     f"{command} consumed the whole "
-                    f"{TEST_SUITE_TIMEOUT_SECONDS}s budget on its own",
+                    f"{budget}s budget on its own",
                     file=sys.stderr,
                 )
             else:
-                consumed = TEST_SUITE_TIMEOUT_SECONDS - remaining
+                consumed = budget - remaining
                 plural = "" if index == 1 else "s"
                 print(
                     "ERROR: pytest suite timed out, budget exhausted with "
                     f"{remaining:g}s left of the "
-                    f"{TEST_SUITE_TIMEOUT_SECONDS}s budget "
+                    f"{budget}s budget "
                     f"({consumed:g}s already consumed by {index} earlier "
                     f"command{plural} in the suite)",
                     file=sys.stderr,

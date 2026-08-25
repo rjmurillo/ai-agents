@@ -325,6 +325,11 @@ def test_run_pytest_consumes_worker_override_before_child_process(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    # This test is about the flags the executing partitions carry, so it opts
+    # into local execution. Without the opt-in, `run_pytest` on a tmp_path with
+    # no resolvable diff builds the collection stand-in, which takes no worker
+    # flags at all and so has nothing to say about worker policy (ADR-103).
+    monkeypatch.setenv(policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
     monkeypatch.setenv(policy.PYTEST_WORKERS_ENV, "3")
     monkeypatch.setenv(policy.PYTEST_WORKER_CAP_ENV, "4")
     seen_commands: list[list[str]] = []
