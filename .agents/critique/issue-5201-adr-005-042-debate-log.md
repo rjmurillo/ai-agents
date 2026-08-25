@@ -55,3 +55,20 @@ Every seat treated ADR-005/ADR-042 as the mechanical half of the change:
 ### Next Steps
 
 None. See Part 2 for the substantive debate and its resolution.
+
+## Round 2: Copilot PR Review (post-merge-to-branch, PR #5283)
+
+GitHub Copilot's automated review on PR #5283 filed one finding against
+ADR-005: the `decision-makers` frontmatter (`[rjmurillo]`) conflicted with
+the existing `**Deciders**` prose line (`User, Orchestrator Agent,
+Implementer Agent`), attributing the historical 2025-12-18 decision to the
+current editor instead of the people who made it.
+
+Verified: `.claude/skills/adr-generator/references/adr-templates-catalog.md:42`
+defines `decision-makers` as everyone involved in the decision, not the
+person backfilling metadata. The finding is correct; Round 1 missed it
+because no seat cross-checked the new frontmatter against the pre-existing
+`**Deciders**` prose line on ADR-005.
+
+Fix: `decision-makers: [rjmurillo]` -> `decision-makers: [User, Orchestrator
+Agent, Implementer Agent]`, matching the original attribution.

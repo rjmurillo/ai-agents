@@ -106,3 +106,30 @@ non-blocking dissent. No seat votes Block on the final state.
 ### Next Steps
 
 None blocking.
+
+## Round 3: Copilot PR Review (post-merge-to-branch, PR #5283)
+
+GitHub Copilot's automated review on PR #5283 filed one finding against
+ADR-056: the Decision section (items 2 and 6) still specified
+`-OutputFormat` (PowerShell parameter style) and a flat `ErrorCode` field,
+contradicting the actual Python contract in `scripts/github_core/output.py`
+(the `--output-format` argparse flag; a nested `Error.Code` field, not a
+top-level `ErrorCode`). Marking ADR-056 `accepted` and using it as ADR-028's
+successor would have made another contradictory contract authoritative,
+which is the exact failure class issue #5201 exists to fix.
+
+Verified directly: `scripts/github_core/output.py:20-35` (`add_output_format_arg`)
+defines `--output-format` with lowercase choices `json`/`human`/`auto`;
+`scripts/github_core/output.py:147-154` (`write_skill_error`) nests the exit
+code as `envelope["Error"]["Code"]`, never a top-level `ErrorCode`. Round 2
+(Phase 3 above) checked that ADR-056's Implementation Notes named the right
+file and that its Consequences claim ("schema consistency is enforced at the
+envelope level") was true; it did not check that the Decision section's own
+parameter and field names still matched that file's actual signatures. That
+gap is exactly what Copilot's finding closed.
+
+Fix: rewrote Decision items 2 and 6 to the shipped Python contract
+(`--output-format`; nested `Error.Message`/`Error.Code`/`Error.Type`), and
+added a provenance note on the Decision section explaining the original
+2026-03-08 PowerShell-era wording and why it changed. No frontmatter change;
+ADR-056 remains `status: accepted`, `supersedes: [ADR-028]`.
