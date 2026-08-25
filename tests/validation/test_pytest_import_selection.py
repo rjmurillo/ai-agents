@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -93,17 +94,77 @@ def test_opt_in_env_restores_local_full_suite_execution(
     assert commands == git_hook_policy._pytest_commands(tmp_path)
 
 
-def test_opt_in_env_ignores_values_other_than_one(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+@pytest.mark.parametrize("value", ["0", "true", "TRUE", "yes", " 1 x"])
+def test_opt_in_env_rejects_values_other_than_one(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, value: str
 ) -> None:
-    monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "0")
+    """Doing less than the caller asked for, silently, is the failure here.
+
+    A developer who exports `...=true` wants local execution. Quietly
+    collecting instead gives them a fast green push and no signal that the
+    flag did nothing.
+    """
+    monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, value)
+    monkeypatch.setattr(
+        git_hook_policy.select_tests,
+        "select",
+        lambda *_a, **_k: Selection(full=True, reason="non-Python change"),
+    )
+    with pytest.raises(ValueError, match="must be '1' or unset"):
+        git_hook_policy._resolve_pytest_commands(tmp_path, ["README.md"])
+
+
+@pytest.mark.parametrize("value", ["", "   ", "1", " 1 "])
+def test_opt_in_env_accepts_unset_blank_and_one(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, value: str
+) -> None:
+    """Blank is unset by another name; a padded '1' is still a '1'."""
+    monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, value)
     monkeypatch.setattr(
         git_hook_policy.select_tests,
         "select",
         lambda *_a, **_k: Selection(full=True, reason="non-Python change"),
     )
     commands = git_hook_policy._resolve_pytest_commands(tmp_path, ["README.md"])
-    assert commands == _collection(tmp_path)
+    expected = (
+        git_hook_policy._pytest_commands(tmp_path)
+        if value.strip() == "1"
+        else _collection(tmp_path)
+    )
+    assert commands == expected
+
+
+def test_a_rejected_opt_in_value_exits_config_error_not_success(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """`run_pytest` must turn the raise into a non-zero exit, not a pass."""
+    monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "true")
+    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
+    assert git_hook_policy.run_pytest(tmp_path) == 2
+
+
+def test_run_pytest_refuses_an_empty_command_list(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A push must never pass by running zero tests.
+
+    The invariant that keeps `commands` non-empty lives in `select_tests`, a
+    different module. `run_pytest` decides whether a push is allowed, so it
+    carries its own guard rather than trusting that one.
+    """
+    monkeypatch.setattr(git_hook_policy, "_resolve_pytest_commands", lambda *_a, **_k: [])
+    assert git_hook_policy.run_pytest(tmp_path) == 2
+    assert "zero tests" in capsys.readouterr().err
+
+
+def test_collection_command_silences_the_node_listing(tmp_path: Path) -> None:
+    """`pyproject.toml` sets `addopts = "-v ..."`, so one `-q` nets to zero.
+
+    Measured: 31765 lines of node listing into the hook output with one `-q`,
+    878 with three. Hook output is a token cost this stand-in exists to cut.
+    """
+    command = git_hook_policy._pytest_collection_command(tmp_path)
+    assert command.count("-q") == 3
 
 
 def test_collection_gets_the_collection_budget_not_the_suite_budget(tmp_path: Path) -> None:
@@ -171,3 +232,77 @@ def test_resolve_explains_why_it_collected_instead_of_executing(
     assert "Collecting every test" in err
     assert "pytest.yml" in err
     assert git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV in err
+
+def test_a_broken_import_makes_the_collection_stand_in_block_the_push(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The load-bearing claim of the whole stand-in, executed rather than argued.
+
+    ADR-104 gives up local assertion results on the fallback path and keeps the
+    push blocked on a broken import. Every other test here asserts on the argv
+    list; this one runs the real command against a real tree and drives the
+    result through `run_pytest`, because the claim is about an exit code and an
+    argv assertion cannot reach one (testing.md MUST 8).
+
+    Negative control is the second half: the same tree with the bad import
+    removed collects clean and the push proceeds. Without it, a command that
+    failed for any reason at all would satisfy the first half.
+    """
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    broken = tests_dir / "test_broken.py"
+    broken.write_text(
+        "import definitely_not_a_real_module_xyz\n\n\ndef test_ok():\n    assert True\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
+    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
+
+    assert git_hook_policy.run_pytest(tmp_path) != 0
+
+    broken.write_text("def test_ok():\n    assert True\n", encoding="utf-8")
+    assert git_hook_policy.run_pytest(tmp_path) == 0
+
+
+def test_the_collection_notice_repeats_the_selector_reason(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A selector regression and a legitimate non-Python change must read differently.
+
+    Without the reason in the notice, a selector that silently started
+    returning `full=True` for every diff would look identical to the ordinary
+    Markdown case it is supposed to look different from.
+    """
+    monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
+    monkeypatch.setattr(
+        git_hook_policy.select_tests,
+        "select",
+        lambda *_a, **_k: Selection(full=True, reason="sentinel-reason-xyz"),
+    )
+    git_hook_policy._resolve_pytest_commands(tmp_path, ["README.md"])
+    assert "sentinel-reason-xyz" in capsys.readouterr().err
+
+
+def test_a_collection_timeout_names_the_collection_ceiling(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A 300s collection hang must not be reported as a 1740s suite timeout.
+
+    The timeout message is the only thing a developer whose push just died has
+    to go on. Naming the wrong ceiling sends them hunting for a 29-minute run
+    that never happened.
+    """
+    monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
+    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
+    monkeypatch.setattr(
+        git_hook_policy,
+        "_run_command",
+        lambda *_a, **_k: subprocess.CompletedProcess(["pytest"], 3, "", ""),
+    )
+    monkeypatch.setattr(git_hook_policy, "_print_process_output", lambda _r: None)
+
+    assert git_hook_policy.run_pytest(tmp_path) == 3
+
+    err = capsys.readouterr().err
+    assert str(git_hook_policy.TEST_COLLECTION_TIMEOUT_SECONDS) in err
+    assert str(git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS) not in err

@@ -1150,17 +1150,42 @@ def test_run_pytest_budget_exhaustion_cosmetic_change_survives(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Cosmetic control: whitespace-only change to the success path message
-    must not affect exit code.  Mutation harness uses this to confirm the
-    harness measures behaviour, not text style.
+    """Inverted control: a cosmetic edit to the success message must not
+    change the exit code.
+
+    An earlier docstring claimed a mutation harness consumes this test.
+    `git grep -nF cosmetic_change_survives` returns only this definition and
+    nothing under `tests/mutation/` references it, so that claim is dropped
+    rather than repeated. The test earns its place on its own terms: it is the
+    one assertion here that must survive a wording mutation.
     """
     _record_pytest_timeouts(monkeypatch, elapsed_per_command=1.0)
     rc = git_hook_policy.run_pytest(tmp_path)
     assert rc == 0
-    # A clean run emits the selection notice and nothing else. Asserting the
-    # whole of stderr, rather than only the absence of a failure word, keeps
-    # this a control the mutation harness can trust: any new diagnostic on the
-    # success path shows up here.
+    # Deliberately tolerant. This is an inverted control: it must SURVIVE a
+    # cosmetic edit to the success path's wording, or it cannot distinguish
+    # "every mutant died" from "this harness fails no matter what". An earlier
+    # revision asserted the exact stderr line and died to a single added space,
+    # which inverted the control's polarity. The exact-text assertion belongs
+    # in its own test, below, where dying to a wording change is correct.
+    err = capsys.readouterr().err
+    assert "ERROR" not in err
+    assert "timed out" not in err
+
+
+def test_the_clean_opt_in_run_prints_only_the_selection_notice(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Nothing else may reach stderr on the success path.
+
+    Separate from the control above on purpose: this one SHOULD fail if the
+    notice's wording changes, because a new diagnostic appearing on a clean
+    run is exactly what it is here to notice.
+    """
+    _record_pytest_timeouts(monkeypatch, elapsed_per_command=1.0)
+    assert git_hook_policy.run_pytest(tmp_path) == 0
     assert capsys.readouterr().err.splitlines() == [
         "pytest selection: full suite (the diff against origin/main is "
         "unavailable); executing it locally because "

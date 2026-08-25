@@ -464,8 +464,12 @@ WORKFLOW_LOCAL_DEFAULT_BASE = "origin/main"
 TEST_SUITE_TIMEOUT_SECONDS = 1_740
 # Ceiling for the collection smoke that stands in for a local full-suite run.
 # Collection imports every test module without running a single test body, so
-# it is bounded by import cost rather than test cost: 34.62s for 27878 tests on
-# a 4-CPU container while the suite it replaces took 475s there.
+# it is bounded by import cost rather than test cost. Measured on a 4-CPU
+# container, same suite: 8.9s pytest-internal / 14s wall on an idle box, 34.6s
+# wall while a full pytest run held the other cores. `ci-scripts.md` MUST-16
+# forbids sizing a pre-push cap from an idle run, so this ceiling is set from
+# the loaded figure with roughly 8x headroom rather than from the idle one, and
+# the real in-hook number belongs here once a push measures it (issue #5316).
 TEST_COLLECTION_TIMEOUT_SECONDS = 300
 # Opt back into executing the whole suite inside pre-push. Unset is the default
 # because that run duplicates CI's `pytest.yml` partition matrix on the same
@@ -6579,16 +6583,30 @@ def _pytest_commands_for_subset(repo_root: Path, test_files: Sequence[str]) -> l
 def _pytest_collection_command(repo_root: Path) -> list[str]:
     """Collect every non-integration test without executing any of them.
 
-    Collection imports each test module and instantiates each item, so it still
-    fails on a broken import, a syntax error, a duplicate test id, and a
-    fixture signature no fixture satisfies. Those are the defects that would
-    otherwise burn a whole CI matrix before reporting the same thing.
+    Collection imports each test module and instantiates each item, so it fails
+    on a broken import, on a syntax error, and on two test modules that share a
+    basename across directories. Those are the defects that would otherwise
+    burn a whole CI matrix before reporting the same thing.
+
+    It does NOT catch a test whose fixture no fixture satisfies, and it does
+    NOT catch two same-named test functions in one module: both were probed
+    against a throwaway tree and collect clean with exit 0. Do not widen this
+    docstring's claim without a probe; the same claim is printed to developers
+    in `_full_suite_stand_in` and a wrong one tells them they are covered.
+
+    Three `-q` are deliberate. `pyproject.toml` sets `addopts = "-v ..."`, so
+    verbosity starts at +1 and a single `-q` nets to 0: measured 31765 lines of
+    node listing into the hook output on every fallback push, against 878 with
+    three. Hook output is a token cost, which is one of the costs this stand-in
+    exists to cut.
     """
     return [
         sys.executable,
         "-m",
         "pytest",
         "--collect-only",
+        "-q",
+        "-q",
         "-q",
         "-m",
         "not integration",
@@ -6608,7 +6626,18 @@ def _full_suite_stand_in(repo_root: Path, reason: str) -> list[list[str]]:
     ``AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`` restores the execution behavior
     for anyone who wants it on a machine that can afford it.
     """
-    if os.environ.get(PYTEST_FULL_SUITE_LOCALLY_ENV) == "1":
+    raw = os.environ.get(PYTEST_FULL_SUITE_LOCALLY_ENV)
+    if raw is not None and raw.strip() and raw.strip() != "1":
+        # Fail loud rather than quietly doing less than the caller asked for.
+        # `AI_AGENTS_PYTEST_WORKERS` already raises on a value it cannot use;
+        # a flag whose whole purpose is "run more" must not shrug at `true`.
+        raise ValueError(
+            f"{PYTEST_FULL_SUITE_LOCALLY_ENV} must be '1' or unset, got {raw!r}. "
+            "Unset collects the suite; '1' executes it locally."
+        )
+    if raw is not None and raw.strip() == "1":
+        # `.strip()` on both branches or a padded "1" passes the check above
+        # and then silently takes the collection path anyway.
         print(
             f"pytest selection: full suite ({reason}); executing it locally "
             f"because {PYTEST_FULL_SUITE_LOCALLY_ENV}=1.",
@@ -6617,12 +6646,18 @@ def _full_suite_stand_in(repo_root: Path, reason: str) -> list[list[str]]:
         return _pytest_commands(repo_root)
     print(
         f"pytest selection: no import-graph subset ({reason}).\n"
-        "  Collecting every test instead of executing them. Collection catches "
-        "import,\n"
-        "  syntax, duplicate-id, and fixture-signature breakage; execution is "
-        "CI's job\n"
-        "  (.github/workflows/pytest.yml runs the full partition matrix on this "
-        "commit).\n"
+        "  Collecting every test instead of executing them. Collection blocks "
+        "on a broken\n"
+        "  import, a syntax error, and a same-basename module collision. It "
+        "does NOT run\n"
+        "  assertions, and it does NOT catch a missing fixture.\n"
+        "  Assertions run in CI: .github/workflows/pytest.yml executes the full "
+        "partition\n"
+        "  matrix on every merge-queue commit, and on this PR only when the "
+        "diff matches\n"
+        "  its paths filter. A diff that matches neither runs no assertions "
+        "until the\n"
+        "  merge queue, so review a green PR of that shape accordingly.\n"
         f"  Set {PYTEST_FULL_SUITE_LOCALLY_ENV}=1 to execute the suite here "
         "instead. See ADR-104.",
         file=sys.stderr,
@@ -6713,6 +6748,17 @@ def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> i
     # the suite across processes must not multiply how long
     # pre-push can block, or the hook outlives lefthook's own deadline and the
     # timeout looks nondeterministic.
+    if not commands:
+        # `select_tests.Selection` promises a narrowed selection is never empty,
+        # and `_full_suite_stand_in` always returns one command. Both are other
+        # modules' invariants. This function decides whether a push is allowed,
+        # so it does not take a zero-test run on faith from either of them.
+        print(
+            "ERROR: test selection produced no pytest command. A push must "
+            "never pass by running zero tests; see select_tests.Selection.",
+            file=sys.stderr,
+        )
+        return 2
     budget = _pytest_budget_seconds(commands)
     deadline = time.monotonic() + budget
     for index, command in enumerate(commands):
