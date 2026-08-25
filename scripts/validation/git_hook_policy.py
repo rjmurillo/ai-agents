@@ -1455,6 +1455,12 @@ def _is_debate_log_path(relative_path: str) -> bool:
     if safe_path is None:
         return False
     path = PurePosixPath(safe_path)
+    # Exactly .agents/critique, not below it. A log staged one directory deeper
+    # is not a candidate at all, so a commit carrying only such a file fails
+    # with the generic "requires a debate log staged in .agents/critique"
+    # rather than something that explains the nesting. Fails closed, so this is
+    # a diagnostic gap and not a hole, but it will read as the gate not seeing
+    # a file that is plainly there.
     return (
         path.parent == PurePosixPath(".agents/critique")
         and path.suffix == ".md"
@@ -1563,10 +1569,37 @@ def debate_log_evidence_gap(content: str) -> str | None:
     so without it a contributor could copy the template, change the title, and
     self-authorize an ADR lifecycle change with a document nobody filled in.
 
-    This raises the cost of a forged review from a 7-byte file to a
-    deliberately constructed one. It cannot make forgery impossible, because
-    every signal is a property of text the committer controls. Binding the gate
-    to attestation of the review itself is tracked on #5245 and #5247.
+    What this is worth, stated at the floor rather than at the ceiling. It
+    stops the accidental and the lazy: a 7-byte stub, an unfilled template, a
+    name-shaped file. It does not raise forgery to anything like "deliberately
+    constructed", and an earlier version of this docstring said otherwise.
+    ``test_the_weakest_currently_passing_log_is_pinned`` holds the real floor,
+    and it is about thirty seconds of typing::
+
+        # D
+
+        ## Outcome
+
+        Accepted.
+
+        ### Notes
+
+        agent
+
+        <filler to clear the byte floor>
+
+    Every signal is a property of text the committer controls, so a committer
+    who wants past this gate gets past it. Binding the gate to attestation of
+    the review itself is tracked on #5245 and #5247; until then this is a
+    tripwire, not a control.
+
+    One more limit worth naming here rather than leaving in a test docstring:
+    coverage is by citation, not by review. ``_referenced_adr_ids`` scans the
+    whole log, so a log that genuinely reviews ADR-042 and mentions ADR-005
+    once in a footer covers both. That is the semantics issue #5205 asked for
+    and it narrows defect 2 rather than closing it: one log can still authorize
+    a second record it never discusses, it just has to name it.
+    ``test_an_incidental_mention_covers_a_staged_id`` pins that behavior.
     """
     if _evidence_byte_count(content) < DEBATE_LOG_MIN_BYTES:
         return f"shorter than {DEBATE_LOG_MIN_BYTES} bytes"
@@ -1621,6 +1654,15 @@ def _staged_debate_log_contents(
 
 
 def _debate_log_evidence_error(contents: dict[str, str]) -> str | None:
+    """Return the first staged log's evidence gap, or None when all pass.
+
+    First, not all. A commit staging several inadequate logs is told about one
+    of them, fixes it, and rediscovers the next on the following attempt. That
+    is a worse loop than the unreadable and non-regular errors above, which
+    name every offending path at once, and it is a deliberate asymmetry only
+    in the sense that nobody has needed the batched form yet. Named here so the
+    next person to hit it knows it is a known shape rather than a bug.
+    """
     for path in sorted(contents):
         gap = debate_log_evidence_gap(contents[path])
         if gap is not None:
