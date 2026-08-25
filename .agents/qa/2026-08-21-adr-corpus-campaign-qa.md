@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 30cb898b272a42d114822238d9293fd9757d06dc
+qaCommit: 333582acef3f29dd074741c833a36cd887689141
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1858,3 +1858,5 @@ explaining the renumbering rather than silently relabeling it.
 fix was already present via the auto-merge, adding no new test count).
 `tests/validation/test_check_adr_lifecycle.py`: 130 tests. `ruff check`
 clean on the three touched files. No em or en dashes in the merged prose.
+
+**Rebound to** `333582acef3f29dd074741c833a36cd887689141`, the merge commit that reconciled this third round.

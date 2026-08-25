@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 30cb898b272a42d114822238d9293fd9757d06dc
+qaCommit: 333582acef3f29dd074741c833a36cd887689141
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -912,3 +912,6 @@ Autofix's own weaker version had already landed on both branches
 (`tests/validation/test_check_adr_links.py` auto-merged cleanly). The
 only conflict was numbering, resolved the same way as Addendum 35's own
 renumbering. Full detail in that addendum.
+
+**Rebound to** `333582acef3f29dd074741c833a36cd887689141`, the merge commit
+that reconciled this third round (Addendum 34 of the campaign report).
