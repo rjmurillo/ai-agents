@@ -830,9 +830,23 @@ removed. Full detail, including the flake diagnosis and the stale-allowance
 removal reasoning, in that addendum.
 
 **Rebound to** `99066a857d9e6dd4efe5cbaf00c12f987bdeb005`.
-## Addendum 32: an eleventh Copilot review round, 61 unresolved threads, not 9 (reconciled with a concurrent session)
+## Addendum 32: same rebind as Addendum 30 of the campaign report
 
-Both sessions independently fixed the same round-11 review from the same starting commit and diverged in the file this session's own push discovered `origin/claude/adr-evaluation-tooling-6od8rd` had moved past this branch (Addenda 28 to 31 above, from the concurrent session). Merged rather than either side discarding the other's work; the design choices made during that reconciliation (which of two independent fixes to `check_adr_lifecycle.py`'s status-to-edge check and `check_adr_links.py`'s stale-allowance detector to keep) are recorded in Addendum 30 of the campaign report, not repeated here.
+An eleventh Copilot review round on the pushed head, five commits: five
+ADR frontmatter `date` fields corrected to reflect ADR-073's last-updated
+contract, `check_adr_links.py`'s empty-corpus guard hardened against an
+unrelated-but-valid repository root, two stale seven-check taste-lint
+suppressions, a narrowed absolute session-log claim, and a stale ADR-063
+test docstring. One finding (reference-style ADR links) filed as issue
+#5312, not fixed here, after confirming the live corpus has zero exposure.
+Full detail, including the mutation-proof mishap with `git checkout --`
+and its safe redo, in that addendum.
+
+**Rebound to** `9cb04f01d9b2c74423317f92b26bdd3abcd6fada`.
+
+## Addendum 33: an eleventh Copilot review round, 61 unresolved threads, not 9 (reconciled with a concurrent session, twice)
+
+Both sessions independently fixed the same round-11 review from the same starting commit and diverged twice: once in the file this session's own push discovered `origin/claude/adr-evaluation-tooling-6od8rd` had moved past this branch (Addenda 28 to 31 of the campaign report), and again when the concurrent session pushed 7 more commits (Addendum 32 above) while this session's own pre-push hooks were still running on the first reconciliation. Merged both times rather than either side discarding the other's work; the design choices made during both reconciliations (which of two independent fixes to `check_adr_lifecycle.py`'s status-to-edge check and `check_adr_links.py`'s stale-allowance detector to keep, and how a second ADR-005 date correction and a `check_adr_links.py` corpus-shape guard were combined) are recorded in Addenda 30 and 31 of the campaign report, not repeated here.
 
 An eleventh Copilot review round found 61 unresolved threads (a prior
 session summary had tracked only 9 before a context compaction). Fixed via
@@ -849,5 +863,3 @@ by `pre_pr.py` before push and fixed in the same round. Two `origin/main`
 merges, five conflicts resolved by reading both sides' evidence. Full
 detail, including what was investigated and deliberately left unchanged,
 in Addendum 30 of the campaign report.
-
-**Rebound to** `de0dcc1460d21d7dff3b0a0cecaae3a4c4d840fa`.

@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Structural tests for ADR-063 (memory skill decomposition).
 
-ADR-063 is a DRAFT (Proposed) decision authored for issue #1947. These tests
-pin the structural contract the adr-review gate and the project ADR convention
+ADR-063 is an accepted decision (maintainer acceptance 2026-06-17, per its own
+`## Status` section) authored for issue #1947; it was DRAFT (Proposed) at
+authoring time, before that acceptance (Copilot, PR #5209 round-11 review:
+this line still called it DRAFT, contradicting the `status: accepted`
+contract this file's own assertion below requires). These tests pin the
+structural contract the adr-review gate and the project ADR convention
 depend on:
 
 - The file exists at the canonical path.

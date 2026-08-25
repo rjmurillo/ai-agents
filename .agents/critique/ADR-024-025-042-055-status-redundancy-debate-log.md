@@ -112,3 +112,13 @@ of the table. Cursor Bugbot's autofix agent moved the two rows back to sit
 immediately after `x64 Jobs`, with the note following the complete table
 (commit `05161ccba1f43bd7e4af1c460c126842b7acab28`). Pure rendering fix,
 no change to any figure, status, or claim.
+
+## Correction: ADR-055's frontmatter date read acceptance date, not last update
+
+ADR-073's schema defines `date` as `# last updated`. ADR-055's frontmatter
+carried `2025-12-29`, its acceptance date, even after later commits added
+the 111-of-132 measurement and the exception-marker corrections this log
+records. Corrected to `2026-08-25`, the date of the record's most recent
+content change; `2025-12-29` stays in the record's own `## Date` section
+(Copilot, PR #5209 round-11 review). No change to any decision, figure, or
+claim this log covers.

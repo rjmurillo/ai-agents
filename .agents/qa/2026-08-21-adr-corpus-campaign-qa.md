@@ -1598,9 +1598,76 @@ index.py` (311 tests) passed. Commits: `241d1aad5` (index regen),
 `99066a857` (stale-allowance fix).
 
 **Rebound to** `99066a857d9e6dd4efe5cbaf00c12f987bdeb005`.
-## Addendum 30: an eleventh Copilot review round, 61 unresolved threads, not 9 (independent of Addenda 26 to 29)
 
-This addendum and Addenda 26 to 29 below were written independently by two concurrent sessions working the same branch: neither knew of the other's commits until this addendum's own push discovered `origin/claude/adr-evaluation-tooling-6od8rd` had diverged (a merge required, not a fast-forward). Merged and reconciled rather than one side discarding the other; see "Reconciling with the concurrent session" below for what that took.
+## Addendum 30: an eleventh Copilot review round, five commits
+
+Pushed the round-10 rebind, then an eleventh Copilot review landed nine
+findings on the pushed head: three suppressed, six inline. Six confirmed
+real and fixed; one (reference-style ADR links never scanned) filed as
+issue #5312 rather than built into this round, since a full-corpus
+`git grep -P` for a reference definition targeting an ADR returned zero
+matches, so the gap is real but not live; two were PR-description
+accuracy findings this session had already corrected in the same window,
+before the review's delivery reached the session (the &#34;53 records&#34;
+checklist item and its companions, and the stale round-2 test/check/
+violation counts, now further annotated to say those are the round-2
+snapshot rather than current).
+
+Fixed, five commits:
+
+1. `c7a73be41`: ADR-005/024/025 frontmatter `date` corrected to reflect
+   ADR-073's `# last updated` contract instead of the original decision
+   or first-commit date. ADR-005 in particular: this is the *second*
+   correction of the same field this campaign, after an earlier merge
+   resolution reverted a correct `origin/main` value on a mistaken belief
+   about which record it dated; verified against the record's own body
+   (&#34;Superseded by ... (2026-01-17)&#34;) this time, not against a removed
+   prose line. Appended the second-correction note to
+   `ADR-005-status-duplication-debate-log.md`.
+2. `dc22389f9`: ADR-055/063 frontmatter `date`, same class. Regenerated
+   `.agents/architecture/README.md` for all five date changes.
+   Correction notes appended to the two records' existing debate logs
+   (`ADR-024-025-042-055-status-redundancy-debate-log.md`,
+   `ADR-063-debate-log.md`) to satisfy `adr-review-policy`&#39;s mandatory
+   debate-log-staged-alongside-ADR-changes gate.
+3. `e80a79e06`: `check_adr_links.py`&#39;s empty-corpus guard (round 9) only
+   rejected zero tracked markdown files of any kind; an unrelated valid
+   git repository with a bare `README.md` still passed with a
+   manufactured &#34;0 violation(s)&#34;. Added `_has_adr_corpus()`: at least
+   one scanned file&#39;s basename must be ADR-shaped. First design attempt
+   anchored the check to `.agents/architecture` (mirroring
+   `check_adr_lifecycle.py`&#39;s own sentinel), which broke 3 of 101
+   existing tests that rely on an `adr/`-prefixed fixture directory;
+   redesigned to check the scanned-file basenames instead, matching this
+   module&#39;s actual repo-wide scanning scope. 6 new tests; mutation-proven
+   via a safe backup/restore cycle, not `git checkout --` (an earlier
+   attempt at the mutation proof used `git checkout --` to undo the
+   mutation and it wiped the entire uncommitted fix instead, since
+   `checkout` restores to `HEAD`, not to a point mid-edit; redone safely
+   and the fix reapplied from scratch).
+4. `8db8ee417`: two file-size taste-lint suppression rationales
+   (`check_adr_lifecycle.py`, `test_check_adr_lifecycle.py`) still said
+   &#34;seven checks&#34;, stale since `status-edge-consistency` shipped as the
+   eighth.
+5. `9cb04f01d`: the session log&#39;s `sessionLogCreated.Evidence` field made
+   an unqualified &#34;No hook was bypassed&#34; claim contradicting a
+   correction already present later in the same file; narrowed to
+   surviving commits. `tests/test_adr_063_memory_skill_decomposition.py`&#39;s
+   module docstring still called ADR-063 &#34;DRAFT (Proposed)&#34; while the
+   file&#39;s own assertion requires `accepted`.
+
+Re-verified: `check_adr_lifecycle.py` `[PASS] 1 violation(s) across 103
+ADR record(s)`; `check_adr_links.py` `0 violation(s) across 1591 tracked
+markdown file(s)`; `taste_count_ratchet.py` `575 <= baseline 576`;
+`tests/validation/test_check_adr_lifecycle.py` +
+`test_check_adr_links.py` + `tests/build_scripts/test_generate_adr_
+index.py` + `tests/test_adr_063_memory_skill_decomposition.py` (343
+tests) passed.
+
+**Rebound to** `9cb04f01d9b2c74423317f92b26bdd3abcd6fada`.
+## Addendum 31: an eleventh Copilot review round, 61 unresolved threads, not 9 (reconciled with a second concurrent-session round)
+
+This addendum and Addenda 26 to 30 below were written independently by two concurrent sessions working the same branch across two separate divergences: the first reconciled earlier in this file (Addenda 26 to 29), the second below (Addendum 30), discovered only when this session's push was rejected a second time after the first merge's own pre-push hooks ran for over 15 minutes. Merged and reconciled both times rather than either side discarding the other's work; see "Reconciling with the concurrent session's second round" below for what the second reconciliation took.
 
 `git rev-list HEAD ^origin/main` had advanced past `origin/main` (the stack's out-of-date banner) after Addendum 25's rebind; `origin/main` merged, then re-merged a second time as it advanced again mid-round (two commits, five conflicts). Fetching this PR's live review threads directly (`get_review_comments`, filtered `isResolved == false`) found 61 unresolved threads, not the smaller count a prior session summary had tracked before a context compaction. Investigating each against the actual current code, rather than the review text alone, found roughly a third already fixed in earlier rounds and never marked resolved on GitHub; the rest split across four independent files, each handed to a separate implementer subagent scoped to disjoint files (so no two agents could git-conflict), plus this session's own direct work on `check_adr_lifecycle.py`.
 
@@ -1670,9 +1737,18 @@ identity:
   concurrent session) was kept since it is the one both sides' comment
   fixes actually depend on for context.
 
-Re-verified after reconciliation: `tests/validation/test_check_adr_lifecycle.py`
+Re-verified after the first reconciliation: `tests/validation/test_check_adr_lifecycle.py`
 (130 tests), `tests/validation/test_check_adr_links.py` (142 tests),
-`ruff check` and `taste_lints.py` on every touched file, all clean.
+`ruff check` and `taste_lints.py` on every touched file, all clean. Merge
+commit `de0dcc1460d21d7dff3b0a0cecaae3a4c4d840fa` (Addenda 26 to 29 above).
 
-**Rebound to** `de0dcc1460d21d7dff3b0a0cecaae3a4c4d840fa`, the merge commit that reconciled this session's round-11 work with the concurrent session's (Addenda 26 to 29 above).
+### Reconciling with the concurrent session's second round (Addendum 30)
+
+The concurrent session pushed 7 more commits (Addendum 30 above) while this session's own ~17-minute pre-push hook suite was still running on the first reconciliation's merge commit, so the second push was also rejected. Merged; two items needed attention beyond a routine `git merge`:
+
+- **ADR-005's `date` field, corrected a second time, in the other direction.** The first reconciliation (this session's earlier merge) kept this session's `2025-12-18`, reasoned from a debate log's account of "the original decision date". Addendum 30's `c7a73be41` corrects it to `2026-01-17`, evidenced directly from the record's own body text ("Superseded by ADR-042 ... (2026-01-17)") and ADR-073's actual schema contract for `date` ("last updated", not "original decision"). That evidence is stronger and more direct than the debate log's account; the first reconciliation's choice was a mistake, and the concurrent session's second pass caught and fixed it. Recorded here rather than silently accepted, since a QA report that omits its own earlier wrong call teaches the next reader the wrong lesson about how these merges were actually resolved.
+- **`check_adr_links.py`'s `_has_adr_corpus` guard (from `e80a79e06`) needed combining, not choosing, with this session's `base_ref` parameter.** Both changed `validate_adr_links`'s body: the concurrent session added a corpus-shape guard before scanning: `_scannable_files`, then `_has_adr_corpus`, checked before `find_broken_adr_links` runs. This session's own reconciliation-1 work had already added a `base_ref: str = "auto"` parameter and base-ref-provenance wiring to the same function. Combined rather than picking one: the corpus guard now runs first (fails loud on a corpus-shaped-nothing repo before any base-ref work happens), then `base_allowances_for_run` computes the provenance set exactly as this session's own code already did. Four of this session's own tests broke as a direct consequence: `_repo_with_base`, the shared fixture four base-ref-provenance tests use, wrote only `adr/index.md` (not ADR-shaped), so the new corpus guard rejected all four fixtures as "no ADR records found" before the base-ref logic they exist to test ever ran. Fixed once, at the fixture (added one ADR-shaped file `adr/ADR-001-placeholder.md`), rather than four times at each call site.
+- The module docstring carried a second, now-false claim from the concurrent session's own round: a paragraph asserting reference-style links "are not recognized at all" and filing issue #5312 to track it, written in the same review round this session's own `LINK_DEFINITION`/`REFERENCE_LINK`/`SHORTCUT_LINK` fix closed. Removed the false claim, replaced with one sentence noting issue #5312 is moot once this file carries the fix (which it now does).
+
+Re-verified after this second reconciliation: `tests/validation/test_check_adr_links.py` (148 tests, up from 142: the shared fixture fix plus none removed), `tests/validation/test_check_adr_lifecycle.py` (130 tests), `tests/test_adr_063_memory_skill_decomposition.py`, `ruff check` and the whole-tree `taste-count-ratchet` (within the 576 baseline), all clean.
 

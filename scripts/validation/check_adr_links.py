@@ -68,6 +68,13 @@ the base ref (a branch cannot clear a defect it just introduced), and on a
 full-corpus scan every entry must match a live finding (a repaired link's entry
 must be deleted, not left to suppress a future regression).
 
+A concurrent PR #5209 review round independently raised this same reference-
+style-link gap and filed it as issue #5312 rather than fixing it, on the
+assessment that no tracked file yet defined a reference pointing at an ADR
+target. That assessment predates the fix above (``LINK_DEFINITION`` /
+``REFERENCE_LINK`` / ``SHORTCUT_LINK``), landed in the same review round from
+a different session; issue #5312 is moot once this file carries that fix.
+
 Exit codes follow ADR-035: 0 clean, 1 violations found, 2 configuration error.
 """
 
@@ -922,6 +929,46 @@ def _scannable_files(repo_root: Path) -> list[str]:
     return [f for f in tracked if not is_historical_path(f.replace("\\", "/"))]
 
 
+def _has_adr_corpus(scanned: list[str]) -> bool:
+    """Return True when ``scanned`` includes at least one real ADR record.
+
+    An ai-agents-specific sentinel, not just "some markdown file exists
+    somewhere": the round-9 guard rejected a ``repo_root`` with zero *tracked
+    markdown files of any kind*, but an unrelated-yet-valid git repository
+    containing nothing but a ``README.md`` still passed it with a
+    manufactured "0 violation(s)", the exact false-clean result that guard
+    was meant to close (Copilot, PR #5209 round-11 review). Checking that at
+    least one scanned file's basename is itself an ADR filename is specific
+    to this repository's own record naming, so a wrong-but-plausible root
+    with unrelated markdown cannot pass.
+
+    Deliberately not anchored to ``.agents/architecture``: this module scans
+    tracked markdown repo-wide for ADR *links*, not only the records
+    directory (see the module docstring's four violation classes), and the
+    existing test suite's fixtures place their sample ADR files under an
+    ``adr/`` directory, not the real repo layout. Anchoring this sentinel to
+    a specific directory would reject every one of those fixtures for a
+    reason unrelated to what they test.
+
+    Kin to ``check_adr_lifecycle.py``'s own corpus sentinel (quoted verbatim
+    from ``scripts/validation/check_adr_lifecycle.py:1121-1130``): "An
+    emptied or misrouted corpus (wrong --repo-root, or every record moved
+    out) still passes the `is_dir()` check above. `scan()` would then walk
+    zero records, `tally()` would report every check at 0, and `run()` would
+    print "[PASS] 0 violation(s)": a missing corpus reads as a clean corpus
+    instead of failing loudly. `ADR_FILENAME_RE` excludes ADR-TEMPLATE.md, so
+    a template sitting alone does not count as evidence records were
+    examined (Copilot, PR #5209 round-7 review)." That check is stricter:
+    it requires the file to live under the real ``.agents/architecture``
+    directory, which is correct there because that script's whole job is
+    walking that one directory. This check only requires an ADR-shaped
+    basename (this module's existing ``ADR_BASENAME``, ``^ADR-\\d+.*\\.md$``,
+    case-insensitive) anywhere the scan reaches, matching this module's
+    wider, repo-relative scope.
+    """
+    return any(ADR_BASENAME.match(Path(f).name) for f in scanned)
+
+
 def validate_adr_links(repo_root: Path, base_ref: str = "auto") -> bool:
     """Print broken ADR links and return True when none are found.
 
@@ -943,14 +990,26 @@ def validate_adr_links(repo_root: Path, base_ref: str = "auto") -> bool:
     git repository at all) via its ``subprocess.CalledProcessError`` handler;
     this closes the narrower, valid-git-empty-result case that handler
     cannot catch.
+
+    Also rejects a repository root whose tracked markdown files include no
+    ADR record at all (see ``_has_adr_corpus``): the round-9 guard alone
+    still passed an unrelated valid git repository containing a bare
+    ``README.md`` (Copilot, PR #5209 round-11 review).
     """
-    examined = len(_scannable_files(repo_root))
-    if examined == 0:
+    scanned = _scannable_files(repo_root)
+    if len(scanned) == 0:
         print(
             f"check_adr_links: no tracked markdown files found under {repo_root}",
             file=sys.stderr,
         )
         return False
+    if not _has_adr_corpus(scanned):
+        print(
+            f"check_adr_links: no ADR records found among tracked markdown under {repo_root}",
+            file=sys.stderr,
+        )
+        return False
+    examined = len(scanned)
     baseline_path = repo_root / DEFAULT_BASELINE
     findings = find_broken_adr_links(
         repo_root,
@@ -1008,13 +1067,26 @@ def main(argv: list[str] | None = None) -> int:
         # that is not a git repository at all; this closes the narrower,
         # valid-git-empty-result case that handler cannot catch (Copilot,
         # PR #5209 round-9 review).
-        examined = len(_scannable_files(repo_root))
-        if examined == 0:
+        #
+        # That guard alone still passes an unrelated-but-valid git repository
+        # containing a bare README.md and nothing else: real markdown files,
+        # zero ADR records. `_has_adr_corpus` closes that gap by requiring at
+        # least one scanned file to be ADR-shaped, not just "some markdown
+        # exists" (Copilot, PR #5209 round-11 review).
+        scanned = _scannable_files(repo_root)
+        if len(scanned) == 0:
             print(
                 f"check_adr_links: no tracked markdown files found under {repo_root}",
                 file=sys.stderr,
             )
             return 2
+        if not _has_adr_corpus(scanned):
+            print(
+                f"check_adr_links: no ADR records found among tracked markdown under {repo_root}",
+                file=sys.stderr,
+            )
+            return 2
+        examined = len(scanned)
 
         findings = find_broken_adr_links(
             repo_root,
