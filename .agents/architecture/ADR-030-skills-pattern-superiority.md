@@ -12,7 +12,7 @@ implemented: false
 # ADR-030: Skills Pattern Superiority
 
 **Date**: 2025-12-23
-**Status**: Critical Update - Changes Recommendation
+**Status**: Rejected (historically recorded as "Critical Update - Changes Recommendation"; see the record note below)
 
 > **Record note (2026-08-25).** This is an amendment memo to ADR-027 (GitHub MCP
 > Server with Agent Isolation Pattern, same date, still `proposed`), proposing

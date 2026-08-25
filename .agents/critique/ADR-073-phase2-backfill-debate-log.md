@@ -97,17 +97,35 @@ this list, and their absence was not cosmetic: the five status decisions in this
 PR are exactly the records whose new prose reads "Deprecated (2026-08-25)" or
 "Rejected (2026-08-25)", so the rule as first written did not recognise the
 statements it had just caused to be written. Cursor Bugbot caught the
-consequence. Four records now carry `date: 2026-08-25`, the day their status
-actually changed: **ADR-002, ADR-030, ADR-039, ADR-052**.
+consequence.
 
-**ADR-036 deliberately keeps `date: 2026-01-01`.** It is the fifth status
-decision, but its status did not change: it was `accepted` in prose and is
-`accepted` in frontmatter. The only edit was repointing two stale
-`Generate-Agents.ps1` references, which is a citation repair, not a decision
-change. This is the line the rule draws: `date` tracks when the decision content
-last changed as the record itself states it, not when the file was last touched.
-Were it the latter, all 67 records would read 2026-08-25 and the field would
-carry no information at all.
+**Seven records now carry `date: 2026-08-25`**, every record whose *body content*
+this PR changed:
+
+| ADR | What changed in the body |
+|---|---|
+| ADR-002, ADR-039 | Status changed to `deprecated`, with a resolution section |
+| ADR-030 | Status changed to `rejected`, with a record note |
+| ADR-052 | Status changed to `rejected`, supersession claim struck |
+| ADR-036 | Two stale `Generate-Agents.ps1` references repointed |
+| ADR-055 | Supersession claim struck from the `**Status**:` line |
+| ADR-061 | Status prose reconciled to open with `Rejected` |
+
+The line the rule draws is **content, not touch**. ADR-036, ADR-055, and ADR-061
+did not change status, but each had a factual claim in its body corrected or
+removed, which is a change to what the record says. An earlier version of this
+document argued ADR-036 should keep `2026-01-01` because a citation repair is not
+a decision change; that line was too fine, and it left three records asserting
+prose they had not asserted the day before while claiming an older last-updated
+date.
+
+What does **not** advance the date, and why the field still carries information:
+the 60 records that received only a frontmatter block keep their original dates,
+as do ADR-021, ADR-032, ADR-053, and ADR-056, whose only edits were replacing
+prohibited em dashes with commas and colons, and ADR-020, which gained a
+lint-suppression comment. Metadata and punctuation are not content. Were every
+touched file dated today, all 67 would read 2026-08-25 and the field would carry
+nothing.
 
 Dates in evidence tables, cited incidents, PR references, and measurement rows
 are excluded: those are dates the record mentions, not dates the record was
@@ -373,7 +391,9 @@ the enum; `id` matches the filename number; `date` matches `YYYY-MM-DD`;
 `implemented` is a bool; `supersedes` is a list; the prose `## Status` first word
 agrees with the enum; and every supersession is reciprocal.
 
-Result on the 53 records this PR touches: zero errors.
+Result, re-run against **all 67 records this PR touches**, not the original 53:
+**zero errors**. The earlier version of this line claimed only the 53 and was
+stale once the five status decisions and the ten #5290 records landed.
 
 The same pass reports pre-existing problems in records this PR does not touch,
 recorded here because they were seen and should not be lost:
@@ -488,14 +508,14 @@ much they should weigh on a reviewer:
 | ADR-049 | proposed | 2026-02-24 | [] | null | true |
 | ADR-050 | accepted | 2026-02-21 | [] | null | true |
 | ADR-051 | accepted | 2026-03-07 | [] | null | true |
-| ADR-052 | proposed | 2026-08-25 | [] | null | false |
+| ADR-052 | rejected | 2026-08-25 | [] | null | false |
 | ADR-053 | accepted | 2026-03-07 | [] | null | true |
 | ADR-054 | accepted | 2026-07-20 | [] | null | true |
-| ADR-055 | accepted | 2025-12-29 | [] | null | true |
+| ADR-055 | accepted | 2026-08-25 | [] | null | true |
 | ADR-056 | accepted | 2026-03-08 | [] | null | true |
 | ADR-059 | proposed | 2026-05-08 | [] | null | true |
 | ADR-060 | accepted | 2026-07-27 | [] | null | true |
-| ADR-061 | rejected | 2026-07-27 | [] | null | false |
+| ADR-061 | rejected | 2026-08-25 | [] | null | false |
 | ADR-062 | accepted | 2026-07-27 | [] | null | true |
 | ADR-063 | accepted | 2026-07-27 | [] | null | true |
 | ADR-064 | proposed | 2026-06-01 | [] | null | false |
@@ -503,6 +523,53 @@ much they should weigh on a reviewer:
 | ADR-067 | proposed | 2026-06-02 | [] | null | true |
 | ADR-070 | proposed | 2026-07-27 | [] | null | true |
 | ADR-072 | proposed | 2026-06-09 | [] | null | false |
+
+## The six-agent debate: per-role verdicts
+
+The roster below reviewed the five status decisions. **Consensus was
+DISAGREE-AND-COMMIT, not unanimous ACCEPT**, and the disagreement was
+substantive: two reviewers argued against the originally proposed status for two
+records, and security registered a narrow BLOCK. The originally proposed pattern
+was `accepted` for ADR-002 and `rejected` for ADR-039. **Both were overturned by
+the debate.** What shipped is the synthesis, not the proposal.
+
+| Role | Verdict | Position |
+|---|---|---|
+| **architect** | ACCEPT | Confirmed all five as originally proposed. Wanted `implemented: true` on ADR-002 with the debate log cited for its acceptance; `supersedes: []` on ADR-039; judged a `superseded` framing wrong for ADR-030 because ADR-027 predates it. **Caught the ADR-036 mischaracterization in the backfill log** and required an Issue #124 pointer in ADR-052's rejection prose. |
+| **critic** | DISAGREE-AND-COMMIT | Found ADR-002's cited evidence argues the **opposite** of the claim made from it: `model_pin_baseline.json` is a draining ratchet toward zero, not a freeze or endorsement. Found `rejected` wrong for ADR-039 because it shipped and ran, where this repo's `rejected` precedent means declined-before-acceptance; recommended `deprecated`. Flagged ADR-030's six live citations as making a full status flip risky. Recommended ADR-052 to `rejected`. Warned that **all five would end with frontmatter and prose disagreeing** unless prose was explicitly reconciled. |
+| **independent-thinker** | DISAGREE-AND-COMMIT | Independently verified evidence rather than accepting it: found `.claude/agents/critic.md` and `qa.md` are `opus`, contradicting ADR-002's own table. Recommended `deprecated` over `accepted` for ADR-002, citing ADR-080 as methodologically superseding it and ADR-073's debate-log binding on any `accepted` transition. Recommended `deprecated` over `rejected` for ADR-039, and found the revert story factually incomplete: it happened incidentally via PR #1046 / commit `568af6775`, three weeks late, not through ADR-039's own rollback procedure. **Blocked rewriting ADR-030's body** as fabricating a decision never made. Reached `rejected` for ADR-052 via a footgun argument: leaving it `proposed` risks an agent literally executing "remove `templates/agents/`". |
+| **security** | **BLOCK**, narrowly, on ADR-002 only | Found ADR-098 and ADR-093 directly on point: both ship `status: proposed` against `implemented: true` precisely because "the acceptance of a governance ADR is a maintainer act". Flipping ADR-002 to `accepted` here would be **the exact self-asserted-approval pattern ADR-073 line 61 exists to prevent**. Cleared ADR-039, ADR-036, and the ADR-052 supersession strike as ACCEPT, being transcription and drift-fix rather than new transitions. Recommended `deprecated` over `rejected` for ADR-030, since `rejected` implies an adjudication that never occurred. Confirmed no CWE-918 exposure: `explainer` is `null` everywhere. |
+| **analyst** | Evidence pass, no status recommendation | PASS/PARTIAL/FAIL over five factual claims. Confirmed five of six named agents match ADR-002 rather than ADR-039 (**PARTIAL**: `critic` and `qa` match neither table). Confirmed ADR-039's monitoring evidence file is empty. Confirmed `.claude/skills/github/SKILL.md` declares no `allowed-tools: mcp__github__*`. Confirmed ADR-027 and ADR-030 share a date and parentage. Confirmed no ADR-052 Option B generator exists and `templates/agents/` remains live. |
+| **high-level-advisor** | ACCEPT | Called ADR-039 the strongest of the five, "transcription of a decision that already fired". Endorsed ADR-030 to `rejected` with the ADR-027 pointer. Required that shipping all five in one PR be **stated explicitly in the PR body with the reversals enumerated, not buried as "just metadata"**. **Registered the one dissent on ADR-052**, preferring it stay `proposed`. |
+
+### Where the reviewers disagreed, and how it resolved
+
+Three genuine disagreements. None is papered over.
+
+1. **ADR-002: `accepted` (proposed) against `deprecated` (shipped).** Security
+   BLOCKed the `accepted` flip; critic and independent-thinker independently
+   reached `deprecated` by different routes (evidence misreading, and ADR-080 as
+   methodological supersession). **Resolution: `deprecated`.** The block is
+   cleared because the record no longer asserts an acceptance.
+2. **ADR-039: `rejected` (proposed) against `deprecated` (shipped).** Critic and
+   independent-thinker both objected that `rejected` misdescribes a decision that
+   ran in production for five weeks, against this repo's own ADR-095 and ADR-061
+   precedent. Architect and high-level-advisor had accepted `rejected`.
+   **Resolution: `deprecated`.**
+3. **ADR-052: `rejected` (3 votes) against staying `proposed` (1 vote).**
+   Architect, critic, and independent-thinker said `rejected`;
+   high-level-advisor dissented. **Resolution: `rejected`, a majority call and
+   not unanimous.** Recorded as such so a future reader does not mistake it for
+   consensus.
+
+The synthesis was made by the repository owner after reading all six.
+
+**Scope boundary the debate set deliberately.** Security, critic, and
+independent-thinker converged on a light-touch change for ADR-030 (frontmatter
+plus a minimal note, body untouched) with the citation sweep deferred to #5293,
+rather than a body rewrite or an in-PR sweep. That boundary is a debate outcome,
+not an oversight. Its cost is disclosed in the PR body: ADR-030 merges as
+`rejected` while three live sites still cite it as binding authority.
 
 ## The five status decisions (six-agent debate)
 
@@ -705,3 +772,4 @@ the batch here as it lands.
 | 22 | ADR-034, ADR-057, ADR-058, ADR-066 |
 | 23 | ADR-069, ADR-071 |
 | 24 | ADR-002, ADR-030, ADR-039, ADR-052 |
+| 25 | ADR-030, ADR-036, ADR-055, ADR-061 |

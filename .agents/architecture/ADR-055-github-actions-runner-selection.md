@@ -1,7 +1,7 @@
 ---
 id: ADR-055
 status: accepted
-date: 2025-12-29
+date: 2026-08-25
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -19,6 +19,7 @@ implemented: true
 > one-sided reference with no reciprocal `superseded-by` on the other end. Issue
 > #5192 owns both targets and owes the reciprocal edit; the claim returns to this
 > record when it can be made from both sides at once.
+
 **Date**: 2025-12-29
 **Authors**: DevOps Agent
 **Related**: Issue #197
