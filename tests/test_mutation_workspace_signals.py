@@ -7,6 +7,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -24,6 +25,48 @@ from scripts.testing.mutation_workspace import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TARGET = Path("scripts/validation/portability_common.py")
+
+
+# Issue #5108: the wait after a signal used to be capped at 30s, a number
+# sized on an idle machine. Measured 2026-08-15 during a real pre-push run:
+# 7 of 30 runs failed with 7 concurrent `git push` processes on the box, and
+# 0 of 30 failed once load fell, on a branch whose diff never touched
+# mutation_workspace.py. A failure there rejects the push and costs a retry of
+# the full 15-to-25-minute hook suite, so the cap was deciding whether code
+# could ship. `.claude/rules/ci-scripts.md` MUST 16: size a pre-push wait for a
+# loaded machine, not an idle one.
+#
+# The cap is a deadlock backstop, not an assertion about signal latency. It has
+# to stay below the per-test pytest-timeout budget below, or pytest-timeout
+# kills the test first and the diagnostic never prints.
+SIGNAL_EXIT_TIMEOUT_SECONDS = 120
+# Above SIGNAL_EXIT_TIMEOUT_SECONDS so the diagnostic wins the race. The global
+# --timeout=120 in pyproject.toml is too tight for the raised cap, so the tests
+# that wait on a signalled child carry their own budget.
+SIGNAL_TEST_TIMEOUT_SECONDS = 180
+
+
+def _wait_for_exit(process: subprocess.Popen[str], description: str) -> int:
+    """Wait for a signalled child, naming the elapsed time when it does not exit.
+
+    A bare ``process.wait(timeout=...)`` raises ``TimeoutExpired`` with no
+    reading of how long the wait actually took, so a load-induced miss and a
+    genuine hang produce the same text. Issue #5108.
+    """
+    start = time.monotonic()
+    try:
+        return process.wait(timeout=SIGNAL_EXIT_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        elapsed = time.monotonic() - start
+        process.kill()
+        process.wait()
+        pytest.fail(
+            f"#5108: {description} did not exit within "
+            f"{SIGNAL_EXIT_TIMEOUT_SECONDS}s (waited {elapsed:.1f}s). At this "
+            "cap the signal was not delivered or the handler did not run; "
+            "machine load alone does not explain it.",
+            pytrace=False,
+        )
 
 
 def _child_process() -> subprocess.Popen[str]:
@@ -100,7 +143,7 @@ def _ready_workspace(process: subprocess.Popen[str]) -> dict[str, str]:
 
 def _stop_process(process: subprocess.Popen[str], signum: signal.Signals) -> int:
     os.kill(process.pid, signum)
-    return process.wait(timeout=30)
+    return _wait_for_exit(process, f"the child sent {signum.name}")
 
 
 def _marker_for(scratch_root: Path) -> Path:
@@ -211,6 +254,7 @@ def test_signal_at_cleanup_transition_still_runs_cleanup(
     assert not marker.exists()
 
 
+@pytest.mark.timeout(SIGNAL_TEST_TIMEOUT_SECONDS)
 @pytest.mark.parametrize("signum", [signal.SIGINT, signal.SIGTERM])
 def test_catchable_signal_removes_marker_and_scratch(
     signum: signal.Signals,
@@ -225,6 +269,7 @@ def test_catchable_signal_removes_marker_and_scratch(
     assert not Path(workspace["scratch"]).exists()
 
 
+@pytest.mark.timeout(SIGNAL_TEST_TIMEOUT_SECONDS)
 def test_signal_during_cleanup_is_deferred_until_cleanup_completes() -> None:
     process = _cleanup_signal_child_process()
     assert process.stdout is not None
@@ -232,11 +277,15 @@ def test_signal_during_cleanup_is_deferred_until_cleanup_completes() -> None:
     assert ready
     marker, scratch = (Path(value) for value in ready.split("|", maxsplit=1))
 
-    assert process.wait(timeout=30) == 128 + signal.SIGTERM
+    assert (
+        _wait_for_exit(process, "the child signalled during cleanup")
+        == 128 + signal.SIGTERM
+    )
     assert not marker.exists()
     assert not scratch.exists()
 
 
+@pytest.mark.timeout(SIGNAL_TEST_TIMEOUT_SECONDS)
 @pytest.mark.skipif(not hasattr(signal, "SIGKILL"), reason="SIGKILL unavailable")
 def test_sigkill_leaves_marker_blocks_push_and_recovers(
     capsys: pytest.CaptureFixture[str],
@@ -289,3 +338,68 @@ def test_concurrent_runs_use_distinct_markers_and_worktrees() -> None:
             marker = Path(workspace["marker"])
             if marker.exists():
                 assert recover_marker(REPO_ROOT, marker) == EXIT_OK
+
+
+@pytest.mark.timeout(SIGNAL_TEST_TIMEOUT_SECONDS)
+def test_wait_for_exit_returns_the_code_of_a_child_that_exits() -> None:
+    """Positive: the raised cap does not change the normal path."""
+    process = subprocess.Popen(
+        [sys.executable, "-c", "raise SystemExit(7)"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        encoding="utf-8",
+    )
+
+    assert _wait_for_exit(process, "a child that exits on its own") == 7
+
+
+@pytest.mark.timeout(SIGNAL_TEST_TIMEOUT_SECONDS)
+def test_wait_for_exit_fails_loudly_when_the_signal_is_never_handled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Negative: a genuine signal-handling regression still fails the test.
+
+    Issue #5108 acceptance criterion 2. The child installs ``SIG_IGN`` for
+    SIGTERM, which is exactly what a broken handler looks like from outside:
+    the signal lands and the process does not exit. The cap is shortened here
+    so the control runs in about a second rather than two minutes; the code
+    path under test is the same one the real cap reaches.
+    """
+    # Patch the binding the helper actually reads. --import-mode=importlib
+    # means sys.modules[__name__] is not reliably this module object.
+    monkeypatch.setitem(_wait_for_exit.__globals__, "SIGNAL_EXIT_TIMEOUT_SECONDS", 1)
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            "import signal, sys, time\n"
+            "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+            "print('ready', flush=True)\n"
+            "time.sleep(600)\n",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        encoding="utf-8",
+    )
+    try:
+        # Wait for the handler to be installed. Signalling before the child
+        # reaches signal.signal() kills it by the default action instead, and
+        # the control silently passes for the wrong reason.
+        assert process.stdout is not None
+        assert process.stdout.readline().strip() == "ready"
+
+        os.kill(process.pid, signal.SIGTERM)
+
+        with pytest.raises(pytest.fail.Exception) as failure:
+            _wait_for_exit(process, "a child ignoring SIGTERM")
+
+        message = str(failure.value)
+        assert "#5108" in message
+        assert "a child ignoring SIGTERM" in message
+        assert "waited " in message, "the diagnostic must name the elapsed time"
+    finally:
+        if process.poll() is None:  # pragma: no cover - only on an unexpected path
+            process.kill()
+            process.wait()
+
+    assert process.poll() is not None, "the helper must not leak the child process"
