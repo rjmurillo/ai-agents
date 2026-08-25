@@ -1,3 +1,14 @@
+---
+id: ADR-026
+status: accepted
+date: 2026-07-27
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-026: PR Automation Concurrency and Safety Controls
 
 ## Status
