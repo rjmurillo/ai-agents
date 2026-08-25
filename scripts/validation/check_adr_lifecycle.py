@@ -7,7 +7,7 @@
 # per-check counts against a frozen baseline, rewrite that baseline atomically),
 # and `.claude/rules/unified-software-engineering.md` rejects "shallow
 # pass-through layers" and "wrappers that add names but no simplification".
-# Splitting a seven-check gate across four modules would put the check list, the
+# Splitting an eight-check gate across four modules would put the check list, the
 # violation type, and the ratchet arithmetic in different files that must be
 # read together to answer any question about the gate. The executable code
 # alone, with every docstring stripped, is still well over the 500-line
