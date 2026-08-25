@@ -40,10 +40,21 @@ TARGET = Path("scripts/validation/portability_common.py")
 # to stay below the per-test pytest-timeout budget below, or pytest-timeout
 # kills the test first and the diagnostic never prints.
 SIGNAL_EXIT_TIMEOUT_SECONDS = 120
-# Above SIGNAL_EXIT_TIMEOUT_SECONDS so the diagnostic wins the race. The global
-# --timeout=120 in pyproject.toml is too tight for the raised cap, so the tests
-# that wait on a signalled child carry their own budget.
-SIGNAL_TEST_TIMEOUT_SECONDS = 180
+# Headroom above the wait cap(s) a single test can spend, so _wait_for_exit's
+# diagnostic wins the race instead of being preempted by pytest-timeout. The
+# global --timeout=120 in pyproject.toml is too tight for the raised cap, so the
+# tests that wait on a signalled child carry their own budget.
+SIGNAL_TEST_TIMEOUT_MARGIN_SECONDS = 60
+# One sequential wait: the tests that signal a single child.
+SIGNAL_TEST_TIMEOUT_SECONDS = SIGNAL_EXIT_TIMEOUT_SECONDS + SIGNAL_TEST_TIMEOUT_MARGIN_SECONDS
+# Two sequential waits: test_concurrent_runs_use_distinct_markers_and_worktrees
+# signals one child, waits for it, then signals the second. A one-cap budget
+# would let pytest-timeout preempt the second wait's diagnostic, which is the
+# failure this module exists to make legible. Sized by the arithmetic rather
+# than a flat number so adding a third wait forces the constant to be revisited.
+CONCURRENT_SIGNAL_TEST_TIMEOUT_SECONDS = (
+    2 * SIGNAL_EXIT_TIMEOUT_SECONDS + SIGNAL_TEST_TIMEOUT_MARGIN_SECONDS
+)
 
 
 def _wait_for_exit(process: subprocess.Popen[str], description: str) -> int:
@@ -62,9 +73,11 @@ def _wait_for_exit(process: subprocess.Popen[str], description: str) -> int:
         process.wait()
         pytest.fail(
             f"#5108: {description} did not exit within "
-            f"{SIGNAL_EXIT_TIMEOUT_SECONDS}s (waited {elapsed:.1f}s). At this "
-            "cap the signal was not delivered or the handler did not run; "
-            "machine load alone does not explain it.",
+            f"{SIGNAL_EXIT_TIMEOUT_SECONDS}s (waited {elapsed:.1f}s). The "
+            "signal was not delivered, the handler did not run, or the machine "
+            "was starved past this cap. The cap is a deadlock backstop, not a "
+            "measured bound on signal-delivery latency under load, so it does "
+            "not by itself distinguish a code regression from starvation.",
             pytrace=False,
         )
 
@@ -314,6 +327,7 @@ def test_sigkill_leaves_marker_blocks_push_and_recovers(
     assert not Path(workspace["scratch"]).exists()
 
 
+@pytest.mark.timeout(CONCURRENT_SIGNAL_TEST_TIMEOUT_SECONDS)
 def test_concurrent_runs_use_distinct_markers_and_worktrees() -> None:
     first = _child_process()
     second = _child_process()
