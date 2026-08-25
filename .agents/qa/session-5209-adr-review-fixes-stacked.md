@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 34bfc867daf873f1b28ea6538a1c193c40bf379c
+qaCommit: d331cba4f9ea50a32ca362ab0eb82f69b2188bb9
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -9,7 +9,7 @@ qaCommit: 34bfc867daf873f1b28ea6538a1c193c40bf379c
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `34bfc867daf873f1b28ea6538a1c193c40bf379c` (see Addendum 41)
+**Validated at commit**: `d331cba4f9ea50a32ca362ab0eb82f69b2188bb9` (see Addendum 42)
 
 ## Verdict
 
@@ -1162,3 +1162,18 @@ splitting "Files changed" into own-vs-inherited, and same eight review
 threads investigated and resolved; full detail lives in that addendum.
 
 **Rebound to** `34bfc867daf873f1b28ea6538a1c193c40bf379c`.
+
+## Addendum 42: same date-regression revert and QA header fix as Addendum 41 of the campaign report
+
+Same two Copilot findings, same investigation, same fix: reverted my own
+earlier merge-conflict resolution's regression on ADR-042 and ADR-063
+frontmatter `date`, restoring both to their genuine last-updated values
+(`2026-04-13`, `2026-07-27`) per ADR-073's own schema comment
+(`.agents/architecture/ADR-073-adr-lifecycle-frontmatter.md:49`,
+`date: YYYY-MM-DD # last updated`) and each record's own later
+`## Amendment` section. Added Batch 29 to the debate log and regenerated
+the ADR index. Aligned this campaign's other QA report's drifted
+`Validated at commit` header to its `qaCommit` frontmatter. Full detail
+lives in that addendum. Commit `d331cba4f`.
+
+**Rebound to** `d331cba4f9ea50a32ca362ab0eb82f69b2188bb9`.

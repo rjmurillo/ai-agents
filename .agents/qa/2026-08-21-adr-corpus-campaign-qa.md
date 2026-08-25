@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 34bfc867daf873f1b28ea6538a1c193c40bf379c
+qaCommit: d331cba4f9ea50a32ca362ab0eb82f69b2188bb9
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `63c04c4029c289a973b29595cb516f2b0911c15c`
+**Validated at commit**: `d331cba4f9ea50a32ca362ab0eb82f69b2188bb9` (see Addendum 41)
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -1953,3 +1953,57 @@ explanation above. Each reply cites the specific commit or line that
 resolves it rather than a bare "done".
 
 **Rebound to** `34bfc867daf873f1b28ea6538a1c193c40bf379c`.
+
+## Addendum 41: reverting my own regression on ADR-042 and ADR-063 dates, and a QA header mismatch
+
+Two GitHub notifications arrived on PR #5230 after the previous push: a
+Copilot review comment on `.agents/critique/ADR-073-phase2-backfill-debate-log.md:545`,
+and a Copilot review comment on this file's own line 11.
+
+**The debate log finding, investigated and fixed in the opposite direction
+from what it literally suggested.** Copilot flagged the debate log's
+`ADR-042 | accepted | 2026-04-13` row as stale against the live frontmatter
+(which read `2026-01-17` after Addendum 39's merge-conflict resolution) and
+asked for the row to be changed to match. Before making that edit, checked
+ADR-073's own schema comment for what the frontmatter `date` field actually
+means: `.agents/architecture/ADR-073-adr-lifecycle-frontmatter.md:49` reads
+`date: YYYY-MM-DD          # last updated`. ADR-042 carries a genuine
+"Amendment 1" section with its own `### Date` subheading reading
+`2026-04-13` (line 169), and its Amendment Log table confirms the same date
+for the amendment event (line 234). ADR-063 has the identical shape: an
+"Amendment 2026-07-27" section (line 313) with real content, updating a
+citation per ADR-088. The debate log's own deliberated table already had
+both values right (`ADR-042` at line 545, `ADR-063` at line 563), each
+following the full six-role debate documented earlier in that same file
+(the "seven wrong date values" investigation, lines 592 to 609, which
+names ADR-042 specifically and cites the confirming commit `4d1aaa5e1`,
+PR #1647).
+
+**What that means: Addendum 39's merge-conflict resolution was itself the
+regression on these two records.** That addendum reasoned that PR #5291's
+bulk campaign had "mis-extracted a later, unrelated event date... as if it
+were the original decision date" for all three ADRs, and corrected all
+three to match each file's own `## Date` section. That reasoning holds for
+ADR-005, which carries no `## Amendment` section, so its `## Date` value is
+also its last-updated value. It does not hold for ADR-042 or ADR-063: both
+carry a later `## Amendment` section with real content, and the campaign's
+values matched those amendment dates, not a mis-extraction. Addendum 39
+checked only the top of each file and missed the later section. Restored
+both frontmatter fields to the debate log's values
+(`2026-04-13`, `2026-07-27`), added Batch 29 to the debate log itself
+documenting the correction and citing this same evidence chain, and
+regenerated `.agents/architecture/README.md`. Commit `d331cba4f`.
+
+`check_adr_lifecycle.py`: 1 violation across 102 records, no check above
+baseline (unchanged from Addendum 34). `tests/validation/test_check_adr_lifecycle.py`
+(122), `tests/test_adr_063_memory_skill_decomposition.py`, and
+`tests/validation/test_check_adr_links.py` (125 combined) all pass.
+
+**The QA header mismatch, a real drift, fixed.** Copilot separately found
+this file's own `**Validated at commit**` header (line 11) still read the
+pre-fix-round commit `63c04c4029c289a973b29595cb516f2b0911c15c` after the
+`qaCommit` frontmatter field had already been rebound to `34bfc867d...` in
+Addendum 40. The sister report keeps the two fields in lockstep; this one
+had drifted for one round. Both now read the current commit.
+
+**Rebound to** `d331cba4f9ea50a32ca362ab0eb82f69b2188bb9`.
