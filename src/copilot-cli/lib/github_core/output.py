@@ -205,6 +205,21 @@ def write_skill_error(
         # one (Copilot review on PR #5283, following the ADR-103 Round 5
         # convergence check).
         raise ValueError(f"message must be a string, got: {type(message).__name__}")
+    # Scope note before the guard below: it checks TYPE only (int, not
+    # bool), not the VALUE RANGE the "Exit code per ADR-035" docstring
+    # above names. ADR-035's own table (.agents/architecture/ADR-035-
+    # exit-code-standardization.md:52-60) reserves 5-99 ("do not use
+    # until standardized") and requires 100+ codes to be documented in
+    # the calling script's header. At least one existing caller already
+    # violates that: .claude/skills/github/scripts/pr/merge_pr.py:377
+    # passes exit_code=6 for "PR is not mergeable", a 5-99 value,
+    # documented in that script's own header (lines 21-27) rather than
+    # migrated to 100+. Enforcing the full range here would break that
+    # caller (and any other repo-wide violator not yet surveyed) without
+    # an accompanying migration, which is a separate, wider change than
+    # this guard's narrow type-safety fix. Tracked as issue #5303 rather
+    # than silently left unenforced (Copilot review on PR #5283,
+    # `scripts/github_core/output.py:208`).
     if isinstance(exit_code, bool) or not isinstance(exit_code, int):
         # skill-output.schema.json types Error.Code as "type": "integer"
         # (pre-dates ADR-103) and both scripts/validate_skill_output.py
