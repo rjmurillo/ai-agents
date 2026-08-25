@@ -150,3 +150,50 @@ question about the tier model itself rather than about pre-push cost.
 2. Work #5317 before re-attempting any deduplication.
 3. Work #5318's five items; the tail is the part of the operator's stated
    problem this record does not solve.
+
+## Round 2: the acceptance gate closed
+
+Round 1 ended with acceptance gated on one thing no seat could supply: an
+end-to-end in-hook measurement of the pre-push hook during a real push.
+`ci-scripts.md` MUST-16 forbids sizing a pre-push budget from a standalone run,
+and every number Round 1 had was standalone. The critic (C4),
+independent-thinker (I3), advisor (H5) and architect (A7) seats each raised
+this independently, from four different angles.
+
+The first push of this branch supplied it. Lefthook 2.1.10, same 4-CPU
+container:
+
+```text
+total                        142.39s   (679s recorded for a comparable push)
+  pre-pr-validation          105.48s   (110.12s recorded)
+  fast parallel stage         55.32s   ( 56.21s recorded, max member 20.62s)
+  python-tests                15.10s   (498.52s recorded)
+  security-scan               13.02s
+```
+
+Three findings from Round 1 are settled by this rather than argued:
+
+- The analyst's N1 objection to the 140s projection is moot. The projection was
+  removed rather than repaired, and the measured figure, 142.39s, happens to
+  land near it. That is a coincidence worth naming, not a vindication: the
+  projection's arithmetic was still wrong, and it would have been wrong at any
+  outcome.
+- The advisor's "median fixed, tail untouched" verdict holds exactly. Every
+  glob-gated tail job cost under 3s on this push because none of their globs
+  fired hard. Nothing here measures the tail; issue #5318 still owns it.
+- The shape changed. `pre-pr-validation` is now 74% of the hook. The
+  duplication the advisor's H1 and the reverted skip were both about is now the
+  largest remaining target, which raises issue #5317's priority.
+
+The first push attempt also produced an unplanned observation. The
+`mutation-safety` guard refused it in 0.33s, on leftover harness state from a
+SIGKILLed run earlier in the session. Its own `recover` command could not clear
+the marker: the marker compares a file hash against a snapshot taken before
+commits that legitimately advanced HEAD, so a clean tree still reads as
+modified. Clearing it required proving by hand that the working tree matched
+HEAD. That is a real gap in the harness's recovery path and is recorded against
+issue #5318.
+
+The architect seat's A5 remains open and unaddressed: the tier model still has
+no placement rule for the six non-blocking advisory reporters or the two
+local-state repair actions in pre-push.

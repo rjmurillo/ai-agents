@@ -18,10 +18,12 @@ Proposed. Six-seat adr-review debate held 2026-08-25; log at
 seats and this record is the rewrite. `implemented` stays false until the
 branch merges, per ADR-073's definition of that field.
 
-Acceptance is gated on one thing this record cannot yet supply: an end-to-end
-wall-clock measurement of the hook during a real push. `ci-scripts.md` MUST-16
-forbids sizing a pre-push budget from a standalone run, and every number below
-is standalone. Do not move this to `accepted` without it.
+Acceptance was gated on an end-to-end wall-clock measurement of the hook during
+a real push, because `ci-scripts.md` MUST-16 forbids sizing a pre-push budget
+from a standalone run. That measurement now exists and is in Consequences
+below: 142.39s, against 679s recorded for a comparable push. The gate is
+cleared. The remaining reason this stays `proposed` is that the branch has not
+merged.
 
 ## Date
 
@@ -196,9 +198,33 @@ is real and worth roughly 40s; issue #5317 carries three costed options.
 - `.github/workflows/pytest.yml` gained the Markdown roots its own tests read,
   so the delegation in rule 4 has somewhere to land at PR time.
 
-Wall clock for a Markdown-only push is not stated here. Summing standalone
-components would produce a number MUST-16 says not to trust, and the real
-figure arrives with the first push on this branch.
+### Measured in-hook, first real push of this branch
+
+Lefthook 2.1.10, same 4-CPU container, `git push` of this branch. These are
+in-hook numbers, so MUST-16 is satisfied and no projection is involved.
+
+```text
+total                        142.39s   (679s recorded for a comparable push)
+  pre-pr-validation          105.48s   (110.12s recorded)
+  fast parallel stage         55.32s   ( 56.21s recorded, max member 20.62s)
+  python-tests                15.10s   (498.52s recorded)
+  security-scan               13.02s
+  every other job              under 3s each
+```
+
+Note the shape change. `python-tests` fell 33x and is no longer the hook.
+`pre-pr-validation` is now 74% of it, which makes the duplication issue #5317
+describes the next thing worth removing, not a leftover detail. The fast stage
+did not move, and its 2.67x contention over 4 cores is unaddressed here.
+
+One more thing this push demonstrated, unplanned. The `mutation-safety` guard
+refused the first attempt in 0.33s, on leftover harness state from a SIGKILLed
+run. Under the pre-change hook that refusal would still have been first, but
+the point stands for the tier model: a cheap guard placed ahead of the
+expensive stage returns its verdict in under a second. The guard's `recover`
+command could not clear the marker, because it compares against a snapshot
+taken before commits that legitimately advanced HEAD; clearing it needed a
+manual check that the tree matched HEAD. Recorded for issue #5318.
 
 ## Known non-conformances
 
@@ -296,6 +322,9 @@ itself mean tests ran.
   change class.
 - Hook output on the fallback path dropped from 31,765 lines to 878, which is a
   token cost as well as a wall-clock one.
+- Measured end to end on a real push: 142.39s against 679s recorded for a
+  comparable push, a 4.8x reduction, with `python-tests` falling from 498.52s
+  to 15.10s.
 
 ### Negative
 
