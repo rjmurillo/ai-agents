@@ -452,7 +452,10 @@ SEMGREP_COMMAND_LENGTH_LIMIT = 24_000
 # Lefthook owns the outer deadline; these child-process budgets must finish first.
 DEFAULT_SUBPROCESS_TIMEOUT_SECONDS = 90
 SEMGREP_TIMEOUT_SECONDS = 840
-MYPY_TIMEOUT_SECONDS = 840
+# Scoped to files differing from origin/main, so this is a handful of files,
+# not the tree. Measured 2.73s in-hook and 1.07s cold. Was 840s, which forced
+# a 15m outer cap through the ADR-086 item 9 headroom rule for no reason.
+MYPY_TIMEOUT_SECONDS = 60
 # Below the `workflow-local-run` lefthook cap (10m), same reason as above.
 WORKFLOW_LOCAL_TIMEOUT_SECONDS = 540
 # Scope the workflow-local gate to workflows this push changed versus the

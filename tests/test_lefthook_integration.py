@@ -793,8 +793,11 @@ def test_configuration_bounds_every_job() -> None:
         assert all(isinstance(job.get("timeout"), str) for job in jobs)
 
     pre_push = _job_map(config, "pre-push")
-    assert pre_push["python-tests"]["timeout"] == "30m"
-    assert pre_push["workflow-local-run"]["timeout"] == "30m"
+    # Both were 30m. Resized from in-hook measurement (ADR-104 rule 7): the
+    # cap is the ceiling for the opt-in local-execution path, and each job's
+    # inner budget now sits under it so the inner timeout fires first.
+    assert pre_push["python-tests"]["timeout"] == "15m"
+    assert pre_push["workflow-local-run"]["timeout"] == "10m"
     assert pre_push["security-scan"]["timeout"] == "15m"
     assert pre_push["hook-anchoring-e2e"]["timeout"] == "20m"
     assert pre_push["plugin-load-e2e"]["timeout"] == "20m"
@@ -926,7 +929,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         # generated-staleness gate's outer-cap clamp; the cross-check
         # against the actual timeout lives in
         # tests/validation/test_check_generated_staleness.py.
-        "PRE_PR_OUTER_CAP_SECONDS": "900",
+        "PRE_PR_OUTER_CAP_SECONDS": "240",
     }
     assert pre_push_jobs["python-tests"]["env"] == {"AI_AGENTS_PYTEST_WORKER_CAP": "4"}
     assert pre_push_jobs["push-ref-policy"]["use_stdin"] is True
@@ -7102,6 +7105,12 @@ def test_cli_e2e_runs_with_clean_plugin_environment(
             return ("", "")
 
     monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
+    # Pin the workstation contract. `_run_command` clamps a child's deadline
+    # inside a managed container (ADR-104 rule 8), and this repository's own
+    # dev containers set CLAUDECODE, so without this the assertion below reads
+    # the clamp rather than the budget it is about. The container behaviour is
+    # covered by its own test below.
+    monkeypatch.setattr(policy, "_container_clamped", lambda seconds: seconds)
 
     assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
     env = captured["env"]
@@ -7110,6 +7119,79 @@ def test_cli_e2e_runs_with_clean_plugin_environment(
     assert captured["timeout"] == policy.CLI_E2E_TIMEOUT_SECONDS
     assert "CLAUDE_PROJECT_DIR" not in env
     assert "COPILOT_PLUGIN_ROOT" not in env
+
+
+def test_a_container_clamps_the_cli_e2e_child_deadline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The other half of the contract the test above pins.
+
+    A managed container is reclaimed after a period without progress, so a
+    child allowed 1140s there can outlive the environment and take the push
+    with it, leaving no diagnostic. On a workstation the same budget is
+    correct, which is why the two cases are asserted separately.
+    """
+    monkeypatch.delenv("SKIP_CLI_E2E", raising=False)
+    monkeypatch.setattr(policy.shutil, "which", lambda name: name if name == "copilot" else None)
+    captured: dict[str, object] = {}
+
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
+
+        def __init__(self, _args: Sequence[str], **kwargs: object) -> None:
+            captured.update(kwargs)
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
+            captured["timeout"] = timeout
+            return ("", "")
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setenv("CLAUDECODE", "1")
+
+    assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
+
+    assert captured["timeout"] == policy.CONTAINER_SUBPROCESS_CEILING_SECONDS
+    assert policy.CONTAINER_SUBPROCESS_CEILING_SECONDS < policy.CLI_E2E_TIMEOUT_SECONDS
+
+
+def test_ci_keeps_the_full_budget_even_inside_a_container_image(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Negative control: CI must not inherit the clamp.
+
+    CI runners can carry container markers, and a real hang there is a real
+    failure that should surface as one. `_is_remote_container` returns False
+    whenever the CI marker is truthy, and this is the assertion that says so.
+    """
+    monkeypatch.delenv("SKIP_CLI_E2E", raising=False)
+    monkeypatch.setattr(policy.shutil, "which", lambda name: name if name == "copilot" else None)
+    captured: dict[str, object] = {}
+
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
+
+        def __init__(self, _args: Sequence[str], **kwargs: object) -> None:
+            captured.update(kwargs)
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
+            captured["timeout"] = timeout
+            return ("", "")
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
+    monkeypatch.setenv("CLAUDECODE", "1")
+    monkeypatch.setenv("CI", "true")
+
+    assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
+    assert captured["timeout"] == policy.CLI_E2E_TIMEOUT_SECONDS
 
 
 def test_cli_e2e_without_cli_fails_closed(

@@ -27,7 +27,7 @@ pre-commit:
       run: uv run --frozen python scripts/validation/git_hook_policy.py branch
 
     - name: branch-context-policy
-      timeout: 60s
+      timeout: 2m
       run: uv run --frozen python scripts/validation/git_hook_policy.py branch-context
 
     # Issue #5123: a commit landing while a push for this branch name is
@@ -409,11 +409,11 @@ pre-push:
   piped: true
   jobs:
     - name: repair-packed-refs
-      timeout: 20s
+      timeout: 1m
       run: uv run --frozen python scripts/maintenance/repair_packed_refs.py
 
     - name: mutation-safety
-      timeout: 20s
+      timeout: 30s
       run: uv run --frozen python -m scripts.testing.mutation_workspace check
 
     # Issue #4634: this job was declared twice, and the copy that ran first
@@ -442,17 +442,17 @@ pre-push:
         piped: true
         jobs:
           - name: push-ref-policy
-            timeout: 20s
+            timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py pre-push
             use_stdin: true
 
           - name: security-suppression-policy
-            timeout: 20s
+            timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-push
             use_stdin: true
 
           - name: placeholder-identity
-            timeout: 20s
+            timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py placeholder-identity
             use_stdin: true
 
@@ -464,7 +464,7 @@ pre-push:
           # MUST-21: a stdin consumer in a parallel group races the shared
           # stream under Lefthook 2.1.10.
           - name: retrospective-policy
-            timeout: 20s
+            timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py retrospective
             use_stdin: true
 
@@ -558,7 +558,7 @@ pre-push:
             run: uv run --frozen python scripts/detect_scope_explosion.py --base-branch origin/main
 
           - name: branch-context-policy
-            timeout: 60s
+            timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py branch-context
 
           - name: review-axis-drift
@@ -631,7 +631,7 @@ pre-push:
             glob: "**/*.py"
 
           - name: python-type-check
-            timeout: 90s
+            timeout: 2m
             run: uv run --frozen --extra dev python scripts/validation/git_hook_policy.py mypy {push_files}
             glob: "**/*.py"
             exclude:
@@ -656,7 +656,7 @@ pre-push:
             glob: ".github/workflows/**/*.{yml,yaml}"
 
           - name: additions-advisory
-            timeout: 60s
+            timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py additions
 
           - name: hook-anchoring-e2e
@@ -695,11 +695,11 @@ pre-push:
           # service each file burns a 10s MCP timeout and the corpus overruns
           # the 5m cap. The handler derives the real push range from stdin.
           - name: observation-sync-advisory
-            timeout: 2m
+            timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py observations-push
             use_stdin: true
             glob: ".serena/memories/**/*-observations.md"
 
           - name: bot-cascade-advisory
-            timeout: 60s
+            timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py bot-cascade

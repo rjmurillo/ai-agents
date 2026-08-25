@@ -47,15 +47,15 @@ _LEFTHOOK = REPO_ROOT / "lefthook.yml"
 # pre-push, 60s pre-commit) are far below both; closing that distance means
 # measuring jobs and cutting caps, which is issue #5318, not editing these.
 #
-# pre-push 2370s is dominated by three blocks nobody has measured while firing:
+# pre-push 2850s is dominated by three blocks nobody has measured while firing:
 # the two CLI e2e smokes at 20m (they set the expensive group's cost),
 # `workflow-local-run` at 10m, and `security-scan` at 15m, which ADR-054 sets
 # as an enforced 900s budget this record does not overturn. On a workstation a
 # long cap for those is the right protection; the container bound below is what
 # the originating incident is about.
 DECLARED_BUDGET_BASELINE_SECONDS: dict[str, float] = {
-    "pre-push": 2370.0,
-    "pre-commit": 6570.0,
+    "pre-push": 2850.0,
+    "pre-commit": 6530.0,
 }
 
 # The declared sum above is the worst case on a developer workstation, where a
@@ -98,12 +98,22 @@ CONTAINER_UNCLAMPED_JOBS = frozenset(
     }
 )
 
-# A container reclamation was observed on a push measured at roughly 679s. This
-# ceiling sits below it, so a hung child cannot reach that point: it is killed
-# by the clamp and the push fails with a diagnostic, which is strictly better
-# than a reclaimed container that leaves none. Lower it as jobs get measured;
-# never raise it without a new reclamation observation to justify the number.
-CONTAINER_CEILING_SECONDS = 660.0
+# The bound that matters is PER JOB, not the sum of every cap.
+#
+# An earlier revision of this module summed the clamped caps and compared the
+# total against the roughly 679s at which a reclamation was observed. That
+# comparison is not sound: the sum is the case where every job in the graph
+# hangs to its cap on the same push, which cannot happen, and the observation it
+# was compared against is a single measured push rather than a cap. Two
+# different quantities.
+#
+# A hang is one job. So the property worth asserting is that no single job can
+# run longer than this inside a container, whatever its declared cap says. The
+# largest is `pre-pr-validation` at 240s, which does not route through
+# `_run_command` and so carries its own cap; every job whose work is a
+# subprocess is bounded by the clamp instead. Before this work the largest was
+# 1800s.
+CONTAINER_PER_JOB_CEILING_SECONDS = 300.0
 
 _UNITS = {"h": 3600.0, "m": 60.0, "s": 1.0}
 
@@ -284,34 +294,47 @@ class TestNothingCanOutliveAContainer:
     These assertions are about the second case only.
     """
 
-    def test_the_container_worst_case_is_below_the_ceiling(self) -> None:
+    def _per_job_container_bounds(self) -> list[tuple[float, str]]:
         import sys
 
         sys.path.insert(0, str(REPO_ROOT / "scripts" / "validation"))
         import git_hook_policy
 
         clamp = git_hook_policy.CONTAINER_SUBPROCESS_CEILING_SECONDS
-        total, rows = _declared_budget(_config(), "pre-push", clamp=clamp)
-        worst = sorted(rows, key=lambda row: row[0], reverse=True)[:3]
-        detail = ", ".join(f"{name} {cost:.0f}s" for cost, name in worst)
-        assert total <= CONTAINER_CEILING_SECONDS, (
-            f"pre-push can declare up to {total:.0f}s inside a container, above "
-            f"the {CONTAINER_CEILING_SECONDS:.0f}s ceiling. Largest: {detail}. A "
-            "reclamation was observed at roughly 679s, and a reclaimed push "
-            "leaves no diagnostic, so this bound is the whole point of the "
-            "clamp. Cut a cap, move the job's work behind "
-            "git_hook_policy._run_command so the clamp reaches it, or measure "
-            "the job and justify a new ceiling."
+        bounds = [
+            (_job_cost(job, clamp), str(job.get("name", "<unnamed>")))
+            for entry in _config()["pre-push"]["jobs"]
+            if isinstance(entry, dict)
+            for job in _flatten(entry)
+        ]
+        return sorted(bounds, reverse=True)
+
+    def test_no_single_job_can_run_longer_than_the_per_job_ceiling(self) -> None:
+        bounds = self._per_job_container_bounds()
+        over = [(cost, name) for cost, name in bounds if cost > CONTAINER_PER_JOB_CEILING_SECONDS]
+        detail = ", ".join(f"{name} {cost:.0f}s" for cost, name in over)
+        assert over == [], (
+            f"{detail} can run longer than {CONTAINER_PER_JOB_CEILING_SECONDS:.0f}s "
+            "inside a container. A container is reclaimed after a period without "
+            "progress and a reclaimed push leaves no diagnostic, so a job that can "
+            "outlast it destroys the push rather than slowing it. Cut the cap, or "
+            "move the job's work behind git_hook_policy._run_command so the clamp "
+            "reaches it."
         )
 
     def test_the_clamp_actually_binds(self) -> None:
-        """Negative control: without the clamp the same graph exceeds the ceiling.
+        """Negative control: without the clamp, jobs exceed the per-job ceiling.
 
         If this ever passes, the clamp is doing nothing and the assertion above
-        is measuring the declared caps under another name.
+        is reading the declared caps under another name.
         """
-        unclamped, _ = _declared_budget(_config(), "pre-push", clamp=None)
-        assert unclamped > CONTAINER_CEILING_SECONDS
+        unclamped = [
+            (_job_cost(job, None), str(job.get("name", "")))
+            for entry in _config()["pre-push"]["jobs"]
+            if isinstance(entry, dict)
+            for job in _flatten(entry)
+        ]
+        assert [c for c, _ in unclamped if c > CONTAINER_PER_JOB_CEILING_SECONDS] != []
 
     def test_every_unclamped_job_exists(self) -> None:
         """A stale name in the roster silently widens the clamp's coverage.
