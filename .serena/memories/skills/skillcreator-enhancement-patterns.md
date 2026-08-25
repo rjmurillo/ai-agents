@@ -3,6 +3,13 @@
 **Date**: 2025-12-30
 **Session**: 105
 
+> **IMPORTANT (2026-08-25, issue #5201)**: the "ADR-005 violations" row below
+> is stale. ADR-005 (PowerShell-only scripting) was superseded by ADR-042
+> (Python migration) on 2026-01-17; both now carry ADR-073 machine-readable
+> frontmatter confirming this. Converting bash to PowerShell to fix an
+> "ADR-005 violation" is no longer correct guidance. New scripts are Python
+> per ADR-042; see `.claude/rules/universal.md` SHOULD-3.
+
 ## Using skillcreator to Review Existing Skills
 
 When reviewing an existing skill with skillcreator methodology:
@@ -19,7 +26,7 @@ When reviewing an existing skill with skillcreator methodology:
 | No triggers section | Add 3-5 varied phrases |
 | Missing verification | Add checkbox checklist |
 | No anti-patterns | Add table with avoid/why/instead |
-| ADR-005 violations | Convert bash to PowerShell |
+| ~~ADR-005 violations~~ | ~~Convert bash to PowerShell~~ (stale; ADR-005 superseded by ADR-042, see banner above) |
 
 ## Frontmatter Format
 
