@@ -539,6 +539,61 @@ def _normalize_adr_id(reference: str) -> str | None:
     return None
 
 
+@dataclass(frozen=True, slots=True)
+class _ChainWalk:
+    """Result of walking a ``superseded-by`` chain from one hop past ``record``.
+
+    Exactly one of ``cycle``, ``dangling_ref``, or ``dangling_no_successor``
+    is set on an unresolved walk; none are set when the walk reached a real,
+    non-retired terminal. Split out of ``_successor_cell`` so the walk's own
+    branching and the rendering dispatch each stay under the cyclomatic
+    complexity ceiling in ``.claude/rules/code-quality.md`` (taste-lint,
+    PR #5285 review).
+    """
+
+    chain: list[AdrRecord]
+    cycle: bool = False
+    repeat_id: str = ""
+    dangling_ref: str | None = None
+    dangling_no_successor: bool = False
+
+
+def _walk_supersession_chain(
+    record: AdrRecord, successor: AdrRecord, by_id: dict[str, AdrRecord]
+) -> _ChainWalk:
+    """Walk ``superseded-by`` from ``successor`` to a terminal, a cycle, or a dead end."""
+    chain: list[AdrRecord] = []
+    seen = {record.adr_id}
+    current = successor
+    while current.adr_id not in seen:
+        chain.append(current)
+        seen.add(current.adr_id)
+        if current.status not in _RETIRED_STATUSES:
+            return _ChainWalk(chain)
+        if not current.successor:
+            # `current` (already appended to chain above) is itself retired
+            # with no `superseded-by` at all: the same "not recorded" dead
+            # end the `not record.successor` check in _successor_cell reports
+            # for record's own first hop, but here on an intermediate.
+            # Falling through to a resolved terminal would link to `current`
+            # as if it were resolved, when it is a dangling supersession with
+            # nowhere to send the reader (Copilot, PR #5285 review).
+            return _ChainWalk(chain, dangling_no_successor=True)
+        nxt_id = _normalize_adr_id(current.successor)
+        nxt = by_id.get(nxt_id) if nxt_id is not None else None
+        if nxt is None:
+            # `current` is retired and names a successor this corpus has no
+            # record for: the same dangling-reference problem
+            # `_successor_cell` handles for record's own first hop, but here
+            # it is an intermediate, whose own citation is a dead end
+            # (AI Spec Validator, PR #5285 review).
+            return _ChainWalk(chain, dangling_ref=current.successor)
+        current = nxt
+    # The while condition went false: `current` revisited a node already in
+    # `seen`, so every record walked is retired with nowhere to land.
+    return _ChainWalk(chain, cycle=True, repeat_id=current.adr_id)
+
+
 def _successor_cell(record: AdrRecord, by_id: dict[str, AdrRecord]) -> str:
     """Where a reader who followed a stale citation should go instead.
 
@@ -581,65 +636,27 @@ def _successor_cell(record: AdrRecord, by_id: dict[str, AdrRecord]) -> str:
     if successor is None:
         return _cell(record.successor)
 
-    chain: list[AdrRecord] = []
-    seen = {record.adr_id}
-    current = successor
-    cycle = False
-    repeat_id = ""
-    dangling_ref: str | None = None
-    dangling_no_successor = False
-    while current.adr_id not in seen:
-        chain.append(current)
-        seen.add(current.adr_id)
-        if current.status not in _RETIRED_STATUSES:
-            break
-        if not current.successor:
-            # `current` (already appended to chain above) is itself retired
-            # with no `superseded-by` at all: the same "not recorded" dead
-            # end the `not record.successor` check above reports for
-            # record's own first hop, but here on an intermediate. Falling
-            # through to `terminal = chain[-1]` would link to `current` as a
-            # resolved redirect when it is a dangling supersession with
-            # nowhere to send the reader (Copilot, PR #5285 review).
-            dangling_no_successor = True
-            break
-        nxt_id = _normalize_adr_id(current.successor)
-        nxt = by_id.get(nxt_id) if nxt_id is not None else None
-        if nxt is None:
-            # `current` (already appended to chain above) is retired and
-            # names a successor this corpus has no record for. That is the
-            # same dangling-reference problem the `successor is None` check
-            # above handles for record's own first hop, but here it is an
-            # intermediate: falling through to `terminal = chain[-1]` below
-            # would link to `current` as if it were resolved, when its own
-            # citation is a dead end (AI Spec Validator, PR #5285 review).
-            dangling_ref = current.successor
-            break
-        current = nxt
-    else:
-        # The while condition went false: `current` revisited a node already
-        # in `seen`, so every record walked is retired with nowhere to land.
-        cycle = True
-        repeat_id = current.adr_id
+    walk = _walk_supersession_chain(record, successor, by_id)
+    chain = walk.chain
 
-    if cycle:
-        # Close the loop at the node that was actually revisited (repeat_id),
-        # not unconditionally at record.adr_id: record may only lead into a
-        # cycle among later records without being part of it itself (A -> B
-        # -> C -> D -> C, where the cycle is C <-> D and A, B are not on it),
-        # and closing on record.adr_id there invents an edge back to A that
-        # never exists (Cursor Bugbot, PR #5285 review). repeat_id equals
-        # record.adr_id whenever record itself sits on the cycle, so a
-        # one-hop self-reference (A names itself) and a direct mutual pair
-        # (A <-> B) still close on record.adr_id as before.
-        loop = " -> ".join([record.adr_id, *(r.adr_id for r in chain), repeat_id])
+    if walk.cycle:
+        # Close the loop at the node that was actually revisited
+        # (walk.repeat_id), not unconditionally at record.adr_id: record may
+        # only lead into a cycle among later records without being part of
+        # it itself (A -> B -> C -> D -> C, where the cycle is C <-> D and A,
+        # B are not on it), and closing on record.adr_id there invents an
+        # edge back to A that never exists (Cursor Bugbot, PR #5285 review).
+        # repeat_id equals record.adr_id whenever record itself sits on the
+        # cycle, so a one-hop self-reference (A names itself) and a direct
+        # mutual pair (A <-> B) still close on record.adr_id as before.
+        loop = " -> ".join([record.adr_id, *(r.adr_id for r in chain), walk.repeat_id])
         return f"cycle, unresolved ({loop})"
 
-    if dangling_ref is not None:
+    if walk.dangling_ref is not None:
         path = " -> ".join([record.adr_id, *(r.adr_id for r in chain)])
-        return f"unresolved ({path} -> {_cell(dangling_ref)})"
+        return f"unresolved ({path} -> {_cell(walk.dangling_ref)})"
 
-    if dangling_no_successor:
+    if walk.dangling_no_successor:
         path = " -> ".join([record.adr_id, *(r.adr_id for r in chain)])
         return f"unresolved ({path}, no successor recorded)"
 
