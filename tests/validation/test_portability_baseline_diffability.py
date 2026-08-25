@@ -330,6 +330,9 @@ class TestEveryCheckerRefusesAHiddenBaseline:
         _git(root, "config", "core.attributesFile", str(root / "absent-global"))
         for tree in (".claude/skills", "src/copilot-cli/skills"):
             (root / tree).mkdir(parents=True, exist_ok=True)
+        # check_skill_md_portability also requires src/copilot-cli/instructions
+        # to exist (issue #5214); harmless to the other two checkers here.
+        (root / "src" / "copilot-cli" / "instructions").mkdir(parents=True, exist_ok=True)
         target = root / "scripts" / "validation" / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps({"files": {}, "marker_files": {}}) + "\n")
