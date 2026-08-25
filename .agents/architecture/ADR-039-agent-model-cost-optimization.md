@@ -273,7 +273,10 @@ git revert f101c06 d81f237 651205a
 
 ## Related Decisions
 
-- [ADR-002: Agent Model Selection Optimization](ADR-002-agent-model-selection-optimization.md) - Superseded
+- [ADR-002: Agent Model Selection Optimization](ADR-002-agent-model-selection-optimization.md)
+  - The supersession this record originally claimed never took effect, so
+    `supersedes` is `[]`. See the 2026-08-25 status resolution above. ADR-002 is
+    deprecated on its own separate grounds.
 - ADR-007: Memory-First Architecture - Memory agent performance (reference only)
 
 ## References

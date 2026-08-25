@@ -18,7 +18,7 @@ implemented: true
 > ADR-073 frontmatter yet, so claiming the relationship here would leave a
 > one-sided reference with no reciprocal `superseded-by` on the other end. Issue
 > #5192 owns both targets and owes the reciprocal edit; the claim returns to this
-> record when it can be made from both sides at once.
+> record when it can be made from both sides at once. (Struck 2026-08-25.)
 
 **Date**: 2025-12-29
 **Authors**: DevOps Agent
