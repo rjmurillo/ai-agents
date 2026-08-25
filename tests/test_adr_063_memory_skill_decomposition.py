@@ -74,7 +74,35 @@ def adr_text() -> str:
 
 
 def _resolve_status() -> str:
-    """Ask the canonical detector. Never reimplement it here."""
+    """Ask the canonical detector. Never reimplement it here.
+
+    Canonical source: `.claude/skills/adr-review/scripts/detect_adr_changes.py`,
+    `_get_adr_status` at lines 246 to 315. Its contract, quoted verbatim from
+    that docstring (lines 266 to 272):
+
+        Returns :data:`STATUS_UNKNOWN` when the record declares no status: file
+        missing or unreadable, no complete frontmatter block, malformed or
+        non-mapping frontmatter, no ``status`` key, or a non-scalar value (a
+        YAML sequence or mapping, [...]). ``unknown`` is a distinct sentinel;
+        callers MUST NOT treat it as ``proposed``.
+
+    and its terminal branch verbatim (lines 312 to 315):
+
+        status = fields.get("status")
+        if status is None or isinstance(status, (list, dict)):
+            return STATUS_UNKNOWN
+        return str(status).strip().lower()
+
+    Two consequences bind the assertions below. The parser reads ONLY the
+    leading fenced frontmatter block, so a bare ``status:`` line in the prose
+    body resolves to ``unknown``, not ``proposed``. And the returned value is
+    lowercased, so the frontmatter ``accepted`` this record declares is what
+    `test_detector_resolves_status_to_accepted` compares against.
+
+    Stricter/looser/different than canonical: none. This helper adds no
+    parsing, no default, and no normalization of its own; it forwards one path
+    and returns what the canonical parser returns.
+    """
     return _detector._get_adr_status(ADR_PATH)
 
 
