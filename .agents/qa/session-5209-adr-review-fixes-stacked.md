@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 15fc72fdab4ba7a7cf01e6712f1fcc53df6cb982
+qaCommit: 63bac7e5615f1c3417e971272100e918ced03788
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -809,3 +809,12 @@ fixes. Full detail, including the flake-confirmation evidence for
 tests/test_mutation_workspace_signals.py, in that addendum.
 
 **Rebound to** `15fc72fdab4ba7a7cf01e6712f1fcc53df6cb982`.
+
+## Addendum 30: same rebind as Addendum 28 of the campaign report
+
+A second merge from `origin/main` (PR #5283's ADR-005/ADR-042/ADR-103
+status reconciliation), 5 conflicts resolved by inspection. Full
+detail, including the date-field reasoning and the mirror-regeneration
+choice over hand-editing, in that addendum.
+
+**Rebound to** `63bac7e5615f1c3417e971272100e918ced03788`.

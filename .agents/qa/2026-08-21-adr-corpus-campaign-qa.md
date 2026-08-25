@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 15fc72fdab4ba7a7cf01e6712f1fcc53df6cb982
+qaCommit: 63bac7e5615f1c3417e971272100e918ced03788
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1510,3 +1510,40 @@ phase running in a sibling worktree; a clean re-run with no other
 push or pytest process active passed all 8).
 
 **Rebound to** `15fc72fdab4ba7a7cf01e6712f1fcc53df6cb982`.
+
+## Addendum 28: merged `origin/main` again, resolved 5 conflicts
+
+`origin/main` advanced past the previous merge with PR #5283 (ADR-005/
+ADR-042/ADR-028/ADR-031/ADR-056 status reconciliation, plus the new
+ADR-103). Merging conflicted on 5 files, all resolved by inspection:
+
+- `ADR-005`: date/decision-makers conflict. This branch's `2025-12-18`
+  date matched the file's own prose (kept); origin's `decision-makers`
+  (`[User, Orchestrator Agent, Implementer Agent]`) matched the prose
+  `**Deciders**:` line exactly, more accurate than this branch's
+  `[rjmurillo]` (adopted).
+- `ADR-042`: date conflict. Origin's `2026-08-25` reflects a real,
+  same-day frontmatter addition (`supersedes: [ADR-005]`), a
+  legitimate "last updated" value distinct from the file's own
+  `## Date` prose section (`2026-01-17`, the original decision date,
+  unchanged); kept.
+- `.claude/skills/memory-gate/SKILL.md` (+ Copilot mirror): both sides
+  fixed the same bullet's citation-of-superseded-ADR-as-current-policy
+  problem, origin's rewrite is the more complete fix (this branch's was
+  a narrower wording correction inside the framing origin replaced
+  entirely); kept origin's, regenerated the mirror via
+  `build/scripts/generate_skills.py` rather than hand-editing it.
+- `scripts/forgetful/README.md`: a stale `.ps1` filename in this
+  branch's copy vs. origin's correct `.py` filename (verified the `.py`
+  file exists, the `.ps1` does not); kept origin's.
+
+Merge commit `63bac7e5615f1c3417e971272100e918ced03788`. Re-verified
+post-merge: `check_adr_lifecycle.py` `[PASS] 1 violation(s) across 103
+ADR record(s)` (including a clean `status-edge-consistency` result
+against PR #5283's new reciprocal ADR-005/ADR-042 edges), `check_adr_
+links.py` 0 violations across 1591 files, `taste_count_ratchet.py` `575
+<= baseline 576`, `tests/validation/test_check_adr_lifecycle.py` +
+`test_check_adr_links.py` + `tests/build_scripts/test_generate_adr_
+index.py` (311 tests) passed.
+
+**Rebound to** `63bac7e5615f1c3417e971272100e918ced03788`.
