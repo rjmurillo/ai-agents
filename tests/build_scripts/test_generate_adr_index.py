@@ -1371,6 +1371,255 @@ def test_a_duplicated_unhashable_key_is_caught_as_a_duplicate(tmp_path):
         build_record(adr)
 
 
+# Fenced code blocks ---------------------------------------------------------
+#
+# The summary extractor used to strip only ``` ``` ``` blocks, and it stripped
+# them after the heading search rather than before. Both halves are exercised
+# here: a fence the old regex could not see (tilde, or a four-backtick run
+# holding a three-backtick example), and a heading shown inside a code sample
+# outranking the real section (Copilot, PR #5209).
+
+
+def _summary_of(tmp_path: Path, body: str) -> str:
+    directory = tmp_path / "architecture"
+    _write_adr(
+        directory,
+        20,
+        "fenced",
+        frontmatter="id: ADR-020\nstatus: accepted\n",
+        body=body,
+    )
+    return generate_adr_index.collect_records(directory)[0].summary
+
+
+def test_a_backtick_fence_in_decision_is_not_the_summary(tmp_path: Path) -> None:
+    """Positive control: the case the old regex did handle still works."""
+    summary = _summary_of(
+        tmp_path,
+        "# ADR-020: Fenced\n"
+        "\n"
+        "## Decision\n"
+        "\n"
+        "```yaml\n"
+        "sample: not the decision\n"
+        "```\n"
+        "\n"
+        "Adopt the real decision.\n",
+    )
+
+    assert summary == "Adopt the real decision."
+
+
+def test_a_tilde_fence_in_decision_is_not_the_summary(tmp_path: Path) -> None:
+    """`~~~` is a CommonMark fence and the old regex matched only backticks."""
+    summary = _summary_of(
+        tmp_path,
+        "# ADR-020: Fenced\n"
+        "\n"
+        "## Decision\n"
+        "\n"
+        "~~~yaml\n"
+        "sample: not the decision\n"
+        "~~~\n"
+        "\n"
+        "Adopt the real decision.\n",
+    )
+
+    assert summary == "Adopt the real decision."
+    assert "sample" not in summary
+
+
+def test_a_long_fence_is_not_closed_by_a_shorter_inner_run(tmp_path: Path) -> None:
+    """A four-backtick block holding a ``` example closes only on four.
+
+    The old regex opened on the first three backticks of ```` and closed on the
+    inner three-backtick line, so the block's real closing fence and everything
+    it wrapped stayed in the prose.
+    """
+    summary = _summary_of(
+        tmp_path,
+        "# ADR-020: Fenced\n"
+        "\n"
+        "## Decision\n"
+        "\n"
+        "````markdown\n"
+        "```\n"
+        "sample fence content\n"
+        "```\n"
+        "````\n"
+        "\n"
+        "Adopt the real decision.\n",
+    )
+
+    assert summary == "Adopt the real decision."
+    assert "sample fence content" not in summary
+
+
+def test_a_fenced_heading_does_not_shadow_the_real_decision_section(tmp_path: Path) -> None:
+    """`_section_body` searched the raw body, so the first textual match won.
+
+    A record that documents the ADR format by showing `## Decision` inside a
+    markdown sample published the sample's prose as its decision.
+    """
+    summary = _summary_of(
+        tmp_path,
+        "# ADR-020: Fenced\n"
+        "\n"
+        "## Context\n"
+        "\n"
+        "The record template looks like this:\n"
+        "\n"
+        "```markdown\n"
+        "## Decision\n"
+        "\n"
+        "Fake decision from a code sample.\n"
+        "```\n"
+        "\n"
+        "## Decision\n"
+        "\n"
+        "Adopt the real decision.\n",
+    )
+
+    assert summary == "Adopt the real decision."
+    assert "Fake" not in summary
+
+
+def test_a_fenced_heading_does_not_end_a_section_early(tmp_path: Path) -> None:
+    """`_SECTION_END_RE` reads headings literally too, so a fenced `## ` line
+    inside Decision used to close the section before its prose."""
+    summary = _summary_of(
+        tmp_path,
+        "# ADR-020: Fenced\n"
+        "\n"
+        "## Decision\n"
+        "\n"
+        "```markdown\n"
+        "## Consequences\n"
+        "```\n"
+        "\n"
+        "Adopt the real decision.\n",
+    )
+
+    assert summary == "Adopt the real decision."
+
+
+def test_a_fenced_h1_does_not_become_the_title(tmp_path: Path) -> None:
+    """The title reader shares the fence blindness the summary reader had.
+
+    Fixing only `## Decision` would leave the same defect one heading level up,
+    so `_extract_title` reads the stripped body as well.
+    """
+    directory = tmp_path / "architecture"
+    _write_adr(
+        directory,
+        21,
+        "fenced-title",
+        frontmatter="id: ADR-021\nstatus: accepted\n",
+        body=(
+            "```markdown\n"
+            "# ADR-999: Fake Title\n"
+            "```\n"
+            "\n"
+            "# ADR-021: Real Title\n"
+            "\n"
+            "## Decision\n"
+            "\n"
+            "Do it.\n"
+        ),
+    )
+
+    record = generate_adr_index.collect_records(directory)[0]
+
+    assert record.title == "Real Title"
+
+
+def test_an_unterminated_fence_swallows_the_rest_rather_than_publishing_it(
+    tmp_path: Path,
+) -> None:
+    """Edge: CommonMark runs an unclosed fence to the end of the document.
+
+    The prose after it is code as far as the parser is concerned, so the row
+    carries no summary rather than a line lifted out of a code block.
+    """
+    summary = _summary_of(
+        tmp_path,
+        "# ADR-020: Fenced\n"
+        "\n"
+        "## Decision\n"
+        "\n"
+        "```yaml\n"
+        "sample: never closed\n"
+        "\n"
+        "Adopt the real decision.\n",
+    )
+
+    assert summary == ""
+
+
+def test_a_fence_between_two_paragraphs_still_separates_them(tmp_path: Path) -> None:
+    """Edge: fenced lines are blanked, not deleted.
+
+    Deleting them would join the prose on either side into one paragraph and
+    publish both halves. Asserted on the blocker rather than the summary
+    because `_decision_summary` sentence-splits afterwards and would mask the
+    join; `_blocking_condition` publishes the whole paragraph.
+    """
+    directory = tmp_path / "architecture"
+    _write_adr(
+        directory,
+        20,
+        "fenced",
+        frontmatter="id: ADR-020\nstatus: proposed\n",
+        body=(
+            "# ADR-020: Fenced\n"
+            "\n"
+            "## Status\n"
+            "\n"
+            "Proposed. Waiting on the eval.\n"
+            "```yaml\n"
+            "sample: not the blocker\n"
+            "```\n"
+            "Trailing prose that must not be appended.\n"
+            "\n"
+            "## Decision\n"
+            "\n"
+            "Adopt the real decision.\n"
+        ),
+    )
+
+    record = generate_adr_index.collect_records(directory)[0]
+
+    assert record.blocker == "Waiting on the eval."
+    assert "Trailing prose" not in record.blocker
+
+
+def test_a_fence_shaped_line_with_an_info_string_does_not_close_a_block(
+    tmp_path: Path,
+) -> None:
+    """CommonMark closing fences take no info string.
+
+    An inner ```` ```python ```` line inside an open block is content. Treating
+    it as a close would resume prose scanning one fence early and let the real
+    closing fence reopen the block.
+    """
+    summary = _summary_of(
+        tmp_path,
+        "# ADR-020: Fenced\n"
+        "\n"
+        "## Decision\n"
+        "\n"
+        "```markdown\n"
+        "```python\n"
+        "sample = 'not the decision'\n"
+        "```\n"
+        "\n"
+        "Adopt the real decision.\n",
+    )
+
+    assert summary == "Adopt the real decision."
+    assert "sample" not in summary
+
+
 @pytest.mark.parametrize(
     "first_line", ['"status": proposed', "'status': proposed", "status : proposed"]
 )

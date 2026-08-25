@@ -127,7 +127,22 @@ _STATUS_HEADING_RE = re.compile(r"(?m)^##[ \t]+Status[ \t]*$")
 # stopping at level 3 leaves those sections empty.
 _SECTION_END_RE = re.compile(r"(?m)^#{1,2}[ \t]+\S")
 
-_FENCE_RE = re.compile(r"(?ms)^[ \t]*```.*?^[ \t]*```[ \t]*$")
+# A fence opener or closer. Mirrors scripts/validation/check_adr_links.py:79-88
+# verbatim, the repo's canonical fence scanner. The ``[...]`` elides the rest
+# of that comment (its lines 82-87), which explains why the cap is three
+# spaces and not four:
+#   # CommonMark caps fence indentation at three spaces
+#   # (spec.commonmark.org/0.31.2/#fenced-code-blocks, quoted verbatim): a fenced
+#   # code block "begins with a code fence, preceded by up to three spaces of
+#   # indentation" [...]
+#   FENCE = re.compile(r"^ {0,3}(?P<marker>`{3,}|~{3,})")
+# `build/scripts/validate_install_parity.py:212` carries the identical pattern
+# for the same job. The earlier expression here was
+# ``r"(?ms)^[ \t]*```.*?^[ \t]*```[ \t]*$"``, which saw only three-backtick
+# fences: a ``~~~`` block or a four-backtick block containing a ``` example
+# stayed in the prose and could become the published decision summary
+# (Copilot, PR #5209).
+_FENCE_RE = re.compile(r"^ {0,3}(?P<marker>`{3,}|~{3,})")
 
 # Stripped before the sentence split, not after: ADR-094 writes
 # ``1. **Supersede ADR-044 in full.** Keep ...``, where the closing ``**`` sits
@@ -330,18 +345,90 @@ def _scalar(frontmatter: dict[str, object], key: str) -> str:
     return str(value).strip()
 
 
-def _extract_title(body: str, path: Path) -> str:
-    """Return the H1 title with any redundant ``ADR-NNN:`` prefix removed."""
-    match = _H1_RE.search(body)
+def _extract_title(prose: str, path: Path) -> str:
+    """Return the H1 title with any redundant ``ADR-NNN:`` prefix removed.
+
+    Takes the fence-stripped body: a ``# Heading`` shown inside a markdown
+    code sample is sample text, and one appearing above the record's own H1
+    used to be published as the record's title.
+    """
+    match = _H1_RE.search(prose)
     if match is None:
         raise AdrIndexError(f"{path.name} has no H1 title line")
     title = _TITLE_ID_PREFIX_RE.sub("", match.group(1).strip()).strip()
     return title or match.group(1).strip()
 
 
+def _strip_fences(text: str) -> str:
+    """Blank every line inside a fenced code block, leaving line count intact.
+
+    Fenced content is illustration, not prose. It is blanked before any heading
+    search, not after, because a heading shown inside a code sample otherwise
+    shadows the real one: ``_section_body`` used to search the raw body for
+    ``## Decision``, take the first hit, and publish a sample's text as the
+    record's decision summary while the real section went unread (Copilot,
+    PR #5209).
+
+    Mirrors ``scan_file`` in ``scripts/validation/check_adr_links.py``, whose
+    docstring states the rule verbatim:
+
+        Fence tracking keys on the opening marker's character AND run length,
+        not a bare open/closed toggle. CommonMark closes a fence only with the
+        same character it opened with, in a run at least as long as the opening
+        one (spec.commonmark.org section 4.5)
+
+    and, on the closing fence's trailing text:
+
+        A fence-shaped line only closes the block when its character and length
+        match or exceed the opener AND the rest of the line is whitespace-only,
+        per CommonMark's closing-fence rule (spec.commonmark.org/0.31.2/
+        #fenced-code-blocks): a line such as ``` ```python ``` inside an
+        already-open ``` block is content (an inner example), not a close,
+        because CommonMark closing fences take no info string
+
+    Same rule, different verb: that scanner skips fenced lines, this one
+    replaces them with empty ones. Blank rather than delete, so a fence sitting
+    between two paragraphs still separates them for ``_first_paragraph``'s
+    ``\\n\\n`` split; deleting the lines would join the prose on either side
+    into one paragraph. Indented (4-space) code blocks and inline single-
+    backtick spans are out of scope here exactly as they are there.
+
+    An unterminated fence swallows the rest of the text, which is CommonMark's
+    own behavior for an unclosed block and matches
+    ``validate_install_parity.py``'s reading of the same state ("the rest of
+    the document was swallowed").
+    """
+    out: list[str] = []
+    fence_char: str | None = None
+    fence_length = 0
+    for line in text.split("\n"):
+        match = _FENCE_RE.match(line)
+        if match:
+            run = match.group("marker")
+            char, length = run[0], len(run)
+            trailing_is_whitespace_only = not line[match.end() :].strip()
+            if fence_char is None:
+                fence_char, fence_length = char, length
+            elif char == fence_char and length >= fence_length and trailing_is_whitespace_only:
+                fence_char, fence_length = None, 0
+            # else: a fence-shaped line that does not close (wrong character, a
+            # shorter run than the opener, or trailing text after the marker) is
+            # content, not a delimiter; fence_char/fence_length hold.
+            out.append("")
+            continue
+        out.append("" if fence_char is not None else line)
+    return "\n".join(out)
+
+
 def _section_body(body: str, heading: re.Pattern[str]) -> str:
     """Text under the first match of ``heading``, up to the next level-1 or
-    level-2 heading, so ``###`` subsections stay inside their section."""
+    level-2 heading, so ``###`` subsections stay inside their section.
+
+    ``body`` must already be fence-stripped (see ``_strip_fences``): both the
+    heading search and ``_SECTION_END_RE`` read markdown headings literally, so
+    a fenced ``## Decision`` sample would otherwise open a section and a fenced
+    ``## Anything`` would close one early.
+    """
     match = heading.search(body)
     if match is None:
         return ""
@@ -351,11 +438,15 @@ def _section_body(body: str, heading: re.Pattern[str]) -> str:
 
 
 def _first_paragraph(section: str) -> str:
-    """The section's first prose paragraph as one line. Fenced code and
-    subsection headings are skipped, so a Decision section opening with
-    ``### 1. ...`` or a YAML block yields the prose beneath it, not nothing."""
-    stripped = _FENCE_RE.sub("", section)
-    for block in stripped.split("\n\n"):
+    """The section's first prose paragraph as one line.
+
+    Subsection headings are skipped here, so a Decision section opening with
+    ``### 1. ...`` yields the prose beneath it, not nothing. Fenced code is
+    already gone: ``_strip_fences`` runs once over the whole body in
+    ``build_record``, before any heading is searched for, rather than once per
+    section afterwards.
+    """
+    for block in section.split("\n\n"):
         lines = [
             line
             for line in block.splitlines()
@@ -387,24 +478,30 @@ def _first_item(lines: list[str]) -> list[str]:
     return item
 
 
-def _decision_summary(body: str) -> str:
+def _decision_summary(prose: str) -> str:
     """One-line decision summary, or ``""`` when the record states none.
 
     Covers the canonical ``## Decision`` and the MADR ``## Decision Outcome``.
     ADR-030 and ADR-095 have neither, so their rows carry the title alone.
+
+    ``prose`` is the fence-stripped body from ``_strip_fences``, never the raw
+    one: a ``## Decision`` inside a code sample is not a section heading.
     """
-    paragraph = _first_paragraph(_section_body(body, _DECISION_HEADING_RE))
+    paragraph = _first_paragraph(_section_body(prose, _DECISION_HEADING_RE))
     return _SENTENCE_SPLIT_RE.split(paragraph, 1)[0].strip() if paragraph else ""
 
 
-def _blocking_condition(body: str) -> str:
+def _blocking_condition(prose: str) -> str:
     """What a proposed record says is blocking its acceptance, or ``""``.
 
     The prose ``## Status`` paragraph minus a leading bare "Proposed" token. This
     reads a record's statement of its own blocker; it does not infer status,
     which comes from frontmatter and nowhere else.
+
+    Takes the fence-stripped body, for the same reason ``_decision_summary``
+    does.
     """
-    paragraph = _first_paragraph(_section_body(body, _STATUS_HEADING_RE))
+    paragraph = _first_paragraph(_section_body(prose, _STATUS_HEADING_RE))
     return _LEADING_PROPOSED_RE.sub("", paragraph).strip()
 
 
@@ -450,6 +547,13 @@ def build_record(path: Path) -> AdrRecord:
     # CRLF normalised once so every regex below sees a bare newline.
     text = path.read_text(encoding="utf-8").replace("\r\n", "\n")
     frontmatter, body = parse_frontmatter(text, path)
+    # Fences are blanked once, here, before anything searches for a heading.
+    # Every body reader below (title, Decision, Status) matches markdown
+    # headings literally, so all three shared one failure: a heading shown
+    # inside a code sample outranked the real one purely by appearing earlier
+    # in the file (Copilot, PR #5209). Fixing only the Decision reader would
+    # have left the same defect one heading level up.
+    prose = _strip_fences(body)
 
     status = _status_of(frontmatter, path) if frontmatter is not None else None
     successor = _scalar(frontmatter, "superseded-by") if frontmatter else ""
@@ -460,12 +564,12 @@ def build_record(path: Path) -> AdrRecord:
         number=number,
         adr_id=f"ADR-{number:03d}",
         filename=path.name,
-        title=_extract_title(body, path),
+        title=_extract_title(prose, path),
         status=status,
         date=date,
-        summary=_decision_summary(body),
+        summary=_decision_summary(prose),
         successor=successor or None,
-        blocker=_blocking_condition(body),
+        blocker=_blocking_condition(prose),
         review_by=review_by,
     )
 
