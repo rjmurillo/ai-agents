@@ -232,7 +232,7 @@ See `templates/agents/implementer.shared.md` for session start/end integration:
 - `.forgetful/exports/README.md` - Workflow documentation
 - `.claude-mem/scripts/` - Claude-Mem export/import (similar pattern)
 - `scripts/Review-MemoryExportSecurity.ps1` - Security scanner
-- ADR-005 - PowerShell-Only Scripting
+- ADR-005 - PowerShell-Only Scripting (superseded by ADR-042)
 - ADR-007 - Memory-First Architecture
 
 ## Troubleshooting
