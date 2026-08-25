@@ -83,7 +83,7 @@ class TestExistenceAndTitle:
         assert ADR_PATH.is_file()
 
     def test_title_names_the_decomposition_decision(self, adr_text: str) -> None:
-        """The H1 is found, not assumed to be line one.
+        """The document's actual first H1 is the ADR-063 title, not merely present.
 
         This asserted `splitlines()[0]` until frontmatter was added, at which
         point the first line became `---` and the test failed for a reason
@@ -91,11 +91,33 @@ class TestExistenceAndTitle:
         it, issue #5190 backfill). Anchoring an assertion to a position
         rather than to the structure it means is the same coupling that let
         a body `status:` line pass as frontmatter for months.
+
+        A later revision replaced the position anchor with
+        ``[ln for ln in ... if ln.startswith("# ADR-063:")]``, which filters
+        for the wanted line rather than locating the document's real first
+        H1. A file beginning with a wrong H1 (``# Wrong title``) followed
+        later by ``# ADR-063: ...`` still passed: the filter finds exactly
+        one matching line regardless of where it sits. Copilot's review on
+        PR #5230 caught this (2026-08-25); fixed by locating the first H1
+        with the same regex the canonical title extractor uses and asserting
+        it, not a filtered line, is the ADR-063 title.
+
+        Mirrors ``build/scripts/generate_adr_index.py:114`` verbatim per
+        ``canonical-source-mirror.md``:
+            _H1_RE = re.compile(r"(?m)^#[ \\t]+(.+?)[ \\t]*$")
+        That module's own `_extract_title` (line 340-346) calls
+        ``_H1_RE.search(body)``, i.e. the first match by position, which is
+        exactly the "real first H1" semantics this test now enforces.
         """
-        titles = [ln for ln in adr_text.splitlines() if ln.startswith("# ADR-063:")]
-        assert len(titles) == 1, f"expected exactly one H1 title, found {len(titles)}"
-        assert "memory" in titles[0].lower()
-        assert "decompos" in titles[0].lower()
+        h1_re = re.compile(r"(?m)^#[ \t]+(.+?)[ \t]*$")
+        match = h1_re.search(adr_text)
+        assert match is not None, "ADR file has no H1 title line"
+        title = match.group(0)
+        assert title.startswith("# ADR-063:"), (
+            f"document's first H1 is not the ADR-063 title: {title!r}"
+        )
+        assert "memory" in title.lower()
+        assert "decompos" in title.lower()
 
 
 class TestRequiredSections:
