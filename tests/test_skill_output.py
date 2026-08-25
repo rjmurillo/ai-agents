@@ -1,17 +1,20 @@
-"""Tests for skill_output module and validate_skill_output script.
+"""Tests for the skill_output module and validate_skill_output's validate_envelope.
 
 Covers:
 - get_output_format resolution
 - write_skill_output JSON envelope structure
 - write_skill_error JSON envelope structure
-- validate_skill_output integration (valid, invalid, path traversal)
+- validate_envelope's field-by-field contract, in-process
+
+CLI subprocess integration tests (invalid JSON, path traversal, symlink
+attacks) live in test_skill_output_cli.py, split out once this file crossed
+the 500-line taste-lint gate.
 """
 
 from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 from unittest import mock
@@ -20,7 +23,6 @@ import pytest
 
 # Add scripts directory to path for imports
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SCRIPTS_DIR = REPO_ROOT / "scripts"
 sys.path.insert(0, str(REPO_ROOT))
 
 # isort: skip_file
@@ -353,90 +355,96 @@ class TestValidateEnvelope:
         errors = validate_envelope(envelope)  # must not raise
         assert any("Error.Type must be a string" in e for e in errors)
 
+    @pytest.mark.parametrize("top_level", [None, 1, "a string", ["an", "array"]])
+    def test_non_dict_top_level_is_rejected_without_crashing(
+        self, top_level: object
+    ) -> None:
+        """skill-output.schema.json's top level is "type": "object". The CLI
+        passes json.loads()'s result straight through, and valid JSON such
+        as null, a number, a string, or an array reaches validate_envelope
+        unchanged.
 
-class TestValidateSkillOutputScript:
-    """Integration tests for validate_skill_output.py CLI."""
+        Before this fix, `"Success" not in data` raised TypeError for None
+        or a number (not iterable), and an array reached `data["Metadata"]`
+        and raised TypeError, instead of producing a finding and exit code
+        1. Caught by Copilot review on PR #5283, commit 6639555b8.
+        """
+        errors = validate_envelope(top_level)  # must not raise
+        assert any("Envelope must be a JSON object" in e for e in errors)
 
-    def _run_validator(self, json_input: str) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            [sys.executable, str(SCRIPTS_DIR / "validate_skill_output.py")],
-            input=json_input,
-            capture_output=True,
-            text=True, encoding="utf-8",
-            timeout=30,
-        )
+    def test_missing_error_key_is_rejected(self) -> None:
+        """Error is a required key (ADR-103 Decision item 1), distinct from
+        an explicit null value.
 
-    def test_validates_success_envelope(self) -> None:
+        `data.get("Error")` returns None for both a missing key and an
+        explicit `"Error": null`, so a hand-built envelope that omits the
+        key entirely was indistinguishable from one that carries it as
+        null and passed validate_envelope either way. Only the latter
+        satisfies the schema's `oneOf(null, object)`. Caught by Copilot
+        review on PR #5283, commit 6639555b8.
+        """
         envelope = {
             "Success": True,
-            "Data": {"Result": "ok"},
-            "Error": None,
-            "Metadata": {
-                "Script": "test.py",
-                "Version": "1.0.0",
-                "Timestamp": "2026-03-08T12:00:00Z",
-            },
+            "Data": None,
+            "Metadata": {"Script": "test.py", "Timestamp": "2026-03-08T12:00:00Z"},
         }
-        result = self._run_validator(json.dumps(envelope))
-        assert result.returncode == 0
-        assert "PASS" in result.stdout
+        errors = validate_envelope(envelope)
+        assert any("Missing required field: Error" in e for e in errors)
 
-    def test_validates_error_envelope(self) -> None:
+    def test_non_string_metadata_fields_are_rejected(self) -> None:
+        """skill-output.schema.json types Metadata.Script and
+        Metadata.Timestamp as "type": "string". Checking only truthiness
+        let {"Script": 1, "Timestamp": 1} pass silently, disagreeing with
+        the schema. Caught by Copilot review on PR #5283, commit
+        6639555b8.
+        """
+        envelope = {
+            "Success": True,
+            "Data": None,
+            "Error": None,
+            "Metadata": {"Script": 1, "Timestamp": 1},
+        }
+        errors = validate_envelope(envelope)
+        assert any("Metadata.Script must be a string" in e for e in errors)
+        assert any("Metadata.Timestamp must be a string" in e for e in errors)
+
+    def test_non_string_error_message_is_rejected(self) -> None:
+        """skill-output.schema.json types Error.Message as "type": "string".
+        Caught by Copilot review on PR #5283, commit 6639555b8.
+        """
         envelope = {
             "Success": False,
             "Data": None,
-            "Error": {"Message": "fail", "Code": 1, "Type": "General"},
-            "Metadata": {
-                "Script": "test.py",
-                "Version": "1.0.0",
-                "Timestamp": "2026-03-08T12:00:00Z",
-            },
+            "Error": {"Message": 123, "Code": 1, "Type": "General"},
+            "Metadata": {"Script": "test.py", "Timestamp": "2026-03-08T12:00:00Z"},
         }
-        result = self._run_validator(json.dumps(envelope))
-        assert result.returncode == 0
+        errors = validate_envelope(envelope)
+        assert any("Error.Message must be a string" in e for e in errors)
 
-    def test_rejects_invalid_json(self) -> None:
-        result = self._run_validator("not json")
-        assert result.returncode == 1
+    def test_non_integer_error_code_is_rejected(self) -> None:
+        """skill-output.schema.json types Error.Code as "type": "integer".
+        Caught by Copilot review on PR #5283, commit 6639555b8.
+        """
+        envelope = {
+            "Success": False,
+            "Data": None,
+            "Error": {"Message": "fail", "Code": "one", "Type": "General"},
+            "Metadata": {"Script": "test.py", "Timestamp": "2026-03-08T12:00:00Z"},
+        }
+        errors = validate_envelope(envelope)
+        assert any("Error.Code must be an integer" in e for e in errors)
 
-    def test_rejects_path_traversal(self) -> None:
-        traversal = str(REPO_ROOT / ".." / ".." / ".." / "etc" / "passwd")
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(SCRIPTS_DIR / "validate_skill_output.py"),
-                "--input-file",
-                traversal,
-            ],
-            capture_output=True,
-            text=True, encoding="utf-8",
-            timeout=30,
-        )
-        assert result.returncode == 1
-        assert "Path traversal attempt detected" in result.stdout
+    def test_boolean_error_code_is_rejected(self) -> None:
+        """A JSON boolean is not a JSON integer, even though Python's `bool`
+        subclasses `int` (`isinstance(True, int)` is `True`). A naive
+        `isinstance(code, int)` check would accept `Code: true`.
+        """
+        envelope = {
+            "Success": False,
+            "Data": None,
+            "Error": {"Message": "fail", "Code": True, "Type": "General"},
+            "Metadata": {"Script": "test.py", "Timestamp": "2026-03-08T12:00:00Z"},
+        }
+        errors = validate_envelope(envelope)
+        assert any("Error.Code must be an integer" in e for e in errors)
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="Symlinks require privileges on Windows")
-    def test_rejects_symlink_traversal(self, external_tmp_path: Path) -> None:
-        # Create external file outside repo
-        external_file = external_tmp_path / "external.json"
-        external_file.write_text('{"Success": true}')
-
-        # Create symlink inside repo pointing outside
-        symlink_path = REPO_ROOT / f"test-symlink-{os.getpid()}.json"
-        try:
-            symlink_path.symlink_to(external_file)
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(SCRIPTS_DIR / "validate_skill_output.py"),
-                    "--input-file",
-                    str(symlink_path),
-                ],
-                capture_output=True,
-                text=True, encoding="utf-8",
-                timeout=30,
-            )
-            assert result.returncode == 1
-            assert "Path traversal attempt detected" in result.stdout
-        finally:
-            symlink_path.unlink(missing_ok=True)

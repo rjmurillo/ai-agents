@@ -93,6 +93,27 @@ def _validate_success_field(data: dict) -> list[str]:
     return errors
 
 
+def _validate_metadata_string_field(metadata: dict, field: str) -> list[str]:
+    """Validate one of Metadata's required string sub-fields (Script, Timestamp).
+
+    skill-output.schema.json types both `"Script"` and `"Timestamp"` as
+    `"type": "string"`. Checking only truthiness let a non-string value
+    (for example `{"Script": 1, "Timestamp": 1}`) pass silently, so the
+    validator disagreed with the schema it claims to enforce (Copilot
+    review on PR #5283, commit 6639555b8). Does not additionally enforce
+    Timestamp's `"format": "date-time"`: JSON Schema draft-07 treats
+    `format` as an annotation validators may choose to assert, and this
+    validator does not carry a date-time parser dependency for it.
+    """
+    errors: list[str] = []
+    value = metadata.get(field)
+    if not value:
+        errors.append(f"Metadata.{field} is required")
+    elif not isinstance(value, str):
+        errors.append(f"Metadata.{field} must be a string, got: {type(value).__name__}")
+    return errors
+
+
 def _validate_metadata_field(data: dict) -> list[str]:
     """Validate the envelope's Metadata field: present, an object, Script, Timestamp.
 
@@ -113,10 +134,8 @@ def _validate_metadata_field(data: dict) -> list[str]:
                 f"Metadata must be an object, got: {type(metadata).__name__}"
             )
         else:
-            if not metadata.get("Script"):
-                errors.append("Metadata.Script is required")
-            if not metadata.get("Timestamp"):
-                errors.append("Metadata.Timestamp is required")
+            errors.extend(_validate_metadata_string_field(metadata, "Script"))
+            errors.extend(_validate_metadata_string_field(metadata, "Timestamp"))
     return errors
 
 
@@ -145,19 +164,57 @@ def _validate_error_type(error_type: object) -> list[str]:
     return errors
 
 
+def _validate_error_message_and_code(error_field: dict) -> list[str]:
+    """Validate Error.Message (string) and Error.Code (integer).
+
+    skill-output.schema.json types `Message` as `"type": "string"` and
+    `Code` as `"type": "integer"`. Checking only truthiness/presence let
+    `{"Message": 123, "Code": "one"}` pass, disagreeing with the schema
+    (Copilot review on PR #5283, commit 6639555b8). `bool` is excluded
+    from the integer check: Python's `bool` subclasses `int`, so
+    `isinstance(True, int)` is `True`, but a JSON boolean is not a JSON
+    integer.
+    """
+    errors: list[str] = []
+    message = error_field.get("Message")
+    if not message:
+        errors.append("Error.Message is required")
+    elif not isinstance(message, str):
+        errors.append(f"Error.Message must be a string, got: {type(message).__name__}")
+
+    if "Code" not in error_field:
+        errors.append("Error.Code is required")
+    else:
+        code = error_field["Code"]
+        if isinstance(code, bool) or not isinstance(code, int):
+            errors.append(f"Error.Code must be an integer, got: {type(code).__name__}")
+
+    return errors
+
+
 def _validate_error_field(data: dict) -> list[str]:
     """Validate the envelope's Error field.
 
-    Error is required (non-null) when Success=false (an envelope-level
-    rule, not part of the schema's Error sub-object contract). Independent
-    of Success, skill-output.schema.json's Error property is
-    `oneOf(null, object)`: a non-null, non-dict value (an array, string, or
-    number) is neither branch and must be rejected rather than silently
-    ignored, and a `Success: true` envelope carrying a malformed `Error`
-    object (still schema-invalid) must not pass silently either (ADR-103,
-    Copilot review on PR #5283, commit 508917d4b).
+    Error is a required key per the schema's top-level `required` array
+    (ADR-103 Decision item 1); its value is `oneOf(null, object)`. A
+    missing key and an explicit `null` value are distinct under the
+    schema (only the latter satisfies the `oneOf`), so `data.get("Error")`
+    alone cannot tell them apart; checked separately below (Copilot
+    review on PR #5283, commit 6639555b8).
+
+    Error is additionally required to be non-null when Success=false (an
+    envelope-level rule, not part of the schema's Error sub-object
+    contract). Independent of Success, a non-null, non-dict value (an
+    array, string, or number) is neither `oneOf` branch and must be
+    rejected rather than silently ignored, and a `Success: true` envelope
+    carrying a malformed `Error` object (still schema-invalid) must not
+    pass silently either (ADR-103, Copilot review on PR #5283, commit
+    508917d4b).
     """
     errors: list[str] = []
+    if "Error" not in data:
+        errors.append("Missing required field: Error")
+
     error_field = data.get("Error")
     if data.get("Success") is False and error_field is None:
         errors.append("Error field is required when Success is false")
@@ -167,16 +224,13 @@ def _validate_error_field(data: dict) -> list[str]:
             f"Error must be null or an object, got: {type(error_field).__name__}"
         )
     elif isinstance(error_field, dict):
-        if not error_field.get("Message"):
-            errors.append("Error.Message is required")
-        if "Code" not in error_field:
-            errors.append("Error.Code is required")
+        errors.extend(_validate_error_message_and_code(error_field))
         errors.extend(_validate_error_type(error_field.get("Type")))
 
     return errors
 
 
-def validate_envelope(data: dict) -> list[str]:
+def validate_envelope(data: object) -> list[str]:
     """Validate the output envelope against ADR-056 schema, as corrected by ADR-103.
 
     Sergeant method: delegates each field's contract to a dedicated
@@ -186,11 +240,24 @@ def validate_envelope(data: dict) -> list[str]:
     the limit.
 
     Args:
-        data: Parsed JSON object.
+        data: The result of `json.loads()` on the candidate envelope. Any
+            JSON value may arrive here (object, array, string, number,
+            bool, or null); only an object can be schema-valid.
 
     Returns:
         List of validation error messages. Empty list means valid.
     """
+    # skill-output.schema.json's top level is `"type": "object"`. The type
+    # annotation above (`data: dict`) is not enforced at runtime: the CLI
+    # passes `json.loads()`'s result straight through, and valid JSON such
+    # as `null`, `1`, or `[]` reaches here. Without this guard, `"Success"
+    # not in data` raises TypeError for `None`/`1` (not iterable), and an
+    # array reaches `data["Metadata"]` and raises TypeError, instead of
+    # producing a finding and exit code 1 (Copilot review on PR #5283,
+    # commit 6639555b8).
+    if not isinstance(data, dict):
+        return [f"Envelope must be a JSON object, got: {type(data).__name__}"]
+
     errors: list[str] = []
     errors.extend(_validate_success_field(data))
 
