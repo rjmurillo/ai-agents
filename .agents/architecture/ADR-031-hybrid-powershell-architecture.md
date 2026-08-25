@@ -1,8 +1,30 @@
+---
+id: ADR-031
+status: rejected
+date: 2026-08-25
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
+---
+
 # ADR-031: Hybrid PowerShell Architecture for Claude Code Performance
 
 ## Status
 
-Proposed
+Rejected. Recorded so the proposal is findable and does not return (issue #5201).
+
+This record proposed a gh-CLI-vs-daemon routing split to cut PowerShell spawn
+overhead in Claude Code. Its premise depended on ADR-005 (PowerShell as the
+project's primary scripting language), cited directly under Architectural
+Constraints and Related Decisions below. ADR-042 (accepted 2026-01-17)
+superseded ADR-005 and moved new development to Python; the repository has
+since completed that migration and carries zero `.ps1` files as of this
+record's rejection (verified with `find . -name '*.ps1'` outside `.venv`).
+With no PowerShell skill invocation surface left, the gh-CLI/daemon routing
+this ADR designed has nothing to route. Never implemented: no `gh_cli`/`daemon`
+routing config or named-pipe daemon exists in the repository.
 
 ## Date
 

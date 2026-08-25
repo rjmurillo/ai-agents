@@ -1,8 +1,21 @@
+---
+id: ADR-056
+status: accepted
+date: 2026-08-25
+decision-makers: [rjmurillo]
+supersedes: [ADR-028]
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-056: Skill Output Format Standardization
 
 ## Status
 
-Accepted
+Accepted. Supersedes ADR-028 (2026-08-25, issue #5201): the schema-consistency
+principle ADR-028 established for PowerShell output objects continues here,
+enforced at the envelope level for the current Python skill-output surface.
 
 ## Date
 
@@ -23,7 +36,7 @@ ADR-028 established that all properties should be included in output objects. AD
 1. **All skill scripts MUST wrap output in a standard envelope** with `Success`, `Data`, `Error`, and `Metadata` fields
 2. **Scripts MUST accept `-OutputFormat`** parameter with values `JSON`, `Human`, `Auto` (default: `Auto`)
 3. **`Auto` resolves to `JSON`** when stdout is redirected or in CI; `Human` when interactive
-4. **JSON mode emits only valid JSON** to the success output stream — no `Write-Host`
+4. **JSON mode emits only valid JSON** to the success output stream: no `Write-Host`
 5. **Human mode writes a compact summary** to the host with color-coded status
 6. **Error responses use a standard envelope** with `ErrorCode` enum values aligned to ADR-035 exit codes
 7. **Exit codes continue to follow ADR-035**
