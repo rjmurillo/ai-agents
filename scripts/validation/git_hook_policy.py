@@ -134,8 +134,8 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
     }
 )
 ADR_ID_RE = re.compile(r"ADR-\d+", re.IGNORECASE)
-# Issue #5205: thresholds calibrated against the 79 debate logs in
-# .agents/critique on main. All 79 clear these; the smallest is 454 bytes.
+# Issue #5205: thresholds calibrated against the 86 debate logs in
+# .agents/critique on main. All 86 clear these; the smallest is 454 bytes.
 DEBATE_LOG_MIN_BYTES = 300
 # Canonical source: the fenced debate-log template in
 # .claude/skills/adr-review/references/artifacts.md. These are its unfilled
@@ -148,9 +148,9 @@ DEBATE_LOG_MIN_BYTES = 300
 #
 # Matching these literals rather than bracketed spans in general is deliberate.
 # A general placeholder regex was measured against the committed corpus and
-# would false-block 25 of 79 logs (32%), on task checkboxes, [PASS] markers,
+# would false-block 25 of 86 logs (29%), on task checkboxes, [PASS] markers,
 # confidence intervals such as [-0.20, +0.31], and bracketed ADR references.
-# These exact literals false-block 0 of 79.
+# These exact literals false-block 0 of 86.
 DEBATE_LOG_TEMPLATE_PLACEHOLDERS = (
     "[ADR Title]",
     "[N]",
@@ -187,8 +187,8 @@ DEBATE_LOG_VERDICT_WINDOW_LINES = 6
 # require all six, or even any of them by name: DEBATE_LOG_REVIEWER_RE below
 # also accepts "self-review", "participants", "reviewers", and "agents". That
 # divergence is the resolution of issue #5205's proposed six-role roster, which
-# was measured to false-block 12 of the 79 committed logs (15%), including
-# genuine single-reviewer and self-review records. Acceptance criterion 3 of
+# was measured to false-block 18 of the 86 committed logs (21%), including
+# genuine single-reviewer, self-review, and owner-direction records. Acceptance criterion 3 of
 # that issue forbids false-blocking a genuine log, so the roster lost to the
 # requirement. The looseness is therefore intentional and load-bearing; do not
 # tighten these to the six roles without recalibrating against the corpus and
@@ -229,8 +229,18 @@ DEBATE_LOG_DECISION_RE = re.compile(
     r"|needs[- ]revision|concluded)\b",
     re.IGNORECASE,
 )
+# "decision", "direction", "governing evidence" and "ruling" are here because
+# the corpus contains records that conclude without ever writing "verdict": an
+# owner decides, and the record states the decision and its authority. Three of
+# the 86 committed logs are that genre, headed "Owner Direction" or "No debate
+# was held", and the narrower list false-blocked every one of them. Measured on
+# the current corpus: 3 of 86 rejected before, 0 after, and issue #5205's
+# 7-byte stub still fails. Found when the corpus grew from 79 to 86 while this
+# change was open and the calibration test caught it in CI.
 DEBATE_LOG_VERDICT_LABEL_RE = re.compile(
-    r"\b(verdict|position|consensus|outcome|recommendation)s?\b", re.IGNORECASE
+    r"\b(verdict|position|consensus|outcome|recommendation|decision|direction"
+    r"|governing evidence|ruling)s?\b",
+    re.IGNORECASE,
 )
 DEBATE_LOG_HEADING_RE = re.compile(r"(?m)^#{1,6} \S")
 FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
@@ -1529,9 +1539,15 @@ def _evidence_byte_count(content: str) -> int:
     the decoded text directly therefore inflates the count threefold over the
     invalid span: 100 on-disk bytes of ``0xFF`` measure 300 and clear a stated
     300-byte floor. Replacement characters carry no review text, so they count
-    for nothing here and the floor stays a floor on real bytes. Fail-closed by
-    construction: this can only ever measure less than the decoded length, so
-    it cannot admit a log the previous measurement rejected. Issue #5205.
+    for nothing here and the floor stays a floor on real bytes.
+
+    Fail-closed against the measurement it replaces, which is the claim that
+    matters: for any input this returns at most what
+    ``len(content.encode("utf-8"))`` returned, since it encodes the same text
+    minus the replacement characters, so it admits nothing the old measurement
+    rejected. It is NOT bounded by the decoded character count, and saying so
+    would be wrong: 200 characters of U+00E9 measure 400 bytes here, which a
+    test pins. Issue #5205.
     """
     return len(content.replace("\ufffd", "").encode("utf-8"))
 
@@ -1541,8 +1557,8 @@ def debate_log_evidence_gap(content: str) -> str | None:
 
     Issue #5205: the gate accepted any staged ``.agents/critique/*debate*.md``
     whose bytes contained an ADR id, so a 7-byte file cleared it. These four
-    signals are calibrated against the 79 debate logs in ``.agents/critique`` on
-    main: all 79 pass, and a stub carrying only an ADR id fails on the first.
+    signals are calibrated against the 86 debate logs in ``.agents/critique`` on
+    main: all 86 pass, and a stub carrying only an ADR id fails on the first.
 
     A fifth check rejects a log still carrying the canonical template's own
     placeholders. The shipped template clears the four signals above unchanged,

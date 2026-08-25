@@ -207,6 +207,45 @@ _DEBATE_LOG_TEMPLATE_RE = re.compile(
 )
 
 
+def test_an_owner_direction_record_without_a_verdict_label_passes() -> None:
+    """A decision recorded by an owner is a verdict, however it is headed.
+
+    Three of the 86 committed logs conclude without ever writing "verdict":
+    an owner decides and the record states the decision and its authority.
+    ``DEBATE_LOG_VERDICT_LABEL_RE`` originally covered only debate vocabulary
+    and false-blocked every one of them. CI caught it, not local calibration,
+    because the corpus grew from 79 to 86 while this change was open.
+    """
+    record = (
+        "# Owner Direction: ADR-005 Prose Status Duplication\n\n"
+        "## Governing evidence\n\n"
+        "The architect and the repository owner accepted the change. "
+        + "The reasoning is recorded here rather than in a debate. " * 6
+        + "\n\n## What still holds\n\n"
+        + "The rule the record states survives unchanged. " * 4
+    )
+
+    # Isolate the verdict signal: the other four must already be satisfied, or
+    # this passes or fails for a reason it does not name.
+    assert policy._evidence_byte_count(record) >= policy.DEBATE_LOG_MIN_BYTES
+    assert policy.DEBATE_LOG_REVIEWER_RE.search(record)
+    assert policy.DEBATE_LOG_VERDICT_LABEL_RE.search(record)
+
+    assert policy.debate_log_evidence_gap(record) is None
+
+
+def test_a_decision_word_with_no_label_of_any_kind_is_still_not_a_verdict() -> None:
+    """Negative pair: widening the label list did not remove the label."""
+    unlabelled = (
+        "# Notes\n\n## Background\n\n"
+        + "The change was accepted at some point by somebody. " * 8
+        + "\n\n## More\n\nThe architect wrote this down later.\n"
+    )
+
+    gap = policy.debate_log_evidence_gap(unlabelled)
+    assert gap is not None and gap.startswith("no verdict"), gap
+
+
 def _canonical_debate_log_template() -> str:
     """Return the debate-log template as the cited document actually holds it."""
     source = _DEBATE_LOG_TEMPLATE_DOC.read_text(encoding="utf-8")

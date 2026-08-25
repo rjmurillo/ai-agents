@@ -71,7 +71,7 @@ _OUTCOME_DID_NOT_APPLY = "DID-NOT-APPLY"
 # Same ordering contract as the sibling harness: the outer cap MUST exceed the
 # inner one, or pytest-timeout interrupts inside subprocess.communicate and the
 # failure names no command (issue #5102). The inner suite here is
-# two files of 46 cases total, well under the sibling's ~943, so these caps
+# two files of 48 cases total, well under the sibling's ~943, so these caps
 # carry wide margin.
 _INNER_SUBPROCESS_TIMEOUT_SECONDS = 300
 _OUTER_TEST_TIMEOUT_SECONDS = 360
