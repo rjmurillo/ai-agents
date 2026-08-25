@@ -22,6 +22,8 @@ import re
 import sys
 from pathlib import Path
 
+import pytest
+
 _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
@@ -243,3 +245,44 @@ def test_the_placeholder_set_matches_the_canonical_template_both_ways() -> None:
         f"reject, so an unfilled copy of the new template would clear it, and "
         f"_filled_template would leave them unanswered: {unquoted}"
     )
+
+
+def test_a_byte_corrupted_template_is_stopped_at_the_decode_not_by_the_signals() -> None:
+    """The placeholder check is defeated by corrupting the placeholders.
+
+    Corrupt one byte inside each of the template's placeholder literals and the
+    fifth signal stops seeing them, while everything the other four read stays
+    intact: the headings, the `Agent Positions` roster column, the `Outcome`
+    line with `Concluded` beside it, and the ADR id. A lossy decode turned that
+    into a document the committer never wrote, and the unfilled template cleared
+    the gate at 402 on-disk bytes.
+
+    The fix is not in the signal set, and this test says so rather than leaving
+    it to be inferred: the corrupted copy still passes `debate_log_evidence_gap`
+    when it is decoded lossily. What changed is that the staged path no longer
+    decodes lossily, so those bytes never become that string. Any future caller
+    that reintroduces `errors="replace"` reopens this, which is why the assertion
+    below is written against the decode rather than against the gap.
+    """
+    template = _canonical_debate_log_template().replace("[ADR Title]", "ADR-042")
+    blob = template.encode("utf-8")
+    corrupted = 0
+    for literal in policy.DEBATE_LOG_TEMPLATE_PLACEHOLDERS:
+        needle = literal.encode("utf-8")
+        index = blob.find(needle)
+        while index != -1:
+            blob = blob[: index + 1] + b"\xff" + blob[index + 2 :]
+            corrupted += 1
+            index = blob.find(needle)
+
+    assert corrupted >= len(policy.DEBATE_LOG_TEMPLATE_PLACEHOLDERS)
+
+    lossy = blob.decode("utf-8", errors="replace")
+    assert not [p for p in policy.DEBATE_LOG_TEMPLATE_PLACEHOLDERS if p in lossy], (
+        "the corruption must actually defeat the placeholder check, or this "
+        "test proves nothing about the decode"
+    )
+    assert policy.debate_log_evidence_gap(lossy) is None
+
+    with pytest.raises(UnicodeDecodeError):
+        blob.decode("utf-8")

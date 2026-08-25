@@ -1469,13 +1469,32 @@ def _is_debate_log_path(relative_path: str) -> bool:
 
 
 def _staged_debate_log_paths(repo_root: Path) -> list[str]:
+    """Return the staged paths under the critique directory that look like logs.
+
+    ``T`` is in the filter, matching the three other staged-path queries in this
+    module. Without it a type change is invisible here: replacing an already
+    tracked regular debate log with a symlink stages as ``T``, never reaches the
+    non-regular-file check below, and rides through on a valid sibling's
+    evidence. Reproduced on this branch with exactly that shape, one tracked log
+    converted to a symlink beside one valid covering log::
+
+        M  .agents/architecture/ADR-042-python-migration-strategy.md
+        T  .agents/critique/ADR-042-debate-log.md
+        A  .agents/critique/ADR-042-review-debate-log.md
+        ACMR paths seen by the gate -> ['.agents/critique/ADR-042-review-debate-log.md']
+        check_adr_review_policy -> 0
+
+    The non-regular-file check was added for the add-a-symlink shape and did not
+    reach the convert-a-file shape, which is the same class of miss one filter
+    earlier. Issue #5205.
+    """
     result = _run_git(
         repo_root,
         [
             "diff",
             "--cached",
             "--name-only",
-            "--diff-filter=ACMR",
+            "--diff-filter=ACMRT",
             "-z",
             "--",
             ".agents/critique",
@@ -1499,7 +1518,18 @@ def _staged_debate_log_content(relative_path: str, repo_root: Path) -> str | Non
     blob = _read_index_blob(repo_root, relative_path)
     if blob is None:
         return None
-    return blob.decode("utf-8", errors="replace")
+    try:
+        # Strict, not errors="replace". Lossy decoding destroys the evidence
+        # that the bytes were invalid, and every downstream signal then reads a
+        # document the committer did not write. Measured: corrupting one byte
+        # inside each of the ten template placeholders leaves `Agent Positions`,
+        # `Outcome`, `Concluded`, the headings and the ADR id all intact while
+        # every placeholder literal stops matching, so the unfilled template
+        # cleared the gate at 402 on-disk bytes. Returning None routes it to the
+        # unreadable report, which names the path and blocks. Issue #5205.
+        return blob.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
 
 
 def _referenced_adr_ids(content: str) -> set[str]:
@@ -1538,12 +1568,20 @@ def _has_verdict(content: str) -> bool:
 def _evidence_byte_count(content: str) -> int:
     """Return the byte count of ``content``, ignoring replacement characters.
 
-    The staged blob is decoded with ``errors="replace"``, so every byte that is
-    not valid UTF-8 becomes U+FFFD, which re-encodes to three bytes. Measuring
-    the decoded text directly therefore inflates the count threefold over the
-    invalid span: 100 on-disk bytes of ``0xFF`` measure 300 and clear a stated
-    300-byte floor. Replacement characters carry no review text, so they count
-    for nothing here and the floor stays a floor on real bytes.
+    A lossy decode turns every byte that is not valid UTF-8 into U+FFFD, which
+    re-encodes to three bytes. Measuring the decoded text directly therefore
+    inflates the count threefold over the invalid span: 100 on-disk bytes of
+    ``0xFF`` measure 300 and clear a stated 300-byte floor. Replacement
+    characters carry no review text, so they count for nothing here and the
+    floor stays a floor on real bytes.
+
+    The staged path no longer decodes lossily. ``_staged_debate_log_content``
+    decodes strictly and routes a blob that is not valid UTF-8 to the unreadable
+    report, so the inflation above cannot arrive through the gate any more. This
+    stays because it is a property of the function rather than of one caller:
+    ``debate_log_evidence_gap`` is public, takes text from wherever its caller
+    got it, and a future caller that decodes leniently would otherwise inherit
+    the bypass. Two independent things have to be wrong before the floor is.
 
     Fail-closed against the measurement it replaces, which is the claim that
     matters: for any input this returns at most what
@@ -1748,7 +1786,7 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
     if unreadable:
         names = ", ".join(sorted(unreadable))
         print(
-            f"ERROR: staged debate log could not be read: {names}. "
+            f"ERROR: staged debate log could not be read as UTF-8 text: {names}. "
             "A log that cannot be read is not review evidence.",
             file=sys.stderr,
         )

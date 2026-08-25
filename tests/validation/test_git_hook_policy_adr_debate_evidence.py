@@ -260,6 +260,84 @@ def test_a_staged_symlink_blocks_even_when_a_sibling_covers_every_id(
     assert "ADR-042-second-debate.md" in error
 
 
+def test_a_type_changed_log_blocks_even_when_a_sibling_covers_every_id(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Fail-open regression: converting a tracked log to a symlink stages as T.
+
+    The non-regular-file check above was written for the add-a-symlink shape.
+    Replacing an already tracked regular log with a symlink is the same attack
+    one filter earlier: git reports it as a type change, and the staged-path
+    query asked for ``ACMR``, so the converted path never reached the check at
+    all. With a valid sibling covering every staged id, the gate returned 0.
+
+    The staged status is asserted before the behavior. Without that, a future
+    git that reported this as ``M`` would leave the test green while it had
+    stopped exercising the filter it exists to pin.
+    """
+    if os.name == "nt":
+        pytest.skip("Symlink creation requires elevated Windows privileges")
+
+    tracked = _stage_log(repo, "ADR-042-debate-log.md", GENUINE_LOG)
+    _git(repo, "commit", "-m", "add a debate log")
+
+    (repo / tracked).unlink()
+    (repo / tracked).symlink_to("ADR-042-review-debate-log.md")
+    _git(repo, "add", "--", tracked)
+
+    _edit(repo, ADR_42, "Rewritten decision text.")
+    _git(repo, "add", ADR_42)
+    sibling = _stage_log(repo, "ADR-042-review-debate-log.md", GENUINE_LOG)
+
+    status = _git(repo, "diff", "--cached", "--name-status").stdout
+    assert f"T\t{tracked}" in status, status
+
+    # The sibling really is sufficient on its own, so this fails open unless
+    # the converted path is discovered and reported.
+    assert policy.debate_log_evidence_gap(GENUINE_LOG) is None
+    assert sibling != tracked
+
+    assert policy.check_adr_review_policy([ADR_42], repo) == 1
+    error = capsys.readouterr().err
+    assert "not a regular file" in error
+    assert tracked in error
+
+
+def test_a_log_that_is_not_utf8_blocks_even_when_a_sibling_covers_every_id(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Fail-open regression: invalid bytes used to be decoded away, not reported.
+
+    Decoding the staged blob with ``errors="replace"`` destroyed the evidence
+    that the bytes were invalid, and every signal then read a document the
+    committer had not written. The measured attack corrupted one byte inside
+    each of the canonical template's ten placeholder literals: the literals
+    stopped matching while the headings, the roster column and the outcome line
+    survived, so the unfilled template cleared the gate. The decode is strict
+    now, and the path is named rather than silently repaired.
+
+    Uses raw bytes rather than the template, since the contract being pinned is
+    about the decode and not about any one document; the template shape itself
+    is pinned in the mirrors module beside the fence it comes from.
+    """
+    _edit(repo, ADR_42, "Rewritten decision text.")
+    _git(repo, "add", ADR_42)
+    _stage_log(repo, "ADR-042-debate-log.md", GENUINE_LOG)
+
+    bad = ".agents/critique/ADR-042-second-debate.md"
+    (repo / bad).write_bytes(GENUINE_LOG.encode("utf-8").replace(b"architect", b"archit\xffct"))
+    _git(repo, "add", bad)
+
+    # The sibling is genuinely sufficient on its own, so this fails open unless
+    # the undecodable log is reported.
+    assert policy.debate_log_evidence_gap(GENUINE_LOG) is None
+
+    assert policy.check_adr_review_policy([ADR_42], repo) == 1
+    error = capsys.readouterr().err
+    assert "could not be read" in error
+    assert bad in error, "the error must name the log that would not decode"
+
+
 def test_an_unreadable_staged_log_cannot_satisfy_coverage(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

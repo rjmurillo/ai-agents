@@ -5,8 +5,8 @@ the check: each mutant reverts one defect this gate is supposed to stop, and
 the #5205 regression suite has to come back red. If it does not, those tests
 are decoration.
 
-Six mutants and one inverted control. Two revert the defects #5205
-reported; four revert defects found by review of this PR, which are as much
+Eight mutants and one inverted control. Two revert the defects #5205
+reported; six revert defects found by review of this PR, which are as much
 part of the contract as the originals:
 
   M4 (positive): neuter the evidence gate, so a name-shaped stub clears again.
@@ -31,6 +31,14 @@ part of the contract as the originals:
   M9 (positive): restore the unbounded positions-table fallback, so any pipe
       row naming a role beside a decision word counts as a verdict even when
       it records an open issue rather than a decision. Expected: DEAD.
+
+  M10 (positive): drop ``T`` from the staged-log query, so replacing an
+      already tracked regular log with a symlink is never discovered and rides
+      through on a valid sibling's evidence. Expected: DEAD.
+
+  M11 (positive): decode the staged blob with ``errors="replace"`` again, so
+      corrupting one byte inside each template placeholder defeats the fifth
+      signal while leaving the other four satisfied. Expected: DEAD.
 
   IC (inverted control): change a comment only. Expected: SURVIVED. Without it
       a harness that reports DEAD unconditionally looks identical to a working
@@ -76,7 +84,7 @@ _OUTCOME_DID_NOT_APPLY = "DID-NOT-APPLY"
 # Same ordering contract as the sibling harness: the outer cap MUST exceed the
 # inner one, or pytest-timeout interrupts inside subprocess.communicate and the
 # failure names no command (issue #5102). The inner suite here is
-# three files of 51 cases total, well under the sibling's ~943, so these caps
+# three files of 54 cases total, well under the sibling's ~943, so these caps
 # carry wide margin.
 _INNER_SUBPROCESS_TIMEOUT_SECONDS = 300
 _OUTER_TEST_TIMEOUT_SECONDS = 360
@@ -254,8 +262,8 @@ def test_m6_byte_floor_measured_after_lossy_decode_is_detected(scratch_worktree:
 # found on PR #5308
 # ---------------------------------------------------------------------------
 
-_M7_ORIGINAL = b'    if unreadable:\n'
-_M7_MUTANT = b'    if False:  # M7 mutant: unreadable staged logs are skipped silently\n'
+_M7_ORIGINAL = b"    if unreadable:\n"
+_M7_MUTANT = b"    if False:  # M7 mutant: unreadable staged logs are skipped silently\n"
 
 
 @pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
@@ -321,6 +329,53 @@ def test_m9_unbounded_positions_table_fallback_is_detected(scratch_worktree: Pat
 
 
 # ---------------------------------------------------------------------------
+# M10: drop type changes from staged-log discovery, restoring the fail-open a
+# review found on PR #5308
+# ---------------------------------------------------------------------------
+
+_M10_ORIGINAL = b'            "--diff-filter=ACMRT",\n            "-z",\n'
+_M10_MUTANT = (
+    b'            "--diff-filter=ACMR",  # M10 mutant: type changes not discovered\n'
+    b'            "-z",\n'
+)
+
+
+@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
+def test_m10_dropping_type_changes_from_discovery_is_detected(scratch_worktree: Path) -> None:
+    """Converting a tracked log to a symlink stages as T, not as A/C/M/R."""
+    original = (REPO_ROOT / _TARGET_REL).read_bytes()
+    outcome = _apply_positive_mutant(
+        scratch_worktree, original, _M10_ORIGINAL, _M10_MUTANT, "M10-no-type-changes"
+    )
+    assert outcome == _OUTCOME_DEAD
+    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M10"
+
+
+# ---------------------------------------------------------------------------
+# M11: decode the staged blob lossily again, restoring the fail-open a review
+# found on PR #5308
+# ---------------------------------------------------------------------------
+
+_M11_ORIGINAL = b'        return blob.decode("utf-8")\n    except UnicodeDecodeError:\n'
+_M11_MUTANT = (
+    b"        # M11 mutant: invalid bytes decoded away instead of reported\n"
+    b'        return blob.decode("utf-8", errors="replace")\n'
+    b"    except UnicodeDecodeError:\n"
+)
+
+
+@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
+def test_m11_lossy_decoding_of_the_staged_blob_is_detected(scratch_worktree: Path) -> None:
+    """Corrupting each placeholder defeats the fifth signal; the decode stops it."""
+    original = (REPO_ROOT / _TARGET_REL).read_bytes()
+    outcome = _apply_positive_mutant(
+        scratch_worktree, original, _M11_ORIGINAL, _M11_MUTANT, "M11-lossy-decode"
+    )
+    assert outcome == _OUTCOME_DEAD
+    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M11"
+
+
+# ---------------------------------------------------------------------------
 # IC: comment-only change; the suite MUST survive it
 # ---------------------------------------------------------------------------
 
@@ -332,9 +387,7 @@ _IC_MUTANT = b"DEBATE_LOG_MIN_BYTES = 300  # IC mutant: comment only\n"
 def test_ic_comment_only_change_survives(scratch_worktree: Path) -> None:
     """Inverted control: proves the harness can tell green from red."""
     original = (REPO_ROOT / _TARGET_REL).read_bytes()
-    result = _run_mutant(
-        scratch_worktree, original, _IC_ORIGINAL, _IC_MUTANT, "IC-comment-only"
-    )
+    result = _run_mutant(scratch_worktree, original, _IC_ORIGINAL, _IC_MUTANT, "IC-comment-only")
     assert result.returncode == 0, (
         f"INVERTED CONTROL FAILED: a comment-only change reddened the suite, so a "
         f"DEAD verdict from any positive mutant proves nothing.\nstdout:\n{result.stdout}"
@@ -356,7 +409,7 @@ def _tests_running_the_inner_suite() -> list[str]:
 def test_every_inner_suite_test_raises_the_outer_timeout() -> None:
     """Report the scope alongside the finding (testing.md MUST 10)."""
     names = _tests_running_the_inner_suite()
-    assert len(names) == 7, f"Expected 7 inner-suite tests, discovered {len(names)}: {names}"
+    assert len(names) == 9, f"Expected 9 inner-suite tests, discovered {len(names)}: {names}"
 
     unmarked = [
         name
