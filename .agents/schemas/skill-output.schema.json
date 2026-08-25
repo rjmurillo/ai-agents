@@ -11,7 +11,7 @@
       "description": "Whether the operation succeeded"
     },
     "Data": {
-      "description": "Operation-specific result data (null on failure)"
+      "description": "Operation-specific result data. Typically null on failure, but write_skill_error's `extra` parameter can populate it with additional context alongside an error; no current call site does this, so the schema does not constrain Data to null when Success is false."
     },
     "Error": {
       "oneOf": [

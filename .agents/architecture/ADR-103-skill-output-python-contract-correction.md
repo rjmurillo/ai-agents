@@ -153,10 +153,14 @@ exactly the contradiction class issue #5201 exists to eliminate.
 - **`validate_envelope` is not wired into any gate.** Verified: no hit for
   `validate_skill_output` in `lefthook.yml`, `.github/workflows/`, or
   `scripts/validation/pre_pr_sequence.py`/`pre_pr.py`. The function is
-  exercised only by its own unit tests (`tests/test_skill_output.py`). This
-  ADR closes the disagreement between the schema, the validator, and this
-  ADR's prose; it does not, by itself, put a live check in front of any real
-  skill-script output. Tracked as a fast follow-up: issue #5299.
+  exercised only by its own unit tests (`tests/test_validate_envelope.py`,
+  split out of `tests/test_skill_output.py` in Round 5; also
+  `tests/test_skill_output_schema.py` for the independent JSON-Schema-level
+  checks, and `tests/test_skill_output_cli.py` for the CLI subprocess
+  integration path). This ADR closes the disagreement between the schema,
+  the validator, and this ADR's prose; it does not, by itself, put a live
+  check in front of any real skill-script output. Tracked as a fast
+  follow-up: issue #5299.
 - **`validate_envelope` and the standalone CLI now reject envelopes that
   previously either passed or crashed.** This is a real runtime behavior
   change on the consumer/checker side, corrected from an earlier draft of

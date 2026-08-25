@@ -278,14 +278,20 @@ def validate_envelope(data: object) -> list[str]:
     Returns:
         List of validation error messages. Empty list means valid.
     """
-    # skill-output.schema.json's top level is `"type": "object"`. The type
-    # annotation above (`data: dict`) is not enforced at runtime: the CLI
-    # passes `json.loads()`'s result straight through, and valid JSON such
-    # as `null`, `1`, or `[]` reaches here. Without this guard, `"Success"
-    # not in data` raises TypeError for `None`/`1` (not iterable), and an
-    # array reaches `data["Metadata"]` and raises TypeError, instead of
-    # producing a finding and exit code 1 (Copilot review on PR #5283,
-    # commit 6639555b8).
+    # skill-output.schema.json's top level is `"type": "object"`. The
+    # signature's `data: object` annotation states that honestly: a
+    # Python `dict` is not guaranteed here, and the CLI passes
+    # `json.loads()`'s result straight through, so valid JSON such as
+    # `null`, `1`, or `[]` reaches here too. Without this guard,
+    # `"Success" not in data` raises TypeError for `None`/`1` (not
+    # iterable), and an array reaches `data["Metadata"]` and raises
+    # TypeError, instead of producing a finding and exit code 1 (Copilot
+    # review on PR #5283, commit 6639555b8). The parameter was originally
+    # typed `dict`; changed to `object` in the same fix that added this
+    # guard, so the annotation and the runtime check agree (previously
+    # this comment referenced the old `dict` annotation after the
+    # signature had already moved on, itself a stale-comment defect
+    # caught by Copilot review, PR #5283).
     if not isinstance(data, dict):
         return [f"Envelope must be a JSON object, got: {type(data).__name__}"]
 

@@ -7,10 +7,18 @@ files only to fit each commit under the repository's 5-authored-file cap
 
 ## Summary
 
-- **Rounds**: 1
-- **Outcome**: Consensus (Disagree-and-Commit accepted after fixes applied)
-- **Final Status**: ADR-031 `rejected`; ADR-028 `superseded` (by ADR-056);
-  ADR-056 `accepted` (supersedes ADR-028)
+- **Rounds**: 7. Round 1 closed the original ADR-028/031/056 status debate;
+  Rounds 3-7 are later Copilot/Bugbot review passes and the ADR-103
+  adr-review debate that arrived after this file's initial close, recorded
+  below as the corpus continued to change under review.
+- **Outcome**: Consensus (Disagree-and-Commit accepted after fixes applied
+  in Round 1; Rounds 3-7 are follow-on findings on the same PR, not a
+  re-opening of Round 1's consensus)
+- **Final Status** (as of Round 7, superseding the Round 1 figures below):
+  ADR-031 `rejected`; ADR-028 `superseded` (by ADR-056); ADR-056
+  `superseded` (by ADR-103, not `accepted` -- see Round 6). Round 1's
+  original figures, left in place below as the historical record of that
+  round, are: ADR-056 `accepted` (supersedes ADR-028).
 
 ## Context
 
