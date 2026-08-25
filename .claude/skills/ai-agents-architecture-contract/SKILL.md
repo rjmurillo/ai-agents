@@ -38,7 +38,7 @@ Source-of-truth table (verified against `.agents/governance/GENERATOR-FILES.md` 
 | Commands | `.claude/commands/<name>.md` | `src/copilot-cli/skills/<name>/SKILL.md` | `build/scripts/generate_commands.py` |
 | Hooks | `.claude/hooks/` plus `.claude/settings.json` | `src/copilot-cli/hooks/` plus its `hooks.json` | `build/scripts/generate_hooks.py` (plus dispatcher artifacts, Phase 3) |
 | PR-quality CI prompts | `.claude/skills/review/references/{role}.md` | `.github/prompts/pr-quality-gate-{role}.md` | `build/scripts/generate_pr_quality_prompts.py` |
-| ADR current-state index | the ADR records under `.agents/architecture/` (frontmatter only) | `.agents/architecture/README.md` | `build/scripts/generate_adr_index.py` (issue #5198) |
+| ADR current-state index | the ADR records under `.agents/architecture/` (lifecycle status, date, successor from frontmatter; title, decision summary, blocker from body prose) | `.agents/architecture/README.md` | `build/scripts/generate_adr_index.py` (issue #5198) |
 | Shared Python libs | `scripts/hook_utilities`, `scripts/github_core`, `scripts/ai_review_common` | `.claude/lib/{hook_utilities,github_core,ai_review_common}` (imports rewritten to relative) | `scripts/sync_plugin_lib.py` (SYNC_PAIRS at lines 27-31); `--check` is the CI dry-run |
 | Self-host agent copies | the sources above | `.claude/agents/<name>.md`, `.github/agents/<name>.agent.md` | hand-synced, guarded by `build/scripts/validate_install_parity.py` |
 

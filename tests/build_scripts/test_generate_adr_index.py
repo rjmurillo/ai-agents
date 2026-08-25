@@ -1040,16 +1040,55 @@ def test_chain_ending_at_a_missing_successor_is_reported_unresolved(tmp_path: Pa
     assert "ADR-051-second.md" not in row
 
 
-def test_successor_lookup_accepts_non_padded_and_bare_int_references(tmp_path: Path) -> None:
-    """A ``superseded-by`` value the lifecycle gate accepts must also resolve here.
+def test_chain_ending_at_a_retired_record_with_no_successor_is_unresolved(
+    tmp_path: Path,
+) -> None:
+    """A chain must not link through a retired intermediate with nowhere to go.
 
-    ``check_adr_lifecycle.py``'s ``_normalize_reference`` accepts ``ADR-91``
-    (non-padded) and a bare integer ``91`` as valid references to ADR-091, not
-    only the zero-padded ``ADR-091`` this index's own ``adr_id`` keys use. A
-    record naming either form passes lifecycle validation; before this fix, the
-    index's lookup compared the raw uppercased string against the padded key
-    and missed both, printing the reference as unlinked plain text instead of
-    resolving it (Copilot, PR #5209).
+    ADR-060 names ADR-061 as its successor; ADR-061 is itself retired but
+    names no successor at all (`superseded-by: null`), the same dangling
+    supersession `test_retired_record_without_a_successor_says_so` covers
+    for a record's own first hop. Before this fix, ADR-060's row fell
+    through to `terminal = chain[-1]` and linked to ADR-061 as though it
+    were resolved (Copilot, PR #5285 review). The row must instead say the
+    chain is unresolved.
+    """
+    adr_dir = tmp_path / "architecture"
+    _write_adr(
+        adr_dir,
+        60,
+        "first",
+        frontmatter="status: superseded\nsuperseded-by: ADR-061",
+        body=_standard_body(60, "First"),
+    )
+    _write_adr(
+        adr_dir,
+        61,
+        "second",
+        frontmatter="status: superseded\nsuperseded-by: null",
+        body=_standard_body(61, "Second"),
+    )
+
+    retired = _section(_render(adr_dir), "Retired")
+    row = next(line for line in retired.splitlines() if line.startswith("| [ADR-060]"))
+
+    assert "unresolved (ADR-060 -> ADR-061, no successor recorded)" in row
+    # Must not read as a resolved redirect to ADR-061's file.
+    assert "ADR-061-second.md" not in row
+
+
+def test_successor_lookup_accepts_non_padded_and_bare_int_references(tmp_path: Path) -> None:
+    """A non-padded or bare-integer ``superseded-by`` value must still resolve.
+
+    ``_ADR_REFERENCE_RE`` (this module's own contract, not a mirror of any
+    other file, per ``.claude/rules/canonical-source-mirror.md``) accepts
+    ``ADR-91`` (non-padded) and a bare integer ``91`` as valid references to
+    ADR-091, not only the zero-padded ``ADR-091`` this index's own ``adr_id``
+    keys use. Before this fix, the successor lookup compared the raw
+    uppercased string against the padded key and missed both, printing the
+    reference as unlinked plain text instead of resolving it (Copilot, PR
+    #5209; citation to the absent ``check_adr_lifecycle.py`` removed per
+    Copilot, PR #5285 review).
     """
     adr_dir = tmp_path / "architecture"
     _write_adr(
@@ -1432,13 +1471,15 @@ def test_the_documented_recipe_agrees_with_the_generator_on_lowercase_status(tmp
 
 @pytest.mark.parametrize("raw_status", ["Accepted", "ACCEPTED", '" accepted "'])
 def test_the_documented_recipe_agrees_with_the_generator_on_odd_casing(tmp_path, raw_status):
-    """The case Copilot found: a bare `== 'accepted'` misses these, the gate does not.
+    """The case Copilot found: a bare `== 'accepted'` misses these, this parser does not.
 
-    `_status_of` in scripts/validation/check_adr_lifecycle.py returns
-    `str(value).strip().lower()`, and `_status_of` here does the same, so
-    `status: Accepted` clears `status-enum` and is bucketed as accepted. A
-    recipe comparing the raw value would print nothing and read as "no accepted
-    ADRs" rather than as a query bug.
+    `_status_of` (`build/scripts/generate_adr_index.py:285-...`, this
+    module's own contract, not a mirror of `check_adr_lifecycle.py`, which
+    does not exist in this branch: citation removed per Copilot, PR #5285
+    review) lower-cases and strips the raw frontmatter value before
+    validating it against the enum, so `status: Accepted` is bucketed as
+    accepted. A recipe comparing the raw value would print nothing and read
+    as "no accepted ADRs" rather than as a query bug.
 
     This test fails against the recipe as first shipped, on all three inputs.
     Every record in the real corpus carries a lowercase value, which is why the

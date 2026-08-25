@@ -19,7 +19,7 @@ matching "Source" instead.
 | `build/scripts/generate_hooks.py` with `build/scripts/generate_dispatcher.py` | `.claude/hooks/` + `.claude/settings.json` | `src/copilot-cli/hooks/` + `src/copilot-cli/hooks/hooks.json` | REQ-003-007, ADR-068 |
 | `build/scripts/build_all.py` (`_build_lib`) | `.claude/lib/` | `src/copilot-cli/lib/` | REQ-003-001, REQ-003-002 |
 | `build/scripts/generate_pr_quality_prompts.py` | `.claude/skills/review/references/{role}.md` | `.github/prompts/pr-quality-gate-{role}.md` | REQ-008-01 |
-| `build/scripts/generate_adr_index.py` (via `build_all.py`'s `_build_adr_index`) | `.agents/architecture/ADR-*.md` (frontmatter only) | `.agents/architecture/README.md` | issue #5198 |
+| `build/scripts/generate_adr_index.py` (via `build_all.py`'s `_build_adr_index`) | `.agents/architecture/ADR-*.md` (lifecycle status, date, successor from frontmatter; title, decision summary, blocker from body prose) | `.agents/architecture/README.md` | issue #5198 |
 
 ## Hand-maintained sibling copies (NOT generated)
 

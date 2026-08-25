@@ -555,13 +555,14 @@ def _successor_cell(record: AdrRecord, by_id: dict[str, AdrRecord]) -> str:
 
     A retired record with no ``superseded-by`` is a dangling supersession, and
     the reader has nowhere to go. Say so, rather than print an empty cell that
-    reads as "nothing to see". The same is true when the dangling reference
-    sits one or more hops downstream instead of on ``record`` itself (A
-    retired in favour of B, B retired in favour of a ``superseded-by`` value
-    with no matching record): linking to B as though it were a resolved
-    terminal repeats the redirect-to-a-redirect problem, so that case is
-    reported as unresolved too, naming the missing reference rather than
-    silently treating the last reachable record as the destination.
+    reads as "nothing to see". Two variants of this reach the walk instead of
+    ``record`` itself: A retired in favour of B, where B is retired in favour
+    of a ``superseded-by`` value with no matching record (``dangling_ref``),
+    and A retired in favour of B, where B is retired but names no successor
+    at all (``dangling_no_successor``). Both link to B as though it were a
+    resolved terminal if left unhandled, repeating the redirect-to-a-redirect
+    problem, so both are reported as unresolved rather than silently treating
+    the last reachable record as the destination.
 
     A cycle (A retired in favour of B, B retired in favour of A, however many
     hops apart) has no terminal to redirect to: every record on it is
@@ -586,10 +587,21 @@ def _successor_cell(record: AdrRecord, by_id: dict[str, AdrRecord]) -> str:
     cycle = False
     repeat_id = ""
     dangling_ref: str | None = None
+    dangling_no_successor = False
     while current.adr_id not in seen:
         chain.append(current)
         seen.add(current.adr_id)
-        if current.status not in _RETIRED_STATUSES or not current.successor:
+        if current.status not in _RETIRED_STATUSES:
+            break
+        if not current.successor:
+            # `current` (already appended to chain above) is itself retired
+            # with no `superseded-by` at all: the same "not recorded" dead
+            # end the `not record.successor` check above reports for
+            # record's own first hop, but here on an intermediate. Falling
+            # through to `terminal = chain[-1]` would link to `current` as a
+            # resolved redirect when it is a dangling supersession with
+            # nowhere to send the reader (Copilot, PR #5285 review).
+            dangling_no_successor = True
             break
         nxt_id = _normalize_adr_id(current.successor)
         nxt = by_id.get(nxt_id) if nxt_id is not None else None
@@ -626,6 +638,10 @@ def _successor_cell(record: AdrRecord, by_id: dict[str, AdrRecord]) -> str:
     if dangling_ref is not None:
         path = " -> ".join([record.adr_id, *(r.adr_id for r in chain)])
         return f"unresolved ({path} -> {_cell(dangling_ref)})"
+
+    if dangling_no_successor:
+        path = " -> ".join([record.adr_id, *(r.adr_id for r in chain)])
+        return f"unresolved ({path}, no successor recorded)"
 
     terminal = chain[-1] if chain else successor
     if len(chain) <= 1:
