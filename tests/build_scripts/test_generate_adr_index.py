@@ -1005,6 +1005,41 @@ def test_two_hop_supersession_redirects_to_the_terminal_record(tmp_path: Path) -
     assert "via ADR-091" in row
 
 
+def test_chain_ending_at_a_missing_successor_is_reported_unresolved(tmp_path: Path) -> None:
+    """A chain must not link through a retired record whose own citation is dead.
+
+    ADR-050 names ADR-051 as its successor; ADR-051 is itself retired but
+    names "ADR-999", which has no record in this corpus. Before this fix,
+    ADR-050's row fell through to `terminal = chain[-1]` and linked to
+    ADR-051 as though it were resolved, even though ADR-051's own citation
+    is a dangling reference the reader would only discover on the next click
+    (AI Spec Validator, PR #5285 review). The row must instead say the chain
+    is unresolved and name the missing reference.
+    """
+    adr_dir = tmp_path / "architecture"
+    _write_adr(
+        adr_dir,
+        50,
+        "first",
+        frontmatter="status: superseded\nsuperseded-by: ADR-051",
+        body=_standard_body(50, "First"),
+    )
+    _write_adr(
+        adr_dir,
+        51,
+        "second",
+        frontmatter="status: superseded\nsuperseded-by: ADR-999",
+        body=_standard_body(51, "Second"),
+    )
+
+    retired = _section(_render(adr_dir), "Retired")
+    row = next(line for line in retired.splitlines() if line.startswith("| [ADR-050]"))
+
+    assert "unresolved (ADR-050 -> ADR-051 -> ADR-999)" in row
+    # Must not read as a resolved redirect to ADR-051's file.
+    assert "ADR-051-second.md" not in row
+
+
 def test_successor_lookup_accepts_non_padded_and_bare_int_references(tmp_path: Path) -> None:
     """A ``superseded-by`` value the lifecycle gate accepts must also resolve here.
 
