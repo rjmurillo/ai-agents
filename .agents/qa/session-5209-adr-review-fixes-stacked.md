@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 9d9cf3120ad407583d909cbd55ca57d43e36682f
+qaCommit: ac48551ce7b4b29ca73e4792fe52ccb01c60540c
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -9,7 +9,7 @@ qaCommit: 9d9cf3120ad407583d909cbd55ca57d43e36682f
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `9d9cf3120ad407583d909cbd55ca57d43e36682f` (see Addendum 31)
+**Validated at commit**: `ac48551ce7b4b29ca73e4792fe52ccb01c60540c` (see Addendum 33)
 
 ## Verdict
 
@@ -1076,3 +1076,15 @@ scripts. Full detail, including the re-run test evidence, in that
 addendum.
 
 **Rebound to** `4d5b443a0c9ee104cd98bb40d9c13bbcf2130015`.
+
+## Addendum 33: a third merge, plus the round-2 review fixes it had been blocking
+
+Same merge and same two review fixes as Addendum 32 of the campaign
+report; full detail lives there. This file's own conflict resolution
+was the same shape: frontmatter `qaCommit` and the addenda tail. Kept
+this file's own Addendum 31 above, appended origin's continuation as
+Addendum 32 above. Merge commit
+`7e2fc2f17b14295b363903dcf4353638f8c1c550`; the citation and count fix
+commit `ac48551ce7b4b29ca73e4792fe52ccb01c60540c`.
+
+**Rebound to** `ac48551ce7b4b29ca73e4792fe52ccb01c60540c`.

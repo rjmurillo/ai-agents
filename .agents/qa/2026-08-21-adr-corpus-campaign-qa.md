@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 9d9cf3120ad407583d909cbd55ca57d43e36682f
+qaCommit: ac48551ce7b4b29ca73e4792fe52ccb01c60540c
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1671,3 +1671,44 @@ above its baseline; `generate_adr_index.py --check` reports the index
 matches the corpus.
 
 **Rebound to** `4d5b443a0c9ee104cd98bb40d9c13bbcf2130015`.
+
+## Addendum 32: a third merge of `origin/claude/adr-evaluation-tooling-6od8rd`, plus the round-2 review fixes it had been blocking
+
+PR #5230's `mergeable_state` went `dirty` a third time after PR #5209's
+base branch advanced again (`dd20f49d3` -> `05161ccba`, one commit: an
+ADR-055 table repair). A real trial merge in a disposable worktree
+(same practice as Addenda 27 and 30) surfaced the same two files in
+conflict as every prior round: this file and its sister. Both
+conflicts were the familiar shape, frontmatter `qaCommit` and the
+addenda tail with independently-continued numbering. Resolved the
+same way: kept HEAD's own Addendum 30 above, appended origin's
+continuation (its own "Addendum 21") as Addendum 31 above. 25
+non-conflicting files merged automatically, including origin's own
+resolution of the `tests/ci/test_validate_vendor_provenance.py`
+conflict against `main` that Addendum 21 of the sister file's earlier
+round had left as a merge-tree-ratchet CI failure on this branch;
+merging it in resolved that failure too. 514 tests pass across the
+touched suites (adr-review, `generate_adr_index`, `check_adr_lifecycle`,
+`check_adr_links`, `markdown_parser`, `validate_vendor_provenance`).
+Merge commit `7e2fc2f17b14295b363903dcf4353638f8c1c550`.
+
+Two `/review` findings drafted during this session's `/review` run on
+PR #5230, held uncommitted (`git stash`) since the scope-policy
+pre-commit gate could not resolve this stacked PR's real base (the
+`gh` CLI cannot authenticate in the sandbox that produced them) and
+mismeasured the branch against `main` instead, landed in the same
+batch once a human explicitly authorized the documented
+`SKIP_SCOPE_CHECK=1` bypass for this specific situation:
+
+- The `generate_adr_index.py:198-205` citation in both
+  `detect_adr_changes.py` copies, stale by 11 lines after this
+  campaign's own docstring growth, corrected to `209-216`.
+- This addendum's own predecessor (Addendum 30) undercounted the
+  prior round's non-conflicting-file merge at "Six"; re-verified
+  against `git show --stat` on that merge commit
+  (`9d9cf3120ad407583d909cbd55ca57d43e36682f`) at nine files. Corrected
+  in place above.
+
+Commit `ac48551ce7b4b29ca73e4792fe52ccb01c60540c`.
+
+**Rebound to** `ac48551ce7b4b29ca73e4792fe52ccb01c60540c`.
