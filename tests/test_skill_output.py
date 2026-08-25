@@ -200,6 +200,21 @@ class TestWriteSkillError:
         # malformed envelope on stdout would be worse than the exception.
         assert capsys.readouterr().out == ""
 
+    def test_rejects_non_string_message(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """`if not message:` is a truthiness check, not a type check: a
+        truthy non-string value (`123`, a list, an exception object
+        passed by mistake instead of `str(exc)`) passed the emptiness
+        guard and still reached `json.dumps`, producing
+        `Error.Message: 123`, which both the schema ("type": "string")
+        and validate_envelope reject. Same producer/schema disagreement
+        class as test_rejects_empty_message and
+        test_rejects_boolean_exit_code, one field over. Copilot review
+        on PR #5283.
+        """
+        with pytest.raises(ValueError, match="message must be a string"):
+            write_skill_error(123, 1, output_format="json")  # type: ignore[arg-type]
+        assert capsys.readouterr().out == ""
+
     def test_rejects_boolean_exit_code(self, capsys: pytest.CaptureFixture[str]) -> None:
         """skill-output.schema.json types Error.Code as "type": "integer".
         `exit_code=True` type-checks under mypy (bool is-a int under PEP

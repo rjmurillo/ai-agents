@@ -3,11 +3,14 @@
 Split from test_skill_output.py (issue: file exceeded the 500-line taste-lint
 gate) once the Copilot review on PR #5283, commit 6639555b8, added several
 CLI-level regression cases alongside the existing path-traversal coverage.
-Covers the same schema/ADR-056/ADR-103 contract as test_skill_output.py's
-TestValidateEnvelope, but end to end through the real `python3
-validate_skill_output.py` subprocess rather than calling `validate_envelope`
-in-process, so a defect in argument parsing, stdin/file reading, or exit-code
-plumbing is caught even when the underlying function is correct.
+Covers the same schema/ADR-056/ADR-103 contract as
+test_validate_envelope.py's TestValidateEnvelope (that class itself moved
+out of test_skill_output.py in ADR-103 Round 5, after this file's initial
+split; corrected here per a later Copilot review), but end to end through
+the real `python3 validate_skill_output.py` subprocess rather than calling
+`validate_envelope` in-process, so a defect in argument parsing,
+stdin/file reading, or exit-code plumbing is caught even when the
+underlying function is correct.
 """
 
 from __future__ import annotations
@@ -76,7 +79,7 @@ class TestValidateSkillOutputScript:
         """Valid JSON that is not an object (null, a number, a string, an
         array) must exit 1 with a validation finding, not crash the CLI
         with an unhandled traceback. Exercises the same gap as
-        test_skill_output.py's
+        test_validate_envelope.py's
         TestValidateEnvelope.test_non_dict_top_level_is_rejected_without_crashing
         end to end through the actual subprocess (Copilot review on
         PR #5283, commit 6639555b8).

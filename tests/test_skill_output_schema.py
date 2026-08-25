@@ -1,6 +1,8 @@
 """Independent JSON Schema Draft 7 validation of skill-output.schema.json.
 
-test_skill_output.py exercises validate_envelope's hand-written checks.
+test_validate_envelope.py exercises validate_envelope's hand-written
+checks (test_skill_output.py itself now covers only the producer-side
+functions: get_output_format, write_skill_output, write_skill_error).
 Those checks are meant to enforce the same contract as
 .agents/schemas/skill-output.schema.json, but nothing before this file ran
 the schema itself: a regression that narrowed the schema's `required`

@@ -25,12 +25,20 @@ from datetime import UTC, datetime
 # .agents/schemas/skill-output.schema.json, so THOSE THREE contract copies
 # cannot drift unnoticed (ADR-103). This is not repo-wide: at least one more
 # independently-maintained ErrorType Literal exists at
-# .claude/skills/orphan-ref-validator/scripts/envelope.py, carrying a
-# 6-of-8 subset (missing RateLimitError, VerificationFailed) that this
-# module's tests do not see. Fail-closed (a narrower Literal cannot emit a
-# value outside its own subset) and pre-existing, so not a correctness
-# break; flagged for a follow-up rather than widened here (high-level-advisor
-# seat, ADR-103 Round 5 convergence check).
+# .claude/skills/orphan-ref-validator/scripts/envelope.py:133
+# (render_error_envelope), carrying a 6-of-8 subset (missing
+# RateLimitError, VerificationFailed). An earlier version of this comment
+# called that copy "fail-closed", which is wrong: `typing.Literal` is a
+# static annotation only, `render_error_envelope` performs no runtime
+# membership check on `error_type`, and Python does not enforce Literal at
+# all at runtime, so a caller bypassing the type checker (or one whose
+# checker silently disagrees) can still construct an envelope with a
+# `Type` value outside the 6-value subset. This is an unguarded fourth
+# producer, not evidence that no correctness gap exists there; pre-existing
+# and out of this round's scope, flagged as a follow-up rather than fixed
+# here (Copilot review on PR #5283, correcting the ADR-103 Round 5
+# convergence check's high-level-advisor seat, which made the same
+# mistaken claim).
 VALID_ERROR_TYPES = (
     "NotFound",
     "ApiError",
@@ -184,6 +192,19 @@ def write_skill_error(
         # convergence round, which found two `raise RuntimeError(...)`
         # sites in `edit_pr_body.py` that did not).
         raise ValueError("message must be non-empty")
+    if not isinstance(message, str):
+        # `if not message:` above is a truthiness check, not a type
+        # check: a truthy non-string value (`123`, `["a"]`, an
+        # exception object passed by mistake instead of `str(exc)`)
+        # passes it and still reaches `json.dumps`, producing
+        # `Error.Message: 123` or similar, which both the schema
+        # ("type": "string") and validate_envelope reject. The producer
+        # must not be able to construct an envelope its own validators
+        # reject; adding this alongside the emptiness guard closes that
+        # gap the same way the emptiness guard closed the empty-string
+        # one (Copilot review on PR #5283, following the ADR-103 Round 5
+        # convergence check).
+        raise ValueError(f"message must be a string, got: {type(message).__name__}")
     if isinstance(exit_code, bool) or not isinstance(exit_code, int):
         # skill-output.schema.json types Error.Code as "type": "integer"
         # (pre-dates ADR-103) and both scripts/validate_skill_output.py
