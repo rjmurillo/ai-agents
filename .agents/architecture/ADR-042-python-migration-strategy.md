@@ -1,7 +1,7 @@
 ---
 id: ADR-042
 status: accepted
-date: 2026-04-13
+date: 2026-08-25
 decision-makers: [rjmurillo]
 supersedes: [ADR-005]
 superseded-by: null
@@ -144,6 +144,7 @@ When migrating a PowerShell script:
 
 - **Supersedes**: [ADR-005: PowerShell-Only Scripting Standard](./ADR-005-powershell-only-scripting.md)
 - **Companion**: [ADR-006: Thin Workflows, Testable Modules](./ADR-006-thin-workflows-testable-modules.md) (still applies)
+- **Downstream**: [ADR-031: Hybrid PowerShell Architecture](./ADR-031-hybrid-powershell-architecture.md) (rejected 2026-08-25: this migration removed its premise); [ADR-028: PowerShell Output Schema Consistency](./ADR-028-powershell-output-schema-consistency.md) (superseded 2026-08-25 by ADR-056, which re-platforms its principle for Python)
 - **Related**: PR #962 (skill-installer adoption)
 
 ## References
