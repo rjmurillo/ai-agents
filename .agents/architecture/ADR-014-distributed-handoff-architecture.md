@@ -1,3 +1,14 @@
+---
+id: ADR-014
+status: accepted
+date: 2025-12-22
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-014: Distributed Handoff Architecture
 
 ## Status
