@@ -4,13 +4,12 @@
 
 - **Rounds**: 5. Round 1 (architect, critic, security) and Round 2
   (independent-thinker, analyst, high-level-advisor) closed the initial
-  six-seat debate 6/6 Accept. Rounds 3 and 4 were mechanical defensive-check
+  six-seat debate 6/6 Accept. Rounds 3-4 were mechanical defensive-check
   fixes, self-judged as not requiring fresh debate. Round 5 is a genuine
-  fresh Phase 4 convergence check against the current text, re-running all
-  six seats after a Copilot review challenged the Round 3/4 self-judgment;
-  it included two critic Blocks (both resolved with code fixes and
-  discriminating tests) and one process Block from the analyst (resolved
-  by pushing the local commits it correctly flagged as unreviewable).
+  fresh Phase 4 convergence check re-running all six seats after a Copilot
+  review challenged that self-judgment; it included two critic Blocks
+  (both fixed and re-verified) and one process Block from the analyst
+  (resolved by pushing the local commits it flagged as unreviewable).
 - **Outcome**: Consensus (4 Accept, 1 Accept-after-two-fix-cycles,
   1 Disagree-and-Commit; 0 unresolved Block)
 - **Final Status**: accepted
@@ -414,9 +413,9 @@ that lag and was already re-synced by the final push.
 
 ### Re-run 4: high-level-advisor
 
-**Position: Disagree-and-Commit.** No P0 against the Decision. Ran the
-full 130-test suite and re-verified mirror byte-identity independently,
-both matching the session's claims. Two non-blocking dissents:
+**Position: Disagree-and-Commit.** No P0 against the Decision. Ran the full
+test suite and re-verified mirror byte-identity, both matching claims. Two
+non-blocking dissents:
 
 1. **The ADR is mis-sized**: 421 lines, of which Decision is 26 (6%) and
    Implementation Notes is 197 (47%). Rounds 3-5's bug-hardening belongs
@@ -431,10 +430,11 @@ New finding: a **fourth** independently maintained `Error.Type` copy at
 `.claude/skills/orphan-ref-validator/scripts/envelope.py:133` (a
 `Literal` carrying 6 of 8 values), invisible to the three-way sync test.
 `output.py`'s comment claiming "the three contract copies cannot drift
-unnoticed" was scoped narrower than the tree. Fail-closed and
-pre-existing, not a correctness break; comment corrected to state its
-actual scope rather than widened to cover a fourth copy this round did
-not set out to fix.
+unnoticed" was corrected to name this fourth copy. That correction's
+first pass also called the copy "fail-closed"; a later Copilot review
+found that wrong (`render_error_envelope` performs no runtime membership
+check, and `typing.Literal` enforces nothing at runtime), corrected to
+"unguarded". Pre-existing, out of scope, tracked as a follow-up.
 
 Explicit recommendation: **merge now, do not run a Round 6.** The
 Decision has not moved since Round 1 across five rounds; every Block

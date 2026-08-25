@@ -412,13 +412,15 @@ exactly the contradiction class issue #5201 exists to eliminate.
     full rejection surface against `origin/main` across 6,090 envelope
     shapes and finding zero fail-open transitions in either direction.
     Both seats' findings corroborate the critic's; none contradicts it.
-  - `uv run pytest tests/test_skill_output.py tests/test_skill_output_cli.py
-    tests/test_skill_output_schema.py tests/test_validate_envelope.py -q`
-    -> 69 passed (up from 51). `tests/test_skill_output.py` crossed the
-    500-line gate again once `test_rejects_empty_message` was added; its
-    `TestValidateEnvelope` class (no dependency on the producer-side
-    functions) was split into a new `tests/test_validate_envelope.py`, the
-    same split pattern as the earlier CLI extraction.
+  - `tests/test_skill_output.py` crossed the 500-line gate again once
+    `test_rejects_empty_message` was added; its `TestValidateEnvelope`
+    class (no dependency on the producer-side functions) was split into a
+    new `tests/test_validate_envelope.py`, the same split pattern as the
+    earlier CLI extraction. (The pass count at this exact checkpoint is
+    not independently recorded here; see the final count below, which is
+    verified against the current tree rather than a historical snapshot,
+    per a Copilot review finding that an earlier snapshot in this
+    paragraph had already drifted from the tree by the time it was read.)
   - The independent-thinker seat's re-check found the same
     producer/schema disagreement class one field further over
     (finding F1): `write_skill_error(message, True)` type-checks under
@@ -431,10 +433,29 @@ exactly the contradiction class issue #5201 exists to eliminate.
     next to the `message` guard. Proved discriminating: reverted in a
     scratch copy, confirmed `write_skill_error("test", True)` printed
     `{"Error":{"Code":true,...}}` instead of raising, restored, confirmed
-    byte-identical. `uv run pytest tests/test_skill_output.py
-    tests/test_skill_output_cli.py tests/test_skill_output_schema.py
-    tests/test_validate_envelope.py tests/test_github_pr_diagnostics.py -q`
-    -> 130 passed.
+    byte-identical.
+  - A follow-up Copilot review found the `message` guard added above
+    was itself truthiness-only (`if not message:`), not a type check: a
+    truthy non-string value (`123`, a list) passed it and still reached
+    `json.dumps`, producing a schema-invalid `Error.Message`. Added a
+    companion `if not isinstance(message, str):` guard, the same pairing
+    already used for `exit_code`. Proved discriminating: reverted in a
+    scratch copy, confirmed `write_skill_error(123, 1)` printed
+    `{"Error":{"Message":123,...}}` instead of raising, restored,
+    confirmed byte-identical.
+  - The same Copilot round found this file's own Implementation Notes had
+    already drifted from the tree (a pass count cited earlier in this
+    section was stale by the time it was reviewed) and that a comment on
+    `VALID_ERROR_TYPES` calling the fourth `Error.Type` copy in
+    `orphan-ref-validator/scripts/envelope.py` "fail-closed" was actually
+    wrong: `typing.Literal` has no runtime enforcement, so that producer
+    is unguarded, not fail-closed. Both corrected in the same round; see
+    the debate log's Round 5 section for the full record.
+  - `uv run pytest tests/test_skill_output.py tests/test_skill_output_cli.py
+    tests/test_skill_output_schema.py tests/test_validate_envelope.py
+    tests/test_github_pr_diagnostics.py -q` -> 131 passed, verified against
+    the current tree at the time this line was written (not a snapshot
+    carried forward from an earlier round).
 
 ## Related Decisions
 
