@@ -389,21 +389,36 @@ def test_the_unfilled_canonical_template_does_not_pass() -> None:
 _ADR_REVIEW_SKILL = _ROOT / ".claude" / "skills" / "adr-review" / "SKILL.md"
 
 
-def _canonical_roster_roles() -> list[str]:
-    """Return the role names from the skill's "## Agent Roles" table, in order.
+_GATE_MODULE = _ROOT / "scripts" / "validation" / "git_hook_policy.py"
 
-    Reads the table itself rather than scanning the whole document, so a role
-    moved out of the roster, renamed, reordered, or added is visible. Checking
-    only that six bold names occur *somewhere* in the file left all of those
-    green while the production quote drifted, which is what review caught.
-    """
+
+def _canonical_roster_table() -> list[str]:
+    """Return the "## Agent Roles" table rows from the skill, verbatim."""
     skill = _ADR_REVIEW_SKILL.read_text(encoding="utf-8")
     section = re.search(r"^## Agent Roles$(.*?)^## ", skill, re.MULTILINE | re.DOTALL)
     assert section is not None, (
         f"the cited '## Agent Roles' heading is gone from {_ADR_REVIEW_SKILL}; "
         "the quote above DEBATE_LOG_ROLES now points at nothing"
     )
-    return re.findall(r"^\|\s*\*\*([^*]+)\*\*\s*\|", section.group(1), re.MULTILINE)
+    return [line for line in section.group(1).splitlines() if line.startswith("|")]
+
+
+def _quoted_roster_table() -> list[str]:
+    """Return the table quoted in the comment above ``DEBATE_LOG_ROLES``.
+
+    The quote is indented inside a ``#`` comment block, so the rows are
+    recovered by stripping that prefix rather than by restating them here,
+    which would just move the drift problem into this file.
+    """
+    module = _GATE_MODULE.read_text(encoding="utf-8")
+    anchor = module.index("DEBATE_LOG_ROLES = (")
+    rows = [
+        line.removeprefix("#").strip()
+        for line in module[:anchor].splitlines()
+        if line.startswith("#") and line.removeprefix("#").strip().startswith("|")
+    ]
+    assert rows, f"no quoted table found above DEBATE_LOG_ROLES in {_GATE_MODULE}"
+    return rows
 
 
 def test_the_quoted_role_table_is_still_verbatim_in_the_skill() -> None:
@@ -415,15 +430,26 @@ def test_the_quoted_role_table_is_still_verbatim_in_the_skill() -> None:
     because a range goes stale on any edit above it while saying nothing about
     whether the quoted text still matches. This checks the text.
 
-    Equality, not containment. A seventh role added to the canonical roster
-    would leave a containment check green while logs attributed only to that
-    new role were rejected by a gate still quoting six.
+    The whole table, not the role column. Two earlier versions of this test
+    were weaker than their own name: the first found six bold names anywhere
+    in the document, so a rename, a reorder, a seventh role, or the table
+    moving out of the section all stayed green; the second compared the role
+    sequence, which still left the Focus and Tie-Breaker cells free to drift
+    while the comment claimed to quote them. The comment quotes the table, so
+    the test compares the table.
     """
-    assert _canonical_roster_roles() == list(policy.DEBATE_LOG_ROLES), (
-        f"the roster in {_ADR_REVIEW_SKILL} no longer matches DEBATE_LOG_ROLES, "
-        "so the quoted copy has drifted from the table it mirrors: "
-        f"canonical={_canonical_roster_roles()} quoted={list(policy.DEBATE_LOG_ROLES)}"
+    canonical = _canonical_roster_table()
+    quoted = _quoted_roster_table()
+
+    assert quoted == canonical, (
+        f"the table quoted in {_GATE_MODULE} no longer matches the roster in "
+        f"{_ADR_REVIEW_SKILL}.\ncanonical: {canonical}\nquoted:    {quoted}"
     )
+
+    # The quote is the contract the constant claims to mirror, so the constant
+    # has to agree with it too, in order.
+    roles = [re.match(r"\|\s*\*\*([^*]+)\*\*", row) for row in canonical]
+    assert [m.group(1) for m in roles if m] == list(policy.DEBATE_LOG_ROLES)
 
 
 def test_the_placeholder_set_matches_the_canonical_template_both_ways() -> None:
