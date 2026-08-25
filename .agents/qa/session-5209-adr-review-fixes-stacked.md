@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: d50df2fa38b0de179fa19b64820eb5af098c575d
+qaCommit: 34bfc867daf873f1b28ea6538a1c193c40bf379c
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -9,7 +9,7 @@ qaCommit: d50df2fa38b0de179fa19b64820eb5af098c575d
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `d50df2fa38b0de179fa19b64820eb5af098c575d` (see Addendum 40)
+**Validated at commit**: `34bfc867daf873f1b28ea6538a1c193c40bf379c` (see Addendum 41)
 
 ## Verdict
 
@@ -1153,3 +1153,12 @@ ADR's own `## Date` prose, lives in that addendum. Merge commit
 `d50df2fa38b0de179fa19b64820eb5af098c575d`.
 
 **Rebound to** `d50df2fa38b0de179fa19b64820eb5af098c575d`.
+
+## Addendum 41: same test-control fix, PR-description rewrite, and 8 review threads closed as Addendum 40 of the campaign report
+
+Same test fix (`34bfc867d`), same inherited-defect finding on
+`taste_lints.py` verified and left unfixed, same PR-description rewrite
+splitting "Files changed" into own-vs-inherited, and same eight review
+threads investigated and resolved; full detail lives in that addendum.
+
+**Rebound to** `34bfc867daf873f1b28ea6538a1c193c40bf379c`.

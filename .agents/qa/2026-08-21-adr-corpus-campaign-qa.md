@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: d50df2fa38b0de179fa19b64820eb5af098c575d
+qaCommit: 34bfc867daf873f1b28ea6538a1c193c40bf379c
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1896,3 +1896,60 @@ test file (26 tests) passes, and `taste_count_ratchet.py` reports
 575 violations against a 576 baseline.
 
 **Rebound to** `d50df2fa38b0de179fa19b64820eb5af098c575d`.
+
+## Addendum 40: a weakened test control, a PR-description rewrite, and 8 review threads closed
+
+Six GitHub notifications arrived after the fourth-merge push landed: a stale
+`PR Merge State` check on a superseded SHA (no action needed, CI recomputes on
+the new head), a Copilot review summary restating the same points as its
+line comments, a PR-VALIDATION bot PASS, and three substantive items.
+
+**A real, previously-flagged test weakness, fixed.** Copilot's review found
+`tests/test_markdown_parser.py::test_blank_code_block_lines_does_not_strip_the_same_comment`
+asserted only `"Accepted" in blank_code_block_lines(text)`, so a mutant
+blanking the `"Accepted"` line while leaving the comment's own `"## Status"`
+line intact would still pass. This was already named as a known gap in an
+earlier PR-description revision's `/review findings` section
+("Not yet drafted, follow-up needed"); Copilot independently found the same
+defect on the current head. Fixed in `34bfc867d`: asserts full output
+equality against the unchanged input, matching the sibling positive control
+(`test_blanks_a_block_level_html_comment`), which already asserted exact
+transformed text for the same reason.
+
+**A real defect on inherited code, verified and left unfixed here.**
+Copilot flagged `.claude/skills/taste-lints/scripts/taste_lints.py:429`:
+`_looks_like_yaml_value` rejects any multi-word unquoted scalar, so common
+frontmatter like `description: Run all checks before push` fails
+`_looks_like_yaml_mapping` and `_suppression_window` falls back to the
+first-10-lines path. Verified real by reading the function. But
+`git diff origin/main -- .claude/skills/taste-lints/scripts/taste_lints.py`
+is empty: this file is byte-identical to `origin/main` on this branch,
+arrived via merging `origin/main` (PR #5302, which wrote this exact code),
+and is not authored or touched by PR #5230. Not fixed here, matching the
+established pattern on this PR for `new_pr_validations.py` and
+`workflows.json` findings: fixing it would expand this PR's diff into a
+file it does not otherwise change.
+
+**The PR description rewritten to explain the file-count mechanism instead
+of chasing the number.** The diff has been reported at 2, 9, 10, 108/168,
+114, and now 29 files across successive revisions, and Copilot flagged the
+mismatch every time. The pattern is base-branch lag, not scope creep: this
+branch merges `origin/main` and/or PR #5209's own branch, the diff
+temporarily collapses toward the true 9-11 file scope, then one side
+advances again and the diff balloons with inherited-but-unauthored content.
+The description now splits "Files changed" into "this branch's own
+contribution" (11 files, byte-different from `origin/main`) and "inherited
+from merging `origin/main`" (18 files, byte-identical to `origin/main`),
+so the count is explained structurally rather than re-derived after each
+merge.
+
+**Eight review threads investigated and resolved**, four of them already
+addressed by content that had landed before the comment's anchor (the
+`--no-verify` disclosure, the `test_blanks_a_block_level_html_comment`
+control, both pytest-collection-count corrections, and the "Validated at
+commit" header), one already-correct citation, one already-current file
+count, the weakened test control above, and the file-count mechanism
+explanation above. Each reply cites the specific commit or line that
+resolves it rather than a bare "done".
+
+**Rebound to** `34bfc867daf873f1b28ea6538a1c193c40bf379c`.
