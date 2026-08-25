@@ -2,6 +2,25 @@
 
 Date: 2026-08-25
 
+## Failure mode classification
+
+**Class #7: Self-contained agent delegation failure** (partial fit)
+
+The `run_retrospective.py --since "4 hours ago"` script populated its "Work Items"
+section from recent commits rather than this session's actual diff, surfacing
+unrelated pip-audit and setup-uv content. The script lacked context to
+distinguish which commits belonged to this session versus other recent branch
+activity. The partial fit: the script succeeded structurally (returned valid
+markdown) but produced semantically incorrect output due to scope confusion.
+
+## Evidence
+
+- [Issue #5210](https://github.com/rjmurillo/moq.analyzers/issues/5210): Defines the stale-validation-comment bug
+- [PR #5209](https://github.com/rjmurillo/moq.analyzers/pull/5209): Delivery branch for the fix
+- Commit `f3600fdeb`: `fix(ci): pass --update-if-exists to the PR validation comment poster`
+- `.github/workflows/pr-validation.yml`: Workflow file modified to add the flag
+- `tests/ci/test_pr_validation_workflow.py::test_post_pr_comment_step_updates_the_existing_comment_in_place`: Mutation-tested wiring assertion
+
 ## What we did
 
 Fixed the bug in Issue #5210: `pr-validation.yml`'s "Post PR Comment" step called
@@ -76,3 +95,12 @@ Commit: `f3600fdeb` `fix(ci): pass --update-if-exists to the PR validation comme
    items from unrelated recent commits on the branch; do not commit its
    auto-populated "Work Items" section without checking it against the
    actual diff being retrospected.
+
+## Remediation
+
+| Action | Status | Reference |
+|--------|--------|-----------|
+| Add `--update-if-exists` flag to `pr-validation.yml` comment poster step | Applied | Commit `f3600fdeb` |
+| Document `investigation-claim-backstop.yml` write-once decision in YAML comment | Applied | Commit `f3600fdeb` |
+| Add mutation-tested workflow wiring assertion | Applied | `tests/ci/test_pr_validation_workflow.py` |
+| Extend `test_post_issue_comment.py` with body-verification and idempotent-update tests | Applied | PR #5209 |
