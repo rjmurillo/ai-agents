@@ -1,3 +1,14 @@
+---
+id: ADR-022
+status: proposed
+date: 2025-12-23
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
+---
+
 # ADR-022: Architecture vs Governance Decision Split Criteria
 
 ## Status

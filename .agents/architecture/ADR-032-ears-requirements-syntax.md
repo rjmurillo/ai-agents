@@ -1,3 +1,14 @@
+---
+id: ADR-032
+status: accepted
+date: 2025-12-30
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-032: EARS Requirements Syntax Standard
 
 ## Status
@@ -118,7 +129,7 @@ EARS was developed by Alistair Mavin et al. at Rolls-Royce and has been validate
 
 **Exit criteria**: EARS patterns prove insufficient OR overhead exceeds benefit.
 
-**Rollback path**: Revert to natural language requirements. No migration required—delete template and write informal prose. Lock-in level: **None** (EARS is a syntax convention, not infrastructure).
+**Rollback path**: Revert to natural language requirements. No migration required: delete template and write informal prose. Lock-in level: **None** (EARS is a syntax convention, not infrastructure).
 
 ## Implementation Notes
 

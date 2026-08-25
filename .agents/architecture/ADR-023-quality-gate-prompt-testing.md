@@ -1,9 +1,22 @@
 ---
+id: ADR-023
 status: accepted
 date: 2025-12-26
-decision-makers: ["architect", "user"]
-consulted: ["qa", "devops", "security", "critic", "independent-thinker", "high-level-advisor"]
-informed: ["implementer", "analyst"]
+decision-makers: [architect, user]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+consulted:
+- qa
+- devops
+- security
+- critic
+- independent-thinker
+- high-level-advisor
+informed:
+- implementer
+- analyst
 ---
 
 # ADR-023: Quality Gate Prompt Structural Validation

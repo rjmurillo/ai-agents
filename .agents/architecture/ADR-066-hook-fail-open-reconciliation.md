@@ -1,9 +1,22 @@
 ---
-status: "accepted"
-date: 2026-06-02
+id: ADR-066
+status: accepted
+date: 2026-07-19
 decision-makers: [architect]
-consulted: [analyst, critic, independent-thinker, security, high-level-advisor]
-informed: [implementer, qa, devops]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+consulted:
+- analyst
+- critic
+- independent-thinker
+- security
+- high-level-advisor
+informed:
+- implementer
+- qa
+- devops
 ---
 
 # ADR-066: Hook Fail-Open Reconciliation (Prevention-First, Fail-Closed-and-Loud)
