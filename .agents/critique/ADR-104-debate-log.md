@@ -197,3 +197,60 @@ issue #5318.
 The architect seat's A5 remains open and unaddressed: the tier model still has
 no placement rule for the six non-blocking advisory reporters or the two
 local-state repair actions in pre-push.
+
+## Round 3: bounding the declared worst case
+
+Round 2 closed the acceptance gate with a measured 142.39s push and left the
+advisor seat's verdict standing: the median was fixed, the tail was not. The
+operator's requirement is that pre-push must stop being a cause of aborted
+container pushes, and a 4.8x median cut does not on its own establish that.
+
+The gap was concrete. Two real pushes measured 142.39s and 144.39s. The
+**declared** worst case of the same graph was 4170s, 69.5 minutes, 29x higher,
+because caps had been sized on unloaded machines and never revisited. A cap is
+not a cost, but it is the promise about the worst case, and the worst case is
+what reclaims a container.
+
+Three things changed.
+
+**Seventeen caps resized from in-hook measurement.** The stdin group carried
+four caps of 5m and 2m for jobs measured at 0.93s, 0.28s, 0.38s and 0.38s. The
+fast parallel gates carried 5m each against a slowest member of 20.62s.
+`python-type-check` carried 15m against 2.73s. Margins were left far above the
+9x to 15x in-hook inflation `ci-scripts.md` MUST-16 records for this graph.
+
+**Inner budgets pulled under their outer caps.** `python-tests` 30m to 15m with
+its suite budget 1740s to 780s, and `workflow-local-run` 30m to 10m with its
+budget 1740s to 540s, so the inner timeout fires first and the reader gets a
+diagnostic rather than a bare kill, per ADR-086 Decision item 9.
+
+**A ratchet on the declared total**, which is rule 7's ceiling half that Round 1
+noted was missing (architect A6, critic C5, advisor H3). It models lefthook's
+scheduling from the config rather than from a run summary, per MUST-17, and
+carries a negative control raising a cap to 99h.
+
+Result: 4170s to 2610s, 69.5 to 43.5 minutes.
+
+One cut was reverted during the work and is worth recording, because it is the
+same class of coupling the reverted deduplication was. Cutting
+`pre-pr-validation` from 15m to 5m failed
+`test_check_generated_staleness_termination.py`: that job's Generated Artifact
+Staleness gate clamps to `PRE_PR_OUTER_CAP_SECONDS` and a test pins
+budget-plus-grace at or under half the cap. The 15m was load-bearing for an
+invariant two files away. It also bought nothing, since a parallel group costs
+its slowest member and that is a 20m e2e job either way.
+
+### What is still not solved
+
+43.5 minutes is not a survivable declared worst case, and the ratchet stops it
+rising rather than bringing it down. The remaining 2100s is two job classes:
+
+- the two CLI e2e smokes at 20m each, which set the expensive group's cost;
+- `security-scan` at 15m, which ADR-054 sets as an enforced 900s budget.
+
+Attempts to measure the four glob-gated tail jobs while firing were
+inconclusive: each scopes its work to `origin/main...HEAD` and short-circuits
+when the branch does not touch its inputs, and `workflow-local-run` is DEGRADED
+in a container because actionlint is absent. So they are unmeasured while
+firing, and a push whose glob fires one can still outlive a container. That is
+the honest residual, and it is issue #5318, not a claim this record can make.

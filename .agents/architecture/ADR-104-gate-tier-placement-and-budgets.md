@@ -110,15 +110,25 @@ by which tier can technically host it.
 | pre-push | Would this branch waste a CI run or a reviewer? | the branch delta against `origin/main` | 300s per push |
 | CI | Is this change correct, in isolation, at full scale? | the merge result | its own job timeouts |
 
-**Both local targets are unenforced by design, and neither is measured today.**
-They are numbers to design against and to argue a new check against. A hook
-that failed because the host was busy would replace a slow push with a refused
-one. The 60s pre-commit figure in particular has no measurement behind it: this
-record audited pre-push only, and pre-commit's 47 jobs were not timed. Treat it
-as a placeholder until someone measures it (issue #5318).
+**Neither target is enforced at runtime.** A hook that failed because the host
+was busy would replace a slow push with a refused one. The 60s pre-commit
+figure in particular has no measurement behind it: this record audited pre-push
+only, and pre-commit's 47 jobs were not timed. Treat it as a placeholder until
+someone measures it (issue #5318).
 
-The instrument that actually constrains a tier is rule 3, which says what a
-tier may do. Where rule 3 is applied, the target is redundant with it.
+What is enforced is the **declared** worst case, which is what a container
+actually has to survive. `tests/ci/test_lefthook_declared_budget.py` sums each
+hook's caps through lefthook's own scheduling semantics (top level piped, so
+entries sum; a parallel group costs its slowest member; a piped group sums) and
+ratchets the total. It may only fall.
+
+That number was 4170s for pre-push, 69.5 minutes, against real pushes of
+142.39s. Seventeen caps were resized from in-hook measurements and it is now
+2610s, 43.5 minutes. The remaining 2100s is two job classes nobody has measured
+while their globs fire, both under Known non-conformances.
+
+The other instrument is rule 3, which says what a tier may do. Where rule 3 is
+applied, the target is redundant with it.
 
 ### Placement rules
 
@@ -156,6 +166,11 @@ tier may do. Where rule 3 is applied, the target is redundant with it.
 6. **A deferral is a claim about the scheduler, so it must name what it relies
    on and be tested on that.** Naming the job it defers to is not enough. See
    Rejected below for the version of this that shipped and was reverted.
+
+7. **A cap is a promise about the worst case, so it is sized from a measured
+   in-hook run and ratcheted.** MUST-16 forbids sizing a pre-push cap from a
+   standalone run. A cap nobody revisits drifts upward one job at a time, which
+   is how the declared worst case reached 29x the real one.
 
 ### Rejected: deferral by scheduler claim
 
@@ -235,14 +250,22 @@ to CI. Five pre-push jobs match and stay:
 |---|---|---|
 | `hook-anchoring-e2e` | 20m | ADR-071 placed it here deliberately; glob-gated to hook paths |
 | `plugin-load-e2e` | 20m | ADR-071, same |
-| `workflow-local-run` | 30m | glob-gated to `.github/workflows/**` |
-| `python-type-check` | 15m | scoped to changed files; measured 1.07s cold |
+| `workflow-local-run` | 10m | glob-gated to `.github/workflows/**`; DEGRADED to a warning in a container, which has no actionlint, so its container cost is 0s and its cost on a developer machine is unmeasured |
+| `python-type-check` | 2m | scoped to changed files; measured 2.73s in-hook |
 | `security-scan` | 15m | ADR-054 sets an enforced 900s budget for it; not glob-gated |
 
 Four are glob-gated, so they cost nothing on the change class this record
-measured. None has been timed when its glob does fire, which is why nobody in
-this repository can say what a `.claude/skills/**` push costs. That is the tail
-this record does not address (issue #5318).
+measured, and that was verified rather than assumed: on the second push of this
+branch all four printed `(skip) no matching push files`. Attempts to measure
+them firing were inconclusive, because each scopes its work to
+`origin/main...HEAD` and short-circuits when the branch does not touch its
+inputs. So the honest position is that these four remain **unmeasured while
+firing**, and they are the pushes that can still outlive a container. That is
+the tail this record does not close (issue #5318).
+
+The two e2e smokes at 20m each set the expensive group's declared cost, so they
+alone account for 1200s of the 2610s total. Cutting them needs a measurement
+first, not a guess.
 
 ADR-054's 900s budget for `security-scan` is three times the 300s pre-push
 target. The target does not overturn it. Whichever record is wrong, they cannot
@@ -334,9 +357,10 @@ itself mean tests ran.
   escape hatch nobody exercises rots. Its wiring is covered by a test.
 - The duplication between `pre-pr-validation` and the fast stage stays, and
   costs roughly 40s per push, because the cheap way to remove it was unsound.
-- Neither tier target is enforced or measured. The declared worst case of the
-  pre-push graph is far above 300s; only rule 3 and reviewer attention keep it
-  down.
+- Neither tier target is enforced at runtime, and the declared worst case is
+  still 43.5 minutes against a 300s target. The ratchet stops it rising and
+  does not bring it down; only measuring the two unmeasured job classes can do
+  that. A push whose glob fires an e2e smoke can still outlive a container.
 
 ### Neutral
 
