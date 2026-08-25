@@ -61,8 +61,10 @@ EXIT CODES (ADR-035):
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -864,10 +866,39 @@ def render_index(records: Sequence[AdrRecord]) -> str:
 # --- CLI ------------------------------------------------------------------
 
 
+def _atomic_write_text(path: Path, content: str) -> None:
+    """Write ``content`` to ``path`` atomically via a temp file plus ``os.replace``.
+
+    ``Path.write_text`` opens ``path`` for writing, which follows a symlink and
+    writes through to whatever it targets. A contributor who committed
+    ``path`` as a symlink (or a CI runner checking out such a commit) would
+    then have this generator overwrite an arbitrary file the process can
+    write, not the intended destination (CWE-59/CWE-22; Copilot review,
+    originally found on the standalone extraction PR #5285). ``os.replace``
+    does not follow a symlink destination: it replaces the directory entry
+    itself, so a symlink at ``path`` is unlinked and swapped for a regular
+    file rather than written through. Verified empirically: replacing a
+    symlink this way leaves its former target byte-for-byte unchanged and
+    leaves ``path`` a regular file.
+    """
+    directory = path.parent
+    fd, tmp_name = tempfile.mkstemp(dir=directory, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(content)
+        os.replace(tmp_name, path)
+    except BaseException:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+
+
 def generate(adr_dir: Path, output_path: Path) -> None:
     """Write the index to ``output_path``."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(render_index(collect_records(adr_dir)), encoding="utf-8")
+    _atomic_write_text(output_path, render_index(collect_records(adr_dir)))
 
 
 def _run_check(adr_dir: Path, output_path: Path) -> int:

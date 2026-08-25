@@ -755,6 +755,31 @@ def test_generate_writes_the_index_and_exits_zero(tmp_path: Path) -> None:
     assert output.read_text(encoding="utf-8").startswith("# Architecture Decision Records")
 
 
+def test_generate_does_not_write_through_a_symlinked_destination(tmp_path: Path) -> None:
+    """CWE-59/CWE-22: a symlinked ``--output`` must not corrupt its target.
+
+    A contributor who committed ``.agents/architecture/README.md`` as a
+    symlink (or a CI runner that checked out such a commit) must not have
+    this generator overwrite whatever the symlink points to. ``generate()``
+    writes atomically via a temp file plus ``os.replace``, which unlinks the
+    destination directory entry rather than following it (Copilot review,
+    originally found on the standalone extraction PR #5285).
+    """
+    directory = tmp_path / "architecture"
+    _corpus(directory)
+    sentinel = tmp_path / "sentinel.txt"
+    sentinel_content = "do not touch me\n"
+    sentinel.write_text(sentinel_content, encoding="utf-8")
+    output = tmp_path / "README.md"
+    output.symlink_to(sentinel)
+
+    generate_adr_index.generate(directory, output)
+
+    assert sentinel.read_text(encoding="utf-8") == sentinel_content
+    assert not output.is_symlink()
+    assert output.read_text(encoding="utf-8").startswith("# Architecture Decision Records")
+
+
 def test_check_passes_when_the_committed_index_is_current(tmp_path: Path) -> None:
     directory = tmp_path / "architecture"
     _corpus(directory)
