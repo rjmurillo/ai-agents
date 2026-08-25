@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: f1b026885ed51aea56f864b51eae4bf5cd096127
+qaCommit: b0ab960ea4c8fc522ecad971bf77bb72428db710
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1781,3 +1781,17 @@ with a rationale comment instead of raising the baseline (forbidden,
 `merge_tree_ratchet_check.py` passes clean after that commit.
 
 **Rebound to** `f1b026885ed51aea56f864b51eae4bf5cd096127`.
+
+## Addendum 34: ADR index regeneration after the merge
+
+`build/scripts/build_all.py --check` flagged `.agents/architecture/README.md`
+as stale after Addendum 33's merge: many ADRs gained ADR-073 frontmatter
+(from `origin/main`'s bulk commit and from this branch's own backfill)
+that the generated index table had never picked up. Regenerated with
+the documented order (`sync_plugin_lib.py` then `build_all.py`,
+`ci-scripts.md` generator-ordering rule) in commit
+`b0ab960ea4c8fc522ecad971bf77bb72428db710`, which also carried this
+addendum and Addendum 35 of the sister file. No test changes; this is
+a pure index regen plus QA-doc bookkeeping.
+
+**Rebound to** `b0ab960ea4c8fc522ecad971bf77bb72428db710`.

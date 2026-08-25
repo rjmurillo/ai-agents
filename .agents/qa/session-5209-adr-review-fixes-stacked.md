@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: f1b026885ed51aea56f864b51eae4bf5cd096127
+qaCommit: b0ab960ea4c8fc522ecad971bf77bb72428db710
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -9,7 +9,7 @@ qaCommit: f1b026885ed51aea56f864b51eae4bf5cd096127
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `f1b026885ed51aea56f864b51eae4bf5cd096127` (see Addendum 34)
+**Validated at commit**: `b0ab960ea4c8fc522ecad971bf77bb72428db710` (see Addendum 35)
 
 ## Verdict
 
@@ -1099,3 +1099,11 @@ evidence, lives there. Merge commit
 commit `f1b026885ed51aea56f864b51eae4bf5cd096127`.
 
 **Rebound to** `f1b026885ed51aea56f864b51eae4bf5cd096127`.
+
+## Addendum 35: ADR index regeneration after the merge
+
+Same regen as Addendum 34 of the campaign report
+(`.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`); full detail lives
+there. Commit `b0ab960ea4c8fc522ecad971bf77bb72428db710`.
+
+**Rebound to** `b0ab960ea4c8fc522ecad971bf77bb72428db710`.
