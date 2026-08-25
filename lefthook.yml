@@ -30,11 +30,12 @@ pre-commit:
       timeout: 2m
       run: uv run --frozen python scripts/validation/git_hook_policy.py branch-context
 
-    # Issue #5123: a commit landing in a worktree while that worktree's own
-    # pre-push suite (6-15 minutes) is still running against the same branch
-    # can corrupt any test whose fixture reads live git state. Reuses the
-    # existing per-branch push-lock file (push-lock.md) rather than a second
-    # scheme; blocks only when that lock is currently held.
+    # Issue #5123: a commit landing while a push for this branch name is
+    # still running its pre-push suite (6-15 minutes), in this worktree or
+    # any other checkout of the same branch on this machine, can corrupt any
+    # test whose fixture reads live git state. Reuses the existing per-branch
+    # push-lock file (push-lock.md) rather than a second scheme; blocks only
+    # when that lock is currently held. Bypass: SKIP_PUSH_LOCK_COMMIT_GUARD=1.
     - name: push-lock-commit-guard
       timeout: 30s
       run: uv run --frozen python scripts/validation/check_push_lock_before_commit.py

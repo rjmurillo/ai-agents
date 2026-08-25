@@ -69,22 +69,32 @@ scans prescriptive surfaces only and leaves `.agents/retrospective/`,
 ## Commit guard
 
 Issue #5123: the lock also gates new commits, not only concurrent pushes. A
-commit landing in a worktree while that same worktree's pre-push suite (6 to
-15 minutes) is still running against the same branch can corrupt any test
-whose fixture reads live git state, because git runs the pre-push hook
-inside the `git push` invocation the lock already wraps, so the lock stays
-held for the full suite, not just the ref transfer.
+commit landing in a worktree while a push for the same branch (in that
+worktree or any other checkout of it) is still running its pre-push suite (6
+to 15 minutes) can corrupt any test whose fixture reads live git state,
+because git runs the pre-push hook inside the `git push` invocation the lock
+already wraps, so the lock stays held for the full suite, not just the ref
+transfer.
 
 `scripts/validation/check_push_lock_before_commit.py` runs as the
 `push-lock-commit-guard` pre-commit job in `lefthook.yml`. It reads the SAME
 canonical lock file this rule defines and refuses the commit only while that
 file is held by another process right now, i.e. while a push is in flight
-for this branch in this worktree. It never creates or holds the lock itself;
-a non-blocking probe of lock state is not a second scheme under MUST NOT 2
-above, it is a read of the one the recipe already takes.
+for this branch name on this machine. It never creates or holds the lock
+itself; a non-blocking probe of lock state is not a second scheme under MUST
+NOT 2 above, it is a read of the one the recipe already takes.
+
+The lock carries no worktree component (MUST 1 above), so this guard's
+scope is exactly the lock's scope: per branch name per machine, not per
+worktree. Two worktrees on the same branch name contend for the same lock
+and the same guard; two worktrees on different branch names never do. The
+same collapse applies here as in MUST 2: two branch names that only differ
+by `/` (`a/b` and `a-b`) share one lock file and therefore one guard.
 
 A commit refused this way is not lost. Wait for the in-flight push to finish
 (or for its pre-push suite to fail and release the lock), then commit again.
+If the lock is stuck (the holder crashed without releasing it), set
+`SKIP_PUSH_LOCK_COMMIT_GUARD=1` to bypass this one check.
 
 ## Checking
 

@@ -1,4 +1,5 @@
-"""Issue #5123: refuse a commit while this branch's own push is in flight.
+"""Issue #5123: refuse a commit that starts while this branch's own push is
+in flight.
 
 Reuses the canonical per-branch push-lock file (``.claude/rules/push-lock.md``)
 rather than a second locking scheme, so these tests probe the same lock a real
@@ -74,10 +75,14 @@ def test_push_is_in_flight_false_when_lock_file_cannot_be_opened(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_lock_path_for_branch_matches_the_canonical_scheme(monkeypatch, tmp_path):
-    monkeypatch.setattr(checker, "LOCK_DIRECTORY", tmp_path)
+def test_lock_path_for_branch_matches_the_canonical_scheme(tmp_path):
+    assert checker.lock_path_for_branch("fix/foo", tmp_path) == tmp_path / "push-lock-fix-foo.lock"
 
-    assert checker.lock_path_for_branch("fix/foo") == tmp_path / "push-lock-fix-foo.lock"
+
+def test_lock_path_for_branch_falls_back_to_lock_directory(monkeypatch, tmp_path):
+    monkeypatch.setattr(checker, "_lock_directory", lambda: tmp_path)
+
+    assert checker.lock_path_for_branch("main") == tmp_path / "push-lock-main.lock"
 
 
 # ---------------------------------------------------------------------------
@@ -88,7 +93,7 @@ def test_lock_path_for_branch_matches_the_canonical_scheme(monkeypatch, tmp_path
 def test_check_push_not_in_flight_allows_when_no_lock_file_exists_yet(monkeypatch, tmp_path):
     repo = tmp_path / "repo"
     _init_git_repo(repo)
-    monkeypatch.setattr(checker, "LOCK_DIRECTORY", tmp_path / "locks")
+    monkeypatch.setattr(checker, "_lock_directory", lambda: tmp_path / "locks")
 
     allowed, message = checker.check_push_not_in_flight(repo)
 
@@ -102,7 +107,7 @@ def test_check_push_not_in_flight_allows_when_lock_is_free(monkeypatch, tmp_path
     lock_dir = tmp_path / "locks"
     lock_dir.mkdir()
     (lock_dir / "push-lock-main.lock").touch()
-    monkeypatch.setattr(checker, "LOCK_DIRECTORY", lock_dir)
+    monkeypatch.setattr(checker, "_lock_directory", lambda: lock_dir)
 
     allowed, message = checker.check_push_not_in_flight(repo)
 
@@ -118,7 +123,7 @@ def test_check_push_not_in_flight_blocks_when_push_holds_the_lock(monkeypatch, t
     lock_path = lock_dir / "push-lock-main.lock"
     holder_fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT)
     fcntl.flock(holder_fd, fcntl.LOCK_EX)
-    monkeypatch.setattr(checker, "LOCK_DIRECTORY", lock_dir)
+    monkeypatch.setattr(checker, "_lock_directory", lambda: lock_dir)
 
     try:
         allowed, message = checker.check_push_not_in_flight(repo)
@@ -129,6 +134,8 @@ def test_check_push_not_in_flight_blocks_when_push_holds_the_lock(monkeypatch, t
     assert allowed is False
     assert "#5123" in message
     assert "main" in message
+    assert "on this machine" in message
+    assert checker.SKIP_ENV in message
 
 
 def test_check_push_not_in_flight_allows_on_detached_head(monkeypatch, tmp_path):
@@ -142,12 +149,44 @@ def test_check_push_not_in_flight_allows_on_detached_head(monkeypatch, tmp_path)
         timeout=10,
     ).stdout.strip()
     subprocess.run(["git", "-C", str(repo), "checkout", "--quiet", head], check=True, timeout=10)
-    monkeypatch.setattr(checker, "LOCK_DIRECTORY", tmp_path / "locks")
+    monkeypatch.setattr(checker, "_lock_directory", lambda: tmp_path / "locks")
 
     allowed, message = checker.check_push_not_in_flight(repo)
 
     assert allowed is True
     assert "detached HEAD" in message
+
+
+def test_check_push_not_in_flight_fails_open_when_git_errors(tmp_path):
+    """Issue #5123 review finding F3: a git failure (not a repo, no commits)
+    must not block every commit; the guard fails open with the reason."""
+    not_a_repo = tmp_path / "plain-directory"
+    not_a_repo.mkdir()
+
+    allowed, message = checker.check_push_not_in_flight(not_a_repo)
+
+    assert allowed is True
+    assert "could not determine the branch" in message
+    assert "not a git repository" in message.lower()
+
+
+def test_check_push_not_in_flight_fails_open_when_lock_directory_cannot_resolve(
+    monkeypatch, tmp_path
+):
+    """F6: a RuntimeError from Path.home() (e.g. no resolvable home directory)
+    must not crash the guard or block the commit."""
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+
+    def _raise():
+        raise RuntimeError("could not determine home directory")
+
+    monkeypatch.setattr(checker, "_lock_directory", _raise)
+
+    allowed, message = checker.check_push_not_in_flight(repo)
+
+    assert allowed is True
+    assert "could not resolve the lock directory" in message
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +197,7 @@ def test_check_push_not_in_flight_allows_on_detached_head(monkeypatch, tmp_path)
 def test_main_exits_zero_when_lock_is_free(monkeypatch, tmp_path):
     repo = tmp_path / "repo"
     _init_git_repo(repo)
-    monkeypatch.setattr(checker, "LOCK_DIRECTORY", tmp_path / "locks")
+    monkeypatch.setattr(checker, "_lock_directory", lambda: tmp_path / "locks")
 
     assert checker.main(["--repo-root", str(repo)]) == 0
 
@@ -171,7 +210,7 @@ def test_main_exits_one_when_push_holds_the_lock(monkeypatch, tmp_path):
     lock_path = lock_dir / "push-lock-main.lock"
     holder_fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT)
     fcntl.flock(holder_fd, fcntl.LOCK_EX)
-    monkeypatch.setattr(checker, "LOCK_DIRECTORY", lock_dir)
+    monkeypatch.setattr(checker, "_lock_directory", lambda: lock_dir)
 
     try:
         assert checker.main(["--repo-root", str(repo)]) == 1
@@ -180,17 +219,41 @@ def test_main_exits_one_when_push_holds_the_lock(monkeypatch, tmp_path):
         os.close(holder_fd)
 
 
-def test_main_exits_two_when_repo_root_is_not_a_git_repository(tmp_path):
+def test_main_exits_zero_when_repo_root_is_not_a_git_repository(tmp_path):
+    """F3: fails open (exit 0) rather than exit 2, so a config problem here
+    cannot block every commit in an unrelated directory."""
     not_a_repo = tmp_path / "plain-directory"
     not_a_repo.mkdir()
 
-    assert checker.main(["--repo-root", str(not_a_repo)]) == 2
+    assert checker.main(["--repo-root", str(not_a_repo)]) == 0
+
+
+def test_main_exits_zero_and_skips_the_lock_check_when_bypass_env_is_set(
+    monkeypatch, tmp_path
+):
+    """F1: SKIP_PUSH_LOCK_COMMIT_GUARD=1 bypasses the guard even while the
+    lock is genuinely held, for a stuck lock from a crashed holder."""
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    lock_dir = tmp_path / "locks"
+    lock_dir.mkdir()
+    lock_path = lock_dir / "push-lock-main.lock"
+    holder_fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT)
+    fcntl.flock(holder_fd, fcntl.LOCK_EX)
+    monkeypatch.setattr(checker, "_lock_directory", lambda: lock_dir)
+    monkeypatch.setenv(checker.SKIP_ENV, "1")
+
+    try:
+        assert checker.main(["--repo-root", str(repo)]) == 0
+    finally:
+        fcntl.flock(holder_fd, fcntl.LOCK_UN)
+        os.close(holder_fd)
 
 
 def test_main_prints_the_examined_branch_on_success(monkeypatch, tmp_path, capsys):
     repo = tmp_path / "repo"
     _init_git_repo(repo)
-    monkeypatch.setattr(checker, "LOCK_DIRECTORY", tmp_path / "locks")
+    monkeypatch.setattr(checker, "_lock_directory", lambda: tmp_path / "locks")
 
     checker.main(["--repo-root", str(repo)])
 
