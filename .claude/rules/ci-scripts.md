@@ -142,7 +142,7 @@ bytes over its ceiling.
 - `.agents/architecture/ADR-042-python-migration-strategy.md`. Python-first
 - `scripts/validation/pre_pr.py`. Canonical pre-PR runner
 - `scripts/validation/check_skill_resolver_anchoring.py`. Enforces the anchoring requirement for `SKILL.md` resolvers
-- `.claude/skills/validation-authority/`. Validator-authority skill
+- The `validation-authority` skill. Validator-authority guidance
 - Issue #1711. validator change that blocked all PRs
 - Issue #3402. worktree identity and stale helper resolution
 - Issue #3408. a linked worktree's imported session log wedging `check_branch_context`
