@@ -57,10 +57,16 @@ class TestExistenceAndTitle:
         assert ADR_PATH.is_file()
 
     def test_title_names_the_decomposition_decision(self, adr_text: str) -> None:
-        first_line = adr_text.splitlines()[0]
-        assert first_line.startswith("# ADR-063:")
-        assert "memory" in first_line.lower()
-        assert "decompos" in first_line.lower()
+        # The title is the first H1, not the first line: ADR-073 lifecycle
+        # frontmatter now precedes it (issue #5190 backfill).
+        title = next(
+            (line for line in adr_text.splitlines() if line.startswith("# ")),
+            None,
+        )
+        assert title is not None, "ADR has no H1 title"
+        assert title.startswith("# ADR-063:")
+        assert "memory" in title.lower()
+        assert "decompos" in title.lower()
 
 
 class TestRequiredSections:
