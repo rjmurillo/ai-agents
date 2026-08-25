@@ -1090,6 +1090,32 @@ def test_chain_ending_at_a_missing_successor_is_reported_unresolved(tmp_path: Pa
     assert "ADR-051-second.md" not in row
 
 
+def test_a_directly_missing_successor_is_reported_unresolved(tmp_path: Path) -> None:
+    """A record's own first-hop citation to a nonexistent ADR must not read as a link.
+
+    ADR-052 names "ADR-999" directly, with no intermediate hop. Before this
+    fix, `_successor_cell` returned `_cell(record.successor)` for this case,
+    printing the bare reference text "ADR-999" with no "unresolved (...)"
+    wrapping, while the same missing target reached through an intermediate
+    hop (test above) was already rendered as unresolved. A reader cannot
+    tell the bare text apart from a live link candidate (Copilot, PR #5285
+    review).
+    """
+    adr_dir = tmp_path / "architecture"
+    _write_adr(
+        adr_dir,
+        52,
+        "orphan",
+        frontmatter="status: superseded\nsuperseded-by: ADR-999",
+        body=_standard_body(52, "Orphan"),
+    )
+
+    retired = _section(_render(adr_dir), "Retired")
+    row = next(line for line in retired.splitlines() if line.startswith("| [ADR-052]"))
+
+    assert "unresolved (ADR-052 -> ADR-999)" in row
+
+
 def test_chain_ending_at_a_retired_record_with_no_successor_is_unresolved(
     tmp_path: Path,
 ) -> None:

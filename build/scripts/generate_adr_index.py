@@ -657,7 +657,12 @@ def _successor_cell(record: AdrRecord, by_id: dict[str, AdrRecord]) -> str:
     successor_id = _normalize_adr_id(record.successor)
     successor = by_id.get(successor_id) if successor_id is not None else None
     if successor is None:
-        return _cell(record.successor)
+        # The same dangling-reference shape _walk_supersession_chain reports
+        # for an intermediate hop (walk.dangling_ref below), but here it is
+        # record's own first hop: report it the same way instead of printing
+        # the bare reference text as though it might be a live link (Copilot,
+        # PR #5285 review).
+        return f"unresolved ({record.adr_id} -> {_cell(record.successor)})"
 
     walk = _walk_supersession_chain(record, successor, by_id)
     chain = walk.chain
@@ -767,6 +772,15 @@ _INTRO = (
     "below, while a bare `== 'accepted'` misses it. Every record carries a\n"
     "lowercase value today, which is exactly why the mismatch would not announce\n"
     "itself.\n\n"
+    "**This snippet trusts the corpus; the generator does not.** `_status_of`\n"
+    "raises when a `status` value is present but not a string, before it ever\n"
+    "strips or lower-cases anything, so `status: true` or `status: 1` fails the\n"
+    "committed index loudly. The bare `str(front.get('status', ''))` above has no\n"
+    "such check: it silently stringifies whatever YAML parsed, so a non-string\n"
+    "value it happens to compare unequal to `'accepted'` passes through unnoticed\n"
+    "instead of raising. This snippet is a read of a corpus the generator has\n"
+    "already validated, not a second validator; regenerate the index (which does\n"
+    "raise) before trusting a bare frontmatter query on a tree you have not.\n\n"
     "**This snippet does not detect duplicate keys, and the generator does.**\n"
     "`yaml.safe_load` resolves a repeated `status:` last-wins and silently, so a\n"
     "record declaring `proposed` in the line a human reads and `accepted` lower in\n"
