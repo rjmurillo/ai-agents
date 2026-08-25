@@ -1,7 +1,7 @@
 # Retrospective: ADR-073 Phase 2 frontmatter backfill (issue #5190)
 
-Branch `claude/autoplan-goal-vd6pmg`. 53 ADRs backfilled with ADR-073 lifecycle
-frontmatter, one review log, one test fix. 15 commits.
+Branch `claude/autoplan-goal-vd6pmg`. 67 ADRs carrying ADR-073 lifecycle
+frontmatter, one review log, one test fix. 70 files.
 
 ## What was supposed to happen
 
@@ -108,7 +108,7 @@ content rather than a touch to satisfy the gate.
 |------|-------|------------|
 | `adr-policy` | ADR commits need a staged debate log | Review log staged with all 14 batches |
 | `staged-dash-policy` | Four in-scope ADRs carried pre-existing em dashes | Replaced with colons and commas in ADR-021, 032, 053, 056 |
-| `scope-policy` / `branch-scope` | 55 files, hard limit 50 | Owner-authorized, scoped `SKIP_SCOPE_CHECK=1`; documented in the log and the PR |
+| `scope-policy` / `branch-scope` | 70 files at final count, hard limit 50 | Owner-authorized, scoped `SKIP_SCOPE_CHECK=1`; documented in the log and the PR |
 | `python-tests` | `test_adr_063` read the title from `splitlines()[0]` | Test now finds the first H1; frontmatter legitimately precedes the title now |
 | `retrospective-policy` | Test fix made the push non-documentation-only | This file |
 
@@ -183,7 +183,7 @@ Per `.claude/rules/retros.md` MUST-4, each item carries an owner or an issue.
 | 4 | Complete Phase 2 across the ten partial-frontmatter ADRs | Backfill | rjmurillo/ai-agents#5290 | Filed, folded into PR #5291 |
 | 5 | Triage the eight status/implementation mismatches surfaced by the schema (five `proposed` but shipped, three `accepted` but never built) | Governance triage | rjmurillo, needs an issue; not fixable in a metadata backfill because a status change is a governance act | Open |
 | 6 | Decide the review-evidence question for PR #5291: convene the full six-agent debate, or record acceptance of narrower evidence | Process decision | rjmurillo, on PR #5291 | Open |
-| 7 | Sweep the six ADR-030 citation sites once its status change lands | Cleanup | Filed as a follow-up issue from this PR | Filed |
+| 7 | Sweep the six ADR-030 citation sites, and decide where skill-first lives now that ADR-030 is rejected | Cleanup plus a governance decision | rjmurillo/ai-agents#5293 | Filed |
 
 ## What to carry forward
 

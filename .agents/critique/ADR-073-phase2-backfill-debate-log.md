@@ -1,21 +1,44 @@
 # ADR-073 Phase 2 backfill: review and debate log
 
-Subject: adding ADR-073 lifecycle frontmatter to 53 existing ADRs that carry no
-frontmatter block. Issue #5190. Branch `claude/autoplan-goal-vd6pmg`.
+Subject: ADR-073 lifecycle frontmatter across 68 records. Issues #5190 and
+#5290. Branch `claude/autoplan-goal-vd6pmg`.
+
+Scope: **67 distinct ADR files**, 70 files in the PR. That is 53 records which
+carried no frontmatter, 10 which carried a partial block (#5290), and 4 further
+records added for status decisions (ADR-002, ADR-030, ADR-036, ADR-039). A fifth
+status decision, ADR-052, was already among the 53, so counting the status
+decisions as five and the rest as 63 would double-count it: 62 records are
+mechanical, 5 are decisions, 67 in total.
 
 ADR-073 (`.agents/architecture/ADR-073-adr-lifecycle-frontmatter.md`) is Accepted
 (2026-06-19) and is not reopened here. Its schema is taken as given. This review
-covers one question only: is the prose-to-enum mapping proposed for each of the
-53 records correct, and are the derivation rules behind it sound?
+covers two questions: is the prose-to-enum mapping right for each record, and
+are the derivation rules behind it sound?
 
 ## How this review was conducted
 
-**Read this section before treating this document as consensus evidence.**
+**Read this section before treating this document as consensus evidence. Two
+different review standards apply to different parts of this PR.**
+
+| Records | Review standard |
+|---|---|
+| **5 status decisions**: ADR-002, ADR-030, ADR-036, ADR-039, ADR-052 | A real six-agent adr-review debate (architect, critic, independent-thinker, security, analyst, high-level-advisor), convened by the repository owner outside the authoring session. |
+| The **62 mechanical records**: 52 of the original 53, plus the 10 from issue #5290 | Single-reviewer structured review, described below. |
+
+The five status decisions are the ones that carry governance weight: each is a
+real transition with prose changes, not a transcription of an existing status.
+Those got the full roster. The 62 mechanical records did not.
+
+A further six-agent round covering the **full final state** (all 67 touched
+records at once) is planned by the owner after this pass lands, to reach a single
+verdict for the whole PR. Until that round completes, the paragraphs below stand.
+
+### The single-reviewer standard, for the 62 mechanical records
 
 The `adr-review` skill specifies a six-agent debate (architect, critic,
 independent-thinker, security, analyst, high-level-advisor). That roster could
-not be convened: sub-agent delegation was unavailable in the session that
-produced this change, so no agent other than the authoring one participated.
+not be convened for these: sub-agent delegation was unavailable in the session
+that produced this change, so no agent other than the authoring one participated.
 
 What this document is instead: a single-reviewer structured review worked
 through the six adr-review axes in sequence, in which every factual claim was
@@ -27,13 +50,14 @@ review of the PR, not on a consensus that did not happen.
 The review was not a formality. It changed six of the fifty-three records before
 they were written. Those corrections are recorded under "Findings" below.
 
-**The reviewer of this PR must choose one of two paths before merge, and the
-choice belongs to the repository owner, not to a default.** Either (a) convene
-the real six-agent adr-review debate in a session where sub-agent delegation
-works, and merge on that consensus, or (b) decide that single-reviewer
-structured review is sufficient evidence for a mechanical metadata backfill
-against an already-accepted schema, and record that decision. Do not merge on
-the assumption that a six-agent debate happened, because it did not.
+**For these 62 mechanical records, the reviewer must choose one of two paths
+before merge, and the choice belongs to the repository owner, not to a
+default.** Either (a) cover them in the planned full-state six-agent round and
+merge on that consensus, or (b) decide that single-reviewer structured review is
+sufficient evidence for a mechanical metadata backfill against an
+already-accepted schema, and record that decision. Do not merge these 62 on the
+assumption that a six-agent debate covered them; as of this writing it covered
+only the five status decisions.
 
 The repository was un-shallowed (`git fetch --unshallow`, 2630 commits) before
 any date or implementation claim was made. The session began with a 50-commit
@@ -459,21 +483,156 @@ much they should weigh on a reviewer:
 | ADR-070 | proposed | 2026-07-27 | [] | null | true |
 | ADR-072 | proposed | 2026-06-09 | [] | null | false |
 
+## The five status decisions (six-agent debate)
+
+These five were deferred from the original backfill because each needed a
+decision rather than a transcription. The owner convened the full adr-review
+roster on them. Summary of what the debate settled and the evidence each rests
+on, all verified against the live tree before writing:
+
+### ADR-002, ADR-039: both `deprecated`
+
+The pair was one question. ADR-039 claimed to supersede ADR-002 "pending
+validation" during a provisional window (2026-01-03 to 2026-01-17).
+
+The window closed with **zero of its four acceptance criteria measured**.
+`.agents/governance/model-pin-evidence.json` holds `"pins": []`. No validation
+verdict, pass or fail, was recorded anywhere. The downgrades were reverted, but
+not through ADR-039's own documented rollback procedure: they went incidentally
+on 2026-02-07, three weeks after the window closed, inside commit `568af6775`
+(PR #1046, "migrate agent prompts from cloudmcp-manager to Memory Router"), which
+rewrote 41 agent files for an unrelated reason and does not mention ADR-039 at
+all. Verified: `model:` for orchestrator, architect, independent-thinker,
+roadmap, high-level-advisor, and security all read `opus` today, which is
+ADR-002's assignment.
+
+So ADR-039's `supersedes` is `[]`: the supersession never took effect.
+
+**ADR-002 is not revived to `accepted`** on the strength of that. Its own table
+is also wrong about the tree: it assigns `critic` and `qa` to Sonnet where both
+are `opus`, and it scopes itself to "All 18 agents" where 33 exist under
+`.claude/agents/`. And the question has been re-answered on better grounds by
+ADR-080 (accepted, 2026-07-11), whose Context section rejects ADR-002's method
+directly: "The pins encode a guess, not a measurement."
+
+`superseded-by` stays `null` on ADR-002. Naming ADR-080 needs the reciprocal
+`supersedes: [ADR-002]` on an accepted ADR, which is outside this PR.
+
+**Why `deprecated` and not `rejected`.** Both shipped and ran in production,
+ADR-039 for roughly five weeks. This repository uses `rejected` for a proposal
+declined *before* it was ever in force (ADR-095, ADR-061). `deprecated` means
+"was in force, no longer is". Both carry `implemented: true`, which stays true
+despite the revert, for the reason given in the deviation note above.
+
+The pair follows the ADR-098 and ADR-093 precedent for status handling: ADR-098's
+own Status section states that "the acceptance of a governance ADR is a maintainer
+act", which is why both of those ship `proposed` against `implemented: true`
+rather than self-asserting acceptance.
+
+### ADR-030: `rejected`, body untouched
+
+Not a decision record. It is a same-day amendment memo to ADR-027 (still
+`proposed`), and its own header reads `**Status**: Critical Update - Changes
+Recommendation`, which is not an enum member. Its "Option E" was not built:
+`.claude/skills/github/SKILL.md` wraps Python scripts and contains zero
+`mcp__github` references, so it never declared `allowed-tools: mcp__github__*`.
+
+**The body is deliberately left alone.** It is the only record of what was argued
+on 2025-12-23, and rewriting it would fabricate a decision that was never made.
+The record gets frontmatter and a five-line note, nothing else.
+
+Six live sites still cite ADR-030 as binding authority, including
+`scripts/validation/check_agent_skill_discriminator.py`, which hardcodes its
+path. Two more cite `ADR-030 line 31`, a line number this PR shifts by roughly
+16. Filed as issue #5293, which also carries the real open question: the
+skill-first principle is still live practice and now has no written home.
+
+### ADR-036: `accepted`, and NOT superseded
+
+**This corrects an error in an earlier version of this document**, which grouped
+ADR-036 with ADR-024 and ADR-025 as "actually superseded, deferred to #5192".
+That characterization was wrong.
+
+ADR-036 is the live, operative architecture. Verified: 31 `templates/agents/*.shared.md`
+files exist and `build/generate_agents.py` reads them on every build. ADR-052,
+the rival proposal that claimed to supersede it, was never implemented. ADR-036
+has nothing to do with the ADR-024/ADR-025 dangling-supersession problem and
+ships here as an ordinary `accepted` transcription.
+
+Two stale `Generate-Agents.ps1` references (lines 53 and 101) are repointed to
+`build/generate_agents.py`. This is an internal inconsistency, not a new claim:
+the same file already names `generate_agents.py` correctly at line 231. Stale
+agent-count figures elsewhere in the record are left alone as out of scope.
+
+### ADR-052: `rejected`
+
+Proposed eliminating `templates/` in favour of generating platform variants from
+`src/claude/` ("Option B"). Five months on, none of it exists:
+`build/scripts/generate_platform_agents.py` and `platform-overrides/` are both
+absent, while `templates/agents/*.shared.md` remains what the build reads.
+
+Its central evidence, a 2 to 13 percent template-vs-Claude drift measurement
+presented as sync failure, had already been answered by ADR-036 before ADR-052
+was written: "Similarity metrics comparing Claude to templates measure divergence
+that is **BY DESIGN**, not sync failure." ADR-052 never engages that rebuttal.
+
+The prose claim "Supersedes ADR-036." is struck, matching the frontmatter's
+`supersedes: []`.
+
+**Issue #124 (the standing question of whether the two-source template pattern
+should continue, referenced in ADR-036) remains open and unresolved. This
+rejection closes ADR-052's specific proposal, not the underlying question.**
+
+## The ten records from issue #5290
+
+These carried `status`, `date`, and `decision-makers` but none of `id`,
+`supersedes`, `superseded-by`, `explainer`, or `implemented`, so they fell
+between issue #5190's two categories and nothing owned them. ADR-071 had no
+`date` either; its `## Date` section supplies 2026-08-19.
+
+**Existing recorded values are preserved, not overwritten.** This is a deliberate
+divergence from the `decision-makers: [rjmurillo]` rule applied to the 53. Those
+53 recorded no decision-makers at all, so a value had to be chosen. These ten
+name their own, so overwriting them would destroy recorded information for the
+sake of uniformity, which is the exact objection raised against the uniform rule.
+Their `consulted` and `informed` keys are kept as well. Two shape fixes only:
+ADR-027's `decision-makers` was a bare scalar and is normalized to a list, and
+ADR-066's quoted `status` is unquoted.
+
+| ADR | status | date | implemented | Basis |
+|-----|--------|------|-------------|-------|
+| ADR-003 | accepted | 2025-12-16 | true | `build/scripts/validate_agent_matrix_refs.py`, `git_hook_policy.py` |
+| ADR-020 | proposed | 2025-12-19 | false | Zero references anywhere |
+| ADR-023 | accepted | 2025-12-26 | true | `scripts/eval/eval-suite.py` |
+| ADR-027 | proposed | 2025-12-23 | false | Zero references; ADR-030's parent |
+| ADR-034 | accepted | 2026-07-08 | true | `validate_investigation_claims.py` plus its workflow. Date from `## Amendment (2026-07-08)` |
+| ADR-057 | accepted | 2026-07-22 | true | 11 executable references. Date from `## Amendment 2026-07-22 (Issue #3185)` |
+| ADR-058 | proposed | 2026-05-03 | true | `scripts/eval/_eval_agent_types.py:28` implements its fourth verdict outcome |
+| ADR-066 | accepted | 2026-07-19 | true | `.claude/lib/hook_dispatch.py`, `generate_dispatcher.py`. Date from a dated `## Status` statement |
+| ADR-069 | proposed | 2026-05-02 | false | Its only executable references are renumbering-history strings in the uniqueness allowlist, not implementation |
+| ADR-071 | accepted | 2026-08-19 | true | `nightly-cli-smoke.yml`, runtime-contract tests |
+
+ADR-058 is a sixth `proposed`-but-implemented record, on top of the five in the
+53. It is the same governance gap, not a new one.
+
 ## Records excluded from this change
 
-Six of the 59 frontmatter-free ADRs are deliberately not touched, because each
-needs a decision that belongs to another open issue:
+Two of the 59 frontmatter-free ADRs remain untouched. Four that were previously
+deferred (ADR-002, ADR-030, ADR-036, ADR-039) are resolved above and now ship in
+this PR:
 
 | ADR | Reason | Owning issue |
 |-----|--------|--------------|
-| ADR-002, ADR-039 | Status is a "provisional" window that expired 2026-01-17. No enum member represents it. | #5193 |
-| ADR-030 | Not a decision record. Skill documentation carrying a "Critical Update" status. Its fate is being decided elsewhere. | #5195 |
-| ADR-024, ADR-025 | Prose-marked Accepted but actually superseded. The reciprocal `superseded-by` fix belongs with the other dangling supersessions. | #5192 |
+| ADR-024, ADR-025 | Prose-marked Accepted but actually superseded. The reciprocal `superseded-by` fix belongs with the other dangling supersessions, which PR #5209 handles. | #5192 |
 
-Because these six are excluded, issue #5190's acceptance criterion that every
-`ADR-[0-9]*.md` carry frontmatter is not fully met by this change. It is
-therefore referenced with `Refs`, not `Fixes`. A follow-up after #5192, #5193,
-and #5195 land can pick up the remaining six, plus the ten partial-frontmatter
+Resolved and now shipping here, previously deferred: ADR-002 and ADR-039 (#5193)
+are `deprecated`, ADR-030 (#5195) is `rejected`, and ADR-036 was never part of
+the #5192 problem at all.
+
+Because ADR-024 and ADR-025 are excluded, issue #5190's acceptance criterion that
+every `ADR-[0-9]*.md` carry frontmatter is not fully met by this change. It is
+therefore referenced with `Refs`, not `Fixes`. A follow-up after #5192 lands can
+pick up the remaining two
 records listed under "Verification performed", and close it.
 
 ## Scope-gate note
