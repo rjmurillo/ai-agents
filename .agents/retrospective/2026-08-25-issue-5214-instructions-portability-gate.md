@@ -60,11 +60,19 @@ artifact per repo push gates).
 
 ## Phase 2: Diagnosis
 
-This session committed no failures of its own; its two near misses (below)
-were both caught by tooling output before either draft was ever committed.
-But the retrospective is *about* the #5214 incident, and that incident is a
-real failure that needs its own classification, not a scope note explaining
-why this session is clean.
+This session shipped one committed failure of its own, corrected before
+merge, plus two near misses caught before commit. The failure: this session's
+first `EXTRA_SCAN_ROOTS` extension made `src/copilot-cli/instructions`
+scannable but did not make it required, so an absent or empty tree would
+have scanned zero files and still reported clean, the same fail-open shape
+the underlying #5214 defect exemplifies. Copilot review on PR #5284 caught
+it before merge; commit `4529c9e87` made the root required and fail-closed.
+That is a real escape past this session's own review, not merely a near
+miss: it reached a commit and required an external catch, unlike the two
+near misses below, which were both caught by tooling output before either
+draft was ever committed. The retrospective is also *about* the underlying
+#5214 incident itself, a separate and larger failure that needs its own
+classification.
 
 **Classification against `.agents/governance/FAILURE-MODES.md`**: Class 11,
 "Customer-Facing Generated Artifact Shipped Without Runtime Verification"
@@ -157,7 +165,16 @@ corrected before its first commit.
 | Report each scanned root's file count, not just its name, in `_report()`'s text and JSON output (an empty root and a populated one previously read identically) | Applied | This session |
 | Correct the Serena memory this session wrote earlier in the same PR: it claimed only `REQUIRED_EXTRA_ROOTS` entries count toward `files_by_root`, when every existing `EXTRA_SCAN_ROOTS` entry does | Applied | This session |
 | Cite and quote the canonical `generate_rules.py` "body unchanged" contract verbatim (per `canonical-source-mirror.md`) instead of paraphrasing it in two places | Applied | This session |
+| Reject an existing-but-empty required extra root, not only an absent one (a generator that creates its output directory and fails to populate it previously passed) | Applied | This session |
+| Extend `_is_measured_input()` to cover `EXTRA_SCAN_ROOTS`, not only plugin `skills/` trees, closing a baseline-laundering gap in the `--base-ref` semantic-conflict guard for the surface this PR just started scanning | Applied | This session |
+| Print scanned-root counts on the drift path too, not only the clean path (the text branch previously returned before computing them) | Applied | This session |
 | Widen the gate to `.claude/rules/*.md` | Tracked | [#5294](https://github.com/rjmurillo/ai-agents/issues/5294) |
+
+### Session Failures
+
+| What Failed | How It Was Caught | Fix | Learning |
+|--------------|--------------------|-----|----------|
+| The first `EXTRA_SCAN_ROOTS` extension made `src/copilot-cli/instructions` scannable but not required, so an absent or empty tree scanned zero files and reported clean, the same fail-open shape as the underlying #5214 defect | Copilot review on PR #5284, after the commit landed, not by any tooling this session ran before committing | `4529c9e87` added `REQUIRED_EXTRA_ROOTS` and the fail-closed exit-2 check | A gate extension that widens what a scanner reads must also widen what it requires; adding a directory to a scan list without adding it to the required-roots list reintroduces the exact silent-narrowing shape the scan list exists to close. Re-derive "does this new root need to be required" every time a scan-root list grows, don't assume optional-by-default. |
 
 ### Successes (Tag: helpful)
 

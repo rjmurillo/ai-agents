@@ -345,8 +345,14 @@ class TestTerminatorWordBoundary:
         # issue #3582: main() now requires every REQUIRED_SKILLS_ROOTS entry to
         # exist, not just .claude, so a bare `.claude`-only fixture exits 2.
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
-        # issue #5214: main() now also requires REQUIRED_EXTRA_ROOTS to exist.
-        (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
+        # issue #5214: main() now also requires REQUIRED_EXTRA_ROOTS to exist,
+        # with at least one Markdown file (an empty required root fails closed
+        # too, per the same issue's review).
+        instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
+        instructions_dir.mkdir(parents=True)
+        (instructions_dir / "_placeholder.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -362,8 +368,14 @@ class TestTerminatorWordBoundary:
         # issue #3582: main() now requires every REQUIRED_SKILLS_ROOTS entry to
         # exist, not just .claude, so a bare `.claude`-only fixture exits 2.
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
-        # issue #5214: main() now also requires REQUIRED_EXTRA_ROOTS to exist.
-        (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
+        # issue #5214: main() now also requires REQUIRED_EXTRA_ROOTS to exist,
+        # with at least one Markdown file (an empty required root fails closed
+        # too, per the same issue's review).
+        instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
+        instructions_dir.mkdir(parents=True)
+        (instructions_dir / "_placeholder.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -757,7 +769,11 @@ class TestPluginRootScan:
         """End to end proof that the widened scan reaches the CLI exit code."""
         self._skill_md(tmp_path, ".claude", "a/SKILL.md", "Clean prose.\n")
         self._skill_md(tmp_path, "src/copilot-cli", "a/SKILL.md", "Reads .agents/x\n")
-        (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
+        instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
+        instructions_dir.mkdir(parents=True)
+        (instructions_dir / "_placeholder.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
         baseline = tmp_path / "baseline.json"
         baseline.write_text('{"files": {}}', encoding="utf-8")
         code = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -791,6 +807,9 @@ class TestPluginRootScan:
             self._skill_md(tmp_path, name, "a/SKILL.md", "Clean prose.\n")
         for name in cmp.REQUIRED_EXTRA_ROOTS:
             (tmp_path / name).mkdir(parents=True, exist_ok=True)
+            (tmp_path / name / "_placeholder.md").write_text(
+                "Clean prose.\n", encoding="utf-8"
+            )
         assert cmp.missing_required_roots(tmp_path) == []
         baseline = tmp_path / "baseline.json"
         baseline.write_text('{"files": {}}', encoding="utf-8")
@@ -850,7 +869,11 @@ class TestExtraScanDirs:
             placeholder.parent.mkdir(parents=True, exist_ok=True)
             placeholder.write_text("placeholder\n", encoding="utf-8")
         for required in cmp.REQUIRED_EXTRA_ROOTS:
-            (root / required).mkdir(parents=True, exist_ok=True)
+            extra_dir = root / required
+            extra_dir.mkdir(parents=True, exist_ok=True)
+            (extra_dir / "_placeholder.md").write_text(
+                "placeholder\n", encoding="utf-8"
+            )
 
     def test_extra_scan_dirs_returns_existing_dirs(self, tmp_path: Path) -> None:
         """Directories in EXTRA_SCAN_ROOTS that exist are returned."""
@@ -1049,6 +1072,34 @@ class TestInstructionsScanRoot:
         code = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
         assert code == 2
 
+    def test_present_but_empty_instructions_root_exits_2(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An existing but empty required root must fail closed too.
+
+        Copilot review on PR #5284 found that ``missing_required_extra_roots``
+        only checks ``Path.is_dir()``: a generator that creates its output
+        directory and then fails to populate it (a partial or failed run)
+        passes that check and would otherwise report a clean 0-refs scan
+        indistinguishable from a fully-generated empty tree.
+        """
+        for required in cmp.REQUIRED_SKILLS_ROOTS:
+            placeholder = tmp_path / required / "skills" / "_placeholder" / "SKILL.md"
+            placeholder.parent.mkdir(parents=True, exist_ok=True)
+            placeholder.write_text("placeholder\n", encoding="utf-8")
+        # Directory exists (satisfies missing_required_extra_roots) but has
+        # no Markdown files in it.
+        (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text('{"files": {}}', encoding="utf-8")
+
+        code = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+
+        assert code == 2
+        err = capsys.readouterr().err
+        assert "examined zero Markdown files" in err
+        assert "src/copilot-cli/instructions" in err
+
     def test_instructions_root_appears_in_success_report(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -1119,6 +1170,25 @@ class TestReport:
         out = capsys.readouterr().out
         assert "[DRIFT] a: 2 refs" in out
         assert "No Markdown vendor-portability drift" not in out
+
+    def test_drift_still_prints_scanned_root_counts(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A DRIFT result must still say what was examined, per #5284 review.
+
+        Before this, the text branch returned inside the ``if regressions``
+        block before ``roots`` was computed, so a failing gate omitted every
+        examined-file count. An operator reading a red run had no way to tell
+        whether the full corpus was scanned or the run silently narrowed.
+        """
+        cmp._report(
+            **self._args(
+                regressions=["a: 2 refs"],
+                scanned_by_root={".claude/skills": 42, "src/copilot-cli/instructions": 7},
+            )
+        )
+        out = capsys.readouterr().out
+        assert "Scanned .claude/skills (42), src/copilot-cli/instructions (7)." in out
 
     def test_improvements_print_alongside_the_clean_line(
         self, capsys: pytest.CaptureFixture[str]
@@ -1216,16 +1286,25 @@ class TestMarkerDiff:
 
 class TestMainCli:
     def _required_roots(self, root: Path) -> None:
-        """Create an empty skills tree in every required root.
+        """Create every required root, with zero ref-count content.
 
-        Empty trees contribute no counts, so the tests keep their original
-        expectations while satisfying the required-root check that closes the
-        silent-narrowing hole.
+        The skills roots stay empty trees, which contribute no counts, so the
+        tests keep their original expectations while satisfying the
+        required-root check that closes the silent-narrowing hole. The extra
+        roots (unlike skills roots) must also examine at least one Markdown
+        file or main() exits 2 (issue #5214 review: an existing-but-empty
+        required extra root reads as a failed generation, not a clean scan),
+        so each gets one placeholder file with no upstream refs, contributing
+        0 to ref_counts the same as an empty skills tree does.
         """
         for name in cmp.REQUIRED_SKILLS_ROOTS:
             (root / name / "skills").mkdir(parents=True, exist_ok=True)
         for name in cmp.REQUIRED_EXTRA_ROOTS:
-            (root / name).mkdir(parents=True, exist_ok=True)
+            extra_dir = root / name
+            extra_dir.mkdir(parents=True, exist_ok=True)
+            (extra_dir / "_placeholder.md").write_text(
+                "placeholder\n", encoding="utf-8"
+            )
 
     def test_exit_2_when_skills_dir_missing(self, tmp_path: Path) -> None:
         rc = cmp.main(["--repo-root", str(tmp_path)])
@@ -1502,7 +1581,11 @@ class TestAstCodeStripping:
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
-        (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
+        instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
+        instructions_dir.mkdir(parents=True)
+        (instructions_dir / "_placeholder.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
         (skills / "SKILL.md").write_text(
             "# Skill\n\nExample:\n\n    write to .agents/x.md\n", encoding="utf-8"
         )
@@ -1571,7 +1654,11 @@ class TestScanAccounting:
         self._skill_md(tmp_path, "a/SKILL.md", "Clean prose.\n")
         self._skill_md(tmp_path, "b/SKILL.md", "Also clean.\n")
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
-        (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
+        instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
+        instructions_dir.mkdir(parents=True)
+        (instructions_dir / "_placeholder.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -1586,7 +1673,11 @@ class TestScanAccounting:
         self._skill_md(tmp_path, "a/SKILL.md", "Clean prose.\n")
         self._skill_md(tmp_path, "b/SKILL.md", "Also clean.\n")
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
-        (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
+        instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
+        instructions_dir.mkdir(parents=True)
+        (instructions_dir / "_placeholder.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(
@@ -1612,7 +1703,11 @@ class TestBaselineSemanticConflictGuard:
         (root / ".claude" / "skills" / "a").mkdir(parents=True)
         (root / "src" / "copilot-cli" / "skills").mkdir(parents=True)
         for required in cmp.REQUIRED_EXTRA_ROOTS:
-            (root / required).mkdir(parents=True, exist_ok=True)
+            extra_dir = root / required
+            extra_dir.mkdir(parents=True, exist_ok=True)
+            (extra_dir / "_placeholder.md").write_text(
+                "Clean prose.\n", encoding="utf-8"
+            )
         (root / ".claude" / "skills" / "a" / "SKILL.md").write_text(
             "Clean prose.\n", encoding="utf-8"
         )
@@ -2309,7 +2404,11 @@ class TestNestingExhaustionGate:
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
-        (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
+        instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
+        instructions_dir.mkdir(parents=True)
+        (instructions_dir / "_placeholder.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
         (skills / "SKILL.md").write_text(body, encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")

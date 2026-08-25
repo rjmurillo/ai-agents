@@ -54,15 +54,19 @@ Copilot CLI agents under ``src/copilot-cli/agents/`` via
 ``build/generate_agents.py``; this validator does not scan agent outputs, so
 the template source is the only covered surface. ``src/copilot-cli/instructions``
 is the generated Copilot instruction mirror of ``.claude/rules/*.md`` via
-``build/scripts/generate_rules.py``, whose per-rule contract docstring
-(lines 20-32) states the body is emitted unchanged: "2. Emit to
-``.github/instructions/<name>.instructions.md``: ... - body unchanged"
-(``outputDirs`` fans the same transformed content out to every configured
-destination, including ``src/copilot-cli/instructions``, per that file's
-lines 8-14). It is scanned directly because it is itself the shipped
-artifact, not a source that generates one. See issues #3578 (plugin-root
-widening), #3646 (commands and templates/agents widening), and #5214
-(instructions widening).
+``build/scripts/generate_rules.py``. Its per-rule contract docstring
+(lines 20-32) lists the transform steps for emitting
+``.github/instructions/<name>.instructions.md`` (rename ``paths:`` to
+``applyTo:``, drop ``alwaysApply:``/``priority:``, preserve
+``description:``, synthesize a universal scope when none is declared,
+skip the rule when its scope is entirely internal-only), with the body
+left untouched, the last line of that list reading verbatim: "- body
+unchanged". ``outputDirs`` (documented at that file's lines 8-14) fans the
+same transformed content out to every configured destination, including
+``src/copilot-cli/instructions``. It is scanned directly because it is
+itself the shipped artifact, not a source that generates one. See issues
+#3578 (plugin-root widening), #3646 (commands and templates/agents
+widening), and #5214 (instructions widening).
 
 Exit codes:
   0 - no drift (counts at or below baseline), or --update-baseline wrote the file
@@ -1241,9 +1245,11 @@ def _report(
 
     ``scanned_by_root`` carries each root's examined-file count (from
     ``scan_all``'s ``files_by_root``), not just its name: printing the name
-    alone made an empty root and a populated one read identically in the
-    success line, so "examined and clean" was indistinguishable from "never
-    walked" (issue #5214 review).
+    alone made an empty root and a populated one read identically, so
+    "examined and clean" was indistinguishable from "never walked" (issue
+    #5214 review). Printed on both the clean line and the drift line, not
+    only the clean one: a caller reading a DRIFT result still needs to know
+    whether the full corpus was actually examined.
     """
     if output_format == "json":
         print(
@@ -1259,6 +1265,9 @@ def _report(
             )
         )
         return
+    roots = ", ".join(
+        f"{name} ({count})" for name, count in scanned_by_root.items()
+    )
     if improvements:
         print("Portability improved (tighten the baseline with --update-baseline):")
         for line in improvements:
@@ -1267,10 +1276,8 @@ def _report(
         print("Markdown vendor-portability drift detected (issue #2050):")
         for line in regressions:
             print(f"  [DRIFT] {line}")
+        print(f"Scanned {roots}.")
         return
-    roots = ", ".join(
-        f"{name} ({count})" for name, count in scanned_by_root.items()
-    )
     print(
         f"No Markdown vendor-portability drift. "
         f"{sum(current.values())} grandfathered refs across "
@@ -1340,6 +1347,27 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     current, marker_current, scanned_by_root, drift_failures = counts
     drift_current = _drift_counts_from_failures(drift_failures)
+
+    # missing_required_extra_roots() above only catches an absent directory.
+    # A generator can create its output directory and then fail to populate
+    # it (a partial or failed run), which passes an is_dir() check and would
+    # otherwise report a clean 0-refs scan indistinguishable from a real,
+    # fully-generated empty tree. Treat "exists but produced nothing" the
+    # same as "does not exist": both mean the shipped artifact this
+    # validator exists to gate was never actually examined (issue #5214
+    # review).
+    empty_required = [
+        name for name in REQUIRED_EXTRA_ROOTS if scanned_by_root.get(name, 0) == 0
+    ]
+    if empty_required:
+        absent = ", ".join(empty_required)
+        print(
+            f"Required scan dir under {root} exists but examined zero Markdown "
+            f"files: {absent}. Treat an empty generated directory as a build "
+            "failure, not a clean scan.",
+            file=sys.stderr,
+        )
+        return 2
 
     if args.update_baseline:
         return _run_update_baseline(

@@ -18,7 +18,9 @@
       files_by_root[root_key] = len(paths)
   ```
 
-  (`check_skill_md_portability.py:660-666`). `REQUIRED_EXTRA_ROOTS` (currently
+  (`check_skill_md_portability.py:670-676`, current as of PR #5284's final
+  revision; re-check the line numbers before quoting again, they have already
+  drifted once in this PR). `REQUIRED_EXTRA_ROOTS` (currently
   just `src/copilot-cli/instructions`) governs a separate, narrower question:
   whether `main()` exits 2 via `missing_required_extra_roots()` when that
   specific directory is absent. A non-required extra root

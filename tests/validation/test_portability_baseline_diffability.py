@@ -331,8 +331,14 @@ class TestEveryCheckerRefusesAHiddenBaseline:
         for tree in (".claude/skills", "src/copilot-cli/skills"):
             (root / tree).mkdir(parents=True, exist_ok=True)
         # check_skill_md_portability also requires src/copilot-cli/instructions
-        # to exist (issue #5214); harmless to the other two checkers here.
-        (root / "src" / "copilot-cli" / "instructions").mkdir(parents=True, exist_ok=True)
+        # to exist and examine at least one Markdown file (issue #5214,
+        # widened by review to reject an existing-but-empty required root
+        # too); harmless to the other two checkers here.
+        instructions_dir = root / "src" / "copilot-cli" / "instructions"
+        instructions_dir.mkdir(parents=True, exist_ok=True)
+        (instructions_dir / "_placeholder.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
         target = root / "scripts" / "validation" / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps({"files": {}, "marker_files": {}}) + "\n")
