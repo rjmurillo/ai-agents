@@ -47,7 +47,7 @@ Direction rule: generators read canonical, write mirrors. They NEVER write `.cla
 
 ### Phase 2: Load the load-bearing decisions
 
-| Decision | ADR | Status (as of 2026-07-30) | Why it exists |
+| Decision | ADR | Status (as of 2026-07-30 except where a row states its own later date) | Why it exists |
 |---|---|---|---|
 | Memory-first: retrieval precedes reasoning; Serena (`.serena/memories/`) canonical, Forgetful supplementary | ADR-007 | Accepted (revised 2026-01-01) | Agents re-derive knowledge badly; retrieval is cheaper and auditable |
 | HANDOFF.md read-only, distributed handoffs | ADR-014 | Accepted | Single-file write target caused merge-conflict storms |
