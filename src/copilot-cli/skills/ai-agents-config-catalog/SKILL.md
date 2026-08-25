@@ -61,6 +61,7 @@ Lesson encoded: a global bypass with no teeth (no telemetry, no approval step) w
 | `SERENA_PROJECT_ROOT` | env var (user-set) | Formerly overrode automatic Serena project root detection in the worktree scope guard. Set to the absolute path of the intended worktree when switching projects | Retired hook (ADR-097) | Was validated: path had to contain `.serena/project.yml` or the override was ignored; blocked writes when unset and `CLAUDE_PROJECT_DIR` was absent. `invoke_serena_worktree_scope_guard.py` is deleted, so nothing reads this variable today | historical: `.claude/hooks/PreToolUse/invoke_serena_worktree_scope_guard.py:68-73` (path no longer exists) |
 | PEP 668 / uv | environment reality | Bare `pip` fails (externally managed env). Everything goes through `uv sync --frozen --extra dev`; skill scripts need `uv run python`, not `python3` (PyYAML lives in the venv) | Production | `ModuleNotFoundError: No module named 'yaml'` means you used the wrong interpreter | `pyproject.toml`, `.python-version` (3.14.6) |
 | pytest markers `unit`, `integration`, `safe_push_transport`, `security`, `smoke`, `windows_path` | pytest -m selectors | Filter test classes; `smoke` = real-CLI tests needing auth/credits, nightly only, and the smoke gate asserts they were NOT skipped (issue #2231 item 4); `safe_push_transport` = touches a non-local transport, excluded from pre-push | Production | Marking a test `smoke` to dodge CI is detected by the not-skipped assertion | `pyproject.toml [tool.pytest.ini_options].markers` |
+| `SKIP_PUSH_LOCK_COMMIT_GUARD` | env var (`=1` exact match) | Bypasses the `push-lock-commit-guard` pre-commit job (issue #5123), which otherwise refuses a commit while a push for the current branch name holds the canonical push-lock file | Production escape hatch | Scoped to one check, not global. Prints `push-lock: commit guard bypassed via SKIP_PUSH_LOCK_COMMIT_GUARD=1` so the bypass is visible in commit output; any other value (`0`, `true`, unset) leaves the guard enforced | `scripts/validation/check_push_lock_before_commit.py:58,165-166`; wired as `push-lock-commit-guard` in `lefthook.yml` |
 
 ## .env Keys (from .env.example)
 
@@ -193,5 +194,6 @@ moved or died: update this catalog before relying on it.
 | hook registration surfaces | `uv run --frozen python -c "import json; s=json.load(open('.claude/settings.json'))['hooks']; print({k: len(v) for k, v in s.items()})"` |
 | repository-local Copilot sub-agent gate retired | `test ! -e .github/hooks/require-subagent-model.json && echo retired` (ADR-097 deleted this surface) |
 | removed flags absent from CONTRIBUTING | `grep -n -e "SKIP_PREPUSH" -e "SKIP_TESTS" CONTRIBUTING.md` (expect no matches) |
+| SKIP_PUSH_LOCK_COMMIT_GUARD | `grep -n "SKIP_PUSH_LOCK_COMMIT_GUARD" scripts/validation/check_push_lock_before_commit.py lefthook.yml` |
 
 `COMPRESS_TOKENIZER` consumer not located; verify before documenting it as live.
