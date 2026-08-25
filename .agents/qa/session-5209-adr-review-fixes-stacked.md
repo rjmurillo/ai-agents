@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: bfd3a008d336ff6e4d8e50ef4cdb766a457d1a6a
+qaCommit: 23f3cfaca067204591ff5287647ea960ec320f40
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -790,3 +790,23 @@ the merge brought in PR #5291's frontmatter across 67 records.
 Regenerated; `--check` clean. Full detail in that addendum.
 
 **Rebound to** `bfd3a008d336ff6e4d8e50ef4cdb766a457d1a6a`.
+
+## Addendum 28: same rebind as Addendum 26 of the campaign report
+
+An eleventh Copilot review round found 61 unresolved threads (a prior
+session summary had tracked only 9 before a context compaction). Fixed via
+four disjoint-file implementer subagents plus direct work on
+`check_adr_lifecycle.py`: real defects in `check_adr_lifecycle.py`'s stale
+baseline ceilings, its reciprocity-vs-status gap, and its ungated
+`--write-baseline`; `check_adr_links.py`'s missing reference-style link
+support and unenforced baseline provenance (which caught one genuinely
+stale allowance); `generate_adr_index.py`'s non-CommonMark fence handling;
+`pre_pr.py`'s overstated facade-coverage claim; and the memory-gate
+skill's overbroadened ADR-042 exception. Two self-inflicted regressions
+(a complexity-14 function, a mypy dual-module-name conflict) were caught
+by `pre_pr.py` before push and fixed in the same round. Two `origin/main`
+merges, five conflicts resolved by reading both sides' evidence. Full
+detail, including what was investigated and deliberately left unchanged,
+in Addendum 26 of the campaign report.
+
+**Rebound to** `23f3cfaca067204591ff5287647ea960ec320f40`.
