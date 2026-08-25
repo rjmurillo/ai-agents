@@ -1,6 +1,6 @@
 ---
 name: ai-agents-generation-and-release
-description: Operate the ai-agents generation and release machinery, covering the seven build_all.py generators, generate_agents.py, sync_plugin_lib.py, the drift gates, the version-free plugin manifests, and the npm publish path. Use when you say `regenerate the mirrors`, `run the drift checks`, `why is the plugin version gate red`, `release the npm cli`. Do NOT use for environment setup (use `ai-agents-build-and-env`) or architecture rationale (use `ai-agents-architecture-contract`).
+description: Operate the ai-agents generation and release machinery, covering the eight build_all.py generators, generate_agents.py, sync_plugin_lib.py, the drift gates, the version-free plugin manifests, and the npm publish path. Use when you say `regenerate the mirrors`, `run the drift checks`, `why is the plugin version gate red`, `release the npm cli`. Do NOT use for environment setup (use `ai-agents-build-and-env`) or architecture rationale (use `ai-agents-architecture-contract`).
 version: 1.0.0
 license: MIT
 ---
@@ -54,22 +54,23 @@ The generation seam is ASYMMETRIC (ADR-072 is PROPOSED and refines this; the run
 | `.claude/lib/` | mirrored copy (relative imports) | `scripts/` packages | `scripts/sync_plugin_lib.py` |
 | `src/claude/` | MANUAL hand-synced exception (ADR-036, Accepted) | edited by hand | no generator; semantic drift CI only |
 
-Generator inventory inside `build/scripts/build_all.py` (list `GENERATORS`, build_all.py:435, order is load-bearing per the comment at build_all.py:429):
+Generator inventory inside `build/scripts/build_all.py` (list `GENERATORS`, build_all.py:481, order is load-bearing per the comment at build_all.py:429):
 
 | # | Generator | Reads | Writes |
 |---|-----------|-------|--------|
 | 1 | agents | `templates/agents/*.shared.md` + `templates/platforms/*.yaml` | `src/copilot-cli/agents/*.agent.md`, `src/vs-code-agents/*.agent.md` |
 | 2 | agent-catalog | `templates/agents/*.shared.md` | `docs/agent-catalog.md` |
-| 3 | skills | `.claude/skills/*/SKILL.md` | `src/copilot-cli/skills/` |
-| 4 | commands | `.claude/commands/*.md` (top level, not CLAUDE.md) | `src/copilot-cli/skills/` (command-bridge skills) |
-| 5 | rules | `.claude/rules/*.md` | `.github/instructions/*.instructions.md` AND `src/copilot-cli/instructions/` |
-| 6 | lib | `.claude/lib/` | `src/copilot-cli/lib/` (must land before hooks) |
-| 7 | hooks | `.claude/settings.json` + `.claude/hooks/` | `src/copilot-cli/hooks/` + `src/copilot-cli/hooks/hooks.json` |
+| 3 | adr-index | `.agents/architecture/ADR-*.md` (frontmatter for lifecycle fields; body prose for title/decision/blocker) | `.agents/architecture/README.md` |
+| 4 | skills | `.claude/skills/*/SKILL.md` | `src/copilot-cli/skills/` |
+| 5 | commands | `.claude/commands/*.md` (top level, not CLAUDE.md) | `src/copilot-cli/skills/` (command-bridge skills) |
+| 6 | rules | `.claude/rules/*.md` | `.github/instructions/*.instructions.md` AND `src/copilot-cli/instructions/` |
+| 7 | lib | `.claude/lib/` | `src/copilot-cli/lib/` (must land before hooks) |
+| 8 | hooks | `.claude/settings.json` + `.claude/hooks/` | `src/copilot-cli/hooks/` + `src/copilot-cli/hooks/hooks.json` |
 
 Facts that prevent confusion:
 
 - `build_all.py` enforces a no-write invariant on `.claude/` (REQ-003-010): if any generator writes there, the run exits 2 with `REQ-003-010 VIOLATION`. `.claude/` is input only.
-- Generated-tree ownership is exactly `OWNED_PREFIXES = ("src/", ".github/instructions/", "docs/agent-catalog.md")` (build_all.py:765). `--check` only flags staleness inside those prefixes.
+- Generated-tree ownership is exactly `OWNED_PREFIXES = ("src/", ".github/instructions/", "docs/agent-catalog.md", ".agents/architecture/README.md")` (build_all.py:868). `--check` only flags staleness inside those prefixes.
 - The hooks generator maps Stop, SubagentStop, PermissionRequest, and
   PreCompact to their PascalCase compatibility names. Stop and SubagentStop
   remain direct host registrations because their structured decisions require
@@ -208,8 +209,8 @@ Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-
 
 | Fact | Source | Re-verify |
 |------|--------|-----------|
-| 7 generators and their order | build/scripts/build_all.py:435-443 | `grep -n -A9 "^GENERATORS" build/scripts/build_all.py` |
-| OWNED_PREFIXES trio | build/scripts/build_all.py:765 | `grep -n "OWNED_PREFIXES" build/scripts/build_all.py` |
+| 8 generators and their order | build/scripts/build_all.py:481-490 | `grep -n -A9 "^GENERATORS" build/scripts/build_all.py` |
+| OWNED_PREFIXES (4 entries) | build/scripts/build_all.py:868-873 | `grep -n -A5 "^OWNED_PREFIXES" build/scripts/build_all.py` |
 | .claude/ no-write invariant | build/scripts/build_all.py:674 (rule), :1013 (snapshot), :1076-1081 (enforcement) | `grep -n "REQ-003-010" build/scripts/build_all.py` |
 | build_all exit codes 0/1/2/3 | build/scripts/build_all.py:16-20 | `sed -n '16,20p' build/scripts/build_all.py` |
 | generate_agents flags and exit codes | build/generate_agents.py:13-16,460-487 | `uv run python build/generate_agents.py --help` |

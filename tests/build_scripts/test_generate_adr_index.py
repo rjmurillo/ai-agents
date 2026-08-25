@@ -286,6 +286,56 @@ def test_malformed_yaml_does_not_silently_write_an_index(tmp_path: Path) -> None
     assert not output.exists()
 
 
+def test_frontmatter_id_disagreeing_with_filename_exits_non_zero(tmp_path: Path, capsys) -> None:
+    """A present `id` that disagrees with the filename must fail loudly.
+
+    The filename is the authoritative id (module docstring: some backfilled
+    records carry no `id` key at all, so a missing key is not an error). But
+    a *present* `id` that names a different record is a distinct defect: a
+    `superseded-by` elsewhere naming that frontmatter id would resolve to
+    the wrong record or appear dangling, and this extraction ships no
+    lifecycle validator that would otherwise catch the mismatch (Copilot,
+    PR #5285 review).
+    """
+    directory = tmp_path / "architecture"
+    _corpus(directory)
+    _write_adr(
+        directory,
+        103,
+        "mismatched",
+        frontmatter="id: ADR-104\nstatus: accepted\n",
+        body=_standard_body(103, "Mismatched"),
+    )
+
+    exit_code = generate_adr_index.main(
+        ["--adr-dir", str(directory), "--output", str(tmp_path / "README.md")]
+    )
+
+    assert exit_code != 0
+    err = capsys.readouterr().err
+    assert "ADR-103-mismatched.md" in err
+    assert "ADR-104" in err
+
+
+def test_frontmatter_id_matching_the_filename_is_accepted(tmp_path: Path) -> None:
+    """A present `id` that agrees with the filename is the common, valid case."""
+    directory = tmp_path / "architecture"
+    _corpus(directory)
+    _write_adr(
+        directory,
+        105,
+        "matched",
+        frontmatter="id: ADR-105\nstatus: accepted\n",
+        body=_standard_body(105, "Matched"),
+    )
+
+    exit_code = generate_adr_index.main(
+        ["--adr-dir", str(directory), "--output", str(tmp_path / "README.md")]
+    )
+
+    assert exit_code == 0
+
+
 def test_non_mapping_frontmatter_exits_non_zero_naming_the_file(tmp_path: Path, capsys) -> None:
     directory = tmp_path / "architecture"
     _write_adr(

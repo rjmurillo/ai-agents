@@ -451,9 +451,37 @@ def build_record(path: Path) -> AdrRecord:
     if match is None:  # pragma: no cover - callers filter first
         raise AdrIndexError(f"{path.name} is not a canonical ADR-NNN-slug.md name")
     number = int(match.group(1))
+    adr_id = f"ADR-{number:03d}"
     # CRLF normalised once so every regex below sees a bare newline.
     text = path.read_text(encoding="utf-8").replace("\r\n", "\n")
     frontmatter, body = parse_frontmatter(text, path)
+
+    # The id is authoritatively the filename (module docstring: 10 of the 40
+    # backfilled records carry no `id` key, while the filename is always
+    # present and is the link a reader clicks), so a present-but-absent `id`
+    # is not an error. A present `id` that disagrees with the filename is a
+    # different defect: it means two different identities are on record for
+    # one file, and a `superseded-by` elsewhere naming the frontmatter id
+    # would resolve to the wrong record or appear dangling. Fail loudly and
+    # name both, the same policy this module applies to every other
+    # frontmatter defect (Copilot, PR #5285 review).
+    # The id is authoritatively the filename (module docstring: 10 of the 40
+    # backfilled records carry no `id` key, while the filename is always
+    # present and is the link a reader clicks), so a present-but-absent `id`
+    # is not an error. A present `id` that disagrees with the filename is a
+    # different defect: it means two different identities are on record for
+    # one file, and a `superseded-by` elsewhere naming the frontmatter id
+    # would resolve to the wrong record or appear dangling. Fail loudly and
+    # name both, the same policy this module applies to every other
+    # frontmatter defect (Copilot, PR #5285 review).
+    id_value = _scalar(frontmatter, "id") if frontmatter else ""
+    if id_value:
+        normalized_id = _normalize_adr_id(id_value)
+        if normalized_id != adr_id:
+            raise AdrIndexError(
+                f"{path.name}: frontmatter id {id_value!r} does not match the "
+                f"filename-derived id {adr_id}"
+            )
 
     status = _status_of(frontmatter, path) if frontmatter is not None else None
     successor = _scalar(frontmatter, "superseded-by") if frontmatter else ""
@@ -462,7 +490,7 @@ def build_record(path: Path) -> AdrRecord:
 
     return AdrRecord(
         number=number,
-        adr_id=f"ADR-{number:03d}",
+        adr_id=adr_id,
         filename=path.name,
         title=_extract_title(body, path),
         status=status,
