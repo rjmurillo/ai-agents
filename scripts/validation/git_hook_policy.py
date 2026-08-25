@@ -1668,11 +1668,23 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
     # skill writes to .agents/critique/.
     # Only stage-zero regular files in the caller's staged path set can satisfy
     # the gate. Working-tree-only evidence must not authorize an ADR commit.
-    debate_logs = [
-        path
-        for path in _staged_debate_log_paths(repo_root)
-        if _is_staged_regular_file(repo_root, path)
-    ]
+    #
+    # A non-regular candidate is reported, not filtered away. Dropping it here
+    # was the same fail-open shape as dropping an unreadable log: with one
+    # valid covering log staged beside it, nothing was left to fail on and a
+    # staged symlink named *debate*.md rode through on its sibling's evidence.
+    # Found by review of PR #5308.
+    candidates = _staged_debate_log_paths(repo_root)
+    debate_logs = [path for path in candidates if _is_staged_regular_file(repo_root, path)]
+    irregular = sorted(set(candidates) - set(debate_logs))
+    if irregular:
+        names = ", ".join(irregular)
+        print(
+            f"ERROR: staged debate log is not a regular file: {names}. "
+            "A symlink is not review evidence.",
+            file=sys.stderr,
+        )
+        return 1
     if not debate_logs:
         print(
             "ERROR: ADR changes require a debate log staged in .agents/critique",
@@ -1706,7 +1718,14 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
     missing = _uncovered_adr_ids(_extract_adr_ids(gated_paths), contents)
     if missing:
         names = ", ".join(sorted(missing))
-        print(f"ERROR: no debate log references the staged ADR IDs: {names}", file=sys.stderr)
+        # "no debate log references" was false whenever coverage was partial:
+        # a log may name ADR-042 while only ADR-005 is missing. The gate now
+        # requires every staged id, so the message names what is uncovered.
+        print(
+            "ERROR: staged ADR IDs not referenced by any staged debate log: "
+            f"{names}",
+            file=sys.stderr,
+        )
         return 1
     return 0
 

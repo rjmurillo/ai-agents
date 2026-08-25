@@ -232,6 +232,36 @@ def test_positions_table_counts_as_a_verdict() -> None:
     assert policy.debate_log_evidence_gap(content) is None
 
 
+def test_a_staged_symlink_blocks_even_when_a_sibling_covers_every_id(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Fail-open regression: a covering sibling must not excuse a symlink.
+
+    Non-regular candidates used to be filtered out of the staged set before any
+    evidence check ran. With one valid covering log staged beside the symlink
+    there was nothing left to fail on, so the gate returned 0 and a staged
+    ``*debate*.md`` symlink rode through on its sibling's evidence.
+
+    Exactly the shape as the unreadable-log fail-open, one filter earlier.
+    """
+    _edit(repo, ADR_42, "Rewritten decision text.")
+    _git(repo, "add", ADR_42)
+    _stage_log(repo, "ADR-042-debate-log.md", GENUINE_LOG)
+
+    link = repo / ".agents" / "critique" / "ADR-042-second-debate.md"
+    link.symlink_to("ADR-042-debate-log.md")
+    _git(repo, "add", "--", link.relative_to(repo).as_posix())
+
+    # The sibling really is sufficient on its own, so this fails open unless
+    # the symlink is reported rather than filtered away.
+    assert policy.debate_log_evidence_gap(GENUINE_LOG) is None
+
+    assert policy.check_adr_review_policy([ADR_42], repo) == 1
+    error = capsys.readouterr().err
+    assert "not a regular file" in error
+    assert "ADR-042-second-debate.md" in error
+
+
 def test_an_unreadable_staged_log_cannot_satisfy_coverage(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -372,6 +372,11 @@ def test_the_unfilled_canonical_template_does_not_pass() -> None:
     # signal is doing the work.
     for signal_name, satisfied in (
         ("byte floor", policy._evidence_byte_count(untouched) >= policy.DEBATE_LOG_MIN_BYTES),
+        (
+            "section floor",
+            len(policy.DEBATE_LOG_HEADING_RE.findall(untouched))
+            >= policy.DEBATE_LOG_MIN_SECTIONS,
+        ),
         ("reviewer attribution", bool(policy.DEBATE_LOG_REVIEWER_RE.search(untouched))),
         ("verdict", policy._has_verdict(untouched)),
     ):
@@ -384,6 +389,23 @@ def test_the_unfilled_canonical_template_does_not_pass() -> None:
 _ADR_REVIEW_SKILL = _ROOT / ".claude" / "skills" / "adr-review" / "SKILL.md"
 
 
+def _canonical_roster_roles() -> list[str]:
+    """Return the role names from the skill's "## Agent Roles" table, in order.
+
+    Reads the table itself rather than scanning the whole document, so a role
+    moved out of the roster, renamed, reordered, or added is visible. Checking
+    only that six bold names occur *somewhere* in the file left all of those
+    green while the production quote drifted, which is what review caught.
+    """
+    skill = _ADR_REVIEW_SKILL.read_text(encoding="utf-8")
+    section = re.search(r"^## Agent Roles$(.*?)^## ", skill, re.MULTILINE | re.DOTALL)
+    assert section is not None, (
+        f"the cited '## Agent Roles' heading is gone from {_ADR_REVIEW_SKILL}; "
+        "the quote above DEBATE_LOG_ROLES now points at nothing"
+    )
+    return re.findall(r"^\|\s*\*\*([^*]+)\*\*\s*\|", section.group(1), re.MULTILINE)
+
+
 def test_the_quoted_role_table_is_still_verbatim_in_the_skill() -> None:
     """Drift guard for the role table quoted above DEBATE_LOG_ROLES.
 
@@ -392,20 +414,16 @@ def test_the_quoted_role_table_is_still_verbatim_in_the_skill() -> None:
     comment cites the "## Agent Roles" heading rather than a line range,
     because a range goes stale on any edit above it while saying nothing about
     whether the quoted text still matches. This checks the text.
-    """
-    skill = _ADR_REVIEW_SKILL.read_text(encoding="utf-8")
-    assert "## Agent Roles" in skill, (
-        f"the cited heading is gone from {_ADR_REVIEW_SKILL}; the quote above "
-        "DEBATE_LOG_ROLES now points at nothing"
-    )
 
-    missing = [role for role in policy.DEBATE_LOG_ROLES if f"**{role}**" in skill]
-    absent = [role for role in policy.DEBATE_LOG_ROLES if f"**{role}**" not in skill]
-    assert not absent, (
-        f"these roles are no longer in the {_ADR_REVIEW_SKILL} roster, so the "
-        f"quoted copy has drifted from the table it mirrors: {absent}"
+    Equality, not containment. A seventh role added to the canonical roster
+    would leave a containment check green while logs attributed only to that
+    new role were rejected by a gate still quoting six.
+    """
+    assert _canonical_roster_roles() == list(policy.DEBATE_LOG_ROLES), (
+        f"the roster in {_ADR_REVIEW_SKILL} no longer matches DEBATE_LOG_ROLES, "
+        "so the quoted copy has drifted from the table it mirrors: "
+        f"canonical={_canonical_roster_roles()} quoted={list(policy.DEBATE_LOG_ROLES)}"
     )
-    assert len(missing) == len(policy.DEBATE_LOG_ROLES) == 6
 
 
 def test_the_placeholder_set_matches_the_canonical_template_both_ways() -> None:
