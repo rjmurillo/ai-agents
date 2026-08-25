@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 55fc50542fcb5a7b250bf0a28557478f995357e6
+qaCommit: 997a954bf09827104ee17638954aaaf746489ea4
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `55fc50542fcb5a7b250bf0a28557478f995357e6` (see Addendum 42)
+**Validated at commit**: `997a954bf09827104ee17638954aaaf746489ea4` (see Addendum 43)
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -2046,3 +2046,39 @@ baseline (unchanged). `tests/test_adr_063_memory_skill_decomposition.py`:
 26 passed.
 
 **Rebound to** `55fc50542fcb5a7b250bf0a28557478f995357e6`.
+
+## Addendum 43: the title-test fix itself had the same reimplementation defect
+
+A third Copilot review on the same test found that Addendum 42's fix had
+not actually closed the gap it claimed to. The regex-based fix in
+`55fc50542` located the first H1 by searching the whole `adr_text`,
+including the YAML frontmatter block, rather than only the body
+`build_record` passes to `_extract_title`
+(`build/scripts/generate_adr_index.py:459,470`). A frontmatter YAML
+comment starting with `#` would match before the real title. That is not
+a hypothetical: `parse_frontmatter`'s own docstring (line 252-253) states
+ADR-068 and ADR-085 both open their frontmatter block with exactly such a
+comment. The claimed mirror ("matching that module's `_extract_title`
+semantics exactly") was true of the regex pattern but false of the input
+it was applied to, which `canonical-source-mirror.md`'s divergence-section
+requirement exists to catch.
+
+**Fixed by not reimplementing the extractor a second time.** Instead of
+writing a second regex with the correct scope, the test now imports
+`generate_adr_index` (via the same `import_skill_script` helper already
+used for the ADR-review detector) and calls its `parse_frontmatter` then
+`_extract_title` directly, matching `build_record`'s own call shape
+exactly. This closes the input-contract gap by construction: there is no
+second copy of the frontmatter-splitting logic left to drift.
+
+Verified in both directions rather than assumed. Two throwaway mutations
+against the real fixture file, restored after each: (1) prepending
+`# Wrong title` to the H1's own line in the body shifts
+`_extract_title`'s return from `"Decompose the Memory Skill Into Focused
+Sub-Skills"` to `"Wrong title"` and fails the test, killing the original
+defect Addendum 41 fixed; (2) prepending `# migration note` to the
+frontmatter block leaves the extracted title unchanged and the test
+passes, proving the frontmatter-comment false-rejection this addendum
+fixes is actually closed. Real file: 26/26 tests pass. Commit `997a954bf`.
+
+**Rebound to** `997a954bf09827104ee17638954aaaf746489ea4`.

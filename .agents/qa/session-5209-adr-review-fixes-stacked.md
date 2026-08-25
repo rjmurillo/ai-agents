@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 55fc50542fcb5a7b250bf0a28557478f995357e6
+qaCommit: 997a954bf09827104ee17638954aaaf746489ea4
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -9,7 +9,7 @@ qaCommit: 55fc50542fcb5a7b250bf0a28557478f995357e6
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `55fc50542fcb5a7b250bf0a28557478f995357e6` (see Addendum 43)
+**Validated at commit**: `997a954bf09827104ee17638954aaaf746489ea4` (see Addendum 44)
 
 ## Verdict
 
@@ -1187,3 +1187,18 @@ stale 29 to the current 32 (15 own-contribution, 17 inherited). Full detail
 lives in that addendum.
 
 **Rebound to** `55fc50542fcb5a7b250bf0a28557478f995357e6`.
+
+## Addendum 44: same reimplementation defect and same fix as Addendum 43 of the campaign report
+
+Same third Copilot finding, same fix: the round-2 regex fix (`55fc50542`)
+searched the whole file including frontmatter instead of only the body
+`_extract_title` receives in production, so a frontmatter `#` comment
+(ADR-068 and ADR-085 use this pattern for real) could misdirect it. Fixed
+by calling `generate_adr_index.parse_frontmatter` and `_extract_title`
+directly instead of reimplementing a second regex, closing the
+input-contract gap by construction. Mutation-proven both directions on
+the real fixture: a wrong H1 in the body fails the test, a frontmatter
+`#` comment does not. Full detail lives in that addendum. Commit
+`997a954bf`.
+
+**Rebound to** `997a954bf09827104ee17638954aaaf746489ea4`.
