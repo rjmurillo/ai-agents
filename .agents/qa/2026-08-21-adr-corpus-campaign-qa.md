@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 29eb28e9451ca0b3c285325f022a52ae271a87bc
+qaCommit: bfd3a008d336ff6e4d8e50ef4cdb766a457d1a6a
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1463,3 +1463,9 @@ Merge commit `9f93fc1ef91f6ab28c59e320e12223402851f484`. Re-verified post-merge:
 The full `python-tests` suite then surfaced a real, narrow regression: `tests/ci/test_count_ratchet_against_real_git.py::test_the_shipped_baseline_describes_the_tracked_tree[taste_count_baseline.txt-current_count]` failed, `577 violations > baseline 576`. Root-caused by diffing `list_violations()` output across three trees (`origin/main` alone, this branch alone pre-merge, and the merged tree, via disposable `git worktree add --detach` copies, each independently measuring exactly 576): the only new entry was `conftest.py` crossing 500 lines (544), a pure merge artifact of two branches each independently adding content to the same root fixture file while staying under budget alone. Not a design change worth a mid-merge refactor of shared pytest fixtures; suppressed with the documented per-repo escape (`# taste-lint: ignore file-size`, matching the pattern this report's own Addendum 11 used), reasoned and dated in the comment. Re-verified: `list_violations()` back to 576, `conftest.py` excluded, `ruff check conftest.py` clean.
 
 **Rebound to** `29eb28e9451ca0b3c285325f022a52ae271a87bc`, the commit carrying the suppression comment.
+
+## Addendum 25: regenerated the ADR index after the merge
+
+`build/scripts/build_all.py --check` (run as part of `pre-pr-validation` on the push this addendum responds to) correctly flagged `.agents/architecture/README.md` as stale: the origin/main merge brought in PR #5291's ADR-073 frontmatter across 67 records, changing dates, statuses, and decision-makers the generated index renders. Regenerated via `scripts/sync_plugin_lib.py` then `build/scripts/build_all.py`; `--check` now reports zero staleness. No ADR-tooling script changed; `check_adr_lifecycle.py` and `check_adr_links.py` re-run unchanged from Addendum 24.
+
+**Rebound to** `bfd3a008d336ff6e4d8e50ef4cdb766a457d1a6a`.

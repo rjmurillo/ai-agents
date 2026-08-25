@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 29eb28e9451ca0b3c285325f022a52ae271a87bc
+qaCommit: bfd3a008d336ff6e4d8e50ef4cdb766a457d1a6a
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -782,3 +782,11 @@ reasoning and the three-tree diff that isolated the regression, in that
 addendum.
 
 **Rebound to** `29eb28e9451ca0b3c285325f022a52ae271a87bc`.
+
+## Addendum 27: same rebind as Addendum 25 of the campaign report
+
+`build/scripts/build_all.py --check` flagged the ADR index as stale after
+the merge brought in PR #5291's frontmatter across 67 records.
+Regenerated; `--check` clean. Full detail in that addendum.
+
+**Rebound to** `bfd3a008d336ff6e4d8e50ef4cdb766a457d1a6a`.
