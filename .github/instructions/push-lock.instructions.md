@@ -66,6 +66,26 @@ fence so `scripts/validation/check_push_lock_paths.py` skips it. The checker
 scans prescriptive surfaces only and leaves `.agents/retrospective/`,
 `.agents/audits/`, and `.agents/archive/` alone.
 
+## Commit guard
+
+Issue #5123: the lock also gates new commits, not only concurrent pushes. A
+commit landing in a worktree while that same worktree's pre-push suite (6 to
+15 minutes) is still running against the same branch can corrupt any test
+whose fixture reads live git state, because git runs the pre-push hook
+inside the `git push` invocation the lock already wraps, so the lock stays
+held for the full suite, not just the ref transfer.
+
+`scripts/validation/check_push_lock_before_commit.py` runs as the
+`push-lock-commit-guard` pre-commit job in `lefthook.yml`. It reads the SAME
+canonical lock file this rule defines and refuses the commit only while that
+file is held by another process right now, i.e. while a push is in flight
+for this branch in this worktree. It never creates or holds the lock itself;
+a non-blocking probe of lock state is not a second scheme under MUST NOT 2
+above, it is a read of the one the recipe already takes.
+
+A commit refused this way is not lost. Wait for the in-flight push to finish
+(or for its pre-push suite to fail and release the lock), then commit again.
+
 ## Checking
 
 ```bash
