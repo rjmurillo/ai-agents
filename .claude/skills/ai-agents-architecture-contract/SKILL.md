@@ -32,7 +32,7 @@ Source-of-truth table (verified against `.agents/governance/GENERATOR-FILES.md` 
 | Artifact class | Canonical source (edit here) | Generated or mirrored output (never edit) | Mechanism |
 |---|---|---|---|
 | Agents (Copilot CLI, VS Code) | `templates/agents/*.shared.md` | `src/copilot-cli/agents/`, `src/vs-code-agents/` | `build/generate_agents.py` per `templates/platforms/*.yaml` `outputDir` |
-| Agents (Claude Code) | `src/claude/*.md` is itself canonical, hand-written | none; `.claude/agents/` is a hand-maintained sibling copy | MANUAL dual edit (ADR-036, Accepted); `templates/README.md:131`: "**Also edit**: `src/claude/{agent}.md` (MANUAL - not auto-synced!)" |
+| Agents (Claude Code) | `src/claude/*.md` is itself canonical, hand-written | none; `.claude/agents/` is a hand-maintained sibling copy | MANUAL dual edit (ADR-036, superseded in governance by ADR-052 2026-08-25, procedure still operative and unimplemented in ADR-052); `templates/README.md:131`: "**Also edit**: `src/claude/{agent}.md` (MANUAL - not auto-synced!)" |
 | Rules | `.claude/rules/*.md` | `.github/instructions/`, `src/copilot-cli/instructions/` | `build/scripts/generate_rules.py` |
 | Skills | `.claude/skills/<name>/` | `src/copilot-cli/skills/<name>/` | `build/scripts/generate_skills.py` |
 | Commands | `.claude/commands/<name>.md` | `src/copilot-cli/skills/<name>/SKILL.md` | `build/scripts/generate_commands.py` |
@@ -51,7 +51,8 @@ Direction rule: generators read canonical, write mirrors. They NEVER write `.cla
 |---|---|---|---|
 | Memory-first: retrieval precedes reasoning; Serena (`.serena/memories/`) canonical, Forgetful supplementary | ADR-007 | Accepted (revised 2026-01-01) | Agents re-derive knowledge badly; retrieval is cheaper and auditable |
 | HANDOFF.md read-only, distributed handoffs | ADR-014 | Accepted | Single-file write target caused merge-conflict storms |
-| Two-source agent templates (shared templates plus hand-written `src/claude/`) | ADR-036 | Accepted | Claude prompts need harness-specific depth; 3 full sources would drift |
+| Two-source agent templates (shared templates plus hand-written `src/claude/`) | ADR-036 | Superseded in governance by ADR-052 (2026-08-25); procedure still operative, ADR-052 unimplemented | Claude prompts need harness-specific depth; 3 full sources would drift |
+| Claude-first template strategy (target state, not yet implemented) | ADR-052 | Accepted (2026-08-25), `implemented: false` | Template layer's sole purpose (generating Copilot CLI/VS Code from `templates/agents/`) never justified its cost; direct Claude-to-platform generation removes the intermediate representation |
 | Python-only new scripts, bash prohibited | ADR-042 | Accepted | One toolchain, testable, cross-platform |
 | Skill-first over subagent dispatch | ADR-030 | doc's own header reads "Status: Critical Update - Changes Recommendation" (line 4); treated as binding by AGENTS.md Skill-First section | In-context skill plus direct MCP call is 5-20ms vs 100-200ms Task spawn overhead (ADR-030 line 31 comparison table) |
 | Memory skill decomposition into tiers | ADR-063, amended by ADR-089 | Accepted; ADR-089 proposed | Tier 1 semantic (Serena plus Forgetful search), Tier 2 episodic. ADR-063's Tier 3 causal graph was removed: nothing read it |
