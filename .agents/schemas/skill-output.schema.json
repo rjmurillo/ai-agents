@@ -22,6 +22,7 @@
           "properties": {
             "Message": {
               "type": "string",
+              "minLength": 1,
               "description": "Human-readable error message"
             },
             "Code": {

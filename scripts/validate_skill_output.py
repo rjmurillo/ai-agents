@@ -114,8 +114,27 @@ def _validate_metadata_string_field(metadata: dict, field: str) -> list[str]:
     return errors
 
 
+def _validate_metadata_version_field(metadata: dict) -> list[str]:
+    """Validate Metadata.Version: optional, but must be a string when present.
+
+    skill-output.schema.json types `"Version"` as `"type": "string"` but
+    does not list it in Metadata's `required` array (unlike Script and
+    Timestamp). A present-but-wrong-typed value (for example
+    `{"Version": 1}`) previously passed silently because nothing checked
+    it, disagreeing with the schema (Copilot review on PR #5283). Absent
+    is valid per the schema; only a type mismatch on a present value is
+    an error.
+    """
+    if "Version" not in metadata:
+        return []
+    value = metadata["Version"]
+    if not isinstance(value, str):
+        return [f"Metadata.Version must be a string, got: {type(value).__name__}"]
+    return []
+
+
 def _validate_metadata_field(data: dict) -> list[str]:
-    """Validate the envelope's Metadata field: present, an object, Script, Timestamp.
+    """Validate the envelope's Metadata field: present, an object, Script, Timestamp, Version.
 
     skill-output.schema.json requires Metadata to be `"type": "object"`. A
     schema-invalid non-dict value (a string, array, or number) previously
@@ -136,6 +155,7 @@ def _validate_metadata_field(data: dict) -> list[str]:
         else:
             errors.extend(_validate_metadata_string_field(metadata, "Script"))
             errors.extend(_validate_metadata_string_field(metadata, "Timestamp"))
+            errors.extend(_validate_metadata_version_field(metadata))
     return errors
 
 
@@ -167,13 +187,16 @@ def _validate_error_type(error_type: object) -> list[str]:
 def _validate_error_message_and_code(error_field: dict) -> list[str]:
     """Validate Error.Message (string) and Error.Code (integer).
 
-    skill-output.schema.json types `Message` as `"type": "string"` and
-    `Code` as `"type": "integer"`. Checking only truthiness/presence let
-    `{"Message": 123, "Code": "one"}` pass, disagreeing with the schema
-    (Copilot review on PR #5283, commit 6639555b8). `bool` is excluded
-    from the integer check: Python's `bool` subclasses `int`, so
-    `isinstance(True, int)` is `True`, but a JSON boolean is not a JSON
-    integer.
+    skill-output.schema.json types `Message` as `"type": "string",
+    "minLength": 1` and `Code` as `"type": "integer"`. Checking only
+    truthiness/presence let `{"Message": 123, "Code": "one"}` pass,
+    disagreeing with the schema (Copilot review on PR #5283, commit
+    6639555b8). `bool` is excluded from the integer check: Python's
+    `bool` subclasses `int`, so `isinstance(True, int)` is `True`, but a
+    JSON boolean is not a JSON integer. The `not message` branch below
+    already rejects both a missing key and an empty string (`""` is
+    falsy), so it independently enforces the schema's `minLength: 1`
+    without a separate length check.
     """
     errors: list[str] = []
     message = error_field.get("Message")

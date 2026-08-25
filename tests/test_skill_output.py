@@ -448,3 +448,52 @@ class TestValidateEnvelope:
         errors = validate_envelope(envelope)
         assert any("Error.Code must be an integer" in e for e in errors)
 
+    def test_empty_error_message_is_rejected(self) -> None:
+        """skill-output.schema.json types Error.Message with "minLength": 1.
+        The `not message` truthiness check in
+        _validate_error_message_and_code already rejects an empty string
+        the same as a missing key (both are falsy), so this pins that the
+        two stay aligned rather than adding a separate length branch.
+        Copilot review on PR #5283.
+        """
+        envelope = {
+            "Success": False,
+            "Data": None,
+            "Error": {"Message": "", "Code": 1, "Type": "General"},
+            "Metadata": {"Script": "test.py", "Timestamp": "2026-03-08T12:00:00Z"},
+        }
+        errors = validate_envelope(envelope)
+        assert any("Error.Message is required" in e for e in errors)
+
+    def test_missing_metadata_version_is_valid(self) -> None:
+        """skill-output.schema.json does not list Version in Metadata's
+        required array (unlike Script and Timestamp), so an envelope with
+        no Version must not be rejected.
+        """
+        envelope = {
+            "Success": True,
+            "Data": None,
+            "Error": None,
+            "Metadata": {"Script": "test.py", "Timestamp": "2026-03-08T12:00:00Z"},
+        }
+        assert validate_envelope(envelope) == []
+
+    def test_non_string_metadata_version_is_rejected(self) -> None:
+        """skill-output.schema.json types Metadata.Version as "type":
+        "string" when present. Before this fix, nothing checked it, so a
+        non-string value (for example `{"Version": 1}`) passed silently,
+        disagreeing with the schema. Copilot review on PR #5283.
+        """
+        envelope = {
+            "Success": True,
+            "Data": None,
+            "Error": None,
+            "Metadata": {
+                "Script": "test.py",
+                "Timestamp": "2026-03-08T12:00:00Z",
+                "Version": 1,
+            },
+        }
+        errors = validate_envelope(envelope)
+        assert any("Metadata.Version must be a string" in e for e in errors)
+
