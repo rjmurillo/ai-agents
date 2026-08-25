@@ -19,10 +19,16 @@ would have shipped wrong answers.
 
 The acceptance criterion says `date` falls back to
 `git log --follow -1 --format=%ad --date=short` where a record has no `## Date`
-section. On arrival, `git rev-parse --is-shallow-repository` returned `true`
-with 50 commits, all dated 2026-08-18, because one commit (`2c85d254`) touches
-every ADR in the tree. That fallback would have returned 2026-08-18 for every
-record it was applied to, and for the `implemented` derivation every
+section. That command returns the date of the **most recent** commit touching
+the path, following renames; `-1` caps the log at one entry and the log is
+newest-first. On a complete clone that is the record's last-modified date, which
+is what the field wants.
+
+On arrival, `git rev-parse --is-shallow-repository` returned `true` with 50
+commits, all dated 2026-08-18, because one commit (`2c85d254`) touches every ADR
+in the tree. At a shallow boundary the most recent commit and the only visible
+commit are the same commit, so the fallback would have returned 2026-08-18 for
+every record it was applied to. For the `implemented` derivation, every
 `git log --grep` would have searched 50 commits instead of 2630.
 
 Nothing about this failure announces itself. The commands succeed, return
@@ -108,8 +114,76 @@ content rather than a touch to satisfy the gate.
 
 The `python-tests` failure is the one worth noting: the ADR-073 schema puts YAML
 ahead of the H1, so any test asserting a title on line 1 breaks. Exactly one test
-in the suite made that assumption. The remaining 39 frontmatter-free ADRs will
-not surface a second one, but a future ADR-tooling change should expect it.
+in the suite made that assumption. The six frontmatter-free ADRs still deferred
+will not surface a second one, but a future ADR-tooling change should expect it.
+
+## Failure mode classification
+
+Classified against `.agents/governance/FAILURE-MODES.md`. Both classes below
+were **near misses**: each was caught before merge, so this retro records what
+almost shipped rather than what did. That is worth writing down precisely
+because nothing external would have caught either one.
+
+| Failure | Class | Severity | Why it fits |
+|---|---|---|---|
+| Shallow clone read as complete history | **10. Silent defaults and guard-clause suppression** | High | The class covers absence-of-signal treated as signal. `git log --follow -1` on a shallow clone does not error; it returns the boundary commit's date, so missing history is indistinguishable from a real answer. Had it shipped, all 53 records carry one wrong date and no gate objects. |
+| Both `implemented` proxies trusted | **9. Confident-incorrectness recurrence** | High | The class shape is "partial signal, premature conclusion, confident delivery, multi-round correction". A reference count is partial signal; it was nearly delivered as fact for 53 records. Six were wrong and were only caught by opening the artifacts. |
+
+**Proposed addition to class 10, no new class needed.** Class 10's shape list
+enumerates six suppression forms, all of them in-process (`try/except: pass`,
+`value or default`, `dict.get` with a default, guard-clause early exit, schema
+fall-through, verdict parser emitting PASS on no output). It has no entry for
+*a truncated external data source read as complete*, which is what a shallow
+clone, a paginated API returning page 1, or a `grep` over a partial checkout all
+produce. Suggested seventh bullet:
+
+> - A query against a truncated data source (shallow git clone, unpaginated API
+>   result, partial checkout) whose truncation is not an error condition, so the
+>   partial answer is returned with the same shape and confidence as a complete
+>   one
+
+This is an addition to an existing class rather than a new class, so per
+`.claude/rules/retros.md` MUST-2 it does not require a linked ADR. Tracked as a
+remediation item below.
+
+## Evidence
+
+Commits and artifacts, all on branch `claude/autoplan-goal-vd6pmg` in
+`rjmurillo/ai-agents`:
+
+| Item | Reference |
+|---|---|
+| The PR | rjmurillo/ai-agents#5291 |
+| Driving issue | rjmurillo/ai-agents#5190 |
+| Deferred-record issues | rjmurillo/ai-agents#5192, #5193, #5195 |
+| Follow-ups filed from this work | rjmurillo/ai-agents#5289 (ADR-073 dangling script citation), #5290 (ten partial-frontmatter ADRs) |
+| Weak debate-log gate, not exploited | rjmurillo/ai-agents#5205 |
+| The shallow-boundary commit that made every ADR read as 2026-08-18 | `2c85d254` |
+| ADR-050's artifact: added, then removed | `4c0d01a0` (2026-02-28, #1247), `ba541c21` (2026-08-20, #5179) |
+| ADR-060's artifact: added | `157737a0` (2026-05-25, #2063) |
+| ADR-067's artifact, still live | `scripts/validation/pr_description.py:510` |
+| Review log with the full mapping and findings | `.agents/critique/ADR-073-phase2-backfill-debate-log.md` |
+| Test broken and fixed by the schema change | `tests/test_adr_063_memory_skill_decomposition.py` |
+
+Every issue reference above is in `rjmurillo/ai-agents`. Copilot's second review
+round reported these as pointing at `rjmurillo/moq.analyzers`; that finding was
+checked against this file and the review log and is a false positive. No
+`moq.analyzers` string appears in either. The only occurrences in the repository
+are in unrelated files this PR does not touch.
+
+## Remediation
+
+Per `.claude/rules/retros.md` MUST-4, each item carries an owner or an issue.
+
+| # | Action | Kind | Owner / issue | Status |
+|---|---|---|---|---|
+| 1 | Add the shallow-clone precondition to the rule tree, so any git-derived value checks `git rev-parse --is-shallow-repository` before it is trusted | Rule change | rjmurillo, needs an issue filed before a rule lands | Open |
+| 2 | Add the truncated-source bullet to FAILURE-MODES class 10 (text drafted above) | Governance change | rjmurillo | Open |
+| 3 | Repair ADR-073's dangling citation to `scripts/sync_adr_protocol.py` | ADR amendment | rjmurillo/ai-agents#5289 | Filed |
+| 4 | Complete Phase 2 across the ten partial-frontmatter ADRs | Backfill | rjmurillo/ai-agents#5290 | Filed, folded into PR #5291 |
+| 5 | Triage the eight status/implementation mismatches surfaced by the schema (five `proposed` but shipped, three `accepted` but never built) | Governance triage | rjmurillo, needs an issue; not fixable in a metadata backfill because a status change is a governance act | Open |
+| 6 | Decide the review-evidence question for PR #5291: convene the full six-agent debate, or record acceptance of narrower evidence | Process decision | rjmurillo, on PR #5291 | Open |
+| 7 | Sweep the six ADR-030 citation sites once its status change lands | Cleanup | Filed as a follow-up issue from this PR | Filed |
 
 ## What to carry forward
 
@@ -117,7 +191,7 @@ not surface a second one, but a future ADR-tooling change should expect it.
    highest-value lesson here and the only one that fails silently.
 2. **`implemented` cannot be proxied.** Verify by artifact, and check whether the
    artifact was removed after merging.
-3. **Four `proposed` records carry `implemented: true` and three `accepted`
+3. **Five `proposed` records carry `implemented: true` and three `accepted`
    records carry `implemented: false`.** This is the schema working as designed:
    it makes visible the decisions that shipped without formal acceptance
    (ADR-038, 049, 059, 067, 070) and those accepted but never built (ADR-010,
