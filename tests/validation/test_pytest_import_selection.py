@@ -54,9 +54,7 @@ def test_resolve_collects_when_diff_unavailable(
     assert commands == _collection(tmp_path)
 
 
-def test_resolve_collects_on_full_verdict(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_resolve_collects_on_full_verdict(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
     monkeypatch.setattr(
         git_hook_policy.select_tests,
@@ -175,8 +173,7 @@ def test_collection_gets_the_collection_budget_not_the_suite_budget(tmp_path: Pa
         == git_hook_policy.TEST_COLLECTION_TIMEOUT_SECONDS
     )
     assert (
-        git_hook_policy.TEST_COLLECTION_TIMEOUT_SECONDS
-        < git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
+        git_hook_policy.TEST_COLLECTION_TIMEOUT_SECONDS < git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
     )
 
 
@@ -193,8 +190,7 @@ def test_subset_of_one_file_is_not_mistaken_for_a_collection_run(tmp_path: Path)
     subset = git_hook_policy._pytest_commands_for_subset(tmp_path, ["tests/test_leaf.py"])
     assert len(subset) == 1
     assert (
-        git_hook_policy._pytest_budget_seconds(subset)
-        == git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
+        git_hook_policy._pytest_budget_seconds(subset) == git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
     )
 
 
@@ -232,6 +228,43 @@ def test_resolve_explains_why_it_collected_instead_of_executing(
     assert "Collecting every test" in err
     assert "pytest.yml" in err
     assert git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV in err
+
+
+def test_the_notice_states_every_probed_miss_not_just_the_first(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The developer-facing text must not under-list what collection misses.
+
+    `_pytest_collection_command`'s docstring says the same three-catch,
+    two-miss claim is printed here, and that a wrong one tells developers they
+    are covered when they are not. Nothing checked that, and it drifted: the
+    notice named the missing fixture and omitted two same-named test functions
+    in one module, so it under-listed the misses in the direction that reads as
+    more coverage than exists. Found by the PR's spec validator, which compared
+    the code, the ADR, and this string and noticed one disagreed.
+
+    Under-listing is the failure worth pinning. Over-listing a miss costs a
+    developer an unnecessary CI round trip; omitting one costs a defect that
+    reaches CI believing it was gated locally.
+    """
+    monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
+    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
+    git_hook_policy._resolve_pytest_commands(tmp_path, None)
+    # Whitespace-normalized: the notice hard-wraps, so a phrase can straddle a
+    # newline and a plain substring check would pass or fail on wrap position.
+    err = " ".join(capsys.readouterr().err.split())
+
+    for catches in ("broken\nimport", "syntax error", "same-basename module collision"):
+        assert " ".join(catches.split()) in err, f"notice no longer claims to catch {catches!r}"
+
+    for misses in ("does NOT catch a missing fixture", "same-named test functions in one module"):
+        assert misses in err, (
+            f"notice omits {misses!r}. Both misses were probed and collect "
+            "clean with exit 0; see _pytest_collection_command's docstring and "
+            "ADR-104 rule 5. A notice that lists fewer misses than were probed "
+            "tells the reader they are covered when they are not."
+        )
+
 
 def test_a_broken_import_makes_the_collection_stand_in_block_the_push(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path

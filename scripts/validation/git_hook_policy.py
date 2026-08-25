@@ -605,9 +605,7 @@ _GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
 # Format: __{sanitized}_{6-hex-digest} or just __{6-hex-digest} before .py.
 # The sanitized segment never contains __ (non-alnum runs collapse to single _),
 # so the last __ in a stem always marks the suffix boundary. Refs #4857.
-_HOOK_MATCHER_SUFFIX_RE = re.compile(
-    r"__(?:(?!__)[A-Za-z0-9_])*[0-9a-f]{6}(?=\.py$)"
-)
+_HOOK_MATCHER_SUFFIX_RE = re.compile(r"__(?:(?!__)[A-Za-z0-9_])*[0-9a-f]{6}(?=\.py$)")
 _PROMPT_OUTPUT_PREFIX = ".github/prompts/pr-quality-gate-"
 _PROMPT_SOURCE_PREFIX = ".claude/skills/review/references/"
 # build/scripts/generate_pr_quality_prompts.py:_FILENAME_RE
@@ -616,9 +614,7 @@ _PROMPT_ROLE_FILE_RE = re.compile(r"^[a-z][a-z0-9_-]*\.md$")
 # Reject every configured name before mirror mapping. Even top-level files that
 # the generator never visits must not gain an exemption merely because a
 # canonical file with the same name is tracked.
-_COPILOT_SKILL_EXCLUDES = frozenset(
-    {"AGENTS.md", "CLAUDE.md", "merge-resolver"}
-)
+_COPILOT_SKILL_EXCLUDES = frozenset({"AGENTS.md", "CLAUDE.md", "merge-resolver"})
 
 # Per-commit atomic file limit (AGENTS.md:24, .claude/rules/universal.md:15).
 # Generated companions (episodes, mcp, agents, memory-index) are exempt.
@@ -2549,7 +2545,7 @@ def _mirror_source(relative_path: str) -> str | None:
     escape the limit, which is a larger hole than the friction it removes.
     """
     if relative_path.startswith(_PROMPT_OUTPUT_PREFIX):
-        role_file = relative_path[len(_PROMPT_OUTPUT_PREFIX):]
+        role_file = relative_path[len(_PROMPT_OUTPUT_PREFIX) :]
         if _PROMPT_ROLE_FILE_RE.fullmatch(role_file):
             return _PROMPT_SOURCE_PREFIX + role_file
         return None
@@ -2562,7 +2558,7 @@ def _mirror_source(relative_path: str) -> str | None:
     for output_prefix, source_prefix, suffix_map in _GENERATED_MIRRORS:
         if not relative_path.startswith(output_prefix):
             continue
-        remainder = relative_path[len(output_prefix):]
+        remainder = relative_path[len(output_prefix) :]
         if suffix_map is not None:
             output_suffix, source_suffix = suffix_map
             if not remainder.endswith(output_suffix):
@@ -2695,8 +2691,7 @@ def check_atomic_commit(repo_root: Path) -> int:
     authored_count = len(authored)
     if merge_exempt:
         print(
-            f"INFO: {len(merge_exempt)} merge-brought file(s) excluded from "
-            "atomic-commit count.",
+            f"INFO: {len(merge_exempt)} merge-brought file(s) excluded from atomic-commit count.",
             file=sys.stderr,
         )
     if generated:
@@ -5873,16 +5868,12 @@ class _SquashMergeResult:
 
     __slots__ = ("lost_commits", "warning")
 
-    def __init__(
-        self, lost_commits: list[str] | None = None, warning: str | None = None
-    ) -> None:
+    def __init__(self, lost_commits: list[str] | None = None, warning: str | None = None) -> None:
         self.lost_commits = lost_commits
         self.warning = warning
 
 
-def _probe_squash_state(
-    remote_sha: str, local_sha: str, repo_root: Path
-) -> _SquashMergeResult:
+def _probe_squash_state(remote_sha: str, local_sha: str, repo_root: Path) -> _SquashMergeResult:
     """Interrogate git to determine whether a branch was squash-merged.
 
     Returns a result with:
@@ -5900,7 +5891,8 @@ def _probe_squash_state(
 
     # Find merge-base between origin/main and the remote tip.
     base_result = _run_git(
-        repo_root, ["merge-base", "origin/main", remote_sha],
+        repo_root,
+        ["merge-base", "origin/main", remote_sha],
     )
     if base_result.returncode != 0:
         return _SquashMergeResult(
@@ -5911,18 +5903,17 @@ def _probe_squash_state(
     merge_base = base_result.stdout.strip()
     if not merge_base:
         return _SquashMergeResult(
-            warning="merge-base with origin/main is empty. Cannot determine "
-            "squash-merge state."
+            warning="merge-base with origin/main is empty. Cannot determine squash-merge state."
         )
 
     # Files the branch touched relative to the merge-base.
     files_result = _run_git(
-        repo_root, ["diff", "--name-only", merge_base, remote_sha],
+        repo_root,
+        ["diff", "--name-only", merge_base, remote_sha],
     )
     if files_result.returncode != 0:
         return _SquashMergeResult(
-            warning="could not diff branch against merge-base. Cannot "
-            "determine squash-merge state."
+            warning="could not diff branch against merge-base. Cannot determine squash-merge state."
         )
     branch_files = [f for f in files_result.stdout.splitlines() if f.strip()]
     if not branch_files:
@@ -5943,12 +5934,12 @@ def _probe_squash_state(
 
     # Squash-merge confirmed. List commits that will be orphaned.
     lost_result = _run_git(
-        repo_root, ["rev-list", "--oneline", f"origin/main..{local_sha}"],
+        repo_root,
+        ["rev-list", "--oneline", f"origin/main..{local_sha}"],
     )
     if lost_result.returncode != 0:
         return _SquashMergeResult(
-            warning="squash-merge signature detected but could not list "
-            "orphaned commits."
+            warning="squash-merge signature detected but could not list orphaned commits."
         )
     lost = [line for line in lost_result.stdout.splitlines() if line.strip()]
     return _SquashMergeResult(lost_commits=lost if lost else None)
@@ -6622,9 +6613,7 @@ def _pytest_commands_for_subset(repo_root: Path, test_files: Sequence[str]) -> l
             ]
         )
     if pr_autofix:
-        commands.append(
-            [*base, "-m", "not integration", *_abs_test_paths(repo_root, pr_autofix)]
-        )
+        commands.append([*base, "-m", "not integration", *_abs_test_paths(repo_root, pr_autofix)])
     return commands
 
 
@@ -6698,7 +6687,9 @@ def _full_suite_stand_in(repo_root: Path, reason: str) -> list[list[str]]:
         "on a broken\n"
         "  import, a syntax error, and a same-basename module collision. It "
         "does NOT run\n"
-        "  assertions, and it does NOT catch a missing fixture.\n"
+        "  assertions, it does NOT catch a missing fixture, and it does NOT "
+        "catch two\n"
+        "  same-named test functions in one module.\n"
         "  Assertions run in CI: .github/workflows/pytest.yml executes the full "
         "partition\n"
         "  matrix on every merge-queue commit, and on this PR only when the "
@@ -6813,8 +6804,7 @@ def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> i
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             print(
-                "ERROR: pytest suite exceeded the "
-                f"{budget}s budget before running {command}",
+                f"ERROR: pytest suite exceeded the {budget}s budget before running {command}",
                 file=sys.stderr,
             )
             return 1
@@ -6888,11 +6878,7 @@ def _pushed_workflow_paths(
 
 
 def _select_pushed_workflows(paths: Sequence[str], repo_root: Path) -> list[str]:
-    existing = [
-        path
-        for path in paths
-        if (repo_root / _normalize_ratchet_path(path)).is_file()
-    ]
+    existing = [path for path in paths if (repo_root / _normalize_ratchet_path(path)).is_file()]
     base_ref = _workflow_local_base_ref()
     changed = _pushed_workflow_paths(paths, repo_root, base_ref)
     if changed is None:
@@ -6902,11 +6888,7 @@ def _select_pushed_workflows(paths: Sequence[str], repo_root: Path) -> list[str]
             file=sys.stderr,
         )
         return existing
-    return [
-        path
-        for path in existing
-        if _normalize_ratchet_path(path) in changed
-    ]
+    return [path for path in existing if _normalize_ratchet_path(path) in changed]
 
 
 def run_workflow_local(paths: Sequence[str], repo_root: Path) -> int:
