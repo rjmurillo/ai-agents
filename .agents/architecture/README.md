@@ -92,16 +92,50 @@ These bind today.
 
 | ADR | Title | Date | Decision |
 | --- | --- | --- | --- |
+| [ADR-001](ADR-001-markdown-linting.md) | Markdown Linting Configuration | 2025-12-13 | Create `.markdownlint-cli2.yaml` in the repository root with rules appropriate for agent templates: |
 | [ADR-003](ADR-003-agent-tool-selection-criteria.md) | Role-Specific Tool Allocation for Multi-Agent System | 2025-12-16 | Chosen option: "Option 2: Role-specific tool allocation", because it provides the optimal balance of context efficiency, role clarity, and operational capability. |
+| [ADR-006](ADR-006-thin-workflows-testable-modules.md) | Thin Workflows, Testable Modules | 2026-04-29 | Chosen option: Option 1 - Thin Workflows, Testable Modules |
+| [ADR-007](ADR-007-memory-first-architecture.md) | Memory-First Architecture | 2026-08-16 | Memory retrieval MUST precede reasoning in all agent workflows. |
+| [ADR-008](ADR-008-protocol-automation-lifecycle-hooks.md) | Protocol Automation via Lifecycle Hooks | 2026-08-19 | Lifecycle hooks MUST automate SESSION-PROTOCOL enforcement. |
+| [ADR-009](ADR-009-parallel-safe-multi-agent-design.md) | Parallel-Safe Multi-Agent Design | 2025-12-20 | Multi-agent coordination MUST include consensus mechanisms for conflict resolution. |
+| [ADR-010](ADR-010-quality-gates-evaluator-optimizer.md) | Quality Gates with Evaluator-Optimizer Pattern | 2025-12-20 | All significant outputs MUST pass through a formalized evaluator-optimizer loop. |
+| [ADR-014](ADR-014-distributed-handoff-architecture.md) | Distributed Handoff Architecture | 2026-08-16 | Implement a three-tier distributed handoff architecture that eliminates centralized HANDOFF.md as a write target: |
+| [ADR-015](ADR-015-artifact-storage-minimization.md) | Artifact Storage Minimization Strategy | 2025-12-22 | Reduce artifact retention to minimum necessary duration: |
+| [ADR-016](ADR-016-workflow-execution-optimization.md) | Workflow Execution Optimization Strategy | 2025-12-22 | Implement two complementary optimizations: |
+| [ADR-017](ADR-017-tiered-memory-index-architecture.md) | Tiered Memory Index Architecture | 2025-12-28 | Chosen option: Option 3 - Tiered Index Architecture |
+| [ADR-018](ADR-018-cache-invalidation-strategy.md) | Cache Invalidation Strategy for GitHub Data | 2025-12-23 | Primary: Option 2 (Session-Local Cache) for simplicity Secondary: Option 3 (cloudmcp) when cross-session benefit is critical |
+| [ADR-019](ADR-019-script-organization.md) | Script Organization and Usage Patterns | 2025-12-23 | Establish a hierarchical script organization based on intended audience and execution context: |
+| [ADR-021](ADR-021-model-routing-strategy.md) | AI Review Model Routing Strategy | 2025-12-23 | Adopt an evidence-aware, tiered model routing strategy that routes AI review requests to specialized models based on: |
 | [ADR-023](ADR-023-quality-gate-prompt-testing.md) | Quality Gate Prompt Structural Validation | 2025-12-26 | Chosen option: "Pester Structural Tests", because it provides immediate, repeatable validation of prompt structure with minimal infrastructure overhead, while acknowledging that runtime behavioral... |
-| [ADR-034](ADR-034-investigation-session-qa-exemption.md) | Investigation Session QA Exemption | 2025-12-30 | Add investigation-only session exemption to pre-commit QA validation with staged-file guardrails. |
+| [ADR-026](ADR-026-pr-automation-concurrency-and-safety.md) | PR Automation Concurrency and Safety Controls | 2026-07-27 | Decision: Use GitHub Actions `concurrency` group instead of file-based locking. |
+| [ADR-028](ADR-028-powershell-output-schema-consistency.md) | PowerShell Output Schema Consistency | 2025-12-23 | Include all properties in output objects with null/0 values when not populated, rather than conditionally excluding properties from the output schema. |
+| [ADR-029](ADR-029-skill-file-line-ending-normalization.md) | Skill File Line Ending Normalization | 2025-12-27 | Force LF line endings for all `*.skill` files using git attributes: |
+| [ADR-032](ADR-032-ears-requirements-syntax.md) | EARS Requirements Syntax Standard | 2025-12-30 | Adopt the EARS (Easy Approach to Requirements Syntax) format as the standard for all formal requirements in the ai-agents project. |
+| [ADR-033](ADR-033-routing-level-enforcement-gates.md) | Routing-Level Enforcement Gates | 2026-08-16 | Implement routing-level enforcement gates using Claude Code hooks. |
+| [ADR-034](ADR-034-investigation-session-qa-exemption.md) | Investigation Session QA Exemption | 2026-07-08 | Add investigation-only session exemption to pre-commit QA validation with staged-file guardrails. |
+| [ADR-035](ADR-035-exit-code-standardization.md) | Exit Code Standardization | 2025-12-30 | Chosen option: Option 1 - POSIX-Style Standard |
+| [ADR-036](ADR-036-two-source-agent-template-architecture.md) | Two-Source Agent Template Architecture | 2026-08-25 | Adopt a two-source architecture: |
+| [ADR-037](ADR-037-memory-router-architecture.md) | Memory Router Architecture | 2026-07-20 | Implement a Memory Router that provides: |
+| [ADR-040](ADR-040-skill-frontmatter-standardization.md) | Skill Frontmatter Standardization and Model Identifier Strategy | 2026-08-14 | Adopt the following standardization for all 27 Claude Code skills: |
+| [ADR-041](ADR-041-codeql-integration.md) | CodeQL Integration Multi-Tier Strategy | 2026-07-21 | Chosen option: Option 4 - Multi-Tier with Shared Configuration |
 | [ADR-042](ADR-042-python-migration-strategy.md) | Python Migration Strategy | 2026-01-17 | Migrate the ai-agents project from PowerShell to Python as the primary scripting language over a 12-24 month phased migration period. |
+| [ADR-043](ADR-043-scoped-tool-execution.md) | Scoped Tool Execution | 2026-01-21 | Session protocol tools MUST scope to changed files rather than the entire repository. |
+| [ADR-045](ADR-045-framework-extraction-via-plugin-marketplace.md) | Framework Extraction via Plugin Marketplace | 2026-02-07 | Extract the reusable multi-agent framework from `rjmurillo/ai-agents` into a new repository `rjmurillo/awesome-ai`, published as a Claude Code plugin marketplace with 4 plugins. |
+| [ADR-046](ADR-046-planning-agent-rename.md) | Planning Agent Rename for Role Clarity | 2026-02-08 | Rename all three planning agents to reflect their distinct roles: |
+| [ADR-047](ADR-047-plugin-mode-hook-behavior.md) | Plugin-Mode Hook Behavior | 2026-04-29 | All hooks and skills run in plugin mode. |
+| [ADR-050](ADR-050-adr-protocol-sync.md) | ADR-to-Protocol Sync Process | 2026-02-21 | Establish a two-tier ADR-to-Protocol sync process: an automated audit script and a manual integration checklist. |
+| [ADR-051](ADR-051-synthesis-panel-frontmatter-standard.md) | Synthesis Panel Frontmatter Standard | 2026-03-07 | All DESIGN-REVIEW documents MUST include YAML frontmatter with structured metadata. |
+| [ADR-053](ADR-053-adr-exception-criteria.md) | ADR Exception Criteria (Chesterton's Fence) | 2026-03-07 | ADR exceptions MUST include a Chesterton's Fence analysis before approval. |
+| [ADR-054](ADR-054-local-security-scanning.md) | Local Security Scanning | 2026-07-20 | Add a Lefthook pre-push job that scans changed code files. |
 | [ADR-055](ADR-055-github-actions-runner-selection.md) | GitHub Actions Runner Selection | 2025-12-29 | Default to ARM64 runners for all Linux workflows unless documented architectural constraints exist. |
-| [ADR-057](ADR-057-prompt-behavioral-evaluation.md) | Prompt Behavioral Evaluation Methodology | 2026-04-19 | Adopt scenario-based LLM evaluation as the standard method for validating behavioral correctness of prompt changes. |
+| [ADR-056](ADR-056-skill-output-format-standardization.md) | Skill Output Format Standardization | 2026-03-08 | All skill scripts MUST wrap output in a standard envelope with `Success`, `Data`, `Error`, and `Metadata` fields |
+| [ADR-057](ADR-057-prompt-behavioral-evaluation.md) | Prompt Behavioral Evaluation Methodology | 2026-07-22 | Adopt scenario-based LLM evaluation as the standard method for validating behavioral correctness of prompt changes. |
+| [ADR-060](ADR-060-rework-warning-session-log-persistence.md) | Rework Warning Evidence Persistence in Session Log JSON | 2026-07-27 | Add an optional `reworkWarning` object under `protocolCompliance.sessionEnd` in the session log JSON. |
+| [ADR-062](ADR-062-conditional-lsp-first-enforcement.md) | Conditional LSP-First Navigation Enforcement | 2026-07-27 | Adopt a conditional, availability-gated LSP-first enforcement layer, ported to Python, wired into both harnesses, covering every LSP-navigable file type. |
 | [ADR-063](ADR-063-memory-skill-decomposition.md) | Decompose the Memory Skill Into Focused Sub-Skills | 2026-06-01 | Decompose the monolithic `memory` skill into focused sub-skills split by operation, keep `memory` as a thin router that delegates, and preserve the `memory` skill name so existing callers do not... |
-| [ADR-066](ADR-066-hook-fail-open-reconciliation.md) | Hook Fail-Open Reconciliation (Prevention-First, Fail-Closed-and-Loud) | 2026-06-02 | Chosen option: 3 - prevention-first, fail-closed-and-loud, because the #2205 incident proved that launcher-level fail-open does not protect users. |
+| [ADR-066](ADR-066-hook-fail-open-reconciliation.md) | Hook Fail-Open Reconciliation (Prevention-First, Fail-Closed-and-Loud) | 2026-07-19 | Chosen option: 3 - prevention-first, fail-closed-and-loud, because the #2205 incident proved that launcher-level fail-open does not protect users. |
 | [ADR-068](ADR-068-consolidated-hook-dispatcher.md) | Consolidated Per-Event Hook Dispatcher | 2026-07-31 | Generate one dispatcher host entry per active, safely consolidatable Copilot hook event. |
-| [ADR-071](ADR-071-plugin-hook-runtime-contract-verification.md) | Plugin Hook Runtime-Contract Verification | - | Anchor every plugin hook command to the plugin root. |
+| [ADR-071](ADR-071-plugin-hook-runtime-contract-verification.md) | Plugin Hook Runtime-Contract Verification | 2026-08-19 | Anchor every plugin hook command to the plugin root. |
 | [ADR-073](ADR-073-adr-lifecycle-frontmatter.md) | Machine-Readable ADR Lifecycle Frontmatter | 2026-06-19 | Adopt a queryable lifecycle frontmatter schema as the machine-readable source of truth for ADR state, retaining the human-readable `## Status` prose section as a secondary rendering. |
 | [ADR-074](ADR-074-security-review-quick-pass-mode.md) | Bounded Security-Review Quick-Pass Mode | 2026-06-17 | Add a bounded quick-pass mode to security review, governed by a diff-scope classifier, a caller-enforced deadline, and an extended verdict taxonomy. |
 | [ADR-076](ADR-076-pr-autofix-branch-ownership-lease.md) | PR-Autofix Branch-Ownership Lease | 2026-06-17 | Adopt a PR-comment-backed, advisory, fail-open branch-ownership lease that `pr-autofix` (local) and remote review/autofix routines acquire before committing fix work to a shared PR branch, and... |
@@ -125,10 +159,24 @@ Recorded, not yet binding. The last column is what each record says is holding i
 
 | ADR | Title | Date | Decision | Blocking acceptance |
 | --- | --- | --- | --- | --- |
+| [ADR-011](ADR-011-session-state-mcp.md) | Session State MCP | 2025-12-21 | Create a Session State MCP that: | - |
+| [ADR-012](ADR-012-skill-catalog-mcp.md) | Skill Catalog MCP | 2025-12-21 | Create a Skill Catalog MCP that: | - |
+| [ADR-013](ADR-013-agent-orchestration-mcp.md) | Agent Orchestration MCP | 2025-12-21 | Create an Agent Orchestration MCP that: | - |
 | [ADR-020](ADR-020-feature-request-review-step.md) | Feature Request Review Step in Issue Triage Workflow | 2025-12-19 | Chosen option: Option 1 - New Conditional Step with Analyst Agent | - |
+| [ADR-022](ADR-022-architecture-governance-split-criteria.md) | Architecture vs Governance Decision Split Criteria | 2025-12-23 | Adopt a hybrid approach with explicit split criteria: | - |
 | [ADR-027](ADR-027-github-mcp-agent-isolation.md) | GitHub MCP Server with Agent Isolation Pattern | 2025-12-23 | Chosen option: Phased Hybrid Approach with GitHub MCP as Target Architecture | - |
+| [ADR-031](ADR-031-hybrid-powershell-architecture.md) | Hybrid PowerShell Architecture for Claude Code Performance | 2025-12-29 | Implement a hybrid architecture for PowerShell skill execution: | - |
+| [ADR-038](ADR-038-reflexion-memory-schema.md) | Reflexion Memory Schema | 2026-01-01 | Implement a Four-Tier Reflexion Memory Schema with episodic replay and causal graph capabilities. | - |
+| [ADR-048](ADR-048-mcp-tool-ecosystem-expansion.md) | MCP Tool Ecosystem Expansion | 2026-02-23 | Expand the MCP tool ecosystem in four phases, building on existing ADRs: | - |
+| [ADR-049](ADR-049-pre-pr-validation-gates.md) | Pre-PR Validation Gates | 2026-02-24 | All PRs MUST pass a local validation gate before creation. | - |
 | [ADR-058](ADR-058-agent-eval-discipline.md) | Agent Eval Discipline (Agent-vs-Baseline Efficacy) | 2026-05-03 | Adopt the agent-vs-baseline efficacy methodology defined below as the standard for empirical validation of agent specialization. | - |
+| [ADR-059](ADR-059-pr-review-completion-gate-dispatcher.md) | /pr-review Completion Gate Dispatcher and pass_when DSL | 2026-05-08 | Replace the narrative completion gate with a dispatcher. | - |
+| [ADR-064](ADR-064-commands-to-skills-migration.md) | Retire `.claude/commands/` as a Canonical Authoring Surface; Skills Are the Single User-Invocable Surface | 2026-06-01 | Retire `.claude/commands/` as a canonical authoring surface. | - |
+| [ADR-065](ADR-065-orchestrator-as-router.md) | Orchestrator Is a Deterministic Router and Retry Policy, Not a Supervisor | 2026-05-29 | The orchestrator is a deterministic router with a retry policy. | - |
+| [ADR-067](ADR-067-validate-pr-change-claim-context.md) | validate-pr Check 1 default-flip - change-claim context required | 2026-06-02 | Adopt Option (c) Hybrid: keep patterns 1 (bold `path.ext`) and 2 (bullet-list `^[-*+] path.ext`) firing in any context. | - |
 | [ADR-069](ADR-069-context-corpus-is-the-product.md) | The Curated Context Corpus IS the Product, Orchestration Is Plumbing | 2026-05-02 | Adopt the following architectural principle: | - |
+| [ADR-070](ADR-070-memory-first-gate-spec-pipeline.md) | Memory-First Gate Is a BLOCKING Step in the Spec Pipeline | 2026-07-27 | The Memory-First Gate is a BLOCKING step (Step 0.5) in the `/spec` pipeline, running after Step 0 and before Step 1. | - |
+| [ADR-072](ADR-072-jtbd-plugin-architecture.md) | JTBD-Based Plugin Architecture with Per-Harness Emission | 2026-06-09 | Adopt two coupled changes. | Architect design review completed (verdict: APPROVE WITH CHANGES); this ADR may exist as `Proposed` but MUST clear the five approval conditions in "Conditions to reach Accepted" before its status... |
 | [ADR-075](ADR-075-form-factor-eval-methodology.md) | Form-Factor Evaluation Methodology (Agent vs Skill) | 2026-07-20 | Adopt a three-variant eval. | Requested by issue [#1875](https://github.com/rjmurillo/ai-agents/issues/1875). Follow-on to ADR-058 (agent eval discipline), which scoped the form-factor question out and tracked it here. |
 | [ADR-077](ADR-077-flip-stale-contract-tests.md) | Flip Stale Contract Tests | 2026-06-29 | Add a governance rule to `.agents/governance/TESTING-RIGOR.md`: when a change alters an observable contract, the author must find and flip stale tests in the same diff. | This is a 90-day experimental governance rule. The review checkpoint is 2026-09-27. |
 | [ADR-078](ADR-078-autoplan-orchestrator-router-boundary.md) | Autoplan and Orchestrator Router Boundary | 2026-08-20 | Adopt an explicit two-layer boundary and document it in both routing surfaces: the autoplan skill and the orchestrator shared source. | - |
@@ -147,10 +195,12 @@ Superseded or deprecated. Do not cite these. The last column is where the decisi
 
 | ADR | Title | Status | Read instead |
 | --- | --- | --- | --- |
+| [ADR-002](ADR-002-agent-model-selection-optimization.md) | Agent Model Selection Optimization | deprecated | not recorded |
 | [ADR-004](ADR-004-pre-commit-hook-architecture.md) | Pre-Commit Hook as Validation Orchestration Point | superseded | [ADR-086](ADR-086-lefthook-local-hook-orchestration.md) |
 | [ADR-005](ADR-005-powershell-only-scripting.md) | PowerShell-Only Scripting Standard | superseded | [ADR-042](ADR-042-python-migration-strategy.md) |
 | [ADR-024](ADR-024-github-actions-runner-selection.md) | GitHub Actions Runner Selection | superseded | [ADR-055](ADR-055-github-actions-runner-selection.md) |
 | [ADR-025](ADR-025-github-actions-arm-runners.md) | GitHub Actions ARM Runner Migration | superseded | [ADR-055](ADR-055-github-actions-runner-selection.md) |
+| [ADR-039](ADR-039-agent-model-cost-optimization.md) | Agent Model Cost Optimization | deprecated | not recorded |
 | [ADR-044](ADR-044-copilot-cli-frontmatter-compatibility.md) | Copilot CLI Frontmatter Compatibility | superseded | [ADR-094](ADR-094-govern-copilot-cli-compatibility.md) |
 | [ADR-079](ADR-079-merge-time-plugin-version-bump.md) | Plugin Version Bump Stays at PR Time (Reject Merge-Time Automation) | superseded | [ADR-092](ADR-092-omit-plugin-manifest-version.md) (via ADR-091) |
 | [ADR-091](ADR-091-post-merge-version-bot.md) | Post-Merge Bot Owns Plugin Version and Count Baselines | superseded | [ADR-092](ADR-092-omit-plugin-manifest-version.md) |
@@ -161,64 +211,13 @@ Considered and declined. Kept visible so the proposal is findable and does not r
 
 | ADR | Title | Date | Decision |
 | --- | --- | --- | --- |
+| [ADR-030](ADR-030-skills-pattern-superiority.md) | Skills Pattern Superiority | 2026-08-25 | - |
+| [ADR-052](ADR-052-template-strategy.md) | Template Strategy for Multi-Platform Agent Distribution | 2026-08-25 | Option B: Claude-First. |
+| [ADR-061](ADR-061-hook-matcher-shims-delegate-pattern.md) | Hook Matcher Shims Delegate to Canonical Body | 2026-08-25 | Amend REQ-003-007 step 5 so the generator emits delegate shims, not inline-body shims. |
 | [ADR-095](ADR-095-scoped-re-review-axes.md) | Scoped re-review runs only the axes that flagged (rejected) | 2026-08-15 | - |
 
 ## Needs backfill
 
 No lifecycle frontmatter, so this index has no status to report. Nothing is inferred for these: open the record and read its `## Status` section. ADR-073 Phase 2 closes this section.
 
-| ADR | Title |
-| --- | --- |
-| [ADR-001](ADR-001-markdown-linting.md) | Markdown Linting Configuration |
-| [ADR-002](ADR-002-agent-model-selection-optimization.md) | Agent Model Selection Optimization |
-| [ADR-006](ADR-006-thin-workflows-testable-modules.md) | Thin Workflows, Testable Modules |
-| [ADR-007](ADR-007-memory-first-architecture.md) | Memory-First Architecture |
-| [ADR-008](ADR-008-protocol-automation-lifecycle-hooks.md) | Protocol Automation via Lifecycle Hooks |
-| [ADR-009](ADR-009-parallel-safe-multi-agent-design.md) | Parallel-Safe Multi-Agent Design |
-| [ADR-010](ADR-010-quality-gates-evaluator-optimizer.md) | Quality Gates with Evaluator-Optimizer Pattern |
-| [ADR-011](ADR-011-session-state-mcp.md) | Session State MCP |
-| [ADR-012](ADR-012-skill-catalog-mcp.md) | Skill Catalog MCP |
-| [ADR-013](ADR-013-agent-orchestration-mcp.md) | Agent Orchestration MCP |
-| [ADR-014](ADR-014-distributed-handoff-architecture.md) | Distributed Handoff Architecture |
-| [ADR-015](ADR-015-artifact-storage-minimization.md) | Artifact Storage Minimization Strategy |
-| [ADR-016](ADR-016-workflow-execution-optimization.md) | Workflow Execution Optimization Strategy |
-| [ADR-017](ADR-017-tiered-memory-index-architecture.md) | Tiered Memory Index Architecture |
-| [ADR-018](ADR-018-cache-invalidation-strategy.md) | Cache Invalidation Strategy for GitHub Data |
-| [ADR-019](ADR-019-script-organization.md) | Script Organization and Usage Patterns |
-| [ADR-021](ADR-021-model-routing-strategy.md) | AI Review Model Routing Strategy |
-| [ADR-022](ADR-022-architecture-governance-split-criteria.md) | Architecture vs Governance Decision Split Criteria |
-| [ADR-026](ADR-026-pr-automation-concurrency-and-safety.md) | PR Automation Concurrency and Safety Controls |
-| [ADR-028](ADR-028-powershell-output-schema-consistency.md) | PowerShell Output Schema Consistency |
-| [ADR-029](ADR-029-skill-file-line-ending-normalization.md) | Skill File Line Ending Normalization |
-| [ADR-030](ADR-030-skills-pattern-superiority.md) | Skills Pattern Superiority |
-| [ADR-031](ADR-031-hybrid-powershell-architecture.md) | Hybrid PowerShell Architecture for Claude Code Performance |
-| [ADR-032](ADR-032-ears-requirements-syntax.md) | EARS Requirements Syntax Standard |
-| [ADR-033](ADR-033-routing-level-enforcement-gates.md) | Routing-Level Enforcement Gates |
-| [ADR-035](ADR-035-exit-code-standardization.md) | Exit Code Standardization |
-| [ADR-036](ADR-036-two-source-agent-template-architecture.md) | Two-Source Agent Template Architecture |
-| [ADR-037](ADR-037-memory-router-architecture.md) | Memory Router Architecture |
-| [ADR-038](ADR-038-reflexion-memory-schema.md) | Reflexion Memory Schema |
-| [ADR-039](ADR-039-agent-model-cost-optimization.md) | Agent Model Cost Optimization |
-| [ADR-040](ADR-040-skill-frontmatter-standardization.md) | Skill Frontmatter Standardization and Model Identifier Strategy |
-| [ADR-041](ADR-041-codeql-integration.md) | CodeQL Integration Multi-Tier Strategy |
-| [ADR-043](ADR-043-scoped-tool-execution.md) | Scoped Tool Execution |
-| [ADR-045](ADR-045-framework-extraction-via-plugin-marketplace.md) | Framework Extraction via Plugin Marketplace |
-| [ADR-046](ADR-046-planning-agent-rename.md) | Planning Agent Rename for Role Clarity |
-| [ADR-047](ADR-047-plugin-mode-hook-behavior.md) | Plugin-Mode Hook Behavior |
-| [ADR-048](ADR-048-mcp-tool-ecosystem-expansion.md) | MCP Tool Ecosystem Expansion |
-| [ADR-049](ADR-049-pre-pr-validation-gates.md) | Pre-PR Validation Gates |
-| [ADR-050](ADR-050-adr-protocol-sync.md) | ADR-to-Protocol Sync Process |
-| [ADR-051](ADR-051-synthesis-panel-frontmatter-standard.md) | Synthesis Panel Frontmatter Standard |
-| [ADR-052](ADR-052-template-strategy.md) | Template Strategy for Multi-Platform Agent Distribution |
-| [ADR-053](ADR-053-adr-exception-criteria.md) | ADR Exception Criteria (Chesterton's Fence) |
-| [ADR-054](ADR-054-local-security-scanning.md) | Local Security Scanning |
-| [ADR-056](ADR-056-skill-output-format-standardization.md) | Skill Output Format Standardization |
-| [ADR-059](ADR-059-pr-review-completion-gate-dispatcher.md) | /pr-review Completion Gate Dispatcher and pass_when DSL |
-| [ADR-060](ADR-060-rework-warning-session-log-persistence.md) | Rework Warning Evidence Persistence in Session Log JSON |
-| [ADR-061](ADR-061-hook-matcher-shims-delegate-pattern.md) | Hook Matcher Shims Delegate to Canonical Body |
-| [ADR-062](ADR-062-conditional-lsp-first-enforcement.md) | Conditional LSP-First Navigation Enforcement |
-| [ADR-064](ADR-064-commands-to-skills-migration.md) | Retire `.claude/commands/` as a Canonical Authoring Surface; Skills Are the Single User-Invocable Surface |
-| [ADR-065](ADR-065-orchestrator-as-router.md) | Orchestrator Is a Deterministic Router and Retry Policy, Not a Supervisor |
-| [ADR-067](ADR-067-validate-pr-change-claim-context.md) | validate-pr Check 1 default-flip - change-claim context required |
-| [ADR-070](ADR-070-memory-first-gate-spec-pipeline.md) | Memory-First Gate Is a BLOCKING Step in the Spec Pipeline |
-| [ADR-072](ADR-072-jtbd-plugin-architecture.md) | JTBD-Based Plugin Architecture with Per-Harness Emission |
+None.
