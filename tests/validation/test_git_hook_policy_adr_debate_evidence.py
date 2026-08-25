@@ -252,6 +252,85 @@ def test_an_unreadable_staged_log_cannot_satisfy_coverage(
     assert policy.check_adr_review_policy([ADR_42], repo) == 1
 
 
+def test_a_log_writing_the_unpadded_id_still_covers_a_padded_record(repo: Path) -> None:
+    """Prose says ADR-42; the filename says ADR-042. Both name one record.
+
+    ``ADR_ID_RE`` matches digits literally, so these are different strings.
+    Filenames here are zero-padded to three digits and prose is not. Under the
+    old ``any()`` test a sibling log usually rescued the mismatch; requiring
+    full coverage would make it a false block on a genuine review, so the
+    comparison folds the padding away.
+    """
+    _edit(repo, ADR_42, "Rewritten decision text.")
+    _git(repo, "add", ADR_42)
+    _stage_log(repo, "ADR-042-debate-log.md", GENUINE_LOG.replace("ADR-042", "ADR-42"))
+
+    assert policy.check_adr_review_policy([ADR_42], repo) == 0
+
+
+def test_padding_folding_does_not_make_unrelated_ids_match(repo: Path, capsys) -> None:
+    """Negative control: folding zeros must not collapse distinct records."""
+    _edit(repo, ADR_42, "Rewritten decision text.")
+    _git(repo, "add", ADR_42)
+    _stage_log(repo, "ADR-005-debate-log.md", GENUINE_LOG.replace("ADR-042", "ADR-5"))
+
+    assert policy.check_adr_review_policy([ADR_42], repo) == 1
+    assert "ADR-042" in capsys.readouterr().err, "the error names the staged filename form"
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("ADR-042", "ADR-42"),
+        ("ADR-42", "ADR-42"),
+        ("adr-0042", "ADR-42"),
+        ("ADR-000", "ADR-0"),
+        ("ADR-0", "ADR-0"),
+    ],
+)
+def test_adr_id_normalization(raw: str, expected: str) -> None:
+    """Edge: an all-zero id must fold to a key, not to the empty string."""
+    assert policy._normalize_adr_id(raw) == expected
+
+
+def test_the_weakest_currently_passing_log_is_pinned() -> None:
+    """Document the floor these four signals actually enforce.
+
+    This log is deliberately the thinnest thing that clears every signal: a
+    verdict label with a decision word inside the window, the token "agent" as
+    attribution, three headings, and filler to clear the byte floor. It says
+    nothing about any review that happened.
+
+    It passes, and that is the disclosed trade in ``debate_log_evidence_gap``:
+    every signal is a property of text the committer controls. The test exists
+    so the floor is visible and so a future tightening has a reference point to
+    move, rather than leaving the weakest passing shape undocumented.
+
+    The paired negative below pins the one thing that does constrain the shape:
+    the decision word has to sit within DEBATE_LOG_VERDICT_WINDOW_LINES of the
+    label, so a stray "Accepted" elsewhere in the file does not manufacture a
+    verdict.
+    """
+    weakest = (
+        "# D\n\n## Outcome\n\nAccepted.\n\n### Notes\n\nagent\n\n"
+        + "Filler prose about ADR-042 that carries no review content. " * 6
+    )
+    assert policy.debate_log_evidence_gap(weakest) is None
+
+
+def test_a_decision_word_outside_the_verdict_window_is_not_a_verdict() -> None:
+    """Negative control for the window that bounds the loosest passing shape."""
+    spread = (
+        "# D\n\n## Outcome\n\n### Notes\n\nagent\n\n"
+        + "\n" * 8
+        + "Accepted.\n"
+        + "Filler prose about ADR-042 that carries no review content. " * 6
+    )
+    gap = policy.debate_log_evidence_gap(spread)
+    assert gap is not None
+    assert "no verdict" in gap
+
+
 def test_every_debate_log_on_main_still_passes() -> None:
     """Calibration pin: the thresholds must not false-block committed evidence."""
     critique = _ROOT / ".agents" / "critique"
