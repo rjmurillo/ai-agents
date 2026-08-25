@@ -125,30 +125,14 @@ class TestWriteSkillError:
         assert envelope["Success"] is False
         assert envelope["Data"]["Number"] == 99
 
-    @pytest.mark.parametrize(
-        "error_type",
-        [
-            "NotFound",
-            "ApiError",
-            "AuthError",
-            "InvalidParams",
-            "RateLimitError",
-            "Timeout",
-            "General",
-            "VerificationFailed",
-        ],
-    )
+    @pytest.mark.parametrize("error_type", sorted(SCHEMA_ERROR_TYPE_ENUM))
     def test_validates_error_types(
         self, error_type: str, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """Each error_type write_skill_error accepts must also pass validate_envelope
-        and appear in the committed JSON schema's enum (ADR-103). Round-tripping
-        through validate_envelope, not just checking write_skill_error's own
-        VALID_ERROR_TYPES tuple, is what catches the three contract copies
-        (output.py, skill-output.schema.json, validate_skill_output.py)
-        drifting apart again: a parametrize list checked only against
-        write_skill_error's own enum would stay green even if the schema or
-        the validator forgot one of these values.
+        """Each error_type in the schema enum must be accepted by write_skill_error
+        and pass validate_envelope (ADR-103). Parametrizing from SCHEMA_ERROR_TYPE_ENUM
+        directly ensures every schema type is tested. The converse test below ensures
+        output.py's valid_types stays in sync with the schema.
         """
         result = write_skill_error(
             "test", 1, error_type=error_type, output_format="json", script_name="test.py"
@@ -158,7 +142,26 @@ class TestWriteSkillError:
         assert envelope["Error"]["Type"] == error_type
 
         assert validate_envelope(envelope) == []
-        assert error_type in SCHEMA_ERROR_TYPE_ENUM
+
+    def test_valid_types_matches_schema_enum(self) -> None:
+        """Converse guard: output.py's valid_types must equal schema enum.
+
+        Catches drift when a type is added to output.py or the schema without
+        updating the other, preventing silent test coverage gaps.
+        """
+        import inspect
+        source = inspect.getsource(write_skill_error)
+        valid_types_block = source.split("valid_types = (")[1].split(")")[0]
+        valid_types_in_code = frozenset(
+            t.strip().strip('"').strip("'")
+            for t in valid_types_block.replace("\n", " ").split(",")
+            if t.strip().strip('"').strip("'")
+        )
+        assert SCHEMA_ERROR_TYPE_ENUM == valid_types_in_code, (
+            f"Schema enum and output.py valid_types drifted: "
+            f"schema-only={sorted(SCHEMA_ERROR_TYPE_ENUM - valid_types_in_code)}, "
+            f"code-only={sorted(valid_types_in_code - SCHEMA_ERROR_TYPE_ENUM)}"
+        )
 
     def test_rejects_invalid_error_type(self) -> None:
         with pytest.raises(ValueError, match="error_type must be one of"):
