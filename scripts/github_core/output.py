@@ -160,11 +160,22 @@ def write_skill_error(
         # (ADR-103 Round 5). Before this guard, the schema and validator
         # both rejected an empty Message while nothing on the producer
         # side prevented constructing one: an errored call with a bare
-        # `Exception()` (no args) yields `str(exc) == ""`, and every
-        # other write_skill_error caller in this repo passes a literal
-        # string, so this guard closes the gap for real callers and
-        # future ones instead of leaving it as a documented risk (adr-review
-        # critic seat, ADR-103 Round 5 convergence check).
+        # `Exception()` (no args) yields `str(exc) == ""`. This guard
+        # closes that gap for real, instead of leaving it as a
+        # documented, unenforced risk (adr-review critic seat, ADR-103
+        # Round 5 convergence check). Several callers in this repo
+        # already pass `str(exc)` or a dict-sourced message (for example
+        # `.claude/skills/github/scripts/pr/edit_pr_body.py`,
+        # `check_data["Message"]` in `get_pr_checks.py`), none of which
+        # is guaranteed non-empty by construction; an earlier version of
+        # this comment incorrectly claimed every other caller passes a
+        # literal string. Callers whose upstream exception could
+        # stringify empty (a subprocess exiting non-zero with blank
+        # stderr, for example) MUST guarantee a non-empty message before
+        # this call, typically with `str(exc) or "<fallback>"` at the
+        # `raise` site (adr-review independent-thinker seat, same
+        # convergence round, which found two `raise RuntimeError(...)`
+        # sites in `edit_pr_body.py` that did not).
         raise ValueError("message must be non-empty")
 
     resolved = get_output_format(output_format)

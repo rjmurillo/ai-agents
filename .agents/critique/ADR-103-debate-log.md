@@ -247,3 +247,69 @@ response to this round's findings specifically.
 -> 51 passed (up from 38). Same as Round 3: a mechanical defensive-check
 fix of an already-reviewed pattern, not a new decision, so no fresh
 six-seat round was run.
+
+## Round 5: fresh Phase 4 convergence check against the final text
+
+Rounds 3 and 4 above each self-judged "mechanical, no fresh debate
+needed" without any seat re-reviewing the result. A GitHub Copilot review
+on PR #5283 flagged that self-judgment as itself unverified: ADR-103's
+frontmatter claims `status: accepted` backed by "full six-role
+convergence" (see Round 2's Consensus section), but by the time of this
+review the ADR's governed artifacts had changed twice more (Rounds 3 and
+4) with no seat looking at the result. This round is a genuine Phase 4
+Convergence Check (`.claude/skills/adr-review/references/debate-protocol.md`),
+re-invoking all six seats against the ADR text as it stood at that point,
+not a restatement of the earlier self-judgment.
+
+### First pass: two schema/validator additions, not yet re-debated
+
+Before the convergence check ran, this session made two further changes
+to the artifacts ADR-103 governs, the same pattern as Rounds 3-4:
+`Error.Message` gained `"minLength": 1` in the schema (the validator
+already rejected an empty value via truthiness), and `Metadata.Version`
+(typed `"string"`, previously unchecked) gained a validator check. A new
+`tests/test_skill_output_schema.py` runs the schema directly via the
+`jsonschema` library, independent of `validate_envelope`'s hand-written
+checks. This was the state of the tree when the six-seat convergence
+check below started.
+
+### Convergence check results (against the first-pass text)
+
+| Seat | Position | Notes |
+|------|----------|-------|
+| architect | Accept | Verified Decision items 1-7 still hold against the live artifacts; supersession chain reciprocal; flagged the Error.Message-vs-producer disagreement as a non-blocking P2 (see security's independent corroboration below). |
+| critic | **Block** (two P0s) | (1) The `minLength: 1` addition tightened the schema past what `write_skill_error` actually guaranteed (nothing prevented constructing `Error.Message: ""`), the reverse of the ADR's own stated standard for the `Type` tightening. (2) The identical gap existed one field over: `Metadata.Script`/`Timestamp` lacked `minLength` in the schema despite the validator and every producer already treating them as non-empty. Also flagged: this Round 5 section did not exist yet when the check ran, and the Negative consequence's "Concretely..." rejection list had gone stale (named 3 conditions; the real surface was roughly 10). |
+| security | Accept (0/10 risk) | No CWE-22/78/94, no auth/secrets surface, no new dependency (`jsonschema` is a pre-existing core `pyproject.toml` dependency). Independently measured the full rejection surface against `origin/main` across 6,090 envelope shapes: zero fail-open transitions in either direction. Independently corroborated both of the critic's findings as Info-severity from the security domain (fail-closed direction, no security impact, but real disagreements worth fixing). |
+| independent-thinker | (pending re-run against the fixed text; see below) | |
+| analyst | (pending re-run against the fixed text; see below) | |
+| high-level-advisor | (pending re-run against the fixed text; see below) | |
+
+### Fixes made in response to the critic's Block
+
+Both P0s fixed in the same round, not deferred:
+
+1. Added a fail-fast guard to `write_skill_error`, mirroring the existing
+   `error_type` guard: `if not message: raise ValueError("message must be
+   non-empty")`. Proved discriminating: reverted in a scratch copy,
+   confirmed `write_skill_error("", 1, ...)` printed a schema-invalid
+   envelope instead of raising, restored, confirmed the restored file was
+   byte-identical to the pre-revert copy.
+2. Added `"minLength": 1` to `Metadata.Script` and `Metadata.Timestamp`
+   in the schema. Proved discriminating the same way.
+3. This debate log entry and the ADR's Implementation Notes / Negative
+   consequence "Concretely..." list were both updated in the same edit
+   that added the fixes above, closing the critic's process finding.
+
+`uv run pytest tests/test_skill_output.py tests/test_skill_output_cli.py
+tests/test_skill_output_schema.py tests/test_validate_envelope.py -q`
+-> 69 passed (up from 51).
+
+### Re-check: does the fix clear the Block?
+
+Both P0s the critic raised are now fixed by concrete code changes (a
+producer-side guard and a schema addition), not by argument alone, and
+each has a discriminating test proving the fix is real. Per the Phase 4
+consensus criteria, a re-run of the seats that have not yet seen the
+fixed text (critic, independent-thinker, analyst, high-level-advisor) is
+required before `status: accepted` can be said to rest on genuine
+six-seat convergence of the CURRENT text. See below for that re-run.

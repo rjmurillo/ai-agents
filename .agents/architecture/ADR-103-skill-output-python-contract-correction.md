@@ -143,29 +143,67 @@ exactly the contradiction class issue #5201 exists to eliminate.
   previously passed.** This is a real runtime behavior change on the
   consumer/checker side, corrected from an earlier draft of this section
   that called the change "no runtime behavior changes" (Copilot review on
-  PR #5283, commit 508917d4b). Concretely, an envelope that previously
-  returned `[]` from `validate_envelope` (or exit 0 from the CLI) now
-  produces a finding (or exit 1) when: `Error.Type` is missing or empty;
-  `Error` is present but is not `null` and not an object (an array,
-  string, or number); or `Error.Type` is present but is not a string
-  (unhashable values such as a list previously crashed the validator with
-  `TypeError` instead of failing closed, also fixed in this round). Any
-  caller that fed the validator an envelope in one of these shapes and
-  relied on it passing would now see a rejection. No such caller is known:
-  `validate_envelope` has no known caller today per the point above, and
-  `write_skill_error` cannot construct any of these three shapes, so the
-  change has no effect on any envelope this repository's own code
-  produces. The distinction that survives is: no *producer*-side behavior
-  change (`write_skill_error`'s output is byte-for-byte unchanged), but a
-  real *validator*-side behavior change (stricter rejection).
+  PR #5283, commit 508917d4b). Concretely, as of the current tree (Round 5,
+  the full rejection surface, superseding an earlier version of this list
+  that named only three conditions and was found stale during the Round 5
+  convergence check's critic seat), an envelope that previously returned
+  `[]` from `validate_envelope` (or exit 0 from the CLI) now produces a
+  finding (or exit 1) when any of the following hold: the top level is not
+  a JSON object; `Data` or `Error` is missing as a key (distinct from an
+  explicit `null`); `Metadata` is missing or not an object;
+  `Metadata.Script` or `Metadata.Timestamp` is missing, empty, or not a
+  string; `Metadata.Version` is present but not a string; `Error` is
+  present but is not `null` and not an object; `Error.Type` is missing,
+  empty, not a string, or not one of the eight valid values;
+  `Error.Message` is missing, empty, or not a string; `Error.Code` is
+  missing, not an integer, or a boolean (Python's `bool` subclasses `int`,
+  so a naive check would accept `Code: true`). Any caller that fed the
+  validator an envelope in one of these shapes and relied on it passing
+  would now see a rejection. No such caller is known: `validate_envelope`
+  has no known caller today per the point above, and (as of this round)
+  `write_skill_error` itself cannot construct most of these shapes: it
+  guards `error_type` and, since the Round 5 producer-side fix below,
+  `message` as well, raising `ValueError` rather than emitting a
+  schema-invalid envelope. `Script` and `Timestamp` are always
+  producer-supplied non-empty strings (`_detect_script_name` falls back to
+  `"unknown"`, never `""`; `Timestamp` comes from
+  `datetime.now(UTC).isoformat()`, never empty). The distinction that
+  survives is: no *producer*-side behavior change to the envelopes any
+  existing caller already constructs successfully (every value
+  `write_skill_error` could already produce before Round 5 remains
+  producible, byte-for-byte, after it), but a real *validator*-side
+  behavior change (stricter rejection) plus one new *producer*-side
+  failure mode: `write_skill_error("", ...)` now raises `ValueError`
+  instead of emitting a schema-invalid envelope. This is not a
+  no-known-caller case the way the validator-side changes are: the
+  ADR-103 Round 5 convergence check (independent-thinker seat) found two
+  real call sites, `fetch_current_body` and `update_body` in
+  `.claude/skills/github/scripts/pr/edit_pr_body.py`, whose
+  `raise RuntimeError(result.stderr.strip())` could stringify to `""`
+  when `gh` exits non-zero with blank stderr, which their
+  `write_skill_error(str(exc), ...)` handlers would have passed straight
+  into the new guard, crashing uncaught with the wrong exit code (1
+  instead of the intended 3) instead of emitting an error envelope. Both
+  call sites were fixed in the same round to guarantee a non-empty
+  message before the guard can see them; see Implementation Notes, Round
+  5.
 
 ### Neutral
 
-- No producer-side runtime behavior change. `write_skill_error` already
-  always sets `Type` to a valid string and never omits `Error` or emits a
-  non-dict `Error`; this ADR and its accompanying schema/validator/test
-  changes make that existing guarantee enforceable by the validator rather
-  than merely documented in prose.
+- No producer-side runtime behavior change **through Round 4**.
+  `write_skill_error` already always set `Type` to a valid string and
+  never omitted `Error` or emitted a non-dict `Error`; the schema and
+  validator changes through Round 4 made that existing guarantee
+  enforceable rather than merely documented. **This no longer holds
+  unqualified as of Round 5**: `write_skill_error` gained a `message`
+  guard that raises `ValueError` on an empty message, which is a real
+  producer-side behavior change for any caller whose message could be
+  empty (see the Negative consequence above for what that guard closes
+  and what it required fixing at two call sites in `edit_pr_body.py`).
+  An earlier draft of this section stated the "no change" claim without
+  this qualification; corrected during the ADR-103 Round 5 convergence
+  check (independent-thinker seat) after it was found to contradict the
+  Negative consequence section in the same document.
 
 ## Implementation Notes
 
@@ -289,6 +327,65 @@ exactly the contradiction class issue #5201 exists to eliminate.
     `validate_envelope` calls vs. real subprocess invocations) that
     predated this round's growth. `uv run pytest tests/test_skill_output.py
     tests/test_skill_output_cli.py -q` -> 51 passed (up from 38).
+- **Round 5**, first pass (self-judged mechanical, not separately
+  re-debated at the time): the schema's `Error.Message` gained
+  `"minLength": 1` (the validator's `if not message` truthiness check
+  already rejected an empty string; the schema had not said so
+  explicitly). `Metadata.Version` (typed `"string"` in the schema, listed
+  in neither Metadata's `required` array nor Round 1-4's checks) gained a
+  new `_validate_metadata_version_field` helper: a no-op when the key is
+  absent, a finding when present and not a string. A new
+  `tests/test_skill_output_schema.py` runs fixture envelopes through the
+  schema directly, via the `jsonschema` library (a pre-existing
+  `pyproject.toml` core dependency, not newly added), independent of
+  `validate_envelope`'s hand-written checks, so a regression that narrows
+  the schema without updating the validator (or the reverse) cannot go
+  undetected by both at once.
+- **Round 5, convergence check** (the fresh Phase 4 six-seat re-review
+  this ADR's frontmatter claims to be backed by; see
+  `.agents/critique/ADR-103-debate-log.md`, "Round 5"): the critic seat
+  BLOCKED the first pass above on two P0s, both real and both fixed in
+  this same round, not waved through:
+  - The `minLength: 1` addition tightened the schema past what
+    `write_skill_error` actually guaranteed: nothing on the producer side
+    prevented constructing `Error.Message: ""`. Fixed by adding a
+    fail-fast guard to `write_skill_error` (mirroring the existing
+    `error_type` guard): `if not message: raise ValueError("message must
+    be non-empty")`. Proved discriminating: reverted in a scratch copy,
+    confirmed `write_skill_error("", 1, ...)` printed a schema-invalid
+    envelope instead of raising, restored, confirmed byte-identical.
+  - The identical gap existed in the opposite direction, one field over:
+    `Metadata.Script`/`Metadata.Timestamp` were typed `"string"` in the
+    schema with no `minLength`, while `validate_envelope`'s truthiness
+    check already rejected an empty value for both, and both are always
+    non-empty from every producer (`_detect_script_name` falls back to
+    `"unknown"`, never `""`; `Timestamp` is `datetime.now(UTC).isoformat()`,
+    never empty). Fixed by adding `"minLength": 1` to both schema fields,
+    closing the schema-looser-than-validator gap in the reverse polarity
+    from the `Error.Message` fix. Proved discriminating the same way.
+  - The critic also flagged that this Round 5 section did not exist yet
+    (the debate log stopped at Round 4) and that the "Concretely..."
+    rejection list in the Negative consequence above had not been updated
+    past Round 2's three conditions despite Rounds 3-5 adding roughly
+    seven more. Both are fixed in this same edit: this Implementation
+    Notes section now documents Round 5 in full, and the Negative
+    consequence's rejection list above states the complete current
+    surface rather than a stale subset.
+  - The architect and security seats independently Accepted the
+    pre-critic-fix Round 5 text; architect flagged the same
+    producer/schema disagreement the critic later Blocked on, as a
+    non-blocking P2, and security flagged it as Info-severity (fail-closed
+    direction, no security impact) while independently measuring the
+    full rejection surface against `origin/main` across 6,090 envelope
+    shapes and finding zero fail-open transitions in either direction.
+    Both seats' findings corroborate the critic's; none contradicts it.
+  - `uv run pytest tests/test_skill_output.py tests/test_skill_output_cli.py
+    tests/test_skill_output_schema.py tests/test_validate_envelope.py -q`
+    -> 69 passed (up from 51). `tests/test_skill_output.py` crossed the
+    500-line gate again once `test_rejects_empty_message` was added; its
+    `TestValidateEnvelope` class (no dependency on the producer-side
+    functions) was split into a new `tests/test_validate_envelope.py`, the
+    same split pattern as the earlier CLI extraction.
 
 ## Related Decisions
 

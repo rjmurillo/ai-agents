@@ -826,3 +826,61 @@ class TestEditPrBodyStaleWriteGuard:
         assert rc == 3
         assert output["Error"]["Type"] == "ApiError"
         assert "gh executable not found" in output["Error"]["Message"]
+
+    def test_fetch_blank_stderr_does_not_crash(self, capsys):
+        """gh can exit non-zero with empty stderr (a signal kill, or a
+        failure mode that writes to stdout instead), and
+        fetch_current_body's original `raise RuntimeError(result.stderr
+        .strip())` had no fallback, so str(exc) was "" for this case.
+        write_skill_error's message guard (ADR-103 Round 5) rejects an
+        empty message with ValueError; unguarded, main() would crash
+        uncaught with exit 1 and no envelope, instead of the intended
+        exit 3 with a parseable error envelope. Proven to discriminate:
+        reverting fetch_current_body's fallback in a scratch copy
+        reproduces exactly that crash (adr-review independent-thinker
+        seat, ADR-103 Round 5 convergence check).
+        """
+        with (
+            patch(f"{_edit_mod.__name__}.assert_gh_authenticated"),
+            patch(f"{_edit_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
+            patch(
+                f"{_edit_mod.__name__}.subprocess.run",
+                return_value=_completed(rc=1, stderr=""),
+            ),
+        ):
+            rc = _edit_mod.main([
+                "--pull-request", "42",
+                "--body", "new body",
+                "--output-format", "json",
+            ])  # must not raise
+
+        output = json.loads(capsys.readouterr().out)
+        assert rc == 3
+        assert output["Error"]["Type"] == "ApiError"
+        assert output["Error"]["Message"]  # non-empty: the guard's own contract
+
+    def test_update_blank_stderr_does_not_crash(self, capsys):
+        """Same gap as test_fetch_blank_stderr_does_not_crash, for
+        update_body's raise site.
+        """
+        with (
+            patch(f"{_edit_mod.__name__}.assert_gh_authenticated"),
+            patch(f"{_edit_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
+            patch(
+                f"{_edit_mod.__name__}.subprocess.run",
+                side_effect=[
+                    _completed(stdout=json.dumps({"body": "old body"})),
+                    _completed(rc=1, stderr=""),
+                ],
+            ),
+        ):
+            rc = _edit_mod.main([
+                "--pull-request", "42",
+                "--body", "new body",
+                "--output-format", "json",
+            ])  # must not raise
+
+        output = json.loads(capsys.readouterr().out)
+        assert rc == 3
+        assert output["Error"]["Type"] == "ApiError"
+        assert output["Error"]["Message"]  # non-empty: the guard's own contract
