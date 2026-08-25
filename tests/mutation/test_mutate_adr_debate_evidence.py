@@ -79,6 +79,7 @@ _TESTS = [
     "tests/validation/test_git_hook_policy_adr_debate_evidence.py",
     "tests/validation/test_git_hook_policy_adr_debate_boundaries.py",
     "tests/validation/test_git_hook_policy_adr_debate_mirrors.py",
+    "tests/validation/test_git_hook_policy_adr_debate_discovery.py",
 ]
 
 _OUTCOME_DEAD = "DEAD"
@@ -88,7 +89,7 @@ _OUTCOME_DID_NOT_APPLY = "DID-NOT-APPLY"
 # Same ordering contract as the sibling harness: the outer cap MUST exceed the
 # inner one, or pytest-timeout interrupts inside subprocess.communicate and the
 # failure names no command (issue #5102). The inner suite here is
-# three files of 56 cases total, well under the sibling's ~943, so these caps
+# four files of 57 cases total, well under the sibling's ~943, so these caps
 # carry wide margin.
 _INNER_SUBPROCESS_TIMEOUT_SECONDS = 300
 _OUTER_TEST_TIMEOUT_SECONDS = 360
