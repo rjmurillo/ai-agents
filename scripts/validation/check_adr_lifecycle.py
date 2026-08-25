@@ -70,6 +70,16 @@ Checks, each named so the baseline tracks them separately:
     supersession-target-exists   every named id resolves to a file; no self-supersession
     proposed-cannot-supersede    a `proposed` record may not declare `supersedes`
     prose-frontmatter-agree      the first `## Status` line matches the frontmatter enum
+    status-edge-consistency      status: superseded iff a superseded-by edge resolves
+
+`status-edge-consistency` closes a gap `supersession-reciprocal` leaves open
+(Copilot, PR #5209): reciprocity validates edges against each other, never
+against the status enum, so a record can read `status: accepted` while its
+own `superseded-by` names a live successor, or read `status: superseded`
+with no successor at all. `deprecated` is deliberately exempt from the
+"superseded needs an edge" direction: ADR-098 documents that status for a
+record that shipped and was later abandoned with no specific named
+successor, not a supersession.
 
 An eighth check, `implemented-implies-decided` (`implemented: true` with
 `status: proposed`), was removed: ADR-073's own schema defines `implemented`
@@ -128,6 +138,7 @@ CHECKS: tuple[str, ...] = (
     "supersession-target-exists",
     "proposed-cannot-supersede",
     "prose-frontmatter-agree",
+    "status-edge-consistency",
 )
 
 # ADR-073 Decision section, verbatim: "status: proposed | accepted | rejected |
@@ -777,6 +788,55 @@ def _reciprocity_findings(by_number: dict[int, Record], graph: _Graph) -> list[V
     return found
 
 
+def _status_edge_findings(by_number: dict[int, Record], graph: _Graph) -> list[Violation]:
+    """`status-edge-consistency`: `status: superseded` iff a resolved `superseded-by` edge exists.
+
+    `supersession-reciprocal` validates `supersedes`/`superseded-by` edges
+    against each other; it never checks either against the `status` enum
+    (Copilot, PR #5209). Without this check a record can read
+    `status: accepted` while its own `superseded-by` names a live successor
+    (the generated index would list it under Accepted while the graph says
+    retired), or read `status: superseded` with no successor at all (the
+    index's Retired table would show `not recorded` for a reader who has no
+    way to resolve it). `graph.successor` already carries only RESOLVED
+    edges: an unresolved or malformed `superseded-by` is reported once, by
+    `supersession-target-exists`, and does not double-report here.
+
+    `deprecated` is deliberately outside the "superseded requires an edge"
+    direction: ADR-073's schema and ADR-098's own record document
+    `deprecated` for a decision that shipped and was later abandoned with no
+    specific named successor, a self-deprecation rather than a supersession.
+
+    The "superseded but no successor" direction only fires when
+    `superseded-by` was never declared (``raw is None``), not merely
+    unresolved: a record naming a dangling or malformed id already gets a
+    `supersession-target-exists` finding for that same defect, and counting
+    it again here would inflate one root cause into two check totals, the
+    same containment `supersession-reciprocal` already applies against
+    `supersession-target-exists` (see the module docstring).
+    """
+    found: list[Violation] = []
+    for number in sorted(by_number):
+        record = by_number[number]
+        status = _status_of(record)
+        target = graph.successor.get(number)
+        raw = _frontmatter_of(record).get("superseded-by")
+        if status == "superseded" and target is None and raw is None:
+            detail = (
+                "status is superseded but `superseded-by` is null; a retired "
+                "record must name what replaced it"
+            )
+            found.append(Violation("status-edge-consistency", record.path, detail))
+        elif status != "superseded" and target is not None:
+            detail = (
+                f"status is {status} but `superseded-by: ADR-{target:03d}` names a "
+                "live successor; a record with a resolved superseded-by edge must "
+                "read status: superseded"
+            )
+            found.append(Violation("status-edge-consistency", record.path, detail))
+    return found
+
+
 def scan(adr_dir: Path, repo_root: Path) -> list[Violation]:
     """Every lifecycle violation in the corpus, in check-then-path order."""
     records, violations = collect_records(adr_dir, repo_root)
@@ -791,6 +851,7 @@ def scan(adr_dir: Path, repo_root: Path) -> list[Violation]:
     graph = _build_graph(by_number, known)
     violations.extend(graph.findings)
     violations.extend(_reciprocity_findings(by_number, graph))
+    violations.extend(_status_edge_findings(by_number, graph))
     return sorted(violations, key=lambda v: (CHECKS.index(v.check), v.path, v.detail))
 
 
