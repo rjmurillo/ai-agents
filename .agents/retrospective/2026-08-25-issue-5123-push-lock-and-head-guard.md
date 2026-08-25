@@ -35,11 +35,15 @@ Issue ask #3 (isolating git-HEAD-reading test fixtures behind a throwaway
 repo) was scoped out as a broader test-suite refactor, not a bounded fix, and
 left as an explicit follow-up recommendation rather than implemented here.
 
-Those three commits were the initial submission to PR #5287. Two automated
-review passes (this repo's Copilot code review and Cursor Bugbot) then found
-further defects across several rounds; each was fixed in its own commit
-rather than folded back into the original three, so the branch's real history
-is 14 commits, not three:
+Those three commits were the initial submission to PR #5287. Three automated
+review passes (this repo's Copilot code review, Cursor Bugbot, and Devin)
+then found further defects across several rounds; each was fixed in its own
+commit rather than folded back into the original three. The branch kept
+growing commit by commit as each round landed, so an exact total recorded
+here would be stale before this file merges; run `git log --oneline
+origin/main..claude/autoplan-goal-joliu2` on the branch for the current
+count. This is a selected list of the follow-up commits, grouped by what
+each one addressed, not an exhaustive or final enumeration:
 
 - `b035853ac` initial retrospective (superseded by this file's own later
   corrections, below).
@@ -60,6 +64,16 @@ is 14 commits, not three:
 - `0f42efa97`, `2bcb83d27`: regenerated a stale generated mirror and raised a
   vendor-portability baseline, both caught by this repo's own pre-push gates
   rather than by a reviewer.
+- `e7cc5dd62`: added Windows-marked tests for the guard's `msvcrt.locking`
+  branch, which had no executable coverage anywhere in CI.
+- `3a0362c77`: corrected two more citations this file and the config catalog
+  had already gotten stale (a symptom in its own right; see Failure mode
+  classification, below).
+- `81b92aaea`: softened an overclaimed causal statement in the `#5123`
+  escalation message from asserting the concurrent commit invalidated a
+  failure to stating what the fixture can actually establish.
+- `f714ef8ee`: documented `argparse`'s exit 2 in the commit guard's ADR-035
+  exit-code contract, with a test.
 
 ## Failure mode classification
 
@@ -131,12 +145,19 @@ reports the accurate "on this machine" scope).
   `$HOME/src/scratch/locks/push-lock-claude-autoplan-goal-joliu2.lock`
   exclusively made `check_push_lock_before_commit.py` exit 1 with the
   corrected "on this machine" message; releasing it returned exit 0.
-- Test coverage: `tests/validation/test_check_push_lock_before_commit.py` (17
-  cases: positive/negative/edge for the lock probe, the branch-scoped path,
-  the fail-open paths, and the bypass env var) and
-  `tests/test_pytest_head_guard.py` additions for the `call_failed`
-  escalation (9 new cases: escalate-and-fail, stay-a-warning,
-  attributed-mutation-ignores-call_failed, hook wiring both directions).
+- Test coverage: `tests/validation/test_check_push_lock_before_commit.py`
+  (positive/negative/edge cases for the lock probe on both the POSIX
+  `fcntl.flock` and Windows `msvcrt.locking` branches, the branch-scoped
+  path, the fail-open paths, the bypass env var, and the CLI exit-code
+  contract) and `tests/test_pytest_head_guard.py` additions for the
+  `call_failed` escalation (escalate-and-fail, stay-a-warning,
+  attributed-mutation-ignores-call_failed, hook wiring both directions, and
+  a real-pytest-subprocess end-to-end probe). Exact case counts are not
+  recorded here: this branch went through several review-driven rounds of
+  new tests after this section was first written, so a specific number goes
+  stale on the next round. Run `uv run --frozen python -m pytest
+  tests/validation/test_check_push_lock_before_commit.py
+  tests/test_pytest_head_guard.py --collect-only -q` for the current count.
 
 ## Remediation / follow-ups
 
