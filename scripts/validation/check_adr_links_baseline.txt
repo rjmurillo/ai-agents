@@ -75,6 +75,3 @@ unresolved:.claude/skills/memory-enhancement/SKILL.md:../../.agents/architecture
 unresolved:.claude/skills/memory-enhancement/SKILL.md:../../.agents/architecture/ADR-038-reflexion-memory-schema.md
 unresolved:src/copilot-cli/skills/memory-enhancement/SKILL.md:../../.agents/architecture/ADR-007-memory-first-architecture.md
 unresolved:src/copilot-cli/skills/memory-enhancement/SKILL.md:../../.agents/architecture/ADR-038-reflexion-memory-schema.md
-
-# Missing the leading dot: the directory is .agents/, not agents/.
-unresolved:templates/AGENTS.md:../agents/architecture/ADR-036-two-source-agent-template-architecture.md
