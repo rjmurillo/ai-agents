@@ -85,8 +85,8 @@ Changes made:
 Re-verified against the fixed files: `_get_adr_status` (parser) returns
 `superseded / rejected / accepted` for ADR-028 / ADR-031 / ADR-056
 respectively, with correct bidirectional `supersedes` / `superseded-by` for
-ADR-028 <-> ADR-056. `find /home/user/ai-agents -name '*.ps1' -not -path
-'*/node_modules/*' -not -path '*/.venv/*'` returns zero results, independently
+ADR-028 <-> ADR-056. `find . -name '*.ps1' -not -path '*/node_modules/*' -not
+-path '*/.venv/*'` (run from the repository root) returns zero results, independently
 confirmed by independent-thinker, critic, and analyst across this round.
 
 - **critic**: P0 addressed by changes 1-2. Vote converts from Block to
