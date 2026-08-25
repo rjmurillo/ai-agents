@@ -54,7 +54,7 @@ The generation seam is ASYMMETRIC (ADR-072 is PROPOSED and refines this; the run
 | `.claude/lib/` | mirrored copy (relative imports) | `scripts/` packages | `scripts/sync_plugin_lib.py` |
 | `src/claude/` | MANUAL hand-synced exception (ADR-036, Accepted) | edited by hand | no generator; semantic drift CI only |
 
-Generator inventory inside `build/scripts/build_all.py` (list `GENERATORS`, build_all.py:481, order is load-bearing per the comment at build_all.py:429):
+Generator inventory inside `build/scripts/build_all.py` (list `GENERATORS`, build_all.py:481, order is load-bearing per the comment at build_all.py:475):
 
 | # | Generator | Reads | Writes |
 |---|-----------|-------|--------|
@@ -211,7 +211,7 @@ Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-
 |------|--------|-----------|
 | 8 generators and their order | build/scripts/build_all.py:481-490 | `grep -n -A9 "^GENERATORS" build/scripts/build_all.py` |
 | OWNED_PREFIXES (4 entries) | build/scripts/build_all.py:868-873 | `grep -n -A5 "^OWNED_PREFIXES" build/scripts/build_all.py` |
-| .claude/ no-write invariant | build/scripts/build_all.py:674 (rule), :1013 (snapshot), :1076-1081 (enforcement) | `grep -n "REQ-003-010" build/scripts/build_all.py` |
+| .claude/ no-write invariant | build/scripts/build_all.py:718 (rule), :1163 (snapshot), :1224-1229 (enforcement) | `grep -n "REQ-003-010" build/scripts/build_all.py` |
 | build_all exit codes 0/1/2/3 | build/scripts/build_all.py:16-20 | `sed -n '16,20p' build/scripts/build_all.py` |
 | generate_agents flags and exit codes | build/generate_agents.py:13-16,460-487 | `uv run python build/generate_agents.py --help` |
 | sync pairs scripts to .claude/lib | scripts/sync_plugin_lib.py:27-31 | `grep -n -A4 "SYNC_PAIRS" scripts/sync_plugin_lib.py` |
