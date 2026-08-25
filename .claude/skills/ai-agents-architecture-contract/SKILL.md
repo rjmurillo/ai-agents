@@ -7,7 +7,7 @@ license: MIT
 
 # AI Agents Architecture Contract
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself. It intentionally references .agents/governance, .claude/lib, scripts/hook_utilities, scripts/github_core, scripts/ai_review_common, scripts/memory_sync, scripts/sync_plugin_lib.py, scripts/validation, build/generate_agents.py, build/scripts, templates/agents, and templates/platforms because its audience is repo contributors, not plugin consumers. Issue #2050. -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself. It intentionally references .agents/governance, .agents/architecture, .agents/architecture/README.md, .claude/lib, scripts/hook_utilities, scripts/github_core, scripts/ai_review_common, scripts/memory_sync, scripts/sync_plugin_lib.py, scripts/validation, build/generate_agents.py, build/scripts, build/scripts/generate_adr_index.py, templates/agents, and templates/platforms because its audience is repo contributors, not plugin consumers. Issue #2050. -->
 This skill is the map of design decisions that hold this repository up: what is canonical, what is generated, which invariants are enforced by gates, and where the structure is honestly weak. Read it before any change that touches more than one tree, any hook, any plugin surface, or any generated file. The repo's governance runs on observable evidence, not trust: active requirements name evidence that exists independent of any committed session log, so almost every claim below is backed by a gate you can run. (PR #5135, 2026-08-18, retired the earlier "verification-based enforcement" wording in favor of this evidence-sink framing; SESSION-PROTOCOL.md, the doc that carried that wording, was later deleted along with the session skill cluster.)
 
 ## Triggers
@@ -27,7 +27,7 @@ The generation seam is ASYMMETRIC. There is no single "templates in, everything 
 1. Agents: `templates/agents/*.shared.md` is canonical for the Copilot CLI and VS Code copies only; `src/copilot-cli/agents/` and `src/vs-code-agents/` are generated from it. `src/claude/*.md` is NOT: it is hand-written canonical (see the table row below).
 2. Rules, skills, commands, hooks: `.claude/` itself is canonical (Claude Code consumes it directly); generators emit mirrors for other harnesses.
 
-Source-of-truth table (verified against `.agents/governance/GENERATOR-FILES.md` and `build/scripts/build_all.py` GENERATORS list at line 435; 7 generators: agents, agent-catalog, skills, commands, rules, lib, hooks):
+Source-of-truth table (verified against `.agents/governance/GENERATOR-FILES.md` and `build/scripts/build_all.py` GENERATORS list at line 481; 8 generators: agents, agent-catalog, adr-index, skills, commands, rules, lib, hooks):
 
 | Artifact class | Canonical source (edit here) | Generated or mirrored output (never edit) | Mechanism |
 |---|---|---|---|
@@ -38,6 +38,7 @@ Source-of-truth table (verified against `.agents/governance/GENERATOR-FILES.md` 
 | Commands | `.claude/commands/<name>.md` | `src/copilot-cli/skills/<name>/SKILL.md` | `build/scripts/generate_commands.py` |
 | Hooks | `.claude/hooks/` plus `.claude/settings.json` | `src/copilot-cli/hooks/` plus its `hooks.json` | `build/scripts/generate_hooks.py` (plus dispatcher artifacts, Phase 3) |
 | PR-quality CI prompts | `.claude/skills/review/references/{role}.md` | `.github/prompts/pr-quality-gate-{role}.md` | `build/scripts/generate_pr_quality_prompts.py` |
+| ADR current-state index | the ADR records under `.agents/architecture/` (frontmatter only) | `.agents/architecture/README.md` | `build/scripts/generate_adr_index.py` (issue #5198) |
 | Shared Python libs | `scripts/hook_utilities`, `scripts/github_core`, `scripts/ai_review_common` | `.claude/lib/{hook_utilities,github_core,ai_review_common}` (imports rewritten to relative) | `scripts/sync_plugin_lib.py` (SYNC_PAIRS at lines 27-31); `--check` is the CI dry-run |
 | Self-host agent copies | the sources above | `.claude/agents/<name>.md`, `.github/agents/<name>.agent.md` | hand-synced, guarded by `build/scripts/validate_install_parity.py` |
 
