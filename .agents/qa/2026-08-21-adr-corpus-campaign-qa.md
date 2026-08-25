@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 862457b56fbfa89292382f164e9c4d0d4d397ca6
+qaCommit: b8194bf5928557c8ca3a32154803819bf44d61f0
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `862457b56fbfa89292382f164e9c4d0d4d397ca6` (see Addendum 54)
+**Validated at commit**: `b8194bf5928557c8ca3a32154803819bf44d61f0` (see Addendum 55)
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -2488,4 +2488,10 @@ GitHub reported the stack (this branch on top of PR #5209) as unable to merge, c
 **Full-suite evidence.** `uv run pytest tests/ -q --timeout=300` → 28297 passed, 77 skipped, real exit 0 (verified from the log's captured exit line). `scripts/validation/pre_pr.py`: two real failures on the first run (`merge-tree-ratchet`, since `origin/main` hadn't yet been merged; "QA commit is not an ancestor of validation head" on both session logs, since the stack merge hadn't yet been committed), both closed by completing the two merges above and rebinding `qaCommit` here. Second run: all validations pass.
 
 **Rebound to** `862457b56fbfa89292382f164e9c4d0d4d397ca6`.
+
+## Addendum 55: round-12 Copilot findings on PR #5230, rebound again
+
+A round-12 Copilot review on PR #5230, after the stack merge in Addendum 54, found four stale citations and one drifted QA header: `detect_adr_changes.py`'s canonical-source citation (both trees) pointed at `generate_adr_index.py:209-216`, prose rather than the quoted code block, corrected to `224-231`; `test_adr_063_memory_skill_decomposition.py` cited line numbers (`459,470`, `252-253`) that had moved when unrelated changes shifted the file, corrected to `556,574` and `267-270`; `test_check_adr_links.py`'s file-size suppression comment froze an already-stale line count, reworded; and this file's own `Validated at commit` header still named the pre-stack-merge SHA (`997a954bf`) after `qaCommit` had already been rebound to the merge commit in Addendum 54, aligned. None of these touch executable logic: all four are docstring, comment, or QA-metadata text. Session End Validation's staleness check still fires on any code-file touch regardless of whether the change is behavioral, so `qaCommit` rebinds again.
+
+**Rebound to** `b8194bf5928557c8ca3a32154803819bf44d61f0`, the round-12 fix commit (Copilot, PR #5230 round-12 review).
 

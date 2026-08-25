@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 862457b56fbfa89292382f164e9c4d0d4d397ca6
+qaCommit: b8194bf5928557c8ca3a32154803819bf44d61f0
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -9,7 +9,7 @@ qaCommit: 862457b56fbfa89292382f164e9c4d0d4d397ca6
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `862457b56fbfa89292382f164e9c4d0d4d397ca6` (see Addendum 55)
+**Validated at commit**: `b8194bf5928557c8ca3a32154803819bf44d61f0` (see Addendum 56)
 
 ## Verdict
 
@@ -1337,4 +1337,10 @@ Same discovery, same fix: two of the merge resolutions this file summarizes as A
 Same discovery, same fix: GitHub reported the stack unable to merge, citing conflicts in this file, the campaign report, `ADR-042-python-migration-strategy.md`, and `.agents/architecture/README.md`. Merged PR #5209's branch (`8021a3a79`), then `origin/main` (`862457b56`, PR #5309, no conflicts). Same full-suite evidence: 28297 tests passed, `pre_pr.py` closed both real failures (`merge-tree-ratchet`, the session-log ancestor check) by completing the merges and rebinding `qaCommit`. Full detail in the campaign report's Addendum 54.
 
 **Rebound to** `862457b56fbfa89292382f164e9c4d0d4d397ca6`.
+
+## Addendum 56: same round-12 rebind as Addendum 55 of the campaign report
+
+Same discovery, same fix: a round-12 Copilot review on PR #5230 found four stale citations (`detect_adr_changes.py`'s canonical-source line range in both trees, `test_adr_063_memory_skill_decomposition.py`'s two line-number citations, `test_check_adr_links.py`'s frozen line-count suppression comment) and this file's own `Validated at commit` header still naming the pre-stack-merge SHA after `qaCommit` had already moved on in Addendum 55. All five fixes are docstring, comment, or QA-metadata text; none touch executable logic. Full detail in the campaign report's Addendum 55.
+
+**Rebound to** `b8194bf5928557c8ca3a32154803819bf44d61f0`, the round-12 fix commit (Copilot, PR #5230 round-12 review).
 
