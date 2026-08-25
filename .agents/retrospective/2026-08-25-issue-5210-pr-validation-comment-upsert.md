@@ -2,6 +2,14 @@
 
 Date: 2026-08-25
 
+## Evidence
+
+- [Issue #5210](https://github.com/rjmurillo/ai-agents/issues/5210): defines the stale-validation-comment bug
+- [PR #5281](https://github.com/rjmurillo/ai-agents/pull/5281): delivers the fix
+- Commit `f3600fdeb`: `fix(ci): pass --update-if-exists to the PR validation comment poster`
+- `.github/workflows/pr-validation.yml`: workflow file modified to add the flag
+- `tests/ci/test_pr_validation_workflow.py::test_post_pr_comment_step_updates_the_existing_comment_in_place`: mutation-tested wiring assertion (see "What went well" below)
+
 ## What we did
 
 Fixed the bug in Issue #5210: `pr-validation.yml`'s "Post PR Comment" step called
@@ -99,5 +107,9 @@ file because nothing shipped incorrect.
 
 | Action | Status |
 |---|---|
+| Add `--update-if-exists` flag to `pr-validation.yml` comment poster step | Applied: commit `f3600fdeb` |
+| Document `investigation-claim-backstop.yml` write-once decision in a YAML comment next to the step | Applied: commit `f3600fdeb` |
+| Add a mutation-tested workflow wiring assertion (`tests/ci/test_pr_validation_workflow.py::test_post_pr_comment_step_updates_the_existing_comment_in_place`) | Applied: verified against a revert-only control |
+| Extend `test_post_issue_comment.py` with body-verification and duplicate-prevention tests | Applied: `TestMainIdempotency` |
 | Cross-check `run_retrospective.py`'s auto-generated "Work Items" against the actual session diff before committing | Done this session: caught and rewrote by hand before commit |
 | File an issue to scope `run_retrospective.py --since` to the current branch's own commits (or the session's actual diff) instead of a wall-clock window that can span unrelated concurrent work on the same branch | Not filed. Single-session friction with no repeat evidence yet; revisit if this recurs in a future retrospective |
