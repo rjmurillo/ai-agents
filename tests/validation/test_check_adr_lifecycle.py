@@ -331,12 +331,20 @@ def test_successor_that_does_not_claim_the_predecessor_is_one_sided(tmp_path):
 
 
 def test_predecessor_that_does_not_name_the_successor_is_one_sided(tmp_path):
+    """ADR-001 (status: superseded, no successor) trips two distinct findings:
+    the edge-reciprocity check (ADR-002's claim is one-sided) and the
+    status-to-edge check (a superseded record must name its successor).
+    Neither subsumes the other: ADR-002's claim would still be one-sided even
+    if ADR-001 were not itself status: superseded, and ADR-001's missing
+    successor would still be a defect even if nothing pointed at it.
+    """
     _pair(_adr_dir(tmp_path), old_successor="null", new_supersedes="[ADR-001]")
 
     details = _hits(tmp_path, "supersession-reciprocal")
 
-    assert len(details) == 1
-    assert "`superseded-by` is null" in details[0]
+    assert len(details) == 2
+    assert any("`superseded-by` is null" in detail for detail in details)
+    assert any("declares no `superseded-by` successor" in detail for detail in details)
 
 
 def test_transitive_superseded_by_is_rejected(tmp_path):
@@ -433,6 +441,45 @@ def test_self_supersession_does_not_also_trip_reciprocity(tmp_path):
 
     assert counts["supersession-target-exists"] == 1
     assert counts["supersession-reciprocal"] == 0
+
+
+def test_superseded_status_with_no_successor_edge_is_a_violation(tmp_path):
+    """A record claiming to be retired must name what replaced it.
+
+    No other record supersedes ADR-001 either, so this is the only
+    violation: nothing about the edge graph disagrees, only the record's
+    own status-versus-edge contract.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1, status="superseded"), "\n## Status\n\nSuperseded.\n")
+
+    details = _hits(tmp_path, "supersession-reciprocal")
+
+    assert len(details) == 1
+    assert "declares no `superseded-by` successor" in details[0]
+
+
+def test_successor_edge_with_non_superseded_status_is_a_violation(tmp_path):
+    """A record cannot point at its own successor while staying accepted.
+
+    ADR-002 exists so the edge itself resolves cleanly (no
+    `supersession-target-exists` finding); the only defect is ADR-001's
+    status disagreeing with the edge it declares.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        _valid(1, status="accepted", **{"superseded-by": "ADR-002"}),
+        _STATUS_SECTION,
+    )
+    _write(adr_dir, 2, _valid(2, supersedes="[ADR-001]"), _STATUS_SECTION)
+
+    details = _hits(tmp_path, "supersession-reciprocal")
+
+    assert len(details) == 1
+    assert "status is 'accepted'" in details[0]
+    assert "not 'superseded'" in details[0]
 
 
 def test_dangling_supersession_target_is_a_violation(tmp_path):

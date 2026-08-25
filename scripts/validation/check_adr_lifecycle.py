@@ -66,7 +66,9 @@ Checks, each named so the baseline tracks them separately:
     frontmatter-parses           leading `---` block exists and safe_loads to a mapping
     id-matches-filename          frontmatter `id` equals the filename's ADR number
     status-enum                  status is one of the five lifecycle values
-    supersession-reciprocal      X.superseded-by: Y implies Y.supersedes contains X
+    supersession-reciprocal      X.superseded-by: Y implies Y.supersedes contains X,
+                                  and a successor edge implies status: superseded
+                                  (both directions)
     supersession-target-exists   every named id resolves to a file; no self-supersession
     proposed-cannot-supersede    a `proposed` record may not declare `supersedes`
     prose-frontmatter-agree      the first `## Status` line matches the frontmatter enum
@@ -748,7 +750,21 @@ def _find_cycles(successor: dict[int, int]) -> list[list[int]]:
 
 
 def _reciprocity_findings(by_number: dict[int, Record], graph: _Graph) -> list[Violation]:
-    """`supersession-reciprocal` findings for both edge directions, plus cycles."""
+    """`supersession-reciprocal` findings: both edge directions, cycles, and
+    status-to-edge consistency.
+
+    The edge-direction and cycle checks below validate the graph against
+    itself; they say nothing about whether a record's own `status` agrees
+    with its position in that graph. An `accepted` record can carry a
+    reciprocal `superseded-by` edge and pass every check above while the
+    generated index still lists it under Accepted, because nothing compares
+    the edge to the enum. The reverse gap is symmetric: `status: superseded`
+    with no successor edge also passes silently. Both are checked here
+    rather than as an eighth check name, since they are the same contract
+    this check already enforces (the supersession graph must describe a
+    single consistent state), just checked against `status` instead of
+    against the opposite edge (Copilot, PR #5209 round-11 review).
+    """
     found: list[Violation] = []
     for number, target in sorted(graph.successor.items()):
         if number in graph.predecessors.get(target, set()):
@@ -774,6 +790,31 @@ def _reciprocity_findings(by_number: dict[int, Record], graph: _Graph) -> list[V
         chain = " -> ".join(f"ADR-{n:03d}" for n in [*cycle, cycle[0]])
         detail = f"`superseded-by` forms a cycle: {chain}. A supersession chain must terminate."
         found.append(Violation("supersession-reciprocal", by_number[cycle[0]].path, detail))
+    for number, target in sorted(graph.successor.items()):
+        status = _status_of(by_number[number])
+        if status == "superseded":
+            continue
+        detail = (
+            f"declares superseded-by: ADR-{target:03d} but status is {status!r}, not "
+            "'superseded'. A record with a successor edge must be retired."
+        )
+        found.append(Violation("supersession-reciprocal", by_number[number].path, detail))
+    for number in sorted(by_number):
+        record = by_number[number]
+        if _status_of(record) != "superseded" or number in graph.successor:
+            continue
+        if _frontmatter_of(record).get("superseded-by") is not None:
+            # A successor was claimed but rejected (self-reference, unknown id, or
+            # unparseable): `supersession-target-exists` already reported this
+            # record's edge. Firing here too would double-count the same defect
+            # under a second check, the exact inflation the module docstring's
+            # containment principle exists to prevent (see "Checks 2 to 7" above).
+            continue
+        detail = (
+            "status is 'superseded' but the record declares no `superseded-by` "
+            "successor. A retired record must name what replaced it."
+        )
+        found.append(Violation("supersession-reciprocal", record.path, detail))
     return found
 
 
