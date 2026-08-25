@@ -4,13 +4,31 @@
   `marker_counts`, `files_by_root`, and `drift_failures` from one traversal.
 - `ref_counts` and `marker_counts` include plugin roots and `EXTRA_SCAN_ROOTS`.
 - `files_by_root` covers plugin `skills/` roots and, as of issue #5214/PR
-  #5284, any root listed in `REQUIRED_EXTRA_ROOTS` (currently
-  `src/copilot-cli/instructions`). A required extra root's coverage count is
-  populated in `scan_all()`'s extra-dir loop and `main()` exits 2 via
-  `missing_required_extra_roots()` when the directory is absent, so it can no
-  longer silently report zero files scanned. An extra root that is NOT in
-  `REQUIRED_EXTRA_ROOTS` still contributes to `ref_counts`/`marker_counts` but
-  is excluded from the coverage gate, same as before.
+  #5284, every existing directory in `EXTRA_SCAN_ROOTS` (`.claude/commands`,
+  `templates/agents`, `src/copilot-cli/instructions`), not only the required
+  ones. `scan_all()`'s extra-dir loop populates `files_by_root[root_key]` for
+  every directory `extra_scan_dirs()` returns, unconditionally:
+
+  ```python
+  for extra_dir in extra_dirs:
+      ...
+      root_key = extra_dir.relative_to(root).as_posix()
+      ...
+      paths = _iter_markdown_files(root, extra_dir)
+      files_by_root[root_key] = len(paths)
+  ```
+
+  (`check_skill_md_portability.py:660-666`). `REQUIRED_EXTRA_ROOTS` (currently
+  just `src/copilot-cli/instructions`) governs a separate, narrower question:
+  whether `main()` exits 2 via `missing_required_extra_roots()` when that
+  specific directory is absent. A non-required extra root
+  (`.claude/commands`, `templates/agents`) that happens to be missing is
+  silently skipped by `extra_scan_dirs()` (a minimal clone may not have it)
+  and simply does not appear as a key in `files_by_root`; a *required* root
+  that is missing instead fails the run before scanning starts. Both kinds of
+  extra root, present, contribute identically to `ref_counts`/`marker_counts`
+  and to the coverage report; `REQUIRED_EXTRA_ROOTS` only changes what
+  happens when the directory does not exist.
 - Keep a direct regression test for extra-directory marker counts. The
   single-traversal refactor otherwise reads like a behavior change.
 - `portability_common.resolve_baseline_path()` documentation should name the

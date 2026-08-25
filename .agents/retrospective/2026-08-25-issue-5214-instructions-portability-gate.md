@@ -60,25 +60,77 @@ artifact per repo push gates).
 
 ## Phase 2: Diagnosis
 
-No failures occurred in this session; the diagnosis section is limited to near
-misses.
+This session committed no failures of its own; its two near misses (below)
+were both caught by tooling output before either draft was ever committed.
+But the retrospective is *about* the #5214 incident, and that incident is a
+real failure that needs its own classification, not a scope note explaining
+why this session is clean.
 
-**Classification against `.agents/governance/FAILURE-MODES.md`**: N/A, by explicit
-check rather than by omission. None of the eleven cataloged patterns (context
-reading failure, compaction reset, ambiguous instruction inversion, false
-completion, premature merge, rubber-stamping, self-contained delegation
-failure, security drift, confident-incorrectness recurrence, silent defaults,
-unverified generated artifact) match, because each describes a failure in
-*this session's own agent behavior*. Issue #5214 itself reports a defect in
-`check_skill_md_portability.py` (a prior session's scanner never read
-`<plugin-root>/instructions/`), which is the bug this session fixes, not a
-failure this session committed; forcing it into Class 1 ("agent begins work
-without reading required context files") would misattribute a scanner scope
-gap to a reading lapse neither this session nor the commit that introduced
-the gap actually exhibited. This session's own two near misses (below) were
-both caught by tooling output (`marker_path_drift()`'s itemized
-stale/undeclared findings; a filesystem existence check on
-`build/audit/GENERATION-AUDIT.md`) before either draft was ever committed.
+**Classification against `.agents/governance/FAILURE-MODES.md`**: Class 11,
+"Customer-Facing Generated Artifact Shipped Without Runtime Verification"
+(`.agents/governance/FAILURE-MODES.md:404-479`). An earlier draft of this
+section classified the incident as N/A on the reasoning that all eleven
+classes describe *this session's* agent behavior; that reasoning does not
+hold; nothing in `FAILURE-MODES.md` scopes a class to the session doing the
+retro, and Class 11's own shape, a generator ships a customer-facing
+artifact, structural tests pass, no gate checks the property that actually
+matters, matches the #5214 defect once "runtime contract" is read as
+"portability contract": `build/scripts/generate_rules.py` generates
+`src/copilot-cli/instructions/*.instructions.md` as a customer-facing
+artifact (the file review agents on both harnesses read every session), its
+own tests assert only that frontmatter transforms correctly and the body
+copies verbatim, and no gate before this PR ever read that generated body for
+undeclared upstream-only paths. The artifact was structurally valid (a
+well-formed instruction file with valid frontmatter) and behaviorally broken
+for a plugin consumer (it named paths, `scripts/validation/pre_pr.py`, the
+`scripts/ci/` ratchets, that do not exist in an installed plugin), the exact
+"structurally valid, behaviorally broken" pattern Class 11 describes.
+
+**Five Whys**:
+
+1. Why did the shipped Copilot mirror of `ci-scripts.md` name six
+   upstream-only paths with no `vendor-portability` declaration? Because
+   `check_skill_md_portability.py` never scanned
+   `src/copilot-cli/instructions/`, so nothing ever read that file's body for
+   the pattern.
+2. Why did the gate never scan that directory? Because `EXTRA_SCAN_ROOTS`
+   (added for issue #2050, skill authoring) named only `.claude/commands` and
+   `templates/agents`; the instructions mirror directory was never added.
+3. Why was a directory the rules generator writes left out of the gate's
+   scan roots? Because `build/scripts/generate_rules.py`'s instruction-mirror
+   output (`.github/instructions/`, `src/copilot-cli/instructions/`) is a
+   later addition than the skill-authoring surface the gate was built
+   against, and nothing tied the gate's `EXTRA_SCAN_ROOTS` list to what the
+   generator actually emits.
+4. Why did nothing tie them together? Because no test asserted "every
+   directory `generate_rules.py` writes a shipped plugin artifact into is
+   also a scan root here." This session added
+   `test_every_on_disk_instructions_tree_is_in_extra_scan_roots` (a converse
+   guard for the one directory this incident named), which closes the
+   specific gap but not the general one: the same blind spot could recur for
+   a future generator output surface, and the `.claude/rules/*.md` half of
+   the same gate scope question is deliberately left open, tracked as
+   [#5294](https://github.com/rjmurillo/ai-agents/issues/5294) rather than
+   fixed here (see Phase 3 Decisions).
+5. Why did the earlier frontmatter-only gate
+   (`check_plugin_frontmatter_self_containment.py`, issue #3565) not already
+   cover this? Because it checks `description` and `name` across all three
+   plugin roots (broad scope, narrow field), while the body-prose ratchet
+   (`check_skill_md_portability.py`) checks the whole Markdown body (broad
+   field) but only inside a hardcoded, narrow set of directories. The two
+   gates trade breadth for depth in opposite dimensions, and the instructions
+   mirror fell in the gap between them: broad enough a field for the
+   frontmatter gate to matter, but outside the body gate's directory list.
+
+**Root cause**: the body-prose portability ratchet's scan-root list was
+fixed at the time skill files were the only generated Markdown surface
+shipped into plugin roots. When `generate_rules.py` began shipping a second
+surface (instruction mirrors) into the same roots, no mechanism kept the
+gate's scan-root set in sync with the generator's actual output, so the new
+surface shipped unverified for a documentation-completeness contract the
+gate was built to enforce, one instance of Class 11's general pattern
+("verification coverage does not track what the generator actually
+produces").
 
 ### Evidence
 
@@ -100,7 +152,11 @@ corrected before its first commit.
 | Update baseline to grandfather pre-existing debt | Applied | This session |
 | Add tests for instructions/ scan root | Applied | This session |
 | Make the new scan root required (fail closed if absent) | Applied | This session |
-| Widen the `vendor-portability` declaration to cover every upstream-only path in `ci-scripts.md`'s body (`AGENTS.md`, `tests/`, `lefthook.yml`), not only the six named in the issue | Applied | This session |
+| Widen the `vendor-portability` declaration to cover every upstream-only path in `ci-scripts.md`'s body (`AGENTS.md`, `tests/`, `lefthook.yml`, `.github` workflows/actions/scripts), not only the six named in the issue | Applied | This session |
+| Remove the remaining bare `.claude/skills/validation-authority/` reference (References section; a second instance of the same MUST 2 violation the SHOULD-item reword missed) | Applied | This session |
+| Report each scanned root's file count, not just its name, in `_report()`'s text and JSON output (an empty root and a populated one previously read identically) | Applied | This session |
+| Correct the Serena memory this session wrote earlier in the same PR: it claimed only `REQUIRED_EXTRA_ROOTS` entries count toward `files_by_root`, when every existing `EXTRA_SCAN_ROOTS` entry does | Applied | This session |
+| Cite and quote the canonical `generate_rules.py` "body unchanged" contract verbatim (per `canonical-source-mirror.md`) instead of paraphrasing it in two places | Applied | This session |
 | Widen the gate to `.claude/rules/*.md` | Tracked | [#5294](https://github.com/rjmurillo/ai-agents/issues/5294) |
 
 ### Successes (Tag: helpful)

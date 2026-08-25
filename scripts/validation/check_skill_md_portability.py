@@ -54,10 +54,15 @@ Copilot CLI agents under ``src/copilot-cli/agents/`` via
 ``build/generate_agents.py``; this validator does not scan agent outputs, so
 the template source is the only covered surface. ``src/copilot-cli/instructions``
 is the generated Copilot instruction mirror of ``.claude/rules/*.md`` via
-``build/scripts/generate_rules.py``, which copies each rule body unchanged;
-it is scanned directly because it is itself the shipped artifact, not a
-source that generates one. See issues #3578 (plugin-root widening), #3646
-(commands and templates/agents widening), and #5214 (instructions widening).
+``build/scripts/generate_rules.py``, whose per-rule contract docstring
+(lines 20-32) states the body is emitted unchanged: "2. Emit to
+``.github/instructions/<name>.instructions.md``: ... - body unchanged"
+(``outputDirs`` fans the same transformed content out to every configured
+destination, including ``src/copilot-cli/instructions``, per that file's
+lines 8-14). It is scanned directly because it is itself the shipped
+artifact, not a source that generates one. See issues #3578 (plugin-root
+widening), #3646 (commands and templates/agents widening), and #5214
+(instructions widening).
 
 Exit codes:
   0 - no drift (counts at or below baseline), or --update-baseline wrote the file
@@ -289,8 +294,9 @@ REQUIRED_SKILLS_ROOTS: frozenset[str] = frozenset({".claude", "src/copilot-cli"}
 # avoids double-counting command mirrors. Issue #3646.
 #
 # ``src/copilot-cli/instructions`` is the generated Copilot instruction mirror
-# of ``.claude/rules/*.md`` (``build/scripts/generate_rules.py``, which copies
-# each rule body unchanged). It ships inside the ``src/copilot-cli`` plugin
+# of ``.claude/rules/*.md`` via ``build/scripts/generate_rules.py``; see the
+# module docstring above (Scope paragraph) for the verbatim "body unchanged"
+# citation into that generator. It ships inside the ``src/copilot-cli`` plugin
 # root but sits outside every root's ``skills/`` tree, so neither the
 # plugin-root scan above nor the generator's ``applyTo``-only
 # ``_INTERNAL_PATH_PREFIXES`` filter ever reads its prose. Issue #5214 found
