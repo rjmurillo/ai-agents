@@ -1,3 +1,14 @@
+---
+id: ADR-037
+status: accepted
+date: 2026-07-20
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-037: Memory Router Architecture
 
 **Status**: Accepted
