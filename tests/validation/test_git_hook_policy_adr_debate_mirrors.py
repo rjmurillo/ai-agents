@@ -286,3 +286,70 @@ def test_a_byte_corrupted_template_is_stopped_at_the_decode_not_by_the_signals()
 
     with pytest.raises(UnicodeDecodeError):
         blob.decode("utf-8")
+
+
+def test_a_whitespace_altered_template_is_still_rejected() -> None:
+    """Editing a placeholder is not filling it in.
+
+    Exact-literal matching was defeated by one space before each closing
+    bracket: measured on the shipped template, nine one-character edits stopped
+    all nine literals matching while the byte floor, the section floor, the
+    roster column and the outcome line stayed satisfied, so the visibly
+    unedited template cleared the gate. Case does the same thing for free.
+
+    The four preceding signals are asserted to still hold, so this cannot
+    quietly stop testing the placeholder check if a fixture drifts and starts
+    failing earlier for an unrelated reason.
+    """
+    template = _canonical_debate_log_template().replace("[ADR Title]", "ADR-042")
+
+    spaced = template
+    for placeholder in policy.DEBATE_LOG_TEMPLATE_PLACEHOLDERS:
+        if placeholder in spaced:
+            spaced = spaced.replace(placeholder, f"{placeholder[:-1]} {placeholder[-1]}")
+
+    assert not [p for p in policy.DEBATE_LOG_TEMPLATE_PLACEHOLDERS if p in spaced], (
+        "the alteration must actually defeat exact matching, or this test "
+        "proves nothing about the normalization"
+    )
+    assert policy._evidence_byte_count(spaced) >= policy.DEBATE_LOG_MIN_BYTES
+    assert policy.DEBATE_LOG_REVIEWER_RE.search(spaced)
+    assert policy._has_verdict(spaced)
+
+    gap = policy.debate_log_evidence_gap(spaced)
+    assert gap is not None and gap.startswith("unfilled template placeholders"), gap
+
+    upper = template.replace(
+        "[Consensus | Concluded Without Consensus]",
+        "[CONSENSUS | CONCLUDED WITHOUT CONSENSUS]",
+    )
+    upper_gap = policy.debate_log_evidence_gap(upper)
+    assert upper_gap is not None and upper_gap.startswith("unfilled template"), upper_gap
+
+
+def test_the_normalization_does_not_reject_any_committed_log() -> None:
+    """The normalization is calibrated, not assumed.
+
+    A looser comparison is a false-block risk, which is the mistake the roster
+    proposal made. Measured the same way the literals were: 0 of the committed
+    corpus is rejected by the normalized comparison. Without this, a future
+    widening of the normalization could start rejecting real reviews and only
+    the whole-corpus pin in the boundaries module would notice, one signal
+    later and with a less specific message.
+    """
+    critique = _ROOT / ".agents" / "critique"
+    logs = sorted(path for path in critique.glob("*.md") if "debate" in path.name)
+    assert len(logs) >= 70, "expected the calibration corpus to be present"
+
+    hits = {}
+    for path in logs:
+        normalized = policy._normalized_for_placeholders(path.read_text(encoding="utf-8"))
+        matched = [
+            placeholder
+            for placeholder in policy.DEBATE_LOG_TEMPLATE_PLACEHOLDERS
+            if policy._normalized_for_placeholders(placeholder) in normalized
+        ]
+        if matched:
+            hits[path.name] = matched
+
+    assert hits == {}

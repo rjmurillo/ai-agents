@@ -5,8 +5,8 @@ the check: each mutant reverts one defect this gate is supposed to stop, and
 the #5205 regression suite has to come back red. If it does not, those tests
 are decoration.
 
-Eight mutants and one inverted control. Two revert the defects #5205
-reported; six revert defects found by review of this PR, which are as much
+Nine mutants and one inverted control. Two revert the defects #5205
+reported; seven revert defects found by review of this PR, which are as much
 part of the contract as the originals:
 
   M4 (positive): neuter the evidence gate, so a name-shaped stub clears again.
@@ -39,6 +39,10 @@ part of the contract as the originals:
   M11 (positive): decode the staged blob with ``errors="replace"`` again, so
       corrupting one byte inside each template placeholder defeats the fifth
       signal while leaving the other four satisfied. Expected: DEAD.
+
+  M12 (positive): match the template placeholders exactly again, so one
+      space before each closing bracket, or one upper-cased word, clears the
+      fifth signal with the template otherwise untouched. Expected: DEAD.
 
   IC (inverted control): change a comment only. Expected: SURVIVED. Without it
       a harness that reports DEAD unconditionally looks identical to a working
@@ -84,7 +88,7 @@ _OUTCOME_DID_NOT_APPLY = "DID-NOT-APPLY"
 # Same ordering contract as the sibling harness: the outer cap MUST exceed the
 # inner one, or pytest-timeout interrupts inside subprocess.communicate and the
 # failure names no command (issue #5102). The inner suite here is
-# three files of 54 cases total, well under the sibling's ~943, so these caps
+# three files of 56 cases total, well under the sibling's ~943, so these caps
 # carry wide margin.
 _INNER_SUBPROCESS_TIMEOUT_SECONDS = 300
 _OUTER_TEST_TIMEOUT_SECONDS = 360
@@ -376,6 +380,29 @@ def test_m11_lossy_decoding_of_the_staged_blob_is_detected(scratch_worktree: Pat
 
 
 # ---------------------------------------------------------------------------
+# M12: match the template placeholders exactly again, restoring the fail-open a
+# review found on PR #5308
+# ---------------------------------------------------------------------------
+
+_M12_ORIGINAL = b"        if _normalized_for_placeholders(placeholder) in normalized\n"
+_M12_MUTANT = (
+    b"        # M12 mutant: placeholders matched exactly, spacing and case win\n"
+    b"        if placeholder in content\n"
+)
+
+
+@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
+def test_m12_exact_placeholder_matching_is_detected(scratch_worktree: Path) -> None:
+    """One space before each closing bracket defeated exact matching."""
+    original = (REPO_ROOT / _TARGET_REL).read_bytes()
+    outcome = _apply_positive_mutant(
+        scratch_worktree, original, _M12_ORIGINAL, _M12_MUTANT, "M12-exact-placeholders"
+    )
+    assert outcome == _OUTCOME_DEAD
+    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M12"
+
+
+# ---------------------------------------------------------------------------
 # IC: comment-only change; the suite MUST survive it
 # ---------------------------------------------------------------------------
 
@@ -409,7 +436,7 @@ def _tests_running_the_inner_suite() -> list[str]:
 def test_every_inner_suite_test_raises_the_outer_timeout() -> None:
     """Report the scope alongside the finding (testing.md MUST 10)."""
     names = _tests_running_the_inner_suite()
-    assert len(names) == 9, f"Expected 9 inner-suite tests, discovered {len(names)}: {names}"
+    assert len(names) == 10, f"Expected 10 inner-suite tests, discovered {len(names)}: {names}"
 
     unmarked = [
         name

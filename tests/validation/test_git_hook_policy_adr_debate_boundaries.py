@@ -158,16 +158,32 @@ def test_every_debate_log_in_the_working_tree_still_passes() -> None:
     what it measures without main having moved. It is a guard against a
     threshold change silently starting to reject real reviews, not a claim
     about main's contents at any point in time.
+
+    Read strictly, the way the staged path reads a blob. This used to pass
+    ``errors="replace"``, which measured a repaired copy of any log the gate
+    would now reject outright, so a corpus that production blocks could still
+    calibrate as clean. All 86 are valid UTF-8 today; the strict read is what
+    keeps that a checked fact rather than an assumption.
     """
     critique = _ROOT / ".agents" / "critique"
     logs = sorted(path for path in critique.glob("*.md") if "debate" in path.name)
     assert len(logs) >= 70, "expected the calibration corpus to be present"
 
-    rejected = {
-        path.name: gap
-        for path in logs
-        if (gap := policy.debate_log_evidence_gap(path.read_text(errors="replace"))) is not None
-    }
+    undecodable = []
+    rejected = {}
+    for path in logs:
+        try:
+            content = path.read_bytes().decode("utf-8")
+        except UnicodeDecodeError:
+            undecodable.append(path.name)
+            continue
+        if (gap := policy.debate_log_evidence_gap(content)) is not None:
+            rejected[path.name] = gap
+
+    assert undecodable == [], (
+        "these committed logs are not valid UTF-8, so the staged path would "
+        f"block a commit carrying them: {undecodable}"
+    )
     assert rejected == {}
 
 

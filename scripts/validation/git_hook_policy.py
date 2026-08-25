@@ -1601,6 +1601,29 @@ def _evidence_byte_count(content: str) -> int:
     return len(content.replace("\ufffd", "").encode("utf-8"))
 
 
+DEBATE_LOG_PLACEHOLDER_SPACING_RE = re.compile(r"[ \t]+")
+DEBATE_LOG_PLACEHOLDER_PUNCTUATION_RE = re.compile(r" ?([\[\]|]) ?")
+
+
+def _normalized_for_placeholders(text: str) -> str:
+    """Return ``text`` with the spacing and case a placeholder edit can change.
+
+    Matching the template's literals exactly was defeated by editing them
+    rather than filling them in. Measured on the shipped template: adding one
+    space before each closing bracket stops all nine literals matching while
+    every other signal stays satisfied, so the visibly unedited template
+    cleared the gate for nine keystrokes. Upper-casing one word does the same.
+
+    Horizontal whitespace collapses, spacing around ``[``, ``]`` and ``|``
+    goes, and the result case-folds. Newlines are left alone so a placeholder
+    cannot be matched across a line it does not span. Calibrated like the
+    literals themselves: 0 of the 86 committed logs are rejected by the
+    normalized comparison, the same as by the exact one. Issue #5205.
+    """
+    collapsed = DEBATE_LOG_PLACEHOLDER_SPACING_RE.sub(" ", text)
+    return DEBATE_LOG_PLACEHOLDER_PUNCTUATION_RE.sub(r"\1", collapsed).casefold()
+
+
 def debate_log_evidence_gap(content: str) -> str | None:
     """Return why ``content`` fails as review evidence, or None when it passes.
 
@@ -1663,10 +1686,11 @@ def debate_log_evidence_gap(content: str) -> str | None:
             "position, stance, vote or outcome label; a positions-table "
             "header counts as that label)"
         )
+    normalized = _normalized_for_placeholders(content)
     unresolved = [
         placeholder
         for placeholder in DEBATE_LOG_TEMPLATE_PLACEHOLDERS
-        if placeholder in content
+        if _normalized_for_placeholders(placeholder) in normalized
     ]
     if unresolved:
         shown = ", ".join(repr(placeholder) for placeholder in unresolved[:3])
