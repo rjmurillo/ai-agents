@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 63bac7e5615f1c3417e971272100e918ced03788
+qaCommit: 99066a857d9e6dd4efe5cbaf00c12f987bdeb005
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1547,3 +1547,45 @@ links.py` 0 violations across 1591 files, `taste_count_ratchet.py` `575
 index.py` (311 tests) passed.
 
 **Rebound to** `63bac7e5615f1c3417e971272100e918ced03788`.
+
+## Addendum 29: merged PR #5286's squash-merge, fixed the first real `stale-allowance` finding
+
+The prior push attempt (commit `c921f9058`) failed with `GIT_PUSH_REAL_EXIT=1`
+after `python-tests` ran 684.84s. Diagnosed the failure from the push log:
+`tests/test_pr_autofix_late_live_state_gate.py::test_fast_exit_reports_
+lease_loss_after_wait[.claude/commands/pr-autofix.md]` failed on a timing
+assertion (`mutation_command="true"`, `LEASE_RENEWAL_INTERVAL_SECONDS=0.05`,
+inherently race-dependent under `python-tests`' full parallel xdist load).
+Confirmed no concurrent push or pytest process was running, then re-ran the
+single test 5 times in isolation: 5/5 passed. Confirmed flake, not a
+regression, per the CI-feedback re-run-once-to-confirm rule.
+
+Separately, `origin/main` had advanced 1 commit past this branch's last
+merge base: PR #5286 (`f3fad42a5`, accepting ADR-052 and superseding
+ADR-036) squash-merged while the failed push was in flight. Fetched and
+merged `origin/main` (`6a937fe99`); the merge was conflict-free (PR #5286's
+files, this branch's ADR-052/ADR-036 debate-log and retrospective work were
+disjoint).
+
+Post-merge re-verification surfaced a new `check_adr_links.py` finding:
+`stale-allowance` on `scripts/validation/check_adr_links_baseline.txt` line
+74 (`unresolved:templates/AGENTS.md:../agents/architecture/ADR-036-...`).
+This is the detector added earlier this branch (PR #5209 review response)
+firing on its first real case: PR #5286 fixed `templates/AGENTS.md`'s
+broken `../agents/...` link (missing the leading dot) to the correct
+`../.agents/...` path, which resolved the defect the baseline entry had
+been allowing. Removed the stale entry, updated the header's entry-count
+comment (18, was 19; `test_baseline_header_counts_match_the_live_file`
+re-measures it), regenerated `.agents/architecture/README.md`
+(`generate_adr_index.py`, picking up PR #5286's status/supersession edges).
+
+Re-verified: `check_adr_lifecycle.py` `[PASS] 1 violation(s) across 103 ADR
+record(s)`; `check_adr_links.py` `0 violation(s) across 1591 tracked
+markdown file(s)` (down from 1, the stale-allowance finding, before the
+fix); `taste_count_ratchet.py` `575 <= baseline 576`;
+`tests/validation/test_check_adr_lifecycle.py` +
+`test_check_adr_links.py` + `tests/build_scripts/test_generate_adr_
+index.py` (311 tests) passed. Commits: `241d1aad5` (index regen),
+`99066a857` (stale-allowance fix).
+
+**Rebound to** `99066a857d9e6dd4efe5cbaf00c12f987bdeb005`.

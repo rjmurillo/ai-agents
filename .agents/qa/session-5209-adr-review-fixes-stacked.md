@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 63bac7e5615f1c3417e971272100e918ced03788
+qaCommit: 99066a857d9e6dd4efe5cbaf00c12f987bdeb005
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -818,3 +818,15 @@ detail, including the date-field reasoning and the mirror-regeneration
 choice over hand-editing, in that addendum.
 
 **Rebound to** `63bac7e5615f1c3417e971272100e918ced03788`.
+
+## Addendum 31: same rebind as Addendum 29 of the campaign report
+
+A confirmed `python-tests` flake diagnosed (5/5 clean isolated re-runs) on
+the prior push attempt, then a third merge from `origin/main` bringing in
+PR #5286's squash-merge (ADR-052 accepted, ADR-036 superseded). The merge
+surfaced the stale-allowance detector's first real finding: PR #5286 fixed
+the broken link the baseline had been allowing, so the allowance was
+removed. Full detail, including the flake diagnosis and the stale-allowance
+removal reasoning, in that addendum.
+
+**Rebound to** `99066a857d9e6dd4efe5cbaf00c12f987bdeb005`.
