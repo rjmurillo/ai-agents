@@ -523,3 +523,4 @@ the batch here as it lands.
 | 20 | ADR-052 |
 | 21 | ADR-003, ADR-020, ADR-023, ADR-027 |
 | 22 | ADR-034, ADR-057, ADR-058, ADR-066 |
+| 23 | ADR-069, ADR-071 |
