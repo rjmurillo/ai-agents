@@ -1,3 +1,14 @@
+---
+id: ADR-011
+status: proposed
+date: 2025-12-21
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
+---
+
 # ADR-011: Session State MCP
 
 ## Status
