@@ -68,24 +68,35 @@ jobs:
             --output-format text
 
       - name: Post Warning on Violations
-        if: failure()
+        # Scoped to the validator's own outcome, not the job-wide failure().
+        # failure() alone also fires when an earlier setup step (checkout,
+        # environment setup, git log for PR commits) fails, which would post
+        # a false "investigation-claim violation" comment for what is really
+        # an infrastructure failure with no violation to report.
+        if: failure() && steps.validate.outcome == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         # Intentionally write-once (no --update-if-exists), decided per Issue #5210.
         # Unlike pr-validation.yml, this step only runs on failure and never
-        # re-posts once the PR is fixed, so there is no "stale PASS shown as
-        # FAIL" failure mode to correct. The comment is a point-in-time
-        # violation alert, not a recomputed status; the historical record of
-        # what was flagged stays valid documentation even after the offending
-        # commit is amended or removed.
+        # re-posts once the PR is fixed, so the comment can never flip a real
+        # PASS back to a stale FAIL the way pr-validation.yml's bug did. It
+        # can still go stale in a narrower sense: because if: failure() also
+        # skips the successful rerun, the posted text is never cleared or
+        # marked resolved once the PR is fixed. The pinned commit SHA below
+        # (added per PR #5281 review) is what keeps the comment
+        # self-identifying as a point-in-time record instead of reading as
+        # a live, current-tense status.
         run: |
-          cat <<'EOF' > "${RUNNER_TEMP:-.}/comment.md"
-          ## Investigation-Only Claim Violation
-
-          This PR contains session logs claiming `SKIPPED: investigation-only` but the
-          associated commits include files outside the investigation allowlist.
-
+          # The commit SHA line is built with printf, not inside the heredoc
+          # below: the static text after it is full of backticks for markdown
+          # code spans, and an unquoted "<<EOF" heredoc would treat every one
+          # of those as a command-substitution attempt. Keeping the heredoc
+          # quoted ("<<'EOF'") keeps that text fully literal; printf handles
+          # the one line that needs the SHA interpolated.
+          printf '## Investigation-Only Claim Violation\n\nAs of commit `%s`, this PR contained session logs claiming `SKIPPED: investigation-only` while the associated commits included files outside the investigation allowlist. If the PR has since changed, verify the current diff rather than relying on this comment alone; it is not automatically updated or cleared.\n\n' "${HEAD_SHA:0:12}" > "${RUNNER_TEMP:-.}/comment.md"
+          cat <<'EOF' >> "${RUNNER_TEMP:-.}/comment.md"
           **Per ADR-034**, investigation-only sessions may only commit:
           - `.agents/sessions/` (session logs)
           - `.agents/analysis/` (investigation outputs)

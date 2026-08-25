@@ -17,6 +17,7 @@ test to match.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import yaml
@@ -24,13 +25,42 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "investigation-claim-backstop.yml"
 
+_STEP_NAME = "Post Warning on Violations"
+
 
 def _post_warning_step() -> dict:
     data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
     steps = data["jobs"]["validate-claims"]["steps"]
-    matching = [step for step in steps if step.get("name") == "Post Warning on Violations"]
+    matching = [step for step in steps if step.get("name") == _STEP_NAME]
     assert len(matching) == 1, "expected exactly one 'Post Warning on Violations' step"
     return matching[0]
+
+
+def _extract_step_block(text: str, step_name: str) -> str:
+    """Return the raw YAML text spanning only the named list-item step.
+
+    ``yaml.safe_load`` strips comments, so a rationale comment above a step's
+    ``run:`` key is invisible to the parsed structure. This finds the step by
+    its ``- name:`` line and its list-item indentation, then cuts the block
+    off at the next sibling ``- name:`` at the same indentation (or end of
+    text), so a check against the result proves content sits with THIS step
+    and not merely somewhere else in the document.
+    """
+    start_match = re.search(
+        rf"^([ \t]*)- name: {re.escape(step_name)}\s*$", text, flags=re.MULTILINE
+    )
+    assert start_match is not None, f"could not locate the {step_name!r} step"
+    indent = start_match.group(1)
+    next_sibling = re.search(
+        rf"^{re.escape(indent)}- name:", text[start_match.end() :], flags=re.MULTILINE
+    )
+    end = start_match.end() + next_sibling.start() if next_sibling else len(text)
+    return text[start_match.start() : end]
+
+
+def _post_warning_step_raw_block() -> str:
+    text = WORKFLOW.read_text(encoding="utf-8")
+    return _extract_step_block(text, _STEP_NAME)
 
 
 def test_the_write_once_decision_is_intentional_not_an_oversight() -> None:
@@ -49,10 +79,66 @@ def test_the_write_once_decision_is_intentional_not_an_oversight() -> None:
 def test_the_decision_is_documented_next_to_the_step() -> None:
     """Positive: the rationale must be readable at the call site, not only
     in the issue tracker, per Issue #5210's acceptance criteria.
+
+    Scoped to this step's own raw text block, not the whole workflow file:
+    a whole-file substring check would still pass if the comment moved to an
+    unrelated job or a stray comment elsewhere, which would not prove the
+    rationale sits next to THIS step as its name and this test's docstring
+    both claim.
     """
-    workflow_text = WORKFLOW.read_text(encoding="utf-8")
-    assert "Intentionally write-once" in workflow_text
-    assert "#5210" in workflow_text
+    step_block = _post_warning_step_raw_block()
+    assert "Intentionally write-once" in step_block
+    assert "#5210" in step_block
+
+
+def test_step_block_extraction_stops_at_the_next_sibling_step() -> None:
+    """Negative control on ``_extract_step_block`` itself, via synthetic YAML.
+
+    ``Post Warning on Violations`` is the last step in the real workflow, so
+    there is no real sibling after it to prove scoping against. Without this
+    control, an unbounded extraction (grabs to end of text) would look
+    identical to a correctly bounded one on the real file, and the positive
+    test above would pass for the wrong reason. This drives the extractor on
+    a two-step fixture where content belongs unambiguously to one step or
+    the other.
+    """
+    text = (
+        "    steps:\n"
+        "      - name: Post Warning on Violations\n"
+        "        # Intentionally write-once, decided per Issue #5210.\n"
+        "        run: echo one\n"
+        "      - name: Set Job Summary\n"
+        "        run: echo two\n"
+    )
+    block = _extract_step_block(text, "Post Warning on Violations")
+    assert "Intentionally write-once" in block
+    assert "#5210" in block
+    assert "Set Job Summary" not in block
+    assert "echo two" not in block
+
+
+def test_step_block_extraction_finds_content_between_two_steps() -> None:
+    """Positive companion to the control above: the middle step is not lost.
+
+    Guards against an over-correction (e.g. stopping at ANY ``- name:``,
+    including one nested inside the target step) that would make the
+    extractor return an empty or truncated block for a step sandwiched
+    between two siblings.
+    """
+    text = (
+        "    steps:\n"
+        "      - name: First\n"
+        "        run: echo first\n"
+        "      - name: Post Warning on Violations\n"
+        "        # Intentionally write-once, decided per Issue #5210.\n"
+        "        run: echo middle\n"
+        "      - name: Set Job Summary\n"
+        "        run: echo last\n"
+    )
+    block = _extract_step_block(text, "Post Warning on Violations")
+    assert "echo middle" in block
+    assert "echo first" not in block
+    assert "echo last" not in block
 
 
 def test_the_step_only_fires_on_failure() -> None:
@@ -63,4 +149,19 @@ def test_the_step_only_fires_on_failure() -> None:
     the same stale-verdict bug pr-validation.yml had, and the write-once
     decision above must be revisited.
     """
-    assert _post_warning_step().get("if") == "failure()"
+    condition = _post_warning_step().get("if")
+    assert condition is not None and "failure()" in condition
+
+
+def test_the_step_does_not_fire_on_an_earlier_setup_failure() -> None:
+    """Edge: a bare `failure()` also fires when checkout or setup fails.
+
+    A job-wide `failure()` posts a false investigation-claim violation
+    comment for what is really an infrastructure failure (checkout, env
+    setup, or the git-log step) with no violation to report. Scoping to the
+    validator step's own outcome is what makes the "point-in-time violation
+    alert" framing in the comment above the step (and in the posted comment
+    body) actually true.
+    """
+    condition = _post_warning_step().get("if")
+    assert condition == "failure() && steps.validate.outcome == 'failure'"
