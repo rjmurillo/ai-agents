@@ -288,6 +288,61 @@ def test_a_byte_corrupted_template_is_stopped_at_the_decode_not_by_the_signals()
         blob.decode("utf-8")
 
 
+@pytest.mark.parametrize(
+    ("label", "spacer"),
+    [
+        ("ascii space", " "),
+        ("no-break space", "\u00a0"),
+        ("figure space", "\u2007"),
+        ("narrow no-break space", "\u202f"),
+    ],
+)
+def test_any_horizontal_whitespace_in_a_placeholder_is_still_rejected(
+    label: str, spacer: str
+) -> None:
+    """The normalization collapses whitespace, not just the ASCII kind.
+
+    Parametrized rather than written once, because the first version of this
+    normalization collapsed only space and tab, and one U+00A0 before each
+    closing bracket walked the unfilled template straight through: the reviewer
+    and verdict regexes still matched and none of the nine literals did. That
+    was the third variant of one attack, after invalid bytes and after ASCII
+    spaces, so the case is a table now and a fourth variant costs a row.
+    """
+    template = _canonical_debate_log_template().replace("[ADR Title]", "ADR-042")
+
+    altered = template
+    for placeholder in policy.DEBATE_LOG_TEMPLATE_PLACEHOLDERS:
+        if placeholder in altered:
+            altered = altered.replace(placeholder, f"{placeholder[:-1]}{spacer}{placeholder[-1]}")
+
+    assert not [p for p in policy.DEBATE_LOG_TEMPLATE_PLACEHOLDERS if p in altered], (
+        f"{label} must actually defeat exact matching, or this row proves nothing"
+    )
+    assert policy.DEBATE_LOG_REVIEWER_RE.search(altered), (
+        f"{label}: the other signals must still pass, or the block below could "
+        "come from the wrong one"
+    )
+    assert policy._has_verdict(altered)
+
+    gap = policy.debate_log_evidence_gap(altered)
+    assert gap is not None and gap.startswith("unfilled template placeholders"), f"{label}: {gap}"
+
+
+def test_a_newline_inside_a_placeholder_is_not_collapsed_away() -> None:
+    """Line breaks survive the normalization, so no match spans a line.
+
+    The guard on the widened whitespace class. Collapsing every whitespace
+    character would let a literal match across two lines that merely end and
+    begin with its halves, which is a false block waiting to happen in a corpus
+    full of tables.
+    """
+    split = "| ...\n| ... |"
+    normalized = policy._normalized_for_placeholders(split)
+    assert "\n" in normalized
+    assert policy._normalized_for_placeholders("| ... | ... |") not in normalized
+
+
 def test_a_whitespace_altered_template_is_still_rejected() -> None:
     """Editing a placeholder is not filling it in.
 

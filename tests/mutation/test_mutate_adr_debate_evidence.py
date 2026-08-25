@@ -5,48 +5,30 @@ the check: each mutant reverts one defect this gate is supposed to stop, and
 the #5205 regression suite has to come back red. If it does not, those tests
 are decoration.
 
-Nine mutants and one inverted control. Two revert the defects #5205
-reported; seven revert defects found by review of this PR, which are as much
-part of the contract as the originals:
+Eleven mutants and one inverted control. Two revert the defects #5205
+reported; nine revert defects found by review of this PR, which are as much
+part of the contract as the originals. Each mutant carries its own banner and
+docstring at the point of definition, so the inventory here stays a table:
 
-  M4 (positive): neuter the evidence gate, so a name-shaped stub clears again.
-      Expected: DEAD.
+===== ======== ==================================================
+ Id    Source   Reverts
+===== ======== ==================================================
+ M4    issue    the evidence check, so a stub clears again
+ M5    issue    ``any()`` coverage, so one log authorizes all
+ M6    review   the byte floor onto lossily decoded text
+ M7    review   an unreadable log to a silent skip
+ M8    review   the unfilled-template placeholder check
+ M9    review   the unbounded positions-table fallback
+ M10   review   ``T`` from the staged-log discovery query
+ M11   review   the staged blob to a lossy decode
+ M12   review   placeholder matching to exact literals
+ M13   review   the whitespace class to ASCII space and tab
+ M14   review   the external exit code to the logic one
+ IC    control  nothing; a comment only, and MUST survive
+===== ======== ==================================================
 
-  M5 (positive): restore the ``any()`` coverage semantics, so one log naming
-      one record authorizes every ADR staged beside it.
-      Expected: DEAD.
-
-  M6 (positive): measure the byte floor on the lossily decoded text, so each
-      invalid UTF-8 byte inflates threefold and 100 on-disk bytes clear a
-      stated 300-byte floor. Expected: DEAD.
-
-  M7 (positive): drop an unreadable staged log silently instead of reporting
-      it, so a covering sibling lets the gate clear a commit carrying a log
-      nobody could read. Expected: DEAD.
-
-  M8 (positive): drop the unfilled-template placeholder check, so the shipped
-      template with only its title changed self-authorizes an ADR lifecycle
-      change. Expected: DEAD.
-
-  M9 (positive): restore the unbounded positions-table fallback, so any pipe
-      row naming a role beside a decision word counts as a verdict even when
-      it records an open issue rather than a decision. Expected: DEAD.
-
-  M10 (positive): drop ``T`` from the staged-log query, so replacing an
-      already tracked regular log with a symlink is never discovered and rides
-      through on a valid sibling's evidence. Expected: DEAD.
-
-  M11 (positive): decode the staged blob with ``errors="replace"`` again, so
-      corrupting one byte inside each template placeholder defeats the fifth
-      signal while leaving the other four satisfied. Expected: DEAD.
-
-  M12 (positive): match the template placeholders exactly again, so one
-      space before each closing bracket, or one upper-cased word, clears the
-      fifth signal with the template otherwise untouched. Expected: DEAD.
-
-  IC (inverted control): change a comment only. Expected: SURVIVED. Without it
-      a harness that reports DEAD unconditionally looks identical to a working
-      one.
+Every positive mutant is expected DEAD. IC is expected SURVIVED: without it a
+harness that reports DEAD unconditionally looks identical to a working one.
 
 Isolation follows the same model as ``test_mutate_debate_log_path.py``
 (issues #4346, #4457): every mutation runs inside a detached scratch worktree
@@ -89,7 +71,7 @@ _OUTCOME_DID_NOT_APPLY = "DID-NOT-APPLY"
 # Same ordering contract as the sibling harness: the outer cap MUST exceed the
 # inner one, or pytest-timeout interrupts inside subprocess.communicate and the
 # failure names no command (issue #5102). The inner suite here is
-# four files of 57 cases total, well under the sibling's ~943, so these caps
+# four files of 62 cases total, well under the sibling's ~943, so these caps
 # carry wide margin.
 _INNER_SUBPROCESS_TIMEOUT_SECONDS = 300
 _OUTER_TEST_TIMEOUT_SECONDS = 360
@@ -404,6 +386,48 @@ def test_m12_exact_placeholder_matching_is_detected(scratch_worktree: Path) -> N
 
 
 # ---------------------------------------------------------------------------
+# M13: narrow the placeholder whitespace class back to ASCII, restoring the
+# fail-open a review found on PR #5308
+# ---------------------------------------------------------------------------
+
+_M13_ORIGINAL = b'DEBATE_LOG_PLACEHOLDER_SPACING_RE = re.compile(r"[^\\S\\r\\n]+")\n'
+_M13_MUTANT = (
+    b"# M13 mutant: only ASCII space and tab collapse\n"
+    b'DEBATE_LOG_PLACEHOLDER_SPACING_RE = re.compile(r"[ \\t]+")\n'
+)
+
+
+@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
+def test_m13_ascii_only_whitespace_normalization_is_detected(scratch_worktree: Path) -> None:
+    """One U+00A0 before each closing bracket cleared the unfilled template."""
+    original = (REPO_ROOT / _TARGET_REL).read_bytes()
+    outcome = _apply_positive_mutant(
+        scratch_worktree, original, _M13_ORIGINAL, _M13_MUTANT, "M13-ascii-whitespace"
+    )
+    assert outcome == _OUTCOME_DEAD
+    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M13"
+
+
+# ---------------------------------------------------------------------------
+# M14: collapse the external failure back into the logic exit code
+# ---------------------------------------------------------------------------
+
+_M14_ORIGINAL = b"        return 3\n"
+_M14_MUTANT = b"        return 1  # M14 mutant: git failure reported as a logic violation\n"
+
+
+@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
+def test_m14_external_failure_exit_code_is_detected(scratch_worktree: Path) -> None:
+    """AGENTS.md:50 reserves 3 for external failures; this gate is a CLI handler."""
+    original = (REPO_ROOT / _TARGET_REL).read_bytes()
+    outcome = _apply_positive_mutant(
+        scratch_worktree, original, _M14_ORIGINAL, _M14_MUTANT, "M14-exit-code-class"
+    )
+    assert outcome == _OUTCOME_DEAD
+    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M14"
+
+
+# ---------------------------------------------------------------------------
 # IC: comment-only change; the suite MUST survive it
 # ---------------------------------------------------------------------------
 
@@ -437,7 +461,7 @@ def _tests_running_the_inner_suite() -> list[str]:
 def test_every_inner_suite_test_raises_the_outer_timeout() -> None:
     """Report the scope alongside the finding (testing.md MUST 10)."""
     names = _tests_running_the_inner_suite()
-    assert len(names) == 10, f"Expected 10 inner-suite tests, discovered {len(names)}: {names}"
+    assert len(names) == 12, f"Expected 12 inner-suite tests, discovered {len(names)}: {names}"
 
     unmarked = [
         name

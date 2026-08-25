@@ -1609,7 +1609,14 @@ def _evidence_byte_count(content: str) -> int:
     return len(content.replace("\ufffd", "").encode("utf-8"))
 
 
-DEBATE_LOG_PLACEHOLDER_SPACING_RE = re.compile(r"[ \t]+")
+# Any horizontal whitespace, not just ASCII space and tab. `[^\S\r\n]` is
+# whitespace minus the line breaks, so U+00A0, U+2007 and U+202F collapse too
+# while a placeholder still cannot match across a line it does not span.
+# Measured: with the ASCII-only class, one U+00A0 before each closing bracket
+# defeated all nine literals while every other signal stayed satisfied, so the
+# unfilled template cleared the gate again. Third variant of the same attack,
+# after invalid bytes and after ASCII spaces. Issue #5205.
+DEBATE_LOG_PLACEHOLDER_SPACING_RE = re.compile(r"[^\S\r\n]+")
 DEBATE_LOG_PLACEHOLDER_PUNCTUATION_RE = re.compile(r" ?([\[\]|]) ?")
 
 
@@ -1622,11 +1629,11 @@ def _normalized_for_placeholders(text: str) -> str:
     every other signal stays satisfied, so the visibly unedited template
     cleared the gate for nine keystrokes. Upper-casing one word does the same.
 
-    Horizontal whitespace collapses, spacing around ``[``, ``]`` and ``|``
-    goes, and the result case-folds. Newlines are left alone so a placeholder
-    cannot be matched across a line it does not span. Calibrated like the
-    literals themselves: 0 of the 86 committed logs are rejected by the
-    normalized comparison, the same as by the exact one. Issue #5205.
+    Horizontal whitespace of any kind collapses, spacing around ``[``, ``]``
+    and ``|`` goes, and the result case-folds. Newlines are left alone so a
+    placeholder cannot be matched across a line it does not span. Calibrated
+    like the literals themselves: 0 of the 86 committed logs are rejected by
+    the normalized comparison, the same as by the exact one. Issue #5205.
     """
     collapsed = DEBATE_LOG_PLACEHOLDER_SPACING_RE.sub(" ", text)
     return DEBATE_LOG_PLACEHOLDER_PUNCTUATION_RE.sub(r"\1", collapsed).casefold()
@@ -1800,7 +1807,14 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
             "This is not the same as staging none, and the output above is git's.",
             file=sys.stderr,
         )
-        return 1
+        # 3, not 1. This function's return value is the CLI's exit code
+        # (`git_hook_policy.py` dispatch), and `AGENTS.md:50` reserves 1 for a
+        # logic violation and 3 for an external failure. Git refusing to answer
+        # is external, and collapsing it into 1 tells automation that the
+        # committer's evidence was rejected when the truth is that nothing was
+        # ever examined. Every other exit from this gate stays 1, because those
+        # are all judgements about staged evidence.
+        return 3
     debate_logs = [path for path in candidates if _is_staged_regular_file(repo_root, path)]
     irregular = sorted(set(candidates) - set(debate_logs))
     if irregular:

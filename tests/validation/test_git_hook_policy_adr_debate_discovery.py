@@ -155,6 +155,24 @@ def test_a_log_that_is_not_utf8_blocks_even_when_a_sibling_covers_every_id(
     assert bad in error, "the error must name the log that would not decode"
 
 
+def test_evidence_failures_keep_the_logic_exit_code(
+    adr_debate_repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The external code is only for the external failure.
+
+    Paired with the discovery-failure case above. If every block returned 3 the
+    distinction would be decorative, so this pins that a staged log which fails
+    on its own evidence still exits 1: a judgement about the committer's work,
+    not a broken tool.
+    """
+    _edit(adr_debate_repo, ADR_42, "Rewritten decision text.")
+    _git(adr_debate_repo, "add", ADR_42)
+    _stage_log(adr_debate_repo, "ADR-042-debate-log.md", "ADR-042")
+
+    assert policy.check_adr_review_policy([ADR_42], adr_debate_repo) == 1
+    assert "shorter than" in capsys.readouterr().err
+
+
 def test_a_failed_discovery_query_is_reported_as_a_failure_not_an_absence(
     adr_debate_repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -179,7 +197,11 @@ def test_a_failed_discovery_query_is_reported_as_a_failure_not_an_absence(
 
     monkeypatch.setattr(policy, "_run_git", fail_the_discovery_query)
 
-    assert policy.check_adr_review_policy([ADR_42], adr_debate_repo) == 1
+    # 3, not 1. This function's return value is the process exit code, and
+    # AGENTS.md:50 reserves 1 for a logic violation and 3 for an external
+    # failure. Reporting a broken git query as 1 tells automation the
+    # committer's evidence was rejected when nothing was ever examined.
+    assert policy.check_adr_review_policy([ADR_42], adr_debate_repo) == 3
     error = capsys.readouterr().err
     assert "the git query failed" in error
     assert "fatal: not a git repository" in error, "git's own output must survive"
