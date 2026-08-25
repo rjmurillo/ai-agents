@@ -5,7 +5,9 @@ the check: each mutant reverts one of the two defects #5205 reported, and the
 #5205 regression suite has to come back red. If it does not, those tests are
 decoration.
 
-Two mutants and one inverted control:
+Four mutants and one inverted control. Two revert the defects #5205
+reported; two revert defects found by review of this PR, which are as much
+part of the contract as the originals:
 
   M4 (positive): neuter the evidence gate, so a name-shaped stub clears again.
       Expected: DEAD.
@@ -13,6 +15,14 @@ Two mutants and one inverted control:
   M5 (positive): restore the ``any()`` coverage semantics, so one log naming
       one record authorizes every ADR staged beside it.
       Expected: DEAD.
+
+  M6 (positive): measure the byte floor on the lossily decoded text, so each
+      invalid UTF-8 byte inflates threefold and 100 on-disk bytes clear a
+      stated 300-byte floor. Expected: DEAD.
+
+  M7 (positive): drop an unreadable staged log silently instead of reporting
+      it, so a covering sibling lets the gate clear a commit carrying a log
+      nobody could read. Expected: DEAD.
 
   IC (inverted control): change a comment only. Expected: SURVIVED. Without it
       a harness that reports DEAD unconditionally looks identical to a working
@@ -57,7 +67,7 @@ _OUTCOME_DID_NOT_APPLY = "DID-NOT-APPLY"
 # Same ordering contract as the sibling harness: the outer cap MUST exceed the
 # inner one, or pytest-timeout interrupts inside subprocess.communicate and the
 # failure names no command (issue #5102). The inner suite here is
-# two files of 42 cases total, well under the sibling's ~943, so these caps
+# two files of 43 cases total, well under the sibling's ~943, so these caps
 # carry wide margin.
 _INNER_SUBPROCESS_TIMEOUT_SECONDS = 300
 _OUTER_TEST_TIMEOUT_SECONDS = 360
@@ -228,6 +238,26 @@ def test_m6_byte_floor_measured_after_lossy_decode_is_detected(scratch_worktree:
 
 
 # ---------------------------------------------------------------------------
+# M7: drop an unreadable staged log silently, restoring the fail-open a review
+# found on PR #5308
+# ---------------------------------------------------------------------------
+
+_M7_ORIGINAL = b'    if unreadable:\n'
+_M7_MUTANT = b'    if False:  # M7 mutant: unreadable staged logs are skipped silently\n'
+
+
+@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
+def test_m7_silently_skipping_an_unreadable_log_is_detected(scratch_worktree: Path) -> None:
+    """A covering sibling must not excuse a staged log that will not read."""
+    original = (REPO_ROOT / _TARGET_REL).read_bytes()
+    outcome = _apply_positive_mutant(
+        scratch_worktree, original, _M7_ORIGINAL, _M7_MUTANT, "M7-unreadable-skipped"
+    )
+    assert outcome == _OUTCOME_DEAD
+    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M7"
+
+
+# ---------------------------------------------------------------------------
 # IC: comment-only change; the suite MUST survive it
 # ---------------------------------------------------------------------------
 
@@ -263,7 +293,7 @@ def _tests_running_the_inner_suite() -> list[str]:
 def test_every_inner_suite_test_raises_the_outer_timeout() -> None:
     """Report the scope alongside the finding (testing.md MUST 10)."""
     names = _tests_running_the_inner_suite()
-    assert len(names) == 4, f"Expected 4 inner-suite tests, discovered {len(names)}: {names}"
+    assert len(names) == 5, f"Expected 5 inner-suite tests, discovered {len(names)}: {names}"
 
     unmarked = [
         name

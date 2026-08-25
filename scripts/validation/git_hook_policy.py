@@ -1514,13 +1514,25 @@ def debate_log_evidence_gap(content: str) -> str | None:
 def _staged_debate_log_contents(
     debate_logs: Sequence[str],
     repo_root: Path,
-) -> dict[str, str]:
+) -> tuple[dict[str, str], list[str]]:
+    """Return the readable staged logs, and the paths that would not read.
+
+    The unreadable paths are returned rather than silently dropped. Dropping
+    them fails open whenever another staged log covers every staged id: the
+    unreadable log is then simply absent, both checks pass on its sibling, and
+    the gate clears a commit carrying a log nobody could read. Reproduced on
+    this branch before the split, with one unreadable log staged beside one
+    valid covering log: ``check_adr_review_policy`` returned 0. Issue #5205.
+    """
     contents: dict[str, str] = {}
+    unreadable: list[str] = []
     for path in debate_logs:
         content = _staged_debate_log_content(path, repo_root)
-        if content is not None:
+        if content is None:
+            unreadable.append(path)
+        else:
             contents[path] = content
-    return contents
+    return contents, unreadable
 
 
 def _debate_log_evidence_error(contents: dict[str, str]) -> str | None:
@@ -1573,7 +1585,18 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
         )
         return 1
 
-    contents = _staged_debate_log_contents(debate_logs, repo_root)
+    contents, unreadable = _staged_debate_log_contents(debate_logs, repo_root)
+
+    # A staged log that will not read is not evidence, and it must not be
+    # merely skipped: with a covering sibling, skipping it clears the gate.
+    if unreadable:
+        names = ", ".join(sorted(unreadable))
+        print(
+            f"ERROR: staged debate log could not be read: {names}. "
+            "A log that cannot be read is not review evidence.",
+            file=sys.stderr,
+        )
+        return 1
 
     # Issue #5205 defect 1: a name-shaped file is not evidence that a review
     # happened. Every staged log must carry evidence of one.

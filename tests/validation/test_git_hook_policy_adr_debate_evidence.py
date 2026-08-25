@@ -271,20 +271,9 @@ def test_the_canonical_template_shape_passes() -> None:
 
 
 def test_an_unreadable_staged_log_cannot_satisfy_coverage(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A log whose index blob will not read contributes nothing, and blocks.
-
-    ``_staged_debate_log_contents`` drops such a log from the map rather than
-    raising. That drop must not become a way past the gate: a dropped log
-    supplies no coverage either, so the staged id stays uncovered and the gate
-    returns 1.
-
-    This pins the fail-closed outcome, not the branch. Mutating the drop to
-    ``contents[path] = content or ""`` still returns 1, because an empty string
-    fails the byte floor instead. Killing that mutation needs a probe that can
-    tell the two rejection reasons apart, which the exit code alone cannot.
-    """
+    """A log whose index blob will not read is named and blocks."""
     _edit(repo, ADR_42, "Rewritten decision text.")
     _git(repo, "add", ADR_42)
     _stage_log(repo, "ADR-042-debate-log.md", GENUINE_LOG)
@@ -292,6 +281,47 @@ def test_an_unreadable_staged_log_cannot_satisfy_coverage(
     monkeypatch.setattr(policy, "_read_index_blob", lambda *_args, **_kwargs: None)
 
     assert policy.check_adr_review_policy([ADR_42], repo) == 1
+    # Assert the reason, not just the exit code. Before unreadable logs were
+    # reported, this blocked only as a side effect of supplying no coverage,
+    # so the same 1 came back for a different reason and the case below passed
+    # through the gate entirely.
+    assert "could not be read" in capsys.readouterr().err
+
+
+def test_an_unreadable_log_blocks_even_when_a_sibling_covers_every_id(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Fail-open regression: a covering sibling must not excuse an unreadable log.
+
+    ``_staged_debate_log_contents`` used to drop an unreadable log silently.
+    With one valid log covering every staged id, the drop left nothing to
+    fail on: both checks passed on the sibling and the gate returned 0.
+    Reproduced against this exact shape before the fix.
+
+    Distinct from the single-log case above, which blocked for the unrelated
+    reason that the dropped log supplied no coverage.
+    """
+    _edit(repo, ADR_42, "Rewritten decision text.")
+    _git(repo, "add", ADR_42)
+    good = _stage_log(repo, "ADR-042-debate-log.md", GENUINE_LOG)
+    bad = _stage_log(repo, "ADR-042-second-debate.md", GENUINE_LOG)
+
+    real_read = policy._read_index_blob
+
+    def only_the_second_log_fails(root: Path, relative: str) -> bytes | None:
+        return None if relative == bad else real_read(root, relative)
+
+    monkeypatch.setattr(policy, "_read_index_blob", only_the_second_log_fails)
+
+    # The sibling is genuinely sufficient on its own, so this fails open unless
+    # the unreadable log is reported rather than skipped.
+    assert policy.debate_log_evidence_gap(GENUINE_LOG) is None
+    assert good != bad
+
+    assert policy.check_adr_review_policy([ADR_42], repo) == 1
+    error = capsys.readouterr().err
+    assert "could not be read" in error
+    assert bad in error, "the error must name the log that would not read"
 
 
 def test_a_log_writing_the_unpadded_id_still_covers_a_padded_record(repo: Path) -> None:
