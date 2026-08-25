@@ -119,14 +119,14 @@
 
 | Learning | Existing Match | Result |
 |---|---|---|
-| Learning 1 (pre-stage dash check) | 2026-08-21 retrospective documents the same class once, not persisted to Serena memory | Recorded here; still not yet written to Serena memory in this session (left for a follow-up persistence pass, same gap as before, flagged explicitly this time rather than silently repeating it) |
-| Learning 2 (container clone defaults) | 2026-08-21 retrospective proposed the identical memory entry, explicitly left unpersisted | Recorded here for the second time; the repeated non-persistence is itself the finding worth escalating (see Modify section above) |
+| Learning 1 (pre-stage dash check) | 2026-08-21 retrospective documents the same class once, not persisted to Serena memory | Recorded here; owner is issue #5288 (opened this session specifically because the prior retrospective's identical proposal was never persisted) |
+| Learning 2 (container clone defaults) | 2026-08-21 retrospective proposed the identical memory entry, explicitly left unpersisted | Recorded here for the second time; owner is issue #5288, same as Learning 1 |
 
 ### Delta Triage
 
 | Delta Item | Category | Priority | Destination |
 |---|---|---|---|
-| Two learnings proposed identically in a prior retrospective and not persisted, now recurred | Process | P2 | Flagged here; a future session or the user should decide whether to actually write the Serena memory entries this time, or whether a `SessionStart` hook is the better-suited fix for the shallow-clone half specifically (it is a deterministic environment fact, not tacit knowledge, which argues for automation over memory) |
+| Two learnings proposed identically in a prior retrospective and not persisted, now recurred | Process | P2 | Issue #5288 (opened this session): persist both, and decide whether the shallow-clone half is better fixed as a `SessionStart` hook (a deterministic environment fact, not tacit knowledge) than as a memory entry |
 | ADR-052's actual Migration Plan (Phases 1-3) needs re-scoping against six agent surfaces before implementation starts | Process | P2 | Tracked at issue #5282, opened this session; explicitly out of scope for this session's own work |
 
 ### ROTI Assessment
@@ -139,4 +139,8 @@
 
 ## Failure Mode Classification
 
-Finding 1 (recurring em/en-dash self-violation) does not cleanly map to an existing `FAILURE-MODES.md` class; closest in spirit to FM #9 (Confident-Incorrectness Recurrence) per the 2026-08-21 retrospective's own classification of the same pattern, but not proposed as a new class since a second instance of an already-noted pattern does not itself warrant one under this repo's "a new class requires a linked ADR" rule. Findings 2 and 3 are near-misses and self-corrected git-state errors respectively, recorded as evidence per this file's completeness rather than as classified failure modes. Finding 4 is an environment/process gap, not an agent failure mode, and is the primary subject of Learning 2 above.
+**Finding 1** (recurring em/en-dash self-violation): classified as **FM #9 (Confident-Incorrectness Recurrence)**, per `.agents/governance/FAILURE-MODES.md`. FM #9's canonical trigger (claiming parity with an uncited canonical source) does not literally apply, but its general shape does: high-confidence prose generation, unchecked against a rule already loaded in context, caught by the first downstream gate. This is the same classification the 2026-08-21 retrospective assigned to its own instance of the pattern, so both instances now carry one consistent class rather than each hedging independently. A second instance of an already-classified pattern does not by itself warrant a *new* class under this repo's "a new class requires a linked ADR" rule (`.claude/rules/retros.md` MUST 2); it warrants using the existing one, which this classification now does.
+
+**Findings 2 and 3** (misread-then-self-corrected validator output; commit-message/content mismatch) are process near-misses, not failure-mode instances: both were caught and corrected within the same session before any external consequence (no CI round burned, nothing pushed in the wrong state), which is the distinguishing property `FAILURE-MODES.md`'s classes describe failures reaching an external gate or reviewer, not internal self-corrections. Recorded as evidence per this file's completeness requirement, not classified.
+
+**Finding 4** (shallow-clone and retrospective-gate friction on push) is an environment/process gap external to agent reasoning, not an agent failure mode; it is the subject of Learning 2 and issue #5288 above rather than a `FAILURE-MODES.md` classification.
