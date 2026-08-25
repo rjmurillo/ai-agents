@@ -1468,7 +1468,7 @@ def _is_debate_log_path(relative_path: str) -> bool:
     )
 
 
-def _staged_debate_log_paths(repo_root: Path) -> list[str]:
+def _staged_debate_log_paths(repo_root: Path) -> list[str] | None:
     """Return the staged paths under the critique directory that look like logs.
 
     ``T`` is in the filter, matching the three other staged-path queries in this
@@ -1487,6 +1487,13 @@ def _staged_debate_log_paths(repo_root: Path) -> list[str]:
     The non-regular-file check was added for the add-a-symlink shape and did not
     reach the convert-a-file shape, which is the same class of miss one filter
     earlier. Issue #5205.
+
+    Returns None when the query itself fails, rather than an empty list. Both
+    block, since no candidates means no evidence, but the empty list blocks with
+    "requires a debate log staged in .agents/critique", which sends a committer
+    who already staged one to look for a file that is sitting right there. A
+    swallowed error that reports as an absence is the shape this whole gate is
+    about; it does not get a pass for being fail-closed.
     """
     result = _run_git(
         repo_root,
@@ -1501,7 +1508,8 @@ def _staged_debate_log_paths(repo_root: Path) -> list[str]:
         ],
     )
     if result.returncode != 0:
-        return []
+        _print_process_output(result, stdout_stream=sys.stderr)
+        return None
     return [path for path in result.stdout.split("\0") if _is_debate_log_path(path)]
 
 
@@ -1786,6 +1794,13 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
     # staged symlink named *debate*.md rode through on its sibling's evidence.
     # Found by review of PR #5308.
     candidates = _staged_debate_log_paths(repo_root)
+    if candidates is None:
+        print(
+            "ERROR: could not list the staged debate logs; the git query failed. "
+            "This is not the same as staging none, and the output above is git's.",
+            file=sys.stderr,
+        )
+        return 1
     debate_logs = [path for path in candidates if _is_staged_regular_file(repo_root, path)]
     irregular = sorted(set(candidates) - set(debate_logs))
     if irregular:
