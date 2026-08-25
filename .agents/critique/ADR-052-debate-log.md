@@ -84,4 +84,8 @@ All six independently converged on the same shape without cross-agent visibility
 
 ---
 
+## Addendum: post-merge review correction
+
+Devin Review on PR #5286 caught a stale line citation: ADR-052's Prior Art correction cited `ADR-036:45` for the "authoritative source for Claude" / "Not Generated" quote, but that text moved to line 58 once this same change added ADR-073 frontmatter to ADR-036 (a 10-line block plus blank lines, shifting every subsequent line down by 13). Fixed in ADR-052 to cite `ADR-036:58`. The reference above to `ADR-036:45` in the Critic's Round 1 finding is left unchanged: it is a historical record of what the critic found in the pre-edit file at review time, not a live pointer, consistent with this repository's practice of leaving historical records unrewritten and noting corrections after them.
+
 *Debate completed 2026-08-25*
