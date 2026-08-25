@@ -21,6 +21,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import cast
 from unittest import mock
 
 import pytest
@@ -212,7 +213,7 @@ class TestWriteSkillError:
         on PR #5283.
         """
         with pytest.raises(ValueError, match="message must be a string"):
-            write_skill_error(123, 1, output_format="json")  # type: ignore[arg-type]
+            write_skill_error(cast(str, 123), 1, output_format="json")
         assert capsys.readouterr().out == ""
 
     def test_rejects_boolean_exit_code(self, capsys: pytest.CaptureFixture[str]) -> None:
