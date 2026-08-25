@@ -426,6 +426,13 @@ def test_adr_review_policy_missing_critique_dir_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """No .agents/critique/ directory at all means no debate logs: gate fails."""
+    # A real repository, because the premise is "the critique directory is
+    # absent", not "this is not a git checkout". Without the init, the staged-log
+    # query fails and the gate reports that failure rather than the absence
+    # (issue #5205), and this assertion would be met by an error message about
+    # git rather than about the missing directory.
+    _init_repo(tmp_path)
+
     # Only the old wrong dir exists; critique dir is absent.
     wrong = tmp_path / ".agents" / "analysis"
     wrong.mkdir(parents=True)
