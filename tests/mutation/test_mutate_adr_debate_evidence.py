@@ -412,8 +412,15 @@ def test_m13_ascii_only_whitespace_normalization_is_detected(scratch_worktree: P
 # M14: collapse the external failure back into the logic exit code
 # ---------------------------------------------------------------------------
 
-_M14_ORIGINAL = b"        return 3\n"
-_M14_MUTANT = b"        return 1  # M14 mutant: git failure reported as a logic violation\n"
+# Anchored on the comment above it: bare ``return 3`` occurs four times in the
+# module, and the harness's ambiguity guard rejected the unanchored pattern
+# rather than mutating an unrelated exit. That guard working is why this is a
+# two-line pattern.
+_M14_ORIGINAL = b"        # are all judgements about staged evidence.\n        return 3\n"
+_M14_MUTANT = (
+    b"        # are all judgements about staged evidence.\n"
+    b"        return 1  # M14 mutant: git failure reported as a logic violation\n"
+)
 
 
 @pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
