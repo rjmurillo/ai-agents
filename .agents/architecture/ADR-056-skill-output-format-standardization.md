@@ -4,7 +4,7 @@ status: accepted
 date: 2026-08-25
 decision-makers: [rjmurillo]
 supersedes: [ADR-028]
-superseded-by: null
+superseded-by: ADR-103
 explainer: null
 implemented: true
 ---
@@ -13,9 +13,21 @@ implemented: true
 
 ## Status
 
-Accepted. Supersedes ADR-028 (2026-08-25, issue #5201): the schema-consistency
-principle ADR-028 established for PowerShell output objects continues here,
-enforced at the envelope level for the current Python skill-output surface.
+Superseded by ADR-103 (2026-08-25, issue #5201). Accepted (2026-03-08),
+supersedes ADR-028: the schema-consistency principle ADR-028 established for
+PowerShell output objects continues here, enforced at the envelope level for
+the current Python skill-output surface.
+
+A 2026-08-25 review found this record's Decision section (items 2 and 6)
+still specified the original PowerShell parameter style (`-OutputFormat`, a
+flat `ErrorCode` field) while the shipped Python implementation
+(`scripts/github_core/output.py`) uses `--output-format` and a nested
+`Error.Code`/`Error.Type`. This ADR already carries `implemented: true`, so
+per `.claude/skills/adr-generator/references/adr-best-practices.md` ("GDS
+Way bounded rule": a decision change after any implementation requires a new
+superseding ADR, never an in-place rewrite), the correction is recorded in
+ADR-103 rather than edited into this record's Decision section. The Decision
+section below is restored to its original 2026-03-08 wording.
 
 ## Date
 
@@ -34,21 +46,12 @@ ADR-028 established that all properties should be included in output objects. AD
 ## Decision
 
 1. **All skill scripts MUST wrap output in a standard envelope** with `Success`, `Data`, `Error`, and `Metadata` fields
-2. **Scripts MUST accept `--output-format`** argument with values `json`, `human`, `auto` (default: `auto`)
-3. **`auto` resolves to `json`** when stdout is redirected or in CI; `human` when interactive
-4. **JSON mode emits only valid JSON** to the success output stream: no interleaved human text
+2. **Scripts MUST accept `-OutputFormat`** parameter with values `JSON`, `Human`, `Auto` (default: `Auto`)
+3. **`Auto` resolves to `JSON`** when stdout is redirected or in CI; `Human` when interactive
+4. **JSON mode emits only valid JSON** to the success output stream: no `Write-Host`
 5. **Human mode writes a compact summary** to the host with color-coded status
-6. **Error responses use the standard envelope's `Error` field**: a nested object with `Message`, `Code` (the ADR-035 exit code), and `Type` (one of `NotFound`, `ApiError`, `AuthError`, `InvalidParams`, `RateLimitError`, `Timeout`, `General`, `VerificationFailed`)
+6. **Error responses use a standard envelope** with `ErrorCode` enum values aligned to ADR-035 exit codes
 7. **Exit codes continue to follow ADR-035**
-
-**Note on this Decision section (2026-08-25, issue #5201, Copilot review on PR #5283):** items 2 and 6
-originally read `-OutputFormat` (PowerShell parameter style) and a flat `ErrorCode` field, matching
-this ADR's 2026-03-08 authoring date when skill scripts were PowerShell. The shipped Python
-implementation (`scripts/github_core/output.py`, per ADR-042) uses the argparse flag
-`--output-format` (`add_output_format_arg`, lines 20-35) and nests the error code inside
-`Error.Code` rather than a top-level `ErrorCode` (`write_skill_error`, lines 147-154). Updated the
-two items to match the implementation that actually ships, so this record does not itself
-contradict the Python contract it is meant to standardize.
 
 ## Rationale
 
@@ -62,7 +65,7 @@ contradict the Python contract it is meant to standardize.
 
 ### Trade-offs
 
-- Adding `--output-format` to every script increases parameter boilerplate, but output helper functions minimize this
+- Adding `-OutputFormat` to every script increases parameter boilerplate, but output helper functions minimize this
 - Auto-detection may occasionally guess wrong, but explicit override is always available
 
 ## Consequences
@@ -89,8 +92,9 @@ contradict the Python contract it is meant to standardize.
 
 ## Related Decisions
 
-- ADR-028: PowerShell Output Schema Consistency
+- ADR-028: PowerShell Output Schema Consistency (superseded by this ADR)
 - ADR-035: Exit Code Standardization
+- ADR-103: Skill Output Format Standardization, Python Contract Correction (supersedes this ADR)
 - Issue #632, #639, #673
 
 ## References

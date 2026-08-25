@@ -18,8 +18,9 @@ Rejected. Recorded so the proposal is findable and does not return (issue #5201)
 This record proposed a two-strategy hybrid architecture to cut PowerShell spawn
 overhead in Claude Code: Strategy 1 (direct `gh` CLI calls for simple wrapper
 skills) and Strategy 2 (a persistent named-pipe PowerShell daemon for complex
-operations). Strategy 1 partially shipped: issue #286 closed `completed`, via
-PR #1588 (merged 2026-04-10), and five gh-native shell scripts exist today at
+operations). Strategy 1 partially shipped: PR #1472 (merged 2026-03-10) added
+five gh-native bash wrapper scripts, and issue #286 later closed `completed`
+against that work. The scripts still exist today at
 `.claude/skills/github/scripts/gh-native/` (`docs/github-api-capabilities.md`
 lines 232-236), though written in bash for the Copilot CLI environment rather
 than the PowerShell-elimination framing this ADR proposed. Strategy 2 (the

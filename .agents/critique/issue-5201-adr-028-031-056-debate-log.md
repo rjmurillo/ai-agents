@@ -162,11 +162,11 @@ against files this file already covers and one new:
    Round 2's ADR-031 rewrite claimed "Never implemented: no `gh_cli`/`daemon`
    routing config or named-pipe daemon exists in the repository." Copilot
    found this false: Strategy 1 (direct `gh` CLI calls for simple wrapper
-   skills) shipped under issue #286, closed `completed`, via PR #1588
-   (merged 2026-04-10). Verified directly: `docs/github-api-capabilities.md`
+   skills) shipped. Verified directly: `docs/github-api-capabilities.md`
    lines 232-236 list five gh-native shell scripts at
    `.claude/skills/github/scripts/gh-native/`, and issue #286's
-   `closed_by_pull_requests` confirms PR #1588. Only Strategy 2 (the
+   `closed_by_pull_requests` names PR #1588. That attribution was itself
+   wrong; Copilot's Round 5 review caught it (see below). Only Strategy 2 (the
    named-pipe daemon, issue #287) was never built, closed `not planned`.
    Per ADR-073, `implemented` flips true at the first merged change
    implementing the decision; Strategy 1's merge is that change. Fix:
@@ -188,3 +188,88 @@ against files this file already covers and one new:
 None of these three findings change ADR-005, ADR-042, or the frontmatter
 status/supersession values already converged on in Rounds 1-3. Requested a
 fresh Copilot review after pushing this round's fixes.
+
+## Round 5: Copilot PR Review, third pass (post-merge-to-branch, PR #5283)
+
+Copilot's third review pass found the Round 4 fix had itself introduced a
+misattribution, plus a genuine process violation in the Round 3 fix, plus a
+schema/validator gap it had not caught in Round 4. All confirmed real on
+independent verification; two required a new ADR (ADR-103) rather than an
+in-place edit.
+
+1. **PR misattribution (ADR-031, this file's Round 4 section, and the
+   retrospective).** Round 4 attributed the gh-native scripts' implementation
+   to PR #1588. Verified directly (`pull_request_read` on both PRs): PR #1472
+   (merged 2026-03-10, "feat(gh-skills): create gh-native bash scripts for
+   Copilot CLI optimization", 804 additions, 7 files) is the actual
+   implementation; PR #1588 (merged 2026-04-10) is a documentation-only
+   follow-up whose own Test plan says "documentation-only change, no code
+   impact" and that closed issue #286. Fix: corrected the PR number in all
+   three files.
+
+2. **ADR-056's Decision section was edited in place after `implemented:
+   true` (process violation).** Round 3 corrected `-OutputFormat`/`ErrorCode`
+   to `--output-format`/`Error.Code` directly inside ADR-056's Decision
+   section. Copilot found this violates this repository's own documented
+   policy: `.claude/skills/adr-generator/references/adr-best-practices.md`,
+   "ADR Mutability and Superseding" (the GDS Way bounded rule), states
+   "Decision change after any implementation: create a new superseding ADR.
+   Never delete the old one." ADR-056 already carried `implemented: true`
+   before Round 3's edit. Fix: reverted ADR-056's Decision and Trade-offs
+   sections to their original 2026-03-08 wording; created ADR-103 as the
+   proper superseding record carrying the correction, per the process this
+   repo already documents. ADR-056: `status: accepted` -> `superseded`,
+   `superseded-by: ADR-103`.
+
+3. **`Error.Type` documented as required but enforced as optional.** While
+   checking the correction, Copilot found `.agents/schemas/skill-output.
+   schema.json` and `scripts/validate_skill_output.py` both treated
+   `Error.Type` as optional (absent from `required`; the validator checked
+   it only when truthy) despite the ADR text saying every error object
+   carries one. Verified: `write_skill_error`'s `error_type` parameter
+   defaults to `"General"` and no call site omits it, so the implementation
+   already guarantees `Type`; the schema and validator had not caught up.
+   Fix: ADR-103 makes `Type` required in both, closing the gap.
+
+4. **Retrospective follow-up section named no owner.** `.claude/rules/
+   retros.md` MUST-4 requires concrete follow-up actions with owners or
+   issues; the retrospective's Next Steps section had explicitly declined to
+   propose one. Fix: filed issue #5297 (instruct `adr-review` seats to
+   verify factual claims against cited sources, not only decision points)
+   and named it as the owner.
+
+5. **Stale Serena memories still present ADR-005 as current policy.**
+   Three memory files (`skills/skillcreator-enhancement-patterns.md`,
+   `github/github-actions-local-testing-integration.md`,
+   `security/security-010-precommit-bash-detection-95.md`) still instruct
+   "Convert bash to PowerShell" / reject TypeScript as an "ADR-005
+   violation" / prescribe a pre-commit hook erroring "Use PowerShell (pwsh)
+   instead". Fix: added dated `IMPORTANT` banners per `.claude/skills/
+   curating-memories`'s healthy-supersession pattern, marking the stale
+   guidance historical without deleting it.
+
+## Round 6: adr-review debate on ADR-103 (new ADR)
+
+Creating ADR-103 is a new decision record, not a metadata fix, so it ran
+through a fresh (scoped) adr-review debate: architect, critic, and security
+seats, each given the live ADR-103 draft, the reverted ADR-056, and the
+schema/validator/test diff.
+
+### Agent Positions (Round 6)
+
+| Agent | Vote | Key finding |
+|-------|------|-------------|
+| security | Accept | Confirmed the change strictly narrows accepted input (stricter validator, not looser); CWE-22 path-traversal control in the same file is untouched; no injection/auth/secrets surface. Risk score 0/10. |
+| architect | Accept | Confirmed supersession chain (ADR-028 -> ADR-056 -> ADR-103) is reciprocal; swept every `write_skill_error` call site across `scripts/`, `.claude/skills/github/scripts/`, and the `src/copilot-cli/` mirror and found none that hand-builds the envelope or omits `Type`, so "no known breaking caller" holds. One P2 (non-blocking): Implementation Notes did not name the `output.py` mirror trees. |
+| critic | Disagree-and-Commit -> resolved in this round | Ran the test suite directly (32 passed at the time). Found two P1s: (a) `validate_skill_output.py` is not wired into any gate (`lefthook.yml`, `.github/workflows/`, `pre_pr.py`/`pre_pr_sequence.py` all zero hits), so ADR-103's "closes a real enforcement gap" claim overstated what actually runs in CI; (b) `validate_envelope`'s `Error`-shape check was nested inside `if Success is False`, while the JSON schema's `Error` property is `oneOf(null, object)` independent of `Success`, so a `Success: true` envelope with a malformed `Error` (missing `Type`) passed `validate_envelope` while still failing the schema, and the round's own new "mirrored-contract" test never exercised that case. |
+
+### Resolution
+
+Both critic P1s addressed in this same round, not deferred:
+
+1. **(a) Enforcement claim scoped.** ADR-103's Consequences section rewritten to state plainly that `validate_envelope` is exercised only by its own tests today, cite the exact grep that proves it, and point to a new fast-follow issue (#5299) rather than implying a live gate exists.
+2. **(b) Validator logic fixed.** `validate_envelope` restructured: the `Error`-required-when-`Success`-false check and the `Error`-shape check are now separate, with the shape check (`Message`/`Code`/`Type`) applying whenever `Error` is a non-null dict, independent of `Success`, matching the schema exactly. Added `test_malformed_error_is_rejected_even_when_success_is_true`, proven to discriminate against the pre-fix code (confirmed the pre-fix version silently returned `[]` on the same input before the fix landed). Architect's P2 (mirror-tree note) also incorporated into Implementation Notes.
+
+Re-verified after both fixes: `uv run python -m pytest tests/test_skill_output.py -q` -> 33 passed (up from 32; new test added). `grep` for `validate_skill_output` across the gate surfaces still returns zero hits, confirming the scoped claim is now accurate rather than aspirational.
+
+**Consensus reached**: 3 Accept (security, architect, critic-after-fix). No seat votes Block on the final state. Issue #5299 tracks the still-open "wire it into a real gate" question as a deliberate fast-follow, not a blocker for this PR.

@@ -1,0 +1,185 @@
+---
+id: ADR-103
+status: accepted
+date: 2026-08-25
+decision-makers: [rjmurillo]
+supersedes: [ADR-056]
+superseded-by: null
+explainer: null
+implemented: true
+---
+
+# ADR-103: Skill Output Format Standardization, Python Contract Correction
+
+## Status
+
+Accepted (2026-08-25, issue #5201). Supersedes ADR-056: corrects two Decision
+items that still specified ADR-056's original PowerShell-era wording after
+the skill-output surface migrated to Python, and settles a related
+enforcement gap Copilot's PR review found while checking the correction.
+
+## Date
+
+2026-08-25
+
+## Context
+
+ADR-056 ("Skill Output Format Standardization", accepted 2026-03-08,
+`implemented: true`) standardizes a JSON envelope for skill script output.
+Its Decision section was written when skill scripts were PowerShell and
+named a `-OutputFormat` parameter and a flat `ErrorCode` field. The skill
+output surface has since migrated to Python (ADR-042); the shipped
+implementation, `scripts/github_core/output.py`, uses a `--output-format`
+argparse flag (`add_output_format_arg`) and nests the error code and type
+inside the envelope's `Error` object (`write_skill_error`), never a
+top-level `ErrorCode`.
+
+During issue #5201 (reconciling contradicting ADR statuses), a PR draft
+edited ADR-056's Decision section in place to match the Python contract.
+GitHub Copilot's review on PR #5283 correctly rejected that approach: ADR-056
+already carries `implemented: true`, and this repository's own documented
+policy (`.claude/skills/adr-generator/references/adr-best-practices.md`,
+"ADR Mutability and Superseding", the GDS Way bounded rule) states plainly:
+"Decision change after any implementation: create a new superseding ADR.
+Never delete the old one." This ADR is that superseding record. ADR-056's
+Decision section is restored to its original wording; this ADR carries the
+correction.
+
+Copilot's same review pass found a second, independent gap while checking
+the correction: the JSON schema (`.agents/schemas/skill-output.schema.json`)
+and the standalone validator (`scripts/validate_skill_output.py`) both treat
+the envelope's `Error.Type` field as optional (present in neither's
+`required` list; the validator's `validate_envelope` checks `Type` against
+the valid-values set only when the field is truthy), while ADR-056's prose
+(and this ADR's corrected item 6 below) states every error object carries a
+`Type`. `write_skill_error`'s `error_type` parameter defaults to `"General"`
+and is never omitted by any of its call sites, so `Type` is de facto always
+present, but the schema and validator did not enforce that. This ADR settles
+the question by making `Type` required, matching what the implementation
+already guarantees.
+
+## Decision
+
+Supersede ADR-056 items 2 and 6, and its enforcement scope, as follows.
+Items 1, 3, 4, 5, and 7 are unchanged from ADR-056.
+
+1. (unchanged) All skill scripts MUST wrap output in a standard envelope
+   with `Success`, `Data`, `Error`, and `Metadata` fields.
+2. **Scripts MUST accept `--output-format`** argument with values `json`,
+   `human`, `auto` (default: `auto`). Corrects ADR-056 item 2's
+   `-OutputFormat`/`JSON`/`Human`/`Auto` PowerShell-parameter wording.
+3. (unchanged) `auto` resolves to `json` when stdout is redirected or in CI;
+   `human` when interactive.
+4. (unchanged) JSON mode emits only valid JSON to the success output
+   stream: no interleaved human text.
+5. (unchanged) Human mode writes a compact summary to the host with
+   color-coded status.
+6. **Error responses use the standard envelope's `Error` field**: a nested
+   object with `Message`, `Code` (the ADR-035 exit code), and a **required**
+   `Type` (one of `NotFound`, `ApiError`, `AuthError`, `InvalidParams`,
+   `RateLimitError`, `Timeout`, `General`, `VerificationFailed`). Corrects
+   ADR-056 item 6's flat `ErrorCode` wording, and closes the schema/validator
+   gap: `Type` moves from documented-but-unenforced to a required field in
+   both `.agents/schemas/skill-output.schema.json` and
+   `scripts/validate_skill_output.py`, matching what `write_skill_error`
+   already guarantees at the implementation layer.
+7. (unchanged) Exit codes continue to follow ADR-035.
+
+## Rationale
+
+### Alternatives Considered
+
+| Alternative | Pros | Cons | Why Not Chosen |
+|-------------|------|------|----------------|
+| Edit ADR-056's Decision section in place | Single source of truth, no new file | Violates this repo's own GDS Way bounded rule once `implemented: true`; the exact mistake Copilot's review caught | Rejected: process violation, not a wording preference |
+| Leave `Type` optional in the schema/validator, note it as optional in prose | No enforcement-code change | Understates the real contract: every current producer always sets `Type`, so "optional" would document a permissiveness nothing exercises and a future caller could exploit | Rejected: the implementation already guarantees `Type`; the schema should say so |
+| Make `Type` required (chosen) | Schema, validator, and prose now agree with the implementation; `validate_envelope` (when called) fails loud on a missing `Type` instead of passing silently | Existing callers that omit `Type` (none found; `write_skill_error`'s default is always applied) would start failing if the validator is ever wired into a gate | Chosen: closes the schema/validator/prose disagreement with no known breaking caller; see the Negative consequence below on what this does and does not enforce today |
+
+### Trade-offs
+
+Making `Type` required is a stricter validator than ADR-056 originally
+documented. The trade-off is accepted because the stricter rule matches
+reality (`write_skill_error` cannot construct an envelope without a `Type`)
+and because a permissive schema that diverges from the implementation is
+exactly the contradiction class issue #5201 exists to eliminate.
+
+## Consequences
+
+### Positive
+
+- ADR-056's supersession chain (ADR-028 -> ADR-056 -> ADR-103) is
+  reciprocal and machine-readable; the corpus resolves to exactly one
+  accepted record for the skill-output-format contract.
+- `Type` moves from documented-required-but-unenforced to actually checked
+  by `validate_envelope` whenever that function is called, including on a
+  `Success: true` envelope carrying a malformed `Error` object (a case the
+  prior nesting under `if Success is False` missed entirely; see
+  Implementation Notes).
+- The GDS Way bounded rule this repository already documents is followed,
+  not just cited.
+
+### Negative
+
+- A third file (`ADR-103` alongside `ADR-056`) is now the canonical
+  reference for this contract; a reader who opens only `ADR-056` sees the
+  historical, PowerShell-era wording and must follow `superseded-by` to
+  reach the current contract. Mitigated by ADR-056's `## Status` section
+  stating the supersession explicitly at the top of the file.
+- **`validate_envelope` is not wired into any gate.** Verified: no hit for
+  `validate_skill_output` in `lefthook.yml`, `.github/workflows/`, or
+  `scripts/validation/pre_pr_sequence.py`/`pre_pr.py`. The function is
+  exercised only by its own unit tests (`tests/test_skill_output.py`). This
+  ADR closes the disagreement between the schema, the validator, and this
+  ADR's prose; it does not, by itself, put a live check in front of any real
+  skill-script output. Tracked as a fast follow-up: issue #5299.
+
+### Neutral
+
+- No runtime behavior changes. `write_skill_error` already always sets
+  `Type`; this ADR and its accompanying schema/validator/test changes make
+  that existing guarantee enforceable rather than merely documented.
+
+## Implementation Notes
+
+- Output helpers: `scripts/github_core/output.py` (unchanged by this ADR).
+  Mirrored byte-identically at `.claude/lib/` and `src/copilot-cli/lib/`
+  (per `.claude/rules/generated-artifacts.md`'s sync chain); those mirrors
+  are unaffected since the source file itself did not change.
+- Schema: `.agents/schemas/skill-output.schema.json`, `Error.Type` moved
+  into the object's `required` array.
+- Validator: `scripts/validate_skill_output.py`, `validate_envelope`:
+  - Reports a missing or empty `Error.Type` as an error rather than
+    skipping the check.
+  - The `Error` object's shape (`Message`/`Code`/`Type`) is now validated
+    whenever `Error` is a non-null dict, independent of `Success`, matching
+    the schema's `oneOf(null, object)` (schema lines 16-39). The original
+    fix in this ADR nested that check inside `if Success is False`, which
+    let a `Success: true` envelope with a malformed `Error` pass silently;
+    caught by the `critic` seat during this ADR's adr-review debate and
+    fixed in the same change.
+- Tests: `tests/test_skill_output.py` gains:
+  - A negative test asserting a missing/empty `Type` fails validation.
+  - A negative test asserting a malformed `Error` fails validation even
+    when `Success: true` (the case above).
+  - The existing parametrized `test_validates_error_types` now round-trips
+    each produced envelope through `validate_envelope` and checks the type
+    against the schema's own enum, read live from the JSON file, so the
+    three contract copies (`output.py`, the schema, the validator) cannot
+    drift unnoticed again.
+
+## Related Decisions
+
+- ADR-056: Skill Output Format Standardization (superseded by this ADR)
+- ADR-028: PowerShell Output Schema Consistency (superseded by ADR-056)
+- ADR-035: Exit Code Standardization
+- ADR-042: Python Migration Strategy
+- ADR-073: ADR Lifecycle Frontmatter
+- Issue #5201
+- Issue #5299 (fast follow-up: wire `validate_skill_output.py` into a gate)
+
+## References
+
+- `.claude/skills/adr-generator/references/adr-best-practices.md`, "ADR
+  Mutability and Superseding" (GDS Way bounded rule)
+- `.agents/critique/issue-5201-adr-028-031-056-debate-log.md`, Round 3 and
+  Round 5
