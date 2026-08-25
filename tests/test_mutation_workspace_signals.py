@@ -43,25 +43,36 @@ TARGET = Path("scripts/validation/portability_common.py")
 # to stay below the per-test pytest-timeout budget below, or pytest-timeout
 # kills the test first and the diagnostic never prints.
 SIGNAL_EXIT_TIMEOUT_SECONDS = 120
-# Headroom above the wait cap(s) a single test can spend, so _wait_for_exit's
-# diagnostic wins the race instead of being preempted by pytest-timeout. The
-# global --timeout=120 in pyproject.toml is too tight for the raised cap, so the
-# tests that wait on a signalled child carry their own budget.
-# Reaping a SIGKILLed child is a wait on the kernel, not on the child's own
-# code, so it is bounded far tighter than the cap above. It is bounded at all
-# because an unbounded second wait can outlive the per-test budget and let
-# pytest-timeout preempt the diagnostic this helper exists to print.
+# Reaping a killed child is a wait on the kernel, not on the child's own code,
+# so it is bounded far tighter than the cap above. It is bounded at all because
+# an unbounded second wait can outlive the per-test budget and let
+# pytest-timeout preempt the diagnostic the helper exists to print.
 SIGNAL_REAP_TIMEOUT_SECONDS = 10
+# The worst case for ONE call into _wait_for_exit: burn the whole cap, then
+# burn the whole reap bound after SIGKILL. This applies to a SIGKILL caller
+# too. Review caught an earlier version of the guard below treating SIGKILL
+# waits as free, which contradicted this module's own
+# test_wait_for_exit_reports_a_child_that_cannot_be_reaped: a process stuck in
+# uninterruptible I/O neither dies on SIGKILL nor reaps, so a SIGKILL-only test
+# can spend just as long as any other.
+SIGNAL_WAIT_WORST_CASE_SECONDS = SIGNAL_EXIT_TIMEOUT_SECONDS + SIGNAL_REAP_TIMEOUT_SECONDS
+# Headroom above the waits a single test can spend, so the diagnostic wins the
+# race instead of being preempted. The global --timeout=120 in pyproject.toml
+# is too tight for the raised cap, so the tests that wait on a signalled child
+# carry their own budget.
 SIGNAL_TEST_TIMEOUT_MARGIN_SECONDS = 60
-# One sequential wait: the tests that signal a single child.
-SIGNAL_TEST_TIMEOUT_SECONDS = SIGNAL_EXIT_TIMEOUT_SECONDS + SIGNAL_TEST_TIMEOUT_MARGIN_SECONDS
-# Two sequential waits: test_concurrent_runs_use_distinct_markers_and_worktrees
-# signals one child, waits for it, then signals the second. A one-cap budget
-# would let pytest-timeout preempt the second wait's diagnostic, which is the
-# failure this module exists to make legible. Sized by the arithmetic rather
-# than a flat number so adding a third wait forces the constant to be revisited.
+# One wait: the tests that signal a single child.
+SIGNAL_TEST_TIMEOUT_SECONDS = (
+    SIGNAL_WAIT_WORST_CASE_SECONDS + SIGNAL_TEST_TIMEOUT_MARGIN_SECONDS
+)
+# Three waits: test_concurrent_runs_use_distinct_markers_and_worktrees signals
+# one child, waits for it, signals the second, and can reach a third wait in
+# its finally block. A smaller budget would let pytest-timeout preempt a later
+# wait's diagnostic, which is the failure this module exists to make legible.
+# Sized by the arithmetic rather than as a flat number so adding a wait forces
+# the constant to be revisited.
 CONCURRENT_SIGNAL_TEST_TIMEOUT_SECONDS = (
-    2 * SIGNAL_EXIT_TIMEOUT_SECONDS + SIGNAL_TEST_TIMEOUT_MARGIN_SECONDS
+    3 * SIGNAL_WAIT_WORST_CASE_SECONDS + SIGNAL_TEST_TIMEOUT_MARGIN_SECONDS
 )
 
 
@@ -508,29 +519,27 @@ def test_wait_for_exit_fails_loudly_when_the_signal_is_never_handled(
 
 
 def _blocking_wait_count(node: ast.FunctionDef) -> int:
-    """Count the waits in ``node`` that can each burn a full cap.
+    """Count the calls in ``node`` that can each spend a full worst-case wait.
 
-    A ``_stop_process(..., signal.SIGKILL)`` call is excluded: SIGKILL cannot
-    be caught or ignored, so the child cannot outlive it and that call cannot
-    approach the cap. Every other ``_stop_process`` or ``_wait_for_exit`` call
-    waits on code that can hang, so each one can spend the whole cap, and they
-    run one after another rather than concurrently.
+    Every ``_stop_process`` or ``_wait_for_exit`` call counts, including
+    SIGKILL ones. An earlier version excluded SIGKILL, reasoning that an
+    uncatchable signal cannot let the child outlive the wait. Review showed
+    that contradicts this module's own
+    ``test_wait_for_exit_reports_a_child_that_cannot_be_reaped``: a process in
+    uninterruptible I/O neither dies on SIGKILL nor reaps, so that call can
+    burn the cap and then the reap bound like any other. The exclusion would
+    have accepted a 60s budget for a SIGKILL-only test.
+
+    Call sites are counted rather than runtime paths. They are sequential
+    within a test body, and any of them can be the one that hangs.
     """
-    waits = 0
-    for inner in ast.walk(node):
-        if not (isinstance(inner, ast.Call) and isinstance(inner.func, ast.Name)):
-            continue
-        if inner.func.id not in {"_wait_for_exit", "_stop_process"}:
-            continue
-        signal_args = [
-            ast.unparse(argument)
-            for argument in inner.args
-            if isinstance(argument, ast.Attribute)
-        ]
-        if any(argument.endswith("SIGKILL") for argument in signal_args):
-            continue
-        waits += 1
-    return waits
+    return sum(
+        1
+        for inner in ast.walk(node)
+        if isinstance(inner, ast.Call)
+        and isinstance(inner.func, ast.Name)
+        and inner.func.id in {"_wait_for_exit", "_stop_process"}
+    )
 
 
 class _UnreapableChild:
@@ -644,7 +653,9 @@ def test_every_test_that_waits_on_a_signalled_child_raises_its_budget() -> None:
     undersized = []
     for node in _tests_that_wait_on_a_signalled_child():
         waits = _blocking_wait_count(node)
-        required = waits * SIGNAL_EXIT_TIMEOUT_SECONDS + SIGNAL_TEST_TIMEOUT_MARGIN_SECONDS
+        required = (
+            waits * SIGNAL_WAIT_WORST_CASE_SECONDS + SIGNAL_TEST_TIMEOUT_MARGIN_SECONDS
+        )
         budget = _declared_budget(node)
         if budget is None or budget < required:
             undersized.append(
