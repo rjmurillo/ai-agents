@@ -777,7 +777,12 @@ def test_main_returns_two_when_a_file_has_invalid_utf8_content(tmp_path: Path, c
     exit_code = main(["--repo-root", str(tmp_path), "--baseline", str(tmp_path / "none.txt")])
 
     assert exit_code == 2
-    assert "check_adr_links:" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "check_adr_links:" in err
+    assert "codec can't decode" in err, (
+        "must reach the UnicodeDecodeError handler, not the _has_adr_corpus guard "
+        "(both exit 2 with a check_adr_links: prefix; Cursor Bugbot, PR #5209 round-11 review)"
+    )
 
 
 # Baseline behavior

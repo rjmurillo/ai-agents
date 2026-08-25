@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: a8a5150c7aed038b25644b798d1abdfe7773e318
+qaCommit: 30cb898b272a42d114822238d9293fd9757d06dc
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1665,7 +1665,78 @@ index.py` + `tests/test_adr_063_memory_skill_decomposition.py` (343
 tests) passed.
 
 **Rebound to** `9cb04f01d9b2c74423317f92b26bdd3abcd6fada`.
-## Addendum 31: an eleventh Copilot review round, 61 unresolved threads, not 9 (reconciled with a second concurrent-session round)
+## Addendum 31: Cursor Bugbot found two of the round-11 fix's own test fixtures were unfixed
+
+Pushed the round-11 rebind. `copilot-pull-request-reviewer` failed with
+`Error: Prompt too big after adding PR context`, confirmed via
+`mcp__github__get_job_logs` as the bot's own prompt-budget limit hit by
+this PR's now-66KB+ description and 62-file diff, not a code defect;
+not fixed (nothing to fix), and this same job also never completed
+before PR #5286 merged successfully, so it does not gate mergeability.
+
+Cursor Bugbot, reviewing the same push, found a real gap in round-11's
+own `_has_adr_corpus` fix (commit `e80a79e06`): three
+`main()`/`validate_adr_links()` tests got a companion
+`adr/ADR-006-present.md` fixture so the new corpus guard would not
+intercept them before reaching their real assertion, but two more were
+missed:
+
+- `test_main_returns_two_when_a_file_has_invalid_utf8_content`: exit 2
+  either way (the guard's "no ADR records found" and the real
+  `UnicodeDecodeError` handler both exit 2 with a `check_adr_links:`
+  prefix), so the assertion silently passed without ever exercising the
+  UnicodeDecodeError path.
+- `test_validate_adr_links_reports_a_bool`: `False` either way, same
+  shape.
+
+Fixed both with the same companion-fixture pattern, and strengthened the
+first test's assertion to require `codec can't decode` in the output
+specifically, not just the shared prefix. Verified the strengthened
+assertion is not vacuous: reverting only the fixture (keeping the
+stronger assertion) reproduces the exact failure Cursor Bugbot
+described, `AssertionError: must reach the UnicodeDecodeError handler,
+not the _has_adr_corpus guard`, with the guard's own message quoted in
+the failure. Mutation-proven the other direction too: neutralizing
+`_has_adr_corpus` (`return True`) still passes both fixed tests, since
+they now reach and correctly validate the real code path independent of
+the guard.
+
+Commit `f06b2aef9`. Re-verified:
+`tests/validation/test_check_adr_links.py` 107 tests passed, `ruff
+check` clean on both touched files, no em/en dashes.
+
+**Rebound to** `f06b2aef9eb4d242eaac673857e55ba074848b10`.
+
+## Addendum 32: merged Cursor Bugbot's own autofix of the identical finding
+
+The push above failed: `remote tip d47763245efb ... is not present in the
+local object store`. Cursor Bugbot Autofix (enabled on this repo) had
+pushed `d47763245` directly to the branch while this session was still
+working the finding, titled "fix(tests): add ADR corpus fixture to UTF-8
+and bool return tests". Diffed it against this session's own commit
+`f06b2aef9` before merging: both add the identical
+`write(tmp_path, "adr/ADR-006-present.md", "# present\n")` fixture line to
+both tests; this session's commit additionally strengthens the UTF-8
+test's assertion to require `codec can't decode` in the output (Bugbot's
+version left the original weak `"check_adr_links:" in err` assertion,
+which cannot distinguish the guard's message from the real
+`UnicodeDecodeError` message, the exact ambiguity this whole finding was
+about). This session's version is a strict superset, so kept it rather
+than discarding for Bugbot's: `git merge origin/... --no-edit` auto-merged
+cleanly (git recognized the fixture-line insertions as textually
+identical), no manual conflict resolution needed.
+
+Re-verified post-merge: `check_adr_lifecycle.py` `[PASS] 1 violation(s)
+across 103 ADR record(s)`; `check_adr_links.py` `0 violation(s) across
+1591 tracked markdown file(s)`; `taste_count_ratchet.py` `575 <= baseline
+576`; `tests/validation/test_check_adr_links.py` 107 tests passed; `ruff
+check` clean.
+
+**Rebound to** `30cb898b272a42d114822238d9293fd9757d06dc`.
+
+## Addendum 33: an eleventh Copilot review round, 61 unresolved threads, not 9 (reconciled with a second concurrent-session round)
+
+This addendum was written independently by this session, in parallel with the concurrent session's Addenda 31 and 32 above: both branches forked from the same commit (`d47763245`) and neither knew of the other's follow-on work until this reconciliation. Renumbered to 33 (was locally numbered 31) so it follows rather than collides with the concurrent session's own 31 and 32.
 
 This addendum and Addenda 26 to 30 below were written independently by two concurrent sessions working the same branch across two separate divergences: the first reconciled earlier in this file (Addenda 26 to 29), the second below (Addendum 30), discovered only when this session's push was rejected a second time after the first merge's own pre-push hooks ran for over 15 minutes. Merged and reconciled both times rather than either side discarding the other's work; see "Reconciling with the concurrent session's second round" below for what the second reconciliation took.
 
@@ -1752,5 +1823,38 @@ The concurrent session pushed 7 more commits (Addendum 30 above) while this sess
 
 Re-verified after this second reconciliation: `tests/validation/test_check_adr_links.py` (148 tests, up from 142: the shared fixture fix plus none removed), `tests/validation/test_check_adr_lifecycle.py` (130 tests), `tests/test_adr_063_memory_skill_decomposition.py`, `ruff check` and the whole-tree `taste-count-ratchet` (within the 576 baseline), all clean.
 
-**Rebound to** `a8a5150c7aed038b25644b798d1abdfe7773e318`, the merge commit that reconciled this second round.
+**Rebound to** `a8a5150c7aed038b25644b798d1abdfe7773e318`, the commit this
+session had reconciled the second round to before discovering, on the next
+push attempt, that the concurrent session had moved on to a third round
+(Addendum 34 below covers that reconciliation).
 
+## Addendum 34: a third concurrent-session collision, reconciled against work already covered
+
+Fetching before this session's next push found `origin/claude/adr-evaluation-tooling-6od8rd`
+had advanced four commits past `d47763245` (the commit Addendum 33's own
+second reconciliation had already merged in) to `3a1c7928b`: the concurrent
+session's own Addenda 31 and 32 above, both written independently of this
+session and describing a fix this session had never seen. `git merge
+origin/... --no-edit` found three conflicts, all in the two QA reports
+(`tests/validation/test_check_adr_links.py` auto-merged cleanly, git
+resolving the fixture-line insertions as textually identical to what
+Addendum 32 already describes).
+
+**Content reconciliation, not code reconciliation.** Unlike the first two
+rounds, this collision carried no competing code design: the concurrent
+session's Addenda 31 and 32 describe a real fix (two test fixtures missing
+the `_has_adr_corpus` corpus sentinel) that both sides converged on
+identically once Bugbot Autofix's own weaker version (`d47763245`) had
+already landed on both branches. The only conflict was numbering: both
+sessions had independently claimed "Addendum 31" for their own new
+content. Resolved by keeping the concurrent session's Addenda 31 and 32 as
+written (they were already pushed to origin, so already the record of
+truth for readers who fetched in between) and renumbering this session's
+own colliding content from 31 to 33, with a one-paragraph note at its head
+explaining the renumbering rather than silently relabeling it.
+
+**Verification.** `tests/validation/test_check_adr_links.py`: 148 tests
+(unchanged from Addendum 33's own count; the concurrent session's fixture
+fix was already present via the auto-merge, adding no new test count).
+`tests/validation/test_check_adr_lifecycle.py`: 130 tests. `ruff check`
+clean on the three touched files. No em or en dashes in the merged prose.

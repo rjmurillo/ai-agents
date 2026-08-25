@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: a8a5150c7aed038b25644b798d1abdfe7773e318
+qaCommit: 30cb898b272a42d114822238d9293fd9757d06dc
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -844,9 +844,41 @@ and its safe redo, in that addendum.
 
 **Rebound to** `9cb04f01d9b2c74423317f92b26bdd3abcd6fada`.
 
-## Addendum 33: an eleventh Copilot review round, 61 unresolved threads, not 9 (reconciled with a concurrent session, twice)
+## Addendum 33: same rebind as Addendum 31 of the campaign report
 
-Both sessions independently fixed the same round-11 review from the same starting commit and diverged twice: once in the file this session's own push discovered `origin/claude/adr-evaluation-tooling-6od8rd` had moved past this branch (Addenda 28 to 31 of the campaign report), and again when the concurrent session pushed 7 more commits (Addendum 32 above) while this session's own pre-push hooks were still running on the first reconciliation. Merged both times rather than either side discarding the other's work; the design choices made during both reconciliations (which of two independent fixes to `check_adr_lifecycle.py`'s status-to-edge check and `check_adr_links.py`'s stale-allowance detector to keep, and how a second ADR-005 date correction and a `check_adr_links.py` corpus-shape guard were combined) are recorded in Addenda 30 and 31 of the campaign report, not repeated here.
+Cursor Bugbot found two of round-11's own new test fixtures still let
+`_has_adr_corpus` intercept them before their real assertion,
+`test_main_returns_two_when_a_file_has_invalid_utf8_content` and
+`test_validate_adr_links_reports_a_bool`. Fixed with the same
+companion-fixture pattern the sibling round-11 commit used for three
+other tests, strengthened one assertion, and mutation-proved both
+directions. `copilot-pull-request-reviewer`'s failure on this push is a
+confirmed bot-side prompt-budget limit, not a code defect. Full detail
+in that addendum.
+
+**Rebound to** `f06b2aef9eb4d242eaac673857e55ba074848b10`.
+
+## Addendum 34: same rebind as Addendum 32 of the campaign report
+
+Cursor Bugbot Autofix pushed its own identical fixture fix directly to
+the branch while this session worked the same finding; merged rather
+than discarded this session's version, since it additionally strengthens
+the UTF-8 test's assertion. Full detail in that addendum.
+
+**Rebound to** `30cb898b272a42d114822238d9293fd9757d06dc`.
+
+## Addendum 35: an eleventh Copilot review round, 61 unresolved threads, not 9 (reconciled with a concurrent session, twice); renumbered from 33 to follow Addenda 33 to 34 above
+
+This addendum was written independently by this session, in parallel with
+the concurrent session's Addenda 33 and 34 above (which cover the
+campaign report's own Addenda 31 and 32). Both branches forked from the
+same commit and neither knew of the other's follow-on work until the
+reconciliation Addendum 36 below covers. Renumbered to 35 (was locally
+numbered 33) for the same reason the campaign report renumbers its own
+colliding content from 31 to 33: the concurrent session's content was
+already pushed to origin first.
+
+Both sessions independently fixed the same round-11 review from the same starting commit and diverged twice: once in the file this session's own push discovered `origin/claude/adr-evaluation-tooling-6od8rd` had moved past this branch (Addenda 28 to 31 of the campaign report), and again when the concurrent session pushed 7 more commits (Addendum 32 of the campaign report) while this session's own pre-push hooks were still running on the first reconciliation. Merged both times rather than either side discarding the other's work; the design choices made during both reconciliations (which of two independent fixes to `check_adr_lifecycle.py`'s status-to-edge check and `check_adr_links.py`'s stale-allowance detector to keep, and how a second ADR-005 date correction and a `check_adr_links.py` corpus-shape guard were combined) are recorded in Addenda 30 and 31 of the campaign report, not repeated here.
 
 An eleventh Copilot review round found 61 unresolved threads (a prior
 session summary had tracked only 9 before a context compaction). Fixed via
@@ -862,8 +894,21 @@ skill's overbroadened ADR-042 exception. Two self-inflicted regressions
 by `pre_pr.py` before push and fixed in the same round. Two `origin/main`
 merges, five conflicts resolved by reading both sides' evidence. Full
 detail, including what was investigated and deliberately left unchanged,
-in Addendum 30 of the campaign report.
+in Addendum 33 of the campaign report (renumbered there from 31 for the
+same reason).
 
 **Rebound to** `a8a5150c7aed038b25644b798d1abdfe7773e318`, the merge commit
 that reconciled this session's second reconciliation with the concurrent
 session's follow-on push (Addendum 30 of the campaign report).
+
+## Addendum 36: same rebind as Addendum 34 of the campaign report
+
+A third concurrent-session collision: fetching before this session's next
+push found origin had advanced four commits past the commit Addendum 35's
+own reconciliation had merged in, to the concurrent session's Addenda 33
+and 34 above. Unlike the first two collisions, no competing code design
+was involved: both sides converged on an identical fix once Bugbot
+Autofix's own weaker version had already landed on both branches
+(`tests/validation/test_check_adr_links.py` auto-merged cleanly). The
+only conflict was numbering, resolved the same way as Addendum 35's own
+renumbering. Full detail in that addendum.
