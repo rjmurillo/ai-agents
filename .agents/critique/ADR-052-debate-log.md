@@ -3,7 +3,7 @@
 ## Summary
 
 - **Rounds**: 3 (Round 1: Phase 1 independent reviews, consolidated and resolved by session; Round 2: Phase 4 convergence check, all six agents re-invoked against the edited text; Round 3: a second Phase 4 convergence check, triggered by further edits made after Round 2's vote)
-- **Outcome**: Consensus reached in Round 2 and reconfirmed in Round 3 (each: 1 Accept, 5 Disagree-and-Commit, 0 Block); Round 3 is the acceptance evidence for the current text
+- **Outcome**: Consensus reached in Round 2 and reconfirmed in Round 3 (each: 1 Accept, 5 Disagree-and-Commit, 0 Block). **Correction (2026-08-25, Copilot review): "Round 3 is the acceptance evidence for the current text" overclaimed.** Round 3 is evidence for the text as it stood immediately after Round 3's own edits (see that section's own scoping note). Two further edit rounds landed after Round 3's vote and were never re-voted: the "PR #5286 review-round corrections" addendum (citation and provenance fixes, no claim change) and the "overriding PR #5291's independent rejection" addendum (a record of the owner's direct, out-of-band decision, per this file's Context section already treating the accept/reject question as owner-decided and not open to debate re-litigation). Neither changed the accept-vs-reject substance Round 3 voted on; both are editorial or authority-level, not new claims a fresh agent debate would evaluate differently. No Round 4 was run.
 - **Final Status**: Accepted (status: accepted, implemented: false); supersedes ADR-036 (status: superseded, implemented: true)
 
 ## Context

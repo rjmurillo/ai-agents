@@ -26,7 +26,7 @@ implemented: true
 The ai-agents system deploys agents to three platforms:
 
 1. **Claude Code** (`src/claude/*.md`)
-2. **GitHub Copilot CLI** (`src/copilot-cli/*.agent.md`)
+2. **GitHub Copilot CLI** (`src/copilot-cli/agents/*.agent.md`)
 3. **VS Code Copilot** (`src/vs-code-agents/*.md`)
 
 These platforms have different requirements:
