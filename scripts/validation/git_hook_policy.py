@@ -1413,7 +1413,14 @@ def _staged_debate_log_paths(repo_root: Path) -> list[str]:
 
 
 def _staged_debate_log_content(relative_path: str, repo_root: Path) -> str | None:
-    if not _is_staged_regular_file(repo_root, relative_path):
+    # Unreachable from the only caller, which filters `_staged_debate_log_paths`
+    # through `_is_staged_regular_file` before calling this. Kept rather than
+    # deleted because it is the check that stops a staged symlink from being
+    # read as review evidence, and a future caller that skips the pre-filter
+    # would otherwise inherit that hole silently. Excluded from coverage per
+    # `.agents/governance/TESTING-RIGOR.md`, which carves out unreachable
+    # defensive branches with written justification.
+    if not _is_staged_regular_file(repo_root, relative_path):  # pragma: no cover
         return None
     blob = _read_index_blob(repo_root, relative_path)
     if blob is None:

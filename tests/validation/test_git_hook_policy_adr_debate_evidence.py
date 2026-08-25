@@ -331,6 +331,63 @@ def test_a_decision_word_outside_the_verdict_window_is_not_a_verdict() -> None:
     assert "no verdict" in gap
 
 
+def _log_of_exactly(byte_count: int) -> str:
+    """Build a passing-shaped log padded to exactly ``byte_count`` bytes."""
+    head = "# A\n\n## Participants\n\narchitect\n\n### Verdict\n\nAccepted.\n"
+    pad = byte_count - len(head.encode("utf-8"))
+    assert pad >= 0, "head already exceeds the requested size"
+    return head + ("x" * pad)
+
+
+def test_the_byte_floor_is_exact() -> None:
+    """One byte under is rejected; exactly the floor is not."""
+    under = _log_of_exactly(policy.DEBATE_LOG_MIN_BYTES - 1)
+    at = _log_of_exactly(policy.DEBATE_LOG_MIN_BYTES)
+
+    assert len(under.encode("utf-8")) == policy.DEBATE_LOG_MIN_BYTES - 1
+    assert len(at.encode("utf-8")) == policy.DEBATE_LOG_MIN_BYTES
+
+    gap = policy.debate_log_evidence_gap(under)
+    assert gap is not None
+    assert "shorter than" in gap
+    assert policy.debate_log_evidence_gap(at) is None
+
+
+def test_the_section_floor_is_exact() -> None:
+    """Two headings are rejected; three are not, all else held equal."""
+    body = "\n\narchitect\n\nVerdict: Accepted.\n" + ("filler prose. " * 30)
+    two = "# A\n\n## Participants" + body
+    three = "# A\n\n## Participants\n\n### Round 1" + body
+
+    assert len(policy.DEBATE_LOG_HEADING_RE.findall(two)) == 2
+    assert len(policy.DEBATE_LOG_HEADING_RE.findall(three)) == 3
+
+    gap = policy.debate_log_evidence_gap(two)
+    assert gap is not None
+    assert "markdown sections" in gap
+    assert policy.debate_log_evidence_gap(three) is None
+
+
+@pytest.mark.parametrize(
+    ("offset", "expected_verdict"),
+    [
+        (policy.DEBATE_LOG_VERDICT_WINDOW_LINES - 1, True),
+        (policy.DEBATE_LOG_VERDICT_WINDOW_LINES, False),
+    ],
+)
+def test_the_verdict_window_is_exact(offset: int, expected_verdict: bool) -> None:
+    """The window is ``lines[i : i + N]``, so the last accepted offset is N-1.
+
+    Placing the decision one line further must not count, or the window is not
+    bounding anything.
+    """
+    lines = ["## Outcome"] + ["filler"] * (offset - 1) + ["Accepted."]
+    content = "\n".join(lines)
+    assert content.splitlines().index("Accepted.") == offset
+
+    assert policy._has_verdict(content) is expected_verdict
+
+
 def test_every_debate_log_on_main_still_passes() -> None:
     """Calibration pin: the thresholds must not false-block committed evidence."""
     critique = _ROOT / ".agents" / "critique"
