@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: b8194bf5928557c8ca3a32154803819bf44d61f0
+qaCommit: 9912a6fdfa09a8a882f3420dd9ef37ee3398962a
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `b8194bf5928557c8ca3a32154803819bf44d61f0` (see Addendum 55)
+**Validated at commit**: `9912a6fdfa09a8a882f3420dd9ef37ee3398962a` (see Addendum 57)
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -2494,4 +2494,32 @@ GitHub reported the stack (this branch on top of PR #5209) as unable to merge, c
 A round-12 Copilot review on PR #5230, after the stack merge in Addendum 54, found four stale citations and one drifted QA header: `detect_adr_changes.py`'s canonical-source citation (both trees) pointed at `generate_adr_index.py:209-216`, prose rather than the quoted code block, corrected to `224-231`; `test_adr_063_memory_skill_decomposition.py` cited line numbers (`459,470`, `252-253`) that had moved when unrelated changes shifted the file, corrected to `556,574` and `267-270`; `test_check_adr_links.py`'s file-size suppression comment froze an already-stale line count, reworded; and this file's own `Validated at commit` header still named the pre-stack-merge SHA (`997a954bf`) after `qaCommit` had already been rebound to the merge commit in Addendum 54, aligned. None of these touch executable logic: all four are docstring, comment, or QA-metadata text. Session End Validation's staleness check still fires on any code-file touch regardless of whether the change is behavioral, so `qaCommit` rebinds again.
 
 **Rebound to** `b8194bf5928557c8ca3a32154803819bf44d61f0`, the round-12 fix commit (Copilot, PR #5230 round-12 review).
+
+## Addendum 56: Addendum 53 was itself wrong; ADR-042's date is `2026-08-25`, confirmed by direct commit inspection this time
+
+Copilot's round-13 review re-flagged the exact value Addendum 53 had just "corrected", with a specific counter-citation: commit `cdf688a9f` adds real body content to ADR-042 dated 2026-08-25. Rather than trusting either side's prose, this addendum re-derives the answer from the actual git history, since the same value has now been reversed three times in this document (Addendum 41: `2026-01-17` to `2026-04-13`; Addenda 46/51: kept `2026-08-25`; Addendum 53: reverted to `2026-04-13`).
+
+**Direct verification, commands and output:**
+
+```
+$ git merge-base --is-ancestor cdf688a9f HEAD && echo YES
+YES
+$ git show -s --format='%H %aI' cdf688a9f d331cba4f
+cdf688a9f614c721f8443f12d1b5350f32913d8f 2026-08-25T08:35:32-07:00
+d331cba4f9ea50a32ca362ab0eb82f69b2188bb9 2026-08-25T06:55:31+00:00
+```
+
+Converted to UTC: `cdf688a9f` landed at `2026-08-25T15:35:32Z`, roughly 8h40m *after* `d331cba4f` (`2026-08-25T06:55:31Z`, the commit Addendum 41/53 cited as authoritative). `cdf688a9f` is also already an ancestor of this branch's `HEAD`. Its diff on ADR-042 (`git show cdf688a9f -- .agents/architecture/ADR-042-python-migration-strategy.md`) is two hunks: the frontmatter `date: 2026-04-13` to `2026-08-25`, and a new `**Downstream**:` bullet under `## Related Decisions` stating ADR-031 was rejected and ADR-028 was superseded, both "2026-08-25". The bullet is still present in the current file (`grep -n Downstream .agents/architecture/ADR-042-python-migration-strategy.md` returns line 154).
+
+**Why Addendum 53 got this wrong.** It reasoned that `d331cba4f` (mine, this session, earlier that same day) had "already settled the correct value" and that Addenda 46/51's `2026-08-25` was a repeated mistake. But `d331cba4f` came *first*; `cdf688a9f` landed nearly 9 hours later, already on `main`, already an ancestor, adding a real content change the debate log's own "content, not touch" rule (`.agents/critique/ADR-073-phase2-backfill-debate-log.md:101-125`) explicitly covers: a factual claim about another record's status, added to this record's own body. Addendum 53 verified only that `2026-04-13` matched Amendment 1 (true, as of `d331cba4f`) and never checked `git log` for anything landing after it. Addenda 46 and 51 had the reasoning right the first time.
+
+**Fixed.** `.agents/architecture/ADR-042-python-migration-strategy.md` frontmatter restored to `date: 2026-08-25`; `.agents/architecture/README.md` regenerated (`uv run python build/scripts/build_all.py`) to match; `.agents/critique/ADR-073-phase2-backfill-debate-log.md` Batch 30 added, correcting Batch 29 with this same evidence. Not silently overwriting Batch 29 or Addendum 53's prose, for the same reason Addendum 53 gave for not overwriting Addenda 46/51: a report that erases its own repeated wrong call teaches the next reader the mistake never happened, when it happened three times now.
+
+`check_adr_lifecycle.py` corpus check and `build/scripts/build_all.py --check` re-run clean after the fix.
+
+## Addendum 57: commit `9912a6fdf` lands the Addendum 56 fix plus the ADR-063 fence-stripping fix, `qaCommit` rebinds again
+
+Addendum 56 documented the investigation; commit `9912a6fdfa09a8a882f3420dd9ef37ee3398962a` is where the ADR-042 date restore, the debate log's Batch 30, and the ADR-063 title test's fence-stripping fix (a separate round-13 finding, on `tests/test_adr_063_memory_skill_decomposition.py:163`) actually landed. Session End Validation's staleness check fires again on this code/content touch; `qaCommit` and the `Validated at commit` header both rebind to it.
+
+**Rebound to** `9912a6fdfa09a8a882f3420dd9ef37ee3398962a`.
 

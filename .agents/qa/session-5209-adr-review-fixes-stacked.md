@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: b8194bf5928557c8ca3a32154803819bf44d61f0
+qaCommit: 9912a6fdfa09a8a882f3420dd9ef37ee3398962a
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -9,7 +9,7 @@ qaCommit: b8194bf5928557c8ca3a32154803819bf44d61f0
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `b8194bf5928557c8ca3a32154803819bf44d61f0` (see Addendum 56)
+**Validated at commit**: `9912a6fdfa09a8a882f3420dd9ef37ee3398962a` (see Addendum 58)
 
 ## Verdict
 
@@ -1343,4 +1343,14 @@ Same discovery, same fix: GitHub reported the stack unable to merge, citing conf
 Same discovery, same fix: a round-12 Copilot review on PR #5230 found four stale citations (`detect_adr_changes.py`'s canonical-source line range in both trees, `test_adr_063_memory_skill_decomposition.py`'s two line-number citations, `test_check_adr_links.py`'s frozen line-count suppression comment) and this file's own `Validated at commit` header still naming the pre-stack-merge SHA after `qaCommit` had already moved on in Addendum 55. All five fixes are docstring, comment, or QA-metadata text; none touch executable logic. Full detail in the campaign report's Addendum 55.
 
 **Rebound to** `b8194bf5928557c8ca3a32154803819bf44d61f0`, the round-12 fix commit (Copilot, PR #5230 round-12 review).
+
+## Addendum 57: same ADR-042 date reversal-of-a-reversal as Addendum 56 of the campaign report
+
+Same discovery, same fix, this time verified against the raw git history rather than against either side's prose: Copilot's round-13 review re-flagged ADR-042's frontmatter `date`, which Addendum 53's own equivalent in this file had reverted to `2026-04-13`. Direct commit inspection (`git merge-base --is-ancestor`, `git show -s --format='%H %aI'`, `git show <sha> -- <path>`) shows commit `cdf688a9f` (PR #5283, already an ancestor of `HEAD`) landed roughly 8h40m *after* the `d331cba4f` commit Addendum 53 treated as authoritative, and its diff adds a real body change to ADR-042 (a `**Downstream**:` bullet documenting ADR-031's rejection and ADR-028's supersession) in the same hunk that bumps `date` to `2026-08-25`. That content is still in the file today. Restored `date: 2026-08-25`; regenerated `.agents/architecture/README.md`; added Batch 30 to the debate log correcting Batch 29 with this evidence. Full detail, including the exact commands run, is in the campaign report's Addendum 56.
+
+## Addendum 58: same landing commit and rebind as Addendum 57 of the campaign report
+
+Commit `9912a6fdfa09a8a882f3420dd9ef37ee3398962a` is where Addendum 57's ADR-042 date restore, the debate log's Batch 30, and a separate round-13 finding (the ADR-063 title test's fence-stripping gap, on `tests/test_adr_063_memory_skill_decomposition.py:163`) actually landed. `qaCommit` and the header rebind to it.
+
+**Rebound to** `9912a6fdfa09a8a882f3420dd9ef37ee3398962a`.
 
