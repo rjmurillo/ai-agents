@@ -136,6 +136,34 @@ class TestSchemaRejectsInvalidEnvelopes:
         errors = _validate(envelope)
         assert any("is not of type 'string'" in e for e in errors)
 
+    def test_empty_metadata_script_is_rejected(self) -> None:
+        """Before this fix, the schema typed Script as plain "string" with
+        no minLength while validate_envelope's truthiness check already
+        rejected an empty value: the schema was looser than the validator
+        it is supposed to agree with, the reverse-polarity twin of the
+        Error.Message gap this file's test_empty_error_message_is_rejected
+        pins (adr-review security seat, ADR-103 Round 5 convergence check).
+        """
+        envelope = {
+            "Success": True,
+            "Data": None,
+            "Error": None,
+            "Metadata": {"Script": "", "Timestamp": "t"},
+        }
+        errors = _validate(envelope)
+        assert any("should be non-empty" in e for e in errors)
+
+    def test_empty_metadata_timestamp_is_rejected(self) -> None:
+        """Same gap as test_empty_metadata_script_is_rejected, for Timestamp."""
+        envelope = {
+            "Success": True,
+            "Data": None,
+            "Error": None,
+            "Metadata": {"Script": "x", "Timestamp": ""},
+        }
+        errors = _validate(envelope)
+        assert any("should be non-empty" in e for e in errors)
+
     def test_non_object_top_level_is_rejected(self) -> None:
         errors = _validate(["not", "an", "object"])
         assert any("is not of type 'object'" in e for e in errors)
