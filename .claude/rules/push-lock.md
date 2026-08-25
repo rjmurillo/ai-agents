@@ -99,6 +99,14 @@ A commit refused this way is not lost. Wait for the in-flight push to finish
 If the lock is stuck (the holder crashed without releasing it), set
 `SKIP_PUSH_LOCK_COMMIT_GUARD=1` to bypass this one check.
 
+Known limitation: this is a point-in-time probe, not a held lock across the
+commit. It runs early in the piped `pre-commit` sequence and releases the
+lock immediately, so a push can still acquire the lock during a later
+pre-commit job and start its pre-push suite before `git commit` finishes
+updating HEAD. It narrows the race issue #5123 describes; it does not close
+it. Closing it fully would need the commit and push paths to share one held
+lock across their complete mutation windows, which this design does not do.
+
 ## Checking
 
 ```bash

@@ -28,12 +28,26 @@ where ``<slug>`` is the current branch name with every ``/`` replaced by
 ``-``. This checker only ever reads that path's lock state; it never creates
 or holds the lock itself beyond the instant it takes to probe it.
 
+Known limitation: this is a point-in-time probe, not held exclusion. It runs
+early in the piped ``pre-commit`` sequence and releases the lock immediately,
+so a push can still acquire the lock during one of the *later* pre-commit
+jobs (markdown lint, ruff, etc.) and start its pre-push suite before `git
+commit` finishes updating HEAD, reproducing the same issue #5123 race this
+guard exists to prevent. Closing that window fully would require the commit
+and push paths to share one held lock across their complete mutation
+windows, which this probe-and-release design does not attempt; it narrows
+the race from "any commit at any point" to "a commit that starts while the
+lock is already held," not zero.
+
 A refused commit is not lost: wait for the in-flight push to finish (or its
 pre-push suite to fail and release the lock), then commit again. If the lock
 is stuck (the holder crashed without releasing it, or you need to commit
 regardless), set ``SKIP_PUSH_LOCK_COMMIT_GUARD=1`` to bypass this one check,
-matching the ``SKIP_YAMLLINT``/``SKIP_CLI_E2E``/``FORCE_PUSH_OK`` escape-hatch
-convention in ``scripts/validation/git_hook_policy.py``.
+matching the ``SKIP_YAMLLINT``/``FORCE_PUSH_OK`` escape-hatch convention in
+``scripts/validation/git_hook_policy.py``. Not every ``SKIP_*`` name there is
+a real bypass: ``SKIP_CLI_E2E=true`` is explicitly rejected
+(``git_hook_policy.py:6857-6862`` prints "cannot bypass a required CLI E2E
+gate" and returns exit 2), so it is not cited here as precedent.
 
 EXIT CODES (ADR-035):
   0 - no push is in flight for this branch, or the check does not apply

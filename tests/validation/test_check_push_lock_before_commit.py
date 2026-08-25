@@ -273,6 +273,29 @@ def test_main_exits_zero_and_skips_the_lock_check_when_bypass_env_is_set(
         os.close(holder_fd)
 
 
+@_posix_only
+@pytest.mark.parametrize("bad_value", ["0", "true", "yes", ""])
+def test_main_does_not_bypass_on_a_non_1_value(monkeypatch, tmp_path, bad_value):
+    """Edge case for the SKIP_PUSH_LOCK_COMMIT_GUARD flag (config-catalog
+    checklist): only the exact string "1" bypasses; every other value,
+    including truthy-looking ones, leaves the guard enforced."""
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    lock_dir = tmp_path / "locks"
+    lock_dir.mkdir()
+    lock_path = lock_dir / "push-lock-main.lock"
+    holder_fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT)
+    fcntl.flock(holder_fd, fcntl.LOCK_EX)
+    monkeypatch.setattr(checker, "_lock_directory", lambda: lock_dir)
+    monkeypatch.setenv(checker.SKIP_ENV, bad_value)
+
+    try:
+        assert checker.main(["--repo-root", str(repo)]) == 1
+    finally:
+        fcntl.flock(holder_fd, fcntl.LOCK_UN)
+        os.close(holder_fd)
+
+
 def test_main_prints_the_examined_branch_on_success(monkeypatch, tmp_path, capsys):
     repo = tmp_path / "repo"
     _init_git_repo(repo)
