@@ -1,7 +1,7 @@
 # Retrospective: ADR-073 Phase 2 frontmatter backfill (issue #5190)
 
 Branch `claude/autoplan-goal-vd6pmg`. 67 ADRs carrying ADR-073 lifecycle
-frontmatter, one review log, one test fix. 70 files.
+frontmatter, one review log, a taste-lints fix, and two test files. 73 files.
 
 ## What was supposed to happen
 
@@ -108,14 +108,14 @@ content rather than a touch to satisfy the gate.
 |------|-------|------------|
 | `adr-policy` | ADR commits need a staged debate log | Review log staged with all 14 batches |
 | `staged-dash-policy` | Four in-scope ADRs carried pre-existing em dashes | Replaced with colons and commas in ADR-021, 032, 053, 056 |
-| `scope-policy` / `branch-scope` | 70 files at final count, hard limit 50 | Owner-authorized, scoped `SKIP_SCOPE_CHECK=1`; documented in the log and the PR |
+| `scope-policy` / `branch-scope` | 73 files at final count, hard limit 50 | Owner-authorized, scoped `SKIP_SCOPE_CHECK=1`; documented in the log and the PR |
 | `python-tests` | `test_adr_063` read the title from `splitlines()[0]` | Test now finds the first H1; frontmatter legitimately precedes the title now |
 | `retrospective-policy` | Test fix made the push non-documentation-only | This file |
 
 The `python-tests` failure is the one worth noting: the ADR-073 schema puts YAML
 ahead of the H1, so any test asserting a title on line 1 breaks. Exactly one test
-in the suite made that assumption. The six frontmatter-free ADRs still deferred
-will not surface a second one, but a future ADR-tooling change should expect it.
+in the suite made that assumption. The two ADRs still deferred will not surface
+a second one, but a future ADR-tooling change should expect it.
 
 ## Failure mode classification
 
@@ -227,8 +227,14 @@ Per `.claude/rules/retros.md` MUST-4, each item carries an owner or an issue.
 
 ## Open at hand-off
 
-The PR is a draft and references #5190 with `Refs`, not `Fixes`. Six records
-(ADR-002, 024, 025, 030, 036, 039) are deferred pending #5193, #5195, and #5192,
-so the issue's own acceptance criterion is not fully met. A follow-up after those
-three land can pick up the remaining six plus the ten partial-frontmatter
-records and close it.
+The PR references #5190 with Refs, not a closing keyword, and closes #5290.
+
+**Two records remain deferred: ADR-024 and ADR-025**, both owned by #5192, which
+is also where PR #5209 is doing the reciprocal-supersession work. Four records
+that were deferred when this retro was first written are no longer: ADR-002 and
+ADR-039 ship as `deprecated`, ADR-030 as `rejected`, and ADR-036 turned out never
+to have belonged to the #5192 problem at all. The ten partial-frontmatter records
+from #5290 are complete.
+
+So #5190's criterion that every `ADR-[0-9]*.md` carry frontmatter is met except
+for those two. A follow-up after #5192 lands closes the gap.

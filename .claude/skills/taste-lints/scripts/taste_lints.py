@@ -17,9 +17,16 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import yaml
+
 EXIT_SUCCESS = 0
 EXIT_ERROR = 1
 EXIT_VIOLATIONS = 10
+
+# Frontmatter is metadata. A block that has not closed by here is not
+# frontmatter, and bounding the scan keeps _suppression_window cheap on every
+# file in the repository.
+_MAX_FRONTMATTER_LINES = 50
 
 SUPPRESSION_PATTERN = re.compile(
     r"#\s*taste-lint:\s*ignore\s+([\w-]+)",
@@ -419,13 +426,30 @@ def _suppression_window(lines: list[str]) -> list[str]:
     An earlier attempt skipped the frontmatter instead and broke ADR-068 and
     ADR-085, which is the failure this docstring exists to prevent recurring.
 
-    A closing delimiter is required. Without one, a leading ``---`` that is
-    really a horizontal rule would extend the window to the end of the file.
+    A closing delimiter is not sufficient on its own. A document that opens with
+    a horizontal rule and carries an unrelated ``---`` separator far below would
+    otherwise have its window widened to that separator, silently disabling a
+    lint hundreds of lines from any real suppression. So the block must also
+    parse as a YAML mapping, which is what frontmatter is. A horizontal rule
+    followed by prose does not.
+
+    The scan for the closing delimiter is bounded. Frontmatter is metadata, so a
+    block that has not closed within ``_MAX_FRONTMATTER_LINES`` is not
+    frontmatter, and stopping there keeps this cheap on every file in the repo.
     """
-    if lines and lines[0].strip() == "---":
-        for index in range(1, len(lines)):
-            if lines[index].strip() in {"---", "..."}:
-                return lines[: index + 11]
+    if not lines or lines[0].strip() != "---":
+        return lines[:10]
+
+    for index in range(1, min(len(lines), _MAX_FRONTMATTER_LINES)):
+        if lines[index].strip() not in {"---", "..."}:
+            continue
+        try:
+            block = yaml.safe_load("".join(lines[1:index]))
+        except yaml.YAMLError:
+            return lines[:10]
+        if isinstance(block, dict):
+            return lines[: index + 11]
+        return lines[:10]
     return lines[:10]
 
 

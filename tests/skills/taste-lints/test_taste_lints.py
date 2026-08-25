@@ -1008,12 +1008,35 @@ class TestSuppressionSurvivesFrontmatter:
 
         assert has_suppression(lines, "file-size") is False
 
-    def test_unterminated_frontmatter_does_not_swallow_the_body(self) -> None:
+    def test_unterminated_frontmatter_does_not_widen_the_window(self) -> None:
         # A leading `---` with no closing delimiter is a horizontal rule, not
-        # frontmatter. Skipping to EOF would hide every suppression in the file.
-        lines = ["---\n", self.SUPPRESSION, "body\n"]
+        # frontmatter, so the window stays at 10 lines. The suppression sits
+        # past line 10 on purpose: on line 2 it would fall inside both the
+        # correct window and a buggy to-EOF one, and the test could not fail.
+        lines = ["---\n", *["filler\n"] * 12, self.SUPPRESSION]
 
-        assert has_suppression(lines, "file-size") is True
+        assert has_suppression(lines, "file-size") is False
+
+    def test_a_horizontal_rule_pair_is_not_frontmatter(self) -> None:
+        # The regression Copilot found: a doc opening with a horizontal rule and
+        # carrying an unrelated `---` separator far below. Accepting any second
+        # `---` as the terminator widened the window to that separator and
+        # disabled a lint hundreds of lines from any real suppression. The body
+        # between the delimiters is prose, not a YAML mapping.
+        lines = ["---\n", "# Title\n", *["filler\n"] * 300, "---\n", self.SUPPRESSION]
+
+        assert has_suppression(lines, "file-size") is False
+
+    def test_frontmatter_scalar_body_is_not_a_mapping(self) -> None:
+        # Parses as YAML, but as a string rather than a mapping. Not frontmatter.
+        lines = ["---\n", "just a sentence\n", "---\n", *["filler\n"] * 9, self.SUPPRESSION]
+
+        assert has_suppression(lines, "file-size") is False
+
+    def test_malformed_yaml_between_delimiters_falls_back_to_ten_lines(self) -> None:
+        lines = ["---\n", "key: [unclosed\n", "---\n", *["filler\n"] * 9, self.SUPPRESSION]
+
+        assert has_suppression(lines, "file-size") is False
 
     def test_empty_file_is_safe(self) -> None:
         assert has_suppression([], "file-size") is False
