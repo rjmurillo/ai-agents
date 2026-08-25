@@ -2,26 +2,27 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "skill-output.schema.json",
   "title": "Skill Output Envelope",
-  "description": "Standard envelope for all skill script outputs per ADR-051",
+  "description": "Standard envelope for all skill script outputs per ADR-056, corrected by ADR-103",
   "type": "object",
-  "required": ["Success", "Metadata"],
+  "required": ["Success", "Data", "Error", "Metadata"],
   "properties": {
     "Success": {
       "type": "boolean",
       "description": "Whether the operation succeeded"
     },
     "Data": {
-      "description": "Operation-specific result data (null on failure)"
+      "description": "Operation-specific result data. Typically null on failure, but write_skill_error's `extra` parameter can populate it with additional context alongside an error, and several current call sites do this (for example `.claude/skills/github/scripts/pr/why_pr_blocked.py:565`, `get_pr_checks.py:760`, and `add_pr_review_thread_reply.py:195` all pass `extra={...}` on an error path), so the schema does not constrain Data to null when Success is false."
     },
     "Error": {
       "oneOf": [
         { "type": "null" },
         {
           "type": "object",
-          "required": ["Message", "Code"],
+          "required": ["Message", "Code", "Type"],
           "properties": {
             "Message": {
               "type": "string",
+              "minLength": 1,
               "description": "Human-readable error message"
             },
             "Code": {
@@ -30,8 +31,8 @@
             },
             "Type": {
               "type": "string",
-              "enum": ["NotFound", "ApiError", "AuthError", "InvalidParams", "Timeout", "General"],
-              "description": "Machine-readable error category"
+              "enum": ["NotFound", "ApiError", "AuthError", "InvalidParams", "RateLimitError", "Timeout", "General", "VerificationFailed"],
+              "description": "Machine-readable error category. Required per ADR-103."
             }
           }
         }
@@ -43,6 +44,7 @@
       "properties": {
         "Script": {
           "type": "string",
+          "minLength": 1,
           "description": "Name of the skill script"
         },
         "Version": {
@@ -51,6 +53,7 @@
         },
         "Timestamp": {
           "type": "string",
+          "minLength": 1,
           "format": "date-time",
           "description": "ISO 8601 timestamp"
         }
