@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: ac48551ce7b4b29ca73e4792fe52ccb01c60540c
+qaCommit: f1b026885ed51aea56f864b51eae4bf5cd096127
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1712,3 +1712,72 @@ batch once a human explicitly authorized the documented
 Commit `ac48551ce7b4b29ca73e4792fe52ccb01c60540c`.
 
 **Rebound to** `ac48551ce7b4b29ca73e4792fe52ccb01c60540c`.
+
+## Addendum 33: a direct merge of `origin/main`, plus a taste-lint suppression the merge surfaced
+
+This branch had never merged `origin/main` directly, only inherited
+occasional main-merges indirectly through PR #5209's base branch. A
+human explicitly authorized merging `origin/main` in and resolving the
+result. `git merge --no-commit --no-ff origin/main` in a disposable
+worktree (same practice as Addenda 27, 30, and 32), then repeated on
+the real branch, surfaced six real conflicts, none the QA-doc shape:
+five ADR governance documents and one test file, all in ADR-073
+lifecycle-frontmatter territory. `origin/main`'s own bulk normalization
+commit (`1d15e0d06`, "ADR-073 lifecycle frontmatter across 67 ADRs")
+had landed independently of this branch's own ADR-073 backfill and
+provenance work, so the same files carried two different, uncoordinated
+edits.
+
+Resolution, file by file:
+
+- `ADR-005`, `ADR-042`, `ADR-063`: took `origin/main`'s normalized
+  `date`/`decision-makers` frontmatter values as the later, deliberate
+  bulk pass; kept this branch's body content changes (an Acceptance
+  Evidence section, the dropped prose status-duplication, the
+  `review-by` field) where `origin/main` had not touched the same
+  lines.
+- `ADR-032`: a trivial one-word wording difference in the same
+  sentence from two independent edits; kept this branch's phrasing.
+- `ADR-055`: kept this branch's full Provenance section (duplicate-slug
+  history, exception-marker rename rationale, a metrics update, a
+  review-schedule fix) over `origin/main`'s minimal frontmatter-only
+  patch. First pass took `origin/main`'s `supersedes: []` on the theory
+  that it was the more recent, deliberate decision; `check_adr_lifecycle.py`'s
+  `supersession-reciprocal` ratchet caught that this was wrong; it rose
+  from 0 to 2 because `ADR-024` and `ADR-025` already carry
+  `superseded-by: ADR-055`, set by this branch's own `25b263d16` before
+  `origin/main`'s bulk commit existed. `origin/main`'s author had not
+  seen that commit when writing the struck-supersession note, so its
+  `supersedes: []` broke a reciprocal relationship this branch had
+  already completed correctly. Restored `supersedes: [ADR-024, ADR-025]`
+  and rewrote the Provenance note to describe the reciprocal state
+  accurately instead of the now-false "not yet in frontmatter" claim.
+- `tests/test_adr_063_memory_skill_decomposition.py`: both sides
+  independently fixed the same frontmatter-precedes-H1 test; kept this
+  branch's version (asserts exactly one matching title line, carries a
+  richer docstring naming the specific coupling bug it replaces).
+
+Verified: `check_adr_links.py`, `check_adr_lifecycle.py`
+(`supersession-reciprocal` 0/0 after the fix), `check_adr_uniqueness.py`,
+and the ADR-063 test file all pass. 1481 tests across the merge's
+non-ADR touched areas pass. No leftover conflict markers, no em/en
+dashes in edited prose. Merge commit `72da57ae5f3bc2f19f5001013ae31cbf4fa88033`.
+
+Re-running `scripts/ci/merge_tree_ratchet_check.py` against the fresh
+`origin/main` after the merge landed still failed: `taste count ratchet:
+REGRESSION. 577 > effective baseline 576`. Diffing full `(file, rule)`
+violation sets between `origin/main` and this branch (`ci-scripts.md`
+MUST-15 practice) isolated the single new entry to
+`tests/validation/test_check_adr_links.py`, which crossed the 500-line
+`file-size` threshold to 1001 lines over ten rounds of small regression-test
+additions in this same campaign, no single round crossing the ratchet on
+its own. Confirmed pre-existing on this branch
+(`163fddb7a6960bba2dafc48b7e8232cb3b562b75:tests/validation/test_check_adr_links.py`
+was already 1001 lines), not introduced by the merge. Splitting the file
+into cohesive modules is real work out of scope for a merge task; applied
+the documented `# taste-lint: ignore file-size` escape hatch (issue #3779)
+with a rationale comment instead of raising the baseline (forbidden,
+`ci-scripts.md` MUST-NOT-4). Fix commit `f1b026885ed51aea56f864b51eae4bf5cd096127`.
+`merge_tree_ratchet_check.py` passes clean after that commit.
+
+**Rebound to** `f1b026885ed51aea56f864b51eae4bf5cd096127`.

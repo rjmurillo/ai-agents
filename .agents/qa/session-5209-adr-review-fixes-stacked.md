@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: ac48551ce7b4b29ca73e4792fe52ccb01c60540c
+qaCommit: f1b026885ed51aea56f864b51eae4bf5cd096127
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -9,7 +9,7 @@ qaCommit: ac48551ce7b4b29ca73e4792fe52ccb01c60540c
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `ac48551ce7b4b29ca73e4792fe52ccb01c60540c` (see Addendum 33)
+**Validated at commit**: `f1b026885ed51aea56f864b51eae4bf5cd096127` (see Addendum 34)
 
 ## Verdict
 
@@ -1088,3 +1088,14 @@ Addendum 32 above. Merge commit
 commit `ac48551ce7b4b29ca73e4792fe52ccb01c60540c`.
 
 **Rebound to** `ac48551ce7b4b29ca73e4792fe52ccb01c60540c`.
+
+## Addendum 34: a direct merge of `origin/main`, plus a taste-lint suppression the merge surfaced
+
+Same merge and same taste-lint fix as Addendum 33 of the campaign report
+(`.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`); full detail,
+including the file-by-file conflict resolution and the ratchet-diagnosis
+evidence, lives there. Merge commit
+`72da57ae5f3bc2f19f5001013ae31cbf4fa88033`; taste-lint suppression fix
+commit `f1b026885ed51aea56f864b51eae4bf5cd096127`.
+
+**Rebound to** `f1b026885ed51aea56f864b51eae4bf5cd096127`.
