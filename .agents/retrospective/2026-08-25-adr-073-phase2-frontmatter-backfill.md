@@ -129,6 +129,15 @@ because nothing external would have caught either one.
 | Shallow clone read as complete history | **10. Silent defaults and guard-clause suppression** | High | The class covers absence-of-signal treated as signal. `git log --follow -1` on a shallow clone does not error; it returns the boundary commit's date, so missing history is indistinguishable from a real answer. Had it shipped, all 53 records carry one wrong date and no gate objects. |
 | Both `implemented` proxies trusted | **9. Confident-incorrectness recurrence** | High | The class shape is "partial signal, premature conclusion, confident delivery, multi-round correction". A reference count is partial signal; it was nearly delivered as fact for 53 records. Six were wrong and were only caught by opening the artifacts. |
 
+The unifying property across both, and the reason they belong together: **the
+call site has no way to know the operation did not do what its name claims.**
+`git log --follow -1` returns a date whether or not the history behind it is
+complete, and a reference count returns a number whether or not the references
+mean what the caller assumes. Neither has a return code, a warning, or any other
+channel that distinguishes the good case from the bad one. This framing is taken
+from the parallel retrospective draft in commit `e51e34f9`, which reached the
+same class by a different route.
+
 **Proposed addition to class 10, no new class needed.** Class 10's shape list
 enumerates six suppression forms, all of them in-process (`try/except: pass`,
 `value or default`, `dict.get` with a default, guard-clause early exit, schema
@@ -165,11 +174,26 @@ Commits and artifacts, all on branch `claude/autoplan-goal-vd6pmg` in
 | Review log with the full mapping and findings | `.agents/critique/ADR-073-phase2-backfill-debate-log.md` |
 | Test broken and fixed by the schema change | `tests/test_adr_063_memory_skill_decomposition.py` |
 
-Every issue reference above is in `rjmurillo/ai-agents`. Copilot's second review
-round reported these as pointing at `rjmurillo/moq.analyzers`; that finding was
-checked against this file and the review log and is a false positive. No
-`moq.analyzers` string appears in either. The only occurrences in the repository
-are in unrelated files this PR does not touch.
+Every issue reference above is in `rjmurillo/ai-agents`.
+
+**Correction, and a lesson in its own right.** Copilot's second review round
+reported the issue links in this file as pointing at `rjmurillo/moq.analyzers`.
+Checked against the local working tree, that looked like a false positive: no
+such string was present. It was not a false positive. A second agent was editing
+the same branch concurrently and had pushed `e51e34f9`, which added an Evidence
+table whose six links all pointed at `moq.analyzers`, plus a Remediation table
+with four `TBD` owners. Copilot was reviewing the pushed branch; the local tree
+was behind it.
+
+Both versions of those sections survived the merge, and this file briefly
+carried the duplicate and its wrong links. The duplicates are removed and this
+file keeps the corrected version.
+
+The lesson: **on a shared branch, "I checked and it is not there" is a statement
+about your working tree, not about the branch.** Fetch before ruling a review
+finding a false positive. The same shape as the shallow-clone failure above, one
+level up: a local view that is silently incomplete, and an answer that looks
+authoritative because the command succeeded.
 
 ## Remediation
 

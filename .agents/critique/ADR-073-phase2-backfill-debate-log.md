@@ -250,12 +250,13 @@ had in fact shipped.
 
 Records where `implemented: false` survived verification: ADR-010 (no
 evaluator/optimizer artifact in the tree, and the only commits citing it are
-documentation cross-reference fixes), ADR-011, ADR-012, ADR-048 (three MCP
-servers, none built; there is no `mcp/` tree), ADR-018 (the decision was
-session-local caching and no git-tracked cache, which left no artifact),
-ADR-022, ADR-028 (zero artifacts and zero commits of any kind citing it),
-ADR-031, ADR-052, ADR-061, ADR-064, ADR-065 (`success_criterion` appears
-nowhere in the tree), ADR-072.
+documentation cross-reference fixes), ADR-011, ADR-012, ADR-013, ADR-048 (four
+MCP servers, none built; there is no `mcp/` tree; ADR-013's schema stub at
+`src/agent-registry-schema.ts` is unused TypeScript interfaces, not the decided
+MCP server), ADR-018 (the decision was session-local caching and no git-tracked
+cache, which left no artifact), ADR-022, ADR-028 (zero artifacts and zero
+commits of any kind citing it), ADR-031, ADR-052, ADR-061, ADR-064, ADR-065
+(`success_criterion` appears nowhere in the tree), ADR-072.
 
 ### Records carrying a status/implementation mismatch, deliberately
 
