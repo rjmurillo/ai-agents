@@ -1,3 +1,14 @@
+---
+id: ADR-026
+status: accepted
+date: 2026-07-27
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-026: PR Automation Concurrency and Safety Controls
 
 ## Status
@@ -116,7 +127,7 @@ function Test-SafeBranchName {
 **Rejected Alternative**: Deploy live immediately
 - **Why rejected**: Automation bugs could close valid PRs or corrupt data; reversible after confidence established
 
-**Update (2024-12-24)**: Dry run flag removed entirely after successful validation period.
+**Update (2025-12-24)**: Dry run flag removed entirely after successful validation period.
 - **Reason**: Bug in dry run flag parsing caused scheduled runs to incorrectly operate in dry run mode (empty string evaluated as true)
 - **Solution**: Simplified by removing the flag - workflow now always performs actual operations
 - **Impact**: Net reduction of 76 lines of code, simpler maintainability

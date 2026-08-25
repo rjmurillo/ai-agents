@@ -1,8 +1,64 @@
+---
+id: ADR-002
+status: deprecated
+date: 2026-08-25
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-002: Agent Model Selection Optimization
 
 ## Status
 
-Provisionally Superseded by ADR-039 (2026-01-03 to 2026-01-17)
+Deprecated (2026-08-25).
+
+### Resolution of the provisional supersession (2026-08-25)
+
+The two notes below are retained as written, because they are the record of what
+was believed at the time. Both are now resolved, and this section is the
+resolution.
+
+**The ADR-039 supersession did not hold.** ADR-039's provisional window
+(2026-01-03 to 2026-01-17) expired without its validation ever being performed,
+and its downgrades were reverted. Verified against the live tree: `model:` in the
+agent frontmatter for orchestrator, architect, independent-thinker, roadmap,
+high-level-advisor, and security all read `opus`, which is this ADR's assignment,
+not ADR-039's downgrade. ADR-039 is deprecated in the same change for that
+reason.
+
+**That does not revive this ADR as `accepted`,** and the status here is
+`deprecated` rather than a restoration, for two independent reasons.
+
+First, this ADR's own table does not describe the live tree either. It assigns
+`critic` and `qa` to Sonnet; both are `opus` today. It opens by scoping itself to
+"All 18 agents in the ai-agents repository"; there are 33 agent files under
+`.claude/agents/` now. A table that matches neither the tree nor its own stated
+scope is not a live decision, whatever happened to the ADR that tried to replace
+it.
+
+Second, the question this ADR answers has been re-answered on better grounds.
+ADR-080 (accepted, 2026-07-11) governs model pins now, and it supersedes this
+ADR's method rather than its numbers. Its Context section rejects exactly the
+reasoning ADR-002 used: "The pins encode a guess, not a measurement." Where this
+ADR scored agents across five dimensions and derived assignments from the scores,
+ADR-080 requires a pin to justify itself against the harness-inherited default or
+not exist. `scripts/validation/check_model_pins.py` enforces that.
+
+`superseded-by` is deliberately left `null`. Naming ADR-080 there would require
+the reciprocal `supersedes: [ADR-002]` on ADR-080, and editing an accepted ADR is
+outside the scope of this backfill. The relationship is recorded in prose here
+until someone makes it on both sides at once.
+
+`scripts/validation/model_pin_baseline.json` is the artifact that tracks the
+remaining pins. Read its own description before citing it: "Draining ratchet:
+this count must never grow and should shrink each release until empty." It is a
+debt register, not an endorsement of the assignments it contains, and it is not
+evidence that this ADR's table is frozen or blessed.
+
+### Original notes (2025-12-16 to 2026-01-03), retained
 
 **Note**: ADR-039 is in 2-week provisional status pending validation. If validation fails, ADR-002 assignments will be restored.
 

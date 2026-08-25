@@ -19,6 +19,8 @@ implemented: false
 
 This acceptance does not contest ADR-036 §Intentional Divergence (the reading that 2-13% Claude-to-template similarity reflects deliberate platform differentiation, not sync failure). See the note under "Evidence of Failure" below.
 
+**Contradicted, then overridden, by PR #5291 (merged 2026-08-25T04:51:15Z, a separate autonomous session on branch `claude/autoplan-goal-vd6pmg`).** That PR's own independent 6-agent debate reached `status: rejected` for this record (3-to-1, high-level-advisor dissenting for `proposed`), citing the same zero-implementation fact as this record's "Not implemented" paragraph above, and citing ADR-036's "BY DESIGN" rebuttal of the similarity-drift evidence as unengaged. Put to the owner directly on this branch, after both decisions existed: the owner's position was that "no implementation" is not, on its own, a reason to reject a proposal that is buildable, and reaffirmed accept. This record's frontmatter and this Status section stand as the accept decision; PR #5291's rejected text is superseded by this merge, not merged alongside it. Issue #5282 tracks the Migration Plan this acceptance now commits to actually building, rather than leaving indefinitely aspirational.
+
 ## Author
 
 rjmurillo-bot (autonomous session, Issue #124)

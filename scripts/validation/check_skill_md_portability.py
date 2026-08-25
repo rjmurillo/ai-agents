@@ -43,16 +43,30 @@ Baseline ratchet:
   so the baseline can be tightened with ``--update-baseline``.
 
 Scope: ``*.md`` under the ``skills/`` tree of every plugin root listed in
-``PLUGIN_ROOTS``, plus the flat source trees in ``EXTRA_SCAN_ROOTS``
-(``.claude/commands`` and ``templates/agents``). These extra directories ship
-or generate shipped output, but sit outside plugin-root ``skills/`` sources.
+``PLUGIN_ROOTS``, plus the flat source and generated trees in
+``EXTRA_SCAN_ROOTS`` (``.claude/commands``, ``templates/agents``, and
+``src/copilot-cli/instructions``). These extra directories ship or generate
+shipped output, but sit outside plugin-root ``skills/`` sources.
 ``.claude/commands`` generates Copilot CLI skills under
 ``src/copilot-cli/skills/`` via ``build/scripts/generate_commands.py``; that
 mirror is scanned by the plugin-root pass. ``templates/agents`` generates
 Copilot CLI agents under ``src/copilot-cli/agents/`` via
 ``build/generate_agents.py``; this validator does not scan agent outputs, so
-the template source is the only covered surface. See issues #3578
-(plugin-root widening) and #3646 (commands and templates/agents widening).
+the template source is the only covered surface. ``src/copilot-cli/instructions``
+is the generated Copilot instruction mirror of ``.claude/rules/*.md`` via
+``build/scripts/generate_rules.py``. Its per-rule contract docstring
+(lines 20-32) lists the transform steps for emitting
+``.github/instructions/<name>.instructions.md`` (rename ``paths:`` to
+``applyTo:``, drop ``alwaysApply:``/``priority:``, preserve
+``description:``, synthesize a universal scope when none is declared,
+skip the rule when its scope is entirely internal-only), with the body
+left untouched, the last line of that list reading verbatim: "- body
+unchanged". ``outputDirs`` (documented at that file's lines 8-14) fans the
+same transformed content out to every configured destination, including
+``src/copilot-cli/instructions``. It is scanned directly because it is
+itself the shipped artifact, not a source that generates one. See issues
+#3578 (plugin-root widening), #3646 (commands and templates/agents
+widening), and #5214 (instructions widening).
 
 Exit codes:
   0 - no drift (counts at or below baseline), or --update-baseline wrote the file
@@ -282,7 +296,34 @@ REQUIRED_SKILLS_ROOTS: frozenset[str] = frozenset({".claude", "src/copilot-cli"}
 # ``src/copilot-cli/agents``, which this validator deliberately does not scan.
 # Scanning these source trees covers the otherwise unscanned source surface and
 # avoids double-counting command mirrors. Issue #3646.
-EXTRA_SCAN_ROOTS: tuple[str, ...] = (".claude/commands", "templates/agents")
+#
+# ``src/copilot-cli/instructions`` is the generated Copilot instruction mirror
+# of ``.claude/rules/*.md`` via ``build/scripts/generate_rules.py``; see the
+# module docstring above (Scope paragraph) for the verbatim "body unchanged"
+# citation into that generator. It ships inside the ``src/copilot-cli`` plugin
+# root but sits outside every root's ``skills/`` tree, so neither the
+# plugin-root scan above nor the generator's ``applyTo``-only
+# ``_INTERNAL_PATH_PREFIXES`` filter ever reads its prose. Issue #5214 found
+# an undeclared upstream-only path shipped this way with no gate covering it.
+# ``.github/instructions`` is deliberately excluded: it is the in-repo
+# Copilot mirror, not a shipped plugin root (see
+# ``.claude/rules/plugin-self-containment.md``), so a repo-only reference
+# there is not a defect.
+EXTRA_SCAN_ROOTS: tuple[str, ...] = (
+    ".claude/commands",
+    "templates/agents",
+    "src/copilot-cli/instructions",
+)
+
+# Extra scan roots whose absence is a broken checkout, not a legitimate minimal
+# clone, mirroring the ``REQUIRED_SKILLS_ROOTS`` distinction above.
+# ``.claude/commands`` and ``templates/agents`` are sources; a checkout may
+# reasonably omit them. ``src/copilot-cli/instructions`` is the shipped
+# artifact this validator exists to gate: unlike a source directory, its
+# absence means the exact surface issue #5214 found undeclared paths in would
+# go unscanned while the run still reports clean, which is the same silent
+# fail-open shape as a missing required skills tree.
+REQUIRED_EXTRA_ROOTS: frozenset[str] = frozenset({"src/copilot-cli/instructions"})
 
 
 def has_portability_marker(text: str) -> bool:
@@ -549,6 +590,24 @@ def missing_required_roots(root: Path) -> list[str]:
     ]
 
 
+def missing_required_extra_roots(root: Path) -> list[str]:
+    """Return the required extra scan roots that are absent, in declared order.
+
+    Mirrors ``missing_required_roots`` for ``EXTRA_SCAN_ROOTS`` entries that
+    are shipped artifacts rather than optional sources (see
+    ``REQUIRED_EXTRA_ROOTS``). Checking this separately from
+    ``extra_scan_dirs`` is the point: that function silently skips an absent
+    directory so a minimal-clone checkout does not fail on a missing source
+    tree, which would also silently skip a required shipped root with no
+    signal that anything was missed.
+    """
+    return [
+        name
+        for name in EXTRA_SCAN_ROOTS
+        if name in REQUIRED_EXTRA_ROOTS and not (root / name).is_dir()
+    ]
+
+
 def scan_all(
     root: Path,
     *,
@@ -573,9 +632,11 @@ def scan_all(
     ``marker_counts`` covers plugin roots and extra scan dirs because
     vendor-portability markers in ``.claude/commands`` and
     ``templates/agents`` feed the same exact-count marker baseline. Keys in
-    files_by_root are the posix path of the ``skills/`` dir relative to root,
-    covering plugin roots only, not extra scan dirs. Coverage-check semantics
-    are preserved from the original ``scanned_markdown_by_root``.
+    files_by_root are the posix path of the scan root relative to the repo
+    root, covering both plugin ``skills/`` dirs and extra scan dirs, so the
+    success report can name every root actually examined rather than only
+    the ``skills/`` trees (issue #5214 review: a scan root with zero examined
+    files must not read the same as a scan root that was never walked).
     """
     ref_counts: dict[str, int] = {}
     marker_counts: dict[str, int] = {}
@@ -613,8 +674,11 @@ def scan_all(
     for extra_dir in extra_dirs:
         if refuse_symlinked_scan_root(root, extra_dir):
             raise OSError(f"Scan root {extra_dir} resolves outside the repository root")
+        root_key = extra_dir.relative_to(root).as_posix()
         rel_parent = extra_dir.parent.relative_to(root)
-        for path in _iter_markdown_files(root, extra_dir):
+        paths = _iter_markdown_files(root, extra_dir)
+        files_by_root[root_key] = len(paths)
+        for path in paths:
             try:
                 text = path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError) as exc:
@@ -714,12 +778,25 @@ _MEASURED_SCANNER_FILES: frozenset[str] = frozenset(
 
 
 def _is_measured_input(rel_path: str) -> bool:
-    """Return whether a repo-relative path feeds this scanner's counts."""
+    """Return whether a repo-relative path feeds this scanner's counts.
+
+    Covers both the plugin ``skills/`` trees and ``EXTRA_SCAN_ROOTS``
+    (``.claude/commands``, ``templates/agents``,
+    ``src/copilot-cli/instructions``): ``scan_all()`` folds both into the same
+    ``ref_counts``/``marker_counts`` baseline, so a co-change to either can
+    launder new drift past ``--base-ref``'s semantic-conflict guard the same
+    way a plugin-root skill edit can. Missing the extra roots here was itself
+    an instance of the coverage-gap pattern issue #5214 fixed for the scan
+    surface; the semantic-conflict guard had the identical gap for the
+    baseline-laundering check.
+    """
     if rel_path in _MEASURED_SCANNER_FILES:
         return True
-    return rel_path.endswith(".md") and any(
-        rel_path.startswith(f"{root}/skills/") for root in PLUGIN_ROOTS
-    )
+    if not rel_path.endswith(".md"):
+        return False
+    if any(rel_path.startswith(f"{root}/skills/") for root in PLUGIN_ROOTS):
+        return True
+    return any(rel_path.startswith(f"{extra}/") for extra in EXTRA_SCAN_ROOTS)
 
 
 def _is_skill_markdown(rel_path: str) -> bool:
@@ -1161,8 +1238,7 @@ def _report(
     improvements: list[str],
     current: dict[str, int],
     baseline: dict[str, int],
-    scanned: list[Path],
-    root: Path,
+    scanned_by_root: dict[str, int],
     output_format: str,
 ) -> None:
     """Print the scan outcome. Presentation only, no exit decision.
@@ -1170,6 +1246,14 @@ def _report(
     Split out of ``main`` so that argument handling and orchestration read as
     one thing and formatting as another. ``main`` carried both and sat above
     the complexity ceiling before this seam existed.
+
+    ``scanned_by_root`` carries each root's examined-file count (from
+    ``scan_all``'s ``files_by_root``), not just its name: printing the name
+    alone made an empty root and a populated one read identically, so
+    "examined and clean" was indistinguishable from "never walked" (issue
+    #5214 review). Printed on both the clean line and the drift line, not
+    only the clean one: a caller reading a DRIFT result still needs to know
+    whether the full corpus was actually examined.
     """
     if output_format == "json":
         print(
@@ -1179,11 +1263,15 @@ def _report(
                     "improvements": improvements,
                     "current_total": sum(current.values()),
                     "baseline_total": sum(baseline.values()),
+                    "scanned_by_root": scanned_by_root,
                 },
                 indent=2,
             )
         )
         return
+    roots = ", ".join(
+        f"{name} ({count})" for name, count in scanned_by_root.items()
+    )
     if improvements:
         print("Portability improved (tighten the baseline with --update-baseline):")
         for line in improvements:
@@ -1192,8 +1280,8 @@ def _report(
         print("Markdown vendor-portability drift detected (issue #2050):")
         for line in regressions:
             print(f"  [DRIFT] {line}")
+        print(f"Scanned {roots}.")
         return
-    roots = ", ".join(d.relative_to(root).as_posix() for d in scanned)
     print(
         f"No Markdown vendor-portability drift. "
         f"{sum(current.values())} grandfathered refs across "
@@ -1241,14 +1329,63 @@ def _run_update_baseline(
     )
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    root = _resolve_root(args.repo_root)
+def _require_nonempty_extra_roots(
+    root: Path, scanned_by_root: dict[str, int]
+) -> int | None:
+    """Return exit code 2 (and print) when a required extra root scanned nothing.
+
+    ``missing_required_extra_roots()`` only catches an absent directory. A
+    generator can create its output directory and then fail to populate it
+    (a partial or failed run), which passes an ``is_dir()`` check and would
+    otherwise report a clean 0-refs scan indistinguishable from a real,
+    fully-generated empty tree. Treat "exists but produced nothing" the same
+    as "does not exist": both mean the shipped artifact this validator
+    exists to gate was never actually examined (issue #5214 review). Returns
+    ``None`` when every required extra root examined at least one file.
+    """
+    empty_required = [
+        name
+        for name in EXTRA_SCAN_ROOTS
+        if name in REQUIRED_EXTRA_ROOTS and scanned_by_root.get(name, 0) == 0
+    ]
+    if not empty_required:
+        return None
+    absent = ", ".join(empty_required)
+    print(
+        f"Required scan dir under {root} exists but examined zero Markdown "
+        f"files: {absent}. Treat an empty generated directory as a build "
+        "failure, not a clean scan.",
+        file=sys.stderr,
+    )
+    return 2
+
+
+def _check_required_roots_exist(root: Path) -> int | None:
+    """Return exit code 2 (and print) when a required root is absent.
+
+    Covers both the plugin ``skills/`` trees (``missing_required_roots``) and
+    the required ``EXTRA_SCAN_ROOTS`` entries (``missing_required_extra_roots``).
+    Returns ``None`` when every required root exists.
+    """
     missing = missing_required_roots(root)
     if missing:
         absent = ", ".join(f"{name}/skills" for name in missing)
         print(f"Required skills dir not found under {root}: {absent}", file=sys.stderr)
         return 2
+    missing_extra = missing_required_extra_roots(root)
+    if missing_extra:
+        absent = ", ".join(missing_extra)
+        print(f"Required scan dir not found under {root}: {absent}", file=sys.stderr)
+        return 2
+    return None
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    root = _resolve_root(args.repo_root)
+    missing_root_exit = _check_required_roots_exist(root)
+    if missing_root_exit is not None:
+        return missing_root_exit
     baseline_path = _resolve_baseline_path(root, args.baseline)
     if baseline_path is None:
         return 2
@@ -1257,8 +1394,11 @@ def main(argv: list[str] | None = None) -> int:
     if counts is None:
         return 2
     current, marker_current, scanned_by_root, drift_failures = counts
-    scanned = [root / rel for rel in scanned_by_root]
     drift_current = _drift_counts_from_failures(drift_failures)
+
+    empty_required_exit = _require_nonempty_extra_roots(root, scanned_by_root)
+    if empty_required_exit is not None:
+        return empty_required_exit
 
     if args.update_baseline:
         return _run_update_baseline(
@@ -1306,8 +1446,7 @@ def main(argv: list[str] | None = None) -> int:
         improvements=improvements,
         current=current,
         baseline=baseline,
-        scanned=scanned,
-        root=root,
+        scanned_by_root=scanned_by_root,
         output_format=args.output_format,
     )
     return 1 if regressions else 0

@@ -1,3 +1,14 @@
+---
+id: ADR-028
+status: accepted
+date: 2025-12-23
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
+---
+
 # ADR-028: PowerShell Output Schema Consistency
 
 ## Status

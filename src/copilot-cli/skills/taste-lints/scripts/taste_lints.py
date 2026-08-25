@@ -21,6 +21,11 @@ EXIT_SUCCESS = 0
 EXIT_ERROR = 1
 EXIT_VIOLATIONS = 10
 
+# Frontmatter is metadata. A block that has not closed by here is not
+# frontmatter, and bounding the scan keeps _suppression_window cheap on every
+# file in the repository.
+_MAX_FRONTMATTER_LINES = 50
+
 SUPPRESSION_PATTERN = re.compile(
     r"#\s*taste-lint:\s*ignore\s+([\w-]+)",
     re.IGNORECASE,
@@ -395,9 +400,94 @@ def read_file_lines(filepath: str) -> list[str]:
         return []
 
 
+# A YAML mapping key: a token with no whitespace or colon in it, then a colon
+# that is followed by whitespace or ends the line. The trailing requirement is
+# what separates `explainer: https://example.com` (a key whose value is a URL)
+# from `See https://example.com for details` (prose whose only colon belongs to
+# a URL scheme). Matching a bare colon anywhere in the line classified the
+# second as a mapping and widened the suppression window past an unrelated
+# `---` later in the file, which is the regression this whole check prevents.
+_YAML_KEY_LINE = re.compile(r"[^\s:]+\s*:(\s|$)")
+
+def _looks_like_yaml_mapping(block: list[str]) -> bool:
+    """True when ``block`` has the shape of a YAML mapping.
+
+    Deliberately a stdlib shape check rather than ``yaml.safe_load``. This
+    linter is invoked with a bare ``python3`` in seven places in its own
+    SKILL.md, and a job whose only preceding step is a checkout has installed
+    nothing, so a third-party import here fails at module load and takes the
+    gate red on every PR (`.claude/rules/ci-scripts.md` MUST-18). The question
+    is only "is this frontmatter or a horizontal rule", which does not need a
+    parser.
+
+    A mapping needs at least one top-level ``key:`` line, and every non-blank,
+    non-comment line must be either such a key or an indented continuation of
+    one. Prose under a horizontal rule fails on its first unindented line.
+    """
+    saw_key = False
+    for raw in block:
+        line = raw.rstrip("\n")
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if line[:1] in {" ", "\t"} or stripped.startswith("- "):
+            continue  # continuation: nested mapping, list item, folded scalar
+        if not _YAML_KEY_LINE.match(stripped):
+            return False
+        saw_key = True
+    return saw_key
+
+
+def _suppression_window(lines: list[str]) -> list[str]:
+    """Lines a suppression may appear in: any frontmatter block, plus 10 more.
+
+    The window means "near the top of the file", not "the first 10 bytes of
+    metadata". Both placements are in use in this repository and both must keep
+    working:
+
+    - Inside the frontmatter, as a YAML comment on line 2. ADR-068 and ADR-085
+      do this ("accepted append-only record; splitting breaks audit
+      continuity").
+    - After the frontmatter, as an HTML comment under the title. ADR-035 does
+      this.
+
+    A plain first-10-lines window only sees the first. ADR-073 lifecycle
+    frontmatter is exactly 10 lines (``---``, eight keys, ``---``), so on a
+    record carrying it the window closes before any content is read: ADR-035's
+    suppression sat at line 3, moved to line 14 when the issue #5190 backfill
+    added frontmatter, and silently stopped counting.
+
+    Widening rather than shifting is deliberate. This window is a strict
+    superset of the old one, so it cannot retire a suppression that works today.
+    An earlier attempt skipped the frontmatter instead and broke ADR-068 and
+    ADR-085, which is the failure this docstring exists to prevent recurring.
+
+    A closing delimiter is not sufficient on its own. A document that opens with
+    a horizontal rule and carries an unrelated ``---`` separator far below would
+    otherwise have its window widened to that separator, silently disabling a
+    lint hundreds of lines from any real suppression. So the block must also
+    parse as a YAML mapping, which is what frontmatter is. A horizontal rule
+    followed by prose does not.
+
+    The scan for the closing delimiter is bounded. Frontmatter is metadata, so a
+    block that has not closed within ``_MAX_FRONTMATTER_LINES`` is not
+    frontmatter, and stopping there keeps this cheap on every file in the repo.
+    """
+    if not lines or lines[0].strip() != "---":
+        return lines[:10]
+
+    for index in range(1, min(len(lines), _MAX_FRONTMATTER_LINES)):
+        if lines[index].strip() not in {"---", "..."}:
+            continue
+        if _looks_like_yaml_mapping(lines[1:index]):
+            return lines[: index + 11]
+        return lines[:10]
+    return lines[:10]
+
+
 def has_suppression(lines: list[str], rule: str) -> bool:
     """Check if file has a suppression comment for the given rule."""
-    for line in lines[:10]:
+    for line in _suppression_window(lines):
         match = SUPPRESSION_PATTERN.search(line)
         if match and match.group(1) == rule:
             return True

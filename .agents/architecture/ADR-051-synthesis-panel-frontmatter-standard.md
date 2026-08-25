@@ -1,3 +1,14 @@
+---
+id: ADR-051
+status: accepted
+date: 2026-03-07
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-051: Synthesis Panel Frontmatter Standard
 
 ## Status

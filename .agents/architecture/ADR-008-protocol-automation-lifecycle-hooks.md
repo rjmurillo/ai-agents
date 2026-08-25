@@ -1,3 +1,14 @@
+---
+id: ADR-008
+status: accepted
+date: 2026-08-19
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-008: Protocol Automation via Lifecycle Hooks
 
 ## Status

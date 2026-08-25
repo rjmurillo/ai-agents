@@ -1,3 +1,14 @@
+---
+id: ADR-049
+status: proposed
+date: 2026-02-24
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-049: Pre-PR Validation Gates
 
 ## Status
