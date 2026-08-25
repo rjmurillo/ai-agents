@@ -159,7 +159,7 @@ Corrected records, with the context that supplied the new value:
 | ADR-008 | 2025-12-20 | 2026-08-19 | `### Amendment 2026-08-19 (Issue #5168, PR #5170)` |
 | ADR-014 | 2025-12-22 | 2026-08-16 | `### Current-State Amendment (2026-08-16)` |
 | ADR-033 | 2025-12-30 | 2026-08-16 | `### Current-State Amendment (2026-08-16)` |
-| ADR-040 | 2026-01-03 | 2026-07-11 | dated supersession statement in `## Status` |
+| ADR-040 | 2026-01-03 | 2026-07-11 | dated supersession statement in `## Status` (further corrected to 2026-08-14 by finding 20 below; 2026-07-11 was itself a quoted date, not an update date) |
 | ADR-041 | 2026-01-16 | 2026-07-21 | `## Amendment 2026-07-21: Retire Tier 3` |
 | ADR-047 | 2026-02-16 | 2026-04-29 | dated amendment statement in `## Status` |
 | ADR-060, ADR-061, ADR-062, ADR-063, ADR-070 | various | 2026-07-27 | `## Amendment 2026-07-27`, the ADR-088 citation repoint that touched all five |
@@ -540,9 +540,9 @@ much they should weigh on a reviewer:
 | ADR-035 | accepted | 2025-12-30 | [] | null | true |
 | ADR-037 | accepted | 2026-07-20 | [] | null | true |
 | ADR-038 | proposed | 2026-01-01 | [] | null | true |
-| ADR-040 | accepted | 2026-07-11 | [] | null | true |
+| ADR-040 | accepted | 2026-08-14 | [] | null | true |
 | ADR-041 | accepted | 2026-07-21 | [] | null | true |
-| ADR-042 | accepted | 2026-01-17 | [ADR-005] | null | true |
+| ADR-042 | accepted | 2026-04-13 | [ADR-005] | null | true |
 | ADR-043 | accepted | 2026-01-21 | [] | null | true |
 | ADR-045 | accepted | 2026-02-07 | [] | null | true |
 | ADR-046 | accepted | 2026-02-08 | [] | null | true |
