@@ -22,18 +22,20 @@ are the derivation rules behind it sound?
 **Read this section before treating this document as consensus evidence. Two
 different review standards apply to different parts of this PR.**
 
-| Records | Review standard |
-|---|---|
-| **5 status decisions**: ADR-002, ADR-030, ADR-036, ADR-039, ADR-052 | A real six-agent adr-review debate (architect, critic, independent-thinker, security, analyst, high-level-advisor), convened by the repository owner outside the authoring session. |
-| The **62 mechanical records**: 52 of the original 53, plus the 10 from issue #5290 | Single-reviewer structured review, described below. |
+**Two six-agent rounds ran, and both are recorded in this document.**
 
-The five status decisions are the ones that carry governance weight: each is a
-real transition with prose changes, not a transcription of an existing status.
-Those got the full roster. The 62 mechanical records did not.
+| Round | Scope | Verdict |
+|---|---|---|
+| First | The 5 status decisions | DISAGREE-AND-COMMIT. Two of the five statuses were overturned by the debate. |
+| Second (final) | **All 67 records** | 3 ACCEPT, 2 DISAGREE-AND-COMMIT, 1 BLOCK, cleared by two named fixes. |
 
-A further six-agent round covering the **full final state** (all 67 touched
-records at once) is planned by the owner after this pass lands, to reach a single
-verdict for the whole PR. Until that round completes, the paragraphs below stand.
+The second round is what covers the 62 mechanical records, and it is the
+authoritative review for the whole batch. Neither round was unanimous, and the
+dissents in both are recorded rather than summarised away.
+
+The single-reviewer account below is retained as history. It describes the state
+before either round ran, and it is why this document exists in the shape it does;
+it is no longer the review standard for any part of this PR.
 
 ### The single-reviewer standard, for the 62 mechanical records
 
@@ -52,14 +54,11 @@ review of the PR, not on a consensus that did not happen.
 The review was not a formality. It changed six of the fifty-three records before
 they were written. Those corrections are recorded under "Findings" below.
 
-**For these 62 mechanical records, the reviewer must choose one of two paths
-before merge, and the choice belongs to the repository owner, not to a
-default.** Either (a) cover them in the planned full-state six-agent round and
-merge on that consensus, or (b) decide that single-reviewer structured review is
-sufficient evidence for a mechanical metadata backfill against an
-already-accepted schema, and record that decision. Do not merge these 62 on the
-assumption that a six-agent debate covered them; as of this writing it covered
-only the five status decisions.
+**That gap is now closed.** The choice this paragraph used to put to the
+reviewer, cover the 62 in a full-state round or accept narrower evidence, was
+resolved by running the round. It found seven wrong dates that the single
+reviewer and every bot round had missed, which is the concrete answer to whether
+the extra pass was worth its cost.
 
 The repository was un-shallowed (`git fetch --unshallow`, 2630 commits) before
 any date or implementation claim was made. The session began with a 50-commit

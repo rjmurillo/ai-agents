@@ -98,7 +98,7 @@ legible; the honest version was no more expensive to produce.
 `check_adr_review_policy` requires the debate log in `git diff --cached` for
 every commit touching an ADR, not merely once on the branch. Combined with the
 five-authored-file limit from `AGENTS.md`, that fixes the batch size at four ADRs
-plus the log. The log therefore had to change in each of the 14 commits, which
+plus the log. The log therefore had to change in every ADR-touching commit, which
 was resolved by having it record each batch as it landed, so the edit is real
 content rather than a touch to satisfy the gate.
 
@@ -106,7 +106,7 @@ content rather than a touch to satisfy the gate.
 
 | Gate | Cause | Resolution |
 |------|-------|------------|
-| `adr-policy` | ADR commits need a staged debate log | Review log staged with all 14 batches |
+| `adr-policy` | ADR commits need a staged debate log | Review log staged with every batch, each recording itself in the log |
 | `staged-dash-policy` | Four in-scope ADRs carried pre-existing em dashes | Replaced with colons and commas in ADR-021, 032, 053, 056 |
 | `scope-policy` / `branch-scope` | 73 files at final count, hard limit 50 | Owner-authorized, scoped `SKIP_SCOPE_CHECK=1`; documented in the log and the PR |
 | `python-tests` | `test_adr_063` read the title from `splitlines()[0]` | Test now finds the first H1; frontmatter legitimately precedes the title now |

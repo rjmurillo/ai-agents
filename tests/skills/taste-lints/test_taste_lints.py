@@ -1042,6 +1042,30 @@ class TestSuppressionSurvivesFrontmatter:
 
         assert has_suppression(lines, "file-size") is True
 
+    def test_block_style_yaml_list_is_valid_frontmatter(self) -> None:
+        # Every other fixture uses inline arrays (`supersedes: []`), so the
+        # block-style branch that accepts `- item` continuation lines had no
+        # coverage. Multiline lists are valid frontmatter and several records in
+        # this repository use them for `decision-makers` and `consulted`.
+        lines = [
+            "---\n",
+            "id: ADR-034\n",
+            "status: accepted\n",
+            "decision-makers:\n",
+            "  - orchestrator\n",
+            "consulted:\n",
+            "  - analyst\n",
+            "  - security\n",
+            "informed: []\n",
+            "---\n",
+            "\n",
+            "# ADR-034: Title\n",
+            "\n",
+            self.SUPPRESSION,
+        ]
+
+        assert has_suppression(lines, "file-size") is True
+
     def test_prose_with_a_colon_is_not_a_mapping(self) -> None:
         # The discriminator is shape, so a sentence that happens to contain a
         # colon must still be rejected: its key half is not a bare key.

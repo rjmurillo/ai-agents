@@ -15,8 +15,6 @@ implemented: false
 
 Proposed
 
-status: proposed
-
 ## Date
 
 2026-06-01
