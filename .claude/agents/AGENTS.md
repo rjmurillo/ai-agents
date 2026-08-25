@@ -351,8 +351,7 @@ uv run pytest
 ## Related Documentation
 
 Paths below are in the `rjmurillo/ai-agents` repository, not shipped with this
-installed plugin (`.claude` is the `project-toolkit` plugin root), so they are
-named without links:
+installed plugin, so they are named without links:
 
 - ADR-036 (Two-Source Agent Template Architecture): operative procedure (superseded in governance by ADR-052, not yet implemented)
 - `templates/AGENTS.md`: template system synchronization rules
