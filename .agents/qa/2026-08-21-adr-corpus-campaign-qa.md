@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 23f3cfaca067204591ff5287647ea960ec320f40
+qaCommit: de0dcc1460d21d7dff3b0a0cecaae3a4c4d840fa
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1673,4 +1673,6 @@ identity:
 Re-verified after reconciliation: `tests/validation/test_check_adr_lifecycle.py`
 (130 tests), `tests/validation/test_check_adr_links.py` (142 tests),
 `ruff check` and `taste_lints.py` on every touched file, all clean.
+
+**Rebound to** `de0dcc1460d21d7dff3b0a0cecaae3a4c4d840fa`, the merge commit that reconciled this session's round-11 work with the concurrent session's (Addenda 26 to 29 above).
 
