@@ -174,6 +174,42 @@ def test_retired_row_links_the_successor_file(adr_dir: Path) -> None:
     assert "(ADR-001-accepted-one.md)" in superseded_row
 
 
+def test_a_slug_with_markdown_sensitive_characters_produces_a_well_formed_link(
+    tmp_path: Path,
+) -> None:
+    """A slug containing a space, ``#``, or unmatched ``)`` must not break the link.
+
+    ``_ADR_FILENAME_RE`` (``^ADR-(\\d{2,})-[^/]+\\.md$``) accepts any
+    non-slash slug character, so a filename with a raw space, ``#``, or an
+    unmatched ``)`` passes filename collection. Before this fix, ``_link``
+    inserted the filename directly into the Markdown link destination: the
+    unmatched ``)`` closed the link early and left trailing text outside
+    it, and ``#`` would have started a fragment rather than named a literal
+    character (Copilot, PR #5285 review).
+    """
+    adr_dir = tmp_path / "architecture"
+    _write_adr(
+        adr_dir,
+        6,
+        "odd (slug) #1",
+        frontmatter="status: accepted",
+        body=_standard_body(6, "Odd"),
+    )
+
+    row = next(
+        line
+        for line in _section(_render(adr_dir), "Accepted").splitlines()
+        if "ADR-006" in line
+    )
+
+    # The raw filename would close the link at the first unmatched ")",
+    # leaving " #1.md)" as trailing row text outside the parens.
+    assert " #1.md)" not in row
+    assert "%28" in row and "%29" in row  # percent-encoded "(" and ")"
+    assert "%20" in row  # percent-encoded space
+    assert "%23" in row  # percent-encoded "#"
+
+
 def test_deprecated_record_is_retired_not_a_separate_section(adr_dir: Path) -> None:
     rendered = _render(adr_dir)
 
@@ -472,6 +508,31 @@ def test_absent_status_key_still_backfills_silently(tmp_path: Path) -> None:
     (record,) = generate_adr_index.collect_records(directory)
 
     assert record.status is None
+
+
+def test_needs_backfill_blurb_does_not_claim_frontmatter_is_absent(tmp_path: Path) -> None:
+    """The blurb must not overclaim why a record has no status to report.
+
+    ``status is None`` covers two different records: one with no frontmatter
+    block at all, and one (this fixture) with a frontmatter block that omits
+    the `status` key. The old blurb text, "No lifecycle frontmatter", was
+    false for the second case: frontmatter IS present here, just without a
+    status (Copilot, PR #5285 review).
+    """
+    directory = tmp_path / "architecture"
+    _write_adr(
+        directory,
+        20,
+        "has-frontmatter-no-status",
+        frontmatter="id: ADR-020\ndate: 2026-01-01\n",
+        body=_standard_body(20, "Has Frontmatter No Status"),
+    )
+
+    backfill = _section(_render(directory), "Needs backfill")
+
+    assert "ADR-020" in backfill
+    assert "No lifecycle frontmatter" not in backfill
+    assert "no machine-readable lifecycle status" in backfill.lower()
 
 
 def test_record_without_an_h1_exits_non_zero_naming_the_file(tmp_path: Path, capsys) -> None:
@@ -1551,13 +1612,17 @@ def _accepted_ids_via_recipe(adr_dir: Path) -> list[str]:
 
 
 def _accepted_ids_via_generator(adr_dir: Path) -> list[str]:
-    from generate_adr_index import build_record
+    """Accepted ids per the production filtering path, not a re-derived one.
 
-    return [
-        record.adr_id
-        for path in sorted(adr_dir.glob("ADR-[0-9]*.md"))
-        if (record := build_record(path)).status == "accepted"
-    ]
+    Calling ``build_record()`` directly over a loose glob skips the filename
+    filter production actually applies (``collect_records()`` calls
+    ``is_adr_filename()`` before ``build_record()``), so it cannot model the
+    generator's real ignore behavior for a non-canonical filename: it raises
+    where the generator silently skips (Copilot, PR #5285 review).
+    """
+    from generate_adr_index import collect_records
+
+    return [record.adr_id for record in collect_records(adr_dir) if record.status == "accepted"]
 
 
 def test_the_documented_recipe_agrees_with_the_generator_on_lowercase_status(tmp_path):
@@ -1576,6 +1641,33 @@ def test_the_documented_recipe_agrees_with_the_generator_on_lowercase_status(tmp
 
     assert _accepted_ids_via_recipe(adr_dir) == _accepted_ids_via_generator(adr_dir)
     assert _accepted_ids_via_generator(adr_dir) == ["ADR-001"]
+
+
+@pytest.mark.parametrize(
+    "filename",
+    ["ADR-1-single-digit.md", "ADR-001no-separator.md"],
+)
+def test_the_documented_recipe_ignores_a_noncanonical_filename_like_the_generator(
+    tmp_path, filename
+):
+    """Negative control: a file the loose glob would match, but the real filter skips.
+
+    ``ADR-1-single-digit.md`` has only one digit, and ``ADR-001no-separator.md``
+    has no ``-`` between the digits and the slug; neither matches
+    ``_ADR_FILENAME_RE`` (``^ADR-(\\d{2,})-[^/]+\\.md$``), so
+    ``collect_records()`` silently skips both. The recipe's old
+    ``glob('ADR-[0-9]*.md')`` matched both anyway, so it printed an ADR the
+    generated index never lists (Copilot, PR #5285 review).
+    """
+    adr_dir = tmp_path / "architecture"
+    adr_dir.mkdir(parents=True)
+    (adr_dir / filename).write_text(
+        "---\nstatus: accepted\n---\n\n# Not a record\n\n## Decision\n\nIgnored.\n",
+        encoding="utf-8",
+    )
+
+    assert _accepted_ids_via_recipe(adr_dir) == []
+    assert _accepted_ids_via_generator(adr_dir) == []
 
 
 @pytest.mark.parametrize("raw_status", ["Accepted", "ACCEPTED", '" accepted "'])

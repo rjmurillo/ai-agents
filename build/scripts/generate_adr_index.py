@@ -69,6 +69,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from urllib.parse import quote
 
 import yaml
 
@@ -534,8 +535,17 @@ def _cell(text: str) -> str:
 
 
 def _link(record: AdrRecord) -> str:
-    """Relative link to the record. README.md sits beside the ADRs."""
-    return f"[{record.adr_id}]({record.filename})"
+    """Relative link to the record. README.md sits beside the ADRs.
+
+    ``_ADR_FILENAME_RE`` (``^ADR-(\\d{2,})-[^/]+\\.md$``) permits any
+    non-slash character in the slug, including a space, ``#``, or an
+    unmatched ``)``: none of those break the filename match, but a bare
+    ``)`` inserted into a Markdown link destination closes the link early,
+    and a ``#`` starts a fragment instead of naming a literal character.
+    Percent-encode the path segment so the destination is well-formed
+    regardless of what the slug contains (Copilot, PR #5285 review).
+    """
+    return f"[{record.adr_id}]({quote(record.filename)})"
 
 
 def _normalize_adr_id(reference: str) -> str | None:
@@ -753,11 +763,15 @@ _INTRO = (
     "```python\n"
     "import pathlib, re, yaml\n"
     "\n"
+    "_ADR_FILENAME_RE = re.compile(r'^ADR-(\\d{2,})-[^/]+\\.md$')\n"
+    "_OPENING_FENCE = re.compile(r'^---\\r?\\n')\n"
     "_CLOSING_FENCE = re.compile(r'\\r?\\n---\\r?\\n')\n"
     "\n"
-    "for path in sorted(pathlib.Path('.agents/architecture').glob('ADR-[0-9]*.md')):\n"
+    "for path in sorted(pathlib.Path('.agents/architecture').glob('ADR-*.md')):\n"
+    "    if not _ADR_FILENAME_RE.match(path.name):\n"
+    "        continue  # not a canonical ADR record filename\n"
     "    text = path.read_text(encoding='utf-8')\n"
-    "    if not text.startswith('---'):\n"
+    "    if not _OPENING_FENCE.match(text):\n"
     "        continue  # no frontmatter: see Needs backfill below\n"
     "    closing = _CLOSING_FENCE.search(text, 3)\n"
     "    if closing is None:\n"
@@ -767,11 +781,11 @@ _INTRO = (
     "        print(front.get('id') or path.name)\n"
     "```\n\n"
     "**Normalise before comparing, as above.** This generator's own `_status_of`\n"
-    "strips and lower-cases the value before bucketing a record (`str(value)\n"
-    ".strip().lower()`), so `status: Accepted` lands under Accepted in the table\n"
-    "below, while a bare `== 'accepted'` misses it. Every record carries a\n"
-    "lowercase value today, which is exactly why the mismatch would not announce\n"
-    "itself.\n\n"
+    "strips and lower-cases a string value before bucketing a record\n"
+    "(`raw.strip().lower()`, after confirming `raw` is a string; see the next\n"
+    "paragraph), so `status: Accepted` lands under Accepted in the table below,\n"
+    "while a bare `== 'accepted'` misses it. Every record carries a lowercase\n"
+    "value today, which is exactly why the mismatch would not announce itself.\n\n"
     "**This snippet trusts the corpus; the generator does not.** `_status_of`\n"
     "raises when a `status` value is present but not a string, before it ever\n"
     "strips or lower-cases anything, so `status: true` or `status: 1` fails the\n"
@@ -799,15 +813,18 @@ _INTRO = (
     "records that have it while appearing to answer for all of them. The Needs\n"
     "backfill section below is the honest denominator, and issue #5190 closes it.\n\n"
     "**This snippet crashes on unterminated frontmatter; it does not silently\n"
-    "drop it.** `text.startswith('---')` is false only for a record with no\n"
-    "schema at all, which `continue`s past. A record whose opening `---` fence\n"
-    "never closes still starts with `---`, so it skips that `continue`, finds\n"
-    "no match for `_CLOSING_FENCE`, and raises `ValueError` (verified by\n"
-    "running both cases; Copilot found the original claim backwards on PR\n"
-    "#5209). The real generator's `parse_frontmatter` raises the same way, on\n"
-    "purpose: a malformed schema is an author's defect to see, not a record to\n"
-    "drop quietly into Needs backfill. Run the gate rather than this snippet\n"
-    "when that distinction matters.\n\n"
+    "drop it.** `_OPENING_FENCE.match(text)` is false only for a record with no\n"
+    "schema at all (including a malformed opening line such as `--- ` with\n"
+    "trailing text before the newline, which this exact-fence regex rejects the\n"
+    "same way the generator's `_FRONTMATTER_RE` does), so those `continue` past.\n"
+    "A record whose opening `---` fence is well-formed but never closes still\n"
+    "matches `_OPENING_FENCE`, so it skips that `continue`, finds no match for\n"
+    "`_CLOSING_FENCE`, and raises `ValueError` (verified by running both cases;\n"
+    "Copilot found the original claim backwards on PR #5209). The real\n"
+    "generator's `parse_frontmatter` raises the same way, on purpose: a\n"
+    "malformed schema is an author's defect to see, not a record to drop\n"
+    "quietly into Needs backfill. Run the gate rather than this snippet when\n"
+    "that distinction matters.\n\n"
     "**The closing fence must occupy its own line, not just start one.**\n"
     "`generate_adr_index.py`'s `_FRONTMATTER_RE` is\n"
     "``r\"^---\\r?\\n([\\s\\S]*?)\\r?\\n---\\r?\\n([\\s\\S]*)$\"``: the closing fence is\n"
@@ -846,7 +863,9 @@ _BLURBS: tuple[tuple[str, str], ...] = (
     ),
     (
         "Needs backfill",
-        "No lifecycle frontmatter, so this index has no status to report. Nothing is "
+        "No machine-readable lifecycle status: either the record carries no "
+        "frontmatter block at all, or its frontmatter is present but omits the "
+        "`status` key. Either way this index has nothing to report. Nothing is "
         "inferred for these: open the record and read its `## Status` section. "
         "ADR-073 Phase 2 closes this section.",
     ),

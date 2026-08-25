@@ -15,11 +15,15 @@ Python reads it with no extra dependency:
 ```python
 import pathlib, re, yaml
 
+_ADR_FILENAME_RE = re.compile(r'^ADR-(\d{2,})-[^/]+\.md$')
+_OPENING_FENCE = re.compile(r'^---\r?\n')
 _CLOSING_FENCE = re.compile(r'\r?\n---\r?\n')
 
-for path in sorted(pathlib.Path('.agents/architecture').glob('ADR-[0-9]*.md')):
+for path in sorted(pathlib.Path('.agents/architecture').glob('ADR-*.md')):
+    if not _ADR_FILENAME_RE.match(path.name):
+        continue  # not a canonical ADR record filename
     text = path.read_text(encoding='utf-8')
-    if not text.startswith('---'):
+    if not _OPENING_FENCE.match(text):
         continue  # no frontmatter: see Needs backfill below
     closing = _CLOSING_FENCE.search(text, 3)
     if closing is None:
@@ -30,11 +34,11 @@ for path in sorted(pathlib.Path('.agents/architecture').glob('ADR-[0-9]*.md')):
 ```
 
 **Normalise before comparing, as above.** This generator's own `_status_of`
-strips and lower-cases the value before bucketing a record (`str(value)
-.strip().lower()`), so `status: Accepted` lands under Accepted in the table
-below, while a bare `== 'accepted'` misses it. Every record carries a
-lowercase value today, which is exactly why the mismatch would not announce
-itself.
+strips and lower-cases a string value before bucketing a record
+(`raw.strip().lower()`, after confirming `raw` is a string; see the next
+paragraph), so `status: Accepted` lands under Accepted in the table below,
+while a bare `== 'accepted'` misses it. Every record carries a lowercase
+value today, which is exactly why the mismatch would not announce itself.
 
 **This snippet trusts the corpus; the generator does not.** `_status_of`
 raises when a `status` value is present but not a string, before it ever
@@ -67,15 +71,18 @@ records that have it while appearing to answer for all of them. The Needs
 backfill section below is the honest denominator, and issue #5190 closes it.
 
 **This snippet crashes on unterminated frontmatter; it does not silently
-drop it.** `text.startswith('---')` is false only for a record with no
-schema at all, which `continue`s past. A record whose opening `---` fence
-never closes still starts with `---`, so it skips that `continue`, finds
-no match for `_CLOSING_FENCE`, and raises `ValueError` (verified by
-running both cases; Copilot found the original claim backwards on PR
-#5209). The real generator's `parse_frontmatter` raises the same way, on
-purpose: a malformed schema is an author's defect to see, not a record to
-drop quietly into Needs backfill. Run the gate rather than this snippet
-when that distinction matters.
+drop it.** `_OPENING_FENCE.match(text)` is false only for a record with no
+schema at all (including a malformed opening line such as `--- ` with
+trailing text before the newline, which this exact-fence regex rejects the
+same way the generator's `_FRONTMATTER_RE` does), so those `continue` past.
+A record whose opening `---` fence is well-formed but never closes still
+matches `_OPENING_FENCE`, so it skips that `continue`, finds no match for
+`_CLOSING_FENCE`, and raises `ValueError` (verified by running both cases;
+Copilot found the original claim backwards on PR #5209). The real
+generator's `parse_frontmatter` raises the same way, on purpose: a
+malformed schema is an author's defect to see, not a record to drop
+quietly into Needs backfill. Run the gate rather than this snippet when
+that distinction matters.
 
 **The closing fence must occupy its own line, not just start one.**
 `generate_adr_index.py`'s `_FRONTMATTER_RE` is
@@ -224,7 +231,7 @@ Considered and declined. Kept visible so the proposal is findable and does not r
 
 ## Needs backfill
 
-No lifecycle frontmatter, so this index has no status to report. Nothing is inferred for these: open the record and read its `## Status` section. ADR-073 Phase 2 closes this section.
+No machine-readable lifecycle status: either the record carries no frontmatter block at all, or its frontmatter is present but omits the `status` key. Either way this index has nothing to report. Nothing is inferred for these: open the record and read its `## Status` section. ADR-073 Phase 2 closes this section.
 
 | ADR | Title |
 | --- | --- |
