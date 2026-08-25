@@ -4,7 +4,7 @@
 
 - **Date**: 2026-08-25
 - **Trigger**: `/goal autoplan https://github.com/rjmurillo/ai-agents/issues/5201`, a P1 bug report that four ADRs about scripting-language policy (ADR-005, ADR-028, ADR-031, ADR-042) had contradicting machine-readable statuses because none carried ADR-073 frontmatter.
-- **Scope**: PR #5283. Five ADRs given ADR-073 frontmatter (ADR-005, ADR-028, ADR-031, ADR-042, plus ADR-056 backfilled to make ADR-028's supersession reciprocal), two live citations fixed, a JSON schema and a Python validator widened to match an already-shipped contract, six commits total.
+- **Scope**: PR #5283. Five ADRs given ADR-073 frontmatter (ADR-005, ADR-028, ADR-031, ADR-042, plus ADR-056 backfilled to make ADR-028's supersession reciprocal), two live citations fixed, a JSON schema and a Python validator widened to match an already-shipped contract, a new ADR-103 correcting ADR-056's drifted Decision section, and fixes for review findings across multiple rounds (23 commits total as of this writing; this count grows with every review-response commit and is not re-verified on each edit to this document, so treat it as a snapshot rather than a live figure).
 
 ## Failure mode classification
 
