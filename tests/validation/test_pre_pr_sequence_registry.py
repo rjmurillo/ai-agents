@@ -21,6 +21,8 @@ Coverage:
 - edge: ``--skip-tests`` drops Pester from the record list entirely (rather
   than recording it as a skip) and prints its own notice, which is the one
   place the sequence bypasses ``run_validation``.
+- edge: the pre-push fast-stage flag drops exactly the four gates that stage
+  already ran and leaves every other gate in place and in order.
 """
 
 from __future__ import annotations
@@ -30,6 +32,8 @@ import sys
 from contextlib import redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -112,6 +116,31 @@ QUICK_SKIPPED: frozenset[str] = frozenset(
 )
 
 
+# The four gates `lefthook.yml` runs as their own fast-stage pre-push jobs.
+# Keeping the expectation as a literal here, rather than deriving it from
+# `_SEQUENCE`, is the same discipline the module docstring sets out for
+# EXPECTED_ORDER: an expectation derived from the code under test cannot fail.
+FAST_STAGE_DUPLICATES: frozenset[str] = frozenset(
+    {
+        "Count Ratchets",
+        "Unreachable Code Detection",
+        "Path Normalization",
+        "Planning Artifacts",
+    }
+)
+
+
+@pytest.fixture(autouse=True)
+def _clear_fast_stage_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin every test in this module to the unset default.
+
+    The flag is real environment state a developer can be carrying, and it
+    changes the emitted gate list, so leaving it ambient would make the order
+    assertions pass or fail depending on the shell they ran in.
+    """
+    monkeypatch.delenv(pre_pr_sequence.FAST_STAGE_RAN_ENV, raising=False)
+
+
 def _record(**flags: bool) -> tuple[list[tuple[str, bool]], SimpleNamespace, str]:
     """Drive the real sequence with a fake runner and capture what it emits."""
     recorded: list[tuple[str, bool]] = []
@@ -182,3 +211,65 @@ class TestSkipTestsFlag:
     def test_default_run_leaves_the_totals_to_the_runner(self) -> None:
         _recorded, state, out = _record()
         assert (state.total, state.skipped, out) == (0, 0, "")
+
+
+class TestFastStageDeduplication:
+    """The pre-push fast stage already ran four of these gates (ADR-103)."""
+
+    def test_flag_drops_exactly_the_gates_the_fast_stage_already_ran(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(pre_pr_sequence.FAST_STAGE_RAN_ENV, "1")
+        recorded, _state, _out = _record()
+        emitted = tuple(name for name, _ in recorded)
+        assert set(EXPECTED_ORDER) - set(emitted) == set(FAST_STAGE_DUPLICATES)
+
+    def test_flag_leaves_every_other_gate_in_its_original_order(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(pre_pr_sequence.FAST_STAGE_RAN_ENV, "1")
+        recorded, _state, _out = _record()
+        expected = tuple(n for n in EXPECTED_ORDER if n not in FAST_STAGE_DUPLICATES)
+        assert tuple(name for name, _ in recorded) == expected
+
+    def test_dropped_gates_are_counted_as_skips_not_silently_lost(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A dropped gate that bumps no counter reads as a gate that passed."""
+        monkeypatch.setenv(pre_pr_sequence.FAST_STAGE_RAN_ENV, "1")
+        _recorded, state, _out = _record()
+        assert (state.total, state.skipped) == (
+            len(FAST_STAGE_DUPLICATES),
+            len(FAST_STAGE_DUPLICATES),
+        )
+
+    def test_skip_notice_names_the_job_that_already_ran_it(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(pre_pr_sequence.FAST_STAGE_RAN_ENV, "1")
+        _recorded, _state, out = _record()
+        assert "python-unreachable-statements" in out
+        assert "piped" in out
+
+    def test_unset_flag_runs_every_gate(self) -> None:
+        """The negative control: without the flag nothing is dropped."""
+        recorded, _state, _out = _record()
+        assert tuple(name for name, _ in recorded) == EXPECTED_ORDER
+
+    def test_values_other_than_one_do_not_drop_gates(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(pre_pr_sequence.FAST_STAGE_RAN_ENV, "true")
+        recorded, _state, _out = _record()
+        assert tuple(name for name, _ in recorded) == EXPECTED_ORDER
+
+    def test_quick_and_the_flag_compose_without_double_counting(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Two gates carry both markers; each must be handled exactly once."""
+        monkeypatch.setenv(pre_pr_sequence.FAST_STAGE_RAN_ENV, "1")
+        recorded, state, _out = _record(quick=True)
+        names = [name for name, _ in recorded]
+        assert set(names).isdisjoint(FAST_STAGE_DUPLICATES)
+        assert len(names) == len(set(names))
+        assert state.total == len(FAST_STAGE_DUPLICATES)

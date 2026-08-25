@@ -587,6 +587,18 @@ pre-push:
             run: uv run --frozen python scripts/validation/pre_pr.py
             env:
               SKIP_AUTOFIX: "1"
+              # The hook is `piped: true`, so this job cannot start unless the
+              # fast stage passed. Four of this runner's gates are the same
+              # checks the fast stage already ran as their own jobs (Count
+              # Ratchets against the eight ratchet jobs, Unreachable Code
+              # against python-unreachable-statements, Path Normalization and
+              # Planning Artifacts against their namesakes), and a second run
+              # cannot discover anything the first did not. Measured on a
+              # 4-CPU container: the ratchet re-run alone was 38.37s of this
+              # job's 103.25s. Only this job may set the flag; a hand-run
+              # `pre_pr.py` leaves it unset and gets the full sequence.
+              # See ADR-103.
+              AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"
               # This job's own timeout (above) in seconds, so the
               # generated-staleness gate can clamp its deadline to the
               # process's remaining share; a test pins the two values.
@@ -596,6 +608,16 @@ pre-push:
             timeout: 2m
             run: uv run --frozen python scripts/maintenance/gc_worktrees.py || echo "worktree-gc-report exited non-zero; ignored because this job is advisory (issue 4257)"
 
+          # Runs the import-graph subset for the push when the graph can map
+          # every changed file, and a whole-suite collection smoke when it
+          # cannot. It does not execute the whole suite: that duplicates the
+          # `pytest.yml` partition matrix CI runs on the same commit, and on a
+          # container checkout it was 475s of a 679s push, long enough that a
+          # container restart killed the push before it reached the remote gate
+          # the local copy was imitating. The 30m cap is the ceiling for the
+          # opt-in `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` path; the default
+          # path is bounded by the inner 300s collection budget, not by this.
+          # See ADR-103.
           - name: python-tests
             timeout: 30m
             run: uv run --frozen python scripts/validation/git_hook_policy.py pytest
