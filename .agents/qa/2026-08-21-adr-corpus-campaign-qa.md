@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: c2055b1b91ddc7fb8406e15e6f9a84f41dfca220
+qaCommit: 4d5b443a0c9ee104cd98bb40d9c13bbcf2130015
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1376,3 +1376,39 @@ touched suites together: 304 tests pass. `ruff check` and the whole-repo
 taste-count ratchet (576, at baseline) both clean.
 
 **Rebound to** `c2055b1b91ddc7fb8406e15e6f9a84f41dfca220`.
+
+## Addendum 21: a merge from `origin/main` plus two unrelated commits, no ADR-tooling changes
+
+The push gate caught the report outliving its code again: `origin/main`
+merged into this branch (bringing in dependency bumps, `voice.md`'s
+Confusion Protocol carve-out, and an unrelated ADR-073 prose correction),
+plus this session added a merge-conflict resolution to
+`tests/ci/test_validate_vendor_provenance.py` and a retrospective file.
+None of the commits in `c2055b1b91ddc7fb8406e15e6f9a84f41dfca220..HEAD`
+touch `check_adr_links.py`, `check_adr_lifecycle.py`,
+`generate_adr_index.py`, or the `adr-review` skill's scripts.
+
+Re-ran rather than bumped the SHA:
+
+```
+uv run pytest tests/validation/test_check_adr_lifecycle.py \
+              tests/validation/test_check_adr_links.py \
+              tests/build_scripts/test_generate_adr_index.py \
+              tests/skills/adr-review/ \
+              tests/skills/test_misc_skill_scripts.py \
+              tests/validation/test_pre_pr_sequence_registry.py -q
+
+============================= 504 passed in 13.42s =============================
+```
+
+504 rather than the prior 388/304 because the `.claude/skills/adr-review/tests/`
+suite the earlier addenda ran separately has since been relocated to
+`tests/skills/adr-review/` by an unrelated repo-wide colocated-test move
+merged in from `origin/main`; the same test bodies, one path.
+`check_adr_links.py` reports 0 violations across 1590 tracked files;
+`check_adr_lifecycle.py` reports 64 violations across 102 ADR records
+(up from 98 records at the prior addendum, from ADR-052's merge), no check
+above its baseline; `generate_adr_index.py --check` reports the index
+matches the corpus.
+
+**Rebound to** `4d5b443a0c9ee104cd98bb40d9c13bbcf2130015`.

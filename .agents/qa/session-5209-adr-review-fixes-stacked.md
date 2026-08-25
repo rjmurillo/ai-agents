@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: c2055b1b91ddc7fb8406e15e6f9a84f41dfca220
+qaCommit: 4d5b443a0c9ee104cd98bb40d9c13bbcf2130015
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -745,3 +745,13 @@ touched suites; `ruff check` and the taste-count ratchet (576, at
 baseline) both clean.
 
 **Rebound to** `c2055b1b91ddc7fb8406e15e6f9a84f41dfca220`.
+
+## Addendum 23: a merge from `origin/main`, no ADR-tooling changes
+
+Same rebind as Addendum 21 of the campaign report
+(`.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`): `origin/main` merged
+into this branch plus two unrelated commits, none touching ADR-tooling
+scripts. Full detail, including the re-run test evidence, in that
+addendum.
+
+**Rebound to** `4d5b443a0c9ee104cd98bb40d9c13bbcf2130015`.
