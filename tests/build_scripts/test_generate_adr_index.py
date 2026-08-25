@@ -912,7 +912,7 @@ def test_check_mode_ignores_cwd_outside_the_repository_root(
 def test_build_all_registers_the_adr_index_generator(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.syspath_prepend(str(REPO_ROOT / "build"))
+    monkeypatch.syspath_prepend(str(REPO_ROOT / "build" / "scripts"))
     import build_all
 
     assert "adr-index" in dict(build_all.GENERATORS)
@@ -921,7 +921,7 @@ def test_build_all_registers_the_adr_index_generator(
 def test_build_all_owns_the_index_path_for_the_staleness_diff(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.syspath_prepend(str(REPO_ROOT / "build"))
+    monkeypatch.syspath_prepend(str(REPO_ROOT / "build" / "scripts"))
     import build_all
 
     assert ".agents/architecture/README.md" in build_all.OWNED_PREFIXES
