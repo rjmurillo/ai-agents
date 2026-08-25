@@ -22,7 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _SCRIPTS_PATH = str(REPO_ROOT / "build" / "scripts")
 sys.path.insert(0, _SCRIPTS_PATH)
 try:
-    import generate_adr_index  # noqa: E402
+    import generate_adr_index
 finally:
     sys.path.remove(_SCRIPTS_PATH)
 
@@ -870,6 +870,40 @@ def test_cwd_inside_repo_root_permits_generation(
 def test_cwd_outside_repo_root_is_a_config_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
+    """A bare, argument-less invocation resolves --adr-dir implicitly.
+
+    Only the implicit-default resolution path (relative --adr-dir/--output,
+    anchored to _REPO_ROOT by _resolve()) carries the silent-redirection risk
+    this guard exists for, so this drives main() with no path overrides at
+    all, matching a real bare `generate_adr_index.py` invocation from the
+    wrong cwd. An absolute --adr-dir/--output is a stated write target the
+    caller supplied explicitly and is exempt (Copilot, PR #5285 review; see
+    test_check_mode_ignores_cwd_outside_the_repository_root and
+    test_absolute_paths_from_outside_the_repository_root_write_normally below
+    for that case).
+    """
+    monkeypatch.chdir(tmp_path)
+
+    exit_code = generate_adr_index.main([])
+
+    assert exit_code == 2
+    assert "outside the repository root" in capsys.readouterr().err
+
+
+def test_absolute_paths_from_outside_the_repository_root_write_normally(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """An explicit, absolute --adr-dir/--output is exempt from the guard.
+
+    Companion to test_cwd_outside_repo_root_is_a_config_error above: cwd
+    outside the repository root only blocks the implicit-default resolution
+    path. build_all._build_adr_index always passes absolute paths, resolved
+    from its own caller-supplied repo_root (itself build_all.py's --repo-root
+    CLI flag), so this is the shape that call site actually exercises.
+    Before this fix the guard ran unconditionally against _REPO_ROOT, so this
+    call returned exit 2 for a legitimate write to an unrelated, explicitly
+    named directory (Copilot, PR #5285 review).
+    """
     directory = tmp_path / "architecture"
     _corpus(directory)
     output = tmp_path / "README.md"
@@ -877,9 +911,9 @@ def test_cwd_outside_repo_root_is_a_config_error(
 
     exit_code = generate_adr_index.main(["--adr-dir", str(directory), "--output", str(output)])
 
-    assert exit_code == 2
-    assert "outside the repository root" in capsys.readouterr().err
-    assert not output.exists()
+    assert exit_code == 0
+    assert "outside the repository root" not in capsys.readouterr().err
+    assert output.is_file()
 
 
 def test_check_mode_ignores_cwd_outside_the_repository_root(
@@ -1017,8 +1051,10 @@ def test_successor_lookup_accepts_non_padded_and_bare_int_references(tmp_path: P
 def test_supersession_cycle_terminates_instead_of_hanging(tmp_path: Path) -> None:
     """A cycle must not be discovered by this renderer looping forever.
 
-    check_adr_lifecycle.py reports cycles as violations. The index has to survive
-    one long enough for that gate to be read.
+    No gate elsewhere in this branch rejects a cyclic superseded-by pair
+    before it reaches the renderer (this extraction's scope stops short of
+    check_adr_lifecycle.py, which lives on a separate, unmerged branch), so
+    the renderer itself must survive one without hanging.
     """
     adr_dir = tmp_path / "architecture"
     _write_adr(
@@ -1040,6 +1076,69 @@ def test_supersession_cycle_terminates_instead_of_hanging(tmp_path: Path) -> Non
 
     assert "ADR-010" in retired
     assert "ADR-011" in retired
+
+
+def test_supersession_cycle_is_reported_not_silently_redirected(tmp_path: Path) -> None:
+    """A cycle must not print as a redirect to another dead end.
+
+    Before this fix, walking A -> B -> A stopped at the first revisited node
+    and printed it as if it were the terminal record: A's row said "read
+    instead: B", B's row said "read instead: A", and neither destination was
+    live. Both rows must instead say the pair is an unresolved cycle
+    (Copilot, PR #5285 review).
+    """
+    adr_dir = tmp_path / "architecture"
+    _write_adr(
+        adr_dir,
+        20,
+        "alpha",
+        frontmatter="status: superseded\nsuperseded-by: ADR-021",
+        body=_standard_body(20, "Alpha"),
+    )
+    _write_adr(
+        adr_dir,
+        21,
+        "beta",
+        frontmatter="status: superseded\nsuperseded-by: ADR-020",
+        body=_standard_body(21, "Beta"),
+    )
+
+    retired = _section(_render(adr_dir), "Retired")
+    # Match on the row's own leading link, not a bare substring: the cycle
+    # description in either row's own cell names both IDs, so a substring
+    # search for "ADR-021 in line" matches ADR-020's row too.
+    row_20 = next(line for line in retired.splitlines() if line.startswith("| [ADR-020]"))
+    row_21 = next(line for line in retired.splitlines() if line.startswith("| [ADR-021]"))
+
+    assert "cycle, unresolved" in row_20
+    assert "cycle, unresolved" in row_21
+    # Neither row's "Read instead" cell may read as a resolved link to the
+    # other dead end (a leading "| [ADR-021]" link cell, not the cycle
+    # description's own mention of the ID).
+    assert "| [ADR-021]" not in row_20
+    assert "| [ADR-020]" not in row_21
+
+
+def test_self_referencing_supersession_is_reported_as_a_cycle(tmp_path: Path) -> None:
+    """A record naming itself as its own successor is the one-hop cycle case.
+
+    The chain accumulator is empty on this path (the walk never advances
+    past the starting record), so the rendered loop must still name the
+    record rather than printing an empty parenthetical.
+    """
+    adr_dir = tmp_path / "architecture"
+    _write_adr(
+        adr_dir,
+        30,
+        "self-referential",
+        frontmatter="status: superseded\nsuperseded-by: ADR-030",
+        body=_standard_body(30, "Self Referential"),
+    )
+
+    retired = _section(_render(adr_dir), "Retired")
+    row = next(line for line in retired.splitlines() if "ADR-030" in line and "|" in line)
+
+    assert "cycle, unresolved (ADR-030 -> ADR-030)" in row
 
 
 def test_proposed_row_renders_the_review_by_date(tmp_path: Path) -> None:

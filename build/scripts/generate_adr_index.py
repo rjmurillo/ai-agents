@@ -9,10 +9,13 @@
 # round-10 review.)
 """Generate .agents/architecture/README.md, a current-state index of the ADR corpus.
 
-`AGENTS.md` points every agent at `.agents/architecture/ADR-*.md`. That is 98
-records, so "which decisions bind me right now" gets answered by grepping a
-keyword and trusting the first hit. A superseded PowerShell mandate and an
-accepted Python mandate look identical to that reader.
+`AGENTS.md` points every agent at `.agents/architecture/ADR-*.md`. That is
+dozens of records and grows with every accepted decision, so "which decisions
+bind me right now" gets answered by grepping a keyword and trusting the first
+hit. A superseded PowerShell mandate and an accepted Python mandate look
+identical to that reader. (Deliberately no exact count here: an earlier
+version cited "98" and it went stale the moment the generated index below
+examined a different number, Copilot, PR #5285 review.)
 
 This is the consumer ADR-073 gated its deferred phases on. Its "Consumer trigger
 and success metric" paragraph reads verbatim:
@@ -88,15 +91,19 @@ _FRONTMATTER_RE = re.compile(r"^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$")
 _ADR_FILENAME_RE = re.compile(r"^ADR-(\d{2,})-[^/]+\.md$")
 
 # An id reference inside frontmatter: "ADR-091", "adr-91", or a bare integer
-# rendered as a string by _scalar() below. Mirrors
-# scripts/validation/check_adr_lifecycle.py:132-133 verbatim:
-#   # An id reference inside frontmatter: "ADR-091", "adr-91", or a bare integer.
-#   _ADR_REFERENCE_RE = re.compile(r"^ADR[-_ ]?(\d{1,4})$", re.IGNORECASE)
-# The lifecycle gate is the schema's canonical reference parser (ADR-073 names
-# it as such); a `superseded-by` value that gate accepts as a valid reference
-# must resolve to the same record here, or a record can pass lifecycle
-# validation while the index silently fails to find its successor and prints
-# the raw, unlinked reference instead (Copilot, PR #5209).
+# rendered as a string by _scalar() below.
+#
+# This is this module's own local contract, not a mirror of another script.
+# A separate, unmerged branch (PR #5209) carries a lifecycle validation gate,
+# check_adr_lifecycle.py, that accepts the same three reference shapes; that
+# file is not part of this extraction (see the module docstring's "Why this
+# is a small extraction" framing) and does not exist in this repository
+# state, so it cannot be cited as a canonical source per
+# .claude/rules/canonical-source-mirror.md (Copilot, PR #5285 review). If
+# that gate lands later and its acceptance set diverges from this one, a
+# record could pass lifecycle validation while the index fails to find its
+# successor and prints the raw, unlinked reference instead; whoever lands it
+# should reconcile the two patterns explicitly rather than assume parity.
 _ADR_REFERENCE_RE = re.compile(r"^ADR[-_ ]?(\d{1,4})$", re.IGNORECASE)
 
 _ADR_GLOB = "ADR-*.md"
@@ -418,20 +425,17 @@ def _blocker_cell(record: AdrRecord) -> str:
 
     A past-due date is surfaced, not marked. This cell renders whatever
     ``review-by`` says (``review by 2026-01-01``), current or overdue,
-    identically either way: there is no "(overdue)" suffix or other flag here,
-    and no other gate adds one either. Detecting that a date has passed
-    requires reading the wall clock, which this renderer must not do (it is
-    required to be deterministic: same input, byte-identical output, and a
-    clock read would make output depend on run date). ``check_adr_lifecycle.py``
-    does not fill that gap: its ``CHECKS`` tuple has no rule that reads
-    ``review-by`` at all, past-due or otherwise (verified: the string does not
-    appear in that file). So today, nothing in this codebase flags an overdue
-    ``review-by`` date; a reader has to notice one by eye. The whole reason the
-    field exists (issue #5193) is that ADR-002 and ADR-039 sat seven months past
-    a provisional window nobody could see, and until #5193 builds the check
-    this cell's plain rendering has the same blind spot, one layer less deep:
-    at least the date is visible here, where it was not visible at all before
-    this field existed (Copilot, PR #5209 round-5 review).
+    identically either way: there is no "(overdue)" suffix or other flag here.
+    Detecting that a date has passed requires reading the wall clock, which
+    this renderer must not do (it is required to be deterministic: same
+    input, byte-identical output, and a clock read would make output depend
+    on run date). Whether anything else in this repository flags an overdue
+    ``review-by`` date is out of this module's scope to claim; nothing in
+    this file does. The whole reason the field exists (issue #5193) is that
+    ADR-002 and ADR-039 sat seven months past a provisional window nobody
+    could see, and this cell's plain rendering has the same blind spot, one
+    layer less deep: at least the date is visible here, where it was not
+    visible at all before this field existed.
     """
     if not record.review_by:
         return record.blocker
@@ -518,14 +522,13 @@ def _link(record: AdrRecord) -> str:
 def _normalize_adr_id(reference: str) -> str | None:
     """Canonical ``ADR-NNN`` key for a frontmatter reference, or None.
 
-    Accepts exactly what ``check_adr_lifecycle.py``'s ``_normalize_reference``
-    accepts: ``ADR-091``, ``adr-91``, ``ADR 91``, ``ADR_91``, or a bare digit
-    string. ``by_id`` keys are always the zero-padded ``ADR-{n:03d}`` form
+    Accepts the same reference shapes ``_ADR_REFERENCE_RE`` matches:
+    ``ADR-091``, ``adr-91``, ``ADR 91``, ``ADR_91``, or a bare digit string.
+    ``by_id`` keys are always the zero-padded ``ADR-{n:03d}`` form
     ``build_record`` assigns, so a non-padded or ADR-prefix-free reference such
     as ``ADR-91`` or ``91`` must be normalized to ``ADR-091`` before lookup, or
-    a record that names a real, lifecycle-valid successor renders as an
-    unlinked plain-text reference instead (Copilot, PR #5209, discussion
-    flagging ``build/scripts/generate_adr_index.py:504``).
+    a record that names a real successor renders as an unlinked plain-text
+    reference instead.
     """
     stripped = reference.strip()
     match = _ADR_REFERENCE_RE.match(stripped)
@@ -554,10 +557,15 @@ def _successor_cell(record: AdrRecord, by_id: dict[str, AdrRecord]) -> str:
     the reader has nowhere to go. Say so, rather than print an empty cell that
     reads as "nothing to see".
 
-    A cycle terminates the walk at its entry point rather than hanging. The
-    lifecycle gate (``scripts/validation/check_adr_lifecycle.py``) reports
-    cycles as violations; this renderer must not be the thing that discovers
-    one by looping forever.
+    A cycle (A retired in favour of B, B retired in favour of A, however many
+    hops apart) has no terminal to redirect to: every record on it is
+    retired, and the walk would otherwise pick "whichever one it revisited
+    first" and print that as if it were a resolved destination, which is
+    wrong in the same way printing an unresolved reference as a live link
+    would be. This module ships with no gate elsewhere in this branch that
+    rejects such a cycle before it reaches the renderer (Copilot, PR #5285
+    review), so the renderer detects it itself and says so explicitly rather
+    than publishing one retired record as if it were the other's fix.
     """
     if not record.successor:
         return "not recorded"
@@ -569,6 +577,7 @@ def _successor_cell(record: AdrRecord, by_id: dict[str, AdrRecord]) -> str:
     chain: list[AdrRecord] = []
     seen = {record.adr_id}
     current = successor
+    cycle = False
     while current.adr_id not in seen:
         chain.append(current)
         seen.add(current.adr_id)
@@ -579,6 +588,17 @@ def _successor_cell(record: AdrRecord, by_id: dict[str, AdrRecord]) -> str:
         if nxt is None:
             break
         current = nxt
+    else:
+        # The while condition went false: `current` revisited a node already
+        # in `seen`, so every record walked is retired with nowhere to land.
+        cycle = True
+
+    if cycle:
+        # Show the full loop, record.adr_id included, so a one-hop
+        # self-reference (A names itself) is as legible as a longer ring
+        # (A -> B -> A): chain alone would be empty for the former.
+        loop = " -> ".join([record.adr_id, *(r.adr_id for r in chain), record.adr_id])
+        return f"cycle, unresolved ({loop})"
 
     terminal = chain[-1] if chain else successor
     if len(chain) <= 1:
@@ -658,22 +678,20 @@ _INTRO = (
     "    if str(front.get('status', '')).strip().lower() == 'accepted':\n"
     "        print(front.get('id') or path.name)\n"
     "```\n\n"
-    "**Normalise before comparing, as above.** Both gates that bucket a record by\n"
-    "status lower and strip it first: `_status_of` in\n"
-    "`scripts/validation/check_adr_lifecycle.py` returns\n"
-    "`str(value).strip().lower()`, and this generator does the same. So\n"
-    "`status: Accepted` passes the `status-enum` gate and lands under Accepted in\n"
-    "the table below, while a bare `== 'accepted'` misses it. Every record carries\n"
-    "a lowercase value today, which is exactly why the mismatch would not announce\n"
+    "**Normalise before comparing, as above.** This generator's own `_status_of`\n"
+    "strips and lower-cases the value before bucketing a record (`str(value)\n"
+    ".strip().lower()`), so `status: Accepted` lands under Accepted in the table\n"
+    "below, while a bare `== 'accepted'` misses it. Every record carries a\n"
+    "lowercase value today, which is exactly why the mismatch would not announce\n"
     "itself.\n\n"
-    "**This snippet does not detect duplicate keys, and the gates do.**\n"
+    "**This snippet does not detect duplicate keys, and the generator does.**\n"
     "`yaml.safe_load` resolves a repeated `status:` last-wins and silently, so a\n"
     "record declaring `proposed` in the line a human reads and `accepted` lower in\n"
-    "the same block would print as accepted here. `check_adr_lifecycle` and this\n"
-    "generator both reject that at the parser, so a corpus passing the gates has\n"
-    "none. Run the gate before trusting a query on a tree you have not validated;\n"
-    "the snippet is a convenience for reading a known-good corpus, not an\n"
-    "independent check.\n\n"
+    "the same block would print as accepted here. This generator's own frontmatter\n"
+    "parser rejects that at the parser (a strict YAML loader that raises on a\n"
+    "duplicate mapping key), so the committed index has none. Regenerate before\n"
+    "trusting a query on a tree you have not; the snippet is a convenience for\n"
+    "reading a known-good corpus, not an independent check.\n\n"
     "Python rather than `yq` deliberately. Python is the repo's native tooling\n"
     "(ADR-042) and `yaml` is already a dependency, so this adds nothing. The `yq` on\n"
     "PATH here is the jq wrapper, which has no front-matter mode and fails on a\n"
@@ -773,12 +791,10 @@ def _run_check(adr_dir: Path, output_path: Path) -> int:
     success line below can report how many ADR records were actually
     examined: a byte-for-byte match against an emptied or narrowed corpus
     would otherwise print the same unqualified ``OK`` as a match against
-    the full one (Copilot, PR #5209 round-8 review). Unlike the equivalent
-    fix in ``scripts/validation/check_adr_lifecycle.py`` and
-    ``scripts/validation/check_adr_links.py``, no second, duplicate-cost
-    read is needed here: ``render_index()`` already takes the record list
-    as its argument rather than recomputing it internally, so splitting the
-    one existing call is free.
+    the full one. No second, duplicate-cost read is needed to get that
+    count: ``render_index()`` already takes the record list as its argument
+    rather than recomputing it internally, so splitting the one existing
+    call is free.
     """
     records = collect_records(adr_dir)
     generated = render_index(records).replace("\r\n", "\n")
@@ -847,28 +863,43 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         # .claude/rules/ci-scripts.md MUST 7: a script that resolves the
         # repository root and then writes to it must confirm the caller's cwd
-        # sits inside that root before the first write. Relative
-        # --adr-dir/--output args are already anchored to _REPO_ROOT by
-        # _resolve() above, not to Path.cwd(); without this check, running the
-        # script from a different worktree (or via a symlink into this one)
-        # writes into _REPO_ROOT silently, with no signal that the write
-        # landed outside the caller's own checkout. Mirrors
-        # scripts/generate_third_party_notices.py:446-452 verbatim:
+        # sits inside that root before the first write. The risk this guards
+        # against is *implicit* resolution: a relative --adr-dir/--output is
+        # anchored to _REPO_ROOT by _resolve() above, not to Path.cwd(), so
+        # running the script bare from a different worktree writes into
+        # _REPO_ROOT silently, with no signal the write landed outside the
+        # caller's own checkout. Mirrors scripts/generate_third_party_notices.py:446-452
+        # verbatim:
         #   project_root = PROJECT_ROOT
         #   if not Path.cwd().resolve().is_relative_to(project_root.resolve()):
         #       print(f"ERROR: current directory is outside project root: {Path.cwd()}", ...)
         #       return 2
         #
-        # Scoped to this branch, not to every invocation: `_run_check()` above
-        # is read-only, so a caller passing absolute --adr-dir/--output paths
-        # from outside the repository has nothing to protect against there
-        # (Copilot, PR #5209 round-7 review).
-        if not Path.cwd().resolve().is_relative_to(_REPO_ROOT):
-            print(
-                f"Error: current directory is outside the repository root: {Path.cwd()}",
-                file=sys.stderr,
-            )
-            return 2
+        # Stricter/looser/different than canonical: that script has no
+        # CLI override, so PROJECT_ROOT is always both the resolution anchor
+        # and the write target, and cwd-vs-PROJECT_ROOT is the only check
+        # possible. This script's --adr-dir/--output CAN be absolute, and
+        # build_all._build_adr_index always passes them that way, resolved
+        # from its own caller-supplied repo_root (itself build_all.py's own
+        # --repo-root CLI flag, a real, exposed override, not test-only).
+        # Checking cwd against _REPO_ROOT unconditionally, including for an
+        # absolute, caller-typed target elsewhere, verifies nothing about
+        # that target: it neither catches a real mismatch (cwd can equal
+        # _REPO_ROOT while --adr-dir points at an unrelated tree) nor avoids
+        # a false rejection (a legitimate --repo-root invocation of
+        # build_all.py whose cwd sits outside this script's own checkout)
+        # (Copilot, PR #5285 review). An absolute path is a stated write
+        # target the caller supplied explicitly; cwd cannot silently redirect
+        # it the way it can a relative one, so the guard is scoped to the
+        # case it actually protects: implicit resolution against _REPO_ROOT
+        # for a relative --adr-dir or --output.
+        if not args.adr_dir.is_absolute() or not args.output.is_absolute():
+            if not Path.cwd().resolve().is_relative_to(_REPO_ROOT):
+                print(
+                    f"Error: current directory is outside the repository root: {Path.cwd()}",
+                    file=sys.stderr,
+                )
+                return 2
 
         generate(adr_dir, output_path)
     except AdrIndexError as exc:

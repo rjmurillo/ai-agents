@@ -29,23 +29,21 @@ for path in sorted(pathlib.Path('.agents/architecture').glob('ADR-[0-9]*.md')):
         print(front.get('id') or path.name)
 ```
 
-**Normalise before comparing, as above.** Both gates that bucket a record by
-status lower and strip it first: `_status_of` in
-`scripts/validation/check_adr_lifecycle.py` returns
-`str(value).strip().lower()`, and this generator does the same. So
-`status: Accepted` passes the `status-enum` gate and lands under Accepted in
-the table below, while a bare `== 'accepted'` misses it. Every record carries
-a lowercase value today, which is exactly why the mismatch would not announce
+**Normalise before comparing, as above.** This generator's own `_status_of`
+strips and lower-cases the value before bucketing a record (`str(value)
+.strip().lower()`), so `status: Accepted` lands under Accepted in the table
+below, while a bare `== 'accepted'` misses it. Every record carries a
+lowercase value today, which is exactly why the mismatch would not announce
 itself.
 
-**This snippet does not detect duplicate keys, and the gates do.**
+**This snippet does not detect duplicate keys, and the generator does.**
 `yaml.safe_load` resolves a repeated `status:` last-wins and silently, so a
 record declaring `proposed` in the line a human reads and `accepted` lower in
-the same block would print as accepted here. `check_adr_lifecycle` and this
-generator both reject that at the parser, so a corpus passing the gates has
-none. Run the gate before trusting a query on a tree you have not validated;
-the snippet is a convenience for reading a known-good corpus, not an
-independent check.
+the same block would print as accepted here. This generator's own frontmatter
+parser rejects that at the parser (a strict YAML loader that raises on a
+duplicate mapping key), so the committed index has none. Regenerate before
+trusting a query on a tree you have not; the snippet is a convenience for
+reading a known-good corpus, not an independent check.
 
 Python rather than `yq` deliberately. Python is the repo's native tooling
 (ADR-042) and `yaml` is already a dependency, so this adds nothing. The `yq` on

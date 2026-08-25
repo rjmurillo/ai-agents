@@ -1339,7 +1339,7 @@ def test_run_check_removes_new_untracked_files_generators_created(
     repo = tmp_path / "repo"
     _init_git_repo(repo)
     (repo / ".claude" / "skills").mkdir(parents=True)
-    (repo / ".agents" / "architecture").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
@@ -1384,7 +1384,7 @@ def test_run_without_check_does_not_snapshot_or_restore(
     repo = tmp_path / "repo"
     _init_git_repo(repo)
     (repo / ".claude" / "skills").mkdir(parents=True)
-    (repo / ".agents" / "architecture").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
