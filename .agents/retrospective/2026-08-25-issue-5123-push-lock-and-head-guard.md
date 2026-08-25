@@ -62,6 +62,32 @@ before I pushed, not by me before writing the code:
    `lefthook.yml`'s `timeout:` kills make possible) would have blocked every
    commit on that branch indefinitely, with no documented recovery.
 
+A third, more severe instance of the same pattern shipped past the security
+review entirely and was caught only by a later Copilot code review on the
+open PR: `conftest.py`'s `_guard_real_repo_head` fixture declared
+`request: pytest.FixtureRequest | None = None`. pytest's fixture-argument
+scanner excludes any parameter carrying a default from what it resolves as a
+fixture dependency, so `request` stayed `None` on every real test run and the
+whole `#5123` escalation this PR exists to add was dead code. Confirmed with
+a standalone probe (an autouse fixture asserting `request is not None` fails
+under real pytest execution with exactly that signature) and with a
+discriminating negative control on the new end-to-end integration test:
+reintroducing the default makes that test fail with
+`AttributeError: 'NoneType' object has no attribute 'node'`, the precise
+symptom of the bug. Fixed by removing the default (commit `35a773096`).
+
+This one is worse than the first two because of where it hid. The security
+review reads a diff; a defaulted parameter reads as more permissive code, not
+as a correctness defect, so nothing in that review's scope would have caught
+it. Every test in `tests/test_pytest_head_guard.py` that predated this PR
+drives the fixture generator directly via `.__wrapped__()`, which calls the
+underlying function outside pytest's dependency-injection machinery entirely,
+so none of those 46 passing tests could have observed that the real injection
+was broken. The bug was invisible to code review by construction and
+invisible to the existing test suite by construction. Only a test that
+routes through pytest's actual fixture resolution, which none of them did
+until this PR added one, could have caught it.
+
 Both were fixed in `9c10d29` before push: `SKIP_PUSH_LOCK_COMMIT_GUARD=1`
 escape hatch, fail-open on git error with stderr surfaced, corrected wording
 in all five locations, and a live demonstration (holding the real canonical
