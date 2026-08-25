@@ -108,13 +108,11 @@ These bind today.
 | [ADR-021](ADR-021-model-routing-strategy.md) | AI Review Model Routing Strategy | 2025-12-23 | Adopt an evidence-aware, tiered model routing strategy that routes AI review requests to specialized models based on: |
 | [ADR-023](ADR-023-quality-gate-prompt-testing.md) | Quality Gate Prompt Structural Validation | 2025-12-26 | Chosen option: "Pester Structural Tests", because it provides immediate, repeatable validation of prompt structure with minimal infrastructure overhead, while acknowledging that runtime behavioral... |
 | [ADR-026](ADR-026-pr-automation-concurrency-and-safety.md) | PR Automation Concurrency and Safety Controls | 2026-07-27 | Decision: Use GitHub Actions `concurrency` group instead of file-based locking. |
-| [ADR-028](ADR-028-powershell-output-schema-consistency.md) | PowerShell Output Schema Consistency | 2025-12-23 | Include all properties in output objects with null/0 values when not populated, rather than conditionally excluding properties from the output schema. |
 | [ADR-029](ADR-029-skill-file-line-ending-normalization.md) | Skill File Line Ending Normalization | 2025-12-27 | Force LF line endings for all `*.skill` files using git attributes: |
 | [ADR-032](ADR-032-ears-requirements-syntax.md) | EARS Requirements Syntax Standard | 2025-12-30 | Adopt the EARS (Easy Approach to Requirements Syntax) format as the standard for all formal requirements in the ai-agents project. |
 | [ADR-033](ADR-033-routing-level-enforcement-gates.md) | Routing-Level Enforcement Gates | 2026-08-16 | Implement routing-level enforcement gates using Claude Code hooks. |
 | [ADR-034](ADR-034-investigation-session-qa-exemption.md) | Investigation Session QA Exemption | 2026-07-08 | Add investigation-only session exemption to pre-commit QA validation with staged-file guardrails. |
 | [ADR-035](ADR-035-exit-code-standardization.md) | Exit Code Standardization | 2025-12-30 | Chosen option: Option 1 - POSIX-Style Standard |
-| [ADR-036](ADR-036-two-source-agent-template-architecture.md) | Two-Source Agent Template Architecture | 2026-08-25 | Adopt a two-source architecture: |
 | [ADR-037](ADR-037-memory-router-architecture.md) | Memory Router Architecture | 2026-07-20 | Implement a Memory Router that provides: |
 | [ADR-040](ADR-040-skill-frontmatter-standardization.md) | Skill Frontmatter Standardization and Model Identifier Strategy | 2026-08-14 | Adopt the following standardization for all 27 Claude Code skills: |
 | [ADR-041](ADR-041-codeql-integration.md) | CodeQL Integration Multi-Tier Strategy | 2026-07-21 | Chosen option: Option 4 - Multi-Tier with Shared Configuration |
@@ -125,10 +123,10 @@ These bind today.
 | [ADR-047](ADR-047-plugin-mode-hook-behavior.md) | Plugin-Mode Hook Behavior | 2026-04-29 | All hooks and skills run in plugin mode. |
 | [ADR-050](ADR-050-adr-protocol-sync.md) | ADR-to-Protocol Sync Process | 2026-02-21 | Establish a two-tier ADR-to-Protocol sync process: an automated audit script and a manual integration checklist. |
 | [ADR-051](ADR-051-synthesis-panel-frontmatter-standard.md) | Synthesis Panel Frontmatter Standard | 2026-03-07 | All DESIGN-REVIEW documents MUST include YAML frontmatter with structured metadata. |
+| [ADR-052](ADR-052-template-strategy.md) | Template Strategy for Multi-Platform Agent Distribution | 2026-08-25 | Option B: Claude-First. |
 | [ADR-053](ADR-053-adr-exception-criteria.md) | ADR Exception Criteria (Chesterton's Fence) | 2026-03-07 | ADR exceptions MUST include a Chesterton's Fence analysis before approval. |
 | [ADR-054](ADR-054-local-security-scanning.md) | Local Security Scanning | 2026-07-20 | Add a Lefthook pre-push job that scans changed code files. |
-| [ADR-055](ADR-055-github-actions-runner-selection.md) | GitHub Actions Runner Selection | 2025-12-29 | Default to ARM64 runners for all Linux workflows unless documented architectural constraints exist. |
-| [ADR-056](ADR-056-skill-output-format-standardization.md) | Skill Output Format Standardization | 2026-03-08 | All skill scripts MUST wrap output in a standard envelope with `Success`, `Data`, `Error`, and `Metadata` fields |
+| [ADR-055](ADR-055-github-actions-runner-selection.md) | GitHub Actions Runner Selection | 2026-08-25 | Default to ARM64 runners for all Linux workflows unless documented architectural constraints exist. |
 | [ADR-057](ADR-057-prompt-behavioral-evaluation.md) | Prompt Behavioral Evaluation Methodology | 2026-07-22 | Adopt scenario-based LLM evaluation as the standard method for validating behavioral correctness of prompt changes. |
 | [ADR-060](ADR-060-rework-warning-session-log-persistence.md) | Rework Warning Evidence Persistence in Session Log JSON | 2026-07-27 | Add an optional `reworkWarning` object under `protocolCompliance.sessionEnd` in the session log JSON. |
 | [ADR-062](ADR-062-conditional-lsp-first-enforcement.md) | Conditional LSP-First Navigation Enforcement | 2026-07-27 | Adopt a conditional, availability-gated LSP-first enforcement layer, ported to Python, wired into both harnesses, covering every LSP-navigable file type. |
@@ -152,6 +150,7 @@ These bind today.
 | [ADR-097](ADR-097-zero-tool-use-hooks.md) | Zero Tool-Use Hooks | 2026-08-19 | Retire all five currently-registered tool-call hooks, and retire the generated Copilot dispatcher machinery that their removal leaves with nothing to run. |
 | [ADR-099](ADR-099-remove-commit-limit-bypass-gate.md) | Remove the commit-count block and its commit-limit-bypass label | 2026-08-21 | Remove the commit-count block and the `commit-limit-bypass` label mechanism entirely, from both the CI workflow (`pr-validation.yml`, `scripts/ci/enforce_pr_validation.py`) and the local pre-push... |
 | [ADR-102](ADR-102-session-qa-binding-field-precedence.md) | Replace session_qa_binding()'s Field-Equality Raise with Documented Precedence and a Diagnostic | 2026-08-21 | Delete the equality raise. |
+| [ADR-103](ADR-103-skill-output-python-contract-correction.md) | Skill Output Format Standardization, Python Contract Correction | 2026-08-25 | Supersede ADR-056 items 2 and 6, and its enforcement scope, as follows. |
 
 ## Proposed
 
@@ -165,7 +164,6 @@ Recorded, not yet binding. The last column is what each record says is holding i
 | [ADR-020](ADR-020-feature-request-review-step.md) | Feature Request Review Step in Issue Triage Workflow | 2025-12-19 | Chosen option: Option 1 - New Conditional Step with Analyst Agent | - |
 | [ADR-022](ADR-022-architecture-governance-split-criteria.md) | Architecture vs Governance Decision Split Criteria | 2025-12-23 | Adopt a hybrid approach with explicit split criteria: | - |
 | [ADR-027](ADR-027-github-mcp-agent-isolation.md) | GitHub MCP Server with Agent Isolation Pattern | 2025-12-23 | Chosen option: Phased Hybrid Approach with GitHub MCP as Target Architecture | - |
-| [ADR-031](ADR-031-hybrid-powershell-architecture.md) | Hybrid PowerShell Architecture for Claude Code Performance | 2025-12-29 | Implement a hybrid architecture for PowerShell skill execution: | - |
 | [ADR-038](ADR-038-reflexion-memory-schema.md) | Reflexion Memory Schema | 2026-01-01 | Implement a Four-Tier Reflexion Memory Schema with episodic replay and causal graph capabilities. | - |
 | [ADR-048](ADR-048-mcp-tool-ecosystem-expansion.md) | MCP Tool Ecosystem Expansion | 2026-02-23 | Expand the MCP tool ecosystem in four phases, building on existing ADRs: | - |
 | [ADR-049](ADR-049-pre-pr-validation-gates.md) | Pre-PR Validation Gates | 2026-02-24 | All PRs MUST pass a local validation gate before creation. | - |
@@ -200,8 +198,11 @@ Superseded or deprecated. Do not cite these. The last column is where the decisi
 | [ADR-005](ADR-005-powershell-only-scripting.md) | PowerShell-Only Scripting Standard | superseded | [ADR-042](ADR-042-python-migration-strategy.md) |
 | [ADR-024](ADR-024-github-actions-runner-selection.md) | GitHub Actions Runner Selection | superseded | [ADR-055](ADR-055-github-actions-runner-selection.md) |
 | [ADR-025](ADR-025-github-actions-arm-runners.md) | GitHub Actions ARM Runner Migration | superseded | [ADR-055](ADR-055-github-actions-runner-selection.md) |
+| [ADR-028](ADR-028-powershell-output-schema-consistency.md) | PowerShell Output Schema Consistency | superseded | [ADR-103](ADR-103-skill-output-python-contract-correction.md) (via ADR-056) |
+| [ADR-036](ADR-036-two-source-agent-template-architecture.md) | Two-Source Agent Template Architecture | superseded | [ADR-052](ADR-052-template-strategy.md) |
 | [ADR-039](ADR-039-agent-model-cost-optimization.md) | Agent Model Cost Optimization | deprecated | not recorded |
 | [ADR-044](ADR-044-copilot-cli-frontmatter-compatibility.md) | Copilot CLI Frontmatter Compatibility | superseded | [ADR-094](ADR-094-govern-copilot-cli-compatibility.md) |
+| [ADR-056](ADR-056-skill-output-format-standardization.md) | Skill Output Format Standardization | superseded | [ADR-103](ADR-103-skill-output-python-contract-correction.md) |
 | [ADR-079](ADR-079-merge-time-plugin-version-bump.md) | Plugin Version Bump Stays at PR Time (Reject Merge-Time Automation) | superseded | [ADR-092](ADR-092-omit-plugin-manifest-version.md) (via ADR-091) |
 | [ADR-091](ADR-091-post-merge-version-bot.md) | Post-Merge Bot Owns Plugin Version and Count Baselines | superseded | [ADR-092](ADR-092-omit-plugin-manifest-version.md) |
 
@@ -212,7 +213,7 @@ Considered and declined. Kept visible so the proposal is findable and does not r
 | ADR | Title | Date | Decision |
 | --- | --- | --- | --- |
 | [ADR-030](ADR-030-skills-pattern-superiority.md) | Skills Pattern Superiority | 2026-08-25 | - |
-| [ADR-052](ADR-052-template-strategy.md) | Template Strategy for Multi-Platform Agent Distribution | 2026-08-25 | Option B: Claude-First. |
+| [ADR-031](ADR-031-hybrid-powershell-architecture.md) | Hybrid PowerShell Architecture for Claude Code Performance | 2026-08-25 | Implement a hybrid architecture for PowerShell skill execution: |
 | [ADR-061](ADR-061-hook-matcher-shims-delegate-pattern.md) | Hook Matcher Shims Delegate to Canonical Body | 2026-08-25 | Amend REQ-003-007 step 5 so the generator emits delegate shims, not inline-body shims. |
 | [ADR-095](ADR-095-scoped-re-review-axes.md) | Scoped re-review runs only the axes that flagged (rejected) | 2026-08-15 | - |
 

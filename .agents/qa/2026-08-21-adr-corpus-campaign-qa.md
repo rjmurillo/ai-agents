@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 997a954bf09827104ee17638954aaaf746489ea4
+qaCommit: 333582acef3f29dd074741c833a36cd887689141
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -68,6 +68,12 @@ working tree:
 | `supersession-reciprocal` | 1 | 0 |
 | ADR link violations | 26 | 0 against baseline, 21 pre-existing elsewhere |
 
+The "After" column is this campaign's own measurement, taken at the time of the
+run, and is left as measured. Both figures moved again afterwards for reasons
+outside this campaign; the current numbers and what moved them are in "Known
+gaps carried forward" below. Read that section, not this table, for the live
+state.
+
 `_get_adr_status` before and after, on real corpus files:
 
 ```
@@ -131,10 +137,13 @@ Both are corrected on the issues so an implementer does not chase them.
 
 ## Known gaps carried forward
 
-- 53 records still have no frontmatter (issue #5190). The ratchet holds the line;
-  the index's "Needs backfill" section is the live meter. (Corrected from 54,
-  a stale carried-forward count; `check_adr_lifecycle.py` currently reports
-  `frontmatter-parses 53 / 53 at baseline`.)
+- Closed. This gap read 54 when the campaign filed it, was corrected to 53 as a
+  stale carried-forward count, and is now 0: `1d15e0d06` (PR #5291, "ADR-073
+  lifecycle frontmatter across 67 ADRs") merged into this branch and backfilled
+  the remainder for issue #5190. Re-measured at this commit:
+  `check_adr_lifecycle.py` reports `frontmatter-parses 0 / 0`, and the index's
+  "Needs backfill" section, which this bullet named as the live meter, reads
+  "None." No follow-up work remains behind this line.
 - 19 pre-existing ADR link violations in files outside this change, each
   baselined with a written diagnosis. (Corrected from 21; `check_adr_links_baseline.txt`
   currently holds 19 non-comment entries.)
@@ -2082,3 +2091,391 @@ passes, proving the frontmatter-comment false-rejection this addendum
 fixes is actually closed. Real file: 26/26 tests pass. Commit `997a954bf`.
 
 **Rebound to** `997a954bf09827104ee17638954aaaf746489ea4`.
+## Addendum 44: Cursor Bugbot caught a real merge-resolution mistake on ADR-005's date
+
+The ADR-005/ADR-042 conflict resolution in Addendum 37 above claimed "this
+branch's values matched the files' own prose exactly, so kept" for both
+records. True for ADR-042; false for ADR-005, where the committed
+frontmatter actually kept origin/main's `2026-01-17` (ADR-042's own
+supersession date, not ADR-005's) instead of this branch's
+prose-matching `2025-12-18`. Cursor Bugbot flagged the contradiction
+between the committed file and this report's own claim. Fixed by
+restoring `2025-12-18`, with a correction appended to
+`.agents/critique/ADR-005-status-duplication-debate-log.md` per ADR-073's
+evidence requirement (commit `6471bbdd2`). Re-verified: `check_adr_lifecycle.py`
+unchanged (`[PASS] 1 violation(s) across 102 ADR record(s)`), `check_adr_links.py`
+0 violations, `build_all.py --check` clean (the date is not rendered in the
+generated index's Retired-section row, so no regeneration needed).
+
+**Rebound to** `6471bbdd22424244dabf0aa1e3e9b70c3ae9e8f7`.
+
+## Addendum 45: an eleventh Copilot review round, three commits
+
+Six findings fixed across three commits (`58f54b806`, `bec815948`,
+`15fc72fda`): two stale `adr_lifecycle_baseline.json` ceilings (53, 10,
+both already 0 in the live corpus since the origin/main merge) lowered
+to 0; a new ratcheted `status-edge-consistency` check added to
+`check_adr_lifecycle.py` (status: superseded requires a resolved
+successor edge and vice versa, `deprecated` exempt), 0 violations on
+the real corpus; a silent stale-allowance gap in `check_adr_links.py`
+fixed (an unused baseline entry now reports as its own finding on a
+full-corpus scan); two wording-accuracy fixes
+(`memory-gate/SKILL.md` + its Copilot mirror, `pre_pr.py`'s comment).
+Full detail in the three commits' own messages. Re-verified:
+`check_adr_lifecycle.py` `[PASS] 1 violation(s) across 102 ADR
+record(s)`, `check_adr_links.py` 0 violations, `build_all.py --check`
+clean, `tests/test_mutation_workspace_signals.py` (8 tests) passed
+clean in isolation after two contention-driven timeouts were confirmed
+as flakes (both coincided with a concurrent push's own python-tests
+phase running in a sibling worktree; a clean re-run with no other
+push or pytest process active passed all 8).
+
+**Rebound to** `15fc72fdab4ba7a7cf01e6712f1fcc53df6cb982`.
+
+## Addendum 46: merged `origin/main` again, resolved 5 conflicts
+
+`origin/main` advanced past the previous merge with PR #5283 (ADR-005/
+ADR-042/ADR-028/ADR-031/ADR-056 status reconciliation, plus the new
+ADR-103). Merging conflicted on 5 files, all resolved by inspection:
+
+- `ADR-005`: date/decision-makers conflict. This branch's `2025-12-18`
+  date matched the file's own prose (kept); origin's `decision-makers`
+  (`[User, Orchestrator Agent, Implementer Agent]`) matched the prose
+  `**Deciders**:` line exactly, more accurate than this branch's
+  `[rjmurillo]` (adopted).
+- `ADR-042`: date conflict. Origin's `2026-08-25` reflects a real,
+  same-day frontmatter addition (`supersedes: [ADR-005]`), a
+  legitimate "last updated" value distinct from the file's own
+  `## Date` prose section (`2026-01-17`, the original decision date,
+  unchanged); kept.
+- `.claude/skills/memory-gate/SKILL.md` (+ Copilot mirror): both sides
+  fixed the same bullet's citation-of-superseded-ADR-as-current-policy
+  problem, origin's rewrite is the more complete fix (this branch's was
+  a narrower wording correction inside the framing origin replaced
+  entirely); kept origin's, regenerated the mirror via
+  `build/scripts/generate_skills.py` rather than hand-editing it.
+- `scripts/forgetful/README.md`: a stale `.ps1` filename in this
+  branch's copy vs. origin's correct `.py` filename (verified the `.py`
+  file exists, the `.ps1` does not); kept origin's.
+
+Merge commit `63bac7e5615f1c3417e971272100e918ced03788`. Re-verified
+post-merge: `check_adr_lifecycle.py` `[PASS] 1 violation(s) across 103
+ADR record(s)` (including a clean `status-edge-consistency` result
+against PR #5283's new reciprocal ADR-005/ADR-042 edges), `check_adr_
+links.py` 0 violations across 1591 files, `taste_count_ratchet.py` `575
+<= baseline 576`, `tests/validation/test_check_adr_lifecycle.py` +
+`test_check_adr_links.py` + `tests/build_scripts/test_generate_adr_
+index.py` (311 tests) passed.
+
+**Rebound to** `63bac7e5615f1c3417e971272100e918ced03788`.
+
+## Addendum 47: merged PR #5286's squash-merge, fixed the first real `stale-allowance` finding
+
+The prior push attempt (commit `c921f9058`) failed with `GIT_PUSH_REAL_EXIT=1`
+after `python-tests` ran 684.84s. Diagnosed the failure from the push log:
+`tests/test_pr_autofix_late_live_state_gate.py::test_fast_exit_reports_
+lease_loss_after_wait[.claude/commands/pr-autofix.md]` failed on a timing
+assertion (`mutation_command="true"`, `LEASE_RENEWAL_INTERVAL_SECONDS=0.05`,
+inherently race-dependent under `python-tests`' full parallel xdist load).
+Confirmed no concurrent push or pytest process was running, then re-ran the
+single test 5 times in isolation: 5/5 passed. Confirmed flake, not a
+regression, per the CI-feedback re-run-once-to-confirm rule.
+
+Separately, `origin/main` had advanced 1 commit past this branch's last
+merge base: PR #5286 (`f3fad42a5`, accepting ADR-052 and superseding
+ADR-036) squash-merged while the failed push was in flight. Fetched and
+merged `origin/main` (`6a937fe99`); the merge was conflict-free (PR #5286's
+files, this branch's ADR-052/ADR-036 debate-log and retrospective work were
+disjoint).
+
+Post-merge re-verification surfaced a new `check_adr_links.py` finding:
+`stale-allowance` on `scripts/validation/check_adr_links_baseline.txt` line
+74 (`unresolved:templates/AGENTS.md:../agents/architecture/ADR-036-...`).
+This is the detector added earlier this branch (PR #5209 review response)
+firing on its first real case: PR #5286 fixed `templates/AGENTS.md`'s
+broken `../agents/...` link (missing the leading dot) to the correct
+`../.agents/...` path, which resolved the defect the baseline entry had
+been allowing. Removed the stale entry, updated the header's entry-count
+comment (18, was 19; `test_baseline_header_counts_match_the_live_file`
+re-measures it), regenerated `.agents/architecture/README.md`
+(`generate_adr_index.py`, picking up PR #5286's status/supersession edges).
+
+Re-verified: `check_adr_lifecycle.py` `[PASS] 1 violation(s) across 103 ADR
+record(s)`; `check_adr_links.py` `0 violation(s) across 1591 tracked
+markdown file(s)` (down from 1, the stale-allowance finding, before the
+fix); `taste_count_ratchet.py` `575 <= baseline 576`;
+`tests/validation/test_check_adr_lifecycle.py` +
+`test_check_adr_links.py` + `tests/build_scripts/test_generate_adr_
+index.py` (311 tests) passed. Commits: `241d1aad5` (index regen),
+`99066a857` (stale-allowance fix).
+
+**Rebound to** `99066a857d9e6dd4efe5cbaf00c12f987bdeb005`.
+
+## Addendum 48: an eleventh Copilot review round, five commits
+
+Pushed the round-10 rebind, then an eleventh Copilot review landed nine
+findings on the pushed head: three suppressed, six inline. Six confirmed
+real and fixed; one (reference-style ADR links never scanned) filed as
+issue #5312 rather than built into this round, since a full-corpus
+`git grep -P` for a reference definition targeting an ADR returned zero
+matches, so the gap is real but not live; two were PR-description
+accuracy findings this session had already corrected in the same window,
+before the review's delivery reached the session (the &#34;53 records&#34;
+checklist item and its companions, and the stale round-2 test/check/
+violation counts, now further annotated to say those are the round-2
+snapshot rather than current).
+
+Fixed, five commits:
+
+1. `c7a73be41`: ADR-005/024/025 frontmatter `date` corrected to reflect
+   ADR-073's `# last updated` contract instead of the original decision
+   or first-commit date. ADR-005 in particular: this is the *second*
+   correction of the same field this campaign, after an earlier merge
+   resolution reverted a correct `origin/main` value on a mistaken belief
+   about which record it dated; verified against the record's own body
+   (&#34;Superseded by ... (2026-01-17)&#34;) this time, not against a removed
+   prose line. Appended the second-correction note to
+   `ADR-005-status-duplication-debate-log.md`.
+2. `dc22389f9`: ADR-055/063 frontmatter `date`, same class. Regenerated
+   `.agents/architecture/README.md` for all five date changes.
+   Correction notes appended to the two records' existing debate logs
+   (`ADR-024-025-042-055-status-redundancy-debate-log.md`,
+   `ADR-063-debate-log.md`) to satisfy `adr-review-policy`&#39;s mandatory
+   debate-log-staged-alongside-ADR-changes gate.
+3. `e80a79e06`: `check_adr_links.py`&#39;s empty-corpus guard (round 9) only
+   rejected zero tracked markdown files of any kind; an unrelated valid
+   git repository with a bare `README.md` still passed with a
+   manufactured &#34;0 violation(s)&#34;. Added `_has_adr_corpus()`: at least
+   one scanned file&#39;s basename must be ADR-shaped. First design attempt
+   anchored the check to `.agents/architecture` (mirroring
+   `check_adr_lifecycle.py`&#39;s own sentinel), which broke 3 of 101
+   existing tests that rely on an `adr/`-prefixed fixture directory;
+   redesigned to check the scanned-file basenames instead, matching this
+   module&#39;s actual repo-wide scanning scope. 6 new tests; mutation-proven
+   via a safe backup/restore cycle, not `git checkout --` (an earlier
+   attempt at the mutation proof used `git checkout --` to undo the
+   mutation and it wiped the entire uncommitted fix instead, since
+   `checkout` restores to `HEAD`, not to a point mid-edit; redone safely
+   and the fix reapplied from scratch).
+4. `8db8ee417`: two file-size taste-lint suppression rationales
+   (`check_adr_lifecycle.py`, `test_check_adr_lifecycle.py`) still said
+   &#34;seven checks&#34;, stale since `status-edge-consistency` shipped as the
+   eighth.
+5. `9cb04f01d`: the session log&#39;s `sessionLogCreated.Evidence` field made
+   an unqualified &#34;No hook was bypassed&#34; claim contradicting a
+   correction already present later in the same file; narrowed to
+   surviving commits. `tests/test_adr_063_memory_skill_decomposition.py`&#39;s
+   module docstring still called ADR-063 &#34;DRAFT (Proposed)&#34; while the
+   file&#39;s own assertion requires `accepted`.
+
+Re-verified: `check_adr_lifecycle.py` `[PASS] 1 violation(s) across 103
+ADR record(s)`; `check_adr_links.py` `0 violation(s) across 1591 tracked
+markdown file(s)`; `taste_count_ratchet.py` `575 <= baseline 576`;
+`tests/validation/test_check_adr_lifecycle.py` +
+`test_check_adr_links.py` + `tests/build_scripts/test_generate_adr_
+index.py` + `tests/test_adr_063_memory_skill_decomposition.py` (343
+tests) passed.
+
+**Rebound to** `9cb04f01d9b2c74423317f92b26bdd3abcd6fada`.
+## Addendum 49: Cursor Bugbot found two of the round-11 fix's own test fixtures were unfixed
+
+Pushed the round-11 rebind. `copilot-pull-request-reviewer` failed with
+`Error: Prompt too big after adding PR context`, confirmed via
+`mcp__github__get_job_logs` as the bot's own prompt-budget limit hit by
+this PR's now-66KB+ description and 62-file diff, not a code defect;
+not fixed (nothing to fix), and this same job also never completed
+before PR #5286 merged successfully, so it does not gate mergeability.
+
+Cursor Bugbot, reviewing the same push, found a real gap in round-11's
+own `_has_adr_corpus` fix (commit `e80a79e06`): three
+`main()`/`validate_adr_links()` tests got a companion
+`adr/ADR-006-present.md` fixture so the new corpus guard would not
+intercept them before reaching their real assertion, but two more were
+missed:
+
+- `test_main_returns_two_when_a_file_has_invalid_utf8_content`: exit 2
+  either way (the guard's "no ADR records found" and the real
+  `UnicodeDecodeError` handler both exit 2 with a `check_adr_links:`
+  prefix), so the assertion silently passed without ever exercising the
+  UnicodeDecodeError path.
+- `test_validate_adr_links_reports_a_bool`: `False` either way, same
+  shape.
+
+Fixed both with the same companion-fixture pattern, and strengthened the
+first test's assertion to require `codec can't decode` in the output
+specifically, not just the shared prefix. Verified the strengthened
+assertion is not vacuous: reverting only the fixture (keeping the
+stronger assertion) reproduces the exact failure Cursor Bugbot
+described, `AssertionError: must reach the UnicodeDecodeError handler,
+not the _has_adr_corpus guard`, with the guard's own message quoted in
+the failure. Mutation-proven the other direction too: neutralizing
+`_has_adr_corpus` (`return True`) still passes both fixed tests, since
+they now reach and correctly validate the real code path independent of
+the guard.
+
+Commit `f06b2aef9`. Re-verified:
+`tests/validation/test_check_adr_links.py` 107 tests passed, `ruff
+check` clean on both touched files, no em/en dashes.
+
+**Rebound to** `f06b2aef9eb4d242eaac673857e55ba074848b10`.
+
+## Addendum 50: merged Cursor Bugbot's own autofix of the identical finding
+
+The push above failed: `remote tip d47763245efb ... is not present in the
+local object store`. Cursor Bugbot Autofix (enabled on this repo) had
+pushed `d47763245` directly to the branch while this session was still
+working the finding, titled "fix(tests): add ADR corpus fixture to UTF-8
+and bool return tests". Diffed it against this session's own commit
+`f06b2aef9` before merging: both add the identical
+`write(tmp_path, "adr/ADR-006-present.md", "# present\n")` fixture line to
+both tests; this session's commit additionally strengthens the UTF-8
+test's assertion to require `codec can't decode` in the output (Bugbot's
+version left the original weak `"check_adr_links:" in err` assertion,
+which cannot distinguish the guard's message from the real
+`UnicodeDecodeError` message, the exact ambiguity this whole finding was
+about). This session's version is a strict superset, so kept it rather
+than discarding for Bugbot's: `git merge origin/... --no-edit` auto-merged
+cleanly (git recognized the fixture-line insertions as textually
+identical), no manual conflict resolution needed.
+
+Re-verified post-merge: `check_adr_lifecycle.py` `[PASS] 1 violation(s)
+across 103 ADR record(s)`; `check_adr_links.py` `0 violation(s) across
+1591 tracked markdown file(s)`; `taste_count_ratchet.py` `575 <= baseline
+576`; `tests/validation/test_check_adr_links.py` 107 tests passed; `ruff
+check` clean.
+
+**Rebound to** `30cb898b272a42d114822238d9293fd9757d06dc`.
+
+## Addendum 51: an eleventh Copilot review round, 61 unresolved threads, not 9 (reconciled with a second concurrent-session round)
+
+This addendum was written independently by this session, in parallel with the concurrent session's Addenda 49 and 50 above: both branches forked from the same commit (`d47763245`) and neither knew of the other's follow-on work until this reconciliation. Renumbered to 33 (was locally numbered 31) so it follows rather than collides with the concurrent session's own 49 and 50.
+
+This addendum and Addenda 44 to 48 below were written independently by two concurrent sessions working the same branch across two separate divergences: the first reconciled earlier in this file (Addenda 44 to 47), the second below (Addendum 48), discovered only when this session's push was rejected a second time after the first merge's own pre-push hooks ran for over 15 minutes. Merged and reconciled both times rather than either side discarding the other's work; see "Reconciling with the concurrent session's second round" below for what the second reconciliation took.
+
+`git rev-list HEAD ^origin/main` had advanced past `origin/main` (the stack's out-of-date banner) after Addendum 38's rebind; `origin/main` merged, then re-merged a second time as it advanced again mid-round (two commits, five conflicts). Fetching this PR's live review threads directly (`get_review_comments`, filtered `isResolved == false`) found 61 unresolved threads, not the smaller count a prior session summary had tracked before a context compaction. Investigating each against the actual current code, rather than the review text alone, found roughly a third already fixed in earlier rounds and never marked resolved on GitHub; the rest split across four independent files, each handed to a separate implementer subagent scoped to disjoint files (so no two agents could git-conflict), plus this session's own direct work on `check_adr_lifecycle.py`.
+
+**Real defects fixed, each mutation-proven:**
+
+- `check_adr_lifecycle.py`: `adr_lifecycle_baseline.json`'s `frontmatter-parses`/`id-matches-filename` ceilings were stale at 53/10 against a corpus that measures 0/0; tightened. `_reciprocity_findings` validated edge reciprocity and cycles but never bound either to `status`, so an `accepted` record could carry a `superseded-by` edge (or `status: superseded` carry no successor) and pass silently; two new rules close both directions, guarded so a record whose successor was already rejected by `supersession-target-exists` is not double-counted. `--write-baseline` wrote the current counts and exited 0 without comparing against the baseline at the base ref, so a branch could raise a count and launder it through the documented updater; now refuses any raise, reusing `scripts/validation/checks_common.py`'s `_resolve_default_base_ref`/`_refresh_remote_base` and mirroring `scripts/ci/count_ratchet.py`'s git-show-at-ref shape for the JSON counts mapping (bootstrap, an absent baseline path outside `--repo-root`, and no resolvable ref at all all no-op rather than hard-fail, each covered by its own test).
+- `check_adr_links.py`: `LINK` only matched inline `[text](dest)`; reference-style `[text][label]` / `[text][]` / `[text]` forms were invisible to the scanner. Added a file-wide, case-folded definition table feeding the same `_target_findings`/`_resolves_to_tracked_file` pipeline inline links already use (so the CWE-22 traversal guard covers the new entry point without a second copy of the rules). The baseline file was a pure exemption list with no provenance check; now a three-direction ratchet (shape-enforced `kind:file:target` keys, base-ref provenance so a branch cannot add its own allowance, and unused-allowance rejection on a full-corpus scan). The unused-allowance check immediately caught a real stale entry (`unresolved:templates/AGENTS.md:../agents/architecture/ADR-036-...`, already repaired by an upstream commit merged into this branch); deleted, header count corrected.
+- `build/scripts/generate_adr_index.py`: the Decision-summary and title extractors stripped only triple-backtick fences with a single-line regex, so a tilde fence, a 4+-backtick fence, or a heading shown inside a code sample could leak into the published title or summary. Replaced with a CommonMark-correct scanner mirroring `check_adr_links.py`'s fence tracking (full marker run, closing fence must be whitespace-only after the marker), applied once before any heading search.
+- `scripts/validation/pre_pr.py`: the module docstring and a comment both overstated the facade as re-exporting "every validator"; measured 15 validators `pre_pr_sequence` imports with no re-export here. Rewritten to describe only the two ADR exports this PR added, pointing the pre-existing gap at issue #5272.
+- `.claude/skills/memory-gate/SKILL.md` (+ generated Copilot mirror): the ADR-042 PowerShell exception had broadened from "quick fixes to existing PowerShell scripts and PowerShell-specific operations" (ADR-042:127-129, quoted verbatim) to "existing scripts and Windows-specific operations"; narrowed back, mirror regenerated via `build_all.py` rather than hand-edited.
+- A cluster of stale-documentation threads (session-log `--no-verify` claims, QA-report carried-forward counts, debate-log citations, a broken markdown table in ADR-055, a PR/commit-number conflation in ADR-024): most were already corrected in earlier rounds; two genuinely new drifts (a citation line number that had moved, and 54/21 counts the PR #5291 backfill had since made 0/19) were fixed with re-measured evidence.
+
+**Investigated and explicitly not changed, with reasons recorded rather than silently skipped:**
+
+- The ratchet compares only per-check totals, not finding identities, so a branch can swap one baselined finding for a different one under the same check without tripping the gate. Real, but closing it needs a baseline schema change (per-finding identity tracking, at minimum `(check, path)` pairs) larger than a review-round fix; documented in `_report`'s docstring for a follow-up.
+- `ADR-TEMPLATE.md`'s `## Status` section removal (raised as a Copilot finding on this same round) directly contradicts two other threads in the same round asking to remove exactly that kind of duplicative prose from ADR-005 and ADR-024. The template's own prose already states the ADR-073 "may" reading and why omission is not a violation; whether a generated ADR should pre-fill the section anyway is an ADR-073 interpretation question this session did not resolve unilaterally.
+- The stacked session log's `endingCommit` rebind: the thread's requested target SHA is now older than the log's current value, and the post-ADR-096 `qa_report.py` no longer requires `endingCommit == qaCommit` at all. Left for the standing rebind chore rather than moved backwards.
+- Two terse "Duplicative"/"Redundant" threads on ADR-005 and ADR-024 with no line number: investigated against `git diff main...HEAD` on each file; both point at content already removed in earlier rounds (prose restating frontmatter, a `## Status` section replaced by `## Provenance`). No further edit needed.
+
+**Two self-inflicted regressions caught before push, both closed in the same round:** the reciprocity fix's two new rules pushed `_reciprocity_findings` to cyclomatic complexity 14 (max 10), caught by `taste_lints.py` and the whole-tree `taste-count-ratchet` (baseline 576, tree measured 577); split into five named helper functions, each independently low-complexity, with no behavior or assertion change (the unchanged 127-test file stayed green). A direct `from subprocess_runner import _run_subprocess` import made mypy load that file under two module names in the same run (the bare name from this import, `scripts.validation.subprocess_runner` from `checks_common.py`'s own import of it); fixed by importing `_run_subprocess` from `checks_common` instead, which already re-exports it for exactly this reason.
+
+**Two `origin/main` merges during this round.** First: 18 files (PR #5291's ADR-073 frontmatter backfill and others), no conflicts against this branch's own ADR-tooling work. Second (`origin/main` advanced by two more commits, `cdf688a9f`/`f3fad42a5`, while this round's fixes were in flight): 5 conflicts, each resolved by reading both sides' evidence rather than picking one blindly. `ADR-005`: `date` kept from this branch (matches the debate log's documented 2025-12-18 resolution, `main`'s value was the pre-existing stale `2026-01-17`), `decision-makers` taken from `main` (that commit's own Copilot-reviewed fix, matching the pre-existing `**Deciders**` prose before it was deleted). `ADR-042`: `date` taken from `main` (that commit added real content, a Downstream provenance line, and bumped the date to match per ADR-073's "last updated" contract; this branch's value was unchanged from an earlier, already-stale state). `.claude/skills/memory-gate/SKILL.md` (+ mirror): two complementary bullets from each side kept, neither redundant. `scripts/forgetful/README.md`: `main`'s Python script path taken over this branch's PowerShell one, verified against the actual tracked file (`scripts/review_memory_export_security.py` exists; `scripts/Review-MemoryExportSecurity.ps1` does not).
+
+**Full-suite evidence.** After the complexity/mypy fixes: `uv run pytest tests/ -q --timeout=300` → 28234 passed, 77 skipped, real exit 0 (verified from the log's captured exit line, not the backgrounded task notification, per this session's own standing distrust of that notification). `scripts/validation/pre_pr.py` full run, iterated to green across three passes as each real failure surfaced (merge-tree-ratchet needing the second main merge, the mypy dual-module-name error, the ADR-036 unused-allowance rejection): all validators pass except this file's own rebind (below). `ruff check` and the taste-count ratchet (576, at baseline) both clean on every touched file.
+
+### Reconciling with the concurrent session's independent round-11 work
+
+Both sessions fixed the same Copilot review round from the same starting
+point and diverged on two designs. Both were kept, resolved by adopting
+whichever session's approach was simpler and already tested, not by session
+identity:
+
+- **`check_adr_lifecycle.py`'s status-to-edge check.** This session extended
+  `supersession-reciprocal` in place (no new check name), which needed a
+  5-helper-function split to clear a complexity ceiling the extension
+  pushed past. The concurrent session added a separate `status-edge-
+  consistency` check (an 8th check name), a single ~25-line function with no
+  complexity issue. Adopted the concurrent session's design: simpler,
+  already tested, and it does not grow the same complexity problem this
+  session then had to fix separately. This session's reciprocity helpers
+  were reverted to their pre-split, 3-loop inline form (the form no longer
+  needs splitting once the status-edge logic lives in its own function);
+  the mypy `_run_subprocess` import fix and the `--write-baseline` base-ref
+  ratchet, both unique to this session, are unaffected and kept. Module
+  docstring, the file-size suppression's check count, and this file's own
+  test-file suppression all updated from "seven" to "eight" checks.
+- **`check_adr_links.py`'s stale-allowance detector.** This session raised
+  a `ValueError` on an unused baseline entry (a full-corpus-scan-only hard
+  failure). The concurrent session reported it as a regular `Finding` with
+  kind `"stale-allowance"`, consistent with how every other defect this
+  gate finds is already represented, and already had `BASELINE_KINDS`
+  documentation explaining the exclusion. Adopted the concurrent session's
+  design; this session's four tests asserting the `ValueError` contract
+  were replaced by the concurrent session's equivalent `Finding`-based
+  tests (already covering the same ground), with one kept and adjusted
+  (`test_main_returns_one_on_a_stale_baseline_entry`, since a `Finding`
+  contributes to the normal violation count, exit 1, not the config-error
+  exit 2 the old contract used). This session's reference-style-link
+  parsing, its own three-direction baseline provenance work (base-ref
+  existence check, shape enforcement), and `generate_adr_index.py`'s
+  fence-aware extraction have no equivalent in the concurrent session and
+  are kept as this session wrote them.
+- Both sessions independently fixed `memory-gate/SKILL.md`'s ADR-042
+  wording and `pre_pr.py`'s facade-coverage comment, worded almost
+  identically; the concurrent session's `pre_pr.py` module-docstring fix
+  (this session's own comment fix builds on it, unchanged by the
+  concurrent session) was kept since it is the one both sides' comment
+  fixes actually depend on for context.
+
+Re-verified after the first reconciliation: `tests/validation/test_check_adr_lifecycle.py`
+(130 tests), `tests/validation/test_check_adr_links.py` (142 tests),
+`ruff check` and `taste_lints.py` on every touched file, all clean. Merge
+commit `de0dcc1460d21d7dff3b0a0cecaae3a4c4d840fa` (Addenda 44 to 47 above).
+
+### Reconciling with the concurrent session's second round (Addendum 48)
+
+The concurrent session pushed 7 more commits (Addendum 48 above) while this session's own ~17-minute pre-push hook suite was still running on the first reconciliation's merge commit, so the second push was also rejected. Merged; two items needed attention beyond a routine `git merge`:
+
+- **ADR-005's `date` field, corrected a second time, in the other direction.** The first reconciliation (this session's earlier merge) kept this session's `2025-12-18`, reasoned from a debate log's account of "the original decision date". Addendum 48's `c7a73be41` corrects it to `2026-01-17`, evidenced directly from the record's own body text ("Superseded by ADR-042 ... (2026-01-17)") and ADR-073's actual schema contract for `date` ("last updated", not "original decision"). That evidence is stronger and more direct than the debate log's account; the first reconciliation's choice was a mistake, and the concurrent session's second pass caught and fixed it. Recorded here rather than silently accepted, since a QA report that omits its own earlier wrong call teaches the next reader the wrong lesson about how these merges were actually resolved.
+- **`check_adr_links.py`'s `_has_adr_corpus` guard (from `e80a79e06`) needed combining, not choosing, with this session's `base_ref` parameter.** Both changed `validate_adr_links`'s body: the concurrent session added a corpus-shape guard before scanning: `_scannable_files`, then `_has_adr_corpus`, checked before `find_broken_adr_links` runs. This session's own reconciliation-1 work had already added a `base_ref: str = "auto"` parameter and base-ref-provenance wiring to the same function. Combined rather than picking one: the corpus guard now runs first (fails loud on a corpus-shaped-nothing repo before any base-ref work happens), then `base_allowances_for_run` computes the provenance set exactly as this session's own code already did. Four of this session's own tests broke as a direct consequence: `_repo_with_base`, the shared fixture four base-ref-provenance tests use, wrote only `adr/index.md` (not ADR-shaped), so the new corpus guard rejected all four fixtures as "no ADR records found" before the base-ref logic they exist to test ever ran. Fixed once, at the fixture (added one ADR-shaped file `adr/ADR-001-placeholder.md`), rather than four times at each call site.
+- The module docstring carried a second, now-false claim from the concurrent session's own round: a paragraph asserting reference-style links "are not recognized at all" and filing issue #5312 to track it, written in the same review round this session's own `LINK_DEFINITION`/`REFERENCE_LINK`/`SHORTCUT_LINK` fix closed. Removed the false claim, replaced with one sentence noting issue #5312 is moot once this file carries the fix (which it now does).
+
+Re-verified after this second reconciliation: `tests/validation/test_check_adr_links.py` (148 tests, up from 142: the shared fixture fix plus none removed), `tests/validation/test_check_adr_lifecycle.py` (130 tests), `tests/test_adr_063_memory_skill_decomposition.py`, `ruff check` and the whole-tree `taste-count-ratchet` (within the 576 baseline), all clean.
+
+**Rebound to** `a8a5150c7aed038b25644b798d1abdfe7773e318`, the commit this
+session had reconciled the second round to before discovering, on the next
+push attempt, that the concurrent session had moved on to a third round
+(Addendum 52 below covers that reconciliation).
+
+## Addendum 52: a third concurrent-session collision, reconciled against work already covered
+
+Fetching before this session's next push found `origin/claude/adr-evaluation-tooling-6od8rd`
+had advanced four commits past `d47763245` (the commit Addendum 51's own
+second reconciliation had already merged in) to `3a1c7928b`: the concurrent
+session's own Addenda 49 and 50 above, both written independently of this
+session and describing a fix this session had never seen. `git merge
+origin/... --no-edit` found three conflicts, all in the two QA reports
+(`tests/validation/test_check_adr_links.py` auto-merged cleanly, git
+resolving the fixture-line insertions as textually identical to what
+Addendum 50 already describes).
+
+**Content reconciliation, not code reconciliation.** Unlike the first two
+rounds, this collision carried no competing code design: the concurrent
+session's Addenda 49 and 50 describe a real fix (two test fixtures missing
+the `_has_adr_corpus` corpus sentinel) that both sides converged on
+identically once Bugbot Autofix's own weaker version (`d47763245`) had
+already landed on both branches. The only conflict was numbering: both
+sessions had independently claimed "Addendum 49" for their own new
+content. Resolved by keeping the concurrent session's Addenda 49 and 50 as
+written (they were already pushed to origin, so already the record of
+truth for readers who fetched in between) and renumbering this session's
+own colliding content from 31 to 33, with a one-paragraph note at its head
+explaining the renumbering rather than silently relabeling it.
+
+**Verification.** `tests/validation/test_check_adr_links.py`: 148 tests
+(unchanged from Addendum 51's own count; the concurrent session's fixture
+fix was already present via the auto-merge, adding no new test count).
+`tests/validation/test_check_adr_lifecycle.py`: 130 tests. `ruff check`
+clean on the three touched files. No em or en dashes in the merged prose.
+
+**Rebound to** `333582acef3f29dd074741c833a36cd887689141`, the merge commit that reconciled this third round.
+
+## Addendum 53: ADR-042 date correction, repeating across Addenda 46 and the round-11 reconciliation in Addendum 51, was itself wrong
+
+Addendum 46 ("ADR-042: date conflict. Origin's `2026-08-25` reflects a real, same-day frontmatter addition ... a legitimate last-updated value") and Addendum 51's own "Reconciling" section ("ADR-042: `date` taken from `main` ... bumped the date to match per ADR-073's last updated contract") both kept `2026-08-25`, reasoning from a same-day `supersedes: [ADR-005]` frontmatter addition and later a Downstream cross-reference line. Both were wrong, on the same mistake repeated twice: neither addition is a content edit to ADR-042 itself, and main already settled the correct value before either merge, in `d331cba4f` (merged via PR #5283's `cdf688a9f`, titled "fix(adr): correct ADR-042 and ADR-063 date to last-updated semantics"): ADR-042's frontmatter `date` is `2026-04-13`, matching its own `## Amendment 1` section (a real, deliberate content change, distinct from a passive cross-reference edit), per the debate log's already-deliberated table (`.agents/critique/ADR-073-phase2-backfill-debate-log.md:545`).
+
+Caught on this stacked branch's own merge of the base branch (PR #5209) into this branch: HEAD already carried `d331cba4f`'s fix (`2026-04-13`), origin carried this addendum's repeated `2026-08-25` mistake, and checking the file's own `## Date`/`## Amendment` sections plus main's already-merged history settled it. Fixed by keeping HEAD's value; `.agents/architecture/README.md`'s ADR-042 row corrected to match. Recorded here rather than silently overwriting Addenda 46 and 51's prose, since a QA report that erases its own repeated wrong call teaches the next reader that the mistake never happened, when it happened twice.
+

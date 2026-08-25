@@ -1,7 +1,7 @@
 ---
 id: ADR-025
 status: superseded
-date: 2025-12-22
+date: 2026-08-21
 decision-makers: []
 supersedes: []
 superseded-by: ADR-055
@@ -13,7 +13,7 @@ implemented: true
 
 ## Provenance
 
-Accepted 2025-12-22. The migration this record ordered completed: ADR-055 measured 89% ARM adoption (32 of 36 jobs) at 2025-12-29, and 111 of 132 `runs-on` declarations in `.github/workflows/*.yml` read `ubuntu-24.04-arm` today (`grep -rh 'runs-on:' .github/workflows/*.yml | sort | uniq -c`; the remaining 21 include 5 `${{ matrix.os }}` declarations that expand to further non-ARM jobs). ADR-055 carries the standing ARM-first policy and the exception marker. Refs issue #5192.
+Accepted 2025-12-22 (preserved in the `## Date` section below). The migration this record ordered completed: ADR-055 measured 89% ARM adoption (32 of 36 jobs) at 2025-12-29, and 111 of 132 `runs-on` declarations in `.github/workflows/*.yml` read `ubuntu-24.04-arm` today (`grep -rh 'runs-on:' .github/workflows/*.yml | sort | uniq -c`; the remaining 21 include 5 `${{ matrix.os }}` declarations that expand to further non-ARM jobs). ADR-055 carries the standing ARM-first policy and the exception marker. Refs issue #5192. The frontmatter `date` above reflects this provenance update per ADR-073's `date: ... # last updated` contract, not the 2025-12-22 acceptance date (Copilot, PR #5209 round-11 review).
 
 ## Date
 

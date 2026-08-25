@@ -97,3 +97,33 @@ review, PR #5209 round 4.
 `prose-frontmatter-agree` survives unchanged, and it is the rule ADR-073 does
 state: when prose and frontmatter both speak and disagree, frontmatter wins and
 the author reconciles the prose. Absence is now fine. Contradiction is not.
+
+## Correction: merge conflict lost the frontmatter date this decision preserved
+
+Merging `origin/main` (PR #5291's independent ADR-073 frontmatter campaign)
+into this branch conflicted on ADR-005's frontmatter block. Both sides
+carried a `date` value: this branch's `2025-12-18` (transcribed from the
+prose "**Date**:" line this decision's own commit deleted as duplication)
+and origin's `2026-01-17` (PR #5291's own extraction, which is actually
+ADR-042's supersession date, not ADR-005's). The resolution mistakenly kept
+origin's value. Cursor Bugbot caught it on review (PR #5209, commit
+`2586f1cc8`): the committed frontmatter disagreed with the QA report's own
+claim that the prose-matching date was kept. Restored to `2025-12-18`. No
+change to this decision itself, which is about removing the duplicated
+prose container, not about which date value it carried.
+
+## Correction: `2025-12-18` was also wrong, for a different reason
+
+The restoration above was itself a category error, caught by a later
+Copilot review (PR #5209 round 11). ADR-073's frontmatter schema defines
+`date` as `# last updated`, not the original decision date. `2025-12-18`
+is when ADR-005 was decided; it is not this record's last update.
+ADR-005's own body still reads "**Superseded by**: ... (2026-01-17)", and
+that supersession is the record's most recent lifecycle event (the two
+`**Amended by**` entries, 2026-01-04 and 2026-01-14, both predate it). So
+origin's original `2026-01-17` value, reverted above on the mistaken belief
+that it was "actually ADR-042's supersession date, not ADR-005's," was
+correct all along: ADR-005's own body names 2026-01-17 as when it was
+superseded, which is precisely what `date: ... # last updated` asks for on
+a superseded record. Corrected to `2026-01-17` for the second and, this
+time, contract-verified time.

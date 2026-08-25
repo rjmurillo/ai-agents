@@ -1,8 +1,8 @@
 ---
 id: ADR-005
 status: superseded
-date: 2025-12-18
-decision-makers: [rjmurillo]
+date: 2026-01-17
+decision-makers: [User, Orchestrator Agent, Implementer Agent]
 supersedes: []
 superseded-by: ADR-042
 explainer: null

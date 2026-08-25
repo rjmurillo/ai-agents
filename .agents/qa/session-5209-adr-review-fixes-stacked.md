@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 997a954bf09827104ee17638954aaaf746489ea4
+qaCommit: 333582acef3f29dd074741c833a36cd887689141
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -1202,3 +1202,132 @@ the real fixture: a wrong H1 in the body fails the test, a frontmatter
 `997a954bf`.
 
 **Rebound to** `997a954bf09827104ee17638954aaaf746489ea4`.
+## Addendum 45: same rebind as Addendum 44 of the campaign report
+
+Cursor Bugbot caught a real merge-resolution mistake: ADR-005's date was
+left at origin/main's value (ADR-042's own date) instead of this
+branch's prose-matching value, contradicting this report's own claim.
+Fixed, with a debate-log correction. Full detail in that addendum.
+
+**Rebound to** `6471bbdd22424244dabf0aa1e3e9b70c3ae9e8f7`.
+
+## Addendum 46: same rebind as Addendum 45 of the campaign report
+
+An eleventh Copilot review round, three commits: two stale ratchet
+ceilings lowered to 0, a new status-edge-consistency check added, a
+silent stale-allowance gap in check_adr_links.py fixed, two wording
+fixes. Full detail, including the flake-confirmation evidence for
+tests/test_mutation_workspace_signals.py, in that addendum.
+
+**Rebound to** `15fc72fdab4ba7a7cf01e6712f1fcc53df6cb982`.
+
+## Addendum 47: same rebind as Addendum 46 of the campaign report
+
+A second merge from `origin/main` (PR #5283's ADR-005/ADR-042/ADR-103
+status reconciliation), 5 conflicts resolved by inspection. Full
+detail, including the date-field reasoning and the mirror-regeneration
+choice over hand-editing, in that addendum.
+
+**Rebound to** `63bac7e5615f1c3417e971272100e918ced03788`.
+
+## Addendum 48: same rebind as Addendum 47 of the campaign report
+
+A confirmed `python-tests` flake diagnosed (5/5 clean isolated re-runs) on
+the prior push attempt, then a third merge from `origin/main` bringing in
+PR #5286's squash-merge (ADR-052 accepted, ADR-036 superseded). The merge
+surfaced the stale-allowance detector's first real finding: PR #5286 fixed
+the broken link the baseline had been allowing, so the allowance was
+removed. Full detail, including the flake diagnosis and the stale-allowance
+removal reasoning, in that addendum.
+
+**Rebound to** `99066a857d9e6dd4efe5cbaf00c12f987bdeb005`.
+## Addendum 49: same rebind as Addendum 48 of the campaign report
+
+An eleventh Copilot review round on the pushed head, five commits: five
+ADR frontmatter `date` fields corrected to reflect ADR-073's last-updated
+contract, `check_adr_links.py`'s empty-corpus guard hardened against an
+unrelated-but-valid repository root, two stale seven-check taste-lint
+suppressions, a narrowed absolute session-log claim, and a stale ADR-063
+test docstring. One finding (reference-style ADR links) filed as issue
+#5312, not fixed here, after confirming the live corpus has zero exposure.
+Full detail, including the mutation-proof mishap with `git checkout --`
+and its safe redo, in that addendum.
+
+**Rebound to** `9cb04f01d9b2c74423317f92b26bdd3abcd6fada`.
+
+## Addendum 50: same rebind as Addendum 49 of the campaign report
+
+Cursor Bugbot found two of round-11's own new test fixtures still let
+`_has_adr_corpus` intercept them before their real assertion,
+`test_main_returns_two_when_a_file_has_invalid_utf8_content` and
+`test_validate_adr_links_reports_a_bool`. Fixed with the same
+companion-fixture pattern the sibling round-11 commit used for three
+other tests, strengthened one assertion, and mutation-proved both
+directions. `copilot-pull-request-reviewer`'s failure on this push is a
+confirmed bot-side prompt-budget limit, not a code defect. Full detail
+in that addendum.
+
+**Rebound to** `f06b2aef9eb4d242eaac673857e55ba074848b10`.
+
+## Addendum 51: same rebind as Addendum 50 of the campaign report
+
+Cursor Bugbot Autofix pushed its own identical fixture fix directly to
+the branch while this session worked the same finding; merged rather
+than discarded this session's version, since it additionally strengthens
+the UTF-8 test's assertion. Full detail in that addendum.
+
+**Rebound to** `30cb898b272a42d114822238d9293fd9757d06dc`.
+
+## Addendum 52: an eleventh Copilot review round, 61 unresolved threads, not 9 (reconciled with a concurrent session, twice); renumbered from 33 to follow Addenda 50 to 51 above
+
+This addendum was written independently by this session, in parallel with
+the concurrent session's Addenda 50 and 51 above (which cover the
+campaign report's own Addenda 49 and 50). Both branches forked from the
+same commit and neither knew of the other's follow-on work until the
+reconciliation Addendum 53 below covers. Renumbered to 35 (was locally
+numbered 33) for the same reason the campaign report renumbers its own
+colliding content from 31 to 33: the concurrent session's content was
+already pushed to origin first.
+
+Both sessions independently fixed the same round-11 review from the same starting commit and diverged twice: once in the file this session's own push discovered `origin/claude/adr-evaluation-tooling-6od8rd` had moved past this branch (Addenda 46 to 49 of the campaign report), and again when the concurrent session pushed 7 more commits (Addendum 50 of the campaign report) while this session's own pre-push hooks were still running on the first reconciliation. Merged both times rather than either side discarding the other's work; the design choices made during both reconciliations (which of two independent fixes to `check_adr_lifecycle.py`'s status-to-edge check and `check_adr_links.py`'s stale-allowance detector to keep, and how a second ADR-005 date correction and a `check_adr_links.py` corpus-shape guard were combined) are recorded in Addenda 48 and 49 of the campaign report, not repeated here.
+
+An eleventh Copilot review round found 61 unresolved threads (a prior
+session summary had tracked only 9 before a context compaction). Fixed via
+four disjoint-file implementer subagents plus direct work on
+`check_adr_lifecycle.py`: real defects in `check_adr_lifecycle.py`'s stale
+baseline ceilings, its reciprocity-vs-status gap, and its ungated
+`--write-baseline`; `check_adr_links.py`'s missing reference-style link
+support and unenforced baseline provenance (which caught one genuinely
+stale allowance); `generate_adr_index.py`'s non-CommonMark fence handling;
+`pre_pr.py`'s overstated facade-coverage claim; and the memory-gate
+skill's overbroadened ADR-042 exception. Two self-inflicted regressions
+(a complexity-14 function, a mypy dual-module-name conflict) were caught
+by `pre_pr.py` before push and fixed in the same round. Two `origin/main`
+merges, five conflicts resolved by reading both sides' evidence. Full
+detail, including what was investigated and deliberately left unchanged,
+in Addendum 51 of the campaign report (renumbered there from 31 for the
+same reason).
+
+**Rebound to** `a8a5150c7aed038b25644b798d1abdfe7773e318`, the merge commit
+that reconciled this session's second reconciliation with the concurrent
+session's follow-on push (Addendum 48 of the campaign report).
+
+## Addendum 53: same rebind as Addendum 52 of the campaign report
+
+A third concurrent-session collision: fetching before this session's next
+push found origin had advanced four commits past the commit Addendum 52's
+own reconciliation had merged in, to the concurrent session's Addenda 50
+and 51 above. Unlike the first two collisions, no competing code design
+was involved: both sides converged on an identical fix once Bugbot
+Autofix's own weaker version had already landed on both branches
+(`tests/validation/test_check_adr_links.py` auto-merged cleanly). The
+only conflict was numbering, resolved the same way as Addendum 52's own
+renumbering. Full detail in that addendum.
+
+**Rebound to** `333582acef3f29dd074741c833a36cd887689141`, the merge commit
+that reconciled this third round (Addendum 52 of the campaign report).
+
+## Addendum 54: same rebind and same ADR-042 date correction as Addendum 53 of the campaign report
+
+Same discovery, same fix: two of the merge resolutions this file summarizes as Addenda 48 and 52 (full detail in the campaign report's corresponding Addenda 46 and 51) had kept ADR-042's frontmatter `date` at `2026-08-25`, reasoning from a passive cross-reference edit rather than the file's own real `## Amendment 1` content change. Both were wrong; the correct value, `2026-04-13`, was already settled on `main` via `d331cba4f` (PR #5283) and had never left this branch's own history. Fixed by keeping this branch's value on the merge; `.agents/architecture/README.md`'s ADR-042 row corrected to match. Full detail in the campaign report's Addendum 53.
+

@@ -7,7 +7,7 @@
 # per-check counts against a frozen baseline, rewrite that baseline atomically),
 # and `.claude/rules/unified-software-engineering.md` rejects "shallow
 # pass-through layers" and "wrappers that add names but no simplification".
-# Splitting a seven-check gate across four modules would put the check list, the
+# Splitting an eight-check gate across four modules would put the check list, the
 # violation type, and the ratchet arithmetic in different files that must be
 # read together to answer any question about the gate. The executable code
 # alone, with every docstring stripped, is still well over the 500-line
@@ -67,18 +67,30 @@ Checks, each named so the baseline tracks them separately:
     id-matches-filename          frontmatter `id` equals the filename's ADR number
     status-enum                  status is one of the five lifecycle values
     supersession-reciprocal      X.superseded-by: Y implies Y.supersedes contains X
+                                  (both directions), plus no supersession cycles
     supersession-target-exists   every named id resolves to a file; no self-supersession
     proposed-cannot-supersede    a `proposed` record may not declare `supersedes`
     prose-frontmatter-agree      the first `## Status` line matches the frontmatter enum
+    status-edge-consistency      status: superseded iff a superseded-by edge resolves
 
-An eighth check, `implemented-implies-decided` (`implemented: true` with
-`status: proposed`), was removed: ADR-073's own schema defines `implemented`
-as flipping at first merged change independent of decision state, and
-ADR-098 documents that exact pairing as deliberate. See `_check_lifecycle_rules`
-for the full removal rationale.
+`status-edge-consistency` closes a gap `supersession-reciprocal` leaves open
+(Copilot, PR #5209): reciprocity validates edges against each other, never
+against the status enum, so a record can read `status: accepted` while its
+own `superseded-by` names a live successor, or read `status: superseded`
+with no successor at all. `deprecated` is deliberately exempt from the
+"superseded needs an edge" direction: ADR-098 documents that status for a
+record that shipped and was later abandoned with no specific named
+successor, not a supersession.
 
-Checks 2 to 7 need parseable frontmatter, so a record failing `frontmatter-parses`
-contributes one violation, not seven. The same containment runs downstream:
+A check called `implemented-implies-decided` (`implemented: true` with
+`status: proposed`) was removed, not replaced by `status-edge-consistency`
+above: ADR-073's own schema defines `implemented` as flipping at first
+merged change independent of decision state, and ADR-098 documents that
+exact pairing as deliberate. See `_check_lifecycle_rules` for the full
+removal rationale.
+
+Checks 2 to 8 need parseable frontmatter, so a record failing `frontmatter-parses`
+contributes one violation, not eight. The same containment runs downstream:
 `prose-frontmatter-agree` is skipped when the status section is absent
 (the record simply has no prose status) or the enum value is invalid (`status-enum`
 owns that), and `supersession-reciprocal` ignores an edge that
@@ -108,12 +120,18 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from scripts.ci.count_ratchet import baseline_absent_at_ref
 from scripts.utils.markdown_parser import blank_non_prose_block_lines
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+from checks_common import (  # noqa: E402
+    _refresh_remote_base,
+    _resolve_default_base_ref,
+    _run_subprocess,
+)
 from yaml_utils import _parse_yaml_frontmatter  # noqa: E402
 
 EXIT_OK = 0
@@ -128,6 +146,7 @@ CHECKS: tuple[str, ...] = (
     "supersession-target-exists",
     "proposed-cannot-supersede",
     "prose-frontmatter-agree",
+    "status-edge-consistency",
 )
 
 # ADR-073 Decision section, verbatim: "status: proposed | accepted | rejected |
@@ -782,6 +801,55 @@ def _reciprocity_findings(by_number: dict[int, Record], graph: _Graph) -> list[V
     return found
 
 
+def _status_edge_findings(by_number: dict[int, Record], graph: _Graph) -> list[Violation]:
+    """`status-edge-consistency`: `status: superseded` iff a resolved `superseded-by` edge exists.
+
+    `supersession-reciprocal` validates `supersedes`/`superseded-by` edges
+    against each other; it never checks either against the `status` enum
+    (Copilot, PR #5209). Without this check a record can read
+    `status: accepted` while its own `superseded-by` names a live successor
+    (the generated index would list it under Accepted while the graph says
+    retired), or read `status: superseded` with no successor at all (the
+    index's Retired table would show `not recorded` for a reader who has no
+    way to resolve it). `graph.successor` already carries only RESOLVED
+    edges: an unresolved or malformed `superseded-by` is reported once, by
+    `supersession-target-exists`, and does not double-report here.
+
+    `deprecated` is deliberately outside the "superseded requires an edge"
+    direction: ADR-073's schema and ADR-098's own record document
+    `deprecated` for a decision that shipped and was later abandoned with no
+    specific named successor, a self-deprecation rather than a supersession.
+
+    The "superseded but no successor" direction only fires when
+    `superseded-by` was never declared (``raw is None``), not merely
+    unresolved: a record naming a dangling or malformed id already gets a
+    `supersession-target-exists` finding for that same defect, and counting
+    it again here would inflate one root cause into two check totals, the
+    same containment `supersession-reciprocal` already applies against
+    `supersession-target-exists` (see the module docstring).
+    """
+    found: list[Violation] = []
+    for number in sorted(by_number):
+        record = by_number[number]
+        status = _status_of(record)
+        target = graph.successor.get(number)
+        raw = _frontmatter_of(record).get("superseded-by")
+        if status == "superseded" and target is None and raw is None:
+            detail = (
+                "status is superseded but `superseded-by` is null; a retired "
+                "record must name what replaced it"
+            )
+            found.append(Violation("status-edge-consistency", record.path, detail))
+        elif status != "superseded" and target is not None:
+            detail = (
+                f"status is {status} but `superseded-by: ADR-{target:03d}` names a "
+                "live successor; a record with a resolved superseded-by edge must "
+                "read status: superseded"
+            )
+            found.append(Violation("status-edge-consistency", record.path, detail))
+    return found
+
+
 def scan(adr_dir: Path, repo_root: Path) -> list[Violation]:
     """Every lifecycle violation in the corpus, in check-then-path order."""
     records, violations = collect_records(adr_dir, repo_root)
@@ -796,6 +864,7 @@ def scan(adr_dir: Path, repo_root: Path) -> list[Violation]:
     graph = _build_graph(by_number, known)
     violations.extend(graph.findings)
     violations.extend(_reciprocity_findings(by_number, graph))
+    violations.extend(_status_edge_findings(by_number, graph))
     return sorted(violations, key=lambda v: (CHECKS.index(v.check), v.path, v.detail))
 
 
@@ -807,10 +876,39 @@ def tally(violations: list[Violation]) -> dict[str, int]:
     return counts
 
 
+def _parse_baseline_payload(text: str, source: str) -> dict[str, int] | str:
+    """Validate baseline JSON already read from ``source``, or a one-line reason.
+
+    Split out of :func:`read_baseline` so :func:`_counts_at_ref` can run the
+    identical schema check against text read from ``git show <ref>:<path>``
+    instead of a live file. The two callers differ only in how the bytes
+    reached them; the validation a baseline must pass is one rule, not two.
+    """
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError as exc:
+        return f"baseline {source} is not valid JSON: {exc}"
+    if not isinstance(payload, dict) or not isinstance(payload.get("counts"), dict):
+        return f"baseline {source} has no `counts` mapping"
+    counts = payload["counts"]
+    missing = sorted(set(CHECKS) - set(counts))
+    unknown = sorted(set(counts) - set(CHECKS))
+    if missing or unknown:
+        return (
+            f"baseline {source} does not match the check list (missing: "
+            f"{missing or 'none'}, unknown: {unknown or 'none'}). "
+            "Regenerate it with --write-baseline."
+        )
+    for name, value in counts.items():
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            return f"baseline {source} entry {name} is {value!r}, not a count"
+    return {name: int(counts[name]) for name in CHECKS}
+
+
 def read_baseline(path: Path) -> dict[str, int] | str:
     """Baseline counts, or a one-line reason the file cannot be used."""
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
     except OSError as exc:
         return f"baseline {path} could not be read: {exc}"
     except UnicodeDecodeError as exc:
@@ -819,23 +917,40 @@ def read_baseline(path: Path) -> dict[str, int] | str:
         # unusable-baseline path returns, so the caller keeps its single
         # decision point instead of meeting a traceback.
         return f"baseline {path} is not valid UTF-8: {exc}"
-    except json.JSONDecodeError as exc:
-        return f"baseline {path} is not valid JSON: {exc}"
-    if not isinstance(payload, dict) or not isinstance(payload.get("counts"), dict):
-        return f"baseline {path} has no `counts` mapping"
-    counts = payload["counts"]
-    missing = sorted(set(CHECKS) - set(counts))
-    unknown = sorted(set(counts) - set(CHECKS))
-    if missing or unknown:
-        return (
-            f"baseline {path} does not match the check list (missing: "
-            f"{missing or 'none'}, unknown: {unknown or 'none'}). "
-            "Regenerate it with --write-baseline."
-        )
-    for name, value in counts.items():
-        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-            return f"baseline {path} entry {name} is {value!r}, not a count"
-    return {name: int(counts[name]) for name in CHECKS}
+    return _parse_baseline_payload(text, str(path))
+
+
+def _counts_at_ref(repo_root: Path, ref: str, baseline_path: Path) -> dict[str, int] | None:
+    """Per-check counts recorded at ``ref``, or None when unreadable.
+
+    Mirrors ``scripts/ci/count_ratchet.py``'s ``baseline_at_ref`` verbatim in
+    shape, quoted from that function's body::
+
+        rel = _baseline_rel(repo_root, baseline)
+        proc = _git_run(repo_root, ["show", f"{ref}:{rel}"])
+        ...
+        return int(proc.stdout.strip())
+
+    Stricter/looser/different than canonical: that helper parses a bare
+    integer because every other count ratchet in this repo baselines a
+    single number. This gate baselines one count per check in a JSON
+    mapping, so the final parse step is widened to
+    :func:`_parse_baseline_payload` instead of ``int()``; the git plumbing
+    (resolve the path relative to ``repo_root``, ``git show ref:rel``) is
+    unchanged.
+    """
+    try:
+        rel = baseline_path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        rel = baseline_path.as_posix()
+    exit_code, stdout, _stderr = _run_subprocess(
+        ["git", "-C", str(repo_root), "show", f"{ref}:{rel}"],
+        timeout=10,
+    )
+    if exit_code != 0:
+        return None
+    parsed = _parse_baseline_payload(stdout, f"{ref}:{rel}")
+    return parsed if isinstance(parsed, dict) else None
 
 
 def write_baseline(path: Path, counts: dict[str, int]) -> None:
@@ -889,7 +1004,22 @@ def _marker(current: int, allowed: int) -> str:
 
 
 def _report(counts: dict[str, int], baseline: dict[str, int]) -> tuple[set[str], set[str]]:
-    """Print the per-check table. Returns ``(regressed, at_zero)`` check names."""
+    """Print the per-check table. Returns ``(regressed, at_zero)`` check names.
+
+    Known gap, not fixed here (Copilot, PR #5209 round-11 review): "The
+    ratchet compares only totals, so a branch can fix one baselined finding
+    and introduce a different finding under the same check without
+    increasing the count... Store and diff finding identities, at least
+    ``(check, path)``, rather than only per-check counts." That is correct
+    and unfixed. Every count ratchet in this repo (``scripts/ci/
+    count_ratchet.py``) shares the same total-only design; giving this one
+    gate per-finding identity tracking is a baseline schema change (the
+    JSON `counts` mapping would need to become, at minimum, a mapping of
+    `check` to a set of `(path, detail)` pairs), which is a scope larger
+    than a review-round fix and touches a shape every existing baseline
+    consumer and every test in this file currently assumes. Tracked for a
+    follow-up; not attempted in this change.
+    """
     width = max(len(name) for name in CHECKS)
     print("ADR lifecycle checks (current / baseline):")
     for name in CHECKS:
@@ -980,6 +1110,62 @@ def run(
                 file=sys.stderr,
             )
             return EXIT_CONFIG
+
+        # issue #5191 (Copilot, PR #5209 round-11 review): "--write-baseline
+        # writes the current counts and exits 0 before reading either the
+        # existing baseline or its value at the base ref. A branch can
+        # therefore add a lifecycle violation, run the documented updater,
+        # commit the raised counts, and make pre_pr pass, despite this
+        # gate's 'may fall but never rise' contract." Every other count
+        # ratchet in this repo already refuses exactly this
+        # (scripts/ci/count_ratchet.py's `_base_ref_verdict`, invoked by
+        # `checks_ratchet.py` with `--base-ref`); this gate had no
+        # equivalent because it predates that shared module and writes a
+        # per-check JSON mapping instead of one scalar. `base_ref` is None
+        # only when no git ref resolves at all (this function's own test
+        # suite runs `--repo-root` against synthetic non-git `tmp_path`
+        # fixtures, per the worktree-identity comment above); the check is
+        # then a no-op rather than a hard failure, since "no ref resolves"
+        # is the harness the rest of this module already treats as
+        # permissive, not the raise this comparison exists to catch.
+        #
+        # `--baseline` is a separate flag from `--repo-root` (build_parser()
+        # above), so a caller may point it outside repo_root entirely, as
+        # test_write_baseline_with_default_repo_root_succeeds_when_cwd_is_inside_it
+        # does with a bare tmp_path file. A path with no tracked history in
+        # THIS repository has no "value at the base ref" to compare against;
+        # `git show`/`git ls-tree` against an out-of-repo pathspec fails
+        # outright rather than reporting "absent" (Copilot would have caught
+        # this as a false CONFIG failure had a test not already covered the
+        # case), so this is checked before asking git anything.
+        baseline_in_repo = True
+        try:
+            baseline_path.resolve().relative_to(repo_root.resolve())
+        except ValueError:
+            baseline_in_repo = False
+        base_ref = _resolve_default_base_ref(repo_root) if baseline_in_repo else None
+        if base_ref is not None:
+            _refresh_remote_base(base_ref, repo_root)
+            if not baseline_absent_at_ref(repo_root, base_ref, baseline_path):
+                base_counts = _counts_at_ref(repo_root, base_ref, baseline_path)
+                if base_counts is None:
+                    print(
+                        f"[CONFIG] could not read the baseline {baseline_path} "
+                        f"at {base_ref} to verify --write-baseline is not "
+                        "raising a check above it",
+                        file=sys.stderr,
+                    )
+                    return EXIT_CONFIG
+                raised = sorted(name for name in CHECKS if counts[name] > base_counts[name])
+                if raised:
+                    print(
+                        f"[CONFIG] --write-baseline would raise "
+                        f"{', '.join(raised)} above {base_ref}'s recorded "
+                        f"baseline. The baseline may only fall; fix the "
+                        "regression instead of recording it.",
+                        file=sys.stderr,
+                    )
+                    return EXIT_CONFIG
         write_baseline(baseline_path, counts)
         print(
             f"[OK] Wrote {baseline_path} from {len(violations)} violation(s) "
