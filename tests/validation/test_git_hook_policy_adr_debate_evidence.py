@@ -319,6 +319,33 @@ def test_the_unfilled_canonical_template_does_not_pass() -> None:
     assert gap is not None and gap.startswith("unfilled template placeholders"), gap
 
 
+_ADR_REVIEW_SKILL = _ROOT / ".claude" / "skills" / "adr-review" / "SKILL.md"
+
+
+def test_the_quoted_role_table_is_still_verbatim_in_the_skill() -> None:
+    """Drift guard for the role table quoted above DEBATE_LOG_ROLES.
+
+    `.claude/rules/canonical-source-mirror.md` requires the contract quoted
+    character for character, which makes the quote a claim that can rot. The
+    comment cites the "## Agent Roles" heading rather than a line range,
+    because a range goes stale on any edit above it while saying nothing about
+    whether the quoted text still matches. This checks the text.
+    """
+    skill = _ADR_REVIEW_SKILL.read_text(encoding="utf-8")
+    assert "## Agent Roles" in skill, (
+        f"the cited heading is gone from {_ADR_REVIEW_SKILL}; the quote above "
+        "DEBATE_LOG_ROLES now points at nothing"
+    )
+
+    missing = [role for role in policy.DEBATE_LOG_ROLES if f"**{role}**" in skill]
+    absent = [role for role in policy.DEBATE_LOG_ROLES if f"**{role}**" not in skill]
+    assert not absent, (
+        f"these roles are no longer in the {_ADR_REVIEW_SKILL} roster, so the "
+        f"quoted copy has drifted from the table it mirrors: {absent}"
+    )
+    assert len(missing) == len(policy.DEBATE_LOG_ROLES) == 6
+
+
 def test_every_template_placeholder_is_still_in_the_canonical_template() -> None:
     """Drift guard: the hardcoded literals must match the document they quote.
 

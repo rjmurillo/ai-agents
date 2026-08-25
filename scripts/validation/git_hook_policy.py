@@ -165,10 +165,13 @@ DEBATE_LOG_TEMPLATE_PLACEHOLDERS = (
 )
 DEBATE_LOG_MIN_SECTIONS = 3
 DEBATE_LOG_VERDICT_WINDOW_LINES = 6
-# Canonical source: .claude/skills/adr-review/SKILL.md, "Agent Roster" table
-# (lines 80 to 88 at the time of writing). Quoted verbatim per
+# Canonical source: the "## Agent Roles" table in
+# .claude/skills/adr-review/SKILL.md. Quoted verbatim per
 # .claude/rules/canonical-source-mirror.md, which requires the contract itself
-# rather than a pointer to it:
+# rather than a pointer to it. The heading is cited rather than a line range:
+# a range goes stale on any edit above it, and
+# test_the_quoted_role_table_is_still_verbatim_in_the_skill checks the quote
+# against the file, which a line number cannot do.
 #
 #     | Agent | Focus | Tie-Breaker Role |
 #     |-------|-------|------------------|
