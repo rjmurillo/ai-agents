@@ -87,9 +87,10 @@ class TestExistenceAndTitle:
 
         This asserted `splitlines()[0]` until frontmatter was added, at which
         point the first line became `---` and the test failed for a reason
-        unrelated to the title. Anchoring an assertion to a position rather than
-        to the structure it means is the same coupling that let a body
-        `status:` line pass as frontmatter for months.
+        unrelated to the title (ADR-073 lifecycle frontmatter now precedes
+        it, issue #5190 backfill). Anchoring an assertion to a position
+        rather than to the structure it means is the same coupling that let
+        a body `status:` line pass as frontmatter for months.
         """
         titles = [ln for ln in adr_text.splitlines() if ln.startswith("# ADR-063:")]
         assert len(titles) == 1, f"expected exactly one H1 title, found {len(titles)}"

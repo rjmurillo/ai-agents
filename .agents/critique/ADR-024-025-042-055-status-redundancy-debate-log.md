@@ -101,3 +101,14 @@ acceptance. Recorded here rather than in a new log because both are factual
 fixes to records this log already covers, and appending keeps the audit trail
 in one place instead of scattering it across a fifth file for a one-line
 fix each.
+
+## Correction from Cursor Bugbot on PR #5209
+
+**ADR-055's Cost Impact table was broken by an inserted note.** A Metrics
+prose paragraph landed between the `x64 Jobs` row and the `Windows Jobs`/
+`Cost Reduction` rows; the blank line that ends a markdown table orphaned
+those last two rows from their header, so they no longer rendered as part
+of the table. Cursor Bugbot's autofix agent moved the two rows back to sit
+immediately after `x64 Jobs`, with the note following the complete table
+(commit `05161ccba1f43bd7e4af1c460c126842b7acab28`). Pure rendering fix,
+no change to any figure, status, or claim.

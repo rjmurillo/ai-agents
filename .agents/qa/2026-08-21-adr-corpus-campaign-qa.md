@@ -131,10 +131,13 @@ Both are corrected on the issues so an implementer does not chase them.
 
 ## Known gaps carried forward
 
-- 54 records still have no frontmatter (issue #5190). The ratchet holds the line;
-  the index's "Needs backfill" section is the live meter.
-- 21 pre-existing ADR link violations in files outside this change, each
-  baselined with a written diagnosis.
+- 53 records still have no frontmatter (issue #5190). The ratchet holds the line;
+  the index's "Needs backfill" section is the live meter. (Corrected from 54,
+  a stale carried-forward count; `check_adr_lifecycle.py` currently reports
+  `frontmatter-parses 53 / 53 at baseline`.)
+- 19 pre-existing ADR link violations in files outside this change, each
+  baselined with a written diagnosis. (Corrected from 21; `check_adr_links_baseline.txt`
+  currently holds 19 non-comment entries.)
 - 21 non-ARM `runs-on` declarations carry no exception marker (issue #5199).
 - The debate-log gate is forgeable (issue #5205), filed with a proven exploit.
 - Six governance forks deferred to the owner, four of which the tie-breaker
@@ -1795,3 +1798,57 @@ addendum and Addendum 35 of the sister file. No test changes; this is
 a pure index regen plus QA-doc bookkeeping.
 
 **Rebound to** `b0ab960ea4c8fc522ecad971bf77bb72428db710`.
+
+## Addendum 35: Cursor Bugbot's ADR-055 table fix, a debate-log note, and a stale-count correction
+
+Three more non-evidence commits landed: Cursor Bugbot's autofix agent
+repaired ADR-055's broken Cost Impact table (`05161ccba`), the debate log
+this record is covered by got a note recording that fix (`6794aa67d`),
+and this report's own "Known gaps carried forward" section had two stale
+carried-forward counts corrected against the committed baselines
+(`45ed8d7f4`). None of the three touch the ADR-tooling scripts. Re-ran
+the same evidence as Addendum 21; unchanged: 504 tests pass,
+`check_adr_links.py` 0 violations across 1590 files,
+`check_adr_lifecycle.py` 64 violations across 102 records at baseline,
+`generate_adr_index.py --check` matches.
+
+**Rebound to** `45ed8d7f41525a0b3cc838ca48d36e703d8e6934`.
+
+
+## Addendum 36: retro remediation owner and a session-log claim correction
+
+One more non-evidence commit (`00e590330`) touched
+`.agents/retrospective/2026-08-25-pr5209-push-notification-false-completion.md`
+(not one of the QA-evidence-exempt prefixes, so it re-triggers the staleness
+check) to give an unowned remediation item issue #5301, and corrected the
+2026-08-21 session log's `changesCommitted` evidence, which still claimed
+"--no-verify... were all unused" outright after this report's own record had
+already been corrected to "invoked once, on a scratch commit discarded via
+`git reset --soft`, reaching no ref". No ADR-tooling script changed. Re-ran
+the same evidence as Addendum 22; unchanged: `check_adr_lifecycle.py`
+`[PASS] 64 violation(s) across 102 ADR record(s), no check above its
+baseline`, `check_adr_links.py` 0 violations across 1590 tracked files.
+
+**Rebound to** `00e5903306bfdbe1bc8296799b6d0e9f5094b86c`.
+
+## Addendum 37: merged `origin/main`, resolved 6 conflicts, fixed a merge-driven taste-lint regression
+
+`origin/main` had advanced with PR #5291 (a separate autonomous session's ADR-073 lifecycle-frontmatter campaign across 67 ADRs) and PR #5287 (an unrelated concurrent-commit guard). Merging it conflicted on `ADR-005`, `ADR-032`, `ADR-042`, `ADR-055`, `ADR-063`, and `tests/test_adr_063_memory_skill_decomposition.py`. Each was resolved by inspection, not by blindly taking one side:
+
+- `ADR-005`/`ADR-042`: `date`/`decision-makers` conflicts. PR #5291's campaign preserved the wrong extraction for both (a later-event date mistaken for the original decision date); this branch's values matched the files' own prose exactly, so kept, with `decision-makers: [rjmurillo]` adopted from the campaign's uniform convention.
+- `ADR-032`: a one-word grammar difference ("the template" vs "template"); kept this branch's more complete wording.
+- `ADR-055`: the interesting one. PR #5291 added ADR-055's frontmatter independently and deliberately left `supersedes: []` with a note that the ADR-024/ADR-025 reciprocal edit was "owed to issue #5192". This branch had already completed that reciprocal (`superseded-by: ADR-055` on both targets, commit `25b263d16`), so the merge keeps `supersedes: [ADR-024, ADR-025]` and drops the now-stale placeholder note, replacing it with a Provenance paragraph recording why.
+- `ADR-063`: `date` conflict, same shape as ADR-005/ADR-042 (this branch's value matched the file's own prose, `2026-06-01`; kept, plus PR #5291 dropped this branch's `review-by: null` field, which is a legitimate `ADR-TEMPLATE.md` field; restored).
+- `tests/test_adr_063_memory_skill_decomposition.py`: both sides independently fixed the same test for the same reason (frontmatter now precedes the H1); merged to the stronger implementation (finds the actual first H1 and asserts it is the ADR-063 title, not just uniqueness of a matching line) plus this branch's richer docstring.
+
+Merge commit `9f93fc1ef91f6ab28c59e320e12223402851f484`. Re-verified post-merge: `check_adr_lifecycle.py` improved to `[PASS] 1 violation(s) across 102 ADR record(s)` (down from 64, because PR #5291 fixed most of the corpus), `check_adr_links.py` 0 violations across 1590 files, the full `tests/test_adr_063_memory_skill_decomposition.py` suite (26 tests) passed, `ruff`/`mypy` clean on the merged test file.
+
+The full `python-tests` suite then surfaced a real, narrow regression: `tests/ci/test_count_ratchet_against_real_git.py::test_the_shipped_baseline_describes_the_tracked_tree[taste_count_baseline.txt-current_count]` failed, `577 violations > baseline 576`. Root-caused by diffing `list_violations()` output across three trees (`origin/main` alone, this branch alone pre-merge, and the merged tree, via disposable `git worktree add --detach` copies, each independently measuring exactly 576): the only new entry was `conftest.py` crossing 500 lines (544), a pure merge artifact of two branches each independently adding content to the same root fixture file while staying under budget alone. Not a design change worth a mid-merge refactor of shared pytest fixtures; suppressed with the documented per-repo escape (`# taste-lint: ignore file-size`, matching the pattern this report's own Addendum 11 used), reasoned and dated in the comment. Re-verified: `list_violations()` back to 576, `conftest.py` excluded, `ruff check conftest.py` clean.
+
+**Rebound to** `29eb28e9451ca0b3c285325f022a52ae271a87bc`, the commit carrying the suppression comment.
+
+## Addendum 38: regenerated the ADR index after the merge
+
+`build/scripts/build_all.py --check` (run as part of `pre-pr-validation` on the push this addendum responds to) correctly flagged `.agents/architecture/README.md` as stale: the origin/main merge brought in PR #5291's ADR-073 frontmatter across 67 records, changing dates, statuses, and decision-makers the generated index renders. Regenerated via `scripts/sync_plugin_lib.py` then `build/scripts/build_all.py`; `--check` now reports zero staleness. No ADR-tooling script changed; `check_adr_lifecycle.py` and `check_adr_links.py` re-run unchanged from Addendum 37.
+
+**Rebound to** `bfd3a008d336ff6e4d8e50ef4cdb766a457d1a6a`.

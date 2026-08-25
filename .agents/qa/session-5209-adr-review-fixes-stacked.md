@@ -1107,3 +1107,38 @@ Same regen as Addendum 34 of the campaign report
 there. Commit `b0ab960ea4c8fc522ecad971bf77bb72428db710`.
 
 **Rebound to** `b0ab960ea4c8fc522ecad971bf77bb72428db710`.
+
+## Addendum 36: same rebind as Addendum 35 of the campaign report
+
+Cursor Bugbot's ADR-055 table fix, its debate-log note, and a stale-count
+correction in the campaign report, none touching ADR-tooling scripts.
+Full detail, including the re-run test evidence, in that addendum.
+
+**Rebound to** `45ed8d7f41525a0b3cc838ca48d36e703d8e6934`.
+
+## Addendum 37: same rebind as Addendum 36 of the campaign report
+
+A retro remediation owner (issue #5301) and a session-log claim correction,
+none touching ADR-tooling scripts. Full detail, including the re-run test
+evidence, in that addendum.
+
+**Rebound to** `00e5903306bfdbe1bc8296799b6d0e9f5094b86c`.
+
+## Addendum 38: same rebind as Addendum 37 of the campaign report
+
+A merge from `origin/main` (6 conflicts resolved: ADR-005, ADR-032,
+ADR-042, ADR-055, ADR-063, `tests/test_adr_063_memory_skill_decomposition.py`)
+plus a merge-driven `conftest.py` taste-lint regression, root-caused and
+suppressed. Full detail, including the per-file conflict resolution
+reasoning and the three-tree diff that isolated the regression, in that
+addendum.
+
+**Rebound to** `29eb28e9451ca0b3c285325f022a52ae271a87bc`.
+
+## Addendum 39: same rebind as Addendum 38 of the campaign report
+
+`build/scripts/build_all.py --check` flagged the ADR index as stale after
+the merge brought in PR #5291's frontmatter across 67 records.
+Regenerated; `--check` clean. Full detail in that addendum.
+
+**Rebound to** `bfd3a008d336ff6e4d8e50ef4cdb766a457d1a6a`.
