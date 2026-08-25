@@ -2,8 +2,8 @@
 
 ## Summary
 
-- **Rounds**: 1 (Phase 1 independent reviews; consolidation and resolution by session, not a re-invoked Phase 4)
-- **Outcome**: Consensus: accept with mandatory conditions
+- **Rounds**: 2 (Round 1: Phase 1 independent reviews, consolidated and resolved by session; Round 2: Phase 4 convergence check, all six agents re-invoked against the edited text)
+- **Outcome**: Consensus reached in Round 2: 1 Accept, 5 Disagree-and-Commit, 0 Block
 - **Final Status**: Accepted (status: accepted, implemented: false); supersedes ADR-036 (status: superseded, implemented: true)
 
 ## Context
@@ -46,9 +46,11 @@ All six independently converged on the same shape without cross-agent visibility
 
 **Critic** and **independent-thinker** both noted that ADR-052's core evidentiary claim (2-13% similarity as proof of "failure") is directly rebutted, in advance, by ADR-036 §Intentional Divergence (written 2026-01-01, before ADR-052's 2026-03-01 evidence table) and that ADR-052 never engages that rebuttal. The owner's decision stands regardless (Sovereignty), but the record should not let the rebuttal disappear silently: ADR-052's Status section states that ADR-036's Intentional Divergence reading is preserved and not contested by this acceptance, rather than implicitly overruled by omission. Independent-thinker additionally dissents that "accept the direction, not yet the migration" is one defensible reading of the owner's instruction but not the only one; the ADR text is written so both readings converge on the same safe action (no deletion authorized by status alone).
 
-## Final Agent Positions
+## Round 1 Positions (synthesized by session from Phase 1 verdicts, not cast against the edited text)
 
-| Agent | Position | Notes |
+Relabeled 2026-08-25 per a Copilot review finding on PR #5286: this table was session-synthesized from each agent's Phase 1 independent review, before the ADR edits existed to vote on. It records what each agent's Phase 1 findings implied their position would be once their approval conditions were met, not an actual vote against final text. The real Phase 4 convergence check, with each agent re-invoked against the edited files, is recorded in "Round 2" below; that table is the acceptance evidence ADR-073 requires, not this one.
+
+| Agent | Synthesized Position | Notes |
 |-------|----------|-------|
 | architect | Disagree-and-Commit | Approval conditions (debate log, callouts, prose reconciliation, tracking issue, citation repair) must all land in this change; accepts the pairing is structurally sound once they do |
 | critic | Disagree-and-Commit | Same conditions; additionally wants the Intentional Divergence rebuttal acknowledged, not silently overruled |
@@ -56,6 +58,30 @@ All six independently converged on the same shape without cross-agent visibility
 | security | Accept | No blocking findings; recommends the debate-log gate itself (substring match) be hardened in a future, separate change |
 | analyst | Disagree-and-Commit | Wants live counts corrected and binding cross-references repaired; satisfied by the citation-repair task list |
 | high-level-advisor | Disagree-and-Commit | Named block condition (any of six status citations left stale) must not occur; otherwise accepts |
+
+## Round 2: Phase 4 Convergence Check (real votes, 2026-08-25)
+
+Triggered by a Copilot review finding on PR #5286: the Round 1 table above was a synthesis, not a genuine re-vote, and ADR-073's acceptance-evidence binding requires the latter. All six agents were re-invoked in separate, isolated sessions against the current edited ADR-052 and ADR-036 text, each given their own Round 1 concerns and told to verify directly against the live repository rather than trust their prior notes. No agent had visibility into another's Round 2 output.
+
+| Agent | Position | Key finding |
+|-------|----------|-------------|
+| architect | Disagree-and-Commit | All five Round 1 approval conditions verified met against live repo state. Dissent: issue #5282's existence/open state is unverifiable from this session (GitHub API returns 403); one more stale line-citation found (`detect_agent_drift.py:20-33`, quote actually at line 39) |
+| critic | Disagree-and-Commit | Both P0s and all four P1s verified closed. Dissent (D-1 through D-8): the `## Decision` Option A verdict didn't cross-reference the Intentional Divergence concession; a rebutted "convergence" framing survived at one line; a Positive-consequence bullet read incoherently ("diverged... by design"); the same `detect_agent_drift.py` line-citation defect independent-thinker also found; this file's own addendum (before this edit) described a superseded intermediate fix as final; this file hadn't yet recorded Round 2 |
+| independent-thinker | Disagree-and-Commit | All Phase 1 P0s verified resolved by direct artifact checks (31 templates, `build/generate_agents.py` exists, `lefthook.yml:252-276` jobs present, both workflows present, `generate_platform_agents.py` and `platform-overrides/` both confirmed absent). Dissent: #5282 unverifiable from this session; this file's Round 2 gap (now fixed by this edit); the same `detect_agent_drift.py` citation-range imprecision; standing Phase 1 dissent on "accept the direction" ambiguity, unchanged |
+| security | Disagree-and-Commit | No security surface, no CWE/ASI exposure, prior two tooling weaknesses (debate-log gate substring match; `_get_adr_status` scans body not frontmatter) unworsened. New finding SEC-R2-001 (Medium): Round 1 table read as cast votes with no provenance marker, degrading the one artifact ADR-073 designates as anti-forgery evidence; fixed by this edit's relabeling |
+| analyst | **Accept** | All three Phase 1 findings (stale counts, missing debate log, closed tracker) verified fixed; all six binding cross-references verified repaired by direct grep; `implemented: false` honest (`generate_platform_agents.py` confirmed absent); frontmatter reciprocity confirmed symmetric. No new issues |
+| high-level-advisor | Disagree-and-Commit | Named Phase 1 block condition (any of six status-asserting lines reading bare "Accepted"/"Governing ADR") does not fire; all six verified qualified. Dissent: this file's Round 2 gap (now fixed); ADR-052's evidentiary core is preserved-as-disputed rather than resolved, which is acceptable for a reciprocity fix but should not be read as more than that; the underlying 2025-12-15 measurement is ~8 months stale, belongs in #5282's scope |
+
+**Consensus reached**: 1 Accept, 5 Disagree-and-Commit, 0 Block. Per the adr-review protocol, this is consensus (all six agents Accept or Disagree-and-Commit). This table, not the Round 1 synthesis above, is ADR-073's acceptance evidence.
+
+**Post-Round-2 fixes applied** (from the critic's D-1 through D-4, matching findings from architect and independent-thinker):
+
+1. `## Decision` Option A verdict now cross-references the Intentional Divergence concession instead of standing alone on the disputed similarity metric.
+2. The rebutted "projected convergence... never held" framing in the Prior Art correction paragraph was reworded to state the actual, narrower claim (no synchronization value for the layer's real purpose).
+3. The Positive-consequences bullet claiming templates "diverged... by design" (incoherent: by-design divergence is not a defect the removal cures) was reworded to state the actual benefit.
+4. The `detect_agent_drift.py:20-33` line-range citation (three agents independently found the same imprecision: the quoted text is at line 39, outside the cited range) was replaced with a docstring citation, matching the section-name convention already adopted for the ADR-036 citation.
+
+**Not fixed, tracked instead**: issue #5282's live state is unverifiable from this session (GitHub API access is 403'd here); confirming it exists, is open, and is correctly scoped is left to whoever merges this PR, per architect's and independent-thinker's and critic's shared dissent.
 
 ## Key Changes Made
 
@@ -86,10 +112,10 @@ All six independently converged on the same shape without cross-agent visibility
 
 ## Addendum: post-merge review correction
 
-Devin Review on PR #5286 caught a stale line citation: ADR-052's Prior Art correction cited `ADR-036:45` for the "authoritative source for Claude" / "Not Generated" quote, but that text moved to line 58 once this same change added ADR-073 frontmatter to ADR-036 (a 10-line block plus blank lines, shifting every subsequent line down by 13). Copilot's review on the same PR then pointed out that a line number is the wrong fix for this class of citation, since it drifts again on the next frontmatter edit; ADR-052 now cites `ADR-036 §Source 1: Claude-Specific` by section name instead. The reference above to `ADR-036:45` in the Critic's Round 1 finding is left unchanged: it is a historical record of what the critic found in the pre-edit file at review time, not a live pointer, consistent with this repository's practice of leaving historical records unrewritten and noting corrections after them.
+Devin Review on PR #5286 caught a stale line citation: ADR-052's Prior Art correction cited `ADR-036:45` for the "authoritative source for Claude" / "Not Generated" quote, but that text moved to line 58 once this same change added ADR-073 frontmatter to ADR-036 (a 10-line block plus blank lines, shifting every subsequent line down by 13). That fix (citing line 58) was itself superseded within the same PR: Copilot's review pointed out that a line number is the wrong fix for this class of citation, since it drifts again on the next frontmatter edit, so the final, current text cites `ADR-036 §Source 1: Claude-Specific` by section name instead, not a line number at all. The reference above to `ADR-036:45` in the Critic's Round 1 finding is left unchanged: it is a historical record of what the critic found in the pre-edit file at review time, not a live pointer, consistent with this repository's practice of leaving historical records unrewritten and noting corrections after them.
 
 Copilot's review also caught: a wrong Copilot CLI generator output path in ADR-036 (`src/copilot-cli/*.agent.md` corrected to `src/copilot-cli/agents/*.agent.md`, the actual `outputDir` per `templates/platforms/copilot-cli.yaml`); two skill-provenance tables (`ai-agents-architecture-contract/references/provenance.md`, `ai-agents-generation-and-release/SKILL.md`) that added ADR-036/ADR-052 claims without a working re-verify probe or an updated verification date, both fixed with real probe commands (executed and confirmed) and narrowly-scoped verification dates; and `ai-agents-architecture-contract/SKILL.md`'s load-bearing-decisions table header, which still read "as of 2026-07-30" after two 2026-08-25 rows were added, reworded to note the exception. Two retrospective findings were also addressed: the two proposed learnings (dash pre-check, container clone defaults) had no owner, now tracked at issue #5288; and the Failure Mode Classification section's hedged "closest in spirit to FM #9" language was firmed into a definite classification, per `.claude/rules/retros.md` MUST 2.
 
-Copilot's most substantive finding: this debate log's original "Final Agent Positions" table was a synthesis from Phase 1 reviews, not a genuine Phase 4 re-vote against the edited ADR text, which ADR-073 and the adr-review skill's own protocol (`debate-protocol.md:173-200`) both require before a hand-edited `status: accepted` counts as real consensus evidence. A second round, re-invoking all six agents against the current edited text with their own Phase 1 concerns, ran after this finding; its results are recorded below.
+Copilot's most substantive finding: this debate log's original "Final Agent Positions" table was a synthesis from Phase 1 reviews, not a genuine Phase 4 re-vote against the edited ADR text, which ADR-073 and the adr-review skill's own protocol (`debate-protocol.md:173-200`) both require before a hand-edited `status: accepted` counts as real consensus evidence. That table is now relabeled "Round 1 Positions" with its synthesized provenance stated explicitly, and the real Round 2 votes are recorded in their own section above, per Round 2's own consensus (five of six agents raised the identical relabeling requirement independently).
 
 *Debate completed 2026-08-25*
