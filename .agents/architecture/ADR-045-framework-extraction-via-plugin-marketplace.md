@@ -1,3 +1,14 @@
+---
+id: ADR-045
+status: accepted
+date: 2026-02-07
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-045: Framework Extraction via Plugin Marketplace
 
 ## Status

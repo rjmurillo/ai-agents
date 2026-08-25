@@ -1,3 +1,14 @@
+---
+id: ADR-041
+status: accepted
+date: 2026-01-16
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-041: CodeQL Integration Multi-Tier Strategy
 
 **Status**: Accepted as amended (adr-review consensus 2026-07-21: 6/6 Accept, comprising 5 clean Accept and 1 Accept-with-changes whose two required changes are applied below). Originally Accepted 2026-01-16; amended 2026-07-21 to retire Tier 3 (automatic PostToolUse quick scan) and simplify to a two-tier strategy, per this ADR's own 6-month re-evaluation clause. See the Amendment section below.
