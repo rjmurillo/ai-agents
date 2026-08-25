@@ -115,18 +115,27 @@ def fetch_current_body(owner: str, repo: str, pr: int) -> str | None:
         if "404" in result.stderr or "Not Found" in result.stderr:
             return None
         # gh can exit non-zero with blank stderr (a signal kill, or a
-        # failure mode that writes to stdout instead), in which case
-        # result.stderr.strip() is "". Uncaught, str(RuntimeError(""))
-        # is also "", and write_skill_error's caller-side guard
-        # (ADR-103 Round 5) rejects an empty message with ValueError,
+        # failure mode that writes its diagnostic to stdout instead), in
+        # which case result.stderr.strip() is "". Uncaught, that empty
+        # string reaches write_skill_error's caller-side guard (ADR-103
+        # Round 5), which rejects an empty message with ValueError,
         # turning this external gh failure into an unhandled crash with
         # exit code 1 instead of the intended exit code 3 (adr-review
         # independent-thinker seat, ADR-103 Round 5 convergence check).
-        # The "or" fallback mirrors the pattern already used in
-        # claim_issue.py and check_existing_pr_for_issue.py in this
-        # same skill directory.
+        # Falling back to stdout before the generic message preserves
+        # gh's actual diagnostic when it lands there instead of stderr;
+        # this three-way fallback mirrors
+        # get_pr_reviews.py:138, get_pr_reviewers.py:333,
+        # check_suppressed_review_findings.py:98,110, and
+        # get_thread_conversation_history.py:116, all in this same
+        # skill/pr/ directory (Copilot review on PR #5283, correcting
+        # an earlier version of this comment that cited a two-way
+        # stderr-or-literal fallback in skill/issue/claim_issue.py,
+        # a different directory whose pattern this one now improves on).
         raise RuntimeError(
-            result.stderr.strip() or f"gh api pulls/{pr} failed with no stderr output"
+            result.stderr.strip()
+            or result.stdout.strip()
+            or f"gh api pulls/{pr} failed with no stderr or stdout output"
         )
     try:
         payload = json.loads(result.stdout)
@@ -156,10 +165,13 @@ def update_body(owner: str, repo: str, pr: int, new_body: str) -> None:
         # See the matching comment in fetch_current_body above: an empty
         # stderr must not produce an empty RuntimeError message, or the
         # write_skill_error caller below crashes uncaught instead of
-        # emitting an error envelope with exit code 3.
+        # emitting an error envelope with exit code 3. Fall back to
+        # stdout before the generic message for the same reason (gh can
+        # write its diagnostic there instead of stderr).
         raise RuntimeError(
             result.stderr.strip()
-            or f"gh api pulls/{pr} PATCH failed with no stderr output"
+            or result.stdout.strip()
+            or f"gh api pulls/{pr} PATCH failed with no stderr or stdout output"
         )
 
 

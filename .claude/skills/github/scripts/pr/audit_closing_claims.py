@@ -14,7 +14,7 @@ Markdown context classification:
 
 Exit codes follow ADR-035:
     0 - Audit complete
-    2 - Not found / empty fleet
+    2 - Not found / empty fleet / local --artifact write failure
     3 - API error
     4 - Auth error
 """
@@ -418,11 +418,20 @@ def main(argv: list[str] | None = None) -> int:
             # enum. Before this fix, write_skill_error raised ValueError on
             # this exact call, turning a handled OSError into an unhandled
             # crash (Copilot review on PR #5283).
+            #
+            # Exit code 2, not 3: ADR-035 reserves 3 for an external
+            # service/API error, and this OSError comes from a local
+            # filesystem write (--artifact), never from the network or the
+            # GitHub API. A missing parent directory, a full disk, or a
+            # permissions error is the "usage, configuration, or
+            # environment error" category ADR-035 assigns to exit code 2
+            # (Copilot review on PR #5283, following the ADR-035
+            # exit-code contract this module's header already cites).
             write_skill_error(
-                f"Failed to write artifact: {exc}", 3, error_type="General",
+                f"Failed to write artifact: {exc}", 2, error_type="General",
                 output_format=fmt, script_name=_SCRIPT_NAME,
             )
-            return 3
+            return 2
 
     write_skill_output(
         result,
