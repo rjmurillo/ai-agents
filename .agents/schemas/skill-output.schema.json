@@ -11,7 +11,7 @@
       "description": "Whether the operation succeeded"
     },
     "Data": {
-      "description": "Operation-specific result data. Typically null on failure, but write_skill_error's `extra` parameter can populate it with additional context alongside an error; no current call site does this, so the schema does not constrain Data to null when Success is false."
+      "description": "Operation-specific result data. Typically null on failure, but write_skill_error's `extra` parameter can populate it with additional context alongside an error, and several current call sites do this (for example `.claude/skills/github/scripts/pr/why_pr_blocked.py:565`, `get_pr_checks.py:760`, and `add_pr_review_thread_reply.py:195` all pass `extra={...}` on an error path), so the schema does not constrain Data to null when Success is false."
     },
     "Error": {
       "oneOf": [

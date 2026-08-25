@@ -492,7 +492,16 @@ class TestAuditArtifactWriteFailure:
             result = _audit_mod.main(["--artifact", unwritable_artifact, "--output-format", "json"])
 
         assert result == 2
-        assert '"Error"' in capsys.readouterr().out
+        # Parsed structure, not a substring match (`.claude/rules/testing.md`
+        # MUST-9): a substring check on raw stdout would still pass if the
+        # JSON were malformed, or if "Error" appeared in an unrelated field
+        # such as a message string, and would not prove the real handler
+        # emitted the intended envelope shape (Copilot review on PR #5283).
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is False
+        assert output["Error"]["Type"] == "General"
+        assert output["Error"]["Code"] == 2
+        assert output["Error"]["Message"]  # non-empty: the message guard's own contract
 
 
 class TestClosingReferencePagination:
