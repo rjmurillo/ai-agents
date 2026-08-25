@@ -72,6 +72,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+        # Intentionally write-once (no --update-if-exists), decided per Issue #5210.
+        # Unlike pr-validation.yml, this step only runs on failure and never
+        # re-posts once the PR is fixed, so there is no "stale PASS shown as
+        # FAIL" failure mode to correct. The comment is a point-in-time
+        # violation alert, not a recomputed status; the historical record of
+        # what was flagged stays valid documentation even after the offending
+        # commit is amended or removed.
         run: |
           cat <<'EOF' > "${RUNNER_TEMP:-.}/comment.md"
           ## Investigation-Only Claim Violation
