@@ -97,3 +97,17 @@ review, PR #5209 round 4.
 `prose-frontmatter-agree` survives unchanged, and it is the rule ADR-073 does
 state: when prose and frontmatter both speak and disagree, frontmatter wins and
 the author reconciles the prose. Absence is now fine. Contradiction is not.
+
+## Correction: merge conflict lost the frontmatter date this decision preserved
+
+Merging `origin/main` (PR #5291's independent ADR-073 frontmatter campaign)
+into this branch conflicted on ADR-005's frontmatter block. Both sides
+carried a `date` value: this branch's `2025-12-18` (transcribed from the
+prose "**Date**:" line this decision's own commit deleted as duplication)
+and origin's `2026-01-17` (PR #5291's own extraction, which is actually
+ADR-042's supersession date, not ADR-005's). The resolution mistakenly kept
+origin's value. Cursor Bugbot caught it on review (PR #5209, commit
+`2586f1cc8`): the committed frontmatter disagreed with the QA report's own
+claim that the prose-matching date was kept. Restored to `2025-12-18`. No
+change to this decision itself, which is about removing the duplicated
+prose container, not about which date value it carried.
