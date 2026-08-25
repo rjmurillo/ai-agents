@@ -4,7 +4,7 @@ The drift-prone volatile facts behind `ai-agents-architecture-contract`. SKILL.m
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 
-Verified 2026-08-19 against the working tree (bundle-dated together with `SKILL.md`, `ai-agents-config-catalog/SKILL.md`, and `weak-points.md`; see `test_operational_skills_match_current_hook_registration_counts`). The src/claude manual sync row's command was re-run and confirmed on 2026-08-25 (noted inline in that row); that does not move this bundle date, since the rest of the table was not re-audited. Volatile facts are date-stamped
+Verified 2026-08-19 against the working tree (bundle-dated together with `.claude/skills/ai-agents-architecture-contract/SKILL.md`, `.claude/skills/ai-agents-config-catalog/SKILL.md`, and `.claude/skills/ai-agents-architecture-contract/references/weak-points.md`; see `test_operational_skills_match_current_hook_registration_counts`). The src/claude manual sync row's command was re-run and confirmed on 2026-08-25 (noted inline in that row); that does not move this bundle date, since the rest of the table was not re-audited. Volatile facts are date-stamped
 inline in SKILL.md. Sources and re-verification commands:
 
 | Claim | Source | Re-verify |
@@ -12,7 +12,7 @@ inline in SKILL.md. Sources and re-verification commands:
 | Asymmetric seam, "No code moves on this ADR alone" | `.agents/architecture/ADR-072-jtbd-plugin-architecture.md` (Status, "the seam is asymmetric" section) | `grep -n "asymmetric" .agents/architecture/ADR-072-*.md` |
 | Generator inventory, 7 generators | `build/scripts/build_all.py:435-443` GENERATORS; `.agents/governance/GENERATOR-FILES.md` | `grep -n -A8 "^GENERATORS" build/scripts/build_all.py` |
 | REQ-003-010 no-write invariant | `build/scripts/build_all.py:674,1108-1115,1171-1178` | `sed -n '674p;1108,1115p;1171,1178p' build/scripts/build_all.py` |
-| src/claude manual sync | `templates/README.md:131`; ADR-036 superseded in governance by ADR-052 (2026-08-25), procedure still operative | `grep -n "MANUAL" templates/README.md; sed -n '2,9p' .agents/architecture/ADR-036-two-source-agent-template-architecture.md; sed -n '2,9p' .agents/architecture/ADR-052-template-strategy.md` |
+| src/claude manual sync | `templates/README.md:131`; ADR-036 superseded in governance by ADR-052 (2026-08-25), procedure still operative | `grep -n "MANUAL" templates/README.md && sed -n '2,9p' .agents/architecture/ADR-036-two-source-agent-template-architecture.md && sed -n '2,9p' .agents/architecture/ADR-052-template-strategy.md` |
 | lib sync pairs | `scripts/sync_plugin_lib.py:27` SYNC_PAIRS | `grep -n -A4 "SYNC_PAIRS" scripts/sync_plugin_lib.py` |
 | Local 4 events / 6 groups; vendored 0 events / 0 groups; generated 0 events / 0 registrations (ADR-097 retired every tool-call hook) | `.claude/settings.json`, `.claude/hooks/hooks.json`, `src/copilot-cli/hooks/hooks.json` | `python3 -c "import json; from pathlib import Path; [print(p, len((d:=json.loads(Path(p).read_text()))['hooks']), sum(map(len,d['hooks'].values()))) for p in ('.claude/settings.json','.claude/hooks/hooks.json','src/copilot-cli/hooks/hooks.json')]"` |
 | Per-event hook failure policy | `agent-harness-reference`; ADR-071 | Read the reference's exit and failure matrices |
