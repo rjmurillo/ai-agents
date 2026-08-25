@@ -386,6 +386,22 @@ exactly the contradiction class issue #5201 exists to eliminate.
     `TestValidateEnvelope` class (no dependency on the producer-side
     functions) was split into a new `tests/test_validate_envelope.py`, the
     same split pattern as the earlier CLI extraction.
+  - The independent-thinker seat's re-check found the same
+    producer/schema disagreement class one field further over
+    (finding F1): `write_skill_error(message, True)` type-checks under
+    mypy (`bool` is-a `int` under PEP 484 nominal subtyping) and passes a
+    naive `isinstance(exit_code, int)` check, but the schema's
+    `Error.Code: "type": "integer"` (pre-dating ADR-103) and
+    `validate_skill_output.py` both reject a boolean `Code`. Fixed with
+    the same `isinstance(exit_code, bool) or not isinstance(exit_code,
+    int)` guard already used validator-side, added to `write_skill_error`
+    next to the `message` guard. Proved discriminating: reverted in a
+    scratch copy, confirmed `write_skill_error("test", True)` printed
+    `{"Error":{"Code":true,...}}` instead of raising, restored, confirmed
+    byte-identical. `uv run pytest tests/test_skill_output.py
+    tests/test_skill_output_cli.py tests/test_skill_output_schema.py
+    tests/test_validate_envelope.py tests/test_github_pr_diagnostics.py -q`
+    -> 130 passed.
 
 ## Related Decisions
 

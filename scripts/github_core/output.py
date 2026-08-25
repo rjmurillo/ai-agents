@@ -177,6 +177,22 @@ def write_skill_error(
         # convergence round, which found two `raise RuntimeError(...)`
         # sites in `edit_pr_body.py` that did not).
         raise ValueError("message must be non-empty")
+    if isinstance(exit_code, bool) or not isinstance(exit_code, int):
+        # skill-output.schema.json types Error.Code as "type": "integer"
+        # (pre-dates ADR-103) and both scripts/validate_skill_output.py
+        # and mypy's static check on this file's `exit_code: int`
+        # parameter already treat a non-int value as wrong. Neither
+        # catches `exit_code=True` at the caller: Python's `bool`
+        # subclasses `int`, `isinstance(True, int)` is `True`, and mypy
+        # accepts a `bool` argument for an `int`-typed parameter (a
+        # `bool` is-a `int` under PEP 484's nominal subtyping), so a
+        # type-correct call could still construct `Error.Code: true`,
+        # which the schema and validator both reject. Same class of
+        # producer/schema disagreement as the `message` guard above,
+        # found while re-checking for other instances (adr-review
+        # independent-thinker seat, ADR-103 Round 5 convergence check,
+        # finding F1).
+        raise ValueError(f"exit_code must be an integer, got: {type(exit_code).__name__}")
 
     resolved = get_output_format(output_format)
 

@@ -199,3 +199,18 @@ class TestWriteSkillError:
         # The guard must fire before anything is printed: a partial or
         # malformed envelope on stdout would be worse than the exception.
         assert capsys.readouterr().out == ""
+
+    def test_rejects_boolean_exit_code(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """skill-output.schema.json types Error.Code as "type": "integer".
+        `exit_code=True` type-checks under mypy (bool is-a int under PEP
+        484 nominal subtyping) and passes a naive `isinstance(exit_code,
+        int)` check (Python's bool subclasses int), but the schema and
+        validate_skill_output.py both reject `Code: true` as not an
+        integer. Same producer/schema disagreement class as
+        test_rejects_empty_message above, found while re-checking for
+        other instances (adr-review independent-thinker seat, ADR-103
+        Round 5 convergence check, finding F1).
+        """
+        with pytest.raises(ValueError, match="exit_code must be an integer"):
+            write_skill_error("test", True, output_format="json")
+        assert capsys.readouterr().out == ""

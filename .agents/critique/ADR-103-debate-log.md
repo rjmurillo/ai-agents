@@ -312,4 +312,98 @@ each has a discriminating test proving the fix is real. Per the Phase 4
 consensus criteria, a re-run of the seats that have not yet seen the
 fixed text (critic, independent-thinker, analyst, high-level-advisor) is
 required before `status: accepted` can be said to rest on genuine
-six-seat convergence of the CURRENT text. See below for that re-run.
+six-seat convergence of the CURRENT text.
+
+### Re-run 1: critic re-check
+
+**Position: Block again**, on a NEW P0 introduced by the fix itself, not
+a restatement of the original two. Verified both original P0s
+independently closed (probed `write_skill_error("", 1)` directly;
+confirmed the schema rejects empty `Script`/`Timestamp`). The new P0: the
+`message` guard turns a reachable failure path into an uncaught crash
+with the wrong exit code. Two `raise RuntimeError(result.stderr.strip())`
+sites in `.claude/skills/github/scripts/pr/edit_pr_body.py`
+(`fetch_current_body`, `update_body`) had no fallback for blank stderr,
+so `str(exc)` could be `""`, which their `write_skill_error(str(exc),
+...)` handlers would pass straight into the new guard: `ValueError`
+propagating uncaught out of `main()`, exit code 1 instead of the intended
+3, no error envelope printed at all. Reproduced directly, not inferred.
+
+Also flagged as P1: the guard's own comment falsely claimed "every other
+`write_skill_error` caller in this repo passes a literal string" (at
+least seven counterexamples found); the ADR's Neutral section still said
+"No producer-side runtime behavior change" two paragraphs after the
+Negative consequence section had just described one.
+
+**Fix**: both `raise RuntimeError(...)` sites in `edit_pr_body.py` gained
+a fallback message, matching the existing `or "..."` pattern already used
+in `claim_issue.py` and `check_existing_pr_for_issue.py` in the same
+skill directory. The false comment claim and the Neutral/Negative
+contradiction were both corrected in the same edit. Two new tests
+(`test_fetch_blank_stderr_does_not_crash`,
+`test_update_blank_stderr_does_not_crash` in
+`tests/test_github_pr_diagnostics.py`), both proven to discriminate:
+reverted both fallbacks in a scratch copy, confirmed the exact predicted
+crash (`ValueError: message must be non-empty` propagating uncaught),
+restored, confirmed byte-identical. `uv run pytest
+tests/test_github_pr_diagnostics.py tests/test_skill_output.py
+tests/test_skill_output_cli.py tests/test_skill_output_schema.py
+tests/test_validate_envelope.py -q` -> 129 passed.
+
+### Re-run 2: independent-thinker
+
+**Position: Accept.** Independently re-verified every Decision item,
+every "matches the implementation" claim, all mirror byte-identity
+claims, the zero-gate-wiring claim, and the 69-passed test count against
+the live tree rather than trusting the ADR's prose. Ran an independent
+3,840-shape differential of `validate_envelope` against `origin/main`
+(996 crashes -> 0, 482 newly-rejected, 0 newly-accepted / fail-open),
+corroborating the security seat's earlier 6,090-shape measurement on a
+separate corpus.
+
+Four non-blocking findings (P2/P3), most significant reproduced below;
+full detail in the agent's own report, not re-transcribed here:
+
+- **F1 (P2, fixed in this round anyway)**: the same producer/schema
+  disagreement class exists one field further over, at `Error.Code`:
+  `write_skill_error(msg, True)` type-checks under mypy (`bool` is-a
+  `int`) and a naive `isinstance` check, but the schema and validator
+  both reject a boolean `Code`. Not required to clear the Block (the
+  schema's `Code: "integer"` pre-dates ADR-103, so this round did not
+  tighten past the producer here the way `Message`/`Script`/`Timestamp`
+  did), but cheap enough to close in the same round: see the fix recorded
+  above this entry in Implementation Notes.
+- **F2 (P2)**: the Negative consequence's rejection list frames every
+  condition as "previously returned `[]`, now produces a finding," but
+  three conditions never returned `[]` at `origin/main` (they already
+  crashed or were already rejected); the list should distinguish
+  newly-rejecting from previously-crashing. Not fixed in this round;
+  tracked as a documentation-accuracy follow-up.
+- **F3 (P3)**: `Timestamp`'s `"format": "date-time"` remains
+  documented-but-unenforced (no `FormatChecker`, no `rfc3339-validator`
+  dependency); `validate_skill_output.py` says so honestly, but the ADR
+  body never mentions the gap explicitly.
+- **F4 (P3)**: minor citation-precision issues (a two-file "Round 5"
+  disambiguation gap; an off-by-one line range for the schema's `Error`
+  property).
+- Also proposed an alternative Round 5 never considered in an
+  Alternatives-table form: replace `validate_envelope`'s hand-written
+  checks with `jsonschema.Draft7Validator` directly against the committed
+  schema, which would make all ten of Rounds 3-5's fixes structurally
+  impossible as a class (one source of truth instead of three copies).
+  Recorded the honest counter-argument too (issue #5299's own gate would
+  need a stdlib-only script per `.claude/rules/ci-scripts.md` MUST 18,
+  and `jsonschema` is not stdlib). Not adopted in this round; worth
+  weighing when #5299 is picked up.
+- Declared five items of uncertainty it could not verify (issue
+  #5299/#5201 existence and state, PR-review attribution accuracy for
+  specific commits, the security seat's exact "6,090 shapes" corpus, the
+  historical 38/51 test counts, the "every other caller" claim's search
+  scope) rather than asserting them. GitHub was unreachable from that
+  agent's session (403), so the two issue/attribution items remain
+  genuinely open; not blocking for this ADR's own content, but worth a
+  human check before merge.
+
+### Re-run 3 and 4: analyst, high-level-advisor
+
+Pending at the time this section was written; see below once run.

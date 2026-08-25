@@ -160,12 +160,39 @@ def write_skill_error(
         # (ADR-103 Round 5). Before this guard, the schema and validator
         # both rejected an empty Message while nothing on the producer
         # side prevented constructing one: an errored call with a bare
-        # `Exception()` (no args) yields `str(exc) == ""`, and every
-        # other write_skill_error caller in this repo passes a literal
-        # string, so this guard closes the gap for real callers and
-        # future ones instead of leaving it as a documented risk (adr-review
-        # critic seat, ADR-103 Round 5 convergence check).
+        # `Exception()` (no args) yields `str(exc) == ""`. This guard
+        # closes that gap for real, instead of leaving it as a
+        # documented, unenforced risk (adr-review critic seat, ADR-103
+        # Round 5 convergence check). Several callers in this repo
+        # already pass `str(exc)` or a dict-sourced message (for example
+        # `.claude/skills/github/scripts/pr/edit_pr_body.py`,
+        # `check_data["Message"]` in `get_pr_checks.py`), none of which
+        # is guaranteed non-empty by construction; an earlier version of
+        # this comment incorrectly claimed every other caller passes a
+        # literal string. Callers whose upstream exception could
+        # stringify empty (a subprocess exiting non-zero with blank
+        # stderr, for example) MUST guarantee a non-empty message before
+        # this call, typically with `str(exc) or "<fallback>"` at the
+        # `raise` site (adr-review independent-thinker seat, same
+        # convergence round, which found two `raise RuntimeError(...)`
+        # sites in `edit_pr_body.py` that did not).
         raise ValueError("message must be non-empty")
+    if isinstance(exit_code, bool) or not isinstance(exit_code, int):
+        # skill-output.schema.json types Error.Code as "type": "integer"
+        # (pre-dates ADR-103) and both scripts/validate_skill_output.py
+        # and mypy's static check on this file's `exit_code: int`
+        # parameter already treat a non-int value as wrong. Neither
+        # catches `exit_code=True` at the caller: Python's `bool`
+        # subclasses `int`, `isinstance(True, int)` is `True`, and mypy
+        # accepts a `bool` argument for an `int`-typed parameter (a
+        # `bool` is-a `int` under PEP 484's nominal subtyping), so a
+        # type-correct call could still construct `Error.Code: true`,
+        # which the schema and validator both reject. Same class of
+        # producer/schema disagreement as the `message` guard above,
+        # found while re-checking for other instances (adr-review
+        # independent-thinker seat, ADR-103 Round 5 convergence check,
+        # finding F1).
+        raise ValueError(f"exit_code must be an integer, got: {type(exit_code).__name__}")
 
     resolved = get_output_format(output_format)
 
