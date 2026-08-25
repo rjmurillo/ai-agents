@@ -465,15 +465,6 @@ def build_record(path: Path) -> AdrRecord:
     # would resolve to the wrong record or appear dangling. Fail loudly and
     # name both, the same policy this module applies to every other
     # frontmatter defect (Copilot, PR #5285 review).
-    # The id is authoritatively the filename (module docstring: 10 of the 40
-    # backfilled records carry no `id` key, while the filename is always
-    # present and is the link a reader clicks), so a present-but-absent `id`
-    # is not an error. A present `id` that disagrees with the filename is a
-    # different defect: it means two different identities are on record for
-    # one file, and a `superseded-by` elsewhere naming the frontmatter id
-    # would resolve to the wrong record or appear dangling. Fail loudly and
-    # name both, the same policy this module applies to every other
-    # frontmatter defect (Copilot, PR #5285 review).
     id_value = _scalar(frontmatter, "id") if frontmatter else ""
     if id_value:
         normalized_id = _normalize_adr_id(id_value)
