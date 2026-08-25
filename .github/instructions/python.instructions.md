@@ -51,9 +51,9 @@ config, and `mypy` settings over personal preference.
   boundaries; never mock the function under test.
 - Pin the interpreter and dependencies. Do not rely on the system Python.
 - **`ruff format` is not this repo's formatter. Do not run it, and never cite
-  `ruff format --check` as a gate result.** Every gate runs `ruff check`; nothing
-  runs the formatter, and main does not conform (1287 of 2061 files would
-  reformat on `cdf688a`). A green check proves nothing, a red one is not a
+  `ruff format --check` as a gate result.** Every ruff gate runs `ruff check`;
+  nothing runs the formatter, and main does not conform (1287 of 2061 tracked
+  files would reformat on `cdf688a`). A green check proves nothing, a red one is not a
   finding, and running the formatter over a file or directory charges unrelated
   drift to your diff. Cite `ruff check` on changed files instead. Issue #5304 and
   `tests/validation/test_ruff_format_not_enforced.py` pin both facts.
