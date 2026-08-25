@@ -10,9 +10,12 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
+import sys
 import tempfile
 import types
+import uuid
 import warnings
 from pathlib import Path
 
@@ -29,6 +32,23 @@ pytestmark = pytest.mark.windows_path
 
 BEFORE_SHA = "a" * 40
 AFTER_SHA = "c" * 40
+
+
+def _fake_request():
+    """Build a minimal stand-in for pytest.FixtureRequest with an empty stash.
+
+    `_guard_real_repo_head` now requires `request` (issue #5123 PR #5287
+    review: a defaulted `request` parameter never receives pytest's real
+    injected fixture, since pytest's fixture-argument scanner excludes any
+    parameter carrying a default). Driving the generator directly via
+    `__wrapped__()`, as this suite does, bypasses that injection entirely, so
+    every such call site must supply this explicitly. An empty stash reads as
+    `call_failed=False`, matching the behavior these call sites relied on
+    before `request` was required. Tests that specifically exercise the
+    `call_failed` stash wiring build their own request with a populated
+    stash keyed by that module's own `_CALL_FAILED_STASH_KEY` instance.
+    """
+    return types.SimpleNamespace(node=types.SimpleNamespace(stash={}))
 
 
 def _force_fast_path_fallback(module, monkeypatch) -> None:
@@ -331,7 +351,7 @@ def test_guard_fixture_fails_for_real_test_launched_head_movement(tmp_path, monk
     _init_git_repo(repo)
     monkeypatch.setattr(module, "PROJECT_ROOT", repo)
 
-    generator = module._guard_real_repo_head.__wrapped__()
+    generator = module._guard_real_repo_head.__wrapped__(_fake_request())
     next(generator)
     _commit_file(repo, "changed\n", "changed")
 
@@ -658,7 +678,7 @@ def test_guard_fixture_does_not_blame_test_for_external_commit(monkeypatch):
     heads = iter(["aaaaaaaa1111", "bbbbbbbb2222"])
     monkeypatch.setattr(module, "_real_repo_head", lambda: next(heads))
 
-    generator = module._guard_real_repo_head.__wrapped__()
+    generator = module._guard_real_repo_head.__wrapped__(_fake_request())
     next(generator)  # fixture setup: captures the per-test baseline
 
     with pytest.warns(UserWarning, match="#3109"):
@@ -672,7 +692,7 @@ def test_guard_fixture_fails_for_test_launched_mutation(monkeypatch):
     monkeypatch.setattr(module, "_real_repo_head", lambda: next(heads))
     monkeypatch.setattr(module, "_reflog_contains_action", lambda _marker: True)
 
-    generator = module._guard_real_repo_head.__wrapped__()
+    generator = module._guard_real_repo_head.__wrapped__(_fake_request())
     next(generator)
 
     with pytest.raises(pytest.fail.Exception, match="test-launched Git command"):
@@ -692,7 +712,7 @@ def test_guard_fixture_restores_existing_trace_settings(monkeypatch):
     for name, value in previous.items():
         monkeypatch.setenv(name, value)
 
-    generator = module._guard_real_repo_head.__wrapped__()
+    generator = module._guard_real_repo_head.__wrapped__(_fake_request())
     next(generator)
 
     for name, value in previous.items():
@@ -713,7 +733,7 @@ def test_guard_fixture_removes_new_trace_settings(monkeypatch):
     for name in module._TRACE_ENV_NAMES:
         monkeypatch.delenv(name, raising=False)
 
-    generator = module._guard_real_repo_head.__wrapped__()
+    generator = module._guard_real_repo_head.__wrapped__(_fake_request())
     next(generator)
 
     assert os.environ["GIT_REFLOG_ACTION"].startswith("pytest-head-guard:")
@@ -732,7 +752,7 @@ def test_guard_fixture_uses_shared_temp_directory_and_removes_trace_file(monkeyp
     heads = iter([BEFORE_SHA, BEFORE_SHA])
     monkeypatch.setattr(module, "_real_repo_head", lambda: next(heads))
 
-    generator = module._guard_real_repo_head.__wrapped__()
+    generator = module._guard_real_repo_head.__wrapped__(_fake_request())
     next(generator)
     trace_path = Path(os.environ["GIT_TRACE2_EVENT"])
 
@@ -743,3 +763,74 @@ def test_guard_fixture_uses_shared_temp_directory_and_removes_trace_file(monkeyp
     with pytest.raises(StopIteration):
         next(generator)
     assert not trace_path.exists()
+
+
+def test_real_pytest_run_escalates_when_a_concurrent_commit_fails_the_test():
+    """End-to-end proof through pytest's real fixture injection, not `__wrapped__()`.
+
+    Issue #5123 PR #5287 review: the first version of `_guard_real_repo_head`
+    declared `request: pytest.FixtureRequest | None = None`. Every other test
+    in this file drives the fixture generator directly via `__wrapped__()`,
+    which bypasses pytest's dependency-injection scanner entirely and cannot
+    observe that a defaulted `request` parameter never receives the real
+    injected fixture (`_pytest.compat.getfuncargnames` excludes any parameter
+    carrying a default). That defect shipped past every other test here,
+    because none of them exercise fixture resolution for real.
+
+    This test spawns a real nested pytest process against a throwaway repo
+    and a copy of the real root conftest.py, so `_guard_real_repo_head`
+    receives pytest's actual `request` fixture. The nested test deliberately
+    fails while an external (unattributed) commit lands in the same repo, the
+    exact issue #5123 scenario. Against the `request: ... = None` defect this
+    assertion fails: call_failed stays False forever, so the run shows only a
+    plain AssertionError and a `#3109` warning, never `#5123`.
+    """
+    repo_root = Path(__file__).resolve().parents[1]
+    real_conftest = (repo_root / "conftest.py").read_text(encoding="utf-8")
+    probe_dir = repo_root / ".pytest_tmp" / f"head-guard-e2e-{uuid.uuid4().hex}"
+    probe_dir.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        _init_git_repo(probe_dir)
+        (probe_dir / "conftest.py").write_text(real_conftest, encoding="utf-8")
+        (probe_dir / "test_probe.py").write_text(
+            "import os\n"
+            "import subprocess\n"
+            "\n"
+            "\n"
+            "def test_fails_while_head_moves_externally():\n"
+            "    env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}\n"
+            "    email = 'external@example.invalid'\n"
+            "    subprocess.run(\n"
+            "        ['git', '-c', 'user.name=external', '-c', f'user.email={email}',\n"
+            "         'commit', '--allow-empty', '--quiet', '-m', 'concurrent'],\n"
+            "        cwd=os.path.dirname(__file__), env=env, check=True, timeout=10,\n"
+            "    )\n"
+            "    assert False, 'deliberate call-phase failure for the #5123 escalation probe'\n",
+            encoding="utf-8",
+        )
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                str(probe_dir / "test_probe.py"),
+                "-p",
+                "no:cacheprovider",
+                f"--confcutdir={probe_dir}",
+                "-q",
+            ],
+            cwd=probe_dir,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+        output = result.stdout + result.stderr
+
+        assert result.returncode != 0, output
+        assert "#5123" in output, output
+        assert "not meaningful" in output, output
+    finally:
+        shutil.rmtree(probe_dir, ignore_errors=True)

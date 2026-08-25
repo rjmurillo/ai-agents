@@ -494,13 +494,19 @@ def _check_head_change(
 
 
 @pytest.fixture(autouse=True)
-def _guard_real_repo_head(request: pytest.FixtureRequest | None = None) -> Iterator[None]:
+def _guard_real_repo_head(request: pytest.FixtureRequest) -> Iterator[None]:
     """Attribute project HEAD movement without blaming concurrent commits.
 
-    ``request`` defaults to ``None`` so the generator function stays callable
-    with no arguments, which is how the existing head-guard test suite drives
-    it directly via ``__wrapped__()`` without going through pytest's fixture
-    resolution.
+    ``request`` MUST NOT carry a default. pytest's fixture-argument scanner
+    (``_pytest.compat.getfuncargnames``) excludes any parameter that has a
+    default value from the set of fixtures it injects, so a defaulted
+    ``request`` silently stays unset (``None``) on every real test run: the
+    call_failed lookup below never runs, and the issue #5123 escalation this
+    fixture exists to provide never fires. Confirmed empirically (issue #5123
+    PR #5287 review): a defaulted ``request`` parameter on an autouse fixture
+    measurably never receives the injected value. Callers that drive this
+    generator directly via ``__wrapped__()`` (the head-guard test suite) MUST
+    pass a request-like object explicitly; there is no default to fall back to.
     """
     before = _real_repo_head()
     previous_env = {name: os.environ.get(name) for name in _TRACE_ENV_NAMES}
@@ -522,9 +528,7 @@ def _guard_real_repo_head(request: pytest.FixtureRequest | None = None) -> Itera
                 os.environ.pop(name, None)
             else:
                 os.environ[name] = value
-    call_failed = False
-    if request is not None:
-        call_failed = request.node.stash.get(_CALL_FAILED_STASH_KEY, False)
+    call_failed = request.node.stash.get(_CALL_FAILED_STASH_KEY, False)
     try:
         _check_head_change(
             before,
