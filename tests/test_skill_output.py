@@ -203,6 +203,22 @@ class TestValidateEnvelope:
         errors = validate_envelope({"Metadata": {"Script": "x", "Timestamp": "t"}})
         assert any("Missing required field: Success" in e for e in errors)
 
+    def test_missing_data_field_is_rejected(self) -> None:
+        """ADR-103 Decision item 1 (unchanged from ADR-056): every envelope
+        MUST carry a Data key. Before this fix, neither
+        skill-output.schema.json's top-level `required` array nor
+        validate_envelope checked for it, the same documented-but-unenforced
+        gap this ADR closed for Error.Type. Found by the independent-thinker
+        seat during the ADR-103 adr-review debate on PR #5283.
+        """
+        envelope = {
+            "Success": True,
+            "Error": None,
+            "Metadata": {"Script": "x", "Timestamp": "t"},
+        }
+        errors = validate_envelope(envelope)
+        assert any("Missing required field: Data" in e for e in errors)
+
     def test_missing_error_type_is_rejected(self) -> None:
         """ADR-103: Error.Type is required, not merely valid-if-present.
 
@@ -272,6 +288,49 @@ class TestValidateEnvelope:
         }
         errors = validate_envelope(envelope)
         assert any("Error field is required" in e for e in errors)
+
+    def test_non_object_error_is_rejected(self) -> None:
+        """skill-output.schema.json's Error is oneOf(null, object): an array,
+        string, or number is neither branch and must be rejected, not
+        silently ignored.
+
+        Before this fix, validate_envelope's shape check was gated on
+        `isinstance(error_field, dict)` alone, with no companion branch for
+        a non-null value that is also not a dict. Such a value matched
+        neither `is None` nor `isinstance(..., dict)`, so no finding was
+        appended at all and a schema-invalid envelope passed. Caught by
+        Copilot review on PR #5283, commit 508917d4b.
+        """
+        envelope = {
+            "Success": True,
+            "Data": None,
+            "Error": ["not", "an", "object"],
+            "Metadata": {"Script": "test.py", "Timestamp": "2026-03-08T12:00:00Z"},
+        }
+        errors = validate_envelope(envelope)
+        assert any("Error must be null or an object" in e for e in errors)
+
+    def test_non_string_error_type_is_rejected_without_crashing(self) -> None:
+        """A schema-invalid, unhashable Error.Type (a list) must produce a
+        validation finding, not raise TypeError.
+
+        VALID_ERROR_TYPES is a frozenset; `x in a_frozenset` raises
+        TypeError when `x` is unhashable (a list or dict) rather than
+        returning False. The prior `elif error_type not in
+        VALID_ERROR_TYPES:` branch ran unconditionally on whatever `Type`
+        held, so a list value would crash validate_envelope instead of
+        reporting a finding, turning a data-validation problem into an
+        unhandled exception. Caught by Copilot review on PR #5283, commit
+        508917d4b.
+        """
+        envelope = {
+            "Success": False,
+            "Data": None,
+            "Error": {"Message": "fail", "Code": 1, "Type": ["NotFound"]},
+            "Metadata": {"Script": "test.py", "Timestamp": "2026-03-08T12:00:00Z"},
+        }
+        errors = validate_envelope(envelope)  # must not raise
+        assert any("Error.Type must be a string" in e for e in errors)
 
 
 class TestValidateSkillOutputScript:
