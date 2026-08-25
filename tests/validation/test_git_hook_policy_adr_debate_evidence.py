@@ -228,6 +228,30 @@ def test_the_canonical_template_shape_passes() -> None:
     assert policy.debate_log_evidence_gap(template) is None
 
 
+def test_an_unreadable_staged_log_cannot_satisfy_coverage(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A log whose index blob will not read contributes nothing, and blocks.
+
+    ``_staged_debate_log_contents`` drops such a log from the map rather than
+    raising. That drop must not become a way past the gate: a dropped log
+    supplies no coverage either, so the staged id stays uncovered and the gate
+    returns 1.
+
+    This pins the fail-closed outcome, not the branch. Mutating the drop to
+    ``contents[path] = content or ""`` still returns 1, because an empty string
+    fails the byte floor instead. Killing that mutation needs a probe that can
+    tell the two rejection reasons apart, which the exit code alone cannot.
+    """
+    _edit(repo, ADR_42, "Rewritten decision text.")
+    _git(repo, "add", ADR_42)
+    _stage_log(repo, "ADR-042-debate-log.md", GENUINE_LOG)
+
+    monkeypatch.setattr(policy, "_read_index_blob", lambda *_args, **_kwargs: None)
+
+    assert policy.check_adr_review_policy([ADR_42], repo) == 1
+
+
 def test_every_debate_log_on_main_still_passes() -> None:
     """Calibration pin: the thresholds must not false-block committed evidence."""
     critique = _ROOT / ".agents" / "critique"
