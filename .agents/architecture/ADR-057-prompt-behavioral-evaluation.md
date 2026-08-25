@@ -1,9 +1,20 @@
 ---
+id: ADR-057
 status: accepted
-date: 2026-04-19
-decision-makers: ["architect", "user"]
-consulted: ["qa", "security", "critic"]
-informed: ["implementer", "analyst", "devops"]
+date: 2026-07-22
+decision-makers: [architect, user]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+consulted:
+- qa
+- security
+- critic
+informed:
+- implementer
+- analyst
+- devops
 ---
 
 # ADR-057: Prompt Behavioral Evaluation Methodology
