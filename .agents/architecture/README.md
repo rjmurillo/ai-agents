@@ -113,7 +113,6 @@ These bind today.
 | [ADR-033](ADR-033-routing-level-enforcement-gates.md) | Routing-Level Enforcement Gates | 2026-08-16 | Implement routing-level enforcement gates using Claude Code hooks. |
 | [ADR-034](ADR-034-investigation-session-qa-exemption.md) | Investigation Session QA Exemption | 2026-07-08 | Add investigation-only session exemption to pre-commit QA validation with staged-file guardrails. |
 | [ADR-035](ADR-035-exit-code-standardization.md) | Exit Code Standardization | 2025-12-30 | Chosen option: Option 1 - POSIX-Style Standard |
-| [ADR-036](ADR-036-two-source-agent-template-architecture.md) | Two-Source Agent Template Architecture | 2026-08-25 | Adopt a two-source architecture: |
 | [ADR-037](ADR-037-memory-router-architecture.md) | Memory Router Architecture | 2026-07-20 | Implement a Memory Router that provides: |
 | [ADR-040](ADR-040-skill-frontmatter-standardization.md) | Skill Frontmatter Standardization and Model Identifier Strategy | 2026-08-14 | Adopt the following standardization for all 27 Claude Code skills: |
 | [ADR-041](ADR-041-codeql-integration.md) | CodeQL Integration Multi-Tier Strategy | 2026-07-21 | Chosen option: Option 4 - Multi-Tier with Shared Configuration |
@@ -124,6 +123,7 @@ These bind today.
 | [ADR-047](ADR-047-plugin-mode-hook-behavior.md) | Plugin-Mode Hook Behavior | 2026-04-29 | All hooks and skills run in plugin mode. |
 | [ADR-050](ADR-050-adr-protocol-sync.md) | ADR-to-Protocol Sync Process | 2026-02-21 | Establish a two-tier ADR-to-Protocol sync process: an automated audit script and a manual integration checklist. |
 | [ADR-051](ADR-051-synthesis-panel-frontmatter-standard.md) | Synthesis Panel Frontmatter Standard | 2026-03-07 | All DESIGN-REVIEW documents MUST include YAML frontmatter with structured metadata. |
+| [ADR-052](ADR-052-template-strategy.md) | Template Strategy for Multi-Platform Agent Distribution | 2026-08-25 | Option B: Claude-First. |
 | [ADR-053](ADR-053-adr-exception-criteria.md) | ADR Exception Criteria (Chesterton's Fence) | 2026-03-07 | ADR exceptions MUST include a Chesterton's Fence analysis before approval. |
 | [ADR-054](ADR-054-local-security-scanning.md) | Local Security Scanning | 2026-07-20 | Add a Lefthook pre-push job that scans changed code files. |
 | [ADR-055](ADR-055-github-actions-runner-selection.md) | GitHub Actions Runner Selection | 2025-12-29 | Default to ARM64 runners for all Linux workflows unless documented architectural constraints exist. |
@@ -199,6 +199,7 @@ Superseded or deprecated. Do not cite these. The last column is where the decisi
 | [ADR-024](ADR-024-github-actions-runner-selection.md) | GitHub Actions Runner Selection | superseded | [ADR-055](ADR-055-github-actions-runner-selection.md) |
 | [ADR-025](ADR-025-github-actions-arm-runners.md) | GitHub Actions ARM Runner Migration | superseded | [ADR-055](ADR-055-github-actions-runner-selection.md) |
 | [ADR-028](ADR-028-powershell-output-schema-consistency.md) | PowerShell Output Schema Consistency | superseded | [ADR-103](ADR-103-skill-output-python-contract-correction.md) (via ADR-056) |
+| [ADR-036](ADR-036-two-source-agent-template-architecture.md) | Two-Source Agent Template Architecture | superseded | [ADR-052](ADR-052-template-strategy.md) |
 | [ADR-039](ADR-039-agent-model-cost-optimization.md) | Agent Model Cost Optimization | deprecated | not recorded |
 | [ADR-044](ADR-044-copilot-cli-frontmatter-compatibility.md) | Copilot CLI Frontmatter Compatibility | superseded | [ADR-094](ADR-094-govern-copilot-cli-compatibility.md) |
 | [ADR-056](ADR-056-skill-output-format-standardization.md) | Skill Output Format Standardization | superseded | [ADR-103](ADR-103-skill-output-python-contract-correction.md) |
@@ -213,7 +214,6 @@ Considered and declined. Kept visible so the proposal is findable and does not r
 | --- | --- | --- | --- |
 | [ADR-030](ADR-030-skills-pattern-superiority.md) | Skills Pattern Superiority | 2026-08-25 | - |
 | [ADR-031](ADR-031-hybrid-powershell-architecture.md) | Hybrid PowerShell Architecture for Claude Code Performance | 2026-08-25 | Implement a hybrid architecture for PowerShell skill execution: |
-| [ADR-052](ADR-052-template-strategy.md) | Template Strategy for Multi-Platform Agent Distribution | 2026-08-25 | Option B: Claude-First. |
 | [ADR-061](ADR-061-hook-matcher-shims-delegate-pattern.md) | Hook Matcher Shims Delegate to Canonical Body | 2026-08-25 | Amend REQ-003-007 step 5 so the generator emits delegate shims, not inline-body shims. |
 | [ADR-095](ADR-095-scoped-re-review-axes.md) | Scoped re-review runs only the axes that flagged (rejected) | 2026-08-15 | - |
 
