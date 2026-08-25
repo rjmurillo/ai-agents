@@ -1,24 +1,22 @@
-# Issue #5198: reporting "addressed by another PR" as done was a false completion marker
+# Retrospective: Issue #5198 (reporting "addressed by another PR" as done was a false completion marker)
 
-## Trigger
+## Session Info
 
-`/goal autoplan https://github.com/rjmurillo/ai-agents/issues/5198` (also: bake
-into adr-generator skill), with a session-scoped Stop hook that blocks until
-the condition holds. First pass reported the goal satisfied; the hook rejected
-it: "the transcript shows that issue #5198 itself was not resolved... the
-agent's work is blocked waiting for PR #5209 to land first."
+- **Date**: 2026-08-25
+- **Agents**: Claude Code (autoplan-routed session)
+- **Task Type**: Bug (false completion marker on an `autoplan <issue-url>` request)
+- **Outcome**: Partial (root-caused and remediated within the same session; the
+  underlying issue was not resolved on the first pass)
 
-## Failure mode classification
+## Phase 0: Data Gathering
 
-`.agents/governance/FAILURE-MODES.md` #4, False Completion Markers: "The agent
-marks a task complete... when the underlying artifact does not satisfy the
-acceptance criteria." Here the underlying artifact was issue #5198 itself,
-which stayed open. Filing a well-evidenced follow-up issue and a status
-comment is real, useful work, but it is not the acceptance criterion an
-`autoplan <issue-url>` request asks for, and the final-gate summary presented
-it as though it were.
+**Trigger.** `/goal autoplan https://github.com/rjmurillo/ai-agents/issues/5198`
+(also: bake into `adr-generator` skill), with a session-scoped Stop hook that
+blocks until the condition holds. First pass reported the goal satisfied; the
+hook rejected it: "the transcript shows that issue #5198 itself was not
+resolved... the agent's work is blocked waiting for PR #5209 to land first."
 
-## What happened
+**Execution trace.**
 
 1. Fetched issue #5198 (generate `.agents/architecture/README.md` as an ADR
    index) and found PR #5209 already open, `Fixes #5198`, ten review rounds,
@@ -32,45 +30,218 @@ it as though it were.
    correctly rather than weakening the gate.
 4. **Stopped there.** Filed issue #5280 with a ready-to-apply patch, commented
    on #5198, and reported the goal's final gate as complete. #5198 remained
-   open with no merged artifact. The label the PR itself carried,
-   `needs-split`, was the signal that a smaller, mergeable slice was
-   available and was not read as an instruction to act on.
+   open with no merged artifact.
 
-## Evidence
+**Outcome classification.** False completion marker, caught by the Stop hook
+before the session ended rather than by a human after the fact.
+
+**Evidence.**
 
 - Issue: <https://github.com/rjmurillo/ai-agents/issues/5198>
 - Blocked-on PR (unmerged at time of this session): <https://github.com/rjmurillo/ai-agents/pull/5209>
 - Follow-up filed: <https://github.com/rjmurillo/ai-agents/issues/5280>
 - Comment recording the (incomplete) status: <https://github.com/rjmurillo/ai-agents/issues/5198#issuecomment-5403651552>
+- Remediation PR: <https://github.com/rjmurillo/ai-agents/pull/5285>
 - Stop hook rejection: this session's transcript, the turn immediately
   following the first "Final gate" summary.
 
-## Root cause
+## Phase 1: Insights Generated
 
-Treated "avoid duplicating in-flight work" and "resolve the issue" as the same
-goal. They diverge whenever the in-flight PR bundles the requested scope with
-unrelated scope it has not yet cleared review for. `needs-split` on PR #5209
-was exactly the signal that the two goals had diverged and that extracting the
-issue's exact scope into its own mergeable PR was possible; the first pass
-read the label as background color rather than as the answer to "how do I
-resolve #5198 without waiting on the other 13 issues bundled into #5209."
+**Five Whys.**
 
-## Remediation
+1. Why did the session report the goal complete? Because it treated "filed a
+   well-evidenced follow-up issue and a status comment" as satisfying the
+   `autoplan <issue-url>` request.
+2. Why did it treat that as satisfying the request? Because it conflated
+   "avoid duplicating in-flight work" (correctly honored) with "resolve the
+   issue" (not honored) as the same goal.
+3. Why did those two goals look the same? Because PR #5209 bundled the
+   #5198-scoped slice together with unrelated scope (lifecycle gates,
+   frontmatter repairs, a review-by field) that had not cleared review, and
+   the session read "don't duplicate #5209" as "don't touch this at all"
+   rather than "extract the reviewed slice."
+4. Why wasn't the reviewed slice extracted on the first pass? Because nothing
+   in the session's routing logic prompted it to check whether the PR's scope
+   was separable; it read `needs-split` on PR #5209 as ambient status rather
+   than as a signal worth investigating.
+5. Why did `needs-split` go unread as a signal? Because no instruction at the
+   time named this case (issue already has an in-flight, `needs-split`-labeled
+   blocking PR) or the extraction move as the correct response to it.
 
-Re-diagnosed and extracted the #5198-scoped slice (`generate_adr_index.py`,
-its wiring into `build/scripts/build_all.py`, its tests, the `AGENTS.md`
-route, and a freshly generated `.agents/architecture/README.md`) verbatim from
-PR #5209's already-reviewed code onto this branch, verified it standalone
-(173 passing tests, ruff/mypy clean, `check_generated_staleness.py` and
-`check_skill_md_portability.py` clean, `pre_pr.py --quick` all-green), and
-pushed it as a `Fixes #5198` PR rather than another status comment.
+**Patterns and shifts.** The mistake is a scope-conflation pattern: two
+distinct goals ("don't duplicate work" and "resolve the ticket") that usually
+point the same way diverged here because the blocking PR carried unrelated
+scope. The fix pattern is "extract the reviewed slice into its own PR," not
+"wait" or "file a follow-up issue."
 
-Instruction change, made in this same PR: `.claude/skills/autoplan/SKILL.md`
-Phase 0 now names this exact case (issue already has an in-flight,
-`needs-split`-labeled blocking PR) and states the rule directly, so a future
-`autoplan` run on such an issue extracts the requested slice into its own
-mergeable PR rather than filing a follow-up issue and reporting the parent
-issue handled while it stays open. Regenerated into the `src/copilot-cli/`
-mirror in the same change (Copilot, PR #5285 review, `.claude/rules/retros.md`
-MUST-4: remediation needs an owner or issue, not a stated intention with
-neither).
+## Phase 2: Diagnosis
+
+### Successes (Tag: helpful)
+
+| Strategy | Evidence | Impact | Atomicity |
+|----------|----------|--------|-----------|
+| Avoided re-implementing `generate_adr_index.py` from scratch | Recognized PR #5209 already carried ~900 reviewed lines of the same generator | Prevented a duplicate, conflicting implementation | 90% |
+| Reverted a `check_skill_md_portability.py` violation instead of weakening the gate | Step 3 of the execution trace | Preserved gate integrity | 90% |
+
+### Failures (Tag: harmful)
+
+| Strategy | Error Type | Root Cause | Prevention | Atomicity |
+|----------|------------|------------|------------|-----------|
+| Reported the goal's final gate as complete after filing a follow-up issue | False completion marker (`.agents/governance/FAILURE-MODES.md` #4) | Conflated "avoid duplicating in-flight work" with "resolve the issue"; read `needs-split` as background color instead of an action cue | Named the case explicitly in `.claude/skills/autoplan/SKILL.md` Phase 0 (see Remediation) | 80% |
+
+### Near Misses
+
+| What Almost Failed | Recovery | Learning |
+|--------------------|----------|----------|
+| The false-complete report would have shipped unnoticed | The session-scoped Stop hook rejected it before the session ended | A Stop-hook condition that reads the transcript against the acceptance criterion, not just against the agent's own summary, catches this class of defect |
+
+## Phase 3: Decisions
+
+### Action Classification
+
+- **Keep**: the in-flight-PR duplication check (Phase 0 recon before routing
+  a fresh implementation).
+- **Add**: an explicit routing rule for "issue has an in-flight PR carrying
+  unrelated scope" that names extraction as the correct response.
+- **Modify**: how a `needs-split` label is read during that recon: as a
+  prompt to inspect the diff and review state, not as proof the scope is
+  separable (see the 2026-08-25 correction below, added after a second
+  Copilot review round on PR #5285 found the first version of this fix
+  overstated what the label means).
+
+### Action Sequence
+
+1. Re-diagnose #5198 within the same session (no dependency).
+2. Extract the #5198-scoped slice from PR #5209's reviewed diff (depends on 1).
+3. Update `.claude/skills/autoplan/SKILL.md` Phase 0 with the routing rule
+   (depends on 1 and 2 establishing what the correct move was).
+4. Regenerate the `src/copilot-cli/` skill mirror (depends on 3).
+
+## Phase 4: Extracted Learnings
+
+### Learning 1
+
+- **Statement**: An in-flight PR's `needs-split` label is an advisory
+  commit-count signal, not proof its scope is separable; verify by reading
+  the diff and review state.
+- **Atomicity Score**: 85%
+- **Evidence**: `scripts/validation/pr_commit_count.py`,
+  `tests/workflows/test_pr_validation_needs_split.py:3-6`; Copilot review
+  comment on PR #5285 correcting this retrospective's first-draft root cause
+  and the routing text it motivated.
+- **Skill Operation**: ADD
+- **Target Skill ID**: n/a (routed directly into `.claude/skills/autoplan/SKILL.md`
+  Phase 0 rather than a standalone skillbook entry; this is a one-repository
+  routing rule, not a generalizable skill)
+
+## Skillbook Updates
+
+No skillbook (cross-repository) entries proposed. The remediation is scoped
+to this repository's `autoplan` routing table.
+
+### ADD
+
+None.
+
+### UPDATE
+
+None.
+
+### TAG
+
+None.
+
+### REMOVE
+
+None.
+
+## Deduplication Check
+
+| New Skill | Most Similar | Similarity | Decision |
+|-----------|--------------|------------|----------|
+| n/a | n/a | n/a | No new skillbook entry proposed; see Skillbook Updates |
+
+## Phase 5: Persist and Close
+
+### Memory Persistence
+
+| Learning | Atomicity | Existing Match | Result |
+|----------|-----------|----------------|--------|
+| `needs-split` is commit-count advisory, not a scope-separability signal | 85% | None found | Skipped (routed into `.claude/skills/autoplan/SKILL.md` instead of a Serena memory; see `.claude/rules/knowledge-persistence.md` on binding conventions belonging in rule/skill files, not memory alone) |
+
+### +/Delta
+
+#### + Keep
+
+- The Stop-hook gate that verifies the acceptance criterion against the
+  transcript, not against the agent's own summary.
+- Extracting a reviewed slice from an in-flight PR rather than
+  re-implementing or waiting.
+
+#### Delta Change
+
+- Read an advisory label's actual enforcement mechanism
+  (`scripts/validation/pr_commit_count.py`) before citing it as evidence of
+  anything beyond what it measures.
+
+### Delta Triage
+
+#### Actionable Items Identified
+
+| Delta Item | Category | Priority | Destination | Reference |
+|------------|----------|----------|-------------|-----------|
+| Name the in-flight-PR-with-unrelated-scope case in autoplan routing | Missing Docs | P1 | `.claude/skills/autoplan/SKILL.md` (this PR) | PR #5285 |
+| Correct the `needs-split` root-cause claim after Copilot flagged it as unsupported | Process | P1 | This retrospective + `.claude/skills/autoplan/SKILL.md` (this PR) | PR #5285 Copilot review, 2026-08-25 |
+
+#### Issues Created
+
+None. Both actionable items landed directly in this PR rather than as
+tracked follow-ups.
+
+#### Backlog Items Stored
+
+None.
+
+#### Skipped Items
+
+None.
+
+### ROTI Assessment
+
+**Score**: 3
+
+**Benefits Received**:
+
+- A concrete, reusable routing rule for a recurring shape of request
+  (issue with an in-flight, scope-bundling blocking PR).
+- A caught-before-merge correction to the retrospective's own root-cause
+  claim, which is itself evidence the review process works.
+
+**Time Invested**: Part of the same session that extracted the #5198-scoped
+slice; no separate retrospective session was run.
+
+**Verdict**: Continue
+
+### Helped, Hindered, Hypothesis
+
+#### Helped
+
+- The session-scoped Stop hook caught the false-complete report immediately,
+  inside the same session, rather than after human review.
+- Adversarial review (Copilot) on the PR caught a second-order error: the
+  first version of this retrospective's root cause overstated what
+  `needs-split` proves, which would have taught future `autoplan` runs the
+  wrong lesson had it shipped uncorrected.
+
+#### Hindered
+
+- No skill or rule at the time named "in-flight PR bundles unrelated scope"
+  as a distinct case from "in-flight PR fully covers this issue," so the
+  session had no routing precedent to check against.
+
+#### Hypothesis
+
+- Future retrospectives that cite a GitHub label as evidence should quote
+  the label's actual assignment logic (the script or workflow condition that
+  applies it) in the same paragraph, not just the label's name, so a reviewer
+  can verify the claim without a separate investigation.

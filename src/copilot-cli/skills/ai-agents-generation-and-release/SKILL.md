@@ -205,7 +205,7 @@ Run this checklist before pushing any change that touched a canonical or generat
 
 ## Provenance and Maintenance
 
-Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-03 pass had rotted for `build/scripts/build_all.py`, `build/generate_agents.py`, `pyproject.toml`, `scripts/sync_plugin_lib.py`, `.github/workflows/publish.yml`, and `.github/workflows/validate-generated-agents.yml`). Volatile facts and how to re-check them:
+Verified 2026-08-25 against the working tree (re-verification pass; the 2026-07-29 pass had rotted for `build/scripts/build_all.py` after the `adr-index` generator's manual call shifted every later line). Volatile facts and how to re-check them:
 
 | Fact | Source | Re-verify |
 |------|--------|-----------|

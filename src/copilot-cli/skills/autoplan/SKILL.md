@@ -65,12 +65,22 @@ review before writing the implementation.
 already carries a closing keyword for the issue, do not treat "avoid
 duplicating that work" and "resolve the issue" as the same goal; they diverge
 whenever the PR bundles the requested scope with unrelated scope that has not
-cleared review. A `needs-split` label on that PR is the signal the two goals
-have diverged and is an action cue, not a reason to defer: extract the
-issue-scoped slice from the PR's already-reviewed diff into its own minimal,
-mergeable PR rather than filing a follow-up issue and reporting the parent
-issue as handled while it stays open with no merged artifact (learned from
-`rjmurillo/ai-agents` issue #5198, 2026-08-25).
+cleared review. Do not infer that divergence from a `needs-split` label alone:
+in this repository that label is assigned purely from commit count (10+
+commits triggers it; see the commit-count validator this repository's own
+CI runs, and `tests/workflows/test_pr_validation_needs_split.py`) and says
+nothing about
+whether the PR's scope is separable. A long, cohesive PR carries the label
+too, and forking it would create a duplicate implementation instead of
+extracting anything. Treat the label only as a prompt to open the diff and
+review state, not as evidence on its own. Confirm from the actual diff and
+review comments that the issue's scope sits in its own reviewed,
+extractable commits before acting; when it does, extract that slice into its
+own minimal, mergeable PR rather than filing a follow-up issue and reporting
+the parent issue as handled while it stays open with no merged artifact
+(learned from `rjmurillo/ai-agents` issue #5198, 2026-08-25; the routing text
+originally overstated what the label proves, corrected per Copilot review on
+PR #5285).
 
 ### Phase 1: Classify
 
