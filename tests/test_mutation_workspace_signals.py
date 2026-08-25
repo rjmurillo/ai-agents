@@ -11,6 +11,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Protocol
 
 import pytest
 
@@ -64,7 +65,21 @@ CONCURRENT_SIGNAL_TEST_TIMEOUT_SECONDS = (
 )
 
 
-def _wait_for_exit(process: subprocess.Popen[str], description: str) -> int:
+class _Waitable(Protocol):
+    """The subset of ``Popen`` that ``_wait_for_exit`` actually touches.
+
+    Narrowed to these two methods so a test double can stand in without a
+    cast. That is not a convenience: the reap-timeout branch is only
+    reachable from a child that ignores SIGKILL, which no real process does,
+    so the branch is untestable against ``Popen`` itself.
+    """
+
+    def wait(self, timeout: float | None = ...) -> int: ...
+
+    def kill(self) -> None: ...
+
+
+def _wait_for_exit(process: _Waitable, description: str) -> int:
     """Wait for a signalled child, naming the elapsed time when it does not exit.
 
     A bare ``process.wait(timeout=...)`` raises ``TimeoutExpired`` with no
@@ -516,6 +531,63 @@ def _blocking_wait_count(node: ast.FunctionDef) -> int:
             continue
         waits += 1
     return waits
+
+
+class _UnreapableChild:
+    """A child that ignores the cap and then ignores SIGKILL too.
+
+    Both ``wait`` calls raise, which is the only way to reach the reap-timeout
+    branch: a real SIGKILLed child reaps immediately, so the negative control
+    with a live process cannot exercise it. Deleting that branch would leave
+    the suite green without this.
+    """
+
+    def __init__(self) -> None:
+        self.kill_calls = 0
+        # Recorded so the test can assert the reap wait is actually bounded.
+        # A fake that raises whatever it is passed cannot otherwise tell a
+        # bounded wait from process.wait() with no timeout at all.
+        self.wait_timeouts: list[float | None] = []
+
+    def wait(self, timeout: float | None = None) -> int:
+        self.wait_timeouts.append(timeout)
+        raise subprocess.TimeoutExpired(cmd="fake-child", timeout=timeout or 0)
+
+    def kill(self) -> None:
+        self.kill_calls += 1
+
+
+@pytest.mark.timeout(SIGNAL_TEST_TIMEOUT_SECONDS)
+def test_wait_for_exit_reports_a_child_that_cannot_be_reaped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Negative: a child unreapable after SIGKILL gets its own diagnostic.
+
+    An unbounded second wait could outlive the per-test budget and let
+    pytest-timeout preempt the message entirely, so the bound and the message
+    are the point. The cap is shortened so this runs in about a second.
+    """
+    monkeypatch.setitem(_wait_for_exit.__globals__, "SIGNAL_EXIT_TIMEOUT_SECONDS", 1)
+    monkeypatch.setitem(_wait_for_exit.__globals__, "SIGNAL_REAP_TIMEOUT_SECONDS", 1)
+    child = _UnreapableChild()
+
+    with pytest.raises(pytest.fail.Exception) as failure:
+        _wait_for_exit(child, "a child that cannot be reaped")
+
+    assert child.kill_calls == 1, "the helper must SIGKILL before reporting"
+    # Both waits must carry a bound. An unbounded reap can outlive the
+    # per-test budget, and pytest-timeout would then preempt the message
+    # below instead of it printing.
+    assert child.wait_timeouts == [1, 1], (
+        f"both waits must be bounded, saw {child.wait_timeouts}"
+    )
+
+    message = str(failure.value)
+    assert "#5108" in message
+    assert "a child that cannot be reaped" in message
+    assert "did not reap within" in message
+    # The distinguishing claim: this is the kernel, not the code under test.
+    assert "uninterruptible I/O" in message
 
 
 def _tests_that_wait_on_a_signalled_child() -> list[ast.FunctionDef]:
