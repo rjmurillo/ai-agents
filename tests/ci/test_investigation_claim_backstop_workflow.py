@@ -165,3 +165,58 @@ def test_the_step_does_not_fire_on_an_earlier_setup_failure() -> None:
     """
     condition = _post_warning_step().get("if")
     assert condition == "failure() && steps.validate.outcome == 'failure'"
+
+
+def test_the_step_exports_the_pr_head_sha() -> None:
+    """Positive: the posted comment needs the triggering commit available.
+
+    Without `HEAD_SHA` in the step's `env:`, the `printf` call below has
+    nothing to interpolate and the "As of commit ..." wording (pinned by
+    ``test_the_comment_self_identifies_as_a_point_in_time_record`` below)
+    could not exist.
+    """
+    env = _post_warning_step().get("env", {})
+    assert env.get("HEAD_SHA") == "${{ github.event.pull_request.head.sha }}"
+
+
+def test_the_comment_self_identifies_as_a_point_in_time_record() -> None:
+    """Positive: pins the fix for the present-tense-staleness review finding.
+
+    Reverting the `printf`/`HEAD_SHA` hunk while keeping the surrounding
+    heredoc would leave this suite green on every other test here (the
+    write-once decision, the failure-scoping, and the rationale comment all
+    still hold), silently reintroducing the exact defect a reviewer flagged:
+    a warning that reads as current status long after the PR was fixed. This
+    test is what actually breaks if that hunk disappears.
+    """
+    step_block = _post_warning_step_raw_block()
+    assert 'HEAD_SHA:0:12' in step_block
+    assert "As of commit `%s`, this PR contained" in step_block
+    # The old present-tense claim, unqualified by a commit reference, must
+    # not survive: that exact phrasing is what made the comment read as a
+    # live status instead of a point-in-time record.
+    assert "This PR contains session logs" not in step_block
+
+
+def test_the_sha_interpolation_uses_printf_not_the_heredoc() -> None:
+    """Edge: pins the shell-injection fix, not just its visible symptom.
+
+    The vulnerable shape (`cat <<EOF`, unquoted, with `$HEAD_SHA` inside a
+    markdown body full of backticks) would satisfy the two tests above too,
+    since the rendered text can look identical until the shell actually
+    tries to expand it. Assert on the mechanism: the interpolation happens
+    in a `printf` call, and the static markdown heredoc stays quoted.
+    """
+    step_block = _post_warning_step_raw_block()
+    assert re.search(r"printf\s+'[^']*%s[^']*'\s+\"\$\{HEAD_SHA:0:12\}\"", step_block)
+    # Every actual heredoc redirect must be the quoted form. An unquoted
+    # `<<EOF` would shell-expand the markdown body, including every
+    # backtick-wrapped code span in it. Scanned line-by-line, skipping `#`
+    # comment lines: this rationale comment's own prose mentions the bare
+    # `<<EOF` syntax in quotes, which would otherwise false-positive.
+    code_lines = [
+        line for line in step_block.splitlines() if not line.strip().startswith("#")
+    ]
+    heredoc_redirects = re.findall(r"<<-?'?\"?EOF'?\"?", "\n".join(code_lines))
+    assert heredoc_redirects, "expected at least one heredoc redirect in the step"
+    assert all(redirect in ("<<'EOF'", '<<"EOF"') for redirect in heredoc_redirects)
