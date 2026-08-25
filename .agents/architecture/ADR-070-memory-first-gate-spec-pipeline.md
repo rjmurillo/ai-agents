@@ -1,7 +1,7 @@
 ---
 id: ADR-070
 status: proposed
-date: 2026-05-31
+date: 2026-07-27
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
