@@ -76,3 +76,28 @@ Commit: `f3600fdeb` `fix(ci): pass --update-if-exists to the PR validation comme
    items from unrelated recent commits on the branch; do not commit its
    auto-populated "Work Items" section without checking it against the
    actual diff being retrospected.
+
+## Failure Mode Classification
+
+Matches FM-9, Confident-Incorrectness Recurrence
+(`.agents/governance/FAILURE-MODES.md`): `run_retrospective.py --since "4
+hours ago"` populated the "Work Items" section from partial signal (a
+wall-clock-windowed `git log` scan), and that section named commits unrelated
+to this session's actual diff (a pip-audit pin bump, an unrelated setup-uv
+test fix, from other work on the same branch inside the window). Committing
+that section verbatim, without cross-checking it against `git status` and the
+real diff, would have shipped a retrospective narrating work this session did
+not do. No existing class other than FM-9 fits, so no new class or ADR is
+proposed per `.claude/rules/retros.md` MUST-2.
+
+Caught before commit, not after multi-round correction, so impact is Low: one
+session, one file, corrected pre-push. Evidence is this retrospective's own
+"What went wrong / friction" section above; there is no separate incident
+file because nothing shipped incorrect.
+
+## Remediation
+
+| Action | Status |
+|---|---|
+| Cross-check `run_retrospective.py`'s auto-generated "Work Items" against the actual session diff before committing | Done this session: caught and rewrote by hand before commit |
+| File an issue to scope `run_retrospective.py --since` to the current branch's own commits (or the session's actual diff) instead of a wall-clock window that can span unrelated concurrent work on the same branch | Not filed. Single-session friction with no repeat evidence yet; revisit if this recurs in a future retrospective |
