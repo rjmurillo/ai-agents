@@ -25,7 +25,7 @@ the frontmatter agree on their first token as ADR-073 requires. `rejected` is th
 value this repository already uses for a proposal declined before acceptance and
 retained so it stays findable: see ADR-095, whose prose reads "Rejected. Recorded
 so the proposal is findable and does not return." The parenthetical carries the
-nuance the enum cannot.
+nuance the enum cannot. (Prose reconciled 2026-08-25.)
 
 ## Date
 
