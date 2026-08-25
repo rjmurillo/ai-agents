@@ -142,14 +142,14 @@ corrected before its first commit.
 - **Atomicity Score**: 82%
 - **Evidence**: `marker_path_drift()` in `scripts/validation/check_skill_md_drift.py` strips fenced/indented code before extracting prose paths, so a declared path that appears only inside a ```bash block reports as stale.
 - **Skill Operation**: TAG
-- **Target Skill ID**: N/A (repo-mechanics fact, not an agent behavior pattern; recorded here rather than skillbook)
+- **Target Skill ID**: N/A (repo-mechanics fact, not an agent behavior pattern; not a skillbook entry). Persisted to Serena memory `validation/validation-portability-scan-contract` instead (see Memory Persistence below).
 
 ### Learning 2
 - **Statement**: A directory-prefix vendor-portability declaration must itself resolve on disk.
 - **Atomicity Score**: 78%
 - **Evidence**: `marker_path_drift()`'s existence check (class c) resolves every declared and prose path against the repo root; `build/audit` (the bare directory) does not exist, only `build/audit/GENERATION-AUDIT.md` does, and only the exact file is exempted via `_GENERATED_ARTIFACTS`.
 - **Skill Operation**: TAG
-- **Target Skill ID**: N/A
+- **Target Skill ID**: N/A. Persisted to Serena memory `validation/validation-portability-scan-contract` instead (see Memory Persistence below).
 
 ## Skillbook Updates
 
@@ -169,8 +169,8 @@ None. Both learnings are narrow repo-mechanics facts about one validator's extra
 
 | Learning | Atomicity | Existing Match | Result |
 |----------|-----------|----------------|--------|
-| Marker declarations must match non-fenced prose | 82% | None found (searched `marker_path_drift`, `vendor-portability`) | Recorded in this retrospective only; below the generalizability bar for a standalone Serena memory entry (repo-internal, single-validator mechanic already documented in `check_skill_md_drift.py`'s own docstring) |
-| Directory-prefix declarations must resolve on disk | 78% | None found | Same as above |
+| Marker declarations must match non-fenced prose | 82% | [`validation/validation-portability-scan-contract`](../../.serena/memories/validation/validation-portability-scan-contract.md), directly on-topic (`scan_all()`, `files_by_root`, `EXTRA_SCAN_ROOTS`) but stale (still claimed extra dirs "never affect the coverage gate", which this session's fail-open fix changed) | Appended to the existing entry rather than creating a new one, per the Memory Protocol dedup rule, and corrected the stale `files_by_root` claim in the same edit |
+| Directory-prefix declarations must resolve on disk | 78% | Same entry | Appended alongside the marker-declaration learning above |
 
 ### +/Delta
 

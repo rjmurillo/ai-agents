@@ -52,7 +52,7 @@
 [Scripting and Testing]
 |repo-root default script REPO_ROOT __file__ scratch clone cwd: [testing/repo-root-default-measures-the-wrong-repository](testing/repo-root-default-measures-the-wrong-repository.md) (719)
 |portability git timeout diagnostics fail closed operation context: [portability/git-timeout-diagnostics](portability/git-timeout-diagnostics.md) (951)
-|portability single traversal scan_all extra scan roots files_by_root: [validation/validation-portability-scan-contract](validation/validation-portability-scan-contract.md) (167)
+|portability single traversal scan_all extra scan roots files_by_root required vendor-portability marker path drift declaration fenced code: [validation/validation-portability-scan-contract](validation/validation-portability-scan-contract.md) (517)
 |portability descendant symlink file directory escape repo root: [validation/descendant-symlink-portability-containment](validation/descendant-symlink-portability-containment.md) (210)
 |eval harness enumerate scripts naming underscore hyphen glob: [eval-harness-surface-enumeration](eval-harness-surface-enumeration.md) (681)
 |powershell ps1 psm1 module pester test discovery isolation: [skills-powershell-index](skills-powershell-index.md) (443), [skills-pester-testing-index](skills-pester-testing-index.md) (181), [powershell/pester-variable-scoping](powershell/pester-variable-scoping.md) (497), [powershell/powershell-variable-shadowing-detection](powershell/powershell-variable-shadowing-detection.md) (665), [patterns/pattern-thin-workflows](patterns/pattern-thin-workflows.md) (1373)
