@@ -333,3 +333,56 @@ cap, 2.3x over its measured cost. The container bound lands at 660s, exactly at
 the ceiling, so the graph now has no slack: any new pre-push job fails the
 assertion until something is measured and cut. That is the intended state for a
 ratchet, not an accident.
+
+## Round 5: CI red, and the sum was the wrong quantity
+
+Round 4's push went green locally and red in CI. Five tests failed, all in
+`tests/test_lefthook_integration.py`, all mine, and the cause was a process
+failure rather than a design one: the local verification ran a subset of the
+suite, not the suite. The PR's own instruction to run the repo's fast checks
+before pushing was followed against the wrong scope.
+
+The defect underneath was a fourth coupling of the kind this log keeps
+recording. `test_each_python_subprocess_budget_has_lefthook_headroom` requires
+every job invoking `git_hook_policy` to carry a cap at least 30s above its
+inner child budget, so the inner timeout fires first and the reader gets a
+diagnostic rather than a bare kill (ADR-086 item 9). With
+`DEFAULT_SUBPROCESS_TIMEOUT_SECONDS` at 90, nine jobs cut to 20s and 60s were
+below a floor that appears nowhere in `lefthook.yml`. Restored.
+
+`MYPY_TIMEOUT_SECONDS` was the exception worth cutting instead: 840s for a gate
+scoped to changed files and measured at 2.73s in-hook. That number was not a
+budget for the work, it was the thing forcing a 15m outer cap through the
+headroom rule.
+
+### The container assertion was measuring the wrong thing
+
+Round 4 asserted that the sum of the clamped caps stayed under 660s, chosen to
+sit below the roughly 679s at which a reclamation was observed. That comparison
+does not hold up:
+
+- the sum is the case where every job in the graph hangs to its cap on the same
+  push, which cannot happen;
+- 679s is a single measured push, not a cap.
+
+Two different quantities, compared because both were in seconds. A hang is one
+job, so the property worth asserting is per job:
+
+```text
+declared sum, workstation        2850s   (was 4170s)
+largest single job, container     240s   (was 1800s)
+```
+
+The per-job bound is the honest form of the claim Round 4 wanted to make, and
+it is stronger where it matters: it holds no matter how many jobs a push fires.
+
+### A third thing the clamp exposed
+
+`test_cli_e2e_runs_with_clean_plugin_environment` asserts the e2e child receives
+`CLI_E2E_TIMEOUT_SECONDS`. This repository's dev containers set `CLAUDECODE`, so
+the clamp was firing inside the test and it was reading the clamp rather than
+the budget it exists to pin. It now pins the workstation contract explicitly,
+and two new tests cover the cases it cannot: a container clamps the child, and
+CI does not inherit the clamp even when a container marker is present. That
+last one matters because a real hang in CI is a real failure and must surface
+as one.

@@ -123,7 +123,17 @@ entries sum; a parallel group costs its slowest member; a piped group sums) and
 ratchets the total. It may only fall.
 
 That number was 4170s for pre-push, 69.5 minutes, against real pushes of
-142.39s. Caps resized from in-hook measurement bring it to 2370s.
+142.39s. Caps resized from in-hook measurement bring it to 2850s.
+
+The first attempt cut further and was wrong to. Nine jobs went below a floor
+the config does not state: `test_each_python_subprocess_budget_has_lefthook_headroom`
+requires every job invoking `git_hook_policy` to carry a cap at least 30s above
+its inner child budget, so the inner timeout fires first and the reader gets a
+diagnostic rather than a bare kill (ADR-086 item 9). With
+`DEFAULT_SUBPROCESS_TIMEOUT_SECONDS` at 90, a job that can spawn a 90s child
+cannot be capped at 20s however cheap it measures. That is the third coupling
+in this record holding a number in place from somewhere the number is not
+written down.
 
 A workstation and a container are asking different questions, so they get
 different answers. A workstation needs a long cap for a job with legitimate
@@ -137,14 +147,25 @@ clamps its child's deadline to 150s when `_is_remote_container()` is true.
 Workstations and CI are untouched. `tests/ci/test_lefthook_declared_budget.py`
 models that clamp against the declared caps and asserts the result:
 
+The bound that matters is **per job**, not the sum of every cap. An earlier
+revision of this record summed the clamped caps and compared the total against
+the roughly 679s at which a reclamation was observed. That comparison is not
+sound, and saying so is worth more than the number it produced: the sum is the
+case where every job in the graph hangs to its cap on the same push, which
+cannot happen, and the figure it was compared against is a single measured push
+rather than a cap. Two different quantities.
+
+A hang is one job. So:
+
 ```text
-declared, workstation   2370s   39.5 min
-container-clamped        660s   11.0 min
+declared sum, workstation        2850s   47.5 min   (was 4170s)
+largest single job, container     240s    4.0 min   (was 1800s)
 ```
 
-660s is below the roughly 679s at which a reclamation was observed, so a hung
-child is killed by the clamp and the push fails with a message rather than
-dying silently with the container. The container detection is issue #2548's,
+No single pre-push job can run longer than 240s inside a container. The largest
+is `pre-pr-validation`, which does not route through `_run_command` and so
+carries its own cap; every job whose work is a subprocess is bounded by the
+150s clamp instead. The container detection is issue #2548's,
 imported rather than redefined; that issue established both the mechanism and
 the precedent of degrading a pre-push job in a container.
 
@@ -299,7 +320,7 @@ firing**, and they are the pushes that can still outlive a container. That is
 the tail this record does not close (issue #5318).
 
 The two e2e smokes at 20m each set the expensive group's declared cost, so they
-alone account for 1200s of the 2370s workstation total. Cutting those caps
+alone account for 1200s of the 2850s workstation total. Cutting those caps
 needs a measurement, not a guess. In a container they are clamped to 150s
 regardless, which is why the container bound does not wait on that
 measurement.
@@ -394,10 +415,10 @@ itself mean tests ran.
   escape hatch nobody exercises rots. Its wiring is covered by a test.
 - The duplication between `pre-pr-validation` and the fast stage stays, and
   costs roughly 40s per push, because the cheap way to remove it was unsound.
-- The workstation declared worst case is still 39.5 minutes against a 300s
-  target, and the ratchet stops it rising rather than bringing it down. Closing
-  that needs the unmeasured jobs measured (issue #5318). In a container the
-  bound is 660s and asserted, so the specific failure this record exists to
+- The workstation declared sum is still 47.5 minutes against a 300s target, and
+  the ratchet stops it rising rather than bringing it down. Closing that needs
+  the unmeasured jobs measured (issue #5318). In a container no single job can
+  exceed 240s, which is asserted, so the specific failure this record exists to
   stop is closed; on a workstation a hung e2e smoke can still run for 20
   minutes, which is slow rather than destructive.
 
