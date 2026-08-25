@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: bfd3a008d336ff6e4d8e50ef4cdb766a457d1a6a
+qaCommit: 6471bbdd22424244dabf0aa1e3e9b70c3ae9e8f7
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -790,3 +790,12 @@ the merge brought in PR #5291's frontmatter across 67 records.
 Regenerated; `--check` clean. Full detail in that addendum.
 
 **Rebound to** `bfd3a008d336ff6e4d8e50ef4cdb766a457d1a6a`.
+
+## Addendum 28: same rebind as Addendum 26 of the campaign report
+
+Cursor Bugbot caught a real merge-resolution mistake: ADR-005's date was
+left at origin/main's value (ADR-042's own date) instead of this
+branch's prose-matching value, contradicting this report's own claim.
+Fixed, with a debate-log correction. Full detail in that addendum.
+
+**Rebound to** `6471bbdd22424244dabf0aa1e3e9b70c3ae9e8f7`.

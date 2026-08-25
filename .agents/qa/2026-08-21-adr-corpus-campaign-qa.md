@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: bfd3a008d336ff6e4d8e50ef4cdb766a457d1a6a
+qaCommit: 6471bbdd22424244dabf0aa1e3e9b70c3ae9e8f7
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1469,3 +1469,21 @@ The full `python-tests` suite then surfaced a real, narrow regression: `tests/ci
 `build/scripts/build_all.py --check` (run as part of `pre-pr-validation` on the push this addendum responds to) correctly flagged `.agents/architecture/README.md` as stale: the origin/main merge brought in PR #5291's ADR-073 frontmatter across 67 records, changing dates, statuses, and decision-makers the generated index renders. Regenerated via `scripts/sync_plugin_lib.py` then `build/scripts/build_all.py`; `--check` now reports zero staleness. No ADR-tooling script changed; `check_adr_lifecycle.py` and `check_adr_links.py` re-run unchanged from Addendum 24.
 
 **Rebound to** `bfd3a008d336ff6e4d8e50ef4cdb766a457d1a6a`.
+
+## Addendum 26: Cursor Bugbot caught a real merge-resolution mistake on ADR-005's date
+
+The ADR-005/ADR-042 conflict resolution in Addendum 24 above claimed "this
+branch's values matched the files' own prose exactly, so kept" for both
+records. True for ADR-042; false for ADR-005, where the committed
+frontmatter actually kept origin/main's `2026-01-17` (ADR-042's own
+supersession date, not ADR-005's) instead of this branch's
+prose-matching `2025-12-18`. Cursor Bugbot flagged the contradiction
+between the committed file and this report's own claim. Fixed by
+restoring `2025-12-18`, with a correction appended to
+`.agents/critique/ADR-005-status-duplication-debate-log.md` per ADR-073's
+evidence requirement (commit `6471bbdd2`). Re-verified: `check_adr_lifecycle.py`
+unchanged (`[PASS] 1 violation(s) across 102 ADR record(s)`), `check_adr_links.py`
+0 violations, `build_all.py --check` clean (the date is not rendered in the
+generated index's Retired-section row, so no regeneration needed).
+
+**Rebound to** `6471bbdd22424244dabf0aa1e3e9b70c3ae9e8f7`.
