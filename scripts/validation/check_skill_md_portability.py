@@ -1360,9 +1360,13 @@ def _require_nonempty_extra_roots(
     return 2
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    root = _resolve_root(args.repo_root)
+def _check_required_roots_exist(root: Path) -> int | None:
+    """Return exit code 2 (and print) when a required root is absent.
+
+    Covers both the plugin ``skills/`` trees (``missing_required_roots``) and
+    the required ``EXTRA_SCAN_ROOTS`` entries (``missing_required_extra_roots``).
+    Returns ``None`` when every required root exists.
+    """
     missing = missing_required_roots(root)
     if missing:
         absent = ", ".join(f"{name}/skills" for name in missing)
@@ -1373,6 +1377,15 @@ def main(argv: list[str] | None = None) -> int:
         absent = ", ".join(missing_extra)
         print(f"Required scan dir not found under {root}: {absent}", file=sys.stderr)
         return 2
+    return None
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    root = _resolve_root(args.repo_root)
+    missing_root_exit = _check_required_roots_exist(root)
+    if missing_root_exit is not None:
+        return missing_root_exit
     baseline_path = _resolve_baseline_path(root, args.baseline)
     if baseline_path is None:
         return 2
