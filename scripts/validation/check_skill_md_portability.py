@@ -305,6 +305,16 @@ EXTRA_SCAN_ROOTS: tuple[str, ...] = (
     "src/copilot-cli/instructions",
 )
 
+# Extra scan roots whose absence is a broken checkout, not a legitimate minimal
+# clone, mirroring the ``REQUIRED_SKILLS_ROOTS`` distinction above.
+# ``.claude/commands`` and ``templates/agents`` are sources; a checkout may
+# reasonably omit them. ``src/copilot-cli/instructions`` is the shipped
+# artifact this validator exists to gate: unlike a source directory, its
+# absence means the exact surface issue #5214 found undeclared paths in would
+# go unscanned while the run still reports clean, which is the same silent
+# fail-open shape as a missing required skills tree.
+REQUIRED_EXTRA_ROOTS: frozenset[str] = frozenset({"src/copilot-cli/instructions"})
+
 
 def has_portability_marker(text: str) -> bool:
     """Return True if the file self-declares its upstream path dependencies.
@@ -570,6 +580,20 @@ def missing_required_roots(root: Path) -> list[str]:
     ]
 
 
+def missing_required_extra_roots(root: Path) -> list[str]:
+    """Return the required extra scan roots that are absent, in declared order.
+
+    Mirrors ``missing_required_roots`` for ``EXTRA_SCAN_ROOTS`` entries that
+    are shipped artifacts rather than optional sources (see
+    ``REQUIRED_EXTRA_ROOTS``). Checking this separately from
+    ``extra_scan_dirs`` is the point: that function silently skips an absent
+    directory so a minimal-clone checkout does not fail on a missing source
+    tree, which would also silently skip a required shipped root with no
+    signal that anything was missed.
+    """
+    return [name for name in REQUIRED_EXTRA_ROOTS if not (root / name).is_dir()]
+
+
 def scan_all(
     root: Path,
     *,
@@ -594,9 +618,11 @@ def scan_all(
     ``marker_counts`` covers plugin roots and extra scan dirs because
     vendor-portability markers in ``.claude/commands`` and
     ``templates/agents`` feed the same exact-count marker baseline. Keys in
-    files_by_root are the posix path of the ``skills/`` dir relative to root,
-    covering plugin roots only, not extra scan dirs. Coverage-check semantics
-    are preserved from the original ``scanned_markdown_by_root``.
+    files_by_root are the posix path of the scan root relative to the repo
+    root, covering both plugin ``skills/`` dirs and extra scan dirs, so the
+    success report can name every root actually examined rather than only
+    the ``skills/`` trees (issue #5214 review: a scan root with zero examined
+    files must not read the same as a scan root that was never walked).
     """
     ref_counts: dict[str, int] = {}
     marker_counts: dict[str, int] = {}
@@ -634,8 +660,11 @@ def scan_all(
     for extra_dir in extra_dirs:
         if refuse_symlinked_scan_root(root, extra_dir):
             raise OSError(f"Scan root {extra_dir} resolves outside the repository root")
+        root_key = extra_dir.relative_to(root).as_posix()
         rel_parent = extra_dir.parent.relative_to(root)
-        for path in _iter_markdown_files(root, extra_dir):
+        paths = _iter_markdown_files(root, extra_dir)
+        files_by_root[root_key] = len(paths)
+        for path in paths:
             try:
                 text = path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError) as exc:
@@ -1269,6 +1298,11 @@ def main(argv: list[str] | None = None) -> int:
     if missing:
         absent = ", ".join(f"{name}/skills" for name in missing)
         print(f"Required skills dir not found under {root}: {absent}", file=sys.stderr)
+        return 2
+    missing_extra = missing_required_extra_roots(root)
+    if missing_extra:
+        absent = ", ".join(missing_extra)
+        print(f"Required scan dir not found under {root}: {absent}", file=sys.stderr)
         return 2
     baseline_path = _resolve_baseline_path(root, args.baseline)
     if baseline_path is None:

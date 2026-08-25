@@ -345,6 +345,8 @@ class TestTerminatorWordBoundary:
         # issue #3582: main() now requires every REQUIRED_SKILLS_ROOTS entry to
         # exist, not just .claude, so a bare `.claude`-only fixture exits 2.
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        # issue #5214: main() now also requires REQUIRED_EXTRA_ROOTS to exist.
+        (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -360,6 +362,8 @@ class TestTerminatorWordBoundary:
         # issue #3582: main() now requires every REQUIRED_SKILLS_ROOTS entry to
         # exist, not just .claude, so a bare `.claude`-only fixture exits 2.
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        # issue #5214: main() now also requires REQUIRED_EXTRA_ROOTS to exist.
+        (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -753,6 +757,7 @@ class TestPluginRootScan:
         """End to end proof that the widened scan reaches the CLI exit code."""
         self._skill_md(tmp_path, ".claude", "a/SKILL.md", "Clean prose.\n")
         self._skill_md(tmp_path, "src/copilot-cli", "a/SKILL.md", "Reads .agents/x\n")
+        (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
         baseline = tmp_path / "baseline.json"
         baseline.write_text('{"files": {}}', encoding="utf-8")
         code = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -784,6 +789,8 @@ class TestPluginRootScan:
         """``src/claude`` ships agents and rules and has no skills tree today."""
         for name in cmp.REQUIRED_SKILLS_ROOTS:
             self._skill_md(tmp_path, name, "a/SKILL.md", "Clean prose.\n")
+        for name in cmp.REQUIRED_EXTRA_ROOTS:
+            (tmp_path / name).mkdir(parents=True, exist_ok=True)
         assert cmp.missing_required_roots(tmp_path) == []
         baseline = tmp_path / "baseline.json"
         baseline.write_text('{"files": {}}', encoding="utf-8")
@@ -842,6 +849,8 @@ class TestExtraScanDirs:
             placeholder = root / required / "skills" / "_placeholder" / "SKILL.md"
             placeholder.parent.mkdir(parents=True, exist_ok=True)
             placeholder.write_text("placeholder\n", encoding="utf-8")
+        for required in cmp.REQUIRED_EXTRA_ROOTS:
+            (root / required).mkdir(parents=True, exist_ok=True)
 
     def test_extra_scan_dirs_returns_existing_dirs(self, tmp_path: Path) -> None:
         """Directories in EXTRA_SCAN_ROOTS that exist are returned."""
@@ -1022,6 +1031,46 @@ class TestInstructionsScanRoot:
         counts = cmp.scan_plugin_roots(tmp_path)
         assert "src/copilot-cli/instructions/annotated.instructions.md" not in counts
 
+    def test_missing_instructions_root_exits_2(self, tmp_path: Path) -> None:
+        """A checkout missing the shipped instructions/ tree must fail closed.
+
+        Without ``REQUIRED_EXTRA_ROOTS``, a checkout where generation failed
+        to produce ``src/copilot-cli/instructions`` (or the directory was
+        moved or deleted) would scan zero files there and still report clean,
+        the same silent fail-open shape issue #5214 itself exemplified.
+        """
+        for required in cmp.REQUIRED_SKILLS_ROOTS:
+            placeholder = tmp_path / required / "skills" / "_placeholder" / "SKILL.md"
+            placeholder.parent.mkdir(parents=True, exist_ok=True)
+            placeholder.write_text("placeholder\n", encoding="utf-8")
+        # Deliberately do NOT create src/copilot-cli/instructions.
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text('{"files": {}}', encoding="utf-8")
+        code = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert code == 2
+
+    def test_instructions_root_appears_in_success_report(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The success line names every examined root, including instructions/.
+
+        Proves the coverage fix: ``src/copilot-cli/instructions`` used to be
+        invisible in ``files_by_root`` (extra scan dirs were excluded from
+        it), so the success report could not distinguish "instructions/ was
+        examined and clean" from "instructions/ was never read."
+        """
+        self._write_md(
+            tmp_path,
+            "src/copilot-cli/instructions/clean.instructions.md",
+            "Clean prose with no upstream refs.\n",
+        )
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text('{"files": {}}', encoding="utf-8")
+        code = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "src/copilot-cli/instructions" in out
+
 
 class TestReport:
     """The output branches. None had coverage before ``_report`` was extracted."""
@@ -1148,6 +1197,8 @@ class TestMainCli:
         """
         for name in cmp.REQUIRED_SKILLS_ROOTS:
             (root / name / "skills").mkdir(parents=True, exist_ok=True)
+        for name in cmp.REQUIRED_EXTRA_ROOTS:
+            (root / name).mkdir(parents=True, exist_ok=True)
 
     def test_exit_2_when_skills_dir_missing(self, tmp_path: Path) -> None:
         rc = cmp.main(["--repo-root", str(tmp_path)])
@@ -1163,6 +1214,9 @@ class TestMainCli:
         # refuses the write, because one starved root is a partial checkout.
         (tmp_path / "src" / "copilot-cli" / "skills" / "a").mkdir(parents=True)
         (tmp_path / "src" / "copilot-cli" / "skills" / "a" / "SKILL.md").write_text(
+            "Nothing upstream.\n", encoding="utf-8"
+        )
+        (tmp_path / "src" / "copilot-cli" / "instructions" / "x.instructions.md").write_text(
             "Nothing upstream.\n", encoding="utf-8"
         )
         _seed_git_tree(tmp_path)
@@ -1250,6 +1304,7 @@ class TestUnexpectedScanException:
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
         (skills / "SKILL.md").write_text("Some content.\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
@@ -1267,6 +1322,7 @@ class TestUnexpectedScanException:
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
         (skills / "SKILL.md").write_text("Some content.\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
@@ -1419,6 +1475,7 @@ class TestAstCodeStripping:
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
         (skills / "SKILL.md").write_text(
             "# Skill\n\nExample:\n\n    write to .agents/x.md\n", encoding="utf-8"
         )
@@ -1487,6 +1544,7 @@ class TestScanAccounting:
         self._skill_md(tmp_path, "a/SKILL.md", "Clean prose.\n")
         self._skill_md(tmp_path, "b/SKILL.md", "Also clean.\n")
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -1501,6 +1559,7 @@ class TestScanAccounting:
         self._skill_md(tmp_path, "a/SKILL.md", "Clean prose.\n")
         self._skill_md(tmp_path, "b/SKILL.md", "Also clean.\n")
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(
@@ -1525,6 +1584,8 @@ class TestBaselineSemanticConflictGuard:
     def _init_repo(self, root: Path) -> None:
         (root / ".claude" / "skills" / "a").mkdir(parents=True)
         (root / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        for required in cmp.REQUIRED_EXTRA_ROOTS:
+            (root / required).mkdir(parents=True, exist_ok=True)
         (root / ".claude" / "skills" / "a" / "SKILL.md").write_text(
             "Clean prose.\n", encoding="utf-8"
         )
@@ -2133,6 +2194,7 @@ class TestNestingExhaustionGate:
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
         (skills / "SKILL.md").write_text(body, encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
