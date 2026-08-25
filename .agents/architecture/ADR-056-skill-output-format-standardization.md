@@ -1,6 +1,6 @@
 ---
 id: ADR-056
-status: accepted
+status: superseded
 date: 2026-08-25
 decision-makers: [rjmurillo]
 supersedes: [ADR-028]

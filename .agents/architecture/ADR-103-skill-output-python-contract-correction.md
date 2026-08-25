@@ -18,6 +18,13 @@ items that still specified ADR-056's original PowerShell-era wording after
 the skill-output surface migrated to Python, and settles a related
 enforcement gap Copilot's PR review found while checking the correction.
 
+`implemented: true` means the artifacts named in the Decision section (the
+schema, the standalone validator, `write_skill_error`'s behavior) now match
+this ADR's prose, not that a CI gate enforces the contract: two independent
+adr-review seats (analyst, high-level-advisor) flagged that the flag could
+otherwise read as "enforced." `validate_envelope` has no live caller in this
+repository today; see the Negative consequence below and issue #5299.
+
 ## Date
 
 2026-08-25
@@ -132,12 +139,33 @@ exactly the contradiction class issue #5201 exists to eliminate.
   ADR closes the disagreement between the schema, the validator, and this
   ADR's prose; it does not, by itself, put a live check in front of any real
   skill-script output. Tracked as a fast follow-up: issue #5299.
+- **`validate_envelope` and the standalone CLI now reject envelopes that
+  previously passed.** This is a real runtime behavior change on the
+  consumer/checker side, corrected from an earlier draft of this section
+  that called the change "no runtime behavior changes" (Copilot review on
+  PR #5283, commit 508917d4b). Concretely, an envelope that previously
+  returned `[]` from `validate_envelope` (or exit 0 from the CLI) now
+  produces a finding (or exit 1) when: `Error.Type` is missing or empty;
+  `Error` is present but is not `null` and not an object (an array,
+  string, or number); or `Error.Type` is present but is not a string
+  (unhashable values such as a list previously crashed the validator with
+  `TypeError` instead of failing closed, also fixed in this round). Any
+  caller that fed the validator an envelope in one of these shapes and
+  relied on it passing would now see a rejection. No such caller is known:
+  `validate_envelope` has no known caller today per the point above, and
+  `write_skill_error` cannot construct any of these three shapes, so the
+  change has no effect on any envelope this repository's own code
+  produces. The distinction that survives is: no *producer*-side behavior
+  change (`write_skill_error`'s output is byte-for-byte unchanged), but a
+  real *validator*-side behavior change (stricter rejection).
 
 ### Neutral
 
-- No runtime behavior changes. `write_skill_error` already always sets
-  `Type`; this ADR and its accompanying schema/validator/test changes make
-  that existing guarantee enforceable rather than merely documented.
+- No producer-side runtime behavior change. `write_skill_error` already
+  always sets `Type` to a valid string and never omits `Error` or emits a
+  non-dict `Error`; this ADR and its accompanying schema/validator/test
+  changes make that existing guarantee enforceable by the validator rather
+  than merely documented in prose.
 
 ## Implementation Notes
 
@@ -149,8 +177,16 @@ exactly the contradiction class issue #5201 exists to eliminate.
   `src/copilot-cli/lib/` via `scripts/sync_plugin_lib.py` then
   `build/scripts/build_all.py --platform copilot-cli` (per
   `.claude/rules/generated-artifacts.md`'s sync-before-build chain).
-- Schema: `.agents/schemas/skill-output.schema.json`, `Error.Type` moved
-  into the object's `required` array.
+- Schema: `.agents/schemas/skill-output.schema.json`:
+  - `Error.Type` moved into the object's `required` array.
+  - Top-level `required` gained `Data`, alongside the pre-existing
+    `Success`/`Metadata`: Decision item 1 (unchanged from ADR-056) already
+    said every envelope MUST carry `Data`, but the schema never required
+    it. Found by the independent-thinker seat during this ADR's adr-review
+    debate; `validate_envelope` gained a matching check in the same
+    change so the two contract copies do not newly disagree.
+  - `description` corrected from "per ADR-051" (a different, unrelated
+    ADR: synthesis-panel frontmatter standard) to cite ADR-056/ADR-103.
 - Validator: `scripts/validate_skill_output.py`, `validate_envelope`:
   - Reports a missing or empty `Error.Type` as an error rather than
     skipping the check.
@@ -185,6 +221,19 @@ exactly the contradiction class issue #5201 exists to eliminate.
     `VALID_ERROR_TYPES` and confirming `test_error_type_contracts_stay_in_sync`
     fails while the rest of the parametrized suite stays green, then
     reverting.
+  - `test_non_object_error_is_rejected` and
+    `test_non_string_error_type_is_rejected_without_crashing`: Copilot
+    review on PR #5283, commit `508917d4b`, found `validate_envelope`'s
+    `isinstance(error_field, dict)` gate had no companion branch for a
+    non-null value that is also not a dict (an array, string, or number),
+    so such a value silently passed; and that `error_type not in
+    VALID_ERROR_TYPES` (a frozenset membership test) raises `TypeError`
+    for an unhashable `Type` (a list or dict) instead of returning a
+    finding. `validate_envelope` now reports both as validation errors.
+    Both new tests were proven to discriminate: reverted to the pre-fix
+    code in a scratch copy, confirmed the first assertion fails silently
+    (the old code appends nothing) and the second raises `TypeError`
+    exactly as predicted, then restored the fix.
 
 ## Related Decisions
 
