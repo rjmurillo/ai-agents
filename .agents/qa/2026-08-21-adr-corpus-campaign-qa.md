@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 4d5b443a0c9ee104cd98bb40d9c13bbcf2130015
+qaCommit: 45ed8d7f41525a0b3cc838ca48d36e703d8e6934
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1415,3 +1415,18 @@ above its baseline; `generate_adr_index.py --check` reports the index
 matches the corpus.
 
 **Rebound to** `4d5b443a0c9ee104cd98bb40d9c13bbcf2130015`.
+
+## Addendum 22: Cursor Bugbot's ADR-055 table fix, a debate-log note, and a stale-count correction
+
+Three more non-evidence commits landed: Cursor Bugbot's autofix agent
+repaired ADR-055's broken Cost Impact table (`05161ccba`), the debate log
+this record is covered by got a note recording that fix (`6794aa67d`),
+and this report's own "Known gaps carried forward" section had two stale
+carried-forward counts corrected against the committed baselines
+(`45ed8d7f4`). None of the three touch the ADR-tooling scripts. Re-ran
+the same evidence as Addendum 21; unchanged: 504 tests pass,
+`check_adr_links.py` 0 violations across 1590 files,
+`check_adr_lifecycle.py` 64 violations across 102 records at baseline,
+`generate_adr_index.py --check` matches.
+
+**Rebound to** `45ed8d7f41525a0b3cc838ca48d36e703d8e6934`.
