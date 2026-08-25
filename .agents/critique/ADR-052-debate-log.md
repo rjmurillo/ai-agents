@@ -44,7 +44,7 @@ All six independently converged on the same shape without cross-agent visibility
 
 ## Dissenting Views (Disagree-and-Commit)
 
-**Critic** and **independent-thinker** both noted that ADR-052's core evidentiary claim (2-13% similarity as proof of "failure") is directly rebutted, in advance, by ADR-036 §Intentional Divergence (written 2026-01-01, before ADR-052's 2026-03-01 evidence table) and that ADR-052 never engages that rebuttal. The owner's decision stands regardless (Sovereignty), but the record should not let the rebuttal disappear silently: ADR-052's Status section states that ADR-036's Intentional Divergence reading is preserved and not contested by this acceptance, rather than implicitly overruled by omission. Independent-thinker additionally dissents that "accept the direction, not yet the migration" is one defensible reading of the owner's instruction but not the only one; the ADR text is written so both readings converge on the same safe action (no deletion authorized by status alone).
+**Critic** and **independent-thinker** both noted that ADR-052's core evidentiary claim (2-13% similarity as proof of "failure") is directly rebutted, in advance, by ADR-036 §Intentional Divergence (written 2026-01-01, before ADR-052's 2026-03-01 evidence table) and that ADR-052 never engages that rebuttal. The owner's decision stands regardless (Sovereignty), but the record should not let the rebuttal disappear silently: ADR-052's Status section states that ADR-036's Intentional Divergence reading is preserved and not contested by this acceptance, rather than implicitly overruled by omission. Independent-thinker also dissents that "accept the direction, not yet the migration" is one defensible reading of the owner's instruction but not the only one; the ADR text is written so both readings converge on the same safe action (no deletion authorized by status alone).
 
 ## Round 1 Positions (synthesized by session from Phase 1 verdicts, not cast against the edited text)
 
@@ -53,7 +53,7 @@ Relabeled 2026-08-25 per a Copilot review finding on PR #5286: this table was se
 | Agent | Synthesized Position | Notes |
 |-------|----------|-------|
 | architect | Disagree-and-Commit | Approval conditions (debate log, callouts, prose reconciliation, tracking issue, citation repair) must all land in this change; accepts the pairing is structurally sound once they do |
-| critic | Disagree-and-Commit | Same conditions; additionally wants the Intentional Divergence rebuttal acknowledged, not silently overruled |
+| critic | Disagree-and-Commit | Same conditions; also wants the Intentional Divergence rebuttal acknowledged, not silently overruled |
 | independent-thinker | Disagree-and-Commit | Reservations on migration-plan staleness and ambiguity of "accept" scope remain; documented via the explicit non-deletion callout |
 | security | Accept | No blocking findings; recommends the debate-log gate itself (substring match) be hardened in a future, separate change |
 | analyst | Disagree-and-Commit | Wants live counts corrected and binding cross-references repaired; satisfied by the citation-repair task list |
