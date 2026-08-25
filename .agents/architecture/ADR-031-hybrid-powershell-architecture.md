@@ -1,3 +1,14 @@
+---
+id: ADR-031
+status: proposed
+date: 2025-12-29
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
+---
+
 # ADR-031: Hybrid PowerShell Architecture for Claude Code Performance
 
 ## Status

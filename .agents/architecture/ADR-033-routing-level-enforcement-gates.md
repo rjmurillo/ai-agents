@@ -1,3 +1,14 @@
+---
+id: ADR-033
+status: accepted
+date: 2025-12-30
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-033: Routing-Level Enforcement Gates
 
 ## Status
