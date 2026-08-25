@@ -68,18 +68,39 @@ check rather than by omission. None of the eleven cataloged patterns (context
 reading failure, compaction reset, ambiguous instruction inversion, false
 completion, premature merge, rubber-stamping, self-contained delegation
 failure, security drift, confident-incorrectness recurrence, silent defaults,
-unverified generated artifact) match, because each describes a failure that
-reached a commit, a push, or shipped output. This session's two near misses
-(below) were both caught by tooling output (`marker_path_drift()`'s itemized
+unverified generated artifact) match, because each describes a failure in
+*this session's own agent behavior*. Issue #5214 itself reports a defect in
+`check_skill_md_portability.py` (a prior session's scanner never read
+`<plugin-root>/instructions/`), which is the bug this session fixes, not a
+failure this session committed; forcing it into Class 1 ("agent begins work
+without reading required context files") would misattribute a scanner scope
+gap to a reading lapse neither this session nor the commit that introduced
+the gap actually exhibited. This session's own two near misses (below) were
+both caught by tooling output (`marker_path_drift()`'s itemized
 stale/undeclared findings; a filesystem existence check on
 `build/audit/GENERATION-AUDIT.md`) before either draft was ever committed.
-Evidence: commits `5129e6e39` and `ab1daeb7d` on branch
-`claude/autoplan-goal-wc3rp7` (PR #5284) carry only the corrected marker text;
-no intermediate commit exists with the stale-file draft, because the
-correction happened pre-commit. Remediation: none needed, since nothing
-reached a state requiring remediation; the Delta Triage table below is the
-retro's remediation-and-follow-up record for the session as a whole, per
-`retros.md` MUST 4.
+
+### Evidence
+
+| Artifact | Link |
+|----------|------|
+| Issue (reported gap) | [#5214](https://github.com/rjmurillo/ai-agents/issues/5214) |
+| Source fix commits | `5129e6e39`, `ab1daeb7d` on branch `claude/autoplan-goal-wc3rp7` (PR #5284) |
+| Fail-open follow-up commit | `4529c9e87`, making `src/copilot-cli/instructions` a required scan root after Copilot review found the coverage fix was itself silently skippable |
+
+No intermediate commit carries a stale-file draft; each near miss below was
+corrected before its first commit.
+
+### Remediation
+
+| Action | Status | Owner |
+|--------|--------|-------|
+| Add `src/copilot-cli/instructions` to `EXTRA_SCAN_ROOTS` | Applied | This session |
+| Fix `ci-scripts.md` with `vendor-portability` marker | Applied | This session |
+| Update baseline to grandfather pre-existing debt | Applied | This session |
+| Add tests for instructions/ scan root | Applied | This session |
+| Make the new scan root required (fail closed if absent) | Applied | This session |
+| Widen gate to `.claude/rules/*.md` | Pending (P3, out of scope) | Unassigned |
 
 ### Successes (Tag: helpful)
 
