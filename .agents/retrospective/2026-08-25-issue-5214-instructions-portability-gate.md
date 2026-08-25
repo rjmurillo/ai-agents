@@ -63,6 +63,24 @@ artifact per repo push gates).
 No failures occurred in this session; the diagnosis section is limited to near
 misses.
 
+**Classification against `.agents/governance/FAILURE-MODES.md`**: N/A, by explicit
+check rather than by omission. None of the eleven cataloged patterns (context
+reading failure, compaction reset, ambiguous instruction inversion, false
+completion, premature merge, rubber-stamping, self-contained delegation
+failure, security drift, confident-incorrectness recurrence, silent defaults,
+unverified generated artifact) match, because each describes a failure that
+reached a commit, a push, or shipped output. This session's two near misses
+(below) were both caught by tooling output (`marker_path_drift()`'s itemized
+stale/undeclared findings; a filesystem existence check on
+`build/audit/GENERATION-AUDIT.md`) before either draft was ever committed.
+Evidence: commits `5129e6e39` and `ab1daeb7d` on branch
+`claude/autoplan-goal-wc3rp7` (PR #5284) carry only the corrected marker text;
+no intermediate commit exists with the stale-file draft, because the
+correction happened pre-commit. Remediation: none needed, since nothing
+reached a state requiring remediation; the Delta Triage table below is the
+retro's remediation-and-follow-up record for the session as a whole, per
+`retros.md` MUST 4.
+
 ### Successes (Tag: helpful)
 
 | Strategy | Evidence | Impact | Atomicity |

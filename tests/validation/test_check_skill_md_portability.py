@@ -946,6 +946,27 @@ class TestInstructionsScanRoot:
     def test_instructions_root_is_in_extra_scan_roots(self) -> None:
         assert "src/copilot-cli/instructions" in cmp.EXTRA_SCAN_ROOTS
 
+    def test_every_on_disk_instructions_tree_is_in_extra_scan_roots(self) -> None:
+        """Converse guard: every shipped ``instructions/`` tree must be configured.
+
+        The previous test only proves the configured root exists; it says
+        nothing about a DIFFERENT on-disk plugin ``instructions/`` tree that
+        ``EXTRA_SCAN_ROOTS`` fails to name. Issue #5214 was exactly this
+        shape: a shipped ``instructions/`` tree existed with no scan root
+        naming it, and nothing caught the gap until a human filed it. Walk
+        every real plugin root in the checked-out repo and assert each one's
+        ``instructions/`` directory, if present, is configured.
+        """
+        root = Path(__file__).resolve().parents[2]
+        for plugin_root in cmp.PLUGIN_ROOTS:
+            candidate = root / plugin_root / "instructions"
+            if not candidate.is_dir():
+                continue
+            rel = candidate.relative_to(root).as_posix()
+            assert rel in cmp.EXTRA_SCAN_ROOTS, (
+                f"{rel} ships an instructions/ tree but is not in EXTRA_SCAN_ROOTS"
+            )
+
     def test_instructions_dir_refs_are_included_in_scan(self, tmp_path: Path) -> None:
         """A ref inside src/copilot-cli/instructions/ is counted by scan_plugin_roots."""
         self._write_md(
