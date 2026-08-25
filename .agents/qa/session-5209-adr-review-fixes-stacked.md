@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: b0ab960ea4c8fc522ecad971bf77bb72428db710
+qaCommit: d50df2fa38b0de179fa19b64820eb5af098c575d
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -9,7 +9,7 @@ qaCommit: b0ab960ea4c8fc522ecad971bf77bb72428db710
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `b0ab960ea4c8fc522ecad971bf77bb72428db710` (see Addendum 35)
+**Validated at commit**: `d50df2fa38b0de179fa19b64820eb5af098c575d` (see Addendum 40)
 
 ## Verdict
 
@@ -1142,3 +1142,14 @@ the merge brought in PR #5291's frontmatter across 67 records.
 Regenerated; `--check` clean. Full detail in that addendum.
 
 **Rebound to** `bfd3a008d336ff6e4d8e50ef4cdb766a457d1a6a`.
+
+## Addendum 40: same fourth merge and date corrections as Addendum 39 of the campaign report
+
+A merge of PR #5209's own branch (this stack's real base), correcting
+three ADR dates (`ADR-005`, `ADR-042`, `ADR-063`) this branch's own prior
+merge of `origin/main` had gotten wrong. Full detail, including the
+other branch's fix commit and the per-file verification against each
+ADR's own `## Date` prose, lives in that addendum. Merge commit
+`d50df2fa38b0de179fa19b64820eb5af098c575d`.
+
+**Rebound to** `d50df2fa38b0de179fa19b64820eb5af098c575d`.

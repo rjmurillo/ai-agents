@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: b0ab960ea4c8fc522ecad971bf77bb72428db710
+qaCommit: d50df2fa38b0de179fa19b64820eb5af098c575d
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1852,3 +1852,47 @@ The full `python-tests` suite then surfaced a real, narrow regression: `tests/ci
 `build/scripts/build_all.py --check` (run as part of `pre-pr-validation` on the push this addendum responds to) correctly flagged `.agents/architecture/README.md` as stale: the origin/main merge brought in PR #5291's ADR-073 frontmatter across 67 records, changing dates, statuses, and decision-makers the generated index renders. Regenerated via `scripts/sync_plugin_lib.py` then `build/scripts/build_all.py`; `--check` now reports zero staleness. No ADR-tooling script changed; `check_adr_lifecycle.py` and `check_adr_links.py` re-run unchanged from Addendum 37.
 
 **Rebound to** `bfd3a008d336ff6e4d8e50ef4cdb766a457d1a6a`.
+
+## Addendum 39: a fourth merge, PR #5209's branch this time, correcting three dates the third merge got wrong
+
+PR #5230's `mergeable_state` went `dirty` a fourth time: PR #5209's own
+branch (this stack's real base) advanced past this branch with its own
+independent merge of `origin/main` (`9f93fc1ef91f6ab28c59e320e12223402851f484`)
+plus four follow-up commits, the last of which,
+`b0c3550025863c37a0571964463ea3585d655888`, explicitly corrected ADR-005's
+`date` from `2026-01-17` back to `2025-12-18`, stating the earlier value
+"contradicted both the prose Date field in the document and the merge
+resolution documented in QA Addendum 24".
+
+That earlier merge resolution was mine, in Addendum 33 above: I had taken
+`origin/main`'s bulk-normalized `date` for `ADR-005`, `ADR-042`, and
+`ADR-063` on the theory that the later, deliberate campaign commit should
+win. The other branch's independent resolution of the same three-way
+conflict (its own Addendum 24, referenced above) instead kept each file's
+original date because it matched that file's own `## Date` prose section,
+and PR #5291's bulk campaign had mis-extracted a later, unrelated event
+date (ADR-042's ratification date, in ADR-005's case) as if it were the
+original decision date. Verified against each file's own body: ADR-042's
+`## Date` section reads `2026-01-17`, not `2026-04-13`; ADR-063's reads
+`2026-06-01`, not `2026-07-27`. Corrected all three to match, in a trial
+worktree first, then on the real branch: `ADR-005` to `2025-12-18`,
+`ADR-042` to `2026-01-17`, `ADR-063` to `2026-06-01`.
+
+`ADR-055`'s `supersedes: [ADR-024, ADR-025]` conflict converged
+independently on the same answer both branches had already reached (this
+file's own Addendum 33 above, and the other branch's Addendum 24): took
+the other branch's more precisely cited Provenance paragraph, which names
+PR #5291 and the reciprocal commit `25b263d16` explicitly. The ADR-063
+test conflict and this file's own addenda-tail conflict were resolved the
+same way as every prior round: kept this file's own numbering (through
+Addendum 38 above), appended the other branch's continuation (its own
+Addenda 22-25) renumbered to Addenda 35-38.
+
+Merge commit `d50df2fa38b0de179fa19b64820eb5af098c575d`. Verified post-merge:
+`check_adr_links.py` 0 violations across 1590 files, `check_adr_lifecycle.py`
+`supersession-reciprocal` 0/0, `check_adr_uniqueness.py` clean,
+`build/scripts/build_all.py --check` reports no staleness, the ADR-063
+test file (26 tests) passes, and `taste_count_ratchet.py` reports
+575 violations against a 576 baseline.
+
+**Rebound to** `d50df2fa38b0de179fa19b64820eb5af098c575d`.
