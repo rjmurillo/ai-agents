@@ -362,7 +362,19 @@ def test_sigkill_leaves_marker_blocks_push_and_recovers(
         assert TARGET.as_posix() in error
         assert "[UNCHANGED]" in error
     finally:
-        assert recover_marker(REPO_ROOT, Path(workspace["marker"])) == EXIT_OK
+        # Recover through the helper rather than calling recover_marker
+        # directly, so this covers _recover_if_left_behind's recovering branch
+        # on a genuine SIGKILL orphan. A standalone test for that branch would
+        # have to create a second real marker, and the repo-global marker
+        # directory is shared: tests/test_mutation_workspace.py's
+        # test_recovery_refuses_changed_active_target calls recover_markers()
+        # over the whole directory, and under --dist loadfile it runs on
+        # another worker at the same time. Two concurrent windows on that
+        # directory is the #4823 race the _marker_for docstring describes, and
+        # a flaky push-blocking test is the exact failure #5108 exists to
+        # remove. This test already holds one such window; it does not need a
+        # sibling holding another.
+        _recover_if_left_behind(Path(workspace["marker"]))
 
     assert not Path(workspace["marker"]).exists()
     assert not Path(workspace["scratch"]).exists()
@@ -400,35 +412,6 @@ def test_recover_if_left_behind_is_a_no_op_when_nothing_was_orphaned(
 ) -> None:
     """Positive path: the passing case must not touch a marker that is gone."""
     _recover_if_left_behind(tmp_path / "never-created.json")
-
-
-@pytest.mark.timeout(SIGNAL_TEST_TIMEOUT_SECONDS)
-def test_recover_if_left_behind_clears_a_real_orphan() -> None:
-    """Negative path: an orphan left by a forced kill is recovered, not left.
-
-    Without this, a test that already failed would also block the next push,
-    which is the compounding failure the helper exists to prevent.
-    """
-    process = _child_process()
-    workspace = _ready_workspace(process)
-    marker = Path(workspace["marker"])
-
-    try:
-        # SIGKILL is the signal _wait_for_exit sends on the timeout path, and it
-        # bypasses the context manager's cleanup, so this reproduces the orphan
-        # rather than simulating it.
-        _stop_process(process, signal.SIGKILL)
-        assert marker.is_file(), "the orphan this test recovers was not created"
-
-        _recover_if_left_behind(marker)
-
-        assert not marker.exists()
-        assert not Path(workspace["scratch"]).exists()
-    finally:
-        # This test deliberately creates the exact push-blocking state the
-        # helper removes. If it fails before recovering, it must not hand that
-        # state to the next push, which is the failure it exists to prevent.
-        _recover_if_left_behind(marker)
 
 
 @pytest.mark.timeout(SIGNAL_TEST_TIMEOUT_SECONDS)
