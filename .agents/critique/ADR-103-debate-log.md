@@ -2,9 +2,17 @@
 
 ## Summary
 
-- **Rounds**: 2 (initial 3-seat pass, then a fresh 3-seat pass closing the
-  remaining seats)
-- **Outcome**: Consensus (6/6 Accept)
+- **Rounds**: 5. Round 1 (architect, critic, security) and Round 2
+  (independent-thinker, analyst, high-level-advisor) closed the initial
+  six-seat debate 6/6 Accept. Rounds 3 and 4 were mechanical defensive-check
+  fixes, self-judged as not requiring fresh debate. Round 5 is a genuine
+  fresh Phase 4 convergence check against the current text, re-running all
+  six seats after a Copilot review challenged the Round 3/4 self-judgment;
+  it included two critic Blocks (both resolved with code fixes and
+  discriminating tests) and one process Block from the analyst (resolved
+  by pushing the local commits it correctly flagged as unreviewable).
+- **Outcome**: Consensus (4 Accept, 1 Accept-after-two-fix-cycles,
+  1 Disagree-and-Commit; 0 unresolved Block)
 - **Final Status**: accepted
 
 This log records the full six-seat convergence for ADR-103, per this repo's
@@ -352,58 +360,141 @@ tests/test_validate_envelope.py -q` -> 129 passed.
 
 ### Re-run 2: independent-thinker
 
-**Position: Accept.** Independently re-verified every Decision item,
-every "matches the implementation" claim, all mirror byte-identity
-claims, the zero-gate-wiring claim, and the 69-passed test count against
-the live tree rather than trusting the ADR's prose. Ran an independent
-3,840-shape differential of `validate_envelope` against `origin/main`
-(996 crashes -> 0, 482 newly-rejected, 0 newly-accepted / fail-open),
-corroborating the security seat's earlier 6,090-shape measurement on a
-separate corpus.
+**Position: Accept.** Re-verified every Decision item, every "matches the
+implementation" claim, mirror byte-identity, zero-gate-wiring, and the
+69-passed test count against the live tree. Ran a 3,840-shape differential
+of `validate_envelope` against `origin/main` (996 crashes -> 0, 482
+newly-rejected, 0 fail-open), corroborating security's earlier 6,090-shape
+measurement on a separate corpus.
 
-Four non-blocking findings (P2/P3), most significant reproduced below;
-full detail in the agent's own report, not re-transcribed here:
+Findings (non-blocking; full detail in the agent's own report):
 
-- **F1 (P2, fixed in this round anyway)**: the same producer/schema
-  disagreement class exists one field further over, at `Error.Code`:
-  `write_skill_error(msg, True)` type-checks under mypy (`bool` is-a
-  `int`) and a naive `isinstance` check, but the schema and validator
-  both reject a boolean `Code`. Not required to clear the Block (the
-  schema's `Code: "integer"` pre-dates ADR-103, so this round did not
-  tighten past the producer here the way `Message`/`Script`/`Timestamp`
-  did), but cheap enough to close in the same round: see the fix recorded
-  above this entry in Implementation Notes.
-- **F2 (P2)**: the Negative consequence's rejection list frames every
-  condition as "previously returned `[]`, now produces a finding," but
-  three conditions never returned `[]` at `origin/main` (they already
-  crashed or were already rejected); the list should distinguish
-  newly-rejecting from previously-crashing. Not fixed in this round;
-  tracked as a documentation-accuracy follow-up.
-- **F3 (P3)**: `Timestamp`'s `"format": "date-time"` remains
-  documented-but-unenforced (no `FormatChecker`, no `rfc3339-validator`
-  dependency); `validate_skill_output.py` says so honestly, but the ADR
-  body never mentions the gap explicitly.
-- **F4 (P3)**: minor citation-precision issues (a two-file "Round 5"
-  disambiguation gap; an off-by-one line range for the schema's `Error`
-  property).
-- Also proposed an alternative Round 5 never considered in an
-  Alternatives-table form: replace `validate_envelope`'s hand-written
-  checks with `jsonschema.Draft7Validator` directly against the committed
-  schema, which would make all ten of Rounds 3-5's fixes structurally
-  impossible as a class (one source of truth instead of three copies).
-  Recorded the honest counter-argument too (issue #5299's own gate would
-  need a stdlib-only script per `.claude/rules/ci-scripts.md` MUST 18,
-  and `jsonschema` is not stdlib). Not adopted in this round; worth
-  weighing when #5299 is picked up.
-- Declared five items of uncertainty it could not verify (issue
-  #5299/#5201 existence and state, PR-review attribution accuracy for
-  specific commits, the security seat's exact "6,090 shapes" corpus, the
-  historical 38/51 test counts, the "every other caller" claim's search
-  scope) rather than asserting them. GitHub was unreachable from that
-  agent's session (403), so the two issue/attribution items remain
-  genuinely open; not blocking for this ADR's own content, but worth a
-  human check before merge.
+- **F1 (P2), fixed this round**: the same producer/schema disagreement
+  class one field further over, at `Error.Code`: `write_skill_error(msg,
+  True)` type-checks under mypy and a naive `isinstance` check, but the
+  schema and validator both reject a boolean `Code`. Not required to
+  clear the Block (`Code: "integer"` pre-dates ADR-103), but cheap; fix
+  recorded above this entry in Implementation Notes.
+- **F2 (P2)**: the "Concretely..." rejection list's framing was
+  inaccurate for three conditions (crashed at `origin/main` rather than
+  returning `[]`); independently rediscovered and fixed by the
+  high-level-advisor's re-run below.
+- **F3/F4 (P3)**: `Timestamp`'s `date-time` format remains
+  documented-but-unenforced (not mentioned in the ADR body); two minor
+  citation-precision issues (a Round 5 disambiguation gap, an off-by-one
+  line range).
+- Proposed replacing `validate_envelope`'s hand-written checks with
+  `jsonschema.Draft7Validator` against the committed schema directly,
+  which would make all ten of Rounds 3-5's fixes structurally impossible
+  as a class. Recorded the honest counter (issue #5299's gate would need
+  a stdlib-only script per `.claude/rules/ci-scripts.md` MUST 18, and
+  `jsonschema` is not stdlib). Not adopted this round; worth weighing
+  when #5299 is picked up.
+- Declared uncertainty rather than asserting on five items it could not
+  verify (GitHub was unreachable from that agent's session, 403): issue
+  #5299/#5201 existence and state, specific PR-review attribution
+  accuracy, the security seat's exact corpus size, historical test
+  counts, and the search scope behind the "every other caller" claim.
+  Not blocking for this ADR's own content; worth a human check before
+  merge.
 
-### Re-run 3 and 4: analyst, high-level-advisor
+### Re-run 3: analyst
 
-Pending at the time this section was written; see below once run.
+**Position: Block, on process, not content.** Found the local working
+tree was 7 commits ahead of PR #5283's actual pushed head: everything
+described as "Round 5" existed only locally, not on GitHub, so the check
+could not be verified against the reviewable PR (confirmed via git
+reflog, `pull_request_read`, and `get_file_contents` at the stale head
+SHA). Fixed directly by pushing (`e9630d3ca..3c3d6ea76`). The five
+requested verification checks (mirror byte-identity, zero-gate-wiring,
+test suite, a sweep for further disagreement-class instances, the
+exit-code contract) found no content-level defect beyond the push lag
+itself; the one true finding (a stale mirror comment) was a byproduct of
+that lag and was already re-synced by the final push.
+
+### Re-run 4: high-level-advisor
+
+**Position: Disagree-and-Commit.** No P0 against the Decision. Ran the
+full 130-test suite and re-verified mirror byte-identity independently,
+both matching the session's claims. Two non-blocking dissents:
+
+1. **The ADR is mis-sized**: 421 lines, of which Decision is 26 (6%) and
+   Implementation Notes is 197 (47%). Rounds 3-5's bug-hardening belongs
+   in a changelog or tracked issue, not an ADR whose reopening triggers a
+   full six-seat debate for a two-line schema fix. Recommended splitting
+   the changelog content out as a follow-up, not before merge.
+2. **F2** independently reproduced (loaded `origin/main`'s validator, ran
+   the listed shapes: three crashed rather than returning `[]`). Fixed
+   this round; see Implementation Notes.
+
+New finding: a **fourth** independently maintained `Error.Type` copy at
+`.claude/skills/orphan-ref-validator/scripts/envelope.py:133` (a
+`Literal` carrying 6 of 8 values), invisible to the three-way sync test.
+`output.py`'s comment claiming "the three contract copies cannot drift
+unnoticed" was scoped narrower than the tree. Fail-closed and
+pre-existing, not a correctness break; comment corrected to state its
+actual scope rather than widened to cover a fourth copy this round did
+not set out to fix.
+
+Explicit recommendation: **merge now, do not run a Round 6.** The
+Decision has not moved since Round 1 across five rounds; every Block
+landed on prose, never on Decision items 1-7. Proposed a stopping rule
+(two consecutive independent passes, zero behavior-changing findings =
+converged) already met: this pass and independent-thinker's prior pass
+both found only prose/documentation issues.
+
+### Round 5 consensus
+
+| Seat | Position |
+|------|----------|
+| architect | Accept |
+| critic | Block (twice), both P0s fixed with code + discriminating tests, both independently re-verified closed by three later seats (independent-thinker, analyst, high-level-advisor) |
+| security | Accept |
+| independent-thinker | Accept |
+| analyst | Block (process: unpushed commits), resolved by the push; no content-level P0 found |
+| high-level-advisor | Disagree-and-Commit (two documented, non-blocking dissents, both addressed in this round) |
+
+Per the Phase 4 consensus criteria ("All 6 agents Accept OR
+Disagree-and-Commit = Consensus reached"), and with the analyst's Block
+resolved by the push rather than overridden, **consensus reached**. This
+is a genuine re-convergence against the CURRENT text (not the Round
+2-era self-judgment Copilot originally flagged): every seat that ran in
+Round 5 read the ADR as it stands after all of Rounds 3-5's fixes, most
+ran the actual test suite, and two ran independent differential
+measurements against `origin/main` rather than trusting the session's
+own claims.
+
+### Fixes applied in response to Round 5, in full
+
+`Error.Message` schema `minLength: 1` + `_validate_metadata_version_field`
++ `tests/test_skill_output_schema.py` (first pass, pre-critic-fix); the
+`write_skill_error` message guard and `Metadata.Script`/`Timestamp`
+schema `minLength: 1` (critic's two P0s); `edit_pr_body.py`'s two `raise
+RuntimeError(...)` sites gaining fallback messages
+(independent-thinker's regression finding); the `write_skill_error`
+exit_code guard rejecting `bool` (independent-thinker's F1, folded in
+early since it was cheap); the "Concretely..." rejection list corrected
+to distinguish newly-crashing-differently from
+newly-rejecting-where-it-silently-passed (high-level-advisor's F2); and
+the `VALID_ERROR_TYPES` comment corrected to state its actual scope
+(three copies, not repo-wide) after the high-level-advisor found a
+fourth, independently-maintained copy this round did not fix.
+
+Not fixed in this round, tracked as follow-ups per the high-level-advisor's
+explicit "kill further ADR-103 rounds" recommendation:
+
+- Splitting ADR-103's bug-hardening content (Rounds 3-5) into a
+  lighter-weight changelog/issue, separate from the Decision record.
+- Folding `orphan-ref-validator/scripts/envelope.py`'s `ErrorType`
+  `Literal` into the three-way contract-sync test, or importing the
+  canonical `VALID_ERROR_TYPES` constant there instead of maintaining a
+  fourth copy.
+- Completing the exhaustive sweep of all ~100 `write_skill_error` call
+  sites for the message-emptiness class (the independent-thinker and
+  analyst seats each audited the highest-risk subset -- bare `str(exc)`
+  with no literal prefix -- and found no further live instance, but
+  neither claims full exhaustiveness).
+- Wiring `validate_skill_output.py` into a real gate (issue #5299,
+  pre-existing), and, when that happens, weighing the independent-thinker's
+  proposed alternative of delegating to `jsonschema.Draft7Validator`
+  directly against the committed schema instead of hand-written checks.

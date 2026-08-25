@@ -22,8 +22,15 @@ from datetime import UTC, datetime
 # its parametrize list from this constant (rather than a second hardcoded
 # copy) and separately asserts it matches VALID_ERROR_TYPES in
 # scripts/validate_skill_output.py and the enum in
-# .agents/schemas/skill-output.schema.json, so the three contract copies
-# cannot drift unnoticed (ADR-103).
+# .agents/schemas/skill-output.schema.json, so THOSE THREE contract copies
+# cannot drift unnoticed (ADR-103). This is not repo-wide: at least one more
+# independently-maintained ErrorType Literal exists at
+# .claude/skills/orphan-ref-validator/scripts/envelope.py, carrying a
+# 6-of-8 subset (missing RateLimitError, VerificationFailed) that this
+# module's tests do not see. Fail-closed (a narrower Literal cannot emit a
+# value outside its own subset) and pre-existing, so not a correctness
+# break; flagged for a follow-up rather than widened here (high-level-advisor
+# seat, ADR-103 Round 5 convergence check).
 VALID_ERROR_TYPES = (
     "NotFound",
     "ApiError",

@@ -25,6 +25,24 @@ adr-review seats (analyst, high-level-advisor) flagged that the flag could
 otherwise read as "enforced." `validate_envelope` has no live caller in this
 repository today; see the Negative consequence below and issue #5299.
 
+`status: accepted` rests on a genuine six-seat Phase 4 convergence check
+against this ADR's current text, run in Round 5 after a Copilot review
+challenged an earlier self-judgment that Rounds 3-4's fixes needed no
+fresh debate. Final Round 5 positions: architect Accept; critic Accept,
+after two Block-then-fix cycles whose resolutions were independently
+re-verified by three later seats; security Accept; independent-thinker
+Accept; analyst Block-on-process (unpushed commits, resolved by pushing);
+high-level-advisor Disagree-and-Commit (two non-blocking dissents, both
+addressed in the same round: a documentation-accuracy fix, and this
+Status paragraph plus a scope-corrected code comment for a fourth,
+independently-maintained `Error.Type` contract copy the round did not
+otherwise touch). Full record: `.agents/critique/ADR-103-debate-log.md`,
+"Round 5." The high-level-advisor seat's explicit recommendation, given
+five rounds with zero Blocks ever landing on the Decision section itself,
+was to merge now and track the remaining bug-hardening scope as follow-up
+work rather than run a further round; that recommendation is followed
+here.
+
 ## Date
 
 2026-08-25
@@ -140,26 +158,37 @@ exactly the contradiction class issue #5201 exists to eliminate.
   ADR's prose; it does not, by itself, put a live check in front of any real
   skill-script output. Tracked as a fast follow-up: issue #5299.
 - **`validate_envelope` and the standalone CLI now reject envelopes that
-  previously passed.** This is a real runtime behavior change on the
-  consumer/checker side, corrected from an earlier draft of this section
-  that called the change "no runtime behavior changes" (Copilot review on
-  PR #5283, commit 508917d4b). Concretely, as of the current tree (Round 5,
-  the full rejection surface, superseding an earlier version of this list
-  that named only three conditions and was found stale during the Round 5
-  convergence check's critic seat), an envelope that previously returned
-  `[]` from `validate_envelope` (or exit 0 from the CLI) now produces a
-  finding (or exit 1) when any of the following hold: the top level is not
-  a JSON object; `Data` or `Error` is missing as a key (distinct from an
-  explicit `null`); `Metadata` is missing or not an object;
-  `Metadata.Script` or `Metadata.Timestamp` is missing, empty, or not a
-  string; `Metadata.Version` is present but not a string; `Error` is
-  present but is not `null` and not an object; `Error.Type` is missing,
-  empty, not a string, or not one of the eight valid values;
+  previously either passed or crashed.** This is a real runtime behavior
+  change on the consumer/checker side, corrected from an earlier draft of
+  this section that called the change "no runtime behavior changes"
+  (Copilot review on PR #5283, commit 508917d4b). An earlier version of
+  this section framed every condition below as "previously returned `[]`
+  (silently passed), now produces a finding," which the high-level-advisor
+  seat's Round 5 convergence check found false for three of them, verified
+  by loading `origin/main`'s validator directly and running the shapes:
+  the top-level `null`/list cases and the non-object-`Metadata` case
+  crashed with `TypeError`/`AttributeError` at `origin/main` rather than
+  returning `[]`. Split accurately below.
+
+  **Newly rejects with a finding, where it previously crashed uncaught**
+  (`TypeError`/`AttributeError`, still a non-zero exit, but no parseable
+  envelope): the top level is not a JSON object (`null`, a number, a
+  string, an array); `Metadata` is not an object.
+
+  **Newly rejects with a finding, where it previously silently returned
+  `[]` / exit 0**: `Data` or `Error` is missing as a key (distinct from an
+  explicit `null`); `Metadata.Script` or `Metadata.Timestamp` is missing,
+  empty, or not a string; `Metadata.Version` is present but not a string;
+  `Error` is present but is not `null` and not an object; `Error.Type` is
+  missing, empty, not a string, or not one of the eight valid values;
   `Error.Message` is missing, empty, or not a string; `Error.Code` is
   missing, not an integer, or a boolean (Python's `bool` subclasses `int`,
-  so a naive check would accept `Code: true`). Any caller that fed the
-  validator an envelope in one of these shapes and relied on it passing
-  would now see a rejection. No such caller is known: `validate_envelope`
+  so a naive check would accept `Code: true`).
+
+  Any caller that fed the validator an envelope in one of these shapes and
+  relied on it passing (the second category) or on the crash's specific
+  exception type (the first) would now see a different failure mode. No
+  such caller is known: `validate_envelope`
   has no known caller today per the point above, and (as of this round)
   `write_skill_error` itself cannot construct most of these shapes: it
   guards `error_type` and, since the Round 5 producer-side fix below,
