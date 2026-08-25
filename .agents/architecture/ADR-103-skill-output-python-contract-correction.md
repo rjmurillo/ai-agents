@@ -234,6 +234,16 @@ exactly the contradiction class issue #5201 exists to eliminate.
     code in a scratch copy, confirmed the first assertion fails silently
     (the old code appends nothing) and the second raises `TypeError`
     exactly as predicted, then restored the fix.
+  - `test_non_object_metadata_is_rejected_without_crashing`: the AI Spec
+    Validator workflow (running against PR #5283, commit `6bee062d8`,
+    before the fixes above landed) found the same defect class one field
+    over: `_validate_metadata_field` called `metadata.get(...)`
+    unconditionally, so a schema-invalid non-dict `Metadata` (a string,
+    array, or number) crashed with `AttributeError` instead of producing a
+    finding. Fixed with the same `isinstance` guard already applied to
+    `Error`. Proved discriminating: reverted the guard in a scratch copy,
+    confirmed the test failed with the predicted
+    `'str' object has no attribute 'get'` traceback, then restored.
 
 ## Related Decisions
 

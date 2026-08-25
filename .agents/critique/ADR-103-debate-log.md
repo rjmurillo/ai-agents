@@ -172,3 +172,30 @@ by full six-role convergence per this repo's own protocol.
   changes again after this PR merges, at which point the GDS Way bounded
   rule this ADR itself follows would apply: a new superseding record, not
   an in-place edit.
+
+## Round 3: AI Spec Validator finding, commit `6bee062d8`
+
+The AI Spec Validator workflow, running against the PR head before the
+Round 1/2 fixes above had been pushed, found the same "unconditional
+`.get()` on an unvalidated field" defect class one field over from `Error`:
+`_validate_metadata_field` called `metadata.get("Script")` and
+`metadata.get("Timestamp")` unconditionally, so a schema-invalid, non-dict
+`Metadata` value (a string, array, or number) crashed `validate_envelope`
+with `AttributeError: '<type>' object has no attribute 'get'` instead of
+producing a validation finding. The same run also restated the (by then
+already-fixed) `Data`-not-required, `Error`-not-null-not-object, and
+`Error.Type`-frozenset-TypeError findings against the stale pre-fix
+commit; only the `Metadata` finding was new.
+
+**Fix**: added an `isinstance(metadata, dict)` guard to
+`_validate_metadata_field`, mirroring the guard already applied to
+`_validate_error_field`. Added
+`test_non_object_metadata_is_rejected_without_crashing`, proven to
+discriminate: reverted the guard in a scratch copy, confirmed the test
+failed with the predicted `AttributeError` traceback, then restored.
+`uv run pytest tests/test_skill_output.py -q` -> 38 passed (up from 37).
+
+This did not require a fresh adr-review round: it is a mechanical
+defensive-check fix of the same shape as three findings already reviewed
+and accepted in Round 2, not a new decision. Recorded here rather than
+silently, per this repo's own evidence-hierarchy expectations.

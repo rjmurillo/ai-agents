@@ -271,6 +271,27 @@ class TestValidateEnvelope:
         errors = validate_envelope({"Success": True})
         assert any("Missing required field: Metadata" in e for e in errors)
 
+    def test_non_object_metadata_is_rejected_without_crashing(self) -> None:
+        """skill-output.schema.json requires Metadata to be an object. A
+        non-dict value must produce a validation finding, not raise
+        AttributeError.
+
+        Before this fix, `metadata.get(...)` ran unconditionally on
+        whatever `Metadata` held, so a string, array, or number crashed
+        the validator with `'str' object has no attribute 'get'` instead
+        of failing closed with a finding. Caught by the AI Spec Validator
+        on PR #5283, commit 6bee062d8, the same class of gap already fixed
+        for `Error` in this PR.
+        """
+        envelope = {
+            "Success": True,
+            "Data": None,
+            "Error": None,
+            "Metadata": "not-an-object",
+        }
+        errors = validate_envelope(envelope)  # must not raise
+        assert any("Metadata must be an object" in e for e in errors)
+
     def test_invalid_error_type(self) -> None:
         envelope = {
             "Success": False,

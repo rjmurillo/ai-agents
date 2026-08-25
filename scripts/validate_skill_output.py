@@ -94,16 +94,29 @@ def _validate_success_field(data: dict) -> list[str]:
 
 
 def _validate_metadata_field(data: dict) -> list[str]:
-    """Validate the envelope's Metadata field: present, Script, Timestamp."""
+    """Validate the envelope's Metadata field: present, an object, Script, Timestamp.
+
+    skill-output.schema.json requires Metadata to be `"type": "object"`. A
+    schema-invalid non-dict value (a string, array, or number) previously
+    reached `metadata.get(...)` unchecked and crashed with AttributeError
+    (`'str' object has no attribute 'get'`) instead of producing a
+    validation finding, the same class of gap already fixed for `Error`
+    (AI Spec Validator finding on PR #5283, commit 6bee062d8).
+    """
     errors: list[str] = []
     if "Metadata" not in data:
         errors.append("Missing required field: Metadata")
     else:
         metadata = data["Metadata"]
-        if not metadata.get("Script"):
-            errors.append("Metadata.Script is required")
-        if not metadata.get("Timestamp"):
-            errors.append("Metadata.Timestamp is required")
+        if not isinstance(metadata, dict):
+            errors.append(
+                f"Metadata must be an object, got: {type(metadata).__name__}"
+            )
+        else:
+            if not metadata.get("Script"):
+                errors.append("Metadata.Script is required")
+            if not metadata.get("Timestamp"):
+                errors.append("Metadata.Timestamp is required")
     return errors
 
 
