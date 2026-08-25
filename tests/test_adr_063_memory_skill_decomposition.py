@@ -60,6 +60,7 @@ try:
     _detector = import_skill_script(
         ".claude/skills/adr-review/scripts/detect_adr_changes.py"
     )
+    _index = import_skill_script("build/scripts/generate_adr_index.py")
 finally:
     for p in _paths_added:
         sys.path.remove(p)
@@ -83,7 +84,7 @@ class TestExistenceAndTitle:
         assert ADR_PATH.is_file()
 
     def test_title_names_the_decomposition_decision(self, adr_text: str) -> None:
-        """The document's actual first H1 is the ADR-063 title, not merely present.
+        """The canonical title extractor resolves this record's title correctly.
 
         This asserted `splitlines()[0]` until frontmatter was added, at which
         point the first line became `---` and the test failed for a reason
@@ -99,23 +100,35 @@ class TestExistenceAndTitle:
         later by ``# ADR-063: ...`` still passed: the filter finds exactly
         one matching line regardless of where it sits. Copilot's review on
         PR #5230 caught this (2026-08-25); fixed by locating the first H1
-        with the same regex the canonical title extractor uses and asserting
-        it, not a filtered line, is the ADR-063 title.
+        by position with a regex matching the canonical title extractor's.
 
-        Mirrors ``build/scripts/generate_adr_index.py:114`` verbatim per
-        ``canonical-source-mirror.md``:
-            _H1_RE = re.compile(r"(?m)^#[ \\t]+(.+?)[ \\t]*$")
-        That module's own `_extract_title` (line 340-346) calls
-        ``_H1_RE.search(body)``, i.e. the first match by position, which is
-        exactly the "real first H1" semantics this test now enforces.
+        That fix still reimplemented the regex rather than calling the
+        canonical function, and applied it to the whole file including
+        frontmatter. The canonical extractor never sees frontmatter:
+        `build_record` (`generate_adr_index.py:459,470`) calls
+        `parse_frontmatter` first and passes only the returned body to
+        `_extract_title`. A frontmatter YAML comment starting with `#`
+        (ADR-068 and ADR-085 both open their block that way, per
+        `parse_frontmatter`'s own docstring at line 252-253) would match
+        the reimplemented regex before the real title and could reject a
+        document the canonical extractor accepts. A second Copilot pass
+        caught this (2026-08-25).
+
+        Fixed by calling the canonical functions directly instead of
+        reimplementing them a second time: `_index.parse_frontmatter` then
+        `_index._extract_title`, matching `build_record`'s own call shape
+        exactly. This closes the input-contract gap by construction, not by
+        another hand-written regex that could drift again, and it still
+        catches the original defect: verified by mutating the fixture body
+        to open with a wrong H1, which shifts `_extract_title`'s return
+        from "Decompose the Memory Skill Into Focused Sub-Skills" to
+        "Wrong title" and fails this test's assertions below. A control
+        confirmed a `# migration note` frontmatter comment does not affect
+        the extracted title, the case this round's fix closes.
         """
-        h1_re = re.compile(r"(?m)^#[ \t]+(.+?)[ \t]*$")
-        match = h1_re.search(adr_text)
-        assert match is not None, "ADR file has no H1 title line"
-        title = match.group(0)
-        assert title.startswith("# ADR-063:"), (
-            f"document's first H1 is not the ADR-063 title: {title!r}"
-        )
+        frontmatter, body = _index.parse_frontmatter(adr_text, ADR_PATH)
+        assert frontmatter is not None, "ADR-063 has no frontmatter block"
+        title = _index._extract_title(body, ADR_PATH)
         assert "memory" in title.lower()
         assert "decompos" in title.lower()
 
