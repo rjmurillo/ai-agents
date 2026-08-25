@@ -134,6 +134,47 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
     }
 )
 ADR_ID_RE = re.compile(r"ADR-\d+", re.IGNORECASE)
+# Issue #5205: thresholds calibrated against the 75 debate logs in
+# .agents/critique on main. All 75 clear these; the smallest is 454 bytes.
+DEBATE_LOG_MIN_BYTES = 300
+DEBATE_LOG_MIN_SECTIONS = 3
+DEBATE_LOG_VERDICT_WINDOW_LINES = 6
+# The six roles .claude/skills/adr-review/SKILL.md defines.
+DEBATE_LOG_ROLES = (
+    "architect",
+    "critic",
+    "independent-thinker",
+    "security",
+    "analyst",
+    "high-level-advisor",
+)
+DEBATE_LOG_ROLE_RE = re.compile("|".join(DEBATE_LOG_ROLES), re.IGNORECASE)
+# "agents?" is here because the canonical template in
+# .claude/skills/adr-review/references/artifacts.md labels its roster "Agent
+# Positions", so without it the gate rejects a log written to the document its
+# own error message cites. It is a weak signal on its own; the byte floor,
+# section count and verdict carry the weight.
+DEBATE_LOG_REVIEWER_RE = re.compile(
+    "|".join(
+        [
+            *DEBATE_LOG_ROLES,
+            r"self[- ]review",
+            r"participants?\b",
+            r"reviewers?\b",
+            r"agents?\b",
+        ]
+    ),
+    re.IGNORECASE,
+)
+DEBATE_LOG_DECISION_RE = re.compile(
+    r"\b(accept(?:ed)?|disagree[- ]and[- ]commit|d&c|block(?:ed|ing)?"
+    r"|needs[- ]revision|concluded)\b",
+    re.IGNORECASE,
+)
+DEBATE_LOG_VERDICT_LABEL_RE = re.compile(
+    r"\b(verdict|position|consensus|outcome|recommendation)s?\b", re.IGNORECASE
+)
+DEBATE_LOG_HEADING_RE = re.compile(r"(?m)^#{1,6} \S")
 FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
 RETROSPECTIVE_EVIDENCE_PATTERNS = (
     re.compile(r"(?i)(##\s*retrospective|retrospective\s*section|learnings?\s*captured)"),
@@ -1371,19 +1412,88 @@ def _staged_debate_log_paths(repo_root: Path) -> list[str]:
     return [path for path in result.stdout.split("\0") if _is_debate_log_path(path)]
 
 
-def _staged_debate_references_adr(
-    relative_path: str,
-    repo_root: Path,
-    adr_ids: set[str],
-) -> bool:
+def _staged_debate_log_content(relative_path: str, repo_root: Path) -> str | None:
     if not _is_staged_regular_file(repo_root, relative_path):
-        return False
+        return None
     blob = _read_index_blob(repo_root, relative_path)
     if blob is None:
-        return False
-    content = blob.decode("utf-8", errors="replace")
-    referenced = {match.group(0).upper() for match in ADR_ID_RE.finditer(content)}
-    return bool(referenced & adr_ids)
+        return None
+    return blob.decode("utf-8", errors="replace")
+
+
+def _referenced_adr_ids(content: str) -> set[str]:
+    return {match.group(0).upper() for match in ADR_ID_RE.finditer(content)}
+
+
+def _has_verdict(content: str) -> bool:
+    lines = content.splitlines()
+    for index, line in enumerate(lines):
+        if not DEBATE_LOG_VERDICT_LABEL_RE.search(line):
+            continue
+        window = lines[index : index + DEBATE_LOG_VERDICT_WINDOW_LINES]
+        if any(DEBATE_LOG_DECISION_RE.search(entry) for entry in window):
+            return True
+    # A positions table records the same verdict one role per row.
+    return any(
+        line.lstrip().startswith("|")
+        and DEBATE_LOG_ROLE_RE.search(line)
+        and DEBATE_LOG_DECISION_RE.search(line)
+        for line in lines
+    )
+
+
+def debate_log_evidence_gap(content: str) -> str | None:
+    """Return why ``content`` fails as review evidence, or None when it passes.
+
+    Issue #5205: the gate accepted any staged ``.agents/critique/*debate*.md``
+    whose bytes contained an ADR id, so a 7-byte file cleared it. These four
+    signals are calibrated against the 75 debate logs in ``.agents/critique`` on
+    main: all 75 pass, and a stub carrying only an ADR id fails on the first.
+
+    This raises the cost of a forged review from a 7-byte file to a
+    deliberately constructed one. It cannot make forgery impossible, because
+    every signal is a property of text the committer controls. Binding the gate
+    to attestation of the review itself is tracked on #5245 and #5247.
+    """
+    if len(content.encode("utf-8")) < DEBATE_LOG_MIN_BYTES:
+        return f"shorter than {DEBATE_LOG_MIN_BYTES} bytes"
+    if len(DEBATE_LOG_HEADING_RE.findall(content)) < DEBATE_LOG_MIN_SECTIONS:
+        return f"fewer than {DEBATE_LOG_MIN_SECTIONS} markdown sections"
+    if not DEBATE_LOG_REVIEWER_RE.search(content):
+        return "no reviewer attribution (an adr-review role, 'participants', or 'self-review')"
+    if not _has_verdict(content):
+        return "no verdict (a verdict label with a decision, or a per-role positions table)"
+    return None
+
+
+def _staged_debate_log_contents(
+    debate_logs: Sequence[str],
+    repo_root: Path,
+) -> dict[str, str]:
+    contents: dict[str, str] = {}
+    for path in debate_logs:
+        content = _staged_debate_log_content(path, repo_root)
+        if content is not None:
+            contents[path] = content
+    return contents
+
+
+def _debate_log_evidence_error(contents: dict[str, str]) -> str | None:
+    for path in sorted(contents):
+        gap = debate_log_evidence_gap(contents[path])
+        if gap is not None:
+            return (
+                f"{path} is not a debate log: {gap}. "
+                "See .claude/skills/adr-review/references/artifacts.md."
+            )
+    return None
+
+
+def _uncovered_adr_ids(adr_ids: set[str], contents: dict[str, str]) -> set[str]:
+    covered: set[str] = set()
+    for content in contents.values():
+        covered |= _referenced_adr_ids(content)
+    return adr_ids - covered
 
 
 def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
@@ -1416,11 +1526,21 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
         )
         return 1
 
-    adr_ids = _extract_adr_ids(gated_paths)
-    if adr_ids and not any(
-        _staged_debate_references_adr(path, repo_root, adr_ids) for path in debate_logs
-    ):
-        names = ", ".join(sorted(adr_ids))
+    contents = _staged_debate_log_contents(debate_logs, repo_root)
+
+    # Issue #5205 defect 1: a name-shaped file is not evidence that a review
+    # happened. Every staged log must carry evidence of one.
+    evidence_error = _debate_log_evidence_error(contents)
+    if evidence_error is not None:
+        print(f"ERROR: {evidence_error}", file=sys.stderr)
+        return 1
+
+    # Issue #5205 defect 2: this was any() over the union of staged ids, so one
+    # log naming one ADR authorized every ADR staged beside it. Require that
+    # every staged id is covered by the union of the staged logs.
+    missing = _uncovered_adr_ids(_extract_adr_ids(gated_paths), contents)
+    if missing:
+        names = ", ".join(sorted(missing))
         print(f"ERROR: no debate log references the staged ADR IDs: {names}", file=sys.stderr)
         return 1
     return 0
