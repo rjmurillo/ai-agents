@@ -1,3 +1,14 @@
+---
+id: ADR-052
+status: proposed
+date: 2026-03-01
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
+---
+
 # ADR-052: Template Strategy for Multi-Platform Agent Distribution
 
 ## Status
