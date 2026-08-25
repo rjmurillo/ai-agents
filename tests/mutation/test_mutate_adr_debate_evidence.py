@@ -42,7 +42,13 @@ from scripts.testing.mutation_workspace import isolated_mutation_worktree
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _TARGET_REL = Path("scripts") / "validation" / "git_hook_policy.py"
 # The two defects are only observable through the suite written for #5205.
-_TESTS = ["tests/validation/test_git_hook_policy_adr_debate_evidence.py"]
+# Both halves of the split suite. The boundary module is not optional here:
+# M6's killer, test_invalid_utf8_bytes_do_not_inflate_toward_the_byte_floor,
+# lives there, so running only the sibling would report M6 SURVIVED.
+_TESTS = [
+    "tests/validation/test_git_hook_policy_adr_debate_evidence.py",
+    "tests/validation/test_git_hook_policy_adr_debate_boundaries.py",
+]
 
 _OUTCOME_DEAD = "DEAD"
 _OUTCOME_SURVIVED = "SURVIVED"
@@ -50,8 +56,9 @@ _OUTCOME_DID_NOT_APPLY = "DID-NOT-APPLY"
 
 # Same ordering contract as the sibling harness: the outer cap MUST exceed the
 # inner one, or pytest-timeout interrupts inside subprocess.communicate and the
-# failure names no command (issue #5102). The inner suite here is one file of
-# 42 cases, well under the sibling's ~943, so these caps carry wide margin.
+# failure names no command (issue #5102). The inner suite here is
+# two files of 42 cases total, well under the sibling's ~943, so these caps
+# carry wide margin.
 _INNER_SUBPROCESS_TIMEOUT_SECONDS = 300
 _OUTER_TEST_TIMEOUT_SECONDS = 360
 
