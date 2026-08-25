@@ -87,8 +87,10 @@ would need is a template syntax error rather than a filter.
 ```toml
 # .config/wt.toml
 [post-create]
-# Configure git hooks path to .githooks directory
-configure-hooks = "git config core.hooksPath .githooks"
+# Install the lefthook-managed hooks. Do NOT set core.hooksPath by hand:
+# .githooks is not tracked in this repository, and a core.hooksPath naming a
+# missing directory makes git run no hook and print no warning (issue #5090).
+configure-hooks = "uv run --frozen lefthook install"
 
 # Copy gitignored files from main worktree to eliminate cold starts
 copy = "wt step copy-ignored"
