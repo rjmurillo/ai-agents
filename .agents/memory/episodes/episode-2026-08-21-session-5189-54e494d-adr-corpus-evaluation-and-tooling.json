@@ -1,0 +1,235 @@
+{
+  "id": "episode-2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling",
+  "session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling",
+  "timestamp": "2026-08-21T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Evaluate the 98-record ADR corpus for gaps, deterministic-tooling opportunities, and inconsistencies that misdirect a low-effort model; file an issue per finding and drive each to closure",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Audit the ADR corpus for gaps, tooling opportunities, and low-effort-model confusion",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix _get_adr_status frontmatter parsing (issue #5189)",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-21T02:21:46+00:00",
+      "type": "commit",
+      "content": "Commit: a2f352ed4cc5a3ea6395e24e9ddf7e83adb1a5b9",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-21T05:01:53+00:00",
+      "type": "commit",
+      "content": "Commit: 46ba463681b370dad222097d906f0d7038e0bd0a",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-21T13:26:54+00:00",
+      "type": "commit",
+      "content": "Commit: 4faed59312edd5904d467a5dfdee1f05e7fc5d7e",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-21T13:59:37+00:00",
+      "type": "commit",
+      "content": "Commit: 626618bb4f0dc7a62e771523e6c7435f2daa07be",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-21T14:07:25+00:00",
+      "type": "commit",
+      "content": "Commit: 1615ffa40cc6b8c976355923317c783415b6b539",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge origin/main, fix the setup-uv SHA duplication it exposed, file #5220",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-21T14:35:33+00:00",
+      "type": "commit",
+      "content": "Commit: cb22971178f07d8232ce7367c0d94b03f3cf5bf2",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix the UnicodeDecodeError family reported by Cursor Bugbot",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-21T16:15:13+00:00",
+      "type": "commit",
+      "content": "Commit: 2eb268f5bd157556869cf42e594faa6537fdf40a",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge the Bugbot autofix agent's concurrent fix",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-21T16:21:13+00:00",
+      "type": "commit",
+      "content": "Commit: 73bba3511ae90cf25c8444fca14b38f7c2d36332",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-21T16:33:09+00:00",
+      "type": "commit",
+      "content": "Commit: faa620b67196fc9ead3394160f3d19cfd2a2cfb5",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge origin/main and combine two competing fixes to one test",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-21T16:36:12+00:00",
+      "type": "commit",
+      "content": "Commit: 3dabdf773bb007f7fcd286e36dc24f6c02bbee55",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Address the Copilot review: duplicate-key class, ADR-063, template overreach",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-21T17:00:10+00:00",
+      "type": "commit",
+      "content": "Commit: 86ccc330dd1ec6b1846c8daaf74066a1a9861d57",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-21T17:13:04+00:00",
+      "type": "commit",
+      "content": "Commit: b7b87c395677b7a1611e29390262af906324e466",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 12,
+    "files_changed": 50
+  },
+  "lessons": []
+}

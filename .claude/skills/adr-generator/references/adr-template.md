@@ -16,17 +16,38 @@ supersedes: []
 superseded-by: null
 explainer: null
 implemented: false
+review-by: null           # optional: YYYY-MM-DD this record must be revisited; null when the decision carries no deadline
 ---
 
 # ADR-NNN: [Title]
 
-## Status
+<!--
+The frontmatter above is authoritative for tooling (ADR-073). This template
+carried `## Status` and `## Date` prose sections until 2026-08-21 as *required*
+scaffolding; both restated frontmatter fields verbatim, and every record
+generated from it inherited the duplication with nothing added. Two review
+comments on PR #5209 (ADR-005 "Duplicative. Already in frontmatter", ADR-024
+"Redundant") rejected that. They are no longer pre-filled here.
 
-[Proposed | Accepted | Deprecated | Superseded by ADR-XXX]
+The rule: prose says what frontmatter cannot, and never restates it alone.
 
-## Date
+`## Status` remains available and is NOT discouraged. ADR-073 retains it as the
+human-readable secondary rendering, and says it "may carry the nuance the enum
+cannot": a review verdict, the condition still blocking acceptance, the
+conditional state ADR-072 uses. Include it whenever you have such nuance. When
+you do, open it with the enum word, because the lifecycle gate reconciles the
+two and frontmatter wins on disagreement; "Accepted. Conditional on X shipping."
+satisfies both the gate and the reader.
 
-[YYYY-MM-DD]
+Omit it when you have nothing the enum does not already say. A section reading
+only "Superseded by ADR-042" beside `superseded-by: ADR-042` is drift surface,
+not a service to the reader. Omitting it is not a violation: the gate treats a
+missing prose status as fine, because ADR-073 says "may", not "must".
+
+Where the nuance is not about lifecycle at all, name the section for what it
+holds (`## Acceptance Evidence`, `## Provenance`) so no reader mistakes it for a
+second source of truth about state.
+-->
 
 ## Context
 
@@ -112,6 +133,23 @@ depend on the changed file and describe the required updates.]
 
 - [External references, documentation, or standards]
 ```
+
+## `review-by` Frontmatter Field (Optional)
+
+Set `review-by` when the ADR's prose commits to a revisit date: a provisional
+window, a trial period, a re-review checkpoint, a sunset date. Use `null`
+(the default) when the decision carries no deadline, including when the revisit
+is condition-triggered rather than calendar-triggered.
+
+| Value | Meaning |
+|-------|---------|
+| `null` | No calendar deadline. The default. |
+| `YYYY-MM-DD` | The date by which this record must be revisited. |
+
+The field is optional and unenforced, matching the `explainer` and `implemented`
+precedent in ADR-073 Phase 1. It records the deadline the prose already states;
+it does not create one. Whichever section states the deadline stays authoritative
+prose, and the date here must match it.
 
 ## Coded Consequences Convention (Optional)
 
