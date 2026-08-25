@@ -116,7 +116,7 @@ These bind today.
 | [ADR-037](ADR-037-memory-router-architecture.md) | Memory Router Architecture | 2026-07-20 | Implement a Memory Router that provides: |
 | [ADR-040](ADR-040-skill-frontmatter-standardization.md) | Skill Frontmatter Standardization and Model Identifier Strategy | 2026-08-14 | Adopt the following standardization for all 27 Claude Code skills: |
 | [ADR-041](ADR-041-codeql-integration.md) | CodeQL Integration Multi-Tier Strategy | 2026-07-21 | Chosen option: Option 4 - Multi-Tier with Shared Configuration |
-| [ADR-042](ADR-042-python-migration-strategy.md) | Python Migration Strategy | 2026-04-13 | Migrate the ai-agents project from PowerShell to Python as the primary scripting language over a 12-24 month phased migration period. |
+| [ADR-042](ADR-042-python-migration-strategy.md) | Python Migration Strategy | 2026-08-25 | Migrate the ai-agents project from PowerShell to Python as the primary scripting language over a 12-24 month phased migration period. |
 | [ADR-043](ADR-043-scoped-tool-execution.md) | Scoped Tool Execution | 2026-01-21 | Session protocol tools MUST scope to changed files rather than the entire repository. |
 | [ADR-045](ADR-045-framework-extraction-via-plugin-marketplace.md) | Framework Extraction via Plugin Marketplace | 2026-02-07 | Extract the reusable multi-agent framework from `rjmurillo/ai-agents` into a new repository `rjmurillo/awesome-ai`, published as a Claude Code plugin marketplace with 4 plugins. |
 | [ADR-046](ADR-046-planning-agent-rename.md) | Planning Agent Rename for Role Clarity | 2026-02-08 | Rename all three planning agents to reflect their distinct roles: |

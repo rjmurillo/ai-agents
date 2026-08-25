@@ -1,7 +1,7 @@
 ---
 id: ADR-042
 status: accepted
-date: 2026-04-13
+date: 2026-08-25
 decision-makers: [rjmurillo]
 supersedes: [ADR-005]
 superseded-by: null
