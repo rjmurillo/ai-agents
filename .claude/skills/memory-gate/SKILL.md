@@ -106,7 +106,7 @@ the required search:
 
 **Tier 1 (Semantic)**: facts, patterns, constraints.
 
-- Why is Python the default for new internal automation? (ADR-042, which superseded the PowerShell-only ADR-005 but keeps PowerShell for quick fixes to existing PowerShell scripts and PowerShell-specific operations)
+- Why did the PowerShell-only constraint exist, before it was superseded? (ADR-005, superseded by ADR-042)
 - Why do skills exist instead of raw CLI? (usage-mandatory)
 - What incidents led to BLOCKING gates? (protocol-blocking-gates)
 

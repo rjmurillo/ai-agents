@@ -427,6 +427,83 @@ class TestAuditResume:
         assert [claim["pr_number"] for claim in audit["Claims"]] == [99]
 
 
+class TestAuditArtifactWriteFailure:
+    """The --artifact write path's OSError handler must not itself crash.
+
+    Copilot review on PR #5283 found this handler called
+    write_skill_error(..., error_type="IOError", ...), and "IOError" is not
+    in VALID_ERROR_TYPES (ADR-103's 8-value enum covers API/HTTP-shaped
+    categories, not filesystem errors). write_skill_error raises ValueError
+    on an unrecognized error_type, so a real artifact-write failure (a full
+    disk, a missing parent directory, a permissions error) turned a handled
+    OSError into an unhandled ValueError instead of the intended error
+    envelope. Fixed by mapping this caller to "General", the documented
+    catch-all, rather than widening the enum for one caller.
+
+    A later Copilot review round on the same PR found the exit code was
+    also wrong: this handler returned 3 (ADR-035's "external service or
+    API error"), but a local --artifact write failure never touches the
+    network or the GitHub API, so it is ADR-035's exit code 2 ("usage,
+    configuration, or environment error") instead.
+    """
+
+    def test_artifact_write_failure_does_not_raise(self, tmp_path: Path) -> None:
+        nodes = [{"number": 1, "body": "no claims here", "baseRefName": "main"}]
+        # A path inside a directory that does not exist raises
+        # FileNotFoundError (an OSError subclass) from open(..., "w"),
+        # exercising the same except OSError branch a full disk or a
+        # permissions error would.
+        unwritable_artifact = str(tmp_path / "does-not-exist" / "artifact.json")
+
+        with (
+            patch(f"{_audit_mod.__name__}.assert_gh_authenticated"),
+            patch(
+                f"{_audit_mod.__name__}.resolve_repo_params",
+                return_value=_MOCK_REPO,
+            ),
+            patch(f"{_audit_mod.__name__}.fetch_open_prs", return_value=nodes),
+            patch(f"{_audit_mod.__name__}.write_skill_error") as write_error,
+        ):
+            result = _audit_mod.main(["--artifact", unwritable_artifact])  # must not raise
+
+        assert result == 2
+        write_error.assert_called_once()
+        assert write_error.call_args.kwargs["error_type"] == "General"
+
+    def test_artifact_write_failure_end_to_end_does_not_raise(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Same scenario, but write_skill_error is not mocked: the real
+        function runs, so a reintroduced invalid error_type (the pre-fix
+        "IOError") would surface as an unhandled ValueError propagating out
+        of main(), not merely a wrong mock call argument.
+        """
+        nodes = [{"number": 1, "body": "no claims here", "baseRefName": "main"}]
+        unwritable_artifact = str(tmp_path / "does-not-exist" / "artifact.json")
+
+        with (
+            patch(f"{_audit_mod.__name__}.assert_gh_authenticated"),
+            patch(
+                f"{_audit_mod.__name__}.resolve_repo_params",
+                return_value=_MOCK_REPO,
+            ),
+            patch(f"{_audit_mod.__name__}.fetch_open_prs", return_value=nodes),
+        ):
+            result = _audit_mod.main(["--artifact", unwritable_artifact, "--output-format", "json"])
+
+        assert result == 2
+        # Parsed structure, not a substring match (`.claude/rules/testing.md`
+        # MUST-9): a substring check on raw stdout would still pass if the
+        # JSON were malformed, or if "Error" appeared in an unrelated field
+        # such as a message string, and would not prove the real handler
+        # emitted the intended envelope shape (Copilot review on PR #5283).
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is False
+        assert output["Error"]["Type"] == "General"
+        assert output["Error"]["Code"] == 2
+        assert output["Error"]["Message"]  # non-empty: the message guard's own contract
+
+
 class TestClosingReferencePagination:
     def test_resolves_references_by_repository_identity(self):
         references = [
@@ -764,3 +841,126 @@ class TestEditPrBodyStaleWriteGuard:
         assert rc == 3
         assert output["Error"]["Type"] == "ApiError"
         assert "gh executable not found" in output["Error"]["Message"]
+
+    def test_fetch_blank_stderr_does_not_crash(self, capsys):
+        """gh can exit non-zero with empty stderr (a signal kill, or a
+        failure mode that writes to stdout instead), and
+        fetch_current_body's original `raise RuntimeError(result.stderr
+        .strip())` had no fallback, so str(exc) was "" for this case.
+        write_skill_error's message guard (ADR-103 Round 5) rejects an
+        empty message with ValueError; unguarded, main() would crash
+        uncaught with exit 1 and no envelope, instead of the intended
+        exit 3 with a parseable error envelope. Proven to discriminate:
+        reverting fetch_current_body's fallback in a scratch copy
+        reproduces exactly that crash (adr-review independent-thinker
+        seat, ADR-103 Round 5 convergence check).
+        """
+        with (
+            patch(f"{_edit_mod.__name__}.assert_gh_authenticated"),
+            patch(f"{_edit_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
+            patch(
+                f"{_edit_mod.__name__}.subprocess.run",
+                return_value=_completed(rc=1, stderr=""),
+            ),
+        ):
+            rc = _edit_mod.main([
+                "--pull-request", "42",
+                "--body", "new body",
+                "--output-format", "json",
+            ])  # must not raise
+
+        output = json.loads(capsys.readouterr().out)
+        assert rc == 3
+        assert output["Error"]["Type"] == "ApiError"
+        assert output["Error"]["Message"]  # non-empty: the guard's own contract
+
+    def test_update_blank_stderr_does_not_crash(self, capsys):
+        """Same gap as test_fetch_blank_stderr_does_not_crash, for
+        update_body's raise site.
+
+        Dispatches the subprocess.run fake on the actual argv rather than
+        call order: fetch_current_body's `gh api pulls/<n>` carries no
+        `--method` flag, update_body's PATCH always does. A position-keyed
+        side_effect list would silently pass the fetch's response to the
+        update call (or vice versa) if a caller ever adds or removes a
+        subprocess.run invocation ahead of these two (`.claude/rules/testing.md`
+        MUST-11; Copilot review on PR #5283).
+        """
+        def _dispatch(cmd, **_kwargs):
+            if "--method" in cmd:
+                return _completed(rc=1, stderr="")
+            if cmd and cmd[:2] == ["gh", "api"]:
+                return _completed(stdout=json.dumps({"body": "old body"}))
+            raise AssertionError(f"unstubbed subprocess.run call: {cmd}")
+
+        with (
+            patch(f"{_edit_mod.__name__}.assert_gh_authenticated"),
+            patch(f"{_edit_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
+            patch(f"{_edit_mod.__name__}.subprocess.run", side_effect=_dispatch),
+        ):
+            rc = _edit_mod.main([
+                "--pull-request", "42",
+                "--body", "new body",
+                "--output-format", "json",
+            ])  # must not raise
+
+        output = json.loads(capsys.readouterr().out)
+        assert rc == 3
+        assert output["Error"]["Type"] == "ApiError"
+        assert output["Error"]["Message"]  # non-empty: the guard's own contract
+
+    def test_fetch_blank_stderr_prefers_stdout_diagnostic(self, capsys):
+        """When gh exits non-zero with blank stderr but a diagnostic on
+        stdout, the raised message must carry that diagnostic, not jump
+        straight past it to the generic fallback. Before this fix,
+        fetch_current_body's `result.stderr.strip() or "<generic>"`
+        fallback discarded result.stdout entirely, even when it held
+        gh's actual failure text (Copilot review on PR #5283, following
+        the ADR-103 Round 5 convergence check). Proven to discriminate:
+        reverting the stdout fallback in a scratch copy reproduces the
+        generic message instead of this one.
+        """
+        with (
+            patch(f"{_edit_mod.__name__}.assert_gh_authenticated"),
+            patch(f"{_edit_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
+            patch(
+                f"{_edit_mod.__name__}.subprocess.run",
+                return_value=_completed(rc=1, stderr="", stdout="rate limited, retry in 30s"),
+            ),
+        ):
+            rc = _edit_mod.main([
+                "--pull-request", "42",
+                "--body", "new body",
+                "--output-format", "json",
+            ])
+
+        output = json.loads(capsys.readouterr().out)
+        assert rc == 3
+        assert output["Error"]["Message"] == "rate limited, retry in 30s"
+
+    def test_update_blank_stderr_prefers_stdout_diagnostic(self, capsys):
+        """Same gap as test_fetch_blank_stderr_prefers_stdout_diagnostic,
+        for update_body's raise site. Dispatches on argv per MUST-11, same
+        as test_update_blank_stderr_does_not_crash above.
+        """
+        def _dispatch(cmd, **_kwargs):
+            if "--method" in cmd:
+                return _completed(rc=1, stderr="", stdout="rate limited, retry in 30s")
+            if cmd and cmd[:2] == ["gh", "api"]:
+                return _completed(stdout=json.dumps({"body": "old body"}))
+            raise AssertionError(f"unstubbed subprocess.run call: {cmd}")
+
+        with (
+            patch(f"{_edit_mod.__name__}.assert_gh_authenticated"),
+            patch(f"{_edit_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
+            patch(f"{_edit_mod.__name__}.subprocess.run", side_effect=_dispatch),
+        ):
+            rc = _edit_mod.main([
+                "--pull-request", "42",
+                "--body", "new body",
+                "--output-format", "json",
+            ])
+
+        output = json.loads(capsys.readouterr().out)
+        assert rc == 3
+        assert output["Error"]["Message"] == "rate limited, retry in 30s"

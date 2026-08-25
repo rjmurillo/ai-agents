@@ -1,10 +1,10 @@
 ---
 id: ADR-056
-status: accepted
-date: 2026-03-08
+status: superseded
+date: 2026-08-25
 decision-makers: [rjmurillo]
-supersedes: []
-superseded-by: null
+supersedes: [ADR-028]
+superseded-by: ADR-103
 explainer: null
 implemented: true
 ---
@@ -13,7 +13,21 @@ implemented: true
 
 ## Status
 
-Accepted
+Superseded by ADR-103 (2026-08-25, issue #5201). Accepted (2026-03-08),
+supersedes ADR-028: the schema-consistency principle ADR-028 established for
+PowerShell output objects continues here, enforced at the envelope level for
+the current Python skill-output surface.
+
+A 2026-08-25 review found this record's Decision section (items 2 and 6)
+still specified the original PowerShell parameter style (`-OutputFormat`, a
+flat `ErrorCode` field) while the shipped Python implementation
+(`scripts/github_core/output.py`) uses `--output-format` and a nested
+`Error.Code`/`Error.Type`. This ADR already carries `implemented: true`, so
+per `.claude/skills/adr-generator/references/adr-best-practices.md` ("GDS
+Way bounded rule": a decision change after any implementation requires a new
+superseding ADR, never an in-place rewrite), the correction is recorded in
+ADR-103 rather than edited into this record's Decision section. The Decision
+section below is restored to its original 2026-03-08 wording.
 
 ## Date
 
@@ -78,8 +92,9 @@ ADR-028 established that all properties should be included in output objects. AD
 
 ## Related Decisions
 
-- ADR-028: PowerShell Output Schema Consistency
+- ADR-028: PowerShell Output Schema Consistency (superseded by this ADR)
 - ADR-035: Exit Code Standardization
+- ADR-103: Skill Output Format Standardization, Python Contract Correction (supersedes this ADR)
 - Issue #632, #639, #673
 
 ## References
