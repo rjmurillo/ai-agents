@@ -1172,6 +1172,39 @@ def test_successor_lookup_accepts_non_padded_and_bare_int_references(tmp_path: P
     assert "ADR-091-third.md" in row_80
 
 
+def test_successor_lookup_accepts_a_five_digit_adr_number(tmp_path: Path) -> None:
+    """A ``superseded-by`` reference past 4 digits must still resolve.
+
+    ``_ADR_REFERENCE_RE`` capped its digit group at ``\\d{1,4}``, four digits,
+    while ``_ADR_FILENAME_RE`` (the filename-matching pattern that decides
+    which files are records at all) accepts any 2+ digit run, unbounded. A
+    5-digit ADR id, such as ``ADR-10000``, was therefore a valid record file
+    but an unmatchable successor reference: the lookup would fail to find it
+    and print the raw reference as unlinked text instead of a link (Copilot,
+    PR #5285 review).
+    """
+    adr_dir = tmp_path / "architecture"
+    _write_adr(
+        adr_dir,
+        95,
+        "old",
+        frontmatter="status: superseded\nsuperseded-by: ADR-10000",
+        body=_standard_body(95, "Old"),
+    )
+    _write_adr(
+        adr_dir,
+        10000,
+        "new",
+        frontmatter="status: accepted",
+        body=_standard_body(10000, "New"),
+    )
+
+    retired = _section(_render(adr_dir), "Retired")
+    row_95 = next(line for line in retired.splitlines() if "ADR-095" in line)
+
+    assert "ADR-10000-new.md" in row_95
+
+
 def test_supersession_cycle_terminates_instead_of_hanging(tmp_path: Path) -> None:
     """A cycle must not be discovered by this renderer looping forever.
 

@@ -104,7 +104,7 @@ _ADR_FILENAME_RE = re.compile(r"^ADR-(\d{2,})-[^/]+\.md$")
 # record could pass lifecycle validation while the index fails to find its
 # successor and prints the raw, unlinked reference instead; whoever lands it
 # should reconcile the two patterns explicitly rather than assume parity.
-_ADR_REFERENCE_RE = re.compile(r"^ADR[-_ ]?(\d{1,4})$", re.IGNORECASE)
+_ADR_REFERENCE_RE = re.compile(r"^ADR[-_ ]?(\d+)$", re.IGNORECASE)
 
 _ADR_GLOB = "ADR-*.md"
 _ADR_DIR_RELATIVE = Path(".agents") / "architecture"
