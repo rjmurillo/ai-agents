@@ -97,10 +97,18 @@ def _validate_metadata_string_field(metadata: dict, field: str) -> list[str]:
     """Validate one of Metadata's required string sub-fields (Script, Timestamp).
 
     skill-output.schema.json types both `"Script"` and `"Timestamp"` as
-    `"type": "string"`. Checking only truthiness let a non-string value
-    (for example `{"Script": 1, "Timestamp": 1}`) pass silently, so the
-    validator disagreed with the schema it claims to enforce (Copilot
-    review on PR #5283, commit 6639555b8). Does not additionally enforce
+    `"type": "string", "minLength": 1`. Checking only truthiness let a
+    non-string value (for example `{"Script": 1, "Timestamp": 1}`) pass
+    silently, so the validator disagreed with the schema it claims to
+    enforce (Copilot review on PR #5283, commit 6639555b8). The
+    `minLength: 1` constraint was added to the schema after the fact (ADR-103
+    Round 5 convergence check, security seat): both `write_skill_output` and
+    `write_skill_error` always populate Script (via `_detect_script_name`,
+    which falls back to `"unknown"` rather than `""`) and Timestamp (via
+    `datetime.now(UTC).isoformat()`, never empty), so the constraint matches
+    what the implementation already guarantees, and it closes what had been
+    a schema-looser-than-validator gap in the opposite direction from the
+    Error.Message minLength fix below. Does not additionally enforce
     Timestamp's `"format": "date-time"`: JSON Schema draft-07 treats
     `format` as an annotation validators may choose to assert, and this
     validator does not carry a date-time parser dependency for it.

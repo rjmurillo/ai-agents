@@ -155,6 +155,17 @@ def write_skill_error(
         raise ValueError(
             f"error_type must be one of {VALID_ERROR_TYPES}, got: {error_type}"
         )
+    if not message:
+        # skill-output.schema.json requires Error.Message "minLength": 1
+        # (ADR-103 Round 5). Before this guard, the schema and validator
+        # both rejected an empty Message while nothing on the producer
+        # side prevented constructing one: an errored call with a bare
+        # `Exception()` (no args) yields `str(exc) == ""`, and every
+        # other write_skill_error caller in this repo passes a literal
+        # string, so this guard closes the gap for real callers and
+        # future ones instead of leaving it as a documented risk (adr-review
+        # critic seat, ADR-103 Round 5 convergence check).
+        raise ValueError("message must be non-empty")
 
     resolved = get_output_format(output_format)
 

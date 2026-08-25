@@ -44,6 +44,7 @@
       "properties": {
         "Script": {
           "type": "string",
+          "minLength": 1,
           "description": "Name of the skill script"
         },
         "Version": {
@@ -52,6 +53,7 @@
         },
         "Timestamp": {
           "type": "string",
+          "minLength": 1,
           "format": "date-time",
           "description": "ISO 8601 timestamp"
         }
