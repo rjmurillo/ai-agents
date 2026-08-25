@@ -88,8 +88,8 @@ def test_no_enforcement_surface_invokes_ruff_format() -> None:
 
     assert not offenders, (
         "`ruff format` now runs in an enforcement surface, so the Tooling "
-        "section of .claude/rules/python.md ('ruff format is not this repo's "
-        "formatter. Do not run it.') is false. Either revert the gate or "
+        "section of .claude/rules/python.md ('Never run `ruff format` or cite "
+        "`ruff format --check` as a gate.') is false. Either revert the gate or "
         "reformat the tree and rewrite that rule, then update this test. "
         f"Found: {offenders}"
     )
