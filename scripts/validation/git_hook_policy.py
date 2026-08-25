@@ -148,7 +148,12 @@ DEBATE_LOG_ROLES = (
     "analyst",
     "high-level-advisor",
 )
-DEBATE_LOG_ROLE_RE = re.compile("|".join(DEBATE_LOG_ROLES), re.IGNORECASE)
+# Word-bounded. Without \b, "the architecture is sound" satisfies "architect"
+# and "securityless" satisfies "security", so prose about the subject matter
+# would stand in for a named reviewer.
+DEBATE_LOG_ROLE_RE = re.compile(
+    "|".join(rf"\b{role}\b" for role in DEBATE_LOG_ROLES), re.IGNORECASE
+)
 # "agents?" is here because the canonical template in
 # .claude/skills/adr-review/references/artifacts.md labels its roster "Agent
 # Positions", so without it the gate rejects a log written to the document its
@@ -157,11 +162,11 @@ DEBATE_LOG_ROLE_RE = re.compile("|".join(DEBATE_LOG_ROLES), re.IGNORECASE)
 DEBATE_LOG_REVIEWER_RE = re.compile(
     "|".join(
         [
-            *DEBATE_LOG_ROLES,
-            r"self[- ]review",
-            r"participants?\b",
-            r"reviewers?\b",
-            r"agents?\b",
+            *(rf"\b{role}\b" for role in DEBATE_LOG_ROLES),
+            r"\bself[- ]review\b",
+            r"\bparticipants?\b",
+            r"\breviewers?\b",
+            r"\bagents?\b",
         ]
     ),
     re.IGNORECASE,

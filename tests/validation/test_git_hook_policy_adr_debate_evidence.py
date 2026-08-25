@@ -388,6 +388,54 @@ def test_the_verdict_window_is_exact(offset: int, expected_verdict: bool) -> Non
     assert policy._has_verdict(content) is expected_verdict
 
 
+@pytest.mark.parametrize(
+    "prose",
+    [
+        "The architecture is sound and the boundaries are well documented.",
+        "This securityless path needs no further hardening at all.",
+        "The analysis section explains the tradeoff in full detail here.",
+    ],
+)
+def test_prose_about_the_subject_is_not_reviewer_attribution(prose: str) -> None:
+    """A word that merely contains a role name must not stand in for a reviewer.
+
+    Without word boundaries, "architecture" satisfies "architect" and
+    "securityless" satisfies "security", so a log discussing the subject
+    matter would clear attribution while naming nobody.
+    """
+    assert not policy.DEBATE_LOG_REVIEWER_RE.search(prose)
+
+
+@pytest.mark.parametrize(
+    "attributed",
+    ["The architect reviewed it.", "Participants: two.", "Self-review: ACCEPT", "agent notes"],
+)
+def test_real_attribution_still_matches(attributed: str) -> None:
+    """Positive control: the boundaries must not break genuine attribution."""
+    assert policy.DEBATE_LOG_REVIEWER_RE.search(attributed)
+
+
+def test_an_incidental_mention_covers_a_staged_id(repo: Path) -> None:
+    """Document the coverage rule's edge: any mention counts, reviewed or not.
+
+    ``_referenced_adr_ids`` scans the whole log, so a log that genuinely
+    reviews ADR-042 and cites ADR-005 only in a footer covers both. This is the
+    one-line semantics issue #5205 proposed, so it ships as specified, but
+    nothing previously said either way and a reader could reasonably assume the
+    gate distinguishes a review from a citation. It does not.
+    """
+    _edit(repo, ADR_42, "Rewritten decision text.")
+    _edit(repo, ADR_05, "Retired by a supersession edit.")
+    _git(repo, "add", ADR_42, ADR_05)
+    _stage_log(
+        repo,
+        "ADR-042-debate-log.md",
+        GENUINE_LOG + "\n## References\n\n- Refs ADR-005 for background.\n",
+    )
+
+    assert policy.check_adr_review_policy([ADR_42, ADR_05], repo) == 0
+
+
 def test_every_debate_log_on_main_still_passes() -> None:
     """Calibration pin: the thresholds must not false-block committed evidence."""
     critique = _ROOT / ".agents" / "critique"
