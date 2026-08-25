@@ -350,9 +350,13 @@ uv run pytest
 
 ## Related Documentation
 
-- [ADR-036: Two-Source Agent Template Architecture](../../.agents/architecture/ADR-036-two-source-agent-template-architecture.md) - Operative procedure (superseded in governance by ADR-052, not yet implemented)
-- [templates/AGENTS.md](../../templates/AGENTS.md) - Template system synchronization rules
-- [build/AGENTS.md](../../build/AGENTS.md) - Build automation
-- [Root AGENTS.md](../../AGENTS.md) - Agent usage instructions
-- [AGENT-SYSTEM.md](../../.agents/AGENT-SYSTEM.md) - Full system documentation
+Paths below are in the `rjmurillo/ai-agents` repository, not shipped with this
+installed plugin (`.claude` is the `project-toolkit` plugin root), so they are
+named without links:
+
+- ADR-036 (Two-Source Agent Template Architecture): operative procedure (superseded in governance by ADR-052, not yet implemented)
+- `templates/AGENTS.md`: template system synchronization rules
+- `build/AGENTS.md`: build automation
+- Root `AGENTS.md`: agent usage instructions
+- `.agents/AGENT-SYSTEM.md`: full system documentation
 - usage-mandatory (read via `Read .serena/memories/usage-mandatory.md`) - GitHub skill rules
