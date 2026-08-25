@@ -1551,7 +1551,14 @@ def _evidence_byte_count(content: str) -> int:
     minus the replacement characters, so it admits nothing the old measurement
     rejected. It is NOT bounded by the decoded character count, and saying so
     would be wrong: 200 characters of U+00E9 measure 400 bytes here, which a
-    test pins. Issue #5205.
+    test pins.
+
+    The residual: an authored U+FFFD, one a committer typed on purpose rather
+    than one the decoder produced, loses three bytes here. The two are
+    indistinguishable after decoding, so the choice is which way to be wrong,
+    and undercounting can only block a log the committer can then lengthen,
+    while overcounting admits the invalid-byte bypass this exists to close.
+    None of the 86 committed logs contains a replacement character. Issue #5205.
     """
     return len(content.replace("\ufffd", "").encode("utf-8"))
 

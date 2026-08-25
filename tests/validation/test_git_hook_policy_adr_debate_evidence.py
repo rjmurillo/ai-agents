@@ -51,10 +51,6 @@ later reader does not have to reconstruct it from the implementation.
 """
 
 
-# The fence is keyed to the "Save to:" line above it so a later fence added to
-# the same document cannot be picked up by accident.
-
-
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
     # encoding and errors are explicit to match the convention at
     # tests/test_lefthook_integration.py:107 and
@@ -224,9 +220,7 @@ def test_positions_table_counts_as_a_verdict() -> None:
     # header that stopped being read as a label would fail this test rather
     # than let some other line supply the verdict.
     labels = [
-        line
-        for line in content.splitlines()
-        if policy.DEBATE_LOG_VERDICT_LABEL_RE.search(line)
+        line for line in content.splitlines() if policy.DEBATE_LOG_VERDICT_LABEL_RE.search(line)
     ]
     assert labels == ["### Agent stances", "| Agent | Stance | Note |"], labels
 

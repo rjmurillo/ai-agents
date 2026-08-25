@@ -15,7 +15,6 @@ Issue #5205.
 
 from __future__ import annotations
 
-import re
 import sys
 from pathlib import Path
 
@@ -52,6 +51,7 @@ def test_the_weakest_currently_passing_log_is_pinned() -> None:
     )
     assert policy.debate_log_evidence_gap(weakest) is None
 
+
 def test_a_decision_word_outside_the_verdict_window_is_not_a_verdict() -> None:
     """Negative control for the window that bounds the loosest passing shape."""
     spread = (
@@ -64,12 +64,14 @@ def test_a_decision_word_outside_the_verdict_window_is_not_a_verdict() -> None:
     assert gap is not None
     assert "no verdict" in gap
 
+
 def _log_of_exactly(byte_count: int) -> str:
     """Build a passing-shaped log padded to exactly ``byte_count`` bytes."""
     head = "# A\n\n## Participants\n\narchitect\n\n### Verdict\n\nAccepted.\n"
     pad = byte_count - len(head.encode("utf-8"))
     assert pad >= 0, "head already exceeds the requested size"
     return head + ("x" * pad)
+
 
 def test_the_byte_floor_is_exact() -> None:
     """One byte under is rejected; exactly the floor is not."""
@@ -84,6 +86,7 @@ def test_the_byte_floor_is_exact() -> None:
     assert "shorter than" in gap
     assert policy.debate_log_evidence_gap(at) is None
 
+
 def test_the_section_floor_is_exact() -> None:
     """Two headings are rejected; three are not, all else held equal."""
     body = "\n\narchitect\n\nVerdict: Accepted.\n" + ("filler prose. " * 30)
@@ -97,6 +100,7 @@ def test_the_section_floor_is_exact() -> None:
     assert gap is not None
     assert "markdown sections" in gap
     assert policy.debate_log_evidence_gap(three) is None
+
 
 @pytest.mark.parametrize(
     ("offset", "expected_verdict"),
@@ -117,6 +121,7 @@ def test_the_verdict_window_is_exact(offset: int, expected_verdict: bool) -> Non
 
     assert policy._has_verdict(content) is expected_verdict
 
+
 @pytest.mark.parametrize(
     "prose",
     [
@@ -134,6 +139,7 @@ def test_prose_about_the_subject_is_not_reviewer_attribution(prose: str) -> None
     """
     assert not policy.DEBATE_LOG_REVIEWER_RE.search(prose)
 
+
 @pytest.mark.parametrize(
     "attributed",
     ["The architect reviewed it.", "Participants: two.", "Self-review: ACCEPT", "agent notes"],
@@ -141,6 +147,7 @@ def test_prose_about_the_subject_is_not_reviewer_attribution(prose: str) -> None
 def test_real_attribution_still_matches(attributed: str) -> None:
     """Positive control: the boundaries must not break genuine attribution."""
     assert policy.DEBATE_LOG_REVIEWER_RE.search(attributed)
+
 
 def test_every_debate_log_in_the_working_tree_still_passes() -> None:
     """Calibration pin: the thresholds must not false-block committed evidence.
@@ -163,6 +170,7 @@ def test_every_debate_log_in_the_working_tree_still_passes() -> None:
     }
     assert rejected == {}
 
+
 def test_invalid_utf8_bytes_do_not_inflate_toward_the_byte_floor() -> None:
     """A short blob of invalid bytes must not clear a floor it does not reach.
 
@@ -176,6 +184,7 @@ def test_invalid_utf8_bytes_do_not_inflate_toward_the_byte_floor() -> None:
     gap = policy.debate_log_evidence_gap(decoded)
     assert gap == f"shorter than {policy.DEBATE_LOG_MIN_BYTES} bytes"
 
+
 def test_replacement_characters_do_not_pad_a_real_log_over_the_floor() -> None:
     """Negative pair: real text just under the floor stays under it when padded."""
     body = "x" * (policy.DEBATE_LOG_MIN_BYTES - 1)
@@ -186,6 +195,7 @@ def test_replacement_characters_do_not_pad_a_real_log_over_the_floor() -> None:
         f"shorter than {policy.DEBATE_LOG_MIN_BYTES} bytes"
     )
 
+
 def test_valid_multibyte_text_still_counts_its_real_bytes() -> None:
     """Positive control: the fix must not penalize genuine non-ASCII prose."""
     # Well-formed U+FFFD written by an author counts as one character of real
@@ -194,17 +204,6 @@ def test_valid_multibyte_text_still_counts_its_real_bytes() -> None:
     text = "\u00e9" * 200
     assert len(text.encode("utf-8")) == 400
     assert policy._evidence_byte_count(text) == 400
-
-
-_DEBATE_LOG_TEMPLATE_DOC = (
-    _ROOT / ".claude" / "skills" / "adr-review" / "references" / "artifacts.md"
-)
-
-
-_DEBATE_LOG_TEMPLATE_RE = re.compile(
-    r"Save to: `\.agents/critique/ADR-NNN-debate-log\.md`\s*\n+```markdown\n(.*?)\n```",
-    re.DOTALL,
-)
 
 
 def test_a_notes_table_row_is_not_a_positions_table_verdict() -> None:
@@ -287,200 +286,3 @@ def test_a_decision_word_with_no_label_of_any_kind_is_still_not_a_verdict() -> N
 
     gap = policy.debate_log_evidence_gap(unlabelled)
     assert gap is not None and gap.startswith("no verdict"), gap
-
-
-def _canonical_debate_log_template() -> str:
-    """Return the debate-log template as the cited document actually holds it."""
-    source = _DEBATE_LOG_TEMPLATE_DOC.read_text(encoding="utf-8")
-    match = _DEBATE_LOG_TEMPLATE_RE.search(source)
-    assert match is not None, (
-        f"no debate-log template fence found in {_DEBATE_LOG_TEMPLATE_DOC}. "
-        "The gate's error message points committers at that document, so if "
-        "the template moved, the message is now wrong too."
-    )
-    return match.group(1)
-
-
-def _filled_template() -> str:
-    """Return the canonical template with every placeholder answered.
-
-    Substituted the way an author filling it in would, so the assertions below
-    are about the template's *shape* rather than about any wording of mine.
-    """
-    filled = _canonical_debate_log_template()
-    for placeholder, answer in (
-        ("[ADR Title]", "Python Migration Strategy"),
-        ("[N]", "2"),
-        ("[Consensus | Concluded Without Consensus]", "Consensus"),
-        ("[proposed | accepted | needs-revision]", "accepted"),
-        ("[Issue 1]", "The trust boundary was not written down anywhere."),
-        ("[Issue 2]", "The rollback path assumed a backup that is not taken."),
-        ("[Change 1]", "Added the boundary to the Context section."),
-        ("[Change 2]", "Replaced the rollback step with one that is tested."),
-        ("[If applicable]", "Ship ADR-042 and revisit the metrics in Q3."),
-        ("| ... | ... |", "| architect | Accept |\n| security | Disagree-and-Commit |"),
-    ):
-        filled = filled.replace(placeholder, answer)
-    return filled
-
-
-def test_the_canonical_template_shape_passes() -> None:
-    """A log written to the cited template must pass once it is filled in.
-
-    ``debate_log_evidence_gap``'s failure message cites
-    ``.claude/skills/adr-review/references/artifacts.md``. That template labels
-    its roster "Agent Positions" and its table column "Agent", so a reviewer
-    check that knew only the six role slugs blocked the committer and then sent
-    them to the document they had followed.
-
-    The template is read from that file rather than restated. A hardcoded copy
-    makes the cross-file contract unobservable: an edit to the document could
-    start failing real template-based logs while a detached copy kept this test
-    green, which is the drift the test exists to prevent.
-    """
-    filled = _filled_template()
-
-    # Guard the extraction. A regex that silently matched an empty or wrong
-    # fence would make the assertion below vacuous.
-    assert "Agent Positions" in filled, (
-        "extracted the wrong fence from "
-        f"{_DEBATE_LOG_TEMPLATE_DOC}: no 'Agent Positions' roster in it"
-    )
-
-    gap = policy.debate_log_evidence_gap(filled)
-    assert gap is None, (
-        f"the canonical template at {_DEBATE_LOG_TEMPLATE_DOC} no longer clears "
-        f"the gate that cites it once filled in: {gap}. Either the template or "
-        "the gate moved; they have to move together."
-    )
-
-
-def test_the_unfilled_canonical_template_does_not_pass() -> None:
-    """Negative pair: copying the template is not conducting a review.
-
-    Review of PR #5308 found the gate cleared the shipped template with only
-    its title changed. The four content signals cannot catch that on their own:
-    "Agent Positions" satisfies reviewer attribution and "Outcome: [Consensus |
-    Concluded Without Consensus]" satisfies a verdict label beside a decision
-    token, so an untouched template reads as a complete review to every one of
-    them. That is the stub defect this PR exists to close, wearing more bytes.
-    """
-    untouched = _canonical_debate_log_template().replace("[ADR Title]", "ADR-042")
-
-    # It really does clear the other four signals; the placeholder check is
-    # what stops it. Asserting this first keeps the test honest about which
-    # signal is doing the work.
-    for signal_name, satisfied in (
-        ("byte floor", policy._evidence_byte_count(untouched) >= policy.DEBATE_LOG_MIN_BYTES),
-        (
-            "section floor",
-            len(policy.DEBATE_LOG_HEADING_RE.findall(untouched))
-            >= policy.DEBATE_LOG_MIN_SECTIONS,
-        ),
-        ("reviewer attribution", bool(policy.DEBATE_LOG_REVIEWER_RE.search(untouched))),
-        ("verdict", policy._has_verdict(untouched)),
-    ):
-        assert satisfied, f"fixture no longer reaches the placeholder check: {signal_name} fails"
-
-    gap = policy.debate_log_evidence_gap(untouched)
-    assert gap is not None and gap.startswith("unfilled template placeholders"), gap
-
-
-_ADR_REVIEW_SKILL = _ROOT / ".claude" / "skills" / "adr-review" / "SKILL.md"
-
-
-_GATE_MODULE = _ROOT / "scripts" / "validation" / "git_hook_policy.py"
-
-
-def _canonical_roster_table() -> list[str]:
-    """Return the "## Agent Roles" table rows from the skill, verbatim."""
-    skill = _ADR_REVIEW_SKILL.read_text(encoding="utf-8")
-    section = re.search(r"^## Agent Roles$(.*?)^## ", skill, re.MULTILINE | re.DOTALL)
-    assert section is not None, (
-        f"the cited '## Agent Roles' heading is gone from {_ADR_REVIEW_SKILL}; "
-        "the quote above DEBATE_LOG_ROLES now points at nothing"
-    )
-    return [line for line in section.group(1).splitlines() if line.startswith("|")]
-
-
-def _quoted_roster_table() -> list[str]:
-    """Return the table quoted in the comment above ``DEBATE_LOG_ROLES``.
-
-    The quote is indented inside a ``#`` comment block, so the rows are
-    recovered by stripping that prefix rather than by restating them here,
-    which would just move the drift problem into this file.
-    """
-    module = _GATE_MODULE.read_text(encoding="utf-8")
-    anchor = module.index("DEBATE_LOG_ROLES = (")
-    rows = [
-        line.removeprefix("#").strip()
-        for line in module[:anchor].splitlines()
-        if line.startswith("#") and line.removeprefix("#").strip().startswith("|")
-    ]
-    assert rows, f"no quoted table found above DEBATE_LOG_ROLES in {_GATE_MODULE}"
-    return rows
-
-
-def test_the_quoted_role_table_is_still_verbatim_in_the_skill() -> None:
-    """Drift guard for the role table quoted above DEBATE_LOG_ROLES.
-
-    `.claude/rules/canonical-source-mirror.md` requires the contract quoted
-    character for character, which makes the quote a claim that can rot. The
-    comment cites the "## Agent Roles" heading rather than a line range,
-    because a range goes stale on any edit above it while saying nothing about
-    whether the quoted text still matches. This checks the text.
-
-    The whole table, not the role column. Two earlier versions of this test
-    were weaker than their own name: the first found six bold names anywhere
-    in the document, so a rename, a reorder, a seventh role, or the table
-    moving out of the section all stayed green; the second compared the role
-    sequence, which still left the Focus and Tie-Breaker cells free to drift
-    while the comment claimed to quote them. The comment quotes the table, so
-    the test compares the table.
-    """
-    canonical = _canonical_roster_table()
-    quoted = _quoted_roster_table()
-
-    assert quoted == canonical, (
-        f"the table quoted in {_GATE_MODULE} no longer matches the roster in "
-        f"{_ADR_REVIEW_SKILL}.\ncanonical: {canonical}\nquoted:    {quoted}"
-    )
-
-    # The quote is the contract the constant claims to mirror, so the constant
-    # has to agree with it too, in order.
-    roles = [re.match(r"\|\s*\*\*([^*]+)\*\*", row) for row in canonical]
-    assert [m.group(1) for m in roles if m] == list(policy.DEBATE_LOG_ROLES)
-
-
-def test_the_placeholder_set_matches_the_canonical_template_both_ways() -> None:
-    """Drift guard, in both directions.
-
-    ``DEBATE_LOG_TEMPLATE_PLACEHOLDERS`` is a verbatim copy per
-    `.claude/rules/canonical-source-mirror.md`. Checking only that each quoted
-    literal is still in the template catches a placeholder removed or reworded,
-    but not one *added*: the gate would then accept an unfilled copy of the new
-    template, and ``_filled_template`` would leave the new token in place while
-    the positive test still passed. Both halves have to be checked. Found by
-    review.
-    """
-    template = _canonical_debate_log_template()
-    quoted = set(policy.DEBATE_LOG_TEMPLATE_PLACEHOLDERS)
-
-    stale = sorted(p for p in quoted if p not in template)
-    assert not stale, (
-        f"quoted placeholders no longer in {_DEBATE_LOG_TEMPLATE_DOC}, so the "
-        f"copy has drifted from the template it mirrors: {stale}"
-    )
-
-    # The other direction. Bracketed spans are the template's placeholder form;
-    # the ellipsis row is the one that is not bracketed, so it is named here
-    # rather than discovered.
-    in_template = set(re.findall(r"\[[^\]\n]*\]", template))
-    if "| ... | ... |" in template:
-        in_template.add("| ... | ... |")
-    unquoted = sorted(in_template - quoted)
-    assert not unquoted, (
-        f"{_DEBATE_LOG_TEMPLATE_DOC} grew placeholders the gate does not "
-        f"reject, so an unfilled copy of the new template would clear it, and "
-        f"_filled_template would leave them unanswered: {unquoted}"
-    )
