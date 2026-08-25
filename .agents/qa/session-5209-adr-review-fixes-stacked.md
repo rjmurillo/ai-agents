@@ -1066,3 +1066,13 @@ counts test items, not assertions.
 Full pytest suite re-run clean: 28098 passed, 74 skipped, 0 failed.
 
 **Rebound to** `9d9cf3120ad407583d909cbd55ca57d43e36682f`.
+
+## Addendum 32: a merge from `origin/main`, no ADR-tooling changes
+
+Same rebind as Addendum 31 of the campaign report
+(`.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`): `origin/main` merged
+into this branch plus two unrelated commits, none touching ADR-tooling
+scripts. Full detail, including the re-run test evidence, in that
+addendum.
+
+**Rebound to** `4d5b443a0c9ee104cd98bb40d9c13bbcf2130015`.

@@ -1053,6 +1053,7 @@ class TestWorkflowContract:
             "uppercase sha": "astral-sh/setup-uv@" + "A" * 40,
             "different action": "actions/setup-python@" + "a" * 40,
             "trailing junk": "astral-sh/setup-uv@" + "0" * 40 + "x",
+            "trailing comment": "astral-sh/setup-uv@" + "0" * 40 + " # v10.0.1",
         }
         for label, value in rejected.items():
             assert _SETUP_UV_PIN_RE.fullmatch(value) is None, (

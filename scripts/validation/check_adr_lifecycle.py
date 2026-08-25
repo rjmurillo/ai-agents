@@ -592,10 +592,14 @@ def _check_prose(record: Record) -> list[Violation]:
     ADR-042" is duplication, and duplication is a drift surface rather than a
     service to the reader.
 
-    The check also overreached its own citation. ADR-073 line 57 says the prose
-    section "remains for humans and **may** carry the nuance the enum cannot",
-    which is permissive. Requiring it turned a MAY into a MUST and forced the
-    duplication on exactly the records with nothing to add.
+    ADR-073 does choose dual representation: the Decision retains the prose
+    section as a secondary rendering, so it stays in the template and this gate
+    reads it wherever it appears. What it never states is that every record must
+    restate the enum in prose; line 57 says the section "remains for humans and
+    **may** carry the nuance the enum cannot". Turning presence into a MUST is a
+    stronger rule than the ADR writes, and the owner declined it on the record
+    that first tripped it. Making it mandatory is an ADR-073 amendment, not a
+    validator default (raised on PR #5209).
 
     What survives is the rule ADR-073 does state: when prose and frontmatter both
     speak and disagree, frontmatter wins and the author reconciles the prose.
