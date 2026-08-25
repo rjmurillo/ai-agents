@@ -1141,6 +1141,54 @@ def test_self_referencing_supersession_is_reported_as_a_cycle(tmp_path: Path) ->
     assert "cycle, unresolved (ADR-030 -> ADR-030)" in row
 
 
+def test_cycle_reached_through_a_tail_closes_on_the_real_cycle_not_the_entry(
+    tmp_path: Path,
+) -> None:
+    """A record that only leads into a cycle must not be shown as part of it.
+
+    ADR-040 -> ADR-041 -> ADR-042 -> ADR-043 -> ADR-042 is a tail (040, 041)
+    feeding into a two-record cycle (042 <-> 043). 040 and 041 are not on the
+    cycle: closing their printed loop back on their own id would invent an
+    edge (043 -> 040) that does not exist in the frontmatter. The loop must
+    close on the node actually revisited, ADR-042 (Cursor Bugbot, PR #5285
+    review).
+    """
+    adr_dir = tmp_path / "architecture"
+    _write_adr(
+        adr_dir,
+        40,
+        "tail-alpha",
+        frontmatter="status: superseded\nsuperseded-by: ADR-041",
+        body=_standard_body(40, "Tail Alpha"),
+    )
+    _write_adr(
+        adr_dir,
+        41,
+        "tail-beta",
+        frontmatter="status: superseded\nsuperseded-by: ADR-042",
+        body=_standard_body(41, "Tail Beta"),
+    )
+    _write_adr(
+        adr_dir,
+        42,
+        "cycle-gamma",
+        frontmatter="status: superseded\nsuperseded-by: ADR-043",
+        body=_standard_body(42, "Cycle Gamma"),
+    )
+    _write_adr(
+        adr_dir,
+        43,
+        "cycle-delta",
+        frontmatter="status: superseded\nsuperseded-by: ADR-042",
+        body=_standard_body(43, "Cycle Delta"),
+    )
+
+    retired = _section(_render(adr_dir), "Retired")
+    row_40 = next(line for line in retired.splitlines() if line.startswith("| [ADR-040]"))
+
+    assert "cycle, unresolved (ADR-040 -> ADR-041 -> ADR-042 -> ADR-043 -> ADR-042)" in row_40
+
+
 def test_proposed_row_renders_the_review_by_date(tmp_path: Path) -> None:
     """#5198 specifies the Proposed table carries the condition OR review date.
 

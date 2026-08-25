@@ -578,6 +578,7 @@ def _successor_cell(record: AdrRecord, by_id: dict[str, AdrRecord]) -> str:
     seen = {record.adr_id}
     current = successor
     cycle = False
+    repeat_id = ""
     while current.adr_id not in seen:
         chain.append(current)
         seen.add(current.adr_id)
@@ -592,13 +593,19 @@ def _successor_cell(record: AdrRecord, by_id: dict[str, AdrRecord]) -> str:
         # The while condition went false: `current` revisited a node already
         # in `seen`, so every record walked is retired with nowhere to land.
         cycle = True
+        repeat_id = current.adr_id
 
     if cycle:
-        # Show the path from record through chain to the revisited node. Close
-        # on `current` (the node that triggered the cycle detection) so the
-        # message reflects the actual topology: A -> B -> C -> B when A merely
-        # enters a cycle among B and C, rather than claiming A participates.
-        loop = " -> ".join([record.adr_id, *(r.adr_id for r in chain), current.adr_id])
+        # Close the loop at the node that was actually revisited (repeat_id),
+        # not unconditionally at record.adr_id: record may only lead into a
+        # cycle among later records without being part of it itself (A -> B
+        # -> C -> D -> C, where the cycle is C <-> D and A, B are not on it),
+        # and closing on record.adr_id there invents an edge back to A that
+        # never exists (Cursor Bugbot, PR #5285 review). repeat_id equals
+        # record.adr_id whenever record itself sits on the cycle, so a
+        # one-hop self-reference (A names itself) and a direct mutual pair
+        # (A <-> B) still close on record.adr_id as before.
+        loop = " -> ".join([record.adr_id, *(r.adr_id for r in chain), repeat_id])
         return f"cycle, unresolved ({loop})"
 
     terminal = chain[-1] if chain else successor
