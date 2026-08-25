@@ -1,7 +1,7 @@
 # taste-lint: ignore file-size
 #
 # file-size suppression rationale: this file is one test per behavior across the
-# seven checks `check_adr_lifecycle.py` owns, and `.claude/rules/testing.md` MUST 1
+# eight checks `check_adr_lifecycle.py` owns, and `.claude/rules/testing.md` MUST 1
 # and the TESTING-RIGOR pos+neg+edge bar are what set its length. Its line count
 # tracks how many behaviors the gate has, not how hard the module is to read;
 # every test is independent and none shares state, so the rule's remediation
@@ -36,6 +36,10 @@ removed with it rather than left asserting a contract the gate no longer has.
 - prose-frontmatter-agree: pos (decorated prose still matches), neg (drift),
   edge (inline ``**Status**:`` counts as the section; an amendment-first line
   is flagged), and the ADR-073 invariant that the gate never rewrites prose
+- status-edge-consistency: pos (reciprocal superseded pair), neg (superseded
+  with no edge, accepted with a resolved successor edge), edge (``deprecated``
+  is exempt from the no-edge direction; a dangling ``superseded-by`` is left
+  to ``supersession-target-exists`` alone, not double-counted)
 
 Ratchet and CLI behavior: improvement passes, regression exits 1, baseline
 missing / malformed / stale exits 2, missing ADR directory exits 2,
@@ -331,20 +335,13 @@ def test_successor_that_does_not_claim_the_predecessor_is_one_sided(tmp_path):
 
 
 def test_predecessor_that_does_not_name_the_successor_is_one_sided(tmp_path):
-    """ADR-001 (status: superseded, no successor) trips two distinct findings:
-    the edge-reciprocity check (ADR-002's claim is one-sided) and the
-    status-to-edge check (a superseded record must name its successor).
-    Neither subsumes the other: ADR-002's claim would still be one-sided even
-    if ADR-001 were not itself status: superseded, and ADR-001's missing
-    successor would still be a defect even if nothing pointed at it.
-    """
     _pair(_adr_dir(tmp_path), old_successor="null", new_supersedes="[ADR-001]")
 
     details = _hits(tmp_path, "supersession-reciprocal")
 
-    assert len(details) == 2
-    assert any("`superseded-by` is null" in detail for detail in details)
-    assert any("declares no `superseded-by` successor" in detail for detail in details)
+    assert len(details) == 1
+    assert "`superseded-by` is null" in details[0]
+    assert "names the immediate successor" in details[0]
 
 
 def test_transitive_superseded_by_is_rejected(tmp_path):
@@ -443,45 +440,6 @@ def test_self_supersession_does_not_also_trip_reciprocity(tmp_path):
     assert counts["supersession-reciprocal"] == 0
 
 
-def test_superseded_status_with_no_successor_edge_is_a_violation(tmp_path):
-    """A record claiming to be retired must name what replaced it.
-
-    No other record supersedes ADR-001 either, so this is the only
-    violation: nothing about the edge graph disagrees, only the record's
-    own status-versus-edge contract.
-    """
-    adr_dir = _adr_dir(tmp_path)
-    _write(adr_dir, 1, _valid(1, status="superseded"), "\n## Status\n\nSuperseded.\n")
-
-    details = _hits(tmp_path, "supersession-reciprocal")
-
-    assert len(details) == 1
-    assert "declares no `superseded-by` successor" in details[0]
-
-
-def test_successor_edge_with_non_superseded_status_is_a_violation(tmp_path):
-    """A record cannot point at its own successor while staying accepted.
-
-    ADR-002 exists so the edge itself resolves cleanly (no
-    `supersession-target-exists` finding); the only defect is ADR-001's
-    status disagreeing with the edge it declares.
-    """
-    adr_dir = _adr_dir(tmp_path)
-    _write(
-        adr_dir,
-        1,
-        _valid(1, status="accepted", **{"superseded-by": "ADR-002"}),
-        _STATUS_SECTION,
-    )
-    _write(adr_dir, 2, _valid(2, supersedes="[ADR-001]"), _STATUS_SECTION)
-
-    details = _hits(tmp_path, "supersession-reciprocal")
-
-    assert len(details) == 1
-    assert "status is 'accepted'" in details[0]
-    assert "not 'superseded'" in details[0]
-
-
 def test_dangling_supersession_target_is_a_violation(tmp_path):
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 1, _valid(1, supersedes="[ADR-404]"), _STATUS_SECTION)
@@ -518,6 +476,75 @@ def test_scalar_supersedes_is_accepted_as_a_single_entry(tmp_path):
 
     assert counts["supersession-target-exists"] == 0
     assert counts["supersession-reciprocal"] == 0
+
+
+# --- status-edge-consistency --------------------------------------------------
+
+
+def test_superseded_status_with_resolved_edge_passes(tmp_path):
+    _pair(_adr_dir(tmp_path), old_successor="ADR-002", new_supersedes="[ADR-001]")
+
+    assert _counts(tmp_path)["status-edge-consistency"] == 0
+
+
+def test_superseded_status_with_no_edge_is_flagged(tmp_path):
+    """`status: superseded` but `superseded-by: null`: a retired record naming no successor."""
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1, status="superseded"), _STATUS_SECTION)
+
+    details = _hits(tmp_path, "status-edge-consistency")
+
+    assert len(details) == 1
+    assert "`superseded-by` is null" in details[0]
+
+
+def test_accepted_status_with_a_resolved_successor_edge_is_flagged(tmp_path):
+    """`status: accepted` while `superseded-by` names a live successor: contradictory."""
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        _valid(1, status="accepted", **{"superseded-by": "ADR-002"}),
+        _STATUS_SECTION,
+    )
+    _write(adr_dir, 2, _valid(2, supersedes="[ADR-001]"), _STATUS_SECTION)
+
+    details = _hits(tmp_path, "status-edge-consistency")
+
+    assert len(details) == 1
+    assert "must read status: superseded" in details[0]
+
+
+def test_deprecated_status_with_no_edge_is_exempt(tmp_path):
+    """`deprecated` records a shipped-then-abandoned decision (ADR-098), not a supersession."""
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1, status="deprecated"), _STATUS_SECTION)
+
+    assert _counts(tmp_path)["status-edge-consistency"] == 0
+
+
+def test_unresolved_superseded_by_does_not_double_report(tmp_path):
+    """A dangling `superseded-by` is `supersession-target-exists`'s finding, not this check's.
+
+    The "superseded but no successor" direction only fires when
+    `superseded-by` was never declared at all (``raw is None``). A record
+    naming a nonexistent id set ``superseded-by`` to something, so it is not
+    silent about a successor, it named a broken one; that is
+    `supersession-target-exists`'s finding to report, and this check must
+    not count the same defect a second time under its own name.
+    """
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        _valid(1, status="superseded", **{"superseded-by": "ADR-999"}),
+        _STATUS_SECTION,
+    )
+
+    counts = _counts(tmp_path)
+
+    assert counts["supersession-target-exists"] == 1
+    assert counts["status-edge-consistency"] == 0
 
 
 # --- proposed-cannot-supersede / implemented-implies-decided ----------------

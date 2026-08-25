@@ -57,7 +57,6 @@ if str(_SCRIPT_DIR) not in sys.path:
 # Shared infrastructure (subprocess wrapper, SKIP signal, base-ref helpers).
 from active_plan_closeout import validate_active_plan_closeout
 
-# Ratcheted ADR lifecycle gate (issue #5191) and the ADR link-integrity gate
 # (issue #5197). Both are re-exported here so
 # ``from scripts.validation.pre_pr import validate_adr_lifecycle`` and the
 # matching ``validate_adr_links`` import both resolve; the ordered row that

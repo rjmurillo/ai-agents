@@ -146,6 +146,9 @@ EXTERNAL_SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 # The four violation classes a baseline entry can name. Mirrors the literal
 # strings passed to Finding(kind=...) below (search this file for
 # 'Finding(' to confirm the set stays exhaustive as classes are added).
+# "stale-allowance" (see find_broken_adr_links) is deliberately excluded: a
+# stale-allowance finding reports that a baseline entry is unused, so a
+# baseline entry cannot itself allow one without defeating its own purpose.
 BASELINE_KINDS = frozenset({"unresolved", "absolute", "malformed", "number-mismatch"})
 
 
@@ -873,23 +876,30 @@ def find_broken_adr_links(
                 continue
             findings.append(finding)
 
-    # A full-corpus scan is the only run that can prove an allowance is dead:
-    # it visited every file the baseline can name. An entry left unconsumed
-    # there records a link that no longer exists, and a stale entry is not
-    # inert. Finding.key() carries no line number, so the dead entry goes on
-    # silently suppressing the first future finding that happens to share its
-    # kind, file, and target, and this gate passes green while the regression
-    # it was meant to catch is hidden (Copilot, PR #5209). A narrowed scan
-    # (``files`` given) proves nothing about the entries it never reached, so
-    # it must tolerate unused entries.
+    # An unused allowance never surfaces as a finding on its own: the loop
+    # above only discards a key it actually matched. Left unchecked, a
+    # baseline entry whose real finding was already fixed keeps silently
+    # suppressing the next unrelated regression that happens to produce the
+    # identical kind:file:target key, because the `in remaining_allowances`
+    # check above has no memory of whether an entry has EVER matched across
+    # runs, only within this one (Copilot, PR #5209). Only enforced on a
+    # full-corpus scan (`files is None`): a caller that explicitly narrows
+    # `files` to a subset is not claiming the rest of the baseline is
+    # unused, only that it did not look there this run.
     if files is None and remaining_allowances:
-        listed = "\n  ".join(sorted(remaining_allowances))
-        raise ValueError(
-            f"check_adr_links baseline has {len(remaining_allowances)} unused "
-            f"entry(ies): the link each one records is repaired or gone. Delete "
-            f"them, or they will silently suppress a future finding with the same "
-            f"kind:file:target:\n  {listed}"
-        )
+        for key in sorted(remaining_allowances):
+            kind, file, target = key.split(":", 2)
+            findings.append(
+                Finding(
+                    file,
+                    0,
+                    "stale-allowance",
+                    target,
+                    f"baseline entry for {kind!r} no longer matches any finding; "
+                    f"remove it from {DEFAULT_BASELINE} or it silently suppresses "
+                    "the next unrelated regression sharing this key",
+                )
+            )
     return findings
 
 

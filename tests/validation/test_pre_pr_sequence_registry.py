@@ -188,9 +188,13 @@ class TestSkipTestsFlag:
 
 
 class TestPrePrReexportsTheAdrValidators:
-    """``pre_pr.py``'s own docstring (issue #2223) promises: 'the imports below
+    """``pre_pr.py``'s own docstring (issue #2223) says: 'the imports below
     keep ``from scripts.validation.pre_pr import X`` working for callers and
-    tests' for every validator, not just the ones an author remembers to add.
+    tests', immediately followed by an explicit disclaimer that the facade is
+    not exhaustive (issue #5272). The re-export promise still applies to
+    whichever validators are wired into ``pre_pr_sequence._SEQUENCE``, so a
+    validator run there without a matching re-export is a defect even though
+    the module no longer claims full coverage.
 
     ``check_adr_links.py``'s ``validate_adr_links`` was wired into
     ``pre_pr_sequence._SEQUENCE`` without the matching re-export in

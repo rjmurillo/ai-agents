@@ -793,6 +793,47 @@ Regenerated; `--check` clean. Full detail in that addendum.
 
 ## Addendum 28: same rebind as Addendum 26 of the campaign report
 
+Cursor Bugbot caught a real merge-resolution mistake: ADR-005's date was
+left at origin/main's value (ADR-042's own date) instead of this
+branch's prose-matching value, contradicting this report's own claim.
+Fixed, with a debate-log correction. Full detail in that addendum.
+
+**Rebound to** `6471bbdd22424244dabf0aa1e3e9b70c3ae9e8f7`.
+
+## Addendum 29: same rebind as Addendum 27 of the campaign report
+
+An eleventh Copilot review round, three commits: two stale ratchet
+ceilings lowered to 0, a new status-edge-consistency check added, a
+silent stale-allowance gap in check_adr_links.py fixed, two wording
+fixes. Full detail, including the flake-confirmation evidence for
+tests/test_mutation_workspace_signals.py, in that addendum.
+
+**Rebound to** `15fc72fdab4ba7a7cf01e6712f1fcc53df6cb982`.
+
+## Addendum 30: same rebind as Addendum 28 of the campaign report
+
+A second merge from `origin/main` (PR #5283's ADR-005/ADR-042/ADR-103
+status reconciliation), 5 conflicts resolved by inspection. Full
+detail, including the date-field reasoning and the mirror-regeneration
+choice over hand-editing, in that addendum.
+
+**Rebound to** `63bac7e5615f1c3417e971272100e918ced03788`.
+
+## Addendum 31: same rebind as Addendum 29 of the campaign report
+
+A confirmed `python-tests` flake diagnosed (5/5 clean isolated re-runs) on
+the prior push attempt, then a third merge from `origin/main` bringing in
+PR #5286's squash-merge (ADR-052 accepted, ADR-036 superseded). The merge
+surfaced the stale-allowance detector's first real finding: PR #5286 fixed
+the broken link the baseline had been allowing, so the allowance was
+removed. Full detail, including the flake diagnosis and the stale-allowance
+removal reasoning, in that addendum.
+
+**Rebound to** `99066a857d9e6dd4efe5cbaf00c12f987bdeb005`.
+## Addendum 32: an eleventh Copilot review round, 61 unresolved threads, not 9 (reconciled with a concurrent session)
+
+Both sessions independently fixed the same round-11 review from the same starting commit and diverged in the file this session's own push discovered `origin/claude/adr-evaluation-tooling-6od8rd` had moved past this branch (Addenda 28 to 31 above, from the concurrent session). Merged rather than either side discarding the other's work; the design choices made during that reconciliation (which of two independent fixes to `check_adr_lifecycle.py`'s status-to-edge check and `check_adr_links.py`'s stale-allowance detector to keep) are recorded in Addendum 30 of the campaign report, not repeated here.
+
 An eleventh Copilot review round found 61 unresolved threads (a prior
 session summary had tracked only 9 before a context compaction). Fixed via
 four disjoint-file implementer subagents plus direct work on
@@ -807,6 +848,6 @@ skill's overbroadened ADR-042 exception. Two self-inflicted regressions
 by `pre_pr.py` before push and fixed in the same round. Two `origin/main`
 merges, five conflicts resolved by reading both sides' evidence. Full
 detail, including what was investigated and deliberately left unchanged,
-in Addendum 26 of the campaign report.
+in Addendum 30 of the campaign report.
 
 **Rebound to** `23f3cfaca067204591ff5287647ea960ec320f40`.

@@ -1479,7 +1479,128 @@ The full `python-tests` suite then surfaced a real, narrow regression: `tests/ci
 
 **Rebound to** `bfd3a008d336ff6e4d8e50ef4cdb766a457d1a6a`.
 
-## Addendum 26: an eleventh Copilot review round, 61 unresolved threads, not 9
+## Addendum 26: Cursor Bugbot caught a real merge-resolution mistake on ADR-005's date
+
+The ADR-005/ADR-042 conflict resolution in Addendum 24 above claimed "this
+branch's values matched the files' own prose exactly, so kept" for both
+records. True for ADR-042; false for ADR-005, where the committed
+frontmatter actually kept origin/main's `2026-01-17` (ADR-042's own
+supersession date, not ADR-005's) instead of this branch's
+prose-matching `2025-12-18`. Cursor Bugbot flagged the contradiction
+between the committed file and this report's own claim. Fixed by
+restoring `2025-12-18`, with a correction appended to
+`.agents/critique/ADR-005-status-duplication-debate-log.md` per ADR-073's
+evidence requirement (commit `6471bbdd2`). Re-verified: `check_adr_lifecycle.py`
+unchanged (`[PASS] 1 violation(s) across 102 ADR record(s)`), `check_adr_links.py`
+0 violations, `build_all.py --check` clean (the date is not rendered in the
+generated index's Retired-section row, so no regeneration needed).
+
+**Rebound to** `6471bbdd22424244dabf0aa1e3e9b70c3ae9e8f7`.
+
+## Addendum 27: an eleventh Copilot review round, three commits
+
+Six findings fixed across three commits (`58f54b806`, `bec815948`,
+`15fc72fda`): two stale `adr_lifecycle_baseline.json` ceilings (53, 10,
+both already 0 in the live corpus since the origin/main merge) lowered
+to 0; a new ratcheted `status-edge-consistency` check added to
+`check_adr_lifecycle.py` (status: superseded requires a resolved
+successor edge and vice versa, `deprecated` exempt), 0 violations on
+the real corpus; a silent stale-allowance gap in `check_adr_links.py`
+fixed (an unused baseline entry now reports as its own finding on a
+full-corpus scan); two wording-accuracy fixes
+(`memory-gate/SKILL.md` + its Copilot mirror, `pre_pr.py`'s comment).
+Full detail in the three commits' own messages. Re-verified:
+`check_adr_lifecycle.py` `[PASS] 1 violation(s) across 102 ADR
+record(s)`, `check_adr_links.py` 0 violations, `build_all.py --check`
+clean, `tests/test_mutation_workspace_signals.py` (8 tests) passed
+clean in isolation after two contention-driven timeouts were confirmed
+as flakes (both coincided with a concurrent push's own python-tests
+phase running in a sibling worktree; a clean re-run with no other
+push or pytest process active passed all 8).
+
+**Rebound to** `15fc72fdab4ba7a7cf01e6712f1fcc53df6cb982`.
+
+## Addendum 28: merged `origin/main` again, resolved 5 conflicts
+
+`origin/main` advanced past the previous merge with PR #5283 (ADR-005/
+ADR-042/ADR-028/ADR-031/ADR-056 status reconciliation, plus the new
+ADR-103). Merging conflicted on 5 files, all resolved by inspection:
+
+- `ADR-005`: date/decision-makers conflict. This branch's `2025-12-18`
+  date matched the file's own prose (kept); origin's `decision-makers`
+  (`[User, Orchestrator Agent, Implementer Agent]`) matched the prose
+  `**Deciders**:` line exactly, more accurate than this branch's
+  `[rjmurillo]` (adopted).
+- `ADR-042`: date conflict. Origin's `2026-08-25` reflects a real,
+  same-day frontmatter addition (`supersedes: [ADR-005]`), a
+  legitimate "last updated" value distinct from the file's own
+  `## Date` prose section (`2026-01-17`, the original decision date,
+  unchanged); kept.
+- `.claude/skills/memory-gate/SKILL.md` (+ Copilot mirror): both sides
+  fixed the same bullet's citation-of-superseded-ADR-as-current-policy
+  problem, origin's rewrite is the more complete fix (this branch's was
+  a narrower wording correction inside the framing origin replaced
+  entirely); kept origin's, regenerated the mirror via
+  `build/scripts/generate_skills.py` rather than hand-editing it.
+- `scripts/forgetful/README.md`: a stale `.ps1` filename in this
+  branch's copy vs. origin's correct `.py` filename (verified the `.py`
+  file exists, the `.ps1` does not); kept origin's.
+
+Merge commit `63bac7e5615f1c3417e971272100e918ced03788`. Re-verified
+post-merge: `check_adr_lifecycle.py` `[PASS] 1 violation(s) across 103
+ADR record(s)` (including a clean `status-edge-consistency` result
+against PR #5283's new reciprocal ADR-005/ADR-042 edges), `check_adr_
+links.py` 0 violations across 1591 files, `taste_count_ratchet.py` `575
+<= baseline 576`, `tests/validation/test_check_adr_lifecycle.py` +
+`test_check_adr_links.py` + `tests/build_scripts/test_generate_adr_
+index.py` (311 tests) passed.
+
+**Rebound to** `63bac7e5615f1c3417e971272100e918ced03788`.
+
+## Addendum 29: merged PR #5286's squash-merge, fixed the first real `stale-allowance` finding
+
+The prior push attempt (commit `c921f9058`) failed with `GIT_PUSH_REAL_EXIT=1`
+after `python-tests` ran 684.84s. Diagnosed the failure from the push log:
+`tests/test_pr_autofix_late_live_state_gate.py::test_fast_exit_reports_
+lease_loss_after_wait[.claude/commands/pr-autofix.md]` failed on a timing
+assertion (`mutation_command="true"`, `LEASE_RENEWAL_INTERVAL_SECONDS=0.05`,
+inherently race-dependent under `python-tests`' full parallel xdist load).
+Confirmed no concurrent push or pytest process was running, then re-ran the
+single test 5 times in isolation: 5/5 passed. Confirmed flake, not a
+regression, per the CI-feedback re-run-once-to-confirm rule.
+
+Separately, `origin/main` had advanced 1 commit past this branch's last
+merge base: PR #5286 (`f3fad42a5`, accepting ADR-052 and superseding
+ADR-036) squash-merged while the failed push was in flight. Fetched and
+merged `origin/main` (`6a937fe99`); the merge was conflict-free (PR #5286's
+files, this branch's ADR-052/ADR-036 debate-log and retrospective work were
+disjoint).
+
+Post-merge re-verification surfaced a new `check_adr_links.py` finding:
+`stale-allowance` on `scripts/validation/check_adr_links_baseline.txt` line
+74 (`unresolved:templates/AGENTS.md:../agents/architecture/ADR-036-...`).
+This is the detector added earlier this branch (PR #5209 review response)
+firing on its first real case: PR #5286 fixed `templates/AGENTS.md`'s
+broken `../agents/...` link (missing the leading dot) to the correct
+`../.agents/...` path, which resolved the defect the baseline entry had
+been allowing. Removed the stale entry, updated the header's entry-count
+comment (18, was 19; `test_baseline_header_counts_match_the_live_file`
+re-measures it), regenerated `.agents/architecture/README.md`
+(`generate_adr_index.py`, picking up PR #5286's status/supersession edges).
+
+Re-verified: `check_adr_lifecycle.py` `[PASS] 1 violation(s) across 103 ADR
+record(s)`; `check_adr_links.py` `0 violation(s) across 1591 tracked
+markdown file(s)` (down from 1, the stale-allowance finding, before the
+fix); `taste_count_ratchet.py` `575 <= baseline 576`;
+`tests/validation/test_check_adr_lifecycle.py` +
+`test_check_adr_links.py` + `tests/build_scripts/test_generate_adr_
+index.py` (311 tests) passed. Commits: `241d1aad5` (index regen),
+`99066a857` (stale-allowance fix).
+
+**Rebound to** `99066a857d9e6dd4efe5cbaf00c12f987bdeb005`.
+## Addendum 30: an eleventh Copilot review round, 61 unresolved threads, not 9 (independent of Addenda 26 to 29)
+
+This addendum and Addenda 26 to 29 below were written independently by two concurrent sessions working the same branch: neither knew of the other's commits until this addendum's own push discovered `origin/claude/adr-evaluation-tooling-6od8rd` had diverged (a merge required, not a fast-forward). Merged and reconciled rather than one side discarding the other; see "Reconciling with the concurrent session" below for what that took.
 
 `git rev-list HEAD ^origin/main` had advanced past `origin/main` (the stack's out-of-date banner) after Addendum 25's rebind; `origin/main` merged, then re-merged a second time as it advanced again mid-round (two commits, five conflicts). Fetching this PR's live review threads directly (`get_review_comments`, filtered `isResolved == false`) found 61 unresolved threads, not the smaller count a prior session summary had tracked before a context compaction. Investigating each against the actual current code, rather than the review text alone, found roughly a third already fixed in earlier rounds and never marked resolved on GitHub; the rest split across four independent files, each handed to a separate implementer subagent scoped to disjoint files (so no two agents could git-conflict), plus this session's own direct work on `check_adr_lifecycle.py`.
 
@@ -1505,4 +1626,51 @@ The full `python-tests` suite then surfaced a real, narrow regression: `tests/ci
 
 **Full-suite evidence.** After the complexity/mypy fixes: `uv run pytest tests/ -q --timeout=300` → 28234 passed, 77 skipped, real exit 0 (verified from the log's captured exit line, not the backgrounded task notification, per this session's own standing distrust of that notification). `scripts/validation/pre_pr.py` full run, iterated to green across three passes as each real failure surfaced (merge-tree-ratchet needing the second main merge, the mypy dual-module-name error, the ADR-036 unused-allowance rejection): all validators pass except this file's own rebind (below). `ruff check` and the taste-count ratchet (576, at baseline) both clean on every touched file.
 
-**Rebound to** `23f3cfaca067204591ff5287647ea960ec320f40`.
+### Reconciling with the concurrent session's independent round-11 work
+
+Both sessions fixed the same Copilot review round from the same starting
+point and diverged on two designs. Both were kept, resolved by adopting
+whichever session's approach was simpler and already tested, not by session
+identity:
+
+- **`check_adr_lifecycle.py`'s status-to-edge check.** This session extended
+  `supersession-reciprocal` in place (no new check name), which needed a
+  5-helper-function split to clear a complexity ceiling the extension
+  pushed past. The concurrent session added a separate `status-edge-
+  consistency` check (an 8th check name), a single ~25-line function with no
+  complexity issue. Adopted the concurrent session's design: simpler,
+  already tested, and it does not grow the same complexity problem this
+  session then had to fix separately. This session's reciprocity helpers
+  were reverted to their pre-split, 3-loop inline form (the form no longer
+  needs splitting once the status-edge logic lives in its own function);
+  the mypy `_run_subprocess` import fix and the `--write-baseline` base-ref
+  ratchet, both unique to this session, are unaffected and kept. Module
+  docstring, the file-size suppression's check count, and this file's own
+  test-file suppression all updated from "seven" to "eight" checks.
+- **`check_adr_links.py`'s stale-allowance detector.** This session raised
+  a `ValueError` on an unused baseline entry (a full-corpus-scan-only hard
+  failure). The concurrent session reported it as a regular `Finding` with
+  kind `"stale-allowance"`, consistent with how every other defect this
+  gate finds is already represented, and already had `BASELINE_KINDS`
+  documentation explaining the exclusion. Adopted the concurrent session's
+  design; this session's four tests asserting the `ValueError` contract
+  were replaced by the concurrent session's equivalent `Finding`-based
+  tests (already covering the same ground), with one kept and adjusted
+  (`test_main_returns_one_on_a_stale_baseline_entry`, since a `Finding`
+  contributes to the normal violation count, exit 1, not the config-error
+  exit 2 the old contract used). This session's reference-style-link
+  parsing, its own three-direction baseline provenance work (base-ref
+  existence check, shape enforcement), and `generate_adr_index.py`'s
+  fence-aware extraction have no equivalent in the concurrent session and
+  are kept as this session wrote them.
+- Both sessions independently fixed `memory-gate/SKILL.md`'s ADR-042
+  wording and `pre_pr.py`'s facade-coverage comment, worded almost
+  identically; the concurrent session's `pre_pr.py` module-docstring fix
+  (this session's own comment fix builds on it, unchanged by the
+  concurrent session) was kept since it is the one both sides' comment
+  fixes actually depend on for context.
+
+Re-verified after reconciliation: `tests/validation/test_check_adr_lifecycle.py`
+(130 tests), `tests/validation/test_check_adr_links.py` (142 tests),
+`ruff check` and `taste_lints.py` on every touched file, all clean.
+

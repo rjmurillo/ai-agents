@@ -810,6 +810,44 @@ def test_a_second_identical_finding_is_not_covered_by_one_allowance(tmp_path: Pa
     assert [finding.line for finding in findings] == [2]
 
 
+def test_stale_allowance_is_reported_on_a_full_corpus_scan(tmp_path: Path) -> None:
+    """An unused baseline entry surfaces as its own finding, not silence.
+
+    A full-corpus scan (``files=None``, the shape ``main()`` always uses) that
+    never matches a baseline entry means the defect it once allowed is
+    already fixed. Leaving the entry in place is not neutral: the next
+    unrelated regression that happens to produce the identical
+    ``kind:file:target`` key is silently suppressed by an allowance nobody
+    remembers granting (Copilot, PR #5209).
+    """
+    key = "unresolved:adr/index.md:ADR-005-gone.md"
+
+    findings = find_broken_adr_links(tmp_path, baseline={key}, tracked=frozenset())
+
+    assert len(findings) == 1
+    finding = findings[0]
+    assert finding.kind == "stale-allowance"
+    assert finding.file == "adr/index.md"
+    assert finding.target == "ADR-005-gone.md"
+
+
+def test_stale_allowance_is_not_reported_on_a_narrowed_scan(tmp_path: Path) -> None:
+    """A caller that explicitly narrows ``files`` is not claiming full coverage.
+
+    Passing ``files=[...]`` scopes the scan to a subset. A baseline entry the
+    scan never had a chance to visit is not evidence the entry is stale, only
+    that this run did not look there; flagging it here would make every
+    scoped, per-file lint run (e.g. a pre-commit hook checking staged files
+    only) fail on baseline entries that belong to files outside the diff.
+    """
+    doc = write(tmp_path, "adr/other.md", "no links here\n")
+    key = "unresolved:adr/index.md:ADR-005-gone.md"
+
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline={key}, tracked=frozenset())
+
+    assert findings == []
+
+
 def test_whole_file_baseline_entry_is_rejected_as_malformed(tmp_path: Path) -> None:
     """A bare filename must not become a silent, unbounded wildcard.
 
@@ -897,48 +935,8 @@ def test_malformed_baseline_entries_rejects_the_rest(entry: str) -> None:
     assert entry in check_adr_links._malformed_baseline_entries({entry})
 
 
-def test_an_unused_allowance_fails_a_full_corpus_scan(tmp_path: Path) -> None:
-    """A repaired link's baseline entry must be deleted, not left to rot.
-
-    On a full-corpus scan every file a baseline entry can name was visited,
-    so an entry left unconsumed records a link that no longer exists. Passing
-    green on that stale entry is not harmless: ``Finding.key()`` carries no
-    line number, so the dead entry goes on suppressing the first future
-    finding that shares its kind, file, and target, and the regression it was
-    meant to catch never surfaces (Copilot, PR #5209).
-    """
-    write(tmp_path, "adr/ADR-005-x.md", "# target\n")
-    write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-x.md)\n")
-    baseline = {"unresolved:adr/index.md:ADR-005-gone.md"}
-
-    with pytest.raises(ValueError, match="unused"):
-        find_broken_adr_links(
-            tmp_path,
-            baseline=baseline,
-            tracked=frozenset({"adr/ADR-005-x.md", "adr/index.md"}),
-        )
-
-
-def test_a_narrowed_scan_tolerates_an_unused_allowance(tmp_path: Path) -> None:
-    """A scan that never reached a file proves nothing about its entries.
-
-    The unused-allowance check is deliberately scoped to ``files is None``:
-    failing a single-file lint because an entry for some other file went
-    unmatched would make the narrowed mode unusable.
-    """
-    doc = write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
-    baseline = {
-        "unresolved:adr/index.md:ADR-005-gone.md",
-        "unresolved:other/file.md:ADR-006-gone.md",
-    }
-
-    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=baseline, tracked=frozenset())
-
-    assert findings == []
-
-
 def test_a_consumed_allowance_does_not_count_as_unused(tmp_path: Path) -> None:
-    """Positive control for the check above: a matched entry passes a full scan."""
+    """Positive control: a matched entry passes a full scan with no findings at all."""
     write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
     baseline = {"unresolved:adr/index.md:ADR-005-gone.md"}
 
@@ -949,7 +947,8 @@ def test_a_consumed_allowance_does_not_count_as_unused(tmp_path: Path) -> None:
     assert findings == []
 
 
-def test_main_returns_two_on_a_stale_baseline_entry(tmp_path: Path, capsys) -> None:
+def test_main_returns_one_on_a_stale_baseline_entry(tmp_path: Path, capsys) -> None:
+    """A stale-allowance finding is a regular violation (exit 1), not a config error."""
     write(tmp_path, "adr/ADR-005-x.md", "# target\n")
     write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-x.md)\n")
     baseline = tmp_path / "baseline.txt"
@@ -958,8 +957,8 @@ def test_main_returns_two_on_a_stale_baseline_entry(tmp_path: Path, capsys) -> N
 
     exit_code = main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
 
-    assert exit_code == 2
-    assert "unused" in capsys.readouterr().err
+    assert exit_code == 1
+    assert "stale-allowance" in capsys.readouterr().out
 
 
 # Baseline provenance: entries must already exist at the base ref
