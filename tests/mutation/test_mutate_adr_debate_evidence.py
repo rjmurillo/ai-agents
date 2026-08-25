@@ -5,8 +5,8 @@ the check: each mutant reverts one defect this gate is supposed to stop, and
 the #5205 regression suite has to come back red. If it does not, those tests
 are decoration.
 
-Five mutants and one inverted control. Two revert the defects #5205
-reported; three revert defects found by review of this PR, which are as much
+Six mutants and one inverted control. Two revert the defects #5205
+reported; four revert defects found by review of this PR, which are as much
 part of the contract as the originals:
 
   M4 (positive): neuter the evidence gate, so a name-shaped stub clears again.
@@ -27,6 +27,10 @@ part of the contract as the originals:
   M8 (positive): drop the unfilled-template placeholder check, so the shipped
       template with only its title changed self-authorizes an ADR lifecycle
       change. Expected: DEAD.
+
+  M9 (positive): restore the unbounded positions-table fallback, so any pipe
+      row naming a role beside a decision word counts as a verdict even when
+      it records an open issue rather than a decision. Expected: DEAD.
 
   IC (inverted control): change a comment only. Expected: SURVIVED. Without it
       a harness that reports DEAD unconditionally looks identical to a working
@@ -71,7 +75,7 @@ _OUTCOME_DID_NOT_APPLY = "DID-NOT-APPLY"
 # Same ordering contract as the sibling harness: the outer cap MUST exceed the
 # inner one, or pytest-timeout interrupts inside subprocess.communicate and the
 # failure names no command (issue #5102). The inner suite here is
-# two files of 48 cases total, well under the sibling's ~943, so these caps
+# two files of 50 cases total, well under the sibling's ~943, so these caps
 # carry wide margin.
 _INNER_SUBPROCESS_TIMEOUT_SECONDS = 300
 _OUTER_TEST_TIMEOUT_SECONDS = 360
@@ -282,6 +286,37 @@ def test_m8_accepting_an_unfilled_template_is_detected(scratch_worktree: Path) -
 
 
 # ---------------------------------------------------------------------------
+# M9: restore the unbounded positions-table fallback deleted after review of
+# PR #5308
+# ---------------------------------------------------------------------------
+
+_M9_ORIGINAL = b"""    lines = content.splitlines()
+    for index, line in enumerate(lines):
+"""
+_M9_MUTANT = b"""    lines = content.splitlines()
+    if any(  # M9 mutant: unbounded positions-table fallback restored
+        candidate.lstrip().startswith("|")
+        and DEBATE_LOG_ROLE_RE.search(candidate)
+        and DEBATE_LOG_DECISION_RE.search(candidate)
+        for candidate in lines
+    ):
+        return True
+    for index, line in enumerate(lines):
+"""
+
+
+@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
+def test_m9_unbounded_positions_table_fallback_is_detected(scratch_worktree: Path) -> None:
+    """A role beside a decision word in prose notes must not read as a verdict."""
+    original = (REPO_ROOT / _TARGET_REL).read_bytes()
+    outcome = _apply_positive_mutant(
+        scratch_worktree, original, _M9_ORIGINAL, _M9_MUTANT, "M9-unbounded-table"
+    )
+    assert outcome == _OUTCOME_DEAD
+    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M9"
+
+
+# ---------------------------------------------------------------------------
 # IC: comment-only change; the suite MUST survive it
 # ---------------------------------------------------------------------------
 
@@ -317,7 +352,7 @@ def _tests_running_the_inner_suite() -> list[str]:
 def test_every_inner_suite_test_raises_the_outer_timeout() -> None:
     """Report the scope alongside the finding (testing.md MUST 10)."""
     names = _tests_running_the_inner_suite()
-    assert len(names) == 6, f"Expected 6 inner-suite tests, discovered {len(names)}: {names}"
+    assert len(names) == 7, f"Expected 7 inner-suite tests, discovered {len(names)}: {names}"
 
     unmarked = [
         name
