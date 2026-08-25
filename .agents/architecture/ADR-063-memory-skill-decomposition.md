@@ -1,3 +1,14 @@
+---
+id: ADR-063
+status: accepted
+date: 2026-06-01
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-063: Decompose the Memory Skill Into Focused Sub-Skills
 
 ## Status

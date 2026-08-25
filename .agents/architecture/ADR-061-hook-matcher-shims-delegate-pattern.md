@@ -1,8 +1,27 @@
+---
+id: ADR-061
+status: rejected
+date: 2026-05-27
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
+---
+
 # ADR-061: Hook Matcher Shims Delegate to Canonical Body
 
 ## Status
 
 Withdrawn (2026-05-27, before acceptance, based on 6-agent debate verdict)
+
+The ADR-073 lifecycle frontmatter on this record carries `status: rejected`. The
+schema enum is `proposed | accepted | rejected | deprecated | superseded` and has
+no `withdrawn` member. `rejected` is the enum value this repository already uses
+for a proposal that was declined before acceptance and is retained so it stays
+findable: see ADR-095, whose prose reads "Rejected. Recorded so the proposal is
+findable and does not return." The prose above remains the accurate account of
+what happened; the enum is the machine-readable approximation of it.
 
 ## Date
 

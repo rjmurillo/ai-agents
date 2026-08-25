@@ -1,3 +1,14 @@
+---
+id: ADR-060
+status: accepted
+date: 2026-05-25
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-060: Rework Warning Evidence Persistence in Session Log JSON
 
 ## Status

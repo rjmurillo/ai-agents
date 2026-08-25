@@ -1,3 +1,14 @@
+---
+id: ADR-062
+status: accepted
+date: 2026-05-31
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-062: Conditional LSP-First Navigation Enforcement
 
 ## Status
