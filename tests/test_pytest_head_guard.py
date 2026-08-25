@@ -12,6 +12,7 @@ import json
 import os
 import subprocess
 import tempfile
+import types
 import warnings
 from pathlib import Path
 
@@ -503,6 +504,127 @@ def test_check_head_change_warns_for_external_concurrent_commit(tmp_path, monkey
 
     with pytest.warns(UserWarning, match="concurrent external commit"):
         module._check_head_change(BEFORE_SHA, AFTER_SHA, "pytest-head-guard:test", trace_path)
+
+
+def test_check_head_change_fails_loud_when_call_failed_and_commit_is_concurrent(
+    tmp_path, monkeypatch
+):
+    """Issue #5123: escalate to a distinct, greppable failure when the test's own
+    call phase already failed and the HEAD move is not attributable to it."""
+    module = _load_root_conftest()
+    _silence_subject(module, monkeypatch)
+    monkeypatch.setattr(module, "_reflog_contains_action", lambda _marker: False)
+    monkeypatch.setattr(module, "_trace_has_project_head_mutation", lambda _path: False)
+    trace_path = tmp_path / "git-trace.json"
+
+    with pytest.raises(pytest.fail.Exception, match="#5123") as excinfo:
+        module._check_head_change(
+            BEFORE_SHA,
+            AFTER_SHA,
+            "pytest-head-guard:test",
+            trace_path,
+            call_failed=True,
+        )
+
+    message = str(excinfo.value)
+    assert "not meaningful" in message
+    assert "concurrent external commit" in message
+
+
+def test_check_head_change_still_warns_when_call_failed_but_head_is_unchanged(monkeypatch):
+    """call_failed alone must not manufacture a failure when HEAD never moved."""
+    module = _load_root_conftest()
+    _silence_subject(module, monkeypatch)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        module._check_head_change("aaaaaaaa1111", "aaaaaaaa1111", call_failed=True)
+
+    assert caught == []
+
+
+def test_check_head_change_attributed_mutation_ignores_call_failed(monkeypatch):
+    """A real test-launched mutation stays #2316 regardless of call_failed; #5123
+    is reserved for HEAD movement the guard could not attribute to the test."""
+    module = _load_root_conftest()
+    monkeypatch.setattr(module, "_reflog_contains_action", lambda _marker: True)
+
+    with pytest.raises(pytest.fail.Exception, match="test-launched Git command") as excinfo:
+        module._check_head_change(
+            BEFORE_SHA, AFTER_SHA, "pytest-head-guard:test", None, call_failed=True
+        )
+
+    assert "#5123" not in str(excinfo.value)
+
+
+def test_pytest_runtest_makereport_stashes_call_phase_outcome():
+    module = _load_root_conftest()
+    node = types.SimpleNamespace(stash={})
+    call = types.SimpleNamespace(when="call")
+    report = types.SimpleNamespace(failed=True)
+
+    generator = module.pytest_runtest_makereport(node, call)
+    next(generator)
+    with pytest.raises(StopIteration) as excinfo:
+        generator.send(report)
+
+    assert excinfo.value.value is report
+    assert node.stash[module._CALL_FAILED_STASH_KEY] is True
+
+
+def test_pytest_runtest_makereport_ignores_setup_and_teardown_phases():
+    module = _load_root_conftest()
+    node = types.SimpleNamespace(stash={})
+    report = types.SimpleNamespace(failed=True)
+
+    for when in ("setup", "teardown"):
+        call = types.SimpleNamespace(when=when)
+        generator = module.pytest_runtest_makereport(node, call)
+        next(generator)
+        with pytest.raises(StopIteration):
+            generator.send(report)
+
+    assert module._CALL_FAILED_STASH_KEY not in node.stash
+
+
+def test_guard_fixture_escalates_when_stash_marks_call_failed(monkeypatch):
+    """Wiring test: the fixture reads the stash the hook writes, end to end
+    through `_guard_real_repo_head`, and escalates the #3109 warning to a
+    #5123 failure exactly when the stash says the call phase failed."""
+    module = _load_root_conftest()
+    _silence_subject(module, monkeypatch)
+    monkeypatch.setattr(module, "_reflog_contains_action", lambda _marker: False)
+    monkeypatch.setattr(module, "_trace_has_project_head_mutation", lambda _path: False)
+    heads = iter(["aaaaaaaa1111", "bbbbbbbb2222"])
+    monkeypatch.setattr(module, "_real_repo_head", lambda: next(heads))
+    node = types.SimpleNamespace(stash={module._CALL_FAILED_STASH_KEY: True})
+    request = types.SimpleNamespace(node=node)
+
+    generator = module._guard_real_repo_head.__wrapped__(request)
+    next(generator)
+
+    with pytest.raises(pytest.fail.Exception, match="#5123"):
+        next(generator)
+
+
+def test_guard_fixture_stays_a_warning_when_stash_has_no_entry(monkeypatch):
+    """Same wiring, opposite input: an empty stash (test passed, or no report
+    hook ran) must not manufacture the #5123 escalation."""
+    module = _load_root_conftest()
+    _silence_subject(module, monkeypatch)
+    monkeypatch.setattr(module, "_reflog_contains_action", lambda _marker: False)
+    monkeypatch.setattr(module, "_trace_has_project_head_mutation", lambda _path: False)
+    heads = iter(["aaaaaaaa1111", "bbbbbbbb2222"])
+    monkeypatch.setattr(module, "_real_repo_head", lambda: next(heads))
+    node = types.SimpleNamespace(stash={})
+    request = types.SimpleNamespace(node=node)
+
+    generator = module._guard_real_repo_head.__wrapped__(request)
+    next(generator)
+
+    with pytest.warns(UserWarning, match="#3109"):
+        with pytest.raises(StopIteration):
+            next(generator)
 
 
 @pytest.mark.parametrize(
