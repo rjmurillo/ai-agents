@@ -60,6 +60,7 @@ jobs:
               - 'build/generate_agent_catalog.py'
               - 'build/scripts/**'
               - 'scripts/validation/**'
+              - '.agents/architecture/**'
               - '.claude/**'
               - 'lefthook.yml'
               - '.config/lefthook.yml'

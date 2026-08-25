@@ -535,6 +535,7 @@ def test_run_returns_2_when_formerly_deferred_mirror_drifts(
     )
     repo = tmp_path / "repo"
     (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     monkeypatch.setattr(
@@ -565,6 +566,7 @@ def test_run_returns_2_when_multiple_skill_mirrors_drift(
     )
     repo = tmp_path / "repo"
     (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     monkeypatch.setattr(
@@ -588,6 +590,7 @@ def test_run_returns_2_when_generator_writes_claude(
     monkeypatch.setattr(build_all, "_git_diff_paths", lambda repo_root: [])
     repo = tmp_path / "repo"
     (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
 
@@ -1073,6 +1076,7 @@ def test_run_check_leaves_clean_tree_unchanged_when_committed_outputs_stale(
     _init_git_repo(repo)
     # Source skill that the generator will copy from.
     (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")  # content: "# alpha\n"
     _write_platform_with_skills(repo, provider="copilot-cli")
     # Pre-commit a STALE output (content differs from source). This is the
