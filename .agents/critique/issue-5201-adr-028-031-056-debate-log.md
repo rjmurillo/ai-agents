@@ -273,3 +273,34 @@ Both critic P1s addressed in this same round, not deferred:
 Re-verified after both fixes: `uv run python -m pytest tests/test_skill_output.py -q` -> 33 passed (up from 32; new test added). `grep` for `validate_skill_output` across the gate surfaces still returns zero hits, confirming the scoped claim is now accurate rather than aspirational.
 
 **Consensus reached**: 3 Accept (security, architect, critic-after-fix). No seat votes Block on the final state. Issue #5299 tracks the still-open "wire it into a real gate" question as a deliberate fast-follow, not a blocker for this PR.
+
+## Round 7: Cursor Bugbot finding on commit 508917d4b
+
+Cursor Bugbot (learned rule: "Configuration-set tests must include a converse
+guard") flagged `tests/test_skill_output.py:37`: the parametrized
+`test_validates_error_types` only asserted each `write_skill_error`-accepted
+type is also accepted by the schema and validator. It never asserted the
+reverse: a value added only to the schema's enum or only to
+`validate_skill_output.py`'s `VALID_ERROR_TYPES` would never appear in
+`write_skill_error`'s own (until this round, function-local) allow-list, so
+it would never enter the parametrize list, and the test would stay green
+while the two artifacts silently disagreed. This is the same "three contract
+copies can drift" failure class Round 5's critic seat found, caught again
+one direction over.
+
+**Fix**: promoted `write_skill_error`'s `valid_types` tuple from a local
+literal to the module-level `VALID_ERROR_TYPES` constant in
+`scripts/github_core/output.py` (mirrored to `.claude/lib/` and
+`src/copilot-cli/lib/` via `sync_plugin_lib.py` then
+`build_all.py --platform copilot-cli`). `test_validates_error_types`'s
+parametrize list now derives from that constant directly instead of a second
+hardcoded copy. Added `test_error_type_contracts_stay_in_sync`, asserting
+three-way set equality between `output.py`'s `VALID_ERROR_TYPES`,
+`validate_skill_output.py`'s `VALID_ERROR_TYPES`, and the schema's enum.
+Proved the new test discriminates: hand-inserted an extra value into a
+scratch copy of the validator's `VALID_ERROR_TYPES`, confirmed
+`test_error_type_contracts_stay_in_sync` failed while the rest of the suite
+stayed green, then reverted the scratch edit. Re-verified:
+`uv run pytest tests/test_skill_output.py -q` -> 34 passed (up from 33; one
+test added). `uv run ruff check` and `uv run mypy` clean on the three
+touched files.

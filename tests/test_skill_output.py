@@ -24,7 +24,13 @@ SCRIPTS_DIR = REPO_ROOT / "scripts"
 sys.path.insert(0, str(REPO_ROOT))
 
 # isort: skip_file
-from scripts.github_core.output import get_output_format, write_skill_error, write_skill_output  # noqa: E402
+from scripts.github_core.output import (  # noqa: E402
+    VALID_ERROR_TYPES,
+    get_output_format,
+    write_skill_error,
+    write_skill_output,
+)
+from scripts.validate_skill_output import VALID_ERROR_TYPES as VALIDATOR_ERROR_TYPES  # noqa: E402
 from scripts.validate_skill_output import validate_envelope  # noqa: E402
 
 # Read the committed schema's Error.Type enum directly (ADR-103), not a
@@ -125,30 +131,22 @@ class TestWriteSkillError:
         assert envelope["Success"] is False
         assert envelope["Data"]["Number"] == 99
 
-    @pytest.mark.parametrize(
-        "error_type",
-        [
-            "NotFound",
-            "ApiError",
-            "AuthError",
-            "InvalidParams",
-            "RateLimitError",
-            "Timeout",
-            "General",
-            "VerificationFailed",
-        ],
-    )
+    @pytest.mark.parametrize("error_type", sorted(VALID_ERROR_TYPES))
     def test_validates_error_types(
         self, error_type: str, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Each error_type write_skill_error accepts must also pass validate_envelope
-        and appear in the committed JSON schema's enum (ADR-103). Round-tripping
-        through validate_envelope, not just checking write_skill_error's own
-        VALID_ERROR_TYPES tuple, is what catches the three contract copies
-        (output.py, skill-output.schema.json, validate_skill_output.py)
-        drifting apart again: a parametrize list checked only against
-        write_skill_error's own enum would stay green even if the schema or
-        the validator forgot one of these values.
+        and appear in the committed JSON schema's enum (ADR-103). The
+        parametrize list is derived from output.py's own VALID_ERROR_TYPES
+        constant (not a second hardcoded copy), so a type added there is
+        automatically exercised here. Round-tripping through
+        validate_envelope, and asserting membership in the schema's enum,
+        covers the direction a same-list-both-places test cannot: a type
+        added to the schema or the validator without also being added to
+        write_skill_error's own VALID_ERROR_TYPES would not appear in this
+        parametrize list at all, so test_error_type_contracts_stay_in_sync
+        below closes that remaining gap with an explicit three-way equality
+        check (Cursor Bugbot finding on PR #5283, commit 508917d4b).
         """
         result = write_skill_error(
             "test", 1, error_type=error_type, output_format="json", script_name="test.py"
@@ -159,6 +157,21 @@ class TestWriteSkillError:
 
         assert validate_envelope(envelope) == []
         assert error_type in SCHEMA_ERROR_TYPE_ENUM
+
+    def test_error_type_contracts_stay_in_sync(self) -> None:
+        """Converse of test_validates_error_types: no contract copy may hold a
+        value the other two lack.
+
+        test_validates_error_types only proves each value write_skill_error
+        accepts is also accepted by the schema and the validator; it does not
+        prove the reverse. A value added only to the schema's enum, or only
+        to validate_skill_output.py's VALID_ERROR_TYPES, would never appear
+        in write_skill_error's own VALID_ERROR_TYPES and so would never be
+        parametrized above, leaving that test green while the two artifacts
+        silently disagreed. Asserting three-way set equality closes that gap.
+        """
+        assert frozenset(VALID_ERROR_TYPES) == SCHEMA_ERROR_TYPE_ENUM
+        assert frozenset(VALID_ERROR_TYPES) == VALIDATOR_ERROR_TYPES
 
     def test_rejects_invalid_error_type(self) -> None:
         with pytest.raises(ValueError, match="error_type must be one of"):

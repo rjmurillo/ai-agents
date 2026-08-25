@@ -141,10 +141,14 @@ exactly the contradiction class issue #5201 exists to eliminate.
 
 ## Implementation Notes
 
-- Output helpers: `scripts/github_core/output.py` (unchanged by this ADR).
-  Mirrored byte-identically at `.claude/lib/` and `src/copilot-cli/lib/`
-  (per `.claude/rules/generated-artifacts.md`'s sync chain); those mirrors
-  are unaffected since the source file itself did not change.
+- Output helpers: `scripts/github_core/output.py`. `write_skill_error`'s
+  `error_type` allow-list, previously a tuple literal local to the function
+  body, is now the module-level `VALID_ERROR_TYPES` constant, so it is
+  directly importable and comparable rather than a copy a reader has to
+  re-transcribe. Mirrored byte-identically at `.claude/lib/` and
+  `src/copilot-cli/lib/` via `scripts/sync_plugin_lib.py` then
+  `build/scripts/build_all.py --platform copilot-cli` (per
+  `.claude/rules/generated-artifacts.md`'s sync-before-build chain).
 - Schema: `.agents/schemas/skill-output.schema.json`, `Error.Type` moved
   into the object's `required` array.
 - Validator: `scripts/validate_skill_output.py`, `validate_envelope`:
@@ -161,11 +165,26 @@ exactly the contradiction class issue #5201 exists to eliminate.
   - A negative test asserting a missing/empty `Type` fails validation.
   - A negative test asserting a malformed `Error` fails validation even
     when `Success: true` (the case above).
-  - The existing parametrized `test_validates_error_types` now round-trips
-    each produced envelope through `validate_envelope` and checks the type
-    against the schema's own enum, read live from the JSON file, so the
-    three contract copies (`output.py`, the schema, the validator) cannot
-    drift unnoticed again.
+  - The parametrized `test_validates_error_types` now derives its case list
+    from `output.py`'s own `VALID_ERROR_TYPES` (not a second hardcoded
+    copy), round-trips each produced envelope through `validate_envelope`,
+    and checks the type against the schema's own enum, read live from the
+    JSON file.
+  - `test_error_type_contracts_stay_in_sync` asserts three-way set equality
+    across `output.py`'s `VALID_ERROR_TYPES`, `validate_skill_output.py`'s
+    `VALID_ERROR_TYPES`, and the schema's enum. This closes the direction
+    `test_validates_error_types` cannot: a value added only to the schema
+    or the validator never appears in `output.py`'s allow-list, so it would
+    never be parametrized into `test_validates_error_types` at all, and
+    that test would stay green while the two artifacts silently disagreed.
+    Caught by Cursor Bugbot on PR #5283, commit `508917d4b`: "A type added
+    to the schema, or to write_skill_error's valid_types without updating
+    the parametrize list, leaves the test green, so the three contract
+    copies can drift again." Proved discriminating by hand-inserting an
+    extra value into a scratch copy of `validate_skill_output.py`'s
+    `VALID_ERROR_TYPES` and confirming `test_error_type_contracts_stay_in_sync`
+    fails while the rest of the parametrized suite stays green, then
+    reverting.
 
 ## Related Decisions
 
