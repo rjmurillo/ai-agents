@@ -7,7 +7,7 @@ license: MIT
 
 # AI Agents Architecture Contract
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself. It intentionally references .agents/governance, .claude/lib, scripts/hook_utilities, scripts/github_core, scripts/ai_review_common, scripts/memory_sync, scripts/sync_plugin_lib.py, scripts/validation, build/generate_agents.py, build/scripts, templates/agents, and templates/platforms because its audience is repo contributors, not plugin consumers. Issue #2050. -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself. It intentionally references .agents/governance, .claude/lib, scripts/hook_utilities, scripts/github_core, scripts/ai_review_common, scripts/memory_sync, scripts/sync_plugin_lib.py, scripts/validation, build/generate_agents.py, build/generate_agent_catalog.py, build/scripts, templates/agents, and templates/platforms because its audience is repo contributors, not plugin consumers. Issue #2050. -->
 This skill is the map of design decisions that hold this repository up: what is canonical, what is generated, which invariants are enforced by gates, and where the structure is honestly weak. Read it before any change that touches more than one tree, any hook, any plugin surface, or any generated file. The repo's governance runs on observable evidence, not trust: active requirements name evidence that exists independent of any committed session log, so almost every claim below is backed by a gate you can run. (PR #5135, 2026-08-18, retired the earlier "verification-based enforcement" wording in favor of this evidence-sink framing; SESSION-PROTOCOL.md, the doc that carried that wording, was later deleted along with the session skill cluster.)
 
 ## Triggers
@@ -32,7 +32,7 @@ Source-of-truth table (verified against `.agents/governance/GENERATOR-FILES.md` 
 | Artifact class | Canonical source (edit here) | Generated or mirrored output (never edit) | Mechanism |
 |---|---|---|---|
 | Agents (Copilot CLI, VS Code) | `templates/agents/*.shared.md` | `src/copilot-cli/agents/`, `src/vs-code-agents/` | `build/generate_agents.py` per `templates/platforms/*.yaml` `outputDir` |
-| Agents (Claude Code) | `src/claude/*.md` is itself canonical, hand-written | none; `.claude/agents/` is a hand-maintained sibling copy | MANUAL dual edit (ADR-036, Accepted); `templates/README.md:131`: "**Also edit**: `src/claude/{agent}.md` (MANUAL - not auto-synced!)" |
+| Agents (Claude Code) | `src/claude/*.md` is itself canonical, hand-written | none; `.claude/agents/` is a hand-maintained sibling copy | MANUAL dual edit (ADR-036, superseded in governance by ADR-052 2026-08-25, procedure still operative and unimplemented in ADR-052); `templates/README.md:131`: "**Also edit**: `src/claude/{agent}.md` (MANUAL - not auto-synced!)" |
 | Rules | `.claude/rules/*.md` | `.github/instructions/`, `src/copilot-cli/instructions/` | `build/scripts/generate_rules.py` |
 | Skills | `.claude/skills/<name>/` | `src/copilot-cli/skills/<name>/` | `build/scripts/generate_skills.py` |
 | Commands | `.claude/commands/<name>.md` | `src/copilot-cli/skills/<name>/SKILL.md` | `build/scripts/generate_commands.py` |
@@ -47,11 +47,12 @@ Direction rule: generators read canonical, write mirrors. They NEVER write `.cla
 
 ### Phase 2: Load the load-bearing decisions
 
-| Decision | ADR | Status (as of 2026-07-30) | Why it exists |
+| Decision | ADR | Status (as of 2026-07-30 except where a row states its own later date) | Why it exists |
 |---|---|---|---|
 | Memory-first: retrieval precedes reasoning; Serena (`.serena/memories/`) canonical, Forgetful supplementary | ADR-007 | Accepted (revised 2026-01-01) | Agents re-derive knowledge badly; retrieval is cheaper and auditable |
 | HANDOFF.md read-only, distributed handoffs | ADR-014 | Accepted | Single-file write target caused merge-conflict storms |
-| Two-source agent templates (shared templates plus hand-written `src/claude/`) | ADR-036 | Accepted | Claude prompts need harness-specific depth; 3 full sources would drift |
+| Two-source agent templates (shared templates plus hand-written `src/claude/`) | ADR-036 | Superseded in governance by ADR-052 (2026-08-25); procedure still operative, ADR-052 unimplemented | Claude prompts need harness-specific depth; 3 full sources would drift |
+| Claude-first template strategy (target state, not yet implemented) | ADR-052 | Accepted (2026-08-25), `implemented: false` | The template layer today does synchronize both generated agent trees and feed `build/generate_agent_catalog.py`'s `docs/agent-catalog.md`; the case for Claude-first is cost, not lost value: a direct Claude-to-platform generation preserves all three outputs while removing the intermediate `templates/agents/` source tree |
 | Python-only new scripts, bash prohibited | ADR-042 | Accepted | One toolchain, testable, cross-platform |
 | Skill-first over subagent dispatch | ADR-030 | doc's own header reads "Status: Critical Update - Changes Recommendation" (line 4); treated as binding by AGENTS.md Skill-First section | In-context skill plus direct MCP call is 5-20ms vs 100-200ms Task spawn overhead (ADR-030 line 31 comparison table) |
 | Memory skill decomposition into tiers | ADR-063, amended by ADR-089 | Accepted; ADR-089 proposed | Tier 1 semantic (Serena plus Forgetful search), Tier 2 episodic. ADR-063's Tier 3 causal graph was removed: nothing read it |
