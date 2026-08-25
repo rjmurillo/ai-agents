@@ -17,6 +17,14 @@ priority: high
 
 # CI and Validation Script Rules
 
+<!-- vendor-portability: this rule's whole subject is this repository's own CI
+     and validation tooling, so its body names upstream-only paths throughout,
+     under scripts/validation, scripts/ci, scripts/utils, .agents/architecture,
+     .agents/sessions, and build (both the bare build/ directory mentioned
+     generally and the specific build/audit/GENERATION-AUDIT.md report), plus
+     AGENTS.md, tests, lefthook.yml, and .github (workflows, actions,
+     scripts), none of which exist in a consumer's install (issue #5214) -->
+
 Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate every PR. A broken change here blocks the entire repository (see Issue #1711).
 
 ## MUST
@@ -55,7 +63,7 @@ Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate eve
 
 1. **Thin workflows**. Workflow YAML SHOULD delegate to a testable module (ADR-006). No inline multi-step logic.
 2. **Logging structure**. If another script, workflow step, or test parses a script's stdout, that script SHOULD emit JSON or `key=value` lines for the parsed fields, and the parser test SHOULD consume a real sample from that output shape. Human-only logs are exempt.
-3. **Use skills when available**. SHOULD prefer `.claude/skills/<name>` over inline `gh`, `git`, or shell commands.
+3. **Use skills when available**. SHOULD prefer an installed skill over inline `gh`, `git`, or shell commands when one exists for the task.
 4. **Treat a repair to a silent failure as a silent-failure candidate.** The three MUST items on converting failure signals and detected violations into a non-zero exit, and on distinguishing a run that did nothing from one that succeeded, govern the original defect; this governs the fix. The tests written for the
    original exercise the original's inputs, and a repair usually changes which
    **values** the code can see rather than which branches it has, so every existing
@@ -135,9 +143,10 @@ bytes over its ceiling.
 - `.agents/architecture/ADR-042-python-migration-strategy.md`. Python-first
 - `scripts/validation/pre_pr.py`. Canonical pre-PR runner
 - `scripts/validation/check_skill_resolver_anchoring.py`. Enforces the anchoring requirement for `SKILL.md` resolvers
-- `.claude/skills/validation-authority/`. Validator-authority skill
+- The `validation-authority` skill. Validator-authority guidance
 - Issue #1711. validator change that blocked all PRs
 - Issue #3402. worktree identity and stale helper resolution
 - Issue #3408. a linked worktree's imported session log wedging `check_branch_context`
 - Issue #4262. gate merged red against its own corpus and blocked all pushes
 - PR #4784. required-check rename landed after the ruleset required it, deadlocking every PR for five hours
+- Issue #5214. undeclared upstream-only paths shipped in the `src/copilot-cli/instructions/` mirror of this rule

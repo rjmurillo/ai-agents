@@ -1,3 +1,14 @@
+---
+id: ADR-013
+status: proposed
+date: 2025-12-21
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
+---
+
 # ADR-013: Agent Orchestration MCP
 
 ## Status

@@ -22,6 +22,7 @@ def _make_skill(root: Path, name: str, content: str = "clean\n") -> Path:
     md = skill / "SKILL.md"
     md.write_text(content, encoding="utf-8")
     (root / "src" / "copilot-cli" / "skills").mkdir(parents=True, exist_ok=True)
+    (root / "src" / "copilot-cli" / "instructions").mkdir(parents=True, exist_ok=True)
     return md
 
 
@@ -82,9 +83,16 @@ class TestScanAllReturnsSingleSnapshot:
         assert ".claude/skills" in scanned
         assert scanned[".claude/skills"] == 0
 
-    def test_extra_dirs_contribute_to_ref_counts_not_coverage(
+    def test_extra_dirs_contribute_to_both_ref_counts_and_coverage(
         self, tmp_path: Path
     ) -> None:
+        """Issue #5214 review: an extra dir must be visible in files_by_root too.
+
+        Previously extra dirs fed ref_counts but were absent from
+        files_by_root, so a root that went unread (renamed, deleted, or a
+        broken generator run) looked identical to a root that was read and
+        found clean. Both must now be observable from one scan_all() call.
+        """
         repo = tmp_path / "repo"
         (repo / ".claude" / "skills").mkdir(parents=True)
         (repo / "src" / "copilot-cli" / "skills").mkdir(parents=True)
@@ -95,10 +103,9 @@ class TestScanAllReturnsSingleSnapshot:
         ref_counts, _, scanned, _ = cmp.scan_all(repo)
 
         assert ".claude/commands/spec.md" in ref_counts
-        # Extra dirs are not in scanned_by_root
-        assert ".claude/commands" not in scanned
+        assert scanned.get(".claude/commands") == 1
 
-    def test_extra_dirs_contribute_to_marker_counts_not_coverage(
+    def test_extra_dirs_contribute_to_marker_counts_and_coverage(
         self, tmp_path: Path
     ) -> None:
         repo = tmp_path / "repo"
@@ -114,8 +121,7 @@ class TestScanAllReturnsSingleSnapshot:
         _, marker_counts, scanned, _ = cmp.scan_all(repo)
 
         assert marker_counts == {".claude/commands/spec.md": 1}
-        # Extra dirs are not in scanned_by_root
-        assert ".claude/commands" not in scanned
+        assert scanned.get(".claude/commands") == 1
 
 
 class TestScanAllUsedByMain:

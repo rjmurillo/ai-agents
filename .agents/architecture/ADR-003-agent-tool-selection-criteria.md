@@ -1,9 +1,18 @@
 ---
+id: ADR-003
 status: accepted
 date: 2025-12-16
-decision-makers: ["architect", "orchestrator"]
-consulted: ["implementer", "analyst", "devops"]
-informed: ["all agents"]
+decision-makers: [architect, orchestrator]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+consulted:
+- implementer
+- analyst
+- devops
+informed:
+- all agents
 ---
 
 # ADR-003: Role-Specific Tool Allocation for Multi-Agent System

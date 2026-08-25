@@ -1,9 +1,21 @@
 ---
+id: ADR-058
 status: proposed
 date: 2026-05-03
-decision-makers: ["architect", "user"]
-consulted: ["qa", "security", "critic", "analyst", "implementer"]
-informed: ["devops", "memory"]
+decision-makers: [architect, user]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+consulted:
+- qa
+- security
+- critic
+- analyst
+- implementer
+informed:
+- devops
+- memory
 ---
 
 # ADR-058: Agent Eval Discipline (Agent-vs-Baseline Efficacy)

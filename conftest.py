@@ -10,18 +10,40 @@ import subprocess
 import tempfile
 import uuid
 import warnings
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from pathlib import Path, PurePosixPath
 
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
+# Issue #5123: whether a test's call phase failed, keyed by node, so the
+# teardown-time `_guard_real_repo_head` fixture can tell a real assertion
+# failure apart from one caused by the repository moving under the test.
+_CALL_FAILED_STASH_KEY: pytest.StashKey[bool] = pytest.StashKey()
+
 
 def pytest_configure(config: pytest.Config) -> None:
     basetemp = getattr(config.option, "basetemp", None)
     if basetemp:
         os.environ["_PYTEST_BASETEMP"] = str(Path(os.fspath(basetemp)).resolve())
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(
+    item: pytest.Item, call: pytest.CallInfo[None]
+) -> Generator[None, pytest.TestReport, pytest.TestReport]:
+    """Stash the call-phase outcome so fixtures can see it during teardown.
+
+    Fixture teardown code runs after the test body regardless of whether it
+    passed or failed, but it has no direct way to observe that outcome. The
+    stash is the documented pytest mechanism for a hook to hand fixtures data
+    keyed by test node (https://docs.pytest.org/en/stable/reference/reference.html#pytest.Item.stash).
+    """
+    report = yield
+    if call.when == "call":
+        item.stash[_CALL_FAILED_STASH_KEY] = report.failed
+    return report
 
 
 _GIT_ENV_OVERRIDES = {"GIT_COMMON_DIR", "GIT_DIR", "GIT_INDEX_FILE", "GIT_WORK_TREE"}
@@ -411,8 +433,22 @@ def _check_head_change(
     after: str | None,
     reflog_action: str | None = None,
     trace_path: Path | None = None,
+    *,
+    call_failed: bool = False,
 ) -> None:
-    """Fail for test-caused HEAD changes and warn for external commits."""
+    """Fail for test-caused HEAD changes; warn or fail for external commits.
+
+    A concurrent external commit (issue #3109) only warns when the test
+    itself passed: the result is still trustworthy, and most tests never read
+    git state at all. When the test's own call phase already failed,
+    ``call_failed`` escalates the same detection to a distinct, greppable
+    failure (issue #5123) instead of a warning that is easy to miss in a
+    28,000-item run. Without the escalation, a fixture whose assertions
+    derive from live repo state fails with a plain, misleading AssertionError
+    that sends the reader hunting for a defect that is not there; the
+    original failure survives in the run (this adds a teardown-phase ERROR,
+    it does not replace the CALL-phase FAILED entry pytest already recorded).
+    """
     if after is None:
         pytest.fail(
             "#2316: could not read repository HEAD after the test; refusing to "
@@ -439,18 +475,42 @@ def _check_head_change(
             pytrace=False,
         )
     subject = _real_repo_head_subject()
-    warnings.warn(
-        f"#3109: real repo HEAD changed during this test's window "
+    concurrent_commit_detail = (
+        f"real repo HEAD changed during this test's window "
         f"({before[:8]} -> {after[:8]}; new HEAD subject: {subject!r}). "
         "No test-launched Git mutation was recorded in the project repository, "
-        "so this is a concurrent external commit in this worktree.",
-        stacklevel=2,
+        "so this is a concurrent external commit in this worktree."
     )
+    if call_failed:
+        pytest.fail(
+            f"#5123: {concurrent_commit_detail} The repository moved under "
+            "this test's window while the test also failed, but that is "
+            "correlation, not proof: this autouse fixture cannot tell "
+            "whether this specific test actually read live Git state, so "
+            "the failure above may not be meaningful. Before debugging it "
+            "as a code defect, wait for the in-flight push or commit in "
+            "this worktree to finish and re-run: if the failure "
+            "disappears, it was this race.",
+            pytrace=False,
+        )
+    warnings.warn(f"#3109: {concurrent_commit_detail}", stacklevel=2)
 
 
 @pytest.fixture(autouse=True)
-def _guard_real_repo_head() -> Iterator[None]:
-    """Attribute project HEAD movement without blaming concurrent commits."""
+def _guard_real_repo_head(request: pytest.FixtureRequest) -> Iterator[None]:
+    """Attribute project HEAD movement without blaming concurrent commits.
+
+    ``request`` MUST NOT carry a default. pytest's fixture-argument scanner
+    (``_pytest.compat.getfuncargnames``) excludes any parameter that has a
+    default value from the set of fixtures it injects, so a defaulted
+    ``request`` silently stays unset (``None``) on every real test run: the
+    call_failed lookup below never runs, and the issue #5123 escalation this
+    fixture exists to provide never fires. Confirmed empirically (issue #5123
+    PR #5287 review): a defaulted ``request`` parameter on an autouse fixture
+    measurably never receives the injected value. Callers that drive this
+    generator directly via ``__wrapped__()`` (the head-guard test suite) MUST
+    pass a request-like object explicitly; there is no default to fall back to.
+    """
     before = _real_repo_head()
     previous_env = {name: os.environ.get(name) for name in _TRACE_ENV_NAMES}
     attribution_token = uuid.uuid4().hex
@@ -471,7 +531,14 @@ def _guard_real_repo_head() -> Iterator[None]:
                 os.environ.pop(name, None)
             else:
                 os.environ[name] = value
+    call_failed = request.node.stash.get(_CALL_FAILED_STASH_KEY, False)
     try:
-        _check_head_change(before, _real_repo_head(), reflog_action, trace_path)
+        _check_head_change(
+            before,
+            _real_repo_head(),
+            reflog_action,
+            trace_path,
+            call_failed=call_failed,
+        )
     finally:
         trace_path.unlink(missing_ok=True)

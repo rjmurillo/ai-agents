@@ -1,3 +1,14 @@
+---
+id: ADR-035
+status: accepted
+date: 2025-12-30
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-035: Exit Code Standardization
 
 <!-- # taste-lint: ignore file-size (long-form ADR; the 500-line code-cohesion limit does not apply to prose ADRs, cf. ADR-013 at 597, ADR-022 at 604, ADR-037 at 593, all accepted over the limit) -->
