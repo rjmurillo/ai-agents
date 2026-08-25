@@ -512,12 +512,18 @@ def test_main_returns_two_when_a_file_has_invalid_utf8_content(tmp_path: Path, c
     path = tmp_path / "adr" / "index.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"[ADR-005](\xffADR-005-gone.md)\n")
+    write(tmp_path, "adr/ADR-006-present.md", "# present\n")
     _init_repo(tmp_path)
 
     exit_code = main(["--repo-root", str(tmp_path), "--baseline", str(tmp_path / "none.txt")])
 
     assert exit_code == 2
-    assert "check_adr_links:" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "check_adr_links:" in err
+    assert "codec can't decode" in err, (
+        "must reach the UnicodeDecodeError handler, not the _has_adr_corpus guard "
+        "(both exit 2 with a check_adr_links: prefix; Cursor Bugbot, PR #5209 round-11 review)"
+    )
 
 
 # Baseline behavior
@@ -1063,6 +1069,7 @@ def test_main_returns_two_when_git_is_unavailable(tmp_path: Path, capsys) -> Non
 
 def test_validate_adr_links_reports_a_bool(tmp_path: Path) -> None:
     write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
+    write(tmp_path, "adr/ADR-006-present.md", "# present\n")
     _init_repo(tmp_path)
 
     assert validate_adr_links(tmp_path) is False
