@@ -1,3 +1,14 @@
+---
+id: ADR-017
+status: accepted
+date: 2025-12-23
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-017: Tiered Memory Index Architecture
 
 **Status**: Accepted
