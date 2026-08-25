@@ -1855,6 +1855,32 @@ class TestBaselineSemanticConflictGuard:
         """Edge: the co-change guard stays aligned with PLUGIN_ROOTS."""
         assert cmp._is_measured_input("src/claude/skills/example/SKILL.md") is True
 
+    def test_extra_scan_root_counts_as_measured_input(self) -> None:
+        """The co-change guard must cover EXTRA_SCAN_ROOTS, not only PLUGIN_ROOTS.
+
+        AI-Spec-Validation review on PR #5284 found this gap: scan_all() folds
+        EXTRA_SCAN_ROOTS (.claude/commands, templates/agents,
+        src/copilot-cli/instructions) into the same baseline as the plugin
+        skills/ trees, but _is_measured_input() only recognized the latter, so
+        a co-change to an instructions mirror plus the baseline in one commit
+        was invisible to the --base-ref semantic-conflict guard.
+        """
+        assert (
+            cmp._is_measured_input(
+                "src/copilot-cli/instructions/example.instructions.md"
+            )
+            is True
+        )
+        assert cmp._is_measured_input(".claude/commands/example.md") is True
+        assert cmp._is_measured_input("templates/agents/example.shared.md") is True
+
+    def test_non_md_file_under_extra_scan_root_is_not_measured_input(self) -> None:
+        """Negative: only Markdown files feed this scanner's counts."""
+        assert (
+            cmp._is_measured_input("src/copilot-cli/instructions/example.json")
+            is False
+        )
+
     def _init_repo_with_debt(self, root: Path) -> None:
         """Seed a committed tree carrying one unsuppressed ref and a matching baseline."""
         self._init_repo(root)
@@ -1933,6 +1959,68 @@ class TestBaselineSemanticConflictGuard:
         out = capsys.readouterr().out
         assert "Counts rose above the baseline recorded at" in out
         assert ".claude/skills/a/SKILL.md" in out
+
+    def test_instructions_mirror_raised_count_is_caught(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Same guard as the plugin-skills case, but for an EXTRA_SCAN_ROOTS file.
+
+        Before _is_measured_input() covered EXTRA_SCAN_ROOTS, this exact
+        co-change (new undeclared refs under src/copilot-cli/instructions/
+        plus a baseline update, in one commit) would slip past --base-ref: the
+        guard would not have recognized the changed file as measured input at
+        all, so it read as an unrelated, allowed co-change.
+        """
+        self._init_repo(tmp_path)
+        instructions_file = (
+            tmp_path / "src" / "copilot-cli" / "instructions" / "example.instructions.md"
+        )
+        instructions_file.write_text("Uses .agents/state.\n", encoding="utf-8")
+        (tmp_path / "baseline.json").write_text(
+            json.dumps(
+                {
+                    "files": {
+                        "src/copilot-cli/instructions/example.instructions.md": 1
+                    },
+                    "marker_files": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+        subprocess.run(["git", "commit", "-qm", "instructions debt"], cwd=tmp_path, check=True)
+        base_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=tmp_path, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+
+        instructions_file.write_text(
+            "Files: .agents/a, .agents/b, .claude/review-axes/c.\n", encoding="utf-8"
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps(
+                {
+                    "files": {
+                        "src/copilot-cli/instructions/example.instructions.md": 3
+                    },
+                    "marker_files": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "raise instructions count"],
+            cwd=tmp_path,
+            check=True,
+        )
+
+        rc = self._run(tmp_path, base_sha)
+
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "Counts rose above the baseline recorded at" in out
+        assert "src/copilot-cli/instructions/example.instructions.md" in out
 
     def test_baseline_absent_at_base_ref_fails_closed(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

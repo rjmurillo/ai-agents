@@ -770,12 +770,25 @@ _MEASURED_SCANNER_FILES: frozenset[str] = frozenset(
 
 
 def _is_measured_input(rel_path: str) -> bool:
-    """Return whether a repo-relative path feeds this scanner's counts."""
+    """Return whether a repo-relative path feeds this scanner's counts.
+
+    Covers both the plugin ``skills/`` trees and ``EXTRA_SCAN_ROOTS``
+    (``.claude/commands``, ``templates/agents``,
+    ``src/copilot-cli/instructions``): ``scan_all()`` folds both into the same
+    ``ref_counts``/``marker_counts`` baseline, so a co-change to either can
+    launder new drift past ``--base-ref``'s semantic-conflict guard the same
+    way a plugin-root skill edit can. Missing the extra roots here was itself
+    an instance of the coverage-gap pattern issue #5214 fixed for the scan
+    surface; the semantic-conflict guard had the identical gap for the
+    baseline-laundering check.
+    """
     if rel_path in _MEASURED_SCANNER_FILES:
         return True
-    return rel_path.endswith(".md") and any(
-        rel_path.startswith(f"{root}/skills/") for root in PLUGIN_ROOTS
-    )
+    if not rel_path.endswith(".md"):
+        return False
+    if any(rel_path.startswith(f"{root}/skills/") for root in PLUGIN_ROOTS):
+        return True
+    return any(rel_path.startswith(f"{extra}/") for extra in EXTRA_SCAN_ROOTS)
 
 
 def _is_skill_markdown(rel_path: str) -> bool:
