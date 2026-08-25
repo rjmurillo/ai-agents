@@ -266,6 +266,102 @@ def test_the_notice_states_every_probed_miss_not_just_the_first(
         )
 
 
+# The collection contract, as concepts rather than sentences. Each entry is the
+# set of spellings that count as stating that class, because the three surfaces
+# below word it differently on purpose: a docstring explains, a notice is read
+# under time pressure by someone whose push just went a different way than they
+# expected, and an ADR rule is cited by number. Pinning one exact sentence
+# across all three would force the worst wording of the three onto the other two.
+#
+# What must not drift is the SET. A surface that stops naming a class is the
+# defect: the notice already did exactly that, listing one miss where the
+# docstring beside it listed two, and nothing caught it (see the notice test
+# above). The issue body is deliberately absent from this check, because it
+# lives on GitHub and no repository test can read it; it is kept in step by
+# hand, and that is a weaker guarantee stated as one rather than implied.
+COLLECTION_CATCHES = {
+    "a broken import": ("broken import",),
+    "a syntax error": ("syntax error",),
+    "a same-basename module collision": ("same-basename", "share a basename"),
+}
+COLLECTION_MISSES = {
+    "a missing fixture": ("missing fixture", "fixture no fixture satisfies"),
+    "two same-named test functions in one module": ("same-named test functions in one module",),
+}
+
+_ADR_104 = (
+    Path(__file__).resolve().parents[2]
+    / ".agents"
+    / "architecture"
+    / "ADR-104-gate-tier-placement-and-budgets.md"
+)
+
+
+def _collection_contract_surfaces(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> dict[str, str]:
+    """The three in-repo places the contract is stated, whitespace-normalized."""
+    git_hook_policy._resolve_pytest_commands(tmp_path, None)
+    return {
+        "the _pytest_collection_command docstring": " ".join(
+            (git_hook_policy._pytest_collection_command.__doc__ or "").split()
+        ),
+        "the notice printed to the developer": " ".join(capsys.readouterr().err.split()),
+        "ADR-104 rule 5": " ".join(_ADR_104.read_text(encoding="utf-8").split()),
+    }
+
+
+@pytest.mark.parametrize(
+    ("label", "spellings"),
+    [*COLLECTION_CATCHES.items(), *COLLECTION_MISSES.items()],
+)
+def test_every_in_repo_surface_states_the_whole_collection_contract(
+    label: str,
+    spellings: tuple[str, ...],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Code, notice, and ADR must all name every probed class.
+
+    ADR-104 rule 5 says to state only the classes you probed. Three in-repo
+    surfaces state them, and a spec-validation pass observed that nothing kept
+    them in step: the guard that existed covered the notice alone, so the ADR
+    could drop a class, or gain one nobody probed, without any test noticing.
+    """
+    monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
+    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
+
+    for surface, text in _collection_contract_surfaces(capsys, tmp_path).items():
+        assert any(s in text for s in spellings), (
+            f"{surface} does not state {label!r} (accepted spellings: {spellings}). "
+            "All three must name the same set of probed classes. If a class was "
+            "added or removed, probe it and update every surface plus this table; "
+            "if only the wording changed, add the new spelling here."
+        )
+
+
+def test_the_contract_check_can_fail(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Negative control: a class no surface states must be reported missing.
+
+    Without this the parametrized test above passes for every row and nobody
+    can tell whether it discriminates or whether the substrings are simply so
+    short that they match anything.
+    """
+    monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
+    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
+
+    surfaces = _collection_contract_surfaces(capsys, tmp_path)
+    assert surfaces, "no surfaces were collected, so the check above is vacuous"
+    for surface, text in surfaces.items():
+        assert "a deadlock in a conftest fixture" not in text, (
+            f"{surface} states a class this control assumed nobody probed. "
+            "Pick a different sentinel."
+        )
+
+
 def test_a_broken_import_makes_the_collection_stand_in_block_the_push(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
