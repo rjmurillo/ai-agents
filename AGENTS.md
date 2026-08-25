@@ -7,14 +7,14 @@
 ## Retrieval
 
 |APIs: Context7, DeepWiki, WebSearch|Memory: `memory` skill
-|Constraints: `.agents/governance/PROJECT-CONSTRAINTS.md`|ADRs: `.agents/architecture/ADR-*.md`
+|Constraints: `.agents/governance/PROJECT-CONSTRAINTS.md`|ADRs: `.agents/architecture/README.md`->`ADR-*.md`
 |Skills: `.claude/skills/{name}/SKILL.md`
 |Rules: read `.claude/rules/*.md` by `applyTo` first|Book depth: `software-engineering-library`|Generators: `.agents/governance/GENERATOR-FILES.md`
 
 ## Gates
 
 **Start**:Init Serena|Read HANDOFF+latest issue handoff|Resume check|Search mem|Verify git
-**Mid**: `git rev-list --count HEAD ^origin/main` notice 10; alert 15 (advisory only, no block; issue #5233)
+**Mid**: `git rev-list --count HEAD ^origin/main` notice 10; alert 15 (advisory; issue #5233)
 **Pre-PR**: `uv run python scripts/validation/pre_pr.py`|No BLOCKING|Security scan|Style `.gemini/styleguide.md`
 **End**:Keep HANDOFF|Issue handoff if open|Update Serena|Lint|Commit|Check
 
@@ -34,7 +34,7 @@ Knowledge -> context. Actions -> skills.
 
 |PRs: GitHub|Reviews: pr-comment-responder|Push: /push-pr
 |Security: security-detection|Quality: analyze|Learn: reflect|Lifecycle: /spec /plan /build /test /review /ship
-|Merge blocked/conflicted: don't ask; github skill (why_pr_blocked+resolve) or merge-resolver agent; re-check
+|Merge blocked/conflicted: don't ask; github skill (why_pr_blocked+resolve) or merge-resolver; re-check
 |CI-feedback sub-loop: cluster, ladder build->test->review->ship. See `.agents/governance/CI-FEEDBACK-SUBLOOP.md`
 |ADR-078: no skill -> autoplan; multi-step/cross-cutting -> orchestrator; no return loop
 |New capability: buy-vs-build Quick BEFORE /spec+baseline; >13wk no baseline = prune. Skip: bug/doc/refactor/approved-cap-extension

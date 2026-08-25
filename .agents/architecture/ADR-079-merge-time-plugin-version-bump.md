@@ -4,7 +4,7 @@ status: superseded
 date: 2026-07-08
 decision-makers: [rjmurillo]
 supersedes: []
-superseded-by: ADR-092
+superseded-by: ADR-091
 explainer: null
 implemented: true
 ---
@@ -13,7 +13,7 @@ implemented: true
 
 ## Status
 
-Superseded by ADR-092 (2026-08-01), which deletes the `version` field from all three manifests so Claude Code resolves freshness from the commit SHA. ADR-092 does not contradict the objection below: that objection is to a post-merge *stamp*, and omitting the field stamps nothing at any point. The premise that has changed is the Copilot one: the shipped 1.0.78-0 bundle calls `updatePlugin` unconditionally, and the official CLI plugin reference lists `version` as optional metadata.
+Superseded by ADR-091 (2026-07-31), the immediate successor, which moved plugin-version maintenance to a post-merge bot. ADR-091 states the supersession in its own accepted Status: "Supersedes ADR-079 (Plugin Version Bump Stays at PR Time)." ADR-091 was itself superseded one day later by ADR-092 (2026-08-01), the live record, which deletes the `version` field from all three manifests so Claude Code resolves freshness from the commit SHA. ADR-092 does not contradict the objection below: that objection is to a post-merge *stamp*, and omitting the field stamps nothing at any point. The premise that has changed is the Copilot one: the shipped 1.0.78-0 bundle calls `updatePlugin` unconditionally, and the official CLI plugin reference lists `version` as optional metadata.
 
 Accepted (2026-07-08). Requested by issue #2855 (labels `bug`, `agent-qa`, `area-workflows`, `area-infrastructure`, `area-skills`, `priority:P1`, `technical-debt`). The issue surfaces a real throughput cost: parallel plugin-source PRs serialize on the monotonic version-bump gate.
 

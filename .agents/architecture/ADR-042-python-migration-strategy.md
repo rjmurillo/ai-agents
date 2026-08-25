@@ -11,9 +11,16 @@ implemented: true
 
 # ADR-042: Python Migration Strategy
 
-## Status
+## Acceptance Evidence
 
-Accepted
+Ratified 2026-01-17 in PR #963. The six-role adr-review consensus is recorded at
+`.agents/critique/ADR-042-debate-log.md` (5 Concerns plus 1 Accept, resolved
+Disagree-and-Commit, all P0 findings marked RESOLVED), with supporting artifacts at
+`.agents/critique/ADR-042-independent-review.md`, `ADR-042-security-review.md`,
+`ADR-042-strategic-advisory.md`, and `ADR-042-python-migration-critique.md`.
+The citation is here because ADR-073 binds a transition to `status: accepted` to
+adr-review evidence, and a record that carries the enum without naming its evidence
+cannot be audited from itself.
 
 ## Date
 

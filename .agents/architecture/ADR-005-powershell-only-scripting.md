@@ -11,9 +11,6 @@ implemented: true
 
 # ADR-005: PowerShell-Only Scripting Standard
 
-**Status**: Superseded by [ADR-042](./ADR-042-python-migration-strategy.md)
-**Date**: 2025-12-18
-**Deciders**: User, Orchestrator Agent, Implementer Agent
 **Context**: PR #60 AI workflow implementation
 
 ---
