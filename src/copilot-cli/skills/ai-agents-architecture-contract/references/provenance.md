@@ -4,7 +4,7 @@ The drift-prone volatile facts behind `ai-agents-architecture-contract`. SKILL.m
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 
-Verified 2026-08-25 against the working tree for the src/claude manual sync row (re-ran its updated command); other rows carry their 2026-08-19 verification unchanged. Volatile facts are date-stamped
+Verified 2026-08-19 against the working tree (bundle-dated together with `SKILL.md`, `ai-agents-config-catalog/SKILL.md`, and `weak-points.md`; see `test_operational_skills_match_current_hook_registration_counts`). The src/claude manual sync row's command was re-run and confirmed on 2026-08-25 (noted inline in that row); that does not move this bundle date, since the rest of the table was not re-audited. Volatile facts are date-stamped
 inline in SKILL.md. Sources and re-verification commands:
 
 | Claim | Source | Re-verify |
