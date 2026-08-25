@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -45,6 +46,11 @@ SIGNAL_EXIT_TIMEOUT_SECONDS = 120
 # diagnostic wins the race instead of being preempted by pytest-timeout. The
 # global --timeout=120 in pyproject.toml is too tight for the raised cap, so the
 # tests that wait on a signalled child carry their own budget.
+# Reaping a SIGKILLed child is a wait on the kernel, not on the child's own
+# code, so it is bounded far tighter than the cap above. It is bounded at all
+# because an unbounded second wait can outlive the per-test budget and let
+# pytest-timeout preempt the diagnostic this helper exists to print.
+SIGNAL_REAP_TIMEOUT_SECONDS = 10
 SIGNAL_TEST_TIMEOUT_MARGIN_SECONDS = 60
 # One sequential wait: the tests that signal a single child.
 SIGNAL_TEST_TIMEOUT_SECONDS = SIGNAL_EXIT_TIMEOUT_SECONDS + SIGNAL_TEST_TIMEOUT_MARGIN_SECONDS
@@ -71,7 +77,18 @@ def _wait_for_exit(process: subprocess.Popen[str], description: str) -> int:
     except subprocess.TimeoutExpired:
         elapsed = time.monotonic() - start
         process.kill()
-        process.wait()
+        try:
+            process.wait(timeout=SIGNAL_REAP_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            pytest.fail(
+                f"#5108: {description} did not exit within "
+                f"{SIGNAL_EXIT_TIMEOUT_SECONDS}s (waited {elapsed:.1f}s) and "
+                f"then did not reap within {SIGNAL_REAP_TIMEOUT_SECONDS}s of "
+                "SIGKILL. A child unreapable after SIGKILL is stuck in the "
+                "kernel, typically uninterruptible I/O, not a signal-handling "
+                "defect in the code under test.",
+                pytrace=False,
+            )
         pytest.fail(
             f"#5108: {description} did not exit within "
             f"{SIGNAL_EXIT_TIMEOUT_SECONDS}s (waited {elapsed:.1f}s). The "
@@ -172,7 +189,9 @@ def _recover_if_left_behind(marker: Path) -> None:
 
 def _stop_process(process: subprocess.Popen[str], signum: signal.Signals) -> int:
     os.kill(process.pid, signum)
-    return _wait_for_exit(process, f"the child sent {signum.name}")
+    # The parent sends the signal; "the child sent ..." misread as the child
+    # having sent it, which points triage at the wrong process.
+    return _wait_for_exit(process, f"the child signalled with {signum.name}")
 
 
 def _marker_for(scratch_root: Path) -> Path:
@@ -394,16 +413,22 @@ def test_recover_if_left_behind_clears_a_real_orphan() -> None:
     workspace = _ready_workspace(process)
     marker = Path(workspace["marker"])
 
-    # SIGKILL is the signal _wait_for_exit sends on the timeout path, and it
-    # bypasses the context manager's cleanup, so this reproduces the orphan
-    # rather than simulating it.
-    _stop_process(process, signal.SIGKILL)
-    assert marker.is_file(), "the orphan this test recovers was not created"
+    try:
+        # SIGKILL is the signal _wait_for_exit sends on the timeout path, and it
+        # bypasses the context manager's cleanup, so this reproduces the orphan
+        # rather than simulating it.
+        _stop_process(process, signal.SIGKILL)
+        assert marker.is_file(), "the orphan this test recovers was not created"
 
-    _recover_if_left_behind(marker)
+        _recover_if_left_behind(marker)
 
-    assert not marker.exists()
-    assert not Path(workspace["scratch"]).exists()
+        assert not marker.exists()
+        assert not Path(workspace["scratch"]).exists()
+    finally:
+        # This test deliberately creates the exact push-blocking state the
+        # helper removes. If it fails before recovering, it must not hand that
+        # state to the next push, which is the failure it exists to prevent.
+        _recover_if_left_behind(marker)
 
 
 @pytest.mark.timeout(SIGNAL_TEST_TIMEOUT_SECONDS)
@@ -462,13 +487,52 @@ def test_wait_for_exit_fails_loudly_when_the_signal_is_never_handled(
         message = str(failure.value)
         assert "#5108" in message
         assert "a child ignoring SIGTERM" in message
-        assert "waited " in message, "the diagnostic must name the elapsed time"
+
+        # Parse the value, do not merely look for the label. `"waited " in
+        # message` still passes if the number is dropped or replaced with
+        # prose, which is precisely the diagnostic contract #5108 adds.
+        elapsed_match = re.search(r"waited (\d+(?:\.\d+)?)s", message)
+        assert elapsed_match is not None, (
+            f"the diagnostic must name the elapsed time as a number: {message!r}"
+        )
+        elapsed_reported = float(elapsed_match.group(1))
+        # The patched cap is 1s, so a plausible reading is at least that and
+        # well under the per-test budget. A hardcoded 0.0 would fail the floor.
+        assert 1.0 <= elapsed_reported < SIGNAL_TEST_TIMEOUT_SECONDS, (
+            f"elapsed {elapsed_reported}s is not a plausible measured wait"
+        )
     finally:
         if process.poll() is None:  # pragma: no cover - only on an unexpected path
             process.kill()
             process.wait()
 
     assert process.poll() is not None, "the helper must not leak the child process"
+
+
+def _blocking_wait_count(node: ast.FunctionDef) -> int:
+    """Count the waits in ``node`` that can each burn a full cap.
+
+    A ``_stop_process(..., signal.SIGKILL)`` call is excluded: SIGKILL cannot
+    be caught or ignored, so the child cannot outlive it and that call cannot
+    approach the cap. Every other ``_stop_process`` or ``_wait_for_exit`` call
+    waits on code that can hang, so each one can spend the whole cap, and they
+    run one after another rather than concurrently.
+    """
+    waits = 0
+    for inner in ast.walk(node):
+        if not (isinstance(inner, ast.Call) and isinstance(inner.func, ast.Name)):
+            continue
+        if inner.func.id not in {"_wait_for_exit", "_stop_process"}:
+            continue
+        signal_args = [
+            ast.unparse(argument)
+            for argument in inner.args
+            if isinstance(argument, ast.Attribute)
+        ]
+        if any(argument.endswith("SIGKILL") for argument in signal_args):
+            continue
+        waits += 1
+    return waits
 
 
 def _tests_that_wait_on_a_signalled_child() -> list[ast.FunctionDef]:
@@ -488,31 +552,53 @@ def _tests_that_wait_on_a_signalled_child() -> list[ast.FunctionDef]:
     ]
 
 
+def _declared_budget(node: ast.FunctionDef) -> int | None:
+    """Resolve this test's pytest-timeout budget to a number, or None."""
+    for decorator in node.decorator_list:
+        if not (
+            isinstance(decorator, ast.Call)
+            and isinstance(decorator.func, ast.Attribute)
+            and decorator.func.attr == "timeout"
+            and decorator.args
+        ):
+            continue
+        argument = decorator.args[0]
+        if isinstance(argument, ast.Name):
+            # Resolve the constant rather than trusting its name: an undersized
+            # constant with a plausible name is exactly the regression below.
+            return globals().get(argument.id)
+        if isinstance(argument, ast.Constant) and isinstance(argument.value, int):
+            return argument.value
+    return None
+
+
 def test_every_test_that_waits_on_a_signalled_child_raises_its_budget() -> None:
     """Guard the coupling that makes the #5108 diagnostic reachable at all.
 
     The wait cap only produces its diagnostic if the test outlives it. With the
     global ``--timeout=120`` sitting below ``SIGNAL_EXIT_TIMEOUT_SECONDS``, a
-    test that waits without raising its own budget is killed by pytest-timeout
-    first and reports a bare timeout instead. Review caught one such test on
-    this PR by reading; this catches the next one by running.
-    """
-    unmarked = []
-    for node in _tests_that_wait_on_a_signalled_child():
-        budgets = [
-            decorator.args[0].id
-            for decorator in node.decorator_list
-            if isinstance(decorator, ast.Call)
-            and isinstance(decorator.func, ast.Attribute)
-            and decorator.func.attr == "timeout"
-            and decorator.args
-            and isinstance(decorator.args[0], ast.Name)
-        ]
-        if not budgets:
-            unmarked.append(node.name)
+    test that waits without a large enough budget is killed by pytest-timeout
+    first and reports a bare timeout instead.
 
-    assert not unmarked, (
-        "These tests wait on a signalled child but carry no per-test "
-        f"pytest-timeout budget, so the global --timeout=120 preempts the "
-        f"#5108 diagnostic: {unmarked}"
+    This resolves each declared budget to its value and checks it against that
+    test's own sequential wait count, rather than only checking a decorator is
+    present. Review found that the presence-only form would have accepted the
+    concurrent test carrying the one-wait 180s budget against its two 120s
+    waits, which is the 240s preemption an earlier round had already fixed.
+    """
+    undersized = []
+    for node in _tests_that_wait_on_a_signalled_child():
+        waits = _blocking_wait_count(node)
+        required = waits * SIGNAL_EXIT_TIMEOUT_SECONDS + SIGNAL_TEST_TIMEOUT_MARGIN_SECONDS
+        budget = _declared_budget(node)
+        if budget is None or budget < required:
+            undersized.append(
+                f"{node.name}: {waits} sequential wait(s) need >= {required}s, "
+                f"declared {budget}"
+            )
+
+    assert not undersized, (
+        "These tests can spend more time waiting on a signalled child than "
+        "their pytest-timeout budget allows, so the #5108 diagnostic is "
+        f"preempted before it prints: {undersized}"
     )
