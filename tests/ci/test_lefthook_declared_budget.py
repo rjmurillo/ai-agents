@@ -113,7 +113,14 @@ CONTAINER_UNCLAMPED_JOBS = frozenset(
 # `_run_command` and so carries its own cap; every job whose work is a
 # subprocess is bounded by the clamp instead. Before this work the largest was
 # 1800s.
-CONTAINER_PER_JOB_CEILING_SECONDS = 300.0
+#
+# Set to the actual largest, not above it. An earlier revision used 300s while
+# the PR claimed 240s, which meant a regression to 250s would have passed the
+# test that was supposed to be the claim's evidence. A ceiling with slack in it
+# is a ceiling that certifies a number nobody measured. Like the declared sum,
+# this leaves the graph with no room: a new job above 240s fails here until
+# someone measures it and cuts something, which is the point.
+CONTAINER_PER_JOB_CEILING_SECONDS = 240.0
 
 _UNITS = {"h": 3600.0, "m": 60.0, "s": 1.0}
 
