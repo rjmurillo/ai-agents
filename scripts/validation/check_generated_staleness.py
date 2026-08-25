@@ -147,10 +147,17 @@ _CHECKS: tuple[tuple[str, tuple[str, ...]], ...] = (
 
 # One aggregate budget for the whole gate, shared across the rows, sized for
 # a loaded machine per ci-scripts.md MUST 16 (measured standalone: ~4.4s for
-# build_all, ~1s for sync) while fitting inside the outer lefthook cap with
-# room for cleanup and the rest of the sequence (module docstring). A test
-# pins budget + grace against the live lefthook.yml cap.
-_GATE_BUDGET_SECONDS = 420.0
+# build_all, ~1s for sync, re-measured at 1s on a 4-CPU container) while
+# fitting inside the outer lefthook cap with room for cleanup and the rest of
+# the sequence (module docstring). A test pins budget + grace against the live
+# lefthook.yml cap.
+#
+# Was 420s, a 100x margin over the work. That margin was not free: budget plus
+# grace must fit in half the outer cap, so it held `pre-pr-validation` at a 15m
+# cap and put 900s of a 2610s declared worst case behind a gate that runs in a
+# second. 120s keeps roughly 24x headroom, which is above the 9x to 15x in-hook
+# inflation MUST-16 records for this graph, and lets the cap fall to 3m.
+_GATE_BUDGET_SECONDS = 60.0
 
 # How long a child gets to honor SIGINT and finish its cleanup before the
 # kill escalates. build_all's restore is file copies measured in fractions of

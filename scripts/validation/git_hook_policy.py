@@ -466,6 +466,21 @@ WORKFLOW_LOCAL_DEFAULT_BASE = "origin/main"
 # reader gets a diagnostic instead of a bare kill (ADR-086 Decision item 9).
 # Only the opt-in local-execution path can reach it; the default collection
 # path is bounded by TEST_COLLECTION_TIMEOUT_SECONDS.
+# Hard ceiling on any subprocess this module spawns while running inside a
+# managed remote container. A container is reclaimed after a period without
+# progress, so a hung child there does not merely slow the push down, it
+# destroys it: the push dies with no diagnostic, the container restarts, and
+# the session re-derives its state before trying again. On a developer
+# workstation the same hang is an annoyance and the declared cap is the right
+# bound, so this clamp applies only where the environment can end the process.
+#
+# 180s is above every measured in-hook cost by a wide margin (the largest is
+# pre-pr-validation at 105.04s across three real pushes, and it does not route
+# through here) and far below the roughly 679s at which a container reclamation
+# was observed. Reuses the container detection issue #2548 introduced for
+# workflow-local-run rather than adding a second definition of "container".
+CONTAINER_SUBPROCESS_CEILING_SECONDS = 180.0
+
 TEST_SUITE_TIMEOUT_SECONDS = 780
 # Ceiling for the collection smoke that stands in for a local full-suite run.
 # Collection imports every test module without running a single test body, so
@@ -679,6 +694,28 @@ def _killpg_safe(pid: int) -> None:
         pass
 
 
+def _container_clamped(timeout_seconds: float) -> float:
+    """Bound a subprocess deadline to what a managed container can survive.
+
+    Returns ``timeout_seconds`` unchanged outside a container, and outside this
+    module's control in CI, where `_is_remote_container` returns False so a real
+    hang still fails the way CI expects.
+
+    The import is local because `run_workflow_local_test` is a sibling policy
+    module rather than a utility; importing it at module scope would make every
+    caller of `git_hook_policy` pay for it. A missing sibling degrades to no
+    clamp rather than raising: the clamp is a safety net, and a net that can
+    break the push it protects is worse than no net.
+    """
+    try:
+        from run_workflow_local_test import _is_remote_container
+    except ImportError:  # pragma: no cover - sibling module always ships
+        return timeout_seconds
+    if not _is_remote_container():
+        return timeout_seconds
+    return min(timeout_seconds, CONTAINER_SUBPROCESS_CEILING_SECONDS)
+
+
 def _run_command(
     args: Sequence[str],
     repo_root: Path,
@@ -699,6 +736,7 @@ def _run_command(
     env = dict(process_env) if process_env is not None else _clean_git_env()
     if extra_env is not None:
         env.update(extra_env)
+    timeout_seconds = _container_clamped(timeout_seconds)
     command = list(args)
     try:
         proc = subprocess.Popen(

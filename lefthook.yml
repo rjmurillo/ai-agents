@@ -19,7 +19,7 @@ pre-commit:
   piped: true
   jobs:
     - name: repair-packed-refs
-      timeout: 1m
+      timeout: 20s
       run: uv run --frozen python scripts/maintenance/repair_packed_refs.py
 
     - name: branch-policy
@@ -27,7 +27,7 @@ pre-commit:
       run: uv run --frozen python scripts/validation/git_hook_policy.py branch
 
     - name: branch-context-policy
-      timeout: 2m
+      timeout: 60s
       run: uv run --frozen python scripts/validation/git_hook_policy.py branch-context
 
     # Issue #5123: a commit landing while a push for this branch name is
@@ -193,7 +193,7 @@ pre-commit:
             glob: ".agents/planning/**/*.md"
 
           - name: infrastructure-advisory
-            timeout: 5m
+            timeout: 60s
             run: >-
               uv run --frozen python
               .claude/skills/security-detection/detect_infrastructure.py
@@ -409,11 +409,11 @@ pre-push:
   piped: true
   jobs:
     - name: repair-packed-refs
-      timeout: 1m
+      timeout: 20s
       run: uv run --frozen python scripts/maintenance/repair_packed_refs.py
 
     - name: mutation-safety
-      timeout: 30s
+      timeout: 20s
       run: uv run --frozen python -m scripts.testing.mutation_workspace check
 
     # Issue #4634: this job was declared twice, and the copy that ran first
@@ -432,7 +432,7 @@ pre-push:
     # script allows `git ls-remote` 10s per pushed ref, so a push of several
     # refs on a slow link could exceed the 30s this copy carried.
     - name: push-ref-staleness
-      timeout: 1m
+      timeout: 60s
       run: uv run --frozen python scripts/validation/push_ref_staleness.py "{1}"
       use_stdin: true
 
@@ -442,17 +442,17 @@ pre-push:
         piped: true
         jobs:
           - name: push-ref-policy
-            timeout: 1m
+            timeout: 20s
             run: uv run --frozen python scripts/validation/git_hook_policy.py pre-push
             use_stdin: true
 
           - name: security-suppression-policy
-            timeout: 1m
+            timeout: 20s
             run: uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-push
             use_stdin: true
 
           - name: placeholder-identity
-            timeout: 1m
+            timeout: 20s
             run: uv run --frozen python scripts/validation/git_hook_policy.py placeholder-identity
             use_stdin: true
 
@@ -464,7 +464,7 @@ pre-push:
           # MUST-21: a stdin consumer in a parallel group races the shared
           # stream under Lefthook 2.1.10.
           - name: retrospective-policy
-            timeout: 1m
+            timeout: 20s
             run: uv run --frozen python scripts/validation/git_hook_policy.py retrospective
             use_stdin: true
 
@@ -475,14 +475,14 @@ pre-push:
         parallel: true
         jobs:
           - name: python-lint-ratchet
-            timeout: 2m
+            timeout: 90s
             run: uv run --frozen --extra dev python scripts/ci/ruff_ratchet.py
             env:
               RUFF_RATCHET_BASE_REF: origin/main
             glob: "**/*.py"
 
           - name: python-lint-count-ratchet
-            timeout: 2m
+            timeout: 90s
             run: uv run --frozen --extra dev python scripts/ci/ruff_count_ratchet.py --base-ref origin/main
             glob:
               - "**/*.py"
@@ -494,31 +494,31 @@ pre-push:
               - "uv.lock"
               - "scripts/ci/ruff_count_baseline.txt"
           - name: taste-count-ratchet
-            timeout: 2m
+            timeout: 90s
             run: uv run --frozen python scripts/ci/taste_count_ratchet.py --base-ref origin/main
             glob: ["**/*.{py,md,yml,yaml,json,ps1,psm1,sh}", "scripts/ci/taste_count_baseline.txt"]
           - name: type-ignore-count-ratchet
-            timeout: 2m
+            timeout: 90s
             run: uv run --frozen python scripts/ci/type_ignore_count_ratchet.py --base-ref origin/main
             glob: ["**/*.py", "scripts/ci/type_ignore_count_baseline.txt"]
           - name: memory-index-count-ratchet
-            timeout: 2m
+            timeout: 90s
             run: uv run --frozen python scripts/ci/memory_index_count_ratchet.py --base-ref origin/main
             glob: [".serena/memories/**/*.md", "scripts/ci/memory_index_count_baseline.txt"]
           - name: cli-exit-contract-ratchet
-            timeout: 2m
+            timeout: 90s
             run: uv run --frozen python scripts/ci/cli_exit_contract_ratchet.py --base-ref origin/main
             glob: ["**/*.py", "scripts/ci/cli_exit_contract_baseline.txt"]
           - name: memory-index-token-ratchet
-            timeout: 2m
+            timeout: 90s
             run: uv run --frozen python scripts/ci/memory_index_token_ratchet.py
             glob: [".serena/memories/**/*.md"]
           - name: python-unreachable-statements
-            timeout: 2m
+            timeout: 90s
             run: uv run --frozen python scripts/validation/check_unreachable_code.py .
             glob: "**/*.py"
           - name: merge-tree-ratchet
-            timeout: 2m
+            timeout: 90s
             run: uv run --frozen --extra dev python scripts/ci/merge_tree_ratchet_check.py --base-ref origin/main
             glob:
               - "**/*.py"
@@ -538,7 +538,7 @@ pre-push:
               - "scripts/ci/cli_exit_contract_baseline.txt"
 
           - name: path-normalization
-            timeout: 2m
+            timeout: 90s
             run: >-
               uv run --frozen python
               build/scripts/validate_path_normalization.py
@@ -546,7 +546,7 @@ pre-push:
             glob: "**/*.md"
 
           - name: planning-artifacts
-            timeout: 2m
+            timeout: 90s
             run: >-
               uv run --frozen python
               build/scripts/validate_planning_artifacts.py
@@ -554,15 +554,15 @@ pre-push:
             glob: ".agents/planning/**/*.md"
 
           - name: branch-scope
-            timeout: 2m
+            timeout: 90s
             run: uv run --frozen python scripts/detect_scope_explosion.py --base-branch origin/main
 
           - name: branch-context-policy
-            timeout: 2m
+            timeout: 60s
             run: uv run --frozen python scripts/validation/git_hook_policy.py branch-context
 
           - name: review-axis-drift
-            timeout: 2m
+            timeout: 90s
             run: uv run --frozen python build/scripts/generate_pr_quality_prompts.py --dry-run
 
     # Expensive stdin consumer (issue #5066). Serial on purpose: MUST-21
@@ -583,7 +583,7 @@ pre-push:
         parallel: true
         jobs:
           - name: pre-pr-validation
-            timeout: 15m
+            timeout: 3m
             run: uv run --frozen python scripts/validation/pre_pr.py
             env:
               SKIP_AUTOFIX: "1"
@@ -603,7 +603,7 @@ pre-push:
               # This job's own timeout (above) in seconds, so the
               # generated-staleness gate can clamp its deadline to the
               # process's remaining share; a test pins the two values.
-              PRE_PR_OUTER_CAP_SECONDS: "900"
+              PRE_PR_OUTER_CAP_SECONDS: "180"
 
           - name: worktree-gc-report
             timeout: 2m
@@ -626,12 +626,12 @@ pre-push:
               AI_AGENTS_PYTEST_WORKER_CAP: "4"
 
           - name: python-lint-advisory
-            timeout: 10m
+            timeout: 2m
             run: uv run --frozen --extra dev ruff check --exit-zero -- {push_files}
             glob: "**/*.py"
 
           - name: python-type-check
-            timeout: 2m
+            timeout: 90s
             run: uv run --frozen --extra dev python scripts/validation/git_hook_policy.py mypy {push_files}
             glob: "**/*.py"
             exclude:
@@ -646,7 +646,7 @@ pre-push:
               - "evals/**"
 
           - name: infrastructure-advisory
-            timeout: 5m
+            timeout: 60s
             run: uv run --frozen python .claude/skills/security-detection/detect_infrastructure.py --files {push_files}
             glob: "**/*"
 
@@ -656,7 +656,7 @@ pre-push:
             glob: ".github/workflows/**/*.{yml,yaml}"
 
           - name: additions-advisory
-            timeout: 5m
+            timeout: 60s
             run: uv run --frozen python scripts/validation/git_hook_policy.py additions
 
           - name: hook-anchoring-e2e
@@ -695,11 +695,11 @@ pre-push:
           # service each file burns a 10s MCP timeout and the corpus overruns
           # the 5m cap. The handler derives the real push range from stdin.
           - name: observation-sync-advisory
-            timeout: 5m
+            timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py observations-push
             use_stdin: true
             glob: ".serena/memories/**/*-observations.md"
 
           - name: bot-cascade-advisory
-            timeout: 5m
+            timeout: 60s
             run: uv run --frozen python scripts/validation/git_hook_policy.py bot-cascade
