@@ -1054,6 +1054,33 @@ class TestInstructionsScanRoot:
         counts = cmp.scan_plugin_roots(tmp_path)
         assert "src/copilot-cli/instructions/annotated.instructions.md" not in counts
 
+    def test_missing_required_extra_roots_reports_declared_order(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The docstring promises declared order; a frozenset cannot give that.
+
+        Copilot review on PR #5284 found ``missing_required_extra_roots``
+        iterated ``REQUIRED_EXTRA_ROOTS`` (a ``frozenset``, unordered)
+        directly, so with today's single member the output happens to be
+        deterministic, but a second member would make the order arbitrary,
+        contradicting the function's own "in declared order" docstring.
+        Simulating a second required root here (today there is only one)
+        proves the fix reads from ``EXTRA_SCAN_ROOTS`` (the ordered tuple),
+        not from the frozenset.
+        """
+        monkeypatch.setattr(
+            cmp, "EXTRA_SCAN_ROOTS", ("zzz_root", "aaa_root", "mmm_root")
+        )
+        monkeypatch.setattr(
+            cmp, "REQUIRED_EXTRA_ROOTS", frozenset({"zzz_root", "aaa_root", "mmm_root"})
+        )
+
+        assert cmp.missing_required_extra_roots(tmp_path) == [
+            "zzz_root",
+            "aaa_root",
+            "mmm_root",
+        ]
+
     def test_missing_instructions_root_exits_2(self, tmp_path: Path) -> None:
         """A checkout missing the shipped instructions/ tree must fail closed.
 

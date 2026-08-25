@@ -169,6 +169,9 @@ corrected before its first commit.
 | Extend `_is_measured_input()` to cover `EXTRA_SCAN_ROOTS`, not only plugin `skills/` trees, closing a baseline-laundering gap in the `--base-ref` semantic-conflict guard for the surface this PR just started scanning | Applied | This session |
 | Print scanned-root counts on the drift path too, not only the clean path (the text branch previously returned before computing them) | Applied | This session |
 | Widen the gate to `.claude/rules/*.md` | Tracked | [#5294](https://github.com/rjmurillo/ai-agents/issues/5294) |
+| Widen the `vendor-portability` declaration to cover the bare `build/` prose mention (line 15 of the shipped mirror), not only the specific `build/audit/GENERATION-AUDIT.md` file | Applied | This session |
+| Fix `missing_required_extra_roots`'s frozenset iteration order, which contradicted its own "in declared order" docstring | Applied | This session |
+| Declare or fix the 14 other `src/copilot-cli/instructions/*.instructions.md` files this PR's new scan root grandfathered as pre-existing undeclared-path debt | Tracked | [#5298](https://github.com/rjmurillo/ai-agents/issues/5298) |
 
 ### Session Failures
 

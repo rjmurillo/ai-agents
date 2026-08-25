@@ -601,7 +601,11 @@ def missing_required_extra_roots(root: Path) -> list[str]:
     tree, which would also silently skip a required shipped root with no
     signal that anything was missed.
     """
-    return [name for name in REQUIRED_EXTRA_ROOTS if not (root / name).is_dir()]
+    return [
+        name
+        for name in EXTRA_SCAN_ROOTS
+        if name in REQUIRED_EXTRA_ROOTS and not (root / name).is_dir()
+    ]
 
 
 def scan_all(
@@ -1357,7 +1361,9 @@ def main(argv: list[str] | None = None) -> int:
     # validator exists to gate was never actually examined (issue #5214
     # review).
     empty_required = [
-        name for name in REQUIRED_EXTRA_ROOTS if scanned_by_root.get(name, 0) == 0
+        name
+        for name in EXTRA_SCAN_ROOTS
+        if name in REQUIRED_EXTRA_ROOTS and scanned_by_root.get(name, 0) == 0
     ]
     if empty_required:
         absent = ", ".join(empty_required)
