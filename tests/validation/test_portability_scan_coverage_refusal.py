@@ -104,6 +104,13 @@ class TestMarkdownCheckerCoverage:
             for slug in ("alpha", "beta"):
                 (skills / slug).mkdir()
                 (skills / slug / "SKILL.md").write_text("Nothing upstream.\n", encoding="utf-8")
+        # REQUIRED_EXTRA_ROOTS (issue #5214): always create and populate, since
+        # it is orthogonal to the skills-root "populated" matrix these tests
+        # exercise and every case here needs main() to get past the required
+        # root check.
+        instructions = root / "src" / "copilot-cli" / "instructions"
+        instructions.mkdir(parents=True, exist_ok=True)
+        (instructions / "x.instructions.md").write_text("Nothing upstream.\n", encoding="utf-8")
         _commit_tree(root)
 
     def _run(self, root: Path, baseline: Path) -> int:
@@ -161,6 +168,7 @@ class TestMarkdownCheckerCoverage:
         assert cmp.scanned_markdown_by_root(tmp_path) == {
             ".claude/skills": 2,
             "src/copilot-cli/skills": 2,
+            "src/copilot-cli/instructions": 1,
         }
 
     def test_coverage_reports_a_starved_root_as_zero(self, tmp_path: Path) -> None:
@@ -168,6 +176,7 @@ class TestMarkdownCheckerCoverage:
         assert cmp.scanned_markdown_by_root(tmp_path) == {
             ".claude/skills": 2,
             "src/copilot-cli/skills": 0,
+            "src/copilot-cli/instructions": 1,
         }
 
 
