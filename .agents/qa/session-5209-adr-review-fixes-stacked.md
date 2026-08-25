@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 99066a857d9e6dd4efe5cbaf00c12f987bdeb005
+qaCommit: 9cb04f01d9b2c74423317f92b26bdd3abcd6fada
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -830,3 +830,17 @@ removed. Full detail, including the flake diagnosis and the stale-allowance
 removal reasoning, in that addendum.
 
 **Rebound to** `99066a857d9e6dd4efe5cbaf00c12f987bdeb005`.
+
+## Addendum 32: same rebind as Addendum 30 of the campaign report
+
+An eleventh Copilot review round on the pushed head, five commits: five
+ADR frontmatter `date` fields corrected to reflect ADR-073's last-updated
+contract, `check_adr_links.py`'s empty-corpus guard hardened against an
+unrelated-but-valid repository root, two stale seven-check taste-lint
+suppressions, a narrowed absolute session-log claim, and a stale ADR-063
+test docstring. One finding (reference-style ADR links) filed as issue
+#5312, not fixed here, after confirming the live corpus has zero exposure.
+Full detail, including the mutation-proof mishap with `git checkout --`
+and its safe redo, in that addendum.
+
+**Rebound to** `9cb04f01d9b2c74423317f92b26bdd3abcd6fada`.

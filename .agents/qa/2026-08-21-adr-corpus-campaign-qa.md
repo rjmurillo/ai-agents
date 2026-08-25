@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 99066a857d9e6dd4efe5cbaf00c12f987bdeb005
+qaCommit: 9cb04f01d9b2c74423317f92b26bdd3abcd6fada
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1589,3 +1589,70 @@ index.py` (311 tests) passed. Commits: `241d1aad5` (index regen),
 `99066a857` (stale-allowance fix).
 
 **Rebound to** `99066a857d9e6dd4efe5cbaf00c12f987bdeb005`.
+
+## Addendum 30: an eleventh Copilot review round, five commits
+
+Pushed the round-10 rebind, then an eleventh Copilot review landed nine
+findings on the pushed head: three suppressed, six inline. Six confirmed
+real and fixed; one (reference-style ADR links never scanned) filed as
+issue #5312 rather than built into this round, since a full-corpus
+`git grep -P` for a reference definition targeting an ADR returned zero
+matches, so the gap is real but not live; two were PR-description
+accuracy findings this session had already corrected in the same window,
+before the review's delivery reached the session (the &#34;53 records&#34;
+checklist item and its companions, and the stale round-2 test/check/
+violation counts, now further annotated to say those are the round-2
+snapshot rather than current).
+
+Fixed, five commits:
+
+1. `c7a73be41`: ADR-005/024/025 frontmatter `date` corrected to reflect
+   ADR-073's `# last updated` contract instead of the original decision
+   or first-commit date. ADR-005 in particular: this is the *second*
+   correction of the same field this campaign, after an earlier merge
+   resolution reverted a correct `origin/main` value on a mistaken belief
+   about which record it dated; verified against the record's own body
+   (&#34;Superseded by ... (2026-01-17)&#34;) this time, not against a removed
+   prose line. Appended the second-correction note to
+   `ADR-005-status-duplication-debate-log.md`.
+2. `dc22389f9`: ADR-055/063 frontmatter `date`, same class. Regenerated
+   `.agents/architecture/README.md` for all five date changes.
+   Correction notes appended to the two records' existing debate logs
+   (`ADR-024-025-042-055-status-redundancy-debate-log.md`,
+   `ADR-063-debate-log.md`) to satisfy `adr-review-policy`&#39;s mandatory
+   debate-log-staged-alongside-ADR-changes gate.
+3. `e80a79e06`: `check_adr_links.py`&#39;s empty-corpus guard (round 9) only
+   rejected zero tracked markdown files of any kind; an unrelated valid
+   git repository with a bare `README.md` still passed with a
+   manufactured &#34;0 violation(s)&#34;. Added `_has_adr_corpus()`: at least
+   one scanned file&#39;s basename must be ADR-shaped. First design attempt
+   anchored the check to `.agents/architecture` (mirroring
+   `check_adr_lifecycle.py`&#39;s own sentinel), which broke 3 of 101
+   existing tests that rely on an `adr/`-prefixed fixture directory;
+   redesigned to check the scanned-file basenames instead, matching this
+   module&#39;s actual repo-wide scanning scope. 6 new tests; mutation-proven
+   via a safe backup/restore cycle, not `git checkout --` (an earlier
+   attempt at the mutation proof used `git checkout --` to undo the
+   mutation and it wiped the entire uncommitted fix instead, since
+   `checkout` restores to `HEAD`, not to a point mid-edit; redone safely
+   and the fix reapplied from scratch).
+4. `8db8ee417`: two file-size taste-lint suppression rationales
+   (`check_adr_lifecycle.py`, `test_check_adr_lifecycle.py`) still said
+   &#34;seven checks&#34;, stale since `status-edge-consistency` shipped as the
+   eighth.
+5. `9cb04f01d`: the session log&#39;s `sessionLogCreated.Evidence` field made
+   an unqualified &#34;No hook was bypassed&#34; claim contradicting a
+   correction already present later in the same file; narrowed to
+   surviving commits. `tests/test_adr_063_memory_skill_decomposition.py`&#39;s
+   module docstring still called ADR-063 &#34;DRAFT (Proposed)&#34; while the
+   file&#39;s own assertion requires `accepted`.
+
+Re-verified: `check_adr_lifecycle.py` `[PASS] 1 violation(s) across 103
+ADR record(s)`; `check_adr_links.py` `0 violation(s) across 1591 tracked
+markdown file(s)`; `taste_count_ratchet.py` `575 <= baseline 576`;
+`tests/validation/test_check_adr_lifecycle.py` +
+`test_check_adr_links.py` + `tests/build_scripts/test_generate_adr_
+index.py` + `tests/test_adr_063_memory_skill_decomposition.py` (343
+tests) passed.
+
+**Rebound to** `9cb04f01d9b2c74423317f92b26bdd3abcd6fada`.
