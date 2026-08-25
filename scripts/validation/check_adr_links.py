@@ -106,6 +106,9 @@ EXTERNAL_SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 # The four violation classes a baseline entry can name. Mirrors the literal
 # strings passed to Finding(kind=...) below (search this file for
 # 'Finding(' to confirm the set stays exhaustive as classes are added).
+# "stale-allowance" (see find_broken_adr_links) is deliberately excluded: a
+# stale-allowance finding reports that a baseline entry is unused, so a
+# baseline entry cannot itself allow one without defeating its own purpose.
 BASELINE_KINDS = frozenset({"unresolved", "absolute", "malformed", "number-mismatch"})
 
 
@@ -513,6 +516,31 @@ def find_broken_adr_links(
                 remaining_allowances.discard(key)
                 continue
             findings.append(finding)
+
+    # An unused allowance never surfaces as a finding on its own: the loop
+    # above only discards a key it actually matched. Left unchecked, a
+    # baseline entry whose real finding was already fixed keeps silently
+    # suppressing the next unrelated regression that happens to produce the
+    # identical kind:file:target key, because the `in remaining_allowances`
+    # check above has no memory of whether an entry has EVER matched across
+    # runs, only within this one (Copilot, PR #5209). Only enforced on a
+    # full-corpus scan (`files is None`): a caller that explicitly narrows
+    # `files` to a subset is not claiming the rest of the baseline is
+    # unused, only that it did not look there this run.
+    if files is None and remaining_allowances:
+        for key in sorted(remaining_allowances):
+            kind, file, target = key.split(":", 2)
+            findings.append(
+                Finding(
+                    file,
+                    0,
+                    "stale-allowance",
+                    target,
+                    f"baseline entry for {kind!r} no longer matches any finding; "
+                    f"remove it from {DEFAULT_BASELINE} or it silently suppresses "
+                    "the next unrelated regression sharing this key",
+                )
+            )
     return findings
 
 

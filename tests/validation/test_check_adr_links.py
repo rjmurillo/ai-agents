@@ -551,6 +551,44 @@ def test_a_second_identical_finding_is_not_covered_by_one_allowance(tmp_path: Pa
     assert [finding.line for finding in findings] == [2]
 
 
+def test_stale_allowance_is_reported_on_a_full_corpus_scan(tmp_path: Path) -> None:
+    """An unused baseline entry surfaces as its own finding, not silence.
+
+    A full-corpus scan (``files=None``, the shape ``main()`` always uses) that
+    never matches a baseline entry means the defect it once allowed is
+    already fixed. Leaving the entry in place is not neutral: the next
+    unrelated regression that happens to produce the identical
+    ``kind:file:target`` key is silently suppressed by an allowance nobody
+    remembers granting (Copilot, PR #5209).
+    """
+    key = "unresolved:adr/index.md:ADR-005-gone.md"
+
+    findings = find_broken_adr_links(tmp_path, baseline={key}, tracked=frozenset())
+
+    assert len(findings) == 1
+    finding = findings[0]
+    assert finding.kind == "stale-allowance"
+    assert finding.file == "adr/index.md"
+    assert finding.target == "ADR-005-gone.md"
+
+
+def test_stale_allowance_is_not_reported_on_a_narrowed_scan(tmp_path: Path) -> None:
+    """A caller that explicitly narrows ``files`` is not claiming full coverage.
+
+    Passing ``files=[...]`` scopes the scan to a subset. A baseline entry the
+    scan never had a chance to visit is not evidence the entry is stale, only
+    that this run did not look there; flagging it here would make every
+    scoped, per-file lint run (e.g. a pre-commit hook checking staged files
+    only) fail on baseline entries that belong to files outside the diff.
+    """
+    doc = write(tmp_path, "adr/other.md", "no links here\n")
+    key = "unresolved:adr/index.md:ADR-005-gone.md"
+
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline={key}, tracked=frozenset())
+
+    assert findings == []
+
+
 def test_whole_file_baseline_entry_is_rejected_as_malformed(tmp_path: Path) -> None:
     """A bare filename must not become a silent, unbounded wildcard.
 
