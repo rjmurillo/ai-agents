@@ -142,6 +142,8 @@ six advisory reporters and two local-state repair actions) is **not** resolved.
 The record does not add a placement rule for non-blocking reporters. It is
 recorded here as an open gap rather than folded into #5318, because it is a
 question about the tier model itself rather than about pre-push cost.
+*Closed in Round 6 as rules 9 and 10, where the count of local mutators is also
+corrected from two to one.*
 
 ## Next steps
 
@@ -197,6 +199,7 @@ issue #5318.
 The architect seat's A5 remains open and unaddressed: the tier model still has
 no placement rule for the six non-blocking advisory reporters or the two
 local-state repair actions in pre-push.
+*Closed in Round 6.*
 
 ## Round 3: bounding the declared worst case
 
@@ -317,6 +320,7 @@ their three largest contributors for that reason.
   the stakes but does not reconcile the two records.
 - The architect seat's A5, no placement rule for the six advisory reporters or
   the two local-state repair actions, is unaddressed for a fourth round.
+  *Closed in Round 6.*
 
 ### Round 4 addendum: the first cap set was too tight in one place
 
@@ -386,3 +390,61 @@ and two new tests cover the cases it cannot: a container clamps the child, and
 CI does not inherit the clamp even when a container marker is present. That
 last one matters because a real hang in CI is a real failure and must surface
 as one.
+
+## Round 6: A5 closed, and the count in it was wrong
+
+The architect seat's A5 has been open since Round 1 and unaddressed through
+five: the tier model had no placement rule for the pre-push jobs that are not
+gates. It is closed here as rules 9 and 10, and closing it required disputing
+the finding's own arithmetic.
+
+A5 named "six advisory reporters and two local-state repair actions." The six
+is right, and the mechanism behind it is not uniform, which is the part worth
+a rule. Five return 0 in their own code, where a test can read the guarantee:
+`python-lint-advisory` via `ruff --exit-zero`, and `additions-advisory`,
+`observation-sync-advisory`, `bot-cascade-advisory`, and
+`infrastructure-advisory` via handlers whose only top-level return is
+`return 0`. The sixth is not like the others. `gc_worktrees.py` returns 2 or 3
+on failure and `worktree-gc-report` appends `|| echo ...` in `lefthook.yml` to
+swallow it, so the job is advisory by nine characters of YAML that no reader of
+the script can see. Deleting them promotes it to a blocking gate nobody sized.
+
+The two is wrong. Only `repair-packed-refs` mutates local state.
+`mutation_workspace` takes `check` or `recover`, only `recover` writes, and the
+hook runs `check`, so `mutation-safety` is an ordinary read-only blocking guard
+already covered by rule 2. Had the rule been written to the finding as stated,
+it would have justified an ordering constraint `mutation-safety` does not need,
+and the ADR would have carried a fabricated requirement for as long as anyone
+trusted it.
+
+That makes six instances on this branch of one failure: a number held in place
+from somewhere the number is not written down. Rule 7's caps, the
+`_GATE_BUDGET_SECONDS` coupling, `MYPY_TIMEOUT_SECONDS`, the sum-versus-measured
+comparison, the 300s assertion behind a 240s claim, and now a count of local
+mutators taken from a job name. The name `mutation-safety` describes what the
+job protects, not what it does; `repair-packed-refs` describes what it does on
+the happy path, not that it blocks. Both readings failed the same way, in
+opposite directions.
+
+The rule that follows from the reporters is worth stating separately from the
+rule about them. Rules 1 through 4 sort checks by what they block and how
+early. A job that cannot fail is outside that sort entirely, and the tier
+budget is the only thing it can be judged against, because latency is the whole
+of what it costs. Six jobs sitting in pre-push that can never stop a push is
+not obviously wrong, but it was never a decision either, and rule 9 makes it
+one: a local slot is earned by output the developer acts on before the PR
+exists, and an advisory read on the PR belongs on the PR.
+
+### Still open after this round
+
+- The workstation declared worst case is 47.5 minutes against a 300s target.
+  The two e2e smokes account for 1200s of it and remain unmeasured while
+  firing. Issue #5318. Slow rather than destructive: in a container the clamp
+  bounds each at 150s.
+- ADR-054's enforced 900s `security-scan` budget still contradicts the 300s
+  target. Issue #5318.
+- `pre-pr-validation` is roughly 70% of the hook and the cheap way to cut it
+  was the unsound one. Issue #5317.
+- Rule 9 states where a reporter belongs; nothing yet enforces it, and no
+  reporter has been moved or removed on its authority. The rule is a decision
+  the next reader can apply, not a change to this hook.

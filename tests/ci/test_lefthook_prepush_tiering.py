@@ -113,8 +113,7 @@ class TestTheUnsoundSkipStaysReverted:
             str(job.get("name"))
             for hook in ("pre-push", "pre-commit")
             for job in _all_jobs(hook)
-            if isinstance(job.get("env"), dict)
-            and REVERTED_FAST_STAGE_FLAG in job["env"]
+            if isinstance(job.get("env"), dict) and REVERTED_FAST_STAGE_FLAG in job["env"]
         }
         assert offenders == set(), (
             f"{sorted(offenders)} set {REVERTED_FAST_STAGE_FLAG}. That flag "
@@ -171,4 +170,54 @@ class TestAnyFutureDeferralMustBeSound:
                 f"{name!r} no longer carries a glob. If its glob was removed "
                 "on purpose, a deferral to it would now be sound and this "
                 "control needs a different example."
+            )
+
+
+# ADR-104 rule 9. A job that cannot fail is not a gate, and pre-push carries six
+# of them. Five guarantee it in their own code, where a reader of the script can
+# see it: `ruff --exit-zero`, or a handler whose only top-level return is
+# `return 0`. `worktree-gc-report` is the exception and the hazard:
+# `gc_worktrees.py` returns 2 or 3 on failure and the job appends `|| echo ...`
+# here to swallow it (issue #4257). Nothing in the script says so.
+#
+# The direction that fails silently is a NEW job written this way. A gate whose
+# exit is discarded in YAML reports OK on every push, and the pipe carries on to
+# the next job, so it is indistinguishable from a passing gate for exactly the
+# reason a glob-skipped job is (see this module's docstring). Sizing, budget
+# ratchets, and the container clamp all still apply to it, so nothing else in
+# this suite notices.
+EXIT_SWALLOWING_PREPUSH_JOBS = frozenset({"worktree-gc-report"})
+
+
+class TestNonBlockingJobsAreDeclaredNotDiscovered:
+    """ADR-104 rule 9: state the mechanism next to the job."""
+
+    def test_only_known_jobs_discard_their_exit_status(self) -> None:
+        discarding = {
+            str(job.get("name")) for job in _all_jobs("pre-push") if "||" in str(job.get("run", ""))
+        }
+        unexpected = discarding - EXIT_SWALLOWING_PREPUSH_JOBS
+        assert unexpected == set(), (
+            f"{sorted(unexpected)} discard a non-zero exit with `||` in "
+            "lefthook.yml, so they cannot fail a push and nothing in the "
+            "script they run says so. Either make the job blocking, or add it "
+            "to EXIT_SWALLOWING_PREPUSH_JOBS with the issue that decided it "
+            "and check the placement question in ADR-104 rule 9: a job that "
+            "cannot fail earns a local slot only if a developer acts on its "
+            "output before the PR exists."
+        )
+
+    def test_every_declared_swallower_still_swallows(self) -> None:
+        """Negative control: the entry above is not stale.
+
+        If `worktree-gc-report` were made blocking, the assertion above would
+        still pass while the allowlist quietly documented the wrong thing.
+        """
+        for name in EXIT_SWALLOWING_PREPUSH_JOBS:
+            job = _job_named("pre-push", name)
+            assert job is not None, f"{name!r} is missing from pre-push."
+            assert "||" in str(job.get("run", "")), (
+                f"{name!r} no longer discards its exit status. If it is a "
+                "blocking gate now, drop it from EXIT_SWALLOWING_PREPUSH_JOBS "
+                "and size its cap as a gate rather than as a reporter."
             )

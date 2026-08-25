@@ -228,6 +228,43 @@ applied, the target is redundant with it.
    so the clamp is not a weakening of the gate: without it the gate produces
    no verdict at all.
 
+9. **A job that cannot fail is not a gate, so it is not placed by the rules
+   above.** Rules 1 through 4 all sort by what a check blocks and how early.
+   A reporter blocks nothing, so it buys none of the justification pre-push
+   rests on: the tier exists to fail cheaply before CI, and a reporter never
+   fails. It earns a local slot only when its output changes what the developer
+   does in the next minute. An advisory whose output is read on the PR belongs
+   on the PR, where the reader already is. Its cap counts against the tier
+   budget at full weight, because latency is the entire cost it imposes and
+   latency is the complaint this record answers.
+
+   State the mechanism next to the job, because the two in use are not
+   interchangeable. Five of the six pre-push reporters return 0 in their own
+   code, where a test can read the guarantee: `python-lint-advisory` through
+   `ruff --exit-zero`, and `additions-advisory`, `observation-sync-advisory`,
+   `bot-cascade-advisory`, and `infrastructure-advisory` through handlers whose
+   only top-level return is `return 0`. The sixth, `worktree-gc-report`, is
+   different: `gc_worktrees.py` returns 2 or 3 on failure and the job appends
+   `|| echo ...` in `lefthook.yml` to swallow it. Nothing reading the script
+   can see that it is advisory, and deleting nine characters of YAML silently
+   promotes it to a blocking gate that was never sized as one.
+
+10. **A job that mutates local state is placed by ordering, not by tier: it
+    runs before every gate that reads what it wrote.** `repair-packed-refs`
+    writes `.git/packed-refs` and is first in the piped hook for that reason.
+    It is still a gate, because it returns 1 on failure; "repair" names what it
+    does on the happy path, not its blocking behavior, and the two must not be
+    conflated when sizing it.
+
+    Only one pre-push job is in this class. The review that raised this gap
+    counted two, pairing `repair-packed-refs` with `mutation-safety`. That is
+    wrong on the code: `mutation_workspace` takes `check` or `recover`, only
+    `recover` mutates, and the hook runs `check`. `mutation-safety` is an
+    ordinary read-only blocking guard already covered by rule 2, and placing it
+    under a mutation rule would have justified an ordering constraint it does
+    not need. Sixth instance of this branch's recurring pattern: a count
+    carried from a name rather than from the thing named.
+
 ### Rejected: deferral by scheduler claim
 
 `pre-pr-validation` re-runs four checks the pre-push fast stage also runs. An
