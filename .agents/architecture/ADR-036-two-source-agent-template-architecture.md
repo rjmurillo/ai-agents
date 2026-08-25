@@ -63,7 +63,7 @@ Adopt a **two-source architecture**:
 - **Maintenance**: Manual edits, auto-generates outputs
 - **Content**: Shared prompts applicable to both Copilot platforms
 - **Files**: 18 template files
-- **Generates**: `src/copilot-cli/*.agent.md` and `src/vs-code-agents/*.md` via `build/generate_agents.py` (corrected 2026-08-25; this section previously cited a nonexistent `build/Generate-Agents.ps1`, contradicting this file's own References section)
+- **Generates**: `src/copilot-cli/agents/*.agent.md` and `src/vs-code-agents/*.md` via `build/generate_agents.py` (corrected 2026-08-25; this section previously cited a nonexistent `build/Generate-Agents.ps1` and, in an intermediate fix, the wrong Copilot CLI output path)
 
 ### Synchronization Requirement
 
