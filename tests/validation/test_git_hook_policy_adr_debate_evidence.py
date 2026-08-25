@@ -51,7 +51,20 @@ later reader does not have to reconstruct it from the implementation.
 
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, check=True)
+    # encoding and errors are explicit to match the convention at
+    # tests/test_lefthook_integration.py:107 and
+    # tests/validation/test_session_log_optional.py:142. Without them, text
+    # mode decodes with the locale codec, which on Windows can fail on git's
+    # UTF-8 output and leave stdout unset.
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=True,
+    )
 
 
 def _init_repo(repo: Path) -> None:
@@ -436,8 +449,16 @@ def test_an_incidental_mention_covers_a_staged_id(repo: Path) -> None:
     assert policy.check_adr_review_policy([ADR_42, ADR_05], repo) == 0
 
 
-def test_every_debate_log_on_main_still_passes() -> None:
-    """Calibration pin: the thresholds must not false-block committed evidence."""
+def test_every_debate_log_in_the_working_tree_still_passes() -> None:
+    """Calibration pin: the thresholds must not false-block committed evidence.
+
+    Scope, stated precisely because the obvious reading is wrong: this reads
+    the corpus in the current working tree, not at any named ref. Local edits,
+    untracked logs, or a change that touches both the logs and this gate move
+    what it measures without main having moved. It is a guard against a
+    threshold change silently starting to reject real reviews, not a claim
+    about main's contents at any point in time.
+    """
     critique = _ROOT / ".agents" / "critique"
     logs = sorted(path for path in critique.glob("*.md") if "debate" in path.name)
     assert len(logs) >= 70, "expected the calibration corpus to be present"
@@ -448,6 +469,41 @@ def test_every_debate_log_on_main_still_passes() -> None:
         if (gap := policy.debate_log_evidence_gap(path.read_text(errors="replace"))) is not None
     }
     assert rejected == {}
+
+
+def test_invalid_utf8_bytes_do_not_inflate_toward_the_byte_floor() -> None:
+    """A short blob of invalid bytes must not clear a floor it does not reach.
+
+    The staged blob is decoded with ``errors="replace"``, so each invalid byte
+    becomes U+FFFD and re-encodes to three. 100 on-disk bytes measured 300 and
+    cleared the stated 300-byte floor before ``_evidence_byte_count`` existed.
+    """
+    decoded = (b"\xff" * 100).decode("utf-8", errors="replace")
+    assert len(decoded.encode("utf-8")) == 3 * 100, "the inflation is what is being pinned"
+
+    gap = policy.debate_log_evidence_gap(decoded)
+    assert gap == f"shorter than {policy.DEBATE_LOG_MIN_BYTES} bytes"
+
+
+def test_replacement_characters_do_not_pad_a_real_log_over_the_floor() -> None:
+    """Negative pair: real text just under the floor stays under it when padded."""
+    body = "x" * (policy.DEBATE_LOG_MIN_BYTES - 1)
+    assert policy.debate_log_evidence_gap(body) is not None
+
+    padded = body + (b"\xff" * 50).decode("utf-8", errors="replace")
+    assert policy.debate_log_evidence_gap(padded) == (
+        f"shorter than {policy.DEBATE_LOG_MIN_BYTES} bytes"
+    )
+
+
+def test_valid_multibyte_text_still_counts_its_real_bytes() -> None:
+    """Positive control: the fix must not penalize genuine non-ASCII prose."""
+    # Well-formed U+FFFD written by an author counts as one character of real
+    # text, so stripping it is the one case where this measurement is stricter
+    # than the on-disk length. Everything else measures exactly.
+    text = "\u00e9" * 200
+    assert len(text.encode("utf-8")) == 400
+    assert policy._evidence_byte_count(text) == 400
 
 
 def test_frontmatter_only_implemented_flip_stays_exempt(repo: Path) -> None:

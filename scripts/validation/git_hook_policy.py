@@ -134,8 +134,8 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
     }
 )
 ADR_ID_RE = re.compile(r"ADR-\d+", re.IGNORECASE)
-# Issue #5205: thresholds calibrated against the 75 debate logs in
-# .agents/critique on main. All 75 clear these; the smallest is 454 bytes.
+# Issue #5205: thresholds calibrated against the 79 debate logs in
+# .agents/critique on main. All 79 clear these; the smallest is 454 bytes.
 DEBATE_LOG_MIN_BYTES = 300
 DEBATE_LOG_MIN_SECTIONS = 3
 DEBATE_LOG_VERDICT_WINDOW_LINES = 6
@@ -1468,25 +1468,44 @@ def _has_verdict(content: str) -> bool:
     )
 
 
+def _evidence_byte_count(content: str) -> int:
+    """Return the byte count of ``content``, ignoring replacement characters.
+
+    The staged blob is decoded with ``errors="replace"``, so every byte that is
+    not valid UTF-8 becomes U+FFFD, which re-encodes to three bytes. Measuring
+    the decoded text directly therefore inflates the count threefold over the
+    invalid span: 100 on-disk bytes of ``0xFF`` measure 300 and clear a stated
+    300-byte floor. Replacement characters carry no review text, so they count
+    for nothing here and the floor stays a floor on real bytes. Fail-closed by
+    construction: this can only ever measure less than the decoded length, so
+    it cannot admit a log the previous measurement rejected. Issue #5205.
+    """
+    return len(content.replace("\ufffd", "").encode("utf-8"))
+
+
 def debate_log_evidence_gap(content: str) -> str | None:
     """Return why ``content`` fails as review evidence, or None when it passes.
 
     Issue #5205: the gate accepted any staged ``.agents/critique/*debate*.md``
     whose bytes contained an ADR id, so a 7-byte file cleared it. These four
-    signals are calibrated against the 75 debate logs in ``.agents/critique`` on
-    main: all 75 pass, and a stub carrying only an ADR id fails on the first.
+    signals are calibrated against the 79 debate logs in ``.agents/critique`` on
+    main: all 79 pass, and a stub carrying only an ADR id fails on the first.
 
     This raises the cost of a forged review from a 7-byte file to a
     deliberately constructed one. It cannot make forgery impossible, because
     every signal is a property of text the committer controls. Binding the gate
     to attestation of the review itself is tracked on #5245 and #5247.
     """
-    if len(content.encode("utf-8")) < DEBATE_LOG_MIN_BYTES:
+    if _evidence_byte_count(content) < DEBATE_LOG_MIN_BYTES:
         return f"shorter than {DEBATE_LOG_MIN_BYTES} bytes"
     if len(DEBATE_LOG_HEADING_RE.findall(content)) < DEBATE_LOG_MIN_SECTIONS:
         return f"fewer than {DEBATE_LOG_MIN_SECTIONS} markdown sections"
     if not DEBATE_LOG_REVIEWER_RE.search(content):
-        return "no reviewer attribution (an adr-review role, 'participants', or 'self-review')"
+        return (
+            "no reviewer attribution (an adr-review role, 'participants', "
+            "'reviewers', 'agents' as in the template's 'Agent Positions', "
+            "or 'self-review')"
+        )
     if not _has_verdict(content):
         return "no verdict (a verdict label with a decision, or a per-role positions table)"
     return None

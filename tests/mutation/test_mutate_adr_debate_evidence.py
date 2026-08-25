@@ -51,7 +51,7 @@ _OUTCOME_DID_NOT_APPLY = "DID-NOT-APPLY"
 # Same ordering contract as the sibling harness: the outer cap MUST exceed the
 # inner one, or pytest-timeout interrupts inside subprocess.communicate and the
 # failure names no command (issue #5102). The inner suite here is one file of
-# 31 cases, well under the sibling's ~943, so these caps carry wide margin.
+# 42 cases, well under the sibling's ~943, so these caps carry wide margin.
 _INNER_SUBPROCESS_TIMEOUT_SECONDS = 300
 _OUTER_TEST_TIMEOUT_SECONDS = 360
 
@@ -198,6 +198,29 @@ def test_m5_coverage_reverted_to_any_semantics_is_detected(scratch_worktree: Pat
 
 
 # ---------------------------------------------------------------------------
+# M6: measure the byte floor on the decoded text again, restoring the
+# replacement-character inflation a review found on PR #5308
+# ---------------------------------------------------------------------------
+
+_M6_ORIGINAL = b"    if _evidence_byte_count(content) < DEBATE_LOG_MIN_BYTES:\n"
+_M6_MUTANT = (
+    b"    # M6 mutant: byte floor measured on the decoded text\n"
+    b'    if len(content.encode("utf-8")) < DEBATE_LOG_MIN_BYTES:\n'
+)
+
+
+@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
+def test_m6_byte_floor_measured_after_lossy_decode_is_detected(scratch_worktree: Path) -> None:
+    """Each invalid byte re-encodes to three, so 100 on-disk bytes measured 300."""
+    original = (REPO_ROOT / _TARGET_REL).read_bytes()
+    outcome = _apply_positive_mutant(
+        scratch_worktree, original, _M6_ORIGINAL, _M6_MUTANT, "M6-inflated-byte-floor"
+    )
+    assert outcome == _OUTCOME_DEAD
+    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M6"
+
+
+# ---------------------------------------------------------------------------
 # IC: comment-only change; the suite MUST survive it
 # ---------------------------------------------------------------------------
 
@@ -233,7 +256,7 @@ def _tests_running_the_inner_suite() -> list[str]:
 def test_every_inner_suite_test_raises_the_outer_timeout() -> None:
     """Report the scope alongside the finding (testing.md MUST 10)."""
     names = _tests_running_the_inner_suite()
-    assert len(names) == 3, f"Expected 3 inner-suite tests, discovered {len(names)}: {names}"
+    assert len(names) == 4, f"Expected 4 inner-suite tests, discovered {len(names)}: {names}"
 
     unmarked = [
         name
