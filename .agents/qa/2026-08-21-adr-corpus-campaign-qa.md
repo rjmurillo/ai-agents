@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 6471bbdd22424244dabf0aa1e3e9b70c3ae9e8f7
+qaCommit: 15fc72fdab4ba7a7cf01e6712f1fcc53df6cb982
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1487,3 +1487,26 @@ unchanged (`[PASS] 1 violation(s) across 102 ADR record(s)`), `check_adr_links.p
 generated index's Retired-section row, so no regeneration needed).
 
 **Rebound to** `6471bbdd22424244dabf0aa1e3e9b70c3ae9e8f7`.
+
+## Addendum 27: an eleventh Copilot review round, three commits
+
+Six findings fixed across three commits (`58f54b806`, `bec815948`,
+`15fc72fda`): two stale `adr_lifecycle_baseline.json` ceilings (53, 10,
+both already 0 in the live corpus since the origin/main merge) lowered
+to 0; a new ratcheted `status-edge-consistency` check added to
+`check_adr_lifecycle.py` (status: superseded requires a resolved
+successor edge and vice versa, `deprecated` exempt), 0 violations on
+the real corpus; a silent stale-allowance gap in `check_adr_links.py`
+fixed (an unused baseline entry now reports as its own finding on a
+full-corpus scan); two wording-accuracy fixes
+(`memory-gate/SKILL.md` + its Copilot mirror, `pre_pr.py`'s comment).
+Full detail in the three commits' own messages. Re-verified:
+`check_adr_lifecycle.py` `[PASS] 1 violation(s) across 102 ADR
+record(s)`, `check_adr_links.py` 0 violations, `build_all.py --check`
+clean, `tests/test_mutation_workspace_signals.py` (8 tests) passed
+clean in isolation after two contention-driven timeouts were confirmed
+as flakes (both coincided with a concurrent push's own python-tests
+phase running in a sibling worktree; a clean re-run with no other
+push or pytest process active passed all 8).
+
+**Rebound to** `15fc72fdab4ba7a7cf01e6712f1fcc53df6cb982`.

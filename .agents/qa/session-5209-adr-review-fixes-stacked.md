@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 6471bbdd22424244dabf0aa1e3e9b70c3ae9e8f7
+qaCommit: 15fc72fdab4ba7a7cf01e6712f1fcc53df6cb982
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -799,3 +799,13 @@ branch's prose-matching value, contradicting this report's own claim.
 Fixed, with a debate-log correction. Full detail in that addendum.
 
 **Rebound to** `6471bbdd22424244dabf0aa1e3e9b70c3ae9e8f7`.
+
+## Addendum 29: same rebind as Addendum 27 of the campaign report
+
+An eleventh Copilot review round, three commits: two stale ratchet
+ceilings lowered to 0, a new status-edge-consistency check added, a
+silent stale-allowance gap in check_adr_links.py fixed, two wording
+fixes. Full detail, including the flake-confirmation evidence for
+tests/test_mutation_workspace_signals.py, in that addendum.
+
+**Rebound to** `15fc72fdab4ba7a7cf01e6712f1fcc53df6cb982`.
