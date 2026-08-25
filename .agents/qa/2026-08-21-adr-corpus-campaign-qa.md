@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 9cb04f01d9b2c74423317f92b26bdd3abcd6fada
+qaCommit: f06b2aef9eb4d242eaac673857e55ba074848b10
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
@@ -1656,3 +1656,45 @@ index.py` + `tests/test_adr_063_memory_skill_decomposition.py` (343
 tests) passed.
 
 **Rebound to** `9cb04f01d9b2c74423317f92b26bdd3abcd6fada`.
+
+## Addendum 31: Cursor Bugbot found two of the round-11 fix's own test fixtures were unfixed
+
+Pushed the round-11 rebind. `copilot-pull-request-reviewer` failed with
+`Error: Prompt too big after adding PR context`, confirmed via
+`mcp__github__get_job_logs` as the bot's own prompt-budget limit hit by
+this PR's now-66KB+ description and 62-file diff, not a code defect;
+not fixed (nothing to fix), and this same job also never completed
+before PR #5286 merged successfully, so it does not gate mergeability.
+
+Cursor Bugbot, reviewing the same push, found a real gap in round-11's
+own `_has_adr_corpus` fix (commit `e80a79e06`): three
+`main()`/`validate_adr_links()` tests got a companion
+`adr/ADR-006-present.md` fixture so the new corpus guard would not
+intercept them before reaching their real assertion, but two more were
+missed:
+
+- `test_main_returns_two_when_a_file_has_invalid_utf8_content`: exit 2
+  either way (the guard's &#34;no ADR records found&#34; and the real
+  `UnicodeDecodeError` handler both exit 2 with a `check_adr_links:`
+  prefix), so the assertion silently passed without ever exercising the
+  UnicodeDecodeError path.
+- `test_validate_adr_links_reports_a_bool`: `False` either way, same
+  shape.
+
+Fixed both with the same companion-fixture pattern, and strengthened the
+first test's assertion to require `codec can't decode` in the output
+specifically, not just the shared prefix. Verified the strengthened
+assertion is not vacuous: reverting only the fixture (keeping the
+stronger assertion) reproduces the exact failure Cursor Bugbot
+described, `AssertionError: must reach the UnicodeDecodeError handler,
+not the _has_adr_corpus guard`, with the guard's own message quoted in
+the failure. Mutation-proven the other direction too: neutralizing
+`_has_adr_corpus` (`return True`) still passes both fixed tests, since
+they now reach and correctly validate the real code path independent of
+the guard.
+
+Commit `f06b2aef9`. Re-verified:
+`tests/validation/test_check_adr_links.py` 107 tests passed, `ruff
+check` clean on both touched files, no em/en dashes.
+
+**Rebound to** `f06b2aef9eb4d242eaac673857e55ba074848b10`.

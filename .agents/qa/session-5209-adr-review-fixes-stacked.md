@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 9cb04f01d9b2c74423317f92b26bdd3abcd6fada
+qaCommit: f06b2aef9eb4d242eaac673857e55ba074848b10
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -844,3 +844,17 @@ Full detail, including the mutation-proof mishap with `git checkout --`
 and its safe redo, in that addendum.
 
 **Rebound to** `9cb04f01d9b2c74423317f92b26bdd3abcd6fada`.
+
+## Addendum 33: same rebind as Addendum 31 of the campaign report
+
+Cursor Bugbot found two of round-11's own new test fixtures still let
+`_has_adr_corpus` intercept them before their real assertion,
+`test_main_returns_two_when_a_file_has_invalid_utf8_content` and
+`test_validate_adr_links_reports_a_bool`. Fixed with the same
+companion-fixture pattern the sibling round-11 commit used for three
+other tests, strengthened one assertion, and mutation-proved both
+directions. `copilot-pull-request-reviewer`&#39;s failure on this push is a
+confirmed bot-side prompt-budget limit, not a code defect. Full detail
+in that addendum.
+
+**Rebound to** `f06b2aef9eb4d242eaac673857e55ba074848b10`.
