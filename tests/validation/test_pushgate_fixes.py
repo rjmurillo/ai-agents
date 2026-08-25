@@ -82,9 +82,11 @@ class TestBudgetExhaustionMessage:
     on the first command too, because the deadline and the subtraction read
     ``time.monotonic()`` at two different instants. Measured against the real
     clock, a first-and-only command that timed out printed "timed out after
-    1740s remaining of the 1740s budget (budget exhausted by earlier commands
-    in the suite)", which is self-contradictory and points the reader at
-    commands that never ran.
+    Ns remaining of the Ns budget (budget exhausted by earlier commands in the
+    suite)", which is self-contradictory and points the reader at commands that
+    never ran. The budget was 1740s when that was measured; it is
+    `TEST_SUITE_TIMEOUT_SECONDS` now and these tests read the constant rather
+    than a literal, so a budget change cannot silently invalidate them.
 
     These tests drive the real clock rather than a fake one. A fake clock can
     hand the code ``remaining == full_budget`` exactly, and production never
@@ -99,6 +101,12 @@ class TestBudgetExhaustionMessage:
         tmp_path: Path,
     ) -> tuple[int, str]:
         """Run run_pytest over len(returncodes) commands on the REAL clock."""
+        # The multi-command suite budget these tests are about only exists on
+        # the executing path. Since ADR-104 the default path builds a single
+        # collection command through `_full_suite_stand_in`, which bypasses the
+        # `_pytest_commands` patch below entirely, so opt in explicitly rather
+        # than patching a function the code under test no longer reaches.
+        monkeypatch.setenv(policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
         commands = [
             ["uv", "run", "python", "-m", "pytest", f"slice{i}"] for i in range(len(returncodes))
         ]

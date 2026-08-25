@@ -286,7 +286,7 @@ def test_the_collection_notice_repeats_the_selector_reason(
 def test_a_collection_timeout_names_the_collection_ceiling(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A 300s collection hang must not be reported as a 1740s suite timeout.
+    """A collection hang must name the collection ceiling, not the suite one.
 
     The timeout message is the only thing a developer whose push just died has
     to go on. Naming the wrong ceiling sends them hunting for a 29-minute run
