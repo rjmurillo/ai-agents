@@ -1,3 +1,14 @@
+---
+id: ADR-064
+status: proposed
+date: 2026-06-01
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
+---
+
 # ADR-064: Retire `.claude/commands/` as a Canonical Authoring Surface; Skills Are the Single User-Invocable Surface
 
 ## Status

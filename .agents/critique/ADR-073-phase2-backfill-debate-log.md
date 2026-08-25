@@ -27,6 +27,14 @@ review of the PR, not on a consensus that did not happen.
 The review was not a formality. It changed six of the fifty-three records before
 they were written. Those corrections are recorded under "Findings" below.
 
+**The reviewer of this PR must choose one of two paths before merge, and the
+choice belongs to the repository owner, not to a default.** Either (a) convene
+the real six-agent adr-review debate in a session where sub-agent delegation
+works, and merge on that consensus, or (b) decide that single-reviewer
+structured review is sufficient evidence for a mechanical metadata backfill
+against an already-accepted schema, and record that decision. Do not merge on
+the assumption that a six-agent debate happened, because it did not.
+
 The repository was un-shallowed (`git fetch --unshallow`, 2630 commits) before
 any date or implementation claim was made. The session began with a 50-commit
 shallow clone in which `git log --follow -1` returns 2026-08-18 for every ADR,
@@ -373,6 +381,23 @@ therefore referenced with `Refs`, not `Fixes`. A follow-up after #5192, #5193,
 and #5195 land can pick up the remaining six, plus the ten partial-frontmatter
 records listed under "Verification performed", and close it.
 
+## Scope-gate note
+
+The final batches were committed with the `scope-policy` check's own opt-out.
+That check (`scripts/detect_scope_explosion.py`) blocks a branch changing more
+than 50 files, and this change touches 54. Its module docstring documents the
+opt-out as a first-class parameter for justified large PRs, and it is not one of
+the six hook-bypass mechanisms `.claude/rules/universal.md` MUST-NOT-2 forbids.
+No other hook was skipped: every batch cleared `adr-review-policy`,
+`staged-dash-policy`, and markdown lint.
+
+The justification the gate asks for: the file count is set by issue #5190, which
+names all 53 records; the diff is one identical nine-line block per file, plus a
+single prose paragraph in ADR-061 and four pre-existing em dashes removed from
+records already on the path; and a validation pass over all 96
+frontmatter-bearing ADRs proves conformance mechanically. Reviewing 53 copies of
+one block is not the burden the 50-file limit exists to prevent.
+
 ## Commit batches
 
 The `adr-policy` pre-commit gate requires a debate log staged alongside every
@@ -393,3 +418,4 @@ the batch here as it lands.
 | 10 | ADR-050, ADR-051, ADR-052, ADR-053 |
 | 11 | ADR-054, ADR-055, ADR-056, ADR-059 |
 | 12 | ADR-060, ADR-061, ADR-062, ADR-063 |
+| 13 | ADR-064, ADR-065, ADR-067, ADR-070 |

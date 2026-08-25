@@ -1,3 +1,14 @@
+---
+id: ADR-070
+status: proposed
+date: 2026-05-31
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-070: Memory-First Gate Is a BLOCKING Step in the Spec Pipeline
 
 ## Status
