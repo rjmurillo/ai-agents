@@ -239,8 +239,31 @@ def test_positions_table_counts_as_a_verdict() -> None:
     assert policy.debate_log_evidence_gap(content) is None
 
 
+def _filled_template() -> str:
+    """Return the canonical template with every placeholder answered.
+
+    Substituted the way an author filling it in would, so the assertions below
+    are about the template's *shape* rather than about any wording of mine.
+    """
+    filled = _canonical_debate_log_template()
+    for placeholder, answer in (
+        ("[ADR Title]", "Python Migration Strategy"),
+        ("[N]", "2"),
+        ("[Consensus | Concluded Without Consensus]", "Consensus"),
+        ("[proposed | accepted | needs-revision]", "accepted"),
+        ("[Issue 1]", "The trust boundary was not written down anywhere."),
+        ("[Issue 2]", "The rollback path assumed a backup that is not taken."),
+        ("[Change 1]", "Added the boundary to the Context section."),
+        ("[Change 2]", "Replaced the rollback step with one that is tested."),
+        ("[If applicable]", "Ship ADR-042 and revisit the metrics in Q3."),
+        ("| ... | ... |", "| architect | Accept |\n| security | Disagree-and-Commit |"),
+    ):
+        filled = filled.replace(placeholder, answer)
+    return filled
+
+
 def test_the_canonical_template_shape_passes() -> None:
-    """The gate must not reject a log written to the document it points at.
+    """A log written to the cited template must pass once it is filled in.
 
     ``debate_log_evidence_gap``'s failure message cites
     ``.claude/skills/adr-review/references/artifacts.md``. That template labels
@@ -248,25 +271,71 @@ def test_the_canonical_template_shape_passes() -> None:
     check that knew only the six role slugs blocked the committer and then sent
     them to the document they had followed.
 
-    This reads the fenced template out of that file rather than restating it.
-    A hardcoded copy makes the cross-file contract unobservable: an edit to the
-    document could start failing real template-based logs while a detached copy
-    kept this test green, which is the drift the test exists to prevent.
+    The template is read from that file rather than restated. A hardcoded copy
+    makes the cross-file contract unobservable: an edit to the document could
+    start failing real template-based logs while a detached copy kept this test
+    green, which is the drift the test exists to prevent.
     """
-    template = _canonical_debate_log_template()
+    filled = _filled_template()
 
-    # Guard the extraction itself. A regex that silently matched an empty or
-    # wrong fence would make the assertion below vacuous.
-    assert "Agent Positions" in template, (
+    # Guard the extraction. A regex that silently matched an empty or wrong
+    # fence would make the assertion below vacuous.
+    assert "Agent Positions" in filled, (
         "extracted the wrong fence from "
         f"{_DEBATE_LOG_TEMPLATE_DOC}: no 'Agent Positions' roster in it"
     )
 
-    gap = policy.debate_log_evidence_gap(template)
+    gap = policy.debate_log_evidence_gap(filled)
     assert gap is None, (
         f"the canonical template at {_DEBATE_LOG_TEMPLATE_DOC} no longer clears "
-        f"the gate that cites it: {gap}. Either the template or the gate moved; "
-        "they have to move together."
+        f"the gate that cites it once filled in: {gap}. Either the template or "
+        "the gate moved; they have to move together."
+    )
+
+
+def test_the_unfilled_canonical_template_does_not_pass() -> None:
+    """Negative pair: copying the template is not conducting a review.
+
+    Review of PR #5308 found the gate cleared the shipped template with only
+    its title changed. The four content signals cannot catch that on their own:
+    "Agent Positions" satisfies reviewer attribution and "Outcome: [Consensus |
+    Concluded Without Consensus]" satisfies a verdict label beside a decision
+    token, so an untouched template reads as a complete review to every one of
+    them. That is the stub defect this PR exists to close, wearing more bytes.
+    """
+    untouched = _canonical_debate_log_template().replace("[ADR Title]", "ADR-042")
+
+    # It really does clear the other four signals; the placeholder check is
+    # what stops it. Asserting this first keeps the test honest about which
+    # signal is doing the work.
+    for signal_name, satisfied in (
+        ("byte floor", policy._evidence_byte_count(untouched) >= policy.DEBATE_LOG_MIN_BYTES),
+        ("reviewer attribution", bool(policy.DEBATE_LOG_REVIEWER_RE.search(untouched))),
+        ("verdict", policy._has_verdict(untouched)),
+    ):
+        assert satisfied, f"fixture no longer reaches the placeholder check: {signal_name} fails"
+
+    gap = policy.debate_log_evidence_gap(untouched)
+    assert gap is not None and gap.startswith("unfilled template placeholders"), gap
+
+
+def test_every_template_placeholder_is_still_in_the_canonical_template() -> None:
+    """Drift guard: the hardcoded literals must match the document they quote.
+
+    ``DEBATE_LOG_TEMPLATE_PLACEHOLDERS`` is a verbatim copy per
+    `.claude/rules/canonical-source-mirror.md`. If the template is reworded and
+    this list is not, the gate silently stops rejecting unfilled copies of the
+    new template while still claiming to.
+    """
+    template = _canonical_debate_log_template()
+    missing = [
+        placeholder
+        for placeholder in policy.DEBATE_LOG_TEMPLATE_PLACEHOLDERS
+        if placeholder not in template
+    ]
+    assert not missing, (
+        f"these placeholders are no longer in {_DEBATE_LOG_TEMPLATE_DOC}, so the "
+        f"quoted copy has drifted from the template it mirrors: {missing}"
     )
 
 

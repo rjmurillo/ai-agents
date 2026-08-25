@@ -137,6 +137,32 @@ ADR_ID_RE = re.compile(r"ADR-\d+", re.IGNORECASE)
 # Issue #5205: thresholds calibrated against the 79 debate logs in
 # .agents/critique on main. All 79 clear these; the smallest is 454 bytes.
 DEBATE_LOG_MIN_BYTES = 300
+# Canonical source: the fenced debate-log template in
+# .claude/skills/adr-review/references/artifacts.md. These are its unfilled
+# placeholder spans, quoted verbatim per .claude/rules/canonical-source-mirror.md.
+# A log still carrying any of them was copied and not filled in, and an unfilled
+# template is not a review: the shipped template clears the other four signals on
+# its own, because "Agent Positions" satisfies reviewer attribution and
+# "Outcome: [Consensus | Concluded Without Consensus]" satisfies a verdict label
+# beside a decision token. Found by review of PR #5308.
+#
+# Matching these literals rather than bracketed spans in general is deliberate.
+# A general placeholder regex was measured against the committed corpus and
+# would false-block 25 of 79 logs (32%), on task checkboxes, [PASS] markers,
+# confidence intervals such as [-0.20, +0.31], and bracketed ADR references.
+# These exact literals false-block 0 of 79.
+DEBATE_LOG_TEMPLATE_PLACEHOLDERS = (
+    "[ADR Title]",
+    "[N]",
+    "[Consensus | Concluded Without Consensus]",
+    "[proposed | accepted | needs-revision]",
+    "[Issue 1]",
+    "[Issue 2]",
+    "[Change 1]",
+    "[Change 2]",
+    "[If applicable]",
+    "| ... | ... |",
+)
 DEBATE_LOG_MIN_SECTIONS = 3
 DEBATE_LOG_VERDICT_WINDOW_LINES = 6
 # Canonical source: .claude/skills/adr-review/SKILL.md, "Agent Roster" table
@@ -1515,6 +1541,11 @@ def debate_log_evidence_gap(content: str) -> str | None:
     signals are calibrated against the 79 debate logs in ``.agents/critique`` on
     main: all 79 pass, and a stub carrying only an ADR id fails on the first.
 
+    A fifth check rejects a log still carrying the canonical template's own
+    placeholders. The shipped template clears the four signals above unchanged,
+    so without it a contributor could copy the template, change the title, and
+    self-authorize an ADR lifecycle change with a document nobody filled in.
+
     This raises the cost of a forged review from a 7-byte file to a
     deliberately constructed one. It cannot make forgery impossible, because
     every signal is a property of text the committer controls. Binding the gate
@@ -1532,6 +1563,14 @@ def debate_log_evidence_gap(content: str) -> str | None:
         )
     if not _has_verdict(content):
         return "no verdict (a verdict label with a decision, or a per-role positions table)"
+    unresolved = [
+        placeholder
+        for placeholder in DEBATE_LOG_TEMPLATE_PLACEHOLDERS
+        if placeholder in content
+    ]
+    if unresolved:
+        shown = ", ".join(repr(placeholder) for placeholder in unresolved[:3])
+        return f"unfilled template placeholders ({shown})"
     return None
 
 

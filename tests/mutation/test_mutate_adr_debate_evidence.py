@@ -5,8 +5,8 @@ the check: each mutant reverts one defect this gate is supposed to stop, and
 the #5205 regression suite has to come back red. If it does not, those tests
 are decoration.
 
-Four mutants and one inverted control. Two revert the defects #5205
-reported; two revert defects found by review of this PR, which are as much
+Five mutants and one inverted control. Two revert the defects #5205
+reported; three revert defects found by review of this PR, which are as much
 part of the contract as the originals:
 
   M4 (positive): neuter the evidence gate, so a name-shaped stub clears again.
@@ -23,6 +23,10 @@ part of the contract as the originals:
   M7 (positive): drop an unreadable staged log silently instead of reporting
       it, so a covering sibling lets the gate clear a commit carrying a log
       nobody could read. Expected: DEAD.
+
+  M8 (positive): drop the unfilled-template placeholder check, so the shipped
+      template with only its title changed self-authorizes an ADR lifecycle
+      change. Expected: DEAD.
 
   IC (inverted control): change a comment only. Expected: SURVIVED. Without it
       a harness that reports DEAD unconditionally looks identical to a working
@@ -67,7 +71,7 @@ _OUTCOME_DID_NOT_APPLY = "DID-NOT-APPLY"
 # Same ordering contract as the sibling harness: the outer cap MUST exceed the
 # inner one, or pytest-timeout interrupts inside subprocess.communicate and the
 # failure names no command (issue #5102). The inner suite here is
-# two files of 43 cases total, well under the sibling's ~943, so these caps
+# two files of 45 cases total, well under the sibling's ~943, so these caps
 # carry wide margin.
 _INNER_SUBPROCESS_TIMEOUT_SECONDS = 300
 _OUTER_TEST_TIMEOUT_SECONDS = 360
@@ -258,6 +262,26 @@ def test_m7_silently_skipping_an_unreadable_log_is_detected(scratch_worktree: Pa
 
 
 # ---------------------------------------------------------------------------
+# M8: drop the unfilled-template placeholder check, restoring the fail-open a
+# review found on PR #5308
+# ---------------------------------------------------------------------------
+
+_M8_ORIGINAL = b"    if unresolved:\n"
+_M8_MUTANT = b"    if False:  # M8 mutant: unfilled template placeholders accepted\n"
+
+
+@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
+def test_m8_accepting_an_unfilled_template_is_detected(scratch_worktree: Path) -> None:
+    """Copying the canonical template is not conducting a review."""
+    original = (REPO_ROOT / _TARGET_REL).read_bytes()
+    outcome = _apply_positive_mutant(
+        scratch_worktree, original, _M8_ORIGINAL, _M8_MUTANT, "M8-unfilled-template"
+    )
+    assert outcome == _OUTCOME_DEAD
+    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M8"
+
+
+# ---------------------------------------------------------------------------
 # IC: comment-only change; the suite MUST survive it
 # ---------------------------------------------------------------------------
 
@@ -274,7 +298,7 @@ def test_ic_comment_only_change_survives(scratch_worktree: Path) -> None:
     )
     assert result.returncode == 0, (
         f"INVERTED CONTROL FAILED: a comment-only change reddened the suite, so a "
-        f"DEAD verdict from M4 or M5 proves nothing.\nstdout:\n{result.stdout}"
+        f"DEAD verdict from any positive mutant proves nothing.\nstdout:\n{result.stdout}"
     )
     assert _active_target_unmodified(), "Mutation target is dirty in active worktree after IC"
 
@@ -293,7 +317,7 @@ def _tests_running_the_inner_suite() -> list[str]:
 def test_every_inner_suite_test_raises_the_outer_timeout() -> None:
     """Report the scope alongside the finding (testing.md MUST 10)."""
     names = _tests_running_the_inner_suite()
-    assert len(names) == 5, f"Expected 5 inner-suite tests, discovered {len(names)}: {names}"
+    assert len(names) == 6, f"Expected 6 inner-suite tests, discovered {len(names)}: {names}"
 
     unmarked = [
         name
