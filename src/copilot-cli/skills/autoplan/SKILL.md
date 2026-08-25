@@ -60,6 +60,18 @@ review, ref-assembly updates, changelog, breaking-change policy) and route
 public-API work through those gates: land an API proposal and maintainer
 review before writing the implementation.
 
+**Issue already has an in-flight blocking PR.** Check for one before routing an
+`autoplan <issue-url>` request into a fresh implementation. If an open PR
+already carries a closing keyword for the issue, do not treat "avoid
+duplicating that work" and "resolve the issue" as the same goal; they diverge
+whenever the PR bundles the requested scope with unrelated scope that has not
+cleared review. A `needs-split` label on that PR is the signal the two goals
+have diverged and is an action cue, not a reason to defer: extract the
+issue-scoped slice from the PR's already-reviewed diff into its own minimal,
+mergeable PR rather than filing a follow-up issue and reporting the parent
+issue as handled while it stays open with no merged artifact (learned from
+`rjmurillo/ai-agents` issue #5198, 2026-08-25).
+
 ### Phase 1: Classify
 
 Answer two questions before you route. The Phase 0 recon reads come first;
