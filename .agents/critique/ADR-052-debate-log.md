@@ -2,8 +2,8 @@
 
 ## Summary
 
-- **Rounds**: 2 (Round 1: Phase 1 independent reviews, consolidated and resolved by session; Round 2: Phase 4 convergence check, all six agents re-invoked against the edited text)
-- **Outcome**: Consensus reached in Round 2: 1 Accept, 5 Disagree-and-Commit, 0 Block
+- **Rounds**: 3 (Round 1: Phase 1 independent reviews, consolidated and resolved by session; Round 2: Phase 4 convergence check, all six agents re-invoked against the edited text; Round 3: a second Phase 4 convergence check, triggered by further edits made after Round 2's vote)
+- **Outcome**: Consensus reached in Round 2 and reconfirmed in Round 3 (each: 1 Accept, 5 Disagree-and-Commit, 0 Block); Round 3 is the acceptance evidence for the current text
 - **Final Status**: Accepted (status: accepted, implemented: false); supersedes ADR-036 (status: superseded, implemented: true)
 
 ## Context
@@ -77,11 +77,34 @@ Triggered by a Copilot review finding on PR #5286: the Round 1 table above was a
 **Post-Round-2 fixes applied** (from the critic's D-1 through D-4, matching findings from architect and independent-thinker):
 
 1. `## Decision` Option A verdict now cross-references the Intentional Divergence concession instead of standing alone on the disputed similarity metric.
-2. The rebutted "projected convergence... never held" framing in the Prior Art correction paragraph was reworded to state the actual, narrower claim (no synchronization value for the layer's real purpose).
+2. The rebutted "projected convergence... never held" framing in the Prior Art correction paragraph was reworded to state the actual, narrower claim (no synchronization value for the layer's real purpose). **Correction (2026-08-25, Round 3 adr-review): this item is itself now superseded.** A later PR #5286 review round found the "no synchronization value" framing this fix produced was also false: `build/generate_agents.py` demonstrably synchronizes both generated agent trees today. See Round 3 below for the resulting correction (the layer's real cost is a duplicate source tree, not lost synchronization value); this item is left unrewritten as a historical record of what Round 2 actually changed, per this file's established practice of noting corrections after entries rather than rewriting them.
 3. The Positive-consequences bullet claiming templates "diverged... by design" (incoherent: by-design divergence is not a defect the removal cures) was reworded to state the actual benefit.
 4. The `detect_agent_drift.py:20-33` line-range citation (three agents independently found the same imprecision: the quoted text is at line 39, outside the cited range) was replaced with a docstring citation, matching the section-name convention already adopted for the ADR-036 citation.
 
 **Not fixed, tracked instead**: issue #5282's live state is unverifiable from this session (GitHub API access is 403'd here); confirming it exists, is open, and is correctly scoped is left to whoever merges this PR, per architect's and independent-thinker's and critic's shared dissent.
+
+## Round 3: Phase 4 Convergence Check (real votes, 2026-08-25, against post-Round-2 edits)
+
+Triggered by a further Copilot review finding on PR #5286: four edits landed after Round 2's vote (the Decision, Prior Art, and Consequences sections were corrected to acknowledge `build/generate_agent_catalog.py` as a third live consumer of `templates/agents/`, per the correction under "Post-Round-2 fixes applied" item 2 above), so Round 2's vote did not cover the text that actually shipped. All six agents were re-invoked in separate, isolated sessions against the current edited ADR-052 and ADR-036 text, each told to verify the new claims directly against the live repository (`build/generate_agent_catalog.py`, `build/scripts/build_all.py`) rather than trust the ADR's own citations. No agent had visibility into another's Round 3 output.
+
+| Agent | Position | Key finding |
+|-------|----------|-------------|
+| architect | Disagree-and-Commit | Every corrected claim verified against source; Phase 2 now sequences the catalog migration before deletion. Dissent: the consumer enumeration was still short by at least two validators (`check_skill_md_portability.py`, `check_agent_skill_discriminator.py` and its workflow); the "masks the break" framing overstated the risk since `validate_agent_catalog.py` fails loudly at pre-PR |
+| critic | Disagree-and-Commit | The three-outputs/cost-not-value correction reads coherently everywhere it appears; the `build_all.py` skip-not-fail claim checks out. Dissent (D-1 through D-4): the debate log's own Round 2 "fixes applied" list still asserted the now-repudiated "no synchronization value" claim with no note; the Phase 2 "regenerates unchanged" target is unreachable (`src/claude/*.md`'s frontmatter shape differs, only 6 of 33 files carry a top-level `role:`); `generate_agents.py`'s own retirement was named in the Status section but not sequenced in Phase 2, and it exits 1 on zero shared files; the `lefthook.yml` catalog job was miscategorized as a "CI workflow" |
+| independent-thinker | Disagree-and-Commit | Third consumer verified real and correctly disclosed; does not change the Claude-first cost-benefit case, only adds a migration task. Dissent: Phase 2's "regenerates unchanged" instruction is unsatisfiable by construction (frontmatter shape mismatch, hardcoded template links in the catalog renderer, LOC counts that would all change); the disclosed enforcement chain (`build_all.py` only) is narrower than the live one (`lefthook.yml`, `validate-generated-agents.yml`, and `checks_spec.py`'s hard-failing pre-PR gate) |
+| security | Disagree-and-Commit | No new CWE/ASI exposure from the correction (documentation and one Migration Plan sub-step only); SEC-R2-001 verified closed. Prior tooling weaknesses (debate-log gate substring match, `_get_adr_status` scans body not frontmatter) re-verified unworsened. Dissent: the "masks the break" clause is Low-precision, since `validate_agent_catalog.py`'s exit-2 fail-closed behavior is a compensating control the ADR's phrasing omitted |
+| analyst | **Accept** | All four Round 3 corrections verified true against live source directly; Migration Plan Phase 2 sequencing internally feasible; frontmatter remains reciprocal. Minor imprecision noted (the `build_all.py` skip prints a notice despite exiting 0, so "silently" slightly overstates it), not blocking |
+| high-level-advisor | Disagree-and-Commit | Third consumer strengthens the record, does not change direction; a Block verdict would be dishonest signaling given the near-zero blast radius (`implemented: false`, no-deletion-on-this-authority, #5282 owns delivery). Dissent: the "3 trees to 2" consequence is an unmeasured assertion (destination `src/claude/`, ~33 files, is not a clean superset of the 31-file template source); this debate log's own Round 2 "fixes applied" list omitted the catalog correction until this edit |
+
+**Consensus reached**: 1 Accept, 5 Disagree-and-Commit, 0 Block. Per the adr-review protocol, this is consensus. This table is ADR-073's acceptance evidence for the text as it stands after the post-Round-2 edits; Round 2 above remains the evidence for the text as it stood before them.
+
+**Post-Round-3 fixes applied** (convergent findings from 3+ agents fixed first; single-agent findings fixed where in scope):
+
+1. Migration Plan Phase 2 (ADR-052) rewritten: added the `generate_agents.py` retirement step (critic), corrected the "regenerates unchanged" target to acknowledge the frontmatter-shape mismatch instead of asserting an unreachable outcome (independent-thinker, critic), qualified the "masks the break" claim with `validate_agent_catalog.py`'s pre-PR fail-closed behavior (architect, analyst, security), and named the full consumer list instead of only the two CI workflows (architect, independent-thinker): `lefthook.yml`'s local job, `check_skill_md_portability.py`, `check_agent_skill_discriminator.py` and its workflow.
+2. Added a Migration Plan step requiring a measured (not asserted) maintenance-surface reduction number before Phase 2 executes (high-level-advisor).
+3. Annotated the Round 2 "Post-Round-2 fixes applied" item 2 above as itself superseded, per this file's established leave-the-record-append-a-note pattern (critic D-1).
+
+**Not fixed, tracked instead**: whoever executes Phase 2 must resolve the `role:` frontmatter-shape mismatch between `templates/agents/` and `src/claude/` before the catalog generator can be repointed; this is implementation work for issue #5282, not a text fix to this ADR (independent-thinker, critic).
 
 ## Key Changes Made
 
