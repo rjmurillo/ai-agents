@@ -21,6 +21,12 @@
 # Remove an entry when its link is repaired. MUST NOT add an entry to clear a
 # link the current change introduced (.claude/rules/ci-scripts.md MUST NOT 4
 # applies to this file for the same reason it applies to a count ratchet).
+# Both halves are enforced now, not just written down: check_adr_links.py
+# exits 2 on an entry this branch added that the base ref does not carry, and
+# exits 2 on a full-corpus scan that leaves an entry unmatched. A repaired
+# link's entry is not inert, so deleting it is required rather than tidy: the
+# key carries no line number, so a stale entry silently suppresses the next
+# finding that shares its kind, file, and target.
 #
 # The historical roots in scripts/validation/stale_script_refs.py HISTORICAL_ROOTS
 # are exempt in code and need no entry here.

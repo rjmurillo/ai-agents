@@ -19,11 +19,15 @@ import scripts.validation.stale_script_refs as stale_script_refs
 from scripts.validation.check_adr_links import (
     Finding,
     adr_number,
+    base_allowances_for_run,
+    baseline_entries_at_ref,
     find_broken_adr_links,
     git_ls_markdown,
     is_adr_target,
     is_historical_path,
     main,
+    normalize_label,
+    resolve_base_ref,
     scan_file,
     split_destination,
     text_adr_number,
@@ -271,6 +275,261 @@ def test_missing_leading_dot_directory_is_reported(tmp_path: Path) -> None:
         tmp_path, files=[doc], baseline=set(), tracked=frozenset({target})
     )
     assert kinds(findings) == ["unresolved"]
+
+
+# Reference-style links (CommonMark full, collapsed, and shortcut forms)
+
+
+def test_reference_style_link_to_a_tracked_target_passes(tmp_path: Path) -> None:
+    """Positive: a reference-style link whose definition resolves is clean."""
+    target = write(tmp_path, "adr/ADR-005-powershell-only-scripting.md", "# target\n")
+    doc = write(
+        tmp_path,
+        "adr/ADR-032-ears.md",
+        "See [ADR-005][decision] for detail.\n\n"
+        "[decision]: ./ADR-005-powershell-only-scripting.md\n",
+    )
+
+    assert (
+        find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset({target}))
+        == []
+    )
+
+
+def test_reference_style_link_with_a_broken_target_is_reported(tmp_path: Path) -> None:
+    """Negative: the exact gap the review named.
+
+    ``LINK`` matches only the inline ``[text](dest)`` form, so
+    ``[ADR-005][decision]`` with ``[decision]: ./ADR-006-wrong.md`` presented
+    the scanner with neither a link text nor a destination it could see, and
+    an unresolved target written in this legal CommonMark syntax passed the
+    repo-wide gate (Copilot, PR #5209 round-11 review).
+    """
+    doc = write(
+        tmp_path,
+        "adr/ADR-032-ears.md",
+        "See [Decision Record][decision].\n\n[decision]: ./ADR-006-wrong.md\n",
+    )
+
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
+
+    assert kinds(findings) == ["unresolved"]
+    assert findings[0].target == "./ADR-006-wrong.md"
+    assert findings[0].line == 1, "reported at the reference, not at the definition"
+
+
+def test_reference_style_number_mismatch_is_reported(tmp_path: Path) -> None:
+    """Negative: the link text names one ADR, the definition names another."""
+    target = write(tmp_path, "adr/ADR-006-wrong.md", "# target\n")
+    doc = write(
+        tmp_path,
+        "adr/ADR-032-ears.md",
+        "See [ADR-005][decision].\n\n[decision]: ./ADR-006-wrong.md\n",
+    )
+
+    findings = find_broken_adr_links(
+        tmp_path, files=[doc], baseline=set(), tracked=frozenset({target})
+    )
+
+    assert kinds(findings) == ["number-mismatch"]
+    assert findings[0].detail == "text says ADR-005, target is ADR-006"
+
+
+def test_reference_style_absolute_target_is_reported(tmp_path: Path) -> None:
+    target = write(tmp_path, "critique/ADR-023-debate-log.md", "# log\n")
+    doc = write(
+        tmp_path,
+        "architecture/ADR-023-quality-gate.md",
+        "See [Debate Log][log].\n\n[log]: /.agents/critique/ADR-023-debate-log.md\n",
+    )
+
+    findings = find_broken_adr_links(
+        tmp_path, files=[doc], baseline=set(), tracked=frozenset({target})
+    )
+
+    assert kinds(findings) == ["absolute"]
+
+
+def test_collapsed_reference_link_uses_its_text_as_the_label(tmp_path: Path) -> None:
+    """Edge: ``[label][]`` is a collapsed reference; the text is the label."""
+    doc = write(
+        tmp_path,
+        "adr/index.md",
+        "See [ADR-005][].\n\n[ADR-005]: ./ADR-005-gone.md\n",
+    )
+
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
+
+    assert kinds(findings) == ["unresolved"]
+    assert findings[0].target == "./ADR-005-gone.md"
+
+
+def test_shortcut_reference_link_is_resolved_against_its_definition(tmp_path: Path) -> None:
+    """Edge: ``[label]`` is a link only because a definition for it exists."""
+    doc = write(
+        tmp_path,
+        "adr/index.md",
+        "See [ADR-005].\n\n[ADR-005]: ./ADR-005-gone.md\n",
+    )
+
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
+
+    assert kinds(findings) == ["unresolved"]
+
+
+def test_bracketed_text_without_a_definition_is_not_a_link(tmp_path: Path) -> None:
+    """Edge: an undefined label renders as literal text, so it is not a defect.
+
+    Without this, every ``[ADR-005]`` written as plain emphasis in prose
+    would become a finding with no link behind it to repair.
+    """
+    doc = write(tmp_path, "adr/index.md", "Prose mentioning [ADR-005] and [nope][missing].\n")
+
+    assert find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset()) == []
+
+
+def test_reference_label_matching_is_case_insensitive(tmp_path: Path) -> None:
+    """Edge: CommonMark normalizes labels with a Unicode case fold.
+
+    ``[Decision Record]`` and ``[  decision   record ]`` are the same label
+    (spec.commonmark.org/0.31.2/#matches), so a renderer resolves this link
+    and this gate must too, or a broken destination hides behind a spelling
+    difference in the label.
+    """
+    doc = write(
+        tmp_path,
+        "adr/index.md",
+        "See [ADR-005][Decision   Record].\n\n[  decision record ]: ./ADR-005-gone.md\n",
+    )
+
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
+
+    assert kinds(findings) == ["unresolved"]
+
+
+def test_a_reused_reference_label_resolves_to_the_first_definition(tmp_path: Path) -> None:
+    """Edge: "If there are several matching definitions, the first one takes
+    precedence" (spec.commonmark.org/0.31.2/#link-reference-definition).
+
+    Taking the last definition instead would report the wrong destination,
+    and would clear a genuinely broken first definition whenever a later
+    duplicate happens to resolve.
+    """
+    target = write(tmp_path, "adr/ADR-005-real.md", "# target\n")
+    doc = write(
+        tmp_path,
+        "adr/index.md",
+        "See [ADR-005][decision].\n\n"
+        "[decision]: ./ADR-005-gone.md\n"
+        "[decision]: ./ADR-005-real.md\n",
+    )
+
+    findings = find_broken_adr_links(
+        tmp_path, files=[doc], baseline=set(), tracked=frozenset({target})
+    )
+
+    assert kinds(findings) == ["unresolved"]
+    assert findings[0].target == "./ADR-005-gone.md"
+
+
+def test_a_definition_that_precedes_nothing_still_resolves_a_later_reference(
+    tmp_path: Path,
+) -> None:
+    """Edge: definitions are collected file-wide before any line is scanned.
+
+    CommonMark places no ordering constraint between a reference and its
+    definition, so a definition at the bottom of a long document resolves a
+    reference at the top. Scanning line by line without a definitions pass
+    would miss every such link.
+    """
+    doc = write(
+        tmp_path,
+        "adr/index.md",
+        "See [ADR-005][decision].\n" + ("filler\n" * 20) + "[decision]: ./ADR-005-gone.md\n",
+    )
+
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
+
+    assert kinds(findings) == ["unresolved"]
+    assert findings[0].line == 1
+
+
+def test_a_definition_inside_a_fence_is_an_illustration_not_a_definition(
+    tmp_path: Path,
+) -> None:
+    """Edge: fenced content is example text, so a definition there defines nothing."""
+    doc = write(
+        tmp_path,
+        "docs/example.md",
+        "See [ADR-005][decision].\n\n```\n[decision]: ./ADR-005-gone.md\n```\n",
+    )
+
+    assert find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset()) == []
+
+
+def test_an_unreferenced_definition_produces_no_finding(tmp_path: Path) -> None:
+    """Edge: a renderer drops an unreferenced definition, so it is not a link."""
+    doc = write(tmp_path, "adr/index.md", "Prose only.\n\n[decision]: ./ADR-005-gone.md\n")
+
+    assert find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset()) == []
+
+
+def test_a_full_reference_is_not_also_counted_as_a_shortcut(tmp_path: Path) -> None:
+    """Edge: ``[ADR-005][ADR-005]``'s second bracket is the label, not a link.
+
+    Both brackets carry a defined label here, so a shortcut pass that did not
+    exclude spans already consumed by the full-reference pass would report the
+    one broken link twice and require two baseline entries to silence one
+    defect.
+    """
+    doc = write(
+        tmp_path,
+        "adr/index.md",
+        "See [ADR-005][ADR-005].\n\n[ADR-005]: ./ADR-005-gone.md\n",
+    )
+
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
+
+    assert kinds(findings) == ["unresolved"]
+
+
+def test_a_task_list_checkbox_is_not_a_shortcut_reference(tmp_path: Path) -> None:
+    """Edge: ``- [ ]`` normalizes to an empty label, which CommonMark forbids.
+
+    "A link label must contain at least one character that is not a space,
+    tab, or line ending" (spec.commonmark.org/0.31.2/#link-label), so an
+    empty-normalizing label must match no definition even when a
+    whitespace-only definition is present.
+    """
+    doc = write(tmp_path, "adr/index.md", "- [ ] todo\n\n[ ]: ./ADR-005-gone.md\n")
+
+    assert find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset()) == []
+
+
+def test_a_reference_link_to_a_non_adr_target_is_ignored(tmp_path: Path) -> None:
+    """Edge: the ADR-basename filter applies to the reference path too.
+
+    Without it, every reference-style link in the corpus would be resolved
+    and reported, not just the ADR ones this gate owns.
+    """
+    doc = write(tmp_path, "adr/index.md", "See [the readme][r].\n\n[r]: ./README-gone.md\n")
+
+    assert find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset()) == []
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("decision", "decision"),
+        ("Decision", "decision"),
+        ("  decision   record ", "decision record"),
+        ("DECISION\tRECORD", "decision record"),
+        ("", ""),
+        ("   ", ""),
+    ],
+)
+def test_normalize_label(raw: str, expected: str) -> None:
+    assert normalize_label(raw) == expected
 
 
 # Edge: things that must NOT be reported
@@ -638,6 +897,140 @@ def test_malformed_baseline_entries_rejects_the_rest(entry: str) -> None:
     assert entry in check_adr_links._malformed_baseline_entries({entry})
 
 
+def test_an_unused_allowance_fails_a_full_corpus_scan(tmp_path: Path) -> None:
+    """A repaired link's baseline entry must be deleted, not left to rot.
+
+    On a full-corpus scan every file a baseline entry can name was visited,
+    so an entry left unconsumed records a link that no longer exists. Passing
+    green on that stale entry is not harmless: ``Finding.key()`` carries no
+    line number, so the dead entry goes on suppressing the first future
+    finding that shares its kind, file, and target, and the regression it was
+    meant to catch never surfaces (Copilot, PR #5209).
+    """
+    write(tmp_path, "adr/ADR-005-x.md", "# target\n")
+    write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-x.md)\n")
+    baseline = {"unresolved:adr/index.md:ADR-005-gone.md"}
+
+    with pytest.raises(ValueError, match="unused"):
+        find_broken_adr_links(
+            tmp_path,
+            baseline=baseline,
+            tracked=frozenset({"adr/ADR-005-x.md", "adr/index.md"}),
+        )
+
+
+def test_a_narrowed_scan_tolerates_an_unused_allowance(tmp_path: Path) -> None:
+    """A scan that never reached a file proves nothing about its entries.
+
+    The unused-allowance check is deliberately scoped to ``files is None``:
+    failing a single-file lint because an entry for some other file went
+    unmatched would make the narrowed mode unusable.
+    """
+    doc = write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
+    baseline = {
+        "unresolved:adr/index.md:ADR-005-gone.md",
+        "unresolved:other/file.md:ADR-006-gone.md",
+    }
+
+    findings = find_broken_adr_links(tmp_path, files=[doc], baseline=baseline, tracked=frozenset())
+
+    assert findings == []
+
+
+def test_a_consumed_allowance_does_not_count_as_unused(tmp_path: Path) -> None:
+    """Positive control for the check above: a matched entry passes a full scan."""
+    write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
+    baseline = {"unresolved:adr/index.md:ADR-005-gone.md"}
+
+    findings = find_broken_adr_links(
+        tmp_path, baseline=baseline, tracked=frozenset({"adr/index.md"})
+    )
+
+    assert findings == []
+
+
+def test_main_returns_two_on_a_stale_baseline_entry(tmp_path: Path, capsys) -> None:
+    write(tmp_path, "adr/ADR-005-x.md", "# target\n")
+    write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-x.md)\n")
+    baseline = tmp_path / "baseline.txt"
+    baseline.write_text("unresolved:adr/index.md:ADR-005-gone.md\n", encoding="utf-8")
+    _init_repo(tmp_path)
+
+    exit_code = main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+
+    assert exit_code == 2
+    assert "unused" in capsys.readouterr().err
+
+
+# Baseline provenance: entries must already exist at the base ref
+
+
+def test_an_entry_absent_at_the_base_ref_is_rejected(tmp_path: Path) -> None:
+    """The exemption set must not be fully branch-controlled.
+
+    The baseline file's own header says "MUST NOT add an entry to clear a
+    link the current change introduced" and nothing enforced it, so a branch
+    could clear its own new defect by writing one line into the file it also
+    controls (Copilot, PR #5209).
+    """
+    doc = write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
+    key = "unresolved:adr/index.md:ADR-005-gone.md"
+
+    with pytest.raises(ValueError, match="this branch added"):
+        find_broken_adr_links(
+            tmp_path,
+            files=[doc],
+            baseline={key},
+            tracked=frozenset(),
+            base_allowances=set(),
+        )
+
+
+def test_an_entry_present_at_the_base_ref_is_honored(tmp_path: Path) -> None:
+    """Positive control: a pre-existing allowance still suppresses its finding."""
+    doc = write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
+    key = "unresolved:adr/index.md:ADR-005-gone.md"
+
+    findings = find_broken_adr_links(
+        tmp_path,
+        files=[doc],
+        baseline={key},
+        tracked=frozenset(),
+        base_allowances={key},
+    )
+
+    assert findings == []
+
+
+def test_removing_an_entry_relative_to_the_base_ref_is_allowed(tmp_path: Path) -> None:
+    """The ratchet is one-directional: repairing a link and deleting its entry
+    must stay possible, or the baseline could never shrink.
+    """
+    doc = write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
+
+    findings = find_broken_adr_links(
+        tmp_path,
+        files=[doc],
+        baseline=set(),
+        tracked=frozenset(),
+        base_allowances={"unresolved:other/file.md:ADR-006-gone.md"},
+    )
+
+    assert kinds(findings) == ["unresolved"]
+
+
+def test_base_allowances_of_none_skips_the_provenance_check(tmp_path: Path) -> None:
+    doc = write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
+    key = "unresolved:adr/index.md:ADR-005-gone.md"
+
+    assert (
+        find_broken_adr_links(
+            tmp_path, files=[doc], baseline={key}, tracked=frozenset(), base_allowances=None
+        )
+        == []
+    )
+
+
 def test_find_broken_adr_links_rejects_a_malformed_baseline_before_scanning(
     tmp_path: Path,
 ) -> None:
@@ -792,6 +1185,45 @@ def test_historical_roots_are_reused_from_stale_script_refs() -> None:
 def _init_repo(root: Path) -> Path:
     subprocess.run(["git", "init", "-q"], cwd=root, check=True)
     subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    return root
+
+
+def _commit_all(root: Path, message: str) -> None:
+    """Stage everything under root and record one commit.
+
+    Identity is passed with ``-c`` rather than written to the repository
+    config so the commit works on a runner with no global git identity, and
+    ``--no-verify`` is absent because a tmp_path repo has no hooks installed
+    to bypass.
+    """
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=check-adr-links-test",
+            "-c",
+            "user.email=test@example.invalid",
+            "commit",
+            "-q",
+            "-m",
+            message,
+        ],
+        cwd=root,
+        check=True,
+    )
+
+
+def _repo_with_base(root: Path, baseline_body: str) -> Path:
+    """Return a repo whose ``main`` branch carries ``baseline_body``.
+
+    Gives the base-ref tests a real prior revision to read the baseline
+    from, which is the only way to exercise ``git show`` against it.
+    """
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=root, check=True)
+    (root / "baseline.txt").write_text(baseline_body, encoding="utf-8")
+    write(root, "adr/index.md", "# placeholder\n")
+    _commit_all(root, "base")
     return root
 
 
@@ -959,6 +1391,180 @@ def test_main_returns_two_when_git_is_unavailable(tmp_path: Path, capsys) -> Non
 
     assert exit_code == 2
     assert "check_adr_links:" in capsys.readouterr().err
+
+
+def test_resolve_base_ref_returns_none_when_no_candidate_resolves(tmp_path: Path) -> None:
+    """A repo with no commits has no ``main`` and no remote, so nothing resolves."""
+    _init_repo(tmp_path)
+
+    assert resolve_base_ref(tmp_path) is None
+
+
+def test_resolve_base_ref_finds_the_local_default_branch(tmp_path: Path) -> None:
+    _repo_with_base(tmp_path, "")
+
+    assert resolve_base_ref(tmp_path) == "main"
+
+
+def test_baseline_entries_at_ref_reads_the_committed_baseline(tmp_path: Path) -> None:
+    _repo_with_base(tmp_path, "# comment\nunresolved:adr/index.md:ADR-005-gone.md\n\n")
+
+    entries = baseline_entries_at_ref(tmp_path, "main", tmp_path / "baseline.txt")
+
+    assert entries == {"unresolved:adr/index.md:ADR-005-gone.md"}
+
+
+def test_baseline_entries_at_ref_returns_none_when_the_file_is_new(tmp_path: Path) -> None:
+    """A branch that introduces the baseline has nothing to ratchet against.
+
+    That case must stay distinguishable from an unreadable baseline, which
+    raises: returning ``None`` for both would let a genuine read failure
+    silently disable the provenance check.
+    """
+    _repo_with_base(tmp_path, "")
+
+    assert baseline_entries_at_ref(tmp_path, "main", tmp_path / "absent.txt") is None
+
+
+def test_baseline_entries_at_ref_raises_when_the_blob_exists_but_cannot_be_read(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A baseline this gate cannot read is a config error, not a free pass.
+
+    ``git cat-file -e`` already said the blob is there, so a failing
+    ``git show`` is a real read failure (a corrupt object, a pack error).
+    Returning ``None`` there instead would silently disable the provenance
+    check on exactly the runs where the evidence is missing. The git
+    boundary is stubbed because no reachable repository state makes
+    ``cat-file`` succeed and ``show`` fail on the same revision.
+    """
+    _repo_with_base(tmp_path, "unresolved:adr/index.md:ADR-005-gone.md\n")
+    real_run_git = check_adr_links._run_git
+
+    def failing_show(repo_root: Path, args: list[str]):
+        if args and args[0] == "show":
+            return subprocess.CompletedProcess(args, 128, "", "fatal: bad object")
+        return real_run_git(repo_root, args)
+
+    monkeypatch.setattr(check_adr_links, "_run_git", failing_show)
+
+    with pytest.raises(ValueError, match="fatal: bad object"):
+        baseline_entries_at_ref(tmp_path, "main", tmp_path / "baseline.txt")
+
+
+def test_baseline_entries_at_ref_rejects_a_path_outside_the_repository(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _repo_with_base(repo, "")
+
+    with pytest.raises(ValueError, match="outside the repository root"):
+        baseline_entries_at_ref(repo, "main", tmp_path / "elsewhere.txt")
+
+
+def test_base_allowances_for_run_disables_on_none(tmp_path: Path) -> None:
+    _repo_with_base(tmp_path, "unresolved:adr/index.md:ADR-005-gone.md\n")
+
+    assert base_allowances_for_run(tmp_path, tmp_path / "baseline.txt", "none") is None
+
+
+def test_base_allowances_for_run_auto_resolves_the_default_branch(tmp_path: Path) -> None:
+    _repo_with_base(tmp_path, "unresolved:adr/index.md:ADR-005-gone.md\n")
+
+    entries = base_allowances_for_run(tmp_path, tmp_path / "baseline.txt", "auto")
+
+    assert entries == {"unresolved:adr/index.md:ADR-005-gone.md"}
+
+
+def test_base_allowances_for_run_says_so_when_no_base_ref_resolves(
+    tmp_path: Path, capsys
+) -> None:
+    """Silence here would read as "ratcheted and clean". It is not."""
+    _init_repo(tmp_path)
+
+    assert base_allowances_for_run(tmp_path, tmp_path / "baseline.txt", "auto") is None
+    assert "no base ref resolved" in capsys.readouterr().err
+
+
+def test_base_allowances_for_run_says_so_when_the_baseline_is_new(
+    tmp_path: Path, capsys
+) -> None:
+    _repo_with_base(tmp_path, "")
+
+    assert base_allowances_for_run(tmp_path, tmp_path / "absent.txt", "auto") is None
+    assert "does not exist at main" in capsys.readouterr().err
+
+
+def test_main_returns_two_when_this_branch_added_a_baseline_entry(
+    tmp_path: Path, capsys
+) -> None:
+    """End to end: a branch cannot clear its own new defect with a new entry."""
+    _repo_with_base(tmp_path, "# no entries yet\n")
+    write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
+    (tmp_path / "baseline.txt").write_text(
+        "unresolved:adr/index.md:ADR-005-gone.md\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+
+    exit_code = main(
+        ["--repo-root", str(tmp_path), "--baseline", str(tmp_path / "baseline.txt")]
+    )
+
+    assert exit_code == 2
+    assert "this branch added" in capsys.readouterr().err
+
+
+def test_main_honors_an_entry_the_base_ref_already_carried(tmp_path: Path) -> None:
+    """Positive control: the same entry, committed at the base ref, still works."""
+    _repo_with_base(tmp_path, "unresolved:adr/index.md:ADR-005-gone.md\n")
+    write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+
+    assert (
+        main(["--repo-root", str(tmp_path), "--baseline", str(tmp_path / "baseline.txt")]) == 0
+    )
+
+
+def test_main_base_ref_none_disables_the_provenance_check(tmp_path: Path) -> None:
+    _repo_with_base(tmp_path, "# no entries yet\n")
+    write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
+    (tmp_path / "baseline.txt").write_text(
+        "unresolved:adr/index.md:ADR-005-gone.md\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+
+    exit_code = main(
+        [
+            "--repo-root",
+            str(tmp_path),
+            "--baseline",
+            str(tmp_path / "baseline.txt"),
+            "--base-ref",
+            "none",
+        ]
+    )
+
+    assert exit_code == 0
+
+
+def test_validate_adr_links_ratchets_against_the_base_ref(tmp_path: Path, capsys) -> None:
+    """``pre_pr.py``'s entry point runs the provenance check, not just the CLI.
+
+    A guard reachable only through a flag no gate passes is not a guard;
+    ``validate_adr_links`` is what ``pre_pr.py`` calls.
+    """
+    default_baseline = tmp_path / check_adr_links.DEFAULT_BASELINE
+    default_baseline.parent.mkdir(parents=True, exist_ok=True)
+    default_baseline.write_text("# no entries yet\n", encoding="utf-8")
+    _repo_with_base(tmp_path, "")
+
+    write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
+    default_baseline.write_text("unresolved:adr/index.md:ADR-005-gone.md\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+
+    with pytest.raises(ValueError, match="this branch added"):
+        validate_adr_links(tmp_path)
+
+    capsys.readouterr()
 
 
 def test_validate_adr_links_reports_a_bool(tmp_path: Path) -> None:
