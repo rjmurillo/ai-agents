@@ -81,7 +81,7 @@ def test_opt_in_env_restores_local_full_suite_execution(
     """The escape hatch has to actually reach the executing partitions.
 
     Without this, the default could quietly become the only behavior and the
-    documented override in `lefthook.yml` and ADR-103 would be a dead string.
+    documented override in `lefthook.yml` and ADR-104 would be a dead string.
     """
     monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
     monkeypatch.setattr(

@@ -214,7 +214,7 @@ class TestSkipTestsFlag:
 
 
 class TestFastStageDeduplication:
-    """The pre-push fast stage already ran four of these gates (ADR-103)."""
+    """The pre-push fast stage already ran four of these gates (ADR-104)."""
 
     def test_flag_drops_exactly_the_gates_the_fast_stage_already_ran(
         self, monkeypatch: pytest.MonkeyPatch

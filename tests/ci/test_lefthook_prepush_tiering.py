@@ -1,4 +1,4 @@
-"""The pre-push tier boundary from ADR-103, pinned against `lefthook.yml`.
+"""The pre-push tier boundary from ADR-104, pinned against `lefthook.yml`.
 
 Issue context: a pre-push that runs the whole pytest suite measured 679s on a
 4-CPU container for a one-file Markdown push, 475s of it in `python-tests`.
@@ -7,7 +7,7 @@ had to restart, re-derive its state, and push again. The local suite was a
 duplicate of CI's `pytest.yml` partition matrix, so the copy of a remote gate
 was the thing stopping the push from reaching the gate it was imitating.
 
-ADR-103 draws the boundary: pre-push blocks on checks that are cheap and would
+ADR-104 draws the boundary: pre-push blocks on checks that are cheap and would
 otherwise waste a CI run, and delegates whole-suite execution to CI. Two wires
 carry that decision, and both are easy to unpick by accident:
 
