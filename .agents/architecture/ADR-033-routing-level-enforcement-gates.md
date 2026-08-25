@@ -115,11 +115,11 @@ flowchart LR
 
 Claude hooks provide **deterministic enforcement** via exit codes.
 
-> **Note**: Claude hooks have their own exit code semantics that differ from [ADR-032 Exit Code Standardization](./ADR-032-exit-code-standardization.md). Hook scripts are exempt from ADR-032 because Claude Code defines these semantics.
+> **Note**: Claude hooks have their own exit code semantics that differ from [ADR-035 Exit Code Standardization](./ADR-035-exit-code-standardization.md). Hook scripts are exempt from ADR-035 because Claude Code defines these semantics.
 
 **Claude Hook Exit Codes** (per Claude Code documentation):
 
-| Exit Code | Hook Behavior | ADR-032 Equivalent |
+| Exit Code | Hook Behavior | ADR-035 Equivalent |
 |-----------|---------------|-------------------|
 | 0 | Allow action / JSON decision | Success |
 | 1 | Hook error (fail-open) | Logic Error |
@@ -131,7 +131,7 @@ Instead of exit code 2, hooks can output JSON with `decision: "deny"` and exit 0
 
 - Structured error messages
 - Reason displayed to Claude
-- Consistent with ADR-032 (exit 0 = success)
+- Consistent with ADR-035 (exit 0 = success)
 
 ```json
 {"decision": "deny", "reason": "SESSION PROTOCOL GATE: Create session log first."}
@@ -139,7 +139,7 @@ Instead of exit code 2, hooks can output JSON with `decision: "deny"` and exit 0
 
 **Exit Code Mapping**:
 
-| Gate Result | Method | Exit Code | ADR-032 Aligned? |
+| Gate Result | Method | Exit Code | ADR-035 Aligned? |
 |-------------|--------|-----------|------------------|
 | Allow | Exit 0 | 0 | Yes |
 | Block (structured) | JSON + Exit 0 | 0 | Yes |
@@ -442,16 +442,16 @@ flowchart TB
     end
 
     subgraph Standards["Standards"]
-        ADR032Exit["ADR-032<br/>Exit Code Standardization<br/>(PR #557)"]
+        ADR035Exit["ADR-035<br/>Exit Code Standardization<br/>(PR #557)"]
     end
 
     ADR033 -->|enforces| EPIC265
     EPIC265 -->|defines what| ADR033
     ADR033 -->|reports to| MCP219
-    ADR033 -->|aligns with| ADR032Exit
+    ADR033 -->|aligns with| ADR035Exit
 
     style ADR033 fill:#efe,stroke:#0a0
-    style ADR032Exit fill:#eef,stroke:#00a
+    style ADR035Exit fill:#eef,stroke:#00a
 ```
 
 ### EPIC #265 (Pre-PR Validation)
@@ -465,7 +465,7 @@ flowchart TB
 - **Superseded**: Original proposal addressed wrong layer (skill-internal vs routing-level)
 - **Learnings preserved**: "Structure + iteration" insight applies to routing gates
 - **Governance docs retained**: SKILL-PHASE-GATES.md, SKILL-CREATION-CRITERIA.md remain useful
-- **Note**: ADR-032 number reserved for Exit Code Standardization (PR #557)
+- **Note**: the ADR-032 number was reserved for Exit Code Standardization (PR #557) but reassigned; that decision published as ADR-035 and ADR-032 is EARS Requirements Syntax
 
 ### Session State MCP (Issue #219)
 
@@ -522,4 +522,4 @@ This retirement amendment was validated by the six-agent adr-review debate (arch
 *Created: 2025-12-30*
 *Updated: 2026-02-20 - Added Retrospective Gate implementation (Issue #618)*
 *Updated: 2026-07-19 - Recorded retirement of the Gates 2/3/4 dedicated PreToolUse hook (Issues #3194, #3246, #3248)*
-*Note: ADR-032 reserved for Exit Code Standardization (PR #557)*
+*Note: the ADR-032 number was reserved for Exit Code Standardization (PR #557) but reassigned; that decision published as ADR-035 and ADR-032 is EARS Requirements Syntax*

@@ -232,7 +232,7 @@ See `templates/agents/implementer.shared.md` for session start/end integration:
 - `.forgetful/exports/README.md` - Workflow documentation
 - `.claude-mem/scripts/` - Claude-Mem export/import (similar pattern)
 - `scripts/review_memory_export_security.py` - Security scanner
-- ADR-005 - PowerShell-Only Scripting (superseded by ADR-042)
+- ADR-005 - PowerShell-Only Scripting (superseded by ADR-042, Python migration strategy)
 - ADR-007 - Memory-First Architecture
 
 ## Troubleshooting

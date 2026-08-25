@@ -1,4 +1,8 @@
 """Repository-wide pytest safety guards."""
+# taste-lint: ignore file-size, crossed 500 lines only as a merge artifact
+# (PR #5287's concurrent-commit guard plus this branch's own additions, each
+# under budget alone); splitting root-level pytest fixtures the whole suite
+# depends on is a real refactor, not a merge-conflict fix. Issue #3779.
 
 from __future__ import annotations
 

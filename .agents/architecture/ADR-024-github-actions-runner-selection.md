@@ -1,8 +1,23 @@
+---
+id: ADR-024
+status: superseded
+date: 2026-08-22
+decision-makers: []
+supersedes: []
+superseded-by: ADR-055
+explainer: null
+implemented: true
+---
+
 # ADR-024: GitHub Actions Runner Selection
 
-## Status
+## Provenance
 
-Accepted
+Accepted 2025-12-23 as ADR-014 in PR #224. Renumbered to ADR-024 by PR #476 on 2025-12-29. Both are pull request numbers, not commit identifiers; an earlier revision of this line wrote "(commit PR #224)" and "(commit PR #476)", which conflates the two (Copilot, PR #5209). This record carries no `## Date` section because PR #224 review removed it ("Remove Date section from ADR-014, git history tracks this"); the frontmatter `date` above is this record's last update per ADR-073 (`date: ... # last updated`), not the 2025-12-23 acceptance date preserved in this paragraph (Copilot, PR #5209 round-11 review: the frontmatter previously carried the first-commit date instead).
+
+ADR-055 carries the identical title and filename slug. Neither file is renamed, because inbound citations resolve by path. ADR-055 is the live record.
+
+The `# ADR-024 Exception:` marker prescribed below is retired. New workflow exceptions use `# ADR-055 Exception:`. Refs issues #5192, #5199.
 
 ## Context
 
@@ -81,7 +96,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
 ```
 
-Workflows requiring Windows or macOS:
+Workflows requiring Windows or macOS (retired format, superseded by ADR-055; use `# ADR-055 Exception:`):
 
 ```yaml
 jobs:
@@ -91,7 +106,7 @@ jobs:
     runs-on: windows-latest  # or macos-latest
 ```
 
-Workflows with ARM compatibility issues (if any):
+Workflows with ARM compatibility issues, if any (retired format, superseded by ADR-055; use `# ADR-055 Exception:`):
 
 ```yaml
 jobs:

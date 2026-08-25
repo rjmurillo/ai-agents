@@ -70,19 +70,36 @@ class TestDetectAdrChanges:
         importlib.reload(mod)
         return mod
 
-    def test_get_adr_status_proposed_default(self, tmp_path):
+    def test_get_adr_status_undeclared_returns_unknown(self, tmp_path):
+        """A record that declares no status reads as unknown, never proposed.
+
+        Issue #5189: returning "proposed" here collapsed "declares nothing"
+        into "declares proposed", so 40+ accepted ADRs with no frontmatter
+        read as live proposals.
+        """
         mod = self._import()
         adr = tmp_path / "ADR-001.md"
         adr.write_text("# ADR-001\n\nNo status field here.")
         result = mod._get_adr_status(Path(adr))
-        assert result == "proposed"
+        assert result == "unknown"
 
     def test_get_adr_status_from_frontmatter(self, tmp_path):
         mod = self._import()
         adr = tmp_path / "ADR-001.md"
-        adr.write_text("status: accepted\n\nSome content")
+        adr.write_text("---\nstatus: accepted\n---\n\nSome content")
         result = mod._get_adr_status(Path(adr))
         assert result == "accepted"
+
+    def test_get_adr_status_ignores_body_status_line(self, tmp_path):
+        """A bare `status:` line outside frontmatter is body text, not state.
+
+        Issue #5189: the old whole-file regex read it as the record's status.
+        """
+        mod = self._import()
+        adr = tmp_path / "ADR-001.md"
+        adr.write_text("status: accepted\n\nSome content")
+        result = mod._get_adr_status(Path(adr))
+        assert result == "unknown"
 
     def test_get_adr_status_missing_file(self, tmp_path):
         mod = self._import()

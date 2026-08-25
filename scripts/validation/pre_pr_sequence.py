@@ -40,6 +40,8 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from active_plan_closeout import validate_active_plan_closeout
+from check_adr_lifecycle import validate_adr_lifecycle
+from check_adr_links import validate_adr_links
 from check_doc_interpreter_portability import (
     validate_doc_interpreter_portability,
 )
@@ -248,6 +250,14 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # disagreed and one sat a major below the declared floor; a review then
     # proposed aligning the correct one down.
     _Gate("CI Dependency Pins", _root_only(validate_ci_dependency_pins)),
+    # Ratcheted lifecycle gate over .agents/architecture/ADR-NNN-*.md (issue
+    # #5191). Sits beside the DESIGN-REVIEW gate because both read frontmatter
+    # in the same directory. Read-only: ADR-073 forbids rewriting prose.
+    _Gate("ADR Lifecycle Frontmatter (ratchet)", _root_only(validate_adr_lifecycle)),
+    # Resolves every markdown link naming an ADR, and checks that a link whose
+    # text says ADR-NNN targets that number (issue #5197). Unwired, this gate
+    # cannot stop the rot that produced the ADR-033 repairs it protects.
+    _Gate("ADR Link Resolution", _root_only(validate_adr_links)),
     _Gate("Design Review Frontmatter", _root_only(validate_design_review_frontmatter)),
     # PR #1887 retrospective, Layer 2.
     _Gate("Build Command Exit Gates", _root_only(validate_build_gates)),

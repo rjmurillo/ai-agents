@@ -7,6 +7,7 @@ supersedes: []
 superseded-by: null
 explainer: null
 implemented: true
+review-by: null
 ---
 
 # ADR-063: Decompose the Memory Skill Into Focused Sub-Skills
