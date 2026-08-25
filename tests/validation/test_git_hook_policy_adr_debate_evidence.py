@@ -15,6 +15,7 @@ Both defects therefore get a regression test that fails without the fix.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -244,6 +245,9 @@ def test_a_staged_symlink_blocks_even_when_a_sibling_covers_every_id(
 
     Exactly the shape as the unreadable-log fail-open, one filter earlier.
     """
+    if os.name == "nt":
+        pytest.skip("Symlink creation requires elevated Windows privileges")
+
     _edit(repo, ADR_42, "Rewritten decision text.")
     _git(repo, "add", ADR_42)
     _stage_log(repo, "ADR-042-debate-log.md", GENUINE_LOG)
