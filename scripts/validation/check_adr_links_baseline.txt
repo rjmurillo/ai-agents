@@ -6,7 +6,7 @@
 # can name the same pair, so an allowance for one kind (say, unresolved)
 # would also silently hide a different, newly introduced kind (say,
 # number-mismatch) on the identical file and target (PR #5209 review,
-# discussion_r3831835196). 2 of the 19 entries below are `absolute`, not
+# discussion_r3831835196). 2 of the 18 entries below are `absolute`, not
 # `unresolved`, which is exactly the mixed baseline that check was written
 # against (re-measured after the round-5 fix removed a stale `absolute`
 # entry for docs/search-dont-load.md; Copilot, PR #5209 round-6 review
