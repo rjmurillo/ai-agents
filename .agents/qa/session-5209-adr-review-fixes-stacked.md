@@ -9,7 +9,7 @@ qaCommit: 862457b56fbfa89292382f164e9c4d0d4d397ca6
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `997a954bf09827104ee17638954aaaf746489ea4` (see Addendum 44)
+**Validated at commit**: `862457b56fbfa89292382f164e9c4d0d4d397ca6` (see Addendum 55)
 
 ## Verdict
 
@@ -1284,10 +1284,11 @@ This addendum was written independently by this session, in parallel with
 the concurrent session's Addenda 50 and 51 above (which cover the
 campaign report's own Addenda 49 and 50). Both branches forked from the
 same commit and neither knew of the other's follow-on work until the
-reconciliation Addendum 53 below covers. Renumbered to 35 (was locally
-numbered 33) for the same reason the campaign report renumbers its own
-colliding content from 31 to 33: the concurrent session's content was
-already pushed to origin first.
+reconciliation Addendum 53 below covers. Renumbered to 52 (was locally
+numbered 33, then 35 after an earlier round's renumbering, superseded by
+this stack merge's own renumbering) for the same reason the campaign
+report renumbers its own colliding content: the concurrent session's
+content was already pushed to origin first.
 
 Both sessions independently fixed the same round-11 review from the same starting commit and diverged twice: once in the file this session's own push discovered `origin/claude/adr-evaluation-tooling-6od8rd` had moved past this branch (Addenda 46 to 49 of the campaign report), and again when the concurrent session pushed 7 more commits (Addendum 50 of the campaign report) while this session's own pre-push hooks were still running on the first reconciliation. Merged both times rather than either side discarding the other's work; the design choices made during both reconciliations (which of two independent fixes to `check_adr_lifecycle.py`'s status-to-edge check and `check_adr_links.py`'s stale-allowance detector to keep, and how a second ADR-005 date correction and a `check_adr_links.py` corpus-shape guard were combined) are recorded in Addenda 48 and 49 of the campaign report, not repeated here.
 

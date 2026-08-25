@@ -8,7 +8,7 @@ qaCommit: 862457b56fbfa89292382f164e9c4d0d4d397ca6
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `997a954bf09827104ee17638954aaaf746489ea4` (see Addendum 43)
+**Validated at commit**: `862457b56fbfa89292382f164e9c4d0d4d397ca6` (see Addendum 54)
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -2348,7 +2348,7 @@ check` clean.
 
 ## Addendum 51: an eleventh Copilot review round, 61 unresolved threads, not 9 (reconciled with a second concurrent-session round)
 
-This addendum was written independently by this session, in parallel with the concurrent session's Addenda 49 and 50 above: both branches forked from the same commit (`d47763245`) and neither knew of the other's follow-on work until this reconciliation. Renumbered to 33 (was locally numbered 31) so it follows rather than collides with the concurrent session's own 49 and 50.
+This addendum was written independently by this session, in parallel with the concurrent session's Addenda 49 and 50 above: both branches forked from the same commit (`d47763245`) and neither knew of the other's follow-on work until this reconciliation. Renumbered to 51 (was locally numbered 31, then 33 after an earlier round's renumbering, superseded by this stack merge's own renumbering) so it follows rather than collides with the concurrent session's own 49 and 50.
 
 This addendum and Addenda 44 to 48 below were written independently by two concurrent sessions working the same branch across two separate divergences: the first reconciled earlier in this file (Addenda 44 to 47), the second below (Addendum 48), discovered only when this session's push was rejected a second time after the first merge's own pre-push hooks ran for over 15 minutes. Merged and reconciled both times rather than either side discarding the other's work; see "Reconciling with the concurrent session's second round" below for what the second reconciliation took.
 

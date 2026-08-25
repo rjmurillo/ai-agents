@@ -137,11 +137,11 @@ class TestExistenceAndTitle:
         That fix still reimplemented the regex rather than calling the
         canonical function, and applied it to the whole file including
         frontmatter. The canonical extractor never sees frontmatter:
-        `build_record` (`generate_adr_index.py:459,470`) calls
+        `build_record` (`generate_adr_index.py:556,574`) calls
         `parse_frontmatter` first and passes only the returned body to
         `_extract_title`. A frontmatter YAML comment starting with `#`
         (ADR-068 and ADR-085 both open their block that way, per
-        `parse_frontmatter`'s own docstring at line 252-253) would match
+        `parse_frontmatter`'s own docstring at lines 267-270) would match
         the reimplemented regex before the real title and could reject a
         document the canonical extractor accepts. A second Copilot pass
         caught this (2026-08-25).

@@ -1,10 +1,10 @@
-# taste-lint: ignore file-size -- ten rounds of ADR-review fixes (issue #5192,
-# #5199) each added a small regression test to the existing file rather than a
-# new module, pushing it from under 500 to 1001 lines with no single round
-# crossing the ratchet baseline on its own. A split into cohesive modules
-# (violation-class tests, exemption tests, CLI exit-code tests) is real work
-# tracked separately; this merge only reconciles origin/main and should not
-# also refactor test structure. See PR #5230.
+# taste-lint: ignore file-size -- ten-plus rounds of ADR-review fixes (issue
+# #5192, #5199) each added a small regression test to the existing file rather
+# than a new module, pushing it well past the 500-line limit with no single
+# round crossing the ratchet baseline on its own. A split into cohesive
+# modules (violation-class tests, exemption tests, CLI exit-code tests) is
+# real work tracked separately; each review round only reconciles the current
+# finding and should not also refactor test structure. See PR #5230.
 """Tests for the ADR markdown link checker.
 
 Covers the four violation classes (unresolved, absolute, number-mismatch,
