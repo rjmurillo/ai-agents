@@ -60,7 +60,7 @@ Generator inventory inside `build/scripts/build_all.py` (list `GENERATORS`, buil
 |---|-----------|-------|--------|
 | 1 | agents | `templates/agents/*.shared.md` + `templates/platforms/*.yaml` | `src/copilot-cli/agents/*.agent.md`, `src/vs-code-agents/*.agent.md` |
 | 2 | agent-catalog | `templates/agents/*.shared.md` | `docs/agent-catalog.md` |
-| 3 | adr-index | `.agents/architecture/ADR-*.md` (frontmatter for lifecycle fields; body prose for title/decision/blocker) | `.agents/architecture/README.md` |
+| 3 | adr-index | the ADR records under `.agents/architecture/` (frontmatter for lifecycle fields; body prose for title/decision/blocker) | `.agents/architecture/README.md` |
 | 4 | skills | `.claude/skills/*/SKILL.md` | `src/copilot-cli/skills/` |
 | 5 | commands | `.claude/commands/*.md` (top level, not CLAUDE.md) | `src/copilot-cli/skills/` (command-bridge skills) |
 | 6 | rules | `.claude/rules/*.md` | `.github/instructions/*.instructions.md` AND `src/copilot-cli/instructions/` |
