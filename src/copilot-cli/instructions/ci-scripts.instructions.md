@@ -8,8 +8,8 @@ applyTo: scripts/validation/**,scripts/**,.github/workflows/**,.github/actions/*
      and validation tooling, so its body names upstream-only paths throughout,
      under scripts/validation, scripts/ci, scripts/utils, .agents/architecture,
      .agents/sessions, and build/audit/GENERATION-AUDIT.md, plus AGENTS.md,
-     tests, and lefthook.yml, none of which exist in a consumer's install
-     (issue #5214) -->
+     tests, lefthook.yml, and .github (workflows, actions, scripts), none of
+     which exist in a consumer's install (issue #5214) -->
 
 Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate every PR. A broken change here blocks the entire repository (see Issue #1711).
 
