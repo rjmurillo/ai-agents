@@ -6,12 +6,18 @@
 
 > **IMPORTANT (2026-08-25, issue #5201)**: the `act-test-runner` row below
 > rejects TypeScript as an "ADR-005 violation". ADR-005 (PowerShell-only
-> scripting) was superseded by ADR-042 (Python migration) on 2026-01-17.
-> ADR-042 itself was later amended (2026-04-13) to permit TypeScript for
-> user-facing distribution surfaces. Neither PowerShell-only nor a blanket
-> language veto is current policy; re-evaluate this row's adoption
-> recommendation against ADR-042 rather than the superseded ADR-005 rule
-> quoted here.
+> scripting) was superseded by ADR-042 (Python migration) on 2026-01-17, so
+> citing ADR-005 for that rejection is wrong on its own. ADR-042's own text
+> (`.agents/architecture/ADR-042-python-migration-strategy.md:165-168,228`)
+> proposes, but has not accepted, a further amendment permitting TypeScript
+> for user-facing distribution surfaces: that amendment's `### Status` reads
+> `Proposed` and its Amendment Log entry reads `Pending adr-review`. Until
+> that amendment is accepted, ADR-042's original Python-first mandate is
+> still current policy for this row, not a blanket TypeScript exception.
+> Re-evaluate this row's adoption recommendation against ADR-042's accepted
+> text (and re-check the amendment's status, in case it has since been
+> accepted) rather than the superseded ADR-005 rule quoted here (Copilot
+> review on PR #5283).
 
 ## Integration Summary
 
