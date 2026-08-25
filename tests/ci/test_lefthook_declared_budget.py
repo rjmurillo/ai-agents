@@ -47,13 +47,63 @@ _LEFTHOOK = REPO_ROOT / "lefthook.yml"
 # pre-push, 60s pre-commit) are far below both; closing that distance means
 # measuring jobs and cutting caps, which is issue #5318, not editing these.
 #
-# pre-push 2610s is dominated by two blocks nobody has measured while firing:
-# the two CLI e2e smokes at 20m (group max) and `security-scan` at 15m, which
-# ADR-054 sets as an enforced 900s budget this record does not overturn.
+# pre-push 2370s is dominated by three blocks nobody has measured while firing:
+# the two CLI e2e smokes at 20m (they set the expensive group's cost),
+# `workflow-local-run` at 10m, and `security-scan` at 15m, which ADR-054 sets
+# as an enforced 900s budget this record does not overturn. On a workstation a
+# long cap for those is the right protection; the container bound below is what
+# the originating incident is about.
 DECLARED_BUDGET_BASELINE_SECONDS: dict[str, float] = {
-    "pre-push": 2610.0,
+    "pre-push": 2370.0,
     "pre-commit": 6570.0,
 }
+
+# The declared sum above is the worst case on a developer workstation, where a
+# long cap is the right protection for a job that has legitimate work to do.
+# It is not the number the originating incident is about. A managed container
+# is reclaimed after a period without progress, so there the question is not
+# "how long may this job take" but "can anything here outlive the container".
+#
+# `git_hook_policy._container_clamped` answers it by clamping every subprocess
+# that module spawns to CONTAINER_SUBPROCESS_CEILING_SECONDS when
+# `_is_remote_container()` is true. Every pre-push job whose cost lives in a
+# child process routes through it. This model applies the same clamp to the
+# declared caps so the container bound is a number, not a hope.
+#
+# Jobs that do NOT route through `git_hook_policy._run_command` keep their
+# declared cap here, because nothing clamps them: they are named rather than
+# assumed, so a job moved onto or off that path shows up as a baseline change.
+CONTAINER_UNCLAMPED_JOBS = frozenset(
+    {
+        "repair-packed-refs",
+        "mutation-safety",
+        "push-ref-staleness",
+        "pre-pr-validation",
+        "python-lint-ratchet",
+        "python-lint-count-ratchet",
+        "taste-count-ratchet",
+        "type-ignore-count-ratchet",
+        "memory-index-count-ratchet",
+        "cli-exit-contract-ratchet",
+        "memory-index-token-ratchet",
+        "merge-tree-ratchet",
+        "python-unreachable-statements",
+        "path-normalization",
+        "planning-artifacts",
+        "branch-scope",
+        "review-axis-drift",
+        "worktree-gc-report",
+        "python-lint-advisory",
+        "infrastructure-advisory",
+    }
+)
+
+# A container reclamation was observed on a push measured at roughly 679s. This
+# ceiling sits below it, so a hung child cannot reach that point: it is killed
+# by the clamp and the push fails with a diagnostic, which is strictly better
+# than a reclaimed container that leaves none. Lower it as jobs get measured;
+# never raise it without a new reclamation observation to justify the number.
+CONTAINER_CEILING_SECONDS = 660.0
 
 _UNITS = {"h": 3600.0, "m": 60.0, "s": 1.0}
 
@@ -69,13 +119,24 @@ def _seconds(raw: object) -> float:
     return float(text)
 
 
-def _entry_cost(entry: dict[str, Any]) -> tuple[float, str]:
-    """Worst-case seconds for one top-level entry, and the job that sets it."""
+def _job_cost(entry: dict[str, Any], clamp: float | None) -> float:
+    declared = _seconds(entry.get("timeout"))
+    if clamp is None or str(entry.get("name", "")) in CONTAINER_UNCLAMPED_JOBS:
+        return declared
+    return min(declared, clamp)
+
+
+def _entry_cost(entry: dict[str, Any], clamp: float | None = None) -> tuple[float, str]:
+    """Worst-case seconds for one top-level entry, and the job that sets it.
+
+    ``clamp`` models `git_hook_policy._container_clamped`: when set, every job
+    whose cost lives in a subprocess that module spawns is bounded by it.
+    """
     group = entry.get("group")
     if not isinstance(group, dict):
-        return _seconds(entry.get("timeout")), str(entry.get("name", "<unnamed>"))
+        return _job_cost(entry, clamp), str(entry.get("name", "<unnamed>"))
     parts = [
-        _entry_cost(job) for job in group.get("jobs", []) if isinstance(job, dict)
+        _entry_cost(job, clamp) for job in group.get("jobs", []) if isinstance(job, dict)
     ]
     if not parts:
         return 0.0, "<empty group>"
@@ -86,9 +147,11 @@ def _entry_cost(entry: dict[str, Any]) -> tuple[float, str]:
     return total, worst
 
 
-def _declared_budget(config: dict[str, Any], hook: str) -> tuple[float, list[tuple[float, str]]]:
+def _declared_budget(
+    config: dict[str, Any], hook: str, clamp: float | None = None
+) -> tuple[float, list[tuple[float, str]]]:
     entries = [e for e in config[hook]["jobs"] if isinstance(e, dict)]
-    rows = [_entry_cost(e) for e in entries]
+    rows = [_entry_cost(e, clamp) for e in entries]
     return sum(cost for cost, _ in rows), rows
 
 
@@ -211,3 +274,69 @@ class TestTheModelMatchesLefthookScheduling:
         after, _ = _declared_budget(config, "pre-push")
         assert after > before
         assert after > DECLARED_BUDGET_BASELINE_SECONDS["pre-push"]
+
+
+class TestNothingCanOutliveAContainer:
+    """The property the originating incident is actually about.
+
+    A developer whose hook runs long is inconvenienced. A container whose hook
+    runs long is reclaimed, and the push dies carrying no diagnostic at all.
+    These assertions are about the second case only.
+    """
+
+    def test_the_container_worst_case_is_below_the_ceiling(self) -> None:
+        import sys
+
+        sys.path.insert(0, str(REPO_ROOT / "scripts" / "validation"))
+        import git_hook_policy
+
+        clamp = git_hook_policy.CONTAINER_SUBPROCESS_CEILING_SECONDS
+        total, rows = _declared_budget(_config(), "pre-push", clamp=clamp)
+        worst = sorted(rows, key=lambda row: row[0], reverse=True)[:3]
+        detail = ", ".join(f"{name} {cost:.0f}s" for cost, name in worst)
+        assert total <= CONTAINER_CEILING_SECONDS, (
+            f"pre-push can declare up to {total:.0f}s inside a container, above "
+            f"the {CONTAINER_CEILING_SECONDS:.0f}s ceiling. Largest: {detail}. A "
+            "reclamation was observed at roughly 679s, and a reclaimed push "
+            "leaves no diagnostic, so this bound is the whole point of the "
+            "clamp. Cut a cap, move the job's work behind "
+            "git_hook_policy._run_command so the clamp reaches it, or measure "
+            "the job and justify a new ceiling."
+        )
+
+    def test_the_clamp_actually_binds(self) -> None:
+        """Negative control: without the clamp the same graph exceeds the ceiling.
+
+        If this ever passes, the clamp is doing nothing and the assertion above
+        is measuring the declared caps under another name.
+        """
+        unclamped, _ = _declared_budget(_config(), "pre-push", clamp=None)
+        assert unclamped > CONTAINER_CEILING_SECONDS
+
+    def test_every_unclamped_job_exists(self) -> None:
+        """A stale name in the roster silently widens the clamp's coverage.
+
+        A job listed here but absent from pre-push contributes nothing, and a
+        job renamed out from under the roster starts being treated as clamped
+        when nothing clamps it. Either way the container bound above becomes a
+        number about a graph that does not exist.
+        """
+        names = {
+            str(job.get("name"))
+            for entry in _config()["pre-push"]["jobs"]
+            if isinstance(entry, dict)
+            for job in _flatten(entry)
+        }
+        missing = sorted(CONTAINER_UNCLAMPED_JOBS - names)
+        assert missing == [], f"{missing} are in the roster but not in pre-push."
+
+
+def _flatten(entry: dict[str, Any]) -> list[dict[str, Any]]:
+    group = entry.get("group")
+    if not isinstance(group, dict):
+        return [entry]
+    out: list[dict[str, Any]] = []
+    for job in group.get("jobs", []):
+        if isinstance(job, dict):
+            out.extend(_flatten(job))
+    return out
