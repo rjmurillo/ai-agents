@@ -24,11 +24,27 @@ from scripts.validation import check_push_lock_before_commit as checker
 # platform-agnostic test in it too, so the import itself is guarded here.
 if sys.platform != "win32":
     import fcntl
+else:
+    import msvcrt
 
 _posix_only = pytest.mark.skipif(
     sys.platform == "win32",
-    reason="exercises the POSIX fcntl.flock branch of _push_is_in_flight; "
-    "the Windows msvcrt branch has no equivalent test here",
+    reason="exercises the POSIX fcntl.flock branch of _push_is_in_flight",
+)
+
+# Copilot review, PR #5287: the Windows msvcrt.locking branch of
+# _push_is_in_flight had zero test execution anywhere in CI. The main
+# python-tests job never imports msvcrt (sys.platform != "win32" on that
+# runner), and .github/workflows/pytest.yml:603-607 runs `pytest -m
+# windows_path` on windows-latest, which this module never carried, so a
+# regression in the Windows branch could make the guard silently allow every
+# commit on that platform while CI stayed green. windows_path is additive,
+# not exclusive (pyproject.toml markers, no `-m "not windows_path"`
+# deselection on the main job), so marking these also keeps them collected
+# and skipped (not hidden) on POSIX.
+_windows_only = pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="exercises the Windows msvcrt.locking branch of _push_is_in_flight",
 )
 
 
@@ -86,6 +102,56 @@ def test_push_is_in_flight_false_when_lock_file_cannot_be_opened(tmp_path):
     missing_parent = tmp_path / "does-not-exist" / "push-lock-x.lock"
 
     assert checker._push_is_in_flight(missing_parent) is False
+
+
+@pytest.mark.windows_path
+@_windows_only
+def test_push_is_in_flight_true_while_another_open_holds_the_lock_windows(tmp_path):
+    lock_path = tmp_path / "push-lock-held.lock"
+    holder = lock_path.open("a+b")
+    holder.seek(0)
+    msvcrt.locking(holder.fileno(), msvcrt.LK_NBLCK, 1)
+    try:
+        assert checker._push_is_in_flight(lock_path) is True
+    finally:
+        holder.seek(0)
+        msvcrt.locking(holder.fileno(), msvcrt.LK_UNLCK, 1)
+        holder.close()
+
+
+@pytest.mark.windows_path
+@_windows_only
+def test_push_is_in_flight_false_after_the_holder_releases_windows(tmp_path):
+    lock_path = tmp_path / "push-lock-released.lock"
+    holder = lock_path.open("a+b")
+    holder.seek(0)
+    msvcrt.locking(holder.fileno(), msvcrt.LK_NBLCK, 1)
+    holder.seek(0)
+    msvcrt.locking(holder.fileno(), msvcrt.LK_UNLCK, 1)
+    holder.close()
+
+    assert checker._push_is_in_flight(lock_path) is False
+
+
+@pytest.mark.windows_path
+@_windows_only
+def test_main_exits_one_when_push_holds_the_lock_windows(monkeypatch, tmp_path):
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    lock_dir = tmp_path / "locks"
+    lock_dir.mkdir()
+    lock_path = lock_dir / "push-lock-main.lock"
+    holder = lock_path.open("a+b")
+    holder.seek(0)
+    msvcrt.locking(holder.fileno(), msvcrt.LK_NBLCK, 1)
+    monkeypatch.setattr(checker, "_lock_directory", lambda: lock_dir)
+
+    try:
+        assert checker.main(["--repo-root", str(repo)]) == 1
+    finally:
+        holder.seek(0)
+        msvcrt.locking(holder.fileno(), msvcrt.LK_UNLCK, 1)
+        holder.close()
 
 
 # ---------------------------------------------------------------------------
