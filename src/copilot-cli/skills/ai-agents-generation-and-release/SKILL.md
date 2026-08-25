@@ -52,7 +52,7 @@ The generation seam is ASYMMETRIC (ADR-072 is PROPOSED and refines this; the run
 | `.github/instructions/` | generated | `.claude/rules/` | `build_all.py` (rules) |
 | `scripts/{hook_utilities,github_core,ai_review_common}` | CANONICAL for shared Python | itself | n/a |
 | `.claude/lib/` | mirrored copy (relative imports) | `scripts/` packages | `scripts/sync_plugin_lib.py` |
-| `src/claude/` | MANUAL hand-synced exception (ADR-036, Accepted) | edited by hand | no generator; semantic drift CI only |
+| `src/claude/` | MANUAL hand-synced exception (ADR-036, superseded in governance by ADR-052 2026-08-25, procedure still operative and unimplemented) | edited by hand | no generator; semantic drift CI only |
 
 Generator inventory inside `build/scripts/build_all.py` (list `GENERATORS`, build_all.py:435, order is load-bearing per the comment at build_all.py:429):
 
@@ -225,6 +225,6 @@ Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-
 | Marketplace count validator retired | no dedicated count validator or marketplace counter YAML should exist | `find . -name "*marketplace*count*" -not -path "./.venv/*"` |
 | Audit log path, gitignored | .gitignore:70 | `grep -n "build/audit" .gitignore` |
 | 2025-12-15 direction story | .agents/retrospective/2025-12-15-drift-detection-disaster.md | `python3 -c "import pathlib;print([p.name for p in pathlib.Path('.agents/retrospective').glob('*drift*')])"` |
-| ADR-036 Accepted, ADR-072 Proposed | the ADR-036 and ADR-072 architecture records | `head -12 .agents/architecture/ADR-072-jtbd-plugin-architecture.md` |
+| ADR-036 superseded by ADR-052 (2026-08-25, procedure still operative), ADR-072 Proposed | the ADR-036, ADR-052, and ADR-072 architecture records | `head -12 .agents/architecture/ADR-072-jtbd-plugin-architecture.md`; `head -12 .agents/architecture/ADR-036-two-source-agent-template-architecture.md` |
 
 Maintenance: when a generator is added or removed from `GENERATORS`, when a fourth plugin.json appears, or if a marketplace count validator is reintroduced to replace the retired one, update Phase 1/4 tables and re-run every re-verify command above.
