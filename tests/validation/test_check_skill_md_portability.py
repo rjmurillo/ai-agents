@@ -1069,7 +1069,7 @@ class TestInstructionsScanRoot:
         code = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
         out = capsys.readouterr().out
         assert code == 0
-        assert "src/copilot-cli/instructions" in out
+        assert "src/copilot-cli/instructions (1)" in out
 
 
 class TestReport:
@@ -1081,14 +1081,15 @@ class TestReport:
             "improvements": [],
             "current": {},
             "baseline": {},
-            "scanned": [Path("/repo/.claude/skills")],
-            "root": Path("/repo"),
+            "scanned_by_root": {".claude/skills": 1},
             "output_format": "text",
         }
         base.update(over)
         return base
 
-    def test_json_format_emits_the_four_totals(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_json_format_emits_totals_and_scanned_by_root(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         cmp._report(
             **self._args(
                 regressions=["a: 2 refs"],
@@ -1104,6 +1105,7 @@ class TestReport:
             "improvements": ["b: 1 ref"],
             "current_total": 2,
             "baseline_total": 2,
+            "scanned_by_root": {".claude/skills": 1},
         }
 
     def test_json_format_prints_no_prose(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -1133,13 +1135,38 @@ class TestReport:
         """Reading 'across 0 files' as 'scanned 0 files' is what hid issue #3578."""
         cmp._report(
             **self._args(
-                scanned=[
-                    Path("/repo/.claude/skills"),
-                    Path("/repo/src/copilot-cli/skills"),
-                ]
+                scanned_by_root={
+                    ".claude/skills": 3,
+                    "src/copilot-cli/skills": 3,
+                }
             )
         )
-        assert "Scanned .claude/skills, src/copilot-cli/skills." in capsys.readouterr().out
+        assert (
+            "Scanned .claude/skills (3), src/copilot-cli/skills (3)."
+            in capsys.readouterr().out
+        )
+
+    def test_the_clean_line_distinguishes_zero_examined_from_never_walked(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An empty root and an unwalked root must not read the same (#5214 review)."""
+        cmp._report(**self._args(scanned_by_root={"src/copilot-cli/instructions": 0}))
+        assert "src/copilot-cli/instructions (0)" in capsys.readouterr().out
+
+    def test_json_format_includes_scanned_by_root(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        cmp._report(
+            **self._args(
+                output_format="json",
+                scanned_by_root={".claude/skills": 5, "src/copilot-cli/instructions": 2},
+            )
+        )
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["scanned_by_root"] == {
+            ".claude/skills": 5,
+            "src/copilot-cli/instructions": 2,
+        }
 
 
 class TestDiff:

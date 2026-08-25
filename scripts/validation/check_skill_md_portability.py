@@ -1211,8 +1211,7 @@ def _report(
     improvements: list[str],
     current: dict[str, int],
     baseline: dict[str, int],
-    scanned: list[Path],
-    root: Path,
+    scanned_by_root: dict[str, int],
     output_format: str,
 ) -> None:
     """Print the scan outcome. Presentation only, no exit decision.
@@ -1220,6 +1219,12 @@ def _report(
     Split out of ``main`` so that argument handling and orchestration read as
     one thing and formatting as another. ``main`` carried both and sat above
     the complexity ceiling before this seam existed.
+
+    ``scanned_by_root`` carries each root's examined-file count (from
+    ``scan_all``'s ``files_by_root``), not just its name: printing the name
+    alone made an empty root and a populated one read identically in the
+    success line, so "examined and clean" was indistinguishable from "never
+    walked" (issue #5214 review).
     """
     if output_format == "json":
         print(
@@ -1229,6 +1234,7 @@ def _report(
                     "improvements": improvements,
                     "current_total": sum(current.values()),
                     "baseline_total": sum(baseline.values()),
+                    "scanned_by_root": scanned_by_root,
                 },
                 indent=2,
             )
@@ -1243,7 +1249,9 @@ def _report(
         for line in regressions:
             print(f"  [DRIFT] {line}")
         return
-    roots = ", ".join(d.relative_to(root).as_posix() for d in scanned)
+    roots = ", ".join(
+        f"{name} ({count})" for name, count in scanned_by_root.items()
+    )
     print(
         f"No Markdown vendor-portability drift. "
         f"{sum(current.values())} grandfathered refs across "
@@ -1312,7 +1320,6 @@ def main(argv: list[str] | None = None) -> int:
     if counts is None:
         return 2
     current, marker_current, scanned_by_root, drift_failures = counts
-    scanned = [root / rel for rel in scanned_by_root]
     drift_current = _drift_counts_from_failures(drift_failures)
 
     if args.update_baseline:
@@ -1361,8 +1368,7 @@ def main(argv: list[str] | None = None) -> int:
         improvements=improvements,
         current=current,
         baseline=baseline,
-        scanned=scanned,
-        root=root,
+        scanned_by_root=scanned_by_root,
         output_format=args.output_format,
     )
     return 1 if regressions else 0
