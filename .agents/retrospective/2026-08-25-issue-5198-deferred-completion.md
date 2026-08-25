@@ -131,8 +131,13 @@ scope. The fix pattern is "extract the reviewed slice into its own PR," not
   and the routing text it motivated.
 - **Skill Operation**: ADD
 - **Target Skill ID**: n/a (routed directly into `.claude/skills/autoplan/SKILL.md`
-  Phase 0 rather than a standalone skillbook entry; this is a one-repository
-  routing rule, not a generalizable skill)
+  Phase 0 rather than a standalone skillbook entry). Note the correction
+  below: `.claude/skills/autoplan/SKILL.md` is canonical plugin content that
+  this PR's own build step generates into `src/copilot-cli/skills/autoplan/SKILL.md`
+  for downstream installs, so the routing rule had to be written in
+  repository-agnostic terms rather than as a one-repository note, which the
+  first draft of this learning got wrong (Copilot, PR #5285 review; see the
+  Helped/Hindered/Hypothesis section)
 
 ## Skillbook Updates
 
@@ -183,6 +188,11 @@ None.
 - Read an advisory label's actual enforcement mechanism
   (`scripts/validation/pr_commit_count.py`) before citing it as evidence of
   anything beyond what it measures.
+- Before classifying a file's shipping scope, check the actual plugin
+  manifests and build wiring, not an assumption about the file's location.
+  `.claude/skills/autoplan/SKILL.md` looks repository-internal by path, but
+  `.claude/` is one of three plugin roots this repository ships, and its
+  skills generate verbatim into `src/copilot-cli/skills/`.
 
 ### Delta Triage
 
@@ -192,6 +202,7 @@ None.
 |------------|----------|----------|-------------|-----------|
 | Name the in-flight-PR-with-unrelated-scope case in autoplan routing | Missing Docs | P1 | `.claude/skills/autoplan/SKILL.md` (this PR) | PR #5285 |
 | Correct the `needs-split` root-cause claim after Copilot flagged it as unsupported | Process | P1 | This retrospective + `.claude/skills/autoplan/SKILL.md` (this PR) | PR #5285 Copilot review, 2026-08-25 |
+| Rewrite the routing rule in repository-agnostic terms after Copilot flagged that `.claude/skills/autoplan/SKILL.md` ships verbatim into `src/copilot-cli/skills/autoplan/SKILL.md` and cannot hardcode this repository's label semantics or point at a non-shipped test file | Process | P1 | This retrospective + `.claude/skills/autoplan/SKILL.md` + `src/copilot-cli/skills/autoplan/SKILL.md` (this PR) | PR #5285 Copilot review (second round), 2026-08-25 |
 
 #### Issues Created
 
@@ -232,6 +243,14 @@ slice; no separate retrospective session was run.
   first version of this retrospective's root cause overstated what
   `needs-split` proves, which would have taught future `autoplan` runs the
   wrong lesson had it shipped uncorrected.
+- A second Copilot review round caught a third-order error: the corrected
+  routing rule still hardcoded this repository's label semantics and pointed
+  at a test file (`tests/workflows/test_pr_validation_needs_split.py`) that
+  does not ship with the `autoplan` skill. `.claude/skills/autoplan/SKILL.md`
+  is canonical plugin content generated verbatim into
+  `src/copilot-cli/skills/autoplan/SKILL.md`, so a repository-specific claim
+  in its prose would have shipped a broken reference to every downstream
+  plugin consumer, not just this repository.
 
 #### Hindered
 
