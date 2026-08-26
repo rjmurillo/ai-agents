@@ -137,7 +137,7 @@ configure_github_cli() {
     fi
 
     if ! gh api user --jq '.login' >/dev/null; then
-        echo "WARNING: gh api user check failed; continuing without GitHub authentication" >&2
+        echo "WARNING: 'gh auth status' succeeded but 'gh api user' could not complete (transport failure, rate limit, or missing scope); this is not necessarily an authentication problem" >&2
         return 0
     fi
 
