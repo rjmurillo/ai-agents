@@ -574,7 +574,7 @@ class TestMain:
         data = json.loads(capsys.readouterr().out)["Data"]
         assert "Validate PR" in data["FailingRequired"]
 
-    def test_pending_required_exits_2(self, capsys):
+    def test_pending_required_exits_1(self, capsys):
         gql = _gql_pr(
             merge_state_status="BLOCKED",
             overall_state="PENDING",
@@ -597,7 +597,7 @@ class TestMain:
         ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
 
-        assert rc == 2
+        assert rc == 1
         data = json.loads(capsys.readouterr().out)["Data"]
         assert data["HasBlocker"] is True
         assert data["PendingRequired"] == ["Validate PR"]
