@@ -155,9 +155,14 @@ work to do; the worst that a long cap costs there is patience. A container is
 reclaimed after a period without progress, so the same cap is a job that can
 outlive its environment and take the push with it, leaving no diagnostic.
 
-`git_hook_policy._container_clamped` answers the second question.
-`_run_command` is the funnel every expensive job's work passes through, and it
-clamps its child's deadline to 150s when `_is_remote_container()` is true.
+`git_hook_policy` answers the second question in two layers. `_run_command`
+clamps its child's deadline to 150s when `_is_remote_container()` is true, and
+`main` arms a watchdog at 165s covering the whole process. The second layer is
+what makes the guarantee hold: the clamp bounds children, and review on PR
+#5319 found three places the work is not a child, so a hang in selection or
+setup passed every deadline and still ended in the reclaim. 15s of headroom so
+an inner deadline fires first and the reader gets the specific message, the
+same ordering ADR-086 item 9 requires between inner budgets and outer caps.
 Workstations and CI are untouched. `tests/ci/test_lefthook_container_bound.py`
 models that clamp against the declared caps and asserts the result:
 
@@ -391,8 +396,12 @@ branch all four printed `(skip) no matching push files`. Attempts to measure
 them firing were inconclusive, because each scopes its work to
 `origin/main...HEAD` and short-circuits when the branch does not touch its
 inputs. So the honest position is that these four remain **unmeasured while
-firing**, and they are the pushes that can still outlive a container. That is
-the tail this record does not close (issue #5318).
+firing**, which is a gap in what their workstation caps are sized from, not in
+the container bound. In a container each is one `git_hook_policy` process and
+the watchdog stops it, so none of them can outlive the container. An earlier
+revision of this paragraph said they could, contradicting the guarantee stated
+two paragraphs down; caught in review on PR #5319. The measurement is still
+owed (issue #5318).
 
 The two e2e smokes at 20m each set the expensive group's declared cost, so they
 alone account for 1200s of the 3450s workstation total. Cutting those caps

@@ -750,6 +750,44 @@ by a margin of fifty-five years. Both assertions passed against an unbounded
 job. Caught by running the mutation rather than by reading the test, which is
 the only thing that has caught any of these.
 
+### Round 9 addendum: the bound went around the process
+
+An eighth reviewer pass found the aggregate deadlines still did not add up to
+the guarantee, and it was right in three places at once. `_resolve_pytest_commands`
+calls `select_tests.changed_from_git`, which shells out with no timeout, and
+builds the import graph in-process, all before `run_pytest` starts its clock.
+`scan_pushed_heads` discovers paths, materializes a tree and probes semgrep's
+version before starting its own. Each is outside every deadline this module
+sets, so a hang there survived all of them and still ended in the reclaim the
+deadlines exist to prevent.
+
+Two ways to answer it. Thread a deadline into each of those paths, which leaves
+the next one for the next reviewer, or put the bound around the process. `main`
+now arms a watchdog at 165s in a container, covering selection, setup and
+execution alike, whatever a subcommand does. 15s above the per-child ceiling so
+an inner deadline always fires first and the reader gets the specific message,
+which is ADR-086 item 9's ordering applied one level up.
+
+It also repairs the budget model's derivation. Matching `git_hook_policy.py` in
+a job's `run:` used to be read as proof its children are clamped, which the
+reviewer correctly said proves nothing about the work between them. The string
+now identifies the process and the process bounds itself, which is a claim the
+match actually supports.
+
+Three smaller findings in the same pass, all real. Exit 3 is overloaded: pytest
+returns it for an internal error and `_run_command` synthesizes it on timeout,
+so a crash was announced as a timeout and sent the reader to the budget instead
+of the traceback. `_run_command_bytes` never clamped, harmless today because its
+one caller passes 90s, a hole in the claim regardless. And the full-suite opt-in
+was not stripped from the child environment, so a test invoking this policy
+inherits `=1` and takes the full-suite path where it meant to exercise the
+selector, which reads as a passing selector test.
+
+The pattern across this whole review is one thing said eight ways: a bound
+placed where the code was easy to reach rather than where the work happens.
+Every round moved it one level out. This one moved it to the process, which is
+the last level there is short of the hook itself.
+
 ### Still open after this round
 
 - `push-ref-policy` carries a 2m cap over `check_push_refs`, which runs many
