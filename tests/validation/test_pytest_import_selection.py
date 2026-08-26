@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -421,6 +422,85 @@ def test_a_broken_import_makes_the_collection_stand_in_block_the_push(
 
     broken.write_text("def test_ok():\n    assert True\n", encoding="utf-8")
     assert git_hook_policy.run_pytest(tmp_path) == 0
+
+
+def _break_with_a_syntax_error(tests_dir: Path) -> Callable[[], None]:
+    """Write an unparseable test module; return the repair that makes it valid."""
+    offender = tests_dir / "test_syntax.py"
+    offender.write_text("def test_ok(:\n    assert True\n", encoding="utf-8")
+
+    def repair() -> None:
+        offender.write_text("def test_ok():\n    assert True\n", encoding="utf-8")
+
+    return repair
+
+
+def _break_with_a_same_basename_collision(tests_dir: Path) -> Callable[[], None]:
+    """Two modules sharing a basename with no package; return the repair.
+
+    Without `__init__.py` pytest imports by basename, so the second module
+    cannot be distinguished from the first. This is the class that bites when
+    someone copies a test file into a sibling directory and renames nothing.
+    """
+    for directory in ("a", "b"):
+        package_free_dir = tests_dir / directory
+        package_free_dir.mkdir()
+        (package_free_dir / "test_dup.py").write_text(
+            "def test_ok():\n    assert True\n", encoding="utf-8"
+        )
+
+    def repair() -> None:
+        (tests_dir / "b" / "test_dup.py").unlink()
+
+    return repair
+
+
+@pytest.mark.parametrize(
+    ("label", "make_defect"),
+    [
+        ("a syntax error", _break_with_a_syntax_error),
+        ("a same-basename module collision", _break_with_a_same_basename_collision),
+    ],
+)
+def test_the_other_two_probed_catches_also_block_the_push(
+    label: str,
+    make_defect: Callable[[Path], Callable[[], None]],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The stand-in claims three catches; only one of them was executed.
+
+    `test_a_broken_import_...` above proves the first. The other two were
+    probed by hand when the claim was written and the probes were never
+    committed, so the repository held three claims and one proof. The contract
+    test elsewhere in this module checks that the docstring, the notice, and
+    ADR-104 rule 5 *agree* on the three, which is a different thing from any of
+    them being true: three surfaces can agree and all be wrong. Raised by a
+    spec-validation pass, which noticed the asymmetry between what is claimed
+    and what runs.
+
+    Exit codes differ by class (a syntax error exits 1, a collision exits 2), so
+    these assert non-zero rather than a specific code. What matters to the push
+    is that git refuses it, and lefthook treats any non-zero the same way.
+    """
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    repair = make_defect(tests_dir)
+
+    monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
+    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
+
+    assert git_hook_policy.run_pytest(tmp_path) != 0, (
+        f"collection did not block on {label}, which the docstring, the "
+        "developer notice, and ADR-104 rule 5 all claim it catches. Either the "
+        "claim is wrong in three places or the stand-in regressed."
+    )
+
+    repair()
+    assert git_hook_policy.run_pytest(tmp_path) == 0, (
+        f"the tree with {label} removed still fails, so the assertion above "
+        "passes for some reason other than the defect it names."
+    )
 
 
 def test_the_collection_notice_repeats_the_selector_reason(
