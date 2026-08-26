@@ -85,6 +85,76 @@ class TestMalformedClosing:
         once = repair_markdown_fences(content)
         assert repair_markdown_fences(once) == once
 
+    def test_malformed_line_that_cannot_open_leaves_no_open_block(self) -> None:
+        # A backtick fence carrying a backtick in its info string cannot open
+        # a block. Keeping the stale opener desynced the state machine, so a
+        # second --write injected a fence into an unrelated section.
+        content = "```text\n``` `not a fence` ```\n```\n"
+        once = repair_markdown_fences(content)
+        assert repair_markdown_fences(once) == once
+        assert find_fence_defects(once) == []
+
+
+class TestByteFidelity:
+    """A repair must not touch a byte it did not set out to change."""
+
+    def test_crlf_survives_the_cli(self, tmp_path: Path) -> None:
+        # read_text() does universal-newline translation, so the pure-function
+        # test could pass while the shipped CLI rewrote every line ending.
+        target = tmp_path / "crlf.md"
+        target.write_bytes(b"```py\r\nx\r\n```py\r\ny\r\n```\r\n")
+        assert main([str(target), "--write"]) == 0
+        out = target.read_bytes()
+        assert b"\r\n" in out
+        assert out.count(b"\n") == out.count(b"\r\n")
+
+    def test_cr_only_endings_survive_the_cli(self, tmp_path: Path) -> None:
+        target = tmp_path / "cr.md"
+        target.write_bytes(b"```py\rx\r```py\ry\r```\r")
+        assert main([str(target), "--write"]) == 0
+        assert b"\n" not in target.read_bytes()
+
+    @pytest.mark.parametrize("separator", ["\u2028", "\u2029", "\x0c", "\x85"])
+    def test_unicode_line_separators_survive(self, tmp_path: Path, separator: str) -> None:
+        # str.splitlines() splits on all of these and would delete them.
+        target = tmp_path / "sep.md"
+        target.write_text(f"```py\nx\n```py\ny\n```\n\nSee A{separator}B.\n", encoding="utf-8")
+        assert main([str(target), "--write"]) == 0
+        assert separator in target.read_text(encoding="utf-8")
+
+    def test_utf8_bom_survives_a_repair(self, tmp_path: Path) -> None:
+        target = tmp_path / "bom.md"
+        target.write_bytes(b"\xef\xbb\xbf```py\nx\n```py\ny\n```\n")
+        assert main([str(target), "--write"]) == 0
+        assert target.read_bytes().startswith(b"\xef\xbb\xbf")
+
+    def test_bom_does_not_hide_a_first_line_fence(self, tmp_path: Path) -> None:
+        target = tmp_path / "bom_clean.md"
+        original = b"\xef\xbb\xbf```python\nx = 1\n```\n"
+        target.write_bytes(original)
+        assert main([str(target)]) == 0
+        assert target.read_bytes() == original
+
+
+class TestIndentedCodeBlocks:
+    """CommonMark stops treating a marker as a fence at four spaces."""
+
+    def test_lone_fence_in_an_indented_block_is_not_an_opener(self) -> None:
+        assert find_fence_defects("Like this:\n\n    ```\n\nDone.\n") == []
+
+    def test_write_leaves_such_a_file_byte_identical(self, tmp_path: Path) -> None:
+        target = tmp_path / "indented.md"
+        original = "Like this:\n\n    ```\n\nDone.\n"
+        target.write_text(original, encoding="utf-8")
+        assert main([str(target), "--write"]) == 0
+        assert target.read_text(encoding="utf-8") == original
+
+    def test_three_space_indent_is_still_a_fence(self) -> None:
+        assert kinds("   ```py\nx\n") == [UNCLOSED_BLOCK]
+
+    def test_tab_counts_as_four_spaces(self) -> None:
+        assert find_fence_defects("\t```py\nx\n") == []
+
 
 class TestNestedContainerFences:
     """Regression: the old parser inserted a stray fence into example blocks."""
@@ -145,6 +215,11 @@ class TestFileDiscovery:
             (d / "x.md").write_text("x\n", encoding="utf-8")
         assert iter_markdown_files([tmp_path], "*.md") == []
 
+    def test_skips_a_directory_whose_name_matches_the_pattern(self, tmp_path: Path) -> None:
+        (tmp_path / "adir.md").mkdir()
+        assert iter_markdown_files([tmp_path], "*.md") == []
+        assert main([str(tmp_path)]) == 0
+
     def test_named_file_is_used_directly(self, tmp_path: Path) -> None:
         f = tmp_path / "only.md"
         f.write_text("x\n", encoding="utf-8")
@@ -182,6 +257,29 @@ class TestExitCodes:
         bad = tmp_path / "bin.md"
         bad.write_bytes(b"\xff\xfe\x00bad")
         assert main([str(bad)]) == 2
+
+    def test_exit_two_when_write_fails(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        target = tmp_path / "bad.md"
+        target.write_text("```py\nx\n```py\ny\n```\n", encoding="utf-8")
+
+        def refuse(*_args: object, **_kwargs: object) -> None:
+            raise OSError(13, "Permission denied")
+
+        monkeypatch.setattr(Path, "write_bytes", refuse)
+        assert main([str(tmp_path), "--write"]) == 2
+        assert "cannot write" in capsys.readouterr().err
+
+    def test_help_exits_zero(self) -> None:
+        with pytest.raises(SystemExit) as exc:
+            main(["--help"])
+        assert exc.value.code == 0
+
+    def test_unknown_flag_exits_two(self) -> None:
+        with pytest.raises(SystemExit) as exc:
+            main(["--bogus"])
+        assert exc.value.code == 2
 
 
 class TestOutput:
