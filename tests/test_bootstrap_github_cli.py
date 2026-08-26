@@ -14,6 +14,8 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 VM_BOOTSTRAP_PATH = REPO_ROOT / "scripts" / "bootstrap-vm.sh"
 
@@ -38,8 +40,14 @@ class TestConfigureGithubCli:
         return text[start:end]
 
     @staticmethod
-    def _fake_gh(tmp_path: Path) -> Path:
-        """A ``gh`` that logs each invocation and the visible token env."""
+    def _fake_gh(tmp_path: Path, fail_on: str = "") -> Path:
+        """A ``gh`` that logs each invocation and the visible token env.
+
+        ``fail_on`` matches against the first two argv words (e.g. "auth
+        status", "api meta", "auth setup-git"); a match exits 1 so the
+        harness can prove a mid-sequence failure actually aborts the
+        caller under ``set -e``, the same as the real gh CLI would.
+        """
         log = tmp_path / "gh.log"
         script = tmp_path / "gh"
         script.write_text(
@@ -47,6 +55,7 @@ class TestConfigureGithubCli:
             f'log="{log}"\n'
             'printf "argv:%s\\n" "$*" >>"$log"\n'
             'printf "env:GH_TOKEN=%s\\n" "${GH_TOKEN-<unset>}" >>"$log"\n'
+            f'if [[ -n "{fail_on}" && "$1 $2" == "{fail_on}" ]]; then exit 1; fi\n'
             "exit 0\n",
             encoding="utf-8",
         )
@@ -54,10 +63,14 @@ class TestConfigureGithubCli:
         return log
 
     def _run(
-        self, tmp_path: Path, env: dict[str, str]
+        self, tmp_path: Path, env: dict[str, str], fail_on: str = ""
     ) -> tuple[subprocess.CompletedProcess[str], list[str]]:
-        log = self._fake_gh(tmp_path)
-        script = f"set -uo pipefail\n{self._extract()}\nconfigure_github_cli\n"
+        log = self._fake_gh(tmp_path, fail_on)
+        # set -euo pipefail matches scripts/bootstrap-vm.sh:4. configure_github_cli
+        # has no `if !` guard around its gh calls, so it relies entirely on
+        # errexit to abort on a failing command; a harness without -e cannot
+        # tell a real abort from a fake gh that always happens to exit 0.
+        script = f"set -euo pipefail\n{self._extract()}\nconfigure_github_cli\n"
         base = {
             k: v for k, v in os.environ.items() if k not in {"GH_TOKEN", "GITHUB_TOKEN"}
         }
@@ -102,3 +115,24 @@ class TestConfigureGithubCli:
         assert result.returncode == 0
         assert lines == []
         assert "GitHub CLI is installed but unauthenticated; set GH_TOKEN" in result.stderr
+
+    @pytest.mark.parametrize(
+        ("fail_on", "expected_calls"),
+        [
+            ("auth status", 1),
+            ("api meta", 2),
+            ("auth setup-git", 3),
+        ],
+    )
+    def test_a_failed_step_aborts_under_errexit(
+        self, tmp_path: Path, fail_on: str, expected_calls: int
+    ) -> None:
+        """Unlike #5277's configure_github_cli, this one has no `if !` guard
+        around any gh call: a failure must propagate via `set -e`, matching
+        scripts/bootstrap-vm.sh's own top-of-file errexit. Confirms the
+        sequence actually stops rather than the fake happening to exit 0."""
+        result, lines = self._run(tmp_path, {"GH_TOKEN": "tok-gh"}, fail_on=fail_on)
+
+        assert result.returncode != 0
+        assert sum(1 for line in lines if line.startswith("argv:")) == expected_calls
+        assert "✓ GitHub CLI authenticated" not in result.stdout
