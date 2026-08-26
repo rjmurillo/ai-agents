@@ -834,6 +834,117 @@ def test_generate_preserves_the_existing_destination_mode(tmp_path: Path) -> Non
     assert (output.stat().st_mode & 0o777) == 0o640
 
 
+def _stray_temp_files(directory: Path, output_name: str) -> list[Path]:
+    return list(directory.glob(f".{output_name}.*.tmp"))
+
+
+def test_atomic_write_preserves_the_original_when_the_write_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failure mid-write must not corrupt or replace the existing destination.
+
+    Forces ``os.fdopen`` to raise before any content reaches the temp file's
+    handle, the earliest point ``_atomic_write_text``'s ``try`` block can
+    fail. The original destination and its content must survive untouched,
+    the temp file `mkstemp` created must be cleaned up, and the original
+    ``OSError`` must propagate rather than being swallowed (Copilot review,
+    PR #5321: "no case forces write ... to fail").
+    """
+    output = tmp_path / "README.md"
+    original_content = "original content\n"
+    output.write_text(original_content, encoding="utf-8")
+
+    def _raise_on_fdopen(*_args: object, **_kwargs: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(generate_adr_index.os, "fdopen", _raise_on_fdopen)
+
+    with pytest.raises(OSError, match="disk full"):
+        generate_adr_index._atomic_write_text(output, "new content\n")
+
+    assert output.read_text(encoding="utf-8") == original_content
+    assert _stray_temp_files(tmp_path, "README.md") == []
+
+
+def test_atomic_write_preserves_the_original_when_replace_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failure during the atomic swap must not corrupt the existing destination.
+
+    Forces ``os.replace`` to raise after the temp file is fully written, the
+    latest point the ``try`` block can fail. The original destination must
+    survive untouched, the temp file must be cleaned up, and the original
+    ``OSError`` must propagate (Copilot review, PR #5321).
+    """
+    output = tmp_path / "README.md"
+    original_content = "original content\n"
+    output.write_text(original_content, encoding="utf-8")
+
+    def _raise_on_replace(*_args: object, **_kwargs: object) -> None:
+        raise OSError("cross-device link")
+
+    monkeypatch.setattr(generate_adr_index.os, "replace", _raise_on_replace)
+
+    with pytest.raises(OSError, match="cross-device link"):
+        generate_adr_index._atomic_write_text(output, "new content\n")
+
+    assert output.read_text(encoding="utf-8") == original_content
+    assert _stray_temp_files(tmp_path, "README.md") == []
+
+
+def test_atomic_write_propagates_the_original_error_when_cleanup_also_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed cleanup must not mask the write failure that triggered it.
+
+    Both ``os.replace`` (the write-path failure) and ``os.unlink`` (the
+    cleanup the ``except`` block attempts) are forced to raise. The
+    ``except OSError: pass`` around the cleanup call exists precisely so a
+    cleanup failure does not replace the original error with its own; this
+    proves that branch, which the two tests above cannot reach because their
+    cleanup always succeeds.
+    """
+    output = tmp_path / "README.md"
+    output.write_text("original content\n", encoding="utf-8")
+
+    def _raise_on_replace(*_args: object, **_kwargs: object) -> None:
+        raise OSError("original failure")
+
+    def _raise_on_unlink(*_args: object, **_kwargs: object) -> None:
+        raise OSError("cleanup also failed")
+
+    monkeypatch.setattr(generate_adr_index.os, "replace", _raise_on_replace)
+    monkeypatch.setattr(generate_adr_index.os, "unlink", _raise_on_unlink)
+
+    with pytest.raises(OSError, match="original failure"):
+        generate_adr_index._atomic_write_text(output, "new content\n")
+
+
+@pytest.mark.windows_path
+def test_generate_round_trips_on_windows_including_permission_preservation(
+    tmp_path: Path,
+) -> None:
+    """The atomic-write path (temp file, chmod, replace) must work on Windows.
+
+    ``os.fchmod`` does not exist on Windows and previously raised
+    ``AttributeError`` before any content was written, aborting generation
+    with the temp file's descriptor leaked (Copilot review, PR #5321). This
+    drives the real ``generate()`` entry point, not just a unit of
+    ``_atomic_write_text``, so a regression here fails on the platform where
+    it actually broke rather than only in a Linux CI job that never
+    exercises this branch.
+    """
+    directory = tmp_path / "architecture"
+    _corpus(directory)
+    output = tmp_path / "README.md"
+    output.write_text("stale placeholder\n", encoding="utf-8")
+
+    generate_adr_index.generate(directory, output)
+
+    assert output.read_text(encoding="utf-8").startswith("# Architecture Decision Records")
+    assert _stray_temp_files(tmp_path, "README.md") == []
+
+
 def test_check_passes_when_the_committed_index_is_current(tmp_path: Path) -> None:
     directory = tmp_path / "architecture"
     _corpus(directory)

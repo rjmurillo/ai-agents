@@ -906,7 +906,14 @@ def _atomic_write_text(path: Path, content: str) -> None:
             existing_mode = None
     fd, tmp_name = tempfile.mkstemp(dir=directory, prefix=f".{path.name}.", suffix=".tmp")
     try:
-        os.fchmod(fd, existing_mode if existing_mode is not None else 0o644)
+        # os.fchmod is POSIX-only: on Windows it does not exist on the os
+        # module at all, so calling it here raised AttributeError before the
+        # write and before os.fdopen(fd, ...) ever ran, leaking the open
+        # descriptor and leaving the unlink below unable to remove it (Copilot
+        # review, PR #5321). os.chmod is path-based and portable; on Windows
+        # it only toggles the read-only bit, the same limited effect a plain
+        # open(path, "w") would have had.
+        os.chmod(tmp_name, existing_mode if existing_mode is not None else 0o644)
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(content)
         os.replace(tmp_name, path)
@@ -1024,9 +1031,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         # .claude/rules/ci-scripts.md MUST 7: a script that resolves the
         # repository root and then writes to it must confirm the caller's cwd
-        # sits inside that root before the first write. Relative
-        # --adr-dir/--output args are already anchored to _REPO_ROOT by
-        # _resolve() above, not to Path.cwd(); without this check, running the
+        # sits inside that root before the first write. Relative --adr-dir is
+        # anchored to _REPO_ROOT by _resolve() above; relative --output is
+        # anchored the same way by _resolve_output(), which additionally
+        # leaves a leaf symlink unresolved (see its docstring). Neither
+        # anchors to Path.cwd(); without this check, running the
         # script from a different worktree (or via a symlink into this one)
         # writes into _REPO_ROOT silently, with no signal that the write
         # landed outside the caller's own checkout. Mirrors
