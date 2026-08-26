@@ -167,7 +167,7 @@ When generating markdown with code blocks:
 2. Never copy the opening fence line to close
 3. Track block state when programmatically generating markdown
 
-The shipped script does this for you; `scripts/fix_fences.py` is the
+The shipped script does this for you; `fix_fences.py` is the
 implementation, and the Reference section above is the algorithm it runs. An
 earlier revision of this file inlined a copy of that parser here under
 "Implementation: Python (Recommended)". It was the pre-CommonMark version,
