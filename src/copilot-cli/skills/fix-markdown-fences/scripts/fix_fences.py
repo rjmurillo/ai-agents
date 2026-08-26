@@ -341,6 +341,14 @@ class _ListContainers:
         """Record that a fenced block opened on this line."""
         self._in_paragraph = False  # rule 7: a fence ends the paragraph
         self._item_still_empty = False  # the fence is the item's content
+        # Rule 16: a fence interrupts a link reference definition, and the
+        # scanner freezes container state for the whole fenced block, so the
+        # caller never observes the lines between the opener and the closer.
+        # Left set, a pending destination or title matched the first line
+        # AFTER the block, which cleared paragraph state that CommonMark keeps
+        # open and let `--write` append a closer to a balanced document.
+        self._awaiting_link_title = False
+        self._awaiting_link_destination = False
 
     def observe(self, line: str) -> int | None:
         """Open a container when *line* starts a list item, then track paragraphs.

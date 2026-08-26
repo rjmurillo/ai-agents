@@ -312,6 +312,25 @@ CASES: dict[str, str] = {
         "[foo]:\n2. ~~~\n   code\n   ~~~\n",
     "a label followed by a bad destination stays a paragraph":
         "[foo]:\n<broken\n2. ~~~\n   code\n   ~~~\n",
+    # Rule 16 continued. A fence INTERRUPTS a pending definition. The scanner
+    # freezes container state for the whole fenced block, so nothing between
+    # the opener and the closer is ever observed; a pending destination or
+    # title therefore matched the first line AFTER the block, cleared
+    # paragraph state the reference parser keeps open, and `--write` appended
+    # a closer to a balanced document. Both pending states, both fence
+    # characters, because the class is the freeze and not the syntax.
+    "a fence interrupts a pending destination":
+        "[foo]:\n```\nx\n```\n/url\n2. ~~~\n   code\n",
+    "a fence interrupts a pending title":
+        "[foo]: /url\n```\nx\n```\n\"T\"\n2. ~~~\n   code\n",
+    "a tilde fence interrupts a pending destination":
+        "[foo]:\n~~~\nx\n~~~\n/url\n2. ```\n   code\n",
+    "a marker-line fence interrupts a pending destination":
+        "[foo]:\n- ```\n  x\n  ```\n/url\n2. ~~~\n   code\n",
+    # The control for that fix: with no definition pending, a fence followed
+    # by an ordered marker behaves exactly as it did before.
+    "a fence with no pending definition is unaffected":
+        "text\n\n```\nx\n```\n\n2. item\n   ~~~\n   y\n   ~~~\n",
 }
 
 
