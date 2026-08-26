@@ -71,7 +71,12 @@ _TOKEN = re.compile(r"[A-Za-z]+(?:['-][A-Za-z]+)*")
 # choice anyone can rewrite.
 _NON_PROSE_NEIGHBORS = frozenset("/_>=\\")
 
-_FENCE = re.compile(r"^[ \t]*(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
+_FENCE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
+# CommonMark caps a fence marker at three spaces of indent; at four it is
+# an indented code block and the backticks are literal content. Without
+# the cap a literal marker inside an indented block started masking and
+# hid the prose after it. The sibling fence script bounds it the same way.
+_MAX_FENCE_INDENT = 3
 # A code span may wrap one line but never spans a paragraph break. With
 # DOTALL and no bound, two stray backticks paragraphs apart paired and
 # blanked everything between them, so a run could miss an em dash and
@@ -218,6 +223,8 @@ def _blank_fenced_blocks(text: str) -> tuple[list[str], int | None]:
     opened_at: int | None = None
     for number, line in enumerate(text.splitlines(), start=1):
         match = _FENCE.match(line)
+        if match is not None and len(match.group("indent").expandtabs(4)) > _MAX_FENCE_INDENT:
+            match = None
         if fence is None:
             if match is None:
                 lines.append(line)
@@ -451,8 +458,8 @@ def _resolve_banned_words(
             "Pass --rules PATH to enable the banned-word check."
         )
     try:
-        banned = parse_banned_words(rules_path.read_text(encoding="utf-8"))
-    except OSError as exc:
+        banned = parse_banned_words(rules_path.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeDecodeError) as exc:
         print(f"Error: cannot read rules file {rules_path}: {exc}", file=sys.stderr)
         return None
     if not banned:
@@ -514,6 +521,10 @@ def main(argv: list[str] | None = None) -> int:
         results[name] = scan_prose(text, banned)
 
     if args.json:
+        # The warning is the only signal that the banned-word scan was
+        # disabled; dropping it in JSON mode made that silent.
+        if rules_note:
+            print(rules_note, file=sys.stderr)
         _emit_json(results, rules_path, banned)
     else:
         _emit_text(results, rules_note)
