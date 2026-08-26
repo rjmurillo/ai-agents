@@ -78,9 +78,13 @@ jobs:
               - '**/*.ps1'
               - '**/*.psm1'
               - '**/*.pyw'
-              # Canonical rules and both generated instruction trees are direct
-              # inputs to Python contract tests. Keep these roots explicit so
-              # unrelated Markdown, such as session logs, still skips pytest.
+              # Canonical rules and both generated instruction trees are
+              # direct inputs to Python contract tests. They were named here
+              # when the filter scoped Markdown to a curated set. It no longer
+              # does: the extension globs at the bottom of this list match all
+              # tracked Markdown, JSON and text, so session logs trigger pytest
+              # too. That is deliberate, and the reasoning is at those globs.
+              # These roots stay because they also carry non-Markdown files.
               - '.claude/rules/**'
               - '.github/instructions/**'
               - 'src/copilot-cli/instructions/**'
