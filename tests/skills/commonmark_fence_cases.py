@@ -228,9 +228,11 @@ CASES: dict[str, str] = {
         "```\nx\n``` \ny\n```\n",
     "a trailing tab still closes a fence":
         "```\nx\n```\t\ny\n```\n",
-    # Line terminators. `str.splitlines` splits on six characters CommonMark
-    # does not treat as line endings, so one prose line became two and the
-    # halves read as a fence opener plus a body. The reference parser sees no
+    # Line terminators. `str.splitlines` splits on characters CommonMark does
+    # not treat as line endings, enumerated at `_LINE_SPLIT_RE` in either
+    # scanner rather than counted here: this comment said `six` and the real
+    # figure is eight. One prose line became two and the halves read as a
+    # fence opener plus a body. The reference parser sees no
     # fence in any of these. `fix_fences` was already immune and `prose_lint`
     # was not, which is the kind of drift the parity test cannot see: it
     # compares the container class, and this lives outside it.

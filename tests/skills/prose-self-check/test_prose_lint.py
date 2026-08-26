@@ -434,8 +434,9 @@ class TestSiblingBoundCitation:
 class TestCommonMarkOracle:
     """Masking matches `markdown-it-py` on every list-container case.
 
-    Hand-written expectations are what let four CommonMark rules land wrong in
-    the first place. These compare against a reference implementation instead.
+    Hand-written expectations are what let the first batch of CommonMark rules
+    land wrong. These compare against a reference implementation instead. The
+    count that used to sit in this sentence went stale as the rules grew.
     """
 
     @pytest.mark.parametrize("name", sorted(FENCE_CASES))

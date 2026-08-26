@@ -84,8 +84,9 @@ _FENCE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
 # an indented code block and the backticks are literal content. Without the
 # cap a literal marker inside an indented block started masking and hid the
 # prose after it. The cap is measured from the innermost open list item, not
-# from column zero; `_ListContainers` below carries the four rules that decide
-# where that item's content column sits.
+# from column zero; `_ListContainers` below carries the numbered rules that
+# decide where that item's content column sits. No count here: it said `four`
+# while the class reached fifteen.
 #
 # Same bound as the sibling fence scanner, which ships in the same plugin
 # root and is quoted here rather than imported, because the two skills ship
@@ -597,8 +598,10 @@ def _fence_in_item(
 # read as a fence opener plus a body, so this linter skipped real prose as if
 # it were code. `fix_fences.py` has carried this guard since it shipped and
 # this copy never did, because nothing compared the two beyond the container
-# class. Measured: four characters produce it, and the reference parser sees
-# no fence in any of them.
+# class. Measured over every codepoint `str.splitlines` splits on: each of the
+# ones enumerated above produces it, and the reference parser sees no fence in
+# any of them. This line previously said `four`, which was the number I had
+# tested rather than the number that break.
 _LINE_SPLIT_RE = re.compile(r"\r\n|\r|\n")
 
 

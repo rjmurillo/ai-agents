@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Contract tests for the fix-markdown-fences scanner.
 
-Two contracts against things outside this module. `TestVendoredInvocation`
-executes the command SKILL.md documents, as shipped, from a consumer working
-directory. `TestCommonMarkOracle` checks the list-container model against
-`markdown-it-py`, a CommonMark reference implementation.
+Contracts against things outside this module, listed rather than counted
+because the count still said two after a third class landed.
+`TestVendoredInvocation` executes the command SKILL.md documents, as shipped,
+from a consumer working directory. `TestCommonMarkOracle` checks the
+list-container model against `markdown-it-py`, a CommonMark reference
+implementation. `TestScannerParity` holds the two duplicated scanners to one
+behaviour and one source.
 
 The detector and repair unit tests live in test_fix_fences.py; these are split
 out because they answer to external contracts rather than to this module's own

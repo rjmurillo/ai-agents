@@ -138,8 +138,8 @@ documentation:
   test suite.
 
 Files are read and written as bytes, so CRLF and CR endings survive, a UTF-8
-BOM survives, and the Unicode separators `str.splitlines` would swallow (form
-feed, U+0085, U+2028, U+2029) stay put. Each line keeps its own terminator, so
+BOM survives, and every separator `str.splitlines` would swallow (U+000B,
+U+000C, U+001C, U+001D, U+001E, U+0085, U+2028, U+2029) stays put. Each line keeps its own terminator, so
 a mixed-ending file is not normalized. Repair is idempotent.
 
 Exit codes (ADR-035):
