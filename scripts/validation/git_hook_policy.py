@@ -456,8 +456,14 @@ SEMGREP_TIMEOUT_SECONDS = 840
 # not the tree. Measured 2.73s in-hook and 1.07s cold. Was 840s, which forced
 # a 15m outer cap through the ADR-086 item 9 headroom rule for no reason.
 MYPY_TIMEOUT_SECONDS = 60
-# Below the `workflow-local-run` lefthook cap (10m), same reason as above.
-WORKFLOW_LOCAL_TIMEOUT_SECONDS = 540
+# Below the `workflow-local-run` lefthook cap (30m) per ADR-086 item 9. Unlike
+# the two above, this number is NOT measured: the only path a container can
+# exercise reports DEGRADED in under a second because actionlint is absent
+# there, and the `act` run this budget exists to bound has never been timed
+# in-hook. Cut to 540 earlier on this branch and restored in review (PR #5319),
+# because a cap without a measurement behind it is the thing ADR-104 rule 7
+# forbids, and this record cannot forbid it in one place and do it in another.
+WORKFLOW_LOCAL_TIMEOUT_SECONDS = 1_740
 # Scope the workflow-local gate to workflows this push changed versus the
 # origin/main merge base (three-dot diff). Lefthook's {push_files} is a
 # two-dot tree diff against the stale remote tip, so a rebase or force-push

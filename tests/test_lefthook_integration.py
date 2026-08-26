@@ -795,11 +795,17 @@ def test_configuration_bounds_every_job() -> None:
         assert all(isinstance(job.get("timeout"), str) for job in jobs)
 
     pre_push = _job_map(config, "pre-push")
-    # Both were 30m. Resized from in-hook measurement (ADR-104 rule 7): the
-    # cap is the ceiling for the opt-in local-execution path, and each job's
-    # inner budget now sits under it so the inner timeout fires first.
+    # `python-tests` was 30m and was resized from in-hook measurement (ADR-104
+    # rule 7): the cap is the ceiling for the opt-in local-execution path, and
+    # its inner budget sits under it so the inner timeout fires first.
     assert pre_push["python-tests"]["timeout"] == "15m"
-    assert pre_push["workflow-local-run"]["timeout"] == "10m"
+    # `workflow-local-run` stays at 30m and is pinned so a future cut has to
+    # come with a measurement. It was cut to 10m on the branch that resized
+    # `python-tests` and restored in review (PR #5319): rule 7 sizes a cap from
+    # a measured worst case, and the only firing path a container can time
+    # reports DEGRADED in 0.42s because actionlint is absent there, which is
+    # not the `act` run the cap protects.
+    assert pre_push["workflow-local-run"]["timeout"] == "30m"
     assert pre_push["security-scan"]["timeout"] == "15m"
     assert pre_push["hook-anchoring-e2e"]["timeout"] == "20m"
     assert pre_push["plugin-load-e2e"]["timeout"] == "20m"

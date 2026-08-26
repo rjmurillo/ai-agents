@@ -651,8 +651,18 @@ pre-push:
             run: uv run --frozen python .claude/skills/security-detection/detect_infrastructure.py --files {push_files}
             glob: "**/*"
 
+          # Kept at main's 30m. Cut to 10m earlier on this branch and put
+          # back in review (PR #5319): rule 7 sizes a cap from a measured
+          # worst case and this job has no such measurement. A push carrying
+          # a workflow change does fire it, but in a container it reports
+          # DEGRADED in 0.42s because actionlint is not installed there, so
+          # the firing path a container can measure is not the path the cap
+          # protects. On a workstation with actionlint present the job runs
+          # `act`, and a 10m cap could kill a legitimate run to buy a number
+          # in a declared-budget table. The container exposure this branch is
+          # about is closed by the subprocess clamp, not by this cap.
           - name: workflow-local-run
-            timeout: 10m
+            timeout: 30m
             run: uv run --frozen python scripts/validation/git_hook_policy.py workflow-local {push_files}
             glob: ".github/workflows/**/*.{yml,yaml}"
 

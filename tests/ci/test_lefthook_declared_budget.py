@@ -74,14 +74,21 @@ from tests.ci.lefthook_budget_model import (
 # constant stays a one-line edit on purpose; raising it does not get past the
 # base-ref comparison wherever that ref is reachable.
 #
-# pre-push 2850s is dominated by three blocks nobody has measured while firing:
+# pre-push 3450s is dominated by three blocks nobody has measured while firing:
 # the two CLI e2e smokes at 20m (they set the expensive group's cost),
-# `workflow-local-run` at 10m, and `security-scan` at 15m, which ADR-054 sets
+# `workflow-local-run` at 30m, and `security-scan` at 15m, which ADR-054 sets
 # as an enforced 900s budget this record does not overturn. On a workstation a
-# long cap for those is the right protection; the container bound below is what
-# the originating incident is about.
+# long cap for those is the right protection; the container bound elsewhere is
+# what the originating incident is about.
+#
+# It read 2850 until review put `workflow-local-run` back at main's 30m. That
+# cut was the one cap on this branch with no in-hook measurement behind it, and
+# ADR-104 rule 7 says a cap is sized from a measured worst case. Raising a
+# ceiling to accommodate a restored cap is the honest direction here and the
+# base-ref ratchet still holds: 3450s is below the 4170s on the base ref, so
+# the total has fallen, just by less than an unmeasured cut made it look.
 DECLARED_BUDGET_BASELINE_SECONDS: dict[str, float] = {
-    "pre-push": 2850.0,
+    "pre-push": 3450.0,
     "pre-commit": 6530.0,
 }
 
