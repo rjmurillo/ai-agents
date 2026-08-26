@@ -61,6 +61,7 @@ class TestSweepReportContentValidation:
                 tmp_path,
                 artifact_content={
                     "schemaVersion": "1",
+                    "agent": "architect",
                     "decision": "DROP_PIN",
                     "winner": "claude-opus-4-6",
                     "fixtures_sha": "abc123",
@@ -86,6 +87,7 @@ class TestSweepReportContentValidation:
                 tmp_path,
                 artifact_content={
                     "schemaVersion": "1",
+                    "agent": "architect",
                     "decision": "KEEP_PIN",
                     "winner": "claude-sonnet-4-6",
                     "fixtures_sha": "abc123",
@@ -109,6 +111,7 @@ class TestSweepReportContentValidation:
                 tmp_path,
                 artifact_content={
                     "schemaVersion": "1",
+                    "agent": "architect",
                     "decision": "KEEP_PIN",
                     "winner": "claude-opus-4-6",
                     "fixtures_sha": "different-sha",
@@ -134,6 +137,7 @@ class TestSweepReportContentValidation:
                 tmp_path,
                 artifact_content={
                     "schemaVersion": "1",
+                    "agent": "architect",
                     "decision": "KEEP_PIN",
                     "winner": "claude-opus-4-6",
                     "fixtures_sha": "abc123",
@@ -158,6 +162,7 @@ class TestSweepReportContentValidation:
                 tmp_path,
                 artifact_content={
                     "schemaVersion": "1",
+                    "agent": "architect",
                     "decision": "KEEP_PIN",
                     "winner": "claude-opus-4-6",
                     "fixtures_sha": "abc123",
@@ -179,6 +184,7 @@ class TestSweepReportContentValidation:
                 tmp_path,
                 artifact_content={
                     "schemaVersion": "1",
+                    "agent": "architect",
                     "decision": "KEEP_PIN",
                     "winner": "claude-opus-4-6",
                     "fixtures_sha": "abc123",
@@ -204,6 +210,7 @@ class TestSweepReportContentValidation:
                 tmp_path,
                 artifact_content={
                     "schemaVersion": "1",
+                    "agent": "architect",
                     "decision": "KEEP_PIN",
                     "winner": "claude-opus-4-6",
                     "fixtures_sha": "abc123",
@@ -228,6 +235,56 @@ class TestSweepReportContentValidation:
                 tmp_path,
                 artifact_content={
                     "schemaVersion": "2",
+                    "agent": "architect",
+                    "decision": "KEEP_PIN",
+                    "winner": "claude-opus-4-6",
+                    "fixtures_sha": "abc123",
+                    "default_model": DEFAULT_MODEL,
+                    "models": _SINGLE_CANDIDATE_MODELS,
+                    "n_shared_fixtures": 8,
+                    "recall_delta": 0.05,
+                    "ci95": [0.01, 0.09],
+                },
+            )
+        }
+        result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
+        assert result is None
+
+    def test_artifact_agent_mismatch_returns_none(self, tmp_path: Path) -> None:
+        """build_report records an "agent" field
+        (scripts/eval/_model_sweep_core.py:481); without cross-checking it,
+        a sweep for a DIFFERENT agent could justify this manifest entry
+        whenever winner, fixtures_sha, and default_model happen to
+        coincide, since none of those three fields are unit-specific by
+        themselves. _UNIT is "templates/agents/architect.shared.md", so
+        the report's own agent must be "architect", not "security" or
+        anything else."""
+        manifest = {
+            _UNIT: _keep_pin_entry(
+                tmp_path,
+                artifact_content={
+                    "schemaVersion": "1",
+                    "agent": "security",
+                    "decision": "KEEP_PIN",
+                    "winner": "claude-opus-4-6",
+                    "fixtures_sha": "abc123",
+                    "default_model": DEFAULT_MODEL,
+                    "models": _SINGLE_CANDIDATE_MODELS,
+                    "n_shared_fixtures": 8,
+                    "recall_delta": 0.05,
+                    "ci95": [0.01, 0.09],
+                },
+            )
+        }
+        result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
+        assert result is None
+
+    def test_artifact_missing_agent_returns_none(self, tmp_path: Path) -> None:
+        manifest = {
+            _UNIT: _keep_pin_entry(
+                tmp_path,
+                artifact_content={
+                    "schemaVersion": "1",
                     "decision": "KEEP_PIN",
                     "winner": "claude-opus-4-6",
                     "fixtures_sha": "abc123",
@@ -279,6 +336,7 @@ class TestSweepReportContentValidation:
                 tmp_path,
                 artifact_content={
                     "schemaVersion": "1",
+                    "agent": "architect",
                     "decision": "KEEP_PIN",
                     "winner": "claude-opus-4-6",
                     "fixtures_sha": "abc123",
@@ -308,6 +366,7 @@ class TestSweepReportContentValidation:
                 tmp_path,
                 artifact_content={
                     "schemaVersion": "1",
+                    "agent": "architect",
                     "decision": "KEEP_PIN",
                     "winner": "claude-opus-4-6",
                     "fixtures_sha": "abc123",
@@ -331,6 +390,7 @@ class TestSweepReportContentValidation:
                 tmp_path,
                 artifact_content={
                     "schemaVersion": "1",
+                    "agent": "architect",
                     "decision": "KEEP_PIN",
                     "winner": "claude-opus-4-6",
                     "fixtures_sha": "abc123",
@@ -359,7 +419,8 @@ class TestSweepReportContentValidation:
         artifact_path.parent.mkdir(parents=True, exist_ok=True)
         artifact_path.write_text(
             "{"
-            '"schemaVersion": "1", "decision": "KEEP_PIN", '
+            '"schemaVersion": "1", "agent": "architect", '
+            '"decision": "KEEP_PIN", '
             '"winner": "claude-opus-4-6", "fixtures_sha": "abc123", '
             f'"default_model": "{DEFAULT_MODEL}", '
             '"models": [{"model_id": "claude-opus-4-6"}, '

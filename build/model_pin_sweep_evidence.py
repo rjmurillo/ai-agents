@@ -62,6 +62,24 @@ def _normalize_id(model_id: str) -> str:
     return model_id.replace(".", "-")
 
 
+def _agent_name_from_unit(unit: object) -> str | None:
+    """Derive the agent name ``build_report`` would have recorded for this unit.
+
+    Mirrors ``build/generate_agents.py:265``
+    (``agent_name = shared_file.stem.replace(".shared", "")``) verbatim: the
+    unit is ``templates/agents/<name>.shared.md``, and
+    ``scripts/eval/_model_sweep_core.py:481``'s ``build_report`` writes that
+    same ``<name>`` into the report's ``agent`` field. Without this check, a
+    sweep report for one agent could justify a manifest entry for a
+    different one whenever winner, ``fixtures_sha``, and ``default_model``
+    happen to coincide, since none of those fields are unit-specific by
+    themselves.
+    """
+    if not isinstance(unit, str):
+        return None
+    return Path(unit).stem.replace(".shared", "")
+
+
 def _report_model_id_matches(report_value: object, entry_value: object) -> bool:
     """Normalize-compare one report model-id field against the entry's.
 
@@ -174,12 +192,16 @@ def sweep_report_satisfies_rule2(
     to actually qualify (``_report_measurements_qualify``).
 
     Canonical report schema: ``scripts/eval/_model_sweep_core.py:build_report``
-    (lines 460-511), specifically the ``schemaVersion``, ``decision``,
-    ``winner``, ``fixtures_sha``, ``default_model``, ``models``,
-    ``n_shared_fixtures``, ``recall_delta``, and ``ci95`` fields that
-    function writes. ``schemaVersion`` gates future shape changes per that
-    function's own docstring; a report missing it, or reporting a
-    different version, has not committed to the field set read below.
+    (lines 460-511), specifically the ``schemaVersion``, ``agent``,
+    ``decision``, ``winner``, ``fixtures_sha``, ``default_model``,
+    ``models``, ``n_shared_fixtures``, ``recall_delta``, and ``ci95``
+    fields that function writes. ``schemaVersion`` gates future shape
+    changes per that function's own docstring; a report missing it, or
+    reporting a different version, has not committed to the field set read
+    below. ``agent`` ties the report to a specific source unit
+    (``_agent_name_from_unit``); without that check a report for one agent
+    could justify a manifest entry for a different one whenever winner,
+    fixtures_sha, and default_model happen to coincide.
     """
     try:
         report = json.loads(artifact_path.read_text(encoding="utf-8"))
@@ -188,6 +210,8 @@ def sweep_report_satisfies_rule2(
     if not isinstance(report, dict):
         return False
     if report.get("schemaVersion") != SWEEP_REPORT_SCHEMA_VERSION:
+        return False
+    if report.get("agent") != _agent_name_from_unit(entry.get("unit")):
         return False
     if report.get("decision") != "KEEP_PIN":
         return False

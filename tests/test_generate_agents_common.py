@@ -437,15 +437,20 @@ class TestConvertFrontmatterForPlatform:
             # a qualifying KEEP_PIN result that agrees with this entry.
             model = entry.get("model")
             default_model = entry.get("default_model")
+            unit = entry.get("unit")
             winner_id = model if isinstance(model, str) else "claude-opus-4-6"
             default_id = (
                 default_model
                 if isinstance(default_model, str)
                 else "claude-sonnet-4-6"
             )
+            # Matches build/generate_agents.py:265's agent_name derivation
+            # verbatim; see model_pin_sweep_evidence.py:_agent_name_from_unit.
+            agent = Path(str(unit)).stem.replace(".shared", "")
             artifact_path.write_text(
                 json.dumps({
                     "schemaVersion": "1",
+                    "agent": agent,
                     "decision": "KEEP_PIN",
                     "winner": winner_id,
                     "fixtures_sha": entry.get("fixtures_sha"),

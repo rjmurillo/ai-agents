@@ -149,6 +149,7 @@ class TestMain:
         artifact_path.write_text(
             json.dumps({
                 "schemaVersion": "1",
+                "agent": "test-agent",
                 "decision": "KEEP_PIN",
                 "winner": "claude-opus-4-6",
                 "fixtures_sha": "abc123",

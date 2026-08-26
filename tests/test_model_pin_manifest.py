@@ -135,12 +135,18 @@ def _keep_pin_entry(
         if artifact_content is None:
             model = base.get("model")
             default_model = base.get("default_model")
+            unit = base.get("unit")
             winner_id = model if isinstance(model, str) else "claude-opus-4-6"
             default_id = (
                 default_model if isinstance(default_model, str) else DEFAULT_MODEL
             )
+            # Matches build/generate_agents.py:265's agent_name derivation
+            # verbatim, since build_report's own "agent" field records that
+            # same value; see model_pin_sweep_evidence.py:_agent_name_from_unit.
+            agent = Path(str(unit)).stem.replace(".shared", "")
             artifact_content = {
                 "schemaVersion": "1",
+                "agent": agent,
                 "decision": "KEEP_PIN",
                 "winner": winner_id,
                 "fixtures_sha": base.get("fixtures_sha"),
