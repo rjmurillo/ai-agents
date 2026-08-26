@@ -14,7 +14,7 @@ This is a Python port of Generate-Agents.ps1 tests following ADR-042 migration.
 from __future__ import annotations
 
 import sys
-from datetime import date as _date
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -99,6 +99,12 @@ class TestMain:
         )
         manifest_dir = repo_root / ".agents" / "governance"
         manifest_dir.mkdir(parents=True)
+        # date uses the UTC date, matching resolve_manifest_model's own
+        # default (datetime.now(timezone.utc).date()): a host ahead of UTC
+        # would otherwise sometimes see the local date read as "tomorrow"
+        # in UTC terms, failing this test via the age < 0 guard for
+        # reasons unrelated to what it checks.
+        utc_today = datetime.now(timezone.utc).date()
         (manifest_dir / "model-pin-evidence.json").write_text(
             "{"
             '"schema_version": "1", "pins": [{'
@@ -108,7 +114,7 @@ class TestMain:
             '"fixtures_sha": "abc123", '
             '"artifact": "evals/test-agent-spike/sweep.json", '
             '"default_model": "claude-sonnet-4-6", '
-            f'"date": "{_date.today().isoformat()}"'
+            f'"date": "{utc_today.isoformat()}"'
             "}]}",
             encoding="utf-8",
         )

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import os
 import sys
-from datetime import date as _date
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Add build directory to path for imports
@@ -412,12 +412,17 @@ class TestConvertFrontmatterForPlatform:
         # ADR-080 rule 2 requires a *committed* sweep artifact;
         # resolve_manifest_model now checks the artifact exists as a file,
         # so repo_root, when given, gets that file written under it.
+        # date uses the UTC date, matching resolve_manifest_model's own
+        # default (datetime.now(timezone.utc).date()): a host ahead of UTC
+        # would otherwise sometimes see date.today() read as "tomorrow" in
+        # UTC terms, which fails every positive test through this fixture
+        # via the age < 0 guard for reasons unrelated to what they check.
         artifact = "evals/architect-spike/sweep.json"
         entry: dict[str, object] = {
             "unit": self._UNIT,
             "model": "claude-opus-4-6",
             "decision": "KEEP_PIN",
-            "date": _date.today().isoformat(),
+            "date": datetime.now(timezone.utc).date().isoformat(),
             "fixtures_sha": "abc123",
             "artifact": artifact,
             "default_model": "claude-sonnet-4-6",

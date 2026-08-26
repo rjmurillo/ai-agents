@@ -9,7 +9,7 @@ for the canonical-source citations this module's contract is built from.
 from __future__ import annotations
 
 import sys
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 # Add build directory to path for imports
@@ -199,8 +199,16 @@ class TestResolveManifestModel:
         assert result is None
 
     def test_defaults_today_to_real_date_when_omitted(self, tmp_path: Path) -> None:
-        """A fresh entry dated today, with no `today` override, still resolves."""
-        manifest = {self._UNIT: self._entry(tmp_path, date=date.today().isoformat())}
+        """A fresh entry dated today, with no `today` override, still resolves.
+
+        Built from the UTC date, matching resolve_manifest_model's own
+        default (datetime.now(timezone.utc).date()), not the host's local
+        date: on a host ahead of UTC, date.today() can already read as
+        "tomorrow" in UTC terms, which would make this fixture look
+        future-dated and fail via the age < 0 guard for reasons unrelated
+        to what this test is checking."""
+        utc_today = datetime.now(timezone.utc).date()
+        manifest = {self._UNIT: self._entry(tmp_path, date=utc_today.isoformat())}
         result = resolve_manifest_model(manifest, self._UNIT, tmp_path)
         assert result == "claude-opus-4-6"
 
