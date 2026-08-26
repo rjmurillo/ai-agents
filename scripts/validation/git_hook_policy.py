@@ -494,7 +494,9 @@ TEST_SUITE_TIMEOUT_SECONDS = 780
 # wall while a full pytest run held the other cores. `ci-scripts.md` MUST-16
 # forbids sizing a pre-push cap from an idle run, so this ceiling is set from
 # the loaded figure with roughly 8x headroom rather than from the idle one, and
-# the real in-hook number belongs here once a push measures it (issue #5316).
+# measured in-hook at ~14s collecting and ~38s on an import-graph subset
+# across fourteen real pushes; the workstation tail is still unmeasured
+# while firing (issue #5318).
 TEST_COLLECTION_TIMEOUT_SECONDS = 300
 # Opt back into executing the whole suite inside pre-push. Unset is the default
 # because that run duplicates CI's `pytest.yml` partition matrix on the same
@@ -6637,15 +6639,24 @@ def _pytest_collection_command(repo_root: Path) -> list[str]:
     """Collect every non-integration test without executing any of them.
 
     Collection imports each test module and instantiates each item, so it fails
-    on a broken import, on a syntax error, and on two test modules that share a
-    basename across directories. Those are the defects that would otherwise
-    burn a whole CI matrix before reporting the same thing.
+    on a broken import and on a syntax error. Those are the defects that would
+    otherwise burn a whole CI matrix before reporting the same thing.
 
-    It does NOT catch a test whose fixture no fixture satisfies, and it does
-    NOT catch two same-named test functions in one module: both were probed
-    against a throwaway tree and collect clean with exit 0. Do not widen this
-    docstring's claim without a probe; the same claim is printed to developers
-    in `_full_suite_stand_in` and a wrong one tells them they are covered.
+    It does NOT catch a test whose fixture no fixture satisfies, does NOT catch
+    two same-named test functions in one module, and does NOT catch two test
+    modules sharing a basename across directories.
+
+    That last one was claimed as a catch and is not. It is a collection error
+    under pytest's default `prepend` import mode, and `pyproject.toml` sets
+    `--import-mode=importlib`, under which it collects clean. The probe behind
+    the wrong claim ran in a throwaway tree with no config and silently got the
+    other mode, so it measured a pytest this repository never runs. Caught in
+    review on PR #5319;
+    `test_a_same_basename_collision_goes_uncaught_under_production_config` now
+    pins it, and the behavior fixtures mirror the real addopts. Do not widen
+    this docstring's claim without a probe that carries production
+    configuration; the same claim is printed to developers in
+    `_full_suite_stand_in` and a wrong one tells them they are covered.
 
     Three `-q` are deliberate. `pyproject.toml` sets `addopts = "-v ..."`, so
     verbosity starts at +1 and a single `-q` nets to 0: measured 31765 lines of
@@ -6701,11 +6712,13 @@ def _full_suite_stand_in(repo_root: Path, reason: str) -> list[list[str]]:
         f"pytest selection: no import-graph subset ({reason}).\n"
         "  Collecting every test instead of executing them. Collection blocks "
         "on a broken\n"
-        "  import, a syntax error, and a same-basename module collision. It "
-        "does NOT run\n"
-        "  assertions, it does NOT catch a missing fixture, and it does NOT "
-        "catch two\n"
-        "  same-named test functions in one module.\n"
+        "  import and on a syntax error. It does NOT run assertions, does NOT "
+        "catch a\n"
+        "  missing fixture, does NOT catch two same-named test functions in "
+        "one module,\n"
+        "  and does NOT catch a same-basename module collision (this repo "
+        "sets\n"
+        "  --import-mode=importlib, under which that collides silently).\n"
         "  Assertions run in CI: .github/workflows/pytest.yml executes the full "
         "partition\n"
         "  matrix on every merge-queue commit, and on this PR only when the "

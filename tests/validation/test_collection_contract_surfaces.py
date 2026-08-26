@@ -75,11 +75,21 @@ def test_the_notice_states_every_probed_miss_not_just_the_first(
 COLLECTION_CATCHES = {
     "a broken import": ("broken import",),
     "a syntax error": ("syntax error",),
-    "a same-basename module collision": ("same-basename", "share a basename"),
 }
 COLLECTION_MISSES = {
     "a missing fixture": ("missing fixture", "fixture no fixture satisfies"),
     "two same-named test functions in one module": ("same-named test functions in one module",),
+    # Moved from CATCHES in review (PR #5319). A basename collision raises
+    # under pytest's default `prepend` import mode and collects clean under
+    # `--import-mode=importlib`, which `pyproject.toml` sets. The probe behind
+    # the old claim ran without that config. This table agreeing with three
+    # surfaces never made the claim true: agreement and truth are different
+    # properties, which is the whole reason the behavior tests exist next door.
+    "a same-basename module collision": (
+        "same-basename",
+        "share a basename",
+        "sharing a basename",
+    ),
 }
 
 _ADR_104 = (

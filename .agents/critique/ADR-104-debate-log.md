@@ -1,8 +1,9 @@
+<!-- # taste-lint: ignore file-size, append-only review record; rounds are cited by number from the ADR, the tests, and the commit log; splitting breaks those references and the audit continuity. -->
 # ADR Debate Log: ADR-104 Gate Tier Placement
 
 ## Summary
 
-- **Rounds**: 1
+- **Rounds**: 6
 - **Outcome**: Consensus to revise. Two Block votes, three Disagree-and-Commit,
   one Accept-with-findings. Every P0 was resolved by changing the code or the
   record, not by deferring it.
@@ -468,3 +469,72 @@ have cost a full push round trip ran locally in under a second, which is rule
 - Rule 9 states where a reporter belongs; nothing yet enforces it, and no
   reporter has been moved or removed on its authority. The rule is a decision
   the next reader can apply, not a change to this hook.
+
+## Round 7: a reviewer read the config the probes did not
+
+The PR left draft and Copilot reviewed all 17 files. Two findings landed on
+load-bearing claims, and both were right.
+
+**Rule 5's third catch does not exist here.** `pyproject.toml` sets
+`--import-mode=importlib`. A same-basename module collision is a collection
+error under pytest's default `prepend` mode and collects clean under
+`importlib`. Every probe behind the claim ran in a throwaway tree with no
+config, so all of them silently measured the other mode. Verified both ways:
+the collision exits 2 under the default and 0 under production configuration,
+while a broken import and a syntax error exit 2 under both.
+
+That claim was stated in four places and carried a behavior test added
+specifically to prove it. The test passed for the wrong reason. Round 6 argued
+that three surfaces agreeing is not the same property as any of them being
+true, and added the behavior tests on exactly that reasoning; the reasoning was
+right and the fixture was still wrong, which is the sharper lesson. A test that
+executes the real command against a real tree is only as faithful as the
+environment it builds, and an absent config file is an environment choice made
+by omission.
+
+The fixture now copies `addopts` out of the real `pyproject.toml` rather than
+restating them, so it cannot drift the way a hand-maintained duplicate would,
+and the collision is pinned as a negative: if anyone drops `importlib`, the test
+fails and says to move the class back into the catches.
+
+**The per-job container bound is a per-child bound.** The clamp applies to one
+subprocess. `run_pytest` holds an aggregate deadline and passes each child its
+remaining time, so that job is bounded, but at 780s on the opt-in path rather
+than 240s. `scan_pushed_heads` holds no aggregate deadline at all: it loops
+over pushed refs and each `_scan_pushed_head` gets a fresh 150s, so N refs cost
+up to N times 150s. The assertion is evidence for "no single subprocess
+outlives the container" and only incidentally for the per-job reading.
+
+Recorded at the constant rather than quietly restated, because the difference
+is the whole safety claim. The measured hook is ~148s end to end and the
+default path spawns one child, so the exposure is a tail case; that argues for
+sizing the fix deliberately, not for keeping a bound that does not hold. Issue
+#5318.
+
+**Six citations pointed at the wrong issue.** #5316 is a closed Renovate action
+bump, confirmed through the API. The work is tracked by #5315, #5317, and
+#5318. A wrong issue number is the cheapest possible version of this branch's
+recurring pattern and it survived every gate, because nothing resolves a
+citation to check that it says what the citing text claims.
+
+Also corrected: the ADR recorded a retired 1740s suite budget and an unchanged
+30m cap that this branch had already cut to 780s and 15m, and this log declared
+one round while containing six.
+
+**Two filter roots were missing, found by reading tests rather than the
+filter.** `tests/build_scripts/test_hook_contract_knowledge.py` opens
+`.agents/critique/ADR-084-debate-log.md` and `tests/test_pr_identity_gate.py`
+reads `templates/agents/`. Both trees were absent from `pytest.yml`, so a PR
+touching only them still skipped the suite. The colocated test checks that
+every root in the filter is read by a test and cannot check the reverse, which
+the PR named as unprovable; these are what that gap looked like in practice.
+
+### Still open after this round
+
+- No aggregate deadline in `scan_pushed_heads`, so `security-scan` has no job
+  bound in a container. Issue #5318.
+- The budget model credits a clamp to any job not on the unclamped roster
+  without proving its command routes through `_run_command`. A job renamed or
+  replaced with a direct command would pass falsely.
+- A container-clamp timeout reports the aggregate budget rather than the clamp
+  that actually fired, sending the reader to the wrong limit.

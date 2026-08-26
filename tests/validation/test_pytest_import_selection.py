@@ -246,6 +246,7 @@ def test_a_broken_import_makes_the_collection_stand_in_block_the_push(
     removed collects clean and the push proceeds. Without it, a command that
     failed for any reason at all would satisfy the first half.
     """
+    _mirror_production_pytest_config(tmp_path)
     tests_dir = tmp_path / "tests"
     tests_dir.mkdir()
     broken = tests_dir / "test_broken.py"
@@ -273,34 +274,42 @@ def _break_with_a_syntax_error(tests_dir: Path) -> Callable[[], None]:
     return repair
 
 
-def _break_with_a_same_basename_collision(tests_dir: Path) -> Callable[[], None]:
-    """Two modules sharing a basename with no package; return the repair.
+_REPO_PYPROJECT = Path(__file__).resolve().parents[2] / "pyproject.toml"
 
-    Without `__init__.py` pytest imports by basename, so the second module
-    cannot be distinguished from the first. This is the class that bites when
-    someone copies a test file into a sibling directory and renames nothing.
+
+def _mirror_production_pytest_config(root: Path) -> None:
+    """Give the fixture the addopts the real collection run gets.
+
+    A bare `tmp_path` has no `pyproject.toml`, so pytest falls back to its
+    default import mode. Production sets `--import-mode=importlib`, and the two
+    modes disagree about whether two modules sharing a basename are a
+    collection error: `prepend` raises, `importlib` does not. A fixture without
+    this file measures a pytest this repository never runs, which is how a
+    defect class that production does not catch came to be claimed as caught in
+    four places and "proved" by a test that passed for the wrong reason.
+
+    The addopts are copied out of the real `pyproject.toml` rather than
+    restated, so the fixture cannot drift from production the way a
+    hand-maintained duplicate would.
     """
-    for directory in ("a", "b"):
-        package_free_dir = tests_dir / directory
-        package_free_dir.mkdir()
-        (package_free_dir / "test_dup.py").write_text(
-            "def test_ok():\n    assert True\n", encoding="utf-8"
-        )
-
-    def repair() -> None:
-        (tests_dir / "b" / "test_dup.py").unlink()
-
-    return repair
+    for line in _REPO_PYPROJECT.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("addopts"):
+            root.joinpath("pyproject.toml").write_text(
+                f"[tool.pytest.ini_options]\n{stripped}\n", encoding="utf-8"
+            )
+            return
+    raise AssertionError(
+        f"no addopts line in {_REPO_PYPROJECT}; the fixture can no longer "
+        "mirror production and would silently test a different pytest."
+    )
 
 
 @pytest.mark.parametrize(
     ("label", "make_defect"),
-    [
-        ("a syntax error", _break_with_a_syntax_error),
-        ("a same-basename module collision", _break_with_a_same_basename_collision),
-    ],
+    [("a syntax error", _break_with_a_syntax_error)],
 )
-def test_the_other_two_probed_catches_also_block_the_push(
+def test_the_other_probed_catch_also_blocks_the_push(
     label: str,
     make_defect: Callable[[Path], Callable[[], None]],
     monkeypatch: pytest.MonkeyPatch,
@@ -321,6 +330,7 @@ def test_the_other_two_probed_catches_also_block_the_push(
     these assert non-zero rather than a specific code. What matters to the push
     is that git refuses it, and lefthook treats any non-zero the same way.
     """
+    _mirror_production_pytest_config(tmp_path)
     tests_dir = tmp_path / "tests"
     tests_dir.mkdir()
     repair = make_defect(tests_dir)
@@ -338,6 +348,44 @@ def test_the_other_two_probed_catches_also_block_the_push(
     assert git_hook_policy.run_pytest(tmp_path) == 0, (
         f"the tree with {label} removed still fails, so the assertion above "
         "passes for some reason other than the defect it names."
+    )
+
+
+def test_a_same_basename_collision_goes_uncaught_under_production_config(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The claim this repository used to make, pinned as the miss it actually is.
+
+    Two modules sharing a basename with no package IS a collection error under
+    pytest's default `prepend` import mode, and is NOT one under
+    `--import-mode=importlib`, which is what `pyproject.toml` sets. An earlier
+    revision claimed this as a third catch in the docstring, the developer
+    notice, ADR-104 rule 5, and the contract table, on the strength of a probe
+    run in a config-less `tmp_path` that silently selected the other mode.
+    Caught in review (PR #5319), not by any gate here.
+
+    Pinned as a negative rather than deleted, because the reasoning that
+    produced the wrong claim is easy to repeat: the collision is real, it is
+    just invisible to the importer this repository chose. If someone drops
+    `--import-mode=importlib` from addopts, this test fails and says to move
+    the class back to the catches.
+    """
+    _mirror_production_pytest_config(tmp_path)
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    for directory in ("a", "b"):
+        sibling = tests_dir / directory
+        sibling.mkdir()
+        (sibling / "test_dup.py").write_text("def test_ok():\n    assert True\n", encoding="utf-8")
+
+    monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
+    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
+
+    assert git_hook_policy.run_pytest(tmp_path) == 0, (
+        "a same-basename collision now blocks collection. If addopts no longer "
+        "sets --import-mode=importlib, this class became a real catch: move it "
+        "back into COLLECTION_CATCHES and every contract surface. If addopts is "
+        "unchanged, something else regressed."
     )
 
 

@@ -207,11 +207,19 @@ applied, the target is redundant with it.
 5. **When a check would exceed its tier's target, replace it with the cheapest
    check that catches a defect class you have measured it to catch.** Not with
    nothing, and not with a raised target. The whole-suite run becomes a
-   whole-suite collection. State only the classes you probed: collection blocks
-   on a broken import, on a syntax error, and on a same-basename module
-   collision. It does not catch a missing fixture and does not catch two
-   same-named test functions in one module; both were probed and collect clean
-   with exit 0.
+   whole-suite collection. State only the classes you probed, and probe them
+   under production configuration: collection blocks on a broken import and on
+   a syntax error. It does not catch a missing fixture, does not catch two
+   same-named test functions in one module, and does not catch a same-basename
+   module collision.
+
+   That third miss was published here as a catch. It is a collection error
+   under pytest's default `prepend` import mode and not under
+   `--import-mode=importlib`, which `pyproject.toml` sets; the probe ran in a
+   throwaway tree with no config and got the wrong mode. A probe that does not
+   carry the configuration production carries measures a different program, so
+   rule 5's "measured to catch" means measured under that configuration.
+   Corrected in review on PR #5319.
 
 6. **A deferral is a claim about the scheduler, so it must name what it relies
    on and be tested on that.** Naming the job it defers to is not enough. See
@@ -301,7 +309,7 @@ is real and worth roughly 40s; issue #5317 carries three costed options.
   `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` restores execution and rejects any
   other value rather than quietly doing less.
 - The collection stand-in carries a 300s budget rather than the execution
-  suite's 1740s, sized from the loaded 34.6s figure, not the idle 14s one.
+  suite's 780s, sized from the loaded 34.6s figure, not the idle 14s one.
 - `run_pytest` refuses an empty command list: a push must never pass by running
   zero tests.
 - `.github/workflows/pytest.yml` gained the Markdown roots its own tests read,
@@ -462,8 +470,10 @@ itself mean tests ran.
 
 ### Neutral
 
-- The 30m cap on `python-tests` is unchanged. It is now the ceiling for the
-  opt-in execution path; the default path is bounded by the inner 300s budget.
+- The cap on `python-tests` fell from 30m to 15m. It is the ceiling for the
+  opt-in execution path, whose inner budget is 780s; the default collection
+  path is bounded by the inner 300s budget, and by the 150s container clamp
+  where one applies.
 - Lefthook remains the local scheduler (ADR-086); protected CI remains the
   authoritative backstop.
 
