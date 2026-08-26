@@ -60,6 +60,35 @@ review, ref-assembly updates, changelog, breaking-change policy) and route
 public-API work through those gates: land an API proposal and maintainer
 review before writing the implementation.
 
+**Issue already has an in-flight blocking PR.** Check for one before routing an
+`autoplan <issue-url>` request into a fresh implementation. If an open PR
+already carries a closing keyword for the issue, do not treat "avoid
+duplicating that work" and "resolve the issue" as the same goal; they diverge
+whenever the PR bundles the requested scope with unrelated scope that has not
+cleared review. Do not infer that divergence from an advisory scope- or
+size-related label alone (a `needs-split`-style tag): such a label is
+routinely assigned purely from commit count or file count, unrelated to
+whether the PR's content is actually separable, and a long, cohesive PR can
+carry it too. Before trusting one, check what actually assigns it in the
+target repository (its CI workflow or label-automation config), not what its
+name suggests. Forking a PR on the label's presence alone risks creating a
+duplicate implementation instead of extracting anything, so treat any such
+label only as a prompt to open the diff and review state, never as evidence
+on its own. Confirm from the actual diff and review comments that the
+issue's scope sits in its own reviewed, extractable commits before acting;
+when it does, extract that slice into its own minimal, mergeable PR rather
+than filing a follow-up issue and reporting the parent issue as handled
+while it stays open with no merged artifact. (Learned from the
+`rjmurillo/ai-agents` repository's issue #5198, 2026-08-25, where
+`needs-split` is assigned purely from commit count and proves nothing about
+scope; an earlier version of this rule hardcoded that repository's label
+semantics and pointed plugin consumers at a test file that does not ship
+with this skill. Also from the same issue: two independently-extracted
+slices of the same blocking PR can race each other and one PR merging first
+does not retroactively make the other's extraction wrong, only redundant
+for the scope both cover; check what the winner actually shipped before
+re-deriving or discarding the loser's independent findings.)
+
 ### Phase 1: Classify
 
 Answer two questions before you route. The Phase 0 recon reads come first;

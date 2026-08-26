@@ -762,6 +762,46 @@ class TestBlankNonProseBlockLines:
         assert out.startswith("\\` `<!-- x -->`")
         assert "<!--" not in out[out.index("-->") + len("-->") :]
 
+    def test_an_escaped_html_comment_opener_cannot_steal_a_real_comments_match(
+        self,
+    ):
+        # Real gap in the round-20 delimiter-based fix above, found by
+        # Copilot (PR #5230, round 21, delivered as a suppressed comment
+        # alongside the escaped-backtick finding fixed above): the
+        # html_inline branch located a child's content with a bare
+        # `str.find`, which has no notion of CommonMark's backslash-escape
+        # rule. `` "prose \\<!--\n**Status**: Accepted\n--> more <!--\n"
+        # "**Status**: Accepted\n-->\n" `` tokenizes as `text("prose <!--")`
+        # (the escaped opener resolves to a literal "<!--" character with
+        # no comment token of its own), `strong_open`/text/`strong_close`
+        # for the un-hidden "**Status**: Accepted" that follows (parsing
+        # continues normally, since no comment ever opened), `text("-->
+        # more ")`, then the REAL `html_inline("<!--\n**Status**:
+        # Accepted\n-->")`. A bare `find` for that content matched the
+        # FIRST, escaped occurrence (skipping over the backslash, since
+        # `find` cannot see it), masking the VISIBLE decoy prose while
+        # leaving the REAL, later comment's hidden `**Status**: Accepted`
+        # completely unmasked, exactly the status-forgery bypass this
+        # function exists to prevent. Verified empirically: this exact
+        # input, before this fix, blanked the decoy's visible text and
+        # left the real comment's hidden status fully readable ("Accepted"
+        # appeared once in the output, from the wrong occurrence).
+        # Fixed by requiring the html_inline content match itself be
+        # unescaped (`_find_unescaped_occurrence`, reusing
+        # `_is_backslash_escaped`): a genuine `html_inline` token's start
+        # position can never be backslash-escaped, since an escaped `<`
+        # never becomes an `html_inline` token in the first place, so this
+        # filter never skips a real match. Asserts the decoy's visible
+        # "Accepted" survives (it is real prose, not a comment) and the
+        # real comment's own hidden "Accepted" is masked.
+        text = (
+            "prose \\<!--\n**Status**: Accepted\n--> more <!--\n"
+            "**Status**: Accepted\n-->\n"
+        )
+        out = blank_non_prose_block_lines(text)
+        assert out.startswith("prose \\<!--\n**Status**: Accepted\n--> more ")
+        assert out.count("Accepted") == 1
+
     def test_preserves_line_count(self):
         text = "a\n<!--\nb\nc\n-->\nd\n"
         original = len(text.split("\n"))

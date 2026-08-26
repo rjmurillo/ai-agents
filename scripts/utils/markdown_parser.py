@@ -577,6 +577,52 @@ def _code_span_end(markdown: str, markup: str, start: int, end: int) -> int:
     return close_start + len(markup)
 
 
+def _find_unescaped_occurrence(
+    markdown: str, content: str, start: int, end: int
+) -> int:
+    """First position in ``markdown[start:end]`` where ``content`` occurs and
+    is not backslash-escaped, or -1 if none exists.
+
+    Used only for an ``html_inline`` child's ``.content``, which CommonMark
+    guarantees is always a verbatim copy of the source starting at ``<``, with
+    no separate delimiter to strip. A backslash immediately before that ``<``
+    escapes it (spec section 2.4): markdown-it then tokenizes the position as
+    plain `text`, never as `html_inline`, so a REAL `html_inline` token's own
+    start position can never itself be backslash-escaped. Rejecting an
+    escaped candidate and retrying forward therefore never skips the real
+    match; it only skips positions the parser itself never treated as one.
+
+    Without this check, an unqualified `str.find` can bind an `html_inline`
+    child's content to an EARLIER escaped decoy sharing the same raw text
+    instead of the child's own later, real position. `` "prose \\<!--\\n"
+    "**Status**: Accepted\\n--> more <!--\\n**Status**: Accepted\\n-->\\n" ``
+    tokenizes as `text("prose <!--")` (the escaped comment opener, now a
+    literal `<!--` with no separate token), `strong_open`/text/`strong_close`
+    for the un-hidden `**Status**: Accepted` that follows it (parsing
+    continues normally since no comment ever opened), `text("--> more ")`,
+    then the REAL `html_inline("<!--\\n**Status**: Accepted\\n-->")`. A bare
+    `find` for that content matches the FIRST, escaped occurrence (the
+    backslash is simply skipped over, since `find` has no notion of
+    escaping), masking the VISIBLE decoy prose while leaving the REAL,
+    later comment's hidden `**Status**: Accepted` completely unmasked,
+    exactly the status-forgery bypass this function exists to prevent.
+    Verified empirically: `blank_non_prose_block_lines` on this input
+    blanked the decoy's visible text and left the real comment's hidden
+    status fully readable, before this fix. Copilot found this on PR #5230
+    round 21 (delivered as a suppressed comment alongside the round-21
+    Mandatory finding on the opening backtick lookup), citing the same
+    escape-parity gap one branch over.
+    """
+    pos = start
+    while True:
+        idx = markdown.find(content, pos, end)
+        if idx < 0:
+            return -1
+        if not _is_backslash_escaped(markdown, idx):
+            return idx
+        pos = idx + 1
+
+
 def _html_comment_inline_ranges(
     tokens: list[Token],
     markdown: str,
@@ -691,7 +737,7 @@ def _html_comment_inline_ranges(
                 content = child.content or ""
                 if not content:
                     continue
-                found = markdown.find(content, cursor, span_end)
+                found = _find_unescaped_occurrence(markdown, content, cursor, span_end)
                 if found < 0:
                     continue
                 cursor = found + len(content)
