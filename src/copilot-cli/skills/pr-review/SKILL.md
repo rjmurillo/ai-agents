@@ -38,14 +38,16 @@ because a directory marker inside the repository can be created by the PR and
 therefore cannot anchor trust. If the work tree cannot be established, no root
 install-trusts anything and the gate exits 3.
 
-**Runtime prerequisite.** The gate parses YAML, so the environment that
-`uv run python` resolves to must carry PyYAML. The plugin declares no
-dependencies, so a clean consumer environment may not. This is not new (the
-gate has always parsed YAML) but it becomes reachable now that an installed
-`/pr-review` can dispatch at all. The failure is clean rather than silent:
-exit 2 with `PyYAML is required to parse the completion-gate config; install
-it via 'pip install pyyaml'`. It is never reported as a criterion failure,
-because an unparseable config is not a gate verdict.
+**Runtime prerequisite.** The gate parses YAML, and the plugin declares no
+dependencies, so a clean consumer environment may lack PyYAML. Not new (the
+gate has always parsed YAML), but reachable now that an installed
+`/pr-review` can dispatch. The failure is clean, never a criterion failure:
+exit 2, `PyYAML is required to parse the completion-gate config`, and the
+path of the interpreter that failed. Install into THAT interpreter. The
+invocation below uses `uv run python`, so the environment is the consumer
+project's and `uv run --with pyyaml python ...` is the form that works; a
+bare `pip install pyyaml` can modify an environment the next run never
+consults, leaving the failure unchanged.
 
 Three limits, because the widening is narrow. The `$repo_root/.claude` fallback
 in the list below gets NO such treatment even if a plugin-root variable points
