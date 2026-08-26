@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 0011acb00cc5138c32920a4788d41383683cff3c
+qaCommit: 4aaa8be9873ed4122b213bfb075c65c48b08b10f
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `0011acb00cc5138c32920a4788d41383683cff3c` (see Addendum 64)
+**Validated at commit**: `4aaa8be9873ed4122b213bfb075c65c48b08b10f` (see Addendum 64)
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -2642,11 +2642,11 @@ Round 21's fix closed the escape-parity gap in `_html_comment_inline_ranges`'s `
 
 **The mechanism.** A backslash-escaped `<!--` earlier in the source (`` \<!-- ``) is a literal `<!--` character sequence to CommonMark, not a comment opener: markdown-it resolves it to plain `text` tokens, with no `html_inline` counterpart. The bare `find` has no way to know this, since it only matches raw bytes. Verified empirically: parsing `"prose \\<!--\n**Status**: Accepted\n--> more <!--\n**Status**: Accepted\n-->\n"` produces `text("prose <!--")` (the escaped opener, its backslash consumed and its `<!--` now literal text with no token of its own), `strong_open`/text/`strong_close` for the un-hidden `**Status**: Accepted` that follows (parsing continues as ordinary prose, since no comment ever opened), `text("--> more ")`, then the REAL `html_inline("<!--\n**Status**: Accepted\n-->")`. A bare `find` for that content, starting from the paragraph's beginning, matched the FIRST, escaped occurrence: the backslash is simply one extra byte the search skips over, so it found the decoy's `<!--...-->` bytes before the real comment's own, later position. The masker then blanked the VISIBLE decoy prose (mistaking it for a comment) while leaving the REAL, later comment's hidden `**Status**: Accepted` completely unmasked and readable by `check_adr_lifecycle.py`'s status regex, exactly the status-forgery bypass this function exists to prevent. Verified empirically: `blank_non_prose_block_lines` on this exact input, before this fix, blanked the decoy's visible text and left the real comment's hidden status fully readable (`"Accepted"` appeared once in the output, from the wrong occurrence).
 
-**The fix** (commit `0011acb00`): a new `_find_unescaped_occurrence` helper, reusing round 21's `_is_backslash_escaped`, retries forward past any candidate match whose start position is backslash-escaped. This is sound because a genuine `html_inline` token's raw start position can never itself be backslash-escaped: if it were, markdown-it would never have tokenized that position as `html_inline` in the first place, so the filter never skips a real match, only positions the parser itself never treated as one. Added `test_an_escaped_html_comment_opener_cannot_steal_a_real_comments_match`, asserting the decoy's visible `Accepted` survives (it is real prose, not a comment) and the real comment's own hidden `Accepted` is masked. Mutation-proven: reverting the fix reproduces the exact pre-fix broken output and fails exactly this new test, while all 81 other tests in the file stay green.
+**The fix** (commit `4aaa8be98`): a new `_find_unescaped_occurrence` helper, reusing round 21's `_is_backslash_escaped`, retries forward past any candidate match whose start position is backslash-escaped. This is sound because a genuine `html_inline` token's raw start position can never itself be backslash-escaped: if it were, markdown-it would never have tokenized that position as `html_inline` in the first place, so the filter never skips a real match, only positions the parser itself never treated as one. Added `test_an_escaped_html_comment_opener_cannot_steal_a_real_comments_match`, asserting the decoy's visible `Accepted` survives (it is real prose, not a comment) and the real comment's own hidden `Accepted` is masked. Mutation-proven: reverting the fix reproduces the exact pre-fix broken output and fails exactly this new test, while all 81 other tests in the file stay green.
 
 The companion suppressed comment on the same review (citing `tests/test_markdown_parser.py:695`, that the PR description still read as of round 19) is stale as of this addendum: the live PR body has been updated through round 21 in the interim, and this addendum's own commit brings it current through round 22.
 
 Full suite re-run clean after the round-22 fix: `tests/test_markdown_parser.py` (82 passed) combined with `tests/validation/test_check_adr_lifecycle.py`, `tests/validation/test_check_adr_links.py`, and `tests/test_adr_063_memory_skill_decomposition.py`: 387 passed. `ruff check` on both touched files: clean. `python3 -W error::SyntaxWarning -c "import scripts.utils.markdown_parser"`: no warnings. `taste count ratchet`: OK, unchanged at baseline 575 (the file-size/complexity taste-lint findings on both touched files are advisory-only and pre-existing, unchanged in kind since round 15). `pre_pr.py` (full suite): passed on the round-22 commit.
 
-**Rebound to** `0011acb00cc5138c32920a4788d41383683cff3c`.
+**Rebound to** `4aaa8be9873ed4122b213bfb075c65c48b08b10f`.
 
