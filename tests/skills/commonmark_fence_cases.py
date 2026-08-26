@@ -64,7 +64,7 @@ def oracle_fence_lines(text: str) -> set[int]:
 
 
 # Each case is named for the CommonMark rule it exercises. `_ListContainers`
-# carries fourteen numbered rules and every one was a real defect first,
+# carries fifteen numbered rules and every one was a real defect first,
 # most reported in review and the rest found by the fuzzer below; each was
 # reproduced against the reference parser before being fixed. The remaining
 # cases guard the opposite direction, that a fix did not make the scanners
@@ -168,6 +168,36 @@ CASES: dict[str, str] = {
     # A fence with no closing marker that the container ends anyway. The
     # public no-op assertion used to skip this, calling it unclosed.
     "dedent terminates a marker-line fence": "- ```\n  x\nafter\n",
+    # Rule 15. The first three differ only in the third line's indent,
+    # which is the whole of the rule: dedenting below the content column
+    # closes the item, and the paragraph closes with it, so the `2.` is
+    # judged where no paragraph is open. At the same level rule 4 still
+    # vetoes it, which is why the second case must stay unfenced.
+    "dedent past the content column reopens an ordered marker":
+        "- text\n  more\n2. ```\ncode\n",
+    # Negative control for rule 15, and it passed before rule 15 too. That is
+    # the point: it pins that widening the veto did not over-fire. Deleting it
+    # because it is green removes the only guard on the inverse failure.
+    "same level keeps rule 4's paragraph veto":
+        "- text\n  more\n  2. ```\n  code\n",
+    "a one-column dedent is still a dedent":
+        "  - text\n    more\n   2. ```\n   code\n",
+    "an empty item's paragraph closes on dedent too":
+        "- \n  more\n2. ```\ncode\n",
+    # Rule 14 reaching the marker-line rescan. U+00A0 is item content to
+    # CommonMark, so the remainder opens a paragraph and the content
+    # column moves; `str.strip()` read it as an empty item and both
+    # directions of mask were wrong.
+    "U+00A0 remainder is item content, not an empty item":
+        "- \u00a0\n  2. ```\n  not code\n",
+    # This one also passes on the unfixed scanner, and is kept because it is
+    # the case that caught the naive repair. Measured on all three variants:
+    # unfixed AGREE, rule 14 applied ALONE DIVERGE, rule 14 plus rule 15 AGREE.
+    # Rule 14 without rule 15 leaves the remainder's paragraph open across the
+    # dedent, so rule 4 vetoes the `2.` and the fence is lost. It is a guard on
+    # the composite, not on either half.
+    "U+00A0 remainder after wide padding":
+        "-  \u00a0\n  2. ```\n  not code\n",
 }
 
 
@@ -177,13 +207,15 @@ CASES: dict[str, str] = {
 # they cannot: what is left. It generates small documents from the constructs
 # that interact with list containers and compares against the same oracle.
 #
-# This description used to name a single family, a fenced block outliving its
-# list item, and was left stale for one commit after rule 10 closed exactly
-# that. What remains is not one family and not much: six documents across the
-# three seeds, in deep interactions between lazy continuations, empty
-# items, and five-or-more columns of padding under nested markers. Raw HTML
-# blocks swallowing a fence are the other known cause and are what the fuzz
-# negative control pins.
+# This description deliberately carries NO count. It named a single family, a
+# fenced block outliving its list item, and went stale when rule 10 closed
+# exactly that; it was then rewritten with an explicit total and went stale
+# again when rule 15 closed most of it. A count duplicated in prose has now
+# drifted twice, so `FUZZ_BASELINE` below is the single numeric source of
+# truth and this comment describes only the shape: deep interactions between
+# lazy continuations, empty items, and five-or-more columns of padding under
+# nested markers. Raw HTML blocks swallowing a fence are the other known cause
+# and are what the fuzz negative control pins.
 #
 # Treat these as a ratchet in the repository's usual sense: a regression pushes
 # a count up and fails, and work that closes part of the residue lowers them.
@@ -204,7 +236,7 @@ _FUZZ_ORDERED = ("1.", "2.", "01.", "003.", "1)", "10.", "9)")
 # Rule 11 (a setext underline ends its paragraph) took seed 20260826 from 6.
 # Rule 12 (a marker line leaves paragraph state to its own remainder) took
 # seed 20260826 from 5 and seed 4242 from 6.
-FUZZ_BASELINE = {1729: 1, 20260826: 1, 4242: 4}
+FUZZ_BASELINE = {1729: 0, 20260826: 0, 4242: 1}
 FUZZ_DOCUMENTS = 2000
 
 

@@ -184,6 +184,20 @@ class _ListContainers:
         open past its item, and made `-` plus U+00A0 look like an empty item
         when CommonMark reads it as paragraph text. See `_is_blank`.
 
+    15. A paragraph ends when the item holding it ends. Rule 4 stops a marker
+        interrupting an open paragraph, but that veto is scoped to the item
+        the paragraph lives in. A marker indented below the content column
+        closes that item, so the paragraph closes with it and the marker is
+        judged at the outer level, where no paragraph is open. Without this,
+        `- text` / `  more` / `2. ```` ` left the paragraph open across the
+        dedent, rule 4 vetoed the `2.`, and the fence went unseen. Both
+        halves are load-bearing and neither moves a measurement alone: the
+        veto has to consult the indent (`_outdents`) AND `sync` has to clear
+        the paragraph when it pops the container. Fixing only the first pops
+        the container and then re-applies the veto at base 0; fixing only the
+        second is dead code, because `_starts_a_block` returns False and
+        `sync` returns at the lazy-continuation guard before it ever pops.
+
     Rules 9 and 10 were both documented as deliberate limitations for one
     commit, on the reasoning that each only made the scanners miss a fence,
     which is the safe direction for a tool that writes files. That reasoning
@@ -238,6 +252,7 @@ class _ListContainers:
         width = _indent_width(line[: len(line) - len(line.lstrip(" \t"))])
         while self._columns and width < self._columns[-1]:
             self._columns.pop()
+            self._in_paragraph = False  # rule 15: it closed with the item
 
     def opened_fence(self) -> None:
         """Record that a fenced block opened on this line."""
@@ -281,6 +296,17 @@ class _ListContainers:
             or (self._in_paragraph and _SETEXT_UNDERLINE.match(body))
         )
         return None
+
+    def _outdents(self, indent: str) -> bool:
+        """Return True when a marker at *indent* closes the innermost item.
+
+        Rule 15: rule 4 stops a marker interrupting a paragraph only while
+        the marker sits inside the item that holds it. A marker indented
+        less than the content column closes that item, and the paragraph
+        closes with it, so the marker is judged at the outer level where
+        no paragraph is open.
+        """
+        return _indent_width(indent) < self._base()
 
     def base(self) -> int:
         """Return the innermost open content column, or 0 at top level."""
@@ -330,7 +356,8 @@ class _ListContainers:
         marker = match.group("bullet") or number + match.group("delim")
         marker_end = _indent_width(match.group("indent") + marker)
         empty = _is_blank(match.group("rest"))
-        if self._in_paragraph and (empty or (number is not None and int(number) != 1)):
+        blocked = empty or (number is not None and int(number) != 1)
+        if self._in_paragraph and blocked and not self._outdents(match.group("indent")):
             return None  # rule 4: this marker cannot interrupt a paragraph
         if empty:
             return marker_end + 1, False  # rule 3
@@ -447,7 +474,7 @@ def _open_fence_in_item(
     """
     while column is not None:
         rest = line.expandtabs(4)[column:]
-        if not rest.strip():
+        if _is_blank(rest):
             return None
         # Keep whatever indentation is left after the content column. Five or
         # more columns of padding leave four behind, which makes the rest of

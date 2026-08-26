@@ -115,7 +115,10 @@ documentation:
   indented code opens no item, a thematic break is never an item even though
   `* * *` matches the bullet grammar, and a list may interrupt a paragraph only
   when the item is non-empty and, if ordered, starts at 1 (leading zeros do not
-  change that start). A blank line directly after an empty marker closes the
+  change that start). That last veto is scoped to the item the paragraph lives
+  in: a marker indented below the content column closes the item, the paragraph
+  closes with it, and the marker is then judged at the outer level where no
+  paragraph is open. A blank line directly after an empty marker closes the
   item, and a paragraph continuation line may dedent without closing it.
   Getting any of these wrong moves the content column, which moves what counts
   as a fence.
@@ -152,8 +155,11 @@ Kept so a reader can audit the script, not so the agent can run it by hand.
 Track fence state while scanning line by line:
 
 1. **Track list containers**: outside a block, close any list item the line
-   has dedented out of, then open one if the line starts an item. The stack of
-   open content columns is what the indent test below measures against.
+   has dedented out of, and close any paragraph those items held, then open one
+   if the line starts an item. The stack of open content columns is what the
+   indent test below measures against. Closing the paragraph with its item is
+   what lets a marker that cannot interrupt a paragraph still open a list after
+   a dedent.
 2. **Detect opening fence**: outside a block, a line of three or more
    backticks or tildes, indented no more than three columns past the innermost
    open list item, opens one. Record the character, the length, and the indent.
