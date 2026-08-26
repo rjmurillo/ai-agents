@@ -78,9 +78,13 @@ jobs:
               - '**/*.ps1'
               - '**/*.psm1'
               - '**/*.pyw'
-              # Canonical rules and both generated instruction trees are direct
-              # inputs to Python contract tests. Keep these roots explicit so
-              # unrelated Markdown, such as session logs, still skips pytest.
+              # Canonical rules and both generated instruction trees are
+              # direct inputs to Python contract tests. They were named here
+              # when the filter scoped Markdown to a curated set. It no longer
+              # does: the extension globs at the bottom of this list match all
+              # tracked Markdown, JSON and text, so session logs trigger pytest
+              # too. That is deliberate, and the reasoning is at those globs.
+              # These roots stay because they also carry non-Markdown files.
               - '.claude/rules/**'
               - '.github/instructions/**'
               - 'src/copilot-cli/instructions/**'
@@ -106,10 +110,99 @@ jobs:
               - '.agents/memory/episodes/**'
               # Issue #4408: rules files are test inputs -- many Python tests read
               # them directly (e.g. test_validate_workflows.py, test_plugin_tree_no_unicode_dashes.py).
-              # A rules-only change must trigger the full suite.
-              - '.claude/rules/**'
-              - '.github/instructions/**'
-              - 'src/copilot-cli/instructions/**'
+              # A rules-only change must trigger the full suite. The same three
+              # roots are listed above for the same reason; one copy is enough.
+              # Issue #5315. Pre-push stopped executing the suite on a
+              # non-Python change (ADR-104) on the stated ground that CI
+              # executes it instead. These roots are read as test inputs by
+              # real tests and were absent from this filter, so a push touching
+              # only one of them ran no assertions locally AND skipped the
+              # matrix here: assertions did not run until the merge queue
+              # forced them. Each entry below is referenced by at least one
+              # test, which the colocated guard checks textually: it does not
+              # prove a runtime read, and a mention in a comment counts. The
+              # looseness is deliberate (a strict-path version produced a false
+              # negative on a package tree reached by import), and it means a
+              # passing guard is evidence of intent, not of dependency.
+              #   .claude/skills/**        tests/skills/**, e.g.
+              #                            security-review/test_skill_md.py
+              #   .serena/memories/**      tests/test_memory_verification.py
+              #   .agents/architecture/**  tests/build_scripts/test_hook_contract_knowledge.py
+              #   .agents/governance/**    tests/test_canonical_sources_registration.py
+              #   AGENTS.md, README.md     tests/test_knowledge_surface_consistency.py
+              #   .agents/AGENT-SYSTEM.md  tests/test_agent_role_metadata_migration.py
+              - '.claude/skills/**'
+              - 'src/copilot-cli/skills/**'
+              - '.serena/memories/**'
+              - '.agents/architecture/**'
+              - '.agents/governance/**'
+              - '.agents/AGENT-SYSTEM.md'
+              # Added in review on PR #5319, from two concrete misses a reviewer
+              # found by reading the tests rather than the filter:
+              #   .agents/critique/**  tests/build_scripts/test_hook_contract_knowledge.py
+              #                        opens ADR-084-debate-log.md directly
+              #   templates/agents/**  tests/test_pr_identity_gate.py reads
+              #                        analyst.shared.md directly
+              # The colocated test checks that every root here is referenced by
+              # a test. It cannot check the reverse, which is the direction that
+              # fails silently, and these two are what that gap looked like.
+              - '.agents/critique/**'
+              - 'templates/agents/**'
+              # Second batch, same method and same reviewer (PR #5319): found by
+              # reading tests for direct reads rather than by reading the filter.
+              #   .github/PULL_REQUEST_TEMPLATE.md
+              #       tests/external_signals/test_acceptance_criteria.py
+              #   .agents/schemas/**  tests/test_skill_output_schema.py
+              #   .claude/settings.json, .claude/hooks/**, src/copilot-cli/hooks/**
+              #       tests/build_scripts/test_hook_contract_knowledge.py
+              # None was matched by an extension glob: the filter carries no
+              # `**/*.json` or `**/*.md`, which is the point of the allowlist and
+              # also why a JSON or Markdown input has to be named to be seen.
+              - '.github/PULL_REQUEST_TEMPLATE.md'
+              - '.agents/schemas/**'
+              - '.claude/settings.json'
+              - '.claude/hooks/**'
+              - 'src/copilot-cli/hooks/**'
+              - 'AGENTS.md'
+              - 'README.md'
+              # Eighth root, third round, same method (PR #5319):
+              #   docs/installation.md  tests/test_knowledge_surface_consistency.py
+              - 'docs/installation.md'
+              # Fourth round, and the last hand-picked one. A reviewer asked for
+              # a reverse audit instead of a fifth batch, so one was run: parse
+              # every string literal in all 974 test modules, keep the ones that
+              # resolve to a real repository file, and check each against this
+              # filter. It found 120 direct test inputs the allowlist did not
+              # match, 92 Markdown, 14 JSON, 5 text, spread across every tree
+              # including `.agents/retrospective/**`, `.agents/sessions/**`, and
+              # `.agents/analysis/**`, which the comment at the top of this
+              # filter names as the Markdown it deliberately skips. Those trees
+              # are test inputs too, so the thing the allowlist was protecting
+              # was already close to empty.
+              #
+              # Three extension globs close all 120 and end the curation. The
+              # trade is deliberate: a docs-only or retro-only PR now runs the
+              # matrix it used to skip, so the failure direction flips from "a
+              # gate silently did not run" to "a run was wasted". Only the
+              # second one is visible to the person who caused it.
+              #
+              # The named roots above stay: they cover non-Markdown, non-JSON,
+              # non-text inputs inside those trees, and deleting them would make
+              # this change larger than the gap it closes.
+              - '**/*.md'
+              - '**/*.json'
+              - '**/*.txt'
+              # THIRD-PARTY-NOTICES.TXT is read by a test and picomatch is
+              # case-sensitive, so the lowercase glob above does not reach it.
+              - '**/*.TXT'
+              # The reverse audit's remainder: real test inputs with no
+              # extension to glob. `.gitkeep` marks a directory a test asserts
+              # exists; the other four are read for their contents.
+              - '.actrc'
+              - '.gitattributes'
+              - '.gitignore'
+              - '.python-version'
+              - '**/.gitkeep'
 
       - name: Determine if tests should run
         id: determine

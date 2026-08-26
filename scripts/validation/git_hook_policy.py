@@ -18,6 +18,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unicodedata
 import warnings
@@ -555,7 +556,17 @@ SEMGREP_COMMAND_LENGTH_LIMIT = 24_000
 # Lefthook owns the outer deadline; these child-process budgets must finish first.
 DEFAULT_SUBPROCESS_TIMEOUT_SECONDS = 90
 SEMGREP_TIMEOUT_SECONDS = 840
-MYPY_TIMEOUT_SECONDS = 840
+# Scoped to files differing from origin/main, so this is a handful of files,
+# not the tree. Measured 2.73s in-hook and 1.07s cold. Was 840s, which forced
+# a 15m outer cap through the ADR-086 item 9 headroom rule for no reason.
+MYPY_TIMEOUT_SECONDS = 60
+# Below the `workflow-local-run` lefthook cap (30m) per ADR-086 item 9. Unlike
+# the two above, this number is NOT measured: the only path a container can
+# exercise reports DEGRADED in under a second because actionlint is absent
+# there, and the `act` run this budget exists to bound has never been timed
+# in-hook. Cut to 540 earlier on this branch and restored in review (PR #5319),
+# because a cap without a measurement behind it is the thing ADR-104 rule 7
+# forbids, and this record cannot forbid it in one place and do it in another.
 WORKFLOW_LOCAL_TIMEOUT_SECONDS = 1_740
 # Scope the workflow-local gate to workflows this push changed versus the
 # origin/main merge base (three-dot diff). Lefthook's {push_files} is a
@@ -564,7 +575,63 @@ WORKFLOW_LOCAL_TIMEOUT_SECONDS = 1_740
 # delta. Override the base ref for tests or non-standard remotes.
 WORKFLOW_LOCAL_BASE_REF_ENV = "WORKFLOW_LOCAL_BASE_REF"
 WORKFLOW_LOCAL_DEFAULT_BASE = "origin/main"
-TEST_SUITE_TIMEOUT_SECONDS = 1_740
+# Kept below the `python-tests` lefthook cap (15m) so this fires first and the
+# reader gets a diagnostic instead of a bare kill (ADR-086 Decision item 9).
+# Only the opt-in local-execution path can reach it; the default collection
+# path is bounded by TEST_COLLECTION_TIMEOUT_SECONDS.
+# Hard ceiling on any subprocess this module spawns while running inside a
+# managed remote container. A container is reclaimed after a period without
+# progress, so a hung child there does not merely slow the push down, it
+# destroys it: the push dies with no diagnostic, the container restarts, and
+# the session re-derives its state before trying again. On a developer
+# workstation the same hang is an annoyance and the declared cap is the right
+# bound, so this clamp applies only where the environment can end the process.
+#
+# 150s is well above every measured in-hook cost of a job that routes through
+# here (the largest is python-tests at 38.84s, a 3.9x margin; semgrep is 13.43s)
+# and far below the roughly 679s at which a container reclamation was observed.
+# pre-pr-validation does not route through here and keeps its own cap, which is
+# why that cap is the expensive group's cost rather than this number.
+# Reuses the container detection issue #2548 introduced for workflow-local-run
+# rather than adding a second definition of "container".
+CONTAINER_SUBPROCESS_CEILING_SECONDS = 150.0
+
+# The whole-process bound, which is what "nothing outlives the container"
+# actually requires. The clamp above covers children spawned through
+# `_run_command`; it does not cover the work between them. Review on PR #5319
+# named three such gaps at once: `_resolve_pytest_commands` calls
+# `select_tests.changed_from_git`, which shells out unbounded, and builds the
+# import graph in-process; `scan_pushed_heads` discovers paths, materializes a
+# tree and probes semgrep's version before its aggregate clock starts. Each is
+# outside every deadline this module sets, so a hang there survived every bound
+# and the process still died to the reclaim it was supposed to prevent.
+#
+# Chasing each path would leave the next one to the next reviewer, so the bound
+# goes around the process instead: one watchdog armed in `main`, covering
+# selection, setup and execution alike, whatever a subcommand does.
+#
+# 15s above the subprocess ceiling so an inner deadline always fires first and
+# the reader gets the specific diagnostic rather than this one. Same ordering
+# rule as ADR-086 item 9, which this repository already applies between inner
+# budgets and lefthook caps.
+CONTAINER_PROCESS_CEILING_SECONDS = CONTAINER_SUBPROCESS_CEILING_SECONDS + 15.0
+
+TEST_SUITE_TIMEOUT_SECONDS = 780
+# Ceiling for the collection smoke that stands in for a local full-suite run.
+# Collection imports every test module without running a single test body, so
+# it is bounded by import cost rather than test cost. Measured on a 4-CPU
+# container, same suite: 8.9s pytest-internal / 14s wall on an idle box, 34.6s
+# wall while a full pytest run held the other cores. `ci-scripts.md` MUST-16
+# forbids sizing a pre-push cap from an idle run, so this ceiling is set from
+# the loaded figure with roughly 8x headroom rather than from the idle one, and
+# measured in-hook at ~14s collecting and ~38s on an import-graph subset
+# across fourteen real pushes; the workstation tail is still unmeasured
+# while firing (issue #5318).
+TEST_COLLECTION_TIMEOUT_SECONDS = 300
+# Opt back into executing the whole suite inside pre-push. Unset is the default
+# because that run duplicates CI's `pytest.yml` partition matrix on the same
+# commit while costing the push minutes it does not have; see ADR-104.
+PYTEST_FULL_SUITE_LOCALLY_ENV = "AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY"
 CLI_E2E_TIMEOUT_SECONDS = 1_140
 # Issue #4823: direct and CI bulk pytest use xdist `auto`, one worker per
 # logical CPU. Local pre-push is different because it shares the machine with
@@ -760,6 +827,44 @@ def _killpg_safe(pid: int) -> None:
         pass
 
 
+def _container_clamped(timeout_seconds: float) -> float:
+    """Bound a subprocess deadline to what a managed container can survive.
+
+    Returns ``timeout_seconds`` unchanged outside a container, and outside this
+    module's control in CI, where `_is_remote_container` returns False so a real
+    hang still fails the way CI expects.
+
+    The import is local because `run_workflow_local_test` is a sibling policy
+    module rather than a utility; importing it at module scope would make every
+    caller of `git_hook_policy` pay for it. A missing sibling degrades to no
+    clamp rather than raising: the clamp is a safety net, and a net that can
+    break the push it protects is worse than no net.
+
+    That degradation is the one hole in the per-job container bound, so it is
+    loud. Silently returning the unclamped deadline would leave a container
+    push able to outlive its environment with nothing in the output saying the
+    guarantee had lapsed, which is the exact shape of failure this whole change
+    exists to remove: a claim held in place by something nobody can see. The
+    warning costs one line on a path that should never run.
+    """
+    try:
+        from run_workflow_local_test import _is_remote_container
+    except ImportError:
+        print(
+            "WARNING: container detection unavailable "
+            "(run_workflow_local_test could not be imported), so the "
+            f"{CONTAINER_SUBPROCESS_CEILING_SECONDS:.0f}s container clamp is "
+            "NOT applied. Inside a managed container this push can exceed the "
+            "per-job ceiling and be reclaimed without a diagnostic. See "
+            "ADR-104 rule 8.",
+            file=sys.stderr,
+        )
+        return timeout_seconds
+    if not _is_remote_container():
+        return timeout_seconds
+    return min(timeout_seconds, CONTAINER_SUBPROCESS_CEILING_SECONDS)
+
+
 def _run_command(
     args: Sequence[str],
     repo_root: Path,
@@ -780,6 +885,7 @@ def _run_command(
     env = dict(process_env) if process_env is not None else _clean_git_env()
     if extra_env is not None:
         env.update(extra_env)
+    timeout_seconds = _container_clamped(timeout_seconds)
     command = list(args)
     try:
         proc = subprocess.Popen(
@@ -831,8 +937,15 @@ def _run_command_bytes(
     """Byte-mode variant of ``_run_command``.
 
     Kills the process group on timeout for the same reason as ``_run_command``
-    (Issue #4217).
+    (Issue #4217), and clamps its deadline in a managed container for the same
+    reason again. The clamp was missing here until review on PR #5319 found it:
+    ADR-104 rule 8 says nothing local may outlive its environment, and a second
+    entry point that spawns children without the bound is a hole in that claim
+    however small its current call graph. Today the only caller passes the 90s
+    default, under the 150s ceiling, so this changes no behavior; it stops the
+    next caller that passes a larger value from escaping silently.
     """
+    timeout_seconds = _container_clamped(timeout_seconds)
     command = list(args)
     try:
         proc = subprocess.Popen(
@@ -885,9 +998,28 @@ def _timeout_bytes(value: bytes | str | None) -> bytes:
     return value
 
 
+# The phrase `_run_command` appends to a killed child's stderr, and the only
+# thing that distinguishes its synthesized exit 3 from a child that exited 3 on
+# its own. pytest uses 3 for an internal error, so a caller reading the code
+# alone reports "timed out" for a crash and sends the developer to the budget
+# instead of the traceback. Defined once so the producer below and `_timed_out`
+# cannot drift apart. Raised in review on PR #5319.
+TIMEOUT_MARKER = " timed out after "
+
+
 def _timeout_message(args: Sequence[str], timeout_seconds: float) -> str:
     subject = _timeout_subject(args)
-    return f"ERROR: {subject} timed out after {timeout_seconds:g} seconds\n"
+    return f"ERROR: {subject}{TIMEOUT_MARKER}{timeout_seconds:g} seconds\n"
+
+
+def _timed_out(result: subprocess.CompletedProcess[str]) -> bool:
+    """Whether `_run_command` killed this child, rather than it exiting 3 itself.
+
+    Exit 3 is overloaded: `_run_command` synthesizes it on timeout, on an
+    `OSError` launching the process, and pytest returns it for an internal
+    error. Only the marker `_run_command` appends says which happened.
+    """
+    return result.returncode == 3 and TIMEOUT_MARKER in (result.stderr or "")
 
 
 def _timeout_subject(args: Sequence[str]) -> str:
@@ -4339,10 +4471,37 @@ def _suppression_violations_in_text(head: str, path: str, text: str) -> list[str
 
 
 def scan_pushed_heads(stream: TextIO, repo_root: Path) -> int:
+    """Semgrep every pushed head, under one deadline for the whole job.
+
+    The deadline is the job-level bound ADR-104 rule 8 asks for. Without it this
+    function was the last unbounded path in pre-push: it loops over pushed refs,
+    each ref's scan batches its targets, and every batch got a fresh
+    `_run_command` allowance, so a container push cost refs times batches times
+    the 150s subprocess clamp. A clamp on one child says nothing about a job
+    that runs many, which is the same defect `run_pytest` carried until review
+    on PR #5319 and this is the sibling fix.
+
+    The budget is `SEMGREP_TIMEOUT_SECONDS`, which is what a single scan already
+    had, so a one-ref push is unchanged on a workstation. It stays under
+    ADR-054's enforced 900s security-scan budget, which this does not overturn.
+    In a managed container `_container_clamped` takes it to 150s for the job
+    rather than for each child.
+    """
     updates = _push_updates(stream, repo_root)
     if updates is None:
         return 2
+    budget = _container_clamped(SEMGREP_TIMEOUT_SECONDS)
+    deadline = time.monotonic() + budget
     for update in updates:
+        if time.monotonic() >= deadline:
+            print(
+                f"ERROR: security scan exceeded its {budget:g}s budget before "
+                f"reaching {update.head}. Earlier refs in this push consumed "
+                "it. Push fewer refs at once, or raise the budget with a "
+                "measurement behind it (ci-scripts.md MUST-16).",
+                file=sys.stderr,
+            )
+            return 1
         paths = _changed_commit_paths(update, repo_root)
         if paths is None:
             return 2
@@ -4354,7 +4513,7 @@ def scan_pushed_heads(stream: TextIO, repo_root: Path) -> int:
         ]
         if not scan_paths:
             continue
-        result = _scan_pushed_head(update.head, scan_paths, repo_root)
+        result = _scan_pushed_head(update.head, scan_paths, repo_root, deadline=deadline)
         if result != 0:
             return result
     return 0
@@ -4364,13 +4523,20 @@ def _scan_pushed_head(
     head: str,
     paths: Sequence[str],
     repo_root: Path,
+    *,
+    deadline: float | None = None,
 ) -> int:
+    """Scan one pushed head. `deadline` is the job's, shared across every head.
+
+    None means no aggregate bound, which is the shape direct unit callers use.
+    Production always passes one: `scan_pushed_heads` owns it.
+    """
     with tempfile.TemporaryDirectory(prefix="lefthook-semgrep-") as temp_dir:
         tree = Path(temp_dir)
         materialized = _materialize_commit_tree(head, tree, repo_root, paths)
         if materialized != 0:
             return materialized
-        result = _run_semgrep_tree(tree, paths, repo_root)
+        result = _run_semgrep_tree(tree, paths, repo_root, deadline=deadline)
         _print_process_output(result)
         if result.returncode != 0:
             return result.returncode
@@ -4705,16 +4871,37 @@ def _run_semgrep_tree(
     tree: Path,
     paths: Sequence[str],
     repo_root: Path,
+    *,
+    deadline: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    """Run semgrep over one materialized tree, in batches under one deadline.
+
+    `deadline` is the security-scan job's, shared with every other head in the
+    push. None keeps the legacy per-batch budget and is the shape direct unit
+    callers use; production passes the job's deadline down from
+    `scan_pushed_heads`.
+    """
     targets = [str(tree / path) for path in paths]
     finding: subprocess.CompletedProcess[str] | None = None
     last_result: subprocess.CompletedProcess[str] | None = None
     try:
         for batch in _semgrep_target_batches(targets, repo_root):
+            if deadline is None:
+                allowance = float(SEMGREP_TIMEOUT_SECONDS)
+            else:
+                allowance = deadline - time.monotonic()
+                if allowance <= 0:
+                    return subprocess.CompletedProcess(
+                        [],
+                        1,
+                        "",
+                        "security scan exceeded its budget before scanning "
+                        f"{len(batch)} remaining target(s)\n",
+                    )
             result = _run_command(
                 _semgrep_command("auto", batch, repo_root),
                 repo_root,
-                timeout_seconds=SEMGREP_TIMEOUT_SECONDS,
+                timeout_seconds=allowance,
             )
             if result.returncode not in {0, 1}:
                 return result
@@ -7132,19 +7319,169 @@ def _pytest_commands_for_subset(repo_root: Path, test_files: Sequence[str]) -> l
     return commands
 
 
+def _pytest_collection_command(repo_root: Path) -> list[str]:
+    """Collect every non-integration test without executing any of them.
+
+    Collection imports each test module and instantiates each item, so it fails
+    on a broken import and on a syntax error. Those are the defects that would
+    otherwise burn a whole CI matrix before reporting the same thing.
+
+    It does NOT catch a missing fixture: a test that requests a fixture no
+    conftest defines collects clean and fails at run time. It does NOT catch
+    two same-named test functions in one module, where the second silently
+    shadows the first. It does NOT catch two test modules sharing a basename
+    across directories.
+
+    That last one was claimed as a catch and is not. It is a collection error
+    under pytest's default `prepend` import mode, and `pyproject.toml` sets
+    `--import-mode=importlib`, under which it collects clean. The probe behind
+    the wrong claim ran in a throwaway tree with no config and silently got the
+    other mode, so it measured a pytest this repository never runs. Caught in
+    review on PR #5319;
+    `test_a_same_basename_collision_goes_uncaught_under_production_config` now
+    pins it, and the behavior fixtures mirror the real addopts. Do not widen
+    this docstring's claim without a probe that carries production
+    configuration; the same claim is printed to developers in
+    `_full_suite_stand_in` and a wrong one tells them they are covered.
+
+    Three `-q` are deliberate. `pyproject.toml` sets `addopts = "-v ..."`, so
+    verbosity starts at +1 and a single `-q` nets to 0: measured 31765 lines of
+    node listing into the hook output on every fallback push, against 878 with
+    three. Hook output is a token cost, which is one of the costs this stand-in
+    exists to cut.
+    """
+    return [
+        sys.executable,
+        "-m",
+        "pytest",
+        "--collect-only",
+        "-q",
+        "-q",
+        "-q",
+        "-m",
+        "not integration",
+        str(repo_root / "tests"),
+    ]
+
+
+def _validated_full_suite_opt_in() -> str:
+    """Return the stripped opt-in value, or raise if it is not usable.
+
+    Split out of `_full_suite_stand_in` so `_resolve_pytest_commands` can call
+    it before it knows which path it is taking. Inside the stand-in it only ran
+    on the fallback path, so a narrowed import-graph selection silently ignored
+    `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=true`: the developer asked for the full
+    suite, did not get it, and was not told. The contract says any non-blank
+    value other than `1` is a configuration error, and a contract enforced on
+    one branch of two is not enforced.
+
+    Exactly the defect already fixed for `AI_AGENTS_PYTEST_WORKERS`, whose
+    validation was hoisted for the same reason a few commits earlier. The
+    reasoning was right there and was not carried across to the sibling flag.
+    Caught in review on PR #5319.
+
+    Returns the stripped value so callers do not re-derive it: `""` when unset
+    or blank, `"1"` when the caller opted in.
+
+    Raises:
+        ValueError: the variable is set to anything other than blank or `1`.
+    """
+    raw = os.environ.get(PYTEST_FULL_SUITE_LOCALLY_ENV)
+    if raw is None:
+        return ""
+    stripped = raw.strip()
+    if stripped and stripped != "1":
+        # Fail loud rather than quietly doing less than the caller asked for.
+        # `AI_AGENTS_PYTEST_WORKERS` already raises on a value it cannot use;
+        # a flag whose whole purpose is "run more" must not shrug at `true`.
+        raise ValueError(
+            f"{PYTEST_FULL_SUITE_LOCALLY_ENV} must be '1' or unset, got {raw!r}. "
+            "Unset lets the import graph narrow the diff, and collects the "
+            "whole suite when it cannot. '1' executes every partition locally "
+            "whatever the graph says, which is what the name promises."
+        )
+    return stripped
+
+
+def _full_suite_stand_in(repo_root: Path, reason: str) -> list[list[str]]:
+    """Return what pre-push runs when the import graph cannot narrow the diff.
+
+    Executing every test here duplicates CI's `pytest.yml` partition matrix on
+    the same commit. Measured on a 4-CPU container, that duplicate cost 475s of
+    a 679s push, and a push that long does not survive a container restart, so
+    the local copy of a remote gate was the thing preventing the push from
+    reaching the remote gate at all. Collect instead and let CI execute.
+
+    This is the collection path only. ``AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1``
+    is handled by `_resolve_pytest_commands` before selection runs, so it never
+    reaches here; an opt-in branch used to live in this function and became
+    unreachable when the flag was hoisted, which is why there is not one now.
+    """
+    print(
+        f"pytest selection: no import-graph subset ({reason}).\n"
+        "  Collecting every test instead of executing them. Collection blocks "
+        "on a broken\n"
+        "  import and on a syntax error. It does NOT run assertions, does NOT "
+        "catch a\n"
+        "  missing fixture, does NOT catch two same-named test functions in "
+        "one module,\n"
+        "  and does NOT catch a same-basename module collision (this repo "
+        "sets\n"
+        "  --import-mode=importlib, under which that collides silently).\n"
+        "  Assertions run in CI: .github/workflows/pytest.yml executes the full "
+        "partition\n"
+        "  matrix on every merge-queue commit, and on this PR only when the "
+        "diff matches\n"
+        "  its paths filter. A diff that matches neither runs no assertions "
+        "until the\n"
+        "  merge queue, so review a green PR of that shape accordingly.\n"
+        f"  Set {PYTEST_FULL_SUITE_LOCALLY_ENV}=1 to execute the suite here "
+        "instead. See ADR-104.",
+        file=sys.stderr,
+    )
+    return [_pytest_collection_command(repo_root)]
+
+
 def _resolve_pytest_commands(
     repo_root: Path,
     changed_files: Sequence[str] | None,
 ) -> list[list[str]]:
-    """Return the pytest commands to run: an import-graph subset or the full suite.
+    """Return the pytest commands to run: an import-graph subset or a stand-in.
 
-    Any failure to determine the diff, and any fail-safe verdict from the
-    selector, returns the full partition set. The subset is only used when the
-    graph maps every changed file with certainty.
+    `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` short-circuits everything below and
+    returns the executing partitions. The flag says full suite, so it has to
+    mean the full suite: an earlier revision validated the value and then threw
+    it away, so a developer who set it on a Python change got whatever subset
+    the import graph chose and was not told the difference. That is the same
+    silently-doing-less defect the flag's own reject-anything-but-1 rule exists
+    to prevent, one branch further along, and ADR-104's Implementation Notes
+    label this command "whole-suite execution". Caught in review on PR #5319.
+
+    Otherwise the subset is used only when the graph maps every changed file
+    with certainty. Any failure to determine the diff, and any fail-safe verdict
+    from the selector, falls back to `_full_suite_stand_in`, which collects
+    rather than executes.
 
     Raises:
-        ValueError: the worker override is invalid (from `_pytest_parallel_flags`).
+        ValueError: the worker override is invalid (from
+            `_pytest_parallel_flags`), or the full-suite opt-in is set to
+            anything other than blank or `1` (from
+            `_validated_full_suite_opt_in`). Both are validated before a path is
+            chosen, so either can raise on either path.
     """
+    # Validate the worker override before choosing commands, not as a side
+    # effect of building one. The collection stand-in takes no parallel flags,
+    # so a check that rode along inside the executing partitions would let an
+    # invalid AI_AGENTS_PYTEST_WORKERS pass unreported on the default path: the
+    # developer asked for a worker count, did not get it, and was not told.
+    _pytest_parallel_flags()
+    if _validated_full_suite_opt_in() == "1":
+        print(
+            f"{PYTEST_FULL_SUITE_LOCALLY_ENV}=1: executing the whole suite "
+            "locally, skipping import-graph selection.",
+            file=sys.stderr,
+        )
+        return _pytest_commands(repo_root)
     if changed_files is None:
         changed = select_tests.changed_from_git(repo_root, WORKFLOW_LOCAL_DEFAULT_BASE)
     else:
@@ -7153,10 +7490,12 @@ def _resolve_pytest_commands(
     # assert a clean success path keep passing. Only a narrowed subset, the new
     # behavior, announces itself.
     if changed is None:
-        return _pytest_commands(repo_root)
+        return _full_suite_stand_in(
+            repo_root, f"the diff against {WORKFLOW_LOCAL_DEFAULT_BASE} is unavailable"
+        )
     selection = select_tests.select(changed, repo_root)
     if selection.full:
-        return _pytest_commands(repo_root)
+        return _full_suite_stand_in(repo_root, selection.reason)
     print(
         f"pytest selection: {len(selection.tests)} test file(s) via import graph "
         f"(from {len(changed)} changed file(s)); reason: {selection.reason}",
@@ -7165,6 +7504,18 @@ def _resolve_pytest_commands(
     for rel in selection.tests:
         print(f"  {rel}", file=sys.stderr)
     return _pytest_commands_for_subset(repo_root, selection.tests)
+
+
+def _pytest_budget_seconds(commands: Sequence[Sequence[str]]) -> int:
+    """Seconds the whole pytest step may spend, sized to what it actually runs.
+
+    A collection stand-in imports modules and exits, so holding it to the
+    execution suite's ceiling would let an import hang block a push for 29
+    minutes. Anything that executes tests keeps the suite budget.
+    """
+    if len(commands) == 1 and "--collect-only" in commands[0]:
+        return TEST_COLLECTION_TIMEOUT_SECONDS
+    return TEST_SUITE_TIMEOUT_SECONDS
 
 
 def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> int:
@@ -7180,6 +7531,14 @@ def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> i
         "SKIP_RETROSPECTIVE_GATE",
         PYTEST_WORKER_CAP_ENV,
         PYTEST_WORKERS_ENV,
+        # Consumed here, so it must not reach the child. A test that invokes
+        # this policy inherits the parent's `=1` otherwise and takes the
+        # full-suite path where it meant to exercise the selector, which is the
+        # opposite of the behavior under test and reads as a passing selector.
+        # Its two siblings above were stripped for the same reason; this one
+        # was added later and did not get the same treatment. Raised in review
+        # on PR #5319.
+        PYTEST_FULL_SUITE_LOCALLY_ENV,
     ):
         env.pop(key, None)
     env["CLAUDE_PLUGIN_ROOT"] = str(repo_root / "src/copilot-cli")
@@ -7190,17 +7549,43 @@ def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> i
         return 2
     # The parent consumes this control before pytest starts. Leaving it in the
     # child environment changes tests that verify the default worker policy.
-    # TEST_SUITE_TIMEOUT_SECONDS is a budget for the whole suite, not per
-    # command. Splitting the suite across processes must not multiply how long
+    # The budget covers the whole pytest step, not one command. Splitting
+    # the suite across processes must not multiply how long
     # pre-push can block, or the hook outlives lefthook's own deadline and the
     # timeout looks nondeterministic.
-    deadline = time.monotonic() + TEST_SUITE_TIMEOUT_SECONDS
+    if not commands:
+        # `select_tests.Selection` promises a narrowed selection is never empty,
+        # and `_full_suite_stand_in` always returns one command. Both are other
+        # modules' invariants. This function decides whether a push is allowed,
+        # so it does not take a zero-test run on faith from either of them.
+        print(
+            "ERROR: test selection produced no pytest command. A push must "
+            "never pass by running zero tests; see select_tests.Selection.",
+            file=sys.stderr,
+        )
+        return 2
+    # Clamp the AGGREGATE, not only each child. `_run_command` bounds one
+    # subprocess at CONTAINER_SUBPROCESS_CEILING_SECONDS, which says nothing
+    # about a step that runs several: an import-graph subset emits up to four
+    # partition commands and takes the execution budget, so a Python push could
+    # spend 4 * 150s = 600s here inside a container. The reclaim this whole
+    # change exists to prevent was measured at ~679s, so that is not a tail
+    # case, it is the same failure on the common path for Python changes.
+    #
+    # The PR text claimed the exposure was limited because "the default path
+    # spawns one child". True for a Markdown push, which collects; false for a
+    # Python push, which subsets. Caught in review on PR #5319.
+    #
+    # Clamping here also repairs the diagnostic: the timeout message prints
+    # `budget`, so an unclamped aggregate told a reader their child had 780s
+    # when the clamp had given it 150s.
+    budget = _container_clamped(_pytest_budget_seconds(commands))
+    deadline = time.monotonic() + budget
     for index, command in enumerate(commands):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             print(
-                "ERROR: pytest suite exceeded the "
-                f"{TEST_SUITE_TIMEOUT_SECONDS}s budget before running {command}",
+                f"ERROR: pytest suite exceeded the {budget}s budget before running {command}",
                 file=sys.stderr,
             )
             return 1
@@ -7211,7 +7596,7 @@ def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> i
             timeout_seconds=remaining,
         )
         _print_process_output(result)
-        if result.returncode == 3:
+        if _timed_out(result):
             # `remaining` is always fractionally below the full budget, even on
             # the first command, because the deadline and this subtraction call
             # time.monotonic() at two different instants. Comparing the two
@@ -7223,16 +7608,16 @@ def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> i
                 print(
                     "ERROR: pytest suite timed out; the first command "
                     f"{command} consumed the whole "
-                    f"{TEST_SUITE_TIMEOUT_SECONDS}s budget on its own",
+                    f"{budget}s budget on its own",
                     file=sys.stderr,
                 )
             else:
-                consumed = TEST_SUITE_TIMEOUT_SECONDS - remaining
+                consumed = budget - remaining
                 plural = "" if index == 1 else "s"
                 print(
                     "ERROR: pytest suite timed out, budget exhausted with "
                     f"{remaining:g}s left of the "
-                    f"{TEST_SUITE_TIMEOUT_SECONDS}s budget "
+                    f"{budget}s budget "
                     f"({consumed:g}s already consumed by {index} earlier "
                     f"command{plural} in the suite)",
                     file=sys.stderr,
@@ -8113,9 +8498,68 @@ def _add_simple_command(
     command.set_defaults(handler=handler)
 
 
+def _arm_container_watchdog(subcommand: str) -> threading.Timer | None:
+    """Bound this whole process in a managed container. None outside one.
+
+    `_container_clamped` bounds a child. This bounds everything, including the
+    work between children that no deadline reached: import-graph selection,
+    path discovery, tree materialization, and the unbounded `subprocess.run` in
+    `select_tests.changed_from_git`. A hang in any of those outlived every
+    bound this module sets and ended in the reclaim the bounds exist to
+    prevent.
+
+    `os._exit` rather than an exception: the thing being bounded is a hang, and
+    a hang can be somewhere an exception will not unwind from promptly. Losing
+    a temporary directory to an abrupt exit is cheaper than losing the push and
+    its diagnostic, which is what happens if this does not fire. The message
+    goes out first and is flushed, so the developer gets the one thing a
+    reclaimed push never gave them.
+
+    Not armed when the sibling detector cannot be imported, and says so, for
+    the same reason `_container_clamped` says so: a guarantee that lapses in
+    silence is worse than one that is absent.
+    """
+    try:
+        from run_workflow_local_test import _is_remote_container
+    except ImportError:
+        print(
+            "WARNING: container detection unavailable "
+            "(run_workflow_local_test could not be imported), so the "
+            f"{CONTAINER_PROCESS_CEILING_SECONDS:.0f}s whole-process watchdog "
+            "is NOT armed. See ADR-104 rule 8.",
+            file=sys.stderr,
+        )
+        return None
+    if not _is_remote_container():
+        return None
+
+    def _expire() -> None:
+        sys.stderr.write(
+            f"ERROR: git_hook_policy {subcommand} exceeded the "
+            f"{CONTAINER_PROCESS_CEILING_SECONDS:.0f}s container ceiling and "
+            "was stopped. A managed container reclaims a hook that stops "
+            "making progress, and a reclaimed push carries no diagnostic at "
+            "all, so this exits first and says why. The hang is outside every "
+            "per-child deadline: look at selection and setup, not at a "
+            "subprocess budget. See ADR-104 rule 8.\n"
+        )
+        sys.stderr.flush()
+        os._exit(3)
+
+    watchdog = threading.Timer(CONTAINER_PROCESS_CEILING_SECONDS, _expire)
+    watchdog.daemon = True
+    watchdog.start()
+    return watchdog
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    return int(args.handler(args))
+    watchdog = _arm_container_watchdog(str(getattr(args, "command", "") or "<subcommand>"))
+    try:
+        return int(args.handler(args))
+    finally:
+        if watchdog is not None:
+            watchdog.cancel()
 
 
 if __name__ == "__main__":

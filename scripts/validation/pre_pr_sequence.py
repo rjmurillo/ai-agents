@@ -139,6 +139,16 @@ class _Gate:
     SKIP result. ``skip_flag`` is different: it names an ``args`` attribute that,
     when truthy, bypasses ``run_validation`` entirely and only bumps the totals.
     Only ``--skip-tests`` behaves that way, and it predates the SKIP record.
+
+    There is deliberately no "the pre-push fast stage already ran this" skip.
+    It was implemented and reverted: ``pre-push`` is ``piped: true``, which
+    proves no earlier job failed, not that a given job ran. Every fast-stage
+    counterpart carries a ``glob:`` while ``pre-pr-validation`` carries none,
+    so on a Markdown-only push the Python-globbed jobs are filtered out and the
+    skip would have removed the gate rather than deduplicated it. Measured on
+    lefthook 2.1.10: a glob-filtered job reports ``(skip) no matching push
+    files`` and the hook exits 0, so downstream cannot tell a skipped job from
+    a passed one. Refs #5317.
     """
 
     name: str
