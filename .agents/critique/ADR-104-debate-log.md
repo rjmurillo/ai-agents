@@ -788,6 +788,30 @@ placed where the code was easy to reach rather than where the work happens.
 Every round moved it one level out. This one moved it to the process, which is
 the last level there is short of the hook itself.
 
+### Round 9 addendum: the ratchet's enforcement point was stated backwards
+
+A ninth reviewer pass, correcting a factual claim rather than a decision. The
+record said the base-ref budget comparison "runs on pre-push and skips on a
+shallow CI checkout". Both halves are wrong in the same direction, and the
+direction flatters the local tier this record is about.
+
+`pytest.yml` checks out with `fetch-depth: 0`, so PR CI has the base ref and
+executes the comparison. Pre-push does not: a change to `lefthook.yml` alone
+gives the import-graph selector a YAML file to map, it cannot, and the run takes
+the collection stand-in, which imports the test module without running it. So
+the cap-only edit this ratchet exists to catch is caught in CI and not locally,
+the reverse of what was written.
+
+The same pass found the inversion guard searching for a bare term where the
+surfaces write an article, so the one wording a demoted catch would arrive in
+was the one it could not see; and `_config_at_ref` turning any `OSError` into
+"no base ref", which answers a launch failure by disabling the only baseline the
+branch cannot edit and reporting a shallow checkout instead.
+
+Both are the same habit as the round's earlier findings, one level down: a
+statement true of the case in front of the author, generalized to the case the
+gate actually runs in.
+
 ### Still open after this round
 
 - `push-ref-policy` carries a 2m cap over `check_push_refs`, which runs many

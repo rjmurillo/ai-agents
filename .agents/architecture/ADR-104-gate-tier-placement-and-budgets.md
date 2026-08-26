@@ -129,10 +129,16 @@ Both, because the ceiling alone was published here as a ratchet and is not one:
 the number sits beside the assertion that reads it, so one edit raises a cap and
 the ceiling together and both tests still pass. Review on PR #5319 found that.
 The base-ref comparison has a baseline the branch cannot edit, which is the
-property "may only fall" was claiming. It needs the base ref present, so it runs
-on pre-push and skips on a shallow CI checkout; there the ceiling is the only
-guard. That gap is stated rather than closed, because a gate that reads a ref
-its environment may not have is worse than one that says when it did not run.
+property "may only fall" was claiming. Its normal enforcement point is CI, not
+pre-push, which is the reverse of what an earlier revision of this paragraph
+said. `pytest.yml` checks out with `fetch-depth: 0`, so PR CI has the base ref
+and executes the comparison; pre-push, on a change to `lefthook.yml` alone,
+cannot narrow the import graph from a YAML file and takes the collection
+stand-in, which imports this test without running it. So a cap-only edit is
+caught in CI and not locally. Where no base ref is reachable the comparison
+skips and the ceiling is the only guard; git being absent is a different thing
+and fails rather than skipping, because a gate that cannot tell "no base ref"
+from "no git" disables itself and calls it an environment.
 
 That number was 4170s for pre-push, 69.5 minutes, against real pushes of
 142.39s. Caps resized from in-hook measurement bring it to 3450s. It
