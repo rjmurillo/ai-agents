@@ -461,11 +461,17 @@ class _ListContainers:
     balanced, unclosed, followed by a top-level fence, lazily closed, with a
     malformed closer, nested in a list item, and carrying an info string. It
     changed two, and the reference parser reads both of those as genuinely
-    unclosed, so the writes are correct. The cost is confined to missed
-    detections here and to blockquote code reaching the prose checks in the
-    sibling scanner. Four such markers exist in this repository, in two
-    archived session logs, and they are the whole of the remaining
-    under-masking. Closing it means consuming line prefixes through the entire
+    unclosed, so the writes are correct. That is HALF the gap, and saying it
+    was the whole gap was wrong for two rounds. The other half is a blockquote
+    INTERRUPTING a paragraph: CommonMark ends the paragraph there and lazily
+    continues the quote, so a following `2.` opens a list, while we keep the
+    paragraph open, rule 4 vetoes the marker, and `--write` appends a closer to
+    a balanced document. Two of twelve measured shapes, and it reproduces on
+    `main` with no link reference definition present, so it belongs to the
+    container model rather than to rule 16. Four such markers exist in this
+    repository, in two archived session logs, and they are the whole of the
+    remaining under-masking. Closing it means consuming line prefixes through
+    the entire
     scan rather than reasoning in columns, which is a larger change than any
     rule above.
     """
