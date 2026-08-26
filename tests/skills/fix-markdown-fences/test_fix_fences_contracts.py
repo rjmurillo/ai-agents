@@ -221,20 +221,30 @@ class TestCommonMarkOracle:
             if open_fence is not None and _container_closed(line.text, fence_base):
                 open_fence = None  # the item holding the block ended
 
-        and its valid-close test, which is `_is_blank` and NOT `str.strip()`,
-        because a closing fence may be followed only by spaces and tabs:
+        its valid-close test, which is `_is_blank` and NOT `str.strip()`,
+        because a closing fence may be followed only by spaces and tabs, and
+        the malformed-closer transition that follows it:
 
             if _is_blank(match.group("info")):
                 open_fence = None
                 continue
 
+            defects.append(...)
+            open_fence = _scan_open(line.text, containers)
+            fence_base = containers.base() if open_fence is not None else 0
+
         A hand-written mirror can drift from what it mirrors, which is the
-        whole reason this comment names the branches. It did drift: this
-        mirror kept `str.strip()` for one commit after production moved to
-        `_is_blank`, and the three closing-fence cases failed here while the
-        shipped scanner was already correct. `test_repair_is_a_no_op_on
-        _balanced_documents` guards the direction that matters by driving the
-        public repair path instead.
+        whole reason this comment names the branches. It drifted twice. It
+        kept `str.strip()` for one commit after production moved to
+        `_is_blank`. And it omitted the re-scan above entirely, so on a
+        malformed closer it left the OLD opener active where production opens
+        a new one. That second drift is the more dangerous shape, because it
+        made this mirror AGREE with the reference parser on documents where
+        production deliberately does not: the mirror was passing by not
+        mirroring. See `test_a_malformed_closer_reopens_at_its_own_length`.
+
+        `test_repair_is_a_no_op_on_balanced_documents` guards the direction
+        that matters by driving the public repair path instead.
         """
         lines = mod._split_lines(text)
         containers = mod._ListContainers()
@@ -253,8 +263,13 @@ class TestCommonMarkOracle:
             if line.text != "":
                 inside.add(index)
             match = mod._closes(line.text, open_fence, containers)
-            if match is not None and mod._is_blank(match.group("info")):
+            if match is None:
+                continue
+            if mod._is_blank(match.group("info")):
                 open_fence = None
+                continue
+            open_fence = mod._scan_open(line.text, containers)
+            fence_base = containers.base() if open_fence is not None else 0
         return inside
 
     @pytest.mark.parametrize("name", sorted(FENCE_CASES))
@@ -314,6 +329,38 @@ class TestCommonMarkOracle:
             assert repaired.splitlines()[2] == marker, text
             assert not repaired.endswith(marker + "\n" + marker + "\n"), text
             assert repair_markdown_fences(repaired) == repaired, text
+
+    def test_a_malformed_closer_reopens_at_its_own_length(self) -> None:
+        """A mistaken closer becomes the next opener, at ITS fence length.
+
+        This is the branch `_inside_fence` used to omit, and omitting it was
+        not harmless: without the re-scan the mirror kept the ORIGINAL opener
+        alive, so a later shorter bare fence appeared to close the block. That
+        made the mirror agree with the reference parser on exactly the family
+        where production deliberately disagrees, which is the worst way for a
+        mirror to be wrong. It passes by not mirroring, and the fence suite's
+        oracle assertion and fuzz baseline then describe a state machine the
+        shipped scanner never runs.
+
+        The `unclosed_block` text is the evidence: four fence characters, not
+        the three the block opened with.
+        """
+        for text, reopened in (
+            ("```\nx\n````py\ny\n```\nz\n", "````"),
+            ("~~~\nx\n~~~~info\ny\n~~~\nz\n", "~~~~"),
+        ):
+            kinds = [(d.kind, d.text) for d in find_fence_defects(text)]
+            assert (mod.MALFORMED_CLOSING, text.splitlines()[2]) in kinds, text
+            assert (mod.UNCLOSED_BLOCK, reopened) in kinds, text
+            repaired = repair_markdown_fences(text)
+            assert repair_markdown_fences(repaired) == repaired, text
+
+        # And the divergence is deliberate, so it is stated rather than left
+        # for a future reader to discover by breaking it. The shared module's
+        # Scope paragraph owns this boundary; these documents are the reason
+        # they are NOT in the curated table, which asserts oracle agreement.
+        divergent = "```\nx\n````py\ny\n```\nz\n"
+        assert TestCommonMarkOracle._inside_fence(divergent) != oracle_fence_lines(divergent)
 
     def test_a_real_space_or_tab_still_closes_a_fence(self) -> None:
         """The inverse. Widening the predicate must not reject a valid closer."""
