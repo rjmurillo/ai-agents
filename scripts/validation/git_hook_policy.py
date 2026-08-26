@@ -6642,9 +6642,11 @@ def _pytest_collection_command(repo_root: Path) -> list[str]:
     on a broken import and on a syntax error. Those are the defects that would
     otherwise burn a whole CI matrix before reporting the same thing.
 
-    It does NOT catch a test whose fixture no fixture satisfies, does NOT catch
-    two same-named test functions in one module, and does NOT catch two test
-    modules sharing a basename across directories.
+    It does NOT catch a missing fixture: a test that requests a fixture no
+    conftest defines collects clean and fails at run time. It does NOT catch
+    two same-named test functions in one module, where the second silently
+    shadows the first. It does NOT catch two test modules sharing a basename
+    across directories.
 
     That last one was claimed as a catch and is not. It is a collection error
     under pytest's default `prepend` import mode, and `pyproject.toml` sets
@@ -6710,7 +6712,10 @@ def _validated_full_suite_opt_in() -> str:
         # a flag whose whole purpose is "run more" must not shrug at `true`.
         raise ValueError(
             f"{PYTEST_FULL_SUITE_LOCALLY_ENV} must be '1' or unset, got {raw!r}. "
-            "Unset collects the suite; '1' executes it locally."
+            "The flag controls the full-suite fallback only: unset, that "
+            "fallback collects, and '1' executes it locally. Neither value "
+            "changes a narrowed import-graph selection, which always executes "
+            "the tests it selected."
         )
     return stripped
 
@@ -6774,7 +6779,11 @@ def _resolve_pytest_commands(
     than executes unless the caller opted back into local execution.
 
     Raises:
-        ValueError: the worker override is invalid (from `_pytest_parallel_flags`).
+        ValueError: the worker override is invalid (from
+            `_pytest_parallel_flags`), or the full-suite opt-in is set to
+            anything other than blank or `1` (from
+            `_validated_full_suite_opt_in`). Both are validated before a path is
+            chosen, so either can raise on either path.
     """
     # Validate the worker override before choosing commands, not as a side
     # effect of building one. The collection stand-in takes no parallel flags,
