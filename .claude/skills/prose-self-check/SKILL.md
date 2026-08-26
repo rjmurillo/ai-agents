@@ -168,7 +168,7 @@ Report what you changed, layer by layer, so the next reader can audit the pass.
 
 ## Scripts
 
-### scripts/prose_lint.py
+### prose_lint.py
 
 Layers 1 and 2. Reports dashes, banned vocabulary (parsed from the voice
 rule), contrast framing, trailing offers, signposting openers, and
@@ -200,7 +200,7 @@ Exit codes (ADR-035):
 - `1` at least one high-severity finding
 - `2` configuration error (a named file or the rules file cannot be read)
 
-### scripts/burstiness.py
+### burstiness.py
 
 Layer 3 helper. Computes sentence-length variance (burstiness) and a
 concreteness count (numbers, file paths, multi-word capitalized entities) for a

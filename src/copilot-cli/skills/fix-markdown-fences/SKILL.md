@@ -50,7 +50,7 @@ Scan and repair malformed closing fences in markdown files. Closing fences must 
 ## Process
 
 Do not walk the file by hand. Fence tracking is a state machine, and
-`scripts/fix_fences.py` runs it.
+`fix_fences.py` runs it.
 
 1. **Report.** Run the script over the target path. It prints every defect as
    `FILE:LINE: KIND: TEXT` and exits 1 when it finds any.
@@ -79,7 +79,7 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/fix-markd
 
 ## Scripts
 
-### scripts/fix_fences.py
+### fix_fences.py
 
 Detects and repairs malformed fence closings. Reporting is the default;
 `--write` is required to modify a file.
@@ -145,7 +145,7 @@ echo "exit=$?"   # 0 = clean, 1 = defects found, 2 = bad input
 
 | Avoid | Why | Instead |
 |-------|-----|---------|
-| Manually searching for bad fences | Error-prone in large files, and the agent cannot track fence length by eye | Run `scripts/fix_fences.py` |
+| Manually searching for bad fences | Error-prone in large files, and the agent cannot track fence length by eye | Run `fix_fences.py` |
 | Simulating the state machine in-context | The script already does it, exactly and for free | Read the script's report |
 | Running `--write` across a whole repo unreviewed | A repair inside nested documentation is often the wrong fix | Report first, review, then write per path |
 | Copying opening fence line to close a block | Creates the exact bug this skill fixes | Always use plain ` ``` ` for closing |
