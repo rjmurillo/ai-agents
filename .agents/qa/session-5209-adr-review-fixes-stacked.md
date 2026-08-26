@@ -1,15 +1,15 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 9912a6fdfa09a8a882f3420dd9ef37ee3398962a
+qaCommit: 0716eeb827d6ff36be0ad5e25b779d7191a9a7ba
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
 # QA: PR #5209 review-round fixes, carried on a stacked branch
 
 **Branch**: `claude/adr-5209-review-fixes`
-**Base**: `claude/adr-evaluation-tooling-6od8rd` (PR #5209)
-**Validated at commit**: `9912a6fdfa09a8a882f3420dd9ef37ee3398962a` (see Addendum 58)
+**Base**: `main` (retargeted by GitHub after PR #5209 squash-merged and its branch was deleted; was `claude/adr-evaluation-tooling-6od8rd`)
+**Validated at commit**: `0716eeb827d6ff36be0ad5e25b779d7191a9a7ba` (see Addendum 59)
 
 ## Verdict
 
@@ -1353,4 +1353,14 @@ Same discovery, same fix, this time verified against the raw git history rather 
 Commit `9912a6fdfa09a8a882f3420dd9ef37ee3398962a` is where Addendum 57's ADR-042 date restore, the debate log's Batch 30, and a separate round-13 finding (the ADR-063 title test's fence-stripping gap, on `tests/test_adr_063_memory_skill_decomposition.py:163`) actually landed. `qaCommit` and the header rebind to it.
 
 **Rebound to** `9912a6fdfa09a8a882f3420dd9ef37ee3398962a`.
+
+## Addendum 59: PR #5209 merged, base retargeted to `main`, and a real silent-shadowing defect found in the merge
+
+Same event, same fix, as Addendum 58 of the campaign report: PR #5209 squash-merged into `main`, this branch's declared base was deleted, and GitHub auto-retargeted PR #5230 to `main`, reporting a stack conflict on the same ten files this document tracked through many rounds. `git merge-base --is-ancestor` confirmed both that PR #5209's exact pre-squash tip is already an ancestor of this branch's `HEAD` and that `origin/main`'s content for all ten conflicted files (plus the Copilot mirror) is byte-identical to that tip, so the conflict was a squash-merge history discontinuity, not a real content disagreement. Resolved with `git checkout --ours` throughout (merge commit `f7405dcae`).
+
+The merge auto-combined `tests/test_markdown_parser.py` with no reported conflict, but the result defined `class TestBlankNonProseBlockLines:` twice: this branch's later, hardened version and PR #5209's own earlier, weaker one. Python silently uses only the second definition, so the merge reinstated the exact test weakness this session had already fixed under "A weakened test control," and the full suite kept reporting "554 passed" while actually exercising the shadowed weak assertions. `ruff`'s `F811` caught it via `pre_pr.py`'s ruff-count-ratchet (1 new violation), not a test failure. Fixed by deleting the older class (commit `0716eeb82`); full detail, including the exact `git diff`/`git merge-base` commands run, is in Addendum 58 of the campaign report.
+
+This branch's diff against its new base (`main`) is now 12 files, all own-contribution; the base retarget collapsed the "inherited from `origin/main`" bucket entirely, since `main` is now the literal base.
+
+**Rebound to** `0716eeb827d6ff36be0ad5e25b779d7191a9a7ba`.
 

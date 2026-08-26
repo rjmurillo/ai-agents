@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 9912a6fdfa09a8a882f3420dd9ef37ee3398962a
+qaCommit: 0716eeb827d6ff36be0ad5e25b779d7191a9a7ba
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `9912a6fdfa09a8a882f3420dd9ef37ee3398962a` (see Addendum 57)
+**Validated at commit**: `0716eeb827d6ff36be0ad5e25b779d7191a9a7ba` (see Addendum 58)
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -2522,4 +2522,16 @@ Converted to UTC: `cdf688a9f` landed at `2026-08-25T15:35:32Z`, roughly 8h40m *a
 Addendum 56 documented the investigation; commit `9912a6fdfa09a8a882f3420dd9ef37ee3398962a` is where the ADR-042 date restore, the debate log's Batch 30, and the ADR-063 title test's fence-stripping fix (a separate round-13 finding, on `tests/test_adr_063_memory_skill_decomposition.py:163`) actually landed. Session End Validation's staleness check fires again on this code/content touch; `qaCommit` and the `Validated at commit` header both rebind to it.
 
 **Rebound to** `9912a6fdfa09a8a882f3420dd9ef37ee3398962a`.
+
+## Addendum 58: PR #5209 merged, base retargeted to `main`, and a real silent-shadowing defect found in the merge
+
+PR #5209 squash-merged into `main` at `2026-08-25T21:33:06Z`; GitHub deleted `claude/adr-evaluation-tooling-6od8rd` and auto-retargeted this branch's PR (#5230) to `main`. GitHub reported the resulting merge as conflicted, listing the same ten files this document has carried through many rounds.
+
+**Why the conflict was real but not a content disagreement.** `git merge-base --is-ancestor 2d6027f05... origin/main` returns false: a squash merge creates a brand-new commit with no parent link to the squashed branch, so git's merge algorithm cannot see that this branch's history already contains everything `main` just gained. But `2d6027f05` (PR #5209's exact pre-squash tip) IS already an ancestor of this branch's `HEAD` (confirmed the same way, `--is-ancestor` true), and `git diff 2d6027f05:<path> origin/main:<path>` returned empty for all ten conflicted files plus the eleventh, `src/copilot-cli/skills/adr-review/scripts/detect_adr_changes.py`. That means `origin/main`'s content for every one of these files is byte-identical to what PR #5209's branch already had, and this branch's history already contains that exact state (from the earlier `8021a3a79` merge) plus its own later rounds of fixes on top. Resolved with `git checkout --ours` for all ten; verified by re-running the full targeted test suite (554 passed) and `check_adr_lifecycle.py`'s corpus check (clean) before committing the merge (`f7405dcae`).
+
+**A real defect the "add/add" markers didn't catch.** `tests/test_markdown_parser.py` auto-merged with NO reported conflict, but the merge silently produced two `class TestBlankNonProseBlockLines:` definitions in the same file: this branch's later, hardened version (the exact-output discrimination probe documented earlier as "A weakened test control" fix) and PR #5209's own earlier, weaker, substring-only version. Python class redefinition means only the second definition in a module actually exists at runtime, so the merge silently reinstated the exact weakness this session had already fixed and pytest kept reporting "554 passed" while quietly exercising the shadowed weak assertions instead. Caught by `ruff`'s `F811` (redefinition of unused name), surfaced by `pre_pr.py`'s ruff-count-ratchet as a new violation (1 > baseline 0) rather than by any test failure. Fixed by deleting the second, older class definition (commit `0716eeb82`); the surviving seven tests under the one remaining class all pass, including the two hardened assertions.
+
+`uv run python scripts/validation/pre_pr.py`: clean after the fix. This branch's diff against its new base (`main`) collapsed to 12 files, all confirmed own-contribution by the same byte-identity-to-`origin/main` test this document has used throughout; the previous "inherited from `origin/main`" category no longer applies, since `main` is now the literal base.
+
+**Rebound to** `0716eeb827d6ff36be0ad5e25b779d7191a9a7ba`.
 
