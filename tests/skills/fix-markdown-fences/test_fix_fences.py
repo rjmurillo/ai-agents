@@ -314,6 +314,44 @@ class TestOutput:
         assert payload["files"][str(bad)][0]["kind"] == MALFORMED_CLOSING
 
 
+class TestListNestedFences:
+    """A fence marker's indent is measured from its list item, not column zero."""
+
+    def test_malformed_closing_inside_a_list_item_is_reported(self) -> None:
+        assert kinds("- item\n\n    ```py\n    x\n    ```py\n    y\n    ```\n") == [
+            MALFORMED_CLOSING
+        ]
+
+    def test_unclosed_block_inside_a_list_item_is_reported(self) -> None:
+        assert kinds("- item\n\n    ```py\n    x\n") == [UNCLOSED_BLOCK]
+
+    def test_repair_closes_a_list_nested_block_at_its_own_indent(self) -> None:
+        out = repair_markdown_fences("- item\n\n    ```py\n    x\n")
+        assert out == "- item\n\n    ```py\n    x\n    ```\n"
+
+    def test_repair_is_idempotent_on_a_list_nested_block(self) -> None:
+        once = repair_markdown_fences("- item\n\n    ```py\n    x\n    ```py\n    y\n    ```\n")
+        assert repair_markdown_fences(once) == once
+
+    def test_top_level_indented_marker_is_still_left_alone(self) -> None:
+        text = "Text.\n\n    ```\n\nMore.\n"
+        assert kinds(text) == []
+        assert repair_markdown_fences(text) == text
+
+    def test_four_spaces_past_the_container_is_indented_code(self) -> None:
+        text = "- item\n\n      ```\n\nMore.\n"
+        assert kinds(text) == []
+        assert repair_markdown_fences(text) == text
+
+    def test_repository_example_is_clean_and_untouched(self) -> None:
+        # The same file the prose sibling regresses on: a four-space-indented
+        # fence under a nested list item. Measuring from column zero made the
+        # whole block invisible, so a defect inside one would go unreported.
+        source = (PROJECT_ROOT / "docs" / "codeql-rollout-checklist.md").read_text(encoding="utf-8")
+        assert find_fence_defects(source) == []
+        assert repair_markdown_fences(source) == source
+
+
 class TestVendoredInvocation:
     """The command SKILL.md documents, executed as shipped through a shell.
 

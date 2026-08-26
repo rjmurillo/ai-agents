@@ -72,23 +72,77 @@ _TOKEN = re.compile(r"[A-Za-z]+(?:['-][A-Za-z]+)*")
 _NON_PROSE_NEIGHBORS = frozenset("/_>=\\")
 
 _FENCE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
-# CommonMark caps a fence marker at three spaces of indent; at four it is
-# an indented code block and the backticks are literal content. Without
-# the cap a literal marker inside an indented block started masking and
-# hid the prose after it.
+# CommonMark caps a fence marker at three spaces of indent; past that it is
+# an indented code block and the backticks are literal content. Without the
+# cap a literal marker inside an indented block started masking and hid the
+# prose after it. The cap is measured from the innermost open list item, not
+# from column zero; see `_ListContainers` for why and for the corpus count.
 #
 # Same bound as the sibling fence scanner, which ships in the same plugin
 # root at skills/fix-markdown-fences/scripts/fix_fences.py. Quoted verbatim
-# from its _over_indented helper (lines 102-104), against the
-# _MAX_FENCE_INDENT = 3 it sets at line 67:
+# from its _ListContainers.over_indented (lines 99-102), against the
+# _MAX_FENCE_INDENT = 3 it sets at line 66:
 #
-#     def _over_indented(indent: str) -> bool:
-#         """Return True when *indent* puts the marker inside an indented code block."""
-#         return len(indent.expandtabs(4)) > _MAX_FENCE_INDENT
+#         def over_indented(self, indent: str) -> bool:
+#             """Return True when *indent* puts the marker inside an indented code block."""
+#             base = self._columns[-1] if self._columns else 0
+#             return _indent_width(indent) - base > _MAX_FENCE_INDENT
 #
-# This module keeps its own copy of that comparison rather than importing
-# it, and applies it at both fence call sites below.
+# This module keeps its own copy of that helper rather than importing it:
+# the two skills ship as separate directories under the plugin root, and
+# neither is on the other's import path.
 _MAX_FENCE_INDENT = 3
+
+_LIST_MARKER = re.compile(r"^(?P<indent>[ \t]*)(?P<bullet>[-*+]|\d{1,9}[.)])(?P<pad>[ \t]+)")
+
+
+def _indent_width(text: str) -> int:
+    """Return the column *text* occupies, tabs expanded to a 4-column stop."""
+    return len(text.expandtabs(4))
+
+
+class _ListContainers:
+    """The content column of the innermost open list item, tracked line by line.
+
+    CommonMark measures a fence marker's indent from its containing block, not
+    from column zero, so a marker four spaces deep inside a list item opens a
+    fence while the identical line at top level is indented code. Measuring
+    from column zero misreads the first as the second and unmasks the block
+    body, which is how code reaches the prose detectors. Measured over the
+    4,531 tracked Markdown files at this commit: of the 50 markers indented
+    four or more spaces from column zero, 46 across 10 files are valid fences
+    relative to their list item, among them `docs/codeql-rollout-checklist.md`
+    and the shipped `ship` skill.
+
+    Feed lines in order, and ask `over_indented` about a line BEFORE feeding
+    it. Do not feed lines inside a fenced block: CommonMark does not read list
+    markers there, and feeding them can only raise the base, which would widen
+    what counts as a fence and mask prose.
+    """
+
+    __slots__ = ("_columns",)
+
+    def __init__(self) -> None:
+        self._columns: list[int] = []
+
+    def over_indented(self, indent: str) -> bool:
+        """Return True when *indent* puts the marker inside an indented code block."""
+        base = self._columns[-1] if self._columns else 0
+        return _indent_width(indent) - base > _MAX_FENCE_INDENT
+
+    def feed(self, line: str) -> None:
+        """Update the open-container stack with one line of prose."""
+        if not line.strip():
+            return  # a blank line never closes a list item
+        width = _indent_width(line[: len(line) - len(line.lstrip(" \t"))])
+        while self._columns and width < self._columns[-1]:
+            self._columns.pop()
+        match = _LIST_MARKER.match(line)
+        if match is not None:
+            marker = match.group("indent") + match.group("bullet") + match.group("pad")
+            self._columns.append(_indent_width(marker))
+
+
 # A code span may wrap one line but never spans a paragraph break. With
 # DOTALL and no bound, two stray backticks paragraphs apart paired and
 # blanked everything between them, so a run could miss an em dash and
@@ -117,14 +171,20 @@ _STRUCTURAL_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         # missed every sentence with a real subject.
         re.compile(
             r"\b[A-Za-z][\w'-]*(?:\s+[\w'-]+){0,3}\s+"
-            r"(?:is|was|are|were)n?(?:'t| not)\s+(?:just\s+)?" + _GAP + _WRAP + r"(?:it|this|that|they)(?:'s|'re| is| are)\b",
+            r"(?:is|was|are|were)n?(?:'t| not)\s+(?:just\s+)?"
+            + _GAP
+            + _WRAP
+            + r"(?:it|this|that|they)(?:'s|'re| is| are)\b",
             re.IGNORECASE,
         ),
     ),
     (
         "contrast_framing",
         re.compile(
-            r"\b(?:is|are)n(?:'|)t about " + _GAP + _WRAP + r"(?:it|they)(?:'s|'re| is| are) about\b",
+            r"\b(?:is|are)n(?:'|)t about "
+            + _GAP
+            + _WRAP
+            + r"(?:it|they)(?:'s|'re| is| are) about\b",
             re.IGNORECASE,
         ),
     ),
@@ -152,7 +212,9 @@ _STRUCTURAL_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
     (
         "model_identity",
-        re.compile(r"\bas an AI(?: language model| assistant)?\b|\bI'm just an AI\b", re.IGNORECASE),
+        re.compile(
+            r"\bas an AI(?: language model| assistant)?\b|\bI'm just an AI\b", re.IGNORECASE
+        ),
     ),
 )
 
@@ -233,12 +295,14 @@ def _blank_fenced_blocks(text: str) -> tuple[list[str], int | None]:
     lines: list[str] = []
     fence: str | None = None
     opened_at: int | None = None
+    containers = _ListContainers()
     for number, line in enumerate(text.splitlines(), start=1):
         match = _FENCE.match(line)
-        if match is not None and len(match.group("indent").expandtabs(4)) > _MAX_FENCE_INDENT:
+        if match is not None and containers.over_indented(match.group("indent")):
             match = None
         if fence is None:
             if match is None:
+                containers.feed(line)
                 lines.append(line)
                 continue
             fence = match.group("fence")
@@ -288,9 +352,7 @@ def _prose_lines(text: str) -> tuple[list[tuple[int, str]], str, int, int | None
     blanked, opened_at = _blank_fenced_blocks(text)
     masked = _mask_inline_code("\n".join(blanked))
     lines = [
-        (number, line)
-        for number, line in enumerate(masked.split("\n"), start=1)
-        if line.strip()
+        (number, line) for number, line in enumerate(masked.split("\n"), start=1) if line.strip()
     ]
     return lines, masked, len(blanked), opened_at
 
@@ -465,9 +527,13 @@ def _resolve_banned_words(
     """
     rules_path = Path(rules_arg) if rules_arg else discover_rules_file()
     if rules_path is None:
-        return set(), None, (
-            "Warning: no voice rule found; running dash and structural checks only. "
-            "Pass --rules PATH to enable the banned-word check."
+        return (
+            set(),
+            None,
+            (
+                "Warning: no voice rule found; running dash and structural checks only. "
+                "Pass --rules PATH to enable the banned-word check."
+            ),
         )
     try:
         banned = parse_banned_words(rules_path.read_text(encoding="utf-8-sig"))
@@ -475,9 +541,13 @@ def _resolve_banned_words(
         print(f"Error: cannot read rules file {rules_path}: {exc}", file=sys.stderr)
         return None
     if not banned:
-        return banned, rules_path, (
-            f"Warning: no 'Banned Vocabulary' section in {rules_path}; "
-            "running dash and structural checks only."
+        return (
+            banned,
+            rules_path,
+            (
+                f"Warning: no 'Banned Vocabulary' section in {rules_path}; "
+                "running dash and structural checks only."
+            ),
         )
     return banned, rules_path, None
 

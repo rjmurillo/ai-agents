@@ -114,9 +114,9 @@ class TestCodeIsSkipped:
         assert kinds("```\nrobust\n```\n\nA robust claim.\n") == ["banned_word"]
 
     def test_marker_indented_four_spaces_is_not_a_fence(self) -> None:
-        # CommonMark: four spaces makes it an indented code block, so the
-        # backticks are literal. Treating it as a fence started masking and
-        # hid the prose after it. The sibling fence script bounds it the same.
+        # CommonMark: four spaces past the containing block makes it an
+        # indented code block, so the backticks are literal. Treating it as a
+        # fence started masking and hid the prose after it.
         assert kinds("Text.\n\n    ```\n\nA robust design.\n") == ["banned_word"]
 
     def test_marker_indented_three_spaces_is_still_a_fence(self) -> None:
@@ -285,3 +285,57 @@ class TestTokenizer:
 
     def test_low_signal_compound_stays_info(self) -> None:
         assert [f.severity for f in lint_prose("a comprehensive-ish plan", BANNED)] == [INFO]
+
+
+class TestListNestedFences:
+    """A fence marker's indent is measured from its list item, not column zero.
+
+    The positive cases use tilde fences on purpose. When a backtick fence goes
+    unrecognized its own marker backticks stay in the text, and the inline-code
+    masker then pairs the opener's third backtick with the closer's first and
+    blanks the body anyway. That accident hides the defect from the public API
+    for backtick fences, so a backtick-based assertion here would pass against
+    the broken measurement and prove nothing. A tilde fence carries no
+    backticks, so its body is genuinely exposed.
+    """
+
+    def test_four_spaces_deep_inside_a_nested_item_is_a_fence(self) -> None:
+        text = "- item\n  - nested:\n\n    ~~~\n    robust significant\n    ~~~\n\nDone.\n"
+        assert kinds(text) == []
+
+    def test_a_blank_line_does_not_close_the_containing_item(self) -> None:
+        assert kinds("- item\n\n    ~~~\n    robust\n    ~~~\n\nDone.\n") == []
+
+    def test_an_ordered_marker_opens_a_container(self) -> None:
+        assert kinds("1. step\n\n      ~~~\n      robust\n      ~~~\n\nDone.\n") == []
+
+    def test_top_level_four_space_marker_is_still_indented_code(self) -> None:
+        assert kinds("Text.\n\n    ~~~\n\nA robust design.\n") == ["banned_word"]
+
+    def test_four_spaces_past_the_container_is_indented_code(self) -> None:
+        # The item's content column is 2, so a marker at 6 is four past it.
+        assert kinds("- item\n\n      ~~~\n\nA robust design.\n") == ["banned_word"]
+
+    def test_a_dedent_closes_the_container(self) -> None:
+        text = "- item\n\nBack at top level.\n\n    ~~~\n\nA robust design.\n"
+        assert kinds(text) == ["banned_word"]
+
+    def test_repository_example_masks_its_list_nested_block(self) -> None:
+        # docs/codeql-rollout-checklist.md carries a four-space-indented fence
+        # under a nested list item. This asserts the masking directly because
+        # the block is backtick-fenced, and the accident described in the class
+        # docstring makes the public path blind to the difference here.
+        example = PROJECT_ROOT / "docs" / "codeql-rollout-checklist.md"
+        source = example.read_text(encoding="utf-8")
+        opener = next(
+            (
+                index
+                for index, line in enumerate(source.splitlines())
+                if line.startswith("    ```") and not line.startswith("     ")
+            ),
+            None,
+        )
+        assert opener is not None, f"no four-space-indented fence in {example}"
+        masked, unterminated = mod._blank_fenced_blocks(source)
+        assert unterminated is None
+        assert masked[opener : opener + 3] == ["", "", ""]
