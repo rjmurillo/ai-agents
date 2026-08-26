@@ -1,7 +1,12 @@
 ---
+id: ADR-027
 status: proposed
 date: 2025-12-23
-decision-makers: User, Architect Agent
+decision-makers: [User, Architect Agent]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
 consulted: Analyst (Session 80), Independent-Thinker
 informed: Implementer, DevOps, Orchestrator
 ---

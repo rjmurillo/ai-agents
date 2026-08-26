@@ -1,8 +1,32 @@
+---
+id: ADR-028
+status: superseded
+date: 2026-08-25
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: ADR-056
+explainer: null
+implemented: true
+---
+
 # ADR-028: PowerShell Output Schema Consistency
 
 ## Status
 
-Accepted
+Superseded by ADR-056 (2026-08-25, issue #5201). The repository carries zero
+`.ps1` files outside `.venv` (verified with `find . -name '*.ps1'`), so the
+PowerShell-specific prescriptions here (cmdlet-convention examples,
+`Add-Member`) no longer apply to any script in the corpus. The underlying
+principle does not retire with the language: ADR-056 ("ADR-028 schema
+consistency is enforced at the envelope level", ADR-056 Consequences)
+re-platforms the same rule onto the current Python skill-output envelope
+(`scripts/github_core/output.py`, `.agents/schemas/skill-output.schema.json`).
+A prior draft of this record marked it `deprecated`; that was wrong; ADR-056
+still cites it in present tense as a live, enforced dependency, and marking
+the source of an active rule `deprecated` reproduces the exact
+status-contradiction bug issue #5201 exists to fix.
+
+Previously: Accepted
 
 ## Date
 

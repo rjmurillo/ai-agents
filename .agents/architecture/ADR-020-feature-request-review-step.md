@@ -1,10 +1,21 @@
 ---
+id: ADR-020
 status: proposed
 date: 2025-12-19
-decision-makers: ["architect", "user"]
-consulted: ["analyst", "roadmap"]
-informed: ["implementer", "devops"]
+decision-makers: [architect, user]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
+consulted:
+- analyst
+- roadmap
+informed:
+- implementer
+- devops
 ---
+
+<!-- # taste-lint: ignore file-size (long-form prose ADR at 502 lines; the 500-line limit targets code cohesion and does not apply to a decision record, cf. ADR-035 which carries the same exemption) -->
 
 # ADR-020: Feature Request Review Step in Issue Triage Workflow
 

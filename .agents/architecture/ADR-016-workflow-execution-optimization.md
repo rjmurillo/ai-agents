@@ -1,3 +1,14 @@
+---
+id: ADR-016
+status: accepted
+date: 2025-12-22
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-016: Workflow Execution Optimization Strategy
 
 ## Status

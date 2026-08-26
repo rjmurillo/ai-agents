@@ -1,3 +1,14 @@
+---
+id: ADR-046
+status: accepted
+date: 2026-02-08
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-046: Planning Agent Rename for Role Clarity
 
 ## Status

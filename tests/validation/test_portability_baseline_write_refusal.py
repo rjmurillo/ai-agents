@@ -70,6 +70,15 @@ def _populate(root: Path) -> None:
             skill_dir = root / name / skill
             skill_dir.mkdir(parents=True, exist_ok=True)
             (skill_dir / "SKILL.md").write_text(SKILL_BODY.format(name=skill), encoding="utf-8")
+    # check_skill_md_portability requires src/copilot-cli/instructions to exist
+    # and hold at least one readable file (issue #5214); a clean file (no
+    # upstream refs) keeps the "6 recorded files" assumption elsewhere in this
+    # module intact, since it contributes 0 to the files dict.
+    instructions_dir = root / "src" / "copilot-cli" / "instructions"
+    instructions_dir.mkdir(parents=True, exist_ok=True)
+    (instructions_dir / "x.instructions.md").write_text(
+        "Clean prose with no upstream refs.\n", encoding="utf-8"
+    )
 
 
 def _repo(root: Path) -> None:

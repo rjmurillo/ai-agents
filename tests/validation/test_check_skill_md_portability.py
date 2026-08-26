@@ -345,6 +345,14 @@ class TestTerminatorWordBoundary:
         # issue #3582: main() now requires every REQUIRED_SKILLS_ROOTS entry to
         # exist, not just .claude, so a bare `.claude`-only fixture exits 2.
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        # issue #5214: main() now also requires REQUIRED_EXTRA_ROOTS to exist,
+        # with at least one Markdown file (an empty required root fails closed
+        # too, per the same issue's review).
+        instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
+        instructions_dir.mkdir(parents=True)
+        (instructions_dir / "_placeholder.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -360,6 +368,14 @@ class TestTerminatorWordBoundary:
         # issue #3582: main() now requires every REQUIRED_SKILLS_ROOTS entry to
         # exist, not just .claude, so a bare `.claude`-only fixture exits 2.
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        # issue #5214: main() now also requires REQUIRED_EXTRA_ROOTS to exist,
+        # with at least one Markdown file (an empty required root fails closed
+        # too, per the same issue's review).
+        instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
+        instructions_dir.mkdir(parents=True)
+        (instructions_dir / "_placeholder.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -753,6 +769,11 @@ class TestPluginRootScan:
         """End to end proof that the widened scan reaches the CLI exit code."""
         self._skill_md(tmp_path, ".claude", "a/SKILL.md", "Clean prose.\n")
         self._skill_md(tmp_path, "src/copilot-cli", "a/SKILL.md", "Reads .agents/x\n")
+        instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
+        instructions_dir.mkdir(parents=True)
+        (instructions_dir / "_placeholder.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
         baseline = tmp_path / "baseline.json"
         baseline.write_text('{"files": {}}', encoding="utf-8")
         code = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -784,6 +805,11 @@ class TestPluginRootScan:
         """``src/claude`` ships agents and rules and has no skills tree today."""
         for name in cmp.REQUIRED_SKILLS_ROOTS:
             self._skill_md(tmp_path, name, "a/SKILL.md", "Clean prose.\n")
+        for name in cmp.REQUIRED_EXTRA_ROOTS:
+            (tmp_path / name).mkdir(parents=True, exist_ok=True)
+            (tmp_path / name / "_placeholder.md").write_text(
+                "Clean prose.\n", encoding="utf-8"
+            )
         assert cmp.missing_required_roots(tmp_path) == []
         baseline = tmp_path / "baseline.json"
         baseline.write_text('{"files": {}}', encoding="utf-8")
@@ -842,6 +868,12 @@ class TestExtraScanDirs:
             placeholder = root / required / "skills" / "_placeholder" / "SKILL.md"
             placeholder.parent.mkdir(parents=True, exist_ok=True)
             placeholder.write_text("placeholder\n", encoding="utf-8")
+        for required in cmp.REQUIRED_EXTRA_ROOTS:
+            extra_dir = root / required
+            extra_dir.mkdir(parents=True, exist_ok=True)
+            (extra_dir / "_placeholder.md").write_text(
+                "placeholder\n", encoding="utf-8"
+            )
 
     def test_extra_scan_dirs_returns_existing_dirs(self, tmp_path: Path) -> None:
         """Directories in EXTRA_SCAN_ROOTS that exist are returned."""
@@ -921,6 +953,203 @@ class TestExtraScanDirs:
         assert ".claude/commands/annotated.md" not in counts
 
 
+class TestInstructionsScanRoot:
+    """``src/copilot-cli/instructions`` closes the coverage gap from issue #5214.
+
+    ``check_skill_md_portability.py`` scanned only ``skills/`` trees and a
+    handful of source dirs, so the generated Copilot instruction mirror
+    (``build/scripts/generate_rules.py``) shipped undeclared upstream-only
+    paths in prose with no gate reading it: neither the plugin-root ``skills/``
+    scan (wrong subtree) nor the generator's ``applyTo``-only
+    ``_INTERNAL_PATH_PREFIXES`` filter (globs, not body prose) covered it.
+    ``.github/instructions`` is the sibling in-repo Copilot mirror, not a
+    shipped plugin root, and MUST stay out of scope.
+    """
+
+    def _write_md(self, root: Path, rel: str, body: str) -> None:
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body, encoding="utf-8")
+        for required in cmp.REQUIRED_SKILLS_ROOTS:
+            placeholder = root / required / "skills" / "_placeholder" / "SKILL.md"
+            placeholder.parent.mkdir(parents=True, exist_ok=True)
+            placeholder.write_text("placeholder\n", encoding="utf-8")
+
+    def test_instructions_root_is_in_extra_scan_roots(self) -> None:
+        assert "src/copilot-cli/instructions" in cmp.EXTRA_SCAN_ROOTS
+
+    def test_every_on_disk_instructions_tree_is_in_extra_scan_roots(self) -> None:
+        """Converse guard: every shipped ``instructions/`` tree must be configured.
+
+        The previous test only proves the configured root exists; it says
+        nothing about a DIFFERENT on-disk plugin ``instructions/`` tree that
+        ``EXTRA_SCAN_ROOTS`` fails to name. Issue #5214 was exactly this
+        shape: a shipped ``instructions/`` tree existed with no scan root
+        naming it, and nothing caught the gap until a human filed it. Walk
+        every real plugin root in the checked-out repo and assert each one's
+        ``instructions/`` directory, if present, is configured.
+        """
+        root = Path(__file__).resolve().parents[2]
+        for plugin_root in cmp.PLUGIN_ROOTS:
+            candidate = root / plugin_root / "instructions"
+            if not candidate.is_dir():
+                continue
+            rel = candidate.relative_to(root).as_posix()
+            assert rel in cmp.EXTRA_SCAN_ROOTS, (
+                f"{rel} ships an instructions/ tree but is not in EXTRA_SCAN_ROOTS"
+            )
+
+    def test_instructions_dir_refs_are_included_in_scan(self, tmp_path: Path) -> None:
+        """A ref inside src/copilot-cli/instructions/ is counted by scan_plugin_roots."""
+        self._write_md(
+            tmp_path,
+            "src/copilot-cli/instructions/ci-scripts.instructions.md",
+            "Run scripts/validation/pre_pr.py before every push.\n",
+        )
+        counts = cmp.scan_plugin_roots(tmp_path)
+        assert "src/copilot-cli/instructions/ci-scripts.instructions.md" in counts
+        assert counts["src/copilot-cli/instructions/ci-scripts.instructions.md"] == 1
+
+    def test_github_instructions_mirror_is_not_scanned(self, tmp_path: Path) -> None:
+        """.github/instructions is the in-repo Copilot mirror, not a shipped
+        plugin root, so an upstream ref there must not be flagged."""
+        self._write_md(
+            tmp_path,
+            ".github/instructions/ci-scripts.instructions.md",
+            "Run scripts/validation/pre_pr.py before every push.\n",
+        )
+        counts = cmp.scan_plugin_roots(tmp_path)
+        assert ".github/instructions/ci-scripts.instructions.md" not in counts
+
+    def test_clean_instructions_file_not_in_counts(self, tmp_path: Path) -> None:
+        """An instructions file with no upstream refs does not appear in counts."""
+        self._write_md(
+            tmp_path,
+            "src/copilot-cli/instructions/clean.instructions.md",
+            "This file has no upstream refs.\n",
+        )
+        counts = cmp.scan_plugin_roots(tmp_path)
+        assert "src/copilot-cli/instructions/clean.instructions.md" not in counts
+
+    def test_instructions_dir_drift_causes_exit_1(self, tmp_path: Path) -> None:
+        """An unbaselined ref in an instructions/ file exits 1."""
+        self._write_md(
+            tmp_path,
+            "src/copilot-cli/instructions/drift.instructions.md",
+            "Write to .agents/sessions/output.md\n",
+        )
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text('{"files": {}}', encoding="utf-8")
+        code = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert code == 1
+
+    def test_vendor_marker_suppresses_instructions_dir_refs(self, tmp_path: Path) -> None:
+        """A vendor-portability marker in an instructions/ file silences its refs."""
+        self._write_md(
+            tmp_path,
+            "src/copilot-cli/instructions/annotated.instructions.md",
+            "<!-- vendor-portability: upstream refs only -->\n"
+            "Read .agents/sessions/ for context.\n",
+        )
+        counts = cmp.scan_plugin_roots(tmp_path)
+        assert "src/copilot-cli/instructions/annotated.instructions.md" not in counts
+
+    def test_missing_required_extra_roots_reports_declared_order(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The docstring promises declared order; a frozenset cannot give that.
+
+        Copilot review on PR #5284 found ``missing_required_extra_roots``
+        iterated ``REQUIRED_EXTRA_ROOTS`` (a ``frozenset``, unordered)
+        directly, so with today's single member the output happens to be
+        deterministic, but a second member would make the order arbitrary,
+        contradicting the function's own "in declared order" docstring.
+        Simulating a second required root here (today there is only one)
+        proves the fix reads from ``EXTRA_SCAN_ROOTS`` (the ordered tuple),
+        not from the frozenset.
+        """
+        monkeypatch.setattr(
+            cmp, "EXTRA_SCAN_ROOTS", ("zzz_root", "aaa_root", "mmm_root")
+        )
+        monkeypatch.setattr(
+            cmp, "REQUIRED_EXTRA_ROOTS", frozenset({"zzz_root", "aaa_root", "mmm_root"})
+        )
+
+        assert cmp.missing_required_extra_roots(tmp_path) == [
+            "zzz_root",
+            "aaa_root",
+            "mmm_root",
+        ]
+
+    def test_missing_instructions_root_exits_2(self, tmp_path: Path) -> None:
+        """A checkout missing the shipped instructions/ tree must fail closed.
+
+        Without ``REQUIRED_EXTRA_ROOTS``, a checkout where generation failed
+        to produce ``src/copilot-cli/instructions`` (or the directory was
+        moved or deleted) would scan zero files there and still report clean,
+        the same silent fail-open shape issue #5214 itself exemplified.
+        """
+        for required in cmp.REQUIRED_SKILLS_ROOTS:
+            placeholder = tmp_path / required / "skills" / "_placeholder" / "SKILL.md"
+            placeholder.parent.mkdir(parents=True, exist_ok=True)
+            placeholder.write_text("placeholder\n", encoding="utf-8")
+        # Deliberately do NOT create src/copilot-cli/instructions.
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text('{"files": {}}', encoding="utf-8")
+        code = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert code == 2
+
+    def test_present_but_empty_instructions_root_exits_2(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An existing but empty required root must fail closed too.
+
+        Copilot review on PR #5284 found that ``missing_required_extra_roots``
+        only checks ``Path.is_dir()``: a generator that creates its output
+        directory and then fails to populate it (a partial or failed run)
+        passes that check and would otherwise report a clean 0-refs scan
+        indistinguishable from a fully-generated empty tree.
+        """
+        for required in cmp.REQUIRED_SKILLS_ROOTS:
+            placeholder = tmp_path / required / "skills" / "_placeholder" / "SKILL.md"
+            placeholder.parent.mkdir(parents=True, exist_ok=True)
+            placeholder.write_text("placeholder\n", encoding="utf-8")
+        # Directory exists (satisfies missing_required_extra_roots) but has
+        # no Markdown files in it.
+        (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text('{"files": {}}', encoding="utf-8")
+
+        code = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+
+        assert code == 2
+        err = capsys.readouterr().err
+        assert "examined zero Markdown files" in err
+        assert "src/copilot-cli/instructions" in err
+
+    def test_instructions_root_appears_in_success_report(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The success line names every examined root, including instructions/.
+
+        Proves the coverage fix: ``src/copilot-cli/instructions`` used to be
+        invisible in ``files_by_root`` (extra scan dirs were excluded from
+        it), so the success report could not distinguish "instructions/ was
+        examined and clean" from "instructions/ was never read."
+        """
+        self._write_md(
+            tmp_path,
+            "src/copilot-cli/instructions/clean.instructions.md",
+            "Clean prose with no upstream refs.\n",
+        )
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text('{"files": {}}', encoding="utf-8")
+        code = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "src/copilot-cli/instructions (1)" in out
+
+
 class TestReport:
     """The output branches. None had coverage before ``_report`` was extracted."""
 
@@ -930,14 +1159,15 @@ class TestReport:
             "improvements": [],
             "current": {},
             "baseline": {},
-            "scanned": [Path("/repo/.claude/skills")],
-            "root": Path("/repo"),
+            "scanned_by_root": {".claude/skills": 1},
             "output_format": "text",
         }
         base.update(over)
         return base
 
-    def test_json_format_emits_the_four_totals(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_json_format_emits_totals_and_scanned_by_root(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         cmp._report(
             **self._args(
                 regressions=["a: 2 refs"],
@@ -953,6 +1183,7 @@ class TestReport:
             "improvements": ["b: 1 ref"],
             "current_total": 2,
             "baseline_total": 2,
+            "scanned_by_root": {".claude/skills": 1},
         }
 
     def test_json_format_prints_no_prose(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -966,6 +1197,25 @@ class TestReport:
         out = capsys.readouterr().out
         assert "[DRIFT] a: 2 refs" in out
         assert "No Markdown vendor-portability drift" not in out
+
+    def test_drift_still_prints_scanned_root_counts(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A DRIFT result must still say what was examined, per #5284 review.
+
+        Before this, the text branch returned inside the ``if regressions``
+        block before ``roots`` was computed, so a failing gate omitted every
+        examined-file count. An operator reading a red run had no way to tell
+        whether the full corpus was scanned or the run silently narrowed.
+        """
+        cmp._report(
+            **self._args(
+                regressions=["a: 2 refs"],
+                scanned_by_root={".claude/skills": 42, "src/copilot-cli/instructions": 7},
+            )
+        )
+        out = capsys.readouterr().out
+        assert "Scanned .claude/skills (42), src/copilot-cli/instructions (7)." in out
 
     def test_improvements_print_alongside_the_clean_line(
         self, capsys: pytest.CaptureFixture[str]
@@ -982,13 +1232,38 @@ class TestReport:
         """Reading 'across 0 files' as 'scanned 0 files' is what hid issue #3578."""
         cmp._report(
             **self._args(
-                scanned=[
-                    Path("/repo/.claude/skills"),
-                    Path("/repo/src/copilot-cli/skills"),
-                ]
+                scanned_by_root={
+                    ".claude/skills": 3,
+                    "src/copilot-cli/skills": 3,
+                }
             )
         )
-        assert "Scanned .claude/skills, src/copilot-cli/skills." in capsys.readouterr().out
+        assert (
+            "Scanned .claude/skills (3), src/copilot-cli/skills (3)."
+            in capsys.readouterr().out
+        )
+
+    def test_the_clean_line_distinguishes_zero_examined_from_never_walked(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An empty root and an unwalked root must not read the same (#5214 review)."""
+        cmp._report(**self._args(scanned_by_root={"src/copilot-cli/instructions": 0}))
+        assert "src/copilot-cli/instructions (0)" in capsys.readouterr().out
+
+    def test_json_format_includes_scanned_by_root(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        cmp._report(
+            **self._args(
+                output_format="json",
+                scanned_by_root={".claude/skills": 5, "src/copilot-cli/instructions": 2},
+            )
+        )
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["scanned_by_root"] == {
+            ".claude/skills": 5,
+            "src/copilot-cli/instructions": 2,
+        }
 
 
 class TestDiff:
@@ -1038,14 +1313,25 @@ class TestMarkerDiff:
 
 class TestMainCli:
     def _required_roots(self, root: Path) -> None:
-        """Create an empty skills tree in every required root.
+        """Create every required root, with zero ref-count content.
 
-        Empty trees contribute no counts, so the tests keep their original
-        expectations while satisfying the required-root check that closes the
-        silent-narrowing hole.
+        The skills roots stay empty trees, which contribute no counts, so the
+        tests keep their original expectations while satisfying the
+        required-root check that closes the silent-narrowing hole. The extra
+        roots (unlike skills roots) must also examine at least one Markdown
+        file or main() exits 2 (issue #5214 review: an existing-but-empty
+        required extra root reads as a failed generation, not a clean scan),
+        so each gets one placeholder file with no upstream refs, contributing
+        0 to ref_counts the same as an empty skills tree does.
         """
         for name in cmp.REQUIRED_SKILLS_ROOTS:
             (root / name / "skills").mkdir(parents=True, exist_ok=True)
+        for name in cmp.REQUIRED_EXTRA_ROOTS:
+            extra_dir = root / name
+            extra_dir.mkdir(parents=True, exist_ok=True)
+            (extra_dir / "_placeholder.md").write_text(
+                "placeholder\n", encoding="utf-8"
+            )
 
     def test_exit_2_when_skills_dir_missing(self, tmp_path: Path) -> None:
         rc = cmp.main(["--repo-root", str(tmp_path)])
@@ -1061,6 +1347,9 @@ class TestMainCli:
         # refuses the write, because one starved root is a partial checkout.
         (tmp_path / "src" / "copilot-cli" / "skills" / "a").mkdir(parents=True)
         (tmp_path / "src" / "copilot-cli" / "skills" / "a" / "SKILL.md").write_text(
+            "Nothing upstream.\n", encoding="utf-8"
+        )
+        (tmp_path / "src" / "copilot-cli" / "instructions" / "x.instructions.md").write_text(
             "Nothing upstream.\n", encoding="utf-8"
         )
         _seed_git_tree(tmp_path)
@@ -1148,6 +1437,7 @@ class TestUnexpectedScanException:
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
         (skills / "SKILL.md").write_text("Some content.\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
@@ -1165,6 +1455,7 @@ class TestUnexpectedScanException:
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
         (skills / "SKILL.md").write_text("Some content.\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
@@ -1317,6 +1608,11 @@ class TestAstCodeStripping:
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
+        instructions_dir.mkdir(parents=True)
+        (instructions_dir / "_placeholder.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
         (skills / "SKILL.md").write_text(
             "# Skill\n\nExample:\n\n    write to .agents/x.md\n", encoding="utf-8"
         )
@@ -1385,6 +1681,11 @@ class TestScanAccounting:
         self._skill_md(tmp_path, "a/SKILL.md", "Clean prose.\n")
         self._skill_md(tmp_path, "b/SKILL.md", "Also clean.\n")
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
+        instructions_dir.mkdir(parents=True)
+        (instructions_dir / "_placeholder.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -1399,6 +1700,11 @@ class TestScanAccounting:
         self._skill_md(tmp_path, "a/SKILL.md", "Clean prose.\n")
         self._skill_md(tmp_path, "b/SKILL.md", "Also clean.\n")
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
+        instructions_dir.mkdir(parents=True)
+        (instructions_dir / "_placeholder.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(
@@ -1423,6 +1729,12 @@ class TestBaselineSemanticConflictGuard:
     def _init_repo(self, root: Path) -> None:
         (root / ".claude" / "skills" / "a").mkdir(parents=True)
         (root / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        for required in cmp.REQUIRED_EXTRA_ROOTS:
+            extra_dir = root / required
+            extra_dir.mkdir(parents=True, exist_ok=True)
+            (extra_dir / "_placeholder.md").write_text(
+                "Clean prose.\n", encoding="utf-8"
+            )
         (root / ".claude" / "skills" / "a" / "SKILL.md").write_text(
             "Clean prose.\n", encoding="utf-8"
         )
@@ -1665,6 +1977,32 @@ class TestBaselineSemanticConflictGuard:
         """Edge: the co-change guard stays aligned with PLUGIN_ROOTS."""
         assert cmp._is_measured_input("src/claude/skills/example/SKILL.md") is True
 
+    def test_extra_scan_root_counts_as_measured_input(self) -> None:
+        """The co-change guard must cover EXTRA_SCAN_ROOTS, not only PLUGIN_ROOTS.
+
+        AI-Spec-Validation review on PR #5284 found this gap: scan_all() folds
+        EXTRA_SCAN_ROOTS (.claude/commands, templates/agents,
+        src/copilot-cli/instructions) into the same baseline as the plugin
+        skills/ trees, but _is_measured_input() only recognized the latter, so
+        a co-change to an instructions mirror plus the baseline in one commit
+        was invisible to the --base-ref semantic-conflict guard.
+        """
+        assert (
+            cmp._is_measured_input(
+                "src/copilot-cli/instructions/example.instructions.md"
+            )
+            is True
+        )
+        assert cmp._is_measured_input(".claude/commands/example.md") is True
+        assert cmp._is_measured_input("templates/agents/example.shared.md") is True
+
+    def test_non_md_file_under_extra_scan_root_is_not_measured_input(self) -> None:
+        """Negative: only Markdown files feed this scanner's counts."""
+        assert (
+            cmp._is_measured_input("src/copilot-cli/instructions/example.json")
+            is False
+        )
+
     def _init_repo_with_debt(self, root: Path) -> None:
         """Seed a committed tree carrying one unsuppressed ref and a matching baseline."""
         self._init_repo(root)
@@ -1743,6 +2081,68 @@ class TestBaselineSemanticConflictGuard:
         out = capsys.readouterr().out
         assert "Counts rose above the baseline recorded at" in out
         assert ".claude/skills/a/SKILL.md" in out
+
+    def test_instructions_mirror_raised_count_is_caught(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Same guard as the plugin-skills case, but for an EXTRA_SCAN_ROOTS file.
+
+        Before _is_measured_input() covered EXTRA_SCAN_ROOTS, this exact
+        co-change (new undeclared refs under src/copilot-cli/instructions/
+        plus a baseline update, in one commit) would slip past --base-ref: the
+        guard would not have recognized the changed file as measured input at
+        all, so it read as an unrelated, allowed co-change.
+        """
+        self._init_repo(tmp_path)
+        instructions_file = (
+            tmp_path / "src" / "copilot-cli" / "instructions" / "example.instructions.md"
+        )
+        instructions_file.write_text("Uses .agents/state.\n", encoding="utf-8")
+        (tmp_path / "baseline.json").write_text(
+            json.dumps(
+                {
+                    "files": {
+                        "src/copilot-cli/instructions/example.instructions.md": 1
+                    },
+                    "marker_files": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+        subprocess.run(["git", "commit", "-qm", "instructions debt"], cwd=tmp_path, check=True)
+        base_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=tmp_path, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+
+        instructions_file.write_text(
+            "Files: .agents/a, .agents/b, .claude/review-axes/c.\n", encoding="utf-8"
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps(
+                {
+                    "files": {
+                        "src/copilot-cli/instructions/example.instructions.md": 3
+                    },
+                    "marker_files": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "raise instructions count"],
+            cwd=tmp_path,
+            check=True,
+        )
+
+        rc = self._run(tmp_path, base_sha)
+
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "Counts rose above the baseline recorded at" in out
+        assert "src/copilot-cli/instructions/example.instructions.md" in out
 
     def test_baseline_absent_at_base_ref_fails_closed(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -2031,6 +2431,11 @@ class TestNestingExhaustionGate:
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
+        instructions_dir.mkdir(parents=True)
+        (instructions_dir / "_placeholder.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
         (skills / "SKILL.md").write_text(body, encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
