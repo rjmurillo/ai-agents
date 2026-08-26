@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 4aaa8be9873ed4122b213bfb075c65c48b08b10f
+qaCommit: a434f2e1a943ec974049c7258513bee81f2ac303
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -9,7 +9,7 @@ qaCommit: 4aaa8be9873ed4122b213bfb075c65c48b08b10f
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `main` (retargeted by GitHub after PR #5209 squash-merged and its branch was deleted; was `claude/adr-evaluation-tooling-6od8rd`)
-**Validated at commit**: `4aaa8be9873ed4122b213bfb075c65c48b08b10f` (see Addendum 65)
+**Validated at commit**: `a434f2e1a943ec974049c7258513bee81f2ac303` (see Addendum 66)
 
 ## Verdict
 
@@ -1446,4 +1446,16 @@ Full evidence, including the exact token structures verified and the full mutati
 Full suite re-run clean after the round-22 fix: `tests/test_markdown_parser.py` (82 passed) combined with `tests/validation/test_check_adr_lifecycle.py`, `tests/validation/test_check_adr_links.py`, and `tests/test_adr_063_memory_skill_decomposition.py`: 387 passed. `ruff check`: clean on both touched files. Taste-count ratchet unchanged at baseline 575. `pre_pr.py` (full suite): passed on the round-22 commit (confirmed via exit code before this addendum was written).
 
 **Rebound to** `4aaa8be9873ed4122b213bfb075c65c48b08b10f`.
+
+## Addendum 66: same round-23 findings and fixes as Addendum 65 of the campaign report
+
+Same discovery, same fix as Addendum 65 of the campaign report: the owner merged PR #5323 (which carried the round-22 fix) via squash merge before a Copilot review landed on PR #5323, and that review found two real gaps in the round-22 fix. First, `_is_backslash_escaped` sliced `markdown[:pos]` on every rejected candidate in the retry loop, costing O(N^2) on a document with N escaped decoys sharing the real token's content (CWE-400); confirmed by timing the slice-based check against a backward-scan alternative on 1000/2000/4000/8000 decoys, where wall time roughly quadrupled per doubling for the slice version (0.6ms/1.7ms/6.1ms/21.4ms) and grew linearly for the backward scan (0.26ms/0.56ms/1.4ms/3.0ms). Second, the round-22 regression test only covered an odd (escaped, count 1) and a zero backslash count, never an even, nonzero count; per CommonMark spec section 2.4 two backslashes escape each other, so that branch is genuinely unescaped and behaves differently only from a naive "any backslash escapes" bug, which none of the round-22 tests could distinguish.
+
+Fixed (commit `a434f2e1a943ec974049c7258513bee81f2ac303`) by rewriting `_is_backslash_escaped` to walk backward from `pos` counting the immediately preceding backslash run, instead of slicing the whole prefix (same parity result, bounded cost); and by adding `test_an_even_backslash_count_before_the_real_comment_is_not_escaped`, whose fixture appends a double-backslash-preceded real comment after the round-22 decoy. Mutation-proven: reverting the parity check to `count > 0` reproduces the real comment's hidden status leaking unmasked (`Accepted` appears twice instead of once) and fails exactly the new test, while all 82 other tests in the file stay green.
+
+Full evidence, including the timing measurements and the tokenizer verification that the double-backslash position is a genuine, separate `html_inline` token, is in Addendum 65 of the campaign report.
+
+Full suite re-run clean after the round-23 fixes: `tests/test_markdown_parser.py` (83 passed, +1) combined with `tests/validation/test_check_adr_lifecycle.py`, `tests/validation/test_check_adr_links.py`, and `tests/test_adr_063_memory_skill_decomposition.py`: 388 passed. `ruff check`: clean on both touched files. Taste-count ratchet unchanged at baseline 575.
+
+**Rebound to** `a434f2e1a943ec974049c7258513bee81f2ac303`.
 
