@@ -156,14 +156,16 @@ echo "exit=$?"   # 0 = clean, 1 = defects found, 2 = bad input
 | Manually searching for bad fences | Error-prone in large files, and the agent cannot track fence length by eye | Run `fix_fences.py` |
 | Simulating the state machine in-context | The script already does it, exactly and for free | Read the script's report |
 | Running `--write` across a whole repo unreviewed | A repair inside nested documentation is often the wrong fix | Report first, review, then write per path |
-| Copying opening fence line to close a block | Creates the exact bug this skill fixes | Always use plain ` ``` ` for closing |
-| Fixing fences without tracking block state | Misidentifies nested vs sequential blocks | Use the stateful line-by-line algorithm |
+| Copying opening fence line to close a block | Creates the exact bug this skill fixes | Close with the opener's character, no info string, at least the opener's length |
+| Fixing fences without tracking block state | Misidentifies nested vs sequential blocks | Run `fix_fences.py`, which tracks it |
 
 ## Prevention
 
 When generating markdown with code blocks:
 
-1. Always use plain \`\`\` for closing fences
+1. Close with the opener's fence character and no info string, at a length
+   at least the opener's. A four-backtick container needs four to close it,
+   which is what lets it hold a three-backtick example.
 2. Never copy the opening fence line to close
 3. Track block state when programmatically generating markdown
 
