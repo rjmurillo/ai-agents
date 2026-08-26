@@ -9,6 +9,7 @@ the code-skipping behavior, and the documented exit codes
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -26,13 +27,14 @@ lint_prose = mod.lint_prose
 parse_banned_words = mod.parse_banned_words
 discover_rules_file = mod.discover_rules_file
 main = mod.main
+scan_prose = mod.scan_prose
 HIGH = mod.HIGH
 INFO = mod.INFO
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 VOICE_RULE = PROJECT_ROOT / ".claude" / "rules" / "voice.md"
 
-BANNED = {"delve", "robust", "comprehensive", "nuanced", "significant"}
+BANNED = {"delve", "robust", "comprehensive", "nuanced", "significant", "landscape"}
 
 
 def kinds(text: str, banned: set[str] | None = None) -> list[str]:
@@ -169,10 +171,55 @@ class TestStructuralLayer:
         assert "signposting" in kinds(text)
 
     def test_signposting_mid_sentence_is_not_flagged(self) -> None:
-        assert kinds("We should look, then decide.\n") == []
+        # Capitalized so the line-start anchor is the only thing that can
+        # reject it; the lowercase form passes even with the anchor deleted.
+        assert kinds("We should Look, then decide.\n") == []
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "This is not a bug,\nit's a feature.\n",
+            "Refactoring isn't about speed,\nit's about risk.\n",
+        ],
+    )
+    def test_tell_that_straddles_a_hard_wrap_is_caught(self, text: str) -> None:
+        assert "contrast_framing" in kinds(text)
+
+    def test_match_does_not_cross_a_paragraph_break(self) -> None:
+        assert kinds("A thing is not here,\n\nit's elsewhere.\n") == []
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "The failure is not a flake, it's a real bug.\n",
+            "The queue is not slow, it's unbounded.\n",
+        ],
+    )
+    def test_noun_phrase_subject_is_caught(self, text: str) -> None:
+        # Anchoring on it/this/that missed every sentence with a real subject.
+        assert "contrast_framing" in kinds(text)
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Claim is inaccurate (7 lines, not 5), but immaterial.\n",
+            "| `v` | Not recognized | Keep it, but Claude ignores |\n",
+        ],
+    )
+    def test_ordinary_not_but_is_not_contrast_framing(self, text: str) -> None:
+        assert kinds(text) == []
+
+    def test_but_rather_is_still_contrast_framing(self) -> None:
+        assert kinds("It is not cosmetic, but rather structural.\n") == ["contrast_framing"]
 
     def test_model_identity_phrase_is_flagged(self) -> None:
         assert kinds("As an AI language model, I cannot.\n") == ["model_identity"]
+
+    def test_signposting_on_a_later_line_reports_that_line(self) -> None:
+        # The pattern consumes the preceding newline, so the reported offset
+        # must be advanced past it or every hit lands one line early.
+        findings = lint_prose("Intro line.\nHonestly, the queue drains.\n", BANNED)
+        assert [(f.line, f.column, f.kind) for f in findings] == [(2, 1, "signposting")]
 
     def test_findings_are_sorted_by_position(self) -> None:
         text = "Honestly, a robust plan.\nThis is not a bug, it's a feature.\n"
@@ -180,6 +227,65 @@ class TestStructuralLayer:
         assert [(f.line, f.column) for f in findings] == sorted(
             (f.line, f.column) for f in findings
         )
+
+
+class TestCoverageReporting:
+    """A run that read almost nothing must not look like a clean one."""
+
+    def test_unterminated_fence_is_a_high_finding(self) -> None:
+        findings = lint_prose("Intro.\n\n```bash\necho hi\n\nA robust design.\n", BANNED)
+        assert [(f.kind, f.severity) for f in findings] == [("unterminated_fence", HIGH)]
+
+    def test_unterminated_fence_fails_the_run(self, tmp_path: Path) -> None:
+        target = tmp_path / "d.md"
+        target.write_text("Intro.\n\n```bash\necho hi\n\nA robust design.\n", encoding="utf-8")
+        assert main([str(target), "--rules", str(VOICE_RULE)]) == 1
+
+    def test_closed_fence_produces_no_unterminated_finding(self) -> None:
+        assert kinds("```py\nx\n```\nprose.\n") == []
+
+    def test_scan_reports_examined_and_total_lines(self) -> None:
+        scan = scan_prose("Intro.\n\n```py\nx\n```\n\nOutro.\n", BANNED)
+        assert scan.total == 7
+        assert scan.examined == 2
+        assert scan.unterminated_fence_line is None
+
+    def test_clean_output_names_the_examined_count(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        target = tmp_path / "d.md"
+        target.write_text("The loader drops the message.\n", encoding="utf-8")
+        main([str(target), "--rules", str(VOICE_RULE)])
+        assert "0 findings in 1 prose line(s) of 1" in capsys.readouterr().out
+
+
+class TestTokenizer:
+    """A banned word keeps its identity through possessives and compounds."""
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("the landscape's shape", "landscape's"),
+            ("a landscape-level view", "landscape-level"),
+            ("a robust design", "robust"),
+        ],
+    )
+    def test_banned_word_forms_are_matched(self, text: str, expected: str) -> None:
+        assert [f.match for f in lint_prose(text, BANNED)] == [expected]
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "see https://x.com/robust for more",
+            "    </existing_landscape>",
+            "the field is called robust_mode",
+        ],
+    )
+    def test_non_prose_context_is_skipped(self, text: str) -> None:
+        assert lint_prose(text, BANNED) == []
+
+    def test_low_signal_compound_stays_info(self) -> None:
+        assert [f.severity for f in lint_prose("a comprehensive-ish plan", BANNED)] == [INFO]
 
 
 class TestRulesDiscovery:
@@ -199,6 +305,80 @@ class TestRulesDiscovery:
         rule.write_text("## Banned Vocabulary\n\n`zzz`.\n", encoding="utf-8")
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(tmp_path))
         assert discover_rules_file() == rule
+
+    def test_vendored_install_resolves_by_plugin_marker(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The leg that only fires in a consumer install: no env vars, cwd
+        # outside the repo, discovery walks up to .claude-plugin/plugin.json.
+        plugin = tmp_path / "plugin"
+        (plugin / ".claude-plugin").mkdir(parents=True)
+        (plugin / ".claude-plugin" / "plugin.json").write_text("{}", encoding="utf-8")
+        (plugin / "rules").mkdir()
+        rule = plugin / "rules" / "voice.md"
+        rule.write_text("## Banned Vocabulary\n\n`zzz`.\n", encoding="utf-8")
+        scripts = plugin / "skills" / "prose-self-check" / "scripts"
+        scripts.mkdir(parents=True)
+        copied = scripts / "prose_lint.py"
+        copied.write_text(Path(mod.__file__).read_text(encoding="utf-8"), encoding="utf-8")
+
+        monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        elsewhere = tmp_path / "consumer"
+        elsewhere.mkdir()
+        monkeypatch.chdir(elsewhere)
+
+        spec = importlib.util.spec_from_file_location("vendored_prose_lint", copied)
+        assert spec is not None and spec.loader is not None
+        vendored = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = vendored
+        try:
+            spec.loader.exec_module(vendored)
+        finally:
+            sys.modules.pop(spec.name, None)
+        assert vendored.discover_rules_file() == rule
+
+    def test_plugin_root_without_the_rule_falls_through(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        empty = tmp_path / "empty"
+        empty.mkdir()
+        mirror = tmp_path / "copilot" / "instructions"
+        mirror.mkdir(parents=True)
+        rule = mirror / "voice.instructions.md"
+        rule.write_text("## Banned Vocabulary\n\n`zzz`.\n", encoding="utf-8")
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(empty))
+        monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(tmp_path / "copilot"))
+        assert discover_rules_file() == rule
+
+    def test_install_root_fallback_resolves_both_layouts(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        elsewhere = tmp_path / "consumer"
+        elsewhere.mkdir()
+        monkeypatch.chdir(elsewhere)
+        root = tmp_path / "root"
+        (root / "instructions").mkdir(parents=True)
+        rule = root / "instructions" / "voice.instructions.md"
+        rule.write_text("## Banned Vocabulary\n\n`zzz`.\n", encoding="utf-8")
+        monkeypatch.setattr(mod, "_plugin_install_root", lambda: root)
+        assert discover_rules_file() == rule
+
+    def test_returns_none_when_nothing_is_reachable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(mod, "_plugin_install_root", lambda: None)
+        assert discover_rules_file() is None
+
+    def test_walk_up_finds_the_repo_plugin_root(self) -> None:
+        # The real module sits under .claude/, whose marker is the repo's own
+        # plugin manifest; this pins the walk-up itself, not a copy of it.
+        assert mod._plugin_install_root() == PROJECT_ROOT / ".claude"
 
     def test_copilot_instructions_mirror_is_accepted(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -238,6 +418,28 @@ class TestExitCodes:
         path = self._write(tmp_path, "text\n")
         assert main([path, "--rules", str(tmp_path / "nope.md")]) == 2
 
+    def test_rules_file_without_the_section_degrades_and_warns(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        rules = tmp_path / "voice.md"
+        rules.write_text("# Voice\n\nNo list here.\n", encoding="utf-8")
+        draft = tmp_path / "d.md"
+        draft.write_text("A robust plan.\n", encoding="utf-8")
+        assert main([str(draft), "--rules", str(rules)]) == 0
+        captured = capsys.readouterr()
+        assert "no 'Banned Vocabulary' section" in captured.err
+        assert "banned_word" not in captured.out
+
+    def test_help_exits_zero(self) -> None:
+        with pytest.raises(SystemExit) as exc:
+            main(["--help"])
+        assert exc.value.code == 0
+
+    def test_no_files_exits_two(self) -> None:
+        with pytest.raises(SystemExit) as exc:
+            main([])
+        assert exc.value.code == 2
+
     def test_missing_rules_degrades_to_structural_only(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -272,7 +474,11 @@ class TestOutput:
         payload = json.loads(capsys.readouterr().out)
         assert payload["high_severity_count"] == 1
         assert payload["banned_word_count"] == 19
-        assert payload["files"][str(target)][0]["kind"] == "banned_word"
+        entry = payload["files"][str(target)]
+        assert entry["findings"][0]["kind"] == "banned_word"
+        assert entry["examined_lines"] == 1
+        assert entry["source_lines"] == 1
+        assert entry["unterminated_fence_line"] is None
 
     def test_stdin_is_accepted(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("sys.stdin", __import__("io").StringIO("A robust plan.\n"))
