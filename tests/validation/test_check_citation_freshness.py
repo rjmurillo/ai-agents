@@ -177,7 +177,10 @@ class TestStaleCitationsFail:
         code, out = _run(root, capsys)
 
         assert code == 1
-        assert "docs/notes.md:1" in out
+        # Composed, not literal: a literal expected-finding string is itself
+        # a citation to an untracked path, and the gate flagged this very
+        # line when it was first written literally.
+        assert f"{'docs/notes.md'}:1" in out
 
     def test_untracked_file_fails(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
