@@ -41,6 +41,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -162,16 +163,33 @@ class TestTheDeferredGatesStillExist:
             "documents, without the flag that made it reviewable."
         )
 
-    def test_the_presence_check_reads_real_names(self) -> None:
-        """Negative control: a name that was never a gate must be reported.
+    def test_the_presence_check_notices_a_removed_gate(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Negative control: delete a real gate and the check above must fail.
 
-        Without this, the check above passes if `_SEQUENCE` is empty, if the
-        names drift into a shape nothing matches, or if the attribute read
-        silently yields nothing.
+        The earlier version asserted that an invented name was absent from
+        `_SEQUENCE`. That is true of any string nobody used, so it held whether
+        or not the guard above still discriminated, and review on PR #5319 said
+        so. It is the same vacuous-control shape this branch has now found four
+        times: a control written after the conclusion was settled, inheriting
+        it instead of testing for it.
+
+        This removes one of the four gates the guard is about and requires the
+        guard to name it. Nothing on disk changes: `_SEQUENCE` is patched for
+        the duration of this test.
         """
-        present = {gate.name for gate in pre_pr_sequence._SEQUENCE}
-        assert present, "_SEQUENCE exposed no gate names, so the check is vacuous."
-        assert "Gate That Never Existed" not in present
+        target = FORMERLY_DEFERRED_GATES[0]
+        survivors = tuple(gate for gate in pre_pr_sequence._SEQUENCE if gate.name != target)
+        assert len(survivors) == len(pre_pr_sequence._SEQUENCE) - 1, (
+            f"{target!r} is not in _SEQUENCE to begin with, so removing it "
+            "changes nothing and this control proves nothing. The guard above "
+            "should already be failing."
+        )
+        monkeypatch.setattr(pre_pr_sequence, "_SEQUENCE", survivors)
+
+        with pytest.raises(AssertionError, match=target):
+            self.test_every_formerly_deferred_gate_is_still_in_the_sequence()
 
 
 class TestAnyFutureDeferralMustBeSound:

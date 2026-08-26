@@ -1,4 +1,10 @@
-"""Nothing in the pre-push graph may outlive the container it runs in.
+"""No single child process in the pre-push graph outlives its container.
+
+That is narrower than "nothing outlives the container", which is what this
+docstring claimed until review on PR #5319. The clamp modeled here bounds one
+child. Two jobs run several, and their whole-job bounds come from their own
+aggregate deadlines, covered in `tests/test_safe_push_pr_branch.py` and
+`tests/validation/test_security_scan_budget.py`, not from the number below.
 
 Split out of `test_lefthook_declared_budget.py`, which crossed the 500-line
 taste threshold when the base-ref ratchet arrived. The seam is the one the
@@ -38,12 +44,17 @@ from tests.ci.lefthook_budget_model import (
 # was compared against is a single measured push rather than a cap. Two
 # different quantities.
 #
-# A hang is one job. So the property worth asserting is that no single job can
-# run longer than this inside a container, whatever its declared cap says. The
-# largest is `pre-pr-validation` at 240s, which does not route through
-# `_run_command` and so carries its own cap; every job whose work is a
-# subprocess is bounded by the clamp instead. Before this work the largest was
-# 1800s.
+# A hang is one child. So the property asserted here is that no single child
+# process can run longer than this inside a container, whatever its job's
+# declared cap says. The largest is `pre-pr-validation` at 240s, which does not
+# route through `_run_command` and so carries its own cap; every job whose work
+# is a subprocess is bounded by the clamp instead. Before this work the largest
+# was 1800s.
+#
+# Stated as "no single job" until review on PR #5319, which is the same
+# per-child-read-as-per-job confusion the ADR spent four rounds on. The whole-
+# job property is real now, but it comes from the aggregate deadlines in
+# `run_pytest` and `scan_pushed_heads`, not from this ceiling.
 #
 # READ THIS BEFORE TRUSTING THE NUMBER. What the clamp bounds is one CHILD
 # PROCESS, not one job, and this model conflates them for every job that spawns

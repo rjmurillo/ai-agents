@@ -93,9 +93,17 @@ DECLARED_BUDGET_BASELINE_SECONDS: dict[str, float] = {
 }
 
 # The order the count ratchets use. They are handed `--base-ref origin/main` by
-# lefthook, so on a workstation and inside the pre-push hook that ref is present
-# and current. `main` is the fallback for a clone that tracks it locally without
-# a remote of that name.
+# lefthook, so on a workstation and inside the pre-push hook that ref usually
+# exists. It is NOT guaranteed current: nothing in this hook fetches, so
+# `origin/main` is whatever the last fetch left behind. A stale base ref makes
+# this ratchet weaker, never stricter, because the comparison is against a
+# total that may be higher than main's real one, so a reduction on main can go
+# unrecorded here until something fetches. `ci-scripts.md` item 14 records the
+# opposite direction biting the count ratchets, where a stale base produced a
+# phantom regression; this comparison has no such failure mode, which is why
+# the staleness is stated rather than fixed by fetching inside a hook.
+# `main` is the fallback for a clone that tracks it locally without a remote of
+# that name.
 _BASE_REF_CANDIDATES = ("origin/main", "main")
 
 
@@ -247,14 +255,26 @@ def test_the_ratchet_catches_a_cap_raised_on_this_branch() -> None:
     raised = seconds(first["timeout"]) + 60.0
     first["timeout"] = f"{raised:.0f}s"
 
-    failure = _ratchet_failure(hook, declared_budget(doctored, hook), base_total, "origin/main")
+    doctored_total, _ = declared_budget(doctored, hook)
+    failure = _ratchet_failure(hook, (doctored_total, []), base_total, "origin/main")
     assert failure is not None, (
         f"raising {first['name']!r} by 60s did not trip the ratchet. The "
         "comparison does not discriminate, so the ratchet test above passes "
         "for a reason other than the declared total holding."
     )
-    assert str(first["name"]) in failure or "rose from" in failure, (
-        f"the failure text does not locate the rise: {failure!r}"
+    # Both numbers, not a phrase the message always carries. An earlier version
+    # asserted `name in failure or "rose from" in failure`, and every non-None
+    # `_ratchet_failure` contains "rose from", so the disjunction could not
+    # fail and said nothing about whether the message described THIS mutation.
+    # Review on PR #5319; same shape as the other vacuous controls this branch
+    # has found, in a control written to close one of them.
+    assert f"{base_total:.0f}s" in failure and f"{doctored_total:.0f}s" in failure, (
+        f"the failure names neither total. Expected {base_total:.0f}s and "
+        f"{doctored_total:.0f}s in: {failure!r}"
+    )
+    assert doctored_total > base_total, (
+        "the doctored config did not actually raise the declared total, so the "
+        "message above is about something other than the mutation."
     )
 
 
