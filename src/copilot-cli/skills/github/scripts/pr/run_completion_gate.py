@@ -474,6 +474,26 @@ TRUST_INSTALL_TRUSTED = "install-trusted"
 # on PR #5329.
 _PLUGIN_ROOT_ENV_VARS = ("COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT")
 
+# This dispatcher's own location, used to bind install trust to the plugin
+# that SHIPS this file. Module-level so tests can rebind it; the value is
+# never read from the environment.
+#
+# Being a directory the host named is not evidence the root belongs to us.
+# This repository already documents that it may not: _resolve_lib_dir in
+# pr-comment-responder/scripts/cluster_threads.py says COPILOT_PLUGIN_ROOT is
+# "set by the Copilot CLI host, may point to whichever plugin triggered the
+# context-mode hook, not this one", and resolve_pr_conflicts.py records the
+# same for CLAUDE_PLUGIN_ROOT under issue #4961. Both defend by validating
+# each candidate before use; this function did not.
+#
+# Reproduced before the fix (Copilot review, PR #5329): a co-installed plugin
+# root exported as COPILOT_PLUGIN_ROOT, holding its own
+# commands/pr-review-config.yaml, was install-trusted, and its criterion
+# `sh -c '...'` EXECUTED, printing its marker to stderr. Command trust caught
+# nothing because a bare `sh`, an option `-c`, and an option VALUE are all
+# skipped, so no argv token resolved to a work-tree file (CWE-829).
+_DISPATCHER_PATH = Path(__file__).resolve()
+
 # A trusted ref must look like a git revision and must not start with
 # ``-`` so it can never be parsed as a git option (argument injection).
 _TRUSTED_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@^~{}-]*$")
@@ -2385,7 +2405,14 @@ def _install_trusted_root(config_arg: str) -> InstallTrust | None:
     work_tree: Path | None = None
 
     for root in _host_declared_roots():
-        # Condition 3: the declared root and the project tree must be
+        # Condition 3a: the root must be the plugin that ships THIS file.
+        # A host variable names a plugin root; it does not promise the root
+        # is ours. See _DISPATCHER_PATH for the reproduction and for this
+        # repository's own record that the variable can name a foreign
+        # context-mode plugin.
+        if not _is_within(_DISPATCHER_PATH, root):
+            continue
+        # Condition 3b: the declared root and the project tree must be
         # DISJOINT, checked in BOTH directions.
         #
         # Testing only "root is not below the project" leaves the

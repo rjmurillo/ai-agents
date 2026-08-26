@@ -163,9 +163,11 @@ def _git_init(path: Path) -> None:
     review, PR #5329). A fixture that satisfies a guard only when the guard
     is absent is not a fixture, it is the defect wearing a costume.
     """
-    run = lambda *a: subprocess.run(  # noqa: E731
-        ["git", *a], cwd=path, check=True, capture_output=True, text=True,
-    )
+    def run(*a: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["git", *a], cwd=path, check=True, capture_output=True, text=True,
+        )
+
     run("init", "--quiet")
     run("config", "user.email", "test@example.invalid")
     run("config", "user.name", "test")
@@ -371,6 +373,64 @@ def test_an_option_shaped_trusted_ref_is_refused_for_an_installed_config(
     assert result.returncode == 2, (result.returncode, result.stderr)
     assert "Refusing malformed --trusted-ref" in result.stderr, result.stderr
     assert "gate_ran" not in result.stdout, result.stdout
+
+
+def test_a_foreign_plugin_root_is_not_install_trusted(tmp_path: Path) -> None:
+    """A co-installed plugin's root cannot trust that plugin's config.
+
+    The host variable names *a* plugin root, not necessarily ours. This
+    repository already records that: ``_resolve_lib_dir`` in
+    ``.claude/skills/pr-comment-responder/scripts/cluster_threads.py`` says
+    ``COPILOT_PLUGIN_ROOT`` is "set by the Copilot CLI host, may point to
+    whichever plugin triggered the context-mode hook, not this one", and
+    ``resolve_pr_conflicts.py`` records the same for ``CLAUDE_PLUGIN_ROOT``
+    under issue #4961. Both defend by validating each candidate;
+    ``_install_trusted_root`` checked only ``is_dir()``.
+
+    Reproduced end to end before the fix (Copilot review, PR #5329): the
+    foreign config was install-trusted and its criterion executed. Command
+    trust caught nothing, because a bare ``sh``, an option ``-c``, and an
+    option VALUE are all skipped, so no argv token resolved to a work-tree
+    file (CWE-829).
+
+    The criterion here writes a MARKER to stderr. Asserting the marker is
+    absent is the assertion that matters: a refusal message alone would not
+    distinguish "refused" from "refused after running the command".
+    """
+    plugin_root, _config, user_repo = _install_plugin(tmp_path)
+
+    foreign = tmp_path / "foreign-plugin"
+    (foreign / "commands").mkdir(parents=True)
+    foreign_config = foreign / "commands" / "pr-review-config.yaml"
+    foreign_config.write_text(
+        "completion_criteria:\n"
+        "  - name: pwn\n"
+        "    verification: command\n"
+        "    command: \"sh -c 'echo FOREIGN-PLUGIN-EXECUTION >&2'\"\n"
+        '    pass_when: "exit_code == 0"\n',
+        encoding="utf-8",
+    )
+
+    script = (
+        plugin_root / "skills" / "github" / "scripts" / "pr"
+        / "run_completion_gate.py"
+    )
+    env = dict(os.environ)
+    env.pop("CLAUDE_PLUGIN_ROOT", None)
+    # The foreign root, not the one shipping this dispatcher.
+    env["COPILOT_PLUGIN_ROOT"] = str(foreign)
+
+    result = subprocess.run(
+        [sys.executable, str(script), "--pull-request", "1",
+         "--config", str(foreign_config)],
+        cwd=user_repo, capture_output=True, encoding="utf-8",
+        errors="replace", env=env, check=False,
+    )
+
+    assert "FOREIGN-PLUGIN-EXECUTION" not in result.stderr, result.stderr
+    assert "FOREIGN-PLUGIN-EXECUTION" not in result.stdout, result.stdout
+    assert result.returncode != 0, (result.returncode, result.stdout)
+    assert _CONTAINMENT_REFUSAL in result.stderr, result.stderr
 
 
 def test_the_bundled_config_runs_its_criteria_end_to_end(tmp_path: Path) -> None:

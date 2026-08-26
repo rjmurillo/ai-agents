@@ -3281,6 +3281,30 @@ class TestTrackedSubset:
         assert "git ls-files failed" in error
 
 
+def _own_plugin_root(monkeypatch, root: Path) -> None:
+    """Declare `root` the plugin that ships the dispatcher under test.
+
+    Install trust requires the declared root to CONTAIN this dispatcher, so a
+    host variable naming a foreign co-installed plugin cannot trust that
+    plugin's config (CWE-829, reproduced in Copilot review on PR #5329).
+
+    These unit tests import the canonical script from the repository, so its
+    real ``__file__`` is nowhere near their ``tmp_path`` roots. Rebinding the
+    module constant states the arrangement each case assumes: "this
+    dispatcher is the one shipped inside that plugin". It does NOT weaken the
+    condition, because the condition is exercised for real elsewhere:
+    ``_install_plugin`` in tests/test_run_completion_gate_install.py copies
+    the script into the plugin root, so every CLI case satisfies it
+    genuinely, and a dedicated case there drives a foreign root end to end.
+    """
+    monkeypatch.setattr(
+        _dispatcher,
+        "_DISPATCHER_PATH",
+        root.resolve() / "skills" / "github" / "scripts" / "pr"
+        / "run_completion_gate.py",
+    )
+
+
 def _git_work_tree(path: Path) -> Path:
     """Create `path` as a real git work tree and return it.
 
@@ -3336,6 +3360,7 @@ class TestInstallTrustedRoot:
         root = tmp_path / "plugin"
         config = self._config_in(root / "commands")
         monkeypatch.setenv(env_var, str(root))
+        _own_plugin_root(monkeypatch, root)
 
         assert _dispatcher._install_trusted_root(str(config)).root == root.resolve()
 
@@ -3372,6 +3397,7 @@ class TestInstallTrustedRoot:
         config = self._config_in(root / "commands")
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", f"  {root}  ")
+        _own_plugin_root(monkeypatch, root)
 
         assert _dispatcher._install_trusted_root(str(config)).root == root.resolve()
 
@@ -3454,6 +3480,7 @@ class TestInstallTrustedRoot:
         link = root / "commands" / "linked.yaml"
         link.symlink_to(target)
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        _own_plugin_root(monkeypatch, root)
 
         assert _dispatcher._install_trusted_root(str(link)) is None
 
@@ -3469,6 +3496,7 @@ class TestInstallTrustedRoot:
         link = root / "commands" / "linked.yaml"
         link.symlink_to(target)
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        _own_plugin_root(monkeypatch, root)
 
         assert _dispatcher._install_trusted_root(str(link)).root == root.resolve()
 
@@ -3487,6 +3515,7 @@ class TestInstallTrustedRoot:
         claude_root.mkdir(parents=True)
         config = self._config_in(copilot_root / "commands")
         monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(copilot_root))
+        _own_plugin_root(monkeypatch, copilot_root)
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(claude_root))
 
         assert _dispatcher._install_trusted_root(str(config)).root == copilot_root.resolve()
@@ -3506,6 +3535,7 @@ class TestInstallTrustedRoot:
         root = tmp_path / "plugin"
         self._config_in(root / "commands")
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        _own_plugin_root(monkeypatch, root)
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
         monkeypatch.chdir(consumer)
 
@@ -3530,6 +3560,7 @@ class TestInstallTrustedRoot:
         self._config_in(root / "commands")
         self._config_in(consumer / "commands")
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        _own_plugin_root(monkeypatch, root)
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
         monkeypatch.chdir(consumer)
 
@@ -3684,6 +3715,7 @@ class TestWorkTreeProbeFailure:
             encoding="utf-8",
         )
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        _own_plugin_root(monkeypatch, root)
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
         return config
 
@@ -3875,6 +3907,7 @@ class TestInstallTrustedPathConsistency:
         )
 
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        _own_plugin_root(monkeypatch, root)
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
         monkeypatch.chdir(consumer)
 
@@ -3916,6 +3949,7 @@ class TestInstallTrustedPathConsistency:
         )
 
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        _own_plugin_root(monkeypatch, root)
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
 
         real = _dispatcher._absolute_config_candidate
@@ -3948,6 +3982,7 @@ class TestInstallTrustedPathConsistency:
             "completion_criteria:\n  - name: absolute\n", encoding="utf-8",
         )
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        _own_plugin_root(monkeypatch, root)
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
 
         resolved = _dispatcher._resolve_and_read_config(
@@ -3969,6 +4004,7 @@ class TestInstallTrustedPathConsistency:
         outside.parent.mkdir(parents=True)
         outside.write_text("completion_criteria: []\n", encoding="utf-8")
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        _own_plugin_root(monkeypatch, root)
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
 
         resolved = _dispatcher._resolve_and_read_config(
