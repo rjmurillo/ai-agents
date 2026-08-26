@@ -280,6 +280,14 @@ class TestResolveManifestModel:
         result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
         assert result is None
 
+    def test_whitespace_only_fixtures_sha_returns_none(self, tmp_path: Path) -> None:
+        """A whitespace-only hash ("   ") is truthy, so a bare `not
+        fixtures_sha` presence check let it through as though it were a
+        real hash. Strip before testing emptiness."""
+        manifest = {_UNIT: _keep_pin_entry(tmp_path, fixtures_sha="   ")}
+        result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
+        assert result is None
+
     def test_missing_artifact_returns_none(self, tmp_path: Path) -> None:
         manifest = {
             _UNIT: _keep_pin_entry(tmp_path, artifact="", create_artifact=False)
@@ -375,6 +383,19 @@ class TestFormatModelIdForPlatform:
     def test_haiku_tier_formats_too(self) -> None:
         result = format_model_id_for_platform("claude-haiku-5-0", self._VSCODE_TIERS)
         assert result == "Claude Haiku 5.0 (copilot)"
+
+    def test_single_component_version_formats_dot_form(self) -> None:
+        """claude-opus-5 (no minor) is a live id, not a hypothetical shape:
+        scripts/eval/_eval_common.py's MODEL_PRICING_RATES_USD_PER_1K_TOKENS
+        prices it, and scripts/eval/panels/owner-copilot-cli.json dispatches
+        it. An earlier version of the regex required a minor group and
+        rejected it outright."""
+        result = format_model_id_for_platform("claude-opus-5", self._COPILOT_TIERS)
+        assert result == "claude-opus-5"
+
+    def test_single_component_version_formats_display_form(self) -> None:
+        result = format_model_id_for_platform("claude-opus-5", self._VSCODE_TIERS)
+        assert result == "Claude Opus 5 (copilot)"
 
     def test_date_stamped_id_fails_closed(self) -> None:
         """Outside the documented major.minor shape: emit no pin rather

@@ -69,17 +69,31 @@ MANIFEST_MAX_AGE_DAYS = 180
 # finding names: ``claude-{tier}-{major}.{minor}`` or the hyphenated spelling
 # ``claude-{tier}-{major}-{minor}`` (scripts/validation/check_model_pins.py's
 # ``_normalize_id`` treats the two as equivalent by collapsing dots to
-# hyphens). Deliberately narrower than
-# ``check_model_pins._VERSIONED_RE`` (``^claude-(?:opus|sonnet|haiku)-[0-9]``),
-# which also matches a date-stamped id like ``claude-opus-4-20250514``. This
-# module fails closed on any shape outside major.minor rather than guess at a
-# per-platform spelling for a shape it was not designed against. Major and
-# minor are capped at two digits each: every observed Claude version number
-# (4.5, 4.6, 4-20, ...) fits that, while a capped digit count is what keeps
-# a date-stamped id (claude-opus-4-20250514) from matching as though
-# "20250514" were a minor version -- an 8-digit run cannot satisfy \d{1,2}.
+# hyphens), OR a single-component ``claude-{tier}-{major}`` with no minor at
+# all. The minor group is optional (not merely absent-tolerant elsewhere):
+# ``claude-opus-5`` is a live, currently-priced id
+# (``scripts/eval/_eval_common.py``'s ``MODEL_PRICING_RATES_USD_PER_1K_TOKENS``,
+# "Opus 5, 4.6, and 4.8: $5/$25 per MTok") that
+# ``scripts/eval/panels/owner-copilot-cli.json`` actually dispatches, not a
+# hypothetical shape. An earlier version of this regex required both major
+# AND minor, which rejected that id outright: a valid KEEP_PIN sweep for it
+# would resolve through ``resolve_manifest_model`` (which does not itself
+# shape-check ``model``) and then fail closed in
+# ``format_model_id_for_platform`` alone, silently omitting a justified pin
+# instead of satisfying ADR-080 rule 5's "emit a justified pin" half.
+# Deliberately narrower than ``check_model_pins._VERSIONED_RE``
+# (``^claude-(?:opus|sonnet|haiku)-[0-9]``), which also matches a
+# date-stamped id like ``claude-opus-4-20250514``. This module fails closed
+# on any shape outside major(.minor) rather than guess at a per-platform
+# spelling for a shape it was not designed against. Major and minor are
+# capped at two digits each: every observed Claude version number (4.5, 4.6,
+# 4-20, 5, ...) fits that, while a capped digit count is what keeps a
+# date-stamped id (claude-opus-4-20250514) from matching as though
+# "20250514" were a minor version -- an 8-digit run cannot satisfy \d{1,2},
+# and the optional minor group must consume the string up to ``$`` or not
+# match at all, so a trailing 8-digit run cannot be silently dropped either.
 _CANONICAL_MAJOR_MINOR_RE = re.compile(
-    r"^claude-(opus|sonnet|haiku)-(\d{1,2})[.-](\d{1,2})$"
+    r"^claude-(opus|sonnet|haiku)-(\d{1,2})(?:[.-](\d{1,2}))?$"
 )
 
 # The two known target shapes a platform's own ``model_tiers`` map spells its
@@ -238,7 +252,16 @@ def _entry_evidence_valid(
     if entry.get("unit") != source_unit:
         return False
     fixtures_sha = entry.get("fixtures_sha")
-    if not isinstance(fixtures_sha, str) or not fixtures_sha:
+    # .strip() before the emptiness test, not just isinstance(str): a
+    # whitespace-only value ("   ") is truthy, so a bare `not fixtures_sha`
+    # check passes it through as though it were a real hash. The canonical
+    # report schema never emits whitespace here (scripts/eval/_model_sweep_core.py's
+    # build_report writes a real content hash), so a whitespace-only value
+    # in either the manifest entry or the sweep report it's compared against
+    # (sweep_report_satisfies_rule2's `report.get("fixtures_sha") !=
+    # entry.get("fixtures_sha")` equality check) is malformed evidence, and
+    # two whitespace-only values compare equal to each other.
+    if not isinstance(fixtures_sha, str) or not fixtures_sha.strip():
         return False
     artifact = entry.get("artifact")
     if not isinstance(artifact, str) or not artifact:
@@ -372,7 +395,7 @@ def format_model_id_for_platform(
     ``(major, minor)`` digits into whichever shape matched.
 
     Fails closed (returns ``None``, meaning: emit no pin) when ``model_id``
-    is not the documented major.minor shape (for example a date-stamped id
+    is not the documented major(.minor) shape (for example a date-stamped id
     such as ``claude-opus-4-20250514``), when ``platform_tiers`` has no
     entry for the id's tier, when that entry's spelling matches neither
     known shape, or when the tier embedded in the template string does not
@@ -380,6 +403,13 @@ def format_model_id_for_platform(
     generator to "emit no ``model:`` unless the source unit carries a
     justified one"; a pin this function cannot confidently reformat is not
     one it should guess at.
+
+    A single-component id with no minor (``claude-opus-5``) formats without
+    a version separator in either shape (``claude-opus-5``,
+    ``Claude Opus 5 (copilot)``): the platform template string only decides
+    which of the two known SHAPES to use, never whether a minor digit group
+    is present, so the manifest id's own major(.minor) split is what
+    actually appears in the output.
 
     The tier cross-check matters because ``platform_tiers[tier]`` is looked
     up by key, but the *value*'s own embedded tier name (``Sonnet`` in
@@ -395,13 +425,14 @@ def format_model_id_for_platform(
     if match is None:
         return None
     tier, major, minor = match.groups()
+    version = f"{major}.{minor}" if minor else major
     template = platform_tiers.get(tier)
     if not isinstance(template, str):
         return None
     dot_match = _DOT_FORM_RE.match(template)
     if dot_match and dot_match.group(1) == tier:
-        return f"claude-{tier}-{major}.{minor}"
+        return f"claude-{tier}-{version}"
     display_match = _DISPLAY_FORM_RE.match(template)
     if display_match and display_match.group(1).lower() == tier:
-        return f"Claude {display_match.group(1)} {major}.{minor} (copilot)"
+        return f"Claude {display_match.group(1)} {version} (copilot)"
     return None
