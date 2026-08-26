@@ -99,6 +99,17 @@ def _indent_width(text: str) -> int:
     return len(text.expandtabs(4))
 
 
+def _is_blank(text: str) -> bool:
+    """Return True when *text* is empty or only spaces and tabs.
+
+    Not `str.strip()`, which also removes U+00A0 and the rest of Unicode
+    whitespace. CommonMark counts only spaces and tabs, so `-\u00a0` is
+    paragraph text rather than an empty list item, and a line holding one
+    non-breaking space is content rather than a blank that leaves a container
+    open.
+    """
+    return not text.strip(" \t")
+
 def _container_closed(line: str, base: int) -> bool:
     """Return True when *line* dedents out of the container holding a block.
 
@@ -108,7 +119,7 @@ def _container_closed(line: str, base: int) -> bool:
     fence to a document CommonMark already considers complete. A top-level
     block has base 0 and can never be closed this way.
     """
-    if base == 0 or not line.strip():
+    if base == 0 or _is_blank(line):
         return False
     return _indent_width(line[: len(line) - len(line.lstrip(" \t"))]) < base
 
@@ -168,6 +179,10 @@ class _ListContainers:
         shorthand also matches Unicode decimal digits, so a line led by
         U+0661 ARABIC-INDIC DIGIT ONE opened a list here while CommonMark
         read it as a paragraph.
+    14. Blank means spaces and tabs, not `str.strip()`. Unicode whitespace
+        made a line holding one U+00A0 look blank, which left a container
+        open past its item, and made `-` plus U+00A0 look like an empty item
+        when CommonMark reads it as paragraph text. See `_is_blank`.
 
     Rules 9 and 10 were both documented as deliberate limitations for one
     commit, on the reasoning that each only made the scanners miss a fence,
@@ -208,7 +223,7 @@ class _ListContainers:
 
     def sync(self, line: str) -> None:
         """Close containers that *line* has dedented out of."""
-        if not line.strip():
+        if _is_blank(line):
             self._in_paragraph = False  # a blank line ends any open paragraph
             if self._item_still_empty and self._columns:
                 # Rule 8: an item may begin with at most one blank line, so a
@@ -237,7 +252,7 @@ class _ListContainers:
         remainder inside the item the marker just opened, which is how
         `- ``` ` opens a fenced block and `- - a` opens two items.
         """
-        if not line.strip():
+        if _is_blank(line):
             return None  # `sync` already ended the paragraph
         item = self._list_item(line)
         if item is not None:
@@ -314,7 +329,7 @@ class _ListContainers:
         number = match.group("number")
         marker = match.group("bullet") or number + match.group("delim")
         marker_end = _indent_width(match.group("indent") + marker)
-        empty = not match.group("rest").strip()
+        empty = _is_blank(match.group("rest"))
         if self._in_paragraph and (empty or (number is not None and int(number) != 1)):
             return None  # rule 4: this marker cannot interrupt a paragraph
         if empty:
