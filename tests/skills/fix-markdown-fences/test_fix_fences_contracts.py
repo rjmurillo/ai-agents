@@ -331,6 +331,7 @@ class TestScannerParity:
             "_link_tail",
             "_link_reference",
             "_title_end",
+            "_label_opens",
             "_bare_title",
             "_Definition",
         ):
