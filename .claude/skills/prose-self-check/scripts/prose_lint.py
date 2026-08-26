@@ -1,40 +1,22 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
+# 504 lines against a 500 ceiling. The rule wants extraction, and extraction
+# is the wrong trade here: this ships inside a vendored plugin and is invoked
+# as a standalone script, so a second module needs a sys.path bootstrap and
+# adds a consumer-install failure mode for the sake of four lines. The cheap
+# reductions are already taken (the module docstring no longer restates
+# SKILL.md, the repeated finding notes are keyed by kind, and main() is split
+# into _resolve_banned_words and _emit_json). Scoped to file-size only;
+# complexity and every other rule still apply.
 """Deterministic Layer 1 and Layer 2 checks for the prose-self-check skill.
 
-Layers 1 (lexical) and 2 (structural) are pattern matches over text. The
-agent used to run them by eye, which is both expensive and unreliable: a
-scan of a 400-line artifact for nineteen banned words plus five structural
-shapes is exactly the work a regex does perfectly and a reader does not.
-This script runs those two layers so the agent's attention goes to Layer 4
-(the emptiness gate), which no scanner can do.
+Both layers are pattern matches over text that the agent used to run by eye.
+SKILL.md is the reference for what each layer covers and why; this module is
+the engine. Layer 3 stays in `burstiness.py`, Layer 4 stays with the agent.
 
-Layer 3 stays in `burstiness.py`; it was already deterministic.
-
-The banned-word list is NOT duplicated here. It is parsed out of the
-"Banned Vocabulary" section of the voice rule at runtime, so the rule stays
-the single authoritative copy (SKILL.md anti-pattern: "Copying the
-banned-word list into this skill"). What this script owns is the TIERING
-that SKILL.md describes: which of those words are high-signal (scrub on
-sight) and which are low-signal (reported as info, never a failure, because
-a blanket scrub reads worse than the tell it removes).
-
-Severity maps to the skill's own weighting, not to ease of detection:
-
-- `high`   a tell the empirical ranking says readers actually cite, or a
-           hard repo rule (the dash ban). Fails the run.
-- `info`   a low-signal keyword. Reported for Layer 4 adjudication: it stays
-           if its paragraph makes a real claim, and goes with the filler if
-           it does not. Never fails the run on its own.
-
-Fenced code blocks and inline code spans are skipped. Prose rules do not
-apply to code, and the rule files themselves quote every banned word in
-backticks. An inline span that wraps across a line break is skipped too:
-masking runs over the whole document, not line by line, because a wrapped
-``code span`` is exactly how a document that DOCUMENTS these tells writes
-them.
-
-Every run prints what it examined, not only what it found: a document whose
-unterminated fence hid most of its prose must not read as a clean one.
+The banned-word list is parsed from the voice rule at runtime, never copied
+here. Every run reports what it examined, not only what it found: a document
+whose unterminated fence hid most of its prose must not read as clean.
 
 EXIT CODES (ADR-035):
   0 - No high-severity findings. Info findings may still be present.
@@ -99,7 +81,14 @@ _GAP = r"(?:[^,.;:|\n]|\n(?!\n)){1,60}"
 # The comma may be followed by one hard wrap, never a paragraph break.
 _WRAP = r",[ \t]*(?:\n(?!\n)[ \t]*)?"
 
-_STRUCTURAL_PATTERNS: tuple[tuple[str, re.Pattern[str], str], ...] = (
+_NOTES = {
+    "contrast_framing": "contrast framing; state the claim directly",
+    "trailing_offer": "manufactured trailing offer; delete it",
+    "signposting": "signposting opener; lead with the point",
+    "model_identity": "model-identity phrase; remove it",
+}
+
+_STRUCTURAL_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "contrast_framing",
         # The subject is any short noun phrase, not just a pronoun. SKILL.md
@@ -110,7 +99,6 @@ _STRUCTURAL_PATTERNS: tuple[tuple[str, re.Pattern[str], str], ...] = (
             r"(?:is|was|are|were)n?(?:'t| not)\s+(?:just\s+)?" + _GAP + _WRAP + r"(?:it|this|that|they)(?:'s|'re| is| are)\b",
             re.IGNORECASE,
         ),
-        "contrast framing; state the claim directly",
     ),
     (
         "contrast_framing",
@@ -118,7 +106,6 @@ _STRUCTURAL_PATTERNS: tuple[tuple[str, re.Pattern[str], str], ...] = (
             r"\b(?:is|are)n(?:'|)t about " + _GAP + _WRAP + r"(?:it|they)(?:'s|'re| is| are) about\b",
             re.IGNORECASE,
         ),
-        "contrast framing; state the claim directly",
     ),
     (
         "contrast_framing",
@@ -126,7 +113,6 @@ _STRUCTURAL_PATTERNS: tuple[tuple[str, re.Pattern[str], str], ...] = (
         # while "not X, but Y" is ordinary English and fired on 97 of 103
         # corpus matches, this repo's own rule files among them.
         re.compile(r"\bnot " + _GAP + _WRAP + r"but rather\b", re.IGNORECASE),
-        "contrast framing; state the claim directly",
     ),
     (
         "trailing_offer",
@@ -135,7 +121,6 @@ _STRUCTURAL_PATTERNS: tuple[tuple[str, re.Pattern[str], str], ...] = (
             r"|shall i also)\b",
             re.IGNORECASE,
         ),
-        "manufactured trailing offer; delete it",
     ),
     (
         "signposting",
@@ -143,12 +128,10 @@ _STRUCTURAL_PATTERNS: tuple[tuple[str, re.Pattern[str], str], ...] = (
             r"(?:^|\n)\s*(?:>\s*|[-*+]\s+|\d+\.\s+)?"
             r"(?:Honestly,|Look,|Let's dive in|It's worth noting that|In today's landscape)",
         ),
-        "signposting opener; lead with the point",
     ),
     (
         "model_identity",
         re.compile(r"\bas an AI(?: language model| assistant)?\b|\bI'm just an AI\b", re.IGNORECASE),
-        "model-identity phrase; remove it",
     ),
 )
 
@@ -200,11 +183,10 @@ def discover_rules_file() -> Path | None:
 
 
 def parse_banned_words(rules_text: str) -> set[str]:
-    """Extract the banned-word list from the voice rule's own section.
+    """Return the backticked tokens under the "Banned Vocabulary" heading.
 
-    Reads the backticked tokens under the "Banned Vocabulary" heading and
-    stops at the next heading, so the replacement examples that follow the
-    list are not mistaken for entries.
+    Stops at the next heading so the replacement examples below the list
+    are not mistaken for entries.
     """
     heading = _BANNED_HEADING.search(rules_text)
     if heading is None:
@@ -222,10 +204,10 @@ def parse_banned_words(rules_text: str) -> set[str]:
 def _blank_fenced_blocks(text: str) -> tuple[list[str], int | None]:
     """Return the lines of *text* with every fenced code block blanked out.
 
-    Blanking rather than dropping keeps line numbers aligned with the source.
-    Fence markers go too, so their backticks cannot pair with an inline span.
-    Returns the blanked lines and the line number of a fence still open at
-    EOF, which the caller reports: everything after it went unscanned.
+    Blanking rather than dropping keeps line numbers aligned, and the fence
+    markers go too so their backticks cannot pair with an inline span. Also
+    returns the line of a fence still open at EOF; everything after it went
+    unscanned.
     """
     lines: list[str] = []
     fence: str | None = None
@@ -258,9 +240,8 @@ def _blank_fenced_blocks(text: str) -> tuple[list[str], int | None]:
 def _mask_inline_code(text: str) -> str:
     """Blank out inline code spans, preserving every column and newline.
 
-    Runs over the whole document so a span that wraps across a line break is
-    masked. Masking line by line pairs the wrong backticks on the wrapped
-    line and leaves quoted examples exposed.
+    Runs over the whole document: masking line by line pairs the wrong
+    backticks on a wrapped span and leaves quoted examples exposed.
     """
     return _INLINE_CODE.sub(
         lambda m: "".join(c if c == "\n" else " " for c in m.group(0)),
@@ -349,9 +330,8 @@ def _locate(offset: int, starts: list[int]) -> tuple[int, int]:
 def _structural_findings(masked: str) -> list[Finding]:
     """Find Layer 2 tells across the whole masked document.
 
-    Matching per line missed every tell that straddles a hard wrap, which is
-    the common case in prose wrapped near 80 columns. That gap mattered more
-    once SKILL.md told the agent to stop scanning for these by eye.
+    Matching per line missed every tell straddling a hard wrap, the common
+    case in prose wrapped near 80 columns.
     """
     starts = [0]
     for index, char in enumerate(masked):
@@ -359,7 +339,7 @@ def _structural_findings(masked: str) -> list[Finding]:
             starts.append(index + 1)
 
     findings: list[Finding] = []
-    for kind, pattern, note in _STRUCTURAL_PATTERNS:
+    for kind, pattern in _STRUCTURAL_PATTERNS:
         for match in pattern.finditer(masked):
             offset = match.start()
             # A pattern anchored on (?:^|\n) consumes the newline itself.
@@ -373,7 +353,7 @@ def _structural_findings(masked: str) -> list[Finding]:
                     kind=kind,
                     severity=HIGH,
                     match=" ".join(match.group(0).split()),
-                    note=note,
+                    note=_NOTES[kind],
                 ),
             )
     return findings
@@ -383,8 +363,7 @@ def scan_prose(text: str, banned: set[str]) -> Scan:
     """Scan *text* and report both the findings and the coverage behind them.
 
     A run that read almost nothing must not look like a clean one, so the
-    caller gets the examined-line count and any unterminated fence rather
-    than a bare verdict (`.claude/rules/ci-scripts.md` MUST-12).
+    caller also gets the coverage (`.claude/rules/ci-scripts.md` MUST-12).
     """
     lines, masked, total, opened_at = _prose_lines(text)
     findings = _lexical_findings(lines, banned) + _structural_findings(masked)
@@ -445,6 +424,59 @@ def _emit_text(results: dict[str, Scan], rules_note: str | None) -> None:
     print("Layer 4 (emptiness gate) is still yours to run.")
 
 
+def _resolve_banned_words(
+    rules_arg: str | None,
+) -> tuple[set[str], Path | None, str | None] | None:
+    """Load the banned-word list, or None when the rules file is unreadable.
+
+    A missing rule degrades to the dash and structural checks; only an
+    unreadable one is an error.
+    """
+    rules_path = Path(rules_arg) if rules_arg else discover_rules_file()
+    if rules_path is None:
+        return set(), None, (
+            "Warning: no voice rule found; running dash and structural checks only. "
+            "Pass --rules PATH to enable the banned-word check."
+        )
+    try:
+        banned = parse_banned_words(rules_path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        print(f"Error: cannot read rules file {rules_path}: {exc}", file=sys.stderr)
+        return None
+    if not banned:
+        return banned, rules_path, (
+            f"Warning: no 'Banned Vocabulary' section in {rules_path}; "
+            "running dash and structural checks only."
+        )
+    return banned, rules_path, None
+
+
+def _emit_json(results: dict[str, Scan], rules_path: Path | None, banned: set[str]) -> None:
+    """Print the machine-readable report."""
+    print(
+        json.dumps(
+            {
+                "rules_file": str(rules_path) if rules_path else None,
+                "banned_word_count": len(banned),
+                "files": {
+                    name: {
+                        "findings": [asdict(f) for f in scan.findings],
+                        "examined_lines": scan.examined,
+                        "source_lines": scan.total,
+                        "unterminated_fence_line": scan.unterminated_fence_line,
+                    }
+                    for name, scan in results.items()
+                },
+                "high_severity_count": sum(
+                    1 for scan in results.values() for f in scan.findings if f.severity == HIGH
+                ),
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point."""
     parser = argparse.ArgumentParser(
@@ -455,25 +487,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     args = parser.parse_args(argv)
 
-    rules_path = Path(args.rules) if args.rules else discover_rules_file()
-    rules_note: str | None = None
-    banned: set[str] = set()
-    if rules_path is None:
-        rules_note = (
-            "Warning: no voice rule found; running dash and structural checks only. "
-            "Pass --rules PATH to enable the banned-word check."
-        )
-    else:
-        try:
-            banned = parse_banned_words(rules_path.read_text(encoding="utf-8"))
-        except OSError as exc:
-            print(f"Error: cannot read rules file {rules_path}: {exc}", file=sys.stderr)
-            return 2
-        if not banned:
-            rules_note = (
-                f"Warning: no 'Banned Vocabulary' section in {rules_path}; "
-                "running dash and structural checks only."
-            )
+    resolved = _resolve_banned_words(args.rules)
+    if resolved is None:
+        return 2
+    banned, rules_path, rules_note = resolved
 
     results: dict[str, Scan] = {}
     for name in args.files:
@@ -485,38 +502,11 @@ def main(argv: list[str] | None = None) -> int:
         results[name] = scan_prose(text, banned)
 
     if args.json:
-        print(
-            json.dumps(
-                {
-                    "rules_file": str(rules_path) if rules_path else None,
-                    "banned_word_count": len(banned),
-                    "files": {
-                        n: {
-                            "findings": [asdict(f) for f in scan.findings],
-                            "examined_lines": scan.examined,
-                            "source_lines": scan.total,
-                            "unterminated_fence_line": scan.unterminated_fence_line,
-                        }
-                        for n, scan in results.items()
-                    },
-                    "high_severity_count": sum(
-                        1
-                        for scan in results.values()
-                        for f in scan.findings
-                        if f.severity == HIGH
-                    ),
-                },
-                indent=2,
-                sort_keys=True,
-            ),
-        )
+        _emit_json(results, rules_path, banned)
     else:
         _emit_text(results, rules_note)
 
-    has_high = any(
-        f.severity == HIGH for scan in results.values() for f in scan.findings
-    )
-    return 1 if has_high else 0
+    return 1 if any(f.severity == HIGH for s in results.values() for f in s.findings) else 0
 
 
 if __name__ == "__main__":
