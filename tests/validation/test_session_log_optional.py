@@ -341,7 +341,17 @@ def test_adr_review_gate_requires_staged_debate_evidence(tmp_path: Path) -> None
     _stage_file(repo, adr_path, "# ADR-099\n")
     debate = repo / debate_path
     debate.parent.mkdir(parents=True)
-    debate.write_text("# ADR Debate Log\n\nADR-099 accepted.\n", encoding="utf-8")
+    debate.write_text(
+        # Issue #5205: the gate requires review evidence, not a filename.
+        "# ADR Debate Log: ADR-099\n\n"
+        "## Participants\n\n- architect agent\n- security agent\n\n"
+        "## Verdict: Accept\n\n"
+        "The architect reviewed ADR-099 and found no P0 or P1 issues. The\n"
+        "decision text matches the implementation and template compliance is\n"
+        "confirmed against the canonical structure for this record.\n"
+        "Alternatives considered are recorded in the decision section.\n",
+        encoding="utf-8",
+    )
 
     assert policy.check_adr_review_policy([adr_path], repo) == 1
 

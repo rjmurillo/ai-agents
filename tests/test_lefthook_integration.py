@@ -319,6 +319,24 @@ def _write_today_session(repo: Path, content: str) -> Path:
     return session
 
 
+def _debate_log(*adr_ids: str) -> str:
+    """A log carrying the review evidence the gate requires (issue #5205).
+
+    A name-shaped stub no longer clears the gate, so fixtures that exercise the
+    id-matching branches have to get past the evidence branch first.
+    """
+    names = " and ".join(adr_ids)
+    return (
+        f"# ADR Debate Log: {names}\n\n"
+        "## Participants\n\n- architect agent\n- security agent\n\n"
+        "## Verdict: Accept\n\n"
+        f"The architect reviewed {names} and found no P0 or P1 issues. The\n"
+        "decision text matches the implementation and template compliance is\n"
+        "confirmed against the canonical structure for this record.\n"
+        "Alternatives considered are recorded in the decision section.\n"
+    )
+
+
 def test_adr_review_policy_blocks_stale_debate_reference(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -331,7 +349,7 @@ def test_adr_review_policy_blocks_stale_debate_reference(
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     debate = critique / "adr-042-debate.md"
-    _write_lf(debate, "ADR-042 review")
+    _write_lf(debate, _debate_log("ADR-042"))
     _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     result = policy.check_adr_review_policy(
@@ -351,7 +369,7 @@ def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     debate = critique / "adr-062-debate.md"
-    _write_lf(debate, "ADR-062 review")
+    _write_lf(debate, _debate_log("ADR-062"))
     _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     assert (
@@ -369,7 +387,7 @@ def test_adr_review_policy_matches_complete_adr_ids(tmp_path: Path) -> None:
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     debate = critique / "adr-0620-debate.md"
-    _write_lf(debate, "ADR-0620 review")
+    _write_lf(debate, _debate_log("ADR-0620"))
     _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     assert (
@@ -388,7 +406,7 @@ def test_adr_review_policy_rejects_symlinked_debate_evidence(tmp_path: Path) -> 
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     evidence = tmp_path / "evidence.md"
-    _write_lf(evidence, "ADR-062 review")
+    _write_lf(evidence, _debate_log("ADR-062"))
     debate = critique / "adr-062-debate.md"
     debate.symlink_to(evidence)
     _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
@@ -408,10 +426,17 @@ def test_adr_review_policy_missing_critique_dir_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """No .agents/critique/ directory at all means no debate logs: gate fails."""
+    # A real repository, because the premise is "the critique directory is
+    # absent", not "this is not a git checkout". Without the init, the staged-log
+    # query fails and the gate reports that failure rather than the absence
+    # (issue #5205), and this assertion would be met by an error message about
+    # git rather than about the missing directory.
+    _init_repo(tmp_path)
+
     # Only the old wrong dir exists; critique dir is absent.
     wrong = tmp_path / ".agents" / "analysis"
     wrong.mkdir(parents=True)
-    _write_lf(wrong / "adr-062-debate.md", "ADR-062 review")
+    _write_lf(wrong / "adr-062-debate.md", _debate_log("ADR-062"))
 
     result = policy.check_adr_review_policy(
         [".agents/architecture/ADR-062-navigation.md"],
