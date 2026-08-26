@@ -149,9 +149,12 @@ def test_a_log_that_is_not_utf8_blocks_even_when_a_sibling_covers_every_id(
     # the undecodable log is reported.
     assert policy.debate_log_evidence_gap(GENUINE_LOG) is None
 
+    # 1, not 3. Bytes that are not UTF-8 are content the committer staged, so
+    # this is a judgement about their evidence. A blob git will not produce is
+    # the external case and exits 3; the pair is pinned apart below.
     assert policy.check_adr_review_policy([ADR_42], adr_debate_repo) == 1
     error = capsys.readouterr().err
-    assert "could not be read" in error
+    assert "not valid UTF-8 text" in error
     assert bad in error, "the error must name the log that would not decode"
 
 
@@ -307,12 +310,14 @@ def test_an_unreadable_staged_log_cannot_satisfy_coverage(
 
     monkeypatch.setattr(policy, "_read_index_blob", lambda *_args, **_kwargs: None)
 
-    assert policy.check_adr_review_policy([ADR_42], adr_debate_repo) == 1
+    # 3: `_read_index_blob` returning None means git would not produce the
+    # blob, which says nothing about the committer's evidence.
+    assert policy.check_adr_review_policy([ADR_42], adr_debate_repo) == 3
     # Assert the reason, not just the exit code. Before unreadable logs were
     # reported, this blocked only as a side effect of supplying no coverage,
-    # so the same 1 came back for a different reason and the case below passed
-    # through the gate entirely.
-    assert "could not be read" in capsys.readouterr().err
+    # so the same code came back for a different reason and the case below
+    # passed through the gate entirely.
+    assert "the git query failed" in capsys.readouterr().err
 
 
 def test_an_unreadable_log_blocks_even_when_a_sibling_covers_every_id(
@@ -345,7 +350,7 @@ def test_an_unreadable_log_blocks_even_when_a_sibling_covers_every_id(
     assert policy.debate_log_evidence_gap(GENUINE_LOG) is None
     assert good != bad
 
-    assert policy.check_adr_review_policy([ADR_42], adr_debate_repo) == 1
+    assert policy.check_adr_review_policy([ADR_42], adr_debate_repo) == 3
     error = capsys.readouterr().err
-    assert "could not be read" in error
+    assert "the git query failed" in error
     assert bad in error, "the error must name the log that would not read"

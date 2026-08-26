@@ -5,8 +5,8 @@ the check: each mutant reverts one defect this gate is supposed to stop, and
 the #5205 regression suite has to come back red. If it does not, those tests
 are decoration.
 
-Thirteen mutants and one inverted control. Two revert the defects #5205
-reported; eleven revert defects found by review of this PR, which are as much
+Fifteen mutants and one inverted control. Two revert the defects #5205
+reported; thirteen revert defects found by review of this PR, which are as much
 part of the contract as the originals. Each mutant carries its own banner and
 docstring at the point of definition, so the inventory here stays a table:
 
@@ -26,6 +26,8 @@ docstring at the point of definition, so the inventory here stays a table:
  M14   review   the external exit code to the logic one
  M15   review   markdown-escape and invisible-character folding
  M16   review   the regular-file tri-state to a bare boolean
+ M17   review   the Unicode format-character folding
+ M18   review   the read-failure and decode-failure split
  IC    control  nothing; a comment only, and MUST survive
 ===== ======== ==================================================
 
@@ -355,6 +357,53 @@ def test_m16_regular_file_query_failure_collapsed_is_detected(scratch_worktree: 
 
 
 # ---------------------------------------------------------------------------
+# M17: stop dropping Unicode format characters. M15 only removed the escape
+# resolution, so the zero-width and soft-hyphen cases had no mutant of their
+# own and could not prove they detect anything. Found by review.
+# ---------------------------------------------------------------------------
+
+_M17_ORIGINAL = b'    visible = "".join(\n'
+_M17_MUTANT = (
+    b'    visible = text  # M17 mutant: invisible characters survive\n    _unused = "".join(\n'
+)
+
+
+@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
+def test_m17_invisible_characters_surviving_is_detected(scratch_worktree: Path) -> None:
+    """Zero-width space and soft hyphen render as nothing and cleared the gate."""
+    original = (REPO_ROOT / _TARGET_REL).read_bytes()
+    outcome = _apply_positive_mutant(
+        scratch_worktree, original, _M17_ORIGINAL, _M17_MUTANT, "M17-format-characters"
+    )
+    assert outcome == _OUTCOME_DEAD
+    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M17"
+
+
+# ---------------------------------------------------------------------------
+# M18: collapse a blob git would not produce back into the decode failure
+# ---------------------------------------------------------------------------
+
+_M18_ORIGINAL = b"        if blob is None:\n            unreadable.append(path)\n"
+_M18_MUTANT = (
+    b"        if blob is None:\n"
+    b"            undecodable.append(path)  # M18 mutant: git failure reads as bad bytes\n"
+)
+
+
+@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
+def test_m18_read_failure_collapsed_into_decode_failure_is_detected(
+    scratch_worktree: Path,
+) -> None:
+    """A blob git will not produce is external, not the committer's mojibake."""
+    original = (REPO_ROOT / _TARGET_REL).read_bytes()
+    outcome = _apply_positive_mutant(
+        scratch_worktree, original, _M18_ORIGINAL, _M18_MUTANT, "M18-read-vs-decode"
+    )
+    assert outcome == _OUTCOME_DEAD
+    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M18"
+
+
+# ---------------------------------------------------------------------------
 # IC: comment-only change; the suite MUST survive it
 # ---------------------------------------------------------------------------
 
@@ -388,7 +437,7 @@ def _tests_running_the_inner_suite() -> list[str]:
 def test_every_inner_suite_test_raises_the_outer_timeout() -> None:
     """Report the scope alongside the finding (testing.md MUST 10)."""
     names = _tests_running_the_inner_suite()
-    assert len(names) == 14, f"Expected 14 inner-suite tests, discovered {len(names)}: {names}"
+    assert len(names) == 16, f"Expected 16 inner-suite tests, discovered {len(names)}: {names}"
 
     unmarked = [
         name

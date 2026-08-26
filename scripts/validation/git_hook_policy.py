@@ -1513,33 +1513,6 @@ def _staged_debate_log_paths(repo_root: Path) -> list[str] | None:
     return [path for path in result.stdout.split("\0") if _is_debate_log_path(path)]
 
 
-def _staged_debate_log_content(relative_path: str, repo_root: Path) -> str | None:
-    # Unreachable from the only caller, which filters `_staged_debate_log_paths`
-    # through `_is_staged_regular_file` before calling this. Kept rather than
-    # deleted because it is the check that stops a staged symlink from being
-    # read as review evidence, and a future caller that skips the pre-filter
-    # would otherwise inherit that hole silently. Excluded from coverage per
-    # `.agents/governance/TESTING-RIGOR.md`, which carves out unreachable
-    # defensive branches with written justification.
-    if not _is_staged_regular_file(repo_root, relative_path):  # pragma: no cover
-        return None
-    blob = _read_index_blob(repo_root, relative_path)
-    if blob is None:
-        return None
-    try:
-        # Strict, not errors="replace". Lossy decoding destroys the evidence
-        # that the bytes were invalid, and every downstream signal then reads a
-        # document the committer did not write. Measured: corrupting one byte
-        # inside each of the ten template placeholders leaves `Agent Positions`,
-        # `Outcome`, `Concluded`, the headings and the ADR id all intact while
-        # every placeholder literal stops matching, so the unfilled template
-        # cleared the gate at 402 on-disk bytes. Returning None routes it to the
-        # unreadable report, which names the path and blocks. Issue #5205.
-        return blob.decode("utf-8")
-    except UnicodeDecodeError:
-        return None
-
-
 def _referenced_adr_ids(content: str) -> set[str]:
     return {match.group(0).upper() for match in ADR_ID_RE.finditer(content)}
 
@@ -1735,25 +1708,80 @@ def debate_log_evidence_gap(content: str) -> str | None:
 def _staged_debate_log_contents(
     debate_logs: Sequence[str],
     repo_root: Path,
-) -> tuple[dict[str, str], list[str]]:
-    """Return the readable staged logs, and the paths that would not read.
+) -> tuple[dict[str, str], list[str], list[str]]:
+    """Return the readable logs, the undecodable ones, and the unreadable ones.
 
-    The unreadable paths are returned rather than silently dropped. Dropping
-    them fails open whenever another staged log covers every staged id: the
-    unreadable log is then simply absent, both checks pass on its sibling, and
-    the gate clears a commit carrying a log nobody could read. Reproduced on
-    this branch before the split, with one unreadable log staged beside one
-    valid covering log: ``check_adr_review_policy`` returned 0. Issue #5205.
+    Neither failure list is silently dropped. Dropping fails open whenever
+    another staged log covers every staged id: the dropped log is simply
+    absent, both checks pass on its sibling, and the gate clears a commit
+    carrying a log nobody could read. Reproduced on this branch with one
+    unreadable log staged beside one valid covering log:
+    ``check_adr_review_policy`` returned 0.
+
+    Undecodable and unreadable are separate lists because they exit
+    differently. Bytes that are not UTF-8 are the committer's content and a
+    judgement about it is exit 1. ``git show`` refusing to produce the blob at
+    all is external and exit 3, the same reasoning the discovery query and the
+    per-path regular-file query already follow. Collapsing them reported a
+    broken index as though the committer had staged mojibake. Issue #5205.
     """
     contents: dict[str, str] = {}
+    undecodable: list[str] = []
     unreadable: list[str] = []
     for path in debate_logs:
-        content = _staged_debate_log_content(path, repo_root)
-        if content is None:
+        if not _is_staged_regular_file(repo_root, path):  # pragma: no cover
+            # Unreachable from the only caller, which filters through
+            # `_staged_regular_file_state` first. Kept because it is the check
+            # that stops a staged symlink from being read as review evidence,
+            # and a future caller skipping the pre-filter would inherit that
+            # hole silently. Carved out per TESTING-RIGOR.md.
             unreadable.append(path)
-        else:
-            contents[path] = content
-    return contents, unreadable
+            continue
+        blob = _read_index_blob(repo_root, path)
+        if blob is None:
+            unreadable.append(path)
+            continue
+        try:
+            # Strict, not errors="replace". Lossy decoding destroys the
+            # evidence that the bytes were invalid, and every downstream signal
+            # then reads a document the committer did not write. Measured:
+            # corrupting one byte inside each of the ten template placeholders
+            # left the headings, roster column, outcome line and ADR id intact
+            # while every literal stopped matching, so the unfilled template
+            # cleared the gate at 402 on-disk bytes.
+            contents[path] = blob.decode("utf-8")
+        except UnicodeDecodeError:
+            undecodable.append(path)
+    return contents, undecodable, unreadable
+
+
+def _staged_content_failure(
+    undecodable: Sequence[str],
+    unreadable: Sequence[str],
+) -> int | None:
+    """Return the exit code for a log that could not be turned into text.
+
+    External first. A blob git would not produce says nothing about the
+    committer's evidence, so reporting it as bad content would be an
+    accusation about work that was never examined.
+    """
+    if unreadable:
+        names = ", ".join(sorted(unreadable))
+        print(
+            f"ERROR: could not read the staged debate log blob; the git query "
+            f"failed: {names}. The output above is git's.",
+            file=sys.stderr,
+        )
+        return 3
+    if undecodable:
+        names = ", ".join(sorted(undecodable))
+        print(
+            f"ERROR: staged debate log is not valid UTF-8 text: {names}. "
+            "A log that cannot be read is not review evidence.",
+            file=sys.stderr,
+        )
+        return 1
+    return None
 
 
 def _debate_log_evidence_error(contents: dict[str, str]) -> str | None:
@@ -1903,18 +1931,14 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
         )
         return 1
 
-    contents, unreadable = _staged_debate_log_contents(debate_logs, repo_root)
+    contents, undecodable, unreadable = _staged_debate_log_contents(debate_logs, repo_root)
 
-    # A staged log that will not read is not evidence, and it must not be
-    # merely skipped: with a covering sibling, skipping it clears the gate.
-    if unreadable:
-        names = ", ".join(sorted(unreadable))
-        print(
-            f"ERROR: staged debate log could not be read as UTF-8 text: {names}. "
-            "A log that cannot be read is not review evidence.",
-            file=sys.stderr,
-        )
-        return 1
+    # Neither list may be merely skipped: with a covering sibling, skipping
+    # clears the gate. They exit differently because they are different
+    # failures, external before the committer's own.
+    read_failure = _staged_content_failure(undecodable, unreadable)
+    if read_failure is not None:
+        return read_failure
 
     # Issue #5205 defect 1: a name-shaped file is not evidence that a review
     # happened. Every staged log must carry evidence of one.
