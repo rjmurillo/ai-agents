@@ -3279,3 +3279,742 @@ class TestTrackedSubset:
 
         assert tracked == set()
         assert "git ls-files failed" in error
+
+
+def _own_plugin_root(monkeypatch, root: Path) -> None:
+    """Declare `root` the plugin that ships the dispatcher under test.
+
+    Install trust requires the declared root to CONTAIN this dispatcher, so a
+    host variable naming a foreign co-installed plugin cannot trust that
+    plugin's config (CWE-829, reproduced in Copilot review on PR #5329).
+
+    These unit tests import the canonical script from the repository, so its
+    real ``__file__`` is nowhere near their ``tmp_path`` roots. Rebinding the
+    module constant states the arrangement each case assumes: "this
+    dispatcher is the one shipped inside that plugin". It does NOT weaken the
+    condition, because the condition is exercised for real elsewhere:
+    ``_install_plugin`` in tests/test_run_completion_gate_install.py copies
+    the script into the plugin root, so every CLI case satisfies it
+    genuinely, and a dedicated case there drives a foreign root end to end.
+    """
+    monkeypatch.setattr(
+        _dispatcher,
+        "_DISPATCHER_PATH",
+        root.resolve() / "skills" / "github" / "scripts" / "pr"
+        / "run_completion_gate.py",
+    )
+
+
+def _git_work_tree(path: Path) -> Path:
+    """Create `path` as a real git work tree and return it.
+
+    _install_trusted_root fails closed when `git rev-parse --show-toplevel`
+    reports nothing, so a bare `.git` directory is not enough: git answers
+    "fatal: not a git repository" for one. Verified before relying on it.
+    """
+    path.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "init", "--quiet"],
+        cwd=path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return path
+
+
+class TestInstallTrustedRoot:
+    """Unit coverage for _install_trusted_root (issue #5112, Option 1).
+
+    The subprocess-level behavior lives in
+    tests/test_run_completion_gate_install.py, which exercises the real
+    installed-plugin layout. These cover the helper's individual
+    conditions, including the ones that arrangement cannot isolate.
+
+    _PROJECT_ROOT is resolved at import time to this repository, so a
+    tmp_path root is outside it, which is exactly condition 3's
+    "not at or under the project root".
+    """
+
+    def _config_in(self, root, name="pr-review-config.yaml"):
+        root.mkdir(parents=True, exist_ok=True)
+        config = root / name
+        config.write_text("completion_criteria: []\n", encoding="utf-8")
+        return config
+
+    def test_unset_environment_install_trusts_nothing(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        config = self._config_in(tmp_path / "plugin")
+
+        assert _dispatcher._install_trusted_root(str(config)) is None
+
+    @pytest.mark.parametrize(
+        "env_var", ["CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT"],
+    )
+    def test_either_host_variable_install_trusts(
+        self, tmp_path, monkeypatch, env_var,
+    ):
+        monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        root = tmp_path / "plugin"
+        config = self._config_in(root / "commands")
+        monkeypatch.setenv(env_var, str(root))
+        _own_plugin_root(monkeypatch, root)
+
+        assert _dispatcher._install_trusted_root(str(config)).root == root.resolve()
+
+    def test_empty_and_whitespace_values_are_ignored(self, tmp_path, monkeypatch):
+        """An exported-but-empty variable is not a declaration.
+
+        Hosts and CI commonly export a variable with no value; treating
+        that as a plugin root would resolve Path("") to the cwd.
+        """
+        root = tmp_path / "plugin"
+        config = self._config_in(root / "commands")
+        monkeypatch.setenv("COPILOT_PLUGIN_ROOT", "   ")
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", "")
+
+        assert _dispatcher._install_trusted_root(str(config)) is None
+
+    def test_surrounding_whitespace_is_stripped_from_a_real_root(
+        self, tmp_path, monkeypatch,
+    ):
+        """Discriminating twin for the case above.
+
+        The case above cannot observe the strip(): whitespace-only survives
+        it as a relative path that is not a directory, so the value is
+        dropped either way and the assertion holds against an unstripped
+        implementation. Mutation confirmed it, removing .strip() left the
+        whole file green.
+
+        A real root with stray spaces is the input the two implementations
+        disagree on. Unstripped, Path("  /abs/root") is RELATIVE (its first
+        component is the spaces), so it resolves under the cwd, is not a
+        directory, and nothing is trusted.
+        """
+        root = tmp_path / "plugin"
+        config = self._config_in(root / "commands")
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", f"  {root}  ")
+        _own_plugin_root(monkeypatch, root)
+
+        assert _dispatcher._install_trusted_root(str(config)).root == root.resolve()
+
+    def test_a_root_that_is_not_a_directory_is_ignored(self, tmp_path, monkeypatch):
+        """A declared root must be a directory, not merely a path.
+
+        The config is placed INSIDE the declared root so containment
+        (condition 4) cannot be what refuses this. Without the is_dir()
+        check a plain FILE would install-trust a config named beneath it:
+        Path.resolve() does not require existence, so the containment test
+        happily succeeds against a path that cannot hold a file at all.
+        An earlier version of this case put the config elsewhere, so
+        containment refused it and the is_dir() check went unobserved;
+        mutation confirmed removing is_dir() left the file green.
+        """
+        not_a_dir = tmp_path / "plugin-root-is-a-file"
+        not_a_dir.write_text("", encoding="utf-8")
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(not_a_dir))
+
+        assert _dispatcher._install_trusted_root(
+            str(not_a_dir / "pr-review-config.yaml"),
+        ) is None
+
+    def test_a_root_inside_the_project_root_is_refused(self, monkeypatch):
+        """Condition 3: the PR-controlled in-repo fallback never widens.
+
+        Uses the live project root, so this asserts the real containment
+        the gate applies rather than a stand-in.
+        """
+        in_repo_root = _dispatcher._PROJECT_ROOT / ".claude"
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(in_repo_root))
+        config = in_repo_root / "commands" / "pr-review-config.yaml"
+
+        assert _dispatcher._install_trusted_root(str(config)) is None
+
+    def test_an_ancestor_of_the_project_root_is_refused(self, monkeypatch):
+        """Condition 3 is disjointness, not one-way containment.
+
+        The bypass Copilot found on PR #5329. Testing only "the root is not
+        below the project" passes a root that is an ANCESTOR of the project,
+        while every PR-controlled file in the repo is inside that root, so
+        condition 4 passes too and a config the checked-out PR wrote becomes
+        install-trusted, skipping byte-identity verification (CWE-829).
+
+        Reproduced before the fix with the live project root: declared root
+        /home/user install-trusted
+        /home/user/ai-agents/.claude/commands/pr-review-config.yaml.
+        """
+        project_root = _dispatcher._PROJECT_ROOT.resolve()
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(project_root.parent))
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        pr_controlled = project_root / ".claude" / "commands" / "pr-review-config.yaml"
+
+        assert _dispatcher._install_trusted_root(str(pr_controlled)) is None
+
+    def test_the_project_root_itself_is_refused(self, monkeypatch):
+        """_is_within is true for root == root, so the repo itself is out."""
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(_dispatcher._PROJECT_ROOT))
+        config = _dispatcher._PROJECT_ROOT / "pyproject.toml"
+
+        assert _dispatcher._install_trusted_root(str(config)) is None
+
+    def test_a_config_outside_the_declared_root_is_refused(
+        self, tmp_path, monkeypatch,
+    ):
+        """Condition 4: declaring a root does not bless every path."""
+        root = tmp_path / "plugin"
+        root.mkdir(parents=True)
+        elsewhere = self._config_in(tmp_path / "elsewhere")
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+
+        assert _dispatcher._install_trusted_root(str(elsewhere)) is None
+
+    def test_a_symlink_escaping_the_root_is_refused(self, tmp_path, monkeypatch):
+        """Condition 4 resolves before containment (CWE-59)."""
+        root = tmp_path / "plugin"
+        (root / "commands").mkdir(parents=True)
+        target = self._config_in(tmp_path / "outside")
+        link = root / "commands" / "linked.yaml"
+        link.symlink_to(target)
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        _own_plugin_root(monkeypatch, root)
+
+        assert _dispatcher._install_trusted_root(str(link)) is None
+
+    def test_a_symlink_within_the_root_is_still_trusted(self, tmp_path, monkeypatch):
+        """The refusal is about escaping, not about links as such.
+
+        A link whose target is also install-controlled stays inside the
+        operator's own directory, so nothing PR-controlled is reached.
+        """
+        root = tmp_path / "plugin"
+        target = self._config_in(root / "real")
+        (root / "commands").mkdir(parents=True)
+        link = root / "commands" / "linked.yaml"
+        link.symlink_to(target)
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        _own_plugin_root(monkeypatch, root)
+
+        assert _dispatcher._install_trusted_root(str(link)).root == root.resolve()
+
+    def test_copilot_root_is_consulted_before_claude_root(
+        self, tmp_path, monkeypatch,
+    ):
+        """Order matches resolve_pr_review_config's own precedence.
+
+        That command reads
+        ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}, so when
+        both are set and only one contains the config, the Copilot root
+        is the one that decides.
+        """
+        copilot_root = tmp_path / "copilot"
+        claude_root = tmp_path / "claude"
+        claude_root.mkdir(parents=True)
+        config = self._config_in(copilot_root / "commands")
+        monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(copilot_root))
+        _own_plugin_root(monkeypatch, copilot_root)
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(claude_root))
+
+        assert _dispatcher._install_trusted_root(str(config)).root == copilot_root.resolve()
+
+    def test_a_relative_config_resolves_against_the_cwd(
+        self, tmp_path, monkeypatch,
+    ):
+        """--config may be relative; the gate resolves it against the cwd.
+
+        The cwd is a real work tree, because _install_trusted_root fails
+        closed when git cannot report a toplevel. A relative arg is only
+        install-trustable when it traverses OUT of that work tree and into
+        the declared root, which is what the host does when it passes the
+        bundled config by a path relative to the consumer repository.
+        """
+        consumer = _git_work_tree(tmp_path / "consumer")
+        root = tmp_path / "plugin"
+        self._config_in(root / "commands")
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        _own_plugin_root(monkeypatch, root)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        monkeypatch.chdir(consumer)
+
+        approved = _dispatcher._install_trusted_root(
+            "../plugin/commands/pr-review-config.yaml",
+        )
+
+        assert approved.root == root.resolve()
+
+    def test_a_relative_config_inside_the_work_tree_is_refused(
+        self, tmp_path, monkeypatch,
+    ):
+        """Discriminating control for the case above.
+
+        Same cwd, same declared root, same relative syntax; only the
+        traversal differs. This one stays inside the consumer work tree, so
+        it is PR-controlled and must keep the byte-identity check. Without
+        it the case above would pass for any relative path at all.
+        """
+        consumer = _git_work_tree(tmp_path / "consumer")
+        root = tmp_path / "plugin"
+        self._config_in(root / "commands")
+        self._config_in(consumer / "commands")
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        _own_plugin_root(monkeypatch, root)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        monkeypatch.chdir(consumer)
+
+        assert _dispatcher._install_trusted_root(
+            "commands/pr-review-config.yaml",
+        ) is None
+
+
+class TestEnforceConfigTrustInstallTrusted:
+    """_enforce_config_trust short-circuits only on an install-trusted root."""
+
+    def test_install_root_skips_config_verification_but_not_the_ref_check(
+        self, tmp_path, monkeypatch,
+    ):
+        """Byte verification is skipped; ref validation is NOT.
+
+        This case previously asserted that _run_git must never be called for
+        an install-trusted config, and stubbed it to raise. That contract was
+        wrong and the assertion enforced the wrong thing: the trust ANCHOR
+        still has to resolve to a remote-tracking ref, which takes a git
+        call, and skipping it let `--trusted-ref HEAD` make command trust
+        compare PR-modified verifiers against the PR's own commit (Copilot
+        review, PR #5329). What is skipped is _verify_config_trust's
+        byte-identity comparison, and only that.
+        """
+        calls: list[list[str]] = []
+
+        def _fake_git(args, cwd):
+            calls.append(args)
+            return subprocess.CompletedProcess(
+                args, 0, b"refs/remotes/origin/main\n", b"",
+            )
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _fake_git)
+
+        trust, halt = _dispatcher._enforce_config_trust(
+            tmp_path / "pr-review-config.yaml",
+            "origin/main",
+            False,
+            b"completion_criteria: []\n",
+            _dispatcher.InstallTrust(
+                tmp_path, tmp_path / "pr-review-config.yaml", tmp_path,
+            ),
+        )
+
+        assert halt is None
+        assert trust.status == _dispatcher.TRUST_INSTALL_TRUSTED
+        assert "install-trusted" in trust.detail
+        # Exactly one git call, and it is the anchor check. `cat-file`
+        # would mean byte verification ran, which install trust exists to
+        # skip; asserting the call list catches either drift.
+        assert calls == [["rev-parse", "--symbolic-full-name", "origin/main"]], calls
+
+    def test_install_root_refuses_a_local_ref(self, tmp_path, monkeypatch):
+        """HEAD passes the regex, so only the remote-tracking check stops it.
+
+        The reproduction behind this: with the ref unvalidated, command
+        trust compared a PR-modified verifier against the PR's own HEAD,
+        declared it trusted, and executed it. Exit 3, matching
+        TRUST_GIT_ERROR, so --approve-untrusted-config cannot override it.
+        """
+        def _fake_git(args, cwd):
+            return subprocess.CompletedProcess(args, 0, b"refs/heads/main\n", b"")
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _fake_git)
+
+        trust, halt = _dispatcher._enforce_config_trust(
+            tmp_path / "pr-review-config.yaml",
+            "HEAD",
+            True,  # approval must NOT rescue this
+            b"completion_criteria: []\n",
+            _dispatcher.InstallTrust(
+                tmp_path, tmp_path / "pr-review-config.yaml", tmp_path,
+            ),
+        )
+
+        assert halt == 3, halt
+        assert trust.status == _dispatcher.TRUST_GIT_ERROR
+        assert "remote-tracking" in trust.detail
+
+    def test_install_root_refuses_an_option_shaped_ref(self, tmp_path, monkeypatch):
+        """The regex guard now runs ahead of the short-circuit.
+
+        Discriminating twin for the case above: this one is stopped by the
+        regex and never reaches git, so _run_git raising proves the order.
+        """
+        def _explode(*args, **kwargs):
+            raise AssertionError("a malformed ref must not reach git")
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _explode)
+
+        trust, halt = _dispatcher._enforce_config_trust(
+            tmp_path / "pr-review-config.yaml",
+            "--upload-pack=touch /tmp/pwned",
+            False,
+            b"completion_criteria: []\n",
+            _dispatcher.InstallTrust(
+                tmp_path, tmp_path / "pr-review-config.yaml", tmp_path,
+            ),
+        )
+
+        assert halt == 2, halt
+        assert trust.status == _dispatcher.TRUST_MALFORMED_REF
+
+    def test_without_install_root_verification_still_runs(self, tmp_path, monkeypatch):
+        """Negative control: the short-circuit is gated on the argument.
+
+        Without it the malformed-ref check is reached and returns exit 2,
+        proving the branch above is not simply always taken.
+        """
+        trust, halt = _dispatcher._enforce_config_trust(
+            tmp_path / "pr-review-config.yaml",
+            "--not-a-ref",
+            False,
+            b"completion_criteria: []\n",
+            None,
+        )
+
+        assert halt == 2
+        assert trust.status == _dispatcher.TRUST_MALFORMED_REF
+
+
+class TestWorkTreeProbeFailure:
+    """A failed work-tree probe is exit 3, and a git hang is caught.
+
+    Copilot review, PR #5329. Two distinct defects behind one finding:
+
+    1. ``subprocess.TimeoutExpired`` is NOT an ``OSError`` (its MRO is
+       TimeoutExpired -> SubprocessError -> Exception), and ``_run_git``
+       passes ``timeout=_GIT_TIMEOUT_SECONDS``, so an ``except OSError``
+       alone let a 30-second git hang escape as an unhandled traceback.
+       The module's two other guarded ``_run_git`` callers already catch
+       the pair.
+    2. A probe failure was collapsed into "no install trust" and fell
+       through to containment, exiting 2 and naming the config path as
+       the problem when the path was fine.
+
+    Driven through ``main()`` so the assertion is on the integer the
+    process exits with, not on a helper's return value (testing.md MUST 8).
+    """
+
+    def _plugin_root(self, tmp_path, monkeypatch):
+        root = tmp_path / "plugin"
+        (root / "commands").mkdir(parents=True)
+        config = root / "commands" / "pr-review-config.yaml"
+        config.write_text(
+            "completion_criteria:\n"
+            "  - name: c\n"
+            "    verification: command\n"
+            '    command: "true"\n'
+            '    pass_when: "exit_code == 0"\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        _own_plugin_root(monkeypatch, root)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        return config
+
+    def test_a_git_timeout_exits_3_instead_of_raising(
+        self, tmp_path, monkeypatch, capsys,
+    ):
+        config = self._plugin_root(tmp_path, monkeypatch)
+
+        def _hang(args, cwd):
+            raise subprocess.TimeoutExpired(cmd=["git", *args], timeout=30)
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _hang)
+
+        code = _dispatcher.main(
+            ["--pull-request", "1", "--config", str(config)],
+        )
+
+        assert code == 3, code
+        err = capsys.readouterr().err
+        assert "could not run git" in err, err
+        assert "Refusing to load config from unsafe path" not in err, err
+
+    def test_a_symlink_loop_in_the_work_tree_path_exits_3(
+        self, tmp_path, monkeypatch, capsys,
+    ):
+        """RuntimeError from resolve() must not escape as a traceback.
+
+        CPython 3.10, 3.11 and 3.12 raise ``RuntimeError("Symlink loop
+        from ...")`` out of ``Path.resolve()``; 3.14 returns the unresolved
+        path instead. ``RuntimeError`` is not an ``OSError``, so the earlier
+        ``except OSError`` guard let it escape on exactly the interpreters
+        the hook-portability floor targets, and a local run on 3.14 could
+        never reveal that (Copilot review, PR #5329).
+
+        The exception is injected rather than produced with real symlinks,
+        because on the interpreter this suite runs under no real loop raises
+        it. That is the point: the defect is invisible to a same-version
+        reproduction, so the test has to model the other versions' contract.
+        """
+        config = self._plugin_root(tmp_path, monkeypatch)
+
+        real_resolve = Path.resolve
+
+        # Exact match, not a substring: tmp_path contains "loop" because
+        # this test is NAMED for one, and a substring trigger fired on the
+        # config path instead of the work tree.
+        looped = "/looped-work-tree"
+
+        def _looping(self, *a, **kw):
+            if str(self) == looped:
+                raise RuntimeError(f"Symlink loop from {self!r}")
+            return real_resolve(self, *a, **kw)
+
+        monkeypatch.setattr(Path, "resolve", _looping)
+        monkeypatch.setattr(
+            _dispatcher, "_run_git",
+            lambda args, cwd: subprocess.CompletedProcess(
+                args, 0, looped.encode() + b"\n", b"",
+            ),
+        )
+
+        code = _dispatcher.main(
+            ["--pull-request", "1", "--config", str(config)],
+        )
+
+        assert code == 3, code
+        assert "does not resolve" in capsys.readouterr().err
+
+    def test_a_missing_git_binary_exits_3(self, tmp_path, monkeypatch, capsys):
+        config = self._plugin_root(tmp_path, monkeypatch)
+
+        def _absent(args, cwd):
+            raise FileNotFoundError(2, "No such file or directory: 'git'")
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _absent)
+
+        code = _dispatcher.main(
+            ["--pull-request", "1", "--config", str(config)],
+        )
+
+        assert code == 3, code
+        assert "could not run git" in capsys.readouterr().err
+
+    def test_an_anchor_probe_timeout_exits_3_not_1(self, tmp_path, monkeypatch, capsys):
+        """A git failure DURING anchor validation is exit 3, not a traceback.
+
+        The work-tree probe is already guarded, so this covers the SECOND git
+        call on the install-trusted path, inside
+        ``_require_remote_tracking_ref``. ``_verify_config_trust`` happens to
+        call that helper inside its own try, but the install-trusted caller
+        invokes it directly, so a timeout or a missing binary escaped as a
+        traceback and exit 1 instead of the documented non-overridable exit 3
+        (Copilot review, PR #5329). The catch now lives in the shared helper,
+        which is what keeps the two callers from disagreeing about it.
+        """
+        config = self._plugin_root(tmp_path, monkeypatch)
+        calls: list[list[str]] = []
+
+        def _hang_on_anchor(args, cwd):
+            calls.append(args)
+            if args[:2] == ["rev-parse", "--symbolic-full-name"]:
+                raise subprocess.TimeoutExpired(cmd=["git", *args], timeout=30)
+            # The work-tree probe succeeds, so install trust is granted and
+            # execution reaches the anchor check. Without this the case would
+            # exit 3 from the earlier probe and prove nothing about the second.
+            # It must report a tree DISJOINT from tmp_path/"plugin"; returning
+            # tmp_path itself makes the declared root a subdirectory of the
+            # work tree, which condition 3 refuses, and the case then dies at
+            # containment having never reached the anchor call.
+            return subprocess.CompletedProcess(
+                args, 0, str(tmp_path / "consumer").encode() + b"\n", b"",
+            )
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _hang_on_anchor)
+
+        code = _dispatcher.main(
+            ["--pull-request", "1", "--config", str(config)],
+        )
+
+        assert code == 3, code
+        assert "could not resolve trusted ref" in capsys.readouterr().err
+        # Proof the anchor call was actually reached, so a future change that
+        # short-circuits earlier fails here rather than passing vacuously.
+        assert ["rev-parse", "--symbolic-full-name", "origin/main"] in calls, calls
+
+    def test_a_config_problem_still_exits_2(self, tmp_path, monkeypatch, capsys):
+        """Discriminating control: 3 must not swallow the config code.
+
+        Same declared root, same working git; only the config is wrong (it
+        is outside both the root and the project). Without this, a mutant
+        that returned 3 unconditionally would pass every case above.
+        """
+        self._plugin_root(tmp_path, monkeypatch)
+        outside = tmp_path / "outside" / "pr-review-config.yaml"
+        outside.parent.mkdir(parents=True)
+        outside.write_text("completion_criteria: []\n", encoding="utf-8")
+
+        code = _dispatcher.main(
+            ["--pull-request", "1", "--config", str(outside)],
+        )
+
+        assert code == 2, code
+        assert "Refusing to load config from unsafe path" in capsys.readouterr().err
+
+
+class TestInstallTrustedPathConsistency:
+    """The path install-trust approves must be the path that is read.
+
+    Found by Semgrep's dangerous-subprocess-use-tainted-env-args on
+    PR #5329. validate_safe_path builds its result as
+    (resolved_base / path).resolve(), so handing it the environment-
+    declared root as the base made that root a component of the path
+    READ, not merely the boundary it is CHECKED against. For a relative
+    --config the two resolutions disagree, and the file authorized by
+    _install_trusted_root (cwd-anchored) is not the file loaded
+    (root-anchored). _resolve_and_read_config now reuses the approved
+    path instead.
+    """
+
+    def test_a_relative_config_reads_the_cwd_anchored_file(
+        self, tmp_path, monkeypatch,
+    ):
+        """Two files share a relative name; the cwd-anchored one wins.
+
+        Without the fix, validate_safe_path anchored the relative arg on
+        the plugin root and loaded the decoy instead.
+        """
+        consumer = _git_work_tree(tmp_path / "consumer")
+        root = tmp_path / "inst" / "plugin"
+        rel = "../inst/plugin/pr-review-config.yaml"
+
+        # The file the cwd-anchored resolution names, and the one
+        # _install_trusted_root approves: consumer/../inst/plugin/<name>.
+        approved = root / "pr-review-config.yaml"
+        approved.parent.mkdir(parents=True)
+        approved.write_text(
+            "completion_criteria:\n  - name: approved\n", encoding="utf-8",
+        )
+        # The file the ROOT-anchored resolution names for the same arg:
+        # tmp/inst/plugin/../inst/plugin/<name> is tmp/inst/inst/plugin/<name>.
+        # The asymmetric nesting is what makes the two resolutions differ;
+        # with the root and the cwd at the same depth they coincide and the
+        # case cannot discriminate. Note this decoy sits OUTSIDE the root
+        # that install trust was granted for, which is the defect exactly.
+        decoy = tmp_path / "inst" / "inst" / "plugin" / "pr-review-config.yaml"
+        decoy.parent.mkdir(parents=True)
+        decoy.write_text(
+            "completion_criteria:\n  - name: decoy\n", encoding="utf-8",
+        )
+
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        _own_plugin_root(monkeypatch, root)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        monkeypatch.chdir(consumer)
+
+        resolved = _dispatcher._resolve_and_read_config(rel)
+
+        assert resolved.exit_code is None, resolved.exit_code
+        assert resolved.install.root == root.resolve()
+        assert resolved.path == approved.resolve()
+        assert b"approved" in resolved.raw
+        assert b"decoy" not in resolved.raw
+
+    def test_the_approved_path_is_the_path_read(self, tmp_path, monkeypatch):
+        """The config is resolved ONCE, and the read reuses that result.
+
+        Simulates the CWE-367 swap Copilot reported: a repo-controlled
+        symlink changed between the containment decision and the read
+        resolves inside the root for the decision and outside it for the
+        read, with byte verification still skipped.
+
+        The swap is injected at the only place a second resolution could
+        happen, ``_absolute_config_candidate``. Call one is the decision,
+        inside ``_install_trusted_root``. Any call two is the re-resolution
+        the fix removed, and it gets the decoy. With the fix there is no
+        call two, so the decoy is unreachable no matter what it points at.
+
+        Written after mutation showed the earlier cases could not tell the
+        two apart: re-resolving returns the same path in a non-adversarial
+        fixture, so every one of them passed against the unfixed code.
+        """
+        root = tmp_path / "plugin"
+        approved = root / "commands" / "pr-review-config.yaml"
+        approved.parent.mkdir(parents=True)
+        approved.write_text(
+            "completion_criteria:\n  - name: approved\n", encoding="utf-8",
+        )
+        decoy = tmp_path / "decoy.yaml"
+        decoy.write_text(
+            "completion_criteria:\n  - name: decoy\n", encoding="utf-8",
+        )
+
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        _own_plugin_root(monkeypatch, root)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+
+        real = _dispatcher._absolute_config_candidate
+        calls: list[str] = []
+
+        def _swapping(config_arg):
+            calls.append(config_arg)
+            if len(calls) == 1:
+                return real(config_arg)
+            return decoy
+
+        monkeypatch.setattr(_dispatcher, "_absolute_config_candidate", _swapping)
+
+        resolved = _dispatcher._resolve_and_read_config(str(approved))
+
+        assert resolved.exit_code is None, resolved.exit_code
+        assert len(calls) == 1, f"resolved {len(calls)} times, expected 1"
+        assert resolved.path == approved.resolve()
+        assert b"approved" in resolved.raw
+        assert b"decoy" not in resolved.raw
+
+    def test_the_environment_root_cannot_redirect_an_absolute_config(
+        self, tmp_path, monkeypatch,
+    ):
+        """An absolute --config is unaffected by the root, as before."""
+        root = tmp_path / "plugin"
+        config = root / "commands" / "pr-review-config.yaml"
+        config.parent.mkdir(parents=True)
+        config.write_text(
+            "completion_criteria:\n  - name: absolute\n", encoding="utf-8",
+        )
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        _own_plugin_root(monkeypatch, root)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+
+        resolved = _dispatcher._resolve_and_read_config(
+            str(config),
+        )
+
+        assert resolved.exit_code is None, resolved.exit_code
+        assert resolved.install.root == root.resolve()
+        assert resolved.path == config.resolve()
+        assert b"absolute" in resolved.raw
+
+    def test_a_config_outside_the_root_still_falls_back_to_containment(
+        self, tmp_path, monkeypatch,
+    ):
+        """Negative control: the install branch is not always taken."""
+        root = tmp_path / "plugin"
+        root.mkdir(parents=True)
+        outside = tmp_path / "outside" / "pr-review-config.yaml"
+        outside.parent.mkdir(parents=True)
+        outside.write_text("completion_criteria: []\n", encoding="utf-8")
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        _own_plugin_root(monkeypatch, root)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+
+        resolved = _dispatcher._resolve_and_read_config(
+            str(outside),
+        )
+
+        assert resolved.install is None
+        assert resolved.path is None
+        assert resolved.raw is None
+        # 2, not 3: the work tree resolved fine and the CONFIG is the
+        # problem. The exit-3 branch is a different failure and has its
+        # own cases; asserting the code here keeps the two from merging.
+        assert resolved.exit_code == 2, resolved.exit_code
