@@ -8,7 +8,7 @@
     "supersession-reciprocal": 0,
     "supersession-target-exists": 0,
     "proposed-cannot-supersede": 0,
-    "prose-frontmatter-agree": 1,
+    "prose-frontmatter-agree": 0,
     "status-edge-consistency": 0
   }
 }
