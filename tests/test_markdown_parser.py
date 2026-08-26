@@ -802,6 +802,55 @@ class TestBlankNonProseBlockLines:
         assert out.startswith("prose \\<!--\n**Status**: Accepted\n--> more ")
         assert out.count("Accepted") == 1
 
+    def test_an_even_backslash_count_before_the_real_comment_is_not_escaped(
+        self,
+    ):
+        # Real gap found by Copilot (PR #5323): the test above only proves
+        # `_is_backslash_escaped` rejects an ODD backslash count (1, the
+        # decoy) and accepts ZERO (the real comment has none in that test).
+        # It never exercises an EVEN, nonzero count, which is the other half
+        # of CommonMark's escape rule (spec section 2.4): two backslashes
+        # escape EACH OTHER, so `\\<` is a literal `\` followed by an
+        # UNESCAPED `<`, not an escaped one. A parity check that is subtly
+        # wrong in the "any backslash escapes" direction (e.g. `count > 0`
+        # instead of `count % 2 == 1`) would incorrectly treat that position
+        # as escaped too, and this test file's only other regression would
+        # not have caught it: its real comment sits at zero backslashes,
+        # which both the correct and the broken check treat identically.
+        #
+        # `` "prose \\<!--\n**Status**: Accepted\n--> more \\\\<!--\n"
+        # "**Status**: Accepted\n-->\n" `` tokenizes as `text("prose <!--")`
+        # (the ODD-escaped decoy, one backslash, literal text, no token),
+        # the un-hidden "**Status**: Accepted" that follows, `text("-->
+        # more \\")` (a literal backslash: the first of the pair escapes
+        # the second, per spec 2.4), then the REAL
+        # `html_inline("<!--\n**Status**: Accepted\n-->")` starting right
+        # after that pair. Verified empirically via markdown-it-py's own
+        # tokenizer: this exact input produces exactly one `html_inline`
+        # child, confirming the double-backslash position is genuinely
+        # unescaped and real, not a second decoy.
+        #
+        # `_find_unescaped_occurrence`'s `markdown.find` still hits the
+        # ODD-escaped decoy's raw bytes first (identical content, earlier in
+        # the source), so this input also re-proves the odd-rejection path
+        # from the test above, before reaching the EVEN-count real match
+        # this test exists to pin. Mutation-proven: reverting
+        # `_is_backslash_escaped`'s `count % 2 == 1` to `count > 0`
+        # reproduces `Accepted` appearing twice (the real comment's hidden
+        # status leaks unmasked, because the even-count position is wrongly
+        # rejected and no later occurrence exists to fall back to); the
+        # correct implementation always finds the real comment and masks
+        # it, leaving `Accepted` exactly once (the decoy's visible prose).
+        text = (
+            "prose \\<!--\n**Status**: Accepted\n--> more \\\\<!--\n"
+            "**Status**: Accepted\n-->\n"
+        )
+        out = blank_non_prose_block_lines(text)
+        assert out.startswith(
+            "prose \\<!--\n**Status**: Accepted\n--> more \\\\"
+        )
+        assert out.count("Accepted") == 1
+
     def test_preserves_line_count(self):
         text = "a\n<!--\nb\nc\n-->\nd\n"
         original = len(text.split("\n"))
