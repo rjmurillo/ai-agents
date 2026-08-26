@@ -109,6 +109,29 @@ scope. The fix pattern is "extract the reviewed slice into its own PR," not
   Copilot review round on PR #5285 found the first version of this fix
   overstated what the label means).
 
+### SMART Validation
+
+#### Proposed Skill
+
+**Statement:** An in-flight PR's `needs-split` label is an advisory
+commit-count signal, not proof its scope is separable; verify by reading the
+diff and review state, then extract the reviewed slice into its own PR
+rather than waiting or filing a follow-up issue.
+
+#### Validation
+
+| Criterion | Pass? | Evidence |
+|-----------|-------|----------|
+| Specific | Partial | One core concept (verify before trusting the label, then extract), but the final routing-rule text also folds in a second, related lesson from later in this same retrospective (two independently-extracted slices can race each other) rather than shipping as a second, separate learning. Kept together because both were learned from the same issue #5198 execution and both change the same routing paragraph; a future skillbook extraction could still split them. |
+| Measurable | Y | Tied to a concrete execution trace: issue #5198, PR #5285 (extraction), PR #5209 (the blocking PR whose `needs-split` label motivated the check), and the Copilot review comment on #5285 that corrected this retrospective's first-draft root cause. |
+| Attainable | Y | A documentation instruction inside an existing routing skill (`.claude/skills/autoplan/SKILL.md` Phase 0); no new capability or tool required. |
+| Relevant | Y | Applies whenever `autoplan` routes an `<issue-url>` request and Phase 0 recon finds an open, in-flight PR already targeting that issue. |
+| Timely | Y | Trigger condition is explicit: Phase 0 recon, before routing into a fresh implementation. |
+
+#### Result
+
+- [x] All criteria pass: Accept skill (the "Specific" partial is a scope note, not a rejection: both lessons already shipped together in `.claude/skills/autoplan/SKILL.md` Phase 0 and are cross-referenced from the same evidence)
+
 ### Action Sequence
 
 1. Re-diagnose #5198 within the same session (no dependency).
@@ -141,8 +164,14 @@ scope. The fix pattern is "extract the reviewed slice into its own PR," not
 
 ## Skillbook Updates
 
-No skillbook (cross-repository) entries proposed. The remediation is scoped
-to this repository's `autoplan` routing table.
+No standalone skillbook (Forgetful, cross-repository memory) entry proposed:
+the routing rule was written directly into `.claude/skills/autoplan/SKILL.md`
+Phase 0 instead. That file is not repository-scoped in effect, even though
+editing it feels local: per Learning 1's Target Skill ID note above, it is
+canonical plugin content this repository's own build step copies verbatim
+into `src/copilot-cli/skills/autoplan/SKILL.md` for every downstream plugin
+install. "No skillbook entry" describes the memory-persistence channel used,
+not the remediation's reach.
 
 ### ADD
 

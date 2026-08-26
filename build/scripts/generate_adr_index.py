@@ -912,17 +912,24 @@ def _atomic_write_text(path: Path, content: str) -> None:
             existing_mode = None
     fd, tmp_name = tempfile.mkstemp(dir=directory, prefix=f".{path.name}.", suffix=".tmp")
     try:
-        if existing_mode is not None:
-            # os.fchmod is POSIX-only: on Windows it does not exist on the os
-            # module at all, so calling it here raised AttributeError before
-            # the write and before os.fdopen(fd, ...) ever ran, leaking the
-            # open descriptor and leaving the unlink below unable to remove
-            # it (Copilot review, PR #5321). os.chmod is path-based and
-            # portable; on Windows it only toggles the read-only bit, the
-            # same limited effect a plain open(path, "w") would have had.
-            os.chmod(tmp_name, existing_mode)
+        # os.fdopen(fd, ...) MUST be the first statement in this block, before
+        # os.chmod or anything else that can raise. mkstemp() returns a raw OS
+        # descriptor, not a Python file object; nothing closes it until either
+        # os.fdopen() wraps it (the `with` statement then owns close-on-any-
+        # exit) or this function closes it explicitly. A prior version called
+        # os.chmod(tmp_name, ...) here first: when chmod raised, the raw
+        # descriptor was never wrapped and never closed, leaking it for the
+        # life of the process, and on Windows the still-open handle could also
+        # make the unlink below fail (silently, via the `except OSError: pass`
+        # underneath), leaving a stray temp file too (Copilot review, PR
+        # #5321). Applying the mode after the write, still inside the `with`,
+        # keeps the file at mkstemp's own restrictive 0600 for the whole write
+        # and only widens it (when existing_mode grants that) right before
+        # publishing.
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(content)
+            if existing_mode is not None:
+                os.chmod(tmp_name, existing_mode)
         os.replace(tmp_name, path)
     except BaseException:
         try:

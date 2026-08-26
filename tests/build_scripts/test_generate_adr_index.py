@@ -13,6 +13,7 @@ asserts on it would encode a count that is wrong by the next merge.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -918,6 +919,47 @@ def test_atomic_write_propagates_the_original_error_when_cleanup_also_fails(
 
     with pytest.raises(OSError, match="original failure"):
         generate_adr_index._atomic_write_text(output, "new content\n")
+
+
+@pytest.mark.skipif(
+    not Path("/proc/self/fd").is_dir(), reason="requires /proc/self/fd (Linux only)"
+)
+def test_atomic_write_does_not_leak_the_temp_descriptor_when_chmod_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A ``chmod`` failure must not leak the ``mkstemp`` descriptor.
+
+    ``os.fdopen(fd, ...)`` is the first statement inside the ``with`` block
+    specifically so the raw descriptor ``tempfile.mkstemp()`` returns is
+    always either wrapped (and then owned by the ``with`` statement's
+    close-on-any-exit) or never separately acted on. A prior ordering called
+    ``os.chmod(tmp_name, ...)`` before ``os.fdopen``; when ``chmod`` raised,
+    that raw descriptor was never wrapped and never closed, leaking one file
+    descriptor per failure (Copilot review, PR #5321). Empirically confirmed
+    against the reverted ordering: 20 forced ``chmod`` failures leaked
+    exactly 20 descriptors (measured via ``/proc/self/fd`` count), 1:1 with
+    the failure count; a byte-identical restore was confirmed afterward.
+    """
+    output = tmp_path / "README.md"
+    output.write_text("existing content\n", encoding="utf-8")
+
+    def _raise_on_chmod(*_args: object, **_kwargs: object) -> None:
+        raise OSError("simulated chmod failure")
+
+    monkeypatch.setattr(generate_adr_index.os, "chmod", _raise_on_chmod)
+
+    def _open_fd_count() -> int:
+        return len(os.listdir("/proc/self/fd"))
+
+    before = _open_fd_count()
+    for _ in range(20):
+        with pytest.raises(OSError, match="simulated chmod failure"):
+            generate_adr_index._atomic_write_text(output, "new content\n")
+    after = _open_fd_count()
+
+    assert after - before <= 1, (
+        f"leaked {after - before} file descriptor(s) across 20 forced chmod failures"
+    )
 
 
 @pytest.mark.windows_path
