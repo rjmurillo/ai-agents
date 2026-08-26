@@ -7,7 +7,7 @@ license: MIT
 
 # AI Agents Config Catalog
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/, scripts/validation/check_push_lock_before_commit.py) because its audience is repo contributors, not plugin consumers (issue #2050) -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/, scripts/validation/check_push_lock_before_commit.py, scripts/validation/git_hook_policy.py) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 Every flag, marker, and skip semantic in this repo, verified against code as
 of 2026-07-03. Hook registration surfaces were rechecked on 2026-08-19. Each
 escape hatch exists because a gate sometimes misfires; each one also has an
