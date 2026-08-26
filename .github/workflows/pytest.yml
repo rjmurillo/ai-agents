@@ -116,8 +116,12 @@ jobs:
               # real tests and were absent from this filter, so a push touching
               # only one of them ran no assertions locally AND skipped the
               # matrix here: assertions did not run until the merge queue
-              # forced them. Each entry below has at least one test that opens
-              # it and asserts on its contents.
+              # forced them. Each entry below is referenced by at least one
+              # test, which the colocated guard checks textually: it does not
+              # prove a runtime read, and a mention in a comment counts. The
+              # looseness is deliberate (a strict-path version produced a false
+              # negative on a package tree reached by import), and it means a
+              # passing guard is evidence of intent, not of dependency.
               #   .claude/skills/**        tests/skills/**, e.g.
               #                            security-review/test_skill_md.py
               #   .serena/memories/**      tests/test_memory_verification.py

@@ -161,9 +161,10 @@ _CHECKS: tuple[tuple[str, tuple[str, ...]], ...] = (
 #
 # Was 420s, a 100x margin over the work. That margin was not free: budget plus
 # grace must fit in half the outer cap, so it held `pre-pr-validation` at a 15m
-# cap and put 900s of a 2610s declared worst case behind a gate that runs in a
-# second. 120s keeps roughly 24x headroom, which is above the 9x to 15x in-hook
-# inflation MUST-16 records for this graph, and lets the cap fall to 3m.
+# cap and put 900s of a declared worst case behind a gate that runs in a second.
+# 60s keeps roughly 12x headroom, at the top of the 9x to 15x in-hook inflation
+# MUST-16 records for this graph, and lets the cap fall to 4m. An intermediate
+# revision of this comment described 120s and a 3m cap and outlived both.
 _GATE_BUDGET_SECONDS = 60.0
 
 # How long a child gets to honor SIGINT and finish its cleanup before the
@@ -220,9 +221,7 @@ def _echo_tail(output: str) -> None:
     sys.stdout.flush()
 
 
-def _run_check(
-    script: Path, repo_root: Path, timeout: float
-) -> tuple[int | None, str]:
+def _run_check(script: Path, repo_root: Path, timeout: float) -> tuple[int | None, str]:
     """Run one generator in ``--check`` mode. Returns (exit code, output).
 
     A deadline expiry is an external failure, not a pass: the caller must not
@@ -267,10 +266,7 @@ def _run_check(
                 "child ignored the interrupt and was killed; the tree may "
                 "hold partial generated writes, check git status"
             )
-        return None, (
-            partial
-            + f"\n{script.name} --check exceeded {timeout}s ({cleanup_note})"
-        )
+        return None, (partial + f"\n{script.name} --check exceeded {timeout}s ({cleanup_note})")
 
 
 def _remaining(deadline: float) -> float:
@@ -350,8 +346,7 @@ def check_generated_staleness(repo_root: Path) -> _Status:
         _echo_tail(output)
         remaining = len(_CHECKS) - examined
         unrun = (
-            f" The remaining {remaining} check(s) did not run: their input "
-            f"is not yet known good."
+            f" The remaining {remaining} check(s) did not run: their input is not yet known good."
             if remaining
             else ""
         )
@@ -389,18 +384,18 @@ def check_generated_staleness(repo_root: Path) -> _Status:
 def validate_generated_staleness(repo_root: Path) -> bool:
     """Registry entry point for ``pre_pr_sequence``.
 
-    Canonical source of the consumed contract:
-    ``scripts/validation/pre_pr_sequence.py:147``, whose adapter signature reads
-    verbatim (quoted at column 0 so the 96-character original is reproduced
-    byte for byte rather than wrapped to fit an indent):
+        Canonical source of the consumed contract:
+        ``scripts/validation/pre_pr_sequence.py:147``, whose adapter signature reads
+        verbatim (quoted at column 0 so the 96-character original is reproduced
+        byte for byte rather than wrapped to fit an indent):
 
-def _root_only(validator: Callable[[Path], bool]) -> Callable[[Path, argparse.Namespace], bool]:
+    def _root_only(validator: Callable[[Path], bool]) -> Callable[[Path, argparse.Namespace], bool]:
 
-    So the registry accepts exactly ``Callable[[Path], bool]``. Different than
-    canonical: this module's own CLI keeps the richer ``_Status``, because
-    ADR-035 distinguishes drift (1) from a missing script (2) and a killed
-    child (3) and a boolean cannot carry that. The narrowing happens here and
-    nowhere else, so the registry stays uniform while the CLI stays honest.
+        So the registry accepts exactly ``Callable[[Path], bool]``. Different than
+        canonical: this module's own CLI keeps the richer ``_Status``, because
+        ADR-035 distinguishes drift (1) from a missing script (2) and a killed
+        child (3) and a boolean cannot carry that. The narrowing happens here and
+        nowhere else, so the registry stays uniform while the CLI stays honest.
     """
     return check_generated_staleness(repo_root) is _Status.OK
 

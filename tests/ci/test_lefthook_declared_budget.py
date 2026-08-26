@@ -170,9 +170,7 @@ def _entry_cost(entry: dict[str, Any], clamp: float | None = None) -> tuple[floa
     group = entry.get("group")
     if not isinstance(group, dict):
         return _job_cost(entry, clamp), str(entry.get("name", "<unnamed>"))
-    parts = [
-        _entry_cost(job, clamp) for job in group.get("jobs", []) if isinstance(job, dict)
-    ]
+    parts = [_entry_cost(job, clamp) for job in group.get("jobs", []) if isinstance(job, dict)]
     if not parts:
         return 0.0, "<empty group>"
     if group.get("parallel"):
@@ -311,7 +309,7 @@ class TestTheModelMatchesLefthookScheduling:
         assert after > DECLARED_BUDGET_BASELINE_SECONDS["pre-push"]
 
 
-class TestNothingCanOutliveAContainer:
+class TestNoSingleChildOutlivesAContainer:
     """The property the originating incident is actually about.
 
     A developer whose hook runs long is inconvenienced. A container whose hook
@@ -334,7 +332,7 @@ class TestNothingCanOutliveAContainer:
         ]
         return sorted(bounds, reverse=True)
 
-    def test_no_single_job_can_run_longer_than_the_per_job_ceiling(self) -> None:
+    def test_no_job_declares_a_single_child_above_the_container_ceiling(self) -> None:
         bounds = self._per_job_container_bounds()
         over = [(cost, name) for cost, name in bounds if cost > CONTAINER_PER_JOB_CEILING_SECONDS]
         detail = ", ".join(f"{name} {cost:.0f}s" for cost, name in over)

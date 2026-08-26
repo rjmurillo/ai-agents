@@ -101,7 +101,7 @@ def test_there_are_tree_roots_to_check() -> None:
 
 
 @pytest.mark.parametrize("root", sorted(set(_tree_roots())))
-def test_every_tree_root_is_read_by_a_test(root: str) -> None:
+def test_every_tree_root_is_referenced_by_a_test(root: str) -> None:
     assert _tests_reference(root), (
         f"{root!r} is in pytest.yml's python filter but no file under tests/ "
         "mentions it. Either a test that justified it was removed, in which "
