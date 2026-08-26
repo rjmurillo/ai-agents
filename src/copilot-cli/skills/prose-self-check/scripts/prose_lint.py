@@ -83,7 +83,7 @@ _FENCE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
 # root and is quoted here rather than imported, because the two skills ship
 # as separate directories and neither is on the other's import path.
 #
-# `skills/fix-markdown-fences/scripts/fix_fences.py` lines 122-124, verbatim:
+# `skills/fix-markdown-fences/scripts/fix_fences.py` lines 129-131, verbatim:
 #
 #     def over_indented(self, indent: str) -> bool:
 #         """Return True when *indent* puts the marker inside an indented code block."""
@@ -99,7 +99,9 @@ _LIST_MARKER = re.compile(
     r"(?:(?P<bullet>[-*+])|(?P<number>\d{1,9})(?P<delim>[.)]))"
     r"(?P<pad>[ \t]*)(?P<rest>.*)$"
 )
-_LEAF_BLOCK = re.compile(r"^[ \t]{0,3}(?:#{1,6}[ \t]|(?:([-*_])[ \t]*)(?:\1[ \t]*){2,}$)")
+_ATX_HEADING = re.compile(r"^#{1,6}([ \t]|$)")
+_THEMATIC_BREAK = re.compile(r"^(?:([-*_])[ \t]*)(?:\1[ \t]*){2,}$")
+_BLOCK_START = re.compile(r"^(?:`{3,}|~{3,}|>)")
 _MAX_LIST_PAD = 4
 
 
@@ -116,29 +118,34 @@ class _ListContainers:
     fence while the identical line at top level is indented code.
 
     Call order per line, outside a fenced block: `sync`, then `over_indented`,
-    then `observe` only if no fence opened. `sync` before classifying is what
-    lets a dedent close a stale container before the fence test reads its base;
-    classifying first left the base stale and accepted a closing marker that
-    CommonMark reads as indented code. Do not call any of these for lines
+    then either `opened_fence` when a fence opened or `observe` when none did.
+    `sync` before classifying is what lets a dedent close a stale container
+    before the fence test reads its base. Do not call any of these for lines
     inside a fenced block: CommonMark reads no list markers there.
 
-    Four rules decide whether a marker line actually opens a list item. Each
-    was reported in review and then confirmed by differential-testing this
-    scanner against `markdown-it-py`, which is this repository's CommonMark
-    reference. None of the four fires on the repository's own Markdown today,
-    so they are latent rather than observed: the corpus disagreement count is
-    unchanged by fixing them. They are worth closing anyway, because rules 1
-    and 2 let `--write` invent a fence inside literal indented code:
+    Deciding whether a marker line opens a list item is most of CommonMark's
+    list grammar, and every rule below was a real defect first: reported in
+    review, then reproduced against `markdown-it-py` before being fixed. The
+    module is checked against that parser rather than against expectations,
+    because expectations are what got each of these wrong.
 
     1. A marker more than three columns past the current content column is
        itself indented code, so it opens nothing.
-    2. Padding of five or more columns after the marker is not all indentation.
-       The content column is the marker plus one; the rest is indented code
-       inside the item.
+    2. Padding of five or more columns after the marker is not all
+       indentation. The content column is the marker plus one.
     3. A marker with no content on its line is an empty item, whose content
        column is the marker plus one.
     4. A list may interrupt a paragraph only when the item is non-empty and,
-       if ordered, starts at 1. Otherwise the marker is paragraph text.
+       if ordered, starts at 1. Leading zeros do not change the start value,
+       so `01.` and `001.` may interrupt and `003.` may not.
+    5. A thematic break is never a list item, even though `* * *` and `- - -`
+       both match the bullet grammar.
+    6. A paragraph continuation line may drop below its container's indent
+       without closing it, so a dedent only closes containers when the line
+       actually starts a new block.
+    7. Paragraph state follows blocks, not raw lines. A fence, an ATX
+       heading, and a thematic break all end a paragraph, and each is
+       recognized relative to the container rather than to column zero.
     """
 
     __slots__ = ("_columns", "_in_paragraph")
@@ -156,9 +163,15 @@ class _ListContainers:
         if not line.strip():
             self._in_paragraph = False  # a blank line ends any open paragraph
             return
+        if self._in_paragraph and not self._starts_a_block(line):
+            return  # rule 6: a lazy continuation keeps its container open
         width = _indent_width(line[: len(line) - len(line.lstrip(" \t"))])
         while self._columns and width < self._columns[-1]:
             self._columns.pop()
+
+    def opened_fence(self) -> None:
+        """Record that a fenced block opened on this line."""
+        self._in_paragraph = False  # rule 7: a fence ends the paragraph
 
     def observe(self, line: str) -> None:
         """Open a container when *line* starts a list item, then track paragraphs."""
@@ -167,27 +180,63 @@ class _ListContainers:
         column = self._content_column(line)
         if column is not None:
             self._columns.append(column)
-        self._in_paragraph = not _LEAF_BLOCK.match(line)
+            self._in_paragraph = bool(_LIST_MARKER.match(line).group("rest").strip())
+            return
+        content = self._relative(line)
+        body = content.lstrip(" ")
+        if len(content) - len(body) > _MAX_FENCE_INDENT:
+            # Indented code when no paragraph is open, a lazy continuation when
+            # one is. Neither changes the state, and both differ from prose.
+            return
+        self._in_paragraph = not (
+            _ATX_HEADING.match(body)
+            or _THEMATIC_BREAK.match(body)
+            or _BLOCK_START.match(body)
+        )
 
     def _base(self) -> int:
         return self._columns[-1] if self._columns else 0
 
+    def _relative(self, line: str) -> str:
+        """Return *line* with the container's content column removed."""
+        expanded = line.expandtabs(4)
+        stripped = expanded.lstrip(" ")
+        indent = len(expanded) - len(stripped)
+        return " " * max(0, indent - self._base()) + stripped
+
+    def _starts_a_block(self, line: str) -> bool:
+        """Return True when *line* begins a block rather than continuing a paragraph."""
+        content = self._relative(line)
+        body = content.lstrip(" ")
+        if len(content) - len(body) > _MAX_FENCE_INDENT:
+            return False  # indented code cannot interrupt a paragraph
+        return bool(
+            _BLOCK_START.match(body)
+            or _ATX_HEADING.match(body)
+            or _THEMATIC_BREAK.match(body)
+            or self._content_column(line) is not None
+        )
+
     def _content_column(self, line: str) -> int | None:
         """Return the content column *line* opens, or None when it opens no item."""
+        content = self._relative(line)
+        body = content.lstrip(" ")
+        if len(content) - len(body) > _MAX_FENCE_INDENT:
+            return None  # rule 1: the marker is itself indented code
+        if _THEMATIC_BREAK.match(body):
+            return None  # rule 5
         match = _LIST_MARKER.match(line)
         if match is None:
             return None
-        indent = match.group("indent")
-        if _indent_width(indent) - self._base() > _MAX_FENCE_INDENT:
-            return None  # rule 1: the marker is itself indented code
-        marker = match.group("bullet") or match.group("number") + match.group("delim")
-        marker_end = _indent_width(indent + marker)
+        number = match.group("number")
+        marker = match.group("bullet") or number + match.group("delim")
+        marker_end = _indent_width(match.group("indent") + marker)
         empty = not match.group("rest").strip()
-        if self._in_paragraph and (empty or (match.group("number") or "1") != "1"):
+        if self._in_paragraph and (empty or (number is not None and int(number) != 1)):
             return None  # rule 4: this marker cannot interrupt a paragraph
         if empty:
             return marker_end + 1  # rule 3
-        pad = _indent_width(indent + marker + match.group("pad")) - marker_end
+        pad = _indent_width(match.group("indent") + marker + match.group("pad")) - marker_end
         if pad == 0:
             return None  # a marker needs whitespace before its content
         return marker_end + (1 if pad > _MAX_LIST_PAD else pad)  # rule 2
@@ -359,6 +408,7 @@ def _blank_fenced_blocks(text: str) -> tuple[list[str], int | None]:
                 containers.observe(line)
                 lines.append(line)
                 continue
+            containers.opened_fence()
             fence = match.group("fence")
             opened_at = number
             lines.append("")
