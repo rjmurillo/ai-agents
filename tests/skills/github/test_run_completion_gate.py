@@ -3861,6 +3861,60 @@ class TestWorkTreeProbeFailure:
         assert "Refusing to load config from unsafe path" in capsys.readouterr().err
 
 
+class TestInstalledRuntimePrerequisites:
+    """What a consumer whose environment lacks PyYAML actually gets.
+
+    Copilot review, PR #5329: the shipped skill runs ``uv run python`` from
+    the consumer's cwd and the plugin declares no dependencies, so a clean
+    consumer environment may not carry PyYAML. That is a PRE-EXISTING
+    condition (this gate has always parsed YAML), but this PR is what makes
+    installed dispatch reachable at all, so the prerequisite becomes visible
+    here for the first time.
+
+    Packaging the dependency, or replacing the parser, is a plugin-wide
+    decision and is deliberately not made in this PR. What IS pinned is that
+    the failure is clean: exit 2 with an actionable message, not a traceback
+    (exit 1) and not a silently skipped criterion. A gate that cannot parse
+    its config must not look like a gate that passed.
+    """
+
+    def test_missing_pyyaml_exits_2_with_an_actionable_message(
+        self, tmp_path, monkeypatch, capsys,
+    ):
+        root = tmp_path / "plugin"
+        (root / "commands").mkdir(parents=True)
+        config = root / "commands" / "pr-review-config.yaml"
+        config.write_text("completion_criteria: []\n", encoding="utf-8")
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        _own_plugin_root(monkeypatch, root)
+
+        def _fake_git(args, cwd):
+            if args[:2] == ["rev-parse", "--symbolic-full-name"]:
+                return subprocess.CompletedProcess(
+                    args, 0, b"refs/remotes/origin/main\n", b"",
+                )
+            return subprocess.CompletedProcess(
+                args, 0, str(tmp_path / "consumer").encode() + b"\n", b"",
+            )
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _fake_git)
+        monkeypatch.setattr(_dispatcher, "_HAVE_YAML", False)
+
+        code = _dispatcher.main(
+            ["--pull-request", "1", "--config", str(config)],
+        )
+
+        # 2, not 1: a config that cannot be parsed is a config error under
+        # ADR-035. Exit 1 is reserved for "a criterion failed", and reporting
+        # an unparseable config that way would read as a real gate verdict.
+        assert code == 2, code
+        err = capsys.readouterr().err
+        assert "PyYAML is required" in err, err
+        # Actionable, not merely present: the operator is told what to do.
+        assert "pip install pyyaml" in err, err
+
+
 class TestInstallTrustedPathConsistency:
     """The path install-trust approves must be the path that is read.
 
