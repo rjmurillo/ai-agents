@@ -399,9 +399,17 @@ def lint_prose(text: str, banned: set[str]) -> list[Finding]:
 
 
 def _read(name: str) -> str:
+    """Read an artifact, dropping a UTF-8 BOM.
+
+    A surviving U+FEFF sits before a first-line fence and defeats the
+    `^[ \t]*` anchor, so the opener goes unrecognized, the block body is
+    linted as prose, and the real closer is read as an opener. The sibling
+    fence script decodes the same way; the two must agree. `sys.stdin.read`
+    does not honor `utf-8-sig`, so that branch strips the character itself.
+    """
     if name == "-":
-        return sys.stdin.read()
-    return Path(name).read_text(encoding="utf-8")
+        return sys.stdin.read().lstrip("\ufeff")
+    return Path(name).read_text(encoding="utf-8-sig")
 
 
 def _emit_text(results: dict[str, Scan], rules_note: str | None) -> None:
