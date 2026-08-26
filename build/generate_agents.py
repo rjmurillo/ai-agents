@@ -186,6 +186,27 @@ def generate_agents(
 
     start_time = time.monotonic()
 
+    # The symlink-ancestor walk a few lines into the per-platform loop below
+    # climbs output_dir's parents looking for repo_root
+    # (`while current != repo_root: current = current.parent`) and never
+    # terminates if output_root does not resolve to a descendant of
+    # repo_root: the walk reaches filesystem root, whose parent is itself,
+    # and repo_root is never found. main() resolving both paths to absolute
+    # (see its own comment on this) prevents the *relative-path* shape of
+    # that hang but not this one: `--templates-path /repo/templates
+    # --output-root src` run from `/tmp` resolves output_root to `/tmp/src`,
+    # which is absolute but still outside repo_root. Reject that case here,
+    # before the loop, rather than let it hang.
+    output_root_resolved = output_root.resolve()
+    repo_root_resolved = repo_root.resolve()
+    if not output_root_resolved.is_relative_to(repo_root_resolved):
+        print(
+            f"Error: --output-root must resolve inside the repository root "
+            f"({repo_root_resolved}); got {output_root_resolved}.",
+            file=sys.stderr,
+        )
+        return 2
+
     # Load platform configurations
     platforms_path = templates_path / "platforms"
     platforms: list[dict[str, object]] = []

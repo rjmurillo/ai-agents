@@ -13,6 +13,7 @@ This is a Python port of Generate-Agents.ps1 tests following ADR-042 migration.
 
 from __future__ import annotations
 
+import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -58,6 +59,28 @@ class TestMain:
             "--output-root", "src",
         ])
         assert exit_code == 0
+
+    def test_output_root_outside_repo_root_fails_closed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An ABSOLUTE --output-root that still resolves outside repo_root
+        (e.g. `--templates-path /repo/templates --output-root src` run from
+        `/tmp`, which resolves to `/tmp/src`) hits the same infinite-loop
+        hazard as the relative-path case above, one step later: main()'s
+        .resolve() makes it absolute, but absolute is not the same as
+        "inside repo_root". Without generate_agents()'s own is_relative_to
+        guard, the symlink-ancestor walk climbs from /tmp/src up through
+        /tmp and / looking for repo_root and never finds it, because / is
+        its own parent. Must exit 2 promptly, not hang."""
+        repo_root, templates_path, _ = _create_test_structure(tmp_path)
+        outside_dir = tmp_path / "elsewhere"
+        outside_dir.mkdir()
+        monkeypatch.chdir(outside_dir)
+        exit_code = main([
+            "--templates-path", str(templates_path),
+            "--output-root", "src",
+        ])
+        assert exit_code == 2
 
     def test_full_run(self, tmp_path: Path) -> None:
         repo_root, templates_path, output_root = _create_test_structure(tmp_path)
@@ -118,9 +141,23 @@ class TestMain:
             "}]}",
             encoding="utf-8",
         )
+        # Content, not just presence, is checked (_sweep_report_satisfies_rule2):
+        # the report must itself claim a qualifying KEEP_PIN result that
+        # agrees with the manifest entry above.
         artifact_path = repo_root / "evals" / "test-agent-spike" / "sweep.json"
         artifact_path.parent.mkdir(parents=True)
-        artifact_path.write_text("{}", encoding="utf-8")
+        artifact_path.write_text(
+            json.dumps({
+                "decision": "KEEP_PIN",
+                "winner": "claude-opus-4-6",
+                "fixtures_sha": "abc123",
+                "default_model": "claude-sonnet-4-6",
+                "n_shared_fixtures": 8,
+                "recall_delta": 0.05,
+                "ci95": [0.01, 0.09],
+            }),
+            encoding="utf-8",
+        )
 
         monkeypatch.chdir(repo_root)
         # --output-root stays absolute here on purpose: this test isolates
