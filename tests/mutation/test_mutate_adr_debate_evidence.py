@@ -226,11 +226,10 @@ def test_m10_dropping_type_changes_from_discovery_is_detected(scratch_worktree: 
 # found on PR #5308
 # ---------------------------------------------------------------------------
 
-_M11_ORIGINAL = b'        return blob.decode("utf-8")\n    except UnicodeDecodeError:\n'
+_M11_ORIGINAL = b'            contents[path] = blob.decode("utf-8")\n'
 _M11_MUTANT = (
-    b"        # M11 mutant: invalid bytes decoded away instead of reported\n"
-    b'        return blob.decode("utf-8", errors="replace")\n'
-    b"    except UnicodeDecodeError:\n"
+    b"            # M11 mutant: invalid bytes decoded away instead of reported\n"
+    b'            contents[path] = blob.decode("utf-8", errors="replace")\n'
 )
 
 
