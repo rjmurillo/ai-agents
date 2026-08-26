@@ -589,6 +589,25 @@ def _fence_in_item(
         column = deeper
     return None
 
+# Real line terminators only. `str.splitlines` also splits on \x0b, \x0c,
+# \x1c-\x1e, U+0085, U+2028 and U+2029, none of which CommonMark treats as a
+# line ending. Splitting there turned one prose line into two, and the halves
+# read as a fence opener plus a body, so this linter skipped real prose as if
+# it were code. `fix_fences.py` has carried this guard since it shipped and
+# this copy never did, because nothing compared the two beyond the container
+# class. Measured: four characters produce it, and the reference parser sees
+# no fence in any of them.
+_LINE_SPLIT_RE = re.compile(r"\r\n|\r|\n")
+
+
+def _source_lines(text: str) -> list[str]:
+    """Split *text* into lines the way CommonMark does, not the way Python does."""
+    lines = _LINE_SPLIT_RE.split(text)
+    if lines and lines[-1] == "":
+        lines.pop()  # text ended with a terminator; no empty final line
+    return lines
+
+
 def _blank_fenced_blocks(text: str) -> tuple[list[str], int | None]:
     """Return the lines of *text* with every fenced code block blanked out.
 
@@ -602,7 +621,7 @@ def _blank_fenced_blocks(text: str) -> tuple[list[str], int | None]:
     opened_at: int | None = None
     containers = _ListContainers()
     fence_base = 0
-    for number, line in enumerate(text.splitlines(), start=1):
+    for number, line in enumerate(_source_lines(text), start=1):
         if fence is not None and _container_closed(line, fence_base):
             fence = None  # the item holding the block ended
             opened_at = None
