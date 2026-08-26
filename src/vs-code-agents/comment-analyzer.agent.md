@@ -19,7 +19,6 @@ tools:
   - cloudmcp-manager/*
   - serena/*
   - memory
-model: Claude Sonnet 4.6 (copilot)
 role: support
 ---
 

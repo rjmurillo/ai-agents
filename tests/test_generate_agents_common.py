@@ -207,30 +207,32 @@ class TestConvertFrontmatterForPlatform:
         fm: dict[str, str | None] = {"name": "test", "description": "A test"}
         config: dict[str, object] = {
             "platform": "vscode",
-            "frontmatter": {"includeNameField": False, "model": "Claude Opus 4.6 (copilot)"},
+            "frontmatter": {"includeNameField": False},
         }
         result = convert_frontmatter_for_platform(fm, config, "test")
         assert "name" not in result
-        assert result["model"] == "Claude Opus 4.6 (copilot)"
+        # ADR-080 rule 5 / issue #5313: no model_tier means no injected model.
+        assert "model" not in result
 
     def test_copilot_platform_includes_name(self) -> None:
         fm: dict[str, str | None] = {"description": "A test"}
         config: dict[str, object] = {
             "platform": "copilot-cli",
-            "frontmatter": {"includeNameField": True, "model": "claude-opus-4.6"},
+            "frontmatter": {"includeNameField": True},
         }
         result = convert_frontmatter_for_platform(fm, config, "test-agent")
         assert result["name"] == "test-agent"
-        assert result["model"] == "claude-opus-4.6"
+        # ADR-080 rule 5 / issue #5313: no model_tier means no injected model.
+        assert "model" not in result
 
     def test_skips_placeholder_values(self) -> None:
-        fm: dict[str, str | None] = {"name": "test", "model": "{{PLATFORM_MODEL}}"}
+        fm: dict[str, str | None] = {"name": "test", "argument-hint": "{{PLATFORM_ARGUMENT_HINT}}"}
         config: dict[str, object] = {
             "platform": "vscode",
-            "frontmatter": {"includeNameField": False, "model": "Claude Opus 4.6 (copilot)"},
+            "frontmatter": {"includeNameField": False},
         }
         result = convert_frontmatter_for_platform(fm, config, "test")
-        assert result["model"] == "Claude Opus 4.6 (copilot)"
+        assert "argument-hint" not in result
 
     def test_uses_platform_specific_tools(self) -> None:
         fm: dict[str, str | None] = {
@@ -308,14 +310,15 @@ class TestConvertFrontmatterForPlatform:
         result = convert_frontmatter_for_platform(fm, config, "test")
         assert result.get("tools") == "['read', 'edit']"
 
-    def test_model_tier_overrides_platform_default(self) -> None:
+    def test_haiku_tier_resolves_to_versioned_id(self) -> None:
+        """The sole ADR-080 rule 3 cost exception still resolves (issue #5313)."""
         fm: dict[str, str | None] = {
             "description": "test",
-            "model_tier": "sonnet",
+            "model_tier": "haiku",
         }
         config: dict[str, object] = {
             "platform": "copilot-cli",
-            "frontmatter": {"includeNameField": True, "model": "claude-opus-4.6"},
+            "frontmatter": {"includeNameField": True},
             "model_tiers": {
                 "opus": "claude-opus-4.6",
                 "sonnet": "claude-sonnet-4.6",
@@ -323,20 +326,43 @@ class TestConvertFrontmatterForPlatform:
             },
         }
         result = convert_frontmatter_for_platform(fm, config, "test")
-        assert result["model"] == "claude-sonnet-4.6"
+        assert result["model"] == "claude-haiku-4.5"
 
-    def test_model_tier_absent_uses_platform_default(self) -> None:
+    def test_non_haiku_tier_omits_model(self) -> None:
+        """ADR-080 rule 5 / issue #5313: opus/sonnet tiers carry no manifest
+        evidence, so the generator must not inject an unjustified versioned
+        pin. The unit inherits the harness default instead."""
+        fm: dict[str, str | None] = {
+            "description": "test",
+            "model_tier": "sonnet",
+        }
+        config: dict[str, object] = {
+            "platform": "copilot-cli",
+            "frontmatter": {"includeNameField": True},
+            "model_tiers": {
+                "opus": "claude-opus-4.6",
+                "sonnet": "claude-sonnet-4.6",
+                "haiku": "claude-haiku-4.5",
+            },
+        }
+        result = convert_frontmatter_for_platform(fm, config, "test")
+        assert "model" not in result
+
+    def test_model_tier_absent_omits_model(self) -> None:
+        """ADR-080 rule 5 / issue #5313: the generator must not inject a
+        platform-wide default model (the retired claude-opus-4.5 that broke
+        every un-overridden agent). No tier means no model field."""
         fm: dict[str, str | None] = {"description": "test"}
         config: dict[str, object] = {
             "platform": "vscode",
-            "frontmatter": {"includeNameField": False, "model": "Claude Opus 4.6 (copilot)"},
+            "frontmatter": {"includeNameField": False},
             "model_tiers": {
                 "opus": "Claude Opus 4.6 (copilot)",
                 "sonnet": "Claude Sonnet 4.6 (copilot)",
             },
         }
         result = convert_frontmatter_for_platform(fm, config, "test")
-        assert result["model"] == "Claude Opus 4.6 (copilot)"
+        assert "model" not in result
 
     def test_model_tier_removed_from_output(self) -> None:
         fm: dict[str, str | None] = {
@@ -345,7 +371,7 @@ class TestConvertFrontmatterForPlatform:
         }
         config: dict[str, object] = {
             "platform": "copilot-cli",
-            "frontmatter": {"includeNameField": True, "model": "claude-opus-4.6"},
+            "frontmatter": {"includeNameField": True},
             "model_tiers": {
                 "opus": "claude-opus-4.6",
                 "sonnet": "claude-sonnet-4.6",
