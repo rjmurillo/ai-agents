@@ -21,7 +21,12 @@ if TESTS_SKILLS_DIR not in sys.path:
 
 from claude_skills_import import import_skill_script
 from commonmark_fence_cases import CASES as FENCE_CASES
-from commonmark_fence_cases import FUZZ_BASELINE, oracle_fence_lines, random_documents
+from commonmark_fence_cases import (
+    FUZZ_BASELINE,
+    FUZZ_DOCUMENTS,
+    oracle_fence_lines,
+    random_documents,
+)
 
 mod = import_skill_script(".claude/skills/prose-self-check/scripts/prose_lint.py")
 lint_prose = mod.lint_prose
@@ -451,11 +456,11 @@ class TestCommonMarkFuzz:
 
     @pytest.mark.parametrize("seed", sorted(FUZZ_BASELINE))
     def test_divergence_stays_at_or_below_baseline(self, seed: int) -> None:
-        diverged = [
-            text
-            for text in random_documents(seed)
-            if oracle_fence_lines(text) != _masked_lines(text)
-        ]
+        documents = random_documents(seed)
+        # Pin the scope. Without this, dropping FUZZ_DOCUMENTS to zero passes
+        # every seed with zero divergences and the coverage silently vanishes.
+        assert len(documents) == FUZZ_DOCUMENTS
+        diverged = [text for text in documents if oracle_fence_lines(text) != _masked_lines(text)]
         assert len(diverged) <= FUZZ_BASELINE[seed], (
             f"seed {seed}: {len(diverged)} diverged, baseline {FUZZ_BASELINE[seed]}. "
             f"First: {diverged[0]!r}"

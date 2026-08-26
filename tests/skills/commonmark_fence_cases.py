@@ -124,6 +124,14 @@ CASES: dict[str, str] = {
     "single equals is a setext underline": ("Title\n=\n2. item\n    ~~~\n    x\n    ~~~\n"),
     "setext h2 ends the paragraph": "Title\n---\n2. item\n    ~~~\n    x\n    ~~~\n",
     "equals with no paragraph is prose": ("\n===\n2. item\n    ~~~\n    x\n    ~~~\n"),
+    # Five columns of padding leave four behind, so a marker-line fence is
+    # indented code. Stripping that indent opened a fence in literal content.
+    "padding of five before a marker-line fence": ("-     ```\n     x\n     ```\nafter\n"),
+    "padding of five before a marker-line tilde": ("-     ~~~\n     x\n     ~~~\nafter\n"),
+    "padding of two before a marker-line fence": "-  ```\n   x\n   ```\nafter\n",
+    # A backtick opening fence may not carry a backtick in its info string.
+    "backtick in a fence info string": ("para\n```lang`x`\nrobust significant\n```\nafter\n"),
+    "backtick info on a marker line": "- ```lang`x`\n  robust\n",
 }
 
 
@@ -133,16 +141,18 @@ CASES: dict[str, str] = {
 # they cannot: what is left. It generates small documents from the constructs
 # that interact with list containers and compares against the same oracle.
 #
-# The residual is one named family, not noise. A fenced code block inside a
-# list item ends, in CommonMark, when the document dedents out of that item;
-# these scanners track a block's lifetime independently of its container's, so
-# they keep such a block open. That is pre-existing behavior, unchanged by the
-# container work, and it accounts for the great majority of the counts below.
-# Raw HTML blocks swallowing a fence are the other known cause.
+# This description used to name a single family, a fenced block outliving its
+# list item, and was left stale for one commit after rule 10 closed exactly
+# that. What remains is not one family and not much: a dozen documents across
+# the three seeds, in deep interactions between lazy continuations, empty
+# items, and five-or-more columns of padding under nested markers. Raw HTML
+# blocks swallowing a fence are the other known cause and are what the fuzz
+# negative control pins.
 #
 # Treat these as a ratchet in the repository's usual sense: a regression pushes
-# a count up and fails, and work that closes part of the family lowers them.
-# Re-measure rather than editing a number to make a run pass.
+# a count up and fails, and work that closes part of the residue lowers them.
+# Re-measure rather than editing a number to make a run pass, and re-describe
+# the residue when a rule changes what it is made of.
 _FUZZ_INDENTS = ("", " ", "  ", "   ", "    ", "     ", "      ", "\t")
 _FUZZ_BULLETS = ("-", "*", "+")
 _FUZZ_ORDERED = ("1.", "2.", "01.", "003.", "1)", "10.", "9)")

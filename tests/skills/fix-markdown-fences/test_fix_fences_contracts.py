@@ -27,11 +27,35 @@ if TESTS_SKILLS_DIR not in sys.path:
 from claude_skills_import import import_skill_script
 from commonmark_fence_cases import CASES as FENCE_CASES
 from commonmark_fence_cases import oracle_fence_lines
+from markdown_it import MarkdownIt
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 mod = import_skill_script(".claude/skills/fix-markdown-fences/scripts/fix_fences.py")
 repair_markdown_fences = mod.repair_markdown_fences
+
+_REFERENCE = MarkdownIt("commonmark")
+
+
+def _has_unclosed_fence(text: str) -> bool:
+    """Return True when the reference parser leaves a fence open at EOF.
+
+    Read from the token rather than guessed from the string. A fence token
+    spans its opener, its body, and its closing marker when one exists, while
+    `content` holds the body alone. So a span that exceeds the opener plus the
+    body by at least one line was closed by a marker, and one that does not
+    ran to the end of the document. An earlier version of this asked whether
+    the text ended in a fence character, which called two genuinely unclosed
+    documents balanced.
+    """
+    for token in _REFERENCE.parse(text):
+        if token.type != "fence" or not token.map:
+            continue
+        span = token.map[1] - token.map[0]
+        body = token.content.count("\n")
+        if span - 1 - body < 1:
+            return True
+    return False
 
 
 class TestVendoredInvocation:
@@ -173,14 +197,30 @@ class TestCommonMarkOracle:
 
     @staticmethod
     def _inside_fence(text: str) -> set[int]:
-        """Return 0-indexed non-blank lines the scanner treats as fenced."""
+        """Return 0-indexed non-blank lines the scanner treats as fenced.
+
+        This mirrors the loop in `fix_fences.find_fence_defects`, including its
+        container-close branch:
+
+            if open_fence is not None and _container_closed(line.text, fence_base):
+                open_fence = None  # the item holding the block ended
+
+        A hand-written mirror can drift from what it mirrors, which is the
+        whole reason this comment names the branch. `test_repair_is_a_no_op_on
+        _balanced_documents` guards the direction that matters by driving the
+        public repair path instead.
+        """
         lines = mod._split_lines(text)
         containers = mod._ListContainers()
         open_fence = None
+        fence_base = 0
         inside: set[int] = set()
         for index, line in enumerate(lines):
+            if open_fence is not None and mod._container_closed(line.text, fence_base):
+                open_fence = None  # the item holding the block ended
             if open_fence is None:
                 open_fence = mod._scan_open(line.text, containers)
+                fence_base = containers.base() if open_fence is not None else 0
                 if open_fence is not None and line.text != "":
                     inside.add(index)
                 continue
@@ -200,6 +240,19 @@ class TestCommonMarkOracle:
     def test_repair_is_idempotent_on_every_case(self, name: str) -> None:
         once = repair_markdown_fences(FENCE_CASES[name])
         assert repair_markdown_fences(once) == once, name
+
+    @pytest.mark.parametrize("name", sorted(FENCE_CASES))
+    def test_repair_is_a_no_op_on_balanced_documents(self, name: str) -> None:
+        # Public path, no mirrored state machine. Where the reference parser
+        # reads every fence as closed, `--write` must change nothing. This is
+        # the assertion that would catch `_inside_fence` drifting from the
+        # loops it mirrors, and it is how three separate corruption paths were
+        # found: a fence on a marker line, a block outliving its list item, and
+        # five-column padding before a marker-line fence.
+        text = FENCE_CASES[name]
+        if _has_unclosed_fence(text):
+            pytest.skip("document is genuinely unclosed; repair should act")
+        assert repair_markdown_fences(text) == text, name
 
     def test_write_never_invents_a_fence_in_indented_code(self) -> None:
         # Rules 1 and 2: a marker that is itself indented code, or padding of
