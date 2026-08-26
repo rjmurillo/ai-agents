@@ -605,6 +605,55 @@ class TestBlankCodeBlockLinesAstBehavior:
             mp.blank_code_block_lines("anything")
 
 
+class TestBlankNonProseBlockLines:
+    """`blank_non_prose_block_lines` widens `blank_code_block_lines` to also
+    blank HTML blocks (issue #5209 round-4 review: `check_adr_lifecycle.py`'s
+    `_status_prose` was reading a `## Status`-shaped line out of an HTML
+    comment, since `blank_code_block_lines` deliberately keeps HTML content
+    visible for `check_skill_md_portability.py`'s unrelated needs).
+    """
+
+    def test_blanks_html_block_unlike_the_code_only_variant(self):
+        text = "<!--\n## Status\ndrop /b\n-->\nkeep /c\n"
+        out = blank_non_prose_block_lines(text)
+
+        assert "## Status" not in out
+        assert "drop /b" not in out
+        assert "keep /c" in out
+        # The invariant this function exists to preserve: the narrower
+        # function must NOT change, or the portability scanner's contract
+        # (test_keeps_html_block above) would silently regress.
+        assert "## Status" in blank_code_block_lines(text)
+
+    def test_still_blanks_fenced_code_like_the_narrower_variant(self):
+        text = "keep /a\n```\ndrop /b\n```\nkeep /c\n"
+        out = blank_non_prose_block_lines(text).split("\n")
+
+        assert out[0] == "keep /a"
+        assert out[1] == ""
+        assert out[2] == ""
+        assert out[3] == ""
+        assert out[4] == "keep /c"
+
+    def test_preserves_line_count(self):
+        text = "a\n<!--\nb\nc\n-->\nd\n"
+        assert len(blank_non_prose_block_lines(text).split("\n")) == len(text.split("\n"))
+
+    def test_empty_string_returns_empty(self):
+        assert blank_non_prose_block_lines("") == ""
+
+    def test_parser_error_propagates_not_swallowed(self, monkeypatch):
+        import scripts.utils.markdown_parser as mp
+
+        class _Boom:
+            def parse(self, _text):
+                raise ValueError("boom")
+
+        monkeypatch.setattr(mp, "_create_parser", lambda *a, **k: _Boom())
+        with pytest.raises(ValueError, match="boom"):
+            mp.blank_non_prose_block_lines("anything")
+
+
 class TestNestingExhaustion:
     """The parser's ``maxNesting`` limit must fail closed, not open (issue #3499).
 
