@@ -104,11 +104,17 @@ documentation:
   stays literal text.
 - A backtick opening fence whose info string contains a backtick is not a
   fence.
-- A marker indented four or more spaces is an indented code block, not a
-  fence. That is what stops a repair from appending a fence to a document
-  that shows a bare fence inside an indented block. The cost is that a fence
-  nested that deep inside a list item is invisible here: the tool declines to
-  see a fence rather than inventing one, so it misses rather than corrupts.
+- A marker more than three spaces past its containing block is an indented
+  code block, not a fence. That is what stops a repair from appending a fence
+  to a document that shows a bare fence inside an indented block. The three
+  spaces are counted from the innermost open list item, not from column zero,
+  so a fence indented four spaces inside a list item is still a fence.
+- A list item's content column is not always the marker plus its padding. Five
+  or more spaces after the marker means the content column is the marker plus
+  one; an item with no content on its line is the same. A marker that is itself
+  indented code opens no item, and a list may interrupt a paragraph only when
+  the item is non-empty and, if ordered, starts at 1. Getting any of these
+  wrong moves the content column, which moves what counts as a fence.
 
 Files are read and written as bytes, so CRLF and CR endings survive, a UTF-8
 BOM survives, and the Unicode separators `str.splitlines` would swallow (form
@@ -127,15 +133,18 @@ Kept so a reader can audit the script, not so the agent can run it by hand.
 
 Track fence state while scanning line by line:
 
-1. **Detect opening fence**: outside a block, a line of three or more
-   backticks or tildes opens one. Record the character, the length, and the
-   indent.
-2. **Detect malformed closing fence**: inside a block, a line using the same
+1. **Track list containers**: outside a block, close any list item the line
+   has dedented out of, then open one if the line starts an item. The stack of
+   open content columns is what the indent test below measures against.
+2. **Detect opening fence**: outside a block, a line of three or more
+   backticks or tildes, indented no more than three columns past the innermost
+   open list item, opens one. Record the character, the length, and the indent.
+3. **Detect malformed closing fence**: inside a block, a line using the same
    character at the same length or longer, carrying a non-empty info string.
    Insert a bare closing fence before it.
-3. **Detect valid closing fence**: the same character at the same length or
+4. **Detect valid closing fence**: the same character at the same length or
    longer with an empty info string. Exit the block.
-4. **At end of file**: a still-open block gets a bare closing fence appended.
+5. **At end of file**: a still-open block gets a bare closing fence appended.
 
 ## Verification
 

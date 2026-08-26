@@ -66,7 +66,13 @@ _FENCE_RE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})(?P<info>.*)$"
 _MAX_FENCE_INDENT = 3
 
 
-_LIST_MARKER = re.compile(r"^(?P<indent>[ \t]*)(?P<bullet>[-*+]|\d{1,9}[.)])(?P<pad>[ \t]+)")
+_LIST_MARKER = re.compile(
+    r"^(?P<indent>[ \t]*)"
+    r"(?:(?P<bullet>[-*+])|(?P<number>\d{1,9})(?P<delim>[.)]))"
+    r"(?P<pad>[ \t]*)(?P<rest>.*)$"
+)
+_LEAF_BLOCK = re.compile(r"^[ \t]{0,3}(?:#{1,6}[ \t]|(?:([-*_])[ \t]*)(?:\1[ \t]*){2,}$)")
+_MAX_LIST_PAD = 4
 
 
 def _indent_width(text: str) -> int:
@@ -79,41 +85,84 @@ class _ListContainers:
 
     CommonMark measures a fence marker's indent from its containing block, not
     from column zero, so a marker four spaces deep inside a list item opens a
-    fence while the identical line at top level is indented code. Measuring
-    from column zero misreads the first as the second, so the whole block goes
-    unseen and a defect inside it is never reported. Measured over the 4,531
-    tracked Markdown files at this commit: of the 50 markers indented four or
-    more spaces from column zero, 46 across 10 files are valid fences relative
-    to their list item, among them `docs/codeql-rollout-checklist.md` and the
-    shipped `ship` skill.
+    fence while the identical line at top level is indented code.
 
-    Feed lines in order, and ask `over_indented` about a line BEFORE feeding
-    it. Do not feed lines inside a fenced block: CommonMark does not read list
-    markers there, and feeding them can only raise the base, which would widen
-    what counts as a fence.
+    Call order per line, outside a fenced block: `sync`, then `over_indented`,
+    then `observe` only if no fence opened. `sync` before classifying is what
+    lets a dedent close a stale container before the fence test reads its base;
+    classifying first left the base stale and accepted a closing marker that
+    CommonMark reads as indented code. Do not call any of these for lines
+    inside a fenced block: CommonMark reads no list markers there.
+
+    Four rules decide whether a marker line actually opens a list item. Each
+    was reported in review and then confirmed by differential-testing this
+    scanner against `markdown-it-py`, which is this repository's CommonMark
+    reference. None of the four fires on the repository's own Markdown today,
+    so they are latent rather than observed: the corpus disagreement count is
+    unchanged by fixing them. They are worth closing anyway, because rules 1
+    and 2 let `--write` invent a fence inside literal indented code:
+
+    1. A marker more than three columns past the current content column is
+       itself indented code, so it opens nothing.
+    2. Padding of five or more columns after the marker is not all indentation.
+       The content column is the marker plus one; the rest is indented code
+       inside the item.
+    3. A marker with no content on its line is an empty item, whose content
+       column is the marker plus one.
+    4. A list may interrupt a paragraph only when the item is non-empty and,
+       if ordered, starts at 1. Otherwise the marker is paragraph text.
     """
 
-    __slots__ = ("_columns",)
+    __slots__ = ("_columns", "_in_paragraph")
 
     def __init__(self) -> None:
         self._columns: list[int] = []
+        self._in_paragraph = False
 
     def over_indented(self, indent: str) -> bool:
         """Return True when *indent* puts the marker inside an indented code block."""
-        base = self._columns[-1] if self._columns else 0
-        return _indent_width(indent) - base > _MAX_FENCE_INDENT
+        return _indent_width(indent) - self._base() > _MAX_FENCE_INDENT
 
-    def feed(self, line: str) -> None:
-        """Update the open-container stack with one line of prose."""
+    def sync(self, line: str) -> None:
+        """Close containers that *line* has dedented out of."""
         if not line.strip():
-            return  # a blank line never closes a list item
+            self._in_paragraph = False  # a blank line ends any open paragraph
+            return
         width = _indent_width(line[: len(line) - len(line.lstrip(" \t"))])
         while self._columns and width < self._columns[-1]:
             self._columns.pop()
+
+    def observe(self, line: str) -> None:
+        """Open a container when *line* starts a list item, then track paragraphs."""
+        if not line.strip():
+            return  # `sync` already ended the paragraph
+        column = self._content_column(line)
+        if column is not None:
+            self._columns.append(column)
+        self._in_paragraph = not _LEAF_BLOCK.match(line)
+
+    def _base(self) -> int:
+        return self._columns[-1] if self._columns else 0
+
+    def _content_column(self, line: str) -> int | None:
+        """Return the content column *line* opens, or None when it opens no item."""
         match = _LIST_MARKER.match(line)
-        if match is not None:
-            marker = match.group("indent") + match.group("bullet") + match.group("pad")
-            self._columns.append(_indent_width(marker))
+        if match is None:
+            return None
+        indent = match.group("indent")
+        if _indent_width(indent) - self._base() > _MAX_FENCE_INDENT:
+            return None  # rule 1: the marker is itself indented code
+        marker = match.group("bullet") or match.group("number") + match.group("delim")
+        marker_end = _indent_width(indent + marker)
+        empty = not match.group("rest").strip()
+        if self._in_paragraph and (empty or (match.group("number") or "1") != "1"):
+            return None  # rule 4: this marker cannot interrupt a paragraph
+        if empty:
+            return marker_end + 1  # rule 3
+        pad = _indent_width(indent + marker + match.group("pad")) - marker_end
+        if pad == 0:
+            return None  # a marker needs whitespace before its content
+        return marker_end + (1 if pad > _MAX_LIST_PAD else pad)  # rule 2
 
 
 # Real line terminators only. `str.splitlines` also splits on \x0b, \x0c,
@@ -179,10 +228,16 @@ def _closes(line: str, open_fence: _OpenFence, containers: _ListContainers) -> r
 
 
 def _scan_open(line: str, containers: _ListContainers) -> _OpenFence | None:
-    """Return the fence *line* opens, feeding *containers* when it opens none."""
+    """Return the fence *line* opens, advancing *containers* over the line.
+
+    Sync before classifying: a dedent must close its container before the
+    fence test reads the base, or a stale base accepts a marker CommonMark
+    reads as indented code.
+    """
+    containers.sync(line)
     opened = _open_fence(line, containers)
     if opened is None:
-        containers.feed(line)
+        containers.observe(line)
     return opened
 
 
