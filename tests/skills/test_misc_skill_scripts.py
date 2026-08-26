@@ -6,7 +6,6 @@ Covers:
 - resolve_pr_conflicts.py
 - collect_metrics.py
 - detect_infrastructure.py
-- fix_fences.py
 - new_slash_command.py
 - validate_slash_command.py
 """
@@ -26,7 +25,6 @@ _codeql = _project_root / ".claude" / "skills" / "codeql-scan" / "scripts"
 _merge_resolver = _project_root / ".claude" / "skills" / "merge-resolver" / "scripts"
 _metrics = _project_root / ".claude" / "skills" / "metrics"
 _security = _project_root / ".claude" / "skills" / "security-detection"
-_fix_fences = _project_root / ".claude" / "skills" / "fix-markdown-fences"
 _slashcmd = _project_root / ".claude" / "skills" / "slashcommandcreator" / "scripts"
 
 # Also add .claude/lib for github_core imports
@@ -38,7 +36,6 @@ for _p in (
     str(_merge_resolver),
     str(_metrics),
     str(_security),
-    str(_fix_fences),
     str(_slashcmd),
     str(_lib_dir),
 ):
@@ -660,107 +657,6 @@ class TestDetectInfrastructure:
         with pytest.raises(SystemExit) as exc:
             sys.argv = ["detect_infrastructure.py", "--help"]
             import detect_infrastructure as mod
-            mod.main()
-        assert exc.value.code == 0
-
-
-# ---------------------------------------------------------------------------
-# fix_fences
-# ---------------------------------------------------------------------------
-
-class TestFixFences:
-    """Tests for fix_fences module."""
-
-    def _import(self):
-        import importlib
-
-        import fix_fences as mod
-        importlib.reload(mod)
-        return mod
-
-    def test_no_fences_unchanged(self):
-        mod = self._import()
-        content = "# Title\n\nPlain text with no code blocks.\n"
-        result = mod.repair_markdown_fences(content)
-        assert result == content
-
-    def test_clean_code_block_unchanged(self):
-        mod = self._import()
-        content = "```python\nprint('hi')\n```\n"
-        result = mod.repair_markdown_fences(content)
-        assert result == content
-
-    def test_unclosed_block_gets_closing(self):
-        mod = self._import()
-        content = "```python\ncode here\n"
-        result = mod.repair_markdown_fences(content)
-        assert result.endswith("```")
-
-    def test_nested_opening_inserts_closing_first(self):
-        mod = self._import()
-        # Two opening fences without a close between them
-        content = "```python\ncode1\n```bash\ncode2\n```\n"
-        result = mod.repair_markdown_fences(content)
-        # The first block should be closed before the second opens
-        assert result.count("```") >= 3
-
-    def test_fix_fences_no_changes(self, tmp_path):
-        mod = self._import()
-        md = tmp_path / "clean.md"
-        md.write_text("# Title\n\nNo code blocks.\n")
-        fixed = mod.fix_fences([str(tmp_path)])
-        assert fixed == 0
-
-    def test_fix_fences_fixes_unclosed(self, tmp_path):
-        mod = self._import()
-        md = tmp_path / "bad.md"
-        md.write_text("```python\ncode here\n")
-        fixed = mod.fix_fences([str(tmp_path)])
-        assert fixed == 1
-        content = md.read_text()
-        assert content.endswith("```")
-
-    def test_fix_fences_missing_dir(self, tmp_path):
-        mod = self._import()
-        missing = str(tmp_path / "nonexistent")
-        fixed = mod.fix_fences([missing])
-        assert fixed == 0
-
-    def test_fix_fences_empty_file_ignored(self, tmp_path):
-        mod = self._import()
-        md = tmp_path / "empty.md"
-        md.write_text("")
-        fixed = mod.fix_fences([str(tmp_path)])
-        assert fixed == 0
-
-    def test_main_no_changes(self, tmp_path, capsys):
-        import importlib
-
-        import fix_fences as mod
-        importlib.reload(mod)
-        (tmp_path / "ok.md").write_text("# Title\n")
-        sys.argv = ["fix_fences.py", "--directories", str(tmp_path)]
-        code = mod.main()
-        assert code == 0
-        captured = capsys.readouterr()
-        assert "No files needed fixing" in captured.out
-
-    def test_main_with_fixes(self, tmp_path, capsys):
-        import importlib
-
-        import fix_fences as mod
-        importlib.reload(mod)
-        (tmp_path / "bad.md").write_text("```python\nopen block\n")
-        sys.argv = ["fix_fences.py", "--directories", str(tmp_path)]
-        code = mod.main()
-        assert code == 0
-        captured = capsys.readouterr()
-        assert "fixed" in captured.out
-
-    def test_help_does_not_crash(self):
-        with pytest.raises(SystemExit) as exc:
-            sys.argv = ["fix_fences.py", "--help"]
-            import fix_fences as mod
             mod.main()
         assert exc.value.code == 0
 
