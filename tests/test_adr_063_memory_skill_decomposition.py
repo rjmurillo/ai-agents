@@ -115,7 +115,7 @@ class TestExistenceAndTitle:
     def test_adr_file_exists_at_canonical_path(self) -> None:
         assert ADR_PATH.is_file()
 
-    def test_title_names_the_decomposition_decision(self, adr_text: str) -> None:
+    def test_title_names_the_decomposition_decision(self) -> None:
         """The canonical title extractor resolves this record's title correctly.
 
         This asserted `splitlines()[0]` until frontmatter was added, at which
@@ -177,11 +177,27 @@ class TestExistenceAndTitle:
         below, which fails on the raw-`body` call and passes once
         fence-stripping is inserted (verified by reverting the fix locally
         and re-running: the new test fails, the fenced-H1 wins).
+
+        That fix, calling `parse_frontmatter`, `_strip_fences`, and
+        `_extract_title` individually in the test body, still reimplemented
+        `build_record`'s own call SEQUENCE rather than driving it: a future
+        change to `build_record` that removes, reorders, or adds a step
+        between those three calls would leave this test green, since it
+        never runs `build_record` itself. Copilot found this on PR #5230
+        round 16 (previously missed, then resurfaced). Fixed by calling
+        `_index.build_record(ADR_PATH)` directly and asserting on the
+        `AdrRecord.title` it returns: this test now exercises the exact
+        production entry point every real ADR record goes through, and a
+        regression in `build_record`'s own pipeline order breaks this test
+        the same way it would break the real index build.
+        `test_extract_title_requires_fence_stripped_input_like_build_record_does`
+        below keeps its own direct calls to `parse_frontmatter`,
+        `_strip_fences`, and `_extract_title`: it exists specifically to pin
+        `_extract_title`'s fence-stripped-input precondition in isolation,
+        on a synthetic fixture `build_record` cannot be pointed at, so it is
+        not a duplicate of this test's coverage.
         """
-        frontmatter, body = _index.parse_frontmatter(adr_text, ADR_PATH)
-        assert frontmatter is not None, "ADR-063 has no frontmatter block"
-        prose = _index._strip_fences(body)
-        title = _index._extract_title(prose, ADR_PATH)
+        title = _index.build_record(ADR_PATH).title
         assert "memory" in title.lower()
         assert "decompos" in title.lower()
 
