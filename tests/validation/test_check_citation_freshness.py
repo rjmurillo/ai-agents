@@ -1,77 +1,24 @@
 """Citation freshness gate: added ``path:line`` claims verified against HEAD.
 
-Issue #5337. The positive/negative pairs below reproduce the real stale
-shapes PR #5336 repaired (a comment citation whose content moved down, a
-docstring citation with an indented verbatim quote) and the plain-comment
-identifier shape from the same incident.
-
-Every fixture citation is composed with f-strings over the ``TARGET`` /
-``GONE`` constants rather than written literally, so this test file's own
-added lines never present a repo-relative citation to the gate under test
-when it scans the branch that introduces them.
+Issue #5337. The positive/negative pairs reproduce the real stale shapes PR
+#5336 repaired; scope-boundary, diff-parsing, and wiring coverage lives in
+the sibling ``test_check_citation_freshness_scope.py``.
 """
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 import pytest
 
-from scripts.validation import check_citation_freshness as checker
-
-TARGET = "lib/util.py"
-GONE = "lib/missing.py"
-
-TARGET_CONTENT = "\n".join(
-    [
-        "# helper module",
-        "PLACEHOLDER = 0",
-        "def magic_token():",
-        "    return 1",
-        "TAIL = 2",
-    ]
+from tests.validation.citation_freshness_helpers import (
+    GONE,
+    TARGET,
+    _add_doc,
+    _repo,
+    _run,
+    checker,
 )
-
-
-def _git(root: Path, *args: str) -> None:
-    subprocess.run(
-        ["git", "-C", str(root), "-c", "commit.gpgsign=false", *args],
-        check=True,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    )
-
-
-def _repo(tmp_path: Path) -> Path:
-    """Create a repo whose main branch tracks the cited target file."""
-    root = tmp_path / "repo"
-    root.mkdir()
-    _git(root, "init", "-q", "-b", "main")
-    _git(root, "config", "user.email", "test@example.com")
-    _git(root, "config", "user.name", "Test")
-    target = root / TARGET
-    target.parent.mkdir(parents=True)
-    target.write_text(TARGET_CONTENT + "\n", encoding="utf-8")
-    (root / "README.md").write_text("base\n", encoding="utf-8")
-    _git(root, "add", "-A")
-    _git(root, "commit", "-q", "-m", "base")
-    _git(root, "checkout", "-q", "-b", "feature")
-    return root
-
-
-def _add_doc(root: Path, relpath: str, text: str) -> None:
-    path = root / relpath
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
-    _git(root, "add", "-A")
-    _git(root, "commit", "-q", "-m", "docs")
-
-
-def _run(root: Path, capsys: pytest.CaptureFixture[str]) -> tuple[int, str]:
-    code = checker.main(["--repo-root", str(root), "--base", "main"])
-    return code, capsys.readouterr().out
 
 
 class TestFreshCitationsPass:
@@ -142,6 +89,7 @@ class TestFreshCitationsPass:
         code, _out = _run(root, capsys)
 
         assert code == 0
+
 
 
 class TestStaleCitationsFail:
@@ -227,80 +175,19 @@ class TestStaleCitationsFail:
         assert code == 1
         assert out.count("not tracked at HEAD") == 1
 
-
-class TestScopeBoundaries:
-    def test_ignore_marker_on_the_line_above_suppresses(
+    def test_line_zero_citation_fails_instead_of_slicing_to_empty(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
+        # Regression (Copilot, PR #5338): cited_lines[-1:0] is empty, so an
+        # anchorless line-zero citation sailed past range validation.
         root = _repo(tmp_path)
-        doc = (
-            f"{checker.IGNORE_MARKER} -- quoting the pre-fix state\n"
-            f"See `{TARGET}:2` (`magic_token`).\n"
-        )
-        _add_doc(root, "docs/notes.md", doc)
-
-        code, _out = _run(root, capsys)
-
-        assert code == 0
-
-    def test_ignore_marker_on_the_same_line_suppresses(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        root = _repo(tmp_path)
-        doc = f"See `{TARGET}:2` (`magic_token`). {checker.IGNORE_MARKER} -- historical\n"
-        _add_doc(root, "docs/notes.md", doc)
-
-        code, _out = _run(root, capsys)
-
-        assert code == 0
-
-    def test_historical_roots_are_never_scanned(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        root = _repo(tmp_path)
-        doc = f"See `{TARGET}:2` (`magic_token`).\n"
-        _add_doc(root, ".agents/retrospective/2020-01-01-note.md", doc)
+        _add_doc(root, "docs/notes.md", f"More context in {TARGET}:0 today.\n")
 
         code, out = _run(root, capsys)
 
-        assert code == 0
-        assert "examined 0 citation(s)" in out
+        assert code == 1
+        assert "1-based" in out
 
-    def test_fixture_directories_are_never_scanned(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        root = _repo(tmp_path)
-        doc = f"See `{TARGET}:2` (`magic_token`).\n"
-        _add_doc(root, "tests/hooks/fixtures/sample.md", doc)
-
-        code, _out = _run(root, capsys)
-
-        assert code == 0
-
-    def test_stale_citation_already_in_base_is_not_this_branch_claim(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        root = _repo(tmp_path)
-        _git(root, "checkout", "-q", "main")
-        _add_doc(root, "docs/old.md", f"See `{TARGET}:2` (`magic_token`).\n")
-        _git(root, "checkout", "-q", "feature")
-        _git(root, "merge", "-q", "main")
-        _add_doc(root, "docs/new.md", "Nothing cited here.\n")
-
-        code, _out = _run(root, capsys)
-
-        assert code == 0
-
-    def test_pathless_snippet_like_prose_never_matches(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        root = _repo(tmp_path)
-        _add_doc(root, "docs/notes.md", "Fix the null check at auth.ts:47 first.\n")
-
-        code, out = _run(root, capsys)
-
-        assert code == 0
-        assert "examined 0 citation(s)" in out
 
 
 class TestCliContract:
@@ -348,20 +235,3 @@ class TestCliContract:
         assert checker.validate_citation_freshness(root) is True
 
 
-class TestPrePrWiring:
-    """testing.md SHOULD 6: prove the consumer is wired, not only the guard."""
-
-    def test_gate_is_registered_and_reexported_identically(self) -> None:
-        from scripts.validation import pre_pr, pre_pr_sequence
-
-        labels = [gate.name for gate in pre_pr_sequence._SEQUENCE]
-        assert "Citation Freshness (added lines)" in labels
-        # Identity is asserted between the two flat-imported modules (the
-        # registry promise); ``checker`` here is the package-imported module,
-        # a distinct module object for the same file, so it is compared by
-        # source file rather than by function identity.
-        assert pre_pr_sequence.validate_citation_freshness is pre_pr.validate_citation_freshness
-        assert (
-            pre_pr_sequence.validate_citation_freshness.__code__.co_filename
-            == checker.validate_citation_freshness.__code__.co_filename
-        )
