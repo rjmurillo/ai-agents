@@ -149,7 +149,12 @@ documentation:
   paragraph is worse: CommonMark ends the paragraph and lazily continues the
   quote, so a following `2.` opens a list, while we keep the paragraph open
   and `--write` appends a closer to a balanced document. Two of twelve
-  measured shapes do that. And a setext `===` underline
+  measured shapes do that. A backslash in a link destination escapes whatever
+  follows it, where CommonMark escapes only ASCII punctuation, so an escaped
+  space and an escaped tab are read wrongly: 62 of 64 shapes agree. The spec
+  rule was measured before being believed and is worse, 34 of 64 with 30
+  `--write` corruptions, so the permissive rule stays. And a setext `===`
+  underline
   directly under a list item, followed by a lazy continuation and then an
   indented fence, leaves that fence unseen: seven shapes through `--write`,
   four diverge and none is rewritten, so this one is a miss too. `---` under
