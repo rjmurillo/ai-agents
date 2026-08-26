@@ -3767,6 +3767,48 @@ class TestWorkTreeProbeFailure:
         assert code == 3, code
         assert "could not run git" in capsys.readouterr().err
 
+    def test_an_anchor_probe_timeout_exits_3_not_1(self, tmp_path, monkeypatch, capsys):
+        """A git failure DURING anchor validation is exit 3, not a traceback.
+
+        The work-tree probe is already guarded, so this covers the SECOND git
+        call on the install-trusted path, inside
+        ``_require_remote_tracking_ref``. ``_verify_config_trust`` happens to
+        call that helper inside its own try, but the install-trusted caller
+        invokes it directly, so a timeout or a missing binary escaped as a
+        traceback and exit 1 instead of the documented non-overridable exit 3
+        (Copilot review, PR #5329). The catch now lives in the shared helper,
+        which is what keeps the two callers from disagreeing about it.
+        """
+        config = self._plugin_root(tmp_path, monkeypatch)
+        calls: list[list[str]] = []
+
+        def _hang_on_anchor(args, cwd):
+            calls.append(args)
+            if args[:2] == ["rev-parse", "--symbolic-full-name"]:
+                raise subprocess.TimeoutExpired(cmd=["git", *args], timeout=30)
+            # The work-tree probe succeeds, so install trust is granted and
+            # execution reaches the anchor check. Without this the case would
+            # exit 3 from the earlier probe and prove nothing about the second.
+            # It must report a tree DISJOINT from tmp_path/"plugin"; returning
+            # tmp_path itself makes the declared root a subdirectory of the
+            # work tree, which condition 3 refuses, and the case then dies at
+            # containment having never reached the anchor call.
+            return subprocess.CompletedProcess(
+                args, 0, str(tmp_path / "consumer").encode() + b"\n", b"",
+            )
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _hang_on_anchor)
+
+        code = _dispatcher.main(
+            ["--pull-request", "1", "--config", str(config)],
+        )
+
+        assert code == 3, code
+        assert "could not resolve trusted ref" in capsys.readouterr().err
+        # Proof the anchor call was actually reached, so a future change that
+        # short-circuits earlier fails here rather than passing vacuously.
+        assert ["rev-parse", "--symbolic-full-name", "origin/main"] in calls, calls
+
     def test_a_config_problem_still_exits_2(self, tmp_path, monkeypatch, capsys):
         """Discriminating control: 3 must not swallow the config code.
 

@@ -41,12 +41,29 @@ possible.
 Trust model
 -----------
 
-This dispatcher executes ``command`` strings read from the YAML config.
-The config path MUST be controlled by the repository, never
-user-supplied beyond the validated default. Path traversal protection:
-``--config`` is canonicalised and rejected unless it lives under the
-repository root via
-``scripts.utils.path_validation.validate_safe_path``. The
+This dispatcher executes ``command`` strings read from the YAML config,
+so the config must come from an origin the checked-out PR cannot write.
+There are exactly TWO such origins, and conflating them is what earlier
+revisions of this paragraph did:
+
+  * A **repository** config, the default. ``--config`` is canonicalised
+    and rejected unless it lives under the repository root via
+    ``scripts.utils.path_validation.validate_safe_path``, and its bytes
+    are then verified against the trusted ref, because the repository
+    root is exactly the tree the PR CAN write.
+  * An **install-trusted** config (issue #5112, Option 1). It lives in a
+    host-declared plugin root whose tree is DISJOINT from both the
+    consumer's git work tree and ``_PROJECT_ROOT``, checked in both
+    containment directions. Byte verification is skipped because there
+    is nothing in the consumer repository to compare against; the origin
+    carries the trust. See :func:`_install_trusted_root` for the four
+    conditions and for what this does not close. The trust ANCHOR is
+    still validated on this path, including the ``refs/remotes/*``
+    requirement.
+
+"Disjoint" is not "outside": a root of ``$HOME`` with the repository at
+``$HOME/repo`` is outside the repository while containing every file the
+PR wrote, and a one-way test admitted exactly that (CWE-829). The
 ``pass_when_python`` evaluator no longer calls ``eval``: it parses the
 lambda with ``ast`` and walks a whitelisted node set, so a config
 expression cannot reach Python's class hierarchy or any builtin. This
@@ -531,7 +548,22 @@ def _require_remote_tracking_ref(
     them (Copilot review, PR #5329). One implementation, two callers, is
     what keeps the two paths honest about the same requirement.
     """
-    proc = _run_git(["rev-parse", "--symbolic-full-name", trust_anchor_ref], cwd)
+    # Guarded HERE, not at the call sites. _verify_config_trust happens to
+    # call this inside its own try, but the install-trusted caller invokes it
+    # directly, so a git timeout or a missing binary escaped as a traceback
+    # and exit 1 instead of the documented non-overridable exit 3. Putting
+    # the catch in the shared helper is what stops the two callers from
+    # disagreeing about it, which is the same failure that produced this
+    # helper in the first place (Copilot review, PR #5329).
+    try:
+        proc = _run_git(
+            ["rev-parse", "--symbolic-full-name", trust_anchor_ref], cwd,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return TrustCheck(
+            TRUST_GIT_ERROR,
+            f"could not resolve trusted ref {trust_anchor_ref!r}: {exc}",
+        )
     full_name = proc.stdout.decode(errors="replace").strip()
     if proc.returncode == 0 and full_name.startswith("refs/remotes/"):
         return None
