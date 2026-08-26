@@ -646,9 +646,9 @@ class TestBlankNonProseBlockLines:
         # started too late to find it, so no range was ever recorded, and
         # "**Status**: Accepted" stayed fully visible in the output. Fixed
         # by restricting the searchable/cursor-advancing child types to
-        # `_VERBATIM_SEARCH_CHILD_TYPES` (`html_inline`, `code_inline`),
-        # neither of which is ever entity-decoded; a "text" child is now
-        # skipped without consulting its content at all. Asserts the status
+        # "html_inline" and "code_inline", neither of which is ever
+        # entity-decoded; a "text" child is now skipped without consulting
+        # its content at all. Asserts the status
         # is fully masked and the entity/tail text (both real prose)
         # survive as literal, undecoded source bytes elsewhere in the
         # output blanking only replaces characters with spaces.
@@ -678,19 +678,48 @@ class TestBlankNonProseBlockLines:
         # -joined) raw text, so it matches the LATER real comment's raw
         # text instead, advancing the cursor past it; the subsequent
         # html_inline search then starts too late to find anything, and
-        # the whole input passed through unmodified. Fixed by requiring a
+        # the whole input passed through unmodified. A first fix required a
         # code_inline match to be flanked by the token's own backtick
-        # markup (`_find_markup_anchored_occurrence`) before it is
-        # trusted: the accidental match at the real comment's position is
-        # not backtick-flanked and is rejected, so the search continues
-        # and finds nothing else to (incorrectly) consume, leaving the
-        # cursor at the paragraph start for the html_inline search to
-        # correctly locate the real comment. Asserts the visible multi-line
+        # markup before being trusted; a later round (see the decoy-sibling
+        # test below) found that check still insufficient and replaced it
+        # entirely with delimiter-based location (`_code_span_end`), which
+        # never searches by content at all. Asserts the visible multi-line
         # code span survives verbatim and the real comment is masked.
         text = "`<!--\nx -->` <!-- x -->\n"
         out = blank_non_prose_block_lines(text)
         assert out.startswith("`<!--\nx -->` ")
         assert "<!-- x -->" not in out[len("`<!--\nx -->` ") :]
+
+    def test_a_later_decoy_code_span_cannot_steal_an_earlier_spans_match(self):
+        # Real gap in the round-19 fix above, found by Copilot (PR #5230,
+        # round 20): round 19's backtick-anchor check proved a candidate
+        # match sat inside SOME code span of the right delimiter length,
+        # but not that it was the SPECIFIC code_inline child currently
+        # being processed. `` `a\nb` <!-- a b --> `a b` `` tokenizes as
+        # code_inline("a b") (normalized from the newline-joined "a\nb"),
+        # text(" "), html_inline("<!-- a b -->"), text(" "),
+        # code_inline("a b") (the second span, genuinely "a b" verbatim,
+        # no newline to normalize). Searching for the FIRST code_inline
+        # child's content "a b" never finds it at its own true position
+        # (whose raw text is "a\nb", not "a b"), but the anchor check
+        # happily accepts the backtick-flanked "a b" inside the SECOND,
+        # later code span instead, advancing the cursor past the real
+        # comment sitting between them and leaving it completely
+        # unmasked. Verified empirically: this exact input passed through
+        # `blank_non_prose_block_lines` completely unmodified before this
+        # fix. Fixed by locating each code_inline child's span from its
+        # delimiter structure alone (`_code_span_end`, using
+        # `_find_exact_backtick_run` to find the opening and closing
+        # backtick runs), never by searching for `.content`: with no
+        # content string involved, no other child's content, earlier or
+        # later, can be mistaken for it. Asserts both visible code spans
+        # survive verbatim and the real comment in between is masked.
+        text = "`a\nb` <!-- a b --> `a b`\n"
+        out = blank_non_prose_block_lines(text)
+        assert out.startswith("`a\nb` ")
+        assert out.endswith("`a b`\n")
+        assert "a b -->" not in out
+        assert "<!--" not in out
 
     def test_preserves_line_count(self):
         text = "a\n<!--\nb\nc\n-->\nd\n"

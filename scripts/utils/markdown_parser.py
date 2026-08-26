@@ -451,72 +451,73 @@ def _line_start_offsets(markdown: str) -> list[int]:
     return offsets
 
 
-# Child token types eligible for cursor-advancing position search at all.
-# ``text`` tokens are excluded: markdown-it-py resolves HTML entities
-# (`&amp;` -> `&`) and backslash escapes in text content, so `.content` can
-# differ from the source bytes at the same position, and searching for that
-# decoded string can match unrelated bytes anywhere else in the paragraph
-# (see `_html_comment_inline_ranges`'s docstring for the concrete exploit).
-# `html_inline` content is always a verbatim copy of the source; `code_inline`
-# content is NOT always verbatim (CommonMark converts an embedded line ending
-# to a space, which is a real, non-boundary substitution, not just trimming),
-# so a `code_inline` match additionally requires the markup-anchor check in
-# `_find_markup_anchored_occurrence` before it is trusted.
-_VERBATIM_SEARCH_CHILD_TYPES = frozenset({"html_inline", "code_inline"})
-
-
-def _find_markup_anchored_occurrence(
-    markdown: str, content: str, markup: str, start: int, end: int
+def _find_exact_backtick_run(
+    markdown: str, run_length: int, start: int, end: int
 ) -> int:
-    """First occurrence of ``content`` in ``markdown[start:end]`` immediately
-    flanked by ``markup`` on both sides, or -1 if none exists.
+    """First position in ``markdown[start:end]`` of a backtick run whose
+    length is EXACTLY ``run_length``, or -1 if none exists.
 
-    ``str.find`` alone trusts the first byte match regardless of context.
-    That is unsound for `code_inline`: CommonMark collapses an embedded line
-    ending inside a multi-line code span to a single space, so `.content`
-    for `` `<!--\\nx -->` `` is the SPACE-joined string ``"<!-- x -->"``, not
-    the newline-joined raw text. If a real `<!--\\nx -->\\n` comment sits
-    later in the same paragraph and happens to render the same way once its
-    own embedded newline is read back as a space by a human, `find` locates
-    that LATER, unrelated occurrence instead of the code span's own (newline
-    -joined, byte-different) position, advances the cursor past the real
-    comment, and the subsequent search for the comment's own `html_inline`
-    content starts too late to find it. Copilot found this on PR #5230
-    round 19, marked as changes-recommended, citing the exact
-    `` `<!--\\nx -->` <!-- x --> `` shape. Verified empirically:
-    `blank_non_prose_block_lines("`<!--\\nx -->` <!-- x -->\\n")` returned
-    the input completely unmodified before this fix, because the
-    `code_inline` search stole the real comment's position and the
-    following `html_inline` search then found nothing to mask.
-
-    ``markup`` is the delimiter markdown-it recorded for this specific
-    token (the backtick run for `code_inline`, always `""` for
-    `html_inline`, whose content already IS the raw source with no
-    separate delimiter). A candidate position is trusted only when it is
-    preceded and followed by exactly that delimiter: a code span's raw
-    text is `markup + <content> + markup` by construction, so this checks
-    the candidate is bounded by the same backticks markdown-it used to
-    open and close THIS token, not merely that the content string appears
-    somewhere. For `html_inline`, `markup` is always `""`, so the check
-    degenerates to "the substring exists" and behaves exactly as before.
-    The search retries forward one character at a time past a rejected
-    candidate rather than accepting or giving up on the first match, so a
-    genuine anchored occurrence later in the window (for example the
-    round-17 decoy, where the code span's own true position IS correctly
-    backtick-flanked) is still found.
+    Mirrors CommonMark's own code-span delimiter rule (spec section 6.1): a
+    "backtick string" is a maximal run of backtick characters, and a code
+    span's opening and closing delimiters must be backtick strings of equal
+    length. A naive backtick-run search would happily
+    match the first ``run_length`` backticks of a LONGER run (for example
+    matching a single backtick inside a run of three), which is not what
+    markdown-it itself does when choosing delimiters. Rejecting a candidate
+    whose neighboring character is also a backtick, and retrying forward,
+    keeps this in step with the parser's own rule without needing to
+    re-derive the rest of CommonMark's inline precedence.
     """
-    search_from = start
+    target = "`" * run_length
+    pos = start
     while True:
-        found = markdown.find(content, search_from, end)
-        if found < 0:
+        idx = markdown.find(target, pos, end)
+        if idx < 0:
             return -1
-        before_start = found - len(markup)
-        before = markdown[before_start:found] if before_start >= 0 else ""
-        after_end = found + len(content) + len(markup)
-        after = markdown[found + len(content) : after_end]
-        if before == markup and after == markup:
-            return found
-        search_from = found + 1
+        preceded_by_backtick = idx > 0 and markdown[idx - 1] == "`"
+        after = idx + run_length
+        followed_by_backtick = after < len(markdown) and markdown[after] == "`"
+        if not preceded_by_backtick and not followed_by_backtick:
+            return idx
+        pos = idx + 1
+
+
+def _code_span_end(markdown: str, markup: str, start: int, end: int) -> int:
+    """End offset (exclusive) of the ``code_inline`` span whose opening
+    delimiter begins at ``start``, or -1 if it cannot be located.
+
+    Locates the span by delimiter structure alone, the backtick run
+    ``markup`` recorded on the token, never by searching for the token's
+    own (possibly non-verbatim) ``.content``. An earlier revision searched
+    for `.content` with an additional check that a candidate match was
+    backtick-flanked (`_find_markup_anchored_occurrence`, since removed).
+    That check proves a match is flanked by SOME backtick run of the right
+    length; it does not prove the match belongs to the child currently
+    being processed rather than a different, later `code_inline` sibling
+    whose own (also normalized) content happens to coincide. `` `a\\nb`
+    <!-- a b --> `a b` `` tokenizes as `code_inline("a b")` (normalized
+    from the newline-joined "a\\nb"), `text(" ")`, `html_inline("<!-- a b
+    -->")`, `text(" ")`, `code_inline("a b")` (the second span, genuinely
+    "a b" verbatim): searching for the first `code_inline` child's content
+    "a b" found it anchored inside the SECOND code span instead of the
+    first (whose own raw text never contains "a b" as a substring at all),
+    advancing the cursor past the real comment in between and leaving it
+    completely unmasked. Copilot found this on PR #5230 round 20. Verified
+    empirically: `blank_non_prose_block_lines("`a\\nb` <!-- a b --> `a
+    b`\\n")` returned the input completely unmodified before this fix.
+
+    Locating by delimiter alone has no content to search for and therefore
+    no content to get wrong: the opening run is exactly where the caller
+    says it is, and the closing run is the next backtick run of the same
+    length after it, which is CommonMark's own definition of where a code
+    span ends. No child's raw text is ever inspected, so no other child's
+    coincidentally similar content can be mistaken for it.
+    """
+    open_end = start + len(markup)
+    close_start = _find_exact_backtick_run(markdown, len(markup), open_end, end)
+    if close_start < 0:
+        return -1
+    return close_start + len(markup)
 
 
 def _html_comment_inline_ranges(
@@ -557,41 +558,52 @@ def _html_comment_inline_ranges(
     the real comment (and whatever it hides) untouched. Copilot found this
     on PR #5230 round 17, marked Mandatory.
 
-    Only children in `_VERBATIM_SEARCH_CHILD_TYPES` are searched at all;
+    Only `html_inline` and `code_inline` children are consulted at all;
     every other child type (chiefly `text`, but also markup tokens such as
-    `strong_open` whose own content is empty) is skipped without consulting
-    `.content`. An earlier revision searched every child's content
-    regardless of type, reasoning that a decoy needed consuming in source
-    order whatever kind of token carried it. That reasoning does not hold
-    for `text`: markdown-it-py resolves HTML entities and backslash escapes
-    in text content, so `&amp; ` decodes to `.content == "& "`, a string
-    that need not appear anywhere near the text token's true source
-    position. `find("& ", cursor, span_end)` can then match a later,
-    unrelated literal `& ` that happens to sit after a real multiline
-    comment, advancing the cursor past that comment; the subsequent search
-    for the comment's own `html_inline` content then starts too late to
-    find it, `found < 0` short-circuits the loop with no range recorded,
-    and the comment's hidden `**Status**: Accepted` is never masked.
-    Verified empirically: `blank_non_prose_block_lines("&amp; <!--\\n"
+    `strong_open` whose own content is empty) is skipped entirely. An
+    earlier revision searched every child's content regardless of type,
+    reasoning that a decoy needed consuming in source order whatever kind
+    of token carried it. That reasoning does not hold for `text`:
+    markdown-it-py resolves HTML entities and backslash escapes in text
+    content, so `&amp; ` decodes to `.content == "& "`, a string that need
+    not appear anywhere near the text token's true source position.
+    `find("& ", cursor, span_end)` can then match a later, unrelated
+    literal `& ` that happens to sit after a real multiline comment,
+    advancing the cursor past that comment; the subsequent search for the
+    comment's own `html_inline` content then starts too late to find it,
+    `found < 0` short-circuits the loop with no range recorded, and the
+    comment's hidden `**Status**: Accepted` is never masked. Verified
+    empirically: `blank_non_prose_block_lines("&amp; <!--\\n"
     "**Status**: Accepted\\n--> & tail\\n")` left `**Status**: Accepted`
     fully visible in the output before this fix. Copilot found this on PR
     #5230 round 18, marked Mandatory, citing CWE-20.
 
-    A `code_inline` match is additionally verified by
-    `_find_markup_anchored_occurrence` before it is trusted, rather than
-    accepted from a bare `find`. Restricting the searchable set to
-    `html_inline`/`code_inline` (round 18) was not by itself enough:
-    CommonMark converts an embedded line ending inside a multi-line code
-    span to a space, so `` `<!--\\nx -->` ``'s `.content` is the
-    SPACE-joined `"<!-- x -->"`, not the newline-joined raw text at that
-    position. A bare `find` for that space-joined string can then match an
-    unrelated LATER occurrence, such as a real single-line `<!-- x -->`
-    comment elsewhere in the paragraph, stealing its position exactly like
-    the round-17 decoy but through content normalization rather than
-    identical raw bytes. Copilot found this on PR #5230 round 19, citing
-    the exact `` `<!--\\nx -->` <!-- x --> `` shape. See
-    `_find_markup_anchored_occurrence`'s docstring for the anchor check
-    that closes it and why it still finds the round-17 decoy correctly.
+    A `code_inline` child's position is located by its DELIMITER structure
+    (`_code_span_end`, using the backtick run recorded in `child.markup`),
+    never by searching for its `.content`. Two rounds tried
+    content-based search for `code_inline` and both were wrong: round 18
+    reasoned CommonMark code spans only ever trim boundary whitespace, so
+    any residual difference from raw source stays a proper substring at
+    the same offset; that missed an embedded (non-boundary) line ending
+    collapsing to a space, a real substitution, not trimming (round 19).
+    Round 19's fix required a content match to be backtick-flanked, which
+    proves a candidate sits inside SOME code span of the right delimiter
+    length; it does not prove that code span is the one currently being
+    processed, so a LATER sibling `code_inline` whose own (also possibly
+    normalized) content happens to coincide can still steal the match. ``
+    `a\\nb` <!-- a b --> `a b` `` tokenizes as `code_inline("a b")`
+    (normalized from "a\\nb"), `text(" ")`, `html_inline("<!-- a b -->")`,
+    `text(" ")`, `code_inline("a b")` (the second span, genuinely "a b"
+    verbatim): searching for the FIRST code_inline's content "a b" found
+    it anchored inside the SECOND, later code span instead, advancing the
+    cursor past the real comment in between and leaving it fully
+    unmasked. Copilot found this on PR #5230 round 20. Verified
+    empirically: `blank_non_prose_block_lines("`a\\nb` <!-- a b -->
+    `a b`\\n")` returned the input completely unmodified before this fix.
+    Locating a code span by its opening and closing DELIMITERS, rather
+    than by any content string, has no content to search for and
+    therefore no content collision is possible with any other child,
+    earlier or later: see `_code_span_end`'s docstring.
     """
     line_offsets = _line_start_offsets(markdown)
     ranges: list[tuple[int, int]] = []
@@ -605,19 +617,29 @@ def _html_comment_inline_ranges(
         )
         cursor = span_start
         for child in token.children:
-            if child.type not in _VERBATIM_SEARCH_CHILD_TYPES:
-                continue
-            content = child.content or ""
-            if not content:
-                continue
-            found = _find_markup_anchored_occurrence(
-                markdown, content, child.markup or "", cursor, span_end
-            )
-            if found < 0:
-                continue
-            cursor = found + len(content)
-            if child.type == "html_inline" and content.startswith("<!--"):
-                ranges.append((found, cursor))
+            if child.type == "code_inline":
+                markup = child.markup or ""
+                if not markup:
+                    continue
+                open_start = _find_exact_backtick_run(
+                    markdown, len(markup), cursor, span_end
+                )
+                if open_start < 0:
+                    continue
+                span_close = _code_span_end(markdown, markup, open_start, span_end)
+                if span_close < 0:
+                    continue
+                cursor = span_close
+            elif child.type == "html_inline":
+                content = child.content or ""
+                if not content:
+                    continue
+                found = markdown.find(content, cursor, span_end)
+                if found < 0:
+                    continue
+                cursor = found + len(content)
+                if content.startswith("<!--"):
+                    ranges.append((found, cursor))
     return ranges
 
 
