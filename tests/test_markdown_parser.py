@@ -484,6 +484,304 @@ class TestBlankCodeBlockLinesInvariants:
         assert blank_code_block_lines(text) == text
 
 
+class TestBlankNonProseBlockLines:
+    """`blank_non_prose_block_lines` widens `blank_code_block_lines` to also
+    blank HTML blocks (issue #5209 round-4 review: `check_adr_lifecycle.py`'s
+    `_status_prose` was reading a `## Status`-shaped line out of an HTML
+    comment, since `blank_code_block_lines` deliberately keeps HTML content
+    visible for `check_skill_md_portability.py`'s unrelated needs; also
+    discussed on PR #5230, review round 2)."""
+
+    def test_blanks_a_block_level_html_comment(self):
+        # Discrimination probe: a heading hidden inside a bare HTML comment
+        # block must not survive, unlike blank_code_block_lines's behavior.
+        # Asserts the exact transformed text, not just "Accepted" absent: a
+        # mutant that blanks only the "Accepted" line while leaving the
+        # comment's own "## Status" line intact would still pass a
+        # substring-only check.
+        text = "<!--\n## Status\nAccepted\n-->\n\n## Status\nProposed\n"
+        out = blank_non_prose_block_lines(text)
+        assert out.split("\n") == ["", "", "", "", "", "## Status", "Proposed", ""]
+
+    def test_blank_code_block_lines_does_not_strip_the_same_comment(self):
+        # Control proving the two functions genuinely differ: the same input
+        # that blank_non_prose_block_lines scrubs survives the older,
+        # code-only function untouched. Asserts the entire output equals the
+        # input, not just that "Accepted" survives: a mutant that blanks the
+        # "Accepted" line while leaving the comment's own "## Status" line
+        # intact would still pass a substring-only check.
+        text = "<!--\n## Status\nAccepted\n-->\n"
+        assert blank_code_block_lines(text) == text
+
+    def test_still_blanks_fenced_code(self):
+        text = "keep /a\n```\ndrop /b\n```\nkeep /c\n"
+        out = blank_non_prose_block_lines(text).split("\n")
+        assert out[0] == "keep /a"
+        assert out[1] == ""
+        assert out[2] == ""
+        assert out[3] == ""
+        assert out[4] == "keep /c"
+
+    def test_blanks_an_inline_html_comment_sharing_a_line_with_prose(self):
+        # A comment opened mid-line (not starting the line) is not a
+        # standalone html_block token; CommonMark tokenizes it as html_inline
+        # instead. An earlier revision of this function left such comments
+        # untouched, reasoning that only a comment segmented as its own
+        # block needed hiding. That reasoning missed that an html_inline
+        # comment is exactly as invisible to a renderer as an html_block one,
+        # so it needs the same treatment: the multi-line variant below is
+        # what actually forges a hidden status, but the single-line case is
+        # the minimal instance of the same gap. Copilot found this on
+        # PR #5230. Asserts the exact transformed text: prose survives,
+        # the comment (markers and content) is replaced with spaces so the
+        # line length and every other line's content are preserved.
+        text = "prose <!-- inline --> more prose\n"
+        assert blank_non_prose_block_lines(text) == "prose                 more prose\n"
+
+    def test_blank_code_block_lines_does_not_strip_an_inline_html_comment(self):
+        # Control proving the two functions still genuinely differ after the
+        # fix above: blank_code_block_lines is untouched by this change and
+        # keeps leaving inline HTML comments visible, matching its own
+        # documented contract for check_skill_md_portability.py.
+        text = "prose <!-- inline --> more prose\n"
+        assert blank_code_block_lines(text) == text
+
+    def test_hides_a_multiline_inline_html_comment_status(self):
+        # The real forgery vector Copilot found (PR #5230, mandatory finding):
+        # an HTML comment opened on a prose line can span multiple source
+        # lines while the paragraph stays open, since none of a comment's own
+        # "-->" or its hidden content interrupts a CommonMark paragraph. A
+        # `**Status**: Accepted` line inside such a comment is invisible on
+        # any CommonMark renderer, but the OLD blank_non_prose_block_lines
+        # left every paragraph line untouched, so check_adr_lifecycle.py's
+        # _INLINE_STATUS_RE would still read "Accepted" off the hidden line
+        # as the record's declared status. Asserts the exact transformed
+        # text: the whole comment span (spanning three source lines) becomes
+        # spaces, and the surrounding prose on its own lines is untouched.
+        text = "prose <!--\n**Status**: Accepted\n-->\nmore prose\n"
+        out = blank_non_prose_block_lines(text)
+        assert out.split("\n") == [
+            "prose     ",
+            "                    ",
+            "   ",
+            "more prose",
+            "",
+        ]
+        # A raw-text scan for the bold status label, exactly what
+        # check_adr_lifecycle.py's _INLINE_STATUS_RE does, must not find the
+        # hidden declaration once this function has run.
+        assert "**Status**" not in out
+
+    def test_still_shows_status_visible_alongside_a_multiline_comment(self):
+        # Control proving the fix above is not simply blanking every line the
+        # comment's paragraph occupies: a real, visible status declaration
+        # placed AFTER the multi-line comment on its own paragraph must
+        # survive, since check_adr_lifecycle.py still has to find it.
+        text = "prose <!--\nhidden\n-->\n\n**Status**: Accepted\n"
+        out = blank_non_prose_block_lines(text)
+        assert "**Status**: Accepted" in out
+
+    def test_a_literal_comment_marker_inside_backticks_is_not_a_comment(self):
+        # Real gap in an earlier revision of this fix, found by Copilot
+        # (PR #5230, round 16, marked Mandatory): that revision scanned raw
+        # text for "<!--" to find comment openers, and could not tell a real
+        # comment from the same three characters written literally inside a
+        # backtick code span. `` `<!--` `` is CommonMark raw text (a
+        # code_inline token holding the literal characters `<!--`), not a
+        # comment opener; only a `<!--` the PARSER itself classifies as
+        # html_inline is a real comment. The old substring scan entered
+        # "in comment" state on the backtick-quoted marker anyway and
+        # blanked the real "**Status**: Proposed" that followed until the
+        # next "-->" anywhere in the document. Verified empirically:
+        # markdown-it tokenizes `` "`<!--` **Status**: Proposed" `` as a
+        # code_inline child holding "<!--", plus separate strong_open/text/
+        # strong_close tokens for the status, with no html_inline token at
+        # all. Asserts the whole line survives untouched.
+        text = "`<!--` **Status**: Proposed\n"
+        assert blank_non_prose_block_lines(text) == text
+
+    def test_a_decoy_code_span_does_not_steal_the_real_comments_match(self):
+        # Real gap in an earlier revision of this fix, found by Copilot
+        # (PR #5230, round 17, marked Mandatory): the earlier revision
+        # searched for a match starting from a cursor advanced only past
+        # PRIOR html_inline children, so a preceding sibling of any OTHER
+        # type whose own content happened to share bytes with a later real
+        # comment could steal the match. `` `<!-- x -->` <!-- x --> ``
+        # tokenizes as code_inline("<!-- x -->"), text(" "),
+        # html_inline("<!-- x -->"): searching for the html_inline child's
+        # content from the start of the paragraph, without first having
+        # advanced past the code_inline child's identical text, found the
+        # FIRST occurrence (inside the backticks) and masked visible code
+        # while leaving the real comment, and whatever it might hide,
+        # untouched. Fixed by advancing the cursor past the source-verbatim
+        # child types (`html_inline`, `code_inline`) in source order;
+        # a later round narrowed this from "every child" once `text`
+        # children were found unsafe to use for the same purpose (see
+        # test_an_entity_decoded_text_child_cannot_steal_a_later_comments_match
+        # below). Asserts the exact transformed text: the visible code span
+        # survives verbatim, and only the real (second) comment is masked.
+        text = "`<!-- x -->` <!-- x -->\n"
+        out = blank_non_prose_block_lines(text)
+        assert out.startswith("`<!-- x -->` ")
+        assert "<!-- x -->" not in out[len("`<!-- x -->` ") :]
+
+    def test_an_entity_decoded_text_child_cannot_steal_a_later_comments_match(self):
+        # Real gap in the round-17 fix above, found by Copilot (PR #5230,
+        # round 18, marked Mandatory, CWE-20): that fix searched EVERY
+        # child's content to advance the cursor, including "text" children,
+        # reasoning that any decoy needed consuming in source order. That
+        # reasoning assumed a child's ``.content`` is always a verbatim
+        # substring of the source, which does not hold for "text" tokens:
+        # markdown-it-py resolves HTML entities, so source "&amp; " becomes
+        # content "& ". Searching raw source for that DECODED string can
+        # match an unrelated LATER literal "& " rather than failing to
+        # match at all. Verified empirically: parsing
+        # "&amp; <!--\n**Status**: Accepted\n--> & tail\n" produces a
+        # leading text child whose decoded content is "& " (from the
+        # source's "&amp; " span) and a later, unrelated literal "& " after
+        # the real comment; searching for the decoded "& " from the
+        # paragraph start found that LATER literal instead of failing,
+        # advancing the cursor past the real multiline comment. The
+        # subsequent search for the comment's own html_inline content then
+        # started too late to find it, so no range was ever recorded, and
+        # "**Status**: Accepted" stayed fully visible in the output. Fixed
+        # by restricting the searchable/cursor-advancing child types to
+        # "html_inline" and "code_inline", neither of which is ever
+        # entity-decoded; a "text" child is now skipped without consulting
+        # its content at all. Asserts the status
+        # is fully masked and the entity/tail text (both real prose)
+        # survive as literal, undecoded source bytes elsewhere in the
+        # output blanking only replaces characters with spaces.
+        text = "&amp; <!--\n**Status**: Accepted\n--> & tail\n"
+        out = blank_non_prose_block_lines(text)
+        assert "**Status**: Accepted" not in out
+        assert "&amp;" in out
+        assert "& tail" in out
+
+    def test_a_normalized_multiline_code_span_cannot_steal_a_later_comments_match(
+        self,
+    ):
+        # Real gap in the round-18 fix above, found by Copilot (PR #5230,
+        # round 19): round 18 trusted a code_inline match once its type was
+        # in the searchable allowlist, reasoning CommonMark code spans only
+        # ever trim boundary whitespace and so any residual difference from
+        # raw source is still a proper substring at the same relative
+        # offset. That reasoning misses CommonMark's OTHER code-span
+        # transform: an embedded (non-boundary) line ending inside a
+        # multi-line code span is converted to a single space, which is a
+        # real substitution, not mere trimming. Verified empirically:
+        # parsing "`<!--\nx -->` <!-- x -->\n" produces
+        # code_inline("<!-- x -->") (space-joined, not newline-joined) as
+        # its first child, byte-identical to the second, real
+        # html_inline("<!-- x -->") child. A bare `find` for that
+        # space-joined string does not match the code span's own (newline
+        # -joined) raw text, so it matches the LATER real comment's raw
+        # text instead, advancing the cursor past it; the subsequent
+        # html_inline search then starts too late to find anything, and
+        # the whole input passed through unmodified. A first fix required a
+        # code_inline match to be flanked by the token's own backtick
+        # markup before being trusted; a later round (see the decoy-sibling
+        # test below) found that check still insufficient and replaced it
+        # entirely with delimiter-based location (`_code_span_end`), which
+        # never searches by content at all. Asserts the visible multi-line
+        # code span survives verbatim and the real comment is masked.
+        text = "`<!--\nx -->` <!-- x -->\n"
+        out = blank_non_prose_block_lines(text)
+        assert out.startswith("`<!--\nx -->` ")
+        assert "<!-- x -->" not in out[len("`<!--\nx -->` ") :]
+
+    def test_a_later_decoy_code_span_cannot_steal_an_earlier_spans_match(self):
+        # Real gap in the round-19 fix above, found by Copilot (PR #5230,
+        # round 20): round 19's backtick-anchor check proved a candidate
+        # match sat inside SOME code span of the right delimiter length,
+        # but not that it was the SPECIFIC code_inline child currently
+        # being processed. `` `a\nb` <!-- a b --> `a b` `` tokenizes as
+        # code_inline("a b") (normalized from the newline-joined "a\nb"),
+        # text(" "), html_inline("<!-- a b -->"), text(" "),
+        # code_inline("a b") (the second span, genuinely "a b" verbatim,
+        # no newline to normalize). Searching for the FIRST code_inline
+        # child's content "a b" never finds it at its own true position
+        # (whose raw text is "a\nb", not "a b"), but the anchor check
+        # happily accepts the backtick-flanked "a b" inside the SECOND,
+        # later code span instead, advancing the cursor past the real
+        # comment sitting between them and leaving it completely
+        # unmasked. Verified empirically: this exact input passed through
+        # `blank_non_prose_block_lines` completely unmodified before this
+        # fix. Fixed by locating each code_inline child's span from its
+        # delimiter structure alone (`_code_span_end`, using
+        # `_find_exact_backtick_run` to find the opening and closing
+        # backtick runs), never by searching for `.content`: with no
+        # content string involved, no other child's content, earlier or
+        # later, can be mistaken for it. Asserts both visible code spans
+        # survive verbatim and the real comment in between is masked.
+        text = "`a\nb` <!-- a b --> `a b`\n"
+        out = blank_non_prose_block_lines(text)
+        assert out.startswith("`a\nb` ")
+        assert out.endswith("`a b`\n")
+        assert "a b -->" not in out
+        assert "<!--" not in out
+
+    def test_an_escaped_backtick_cannot_steal_a_real_code_spans_opener(self):
+        # Real gap in the round-20 fix above, found by Copilot (PR #5230,
+        # round 21, marked Mandatory): the delimiter-based opening lookup
+        # accepted a backslash-escaped backtick as a valid code_inline
+        # opener. `` \` `<!-- x -->` <!-- x -->\n `` tokenizes as
+        # text("` ") (the escaped backtick resolves to a literal "`"
+        # character, no code_inline of its own), code_inline("<!-- x -->")
+        # (the real, single visible code span), text(" "), html_inline
+        # ("<!-- x -->") (the real, hidden comment). The opening search
+        # started from the paragraph's start and found the escaped
+        # backtick's literal "`" character first: unpreceded and
+        # unfollowed by another backtick, it passed the flanking check,
+        # so `_code_span_end` then searched for a closer from just past
+        # it and found the REAL code span's own opening backtick,
+        # mistaking it for a closer. That shrank the "span" to a few
+        # characters and left the cursor short of the real code span's
+        # true end (still before its own visible "<!-- x -->" content).
+        # The subsequent `html_inline` search, starting from that
+        # too-short cursor, then matched the code span's own visible
+        # text (a decoy sharing the same content as the real, later
+        # comment) instead of the real comment further along, masking
+        # the visible code and leaving the real hidden comment fully
+        # readable. Verified empirically: this exact input, before this
+        # fix, blanked the code span's own content
+        # (`` `          ` ``) while leaving the real trailing
+        # `<!-- x -->` completely unmasked. Fixed by requiring the
+        # OPENING backtick-run lookup alone to reject a run preceded by
+        # an odd number of backslashes (CommonMark's escape-parity
+        # rule): a backslash-escaped backtick is a literal character to
+        # the parser, never a delimiter, so treating it as one finds a
+        # position the parser itself never opened a code span at. The
+        # CLOSING lookup keeps no such check, since CommonMark backslash
+        # escapes do not apply inside code span content and a real
+        # closer may legitimately follow a literal backslash that is
+        # part of the code's own text. Asserts the visible code span
+        # survives verbatim and the real comment after it is masked.
+        text = "\\` `<!-- x -->` <!-- x -->\n"
+        out = blank_non_prose_block_lines(text)
+        assert out.startswith("\\` `<!-- x -->`")
+        assert "<!--" not in out[out.index("-->") + len("-->") :]
+
+    def test_preserves_line_count(self):
+        text = "a\n<!--\nb\nc\n-->\nd\n"
+        original = len(text.split("\n"))
+        assert len(blank_non_prose_block_lines(text).split("\n")) == original
+
+    def test_empty_string_returns_empty(self):
+        assert blank_non_prose_block_lines("") == ""
+
+    def test_parser_error_propagates_not_swallowed(self, monkeypatch):
+        import scripts.utils.markdown_parser as mp
+
+        class _Boom:
+            def parse(self, _text):
+                raise ValueError("boom")
+
+        monkeypatch.setattr(mp, "_create_parser", lambda *a, **k: _Boom())
+        with pytest.raises(ValueError, match="boom"):
+            mp.blank_non_prose_block_lines("anything")
+
+
 class TestBlankCodeBlockLinesAstBehavior:
     """Behaviors the pre-#3499 line scanner got wrong (issue #3499).
 
@@ -536,55 +834,6 @@ class TestBlankCodeBlockLinesAstBehavior:
         monkeypatch.setattr(mp, "_create_parser", lambda *a, **k: _Boom())
         with pytest.raises(ValueError, match="boom"):
             mp.blank_code_block_lines("anything")
-
-
-class TestBlankNonProseBlockLines:
-    """`blank_non_prose_block_lines` widens `blank_code_block_lines` to also
-    blank HTML blocks (issue #5209 round-4 review: `check_adr_lifecycle.py`'s
-    `_status_prose` was reading a `## Status`-shaped line out of an HTML
-    comment, since `blank_code_block_lines` deliberately keeps HTML content
-    visible for `check_skill_md_portability.py`'s unrelated needs).
-    """
-
-    def test_blanks_html_block_unlike_the_code_only_variant(self):
-        text = "<!--\n## Status\ndrop /b\n-->\nkeep /c\n"
-        out = blank_non_prose_block_lines(text)
-
-        assert "## Status" not in out
-        assert "drop /b" not in out
-        assert "keep /c" in out
-        # The invariant this function exists to preserve: the narrower
-        # function must NOT change, or the portability scanner's contract
-        # (test_keeps_html_block above) would silently regress.
-        assert "## Status" in blank_code_block_lines(text)
-
-    def test_still_blanks_fenced_code_like_the_narrower_variant(self):
-        text = "keep /a\n```\ndrop /b\n```\nkeep /c\n"
-        out = blank_non_prose_block_lines(text).split("\n")
-
-        assert out[0] == "keep /a"
-        assert out[1] == ""
-        assert out[2] == ""
-        assert out[3] == ""
-        assert out[4] == "keep /c"
-
-    def test_preserves_line_count(self):
-        text = "a\n<!--\nb\nc\n-->\nd\n"
-        assert len(blank_non_prose_block_lines(text).split("\n")) == len(text.split("\n"))
-
-    def test_empty_string_returns_empty(self):
-        assert blank_non_prose_block_lines("") == ""
-
-    def test_parser_error_propagates_not_swallowed(self, monkeypatch):
-        import scripts.utils.markdown_parser as mp
-
-        class _Boom:
-            def parse(self, _text):
-                raise ValueError("boom")
-
-        monkeypatch.setattr(mp, "_create_parser", lambda *a, **k: _Boom())
-        with pytest.raises(ValueError, match="boom"):
-            mp.blank_non_prose_block_lines("anything")
 
 
 class TestNestingExhaustion:

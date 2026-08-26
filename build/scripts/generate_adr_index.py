@@ -181,12 +181,19 @@ class _StrictLoader(yaml.SafeLoader):
     formatting nit: the visible declaration and the enforced one differ.
 
     The repo already treats this as a governance risk. `detect_adr_changes.py`
-    carries `_has_duplicate_keys` with the docstring "Duplicate keys
-    are malformed YAML and can hide a governance change (a second ``status:``
-    line masking the first)", and fails its frontmatter-only exemption closed on
-    them. That helper scans top-level lines with a regex; this loader hooks the
-    parser instead, so it also catches duplicates nested inside a mapping value
-    and is not fooled by quoting or comments.
+    carries `_has_duplicate_keys` with the docstring "Duplicate keys are
+    malformed YAML and can hide a governance change (a second ``status:``
+    line masking the first)", and fails its frontmatter-only exemption closed
+    on them. Both readers detect at the parser now, not by scanning lines: an
+    earlier revision of `_has_duplicate_keys` (then named
+    `_has_duplicate_top_level_keys`) matched only `^[A-Za-z0-9_-]+:` line
+    prefixes, which is a different question than YAML asks, and three of four
+    quoting spellings walked through it while `yaml.safe_load` enforced one
+    value for all of them (Copilot, PR #5230). Rewritten to hook the
+    constructor the same way this loader does, it now agrees with this
+    loader exactly: both catch duplicates nested inside a mapping value and
+    are not fooled by quoting or comments, because both compare constructed
+    keys rather than raw text.
     """
 
 
