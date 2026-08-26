@@ -55,9 +55,13 @@ def oracle_fence_lines(text: str) -> set[int]:
     return inside
 
 
-# Each case is named for the CommonMark rule it exercises. The four rules the
-# scanners had wrong were reported in review and confirmed here; the rest guard
-# the opposite direction, that the fix did not make the scanners permissive.
+# Each case is named for the CommonMark rule it exercises. `_ListContainers`
+# carries eleven numbered rules and every one of them was a real defect first,
+# most reported in review and the rest found by the fuzzer below; each was
+# reproduced against the reference parser before being fixed. The remaining
+# cases guard the opposite direction, that a fix did not make the scanners
+# permissive. Keep this description and the rule numbering in step: an earlier
+# version said four, and stayed at four while the count reached eleven.
 CASES: dict[str, str] = {
     # Rule 1: a marker more than three columns past its container is code.
     "marker over indented is code": "    - literal\n      ```\n      x\n",
