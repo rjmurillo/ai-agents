@@ -11,8 +11,8 @@ applyTo: templates/**
 1. **Regenerate after edits**. Changes MUST be followed by running `uv run python build/generate_agents.py` before commit. Uncommitted generator output is a protocol failure.
 2. **Commit generated output**. Regenerated files under `src/copilot-cli/agents/` and `src/vs-code-agents/` MUST be committed in the same PR as the template change. Those two are the only trees `build/generate_agents.py` writes; `src/claude/`, `.claude/agents/`, and `.github/agents/` are hand-maintained and the generator does not touch them (see `.agents/governance/GENERATOR-FILES.md`).
 3. **Toolset integrity**. Changes that add or remove tools MUST update `templates/toolsets.yaml` consistently.
-4. **Frontmatter fields**. Agent templates MUST keep required YAML frontmatter fields (`name`, `description`, `model`) present and valid per ADR-002.
-5. **Model selection**. Model choices MUST match ADR-002 (`opus` / `sonnet` / `haiku` assignments).
+4. **Frontmatter fields**. Agent templates MUST keep required YAML frontmatter fields (`name`, `description`) present and valid. `model_tier` is optional: ADR-080 governs whether a generated agent may carry a `model:` pin at all (see MUST-5). ADR-002, formerly cited here, is deprecated in favor of ADR-080 (2026-08-25).
+5. **Model selection**. A template's `model_tier` MUST comply with ADR-080: the generator resolves only the `haiku` tier, the sole cost exception ADR-080 rule 3 recognizes, into a versioned `model:` pin for the generated Copilot/VS Code/Visual Studio mirrors. `model_tier: opus` or `model_tier: sonnet`, and no `model_tier` at all, MUST resolve to no `model:` field, so the mirror inherits the harness default rather than shipping an unjustified pin that breaks on the next model retirement (issue #5313).
 
 ## SHOULD
 
@@ -28,6 +28,6 @@ applyTo: templates/**
 ## References
 
 - `build/generate_agents.py`. Canonical generator
-- `.agents/architecture/ADR-002-agent-model-selection-optimization.md`. Model assignments
+- `.agents/architecture/ADR-080-model-pin-justification-policy.md`. Model pin policy (supersedes ADR-002's method, per ADR-002's own 2026-08-25 deprecation note)
 - `.agents/steering/agent-prompts.md`. Prompt authoring standards
 - `templates/README.md`. Template structure

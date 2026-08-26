@@ -9,8 +9,12 @@ legacy:
   outputDir: "src/vs-code-agents"
   fileExtension: ".agent.md"
   frontmatter:
-    model: "Claude Opus 4.6 (copilot)"
     includeNameField: false
+  # ADR-080 rule 5 / issue #5313: no default `model:` is injected here.
+  # generate_agents_common.py resolves only the `haiku` entry below (the sole
+  # cost exception ADR-080 rule 3 recognizes); every other agent inherits the
+  # harness default rather than carrying an unjustified versioned pin that
+  # breaks on the next model retirement.
   model_tiers:
     opus: "Claude Opus 4.6 (copilot)"
     sonnet: "Claude Sonnet 4.6 (copilot)"

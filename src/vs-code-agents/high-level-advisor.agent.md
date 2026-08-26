@@ -9,7 +9,6 @@ tools:
   - cloudmcp-manager/*
   - serena/*
   - memory
-model: Claude Opus 4.6 (copilot)
 role: strategic
 ---
 # High-Level Advisor Agent

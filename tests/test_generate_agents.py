@@ -41,7 +41,6 @@ def _create_test_structure(tmp_path: Path) -> tuple[Path, Path, Path]:
         "outputDir: src/vs-code-agents\n"
         "fileExtension: .agent.md\n"
         "frontmatter:\n"
-        '  model: "Claude Opus 4.5 (copilot)"\n'
         "  includeNameField: false\n"
         'handoffSyntax: "#runSubagent"\n'
         'memoryPrefix: "serena/"\n',
@@ -156,8 +155,11 @@ class TestGenerateAgents:
         output_file = output_root / "vs-code-agents" / "test-agent.agent.md"
         content = output_file.read_text(encoding="utf-8")
         assert content.startswith("---")
-        assert "model:" in content
         assert "description:" in content
+        # ADR-080 rule 5 / issue #5313: no model_tier on the source unit means
+        # no injected model, so a retired pin (e.g. claude-opus-4.5) can never
+        # ship unjustified.
+        assert "model:" not in content
 
     def test_generated_content_has_lf_not_crlf(self, tmp_path: Path) -> None:
         repo_root, templates_path, output_root = _create_test_structure(tmp_path)
@@ -328,6 +330,11 @@ class TestGenerateAgents:
 
         copilot_content = copilot_file.read_text(encoding="utf-8")
         assert "name: test-agent" in copilot_content
+        # ADR-080 rule 5 / issue #5313: the fixture's legacy platform default
+        # is the retired claude-opus-4.5 pin that broke every un-overridden
+        # agent. The unfixed generator would copy it straight into the
+        # output; the fix must drop it instead of ever emitting it.
+        assert "model:" not in copilot_content
 
     def test_rejects_non_allowlisted_agent_output_directory(
         self, tmp_path: Path

@@ -219,18 +219,21 @@ def convert_frontmatter_for_platform(
         else:
             result.pop("name", None)
 
-        # Resolve model: use model_tier mapping if template specifies a tier
+        # Resolve model: only the 'haiku' tier is ever emitted, matching the
+        # sole cost exception ADR-080 rule 3 recognizes (a rolling alias
+        # resolving, via this same model_tiers map, to an id priced below the
+        # harness default). Any other tier, and the platform's own default
+        # model, injected a versioned pin no manifest evidence justified
+        # (ADR-080 rule 2), which breaks on the next retirement (issue #5313,
+        # the retired claude-opus-4.5). Omitting the field lets the harness
+        # inherit its own default at runtime instead.
         model_tier = frontmatter.get("model_tier")
         # Look for model_tiers in legacy block first, then top-level for backward compat
         model_tiers = legacy.get("model_tiers") or platform_config.get("model_tiers")
-        if model_tier and isinstance(model_tiers, dict) and model_tier in model_tiers:
-            result["model"] = str(model_tiers[model_tier])
+        if model_tier == "haiku" and isinstance(model_tiers, dict) and "haiku" in model_tiers:
+            result["model"] = str(model_tiers["haiku"])
         else:
-            model = fm.get("model")
-            if model:
-                result["model"] = str(model)
-            else:
-                result.pop("model", None)
+            result.pop("model", None)
     else:
         result.pop("name", None)
         result.pop("model", None)

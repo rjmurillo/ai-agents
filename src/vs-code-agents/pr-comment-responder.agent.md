@@ -10,7 +10,6 @@ tools:
   - cloudmcp-manager/*
   - github.vscode-pull-request-github/*
   - serena/*
-model: Claude Opus 4.6 (copilot)
 role: coordinator
 ---
 # PR Comment Responder Agent
