@@ -129,6 +129,15 @@ def _report_models_are_single_candidate(report: dict[str, object]) -> bool:
     the two apart; the ``models`` list is the only field that reveals how
     many candidates were evaluated, so this function requires it to name
     exactly the winner and the default, no third candidate.
+
+    Requires the two ids to be genuinely DISTINCT, not merely a 2-element
+    list. Two sets can compare equal at size 1 each: a report claiming
+    ``winner == default_model`` (nothing was actually a "winner" over
+    anything), or a ``models`` list whose two entries are duplicates of
+    the same id, both collapse ``{a, a}`` to ``{a}`` on both sides of the
+    ``==`` and would otherwise pass. Neither is a real candidate-versus-
+    default sweep, so require ``len(...) == 2`` on both sets before
+    comparing them.
     """
     models = report.get("models")
     if not isinstance(models, list) or len(models) != 2:
@@ -141,10 +150,14 @@ def _report_models_are_single_candidate(report: dict[str, object]) -> bool:
         if not isinstance(model_id, str):
             return False
         ids.add(_normalize_id(model_id))
+    if len(ids) != 2:
+        return False
     expected = {
         _normalize_id(str(report.get("winner", ""))),
         _normalize_id(str(report.get("default_model", ""))),
     }
+    if len(expected) != 2:
+        return False
     return ids == expected
 
 
@@ -172,6 +185,10 @@ def _report_measurements_qualify(report: dict[str, object]) -> bool:
         return False
     ci_low, ci_high = ci95
     if not _is_finite_number(ci_low) or not _is_finite_number(ci_high):
+        return False
+    # A real bootstrap interval is ordered low <= high; a malformed reversed
+    # pair like [0.09, 0.01] would otherwise pass on ci_low alone.
+    if ci_low > ci_high:
         return False
     return ci_low > 0.0
 

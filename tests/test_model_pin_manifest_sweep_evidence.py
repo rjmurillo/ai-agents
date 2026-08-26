@@ -405,6 +405,51 @@ class TestSweepReportContentValidation:
         result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
         assert result is None
 
+    def test_artifact_winner_equals_default_model_returns_none(
+        self, tmp_path: Path
+    ) -> None:
+        """A set-equality check alone lets winner == default_model slip
+        through: {a} == {a} is True, so a report claiming nothing actually
+        won over the default (or a models list with two duplicate ids)
+        would pass. Overriding the entry's default_model to match its
+        model makes _keep_pin_entry's own report-writer produce exactly
+        that shape (winner == default_model, models = [{a}, {a}]); the
+        matching default_model= parameter here satisfies the separate
+        entry-vs-harness-default comparison so this test isolates the
+        distinctness gap specifically."""
+        manifest = {
+            _UNIT: _keep_pin_entry(tmp_path, default_model="claude-opus-4-6")
+        }
+        result = resolve_manifest_model(
+            manifest, _UNIT, tmp_path, today=_TODAY, default_model="claude-opus-4-6"
+        )
+        assert result is None
+
+    def test_artifact_reversed_ci_bounds_returns_none(self, tmp_path: Path) -> None:
+        """A real bootstrap interval is ordered low <= high. Checking only
+        that ci_low > 0.0 and both bounds are finite lets a malformed
+        reversed pair like [0.09, 0.01] through: ci_low (0.09) is still
+        positive even though the interval itself is nonsensical."""
+        manifest = {
+            _UNIT: _keep_pin_entry(
+                tmp_path,
+                artifact_content={
+                    "schemaVersion": "1",
+                    "agent": "architect",
+                    "decision": "KEEP_PIN",
+                    "winner": "claude-opus-4-6",
+                    "fixtures_sha": "abc123",
+                    "default_model": DEFAULT_MODEL,
+                    "models": _SINGLE_CANDIDATE_MODELS,
+                    "n_shared_fixtures": 8,
+                    "recall_delta": 0.05,
+                    "ci95": [0.09, 0.01],
+                },
+            )
+        }
+        result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
+        assert result is None
+
     def test_artifact_nan_recall_delta_returns_none(self, tmp_path: Path) -> None:
         """json.loads accepts NaN as a valid float by default, and
         `float("nan") < 0.05` is always False (NaN compares false against

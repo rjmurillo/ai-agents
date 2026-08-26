@@ -237,7 +237,8 @@ def _entry_evidence_valid(
         return False
     if entry.get("unit") != source_unit:
         return False
-    if not entry.get("fixtures_sha"):
+    fixtures_sha = entry.get("fixtures_sha")
+    if not isinstance(fixtures_sha, str) or not fixtures_sha:
         return False
     artifact = entry.get("artifact")
     if not isinstance(artifact, str) or not artifact:
@@ -268,7 +269,7 @@ def resolve_manifest_model(
     ADR-080 manifest schema and ``check_model_pins.py``'s own
     ``_UNIT_GLOBS`` (line 86) both use for this unit kind. Returns ``None``
     unless the entry carries ``decision: KEEP_PIN``, a matching unit, a
-    non-blank model, a present ``fixtures_sha``, an ``artifact`` path that
+    non-blank model, a non-blank string ``fixtures_sha``, an ``artifact`` path that
     stays within the repository AND exists as a file, a ``default_model``
     matching the current harness default, and a ``date`` within
     ``MANIFEST_MAX_AGE_DAYS`` of ``today`` (never in the future; see the

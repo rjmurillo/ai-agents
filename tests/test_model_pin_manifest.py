@@ -271,6 +271,15 @@ class TestResolveManifestModel:
         result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
         assert result is None
 
+    def test_non_string_fixtures_sha_returns_none(self, tmp_path: Path) -> None:
+        """A truthy non-string fixtures_sha (e.g. JSON `true`) previously
+        passed the old `if not entry.get("fixtures_sha")` presence-only
+        check; the canonical report schema emits a string hash, so a
+        non-string value is malformed evidence, not a real one."""
+        manifest = {_UNIT: _keep_pin_entry(tmp_path, fixtures_sha=True)}
+        result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
+        assert result is None
+
     def test_missing_artifact_returns_none(self, tmp_path: Path) -> None:
         manifest = {
             _UNIT: _keep_pin_entry(tmp_path, artifact="", create_artifact=False)
