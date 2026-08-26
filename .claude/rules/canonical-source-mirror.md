@@ -86,7 +86,9 @@ The rules above assume the thing you cite exists. In a repository worked through
 
 You write documentation on branch A naming a test, a constant, or a function that you added on branch B. Your shell finds it. Every reader of branch A does not. If A merges first it ships a pointer to nothing.
 
-Nothing in this repository catches that. Two gates look like they would and neither does:
+One slice of this is now machine-checked. The `Citation Freshness (added lines)` gate in `pre_pr` (`scripts/validation/check_citation_freshness.py`, issue #5337) verifies every path-plus-line-number citation on lines added since the base ref: the cited file must be tracked at HEAD, the cited lines must exist, and when the citing sentence names the contract (a backtick span, a double-quoted phrase, an underscore identifier, or an indented verbatim quote) that content must actually appear at the cited lines. It reports where the content moved to when it can. Historical trees (retrospectives, sessions, memories) are exempt, and a deliberate exception takes a `citation-freshness: ignore` marker with a reason on or above the line.
+
+Everything else in this section remains manual. A claim that names a symbol, a test, or a count WITHOUT a line number is invisible to that gate, and two other gates look like they would catch it and do not:
 
 - `orphan-ref-validator` reports four kinds of finding, and its type at `.claude/skills/orphan-ref-validator/scripts/envelope.py:28-34` enumerates all of them:
 
@@ -104,7 +106,7 @@ Nothing in this repository catches that. Two gates look like they would and neit
 
 - markdownlint never sees governance prose at all. `.markdownlint-cli2.yaml:131` lists `- ".agents/**"` under `ignores:`, so a PASS on any `.agents/` path means the file was not linted.
 
-To every gate in the repository, a citation to a symbol is ordinary prose. The only check is the one you run.
+To every gate in the repository, a citation to a symbol with no line number is ordinary prose. For those claims, the only check is the one you run.
 
 Before you merge a document that names a test, a symbol, or a count, run `git grep -nF -- "<name>"` **in the worktree of the branch that will merge**, not the one you did the work in. If it returns nothing, either move the documentation to the branch that owns the code or move the code.
 
