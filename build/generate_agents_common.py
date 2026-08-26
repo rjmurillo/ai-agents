@@ -10,21 +10,75 @@ This is a Python port of Generate-Agents.Common.psm1 following ADR-042 migration
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import re
-import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    pass
+    from collections.abc import Callable
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
-if str(_SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPT_DIR))
-from model_pin_manifest import (  # noqa: E402  (path set above)
-    format_model_id_for_platform,
-    resolve_manifest_model,
+
+
+def _load_model_pin_manifest_exports() -> tuple[
+    Callable[..., str | None], Callable[..., str | None]
+]:
+    """Load resolve_manifest_model / format_model_id_for_platform without
+    mutating sys.path.
+
+    Canonical source and reuse decision
+    (``.claude/rules/canonical-source-mirror.md``): mirrors
+    ``scripts/validation/agent_registry.py``'s
+    ``_load_read_yaml_frontmatter`` (lines 32-59), which loads a sibling
+    build-tree module via ``importlib.util.spec_from_file_location`` and
+    ``exec_module`` specifically so that importing the *loading* module
+    never touches ``sys.path``
+    (``tests/test_agent_registry.py::TestIntegration::test_import_does_not_mutate_sys_path``).
+
+    A prior version of this import used
+    ``if str(_SCRIPT_DIR) not in sys.path: sys.path.insert(...)`` followed
+    by a plain ``from model_pin_manifest import (...)``. That guard checks
+    whether the path is ALREADY present, not whether mutating it is safe:
+    ``scripts/validation/agent_registry.py`` loads THIS module the same
+    exec_module way (to reuse its ``read_yaml_frontmatter``), and in that
+    context ``build/`` is never already on ``sys.path``, so the guard
+    always inserted it. That made every import of
+    ``scripts.validation.agent_registry`` mutate the caller's ``sys.path``
+    as a side effect of loading this file, breaking the exact guarantee
+    ``agent_registry.py``'s own loader exists to provide. Confirmed via
+    ``tests/test_agent_registry.py::TestIntegration::test_import_does_not_mutate_sys_path``,
+    which failed deterministically (3/3 local runs) before this fix and
+    passed on ``origin/main`` (where this file did not yet import
+    ``model_pin_manifest``), isolating the mutation to this import.
+    """
+    path = _SCRIPT_DIR / "model_pin_manifest.py"
+    spec = importlib.util.spec_from_file_location(
+        "_generate_agents_common_model_pin_manifest", path
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load build utility {path}: no import spec")
+    module = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(module)
+    except Exception as exc:
+        raise ImportError(f"Cannot load build utility {path}: {exc}") from exc
+    try:
+        resolve = module.resolve_manifest_model
+        fmt = module.format_model_id_for_platform
+    except AttributeError as exc:
+        raise ImportError(
+            f"Build utility {path} does not define the expected exports"
+        ) from exc
+    return (
+        cast("Callable[..., str | None]", resolve),
+        cast("Callable[..., str | None]", fmt),
+    )
+
+
+resolve_manifest_model, format_model_id_for_platform = (
+    _load_model_pin_manifest_exports()
 )
 
 # Field ordering for frontmatter output
