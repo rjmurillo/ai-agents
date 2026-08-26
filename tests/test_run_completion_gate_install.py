@@ -210,6 +210,7 @@ def _run_gate(
     env_value: str | None = None,
     json_output: bool = False,
     trusted_ref: str | None = None,
+    extra_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     script = plugin_root / "skills" / "github" / "scripts" / "pr" / "run_completion_gate.py"
     env = dict(os.environ)
@@ -219,6 +220,8 @@ def _run_gate(
     env.pop("COPILOT_PLUGIN_ROOT", None)
     if env_var is not None:
         env[env_var] = env_value if env_value is not None else str(plugin_root)
+    if extra_env:
+        env.update(extra_env)
     return subprocess.run(
         [
             sys.executable,
@@ -700,3 +703,68 @@ def test_install_trust_fails_closed_outside_a_git_work_tree(
     # The old exit-2 message must be GONE, not merely accompanied. A
     # positive-only assertion would pass on a run that printed both.
     assert _CONTAINMENT_REFUSAL not in result.stderr, result.stderr
+
+
+def _without_pyyaml(tmp_path: Path) -> dict[str, str]:
+    """Environment overlay that makes ``import yaml`` fail in a subprocess.
+
+    A ``sitecustomize`` module on ``PYTHONPATH`` is imported by ``site`` at
+    interpreter startup, so this lands BEFORE the dispatcher's own import
+    runs. Setting the entry to ``None`` is what CPython's import machinery
+    treats as a halted import; measured on this interpreter it raises
+    ``ImportError: import of yaml halted; None in sys.modules``, which is the
+    same exception class a genuinely absent PyYAML raises.
+
+    Prepends rather than replaces, so a PYTHONPATH the caller's environment
+    already sets is preserved.
+    """
+    blocker = tmp_path / "no_pyyaml"
+    blocker.mkdir()
+    (blocker / "sitecustomize.py").write_text(
+        "import sys\nsys.modules['yaml'] = None\n", encoding="utf-8",
+    )
+    existing = os.environ.get("PYTHONPATH")
+    path = str(blocker) if not existing else f"{blocker}{os.pathsep}{existing}"
+    return {"PYTHONPATH": path}
+
+
+def test_a_consumer_without_pyyaml_exits_2_rather_than_crashing(
+    tmp_path: Path,
+) -> None:
+    """The missing-dependency contract, exercised as a real process.
+
+    The sibling case in ``tests/skills/github/test_run_completion_gate.py``
+    monkeypatches ``_HAVE_YAML`` to False. That pins the BRANCH given the
+    flag, but not the ``try``/``except ImportError`` guard that sets it: the
+    dispatcher is already imported under the repository environment, which
+    has PyYAML, so replacing the guard with a bare ``import yaml`` leaves
+    that case green. Measured, not assumed: with the guard removed that test
+    still reported ``1 passed``.
+
+    This case cannot be fooled the same way, because the import happens
+    inside a subprocess that genuinely cannot import yaml. Under a bare
+    import the process dies at module load, which is exit 1 and a traceback,
+    and every assertion below fails.
+
+    Raised by Copilot on PR #5331. Its stated failure mode ("a clean
+    installed consumer exits with a traceback") is not what the shipped code
+    does, because the guard is present; the gap it identified in the test is
+    real regardless.
+    """
+    plugin_root, config, user_repo = _install_plugin(tmp_path)
+
+    result = _run_gate(
+        plugin_root, config, user_repo,
+        env_var="CLAUDE_PLUGIN_ROOT",
+        extra_env=_without_pyyaml(tmp_path),
+    )
+
+    # 2, not 1: a config that cannot be parsed is a config error under
+    # ADR-035, and exit 1 is reserved for "a criterion failed". Reporting it
+    # as 1 would read as a real gate verdict on a gate that never ran.
+    assert result.returncode == 2, (result.returncode, result.stderr)
+    assert "PyYAML is required" in result.stderr, result.stderr
+    # Absence assertion with a live positive control: the end-to-end case
+    # above drives this same layout WITHOUT the overlay and reaches exit 0,
+    # so a traceback here would be this overlay's doing and nothing else.
+    assert "Traceback" not in result.stderr, result.stderr
