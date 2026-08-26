@@ -198,6 +198,24 @@ CASES: dict[str, str] = {
     # the composite, not on either half.
     "U+00A0 remainder after wide padding":
         "-  \u00a0\n  2. ```\n  not code\n",
+    # A closing fence may be followed only by spaces and tabs, so a fence
+    # carrying U+00A0 does not close its block. `str.strip()` read it as a
+    # blank info string, closed the block two lines early, and `--write`
+    # then appended a fence to a document the reference parser reads as
+    # well formed. That is the corruption class this whole module exists to
+    # prevent, and no ratchet could reach it.
+    "U+00A0 does not blank a closing fence's info string":
+        "```\nx\n```\u00a0\ny\n```\n",
+    "U+3000 does not blank a closing fence's info string":
+        "```\nx\n```\u3000\ny\n```\n",
+    "a tilde closer carrying U+00A0 does not close either":
+        "~~~\nx\n~~~\u00a0\ny\n~~~\n",
+    # Controls: a real space and a real tab DO blank the info string, so the
+    # fix must not swing the other way and reject a valid closer.
+    "a trailing space still closes a fence":
+        "```\nx\n``` \ny\n```\n",
+    "a trailing tab still closes a fence":
+        "```\nx\n```\t\ny\n```\n",
 }
 
 
@@ -236,7 +254,18 @@ _FUZZ_ORDERED = ("1.", "2.", "01.", "003.", "1)", "10.", "9)")
 # Rule 11 (a setext underline ends its paragraph) took seed 20260826 from 6.
 # Rule 12 (a marker line leaves paragraph state to its own remainder) took
 # seed 20260826 from 5 and seed 4242 from 6.
-FUZZ_BASELINE = {1729: 0, 20260826: 0, 4242: 1}
+#
+# Figures before the Unicode-whitespace widening are not comparable with what
+# follows either, for the same reason as the rule 9 discontinuity above: the
+# generator emitted no Unicode whitespace at ALL, so a `--write` corruption on
+# a closing fence carrying U+00A0 was invisible to every ratchet in the
+# repository, corpus and fuzzer alike. Review found it, not the fuzzer, twice
+# running. About 43 percent of documents per seed now carry U+00A0 or U+3000 in
+# a closer or a marker remainder. Measured teeth: against the scanner as it
+# stood before that fix, the widened generator diverges on 8, 12 and 8
+# documents for seeds 1729, 4242 and 20260826, and three of those also mutate a
+# well formed document on `--write`.
+FUZZ_BASELINE = {1729: 1, 20260826: 0, 4242: 1}
 FUZZ_DOCUMENTS = 2000
 
 
@@ -247,12 +276,23 @@ def _fuzz_line(rng: random.Random) -> str:
         return ""
     if kind == 1:
         pad = rng.choice(_FUZZ_INDENTS[:6])
-        return indent + rng.choice(_FUZZ_BULLETS) + pad + rng.choice(("item", "", "robust"))
+        # Draw order matters: it decides the document set, so keep the
+        # marker draw ahead of the body draw as it has always been.
+        marker = rng.choice(_FUZZ_BULLETS)
+        return indent + marker + pad + rng.choice(("item", "", "robust", "\u00a0"))
     if kind == 2:
         pad = rng.choice(_FUZZ_INDENTS[:6])
-        return indent + rng.choice(_FUZZ_ORDERED) + pad + rng.choice(("item", "", "text"))
+        return indent + rng.choice(_FUZZ_ORDERED) + pad + rng.choice(("item", "", "text", "\u00a0"))
     if kind == 3:
-        return indent + rng.choice(("```", "~~~", "````", "```py", "~~~~"))
+        # The Unicode-whitespace suffixes are closer-position bait. A closing
+        # fence may be followed only by spaces and tabs, and reading that with
+        # `str.strip()` accepted U+00A0 as a blank info string, closed the
+        # block early, and let `--write` append a fence to a well formed
+        # document. No ratchet could see it: the generator emitted no Unicode
+        # whitespace anywhere.
+        return indent + rng.choice(
+            ("```", "~~~", "````", "```py", "~~~~", "```\u00a0", "~~~\u00a0", "```\u3000")
+        )
     if kind == 4:
         return indent + rng.choice(("prose text", "lazy line", "more words"))
     if kind == 5:

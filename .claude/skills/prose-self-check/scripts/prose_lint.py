@@ -89,7 +89,7 @@ _FENCE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
 # root and is quoted here rather than imported, because the two skills ship
 # as separate directories and neither is on the other's import path.
 #
-# `skills/fix-markdown-fences/scripts/fix_fences.py` lines 234-236, verbatim:
+# `skills/fix-markdown-fences/scripts/fix_fences.py` lines 241-243, verbatim:
 #
 #     def over_indented(self, indent: str) -> bool:
 #         """Return True when *indent* puts the marker inside an indented code block."""
@@ -228,6 +228,13 @@ class _ListContainers:
         made a line holding one U+00A0 look blank, which left a container
         open past its item, and made `-` plus U+00A0 look like an empty item
         when CommonMark reads it as paragraph text. See `_is_blank`.
+        It binds three operands, and each was a separate defect: blank lines,
+        a marker line's remainder, and a closing fence's info string. A closing
+        fence may be followed only by spaces and tabs, so `str.strip()` there
+        accepted U+00A0 as blank, closed the block early, and let `--write`
+        rewrite a document the reference parser reads as well formed. Neither
+        the corpus nor the fuzzer could reach that one: the generator emitted
+        no Unicode whitespace at all until it was widened for exactly this.
 
     15. A paragraph ends when the item holding it ends. Rule 4 stops a marker
         interrupting an open paragraph, but that veto is scoped to the item
@@ -626,7 +633,7 @@ def _blank_fenced_blocks(text: str) -> tuple[list[str], int | None]:
             match is not None
             and match.group("fence")[0] == fence[0]
             and len(match.group("fence")) >= len(fence)
-            and not match.group("info").strip()
+            and _is_blank(match.group("info"))
         ):
             fence = None
             opened_at = None

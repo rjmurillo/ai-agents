@@ -40,6 +40,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 mod = import_skill_script(".claude/skills/fix-markdown-fences/scripts/fix_fences.py")
 repair_markdown_fences = mod.repair_markdown_fences
+find_fence_defects = mod.find_fence_defects
 
 _REFERENCE = MarkdownIt("commonmark")
 
@@ -220,8 +221,18 @@ class TestCommonMarkOracle:
             if open_fence is not None and _container_closed(line.text, fence_base):
                 open_fence = None  # the item holding the block ended
 
+        and its valid-close test, which is `_is_blank` and NOT `str.strip()`,
+        because a closing fence may be followed only by spaces and tabs:
+
+            if _is_blank(match.group("info")):
+                open_fence = None
+                continue
+
         A hand-written mirror can drift from what it mirrors, which is the
-        whole reason this comment names the branch. `test_repair_is_a_no_op_on
+        whole reason this comment names the branches. It did drift: this
+        mirror kept `str.strip()` for one commit after production moved to
+        `_is_blank`, and the three closing-fence cases failed here while the
+        shipped scanner was already correct. `test_repair_is_a_no_op_on
         _balanced_documents` guards the direction that matters by driving the
         public repair path instead.
         """
@@ -242,7 +253,7 @@ class TestCommonMarkOracle:
             if line.text != "":
                 inside.add(index)
             match = mod._closes(line.text, open_fence, containers)
-            if match is not None and not match.group("info").strip():
+            if match is not None and mod._is_blank(match.group("info")):
                 open_fence = None
         return inside
 
@@ -267,7 +278,48 @@ class TestCommonMarkOracle:
         text = FENCE_CASES[name]
         if _has_unclosed_fence(text):
             pytest.skip("document is genuinely unclosed; repair should act")
+        if any(d.kind == mod.MALFORMED_CLOSING for d in find_fence_defects(text)):
+            # The shared module's Scope paragraph states this divergence: "a
+            # fence carrying an info string inside an open block is content to
+            # CommonMark but a mistaken closer to `fix_fences.py`, which is the
+            # defect that tool exists to repair." Balanced therefore does not
+            # imply no-op for this family, and asserting otherwise would demand
+            # the tool stop doing its job. `test_a_mistaken_closer_is_repaired
+            # _not_appended_to` pins what it does instead, so nothing here goes
+            # unasserted.
+            pytest.skip("document carries a mistaken closer; repair should act")
         assert repair_markdown_fences(text) == text, name
+
+    def test_a_mistaken_closer_is_repaired_not_appended_to(self) -> None:
+        """A closing fence may be followed only by spaces and tabs.
+
+        `str.strip()` accepted U+00A0 there, so the block closed two lines
+        early, the real closer read as a fresh opener, and `--write` appended a
+        stray fence at EOF. That is the corruption class this suite exists to
+        prevent, and no ratchet reached it: the corpus has no such document and
+        the generator emitted no Unicode whitespace at all.
+
+        The repair now inserts a bare closer above the mistaken one, which is
+        the same treatment a ` ```python ` closer gets. Both assertions matter:
+        the document must gain a closer in the right PLACE, and must not grow
+        one at the end.
+        """
+        for text in (
+            "```\nx\n```\u00a0\ny\n```\n",
+            "```\nx\n```\u3000\ny\n```\n",
+            "~~~\nx\n~~~\u00a0\ny\n~~~\n",
+        ):
+            marker = text.splitlines()[0]
+            repaired = repair_markdown_fences(text)
+            assert repaired.splitlines()[2] == marker, text
+            assert not repaired.endswith(marker + "\n" + marker + "\n"), text
+            assert repair_markdown_fences(repaired) == repaired, text
+
+    def test_a_real_space_or_tab_still_closes_a_fence(self) -> None:
+        """The inverse. Widening the predicate must not reject a valid closer."""
+        for text in ("```\nx\n``` \n", "```\nx\n```\t\n"):
+            assert find_fence_defects(text) == [], text
+            assert repair_markdown_fences(text) == text, text
 
     def test_write_never_invents_a_fence_in_indented_code(self) -> None:
         # Rules 1 and 2: a marker that is itself indented code, or padding of

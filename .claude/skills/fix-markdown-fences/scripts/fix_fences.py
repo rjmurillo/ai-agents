@@ -183,6 +183,13 @@ class _ListContainers:
         made a line holding one U+00A0 look blank, which left a container
         open past its item, and made `-` plus U+00A0 look like an empty item
         when CommonMark reads it as paragraph text. See `_is_blank`.
+        It binds three operands, and each was a separate defect: blank lines,
+        a marker line's remainder, and a closing fence's info string. A closing
+        fence may be followed only by spaces and tabs, so `str.strip()` there
+        accepted U+00A0 as blank, closed the block early, and let `--write`
+        rewrite a document the reference parser reads as well formed. Neither
+        the corpus nor the fuzzer could reach that one: the generator emitted
+        no Unicode whitespace at all until it was widened for exactly this.
 
     15. A paragraph ends when the item holding it ends. Rule 4 stops a marker
         interrupting an open paragraph, but that veto is scoped to the item
@@ -547,7 +554,7 @@ def find_fence_defects(content: str) -> list[Defect]:
         match = _closes(line.text, open_fence, containers)
         if match is None:
             continue
-        if not match.group("info").strip():
+        if _is_blank(match.group("info")):
             open_fence = None
             continue
 
@@ -593,7 +600,7 @@ def repair_markdown_fences(content: str) -> str:
         if match is None:
             result.append(line)
             continue
-        if not match.group("info").strip():
+        if _is_blank(match.group("info")):
             result.append(line)
             open_fence = None
             continue
