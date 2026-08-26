@@ -16,6 +16,8 @@ surfaces agreeing is a different property from any of them being true.
 
 from __future__ import annotations
 
+import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -127,6 +129,42 @@ _ADR_104 = (
     / "ADR-104-gate-tier-placement-and-budgets.md"
 )
 
+# Rule 5 opens with `5. **` and the next numbered rule opens with `6. **`, both
+# at column zero under `### Placement rules`. Anchoring on the numbering rather
+# than on a heading is deliberate: the rules are cited by number from the debate
+# log and from this module, so the number is the stable handle, and a rule that
+# stopped opening this way would have been renumbered anyway.
+_RULE_5_BLOCK = re.compile(r"^5\. \*\*.*?(?=^6\. \*\*)", re.MULTILINE | re.DOTALL)
+
+
+def _adr_104_rule_5() -> str:
+    """The numbered rule 5 block alone, never the whole record.
+
+    This read the entire ADR until review on PR #5319 pointed out that the
+    surface was labelled "ADR-104 rule 5" while matching against every line of
+    the file. That is not a narrow miss. The Alternatives Considered table also
+    says "A broken import would reach CI and burn a whole matrix", so deleting
+    the catch from rule 5 would have left the contract check green on a phrase
+    from a table about a rejected option. Same shape as the branch's other
+    false-pass holes: a claim held in place from somewhere the claim is not
+    written down.
+
+    Raises rather than returning empty when the block is not found, because a
+    silently empty surface fails the contract check with a message about the ADR
+    omitting a class, which sends the reader to the wrong file.
+    """
+    text = _ADR_104.read_text(encoding="utf-8")
+    match = _RULE_5_BLOCK.search(text)
+    if match is None:
+        raise AssertionError(
+            f"{_ADR_104.name} has no numbered rule 5 block matching "
+            f"{_RULE_5_BLOCK.pattern!r}. Either the placement rules were "
+            "renumbered, in which case update this pattern and every citation "
+            "of rule 5, or the rule was deleted, in which case the collection "
+            "contract has lost its ADR surface."
+        )
+    return match.group(0)
+
 
 def _surface_not_stating(spellings: tuple[str, ...], surfaces: dict[str, str]) -> str | None:
     """Name the first surface stating none of `spellings`, or None if all do."""
@@ -156,7 +194,7 @@ def _collection_contract_surfaces(
             git_hook_policy._pytest_collection_command.__doc__ or ""
         ),
         "the notice printed to the developer": normalize(capsys.readouterr().err),
-        "ADR-104 rule 5": normalize(_ADR_104.read_text(encoding="utf-8")),
+        "ADR-104 rule 5": normalize(_adr_104_rule_5()),
     }
 
 
@@ -262,3 +300,56 @@ def test_the_contract_check_can_fail(
             "parametrized test above passes for a reason other than the "
             "surfaces actually stating the contract."
         )
+
+
+def test_deleting_a_catch_from_rule_5_is_not_masked_by_the_rest_of_the_record(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Negative control for the narrowing, stated as the review stated the hole.
+
+    Review on PR #5319: "This reads the entire ADR even though the contract is
+    specifically 'ADR-104 rule 5.' The alternatives table also contains 'broken
+    import', so deleting that catch from rule 5 would leave this test green."
+
+    So delete it from rule 5, leave the rest of the record alone, and require
+    the contract check to name the ADR surface. Asserting that the doctored file
+    still carries the phrase elsewhere is what makes this a control rather than
+    a restatement: it fails if the surface ever widens back to the whole file.
+    """
+    monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
+    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
+
+    spellings = COLLECTION_CATCHES["a broken import"]
+    record = _ADR_104.read_text(encoding="utf-8")
+    # Located with the pattern directly rather than through the function under
+    # test. Sharing the locator would make the doctoring move with whatever the
+    # function does, and a control that follows its subject cannot fail when the
+    # subject widens back to the whole file.
+    span = _RULE_5_BLOCK.search(record)
+    assert span is not None, "precondition failed: no rule 5 block to doctor."
+    rule_5 = span.group(0)
+    struck = rule_5
+    for spelling in spellings:
+        struck = struck.replace(spelling, "")
+    assert struck != rule_5, (
+        f"precondition failed: rule 5 does not state {spellings}, so striking "
+        "them changes nothing and this control proves nothing."
+    )
+
+    doctored = tmp_path / _ADR_104.name
+    doctored.write_text(record[: span.start()] + struck + record[span.end() :], encoding="utf-8")
+    assert any(s in doctored.read_text(encoding="utf-8") for s in spellings), (
+        "precondition failed: the doctored record no longer states the catch "
+        "anywhere. The masking occurrence outside rule 5 is what this control "
+        "exists to defeat, so without it the check would pass for the wrong "
+        "reason."
+    )
+
+    monkeypatch.setattr(sys.modules[__name__], "_ADR_104", doctored)
+    absent = _surface_not_stating(spellings, _collection_contract_surfaces(capsys, tmp_path))
+    assert absent == "ADR-104 rule 5", (
+        "striking the catch from rule 5 did not make the contract check name "
+        f"the ADR surface (it named {absent!r}). The surface is matching text "
+        "from outside rule 5, so a rule 5 that stopped stating the contract "
+        "would pass."
+    )
