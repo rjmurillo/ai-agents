@@ -295,11 +295,23 @@ def format_model_id_for_platform(
 
     Fails closed (returns ``None``, meaning: emit no pin) when ``model_id``
     is not the documented major.minor shape (for example a date-stamped id
-    such as ``claude-opus-4-20250514``), or when ``platform_tiers`` has no
-    entry for the id's tier, or that entry's spelling matches neither known
-    shape. ADR-080 rule 5 requires the generator to "emit no ``model:``
-    unless the source unit carries a justified one"; a pin this function
-    cannot confidently reformat is not one it should guess at.
+    such as ``claude-opus-4-20250514``), when ``platform_tiers`` has no
+    entry for the id's tier, when that entry's spelling matches neither
+    known shape, or when the tier embedded in the template string does not
+    match the tier being formatted (see below). ADR-080 rule 5 requires the
+    generator to "emit no ``model:`` unless the source unit carries a
+    justified one"; a pin this function cannot confidently reformat is not
+    one it should guess at.
+
+    The tier cross-check matters because ``platform_tiers[tier]`` is looked
+    up by key, but the *value*'s own embedded tier name (``Sonnet`` in
+    ``"Claude Sonnet 4.6 (copilot)"``) is what the display-form branch
+    copies into its output. A mismatched config entry (``opus:`` mapped to
+    a Sonnet-shaped string, a copy-paste error in the platform YAML) would
+    otherwise silently emit an Opus manifest pin labeled Sonnet instead of
+    failing closed. Both branches now verify the template's own tier
+    matches the tier being formatted before using it, rather than trusting
+    the dict key alone.
     """
     match = _CANONICAL_MAJOR_MINOR_RE.match(model_id.strip())
     if match is None:
@@ -308,9 +320,10 @@ def format_model_id_for_platform(
     template = platform_tiers.get(tier)
     if not isinstance(template, str):
         return None
-    if _DOT_FORM_RE.match(template):
+    dot_match = _DOT_FORM_RE.match(template)
+    if dot_match and dot_match.group(1) == tier:
         return f"claude-{tier}-{major}.{minor}"
     display_match = _DISPLAY_FORM_RE.match(template)
-    if display_match:
+    if display_match and display_match.group(1).lower() == tier:
         return f"Claude {display_match.group(1)} {major}.{minor} (copilot)"
     return None

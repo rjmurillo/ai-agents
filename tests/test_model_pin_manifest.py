@@ -301,3 +301,17 @@ class TestFormatModelIdForPlatform:
     def test_non_string_template_fails_closed(self) -> None:
         result = format_model_id_for_platform("claude-opus-4-6", {"opus": None})
         assert result is None
+
+    def test_mismatched_tier_template_fails_closed_display_form(self) -> None:
+        """A platform config bug (opus: mapped to a Sonnet-shaped string)
+        must not silently emit an Opus manifest pin labeled Sonnet."""
+        result = format_model_id_for_platform(
+            "claude-opus-4-6", {"opus": "Claude Sonnet 4.6 (copilot)"}
+        )
+        assert result is None
+
+    def test_mismatched_tier_template_fails_closed_dot_form(self) -> None:
+        result = format_model_id_for_platform(
+            "claude-opus-4-6", {"opus": "claude-sonnet-4.6"}
+        )
+        assert result is None
