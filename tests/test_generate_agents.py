@@ -13,6 +13,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+
 # Add build directory to path for imports
 _BUILD_DIR = Path(__file__).resolve().parent.parent / "build"
 sys.path.insert(0, str(_BUILD_DIR))
@@ -212,6 +214,7 @@ class TestGenerateAgents:
         artifact_path.write_text(
             json.dumps({
                 "schemaVersion": "1",
+                "agent": "test-agent",
                 "decision": "KEEP_PIN",
                 "winner": "claude-opus-4-6",
                 "fixtures_sha": "abc123",
@@ -296,6 +299,19 @@ class TestGenerateAgents:
         (output_root / "vs-code-agents").mkdir(parents=True, exist_ok=True)
         exit_code = generate_agents(templates_path, output_root, repo_root, validate=True)
         assert exit_code == 1
+
+    def test_direct_call_resolves_relative_paths(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """generate_agents() itself, not just main(), must resolve relative
+        arguments: a direct call bypasses main()'s own resolution, and
+        checking a resolved COPY without reassigning output_root/repo_root
+        would pass the containment guard and then hang on the
+        symlink-ancestor walk below anyway."""
+        repo_root, _templates, _output = _create_test_structure(tmp_path)
+        monkeypatch.chdir(repo_root)
+        exit_code = generate_agents(Path("templates"), Path("src"), Path.cwd())
+        assert exit_code == 0
 
     def test_no_platform_configs_returns_error(self, tmp_path: Path) -> None:
         repo_root = tmp_path / "repo"

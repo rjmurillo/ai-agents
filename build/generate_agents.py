@@ -192,17 +192,21 @@ def generate_agents(
     # terminates if output_root does not resolve to a descendant of
     # repo_root: the walk reaches filesystem root, whose parent is itself,
     # and repo_root is never found. main() resolving both paths to absolute
-    # (see its own comment on this) prevents the *relative-path* shape of
-    # that hang but not this one: `--templates-path /repo/templates
-    # --output-root src` run from `/tmp` resolves output_root to `/tmp/src`,
-    # which is absolute but still outside repo_root. Reject that case here,
-    # before the loop, rather than let it hang.
-    output_root_resolved = output_root.resolve()
-    repo_root_resolved = repo_root.resolve()
-    if not output_root_resolved.is_relative_to(repo_root_resolved):
+    # (see its own comment on this) protects the CLI entry point, but a
+    # direct call to this function (generate_agents(Path("templates"),
+    # Path("src"), Path.cwd()), as the tests in this file do) bypasses
+    # main() entirely. Resolve both parameters here, at the top of this
+    # function, and reassign them: checking resolved COPIES while the rest
+    # of the function keeps reading the original possibly-relative
+    # output_root/repo_root would pass this guard and then hang anyway, on
+    # both the loop below and the shared_file.relative_to(repo_root) unit
+    # computation a few lines further down.
+    output_root = output_root.resolve()
+    repo_root = repo_root.resolve()
+    if not output_root.is_relative_to(repo_root):
         print(
             f"Error: --output-root must resolve inside the repository root "
-            f"({repo_root_resolved}); got {output_root_resolved}.",
+            f"({repo_root}); got {output_root}.",
             file=sys.stderr,
         )
         return 2
