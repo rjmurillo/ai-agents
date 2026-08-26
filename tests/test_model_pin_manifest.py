@@ -135,14 +135,20 @@ def _keep_pin_entry(
         if artifact_content is None:
             model = base.get("model")
             default_model = base.get("default_model")
+            winner_id = model if isinstance(model, str) else "claude-opus-4-6"
+            default_id = (
+                default_model if isinstance(default_model, str) else DEFAULT_MODEL
+            )
             artifact_content = {
                 "schemaVersion": "1",
                 "decision": "KEEP_PIN",
-                "winner": model if isinstance(model, str) else "claude-opus-4-6",
+                "winner": winner_id,
                 "fixtures_sha": base.get("fixtures_sha"),
-                "default_model": (
-                    default_model if isinstance(default_model, str) else DEFAULT_MODEL
-                ),
+                "default_model": default_id,
+                "models": [
+                    {"model_id": winner_id},
+                    {"model_id": default_id},
+                ],
                 "n_shared_fixtures": 8,
                 "recall_delta": 0.05,
                 "ci95": [0.01, 0.09],

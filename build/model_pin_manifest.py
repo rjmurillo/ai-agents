@@ -45,14 +45,15 @@ functions.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import re
 from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
 
 # Mirrors scripts/validation/check_model_pins.py:62 (DEFAULT_MODEL) verbatim.
 # The harness-inherited default a manifest entry's own default_model field
@@ -63,19 +64,6 @@ DEFAULT_MODEL = "claude-sonnet-4-6"
 # (MANIFEST_MAX_AGE_DAYS = 180) verbatim. Kept as a separate constant, not an
 # import, per the reuse decision above.
 MANIFEST_MAX_AGE_DAYS = 180
-
-# ADR-080 rule 2: a KEEP_PIN sweep must cover "at least 8 shared fixtures"
-# (.agents/architecture/ADR-080-model-pin-justification-policy.md:90).
-MIN_SHARED_FIXTURES = 8
-
-# Mirrors scripts/eval/_model_sweep_core.py:62 (DEFAULT_MIN_EFFECT = 0.05)
-# verbatim; the qualification formula it feeds
-# (``qualifies = delta >= min_effect and ci_low > 0.0``) is at that module's
-# line 306. Not imported: _model_sweep_core.py:35 does
-# ``from _report_aggregator import (...)``, a bare module-relative import
-# that requires scripts/eval on sys.path, the exact sys.path mutation this
-# module's docstring already avoids for check_model_pins.py's load_manifest.
-MIN_RECALL_DELTA = 0.05
 
 # A canonical versioned Claude id in the major.minor shape ADR-080's open-gap
 # finding names: ``claude-{tier}-{major}.{minor}`` or the hyphenated spelling
@@ -106,15 +94,51 @@ _DISPLAY_FORM_RE = re.compile(
 )
 
 
-def _normalize_id(model_id: str) -> str:
-    """Collapse dots to hyphens so dotted and hyphenated ids compare equal.
+def _load_sweep_evidence_exports() -> tuple[
+    Callable[[str], str], Callable[[Path, dict[str, object]], bool]
+]:
+    """Load ``_normalize_id`` / ``sweep_report_satisfies_rule2`` from the
+    sibling ``model_pin_sweep_evidence.py`` without mutating ``sys.path``.
 
-    Mirrors ``scripts/validation/check_model_pins.py:119-125``
-    (``_normalize_id``) verbatim: ``copilot-cli.yaml`` spells ids with dots
-    (``claude-opus-4.6``); the manifest and pricing table use hyphens
-    (``claude-opus-4-6``).
+    This module is itself loaded via ``importlib.util.spec_from_file_location``
+    + ``exec_module`` by ``build/generate_agents_common.py`` (mirroring
+    ``scripts/validation/agent_registry.py``'s ``_load_read_yaml_frontmatter``),
+    specifically so that no import in this chain touches ``sys.path``
+    (``tests/test_agent_registry.py::TestIntegration::
+    test_import_does_not_mutate_sys_path``). A bare
+    ``from model_pin_sweep_evidence import (...)`` here would need
+    ``build/`` on ``sys.path`` to resolve at all, which is exactly the
+    mutation that guarantee forbids; a prior version of the sibling import
+    in ``generate_agents_common.py`` made this same mistake (see that
+    file's history) and broke the guarantee for every caller in the chain.
+    Loading this sibling the same exec_module way keeps the "no sys.path
+    touch" contract intact through every link.
     """
-    return model_id.replace(".", "-")
+    path = Path(__file__).resolve().parent / "model_pin_sweep_evidence.py"
+    spec = importlib.util.spec_from_file_location(
+        "_model_pin_manifest_sweep_evidence", path
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load build utility {path}: no import spec")
+    module = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(module)
+    except Exception as exc:
+        raise ImportError(f"Cannot load build utility {path}: {exc}") from exc
+    try:
+        normalize = module._normalize_id
+        satisfies_rule2 = module.sweep_report_satisfies_rule2
+    except AttributeError as exc:
+        raise ImportError(
+            f"Build utility {path} does not define the expected exports"
+        ) from exc
+    return (
+        cast("Callable[[str], str]", normalize),
+        cast("Callable[[Path, dict[str, object]], bool]", satisfies_rule2),
+    )
+
+
+_normalize_id, _sweep_report_satisfies_rule2 = _load_sweep_evidence_exports()
 
 
 def _artifact_within_repo(artifact: str, repo_root: Path) -> bool:
@@ -171,80 +195,6 @@ def load_pin_manifest(manifest_path: Path) -> dict[str, dict[str, object]]:
             if isinstance(entry, dict) and isinstance(entry.get("unit"), str):
                 result[str(entry["unit"])] = entry
     return result
-
-
-def _report_model_id_matches(report_value: object, entry_value: object) -> bool:
-    """Normalize-compare one report model-id field against the entry's.
-
-    Shared by the ``winner``-vs-``model`` and ``default_model``-vs-
-    ``default_model`` legs of ``_sweep_report_satisfies_rule2``; split out
-    so that function stays under the cyclomatic-complexity ceiling
-    (``.claude/rules/code-quality.md``: methods <= complexity 10).
-    """
-    if not isinstance(report_value, str):
-        return False
-    return _normalize_id(report_value) == _normalize_id(str(entry_value or ""))
-
-
-def _report_measurements_qualify(report: dict[str, object]) -> bool:
-    """ADR-080 rule 2's numeric thresholds on an already-parsed report.
-
-    At least 8 shared fixtures, ``delta >= 0.05`` mean recall, and a
-    positive paired-bootstrap CI lower bound
-    (``.agents/architecture/ADR-080-model-pin-justification-policy.md:86-90``).
-    Split out of ``_sweep_report_satisfies_rule2`` for the same
-    complexity-ceiling reason as ``_report_model_id_matches``.
-    """
-    n_fixtures = report.get("n_shared_fixtures")
-    if not isinstance(n_fixtures, int) or n_fixtures < MIN_SHARED_FIXTURES:
-        return False
-    delta = report.get("recall_delta")
-    if not isinstance(delta, int | float) or delta < MIN_RECALL_DELTA:
-        return False
-    ci95 = report.get("ci95")
-    if not isinstance(ci95, list) or len(ci95) != 2:
-        return False
-    ci_low = ci95[0]
-    return isinstance(ci_low, int | float) and ci_low > 0.0
-
-
-def _sweep_report_satisfies_rule2(
-    artifact_path: Path, entry: dict[str, object]
-) -> bool:
-    """Parse the sweep artifact and cross-check its content against ``entry``.
-
-    ``(repo_root / artifact).is_file()`` in ``_entry_evidence_valid`` proves
-    only that some bytes exist at the path; a fixture that writes ``{}``
-    passes that check while carrying none of the evidence ADR-080 rule 2
-    requires. This function is the parse-and-check step that actually reads
-    the sweep report: rule 2 requires the report's own claims (winning
-    model, fixtures_sha, default_model) to agree with the manifest entry
-    citing it, not just be present, and requires the measured numbers
-    (fixture count, delta, CI) to actually qualify
-    (``_report_measurements_qualify``).
-
-    Canonical report schema: ``scripts/eval/_model_sweep_core.py:build_report``
-    (lines 460-511), specifically the ``decision``, ``winner``,
-    ``fixtures_sha``, ``default_model``, ``n_shared_fixtures``,
-    ``recall_delta``, and ``ci95`` fields that function writes.
-    """
-    try:
-        report = json.loads(artifact_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return False
-    if not isinstance(report, dict):
-        return False
-    if report.get("decision") != "KEEP_PIN":
-        return False
-    if not _report_model_id_matches(report.get("winner"), entry.get("model")):
-        return False
-    if report.get("fixtures_sha") != entry.get("fixtures_sha"):
-        return False
-    if not _report_model_id_matches(
-        report.get("default_model"), entry.get("default_model")
-    ):
-        return False
-    return _report_measurements_qualify(report)
 
 
 def _entry_evidence_valid(

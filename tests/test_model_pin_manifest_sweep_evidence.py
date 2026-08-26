@@ -30,6 +30,17 @@ from model_pin_manifest import DEFAULT_MODEL, resolve_manifest_model  # noqa: E4
 
 from tests.test_model_pin_manifest import _TODAY, _UNIT, _keep_pin_entry  # noqa: E402
 
+# The report's own models list, exactly {winner, default_model}, matching
+# every test in this file whose winner is "claude-opus-4-6" and whose
+# default_model is DEFAULT_MODEL. Tests whose report claims a DIFFERENT
+# winner or default_model (the mismatch tests below) build their own
+# models list instead, so it stays internally consistent with what that
+# specific report claims.
+_SINGLE_CANDIDATE_MODELS = [
+    {"model_id": "claude-opus-4-6"},
+    {"model_id": DEFAULT_MODEL},
+]
+
 
 class TestSweepReportContentValidation:
     """Tests for _sweep_report_satisfies_rule2, via resolve_manifest_model."""
@@ -49,10 +60,12 @@ class TestSweepReportContentValidation:
             _UNIT: _keep_pin_entry(
                 tmp_path,
                 artifact_content={
+                    "schemaVersion": "1",
                     "decision": "DROP_PIN",
                     "winner": "claude-opus-4-6",
                     "fixtures_sha": "abc123",
                     "default_model": DEFAULT_MODEL,
+                    "models": _SINGLE_CANDIDATE_MODELS,
                     "n_shared_fixtures": 8,
                     "recall_delta": 0.05,
                     "ci95": [0.01, 0.09],
@@ -64,15 +77,23 @@ class TestSweepReportContentValidation:
 
     def test_artifact_winner_mismatch_returns_none(self, tmp_path: Path) -> None:
         """The report's own winning model must agree with the model the
-        manifest entry claims it justifies."""
+        manifest entry claims it justifies. The report's models list
+        describes the report's OWN winner/default_model pair (internally
+        consistent, so this isolates the entry-vs-report mismatch rather
+        than also tripping the single-candidate check)."""
         manifest = {
             _UNIT: _keep_pin_entry(
                 tmp_path,
                 artifact_content={
+                    "schemaVersion": "1",
                     "decision": "KEEP_PIN",
                     "winner": "claude-sonnet-4-6",
                     "fixtures_sha": "abc123",
                     "default_model": DEFAULT_MODEL,
+                    "models": [
+                        {"model_id": "claude-sonnet-4-6"},
+                        {"model_id": DEFAULT_MODEL},
+                    ],
                     "n_shared_fixtures": 8,
                     "recall_delta": 0.05,
                     "ci95": [0.01, 0.09],
@@ -87,10 +108,12 @@ class TestSweepReportContentValidation:
             _UNIT: _keep_pin_entry(
                 tmp_path,
                 artifact_content={
+                    "schemaVersion": "1",
                     "decision": "KEEP_PIN",
                     "winner": "claude-opus-4-6",
                     "fixtures_sha": "different-sha",
                     "default_model": DEFAULT_MODEL,
+                    "models": _SINGLE_CANDIDATE_MODELS,
                     "n_shared_fixtures": 8,
                     "recall_delta": 0.05,
                     "ci95": [0.01, 0.09],
@@ -103,15 +126,22 @@ class TestSweepReportContentValidation:
     def test_artifact_default_model_mismatch_returns_none(self, tmp_path: Path) -> None:
         """The report's own default_model must agree with the manifest
         entry's, independent of the entry-vs-harness comparison covered by
-        test_default_model_mismatch_returns_none in test_model_pin_manifest.py."""
+        test_default_model_mismatch_returns_none in test_model_pin_manifest.py.
+        The models list matches the report's own winner/default_model pair
+        for the same isolation reason as the winner-mismatch test above."""
         manifest = {
             _UNIT: _keep_pin_entry(
                 tmp_path,
                 artifact_content={
+                    "schemaVersion": "1",
                     "decision": "KEEP_PIN",
                     "winner": "claude-opus-4-6",
                     "fixtures_sha": "abc123",
                     "default_model": "claude-haiku-4-5",
+                    "models": [
+                        {"model_id": "claude-opus-4-6"},
+                        {"model_id": "claude-haiku-4-5"},
+                    ],
                     "n_shared_fixtures": 8,
                     "recall_delta": 0.05,
                     "ci95": [0.01, 0.09],
@@ -127,10 +157,12 @@ class TestSweepReportContentValidation:
             _UNIT: _keep_pin_entry(
                 tmp_path,
                 artifact_content={
+                    "schemaVersion": "1",
                     "decision": "KEEP_PIN",
                     "winner": "claude-opus-4-6",
                     "fixtures_sha": "abc123",
                     "default_model": DEFAULT_MODEL,
+                    "models": _SINGLE_CANDIDATE_MODELS,
                     "n_shared_fixtures": 7,
                     "recall_delta": 0.05,
                     "ci95": [0.01, 0.09],
@@ -146,10 +178,12 @@ class TestSweepReportContentValidation:
             _UNIT: _keep_pin_entry(
                 tmp_path,
                 artifact_content={
+                    "schemaVersion": "1",
                     "decision": "KEEP_PIN",
                     "winner": "claude-opus-4-6",
                     "fixtures_sha": "abc123",
                     "default_model": DEFAULT_MODEL,
+                    "models": _SINGLE_CANDIDATE_MODELS,
                     "n_shared_fixtures": 8,
                     "recall_delta": 0.049,
                     "ci95": [0.01, 0.09],
@@ -169,15 +203,170 @@ class TestSweepReportContentValidation:
             _UNIT: _keep_pin_entry(
                 tmp_path,
                 artifact_content={
+                    "schemaVersion": "1",
                     "decision": "KEEP_PIN",
                     "winner": "claude-opus-4-6",
                     "fixtures_sha": "abc123",
                     "default_model": DEFAULT_MODEL,
+                    "models": _SINGLE_CANDIDATE_MODELS,
                     "n_shared_fixtures": 8,
                     "recall_delta": 0.05,
                     "ci95": [0.0, 0.09],
                 },
             )
         }
+        result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
+        assert result is None
+
+    def test_artifact_wrong_schema_version_returns_none(self, tmp_path: Path) -> None:
+        """build_report's schemaVersion "gates future shape changes"
+        (scripts/eval/_model_sweep_core.py:469-474); a report claiming a
+        different version has not committed to the field set this module
+        reads, even if every other field looks otherwise valid."""
+        manifest = {
+            _UNIT: _keep_pin_entry(
+                tmp_path,
+                artifact_content={
+                    "schemaVersion": "2",
+                    "decision": "KEEP_PIN",
+                    "winner": "claude-opus-4-6",
+                    "fixtures_sha": "abc123",
+                    "default_model": DEFAULT_MODEL,
+                    "models": _SINGLE_CANDIDATE_MODELS,
+                    "n_shared_fixtures": 8,
+                    "recall_delta": 0.05,
+                    "ci95": [0.01, 0.09],
+                },
+            )
+        }
+        result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
+        assert result is None
+
+    def test_artifact_missing_schema_version_returns_none(
+        self, tmp_path: Path
+    ) -> None:
+        manifest = {
+            _UNIT: _keep_pin_entry(
+                tmp_path,
+                artifact_content={
+                    "decision": "KEEP_PIN",
+                    "winner": "claude-opus-4-6",
+                    "fixtures_sha": "abc123",
+                    "default_model": DEFAULT_MODEL,
+                    "models": _SINGLE_CANDIDATE_MODELS,
+                    "n_shared_fixtures": 8,
+                    "recall_delta": 0.05,
+                    "ci95": [0.01, 0.09],
+                },
+            )
+        }
+        result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
+        assert result is None
+
+    def test_artifact_multi_candidate_sweep_returns_none(
+        self, tmp_path: Path
+    ) -> None:
+        """ADR-080 rule 2 requires "a single-candidate-versus-default sweep
+        (so the CI is a plain 95 percent interval, not Bonferroni-widened)"
+        (.agents/architecture/ADR-080-model-pin-justification-policy.md:89-90).
+        A third candidate in the models list, even with a numerically
+        qualifying ci95, means this report cannot be that: the
+        family-wise-adjusted CI a multi-candidate sweep computes lands in
+        the same ci95 field (scripts/eval/_model_sweep_core.py, the
+        "family-wise CI" reason text), so it must fail closed."""
+        manifest = {
+            _UNIT: _keep_pin_entry(
+                tmp_path,
+                artifact_content={
+                    "schemaVersion": "1",
+                    "decision": "KEEP_PIN",
+                    "winner": "claude-opus-4-6",
+                    "fixtures_sha": "abc123",
+                    "default_model": DEFAULT_MODEL,
+                    "models": [
+                        {"model_id": "claude-opus-4-6"},
+                        {"model_id": DEFAULT_MODEL},
+                        {"model_id": "claude-haiku-4-5"},
+                    ],
+                    "n_shared_fixtures": 8,
+                    "recall_delta": 0.05,
+                    "ci95": [0.01, 0.09],
+                },
+            )
+        }
+        result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
+        assert result is None
+
+    def test_artifact_boolean_recall_delta_returns_none(
+        self, tmp_path: Path
+    ) -> None:
+        """bool is an int subclass in Python: an unguarded numeric check
+        would accept JSON `true` as a qualifying delta (True >= 0.05 is
+        True). Must fail closed instead."""
+        manifest = {
+            _UNIT: _keep_pin_entry(
+                tmp_path,
+                artifact_content={
+                    "schemaVersion": "1",
+                    "decision": "KEEP_PIN",
+                    "winner": "claude-opus-4-6",
+                    "fixtures_sha": "abc123",
+                    "default_model": DEFAULT_MODEL,
+                    "models": _SINGLE_CANDIDATE_MODELS,
+                    "n_shared_fixtures": 8,
+                    "recall_delta": True,
+                    "ci95": [0.01, 0.09],
+                },
+            )
+        }
+        result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
+        assert result is None
+
+    def test_artifact_boolean_ci_bound_returns_none(self, tmp_path: Path) -> None:
+        """Same bool-as-int trap as the delta case, on ci95[0]: an
+        unguarded check would accept JSON `true` as if it were a positive
+        CI lower bound (True > 0.0 is True)."""
+        manifest = {
+            _UNIT: _keep_pin_entry(
+                tmp_path,
+                artifact_content={
+                    "schemaVersion": "1",
+                    "decision": "KEEP_PIN",
+                    "winner": "claude-opus-4-6",
+                    "fixtures_sha": "abc123",
+                    "default_model": DEFAULT_MODEL,
+                    "models": _SINGLE_CANDIDATE_MODELS,
+                    "n_shared_fixtures": 8,
+                    "recall_delta": 0.05,
+                    "ci95": [True, 0.09],
+                },
+            )
+        }
+        result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
+        assert result is None
+
+    def test_artifact_nan_recall_delta_returns_none(self, tmp_path: Path) -> None:
+        """json.loads accepts NaN as a valid float by default, and
+        `float("nan") < 0.05` is always False (NaN compares false against
+        everything), so an unguarded `delta < MIN_RECALL_DELTA` rejection
+        would let a NaN delta through as though it qualified. Writes raw
+        JSON text directly: json.dumps(float("nan")) also emits the bare
+        `NaN` token by default, but constructing it via Python's own float
+        keeps the intent explicit rather than relying on that default."""
+        entry = _keep_pin_entry(tmp_path, create_artifact=False)
+        manifest = {_UNIT: entry}
+        artifact_path = tmp_path / str(entry["artifact"])
+        artifact_path.parent.mkdir(parents=True, exist_ok=True)
+        artifact_path.write_text(
+            "{"
+            '"schemaVersion": "1", "decision": "KEEP_PIN", '
+            '"winner": "claude-opus-4-6", "fixtures_sha": "abc123", '
+            f'"default_model": "{DEFAULT_MODEL}", '
+            '"models": [{"model_id": "claude-opus-4-6"}, '
+            f'{{"model_id": "{DEFAULT_MODEL}"}}], '
+            '"n_shared_fixtures": 8, "recall_delta": NaN, "ci95": [0.01, 0.09]'
+            "}",
+            encoding="utf-8",
+        )
         result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
         assert result is None

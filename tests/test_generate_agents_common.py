@@ -437,16 +437,23 @@ class TestConvertFrontmatterForPlatform:
             # a qualifying KEEP_PIN result that agrees with this entry.
             model = entry.get("model")
             default_model = entry.get("default_model")
+            winner_id = model if isinstance(model, str) else "claude-opus-4-6"
+            default_id = (
+                default_model
+                if isinstance(default_model, str)
+                else "claude-sonnet-4-6"
+            )
             artifact_path.write_text(
                 json.dumps({
+                    "schemaVersion": "1",
                     "decision": "KEEP_PIN",
-                    "winner": model if isinstance(model, str) else "claude-opus-4-6",
+                    "winner": winner_id,
                     "fixtures_sha": entry.get("fixtures_sha"),
-                    "default_model": (
-                        default_model
-                        if isinstance(default_model, str)
-                        else "claude-sonnet-4-6"
-                    ),
+                    "default_model": default_id,
+                    "models": [
+                        {"model_id": winner_id},
+                        {"model_id": default_id},
+                    ],
                     "n_shared_fixtures": 8,
                     "recall_delta": 0.05,
                     "ci95": [0.01, 0.09],
