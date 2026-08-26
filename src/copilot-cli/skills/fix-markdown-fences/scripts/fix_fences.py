@@ -160,10 +160,11 @@ class _ListContainers:
         """Open a container when *line* starts a list item, then track paragraphs."""
         if not line.strip():
             return  # `sync` already ended the paragraph
-        column = self._content_column(line)
-        if column is not None:
+        item = self._list_item(line)
+        if item is not None:
+            column, has_content = item
             self._columns.append(column)
-            self._in_paragraph = bool(_LIST_MARKER.match(line).group("rest").strip())
+            self._in_paragraph = has_content
             return
         content = self._relative(line)
         body = content.lstrip(" ")
@@ -197,11 +198,16 @@ class _ListContainers:
             _BLOCK_START.match(body)
             or _ATX_HEADING.match(body)
             or _THEMATIC_BREAK.match(body)
-            or self._content_column(line) is not None
+            or self._list_item(line) is not None
         )
 
-    def _content_column(self, line: str) -> int | None:
-        """Return the content column *line* opens, or None when it opens no item."""
+    def _list_item(self, line: str) -> tuple[int, bool] | None:
+        """Return *line*'s content column and whether its item has content.
+
+        None when the line opens no list item. Returning both from the one
+        match keeps the caller from re-matching a pattern that has already
+        been shown to apply.
+        """
         content = self._relative(line)
         body = content.lstrip(" ")
         if len(content) - len(body) > _MAX_FENCE_INDENT:
@@ -218,11 +224,11 @@ class _ListContainers:
         if self._in_paragraph and (empty or (number is not None and int(number) != 1)):
             return None  # rule 4: this marker cannot interrupt a paragraph
         if empty:
-            return marker_end + 1  # rule 3
+            return marker_end + 1, False  # rule 3
         pad = _indent_width(match.group("indent") + marker + match.group("pad")) - marker_end
         if pad == 0:
             return None  # a marker needs whitespace before its content
-        return marker_end + (1 if pad > _MAX_LIST_PAD else pad)  # rule 2
+        return marker_end + (1 if pad > _MAX_LIST_PAD else pad), True  # rule 2
 
 
 # Real line terminators only. `str.splitlines` also splits on \x0b, \x0c,
