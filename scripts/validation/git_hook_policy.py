@@ -6718,10 +6718,9 @@ def _validated_full_suite_opt_in() -> str:
         # a flag whose whole purpose is "run more" must not shrug at `true`.
         raise ValueError(
             f"{PYTEST_FULL_SUITE_LOCALLY_ENV} must be '1' or unset, got {raw!r}. "
-            "The flag controls the full-suite fallback only: unset, that "
-            "fallback collects, and '1' executes it locally. Neither value "
-            "changes a narrowed import-graph selection, which always executes "
-            "the tests it selected."
+            "Unset lets the import graph narrow the diff, and collects the "
+            "whole suite when it cannot. '1' executes every partition locally "
+            "whatever the graph says, which is what the name promises."
         )
     return stripped
 
@@ -6735,19 +6734,11 @@ def _full_suite_stand_in(repo_root: Path, reason: str) -> list[list[str]]:
     the local copy of a remote gate was the thing preventing the push from
     reaching the remote gate at all. Collect instead and let CI execute.
 
-    ``AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`` restores the execution behavior
-    for anyone who wants it on a machine that can afford it.
+    This is the collection path only. ``AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1``
+    is handled by `_resolve_pytest_commands` before selection runs, so it never
+    reaches here; an opt-in branch used to live in this function and became
+    unreachable when the flag was hoisted, which is why there is not one now.
     """
-    raw = _validated_full_suite_opt_in()
-    if raw == "1":
-        # `.strip()` on both branches or a padded "1" passes the check above
-        # and then silently takes the collection path anyway.
-        print(
-            f"pytest selection: full suite ({reason}); executing it locally "
-            f"because {PYTEST_FULL_SUITE_LOCALLY_ENV}=1.",
-            file=sys.stderr,
-        )
-        return _pytest_commands(repo_root)
     print(
         f"pytest selection: no import-graph subset ({reason}).\n"
         "  Collecting every test instead of executing them. Collection blocks "
@@ -6779,10 +6770,19 @@ def _resolve_pytest_commands(
 ) -> list[list[str]]:
     """Return the pytest commands to run: an import-graph subset or a stand-in.
 
-    The subset is used only when the graph maps every changed file with
-    certainty. Any failure to determine the diff, and any fail-safe verdict from
-    the selector, falls back to `_full_suite_stand_in`, which collects rather
-    than executes unless the caller opted back into local execution.
+    `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` short-circuits everything below and
+    returns the executing partitions. The flag says full suite, so it has to
+    mean the full suite: an earlier revision validated the value and then threw
+    it away, so a developer who set it on a Python change got whatever subset
+    the import graph chose and was not told the difference. That is the same
+    silently-doing-less defect the flag's own reject-anything-but-1 rule exists
+    to prevent, one branch further along, and ADR-104's Implementation Notes
+    label this command "whole-suite execution". Caught in review on PR #5319.
+
+    Otherwise the subset is used only when the graph maps every changed file
+    with certainty. Any failure to determine the diff, and any fail-safe verdict
+    from the selector, falls back to `_full_suite_stand_in`, which collects
+    rather than executes.
 
     Raises:
         ValueError: the worker override is invalid (from
@@ -6797,9 +6797,13 @@ def _resolve_pytest_commands(
     # invalid AI_AGENTS_PYTEST_WORKERS pass unreported on the default path: the
     # developer asked for a worker count, did not get it, and was not told.
     _pytest_parallel_flags()
-    # Same reasoning as the line above, for the sibling flag: validate before
-    # branching, so an unusable value is reported whichever path is taken.
-    _validated_full_suite_opt_in()
+    if _validated_full_suite_opt_in() == "1":
+        print(
+            f"{PYTEST_FULL_SUITE_LOCALLY_ENV}=1: executing the whole suite "
+            "locally, skipping import-graph selection.",
+            file=sys.stderr,
+        )
+        return _pytest_commands(repo_root)
     if changed_files is None:
         changed = select_tests.changed_from_git(repo_root, WORKFLOW_LOCAL_DEFAULT_BASE)
     else:

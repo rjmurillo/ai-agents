@@ -159,6 +159,46 @@ def test_a_rejected_opt_in_value_is_reported_on_the_narrowed_path_too(
         git_hook_policy._resolve_pytest_commands(tmp_path, ["scripts/x.py"])
 
 
+def test_a_valid_opt_in_beats_a_narrowed_selection(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The branch the hoisted validation did not fix.
+
+    Hoisting `_validated_full_suite_opt_in` made an invalid value report on
+    both paths. It did not make a valid one act on both: the return was
+    discarded, so with `=1` and a Python diff the graph could narrow, the
+    developer got whatever subset the selector chose and was told nothing. A
+    flag named FULL_SUITE_LOCALLY that quietly runs four files is the same
+    doing-less-than-asked defect its own reject-anything-but-1 rule exists to
+    prevent, one branch further along, and ADR-104's Implementation Notes label
+    this command "whole-suite execution".
+
+    The sibling test above drives the same narrowed selection with an invalid
+    value and asserts the raise. This one drives it with the valid value, which
+    is the case that stayed broken after the raise was fixed. Raised in review
+    on PR #5319.
+    """
+    monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
+    monkeypatch.setattr(
+        git_hook_policy.select_tests,
+        "select",
+        lambda *_a, **_k: Selection(full=False, tests=("tests/test_x.py",), reason="narrowed"),
+    )
+
+    commands = git_hook_policy._resolve_pytest_commands(tmp_path, ["scripts/x.py"])
+
+    assert commands == git_hook_policy._pytest_commands(tmp_path), (
+        "a narrowed selection won over an explicit full-suite opt-in. The "
+        "developer asked for the whole suite and got a subset without being "
+        "told, which is what the flag exists to make impossible."
+    )
+    assert git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV in capsys.readouterr().err, (
+        "the override took effect silently. A path chosen by an environment "
+        "variable has to name the variable, or the next reader cannot tell why "
+        "this push ran the whole suite."
+    )
+
+
 def test_a_rejected_opt_in_value_exits_config_error_not_success(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
