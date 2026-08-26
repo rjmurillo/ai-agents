@@ -14,6 +14,9 @@ implemented: true
 
 ## Status
 
+Accepted (amended 2026-08-19 by ADR-097; the amendment immediately below
+retires every tool-use registration this record describes).
+
 **Amended 2026-08-19 (ADR-097): every tool-use registration this record
 describes is retired, and so is the generated Copilot dispatcher.** ADR-097
 removed all five tool-call hooks. Consequently, every claim below about live

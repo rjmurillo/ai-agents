@@ -61,8 +61,10 @@ EXIT CODES (ADR-035):
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -871,10 +873,94 @@ def render_index(records: Sequence[AdrRecord]) -> str:
 # --- CLI ------------------------------------------------------------------
 
 
+def _atomic_write_text(path: Path, content: str) -> None:
+    """Write ``content`` to ``path`` atomically via a temp file plus ``os.replace``.
+
+    ``Path.write_text`` opens ``path`` for writing, which follows a symlink and
+    writes through to whatever it targets. A contributor who committed
+    ``path`` as a symlink (or a CI runner checking out such a commit) would
+    then have this generator overwrite an arbitrary file the process can
+    write, not the intended destination (CWE-59/CWE-22; Copilot review,
+    originally found on the standalone extraction PR #5285). ``os.replace``
+    does not follow a symlink destination: it replaces the directory entry
+    itself, so a symlink at ``path`` is unlinked and swapped for a regular
+    file rather than written through. Verified empirically: replacing a
+    symlink this way leaves its former target byte-for-byte unchanged and
+    leaves ``path`` a regular file.
+    """
+    directory = path.parent
+    # tempfile.mkstemp() creates the temp file mode 0600, and os.replace()
+    # publishes that mode verbatim. The prior Path.write_text() call left an
+    # existing regular destination's mode untouched, so without this,
+    # regenerating a normally world-readable index would silently turn it
+    # owner-only on POSIX. A symlink destination has no "existing regular
+    # file mode" to preserve (the whole point is we are not writing through
+    # it): granting it a fixed, world-readable mode here would let whatever
+    # planted the symlink also dictate the replacement file's permissions,
+    # so this case (and a first-ever generation with nothing to preserve)
+    # is left at mkstemp's own restrictive 0600 default instead (CodeQL
+    # py/overly-permissive-mask, PR #5321: a hardcoded world-readable
+    # fallback here could not distinguish the legitimate case from the
+    # attack one).
+    existing_mode: int | None
+    if path.is_symlink() or not path.is_file():
+        existing_mode = None
+    else:
+        try:
+            existing_mode = path.stat().st_mode & 0o777
+        except OSError:
+            existing_mode = None
+    fd, tmp_name = tempfile.mkstemp(dir=directory, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        try:
+            handle = os.fdopen(fd, "w", encoding="utf-8")
+        except BaseException:
+            # os.fdopen(fd, ...) does not reliably close fd on failure: it
+            # depends on WHERE inside fdopen the failure happens. Verified
+            # empirically (not from memory) with the real, unmocked function:
+            # an invalid `mode` string fails argument validation before fd is
+            # touched and leaves it open (confirmed via /proc/self/fd count
+            # and a follow-up os.write on the same fd number succeeding);
+            # an invalid `encoding` fails after the underlying FileIO is
+            # already constructed, and CPython closes fd as part of that
+            # failure. This close is required for the first case and a no-op
+            # for the second: closing an fd CPython already closed raises
+            # OSError ("Bad file descriptor"), caught below (Copilot review,
+            # PR #5321).
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+            raise
+        # Once os.fdopen succeeds, `handle` owns fd; the `with` statement
+        # below closes it on any exit, so nothing past this point needs the
+        # explicit-close handling above.
+        with handle:
+            handle.write(content)
+            # Applying the mode after the write, still inside the `with`,
+            # keeps the file at mkstemp's own restrictive 0600 for the whole
+            # write and only widens it (when existing_mode grants that)
+            # right before publishing. A prior version called
+            # os.chmod(tmp_name, ...) before os.fdopen: when chmod raised,
+            # the raw descriptor was never wrapped and never closed, leaking
+            # it for the life of the process, and on Windows the still-open
+            # handle could also make the unlink below fail silently, leaving
+            # a stray temp file too (Copilot review, PR #5321).
+            if existing_mode is not None:
+                os.chmod(tmp_name, existing_mode)
+        os.replace(tmp_name, path)
+    except BaseException:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+
+
 def generate(adr_dir: Path, output_path: Path) -> None:
     """Write the index to ``output_path``."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(render_index(collect_records(adr_dir)), encoding="utf-8")
+    _atomic_write_text(output_path, render_index(collect_records(adr_dir)))
 
 
 def _run_check(adr_dir: Path, output_path: Path) -> int:
@@ -931,11 +1017,30 @@ def _resolve(path: Path) -> Path:
     return path.resolve() if path.is_absolute() else (_REPO_ROOT / path).resolve()
 
 
+def _resolve_output(path: Path) -> Path:
+    """Anchor ``--output`` to the repo root without dereferencing its leaf.
+
+    ``_resolve()`` calls ``Path.resolve()``, which follows a symlink at
+    every path component, including the last one. For a path this process
+    is about to write to, that is exactly the defect ``_atomic_write_text``
+    exists to close: resolving the leaf turns a symlinked destination into
+    its target's real path before this generator ever sees the symlink, so
+    ``os.replace()`` in ``_atomic_write_text`` ends up replacing the target
+    instead of the symlink itself (CWE-59, found on the merged output of
+    this fix: a committed symlink at ``--output`` survived because ``main()``
+    resolved it here before ``generate()`` ran). Resolve only the parent
+    directory, so the leaf reaching ``_atomic_write_text`` is exactly the
+    directory entry a symlink attack would have committed.
+    """
+    base = path if path.is_absolute() else (_REPO_ROOT / path)
+    return base.parent.resolve() / base.name
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point. Returns an ADR-035 exit code."""
     args = build_parser().parse_args(argv)
     adr_dir = _resolve(args.adr_dir)
-    output_path = _resolve(args.output)
+    output_path = _resolve_output(args.output)
 
     if not adr_dir.is_dir():
         print(f"Error: ADR directory not found: {adr_dir}", file=sys.stderr)
@@ -958,9 +1063,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         # .claude/rules/ci-scripts.md MUST 7: a script that resolves the
         # repository root and then writes to it must confirm the caller's cwd
-        # sits inside that root before the first write. Relative
-        # --adr-dir/--output args are already anchored to _REPO_ROOT by
-        # _resolve() above, not to Path.cwd(); without this check, running the
+        # sits inside that root before the first write. Relative --adr-dir is
+        # anchored to _REPO_ROOT by _resolve() above; relative --output is
+        # anchored the same way by _resolve_output(), which additionally
+        # leaves a leaf symlink unresolved (see its docstring). Neither
+        # anchors to Path.cwd(); without this check, running the
         # script from a different worktree (or via a symlink into this one)
         # writes into _REPO_ROOT silently, with no signal that the write
         # landed outside the caller's own checkout. Mirrors

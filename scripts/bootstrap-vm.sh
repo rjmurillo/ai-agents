@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Bootstrap Ubuntu VM for ai-agents repository (DROID/Factory.ai)
-# Usage: GH_TOKEN=<pat> ./bootstrap-vm.sh
+# Usage: GITHUB_TOKEN=<pat> ./bootstrap-vm.sh
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
@@ -111,7 +111,61 @@ if ! command -v gh &>/dev/null; then
 fi
 gh --version
 
-[[ -n "${GITHUB_TOKEN:-}" ]] && export GH_TOKEN="$GITHUB_TOKEN"
+configure_github_cli() {
+    # Codex exposes secrets only while setup runs. Store the credential in
+    # gh's config so later agent and maintenance phases can use GitHub too.
+    # gh gives environment tokens precedence over stored credentials, so both
+    # variables must be removed before `auth login` writes the supplied token.
+    local github_token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+    unset GH_TOKEN GITHUB_TOKEN
+
+    if [[ -z "$github_token" ]]; then
+        echo "WARNING: GitHub CLI is installed but unauthenticated; set GITHUB_TOKEN in the Codex environment to enable PR and issue operations." >&2
+        return 0
+    fi
+
+    if ! printf '%s\n' "$github_token" | gh auth login --with-token; then
+        echo "WARNING: gh auth login failed; continuing without GitHub authentication" >&2
+        unset github_token
+        return 0
+    fi
+    unset github_token
+
+    # Scope to the account just logged in: an unscoped `gh auth status`
+    # checks every stored account on every known host and fails if any one
+    # of them (unrelated to this token) is stale.
+    if ! gh auth status --active --hostname github.com; then
+        echo "WARNING: gh auth status failed; continuing without GitHub authentication" >&2
+        return 0
+    fi
+
+    if ! gh api user --jq '.login' >/dev/null; then
+        echo "WARNING: 'gh auth status' succeeded but 'gh api user' could not complete (transport failure, rate limit, or missing scope); this is not necessarily an authentication problem" >&2
+        return 0
+    fi
+
+    if ! gh auth setup-git; then
+        echo "WARNING: GitHub CLI authentication succeeded but 'gh auth setup-git' failed, so git HTTPS operations will not use the gh credential helper; the token itself is valid" >&2
+        return 0
+    fi
+
+    echo "✓ GitHub CLI authenticated and configured for git operations"
+}
+
+configure_github_cli
+
+restore_origin_remote() {
+    # Codex checkouts may omit origin. Add the canonical HTTPS remote only when
+    # origin is absent so git fetch, push, and GitHub CLI repository discovery
+    # work in later phases. An existing origin is left alone: bootstrapping a
+    # fork or an alternate checkout must not silently repoint it at upstream.
+    if git remote get-url origin &>/dev/null; then
+        return 0
+    fi
+    git remote add origin https://github.com/rjmurillo/ai-agents.git
+}
+
+restore_origin_remote
 
 echo "=== Python uv ==="
 export PATH="$HOME/.local/bin:$PATH"
