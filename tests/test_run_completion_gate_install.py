@@ -57,26 +57,35 @@ defect. ``_install_plugin`` now builds a real work tree WITH
 ``refs/remotes/origin/main``, which the install-trusted path requires like any
 other; the version that lacked one passed only because the ref check was being
 skipped, and that skip was itself the security defect (Copilot review,
-PR #5329). And the criterion here names ``printf``, which resolves to a path
-inside the work tree that is not a file, so ``_classify_argv_token`` returns
-``_ARGV_SKIP`` and there is no work-tree file to byte-compare.
+PR #5329). And the criterion runs this interpreter by absolute path, which is a
+real file OUTSIDE the work tree, so ``_classify_argv_token`` returns
+``_ARGV_EXTERNAL``: recorded in ``skipped_external_files`` and not
+byte-compared. The end-to-end case asserts that classification rather than
+describing it.
 
-That second fact is stated the way it is because an earlier version of this
-paragraph got it wrong in a specific way worth naming. It said ``printf`` was
-classified as EXTERNAL, reasoning from "it is a bare interpreter name, so it
-must be outside the tree". Reading ``_classify_argv_token`` shows
-``_ARGV_EXTERNAL`` requires a resolved path outside the tree that IS a file;
-a bare name that resolves to nothing takes the ``_ARGV_SKIP`` branch instead.
-The refutation was already in this file's own end-to-end payload, where
-``skipped_external_files`` is empty, and I did not read it. Both branches
-refuse to compare, so nothing was broken, but the claim would have misled the
-next person reasoning about which tokens get verified.
+Two corrections are folded into that sentence, both worth naming because each
+was a claim about behavior made without reading the branch.
+
+The command used to be ``printf``, and this paragraph claimed it was classified
+EXTERNAL, reasoning from "it is a bare interpreter name, so it must be outside
+the tree". That was wrong: ``_ARGV_EXTERNAL`` requires a resolved path outside
+the tree that IS a file, while a bare name resolves inside the tree to nothing
+and takes ``_ARGV_SKIP``. The refutation sat in this file's own payload, where
+``skipped_external_files`` was empty. Nothing was broken, since both branches
+decline to compare, but the description was backwards.
+
+``printf`` was then replaced outright because it is POSIX-only and the case
+failed on a Windows checkout. Windows CI runs only ``-m windows_path`` and this
+file carries no marker, so that break would have reached a contributor rather
+than a gate. Running the interpreter instead is portable AND lands on the
+external branch the earlier prose only claimed to cover.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -115,22 +124,27 @@ _COMMAND_TRUST_HALT = "HALT: completion-gate verifier files"
 # asserts on a LATER stage (command trust, dispatch) could observe that stage at
 # all. Found by mutation: removing the work-tree anchor left the bypass case
 # failing on a schema error rather than on the boundary under test.
-# The criterion emits a JSON object and pass_when reads a key out of it, so a
-# run that reaches dispatch is observable in the payload rather than inferred
-# from an exit code. `printf` resolves to <cwd>/printf, which is INSIDE the
-# work tree and is not a file, so _classify_argv_token returns _ARGV_SKIP and
-# there is no work-tree file to byte-compare. Not _ARGV_EXTERNAL: that branch
-# needs a resolved path OUTSIDE the tree that IS a file, so
-# `command_trust.skipped_external_files` stays empty here. An earlier comment
-# claimed external; the payload in this file's own end-to-end case shows the
-# list empty, which was the evidence against it sitting in plain sight
-# (Copilot review, PR #5329).
+#
+# The criterion runs THIS interpreter rather than a shell builtin. An earlier
+# revision used `printf`, which is POSIX-only, so the case failed on a Windows
+# checkout before producing any payload (Copilot review, PR #5329). Windows CI
+# runs only `-m windows_path` and this file carries no such marker, so the
+# breakage would have hit a contributor's local run rather than a gate.
+#
+# Quoting round-trips because both sides use shlex: shlex.quote here,
+# shlex.split in _format_command, and the spawn is a list with no shell, so an
+# interpreter path containing spaces or backslashes survives on any platform.
+#
 # `true` (YAML/Python) is not a pass_when literal; the evaluator wants `true`
 # lowercase, and `True` raises "Unrecognized literal in pass_when".
-_CONFIG_BODY = """completion_criteria:
+_GATE_RAN_PROGRAM = 'import json,sys;sys.stdout.write(json.dumps({"gate_ran": True}))'
+_CRITERION_COMMAND = (
+    f"{shlex.quote(sys.executable)} -c {shlex.quote(_GATE_RAN_PROGRAM)}"
+)
+_CONFIG_BODY = f"""completion_criteria:
   - name: placeholder
     verification: command
-    command: "printf '{\\"gate_ran\\": true}'"
+    command: {json.dumps(_CRITERION_COMMAND)}
     pass_when: "gate_ran == true"
 """
 
@@ -393,10 +407,18 @@ def test_the_bundled_config_runs_its_criteria_end_to_end(tmp_path: Path) -> None
     assert criterion["passed"] is True
     assert criterion["exit_code"] == 0
     assert criterion["stdout_json"] == {"gate_ran": True}
-    # `printf` takes the _ARGV_SKIP branch, NOT _ARGV_EXTERNAL: it resolves
-    # inside the work tree and is not a file. Pinned because the reverse was
-    # asserted in prose here and stood for several revisions.
-    assert payload["command_trust"]["skipped_external_files"] == []
+    # Classification is pinned, not narrated. The interpreter is an absolute
+    # path to a real file OUTSIDE the work tree, which is exactly the
+    # _ARGV_EXTERNAL branch: recorded, not byte-compared. `checked_files`
+    # stays empty because no argv token resolves to a work-tree file.
+    #
+    # An earlier revision ran `printf` and claimed in prose that it was
+    # classified external. It was not: a bare name resolves INSIDE the tree
+    # to nothing, which is _ARGV_SKIP, and the list was empty. Asserting the
+    # list is what stops prose and behavior drifting apart again.
+    external = payload["command_trust"]["skipped_external_files"]
+    assert len(external) == 1, external
+    assert not Path(external[0]).is_relative_to(user_repo.resolve()), external
     assert payload["command_trust"]["checked_files"] == []
 
 
