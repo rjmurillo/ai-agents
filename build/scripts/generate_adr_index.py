@@ -873,17 +873,6 @@ def render_index(records: Sequence[AdrRecord]) -> str:
 # --- CLI ------------------------------------------------------------------
 
 
-def _default_create_mode() -> int:
-    """Mode a brand-new file would get from ``open(path, "w")``: 0o666 masked by umask.
-
-    ``os.umask()`` has no read-only form; the only way to read the current
-    mask is to set one and immediately restore it.
-    """
-    current_umask = os.umask(0)
-    os.umask(current_umask)
-    return 0o666 & ~current_umask
-
-
 def _atomic_write_text(path: Path, content: str) -> None:
     """Write ``content`` to ``path`` atomically via a temp file plus ``os.replace``.
 
@@ -898,24 +887,26 @@ def _atomic_write_text(path: Path, content: str) -> None:
     file rather than written through. Verified empirically: replacing a
     symlink this way leaves its former target byte-for-byte unchanged and
     leaves ``path`` a regular file.
-
-    ``tempfile.mkstemp`` creates its file mode ``0o600``, and ``os.replace``
-    publishes that mode onto ``path``: regenerating a normally-readable,
-    already-committed index would otherwise turn it owner-only on every run.
-    ``path.stat()`` follows a symlink, so when ``path`` already exists (as a
-    regular file or a symlink) the temp file is chmod'd to match its current
-    mode before publishing; only a first-ever generation (no prior ``path``)
-    falls back to the mode a plain ``open(path, "w")`` would have used
-    (Copilot review, PR #5321).
     """
     directory = path.parent
-    try:
-        mode = path.stat().st_mode & 0o777
-    except OSError:
-        mode = _default_create_mode()
+    # tempfile.mkstemp() creates the temp file mode 0600, and os.replace()
+    # publishes that mode verbatim. The prior Path.write_text() call left an
+    # existing regular destination's mode untouched, so without this,
+    # regenerating a normally world-readable index would silently turn it
+    # owner-only on POSIX. A symlink destination has no "existing regular
+    # file mode" to preserve (the whole point is we are not writing through
+    # it), so it falls back to a plain default.
+    existing_mode: int | None
+    if path.is_symlink() or not path.is_file():
+        existing_mode = None
+    else:
+        try:
+            existing_mode = path.stat().st_mode & 0o777
+        except OSError:
+            existing_mode = None
     fd, tmp_name = tempfile.mkstemp(dir=directory, prefix=f".{path.name}.", suffix=".tmp")
     try:
-        os.chmod(tmp_name, mode)
+        os.fchmod(fd, existing_mode if existing_mode is not None else 0o644)
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(content)
         os.replace(tmp_name, path)
@@ -988,24 +979,22 @@ def _resolve(path: Path) -> Path:
 
 
 def _resolve_output(path: Path) -> Path:
-    """Anchor ``--output`` to the repository root without dereferencing a leaf symlink.
+    """Anchor ``--output`` to the repo root without dereferencing its leaf.
 
-    ``_resolve()`` (used for ``--adr-dir``, a read-only target where following
-    a symlink is fine) calls ``Path.resolve()`` on the whole path, which also
-    follows a symlink at the final component. Doing that here would resolve
-    ``--output`` to whatever a committed ``.agents/architecture/README.md``
-    symlink points at *before* ``generate()`` ever sees it, so
-    ``_atomic_write_text``'s ``os.replace``-based guard would receive the
-    symlink's target path directly and have nothing left to protect (CWE-59/
-    CWE-22; Copilot review, PR #5321, on the CLI entry point specifically:
-    the direct-``generate()`` regression test alone did not exercise this,
-    because it never went through path resolution at all). Resolving only the
-    parent directory keeps relative paths anchored to the repo root and lets
-    a symlinked intermediate directory resolve normally, while the final
-    component (a possible symlink) reaches ``generate()`` unresolved.
+    ``_resolve()`` calls ``Path.resolve()``, which follows a symlink at
+    every path component, including the last one. For a path this process
+    is about to write to, that is exactly the defect ``_atomic_write_text``
+    exists to close: resolving the leaf turns a symlinked destination into
+    its target's real path before this generator ever sees the symlink, so
+    ``os.replace()`` in ``_atomic_write_text`` ends up replacing the target
+    instead of the symlink itself (CWE-59, found on the merged output of
+    this fix: a committed symlink at ``--output`` survived because ``main()``
+    resolved it here before ``generate()`` ran). Resolve only the parent
+    directory, so the leaf reaching ``_atomic_write_text`` is exactly the
+    directory entry a symlink attack would have committed.
     """
-    anchored = path if path.is_absolute() else (_REPO_ROOT / path)
-    return anchored.parent.resolve() / anchored.name
+    base = path if path.is_absolute() else (_REPO_ROOT / path)
+    return base.parent.resolve() / base.name
 
 
 def main(argv: Sequence[str] | None = None) -> int:

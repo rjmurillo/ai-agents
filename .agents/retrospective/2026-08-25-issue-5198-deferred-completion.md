@@ -327,9 +327,9 @@ landing before #5209? Because #5285's own review rounds (finding and fixing
 the cycle-rendering bug, the direct-missing-successor bug, the Markdown-link
 injection risk, the documented-query-recipe divergence, and finally the
 symlink-write vulnerability) took long enough, across enough push-then-wait
-cycles, that #5209's ten-round review process, started several days earlier
-(2026-08-21 versus #5285's 2026-08-25), finished first on the same underlying
-issue. Neither review process was aware of the
+cycles, that #5209's ten-round review process, opened only four days earlier
+(2026-08-21 versus #5285's 2026-08-25), finished first on the same
+underlying issue. Neither review process was aware of the
 other's findings in real time; the two PRs diverged from the same original
 `generate_adr_index.py` slice and each independently hardened it against
 different reviewers' attention, catching different bugs (#5285 caught the

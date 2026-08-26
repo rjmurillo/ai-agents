@@ -13,8 +13,6 @@ asserts on it would encode a count that is wrong by the next merge.
 
 from __future__ import annotations
 
-import os
-import stat
 import sys
 from pathlib import Path
 
@@ -782,19 +780,20 @@ def test_generate_does_not_write_through_a_symlinked_destination(tmp_path: Path)
     assert output.read_text(encoding="utf-8").startswith("# Architecture Decision Records")
 
 
-def test_main_does_not_dereference_a_symlinked_output_before_generating(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_generate_via_cli_does_not_write_through_a_symlinked_destination(
+    tmp_path: Path,
 ) -> None:
-    """The CLI path must not resolve away the symlink guard above it.
+    """The CLI path must not silently dereference a symlinked ``--output``.
 
-    ``generate()`` refusing to write through a symlink it is handed is not
-    enough: before this fix, ``main()``'s own ``_resolve()`` called
-    ``Path.resolve()`` on ``--output``, which follows the final symlink too,
-    so the CLI entry point silently rewrote a symlinked ``--output`` to its
-    target *before* ``generate()`` ever saw the symlink. The prior direct-
-    ``generate()`` test above never exercised that, because it calls
-    ``generate()`` directly and skips CLI path resolution entirely (Copilot
-    review, PR #5321).
+    ``generate()`` alone is not the whole contract: ``main()`` resolves
+    ``args.output`` before calling it. A prior fix resolved the full path
+    (``Path.resolve()``, which follows a symlink at every component
+    including the last), so the process that actually runs via
+    ``build_all.py`` still overwrote a symlink's target even though the
+    unit test exercising ``generate()`` directly passed (Copilot review).
+    Drive ``main()`` here, the same entry point ``build_all.py`` uses, so a
+    regression in the CLI's own path anchoring fails this test even when
+    ``generate()`` itself is correct.
     """
     directory = tmp_path / "architecture"
     _corpus(directory)
@@ -803,7 +802,6 @@ def test_main_does_not_dereference_a_symlinked_output_before_generating(
     sentinel.write_text(sentinel_content, encoding="utf-8")
     output = tmp_path / "README.md"
     output.symlink_to(sentinel)
-    monkeypatch.chdir(generate_adr_index._REPO_ROOT)
 
     exit_code = generate_adr_index.main(["--adr-dir", str(directory), "--output", str(output)])
 
@@ -813,24 +811,27 @@ def test_main_does_not_dereference_a_symlinked_output_before_generating(
     assert output.read_text(encoding="utf-8").startswith("# Architecture Decision Records")
 
 
-@pytest.mark.skipif(os.name == "nt", reason="POSIX permission bits do not apply on Windows")
-def test_generate_preserves_an_existing_destination_s_permissions(tmp_path: Path) -> None:
-    """Regenerating a committed index must not narrow its permissions.
+def test_generate_preserves_the_existing_destination_mode(tmp_path: Path) -> None:
+    """Regenerating a normally readable index must not turn it owner-only.
 
-    ``tempfile.mkstemp`` creates its file mode ``0o600``, and ``os.replace``
-    publishes that mode onto the destination. Before this fix, every
-    regeneration of an already-committed, normally-readable index turned it
-    owner-only (Copilot review, PR #5321).
+    ``tempfile.mkstemp()`` creates its temp file mode 0600, and
+    ``os.replace()`` publishes that mode verbatim onto the destination. The
+    prior ``Path.write_text()`` call left an existing regular file's mode
+    untouched; the atomic-write replacement must match that (Copilot
+    review).
     """
     directory = tmp_path / "architecture"
     _corpus(directory)
     output = tmp_path / "README.md"
-    generate_adr_index.generate(directory, output)
-    os.chmod(output, 0o640)
+    output.write_text("stale placeholder\n", encoding="utf-8")
+    # 0o640, not the CLI's own 0o644 fallback: a broken preservation that
+    # always falls through to the fallback would pass this assertion at
+    # 0o644 by coincidence, since setup and fallback would be identical.
+    output.chmod(0o640)
 
     generate_adr_index.generate(directory, output)
 
-    assert stat.S_IMODE(output.stat().st_mode) == 0o640
+    assert (output.stat().st_mode & 0o777) == 0o640
 
 
 def test_check_passes_when_the_committed_index_is_current(tmp_path: Path) -> None:
