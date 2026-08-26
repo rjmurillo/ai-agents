@@ -136,8 +136,8 @@ def oracle_fence_lines(text: str) -> set[int]:
 #
 #     uv run python -c "import sys; sys.path.insert(0,'tests/skills'); \
 #       import commonmark_fence_cases as O; print(O.case_inventory())"
-CASE_COUNT = 132
-CASE_DIGEST = "fd64f2bf9b956988"
+CASE_COUNT = 136
+CASE_DIGEST = "2688f53b0365d122"
 
 # The cases where a balanced document is SUPPOSED to change under `--write`,
 # named rather than detected. Membership used to come from asking the scanner

@@ -225,4 +225,21 @@ LINK_REFERENCE_CASES: dict[str, str] = {
         "[fo\n# h\no]: /url\n2. ```\n   code\n   ```\n",
     "a split label of only whitespace is not a definition":
         "[ \n ]: /url\n2. ```\n   code\n   ```\n",
+    # Rule 16 continued. A bare destination may not carry an ASCII control
+    # character. Measured over the whole range U+0000 to U+0020 plus U+007F:
+    # the reference parser rejects every one except U+0000, which it replaces
+    # with U+FFFD before parsing. We accepted all but space and tab, so we read
+    # a definition where it reads a paragraph. This one is a MISS rather than a
+    # corruption, the only entry in this table that is: the tool fails to
+    # report a genuinely unclosed fence rather than inventing one. It is fixed
+    # anyway because the contract is exact and the fix is a range check.
+    "a vertical tab is not a destination":
+        "[foo]: /a\x0bb\n2. ```\n   code\n   ```\n",
+    "a unit separator is not a destination":
+        "[foo]: /a\x1fb\n2. ```\n   code\n   ```\n",
+    "a delete character is not a destination":
+        "[foo]: /a\x7fb\n2. ```\n   code\n   ```\n",
+    # The control, and the one exception the range check must not swallow.
+    "a NUL is not a control for this purpose":
+        "[foo]: /a\x00b\n2. ```\n   code\n   ```\n",
 }

@@ -173,6 +173,16 @@ def _link_destination_end(body: str, start: int) -> int | None:
         if char == "\\" and index + 1 < len(body):
             index += 2  # an escaped character never counts as a delimiter
             continue
+        if "\x01" <= char <= "\x1f" or char == "\x7f":
+            # A bare destination may not carry an ASCII control character.
+            # Measured over the whole range: the reference parser rejects
+            # every one of U+0001 to U+0020 and U+007F, and accepts only
+            # U+0000, which it replaces with U+FFFD before parsing. Space and
+            # tab are already the break above, so this covers the other 29.
+            # We accepted all of them and so read a definition where the
+            # reference parser reads a paragraph, which made the scanner MISS
+            # a genuinely unclosed fence rather than invent one.
+            return None
         if char == "(":
             depth += 1
         elif char == ")":

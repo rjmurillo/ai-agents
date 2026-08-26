@@ -92,7 +92,7 @@ _FENCE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
 # root and is quoted here rather than imported, because the two skills ship
 # as separate directories and neither is on the other's import path.
 #
-# `skills/fix-markdown-fences/scripts/fix_fences.py` lines 482-484, verbatim:
+# `skills/fix-markdown-fences/scripts/fix_fences.py` lines 492-494, verbatim:
 #
 #     def over_indented(self, indent: str) -> bool:
 #         """Return True when *indent* puts the marker inside an indented code block."""
@@ -196,6 +196,16 @@ def _link_destination_end(body: str, start: int) -> int | None:
         if char == "\\" and index + 1 < len(body):
             index += 2  # an escaped character never counts as a delimiter
             continue
+        if "\x01" <= char <= "\x1f" or char == "\x7f":
+            # A bare destination may not carry an ASCII control character.
+            # Measured over the whole range: the reference parser rejects
+            # every one of U+0001 to U+0020 and U+007F, and accepts only
+            # U+0000, which it replaces with U+FFFD before parsing. Space and
+            # tab are already the break above, so this covers the other 29.
+            # We accepted all of them and so read a definition where the
+            # reference parser reads a paragraph, which made the scanner MISS
+            # a genuinely unclosed fence rather than invent one.
+            return None
         if char == "(":
             depth += 1
         elif char == ")":
