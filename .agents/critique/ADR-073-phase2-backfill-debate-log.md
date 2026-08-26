@@ -542,7 +542,7 @@ much they should weigh on a reviewer:
 | ADR-038 | proposed | 2026-01-01 | [] | null | true |
 | ADR-040 | accepted | 2026-08-14 | [] | null | true |
 | ADR-041 | accepted | 2026-07-21 | [] | null | true |
-| ADR-042 | accepted | 2026-04-13 | [ADR-005] | null | true |
+| ADR-042 | accepted | 2026-08-25 | [ADR-005] | null | true |
 | ADR-043 | accepted | 2026-01-21 | [] | null | true |
 | ADR-045 | accepted | 2026-02-07 | [] | null | true |
 | ADR-046 | accepted | 2026-02-08 | [] | null | true |
@@ -946,3 +946,11 @@ to match. Do not revert this a third time without first running
 `git log -p -- .agents/architecture/ADR-042-python-migration-strategy.md`
 in full and checking every commit's diff for body content, not only the
 newest `## Amendment` heading's own dated subsection.
+
+**The "Status mapping for all 53 records reviewed" table above also needed
+this correction.** Its ADR-042 row (line 545) still read `2026-04-13`, the
+same value Batch 29 quoted from that row as authoritative before this batch
+overturned it. A Copilot review comment on PR #5230 caught the row lagging
+behind this batch's own conclusion. Updated to `2026-08-25` to match the
+frontmatter and README restored above; the other 52 rows are this table's
+original campaign-scan snapshot and are unaffected by this correction.
