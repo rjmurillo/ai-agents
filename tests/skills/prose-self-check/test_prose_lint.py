@@ -447,10 +447,11 @@ class TestCommonMarkOracle:
 class TestCommonMarkFuzz:
     """Randomized differential fuzzing against the reference parser.
 
-    The curated cases each pin one rule; this answers what is left. The
-    residual is one named family, documented in `commonmark_fence_cases`: a
-    fenced block inside a list item does not end when the document dedents out
-    of that item. Ratchet, not a pass/fail oracle. Lower it, never raise it to
+    The curated cases each pin one rule; this answers what is left. That
+    residue is described in `commonmark_fence_cases`, and this docstring used
+    to restate it, which meant it went stale the moment rule 10 closed the
+    family it named. It now points at the one description instead of keeping a
+    second copy. Ratchet, not a pass/fail oracle: lower it, never raise it to
     make a run pass.
     """
 

@@ -136,6 +136,17 @@ CASES: dict[str, str] = {
     # A backtick opening fence may not carry a backtick in its info string.
     "backtick in a fence info string": ("para\n```lang`x`\nrobust significant\n```\nafter\n"),
     "backtick info on a marker line": "- ```lang`x`\n  robust\n",
+    # An ordered marker is ASCII digits only; Python's `\d` is not.
+    "arabic-indic digits are not a marker": ("\u0661. item\n\n    ~~~\n    robust\n    ~~~\n"),
+    "devanagari digits are not a marker": ("\u0967. item\n\n    ~~~\n    x\n    ~~~\n"),
+    "ascii digits are a marker": "1. item\n\n   ~~~\n   x\n   ~~~\n",
+    # A marker line does not itself open a paragraph; its remainder decides.
+    "nested ordered on the marker line": (
+        "- 2. item\n\n        ~~~\n        x\n        ~~~\nafter\n"
+    ),
+    "nested ordered one on the marker line": (
+        "- 1. item\n\n        ~~~\n        x\n        ~~~\nafter\n"
+    ),
 }
 
 
@@ -170,7 +181,9 @@ _FUZZ_ORDERED = ("1.", "2.", "01.", "003.", "1)", "10.", "9)")
 # fuzzer could not reach. On the widened generator the counts were 212, 247 and
 # 225; rule 10 (a block ends with its container) took them to what follows.
 # Rule 11 (a setext underline ends its paragraph) took seed 20260826 from 6.
-FUZZ_BASELINE = {1729: 1, 20260826: 5, 4242: 6}
+# Rule 12 (a marker line leaves paragraph state to its own remainder) took
+# seed 20260826 from 5 and seed 4242 from 6.
+FUZZ_BASELINE = {1729: 1, 20260826: 1, 4242: 4}
 FUZZ_DOCUMENTS = 2000
 
 
