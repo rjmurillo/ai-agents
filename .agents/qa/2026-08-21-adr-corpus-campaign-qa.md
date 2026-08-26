@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 0716eeb827d6ff36be0ad5e25b779d7191a9a7ba
+qaCommit: 586b1b4680f3a2a887625da28168eec6f16cab9c
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `0716eeb827d6ff36be0ad5e25b779d7191a9a7ba` (see Addendum 58)
+**Validated at commit**: `586b1b4680f3a2a887625da28168eec6f16cab9c` (see Addendum 59)
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -2549,4 +2549,22 @@ PR #5209 squash-merged into `main` at `2026-08-25T21:33:06Z`; GitHub deleted `cl
 `uv run python scripts/validation/pre_pr.py`: clean after the fix. This branch's diff against its new base (`main`) collapsed to 12 files, all confirmed own-contribution by the same byte-identity-to-`origin/main` test this document has used throughout; the previous "inherited from `origin/main`" category no longer applies, since `main` is now the literal base.
 
 **Rebound to** `0716eeb827d6ff36be0ad5e25b779d7191a9a7ba`.
+
+## Addendum 59: round-15 Copilot review, two real findings, both fixed
+
+A Copilot review on PR #5230's round-15 head (`0674d2333`) flagged two mandatory issues, both real.
+
+**The status-mapping table's own ADR-042 row went stale a second time.** Batch 30 of the debate log (added in the round documented at Addendum 58) established `2026-08-25` as ADR-042's correct date, overturning Batch 29's `2026-04-13`. Batch 30's own text restored the frontmatter and the generated `README.md` row to match, but never touched the debate log's own "Status mapping for all 53 records reviewed" table, whose ADR-042 row (line 545) still read `2026-04-13` even though Batch 29's prose had quoted that exact row as authoritative before Batch 30 overturned it. Fixed: the row now reads `2026-08-25`, and Batch 30 gained a closing paragraph documenting the correction, the same way Batch 29 already closed the loop for the frontmatter and README (commit `dc15a2fd3`).
+
+**A multiline inline HTML comment could still hide a forged status.** `blank_non_prose_block_lines` (`scripts/utils/markdown_parser.py`) blanked whole-line `html_block` tokens (the block-level HTML comment gap already fixed at Addendum 58's own predecessor round) but left `html_inline` content completely untouched. Verified empirically: `_create_parser().parse("prose <!--\n**Status**: Accepted\n-->\n")` produces one `html_inline` child token spanning all three source lines, confirming that a comment opened mid-paragraph (`prose <!--`) is not a block at all, so it can legally cross source lines while the paragraph stays open, since none of the comment's own `-->` or its hidden content is one of the handful of constructs (a blank line, an ATX heading, a list marker) that interrupt a CommonMark paragraph. A `**Status**: Accepted` line inside such a comment renders invisible on GitHub or any CommonMark renderer, while `check_adr_lifecycle.py`'s `_INLINE_STATUS_RE`, run as a raw-text regex over the OLD function's output, still read it off the untouched paragraph line as the record's declared status.
+
+Fixed by adding `_mask_inline_html_comments`, a comment-only sibling of the existing `_mask_inline_contexts` (which also masks backtick code spans for its other caller, `extract_lookup_references`, and could not be reused directly here: reusing it broke `test_decorated_prose_matching_the_enum_passes`, whose fixture, `` `Accepted`. Supersedes nothing. ``, relies on a backtick-decorated status word staying visible prose). `_mask_inline_contexts`'s `str.splitlines()`-based line indexing (which drops the trailing empty element `str.split("\n")` keeps when the input ends in a newline) had to be reconciled with `_blank_block_lines`'s `str.split("\n")`-based, line-count-preserving contract before the two passes could combine; done by restoring that trailing element before indexing by line number.
+
+This flipped `test_keeps_inline_html_comment_on_a_prose_line`, whose premise (only a block-segmented comment needs hiding) was exactly the contract this fixes, per the mirror obligation on contract changes: renamed to `test_blanks_an_inline_html_comment_sharing_a_line_with_prose` and rewritten to assert the comment IS now masked. Added `test_hides_a_multiline_inline_html_comment_status` (the real forgery case, asserting exact transformed text across all three source lines and that `"**Status**"` no longer appears in the output), `test_blank_code_block_lines_does_not_strip_an_inline_html_comment` (control proving the sibling function `blank_code_block_lines` is untouched), and `test_still_shows_status_visible_alongside_a_multiline_comment` (control proving a real status placed after such a comment still survives, so the fix is not merely blanking every line the comment's paragraph touches).
+
+Mutation-proven: `git stash push -- scripts/utils/markdown_parser.py` (reverting only the implementation, keeping the new tests) failed exactly the two discriminating tests (`test_blanks_an_inline_html_comment_sharing_a_line_with_prose`, `test_hides_a_multiline_inline_html_comment_status`) while the two controls and the pre-existing 8 tests in the same class stayed green; `git stash pop` restored the fix and all 10 passed again.
+
+Full suites re-run clean after both fixes: `tests/test_markdown_parser.py` (75 passed), `tests/validation/test_check_adr_lifecycle.py` (205 combined with the parser suite), `tests/validation/test_check_adr_links.py` and `tests/skills/adr-review/` (440 combined across all four files). `check_adr_lifecycle.py`'s corpus check: unchanged, 1 violation across 103 records, at baseline. `pre_pr.py`: all validations passed on both commits.
+
+**Rebound to** `586b1b4680f3a2a887625da28168eec6f16cab9c`.
 

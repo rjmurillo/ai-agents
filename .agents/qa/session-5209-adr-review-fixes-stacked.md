@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 0716eeb827d6ff36be0ad5e25b779d7191a9a7ba
+qaCommit: 586b1b4680f3a2a887625da28168eec6f16cab9c
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -9,7 +9,7 @@ qaCommit: 0716eeb827d6ff36be0ad5e25b779d7191a9a7ba
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `main` (retargeted by GitHub after PR #5209 squash-merged and its branch was deleted; was `claude/adr-evaluation-tooling-6od8rd`)
-**Validated at commit**: `0716eeb827d6ff36be0ad5e25b779d7191a9a7ba` (see Addendum 59)
+**Validated at commit**: `586b1b4680f3a2a887625da28168eec6f16cab9c` (see Addendum 60)
 
 ## Verdict
 
@@ -1363,4 +1363,17 @@ The merge auto-combined `tests/test_markdown_parser.py` with no reported conflic
 This branch's diff against its new base (`main`) is now 12 files, all own-contribution; the base retarget collapsed the "inherited from `origin/main`" bucket entirely, since `main` is now the literal base.
 
 **Rebound to** `0716eeb827d6ff36be0ad5e25b779d7191a9a7ba`.
+
+## Addendum 60: same round-15 findings and fixes as Addendum 59 of the campaign report
+
+Same Copilot review round (PR #5230 head `0674d2333`), same two mandatory findings, same fixes as Addendum 59 of the campaign report:
+
+1. The debate log's status-mapping table row for ADR-042 (line 545) still read `2026-04-13` after Batch 30 established `2026-08-25` as correct; fixed, with Batch 30 gaining a closing paragraph documenting the correction (commit `dc15a2fd3`).
+2. `blank_non_prose_block_lines` left `html_inline` HTML comments untouched, so a comment opened mid-paragraph (`prose <!--`) could span multiple source lines and hide a `**Status**: Accepted` declaration from a human reader while `check_adr_lifecycle.py`'s `_INLINE_STATUS_RE` still read it as the record's declared status. Fixed with a new `_mask_inline_html_comments` helper (comment-only, so a backtick-decorated status word stays visible prose, per `test_decorated_prose_matching_the_enum_passes`). Mutation-proven: reverting the implementation alone fails exactly the two new discriminating tests.
+
+Full evidence, including the exact `html_inline` token structure verified and the reconciliation between `_mask_inline_contexts`' `str.splitlines()` indexing and `_blank_block_lines`' `str.split("\n")` contract, is in Addendum 59 of the campaign report.
+
+Full suites re-run clean: `tests/test_markdown_parser.py` (75 passed), combined with `tests/validation/test_check_adr_lifecycle.py`, `tests/validation/test_check_adr_links.py`, and `tests/skills/adr-review/` (440 passed). Corpus check unchanged at baseline (1 violation across 103 records). `pre_pr.py`: all validations passed on both commits.
+
+**Rebound to** `586b1b4680f3a2a887625da28168eec6f16cab9c`.
 
