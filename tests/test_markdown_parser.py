@@ -600,6 +600,28 @@ class TestBlankNonProseBlockLines:
         text = "`<!--` **Status**: Proposed\n"
         assert blank_non_prose_block_lines(text) == text
 
+    def test_a_decoy_code_span_does_not_steal_the_real_comments_match(self):
+        # Real gap in an earlier revision of this fix, found by Copilot
+        # (PR #5230, round 17, marked Mandatory): the earlier revision
+        # searched for a match starting from a cursor advanced only past
+        # PRIOR html_inline children, so a preceding sibling of any OTHER
+        # type whose own content happened to share bytes with a later real
+        # comment could steal the match. `` `<!-- x -->` <!-- x --> ``
+        # tokenizes as code_inline("<!-- x -->"), text(" "),
+        # html_inline("<!-- x -->"): searching for the html_inline child's
+        # content from the start of the paragraph, without first having
+        # advanced past the code_inline child's identical text, found the
+        # FIRST occurrence (inside the backticks) and masked visible code
+        # while leaving the real comment, and whatever it might hide,
+        # untouched. Fixed by advancing the cursor past EVERY child in
+        # source order, not only html_inline ones. Asserts the exact
+        # transformed text: the visible code span survives verbatim, and
+        # only the real (second) comment is masked.
+        text = "`<!-- x -->` <!-- x -->\n"
+        out = blank_non_prose_block_lines(text)
+        assert out.startswith("`<!-- x -->` ")
+        assert "<!-- x -->" not in out[len("`<!-- x -->` ") :]
+
     def test_preserves_line_count(self):
         text = "a\n<!--\nb\nc\n-->\nd\n"
         original = len(text.split("\n"))

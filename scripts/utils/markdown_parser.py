@@ -173,12 +173,39 @@ def _raise_if_nesting_truncated(
         )
 
 
+def _blank_matching_token_lines(
+    lines: list[str], tokens: list[Token], token_types: frozenset[str]
+) -> None:
+    """Blank, in place, every line a token whose type is in ``token_types``
+    spans. Preserves ``lines``' length and every other entry, so a caller
+    matching against the result keeps stable line numbers.
+
+    The genuinely shared step between `_blank_block_lines` (used only by
+    `blank_code_block_lines`) and `blank_non_prose_block_lines`: both parse
+    once, then run this same loop against their own token-type set. An
+    earlier revision had `blank_non_prose_block_lines` reimplement this loop
+    inline once it grew its own inline-comment masking pass ahead of it,
+    which made `_blank_block_lines`'s "shared" claim false; Copilot found the
+    stale claim on PR #5230 round 17 (`scripts/utils/markdown_parser.py:180`
+    at the time). Extracting the loop here, rather than narrowing the
+    docstring, keeps the two functions' block-blanking behavior from
+    drifting apart the next time either one changes.
+    """
+    line_count = len(lines)
+    for token in tokens:
+        if token.type not in token_types or token.map is None:
+            continue
+        start, end = token.map
+        for index in range(max(start, 0), min(end, line_count)):
+            lines[index] = ""
+
+
 def _blank_block_lines(markdown: str, token_types: frozenset[str]) -> str:
-    """Shared blanking loop for `blank_code_block_lines` and
-    `blank_non_prose_block_lines`. Every source line CommonMark attributes to
-    a block whose type is in ``token_types`` is replaced by an empty string,
-    preserving line count and every other line's content so callers keep
-    stable line numbers.
+    """Parse ``markdown`` once and blank every line CommonMark attributes to
+    a block whose type is in ``token_types``, via `_blank_matching_token_lines`.
+    Used by `blank_code_block_lines`; `blank_non_prose_block_lines` parses
+    separately (it needs the token stream for its own inline-comment masking
+    pass too) and calls `_blank_matching_token_lines` directly on the result.
 
     Any exception the parser raises propagates to the caller, which must not
     treat a parse failure as clean prose. Failing closed here is deliberate: a
@@ -191,13 +218,7 @@ def _blank_block_lines(markdown: str, token_types: frozenset[str]) -> str:
     tokens = md.parse(markdown)
     _raise_if_nesting_truncated(markdown, tokens, md)
     lines = markdown.split("\n")
-    line_count = len(lines)
-    for token in tokens:
-        if token.type not in token_types or token.map is None:
-            continue
-        start, end = token.map
-        for index in range(max(start, 0), min(end, line_count)):
-            lines[index] = ""
+    _blank_matching_token_lines(lines, tokens, token_types)
     return "\n".join(lines)
 
 
@@ -278,13 +299,7 @@ def blank_non_prose_block_lines(markdown: str) -> str:
     for start, end in _html_comment_inline_ranges(tokens, markdown):
         _mask_range(characters, start, end)
     lines = "".join(characters).split("\n")
-    line_count = len(lines)
-    for token in tokens:
-        if token.type not in _NON_PROSE_BLOCK_TOKEN_TYPES or token.map is None:
-            continue
-        start, end = token.map
-        for index in range(max(start, 0), min(end, line_count)):
-            lines[index] = ""
+    _blank_matching_token_lines(lines, tokens, _NON_PROSE_BLOCK_TOKEN_TYPES)
     return "\n".join(lines)
 
 
@@ -460,6 +475,26 @@ def _html_comment_inline_ranges(
     newlines) starting from a cursor that only advances, so two identical
     comments in the same paragraph resolve to two distinct ranges rather
     than the first one twice.
+
+    The cursor advances past EVERY child in source order, not only the
+    ``html_inline`` ones: an earlier revision searched only among
+    ``html_inline`` children, so a preceding sibling of any other type
+    whose own content happened to share bytes with a later real comment
+    could steal the match. `` `<!-- x -->` <!-- x --> `` tokenizes as
+    `code_inline("<!-- x -->")`, `text(" ")`, `html_inline("<!-- x -->")`;
+    searching for the ``html_inline`` child's content from the start of the
+    paragraph without first having advanced past the ``code_inline``
+    child's own identical text found the FIRST occurrence, inside the
+    backticks, and masked visible code while leaving the real comment (and
+    whatever it hides) untouched. Copilot found this on PR #5230 round 17,
+    marked Mandatory. Processing every child in encounter order and
+    advancing the cursor after each one's own match, even non-``html_inline``
+    children whose content is never masked, keeps the cursor past every
+    decoy by the time a later real comment's search begins. A child with
+    empty ``content`` (most markup tokens: ``strong_open``, ``em_open``,
+    ``softbreak``, and similar) matches the empty string at the cursor's
+    current position with zero length, which is a correct no-op rather than
+    a skip.
     """
     line_offsets = _line_start_offsets(markdown)
     ranges: list[tuple[int, int]] = []
@@ -473,13 +508,15 @@ def _html_comment_inline_ranges(
         )
         cursor = span_start
         for child in token.children:
-            if child.type != "html_inline" or not child.content.startswith("<!--"):
+            content = child.content or ""
+            if not content:
                 continue
-            found = markdown.find(child.content, cursor, span_end)
+            found = markdown.find(content, cursor, span_end)
             if found < 0:
                 continue
-            ranges.append((found, found + len(child.content)))
-            cursor = found + len(child.content)
+            cursor = found + len(content)
+            if child.type == "html_inline" and content.startswith("<!--"):
+                ranges.append((found, cursor))
     return ranges
 
 
