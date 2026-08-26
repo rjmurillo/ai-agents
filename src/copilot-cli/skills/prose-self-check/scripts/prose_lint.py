@@ -52,8 +52,10 @@ from pathlib import Path
 HIGH = "high"
 INFO = "info"
 
-EM_DASH = "—"
-EN_DASH = "–"
+# Written as escapes, not literals: this file ships in the plugin tree,
+# where the dash ban is enforced at the byte level (Issue #4079).
+EM_DASH = "\u2014"
+EN_DASH = "\u2013"
 
 # Tiering from SKILL.md Layer 1. These words top keyword scans but are
 # ~0% reader-cited, so presence alone is not a finding.
