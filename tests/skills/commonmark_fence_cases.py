@@ -7,7 +7,9 @@ state and easy to get subtly wrong, so the cases below are checked against
 `markdown-it-py`, a CommonMark reference implementation and a declared
 dependency of this repository, instead of against hand-written expectations.
 
-Scope. This oracle covers list-container handling only. The scanners diverge
+Scope. This oracle began as list-container handling only and has grown past
+that: it now also carries line-terminator cases and closing-fence info-string
+cases, which involve no list marker at all. The scanners diverge
 from CommonMark elsewhere on purpose: a fence carrying an info string inside an
 open block is content to CommonMark but a mistaken closer to `fix_fences.py`,
 which is the defect that tool exists to repair.
@@ -277,8 +279,13 @@ CASES: dict[str, str] = {
 # drifted twice, so `FUZZ_BASELINE` below is the single numeric source of
 # truth and this comment describes only the shape: deep interactions between
 # lazy continuations, empty items, and five-or-more columns of padding under
-# nested markers. Raw HTML blocks swallowing a fence are the other known cause
-# and are what the fuzz negative control pins.
+# nested markers. Measured on the two documents that actually remain: both
+# carry five-or-more columns of padding and tabs under nested markers; one
+# adds a thematic break, the other an empty item and a lazy continuation. So
+# the shape is padding and tabs, not the lazy/empty pairing an earlier wording
+# claimed. Raw HTML is NOT among these: the generator emits no `<` at all
+# across all 6,000 documents, so it cannot appear in this residue. The fuzz
+# negative control pins raw HTML with a hand-written document instead.
 #
 # Treat these as a ratchet in the repository's usual sense: a regression pushes
 # a count up and fails, and work that closes part of the residue lowers them.

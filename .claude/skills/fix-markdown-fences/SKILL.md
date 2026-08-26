@@ -128,14 +128,17 @@ documentation:
   it ends, with no closing marker, so a line that dedents below it closes it.
   Without either rule the tool kept a block open past its real end, and
   `--write` appended a closing fence to documents already well formed.
-- Known gaps, both measured. A raw HTML block swallows a following fence, so a
+- Known gaps, all three measured. A raw HTML block swallows a following fence, so a
   fence inside one is read as a fence here and as HTML by CommonMark. And a
   blockquote prefix is never stripped, so a fence inside `>` is invisible: the
   tool misses defects there rather than inventing them, checked by running
   `--write` over seven blockquote shapes, of which it changed only the two the
-  reference parser also reads as unclosed. The scanners' agreement with a
-  CommonMark reference is measured by the fuzz baselines in the repository's
-  test suite.
+  reference parser also reads as unclosed. And a setext `===` underline
+  directly under a list item, followed by a lazy continuation and then an
+  indented fence, leaves that fence unseen: seven shapes through `--write`,
+  four diverge and none is rewritten, so this one is a miss too. `---` under
+  the same item already agrees. The scanners' agreement with a CommonMark
+  reference is measured by the fuzz baselines in the repository's test suite.
 
 Files are read and written as bytes, so CRLF and CR endings survive, a UTF-8
 BOM survives, and every separator `str.splitlines` would swallow (U+000B,
@@ -223,57 +226,13 @@ grep -rEn --include="*.md" -- '```\w+' . | grep -vE "^[^:]*:[0-9]*:[[:space:]]*`
 
 </details>
 
-<details>
-<summary><strong>Implementation: PowerShell</strong></summary>
-
-```powershell
-$directories = @('docs', 'src')
-
-foreach ($dir in $directories) {
-    Get-ChildItem -Path $dir -Filter '*.md' -Recurse | ForEach-Object {
-        $file = $_.FullName
-        $content = Get-Content $file -Raw
-        $lines = $content -split "`r?`n"
-        $result = @()
-        $inCodeBlock = $false
-        $codeBlockIndent = ""
-
-        for ($i = 0; $i -lt $lines.Count; $i++) {
-            $line = $lines[$i]
-
-            if ($line -match '^(\s*)```(\w+)') {
-                if ($inCodeBlock) {
-                    $result += $codeBlockIndent + '```'
-                    $result += $line
-                    $codeBlockIndent = $Matches[1]
-                } else {
-                    $result += $line
-                    $codeBlockIndent = $Matches[1]
-                    $inCodeBlock = $true
-                }
-            }
-            elseif ($line -match '^(\s*)```\s*$') {
-                $result += $line
-                $inCodeBlock = $false
-                $codeBlockIndent = ""
-            }
-            else {
-                $result += $line
-            }
-        }
-
-        if ($inCodeBlock) {
-            $result += $codeBlockIndent + '```'
-        }
-
-        $newContent = $result -join "`n"
-        Set-Content -Path $file -Value $newContent -NoNewline
-        Write-Host "Fixed: $file"
-    }
-}
-```
-
-</details>
+An earlier revision also inlined a PowerShell rewriter here. It is gone for
+the same reason, and measurement is why rather than symmetry: run on a CRLF
+file it rewrote every ending to LF, which the Edge Cases list below
+explicitly promises it does not do, and a `~~~python` block left unclosed
+was invisible to it because it matched backticks only. The shipped script
+closes that tilde block and preserves the CRLF. A copy that drifts this far
+while sitting under the same heading is worse than no example.
 
 <details>
 <summary><strong>Edge Cases Handled</strong></summary>

@@ -485,8 +485,11 @@ class TestCommonMarkFuzz:
         )
 
     def test_the_fuzzer_can_actually_see_a_divergence(self) -> None:
-        # Negative control: a document from the one remaining known limitation
-        # must still diverge, or the comparison above is measuring nothing.
+        # Negative control: a document from a known limitation must still
+        # diverge, or the comparison above is measuring nothing. Raw HTML is
+        # one of three the shared module lists, not the only one, and it is
+        # hand-written here on purpose: the generator emits no `<` at all, so
+        # this shape can never come out of the fuzz corpus.
         # This used to use a list-container case, which rule 10 then fixed, so
         # the control silently stopped controlling for anything.
         text = '<example type="X">\n```diff\n+ code\n```\nAfter.\n'
