@@ -82,8 +82,8 @@ _CANONICAL_MAJOR_MINOR_RE = re.compile(
 )
 
 # The two known target shapes a platform's own ``model_tiers`` map spells its
-# tier defaults in today. See templates/platforms/copilot-cli.yaml:101-103
-# (dot form) and templates/platforms/vscode.yaml:15-17 (display form, shared
+# tier defaults in today. See templates/platforms/copilot-cli.yaml:107-110
+# (dot form) and templates/platforms/vscode.yaml:18-21 (display form, shared
 # by visual-studio.yaml). Matching against these rather than hardcoding a
 # per-platform-name template means a platform YAML's spelling stays the one
 # source of truth for its own format.
@@ -168,11 +168,20 @@ def _entry_evidence_valid(
     Split from ``resolve_manifest_model`` to keep that function's cyclomatic
     complexity low. Mirrors the corresponding legs of
     ``scripts/validation/check_model_pins.py:358-391``
-    (``_manifest_entry_valid``), except it does not compare ``entry["model"]``
-    against a scanned unit's own ``model:`` frontmatter value: this module's
-    callers are ``model_tier``-carrying templates that (by ADR-080 rule 1's
-    design) do not have a ``model:`` field for the manifest entry to be
-    checked against. See ``resolve_manifest_model``'s divergence note.
+    (``_manifest_entry_valid``), with two differences:
+
+    - It does not compare ``entry["model"]`` against a scanned unit's own
+      ``model:`` frontmatter value: this module's callers are
+      ``model_tier``-carrying templates that (by ADR-080 rule 1's design)
+      do not have a ``model:`` field for the manifest entry to be checked
+      against. See ``resolve_manifest_model``'s divergence note.
+    - It additionally requires the ``artifact`` path to exist as a file.
+      Canonical's ``_manifest_entry_valid`` calls ``_artifact_within_repo``
+      (a path-safety check only) and never checks existence, so an entry
+      whose sweep artifact was never committed passes canonical validation
+      as long as the path is well-formed. ADR-080 rule 2 requires "a
+      committed sweep artifact"; this function enforces the "committed"
+      half canonical does not.
     """
     if entry.get("decision") != "KEEP_PIN":
         return False
@@ -184,6 +193,8 @@ def _entry_evidence_valid(
     if not isinstance(artifact, str) or not artifact:
         return False
     if not _artifact_within_repo(artifact, repo_root):
+        return False
+    if not (repo_root / artifact).is_file():
         return False
     return _normalize_id(str(entry.get("default_model", ""))) == _normalize_id(
         default_model
@@ -205,9 +216,10 @@ def resolve_manifest_model(
     ``_UNIT_GLOBS`` (line 86) both use for this unit kind. Returns ``None``
     unless the entry carries ``decision: KEEP_PIN``, a matching unit, a
     non-blank model, a present ``fixtures_sha``, an ``artifact`` path that
-    stays within the repository, a ``default_model`` matching the current
-    harness default, and a ``date`` within ``MANIFEST_MAX_AGE_DAYS`` of
-    ``today`` (never in the future; see the divergence note below).
+    stays within the repository AND exists as a file, a ``default_model``
+    matching the current harness default, and a ``date`` within
+    ``MANIFEST_MAX_AGE_DAYS`` of ``today`` (never in the future; see the
+    divergence notes below).
 
     Canonical source: ``scripts/validation/check_model_pins.py:358-391``
     (``_manifest_entry_valid``).
@@ -237,6 +249,12 @@ def resolve_manifest_model(
       This function now performs the full check itself
       (``_entry_evidence_valid``) rather than trust a governance check
       that cannot see the entry.
+    - **Requires the artifact to exist as a file.** Canonical's
+      ``_artifact_within_repo`` is a path-safety check only (CWE-22); it
+      never confirms the artifact was actually committed. ADR-080 rule 2
+      requires "a committed sweep artifact"; this function additionally
+      checks ``(repo_root / artifact).is_file()``, enforcing the
+      "committed" half canonical leaves unchecked.
     - **Rejects a future-dated ``date`` (a negative age).** Canonical's
       ``age = (today - recorded_date).days; if age >
       MANIFEST_MAX_AGE_DAYS`` accepts any negative age (a typo'd future
@@ -279,9 +297,9 @@ def format_model_id_for_platform(
     ``_normalize_id`` treats as canonical), but each platform's
     ``model_tiers`` map spells its OWN default id differently, for example:
 
-        templates/platforms/copilot-cli.yaml:101-103 (dot form):
+        templates/platforms/copilot-cli.yaml:107-110 (dot form):
             opus: "claude-opus-4.6"
-        templates/platforms/vscode.yaml:15-17 (display form, shared by
+        templates/platforms/vscode.yaml:18-21 (display form, shared by
         visual-studio.yaml):
             opus: "Claude Opus 4.6 (copilot)"
 

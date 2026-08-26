@@ -101,22 +101,35 @@ class TestResolveManifestModel:
 
     _UNIT = "templates/agents/architect.shared.md"
     _TODAY = date(2026, 8, 26)
+    _ARTIFACT = "evals/architect-spike/sweep.json"
 
-    def _entry(self, **overrides: object) -> dict[str, object]:
+    def _entry(
+        self, repo_root: Path, *, create_artifact: bool = True, **overrides: object
+    ) -> dict[str, object]:
         base: dict[str, object] = {
             "unit": self._UNIT,
             "model": "claude-opus-4-6",
             "decision": "KEEP_PIN",
             "date": "2026-08-01",
             "fixtures_sha": "abc123",
-            "artifact": "evals/architect-spike/sweep.json",
+            "artifact": self._ARTIFACT,
             "default_model": DEFAULT_MODEL,
         }
         base.update(overrides)
+        # ADR-080 rule 2 requires a *committed* sweep artifact;
+        # resolve_manifest_model now checks the artifact exists as a file
+        # (see _entry_evidence_valid), so every positive-path fixture must
+        # create it under repo_root. create_artifact=False covers the two
+        # negative cases where creating a file would be wrong: a blank
+        # artifact and a path-traversal artifact.
+        if create_artifact and isinstance(base.get("artifact"), str) and base["artifact"]:
+            artifact_path = repo_root / str(base["artifact"])
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text("{}", encoding="utf-8")
         return base
 
     def test_valid_keep_pin_entry_resolves(self, tmp_path: Path) -> None:
-        manifest = {self._UNIT: self._entry()}
+        manifest = {self._UNIT: self._entry(tmp_path)}
         result = resolve_manifest_model(manifest, self._UNIT, tmp_path, today=self._TODAY)
         assert result == "claude-opus-4-6"
 
@@ -125,36 +138,38 @@ class TestResolveManifestModel:
         assert result is None
 
     def test_decision_not_keep_pin_returns_none(self, tmp_path: Path) -> None:
-        manifest = {self._UNIT: self._entry(decision="RETIRE_PIN")}
+        manifest = {self._UNIT: self._entry(tmp_path, decision="RETIRE_PIN")}
         result = resolve_manifest_model(manifest, self._UNIT, tmp_path, today=self._TODAY)
         assert result is None
 
     def test_unit_mismatch_returns_none(self, tmp_path: Path) -> None:
         """A malformed manifest keying an entry under one unit while the
         entry itself names another must not resolve for either."""
-        manifest = {self._UNIT: self._entry(unit="templates/agents/other.shared.md")}
+        manifest = {
+            self._UNIT: self._entry(tmp_path, unit="templates/agents/other.shared.md")
+        }
         result = resolve_manifest_model(manifest, self._UNIT, tmp_path, today=self._TODAY)
         assert result is None
 
     def test_blank_model_returns_none(self, tmp_path: Path) -> None:
-        manifest = {self._UNIT: self._entry(model="   ")}
+        manifest = {self._UNIT: self._entry(tmp_path, model="   ")}
         result = resolve_manifest_model(manifest, self._UNIT, tmp_path, today=self._TODAY)
         assert result is None
 
     def test_non_string_model_returns_none(self, tmp_path: Path) -> None:
-        manifest = {self._UNIT: self._entry(model=None)}
+        manifest = {self._UNIT: self._entry(tmp_path, model=None)}
         result = resolve_manifest_model(manifest, self._UNIT, tmp_path, today=self._TODAY)
         assert result is None
 
     def test_missing_date_returns_none(self, tmp_path: Path) -> None:
-        entry = self._entry()
+        entry = self._entry(tmp_path)
         del entry["date"]
         manifest = {self._UNIT: entry}
         result = resolve_manifest_model(manifest, self._UNIT, tmp_path, today=self._TODAY)
         assert result is None
 
     def test_malformed_date_returns_none(self, tmp_path: Path) -> None:
-        manifest = {self._UNIT: self._entry(date="not-a-date")}
+        manifest = {self._UNIT: self._entry(tmp_path, date="not-a-date")}
         result = resolve_manifest_model(manifest, self._UNIT, tmp_path, today=self._TODAY)
         assert result is None
 
@@ -163,14 +178,14 @@ class TestResolveManifestModel:
         recorded = date(2026, 1, 1)
         # Ordinal math avoids month/day rollover edge cases from manual arithmetic.
         today = date.fromordinal(recorded.toordinal() + MANIFEST_MAX_AGE_DAYS)
-        manifest = {self._UNIT: self._entry(date=recorded.isoformat())}
+        manifest = {self._UNIT: self._entry(tmp_path, date=recorded.isoformat())}
         result = resolve_manifest_model(manifest, self._UNIT, tmp_path, today=today)
         assert result == "claude-opus-4-6"
 
     def test_evidence_one_day_past_max_age_is_stale(self, tmp_path: Path) -> None:
         recorded = date(2026, 1, 1)
         today = date.fromordinal(recorded.toordinal() + MANIFEST_MAX_AGE_DAYS + 1)
-        manifest = {self._UNIT: self._entry(date=recorded.isoformat())}
+        manifest = {self._UNIT: self._entry(tmp_path, date=recorded.isoformat())}
         result = resolve_manifest_model(manifest, self._UNIT, tmp_path, today=today)
         assert result is None
 
@@ -179,29 +194,46 @@ class TestResolveManifestModel:
         even though it is well within MANIFEST_MAX_AGE_DAYS of today."""
         today = date(2026, 8, 1)
         recorded = date(2026, 8, 2)  # one day after "today"
-        manifest = {self._UNIT: self._entry(date=recorded.isoformat())}
+        manifest = {self._UNIT: self._entry(tmp_path, date=recorded.isoformat())}
         result = resolve_manifest_model(manifest, self._UNIT, tmp_path, today=today)
         assert result is None
 
     def test_defaults_today_to_real_date_when_omitted(self, tmp_path: Path) -> None:
         """A fresh entry dated today, with no `today` override, still resolves."""
-        manifest = {self._UNIT: self._entry(date=date.today().isoformat())}
+        manifest = {self._UNIT: self._entry(tmp_path, date=date.today().isoformat())}
         result = resolve_manifest_model(manifest, self._UNIT, tmp_path)
         assert result == "claude-opus-4-6"
 
     def test_missing_fixtures_sha_returns_none(self, tmp_path: Path) -> None:
-        manifest = {self._UNIT: self._entry(fixtures_sha="")}
+        manifest = {self._UNIT: self._entry(tmp_path, fixtures_sha="")}
         result = resolve_manifest_model(manifest, self._UNIT, tmp_path, today=self._TODAY)
         assert result is None
 
     def test_missing_artifact_returns_none(self, tmp_path: Path) -> None:
-        manifest = {self._UNIT: self._entry(artifact="")}
+        manifest = {
+            self._UNIT: self._entry(tmp_path, artifact="", create_artifact=False)
+        }
         result = resolve_manifest_model(manifest, self._UNIT, tmp_path, today=self._TODAY)
         assert result is None
 
     def test_artifact_path_traversal_returns_none(self, tmp_path: Path) -> None:
         """CWE-22: an artifact path escaping repo_root must not resolve."""
-        manifest = {self._UNIT: self._entry(artifact="../../etc/passwd")}
+        manifest = {
+            self._UNIT: self._entry(
+                tmp_path, artifact="../../etc/passwd", create_artifact=False
+            )
+        }
+        result = resolve_manifest_model(manifest, self._UNIT, tmp_path, today=self._TODAY)
+        assert result is None
+
+    def test_artifact_not_committed_returns_none(self, tmp_path: Path) -> None:
+        """The path is safely contained but nothing was ever written there:
+        ADR-080 rule 2 requires a *committed* sweep artifact, not merely a
+        well-formed path to one."""
+        manifest = {
+            self._UNIT: self._entry(tmp_path, create_artifact=False)
+        }
+        assert not (tmp_path / self._ARTIFACT).exists()
         result = resolve_manifest_model(manifest, self._UNIT, tmp_path, today=self._TODAY)
         assert result is None
 
@@ -209,7 +241,7 @@ class TestResolveManifestModel:
         """Evidence recorded against a different harness default is stale
         in the sense that matters: the comparison it made no longer
         reflects the current baseline."""
-        manifest = {self._UNIT: self._entry(default_model="claude-opus-4-6")}
+        manifest = {self._UNIT: self._entry(tmp_path, default_model="claude-opus-4-6")}
         result = resolve_manifest_model(manifest, self._UNIT, tmp_path, today=self._TODAY)
         assert result is None
 
@@ -222,12 +254,14 @@ class TestResolveManifestModel:
         digit ("claude-sonnet-4.6") must still compare equal."""
         assert DEFAULT_MODEL == "claude-sonnet-4-6"
         dotted = "claude-sonnet-4.6"
-        manifest = {self._UNIT: self._entry(default_model=dotted)}
+        manifest = {self._UNIT: self._entry(tmp_path, default_model=dotted)}
         result = resolve_manifest_model(manifest, self._UNIT, tmp_path, today=self._TODAY)
         assert result == "claude-opus-4-6"
 
     def test_custom_default_model_parameter_is_honored(self, tmp_path: Path) -> None:
-        manifest = {self._UNIT: self._entry(default_model="claude-haiku-4-5")}
+        manifest = {
+            self._UNIT: self._entry(tmp_path, default_model="claude-haiku-4-5")
+        }
         result = resolve_manifest_model(
             manifest, self._UNIT, tmp_path, today=self._TODAY,
             default_model="claude-haiku-4-5",
