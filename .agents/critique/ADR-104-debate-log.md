@@ -664,6 +664,31 @@ one is the reviewer's sharpest point restated: the 780s figure this record
 described as an opt-in property is what an everyday Python push takes, and the
 tests that would have said so all took the other branch.
 
+### Round 9 addendum: the one cap that was cut without a measurement
+
+Rule 7 says a cap is sized from a measured worst case. A reviewer pointed out
+that `workflow-local-run` was the single cap on this branch cut without one:
+30m to 10m and its child budget 1740s to 540s, on a job ADR-104's own Known
+non-conformances table already listed as unmeasured when its glob fires.
+
+The push carrying the CI filter change did fire it, at 0.42 seconds, and that
+number is not the measurement the cut needed. This container has no actionlint,
+so the job reports DEGRADED and returns before doing any work. The firing path a
+container can time is not the path the cap protects, which is an `act` run on a
+workstation, and nobody has timed that in-hook. A 10m cap there could kill a
+legitimate run to buy a smaller number in this record's own budget table.
+
+Both values are back at main's. The declared pre-push worst case rises from
+2850s to 3450s and the ceiling with it. The base-ref ratchet still holds,
+because 4170s is what the base ref declares, so the total did fall, by less
+than an unmeasured cut made it look. That is the honest version of the headline
+this record was carrying.
+
+The pattern is the same one this review keeps finding, in the direction that
+flatters the author: a number was improved by removing the thing that produced
+it rather than by measuring it. The difference this time is that the record
+forbidding it was written on this branch, three sections above the cut.
+
 ### Still open after this round
 
 - `scan_pushed_heads` has no aggregate deadline, so `security-scan` has no
@@ -676,6 +701,6 @@ tests that would have said so all took the other branch.
   that fired.
 - The base-ref ratchet skips where no base ref is reachable, which is a shallow
   CI checkout. The ceiling is the only guard there.
-- `workflow-local-run`'s cap fell from 30m to 10m without a measurement on
-  a push that fires its glob. Raised in review; a push carrying a workflow
-  change is what produces that number.
+- `workflow-local-run` is still unmeasured on the path its cap protects. The
+  cap is back at 30m, which is the safe direction, not evidence. Timing an
+  `act` run in-hook on a machine with actionlint is what would close it.

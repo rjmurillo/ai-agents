@@ -135,7 +135,9 @@ guard. That gap is stated rather than closed, because a gate that reads a ref
 its environment may not have is worse than one that says when it did not run.
 
 That number was 4170s for pre-push, 69.5 minutes, against real pushes of
-142.39s. Caps resized from in-hook measurement bring it to 2850s.
+142.39s. Caps resized from in-hook measurement bring it to 3450s. It
+reached 2850s before review put `workflow-local-run` back at main's 30m:
+that cut had no measurement behind it, and rule 7 is this record's own.
 
 The first attempt cut further and was wrong to. Nine jobs went below a floor
 the config does not state: `test_each_python_subprocess_budget_has_lefthook_headroom`
@@ -170,7 +172,7 @@ rather than a cap. Two different quantities.
 A hang is one job. So:
 
 ```text
-declared sum, workstation        2850s   47.5 min   (was 4170s)
+declared sum, workstation        3450s   57.5 min   (was 4170s)
 largest single child, container    150s    2.5 min   (was 1800s)
 ```
 
@@ -375,7 +377,7 @@ to CI. Five pre-push jobs match and stay:
 |---|---|---|
 | `hook-anchoring-e2e` | 20m | ADR-071 placed it here deliberately; glob-gated to hook paths |
 | `plugin-load-e2e` | 20m | ADR-071, same |
-| `workflow-local-run` | 10m | glob-gated to `.github/workflows/**`; DEGRADED to a warning in a container, which has no actionlint, so its container cost is 0s and its cost on a developer machine is unmeasured |
+| `workflow-local-run` | 30m | glob-gated to `.github/workflows/**`; DEGRADED to a warning in a container, which has no actionlint, so its container cost is 0.42s measured in-hook and its cost on a developer machine is unmeasured. Cut to 10m on this branch and restored in review: rule 7 sizes a cap from a measured worst case, and the only path a container can time is the one the cap does not protect |
 | `python-type-check` | 2m | scoped to changed files; measured 2.73s in-hook |
 | `security-scan` | 15m | ADR-054 sets an enforced 900s budget for it; not glob-gated |
 
@@ -389,7 +391,7 @@ firing**, and they are the pushes that can still outlive a container. That is
 the tail this record does not close (issue #5318).
 
 The two e2e smokes at 20m each set the expensive group's declared cost, so they
-alone account for 1200s of the 2850s workstation total. Cutting those caps
+alone account for 1200s of the 3450s workstation total. Cutting those caps
 needs a measurement, not a guess. In a container they are clamped to 150s
 regardless, which is why the container bound does not wait on that
 measurement.
@@ -484,7 +486,7 @@ itself mean tests ran.
   escape hatch nobody exercises rots. Its wiring is covered by a test.
 - The duplication between `pre-pr-validation` and the fast stage stays, and
   costs roughly 40s per push, because the cheap way to remove it was unsound.
-- The workstation declared sum is still 47.5 minutes against a 300s target, and
+- The workstation declared sum is still 57.5 minutes against a 300s target, and
   the ratchet stops it rising rather than bringing it down. Closing that needs
   the unmeasured jobs measured (issue #5318). On a workstation a hung e2e smoke
   can still run for 20 minutes, which is slow rather than destructive.
