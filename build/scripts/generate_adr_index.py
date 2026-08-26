@@ -889,8 +889,24 @@ def _atomic_write_text(path: Path, content: str) -> None:
     leaves ``path`` a regular file.
     """
     directory = path.parent
+    # tempfile.mkstemp() creates the temp file mode 0600, and os.replace()
+    # publishes that mode verbatim. The prior Path.write_text() call left an
+    # existing regular destination's mode untouched, so without this,
+    # regenerating a normally world-readable index would silently turn it
+    # owner-only on POSIX. A symlink destination has no "existing regular
+    # file mode" to preserve (the whole point is we are not writing through
+    # it), so it falls back to a plain default.
+    existing_mode: int | None
+    if path.is_symlink() or not path.is_file():
+        existing_mode = None
+    else:
+        try:
+            existing_mode = path.stat().st_mode & 0o777
+        except OSError:
+            existing_mode = None
     fd, tmp_name = tempfile.mkstemp(dir=directory, prefix=f".{path.name}.", suffix=".tmp")
     try:
+        os.fchmod(fd, existing_mode if existing_mode is not None else 0o644)
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(content)
         os.replace(tmp_name, path)
@@ -962,11 +978,30 @@ def _resolve(path: Path) -> Path:
     return path.resolve() if path.is_absolute() else (_REPO_ROOT / path).resolve()
 
 
+def _resolve_output(path: Path) -> Path:
+    """Anchor ``--output`` to the repo root without dereferencing its leaf.
+
+    ``_resolve()`` calls ``Path.resolve()``, which follows a symlink at
+    every path component, including the last one. For a path this process
+    is about to write to, that is exactly the defect ``_atomic_write_text``
+    exists to close: resolving the leaf turns a symlinked destination into
+    its target's real path before this generator ever sees the symlink, so
+    ``os.replace()`` in ``_atomic_write_text`` ends up replacing the target
+    instead of the symlink itself (CWE-59, found on the merged output of
+    this fix: a committed symlink at ``--output`` survived because ``main()``
+    resolved it here before ``generate()`` ran). Resolve only the parent
+    directory, so the leaf reaching ``_atomic_write_text`` is exactly the
+    directory entry a symlink attack would have committed.
+    """
+    base = path if path.is_absolute() else (_REPO_ROOT / path)
+    return base.parent.resolve() / base.name
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point. Returns an ADR-035 exit code."""
     args = build_parser().parse_args(argv)
     adr_dir = _resolve(args.adr_dir)
-    output_path = _resolve(args.output)
+    output_path = _resolve_output(args.output)
 
     if not adr_dir.is_dir():
         print(f"Error: ADR directory not found: {adr_dir}", file=sys.stderr)

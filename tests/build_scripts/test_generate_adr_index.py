@@ -780,6 +780,57 @@ def test_generate_does_not_write_through_a_symlinked_destination(tmp_path: Path)
     assert output.read_text(encoding="utf-8").startswith("# Architecture Decision Records")
 
 
+def test_generate_via_cli_does_not_write_through_a_symlinked_destination(
+    tmp_path: Path,
+) -> None:
+    """The CLI path must not silently dereference a symlinked ``--output``.
+
+    ``generate()`` alone is not the whole contract: ``main()`` resolves
+    ``args.output`` before calling it. A prior fix resolved the full path
+    (``Path.resolve()``, which follows a symlink at every component
+    including the last), so the process that actually runs via
+    ``build_all.py`` still overwrote a symlink's target even though the
+    unit test exercising ``generate()`` directly passed (Copilot review).
+    Drive ``main()`` here, the same entry point ``build_all.py`` uses, so a
+    regression in the CLI's own path anchoring fails this test even when
+    ``generate()`` itself is correct.
+    """
+    directory = tmp_path / "architecture"
+    _corpus(directory)
+    sentinel = tmp_path / "sentinel.txt"
+    sentinel_content = "do not touch me\n"
+    sentinel.write_text(sentinel_content, encoding="utf-8")
+    output = tmp_path / "README.md"
+    output.symlink_to(sentinel)
+
+    exit_code = generate_adr_index.main(["--adr-dir", str(directory), "--output", str(output)])
+
+    assert exit_code == 0
+    assert sentinel.read_text(encoding="utf-8") == sentinel_content
+    assert not output.is_symlink()
+    assert output.read_text(encoding="utf-8").startswith("# Architecture Decision Records")
+
+
+def test_generate_preserves_the_existing_destination_mode(tmp_path: Path) -> None:
+    """Regenerating a normally readable index must not turn it owner-only.
+
+    ``tempfile.mkstemp()`` creates its temp file mode 0600, and
+    ``os.replace()`` publishes that mode verbatim onto the destination. The
+    prior ``Path.write_text()`` call left an existing regular file's mode
+    untouched; the atomic-write replacement must match that (Copilot
+    review).
+    """
+    directory = tmp_path / "architecture"
+    _corpus(directory)
+    output = tmp_path / "README.md"
+    output.write_text("stale placeholder\n", encoding="utf-8")
+    output.chmod(0o644)
+
+    generate_adr_index.generate(directory, output)
+
+    assert (output.stat().st_mode & 0o777) == 0o644
+
+
 def test_check_passes_when_the_committed_index_is_current(tmp_path: Path) -> None:
     directory = tmp_path / "architecture"
     _corpus(directory)
