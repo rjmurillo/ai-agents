@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 4aaa8be9873ed4122b213bfb075c65c48b08b10f
+qaCommit: a434f2e1a943ec974049c7258513bee81f2ac303
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `4aaa8be9873ed4122b213bfb075c65c48b08b10f` (see Addendum 64)
+**Validated at commit**: `a434f2e1a943ec974049c7258513bee81f2ac303` (see Addendum 65)
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -2649,4 +2649,20 @@ The companion suppressed comment on the same review (citing `tests/test_markdown
 Full suite re-run clean after the round-22 fix: `tests/test_markdown_parser.py` (82 passed) combined with `tests/validation/test_check_adr_lifecycle.py`, `tests/validation/test_check_adr_links.py`, and `tests/test_adr_063_memory_skill_decomposition.py`: 387 passed. `ruff check` on both touched files: clean. `python3 -W error::SyntaxWarning -c "import scripts.utils.markdown_parser"`: no warnings. `taste count ratchet`: OK, unchanged at baseline 575 (the file-size/complexity taste-lint findings on both touched files are advisory-only and pre-existing, unchanged in kind since round 15). `pre_pr.py` (full suite): passed on the round-22 commit.
 
 **Rebound to** `4aaa8be9873ed4122b213bfb075c65c48b08b10f`.
+
+## Addendum 65: round 23, the merged round-22 fix had a quadratic-scan defect and an uncovered escape-parity branch
+
+The owner merged PR #5323 (which carried the round-22 fix, commit `4aaa8be98`) via squash merge (`865255d6e`) before a Copilot review landed on PR #5323. That review, arriving one minute after the merge, found two real gaps in `_find_unescaped_occurrence`'s round-22 fix, delivered as two review threads (CWE-400 quadratic work; a test-coverage gap on the escape rule's even-parity branch). Since the branch that carried round 22 was already merged, this round restarted the designated branch from `origin/main` (which already includes commit `865255d6e`) rather than reopening or rewriting the merged history, per this repo's non-destructive branch-recovery pattern for an already-merged PR.
+
+**Finding 1: quadratic backslash-count scan (CWE-400, Medium, risk 5/10).** `_is_backslash_escaped` computed parity by slicing `markdown[:pos]` and calling `.rstrip("\\")` on the copy. `_find_unescaped_occurrence`'s retry loop calls this once per rejected candidate, and each rejected candidate's position can sit arbitrarily far into the document, so a document with N backslash-escaped decoys sharing the real token's content costs N slices of growing size: O(N) calls times O(N) average slice length, O(N^2) overall. Verified empirically before fixing: timing the slice-based implementation against a backward-scan alternative on 1000/2000/4000/8000 escaped decoys (each `` \<!--x--> `` immediately before an unescaped real occurrence) showed the slice version's wall time roughly quadrupling on each doubling of decoy count (0.6ms, 1.7ms, 6.1ms, 21.4ms), while the backward scan grew linearly (0.26ms, 0.56ms, 1.4ms, 3.0ms) and returned an identical match position in every case.
+
+**Fix**: rewrote `_is_backslash_escaped` to walk backward from `pos` one character at a time, counting the consecutive backslash run immediately preceding it, instead of slicing the whole prefix. The parity result is unchanged (same odd/even rule, same return value for every input); only the cost changed, from proportional to `pos` on every call to proportional to the immediately preceding backslash run's own length. `_next_unescaped_backtick` was left as-is: it slices a single already-extracted line (bounded by that line's length, not the whole document) and is not called from a retry loop that can amplify rejected candidates, so it does not share this defect's amplification shape.
+
+**Finding 2: the round-22 regression test never exercised an even, nonzero backslash count.** `test_an_escaped_html_comment_opener_cannot_steal_a_real_comments_match` (round 22) covers an ODD count (1, the decoy, escaped) and a ZERO count (the real comment, unescaped): both are the cases the fixed and the naive "any backslash escapes" implementation would have agreed on before this round, since zero backslashes reads as unescaped and a broken `count > 0` check only diverges from the correct `count % 2 == 1` check when the count is even AND nonzero. Verified by mutation: reverting the round-22 fix's parity check alone (not the round-23 backward-scan rewrite) to `count > 0` left all 82 round-22 tests green, confirming none of them exercised the even-nonzero branch.
+
+**Fix**: added `test_an_even_backslash_count_before_the_real_comment_is_not_escaped`, reusing the round-22 fixture's odd-escaped decoy but appending a SECOND occurrence preceded by two backslashes. Per CommonMark spec section 2.4, two backslashes escape each other (the first escapes the second, producing one literal `\` character), so the following `<!--` is genuinely unescaped: verified empirically via markdown-it-py's own tokenizer that `` "prose \<!--\n**Status**: Accepted\n--> more \\<!--\n**Status**: Accepted\n-->\n" `` produces exactly one `html_inline` child (the double-backslash-preceded comment), confirming that position is a real, separate token, not a second decoy. `_find_unescaped_occurrence`'s `markdown.find` still hits the odd-escaped decoy's raw bytes first (identical content, earlier in the source), so the new test also re-exercises the odd-rejection path before reaching the even-count real match. Mutation-proven: reverting `_is_backslash_escaped`'s `count % 2 == 1` to `count > 0` reproduces `Accepted` appearing twice (the real comment's hidden status leaks unmasked, since the even-count position is wrongly rejected and no later occurrence exists to fall back to) and fails exactly the new test, while all 82 other tests in the file stay green.
+
+Full suite re-run clean after the round-23 fixes: `tests/test_markdown_parser.py` (83 passed, +1) combined with `tests/validation/test_check_adr_lifecycle.py`, `tests/validation/test_check_adr_links.py`, and `tests/test_adr_063_memory_skill_decomposition.py`: 388 passed. `ruff check` on both touched files: clean. `python3 -W error::SyntaxWarning -c "import scripts.utils.markdown_parser"`: no warnings. `taste count ratchet`: OK, unchanged at baseline 575 (the file-size/complexity taste-lint findings on both touched files remain advisory-only and pre-existing, unchanged in kind since round 15).
+
+**Rebound to** `a434f2e1a943ec974049c7258513bee81f2ac303`.
 
