@@ -40,9 +40,17 @@ _CONTAINER_CEILING = policy.CONTAINER_SUBPROCESS_CEILING_SECONDS
 
 
 def _detector(*, in_container: bool) -> types.ModuleType:
-    """A stand-in for the sibling module `_arm_container_watchdog` imports."""
+    """A stand-in for the sibling module `_arm_container_watchdog` imports.
+
+    Written through `__dict__` because the two obvious spellings each fail a
+    different gate. `module._is_remote_container = ...` fails mypy, which knows
+    ModuleType has no such attribute, and `setattr(module, "...", ...)` is
+    rewritten back into that spelling by ruff's B010 autofix, so the pair
+    oscillates. Assigning into the namespace says the same thing and is what
+    both are describing anyway.
+    """
     module = types.ModuleType("run_workflow_local_test")
-    module._is_remote_container = lambda: in_container
+    module.__dict__["_is_remote_container"] = lambda: in_container
     return module
 
 
