@@ -227,7 +227,7 @@ class TestSweepReportContentValidation:
 
     def test_artifact_wrong_schema_version_returns_none(self, tmp_path: Path) -> None:
         """build_report's schemaVersion "gates future shape changes"
-        (scripts/eval/_model_sweep_core.py:469-474); a report claiming a
+        (scripts/eval/_model_sweep_core.py:474-475); a report claiming a
         different version has not committed to the field set this module
         reads, even if every other field looks otherwise valid."""
         manifest = {
