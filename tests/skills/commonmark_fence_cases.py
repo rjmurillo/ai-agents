@@ -123,8 +123,8 @@ def oracle_fence_lines(text: str) -> set[int]:
 #     uv run python -c "import sys,hashlib; sys.path.insert(0,'tests/skills'); \
 #       import commonmark_fence_cases as O; n=sorted(O.CASES); \
 #       print(len(n), hashlib.sha256(chr(10).join(n).encode()).hexdigest()[:16])"
-CASE_COUNT = 108
-CASE_DIGEST = "3da84182eaf4773d"
+CASE_COUNT = 122
+CASE_DIGEST = "75bf6ade338c7050"
 
 
 def case_inventory() -> tuple[int, str]:
@@ -435,5 +435,48 @@ CASES: dict[str, str] = {
     # The control: whitespace INSIDE a real label is still a definition.
     "Unicode whitespace inside a label is still a definition":
         "[a\u00a0b]: /url\n2. ```\n   code\n   ```\n",
+    # Rule 16 continued. The angle destination form may carry an ESCAPED copy
+    # of either delimiter. `find(">")` stopped at the first one and a substring
+    # test rejected the other, so both of these read as prose while the
+    # reference parser reads them as definitions, and `--write` appended a
+    # fence to a balanced document.
+    "an escaped closing angle stays inside the destination":
+        "[foo]: <a\\>b>\n2. ```\n   code\n   ```\n",
+    "an escaped opening angle stays inside the destination":
+        "[foo]: <a\\<b>\n2. ```\n   code\n   ```\n",
+    # The controls: an UNESCAPED inner `<` is still not a destination, and an
+    # escaped BACKSLASH still lets the next `>` close.
+    "an unescaped inner angle is not a destination":
+        "[foo]: <a<b>\n2. ```\n   code\n   ```\n",
+    "an escaped backslash still lets the angle close":
+        "[foo]: <a\\\\>\n2. ```\n   code\n   ```\n",
+    # And a title may run across lines until its delimiter arrives, which the
+    # parser had no state for at all: it needed a third pending state beside
+    # the destination and the bare title. All three delimiters, because the
+    # missing state is the shape, not the syntax.
+    "a double-quoted title may span two lines":
+        "[foo]: /url \"a\nb\"\n2. ```\n   code\n   ```\n",
+    "a single-quoted title may span two lines":
+        "[foo]: /url 'a\nb'\n2. ```\n   code\n   ```\n",
+    "a parenthesised title may span two lines":
+        "[foo]: /url (a\nb)\n2. ```\n   code\n   ```\n",
+    "a title may span three lines":
+        "[foo]: /url \"a\nb\nc\"\n2. ```\n   code\n   ```\n",
+    "a next-line title may itself span two lines":
+        "[foo]: /url\n\"a\nb\"\n2. ```\n   code\n   ```\n",
+    # Controls for that state, each measured against the reference parser: a
+    # block start ABANDONS the title and the whole run is a paragraph, junk
+    # after the closing delimiter is not a definition, and a title that never
+    # closes before a blank line was never one.
+    "a list marker abandons an open title":
+        "[foo]: /url \"a\n2. b\"\n2. ```\n   code\n   ```\n",
+    "a fence abandons an open title":
+        "[foo]: /url \"a\n```b\"\n2. ```\n   code\n   ```\n",
+    "four columns of indent do not abandon an open title":
+        "[foo]: /url \"a\n    b\"\n2. ```\n   code\n   ```\n",
+    "junk after a multi-line title is not a definition":
+        "[foo]: /url \"a\nb\" junk\n2. ```\n   code\n   ```\n",
+    "a title that never closes is not a definition":
+        "[foo]: /url \"a\nb\n\n2. ```\n   code\n   ```\n",
 }
 

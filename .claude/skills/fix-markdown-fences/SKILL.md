@@ -122,9 +122,10 @@ documentation:
   block and leaves no paragraph open, so a list may start after one; but a
   definition cannot interrupt a paragraph that is already open, its
   destination and title must be complete (`[foo]: <broken` is prose), its
-  destination balances parentheses at any depth while a title may escape
-  its own delimiter, a continuation belongs to the same leaf block and so
-  keeps its meaning at any indent, and
+  destination balances parentheses at any depth and may escape either
+  angle delimiter while a title may escape its own and may run across
+  lines until that delimiter arrives, a continuation belongs to the same
+  leaf block and so keeps its meaning at any indent, and
   either the destination or a bare title may sit on the following line, and
   a blank line, a fenced block, a list marker or an indented code block
   cancels a definition still waiting for one, while a line that does

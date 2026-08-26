@@ -324,7 +324,16 @@ class TestScannerParity:
             assert getattr(mod, name).pattern == getattr(prose, name).pattern, (
                 f"{name} has drifted"
             )
-        for name in ("_link_destination_end", "_link_tail", "_link_reference"):
+        assert mod._TITLE_CLOSERS == prose._TITLE_CLOSERS, "_TITLE_CLOSERS has drifted"
+        for name in (
+            "_angle_destination_end",
+            "_link_destination_end",
+            "_link_tail",
+            "_link_reference",
+            "_title_end",
+            "_bare_title",
+            "_Definition",
+        ):
             assert inspect.getsource(getattr(mod, name)) == inspect.getsource(
                 getattr(prose, name)
             ), f"{name} has drifted between the two skills"

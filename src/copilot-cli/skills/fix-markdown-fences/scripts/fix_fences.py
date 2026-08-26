@@ -124,6 +124,29 @@ _LINK_LABEL_ONLY = re.compile(rf"^{_LINK_LABEL}:[ \t]*$")
 _LINK_LABEL_COLON = re.compile(rf"^{_LINK_LABEL}:[ \t]*")
 
 
+def _angle_destination_end(body: str, start: int) -> int | None:
+    """Return the index just past the `<...>` destination at *start*, or None.
+
+    Character by character, not `find(">")`. CommonMark lets the angle form
+    carry an ESCAPED copy of either delimiter, so `find` stopped at the `\\>`
+    in `<foo\\>bar>` and a substring test rejected the `\\<` in `<foo\\<bar>`.
+    Both are valid definitions, both were read as prose, and `--write` then
+    appended a fence to a balanced document.
+    """
+    index = start + 1
+    while index < len(body):
+        char = body[index]
+        if char == "\\" and index + 1 < len(body):
+            index += 2
+            continue
+        if char == "<":
+            return None  # an UNESCAPED `<` may not appear inside
+        if char == ">":
+            return index + 1
+        index += 1
+    return None  # the angle form never closed
+
+
 def _link_destination_end(body: str, start: int) -> int | None:
     """Return the index just past the link destination at *start*, or None.
 
@@ -136,15 +159,12 @@ def _link_destination_end(body: str, start: int) -> int | None:
     get wrong; the reference parser accepts four levels and offers no reason
     to believe it stops there.
 
-    The angle form is handled first because a bare run must not begin with
-    `<`: letting it swallow `<broken` is the defect this grammar exists to
-    prevent.
+    The angle form is delegated but tested first, because a bare run must not
+    begin with `<`: letting it swallow `<broken` is the defect this grammar
+    exists to prevent.
     """
     if start < len(body) and body[start] == "<":
-        end = body.find(">", start + 1)
-        if end == -1 or "<" in body[start + 1 : end]:
-            return None
-        return end + 1
+        return _angle_destination_end(body, start)
     index, depth = start, 0
     while index < len(body):
         char = body[index]
@@ -165,28 +185,87 @@ def _link_destination_end(body: str, start: int) -> int | None:
     return index
 
 
-def _link_tail(body: str, start: int) -> bool | None:
-    """Return whether a title follows the destination beginning at *start*.
+_TITLE_CLOSERS = {'"': '"', "'": "'", "(": ")"}
 
-    None when the rest of the line is not a complete destination optionally
-    followed by one title. False means a definition carrying no title, which
-    is what lets a bare title continue it on the next line, so callers must
-    test `is None` rather than truthiness.
+
+def _title_end(body: str, start: int) -> int | str | None:
+    """Return the index past a title at *start*, the delimiter it awaits, or None.
+
+    A CommonMark title may run across lines until its closing delimiter, so a
+    title that opens here and does not close is not a failure: it is a state.
+    A string result IS that state, the delimiter still expected; an int is a
+    title complete on this line. Callers distinguish them with `isinstance`,
+    because both are truthy and only one means "done".
+    """
+    if start >= len(body):
+        return None
+    closer = _TITLE_CLOSERS.get(body[start])
+    if closer is None:
+        return None
+    index = start + 1
+    while index < len(body):
+        char = body[index]
+        if char == "\\" and index + 1 < len(body):
+            index += 2  # a delimiter may be escaped inside its own title
+            continue
+        if char == closer:
+            return index + 1
+        if closer == ")" and char == "(":
+            return None  # an UNESCAPED `(` may not appear in a parenthesised title
+        index += 1
+    return closer
+
+
+@dataclass(frozen=True, slots=True)
+class _Definition:
+    """What a parsed link reference definition still expects.
+
+    `awaiting_title` means it carries none yet, so a bare title may continue it
+    on the next line. `open_title` is the delimiter a title opened on this line
+    is still waiting for. Both empty means the definition is complete.
+    """
+
+    awaiting_title: bool = False
+    open_title: str | None = None
+
+
+def _link_tail(body: str, start: int) -> _Definition | None:
+    """Return what the definition beginning at *start* still expects, or None.
+
+    None means the rest of the line is not a destination optionally followed by
+    one title, so the line is prose. Callers must test `is None` rather than
+    truthiness, because a complete definition is a falsy-looking empty record.
     """
     end = _link_destination_end(body, start)
     if end is None:
         return None
     rest = body[end:]
     if not rest.strip(" \t"):
-        return False
+        return _Definition(awaiting_title=True)
     separated = rest.lstrip(" \t")
     if len(separated) == len(rest):
         return None  # a title must be separated from the destination
-    return True if _LINK_TITLE_ONLY.match(separated) else None
+    result = _title_end(body, end + len(rest) - len(separated))
+    if result is None:
+        return None
+    if isinstance(result, str):
+        return _Definition(open_title=result)
+    return None if body[result:].strip(" \t") else _Definition()
 
 
-def _link_reference(body: str) -> bool | None:
-    """Return whether a same-line definition carries a title, or None for prose."""
+def _bare_title(body: str) -> bool | str | None:
+    """Return True for a complete title line, the awaited delimiter, or None.
+
+    This is the next-line form, which may itself open a multi-line title.
+    """
+    result = _title_end(body, 0)
+    if result is None or isinstance(result, str):
+        return result
+    return True if not body[result:].strip(" \t") else None
+
+
+def _link_reference(body: str) -> _Definition | None:
+    """Return what a same-line definition still expects, or None for prose."""
     match = _LINK_LABEL_COLON.match(body)
     return None if match is None else _link_tail(body, match.end())
 _MAX_LIST_PAD = 4
@@ -365,6 +444,7 @@ class _ListContainers:
         "_columns",
         "_in_paragraph",
         "_item_still_empty",
+        "_open_title",
     )
 
     def __init__(self) -> None:
@@ -373,6 +453,7 @@ class _ListContainers:
         self._item_still_empty = False
         self._awaiting_link_title = False
         self._awaiting_link_destination = False
+        self._open_title: str | None = None
 
     def over_indented(self, indent: str) -> bool:
         """Return True when *indent* puts the marker inside an indented code block."""
@@ -384,6 +465,7 @@ class _ListContainers:
             self._in_paragraph = False  # a blank line ends any open paragraph
             self._awaiting_link_title = False  # and ends a pending definition
             self._awaiting_link_destination = False
+            self._open_title = None  # an unclosed title dies with the blank too
             if self._item_still_empty and self._columns:
                 # Rule 8: an item may begin with at most one blank line, so a
                 # blank directly after an empty marker closes it. Without this
@@ -398,7 +480,11 @@ class _ListContainers:
         # only `_in_paragraph` here popped the item on a dedented title, the
         # fence below it then opened at column zero instead of inside the item,
         # nothing could close it, and `--write` appended to a balanced document.
-        pending = self._awaiting_link_title or self._awaiting_link_destination
+        pending = (
+            self._awaiting_link_title
+            or self._awaiting_link_destination
+            or self._open_title is not None
+        )
         if (self._in_paragraph or pending) and not self._starts_a_block(line):
             return  # rule 6: a lazy continuation keeps its container open
         width = _indent_width(line[: len(line) - len(line.lstrip(" \t"))])
@@ -418,6 +504,27 @@ class _ListContainers:
         # open and let `--write` append a closer to a balanced document.
         self._awaiting_link_title = False
         self._awaiting_link_destination = False
+        self._open_title = None
+
+    def _consume_open_title(self, line: str) -> None:
+        """Advance a title that opened on an earlier line over *line*.
+
+        The definition completes only when the closing delimiter arrives with
+        nothing but whitespace behind it; anything else makes the whole run
+        ordinary paragraph text, which is what `_in_paragraph` then records.
+        """
+        closer = self._open_title
+        index = 0
+        while index < len(line):
+            char = line[index]
+            if char == "\\" and index + 1 < len(line):
+                index += 2
+                continue
+            if char == closer:
+                self._open_title = None
+                self._in_paragraph = bool(line[index + 1 :].strip(" \t"))
+                return
+            index += 1
 
     def observe(self, line: str) -> int | None:
         """Open a container when *line* starts a list item, then track paragraphs.
@@ -429,6 +536,22 @@ class _ListContainers:
         """
         if _is_blank(line):
             return None  # `sync` already ended the paragraph
+        if self._open_title is not None:
+            if not self._starts_a_block(line):
+                # Every character of this line belongs to a title that opened
+                # earlier, so nothing on it starts a block.
+                self._consume_open_title(line)
+                return None
+            # A block start ABANDONS the definition. Measured against the
+            # reference parser over thirteen continuation shapes: a list
+            # marker of either kind, an ATX heading, a block quote and a fence
+            # each leave the whole run one paragraph, while plain text, two or
+            # four columns of indent, and lines that only look like a thematic
+            # break or a setext underline all let the title finish. What was
+            # a definition is therefore paragraph text, and this line is then
+            # judged against that paragraph rather than against a clean slate.
+            self._open_title = None
+            self._in_paragraph = True
         item = self._list_item(line)
         if item is not None:
             column, has_content = item
@@ -448,6 +571,7 @@ class _ListContainers:
             # appended a closer to a balanced document.
             self._awaiting_link_title = False
             self._awaiting_link_destination = False
+            self._open_title = None
             return column
         self._item_still_empty = False  # this line is the item's first content
         content = self._relative(line)
@@ -476,7 +600,7 @@ class _ListContainers:
         # is why these are tested with `is None` and never for truthiness.
         definition = None if self._in_paragraph else _link_reference(body)
         dest_line = _link_tail(body, 0) if self._awaiting_link_destination else None
-        title_line = self._awaiting_link_title and bool(_LINK_TITLE_ONLY.match(body))
+        title_line = _bare_title(body) if self._awaiting_link_title else None
         label_only = not self._in_paragraph and bool(_LINK_LABEL_ONLY.match(body))
         self._in_paragraph = not (
             _ATX_HEADING.match(body)
@@ -485,13 +609,20 @@ class _ListContainers:
             or _BLOCK_QUOTE.match(body)
             or (self._in_paragraph and _SETEXT_UNDERLINE.match(body))
             or definition is not None
-            or title_line
+            or title_line is not None
             or dest_line is not None
         )
         self._awaiting_link_destination = label_only
-        # False, not None: a definition that parsed and carried no title. A
-        # bare title on the next line continues exactly that one.
-        self._awaiting_link_title = definition is False or dest_line is False
+        self._awaiting_link_title = (
+            definition is not None and definition.awaiting_title
+        ) or (dest_line is not None and dest_line.awaiting_title)
+        # A title may open on this line and close lines later, so record the
+        # delimiter it is waiting for rather than rejecting the definition.
+        self._open_title = (
+            (definition.open_title if definition is not None else None)
+            or (dest_line.open_title if dest_line is not None else None)
+            or (title_line if isinstance(title_line, str) else None)
+        )
         return None
 
     def _outdents(self, indent: str) -> bool:
