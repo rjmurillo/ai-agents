@@ -65,7 +65,7 @@ def _normalize_id(model_id: str) -> str:
 def _agent_name_from_unit(unit: object) -> str | None:
     """Derive the agent name ``build_report`` would have recorded for this unit.
 
-    Mirrors ``build/generate_agents.py:265``
+    Mirrors ``build/generate_agents.py:303``
     (``agent_name = shared_file.stem.replace(".shared", "")``) verbatim: the
     unit is ``templates/agents/<name>.shared.md``, and
     ``scripts/eval/_model_sweep_core.py:481``'s ``build_report`` writes that

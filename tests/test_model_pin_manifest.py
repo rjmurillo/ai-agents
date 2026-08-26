@@ -140,7 +140,7 @@ def _keep_pin_entry(
             default_id = (
                 default_model if isinstance(default_model, str) else DEFAULT_MODEL
             )
-            # Matches build/generate_agents.py:265's agent_name derivation
+            # Matches build/generate_agents.py:303's agent_name derivation
             # verbatim, since build_report's own "agent" field records that
             # same value; see model_pin_sweep_evidence.py:_agent_name_from_unit.
             agent = Path(str(unit)).stem.replace(".shared", "")
