@@ -112,9 +112,19 @@ documentation:
 - A list item's content column is not always the marker plus its padding. Five
   or more spaces after the marker means the content column is the marker plus
   one; an item with no content on its line is the same. A marker that is itself
-  indented code opens no item, and a list may interrupt a paragraph only when
-  the item is non-empty and, if ordered, starts at 1. Getting any of these
-  wrong moves the content column, which moves what counts as a fence.
+  indented code opens no item, a thematic break is never an item even though
+  `* * *` matches the bullet grammar, and a list may interrupt a paragraph only
+  when the item is non-empty and, if ordered, starts at 1 (leading zeros do not
+  change that start). A blank line directly after an empty marker closes the
+  item, and a paragraph continuation line may dedent without closing it.
+  Getting any of these wrong moves the content column, which moves what counts
+  as a fence.
+- Known gap: content on the marker line that is itself a block start is not
+  re-processed. `- - a` opens one item here and two in CommonMark, `-` + a
+  fence marker does not open a fenced block, and `- # h` is not read as a
+  heading. Closing that means re-parsing the rest of the line against the
+  container just opened. The scanners' agreement with a CommonMark reference
+  is measured by the fuzz baselines in the repository's test suite.
 
 Files are read and written as bytes, so CRLF and CR endings survive, a UTF-8
 BOM survives, and the Unicode separators `str.splitlines` would swallow (form

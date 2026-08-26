@@ -89,7 +89,7 @@ _FENCE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
 # root and is quoted here rather than imported, because the two skills ship
 # as separate directories and neither is on the other's import path.
 #
-# `skills/fix-markdown-fences/scripts/fix_fences.py` lines 140-142, verbatim:
+# `skills/fix-markdown-fences/scripts/fix_fences.py` lines 151-153, verbatim:
 #
 #     def over_indented(self, indent: str) -> bool:
 #         """Return True when *indent* puts the marker inside an indented code block."""
@@ -152,13 +152,24 @@ class _ListContainers:
     7. Paragraph state follows blocks, not raw lines. A fence, an ATX
        heading, and a thematic break all end a paragraph, and each is
        recognized relative to the container rather than to column zero.
+    8. An item may begin with at most one blank line, so a blank directly
+       after an empty marker closes it rather than continuing it.
+
+    Deliberately not implemented: content on the marker line that is itself a
+    block start. `- - a` opens two items in CommonMark and one here, `- ``` `
+    opens a fenced block on the marker line, and `- # h` is a heading inside
+    the item. Handling them means re-processing the rest of the line against
+    the container just opened, which is a parser rather than a tracker. None
+    of these appears in this repository's Markdown, and the fuzz baselines in
+    `tests/skills/commonmark_fence_cases.py` measure what the gap costs.
     """
 
-    __slots__ = ("_columns", "_in_paragraph")
+    __slots__ = ("_columns", "_in_paragraph", "_item_still_empty")
 
     def __init__(self) -> None:
         self._columns: list[int] = []
         self._in_paragraph = False
+        self._item_still_empty = False
 
     def over_indented(self, indent: str) -> bool:
         """Return True when *indent* puts the marker inside an indented code block."""
@@ -168,6 +179,13 @@ class _ListContainers:
         """Close containers that *line* has dedented out of."""
         if not line.strip():
             self._in_paragraph = False  # a blank line ends any open paragraph
+            if self._item_still_empty and self._columns:
+                # Rule 8: an item may begin with at most one blank line, so a
+                # blank directly after an empty marker closes it. Without this
+                # the stale column made the next indented block look list-nested,
+                # and `--write` would then fence literal indented code.
+                self._columns.pop()
+                self._item_still_empty = False
             return
         if self._in_paragraph and not self._starts_a_block(line):
             return  # rule 6: a lazy continuation keeps its container open
@@ -178,6 +196,7 @@ class _ListContainers:
     def opened_fence(self) -> None:
         """Record that a fenced block opened on this line."""
         self._in_paragraph = False  # rule 7: a fence ends the paragraph
+        self._item_still_empty = False  # the fence is the item's content
 
     def observe(self, line: str) -> None:
         """Open a container when *line* starts a list item, then track paragraphs."""
@@ -188,7 +207,9 @@ class _ListContainers:
             column, has_content = item
             self._columns.append(column)
             self._in_paragraph = has_content
+            self._item_still_empty = not has_content
             return
+        self._item_still_empty = False  # this line is the item's first content
         content = self._relative(line)
         body = content.lstrip(" ")
         if len(content) - len(body) > _MAX_FENCE_INDENT:
