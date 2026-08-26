@@ -14,8 +14,24 @@ Respond to PR review comments for: the problem statement from the conversation (
 
 Load configuration from `pr-review-config.yaml` for scripts, completion criteria,
 error recovery, and failure handling tables. In this repository the live config
-sits beside the PR review command. The bundled Copilot CLI copy is a reference
-artifact, not a runnable completion-gate config.
+sits beside the PR review command.
+
+The bundled copy IS runnable from an installed plugin (issue #5112, Option 1).
+When `resolve_pr_review_config` lands on a config inside a host-declared plugin
+root (`COPILOT_PLUGIN_ROOT` or `CLAUDE_PLUGIN_ROOT`) that is itself outside the
+consumer's git work tree, the completion gate treats that origin as
+install-trusted: the operator installed it and PR content cannot write there, so
+the gate skips the byte-identity check it would otherwise run against the trusted
+ref. This reverses an earlier stance that called the bundled copy a reference
+artifact; under that stance an installed `/pr-review` could not dispatch at all,
+because path containment refused the config before any check ran.
+
+Two limits, because the widening is narrow. The `$repo_root/.claude` fallback in
+the list below gets NO such treatment even if a plugin-root variable points at
+it: that path is written by the checked-out PR and keeps the full trust check.
+And only the config origin widens. The commands the config names are still
+verified against the trusted ref, so an install-trusted config cannot execute a
+PR-rewritten verifier script.
 
 ## Context
 
