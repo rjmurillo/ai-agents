@@ -1,6 +1,6 @@
 ---
 name: prose-self-check
-version: 0.2.0
+version: 0.3.0
 description: Pre-emit AI-vernacular self-check an agent runs on its OWN prose
   before writing a session-log narrative, ADR context section, retrospective, or
   PR description. Four layers ordered by reader-trust, not ease of detection.
@@ -135,9 +135,11 @@ paragraph, name the one disagreeable claim it makes, the thing a reasonable
 reader could push back on. If you cannot name it, the paragraph is filler.
 Either give it a real claim with evidence or cut it.
 
-This is where low-signal Layer 1 words get adjudicated: a `however` inside a
-paragraph that survives the emptiness gate stays; a `however` inside filler goes
-with the filler.
+This is where low-signal Layer 1 words get adjudicated: a `comprehensive`
+inside a paragraph that survives the emptiness gate stays; one inside filler
+goes with the filler. The tiers are intersected with the voice rule, so a
+low-signal word the rule does not ban (`however`, `thus` today) stays dormant
+and never reaches you.
 
 ## Output
 
@@ -186,12 +188,22 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/prose-sel
 Each finding prints as `FILE:LINE:COLUMN: SEVERITY: KIND: MATCH (note)`.
 `-` reads stdin, which is how you check a draft that is not a file yet.
 
+Every run ends with what it examined, not only what it found: `0 findings in
+N prose line(s) of M in K file(s)`. A fence that never closes hides the rest
+of the document from the scanner, so it is reported as its own high-severity
+`unterminated_fence` finding rather than letting a barely-read file exit 0.
+
+Layer 2 matches across the whole document, so a tell that straddles a hard
+wrap is still caught. A blank line ends the match: the shapes are sentences,
+not paragraphs.
+
 The voice rule is discovered in this order: `--rules`, then
 `$CLAUDE_PLUGIN_ROOT/rules/voice.md`, then
 `$COPILOT_PLUGIN_ROOT/instructions/voice.instructions.md`, then
 `.claude/rules/voice.md` or `.github/instructions/voice.instructions.md`
-under the current directory, then the same two paths under the plugin install
-root. When no copy is reachable the script warns on stderr and runs the dash
+under the current directory, then `rules/voice.md` or
+`instructions/voice.instructions.md` under the plugin install root (the
+directory holding `.claude-plugin/plugin.json`). When no copy is reachable the script warns on stderr and runs the dash
 and structural checks only, so a vendored install degrades instead of failing.
 
 Exit codes (ADR-035):

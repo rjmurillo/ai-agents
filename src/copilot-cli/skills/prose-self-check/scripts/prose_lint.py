@@ -33,6 +33,9 @@ masking runs over the whole document, not line by line, because a wrapped
 ``code span`` is exactly how a document that DOCUMENTS these tells writes
 them.
 
+Every run prints what it examined, not only what it found: a document whose
+unterminated fence hid most of its prose must not read as a clean one.
+
 EXIT CODES (ADR-035):
   0 - No high-severity findings. Info findings may still be present.
   1 - At least one high-severity finding.
@@ -42,6 +45,7 @@ EXIT CODES (ADR-035):
 from __future__ import annotations
 
 import argparse
+import bisect
 import json
 import os
 import re
@@ -51,6 +55,8 @@ from pathlib import Path
 
 HIGH = "high"
 INFO = "info"
+
+UNTERMINATED_FENCE = "unterminated_fence"
 
 # Written as escapes, not literals: this file ships in the plugin tree,
 # where the dash ban is enforced at the byte level (Issue #4079).
@@ -77,17 +83,31 @@ _BANNED_HEADING = re.compile(r"^#{1,6}\s+Banned Vocabulary\s*$", re.MULTILINE)
 _NEXT_HEADING = re.compile(r"^#{1,6}\s+", re.MULTILINE)
 _CODE_TOKEN = re.compile(r"`([^`]+)`")
 _WORD_ONLY = re.compile(r"^[a-z][a-z'-]*$")
+_TOKEN = re.compile(r"[A-Za-z]+(?:['-][A-Za-z]+)*")
+# A token touching one of these is part of a URL slug, an identifier, or
+# a tag, not prose. `robust` inside `https://x.com/robust` is not a word
+# choice anyone can rewrite.
+_NON_PROSE_NEIGHBORS = frozenset("/_>=\\")
 
-_FENCE = re.compile(r"^[ \t]*(`{3,}|~{3,})")
+_FENCE = re.compile(r"^[ \t]*(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
 _INLINE_CODE = re.compile(r"`[^`]*`", re.DOTALL)
 
 # Layer 2 structural tells. Each pattern targets one shape SKILL.md names.
+# A clause gap may cross one hard wrap but never a paragraph break, so a tell
+# in prose wrapped near 80 columns is still seen.
+_GAP = r"(?:[^,.;:|\n]|\n(?!\n)){1,60}"
+# The comma may be followed by one hard wrap, never a paragraph break.
+_WRAP = r",[ \t]*(?:\n(?!\n)[ \t]*)?"
+
 _STRUCTURAL_PATTERNS: tuple[tuple[str, re.Pattern[str], str], ...] = (
     (
         "contrast_framing",
+        # The subject is any short noun phrase, not just a pronoun. SKILL.md
+        # documents the shape as "not X, it's Y"; anchoring on it/this/that
+        # missed every sentence with a real subject.
         re.compile(
-            r"\b(?:it|this|that|there)(?:'s| is) not (?:just )?[^,.;\n]{1,60},\s*"
-            r"(?:it|this|that)(?:'s| is)\b",
+            r"\b[A-Za-z][\w'-]*(?:\s+[\w'-]+){0,3}\s+"
+            r"(?:is|was|are|were)n?(?:'t| not)\s+(?:just\s+)?" + _GAP + _WRAP + r"(?:it|this|that|they)(?:'s|'re| is| are)\b",
             re.IGNORECASE,
         ),
         "contrast framing; state the claim directly",
@@ -95,15 +115,17 @@ _STRUCTURAL_PATTERNS: tuple[tuple[str, re.Pattern[str], str], ...] = (
     (
         "contrast_framing",
         re.compile(
-            r"\b(?:is|are)n(?:'|)t about [^,.;\n]{1,60},\s*(?:it|they)(?:'s|'re| is| are)"
-            r" about\b",
+            r"\b(?:is|are)n(?:'|)t about " + _GAP + _WRAP + r"(?:it|they)(?:'s|'re| is| are) about\b",
             re.IGNORECASE,
         ),
         "contrast framing; state the claim directly",
     ),
     (
         "contrast_framing",
-        re.compile(r"\bnot [^,.;\n]{1,60},\s*but (?:rather )?\b", re.IGNORECASE),
+        # `rather` is mandatory: "not X, but rather Y" is the contrast tell,
+        # while "not X, but Y" is ordinary English and fired on 97 of 103
+        # corpus matches, this repo's own rule files among them.
+        re.compile(r"\bnot " + _GAP + _WRAP + r"but rather\b", re.IGNORECASE),
         "contrast framing; state the claim directly",
     ),
     (
@@ -197,27 +219,40 @@ def parse_banned_words(rules_text: str) -> set[str]:
     }
 
 
-def _blank_fenced_blocks(text: str) -> list[str]:
+def _blank_fenced_blocks(text: str) -> tuple[list[str], int | None]:
     """Return the lines of *text* with every fenced code block blanked out.
 
     Blanking rather than dropping keeps line numbers aligned with the source.
     Fence markers go too, so their backticks cannot pair with an inline span.
+    Returns the blanked lines and the line number of a fence still open at
+    EOF, which the caller reports: everything after it went unscanned.
     """
     lines: list[str] = []
     fence: str | None = None
-    for line in text.splitlines():
+    opened_at: int | None = None
+    for number, line in enumerate(text.splitlines(), start=1):
         match = _FENCE.match(line)
         if fence is None:
             if match is None:
                 lines.append(line)
                 continue
-            fence = match.group(1)
+            fence = match.group("fence")
+            opened_at = number
             lines.append("")
             continue
         lines.append("")
-        if match is not None and match.group(1)[0] == fence[0] and len(match.group(1)) >= len(fence):
+        # CommonMark: a closing fence carries no info string. Accepting one
+        # inverted open and close for the rest of the document, so fenced
+        # code was linted as prose and real prose was silently skipped.
+        if (
+            match is not None
+            and match.group("fence")[0] == fence[0]
+            and len(match.group("fence")) >= len(fence)
+            and not match.group("info").strip()
+        ):
             fence = None
-    return lines
+            opened_at = None
+    return lines, opened_at
 
 
 def _mask_inline_code(text: str) -> str:
@@ -233,14 +268,27 @@ def _mask_inline_code(text: str) -> str:
     )
 
 
-def _prose_lines(text: str) -> list[tuple[int, str]]:
-    """Return (line_number, masked_line) for prose outside code."""
-    masked = _mask_inline_code("\n".join(_blank_fenced_blocks(text)))
-    return [
+@dataclass(frozen=True)
+class Scan:
+    """The result of one artifact scan, with the coverage behind it."""
+
+    findings: list[Finding]
+    examined: int
+    total: int
+    unterminated_fence_line: int | None
+
+
+def _prose_lines(text: str) -> tuple[list[tuple[int, str]], str, int, int | None]:
+    """Return prose lines, the masked document, the source line count, and
+    any fence still open at EOF."""
+    blanked, opened_at = _blank_fenced_blocks(text)
+    masked = _mask_inline_code("\n".join(blanked))
+    lines = [
         (number, line)
         for number, line in enumerate(masked.split("\n"), start=1)
         if line.strip()
     ]
+    return lines, masked, len(blanked), opened_at
 
 
 def _lexical_findings(lines: list[tuple[int, str]], banned: set[str]) -> list[Finding]:
@@ -260,11 +308,21 @@ def _lexical_findings(lines: list[tuple[int, str]], banned: set[str]) -> list[Fi
                     ),
                 )
                 start = line.find(dash, start + 1)
-        for match in re.finditer(r"[A-Za-z][A-Za-z'-]*", line):
-            word = match.group(0).lower()
-            if word not in banned:
+        for match in _TOKEN.finditer(line):
+            before = line[match.start() - 1] if match.start() else ""
+            after = line[match.end()] if match.end() < len(line) else ""
+            if before in _NON_PROSE_NEIGHBORS or after in _NON_PROSE_NEIGHBORS:
                 continue
-            low = word in LOW_SIGNAL_WORDS
+            word = match.group(0).lower()
+            if word.endswith("'s"):
+                word = word[:-2]
+            # A hyphenated compound still uses the word it is built from, so
+            # `landscape-level` counts as `landscape`.
+            parts = {word, *(p for p in re.split(r"[-']", word) if p)}
+            hits = parts & banned
+            if not hits:
+                continue
+            low = hits <= LOW_SIGNAL_WORDS
             findings.append(
                 Finding(
                     line=number,
@@ -282,29 +340,79 @@ def _lexical_findings(lines: list[tuple[int, str]], banned: set[str]) -> list[Fi
     return findings
 
 
-def _structural_findings(lines: list[tuple[int, str]]) -> list[Finding]:
+def _locate(offset: int, starts: list[int]) -> tuple[int, int]:
+    """Map a document offset to a 1-indexed (line, column)."""
+    index = bisect.bisect_right(starts, offset) - 1
+    return index + 1, offset - starts[index] + 1
+
+
+def _structural_findings(masked: str) -> list[Finding]:
+    """Find Layer 2 tells across the whole masked document.
+
+    Matching per line missed every tell that straddles a hard wrap, which is
+    the common case in prose wrapped near 80 columns. That gap mattered more
+    once SKILL.md told the agent to stop scanning for these by eye.
+    """
+    starts = [0]
+    for index, char in enumerate(masked):
+        if char == "\n":
+            starts.append(index + 1)
+
     findings: list[Finding] = []
-    for number, line in lines:
-        for kind, pattern, note in _STRUCTURAL_PATTERNS:
-            for match in pattern.finditer(line):
-                findings.append(
-                    Finding(
-                        line=number,
-                        column=match.start() + 1,
-                        kind=kind,
-                        severity=HIGH,
-                        match=match.group(0).strip(),
-                        note=note,
-                    ),
-                )
+    for kind, pattern, note in _STRUCTURAL_PATTERNS:
+        for match in pattern.finditer(masked):
+            offset = match.start()
+            # A pattern anchored on (?:^|\n) consumes the newline itself.
+            if match.group(0).startswith("\n"):
+                offset += 1
+            line, column = _locate(offset, starts)
+            findings.append(
+                Finding(
+                    line=line,
+                    column=column,
+                    kind=kind,
+                    severity=HIGH,
+                    match=" ".join(match.group(0).split()),
+                    note=note,
+                ),
+            )
     return findings
+
+
+def scan_prose(text: str, banned: set[str]) -> Scan:
+    """Scan *text* and report both the findings and the coverage behind them.
+
+    A run that read almost nothing must not look like a clean one, so the
+    caller gets the examined-line count and any unterminated fence rather
+    than a bare verdict (`.claude/rules/ci-scripts.md` MUST-12).
+    """
+    lines, masked, total, opened_at = _prose_lines(text)
+    findings = _lexical_findings(lines, banned) + _structural_findings(masked)
+    if opened_at is not None:
+        findings.append(
+            Finding(
+                line=opened_at,
+                column=1,
+                kind=UNTERMINATED_FENCE,
+                severity=HIGH,
+                match="",
+                note=(
+                    f"fence never closes; lines {opened_at} to EOF went "
+                    "unscanned, so this run cannot clear Layers 1-2"
+                ),
+            ),
+        )
+    return Scan(
+        findings=sorted(findings, key=lambda f: (f.line, f.column, f.kind)),
+        examined=len(lines),
+        total=total,
+        unterminated_fence_line=opened_at,
+    )
 
 
 def lint_prose(text: str, banned: set[str]) -> list[Finding]:
     """Return every Layer 1 and Layer 2 finding in *text*, in file order."""
-    lines = _prose_lines(text)
-    findings = _lexical_findings(lines, banned) + _structural_findings(lines)
-    return sorted(findings, key=lambda f: (f.line, f.column, f.kind))
+    return scan_prose(text, banned).findings
 
 
 def _read(name: str) -> str:
@@ -313,22 +421,27 @@ def _read(name: str) -> str:
     return Path(name).read_text(encoding="utf-8")
 
 
-def _emit_text(results: dict[str, list[Finding]], rules_note: str | None) -> None:
+def _emit_text(results: dict[str, Scan], rules_note: str | None) -> None:
     if rules_note:
         print(rules_note, file=sys.stderr)
     total_high = 0
-    for name, findings in results.items():
-        for finding in findings:
+    for name, scan in results.items():
+        for finding in scan.findings:
             total_high += finding.severity == HIGH
             print(
                 f"{name}:{finding.line}:{finding.column}: {finding.severity}: "
                 f"{finding.kind}: {finding.match!r} ({finding.note})",
             )
-    if not any(results.values()):
-        print("Layers 1-2 clean. Layer 4 (emptiness gate) is still yours to run.")
-        return
-    total = sum(len(f) for f in results.values())
-    print(f"\n{total} finding(s), {total_high} high severity")
+    examined = sum(scan.examined for scan in results.values())
+    source = sum(scan.total for scan in results.values())
+    total = sum(len(scan.findings) for scan in results.values())
+    # Name what was read, not just the verdict: a run that scanned almost
+    # nothing must not read as a clean one.
+    coverage = f"{examined} prose line(s) of {source} in {len(results)} file(s)"
+    if not total:
+        print(f"Layers 1-2 clean: 0 findings in {coverage}.")
+    else:
+        print(f"\n{total} finding(s), {total_high} high severity, in {coverage}")
     print("Layer 4 (emptiness gate) is still yours to run.")
 
 
@@ -362,14 +475,14 @@ def main(argv: list[str] | None = None) -> int:
                 "running dash and structural checks only."
             )
 
-    results: dict[str, list[Finding]] = {}
+    results: dict[str, Scan] = {}
     for name in args.files:
         try:
             text = _read(name)
         except (OSError, UnicodeDecodeError) as exc:
             print(f"Error: cannot read {name}: {exc}", file=sys.stderr)
             return 2
-        results[name] = lint_prose(text, banned)
+        results[name] = scan_prose(text, banned)
 
     if args.json:
         print(
@@ -377,9 +490,20 @@ def main(argv: list[str] | None = None) -> int:
                 {
                     "rules_file": str(rules_path) if rules_path else None,
                     "banned_word_count": len(banned),
-                    "files": {n: [asdict(f) for f in fs] for n, fs in results.items()},
+                    "files": {
+                        n: {
+                            "findings": [asdict(f) for f in scan.findings],
+                            "examined_lines": scan.examined,
+                            "source_lines": scan.total,
+                            "unterminated_fence_line": scan.unterminated_fence_line,
+                        }
+                        for n, scan in results.items()
+                    },
                     "high_severity_count": sum(
-                        1 for fs in results.values() for f in fs if f.severity == HIGH
+                        1
+                        for scan in results.values()
+                        for f in scan.findings
+                        if f.severity == HIGH
                     ),
                 },
                 indent=2,
@@ -389,7 +513,9 @@ def main(argv: list[str] | None = None) -> int:
     else:
         _emit_text(results, rules_note)
 
-    has_high = any(f.severity == HIGH for fs in results.values() for f in fs)
+    has_high = any(
+        f.severity == HIGH for scan in results.values() for f in scan.findings
+    )
     return 1 if has_high else 0
 
 
