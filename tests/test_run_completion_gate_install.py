@@ -57,9 +57,20 @@ defect. ``_install_plugin`` now builds a real work tree WITH
 ``refs/remotes/origin/main``, which the install-trusted path requires like any
 other; the version that lacked one passed only because the ref check was being
 skipped, and that skip was itself the security defect (Copilot review,
-PR #5329). And the criterion here names ``printf``, a bare interpreter name
-that command trust classifies as external, so there is no work-tree file to
-byte-compare. Both facts came from running it.
+PR #5329). And the criterion here names ``printf``, which resolves to a path
+inside the work tree that is not a file, so ``_classify_argv_token`` returns
+``_ARGV_SKIP`` and there is no work-tree file to byte-compare.
+
+That second fact is stated the way it is because an earlier version of this
+paragraph got it wrong in a specific way worth naming. It said ``printf`` was
+classified as EXTERNAL, reasoning from "it is a bare interpreter name, so it
+must be outside the tree". Reading ``_classify_argv_token`` shows
+``_ARGV_EXTERNAL`` requires a resolved path outside the tree that IS a file;
+a bare name that resolves to nothing takes the ``_ARGV_SKIP`` branch instead.
+The refutation was already in this file's own end-to-end payload, where
+``skipped_external_files`` is empty, and I did not read it. Both branches
+refuse to compare, so nothing was broken, but the claim would have misled the
+next person reasoning about which tokens get verified.
 """
 
 from __future__ import annotations
@@ -106,8 +117,14 @@ _COMMAND_TRUST_HALT = "HALT: completion-gate verifier files"
 # failing on a schema error rather than on the boundary under test.
 # The criterion emits a JSON object and pass_when reads a key out of it, so a
 # run that reaches dispatch is observable in the payload rather than inferred
-# from an exit code. `printf` is a bare interpreter name, so command trust
-# classifies it as external and there is no work-tree file to byte-compare.
+# from an exit code. `printf` resolves to <cwd>/printf, which is INSIDE the
+# work tree and is not a file, so _classify_argv_token returns _ARGV_SKIP and
+# there is no work-tree file to byte-compare. Not _ARGV_EXTERNAL: that branch
+# needs a resolved path OUTSIDE the tree that IS a file, so
+# `command_trust.skipped_external_files` stays empty here. An earlier comment
+# claimed external; the payload in this file's own end-to-end case shows the
+# list empty, which was the evidence against it sitting in plain sight
+# (Copilot review, PR #5329).
 # `true` (YAML/Python) is not a pass_when literal; the evaluator wants `true`
 # lowercase, and `True` raises "Unrecognized literal in pass_when".
 _CONFIG_BODY = """completion_criteria:
@@ -376,6 +393,11 @@ def test_the_bundled_config_runs_its_criteria_end_to_end(tmp_path: Path) -> None
     assert criterion["passed"] is True
     assert criterion["exit_code"] == 0
     assert criterion["stdout_json"] == {"gate_ran": True}
+    # `printf` takes the _ARGV_SKIP branch, NOT _ARGV_EXTERNAL: it resolves
+    # inside the work tree and is not a file. Pinned because the reverse was
+    # asserted in prose here and stood for several revisions.
+    assert payload["command_trust"]["skipped_external_files"] == []
+    assert payload["command_trust"]["checked_files"] == []
 
 
 def test_copilot_plugin_root_admits_the_bundled_config(tmp_path: Path) -> None:

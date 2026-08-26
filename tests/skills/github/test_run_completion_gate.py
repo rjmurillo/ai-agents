@@ -3706,6 +3706,52 @@ class TestWorkTreeProbeFailure:
         assert "could not run git" in err, err
         assert "Refusing to load config from unsafe path" not in err, err
 
+    def test_a_symlink_loop_in_the_work_tree_path_exits_3(
+        self, tmp_path, monkeypatch, capsys,
+    ):
+        """RuntimeError from resolve() must not escape as a traceback.
+
+        CPython 3.10, 3.11 and 3.12 raise ``RuntimeError("Symlink loop
+        from ...")`` out of ``Path.resolve()``; 3.14 returns the unresolved
+        path instead. ``RuntimeError`` is not an ``OSError``, so the earlier
+        ``except OSError`` guard let it escape on exactly the interpreters
+        the hook-portability floor targets, and a local run on 3.14 could
+        never reveal that (Copilot review, PR #5329).
+
+        The exception is injected rather than produced with real symlinks,
+        because on the interpreter this suite runs under no real loop raises
+        it. That is the point: the defect is invisible to a same-version
+        reproduction, so the test has to model the other versions' contract.
+        """
+        config = self._plugin_root(tmp_path, monkeypatch)
+
+        real_resolve = Path.resolve
+
+        # Exact match, not a substring: tmp_path contains "loop" because
+        # this test is NAMED for one, and a substring trigger fired on the
+        # config path instead of the work tree.
+        looped = "/looped-work-tree"
+
+        def _looping(self, *a, **kw):
+            if str(self) == looped:
+                raise RuntimeError(f"Symlink loop from {self!r}")
+            return real_resolve(self, *a, **kw)
+
+        monkeypatch.setattr(Path, "resolve", _looping)
+        monkeypatch.setattr(
+            _dispatcher, "_run_git",
+            lambda args, cwd: subprocess.CompletedProcess(
+                args, 0, looped.encode() + b"\n", b"",
+            ),
+        )
+
+        code = _dispatcher.main(
+            ["--pull-request", "1", "--config", str(config)],
+        )
+
+        assert code == 3, code
+        assert "does not resolve" in capsys.readouterr().err
+
     def test_a_missing_git_binary_exits_3(self, tmp_path, monkeypatch, capsys):
         config = self._plugin_root(tmp_path, monkeypatch)
 

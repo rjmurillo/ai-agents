@@ -2095,6 +2095,35 @@ def _symlinked_config_component(config_arg: str) -> Path | None:
     return _first_symlinked_component(candidate, _PROJECT_ROOT)
 
 
+def _resolve_or_none(path: Path) -> Path | None:
+    """``path.resolve()``, or ``None`` when it cannot be resolved.
+
+    Exists to normalize ONE portability trap into a single place.
+    ``Path.resolve()`` does not raise a single exception family across the
+    versions this ships to: on a symlink loop, CPython 3.10, 3.11 and 3.12
+    raise ``RuntimeError("Symlink loop from ...")`` from ``pathlib``, while
+    3.14 returns the unresolved path without raising. ``RuntimeError`` is
+    not an ``OSError``, so an ``except OSError`` guard lets the loop escape
+    as an unhandled traceback on exactly the interpreters the repo's
+    hook-portability floor targets (``.claude/rules/python.md``: skill
+    scripts run under the host's ambient interpreter, floor 3.10).
+
+    Measured rather than assumed: grep of ``pathlib.py`` in the 3.10, 3.11
+    and 3.12 stdlibs shows the raise; 3.14 returned the path for the same
+    two-link loop. Found by Copilot review on PR #5329, which is a
+    reminder that "it did not raise locally" says nothing about the
+    versions a plugin is installed onto.
+
+    Callers decide what ``None`` means. None of them may treat it as
+    success: an unresolvable path cannot be shown to lie inside or outside
+    any boundary.
+    """
+    try:
+        return path.resolve()
+    except (OSError, RuntimeError):
+        return None
+
+
 def _consumer_work_tree() -> Path:
     """The consumer's git work-tree root, or :exc:`WorkTreeUnavailableError`.
 
@@ -2151,12 +2180,12 @@ def _consumer_work_tree() -> Path:
         raise WorkTreeUnavailableError(
             f"git reported an empty work-tree root for {Path.cwd()}",
         )
-    try:
-        return Path(toplevel).resolve()
-    except OSError as exc:
+    resolved = _resolve_or_none(Path(toplevel))
+    if resolved is None:
         raise WorkTreeUnavailableError(
-            f"work-tree root {toplevel!r} does not resolve: {exc}",
-        ) from exc
+            f"work-tree root {toplevel!r} does not resolve",
+        )
+    return resolved
 
 
 def _absolute_config_candidate(config_arg: str) -> Path:
@@ -2228,11 +2257,8 @@ def _host_declared_roots() -> Iterator[Path]:
         raw = os.environ.get(env_var, "").strip()
         if not raw:
             continue
-        try:
-            root = Path(raw).resolve()
-        except OSError:
-            continue
-        if root.is_dir():
+        root = _resolve_or_none(Path(raw))
+        if root is not None and root.is_dir():
             yield root
 
 
@@ -2309,7 +2335,11 @@ def _install_trusted_root(config_arg: str) -> InstallTrust | None:
     smaller capability than they already hold, and it is not a boundary
     this gate can close.
     """
-    project_root = _PROJECT_ROOT.resolve()
+    project_root = _resolve_or_none(_PROJECT_ROOT)
+    if project_root is None:
+        # Fail closed. Condition 3 compares against this tree, and a
+        # boundary that cannot be resolved cannot be compared against.
+        return None
     candidate = _absolute_config_candidate(config_arg)
     # Resolved lazily, on first use, and at most once. Only a DECLARED root
     # can install-trust anything, so a run with neither variable set (the
@@ -2349,9 +2379,8 @@ def _install_trusted_root(config_arg: str) -> InstallTrust | None:
             continue
         if not _are_disjoint(root, project_root):
             continue
-        try:
-            resolved_config = candidate.resolve()
-        except OSError:
+        resolved_config = _resolve_or_none(candidate)
+        if resolved_config is None:
             return None
         # Condition 4: resolution already followed any symlink, so a
         # link out of the install directory fails this containment.
@@ -2453,7 +2482,15 @@ def _resolve_and_read_config(config_arg: str) -> ResolvedConfig:
             return ResolvedConfig(None, None, None, 2)
         try:
             config_path = validate_safe_path(config_arg, _PROJECT_ROOT)
-        except (FileNotFoundError, ValueError) as exc:
+        except (FileNotFoundError, ValueError, RuntimeError) as exc:
+            # RuntimeError joins the pair because validate_safe_path calls
+            # (resolved_base / path).resolve() unguarded, and resolve()
+            # raises RuntimeError on a symlink loop under CPython 3.10 to
+            # 3.12 (see _resolve_or_none). Caught HERE rather than in that
+            # shared helper, which many other scripts call and which is out
+            # of scope for this change; that broader fix is flagged on the
+            # PR instead. Exit 2: a loop in --config is a bad config path,
+            # the same class as the containment failures beside it.
             print(
                 f"Refusing to load config from unsafe path {config_arg!r}: {exc}",
                 file=sys.stderr,
