@@ -157,12 +157,15 @@ Track fence state while scanning line by line:
 2. **Detect opening fence**: outside a block, a line of three or more
    backticks or tildes, indented no more than three columns past the innermost
    open list item, opens one. Record the character, the length, and the indent.
-3. **Detect malformed closing fence**: inside a block, a line using the same
+3. **Detect the end of the containing item**: inside a block that opened
+   inside a list item, a line indented below that item's content column ends
+   the block, with no closing marker and nothing inserted.
+4. **Detect malformed closing fence**: inside a block, a line using the same
    character at the same length or longer, carrying a non-empty info string.
    Insert a bare closing fence before it.
-4. **Detect valid closing fence**: the same character at the same length or
+5. **Detect valid closing fence**: the same character at the same length or
    longer with an empty info string. Exit the block.
-5. **At end of file**: a still-open block gets a bare closing fence appended.
+6. **At end of file**: a still-open block gets a bare closing fence appended.
 
 ## Verification
 
