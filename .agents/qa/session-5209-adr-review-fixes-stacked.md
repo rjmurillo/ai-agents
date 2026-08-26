@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: f87a1585f756ae4536256c4f9b9be3699137a776
+qaCommit: 4aaa8be9873ed4122b213bfb075c65c48b08b10f
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -9,7 +9,7 @@ qaCommit: f87a1585f756ae4536256c4f9b9be3699137a776
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `main` (retargeted by GitHub after PR #5209 squash-merged and its branch was deleted; was `claude/adr-evaluation-tooling-6od8rd`)
-**Validated at commit**: `f87a1585f756ae4536256c4f9b9be3699137a776` (see Addendum 64)
+**Validated at commit**: `4aaa8be9873ed4122b213bfb075c65c48b08b10f` (see Addendum 65)
 
 ## Verdict
 
@@ -1432,4 +1432,18 @@ Full evidence, including the exact token structures verified and the full mutati
 Full suite re-run clean after the round-21 fix: `tests/test_markdown_parser.py` (81 passed) combined with `tests/validation/test_check_adr_lifecycle.py`, `tests/validation/test_check_adr_links.py`, and `tests/test_adr_063_memory_skill_decomposition.py`: 386 passed. `ruff check`: clean on both touched files. Taste-count ratchet unchanged at baseline 575 (the file-size and complexity findings on both files are advisory-only, pre-existing, and untouched by this round). `pre_pr.py` (full suite): passed on the round-21 commit.
 
 **Rebound to** `f87a1585f756ae4536256c4f9b9be3699137a776`.
+
+## Addendum 65: same round-22 finding and fix as Addendum 64 of the campaign report
+
+Same finding, same fix as Addendum 64 of the campaign report: the round-21 fix closed the escape-parity gap in the `code_inline` branch of `_html_comment_inline_ranges`, and a round-21 Copilot review (delivered as a suppressed comment alongside that finding) found the SAME gap in the sibling `html_inline` branch. A bare `markdown.find` for a child's content has no notion of CommonMark's backslash-escape rule, so a backslash-escaped `<!--` earlier in the source (a literal character sequence, not a comment opener) could steal the match from the real, later `html_inline` token sharing the same raw bytes. `"prose \<!--\n**Status**: Accepted\n--> more <!--\n**Status**: Accepted\n-->\n"` reproduced this exactly: `find` matched the escaped decoy's position first, masking the visible decoy prose while leaving the real, later comment's hidden `**Status**: Accepted` completely unmasked and readable, the exact status-forgery bypass this function exists to prevent.
+
+Fixed (commit `4aaa8be98`) with a new `_find_unescaped_occurrence` helper, reusing round 21's `_is_backslash_escaped`, that retries forward past any candidate whose start position is backslash-escaped. Sound because a genuine `html_inline` token's start position can never itself be backslash-escaped: if it were, the parser would never have tokenized that position as `html_inline` in the first place. Added `test_an_escaped_html_comment_opener_cannot_steal_a_real_comments_match`. Mutation-proven: reverting the fix reproduces the exact pre-fix broken output and fails exactly this new test, while all 81 other tests in the file stay green.
+
+The companion suppressed comment on the same review (PR description staleness through round 19) is stale as of this addendum: the live PR body was already updated through round 21 by the time this fix landed, and this addendum's own commit brings it current through round 22.
+
+Full evidence, including the exact token structures verified and the full mutation-proof output, is in Addendum 64 of the campaign report.
+
+Full suite re-run clean after the round-22 fix: `tests/test_markdown_parser.py` (82 passed) combined with `tests/validation/test_check_adr_lifecycle.py`, `tests/validation/test_check_adr_links.py`, and `tests/test_adr_063_memory_skill_decomposition.py`: 387 passed. `ruff check`: clean on both touched files. Taste-count ratchet unchanged at baseline 575. `pre_pr.py` (full suite): passed on the round-22 commit (confirmed via exit code before this addendum was written).
+
+**Rebound to** `4aaa8be9873ed4122b213bfb075c65c48b08b10f`.
 
