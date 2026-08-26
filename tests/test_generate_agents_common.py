@@ -402,40 +402,49 @@ class TestConvertFrontmatterForPlatform:
     _UNIT = "templates/agents/architect.shared.md"
 
     def _keep_pin_manifest(self, **entry_overrides: object) -> dict[str, dict[str, object]]:
+        # Full evidence shape: check_model_pins.scan_units() never sees a
+        # model_tier-only template (no top-level `model:` frontmatter for it
+        # to scan), so this evidence is validated only by
+        # resolve_manifest_model itself, not independently by CI. See the
+        # divergence note on build/model_pin_manifest.py:resolve_manifest_model.
         entry: dict[str, object] = {
             "unit": self._UNIT,
             "model": "claude-opus-4-6",
             "decision": "KEEP_PIN",
             "date": _date.today().isoformat(),
+            "fixtures_sha": "abc123",
+            "artifact": "evals/architect-spike/sweep.json",
+            "default_model": "claude-sonnet-4-6",
         }
         entry.update(entry_overrides)
         return {self._UNIT: entry}
 
-    def test_manifest_keep_pin_resolves_ahead_of_haiku_tier(self) -> None:
+    def test_manifest_keep_pin_resolves_ahead_of_haiku_tier(self, tmp_path: Path) -> None:
         """A fresh KEEP_PIN entry wins even when model_tier also says haiku:
         manifest resolution is step 1, haiku-tier fallback is step 2."""
         fm: dict[str, str | None] = {"description": "test", "model_tier": "haiku"}
         result = convert_frontmatter_for_platform(
             fm, self._COPILOT_CONFIG, "architect",
             manifest=self._keep_pin_manifest(), source_unit=self._UNIT,
+            repo_root=tmp_path,
         )
         assert result["model"] == "claude-opus-4.6"
 
-    def test_manifest_keep_pin_formats_per_platform(self) -> None:
+    def test_manifest_keep_pin_formats_per_platform(self, tmp_path: Path) -> None:
         fm: dict[str, str | None] = {"description": "test"}
         manifest = self._keep_pin_manifest()
         copilot_result = convert_frontmatter_for_platform(
             fm, self._COPILOT_CONFIG, "architect",
-            manifest=manifest, source_unit=self._UNIT,
+            manifest=manifest, source_unit=self._UNIT, repo_root=tmp_path,
         )
         vscode_result = convert_frontmatter_for_platform(
             fm, self._VSCODE_CONFIG, "architect",
-            manifest=manifest, source_unit=self._UNIT,
+            manifest=manifest, source_unit=self._UNIT, repo_root=tmp_path,
         )
         assert copilot_result["model"] == "claude-opus-4.6"
         assert vscode_result["model"] == "Claude Opus 4.6 (copilot)"
 
-    def test_manifest_entry_for_different_unit_does_not_resolve(self) -> None:
+    def test_manifest_entry_for_different_unit_does_not_resolve(self, tmp_path: Path) -> None:
         """Negative control: the manifest carries evidence, but not for this
         unit, so generation must fall back to the (empty) tier logic."""
         fm: dict[str, str | None] = {"description": "test"}
@@ -443,15 +452,29 @@ class TestConvertFrontmatterForPlatform:
             fm, self._COPILOT_CONFIG, "architect",
             manifest=self._keep_pin_manifest(),
             source_unit="templates/agents/other.shared.md",
+            repo_root=tmp_path,
         )
         assert "model" not in result
 
-    def test_manifest_decision_not_keep_pin_falls_back(self) -> None:
+    def test_manifest_decision_not_keep_pin_falls_back(self, tmp_path: Path) -> None:
         fm: dict[str, str | None] = {"description": "test", "model_tier": "haiku"}
         result = convert_frontmatter_for_platform(
             fm, self._COPILOT_CONFIG, "architect",
             manifest=self._keep_pin_manifest(decision="RETIRE_PIN"),
             source_unit=self._UNIT,
+            repo_root=tmp_path,
+        )
+        assert result["model"] == "claude-haiku-4.5"
+
+    def test_manifest_missing_repo_root_falls_back(self) -> None:
+        """repo_root=None (the default) must not resolve a manifest pin,
+        even with a valid manifest and source_unit: resolve_manifest_model
+        needs repo_root for the artifact path-safety check, so a caller
+        that omits it gets the pre-wiring fallback rather than a crash."""
+        fm: dict[str, str | None] = {"description": "test", "model_tier": "haiku"}
+        result = convert_frontmatter_for_platform(
+            fm, self._COPILOT_CONFIG, "architect",
+            manifest=self._keep_pin_manifest(), source_unit=self._UNIT,
         )
         assert result["model"] == "claude-haiku-4.5"
 

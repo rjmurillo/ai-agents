@@ -203,14 +203,18 @@ def convert_frontmatter_for_platform(
     agent_name: str,
     manifest: dict[str, dict[str, object]] | None = None,
     source_unit: str | None = None,
+    repo_root: Path | None = None,
 ) -> dict[str, str | None]:
     """Transform frontmatter for a specific platform.
 
-    ``manifest`` and ``source_unit`` wire in the ADR-080 sidecar manifest
-    (``build.model_pin_manifest``): when ``source_unit`` names a unit that
-    carries a fresh ``KEEP_PIN`` entry, that entry's model id is formatted for
-    this platform and emitted instead of the haiku-tier default. Both default
-    to ``None``/absent, which reproduces the pre-manifest-wiring behavior
+    ``manifest``, ``source_unit``, and ``repo_root`` wire in the ADR-080
+    sidecar manifest (``build.model_pin_manifest``): when ``source_unit``
+    names a unit that carries a fully valid, fresh ``KEEP_PIN`` entry, that
+    entry's model id is formatted for this platform and emitted instead of
+    the haiku-tier default. ``repo_root`` is required for the manifest path
+    because ``resolve_manifest_model`` validates the entry's ``artifact``
+    field stays within the repository (CWE-22); all three default to
+    ``None``, which reproduces the pre-manifest-wiring behavior
     (haiku-tier-or-omit) exactly, so every existing caller and test is
     unaffected. See ``convert_frontmatter_for_platform``'s model-resolution
     block below for the full three-step order.
@@ -259,8 +263,8 @@ def convert_frontmatter_for_platform(
         # Look for model_tiers in legacy block first, then top-level for backward compat
         model_tiers = legacy.get("model_tiers") or platform_config.get("model_tiers")
         manifest_model_id = (
-            resolve_manifest_model(manifest, source_unit)
-            if manifest is not None and source_unit is not None
+            resolve_manifest_model(manifest, source_unit, repo_root)
+            if manifest is not None and source_unit is not None and repo_root is not None
             else None
         )
         formatted_manifest_model = (

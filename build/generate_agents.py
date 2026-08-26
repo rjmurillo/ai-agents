@@ -359,7 +359,7 @@ def generate_agents(
 
             transformed_fm = convert_frontmatter_for_platform(
                 frontmatter, platform, agent_name,
-                manifest=pin_manifest, source_unit=source_unit,
+                manifest=pin_manifest, source_unit=source_unit, repo_root=repo_root,
             )
 
             # Expand toolset references

@@ -192,6 +192,9 @@ class TestGenerateAgents:
             '"unit": "templates/agents/test-agent.shared.md", '
             '"model": "claude-opus-4-6", '
             '"decision": "KEEP_PIN", '
+            '"fixtures_sha": "abc123", '
+            '"artifact": "evals/test-agent-spike/sweep.json", '
+            '"default_model": "claude-sonnet-4-6", '
             f'"date": "{_date.today().isoformat()}"'
             "}]}",
             encoding="utf-8",
