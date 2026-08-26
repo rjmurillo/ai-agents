@@ -49,16 +49,27 @@ EXIT CODES (ADR-035):
 from __future__ import annotations
 
 import argparse
+import codecs
 import json
 import re
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 
-# Fence openers may be indented. CommonMark caps a fence indent at three
-# spaces, but fences nested in list items routinely sit deeper in real
-# documents, and this skill's job is repairing real documents.
+# CommonMark caps a fence marker at three spaces of indent; at four it is an
+# indented code block and the backticks are literal content. Honoring that cap
+# is what keeps `--write` from appending a fence to a file that documents a
+# bare fence inside an indented block. The cost is that a fence nested four or
+# more spaces deep inside a list item is invisible to this tool. That is the
+# safe direction for a repair tool: it declines to see a fence rather than
+# inventing one, so the failure mode is a miss, never a corrupted file.
 _FENCE_RE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
+_MAX_FENCE_INDENT = 3
+
+# Real line terminators only. `str.splitlines` also splits on \x0b, \x0c,
+# \x1c-\x1e, U+0085, U+2028 and U+2029, which would delete those characters
+# from a repaired file and break one prose line into two.
+_LINE_SPLIT_RE = re.compile(r"(\r\n|\r|\n)")
 
 _SKIP_DIRS = frozenset({".git", "node_modules", ".venv", "venv", "__pycache__"})
 
@@ -88,10 +99,15 @@ class _OpenFence:
         return self.indent + self.char * self.length
 
 
+def _over_indented(indent: str) -> bool:
+    """Return True when *indent* puts the marker inside an indented code block."""
+    return len(indent.expandtabs(4)) > _MAX_FENCE_INDENT
+
+
 def _open_fence(line: str) -> _OpenFence | None:
     """Return the fence that *line* opens, or None when it opens nothing."""
     match = _FENCE_RE.match(line)
-    if match is None:
+    if match is None or _over_indented(match.group("indent")):
         return None
     fence = match.group("fence")
     # CommonMark: a backtick opening fence may not carry a backtick in its
@@ -109,7 +125,7 @@ def _closes(line: str, open_fence: _OpenFence) -> re.Match[str] | None:
     MALFORMED close when it is not; the caller distinguishes them.
     """
     match = _FENCE_RE.match(line)
-    if match is None:
+    if match is None or _over_indented(match.group("indent")):
         return None
     fence = match.group("fence")
     if fence[0] != open_fence.char or len(fence) < open_fence.length:
@@ -117,33 +133,68 @@ def _closes(line: str, open_fence: _OpenFence) -> re.Match[str] | None:
     return match
 
 
-def _split_lines(content: str) -> tuple[list[str], str, bool]:
-    """Split *content* into lines plus the newline style to restore."""
-    newline = "\r\n" if "\r\n" in content else "\n"
-    return content.splitlines(), newline, content.endswith(("\n", "\r"))
+@dataclass(frozen=True)
+class _Line:
+    """One source line and the terminator that followed it."""
+
+    text: str
+    sep: str
+
+
+def _split_lines(content: str) -> list[_Line]:
+    """Split *content* into lines that each carry their own terminator.
+
+    Rejoining every text and sep reproduces *content* exactly, so a repair
+    can never normalize a line ending, or delete a Unicode separator, that
+    it did not set out to touch.
+    """
+    if not content:
+        return []
+    tokens = _LINE_SPLIT_RE.split(content)
+    texts, seps = tokens[0::2], tokens[1::2]
+    if texts and texts[-1] == "":
+        texts.pop()  # content ended with a terminator; no empty final line
+    return [_Line(text, seps[i] if i < len(seps) else "") for i, text in enumerate(texts)]
+
+
+def _default_sep(lines: list[_Line]) -> str:
+    """Return the terminator an inserted line should carry."""
+    for line in lines:
+        if line.sep:
+            return line.sep
+    return "\n"
+
+
+def _join(lines: list[_Line]) -> str:
+    return "".join(line.text + line.sep for line in lines)
 
 
 def find_fence_defects(content: str) -> list[Defect]:
     """Return every fence defect in *content*, in file order."""
-    lines, _, _ = _split_lines(content)
+    lines = _split_lines(content)
     defects: list[Defect] = []
     open_fence: _OpenFence | None = None
 
     for number, line in enumerate(lines, start=1):
         if open_fence is None:
-            open_fence = _open_fence(line)
+            open_fence = _open_fence(line.text)
             continue
 
-        match = _closes(line, open_fence)
+        match = _closes(line.text, open_fence)
         if match is None:
             continue
         if not match.group("info").strip():
             open_fence = None
             continue
 
-        defects.append(Defect(line=number, kind=MALFORMED_CLOSING, text=line.rstrip()))
-        # The malformed line opens the next block, mirroring the repair.
-        open_fence = _open_fence(line) or open_fence
+        defects.append(Defect(line=number, kind=MALFORMED_CLOSING, text=line.text.rstrip()))
+        # The malformed line opens the next block, mirroring the repair. When
+        # it cannot open one (a backtick fence carrying a backtick in its info
+        # string), the bare fence the repair emits above it has closed the
+        # block and the line is now literal prose, so the state is None.
+        # Keeping the stale opener here desynced report from reality and made
+        # repair non-idempotent.
+        open_fence = _open_fence(line.text)
 
     if open_fence is not None:
         defects.append(
@@ -157,17 +208,18 @@ def repair_markdown_fences(content: str) -> str:
 
     Idempotent: repairing already-repaired content returns it unchanged.
     """
-    lines, newline, trailing_newline = _split_lines(content)
-    result: list[str] = []
+    lines = _split_lines(content)
+    default_sep = _default_sep(lines)
+    result: list[_Line] = []
     open_fence: _OpenFence | None = None
 
     for line in lines:
         if open_fence is None:
             result.append(line)
-            open_fence = _open_fence(line)
+            open_fence = _open_fence(line.text)
             continue
 
-        match = _closes(line, open_fence)
+        match = _closes(line.text, open_fence)
         if match is None:
             result.append(line)
             continue
@@ -176,14 +228,20 @@ def repair_markdown_fences(content: str) -> str:
             open_fence = None
             continue
 
-        result.append(open_fence.closing)
+        result.append(_Line(open_fence.closing, line.sep or default_sep))
         result.append(line)
-        open_fence = _open_fence(line) or open_fence
+        open_fence = _open_fence(line.text)
 
     if open_fence is not None:
-        result.append(open_fence.closing)
+        if result and not result[-1].sep:
+            # The file had no trailing terminator; the last line needs one
+            # before a fence can sit on its own line after it.
+            result[-1] = replace(result[-1], sep=default_sep)
+            result.append(_Line(open_fence.closing, ""))
+        else:
+            result.append(_Line(open_fence.closing, default_sep))
 
-    return newline.join(result) + (newline if trailing_newline else "")
+    return _join(result)
 
 
 def iter_markdown_files(paths: list[Path], pattern: str) -> list[Path]:
@@ -254,7 +312,8 @@ def main(argv: list[str] | None = None) -> int:
     wrote: list[str] = []
     for file_path in iter_markdown_files(paths, args.pattern):
         try:
-            content = file_path.read_text(encoding="utf-8")
+            raw = file_path.read_bytes()
+            content = raw.decode("utf-8-sig")
         except (OSError, UnicodeDecodeError) as exc:
             print(f"Error: cannot read {file_path}: {exc}", file=sys.stderr)
             return 2
@@ -266,8 +325,9 @@ def main(argv: list[str] | None = None) -> int:
 
         if not args.write:
             continue
+        bom = codecs.BOM_UTF8 if raw.startswith(codecs.BOM_UTF8) else b""
         try:
-            file_path.write_text(repair_markdown_fences(content), encoding="utf-8")
+            file_path.write_bytes(bom + repair_markdown_fences(content).encode("utf-8"))
         except OSError as exc:
             print(f"Error: cannot write {file_path}: {exc}", file=sys.stderr)
             return 2

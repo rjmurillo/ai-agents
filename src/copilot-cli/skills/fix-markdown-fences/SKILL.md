@@ -1,6 +1,6 @@
 ---
 name: fix-markdown-fences
-version: 1.2.0
+version: 1.3.0
 model: haiku
 model-rationale: cost. The 'haiku' rolling alias resolves via the platform model_tiers map to a tier priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).
 description: >-
@@ -104,8 +104,16 @@ documentation:
   stays literal text.
 - A backtick opening fence whose info string contains a backtick is not a
   fence.
+- A marker indented four or more spaces is an indented code block, not a
+  fence. That is what stops a repair from appending a fence to a document
+  that shows a bare fence inside an indented block. The cost is that a fence
+  nested that deep inside a list item is invisible here: the tool declines to
+  see a fence rather than inventing one, so it misses rather than corrupts.
 
-Line endings and the trailing newline are preserved. Repair is idempotent.
+Files are read and written as bytes, so CRLF and CR endings survive, a UTF-8
+BOM survives, and the Unicode separators `str.splitlines` would swallow (form
+feed, U+0085, U+2028, U+2029) stay put. Each line keeps its own terminator, so
+a mixed-ending file is not normalized. Repair is idempotent.
 
 Exit codes (ADR-035):
 
@@ -281,6 +289,6 @@ foreach ($dir in $directories) {
 1. **Nested indentation**: Preserves indent level from opening fence
 2. **Multiple consecutive blocks**: Each block tracked independently
 3. **File ending inside block**: Closes an unclosed block with a fence of the same character and length
-4. **Mixed line endings**: `\n` and `\r\n` are both accepted and preserved, as is the presence or absence of a trailing newline
+4. **Mixed line endings**: `\n`, `\r\n` and `\r` are preserved per line, as is a UTF-8 BOM and the presence or absence of a trailing newline
 
 </details>
