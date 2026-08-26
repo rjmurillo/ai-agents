@@ -10,10 +10,19 @@ dependency of this repository, instead of against hand-written expectations.
 Scope. This oracle covers list-container handling only. The scanners diverge
 from CommonMark elsewhere on purpose: a fence carrying an info string inside an
 open block is content to CommonMark but a mistaken closer to `fix_fences.py`,
-which is the defect that tool exists to repair. Raw HTML blocks and a fence
-ending when the document dedents out of its list item are known, pre-existing
-limitations. Do not widen these cases into those areas without deciding what
-the intended behavior is first.
+which is the defect that tool exists to repair.
+
+Three known limitations are out of scope here, all of them measured rather than
+assumed. Raw HTML blocks swallow a following fence. A fenced block inside a list
+item does not end when the document dedents out of that item. And content on a
+marker line that is itself a block start is not re-processed, so `- - a` opens
+one container instead of two, `- ``` ` does not open a fenced block, and
+`- # h` is not read as a heading. Handling the last of those means re-parsing
+the rest of the line against the container just opened, which is a parser
+rather than a tracker; none of the three appears in this repository's Markdown.
+
+Do not widen these cases into those areas without deciding what the intended
+behavior is first. The fuzz baselines below are what bound them.
 """
 
 from __future__ import annotations
@@ -94,6 +103,11 @@ CASES: dict[str, str] = {
     ),
     "indented code is not a paragraph": "     ```\n - \n     ```\n",
     "a marker with no padding is prose": " +  item\n1)text\n      ~~~\n",
+    # Rule 8: an item may begin with at most one blank line.
+    "blank line closes an empty item": "-\n\n    ```\n    x\n    ```\n",
+    "blank line closes an empty ordered item": "1)\n\n    ```\n    x\n    ```\n",
+    "two blanks close an empty item": "-\n\n\n    ```\n    x\n    ```\n",
+    "a blank keeps a non-empty item open": "- item\n\n    ```\n    x\n    ```\n",
 }
 
 
@@ -117,11 +131,10 @@ _FUZZ_INDENTS = ("", " ", "  ", "   ", "    ", "     ", "      ", "\t")
 _FUZZ_BULLETS = ("-", "*", "+")
 _FUZZ_ORDERED = ("1.", "2.", "01.", "003.", "1)", "10.", "9)")
 
-# Measured against `random_documents` and `prose_lint._blank_fenced_blocks`
-# at the commit that added this file. Of these, most are strict over-mask,
-# which is the container-lifetime family described above: 32 of 37, 25 of 28,
-# and 23 of 29 respectively.
-FUZZ_BASELINE = {1729: 37, 20260826: 28, 4242: 29}
+# Measured against `random_documents` and `prose_lint._blank_fenced_blocks`,
+# re-measured whenever a rule closes part of the residue. Adding rule 8 (a
+# blank line closes an empty item) took these from 37, 28 and 29.
+FUZZ_BASELINE = {1729: 34, 20260826: 27, 4242: 28}
 FUZZ_DOCUMENTS = 2000
 
 
