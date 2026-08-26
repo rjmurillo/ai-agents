@@ -444,7 +444,7 @@ class TestConvertFrontmatterForPlatform:
                 if isinstance(default_model, str)
                 else "claude-sonnet-4-6"
             )
-            # Matches build/generate_agents.py:265's agent_name derivation
+            # Matches build/generate_agents.py:303's agent_name derivation
             # verbatim; see model_pin_sweep_evidence.py:_agent_name_from_unit.
             agent = Path(str(unit)).stem.replace(".shared", "")
             artifact_path.write_text(
