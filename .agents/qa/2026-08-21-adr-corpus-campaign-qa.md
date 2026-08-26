@@ -16,6 +16,21 @@ qaCommit: 0716eeb827d6ff36be0ad5e25b779d7191a9a7ba
 PASS. 388 tests green, every gate at or below its baseline, `pre_pr.py` clean
 apart from the session-end check this report exists to satisfy.
 
+**This verdict and the test evidence immediately below are historical: the
+campaign's own opening state on 2026-08-21, not current counts.** The
+`qaCommit` frontmatter and the `Validated at commit` header above track the
+latest commit this file has been checked against, per this report's own
+rebind discipline; they do not mean the 388/85/63/57 figures below still
+hold. Later rounds grew every one of these suites substantially: Addendum 52
+records both `test_check_adr_lifecycle.py` at 130 tests (not 85) and
+`test_check_adr_links.py` at 148 tests (not 63), and both counts still match
+a direct re-run today (`uv run pytest tests/validation/test_check_adr_lifecycle.py -q`
+and the `test_check_adr_links.py` equivalent). Addendum 58 separately records
+a 554-test targeted run covering the retarget merge. Copilot flagged this
+top-of-file drift on PR #5230 round 14. Re-measure with the commands below
+rather than trusting either the historical numbers or this note's own
+summary of them.
+
 ## Test evidence
 
 ```

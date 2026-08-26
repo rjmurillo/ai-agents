@@ -864,6 +864,7 @@ the batch here as it lands.
 | 27 | ADR-039, ADR-040, ADR-042, ADR-055 |
 | 28 | ADR-061 |
 | 29 | ADR-042, ADR-063 |
+| 30 | ADR-042 |
 
 ## Batch 29: restoring the deliberated ADR-042 and ADR-063 dates
 
