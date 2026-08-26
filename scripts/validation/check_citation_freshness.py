@@ -2,50 +2,32 @@
 """Verify ``path:line`` citations on added lines against HEAD content.
 
 Automates the added-lines slice of the manual gate
-``.claude/rules/canonical-source-mirror.md`` prescribes ("Before you merge a
-document that names a test, a symbol, or a count, run ``git grep -nF``...").
-Prose discipline measurably fails there: PR #5322 found sixteen stale
-descriptions by review or audit rather than by any gate, while its one
-claim class with a machine replay never recurred across thirteen real
-drifts, and PR #5336 exists solely to repair four ``file:line`` citations
-PR #5327 made stale. Issue #5337 tracks the cost: every such miss reaches
-a paid AI review round instead of a local deterministic check.
+``.claude/rules/canonical-source-mirror.md`` prescribes; issue #5337
+carries the incident record and the cost (each miss reached a paid AI
+review round instead of a local deterministic check). For every citation
+shaped ``some/path.ext:N`` or ``some/path.ext:N-M`` on a line ADDED since
+the base ref (``base...HEAD``), the gate checks that the cited path is
+tracked at HEAD, that the cited lines exist there, and that at least one
+anchor the citing text names (a backtick span, a double-quoted phrase, an
+underscore identifier, or an indented continuation quote) appears within
+the cited range; a miss reports where the first anchor actually lives,
+which is usually the corrected citation.
 
-For every citation shaped ``some/path.ext:N`` or ``some/path.ext:N-M`` on
-a line ADDED since the base ref (committed range only, ``base...HEAD``),
-the gate checks:
+Deliberate scope: added lines only, so historical trees (``stale_script_refs``'s
+``HISTORICAL_ROOTS``), whose citations were true when written, are never
+re-policed. HEAD is the state verified, because HEAD is what a push ships
+(``.claude/rules/ci-scripts.md``, "Read the state you are asserting
+about, and name the ref"). Anchorless citations get existence and range
+checks only, and paths without a ``/`` never match, so illustrative
+snippets such as ``auth.ts:47`` stay ignored by construction. Escape
+hatch: ``citation-freshness: ignore`` (with a reason) on the citing line
+or the line above; line-scoped on purpose, no whole-gate skip.
 
-1. the cited path is tracked at HEAD;
-2. the cited line numbers exist in the HEAD copy of that file;
-3. when the citing text names anchors (inline backtick spans, double-quoted
-   phrases, underscore identifiers, or an indented continuation quote), at
-   least one appears within the cited range. When none does, the finding
-   reports where the first anchor actually lives in the cited file, which
-   is usually the corrected citation.
-
-Scope decisions, deliberate: added lines only, because citations in
-historical documents (retrospectives, sessions, memories; the
-``HISTORICAL_ROOTS`` list is imported from the sibling gate
-``stale_script_refs``) were true when written and re-policing them on
-unrelated edits would manufacture noise. HEAD is the state verified,
-because HEAD is what a push ships (``.claude/rules/ci-scripts.md``, "Read
-the state you are asserting about, and name the ref"). A citation with no
-discernible anchors is checked for existence and range only. Paths
-without a ``/`` never match, so illustrative snippets such as
-``auth.ts:47`` in rule prose are ignored by construction.
-
-Escape hatch: put ``citation-freshness: ignore`` (with a reason) on the
-citing line or the line directly above it. The marker is line-scoped on
-purpose, matching the taste-lint pattern of narrow, reasoned
-suppressions; there is no whole-gate skip flag.
-
-EXIT CODES (ADR-035):
-  0 - no findings (prints examined counts so an idle run is
-      distinguishable from a clean one), or no base ref resolved (prints
-      ``[SKIP]``: with no base there is no added-lines range, which is the
-      vendor-install and detached-checkout case, not an author push)
-  1 - findings
-  2 - configuration error (git itself failed)"""
+EXIT CODES (ADR-035): 0 = no findings (prints examined counts so an idle
+run is distinguishable from a clean one) or no base ref resolved (prints
+``[SKIP]``: with no base there is no added-lines range, which is the
+vendor-install and detached-checkout case, not an author push); 1 =
+findings; 2 = configuration error (git itself failed)."""
 
 from __future__ import annotations
 
@@ -57,6 +39,12 @@ from pathlib import Path
 from typing import cast
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parent.parent
+# checks_common transitively imports ``scripts.cli_exec`` (absolute), so the
+# repo root must be importable even when this runs as a plain script, not only
+# via ``python -m`` or from pre-commit's repo-root cwd (Issue #3073).
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
@@ -434,6 +422,18 @@ def find_stale_citations(repo_root: Path, base_ref: str) -> list[Finding] | None
     return findings
 
 
+def _report_findings(findings: list[Finding]) -> None:
+    """Print each finding plus the one-line remediation footer."""
+    for finding in findings:
+        print(finding.format())
+    if findings:
+        print(
+            f"[citation-freshness] {len(findings)} stale citation(s). Fix the "
+            f"line numbers against HEAD, or mark a deliberate exception with "
+            f"'{IGNORE_MARKER} -- <reason>' on or above the line."
+        )
+
+
 def validate_citation_freshness(repo_root: Path) -> bool:
     """Gate entry point: print findings, return True when clean.
 
@@ -449,14 +449,7 @@ def validate_citation_freshness(repo_root: Path) -> bool:
     if findings is None:
         print("[citation-freshness] git failed while collecting the diff", file=sys.stderr)
         return False
-    for finding in findings:
-        print(finding.format())
-    if findings:
-        print(
-            f"[citation-freshness] {len(findings)} stale citation(s). Fix the "
-            f"line numbers against HEAD, or mark a deliberate exception with "
-            f"'{IGNORE_MARKER} -- <reason>' on or above the line."
-        )
+    _report_findings(findings)
     return not findings
 
 
@@ -491,8 +484,7 @@ def main(argv: list[str] | None = None) -> int:
     if findings is None:
         print("[citation-freshness] git failed while collecting the diff", file=sys.stderr)
         return 2
-    for finding in findings:
-        print(finding.format())
+    _report_findings(findings)
     return 1 if findings else 0
 
 
