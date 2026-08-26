@@ -93,6 +93,20 @@ def _indent_width(text: str) -> int:
     return len(text.expandtabs(4))
 
 
+def _container_closed(line: str, base: int) -> bool:
+    """Return True when *line* dedents out of the container holding a block.
+
+    A fenced block inside a list item ends when the document leaves that item,
+    even without a closing marker. Tracking a block's lifetime independently of
+    its container left the block open to EOF, so `--write` appended a closing
+    fence to a document CommonMark already considers complete. A top-level
+    block has base 0 and can never be closed this way.
+    """
+    if base == 0 or not line.strip():
+        return False
+    return _indent_width(line[: len(line) - len(line.lstrip(" \t"))]) < base
+
+
 class _ListContainers:
     """The content column of the innermost open list item, tracked line by line.
 
@@ -131,14 +145,22 @@ class _ListContainers:
        recognized relative to the container rather than to column zero.
     8. An item may begin with at most one blank line, so a blank directly
        after an empty marker closes it rather than continuing it.
+    9. A marker line's remainder is re-parsed inside the item it just opened,
+       so `- - a` opens two items and a fence marker after `- ` opens a block.
+       `observe` returns the column it opened for exactly this.
+    10. A fenced block ends when the item holding it ends, with no closing
+        marker, so a line that dedents below the block's container closes it.
+        See `_container_closed`.
 
-    Deliberately not implemented: content on the marker line that is itself a
-    block start. `- - a` opens two items in CommonMark and one here, `- ``` `
-    opens a fenced block on the marker line, and `- # h` is a heading inside
-    the item. Handling them means re-processing the rest of the line against
-    the container just opened, which is a parser rather than a tracker. None
-    of these appears in this repository's Markdown, and the fuzz baselines in
-    `tests/skills/commonmark_fence_cases.py` measure what the gap costs.
+    Rules 9 and 10 were both documented as deliberate limitations for one
+    commit, on the reasoning that each only made the scanners miss a fence,
+    which is the safe direction for a tool that writes files. That reasoning
+    was wrong twice. Both instead left a block open past its real end, so
+    `--write` appended a closing fence to documents CommonMark already
+    considers complete. `- - ``` ` was additionally a regression from this
+    module's own container work, since the flat scanner never opened a
+    container there at all. Prefer measuring a failure's direction over
+    reasoning about it.
     """
 
     __slots__ = ("_columns", "_in_paragraph", "_item_still_empty")
@@ -175,32 +197,43 @@ class _ListContainers:
         self._in_paragraph = False  # rule 7: a fence ends the paragraph
         self._item_still_empty = False  # the fence is the item's content
 
-    def observe(self, line: str) -> None:
-        """Open a container when *line* starts a list item, then track paragraphs."""
+    def observe(self, line: str) -> int | None:
+        """Open a container when *line* starts a list item, then track paragraphs.
+
+        Returns the content column it opened, so the caller can re-scan the
+        rest of the line against it. CommonMark re-parses a marker line's
+        remainder inside the item the marker just opened, which is how
+        `- ``` ` opens a fenced block and `- - a` opens two items.
+        """
         if not line.strip():
-            return  # `sync` already ended the paragraph
+            return None  # `sync` already ended the paragraph
         item = self._list_item(line)
         if item is not None:
             column, has_content = item
             self._columns.append(column)
             self._in_paragraph = has_content
             self._item_still_empty = not has_content
-            return
+            return column
         self._item_still_empty = False  # this line is the item's first content
         content = self._relative(line)
         body = content.lstrip(" ")
         if len(content) - len(body) > _MAX_FENCE_INDENT:
             # Indented code when no paragraph is open, a lazy continuation when
             # one is. Neither changes the state, and both differ from prose.
-            return
+            return None
         self._in_paragraph = not (
             _ATX_HEADING.match(body)
             or _THEMATIC_BREAK.match(body)
             or _BLOCK_START.match(body)
         )
+        return None
+
+    def base(self) -> int:
+        """Return the innermost open content column, or 0 at top level."""
+        return self._columns[-1] if self._columns else 0
 
     def _base(self) -> int:
-        return self._columns[-1] if self._columns else 0
+        return self.base()
 
     def _relative(self, line: str) -> str:
         """Return *line* with the container's content column removed."""
@@ -323,11 +356,38 @@ def _scan_open(line: str, containers: _ListContainers) -> _OpenFence | None:
     """
     containers.sync(line)
     opened = _open_fence(line, containers)
-    if opened is None:
-        containers.observe(line)
-    else:
+    if opened is not None:
         containers.opened_fence()
-    return opened
+        return opened
+    return _open_fence_in_item(line, containers, containers.observe(line))
+
+
+def _open_fence_in_item(
+    line: str, containers: _ListContainers, column: int | None
+) -> _OpenFence | None:
+    """Return a fence opening in *line*'s list-item content, or None.
+
+    CommonMark re-parses a marker line's remainder inside the item the marker
+    just opened, so `- ``` ` opens a fenced block whose indent is the item's
+    content column, and `- - ``` ` opens two items and then the block. Testing
+    only the raw line missed those, and the real closing fence further down was
+    then read as a fresh opener, so `--write` appended a fence to a document
+    that was already well formed.
+    """
+    while column is not None:
+        rest = line.expandtabs(4)[column:]
+        if not rest.strip():
+            return None
+        nested = " " * column + rest.lstrip(" ")
+        opened = _open_fence(nested, containers)
+        if opened is not None:
+            containers.opened_fence()
+            return opened
+        deeper = containers.observe(nested)
+        if deeper is None or deeper <= column:
+            return None  # no further container; also guards against no progress
+        column = deeper
+    return None
 
 
 @dataclass(frozen=True)
@@ -373,9 +433,13 @@ def find_fence_defects(content: str) -> list[Defect]:
     open_fence: _OpenFence | None = None
     containers = _ListContainers()
 
+    fence_base = 0
     for number, line in enumerate(lines, start=1):
+        if open_fence is not None and _container_closed(line.text, fence_base):
+            open_fence = None  # the item holding the block ended
         if open_fence is None:
             open_fence = _scan_open(line.text, containers)
+            fence_base = containers.base() if open_fence is not None else 0
             continue
 
         match = _closes(line.text, open_fence, containers)
@@ -393,6 +457,7 @@ def find_fence_defects(content: str) -> list[Defect]:
         # Keeping the stale opener here desynced report from reality and made
         # repair non-idempotent.
         open_fence = _scan_open(line.text, containers)
+        fence_base = containers.base() if open_fence is not None else 0
 
     if open_fence is not None:
         defects.append(
@@ -412,10 +477,14 @@ def repair_markdown_fences(content: str) -> str:
     open_fence: _OpenFence | None = None
     containers = _ListContainers()
 
+    fence_base = 0
     for line in lines:
+        if open_fence is not None and _container_closed(line.text, fence_base):
+            open_fence = None  # the item holding the block ended
         if open_fence is None:
             result.append(line)
             open_fence = _scan_open(line.text, containers)
+            fence_base = containers.base() if open_fence is not None else 0
             continue
 
         match = _closes(line.text, open_fence, containers)
@@ -430,6 +499,7 @@ def repair_markdown_fences(content: str) -> str:
         result.append(_Line(open_fence.closing, line.sep or default_sep))
         result.append(line)
         open_fence = _scan_open(line.text, containers)
+        fence_base = containers.base() if open_fence is not None else 0
 
     if open_fence is not None:
         if result and not result[-1].sep:

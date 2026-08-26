@@ -119,12 +119,16 @@ documentation:
   item, and a paragraph continuation line may dedent without closing it.
   Getting any of these wrong moves the content column, which moves what counts
   as a fence.
-- Known gap: content on the marker line that is itself a block start is not
-  re-processed. `- - a` opens one item here and two in CommonMark, `-` + a
-  fence marker does not open a fenced block, and `- # h` is not read as a
-  heading. Closing that means re-parsing the rest of the line against the
-  container just opened. The scanners' agreement with a CommonMark reference
-  is measured by the fuzz baselines in the repository's test suite.
+- A marker line's remainder is re-parsed inside the item it opens, so a fence
+  marker after a bullet opens a block whose indent is the item's content
+  column, and `- - a` opens two items. A block also ends when the item holding
+  it ends, with no closing marker, so a line that dedents below it closes it.
+  Without either rule the tool kept a block open past its real end, and
+  `--write` appended a closing fence to documents already well formed.
+- Known gap: a raw HTML block swallows a following fence, so a fence inside one
+  is read as a fence here and as HTML by CommonMark. The scanners' agreement
+  with a CommonMark reference is measured by the fuzz baselines in the
+  repository's test suite.
 
 Files are read and written as bytes, so CRLF and CR endings survive, a UTF-8
 BOM survives, and the Unicode separators `str.splitlines` would swallow (form
