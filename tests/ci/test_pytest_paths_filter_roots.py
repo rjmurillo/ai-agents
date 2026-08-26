@@ -1,4 +1,11 @@
-"""Every non-extension root in `pytest.yml`'s filter must be a real test input.
+"""Every non-extension root in `pytest.yml`'s filter must be named by a test.
+
+Named, not read. The check below searches for a textual mention anywhere under
+`tests/`, a comment included, so a passing root is evidence of intent and not
+of a runtime dependency. The looseness is deliberate: a strict-path version
+produced a false negative on a package tree reached by import. Review on
+PR #5319 asked for this paragraph, because the wording above it promised proof
+the implementation does not deliver.
 
 `.github/workflows/pytest.yml` gates the whole pytest matrix behind a
 `dorny/paths-filter`. A diff matching nothing in that filter skips every
@@ -7,7 +14,7 @@ green `Run Python Tests` does not by itself mean tests ran.
 
 That makes the filter's non-extension entries load-bearing in a way the
 extension globs are not. `**/*.py` justifies itself. `.claude/skills/**` is a
-claim: that some test reads that tree and would not otherwise run. Issue #5315
+claim: that some test names that tree and would not otherwise run. Issue #5315
 added several such roots on exactly that claim, after pre-push stopped
 executing the suite locally for non-Python changes (ADR-104) and left the
 delegation with nowhere to land at PR time.
