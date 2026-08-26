@@ -42,6 +42,7 @@ if str(_SCRIPT_DIR) not in sys.path:
 from active_plan_closeout import validate_active_plan_closeout
 from check_adr_lifecycle import validate_adr_lifecycle
 from check_adr_links import validate_adr_links
+from check_citation_freshness import validate_citation_freshness
 from check_doc_interpreter_portability import (
     validate_doc_interpreter_portability,
 )
@@ -264,6 +265,13 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Fails when live docs command a removed script (issue #2916), the
     # PowerShell-to-Python migration regression behind issues #2914 and #2915.
     _Gate("Stale Script References", _root_only(validate_stale_script_refs)),
+    # Fails when a line ADDED since the base ref cites a path-and-line
+    # location that HEAD contradicts: file untracked, line out of range, or
+    # the named anchor content living elsewhere. Automates the manual
+    # git-grep gate canonical-source-mirror.md prescribes; mechanically
+    # checkable claims were reaching paid AI review rounds instead (PR #5336
+    # existed solely to repair four such citations; issue #5337).
+    _Gate("Citation Freshness (added lines)", _root_only(validate_citation_freshness)),
     # Fails when a live doc tells a contributor to run a script with third-party
     # imports under a bare `python3`, which dies with ModuleNotFoundError on a
     # clean checkout. Issue #3791.
