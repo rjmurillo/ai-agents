@@ -432,7 +432,17 @@ class _ListContainers:
         self._item_still_empty = False  # this line is the item's first content
         content = self._relative(line)
         body = content.lstrip(" ")
-        if len(content) - len(body) > _MAX_FENCE_INDENT:
+        # A definition still waiting for its destination or its title is the
+        # exception to the indent veto below. Its continuation belongs to the
+        # SAME leaf block, so CommonMark strips the indent rather than reading
+        # indented code. With the veto in front of it, `[foo]:` followed by a
+        # four-column `/url` left the label line a paragraph, rule 4 then
+        # vetoed the marker under it, the real closing fence became a fresh
+        # opener, and `--write` appended a closer to a balanced document.
+        continues_definition = (
+            self._awaiting_link_destination and _link_tail(body, 0) is not None
+        ) or (self._awaiting_link_title and bool(_LINK_TITLE_ONLY.match(body)))
+        if len(content) - len(body) > _MAX_FENCE_INDENT and not continues_definition:
             # Indented code when no paragraph is open, a lazy continuation when
             # one is. Neither changes the state, and both differ from prose.
             return None

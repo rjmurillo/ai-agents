@@ -355,6 +355,27 @@ CASES: dict[str, str] = {
         "[foo]: /a(b))c\n2. ```\n   code\n   ```\n",
     "an escaped parenthesis does not open a group":
         "[foo]: /a\\(b\n2. ```\n   code\n   ```\n",
+    # Rule 16 continued, and this one no reviewer named. A definition's
+    # continuation belongs to the SAME leaf block, so CommonMark strips its
+    # indent rather than reading indented code. The indent veto sat in front
+    # of that test, so a four-column destination left the label line a
+    # paragraph, rule 4 vetoed the marker below it, the real closing fence
+    # became a fresh opener, and `--write` appended a closer to a balanced
+    # document. Found by sweeping every line shape that can follow a pending
+    # state, after a first sweep classified it as a miss: the probe asked
+    # whether the tool reported NO defect, and the tool reported a false one.
+    "a four-column destination continues a definition":
+        "[foo]:\n    /url\n2. ```\n   code\n   ```\n",
+    "a tab-indented destination continues a definition":
+        "[foo]:\n\t/url\n2. ```\n   code\n   ```\n",
+    "a four-column title continues a definition":
+        "[foo]: /url\n    \"T\"\n2. ```\n   code\n   ```\n",
+    # Controls: the veto still applies when nothing is pending, and when the
+    # indented line is not a destination at all.
+    "a four-column line with nothing pending is code":
+        "text\n\n    code\n\n2. item\n   ```\n   x\n   ```\n",
+    "a four-column non-destination does not continue a definition":
+        "[foo]:\n    a b\n2. ```\n   code\n   ```\n",
 }
 
 

@@ -123,7 +123,8 @@ documentation:
   definition cannot interrupt a paragraph that is already open, its
   destination and title must be complete (`[foo]: <broken` is prose), its
   destination balances parentheses at any depth while a title may escape
-  its own delimiter, and
+  its own delimiter, a continuation belongs to the same leaf block and so
+  keeps its meaning at any indent, and
   either the destination or a bare title may sit on the following line, and
   a blank line or a fenced block cancels a definition still waiting for
   one. A blank line directly after an empty marker closes the item, and a
