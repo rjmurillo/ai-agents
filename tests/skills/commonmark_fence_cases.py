@@ -331,6 +331,30 @@ CASES: dict[str, str] = {
     # by an ordered marker behaves exactly as it did before.
     "a fence with no pending definition is unaffected":
         "text\n\n```\nx\n```\n\n2. item\n   ~~~\n   y\n   ~~~\n",
+    # Rule 16 continued. A bracketless destination balances parentheses at ANY
+    # depth, and a title may carry an escaped copy of its own delimiter. Both
+    # were spelled as patterns with a fixed one level, so `[foo]: /u(r(l))` and
+    # `[foo]: /url "a\\"b"` were read as prose while the reference parser reads
+    # both as definitions. That kept a paragraph open, vetoed the marker below
+    # it, and `--write` appended a fence to a balanced document. The depth is
+    # why the destination is now a scanner and not a pattern: a pattern has to
+    # pick a ceiling, and any ceiling is the next round of this same defect.
+    "a destination nests parentheses two deep":
+        "[foo]: /u(r(l))\n2. ```\n   code\n   ```\n",
+    "a destination nests parentheses five deep":
+        "[foo]: /a(((((b)))))\n2. ```\n   code\n   ```\n",
+    "a title may escape its own quote":
+        "[foo]: /url \"a\\\"b\"\n2. ```\n   code\n   ```\n",
+    "a parenthesised title may escape its own bracket":
+        "[foo]: /url (a\\)b)\n2. ```\n   code\n   ```\n",
+    # The controls: unbalanced stays prose, in both directions, and an escaped
+    # parenthesis does not count toward the balance.
+    "an unclosed parenthesis is not a destination":
+        "[foo]: /a((b)\n2. ```\n   code\n   ```\n",
+    "a stray closing parenthesis is not a destination":
+        "[foo]: /a(b))c\n2. ```\n   code\n   ```\n",
+    "an escaped parenthesis does not open a group":
+        "[foo]: /a\\(b\n2. ```\n   code\n   ```\n",
 }
 
 

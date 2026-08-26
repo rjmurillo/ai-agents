@@ -92,7 +92,7 @@ _FENCE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
 # root and is quoted here rather than imported, because the two skills ship
 # as separate directories and neither is on the other's import path.
 #
-# `skills/fix-markdown-fences/scripts/fix_fences.py` lines 315-317, verbatim:
+# `skills/fix-markdown-fences/scripts/fix_fences.py` lines 372-374, verbatim:
 #
 #     def over_indented(self, indent: str) -> bool:
 #         """Return True when *indent* puts the marker inside an indented code block."""
@@ -124,21 +124,14 @@ _SETEXT_UNDERLINE = re.compile(r"^(?:=+|-+)[ \t]*$")
 # holding no fence at all. Measured against the reference parser over 22
 # destination and title shapes; these three patterns agree with it on all 22.
 #
-# The destination is an angle form or a bare run with balanced parentheses.
-# The `(?!<)` matters: without it the bare alternative swallows `<broken`,
-# which is the defect above. A title must be complete, and nothing but
-# whitespace may follow it.
-_LINK_DESTINATION = r"(?:<[^<>\n]*>|(?!<)(?:[^ \t()\\]|\\.|\([^ \t()]*\))+)"
-_LINK_TITLE = r"(?:\"[^\"]*\"|'[^']*'|\([^()]*\))"
+# The title is a quoted or parenthesised run. Each form may carry a
+# backslash-escaped copy of its own delimiter, which is why every alternative
+# spells the escape: `[^"]*` stopped at the backslash in `"a\\"b"` and read a
+# valid title as prose. CommonMark forbids an UNESCAPED parenthesis inside the
+# parenthesised form, so one level is the whole grammar there and a pattern
+# can spell it; the destination cannot say the same, hence the scanner below.
+_LINK_TITLE = r"(?:\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\]|\\.)*'|\((?:[^()\\]|\\.)*\))"
 _LINK_LABEL = r"\[(?![ \t]*\])(?:[^\[\]\\]|\\.)*\]"
-_LINK_REFERENCE = re.compile(
-    rf"^{_LINK_LABEL}:[ \t]*{_LINK_DESTINATION}(?:[ \t]+{_LINK_TITLE})?[ \t]*$"
-)
-# The same definition with NO title, so a bare title on the NEXT line
-# continues it.
-_LINK_REFERENCE_NO_TITLE = re.compile(
-    rf"^{_LINK_LABEL}:[ \t]*{_LINK_DESTINATION}[ \t]*$"
-)
 _LINK_TITLE_ONLY = re.compile(rf"^{_LINK_TITLE}[ \t]*$")
 # CommonMark also lets the destination start on the line AFTER the label. The
 # label line stays paragraph text until a valid destination proves otherwise,
@@ -146,10 +139,74 @@ _LINK_TITLE_ONLY = re.compile(rf"^{_LINK_TITLE}[ \t]*$")
 # `[foo]:` followed directly by `2.`, the reference parser keeps the paragraph
 # and vetoes the marker, and deciding early would break that.
 _LINK_LABEL_ONLY = re.compile(rf"^{_LINK_LABEL}:[ \t]*$")
-_LINK_DEST_LINE = re.compile(
-    rf"^{_LINK_DESTINATION}(?:[ \t]+{_LINK_TITLE})?[ \t]*$"
-)
-_LINK_DEST_LINE_NO_TITLE = re.compile(rf"^{_LINK_DESTINATION}[ \t]*$")
+_LINK_LABEL_COLON = re.compile(rf"^{_LINK_LABEL}:[ \t]*")
+
+
+def _link_destination_end(body: str, start: int) -> int | None:
+    """Return the index just past the link destination at *start*, or None.
+
+    The bracketless destination form allows parentheses at ANY nesting depth
+    so long as they balance. A regex alternative can only spell a fixed depth,
+    and the one that shipped spelled a single level, so `[foo]: /u(r(l))` was
+    read as prose here and as a definition by the reference parser. That kept
+    a paragraph open, vetoed the following list marker, and let `--write`
+    append a fence to a balanced document. A scanner has no depth ceiling to
+    get wrong; the reference parser accepts four levels and offers no reason
+    to believe it stops there.
+
+    The angle form is handled first because a bare run must not begin with
+    `<`: letting it swallow `<broken` is the defect this grammar exists to
+    prevent.
+    """
+    if start < len(body) and body[start] == "<":
+        end = body.find(">", start + 1)
+        if end == -1 or "<" in body[start + 1 : end]:
+            return None
+        return end + 1
+    index, depth = start, 0
+    while index < len(body):
+        char = body[index]
+        if char in " \t":
+            break
+        if char == "\\" and index + 1 < len(body):
+            index += 2  # an escaped character never counts as a delimiter
+            continue
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth < 0:
+                return None  # a closer with no opener
+        index += 1
+    if depth != 0 or index == start:
+        return None  # unbalanced, or no destination at all
+    return index
+
+
+def _link_tail(body: str, start: int) -> bool | None:
+    """Return whether a title follows the destination beginning at *start*.
+
+    None when the rest of the line is not a complete destination optionally
+    followed by one title. False means a definition carrying no title, which
+    is what lets a bare title continue it on the next line, so callers must
+    test `is None` rather than truthiness.
+    """
+    end = _link_destination_end(body, start)
+    if end is None:
+        return None
+    rest = body[end:]
+    if not rest.strip(" \t"):
+        return False
+    separated = rest.lstrip(" \t")
+    if len(separated) == len(rest):
+        return None  # a title must be separated from the destination
+    return True if _LINK_TITLE_ONLY.match(separated) else None
+
+
+def _link_reference(body: str) -> bool | None:
+    """Return whether a same-line definition carries a title, or None for prose."""
+    match = _LINK_LABEL_COLON.match(body)
+    return None if match is None else _link_tail(body, match.end())
 _MAX_LIST_PAD = 4
 
 
@@ -424,25 +481,26 @@ class _ListContainers:
             # Indented code when no paragraph is open, a lazy continuation when
             # one is. Neither changes the state, and both differ from prose.
             return None
-        definition = not self._in_paragraph and _LINK_REFERENCE.match(body)
-        title_line = self._awaiting_link_title and _LINK_TITLE_ONLY.match(body)
-        dest_line = self._awaiting_link_destination and _LINK_DEST_LINE.match(body)
-        label_only = not self._in_paragraph and _LINK_LABEL_ONLY.match(body)
+        # None means "not one"; False means "one carrying no title yet", which
+        # is why these are tested with `is None` and never for truthiness.
+        definition = None if self._in_paragraph else _link_reference(body)
+        dest_line = _link_tail(body, 0) if self._awaiting_link_destination else None
+        title_line = self._awaiting_link_title and bool(_LINK_TITLE_ONLY.match(body))
+        label_only = not self._in_paragraph and bool(_LINK_LABEL_ONLY.match(body))
         self._in_paragraph = not (
             _ATX_HEADING.match(body)
             or _THEMATIC_BREAK.match(body)
             or _starts_fence(body)
             or _BLOCK_QUOTE.match(body)
             or (self._in_paragraph and _SETEXT_UNDERLINE.match(body))
-            or definition
+            or definition is not None
             or title_line
-            or dest_line
+            or dest_line is not None
         )
-        self._awaiting_link_destination = bool(label_only)
-        self._awaiting_link_title = bool(
-            (definition and _LINK_REFERENCE_NO_TITLE.match(body))
-            or (dest_line and _LINK_DEST_LINE_NO_TITLE.match(body))
-        )
+        self._awaiting_link_destination = label_only
+        # False, not None: a definition that parsed and carried no title. A
+        # bare title on the next line continues exactly that one.
+        self._awaiting_link_title = definition is False or dest_line is False
         return None
 
     def _outdents(self, indent: str) -> bool:

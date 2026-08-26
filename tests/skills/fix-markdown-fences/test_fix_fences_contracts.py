@@ -302,6 +302,32 @@ class TestScannerParity:
             "the duplicated container class has drifted between the two skills"
         )
 
+    def test_the_link_grammar_is_identical_in_both_scanners(self) -> None:
+        """The class is not the whole duplication, and the gap has cost five defects.
+
+        Every defect found in this PR since round 12 landed in code sitting
+        just OUTSIDE `_ListContainers`, where the parity test above could not
+        see it: the line splitter, the closing-fence predicate, the test
+        mirror, the oracle's own splitter, and the defect report's `rstrip`.
+        Rule 16's grammar is the newest such code, and the destination scanner
+        made it larger, so it is pinned here rather than left to the next
+        reviewer.
+
+        The patterns are compared by their source strings and the helpers by
+        their source text, which is what a copy-paste divergence changes.
+        """
+        prose = import_skill_script(".claude/skills/prose-self-check/scripts/prose_lint.py")
+        for name in ("_LINK_TITLE", "_LINK_LABEL"):
+            assert getattr(mod, name) == getattr(prose, name), f"{name} has drifted"
+        for name in ("_LINK_TITLE_ONLY", "_LINK_LABEL_ONLY", "_LINK_LABEL_COLON"):
+            assert getattr(mod, name).pattern == getattr(prose, name).pattern, (
+                f"{name} has drifted"
+            )
+        for name in ("_link_destination_end", "_link_tail", "_link_reference"):
+            assert inspect.getsource(getattr(mod, name)) == inspect.getsource(
+                getattr(prose, name)
+            ), f"{name} has drifted between the two skills"
+
     @pytest.mark.parametrize("seed", [1729, 4242, 20260826])
     def test_write_never_mutates_a_balanced_generated_document(self, seed: int) -> None:
         """Drive the PUBLIC repair path over the generated corpus.
