@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 0647e876aeda29fc9c46eb7ac74c9e39a5e91530
+qaCommit: 9b0fc76240f0a54ea3ee14049a1cf90ceb3aa0b1
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `0647e876aeda29fc9c46eb7ac74c9e39a5e91530` (see Addendum 61)
+**Validated at commit**: `9b0fc76240f0a54ea3ee14049a1cf90ceb3aa0b1` (see Addendum 62)
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -2602,7 +2602,25 @@ Two more rounds landed the round-17 fix into two successive false-negative gaps,
 
 **Round 19 also flagged the live PR description as literal placeholder text and the QA reports as stale.** The placeholder was a real but transient defect: an MCP tool call had been submitted with a literal `$(cat ...)` shell-substitution string as the PR body (the same mistake as an earlier round, described in the PR's own "Corrections to this description's earlier revisions"), caught and replaced with real content within the same session before the round-19 review's own findings were addressed here. Re-checked directly against the live PR at addendum-writing time: the body is the current, real, round-18-updated description, not a placeholder. The QA-staleness finding is this addendum.
 
-Full suites re-run clean after all round-18/19 fixes: `tests/test_markdown_parser.py` (79 passed), combined with `tests/validation/test_check_adr_lifecycle.py` and `tests/test_adr_063_memory_skill_decomposition.py` (236 passed). `check_adr_lifecycle.py`'s corpus check: unchanged, 1 violation across 103 records, at baseline. `pre_pr.py`: all validations passed on the round-18 commit; the round-19 commit's pre-commit hooks passed (taste-lint file-size/complexity findings on `markdown_parser.py` remain pre-existing and advisory-only, unchanged in kind since round 15).
+Full suites re-run clean after all round-18/19 fixes: `tests/test_markdown_parser.py` (79 passed), combined with `tests/validation/test_check_adr_lifecycle.py` and `tests/test_adr_063_memory_skill_decomposition.py` (236 passed). `check_adr_lifecycle.py`'s corpus check: unchanged, 1 violation across 103 records, at baseline. Each commit's own pre-commit hooks passed individually (taste-lint file-size/complexity findings on `markdown_parser.py` remain pre-existing and advisory-only, unchanged in kind since round 15); a separate, full `uv run python scripts/validation/pre_pr.py` run against the complete round-19 state, after both the code-fix commit and this QA-addenda commit, also passed clean (all 52 checks), confirmed before push.
 
 **Rebound to** `0647e876aeda29fc9c46eb7ac74c9e39a5e91530`.
+
+## Addendum 62: round 20, the same helper's cursor-advancement invariant broken and repaired a fourth time, plus two real documentation findings
+
+The round-19 fix's markup-anchor check (`_find_markup_anchored_occurrence`) verified a candidate match was flanked by backticks of the right length, which proves the match sits inside SOME code span, not that it belongs to the SPECIFIC `code_inline` child currently being processed. A round-20 Copilot review found the gap directly.
+
+**Round 20, finding 1 (real): a later sibling `code_inline` with coincidentally matching content could steal an earlier child's position search.** `` `a\nb` <!-- a b --> `a b` `` tokenizes as `code_inline("a b")` (normalized from the newline-joined `"a\nb"`), `text(" ")`, `html_inline("<!-- a b -->")`, `text(" ")`, `code_inline("a b")` (the second span, genuinely `"a b"` verbatim with no newline to normalize). Searching for the FIRST `code_inline` child's content `"a b"` never finds it at its own true position (whose raw text is `"a\nb"`, not `"a b"`), but the round-19 anchor check happily accepted the backtick-flanked `"a b"` inside the SECOND, later code span instead, advancing the cursor past the real comment sitting between them and leaving it completely unmasked. Verified empirically: `blank_non_prose_block_lines("`a\nb` <!-- a b --> `a b`\n")` returned the input completely unmodified before the fix.
+
+Fixed (commit `20db97686`) by abandoning content-based search for `code_inline` entirely. The new `_code_span_end`, backed by `_find_exact_backtick_run` (a direct implementation of CommonMark's own backtick-string delimiter-matching rule, using the delimiter length markdown-it already recorded in `child.markup`), locates each code span by its opening and closing DELIMITERS alone. With no content string ever searched for, no other child's content, earlier or later, real comment or decoy, can be mistaken for it. `html_inline` keeps searching by `.content`, which CommonMark guarantees is always a verbatim copy of the source with no separate delimiter (`markup` is always `""`). Added `test_a_later_decoy_code_span_cannot_steal_an_earlier_spans_match`. Mutation-proven: reverting to content-based search for `code_inline` fails exactly this test AND the round-19 normalized-span test, while all 78 other tests in the file stay green.
+
+**Round 20, finding 2 (documentation-only): the round-19 fix's own docstring contained an internally inconsistent illustrative example**, implying `find("<!-- x -->")` could match a later comment whose raw source was `"<!--\nx -->"`, two byte-different strings that cannot match each other via `find`. The confusing example no longer exists after the full delimiter-based rewrite in the same commit; the actual mechanism (and the actual test) always used a later SINGLE-LINE comment, which the corrected docstring now states directly.
+
+**Round 20, finding 3 (previously-missed, real): `tests/validation/test_check_adr_links.py`'s file-size suppression comment claimed "no single round crossing the ratchet baseline on its own", contradicting this report's own Addendum 25**, which records round 8 growing the file from 491 to 537 lines and tripping `pre_pr.py`'s taste-count-ratchet as a real +1 regression, exactly the kind of single-round crossing the comment denied happened. Fixed (commit `9b0fc7624`) by correcting the comment to state the measured event, citing Addendum 25 directly.
+
+**Round 20 also caught this report's own imprecision**: Addendum 61's closing evidence paragraph said only "the round-19 commit's pre-commit hooks passed" for the round-19 code-fix commit, without stating that a SEPARATE, full `pre_pr.py` run had already validated the complete round-19 state (both the code-fix commit and the QA-addenda commit) before push. That run did happen and did pass; the wording just undersold it relative to the evidence actually available. Corrected in place in Addendum 61 above (commit `9b0fc7624`), consistent with this report's practice of correcting in place only its own most recent, still-live claims rather than rewriting settled history.
+
+Full suites re-run clean after all round-20 fixes: `tests/test_markdown_parser.py` (80 passed), combined with `tests/validation/test_check_adr_lifecycle.py`, `tests/validation/test_check_adr_links.py` (148 passed on its own), and `tests/test_adr_063_memory_skill_decomposition.py` (237 passed). `check_adr_lifecycle.py`'s corpus check: unchanged, 1 violation across 103 records, at baseline. `taste count ratchet`: OK, unchanged at baseline 575 (the suppression-comment fix is comment-only inside an already-suppressed file). `ruff check`: clean on every touched file.
+
+**Rebound to** `9b0fc76240f0a54ea3ee14049a1cf90ceb3aa0b1`.
 

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 0647e876aeda29fc9c46eb7ac74c9e39a5e91530
+qaCommit: 9b0fc76240f0a54ea3ee14049a1cf90ceb3aa0b1
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -9,7 +9,7 @@ qaCommit: 0647e876aeda29fc9c46eb7ac74c9e39a5e91530
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `main` (retargeted by GitHub after PR #5209 squash-merged and its branch was deleted; was `claude/adr-evaluation-tooling-6od8rd`)
-**Validated at commit**: `0647e876aeda29fc9c46eb7ac74c9e39a5e91530` (see Addendum 62)
+**Validated at commit**: `9b0fc76240f0a54ea3ee14049a1cf90ceb3aa0b1` (see Addendum 63)
 
 ## Verdict
 
@@ -1398,7 +1398,7 @@ Same two rounds, same five findings, same fixes as Addendum 61 of the campaign r
 
 1. Round 18 (mandatory, CWE-20): a `text` child's entity-decoded content (`&amp; ` -> `"& "`) could match an unrelated later literal and steal a real multiline comment's masking, leaving a forged `**Status**: Accepted` fully visible. Fixed by restricting the searchable, cursor-advancing child types to a verbatim-content allowlist (`html_inline`, `code_inline`); commit `bfdd295ba`.
 2. Round 18 (previously-missed): the earlier file-size taste-lint suppression's improvement was never recorded in `scripts/ci/taste_count_baseline.txt`. Fixed by running the ratchet updater (576 -> 575); same commit.
-3. Round 19 (real): the round-18 allowlist's `code_inline` member is not always source-verbatim, since CommonMark converts an embedded line ending inside a multi-line code span to a space. A crafted `` `<!--\nx -->` `` normalizes to match a later real `<!-- x -->` comment, stealing its position and leaving it unmasked. Fixed with a markup-anchor verification helper (`_find_markup_anchored_occurrence`) that requires a `code_inline` match be flanked by its own backtick delimiter before being trusted; commit `0647e876a`.
+3. Round 19 (real): the round-18 allowlist's `code_inline` member is not always source-verbatim, since CommonMark converts an embedded line ending inside a multi-line code span to a space. A crafted `` `<!--\nx -->` `` normalizes to match a later real `<!-- x -->` comment, stealing its position and leaving it unmasked. Fixed with a markup-anchor verification helper (a bare `find` required a candidate match be flanked by its own backtick delimiter before being trusted) that closed this specific gap; commit `0647e876a`. **This helper was itself superseded a round later; see Addendum 63.**
 4. Round 19 (documentation-only, two findings): a test comment quoted the wrong fixture string, and another test comment's "past EVERY child" claim had already been falsified by round 18's type restriction. Both corrected; same commit.
 
 Full evidence, including the exact token structures verified for each finding and the mutation-proof failure modes, is in Addendum 61 of the campaign report, which also addresses the round-19 finding that the live PR description was briefly a literal placeholder (a transient, already-corrected mistake, not a standing defect) and that these QA reports were stale (this addendum is the fix).
@@ -1406,4 +1406,18 @@ Full evidence, including the exact token structures verified for each finding an
 Full suites re-run clean after all round-18/19 fixes: `tests/test_markdown_parser.py` (79 passed), combined with `tests/validation/test_check_adr_lifecycle.py` and `tests/test_adr_063_memory_skill_decomposition.py` (236 passed). Corpus check unchanged at baseline (1 violation across 103 records).
 
 **Rebound to** `0647e876aeda29fc9c46eb7ac74c9e39a5e91530`.
+
+## Addendum 63: same round-20 findings and fixes as Addendum 62 of the campaign report
+
+Same three findings, same fixes as Addendum 62 of the campaign report:
+
+1. Round 20 (real): the round-19 markup-anchor check proved a match was backtick-flanked, not that it belonged to the SPECIFIC `code_inline` child being processed; a later sibling `code_inline` with coincidentally matching content could still steal an earlier child's position search, letting the cursor skip an intervening real comment entirely. `` `a\nb` <!-- a b --> `a b` `` reproduced this exactly: the first `code_inline`'s search found the SECOND span's position instead of failing at its own (byte-different) true position. Fixed by abandoning content-based search for `code_inline` entirely: `_code_span_end`, backed by `_find_exact_backtick_run`, locates each span by its opening and closing backtick delimiters alone, with no content string to collide with any other child's; commit `20db97686`.
+2. Round 20 (documentation-only): the round-19 fix's docstring contained an internally inconsistent example (implying two byte-different strings could match via `find`); no longer exists after the delimiter-based rewrite in the same commit.
+3. Round 20 (previously-missed, real): `tests/validation/test_check_adr_links.py`'s file-size suppression comment claimed no single round crossed the ratchet baseline, contradicting this campaign's own Addendum 25, which records round 8 doing exactly that. Fixed by stating the measured event, citing Addendum 25 directly; commit `9b0fc7624`.
+
+Full evidence, including the exact token structures verified for the decoy-sibling shape and the mutation-proof failure modes, is in Addendum 62 of the campaign report, which also corrects that report's own Addendum 61 (an imprecise claim about which validation ran on the round-19 commit, corrected in place since it was that report's most recently landed, still-live claim).
+
+Full suites re-run clean after all round-20 fixes: `tests/test_markdown_parser.py` (80 passed), combined with `tests/validation/test_check_adr_lifecycle.py`, `tests/validation/test_check_adr_links.py` (148 passed on its own), and `tests/test_adr_063_memory_skill_decomposition.py` (237 passed). Corpus check unchanged at baseline (1 violation across 103 records). Taste-count ratchet unchanged at baseline 575.
+
+**Rebound to** `9b0fc76240f0a54ea3ee14049a1cf90ceb3aa0b1`.
 
