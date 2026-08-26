@@ -214,6 +214,7 @@ class TestPrePrWiring:
         resolution in _root_only actually reaches this gate's verdict, with
         the passing run as the control.
         """
+        import argparse
         from types import SimpleNamespace
 
         from scripts.validation import pre_pr_sequence
@@ -229,7 +230,7 @@ class TestPrePrWiring:
             return True
 
         state = SimpleNamespace(total=0, passed=0, failed=0, skipped=0)
-        args = SimpleNamespace(quick=True, skip_tests=False, verbose=False)
+        args = argparse.Namespace(quick=True, skip_tests=False, verbose=False)
 
         monkeypatch.setattr(pre_pr_sequence, "validate_citation_freshness", lambda _root: False)
         pre_pr_sequence.run_all_validations(repo_root, args, state, fake_run_validation)
