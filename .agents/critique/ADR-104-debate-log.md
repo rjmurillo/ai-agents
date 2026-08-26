@@ -637,6 +637,33 @@ comments already drew: a workstation asks how long a job may take, a container
 asks whether anything can outlive it. A size ignore would have asserted the
 module could not be split while it visibly could.
 
+### Round 9 addendum: the reverse audit, run rather than deferred
+
+A sixth reviewer pass asked for a reverse audit of the CI path filter instead
+of a fifth hand-picked batch of roots. Three rounds had each found more roots by
+reading tests, which is the shape of a search that is not converging.
+
+The audit: parse every string literal in all 974 test modules, keep the ones
+that resolve to a real repository file, check each against the filter. **120
+direct test inputs were unmatched.** 92 Markdown, 14 JSON, 5 text, spanning
+every tree, including `.agents/retrospective/**`, `.agents/sessions/**`, and
+`.agents/analysis/**`, which the filter's own comment names as the Markdown it
+deliberately skips. Those are test inputs too, so the thing the allowlist was
+protecting was already close to empty and the curation could not have finished.
+
+Three extension globs plus five extensionless names close all 120; re-running
+the audit leaves one `__pycache__` artifact. The operator chose that over
+keeping the allowlist with a guard, and the trade is that a docs-only PR now
+runs the matrix. The failure direction flips from a gate silently not running
+to a run being wasted, and only the second is visible to whoever caused it.
+
+The same round closed the two claimed collection misses that no test had ever
+executed, and pinned the ordinary import-graph subset path's budget, which
+every existing budget test had skipped by forcing the opt-in flag. That last
+one is the reviewer's sharpest point restated: the 780s figure this record
+described as an opt-in property is what an everyday Python push takes, and the
+tests that would have said so all took the other branch.
+
 ### Still open after this round
 
 - `scan_pushed_heads` has no aggregate deadline, so `security-scan` has no
@@ -649,5 +676,6 @@ module could not be split while it visibly could.
   that fired.
 - The base-ref ratchet skips where no base ref is reachable, which is a shallow
   CI checkout. The ceiling is the only guard there.
-- No reverse-direction guard on the CI filter.
-
+- `workflow-local-run`'s cap fell from 30m to 10m without a measurement on
+  a push that fires its glob. Raised in review; a push carrying a workflow
+  change is what produces that number.
