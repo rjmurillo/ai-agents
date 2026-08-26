@@ -433,6 +433,22 @@ class TestScannerParity:
             "the duplicated container class has drifted between the two skills"
         )
 
+    def test_the_fuzz_seed_set_is_pinned(self) -> None:
+        """The ratchet must not be able to disarm itself.
+
+        `FUZZ_BASELINE` is both the expected value AND the seed list the test
+        below is parametrized over, so deleting a key deletes the measurement
+        rather than failing it. Measured: setting it to `{}` disarms BOTH fuzz
+        ratchets and the suite still reports all green, and dropping to a single
+        seed does the same for the other two.
+
+        This test is deliberately NOT parametrized, so it runs even when the
+        dict is empty. Same defect and same remedy as the corpus-size pin
+        inside the test below: a ratchet whose own configuration decides
+        whether it runs is not a ratchet.
+        """
+        assert sorted(FUZZ_BASELINE) == [1729, 4242, 20260826]
+
     @pytest.mark.parametrize("seed", sorted(FUZZ_BASELINE))
     def test_divergence_matches_baseline(self, seed: int) -> None:
         documents = random_documents(seed)

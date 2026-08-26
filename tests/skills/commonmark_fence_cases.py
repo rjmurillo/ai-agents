@@ -44,9 +44,13 @@ That is why the blockquote gap above is stated with a measurement rather than
 with the same argument. Do not repeat it without measuring; see rules 9 and 10
 in `_ListContainers`.
 
-What remains in the fuzz residue below is not one family. It is a handful of
-deep interactions between lazy continuations, empty items, and five-or-more
-columns of padding under nested markers.
+What remains in the fuzz residue below is two documents, and they share almost
+nothing. Both are pure under-detections and both carry a tab. Beyond that:
+one has five columns of marker padding, an empty item and a thematic break,
+and is the only one `--write` still mutates; the other has a maximum of two
+columns of padding, no empty item and no thematic break, and carries U+3000
+in a fence info string with U+00A0 as a marker remainder. Do not summarize
+them as one shape: two earlier attempts did and both were wrong.
 
 Do not widen these cases into those areas without deciding what the intended
 behavior is first. The fuzz baselines below are what bound them.
@@ -298,13 +302,14 @@ CASES: dict[str, str] = {
 # exactly that; it was then rewritten with an explicit total and went stale
 # again when rule 15 closed most of it. A count duplicated in prose has now
 # drifted twice, so `FUZZ_BASELINE` below is the single numeric source of
-# truth and this comment describes only the shape: deep interactions between
-# lazy continuations, empty items, and five-or-more columns of padding under
-# nested markers. Measured on the two documents that actually remain: both
-# carry five-or-more columns of padding and tabs under nested markers; one
-# adds a thematic break, the other an empty item and a lazy continuation. So
-# the shape is padding and tabs, not the lazy/empty pairing an earlier wording
-# claimed. Raw HTML is NOT among these: the generator emits no `<` at all
+# truth. The residue's shape is described in this module's docstring and NOT
+# repeated here, because it has now been described wrongly twice: once as a
+# lazy/empty pairing, and once as `both carry five-or-more columns of padding`
+# under a sentence beginning `Measured`, when one of the two documents has a
+# maximum of two columns and no empty item at all. A description asserted as
+# measured and never re-measured is worse than none.
+#
+# Raw HTML is NOT among these: the generator emits no `<` at all
 # across all 6,000 documents, so it cannot appear in this residue. The fuzz
 # negative control pins raw HTML with a hand-written document instead.
 #
