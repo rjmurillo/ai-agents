@@ -126,9 +126,12 @@ documentation:
   its own delimiter, a continuation belongs to the same leaf block and so
   keeps its meaning at any indent, and
   either the destination or a bare title may sit on the following line, and
-  a blank line or a fenced block cancels a definition still waiting for
-  one. A blank line directly after an empty marker closes the item, and a
-  paragraph continuation line may dedent without closing it.
+  a blank line, a fenced block, a list marker or an indented code block
+  cancels a definition still waiting for one, while a line that does
+  continue one is a lazy continuation and does not close the item holding
+  it. A label of only whitespace is not a definition at all. A blank line
+  directly after an empty marker closes the item, and a paragraph
+  continuation line may dedent without closing it.
   Getting any of these wrong moves the content column, which moves what counts
   as a fence.
 - A marker line's remainder is re-parsed inside the item it opens, so a fence

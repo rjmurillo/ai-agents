@@ -92,7 +92,7 @@ _FENCE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
 # root and is quoted here rather than imported, because the two skills ship
 # as separate directories and neither is on the other's import path.
 #
-# `skills/fix-markdown-fences/scripts/fix_fences.py` lines 372-374, verbatim:
+# `skills/fix-markdown-fences/scripts/fix_fences.py` lines 377-379, verbatim:
 #
 #     def over_indented(self, indent: str) -> bool:
 #         """Return True when *indent* puts the marker inside an indented code block."""
@@ -131,7 +131,12 @@ _SETEXT_UNDERLINE = re.compile(r"^(?:=+|-+)[ \t]*$")
 # parenthesised form, so one level is the whole grammar there and a pattern
 # can spell it; the destination cannot say the same, hence the scanner below.
 _LINK_TITLE = r"(?:\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\]|\\.)*'|\((?:[^()\\]|\\.)*\))"
-_LINK_LABEL = r"\[(?![ \t]*\])(?:[^\[\]\\]|\\.)*\]"
+# `\s`, not `[ \t]`. CommonMark normalises a label before comparing it, so a
+# label holding only whitespace normalises to empty and the line is not a
+# definition. The guard tested space and tab alone, so `[\xa0]: /url` parsed
+# here as a definition, cleared paragraph state the reference parser keeps,
+# and `--write` appended a fence to a document holding none.
+_LINK_LABEL = r"\[(?!\s*\])(?:[^\[\]\\]|\\.)*\]"
 _LINK_TITLE_ONLY = re.compile(rf"^{_LINK_TITLE}[ \t]*$")
 # CommonMark also lets the destination start on the line AFTER the label. The
 # label line stays paragraph text until a valid destination proves otherwise,
@@ -432,7 +437,14 @@ class _ListContainers:
                 self._columns.pop()
                 self._item_still_empty = False
             return
-        if self._in_paragraph and not self._starts_a_block(line):
+        # A definition still waiting for its destination or title is an open
+        # leaf block exactly as a paragraph is, so a line that continues it is
+        # a lazy continuation and must not close the item holding it. Reading
+        # only `_in_paragraph` here popped the item on a dedented title, the
+        # fence below it then opened at column zero instead of inside the item,
+        # nothing could close it, and `--write` appended to a balanced document.
+        pending = self._awaiting_link_title or self._awaiting_link_destination
+        if (self._in_paragraph or pending) and not self._starts_a_block(line):
             return  # rule 6: a lazy continuation keeps its container open
         width = _indent_width(line[: len(line) - len(line.lstrip(" \t"))])
         while self._columns and width < self._columns[-1]:
@@ -473,6 +485,14 @@ class _ListContainers:
             # rejected as an interruption and never opened its own container.
             self._in_paragraph = False
             self._item_still_empty = not has_content
+            # A new item is a new container, and a definition still waiting for
+            # its destination or title belonged to the one outside it. Left
+            # set, the caller's re-parse of the marker's remainder booked that
+            # remainder as the OLD definition's destination, so paragraph state
+            # stayed clear, a later dedent closed the item early, and `--write`
+            # appended a closer to a balanced document.
+            self._awaiting_link_title = False
+            self._awaiting_link_destination = False
             return column
         self._item_still_empty = False  # this line is the item's first content
         content = self._relative(line)
@@ -490,6 +510,12 @@ class _ListContainers:
         if len(content) - len(body) > _MAX_FENCE_INDENT and not continues_definition:
             # Indented code when no paragraph is open, a lazy continuation when
             # one is. Neither changes the state, and both differ from prose.
+            # But an indented code block is its own leaf block, so it also ENDS
+            # a definition still waiting. A lazy continuation does not, which is
+            # why this is gated on there being no open paragraph.
+            if not self._in_paragraph:
+                self._awaiting_link_title = False
+                self._awaiting_link_destination = False
             return None
         # None means "not one"; False means "one carrying no title yet", which
         # is why these are tested with `is None` and never for truthiness.
