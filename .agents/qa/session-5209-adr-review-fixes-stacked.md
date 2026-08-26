@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 9b0fc76240f0a54ea3ee14049a1cf90ceb3aa0b1
+qaCommit: f87a1585f756ae4536256c4f9b9be3699137a776
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -9,7 +9,7 @@ qaCommit: 9b0fc76240f0a54ea3ee14049a1cf90ceb3aa0b1
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `main` (retargeted by GitHub after PR #5209 squash-merged and its branch was deleted; was `claude/adr-evaluation-tooling-6od8rd`)
-**Validated at commit**: `9b0fc76240f0a54ea3ee14049a1cf90ceb3aa0b1` (see Addendum 63)
+**Validated at commit**: `f87a1585f756ae4536256c4f9b9be3699137a776` (see Addendum 64)
 
 ## Verdict
 
@@ -1420,4 +1420,16 @@ Full evidence, including the exact token structures verified for the decoy-sibli
 Full suites re-run clean after all round-20 fixes: `tests/test_markdown_parser.py` (80 passed), combined with `tests/validation/test_check_adr_lifecycle.py`, `tests/validation/test_check_adr_links.py` (148 passed on its own), and `tests/test_adr_063_memory_skill_decomposition.py` (237 passed). Corpus check unchanged at baseline (1 violation across 103 records). Taste-count ratchet unchanged at baseline 575.
 
 **Rebound to** `9b0fc76240f0a54ea3ee14049a1cf90ceb3aa0b1`.
+
+## Addendum 64: same round-21 finding and fix as Addendum 63 of the campaign report
+
+Same finding, same fix as Addendum 63 of the campaign report: the round-20 delimiter-based fix closed every content-collision variant of the `code_inline` location defect but had a delimiter-level gap of its own. A round-21 Copilot review (marked Mandatory) found that `_find_exact_backtick_run`'s opening-delimiter lookup accepted a backslash-escaped backtick as a valid `code_inline` opener. `` \` `<!-- x -->` <!-- x -->\n `` reproduced this exactly: the escaped backtick's literal `` ` `` character passed the flanking check and became the (wrong) opening position, `_code_span_end` then mistook the REAL code span's own opening backtick for its closer, and the resulting too-short cursor let the subsequent `html_inline` search match the code span's own visible content (a decoy sharing the real comment's text) instead of the genuine, later comment, masking visible code while leaving a forged status declaration fully readable.
+
+Fixed (commit `f87a1585f`) with a new `_is_backslash_escaped` helper (CommonMark escape-parity: an odd count of immediately-preceding backslashes means escaped) and a `require_unescaped` keyword on `_find_exact_backtick_run`, set ONLY by the OPENING-delimiter call site. The CLOSING-delimiter call site inside `_code_span_end` deliberately keeps no such check, since CommonMark backslash escapes do not apply inside code span content and a real closer may legitimately follow a literal backslash that is part of the code's own text (verified empirically with a code span whose content ends in two literal backslashes right before its closer). Added `test_an_escaped_backtick_cannot_steal_a_real_code_spans_opener`. Mutation-proven: reverting only the `require_unescaped=True` call site reproduces the exact pre-fix broken output and fails exactly this new test, while all 80 other tests in the file, including both round-20 tests, stay green.
+
+Full evidence, including the exact token structures verified and the full mutation-proof output, is in Addendum 63 of the campaign report.
+
+Full suite re-run clean after the round-21 fix: `tests/test_markdown_parser.py` (81 passed) combined with `tests/validation/test_check_adr_lifecycle.py`, `tests/validation/test_check_adr_links.py`, and `tests/test_adr_063_memory_skill_decomposition.py`: 386 passed. `ruff check`: clean on both touched files. Taste-count ratchet unchanged at baseline 575 (the file-size and complexity findings on both files are advisory-only, pre-existing, and untouched by this round). `pre_pr.py` (full suite): passed on the round-21 commit.
+
+**Rebound to** `f87a1585f756ae4536256c4f9b9be3699137a776`.
 

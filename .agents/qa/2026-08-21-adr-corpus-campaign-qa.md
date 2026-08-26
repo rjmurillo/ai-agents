@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 9b0fc76240f0a54ea3ee14049a1cf90ceb3aa0b1
+qaCommit: f87a1585f756ae4536256c4f9b9be3699137a776
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `9b0fc76240f0a54ea3ee14049a1cf90ceb3aa0b1` (see Addendum 62)
+**Validated at commit**: `f87a1585f756ae4536256c4f9b9be3699137a776` (see Addendum 63)
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -2623,4 +2623,16 @@ Fixed (commit `20db97686`) by abandoning content-based search for `code_inline` 
 Full suites re-run clean after all round-20 fixes: `tests/test_markdown_parser.py` (80 passed), combined with `tests/validation/test_check_adr_lifecycle.py`, `tests/validation/test_check_adr_links.py` (148 passed on its own), and `tests/test_adr_063_memory_skill_decomposition.py` (237 passed). `check_adr_lifecycle.py`'s corpus check: unchanged, 1 violation across 103 records, at baseline. `taste count ratchet`: OK, unchanged at baseline 575 (the suppression-comment fix is comment-only inside an already-suppressed file). `ruff check`: clean on every touched file.
 
 **Rebound to** `9b0fc76240f0a54ea3ee14049a1cf90ceb3aa0b1`.
+
+## Addendum 63: round 21, the delimiter-based fix itself had an escaping gap
+
+The round-20 fix located each `code_inline` span by its opening and closing backtick DELIMITERS instead of by content, which closed every content-collision variant of this defect class. A round-21 Copilot review found a delimiter-level gap in that same fix, marked Mandatory: the opening-delimiter lookup (`_find_exact_backtick_run`, called from `_html_comment_inline_ranges` to find where a `code_inline` child's span begins) accepted a backslash-escaped backtick as a valid opener.
+
+**The mechanism.** A backslash-escaped backtick in ordinary text, `` \` ``, is a literal backtick CHARACTER to CommonMark, not a delimiter: markdown-it resolves it to a plain `text` token holding the unescaped character, with no `code_inline` counterpart at all. `_find_exact_backtick_run`'s flanking check (reject a candidate immediately preceded or followed by another backtick) has no way to know this, since it only inspects neighboring characters, not backslash parity. Verified empirically: parsing `` "\\` `<!-- x -->` <!-- x -->\n" `` produces `text("` ")` (the escaped backtick, resolved to a literal `` ` `` character), `code_inline("<!-- x -->")` (the real, single visible code span), `text(" ")`, `html_inline("<!-- x -->")` (the real, hidden comment). The opening search started at the paragraph's beginning and matched the escaped backtick's literal character first, unpreceded and unfollowed by any other backtick, so it passed the flanking check and became `open_start`. `_code_span_end` then searched forward from just past it for a closing run of the same length and found the REAL code span's own opening backtick, mistaking it for a closer. That mis-attribution shrank the recognized "span" and left the cursor short of the real code span's true end, still positioned before its own visible `<!-- x -->` content. The subsequent `html_inline` search, starting from that too-short cursor, then matched the code span's own visible content (a decoy sharing the same text as the real, later comment) instead of the genuine comment further along, masking VISIBLE code while leaving the REAL hidden comment fully readable by `check_adr_lifecycle.py`'s status regex. Verified empirically: `blank_non_prose_block_lines("\\` `<!-- x -->` <!-- x -->\n")` blanked the code span's own content (`` `          ` ``) while leaving the real trailing `<!-- x -->` completely untouched, before this fix.
+
+**The fix** (commit `f87a1585f`): a new `_is_backslash_escaped` helper counts consecutive backslashes immediately before a candidate position; an odd count means CommonMark's escape rule applies (the final backslash pairs with and escapes this character), an even count (including zero) means the character is unescaped. `_find_exact_backtick_run` gained a `require_unescaped` keyword, set ONLY by the OPENING-delimiter call site in `_html_comment_inline_ranges`. The CLOSING-delimiter call site inside `_code_span_end` deliberately does not set it: CommonMark backslash escapes do not apply inside code span content (spec section 6.1), so a real closer may legitimately follow a literal backslash that is part of the code's own text. Verified empirically before relying on this asymmetry: parsing a code span whose content ends in two literal backslashes right before its closing backtick (`` `a\\\\` more ``) tokenizes as `code_inline("a\\\\")`, confirming the closing backtick there is real and must not be rejected by an escape check. Added `test_an_escaped_backtick_cannot_steal_a_real_code_spans_opener`, asserting the visible code span survives verbatim and the real trailing comment is now masked. Mutation-proven: reverting only the `require_unescaped=True` call site reproduces the exact pre-fix broken output and fails exactly this new test, while all 80 other tests in the file (including the round-20 normalized-code-span and decoy-sibling tests) stay green.
+
+Full suite re-run clean after the round-21 fix: `tests/test_markdown_parser.py` (81 passed) combined with `tests/validation/test_check_adr_lifecycle.py`, `tests/validation/test_check_adr_links.py`, and `tests/test_adr_063_memory_skill_decomposition.py`: 386 passed. `ruff check` on both touched files: clean. `python3 -W error::SyntaxWarning -c "import scripts.utils.markdown_parser"`: no warnings. `taste count ratchet`: OK, unchanged at baseline 575 (the file-size and complexity findings `pre_pr.py`'s taste-lints reported on `markdown_parser.py` and `test_markdown_parser.py` are advisory-only per its own output, and are pre-existing findings on functions and files this round did not touch: `_extract_table`'s and `parse_sections`'s complexity, and both files' line counts, unchanged in kind since round 15). `pre_pr.py` (full suite): passed on the round-21 commit.
+
+**Rebound to** `f87a1585f756ae4536256c4f9b9be3699137a776`.
 
