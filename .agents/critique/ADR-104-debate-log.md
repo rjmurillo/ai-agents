@@ -689,6 +689,36 @@ flatters the author: a number was improved by removing the thing that produced
 it rather than by measuring it. The difference this time is that the record
 forbidding it was written on this branch, three sections above the cut.
 
+### Round 9 addendum: the opt-in flag still did less than it said
+
+A seventh reviewer pass, and the sharpest finding on the branch. Hoisting
+`_validated_full_suite_opt_in` out of `_full_suite_stand_in` made an INVALID
+value report on both paths. It did not make a VALID one act on both: the return
+was discarded, so `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` on a Python change the
+import graph could narrow ran whatever subset the selector chose, silently. A
+flag named FULL_SUITE_LOCALLY that runs four files is the same doing-less-than-
+asked defect its own reject-anything-but-1 rule exists to prevent, one branch
+further along, and this record's Implementation Notes label that command
+"whole-suite execution". The flag now short-circuits selection entirely and says
+so on stderr, and the opt-in branch inside the stand-in, which the hoist had
+made unreachable, is gone rather than left as decoration.
+
+Fixing one instance of a pattern is not fixing the pattern. This is the third
+time that sentence has been written in this log about this branch, and the
+second time about this exact flag.
+
+The same pass found four comments describing the pre-aggregate-clamp world, in
+the ADR, `lefthook.yml`, the container-bound test, and the filter-roots
+docstring, which promised proof of a runtime read the check does not perform.
+
+One correction to this log's own claim: the reverse audit's 120 is a superset,
+not an exact count. It resolves string literals against the tree, so a test
+building `tmp_path / "STEP-0.5-METRICS.md"` matches the tracked file of that
+name. The unmatched set still contains genuine inputs, among them two session
+JSONs opened by exact path in `tests/test_validate_session_json.py`, which is
+what disproved the premise that session content is inert. The number is
+evidence that the allowlist could not be finished by hand, not a census.
+
 ### Still open after this round
 
 - `scan_pushed_heads` has no aggregate deadline, so `security-scan` has no

@@ -617,8 +617,11 @@ pre-push:
           # container restart killed the push before it reached the remote gate
           # the local copy was imitating. The 15m cap is the ceiling for the
           # opt-in `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` path, whose inner
-          # aggregate budget is 780s; the default path is bounded by the inner
-          # 300s collection budget, not by this.
+          # aggregate budget is 780s on a workstation; the default path is
+          # bounded by the inner 300s collection budget, not by this. Both
+          # figures are workstation ones: inside a managed container
+          # `run_pytest` clamps whichever aggregate applies to 150s before it
+          # starts a child, so neither number is what bounds a container push.
           # See ADR-104.
           - name: python-tests
             timeout: 15m

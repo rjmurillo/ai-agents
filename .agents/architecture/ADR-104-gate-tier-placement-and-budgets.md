@@ -182,14 +182,15 @@ earlier revision of this paragraph claimed. `pre-pr-validation` does not route
 through `_run_command` and carries its own 240s cap; every job whose work is a
 single subprocess is bounded by the clamp.
 
-Two jobs are not single-subprocess and are therefore not bounded at 150s.
-`run_pytest` holds an aggregate deadline across its children but at 780s on the
-opt-in path, and `scan_pushed_heads` holds none: it loops over pushed refs and
-each scan gets a fresh clamp, so N refs cost up to N times 150s. Rule 8 remains
-open for both. The measured hook is ~148s end to end and the default collection
+Two jobs are not single-subprocess, so the per-subprocess clamp does not bound
+them by itself. `run_pytest` now clamps its own aggregate deadline, so the
+whole pytest step is held to 150s in a container whichever path it takes.
+`scan_pushed_heads` still holds no aggregate: it loops over pushed refs and each
+scan gets a fresh clamp, so N refs cost up to N times 150s. Rule 8 remains open
+for that one. The measured hook is ~149s end to end and the default collection
 path spawns one child, so this is the tail rather than the common case; that
-sizes the fix, it does not excuse the claim. Corrected in review on PR #5319,
-tracked in #5318.
+sizes the fix, it does not excuse the claim. Corrected over three review rounds
+on PR #5319, the pytest half closed and the scan half tracked in #5318.
 
 The container detection is issue #2548's, imported rather than redefined; that
 issue established both the mechanism and the precedent of degrading a pre-push

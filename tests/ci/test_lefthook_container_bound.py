@@ -48,19 +48,21 @@ from tests.ci.lefthook_budget_model import (
 # PROCESS, not one job, and this model conflates them for every job that spawns
 # exactly one child. Two jobs spawn more:
 #
-#   * `python-tests` on the opt-in execution path holds an aggregate deadline
-#     in `run_pytest` and passes each child its remaining time, so the job is
-#     bounded, but at TEST_SUITE_TIMEOUT_SECONDS (780s), not at 240s.
+#   * `python-tests` runs up to four partition commands. `run_pytest` holds an
+#     aggregate deadline over them and now passes that deadline through
+#     `_container_clamped`, so the job is bounded at 150s in a container on
+#     every path rather than at TEST_SUITE_TIMEOUT_SECONDS. Closed on PR #5319
+#     after review found the aggregate unclamped on the ordinary subset path.
 #   * `security-scan` has no aggregate deadline at all: `scan_pushed_heads`
 #     loops over pushed refs and each `_scan_pushed_head` gets a fresh clamp,
-#     so a push of N refs costs up to N * 150s.
+#     so a push of N refs costs up to N * 150s. Still open, tracked in #5318.
 #
 # So this assertion is evidence for "no single subprocess outlives the
-# container", and only incidentally for the per-job reading. Raised in review on
-# PR #5319 and tracked in #5318. The measured hook is ~148s end to end and the
-# default collection path spawns one child, so the exposure is a tail case, not
-# the common one; that is a reason to size the fix deliberately rather than a
-# reason to keep claiming a bound that does not hold.
+# container", and for `python-tests` as a whole job, but not for `security-scan`
+# as a whole job. The measured hook is ~149s end to end and the default
+# collection path spawns one child, so the remaining exposure is a tail case,
+# not the common one; that is a reason to size the fix deliberately rather than
+# a reason to keep claiming a bound that does not hold.
 #
 # Set to the actual largest, not above it. An earlier revision used 300s while
 # the PR claimed 240s, which meant a regression to 250s would have passed the
