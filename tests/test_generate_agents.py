@@ -211,10 +211,15 @@ class TestGenerateAgents:
         artifact_path.parent.mkdir(parents=True)
         artifact_path.write_text(
             json.dumps({
+                "schemaVersion": "1",
                 "decision": "KEEP_PIN",
                 "winner": "claude-opus-4-6",
                 "fixtures_sha": "abc123",
                 "default_model": "claude-sonnet-4-6",
+                "models": [
+                    {"model_id": "claude-opus-4-6"},
+                    {"model_id": "claude-sonnet-4-6"},
+                ],
                 "n_shared_fixtures": 8,
                 "recall_delta": 0.05,
                 "ci95": [0.01, 0.09],
