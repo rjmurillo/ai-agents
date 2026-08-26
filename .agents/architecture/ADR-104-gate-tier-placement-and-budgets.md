@@ -491,23 +491,28 @@ itself mean tests ran.
 - **The failure this record exists to stop is narrowed, not closed.** In a
   container no single *subprocess* can exceed 150s, which is asserted. That is
   not the same as a per-job bound, and an earlier revision of this section said
-  it was. `run_pytest` holds an aggregate deadline over its children but at
-  780s on the opt-in path, and `scan_pushed_heads` holds none at all: it loops
-  over pushed refs and each scan gets a fresh clamp, so N refs cost up to N
-  times 150s. Rule 8 therefore remains open for those two paths.
+  it was. `run_pytest` now clamps its aggregate deadline as well, so the whole
+  pytest step is bounded at 150s in a container rather than at 780s across
+  children. `scan_pushed_heads` holds no aggregate at all: it loops over pushed
+  refs and each scan gets a fresh clamp, so N refs cost up to N times 150s.
+  Rule 8 therefore remains open for that one path.
 
-  The measured hook is ~148s end to end and the default collection path spawns
+  The measured hook is ~147s end to end and the default collection path spawns
   one child, so the exposure is a tail case rather than the common one. That is
   an argument for sizing the fix deliberately, not for leaving the record
-  claiming a bound it does not have. Corrected in review on PR #5319; the
-  aggregate deadline is tracked in #5318.
+  claiming a bound it does not have. Corrected across three review rounds on
+  PR #5319: first the per-job claim, then the pytest aggregate, and this
+  paragraph itself, which kept naming the pytest path after the clamp closed
+  it. The remaining `scan_pushed_heads` aggregate is tracked in #5318.
 
 ### Neutral
 
 - The cap on `python-tests` fell from 30m to 15m. It is the ceiling for the
-  opt-in execution path, whose inner budget is 780s; the default collection
-  path is bounded by the inner 300s budget, and by the 150s container clamp
-  where one applies.
+  opt-in execution path, whose inner budget is 780s on a workstation; the
+  default collection path is bounded by the inner 300s budget. Both figures are
+  the workstation ones. In a managed container `run_pytest` clamps whichever
+  budget applies to 150s for the step as a whole, so neither number is what
+  bounds a container push.
 - Lefthook remains the local scheduler (ADR-086); protected CI remains the
   authoritative backstop.
 
