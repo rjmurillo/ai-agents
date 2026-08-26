@@ -28,11 +28,14 @@ if TESTS_SKILLS_DIR not in sys.path:
 import inspect
 
 from claude_skills_import import import_skill_script
-from commonmark_fence_cases import CASES as FENCE_CASES
 from commonmark_fence_cases import (
+    CASE_COUNT,
+    CASE_DIGEST,
+    case_inventory,
     oracle_fence_lines,
     reference_lines,
 )
+from commonmark_fence_cases import CASES as FENCE_CASES
 from commonmark_fence_fuzz import FUZZ_BASELINE, FUZZ_DOCUMENTS, random_documents
 from markdown_it import MarkdownIt
 
@@ -359,6 +362,28 @@ class TestScannerParity:
         assert mutated == [], (
             f"seed {seed}: --write mutated {len(mutated)} balanced document(s). "
             f"First: {mutated[0]!r}" if mutated else ""
+        )
+
+    def test_the_case_inventory_is_pinned(self) -> None:
+        """The curated table must not be able to shrink silently.
+
+        `CASES` decides both the fixtures AND how many parametrized tests this
+        suite collects, so deleting a key deletes a contract instead of failing
+        one and the suite still reports all green. That is the shape
+        `FUZZ_BASELINE` carries, and it bites harder here: the generator emits
+        no `[` in any of its 6,000 documents, so nothing else covers rule 16,
+        which took five review rounds and eleven `--write` corruptions.
+
+        Deliberately NOT parametrized, so it runs even when the dict is empty.
+        The digest goes with the count because a count alone cannot see a
+        delete-one-add-one edit.
+        """
+        count, digest = case_inventory()
+        assert (count, digest) == (CASE_COUNT, CASE_DIGEST), (
+            f"the curated case set changed: {count} cases, digest {digest}, "
+            f"against a pin of {CASE_COUNT} and {CASE_DIGEST}. If the change is "
+            "intended, re-measure the pin in commonmark_fence_cases.py rather "
+            "than editing either value by hand."
         )
 
     def test_the_fuzz_seed_set_is_pinned(self) -> None:

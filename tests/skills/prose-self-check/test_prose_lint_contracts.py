@@ -24,11 +24,14 @@ if TESTS_SKILLS_DIR not in sys.path:
     sys.path.insert(0, TESTS_SKILLS_DIR)
 
 from claude_skills_import import import_skill_script
-from commonmark_fence_cases import CASES as FENCE_CASES
 from commonmark_fence_cases import (
+    CASE_COUNT,
+    CASE_DIGEST,
+    case_inventory,
     oracle_fence_lines,
     reference_lines,
 )
+from commonmark_fence_cases import CASES as FENCE_CASES
 from commonmark_fence_fuzz import FUZZ_BASELINE, FUZZ_DOCUMENTS, random_documents
 
 mod = import_skill_script(".claude/skills/prose-self-check/scripts/prose_lint.py")
@@ -109,6 +112,25 @@ class TestSiblingBoundCitation:
         assert "def over_indented" in body
         assert "_MAX_FENCE_INDENT" in body
 
+    def test_the_bound_itself_matches_and_not_only_the_expression(self) -> None:
+        """The quote references the constant; it does not define it.
+
+        `over_indented` reads `_MAX_FENCE_INDENT`, so changing the sibling's
+        definition from 3 to 4 leaves the three quoted lines byte-identical.
+        The citation pin would stay green while the comment's claim, "Same
+        bound as the sibling fence scanner", became false and this scanner
+        silently kept the old value. A quote of an expression cannot pin the
+        value the expression reads, so the value is compared directly.
+        """
+        sibling = import_skill_script(
+            ".claude/skills/fix-markdown-fences/scripts/fix_fences.py"
+        )
+        assert mod._MAX_FENCE_INDENT == sibling._MAX_FENCE_INDENT, (
+            "the two scanners no longer share the bound this file claims to share: "
+            f"prose_lint has {mod._MAX_FENCE_INDENT}, "
+            f"fix_fences has {sibling._MAX_FENCE_INDENT}"
+        )
+
     def test_pin_fails_when_the_range_drifts(self) -> None:
         # Negative control: shift the cited range by one and the pin must break.
         rel, first, last, quoted = self._cited()
@@ -144,6 +166,28 @@ class TestCommonMarkFuzz:
     second copy. Ratchet, not a pass/fail oracle: lower it, never raise it to
     make a run pass.
     """
+
+    def test_the_case_inventory_is_pinned(self) -> None:
+        """The curated table must not be able to shrink silently.
+
+        `CASES` decides both the fixtures AND how many parametrized tests this
+        suite collects, so deleting a key deletes a contract instead of failing
+        one and the suite still reports all green. That is the shape
+        `FUZZ_BASELINE` carries, and it bites harder here: the generator emits
+        no `[` in any of its 6,000 documents, so nothing else covers rule 16,
+        which took five review rounds and eleven `--write` corruptions.
+
+        Deliberately NOT parametrized, so it runs even when the dict is empty.
+        The digest goes with the count because a count alone cannot see a
+        delete-one-add-one edit.
+        """
+        count, digest = case_inventory()
+        assert (count, digest) == (CASE_COUNT, CASE_DIGEST), (
+            f"the curated case set changed: {count} cases, digest {digest}, "
+            f"against a pin of {CASE_COUNT} and {CASE_DIGEST}. If the change is "
+            "intended, re-measure the pin in commonmark_fence_cases.py rather "
+            "than editing either value by hand."
+        )
 
     def test_the_fuzz_seed_set_is_pinned(self) -> None:
         """The ratchet must not be able to disarm itself.

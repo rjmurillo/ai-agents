@@ -109,6 +109,32 @@ def oracle_fence_lines(text: str) -> set[int]:
 # cases guard the opposite direction, that a fix did not make the scanners
 # permissive. Keep this description and the rule numbering in step: an earlier
 # version said four, and stayed at four while the count reached eleven.
+# The inventory below pins `CASES` against silent shrinkage. `CASES` decides
+# both the fixtures AND how many parametrized tests each suite collects, so
+# deleting a key deletes a contract rather than failing one, and the suite
+# still reports all green. That is the same self-disarm shape `FUZZ_BASELINE`
+# carries, and it bites harder here: the fuzzer emits no `[` in any of its
+# 6,000 documents, so nothing else covers rule 16 at all.
+#
+# A count alone would miss a delete-one-add-one edit, so the digest goes with
+# it. Both are asserted by a NON-parametrized test in each suite, which is
+# what makes them run when the dict is empty. Re-measure, never hand-edit:
+#
+#     uv run python -c "import sys,hashlib; sys.path.insert(0,'tests/skills'); \
+#       import commonmark_fence_cases as O; n=sorted(O.CASES); \
+#       print(len(n), hashlib.sha256(chr(10).join(n).encode()).hexdigest()[:16])"
+CASE_COUNT = 108
+CASE_DIGEST = "3da84182eaf4773d"
+
+
+def case_inventory() -> tuple[int, str]:
+    """Return the live (count, digest) of `CASES`, for comparison with the pin."""
+    import hashlib
+
+    names = sorted(CASES)
+    return len(names), hashlib.sha256("\n".join(names).encode()).hexdigest()[:16]
+
+
 CASES: dict[str, str] = {
     # Rule 1: a marker more than three columns past its container is code.
     "marker over indented is code": "    - literal\n      ```\n      x\n",
