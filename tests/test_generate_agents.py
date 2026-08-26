@@ -8,9 +8,7 @@ This is a Python port of Generate-Agents.ps1 tests following ADR-042 migration.
 
 from __future__ import annotations
 
-import json
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -25,8 +23,17 @@ from generate_agents import (  # noqa: E402
 )
 
 
-def _create_test_structure(tmp_path: Path) -> tuple[Path, Path, Path]:
+def _create_test_structure(
+    tmp_path: Path, *, with_model_tiers: bool = False
+) -> tuple[Path, Path, Path]:
     """Create a minimal test directory structure for agent generation.
+
+    ``with_model_tiers=True`` adds a ``model_tiers`` map to the vscode
+    platform config, matching real templates/platforms/vscode.yaml:18-21;
+    the default (False) preserves every existing caller's plain config,
+    since a manifest-pin test is the only kind that needs it (a manifest
+    entry's id can't reach a formatted output without one -- see
+    format_model_id_for_platform).
 
     Returns (repo_root, templates_path, output_root).
     """
@@ -37,16 +44,23 @@ def _create_test_structure(tmp_path: Path) -> tuple[Path, Path, Path]:
     # Platform configs
     platforms_dir = templates_path / "platforms"
     platforms_dir.mkdir(parents=True)
-    (platforms_dir / "vscode.yaml").write_text(
+    vscode_yaml = (
         "platform: vscode\n"
         "outputDir: src/vs-code-agents\n"
         "fileExtension: .agent.md\n"
         "frontmatter:\n"
         "  includeNameField: false\n"
         'handoffSyntax: "#runSubagent"\n'
-        'memoryPrefix: "serena/"\n',
-        encoding="utf-8",
+        'memoryPrefix: "serena/"\n'
     )
+    if with_model_tiers:
+        vscode_yaml += (
+            "model_tiers:\n"
+            '  opus: "Claude Opus 4.6 (copilot)"\n'
+            '  sonnet: "Claude Sonnet 4.6 (copilot)"\n'
+            '  haiku: "Claude Haiku 4.5 (copilot)"\n'
+        )
+    (platforms_dir / "vscode.yaml").write_text(vscode_yaml, encoding="utf-8")
 
     # Agents directory with a shared template
     agents_dir = templates_path / "agents"
@@ -66,6 +80,12 @@ def _create_test_structure(tmp_path: Path) -> tuple[Path, Path, Path]:
     output_root.mkdir(parents=True)
 
     return repo_root, templates_path, output_root
+
+
+# _write_keep_pin_manifest (shared by every manifest-pin end-to-end wiring
+# test) and the tests that use it live in test_generate_agents_manifest.py
+# and test_generate_agents_main.py, to keep this file under the taste-lint
+# file-size ratchet.
 
 
 class TestReadPlatformConfig:
@@ -162,99 +182,6 @@ class TestGenerateAgents:
         # ship unjustified.
         assert "model:" not in content
 
-    def test_manifest_keep_pin_reaches_generated_output(self, tmp_path: Path) -> None:
-        """End-to-end wiring proof (testing.md SHOULD 6): drives the real
-        generate_agents() entry point, not just convert_frontmatter_for_platform
-        directly, so a future change that stops passing manifest/source_unit
-        through the call site fails this test even if the helper's own unit
-        tests still pass."""
-        repo_root, templates_path, output_root = _create_test_structure(tmp_path)
-        platform = templates_path / "platforms" / "vscode.yaml"
-        platform.write_text(
-            "platform: vscode\n"
-            "outputDir: src/vs-code-agents\n"
-            "fileExtension: .agent.md\n"
-            "frontmatter:\n"
-            "  includeNameField: false\n"
-            'handoffSyntax: "#runSubagent"\n'
-            'memoryPrefix: "serena/"\n'
-            "model_tiers:\n"
-            '  opus: "Claude Opus 4.6 (copilot)"\n'
-            '  sonnet: "Claude Sonnet 4.6 (copilot)"\n'
-            '  haiku: "Claude Haiku 4.5 (copilot)"\n',
-            encoding="utf-8",
-        )
-        manifest_dir = repo_root / ".agents" / "governance"
-        manifest_dir.mkdir(parents=True)
-        # date uses the UTC date, matching resolve_manifest_model's own
-        # default (datetime.now(timezone.utc).date()): a host ahead of UTC
-        # would otherwise sometimes see the local date read as "tomorrow"
-        # in UTC terms, failing this test via the age < 0 guard for
-        # reasons unrelated to what it checks.
-        utc_today = datetime.now(timezone.utc).date()
-        (manifest_dir / "model-pin-evidence.json").write_text(
-            "{"
-            '"schema_version": "1", "pins": [{'
-            '"unit": "templates/agents/test-agent.shared.md", '
-            '"model": "claude-opus-4-6", '
-            '"decision": "KEEP_PIN", '
-            '"fixtures_sha": "abc123", '
-            '"artifact": "evals/test-agent-spike/sweep.json", '
-            '"default_model": "claude-sonnet-4-6", '
-            f'"date": "{utc_today.isoformat()}"'
-            "}]}",
-            encoding="utf-8",
-        )
-        # ADR-080 rule 2 requires a *committed* sweep artifact whose content
-        # shows a qualifying result (resolve_manifest_model parses and
-        # cross-checks it against the manifest entry above; see
-        # _sweep_report_satisfies_rule2), not merely a file that exists.
-        artifact_path = repo_root / "evals" / "test-agent-spike" / "sweep.json"
-        artifact_path.parent.mkdir(parents=True)
-        artifact_path.write_text(
-            json.dumps({
-                "schemaVersion": "1",
-                "agent": "test-agent",
-                "decision": "KEEP_PIN",
-                "winner": "claude-opus-4-6",
-                "fixtures_sha": "abc123",
-                "default_model": "claude-sonnet-4-6",
-                "models": [
-                    {"model_id": "claude-opus-4-6"},
-                    {"model_id": "claude-sonnet-4-6"},
-                ],
-                "n_shared_fixtures": 8,
-                "recall_delta": 0.05,
-                "ci95": [0.01, 0.09],
-            }),
-            encoding="utf-8",
-        )
-
-        exit_code = generate_agents(templates_path, output_root, repo_root)
-        assert exit_code == 0
-
-        output_file = output_root / "vs-code-agents" / "test-agent.agent.md"
-        content = output_file.read_text(encoding="utf-8")
-        assert "model: Claude Opus 4.6 (copilot)" in content
-
-    def test_no_manifest_entry_for_unit_omits_model(self, tmp_path: Path) -> None:
-        """Negative control for the same wiring: an empty manifest (today's
-        real .agents/governance/model-pin-evidence.json state) must not
-        change generation output at all."""
-        repo_root, templates_path, output_root = _create_test_structure(tmp_path)
-        manifest_dir = repo_root / ".agents" / "governance"
-        manifest_dir.mkdir(parents=True)
-        (manifest_dir / "model-pin-evidence.json").write_text(
-            '{"schema_version": "1", "pins": []}', encoding="utf-8"
-        )
-
-        exit_code = generate_agents(templates_path, output_root, repo_root)
-        assert exit_code == 0
-
-        output_file = output_root / "vs-code-agents" / "test-agent.agent.md"
-        content = output_file.read_text(encoding="utf-8")
-        assert "model:" not in content
-
     def test_generated_content_has_lf_not_crlf(self, tmp_path: Path) -> None:
         repo_root, templates_path, output_root = _create_test_structure(tmp_path)
         generate_agents(templates_path, output_root, repo_root)
@@ -300,18 +227,31 @@ class TestGenerateAgents:
         exit_code = generate_agents(templates_path, output_root, repo_root, validate=True)
         assert exit_code == 1
 
-    def test_direct_call_resolves_relative_paths(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    def test_output_root_symlink_ancestor_is_still_detected(
+        self, tmp_path: Path
     ) -> None:
-        """generate_agents() itself, not just main(), must resolve relative
-        arguments: a direct call bypasses main()'s own resolution, and
-        checking a resolved COPY without reassigning output_root/repo_root
-        would pass the containment guard and then hang on the
-        symlink-ancestor walk below anyway."""
-        repo_root, _templates, _output = _create_test_structure(tmp_path)
-        monkeypatch.chdir(repo_root)
-        exit_code = generate_agents(Path("templates"), Path("src"), Path.cwd())
-        assert exit_code == 0
+        """The generator's own "cannot contain symlinks" contract must not
+        go blind at output_root itself: output_root is resolved (symlinks
+        dereferenced) before the containment check, and the ancestor scan
+        walks a SEPARATE lexical (unresolved) copy specifically so a
+        symlink placed at output_root's own path component -- not just
+        somewhere beneath it -- is still caught, matching the check's
+        stated scope rather than silently narrowing it. A real symlink is
+        required here (os.symlink), not a string that merely looks like
+        one: is_symlink() inspects the filesystem entry, and Windows CI
+        runners without symlink privilege raise OSError creating one, which
+        this test surfaces as a skip rather than a false pass."""
+        repo_root, templates_path, real_output = _create_test_structure(tmp_path)
+        linked_output = tmp_path / "repo" / "linked-src"
+        try:
+            linked_output.symlink_to(real_output, target_is_directory=True)
+        except OSError as exc:
+            pytest.skip(f"platform cannot create symlinks: {exc}")
+
+        exit_code = generate_agents(templates_path, linked_output, repo_root)
+
+        assert exit_code == 1
+        assert not (real_output / "vs-code-agents" / "test-agent.agent.md").exists()
 
     def test_no_platform_configs_returns_error(self, tmp_path: Path) -> None:
         repo_root = tmp_path / "repo"

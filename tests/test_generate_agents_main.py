@@ -13,9 +13,7 @@ This is a Python port of Generate-Agents.ps1 tests following ADR-042 migration.
 
 from __future__ import annotations
 
-import json
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -27,6 +25,7 @@ sys.path.insert(0, str(_BUILD_DIR))
 from generate_agents import main  # noqa: E402
 
 from tests.test_generate_agents import _create_test_structure  # noqa: E402
+from tests.test_generate_agents_manifest import _write_keep_pin_manifest  # noqa: E402
 
 
 class TestMain:
@@ -104,66 +103,10 @@ class TestMain:
         --templates-path always ignored every valid manifest KEEP_PIN
         entry with no error and no test catching it, because every other
         test in this file passes an already-absolute tmp_path."""
-        repo_root, templates_path, output_root = _create_test_structure(tmp_path)
-        platform = templates_path / "platforms" / "vscode.yaml"
-        platform.write_text(
-            "platform: vscode\n"
-            "outputDir: src/vs-code-agents\n"
-            "fileExtension: .agent.md\n"
-            "frontmatter:\n"
-            "  includeNameField: false\n"
-            'handoffSyntax: "#runSubagent"\n'
-            'memoryPrefix: "serena/"\n'
-            "model_tiers:\n"
-            '  opus: "Claude Opus 4.6 (copilot)"\n'
-            '  sonnet: "Claude Sonnet 4.6 (copilot)"\n'
-            '  haiku: "Claude Haiku 4.5 (copilot)"\n',
-            encoding="utf-8",
+        repo_root, templates_path, output_root = _create_test_structure(
+            tmp_path, with_model_tiers=True
         )
-        manifest_dir = repo_root / ".agents" / "governance"
-        manifest_dir.mkdir(parents=True)
-        # date uses the UTC date, matching resolve_manifest_model's own
-        # default (datetime.now(timezone.utc).date()): a host ahead of UTC
-        # would otherwise sometimes see the local date read as "tomorrow"
-        # in UTC terms, failing this test via the age < 0 guard for
-        # reasons unrelated to what it checks.
-        utc_today = datetime.now(timezone.utc).date()
-        (manifest_dir / "model-pin-evidence.json").write_text(
-            "{"
-            '"schema_version": "1", "pins": [{'
-            '"unit": "templates/agents/test-agent.shared.md", '
-            '"model": "claude-opus-4-6", '
-            '"decision": "KEEP_PIN", '
-            '"fixtures_sha": "abc123", '
-            '"artifact": "evals/test-agent-spike/sweep.json", '
-            '"default_model": "claude-sonnet-4-6", '
-            f'"date": "{utc_today.isoformat()}"'
-            "}]}",
-            encoding="utf-8",
-        )
-        # Content, not just presence, is checked (_sweep_report_satisfies_rule2):
-        # the report must itself claim a qualifying KEEP_PIN result that
-        # agrees with the manifest entry above.
-        artifact_path = repo_root / "evals" / "test-agent-spike" / "sweep.json"
-        artifact_path.parent.mkdir(parents=True)
-        artifact_path.write_text(
-            json.dumps({
-                "schemaVersion": "1",
-                "agent": "test-agent",
-                "decision": "KEEP_PIN",
-                "winner": "claude-opus-4-6",
-                "fixtures_sha": "abc123",
-                "default_model": "claude-sonnet-4-6",
-                "models": [
-                    {"model_id": "claude-opus-4-6"},
-                    {"model_id": "claude-sonnet-4-6"},
-                ],
-                "n_shared_fixtures": 8,
-                "recall_delta": 0.05,
-                "ci95": [0.01, 0.09],
-            }),
-            encoding="utf-8",
-        )
+        _write_keep_pin_manifest(repo_root)
 
         monkeypatch.chdir(repo_root)
         # --output-root stays absolute here on purpose: this test isolates

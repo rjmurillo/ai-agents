@@ -23,6 +23,7 @@ This is a Python port of Generate-Agents.ps1 following ADR-042 migration.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 import time
@@ -195,14 +196,47 @@ def generate_agents(
     # (see its own comment on this) protects the CLI entry point, but a
     # direct call to this function (generate_agents(Path("templates"),
     # Path("src"), Path.cwd()), as the tests in this file do) bypasses
-    # main() entirely. Resolve both parameters here, at the top of this
-    # function, and reassign them: checking resolved COPIES while the rest
-    # of the function keeps reading the original possibly-relative
-    # output_root/repo_root would pass this guard and then hang anyway, on
-    # both the loop below and the shared_file.relative_to(repo_root) unit
-    # computation a few lines further down.
+    # main() entirely. Resolve all three parameters here, at the top of
+    # this function, and reassign them: checking resolved COPIES while the
+    # rest of the function keeps reading the original possibly-relative
+    # values would pass this guard and then hang anyway, on both the loop
+    # below and the shared_file.relative_to(repo_root) unit computation a
+    # few lines further down (which needs templates_path resolved too: a
+    # relative templates_path produces a relative shared_file, and
+    # shared_file.relative_to(repo_root) raises ValueError once repo_root
+    # is absolute, silently dropping every manifest pin via the except
+    # clause down there rather than erroring).
+    #
+    # output_root specifically is resolved TWICE, into two different
+    # variables, for a reason the other two don't share: os.path.abspath
+    # makes a path absolute by collapsing "."/".." lexically, without
+    # touching the filesystem or following symlinks, unlike Path.resolve(),
+    # which additionally dereferences every symlink component. Reassigning
+    # output_root to its FULLY resolved form here, before the
+    # symlink-ancestor walk below ever runs, would fold away a symlink
+    # placed at or above output_root itself before that walk gets a chance
+    # to see it -- current.is_symlink() only ever sees the walk's OWN
+    # starting point and its ancestors, and if output_root's own resolution
+    # already dereferenced a symlink, that symlink is invisible to the walk
+    # no matter how carefully the walk itself is written. output_root_lexical
+    # keeps the absolute-but-not-dereferenced form specifically for that
+    # walk; output_root itself stays the fully resolved form for the
+    # containment check directly below and for every other downstream path
+    # built from it (mkdir, output file writes, the escape check a few
+    # lines past the walk). This is a narrow gap in practice: the only
+    # caller that ever passes --output-root is build/scripts/build_all.py,
+    # always as a plain `repo_root / "src"` string with no symlink
+    # involved, so this only bites a maintainer who deliberately points
+    # --output-root through a symlink by hand. It is still worth closing:
+    # main() already unconditionally resolved output_root before this
+    # function gained its own resolution, so the gap existed on the CLI
+    # path even before this fix; extending resolution to the direct-call
+    # path without also splitting lexical from resolved would have widened
+    # that same gap rather than just achieving parity.
+    output_root_lexical = Path(os.path.abspath(output_root))
     output_root = output_root.resolve()
     repo_root = repo_root.resolve()
+    templates_path = templates_path.resolve()
     if not output_root.is_relative_to(repo_root):
         print(
             f"Error: --output-root must resolve inside the repository root "
@@ -331,13 +365,29 @@ def generate_agents(
                 output_dir_relative = prefix_match.group(1)
 
             output_dir = output_root / output_dir_relative
-            current = output_dir
+            # Walk the LEXICAL (unresolved) ancestor chain, not the
+            # resolved output_dir built from the already-dereferenced
+            # output_root above: is_symlink() on a path built from a
+            # pre-resolved output_root can never see a symlink that
+            # resolution already folded away before this loop started (see
+            # the output_root_lexical comment near the top of this
+            # function). Bounded by filesystem depth via the
+            # parent-equals-self fixed point at the root ("/".parent == "/"
+            # on POSIX, a drive root on Windows), not by matching
+            # repo_root: a symlink anywhere in this chain diverts the
+            # lexical walk away from repo_root's resolved form, and a bound
+            # tied to reaching repo_root would spin forever on exactly the
+            # adversarial input this check exists to catch.
+            current = output_root_lexical / output_dir_relative
             has_symlink_ancestor = False
-            while current != repo_root:
+            while True:
                 if current.is_symlink():
                     has_symlink_ancestor = True
                     break
-                current = current.parent
+                parent = current.parent
+                if parent == current:
+                    break
+                current = parent
             if has_symlink_ancestor:
                 print(
                     f"  Error: Agent output path cannot contain symlinks: {output_dir}",
