@@ -1075,6 +1075,12 @@ class TestStagedSuppressionPolicy:
 class TestAdrReviewPolicyMergeScope:
     def test_non_merge_adr_without_review_evidence_is_blocked(self, tmp_path, monkeypatch, capsys):
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        # tmp_path is not a git repository, so the staged-log query fails here
+        # rather than returning nothing. That distinction is now reported
+        # (issue #5205), so state the premise this test actually needs: no
+        # debate logs are staged. Discovery failure has its own case in
+        # tests/validation/test_git_hook_policy_adr_debate_discovery.py.
+        monkeypatch.setattr(policy, "_staged_debate_log_paths", lambda root: [])
         monkeypatch.setattr(policy, "_merge_in_progress", lambda root: False)
         monkeypatch.setattr(
             policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
@@ -1122,6 +1128,12 @@ class TestAdrReviewPolicyMergeScope:
     ):
         path = ".agents/architecture/ADR-999-branch-authored-during-merge.md"
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        # tmp_path is not a git repository, so the staged-log query fails here
+        # rather than returning nothing. That distinction is now reported
+        # (issue #5205), so state the premise this test actually needs: no
+        # debate logs are staged. Discovery failure has its own case in
+        # tests/validation/test_git_hook_policy_adr_debate_discovery.py.
+        monkeypatch.setattr(policy, "_staged_debate_log_paths", lambda root: [])
         monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
         monkeypatch.setattr(policy, "_read_index_blob", lambda root, relative_path: b"authored adr")
         monkeypatch.setattr(policy, "_read_head_blob", lambda root, relative_path: b"branch adr")
@@ -1157,6 +1169,12 @@ class TestAdrReviewPolicyMergeScope:
     ):
         path = ".agents/architecture/ADR-998-conflicted.md"
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        # tmp_path is not a git repository, so the staged-log query fails here
+        # rather than returning nothing. That distinction is now reported
+        # (issue #5205), so state the premise this test actually needs: no
+        # debate logs are staged. Discovery failure has its own case in
+        # tests/validation/test_git_hook_policy_adr_debate_discovery.py.
+        monkeypatch.setattr(policy, "_staged_debate_log_paths", lambda root: [])
         monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
         monkeypatch.setattr(policy, "_read_index_blob", lambda root, relative_path: None)
         monkeypatch.setattr(
@@ -1653,6 +1671,12 @@ class TestAdrReviewPolicyMergeScope:
         """
         path = ".agents/architecture/ADR-999-written-during-the-merge.md"
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        # tmp_path is not a git repository, so the staged-log query fails here
+        # rather than returning nothing. That distinction is now reported
+        # (issue #5205), so state the premise this test actually needs: no
+        # debate logs are staged. Discovery failure has its own case in
+        # tests/validation/test_git_hook_policy_adr_debate_discovery.py.
+        monkeypatch.setattr(policy, "_staged_debate_log_paths", lambda root: [])
         monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
         monkeypatch.setattr(policy, "_read_index_blob", lambda root, relative_path: b"authored adr")
         monkeypatch.setattr(policy, "_read_head_blob", lambda root, relative_path: None)
