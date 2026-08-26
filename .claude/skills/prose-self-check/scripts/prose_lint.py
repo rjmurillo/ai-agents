@@ -92,7 +92,7 @@ _FENCE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
 # root and is quoted here rather than imported, because the two skills ship
 # as separate directories and neither is on the other's import path.
 #
-# `skills/fix-markdown-fences/scripts/fix_fences.py` lines 458-460, verbatim:
+# `skills/fix-markdown-fences/scripts/fix_fences.py` lines 482-484, verbatim:
 #
 #     def over_indented(self, indent: str) -> bool:
 #         """Return True when *indent* puts the marker inside an indented code block."""
@@ -237,6 +237,28 @@ def _title_end(body: str, start: int) -> int | str | None:
             return None  # an UNESCAPED `(` may not appear in a parenthesised title
         index += 1
     return closer
+
+
+def _label_opens(body: str) -> bool:
+    """Return True when a link label opens in *body* and does not close on it.
+
+    CommonMark lets a label span lines, which the single-line patterns cannot
+    express: `[fo` / `o]: /url` is a definition to the reference parser and was
+    prose here, so the marker below it was vetoed and `--write` appended a
+    fence to a balanced document.
+    """
+    if not body.startswith("["):
+        return False
+    index = 1
+    while index < len(body):
+        char = body[index]
+        if char == "\\" and index + 1 < len(body):
+            index += 2
+            continue
+        if char == "]":
+            return False  # it closed here, so the single-line patterns own it
+        index += 1
+    return True
 
 
 @dataclass(frozen=True, slots=True)
@@ -489,6 +511,7 @@ class _ListContainers:
         "_columns",
         "_in_paragraph",
         "_item_still_empty",
+        "_open_label",
         "_open_title",
     )
 
@@ -499,6 +522,7 @@ class _ListContainers:
         self._awaiting_link_title = False
         self._awaiting_link_destination = False
         self._open_title: str | None = None
+        self._open_label: str | None = None
 
     def over_indented(self, indent: str) -> bool:
         """Return True when *indent* puts the marker inside an indented code block."""
@@ -511,6 +535,7 @@ class _ListContainers:
             self._awaiting_link_title = False  # and ends a pending definition
             self._awaiting_link_destination = False
             self._open_title = None  # an unclosed title dies with the blank too
+            self._open_label = None  # and so does an unclosed label
             if self._item_still_empty and self._columns:
                 # Rule 8: an item may begin with at most one blank line, so a
                 # blank directly after an empty marker closes it. Without this
@@ -529,6 +554,7 @@ class _ListContainers:
             self._awaiting_link_title
             or self._awaiting_link_destination
             or self._open_title is not None
+            or self._open_label is not None
         )
         if (self._in_paragraph or pending) and not self._starts_a_block(line):
             return  # rule 6: a lazy continuation keeps its container open
@@ -550,6 +576,46 @@ class _ListContainers:
         self._awaiting_link_title = False
         self._awaiting_link_destination = False
         self._open_title = None
+        self._open_label = None
+
+    def _consume_open_label(self, line: str) -> None:
+        """Advance a label that opened on an earlier line over *line*."""
+        index = 0
+        while index < len(line):
+            char = line[index]
+            if char == "\\" and index + 1 < len(line):
+                index += 2
+                continue
+            if char == "]":
+                label = f"{self._open_label}\n{line[:index]}"
+                self._finish_open_label(label, line[index + 1 :])
+                return
+            index += 1
+        self._open_label = f"{self._open_label}\n{line}"
+
+    def _finish_open_label(self, label: str, rest: str) -> None:
+        """Decide what a label closing on this line leaves open.
+
+        A label normalising to empty is not a definition, and neither is one
+        whose `]` is not followed by a colon; both make the whole run prose.
+        """
+        self._open_label = None
+        if not label.strip() or not rest.startswith(":"):
+            self._in_paragraph = True
+            return
+        after = rest[1:]
+        tail = after.lstrip(" \t")
+        if not tail:
+            self._in_paragraph = True  # the destination may still arrive
+            self._awaiting_link_destination = True
+            return
+        result = _link_tail(tail, 0)
+        if result is None:
+            self._in_paragraph = True
+            return
+        self._in_paragraph = False
+        self._awaiting_link_title = result.awaiting_title
+        self._open_title = result.open_title
 
     def _consume_open_title(self, line: str) -> None:
         """Advance a title that opened on an earlier line over *line*.
@@ -581,6 +647,12 @@ class _ListContainers:
         """
         if _is_blank(line):
             return None  # `sync` already ended the paragraph
+        if self._open_label is not None:
+            if not self._starts_a_block(line):
+                self._consume_open_label(line)
+                return None
+            self._open_label = None
+            self._in_paragraph = True
         if self._open_title is not None:
             if not self._starts_a_block(line):
                 # Every character of this line belongs to a title that opened
@@ -617,6 +689,7 @@ class _ListContainers:
             self._awaiting_link_title = False
             self._awaiting_link_destination = False
             self._open_title = None
+            self._open_label = None
             return column
         self._item_still_empty = False  # this line is the item's first content
         content = self._relative(line)
@@ -647,6 +720,7 @@ class _ListContainers:
         dest_line = _link_tail(body, 0) if self._awaiting_link_destination else None
         title_line = _bare_title(body) if self._awaiting_link_title else None
         label_only = not self._in_paragraph and bool(_LINK_LABEL_ONLY.match(body))
+        label_opens = not self._in_paragraph and _label_opens(body)
         self._in_paragraph = not (
             _ATX_HEADING.match(body)
             or _THEMATIC_BREAK.match(body)
@@ -668,6 +742,9 @@ class _ListContainers:
             or (dest_line.open_title if dest_line is not None else None)
             or (title_line if isinstance(title_line, str) else None)
         )
+        # A label may open here and close lines later, at which point the rest
+        # of THAT line carries the destination and title.
+        self._open_label = body[1:] if label_opens else None
         return None
 
     def _outdents(self, indent: str) -> bool:

@@ -143,11 +143,13 @@ documentation:
   `--write` appended a closing fence to documents already well formed.
 - Known gaps, each measured and none counted. A raw HTML block swallows a
   following fence, so a fence inside one is read as a fence here and as HTML
-  by CommonMark. A blockquote prefix is never stripped, so a fence inside `>`
-  is invisible: the
-  tool misses defects there rather than inventing them, checked by running
-  `--write` over seven blockquote shapes, of which it changed only the two the
-  reference parser also reads as unclosed. And a setext `===` underline
+  by CommonMark. A blockquote prefix is never stripped, and that costs two
+  different things. A fence inside `>` is invisible, which is a miss: six
+  shapes diverge and `--write` changes none. A blockquote INTERRUPTING a
+  paragraph is worse: CommonMark ends the paragraph and lazily continues the
+  quote, so a following `2.` opens a list, while we keep the paragraph open
+  and `--write` appends a closer to a balanced document. Two of twelve
+  measured shapes do that. And a setext `===` underline
   directly under a list item, followed by a lazy continuation and then an
   indented fence, leaves that fence unseen: seven shapes through `--write`,
   four diverge and none is rewritten, so this one is a miss too. `---` under
