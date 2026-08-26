@@ -245,14 +245,20 @@ def convert_frontmatter_for_platform(
             result.pop("name", None)
 
         # Resolve model in three steps, in order:
-        #   1. A manifest-justified versioned pin (ADR-080 rules 2 and 4:
-        #      a fresh KEEP_PIN entry for this source unit), formatted for
-        #      this platform. This is the manifest-to-generator wiring the
-        #      ADR-080 2026-08-12 Amendment named an "open gap"; see
+        #   1. A manifest-justified versioned pin: a fresh, fully-validated
+        #      KEEP_PIN entry for this source unit (ADR-080 rules 2 and 4),
+        #      formatted for this platform. ADR-080 rule 5 requires the
+        #      generator to "emit no model: unless the source unit carries
+        #      a justified one"; this is that path. See
         #      build/model_pin_manifest.py.
         #   2. The 'haiku' tier, matching the sole cost exception ADR-080
         #      rule 3 recognizes (a rolling alias resolving, via this same
         #      model_tiers map, to an id priced below the harness default).
+        #      Whether this fallback is itself fully governed under rule 3
+        #      is a separate, still-open policy question (the ADR-080
+        #      2026-08-12 Amendment leaves model_tier alias translation and
+        #      the cost exception's interaction undecided); this step's
+        #      behavior is unchanged by the manifest wiring above it.
         #   3. Omit the field. Any other tier, and the platform's own
         #      default model, injected a versioned pin no manifest evidence
         #      justified (ADR-080 rule 2), which breaks on the next

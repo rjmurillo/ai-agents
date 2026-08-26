@@ -401,22 +401,32 @@ class TestConvertFrontmatterForPlatform:
     }
     _UNIT = "templates/agents/architect.shared.md"
 
-    def _keep_pin_manifest(self, **entry_overrides: object) -> dict[str, dict[str, object]]:
+    def _keep_pin_manifest(
+        self, repo_root: Path | None = None, **entry_overrides: object
+    ) -> dict[str, dict[str, object]]:
         # Full evidence shape: check_model_pins.scan_units() never sees a
         # model_tier-only template (no top-level `model:` frontmatter for it
         # to scan), so this evidence is validated only by
         # resolve_manifest_model itself, not independently by CI. See the
         # divergence note on build/model_pin_manifest.py:resolve_manifest_model.
+        # ADR-080 rule 2 requires a *committed* sweep artifact;
+        # resolve_manifest_model now checks the artifact exists as a file,
+        # so repo_root, when given, gets that file written under it.
+        artifact = "evals/architect-spike/sweep.json"
         entry: dict[str, object] = {
             "unit": self._UNIT,
             "model": "claude-opus-4-6",
             "decision": "KEEP_PIN",
             "date": _date.today().isoformat(),
             "fixtures_sha": "abc123",
-            "artifact": "evals/architect-spike/sweep.json",
+            "artifact": artifact,
             "default_model": "claude-sonnet-4-6",
         }
         entry.update(entry_overrides)
+        if repo_root is not None and isinstance(entry.get("artifact"), str) and entry["artifact"]:
+            artifact_path = repo_root / str(entry["artifact"])
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text("{}", encoding="utf-8")
         return {self._UNIT: entry}
 
     def test_manifest_keep_pin_resolves_ahead_of_haiku_tier(self, tmp_path: Path) -> None:
@@ -425,14 +435,14 @@ class TestConvertFrontmatterForPlatform:
         fm: dict[str, str | None] = {"description": "test", "model_tier": "haiku"}
         result = convert_frontmatter_for_platform(
             fm, self._COPILOT_CONFIG, "architect",
-            manifest=self._keep_pin_manifest(), source_unit=self._UNIT,
+            manifest=self._keep_pin_manifest(tmp_path), source_unit=self._UNIT,
             repo_root=tmp_path,
         )
         assert result["model"] == "claude-opus-4.6"
 
     def test_manifest_keep_pin_formats_per_platform(self, tmp_path: Path) -> None:
         fm: dict[str, str | None] = {"description": "test"}
-        manifest = self._keep_pin_manifest()
+        manifest = self._keep_pin_manifest(tmp_path)
         copilot_result = convert_frontmatter_for_platform(
             fm, self._COPILOT_CONFIG, "architect",
             manifest=manifest, source_unit=self._UNIT, repo_root=tmp_path,
@@ -450,7 +460,7 @@ class TestConvertFrontmatterForPlatform:
         fm: dict[str, str | None] = {"description": "test"}
         result = convert_frontmatter_for_platform(
             fm, self._COPILOT_CONFIG, "architect",
-            manifest=self._keep_pin_manifest(),
+            manifest=self._keep_pin_manifest(tmp_path),
             source_unit="templates/agents/other.shared.md",
             repo_root=tmp_path,
         )
@@ -460,7 +470,7 @@ class TestConvertFrontmatterForPlatform:
         fm: dict[str, str | None] = {"description": "test", "model_tier": "haiku"}
         result = convert_frontmatter_for_platform(
             fm, self._COPILOT_CONFIG, "architect",
-            manifest=self._keep_pin_manifest(decision="RETIRE_PIN"),
+            manifest=self._keep_pin_manifest(tmp_path, decision="RETIRE_PIN"),
             source_unit=self._UNIT,
             repo_root=tmp_path,
         )
