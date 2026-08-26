@@ -912,22 +912,40 @@ def _atomic_write_text(path: Path, content: str) -> None:
             existing_mode = None
     fd, tmp_name = tempfile.mkstemp(dir=directory, prefix=f".{path.name}.", suffix=".tmp")
     try:
-        # os.fdopen(fd, ...) MUST be the first statement in this block, before
-        # os.chmod or anything else that can raise. mkstemp() returns a raw OS
-        # descriptor, not a Python file object; nothing closes it until either
-        # os.fdopen() wraps it (the `with` statement then owns close-on-any-
-        # exit) or this function closes it explicitly. A prior version called
-        # os.chmod(tmp_name, ...) here first: when chmod raised, the raw
-        # descriptor was never wrapped and never closed, leaking it for the
-        # life of the process, and on Windows the still-open handle could also
-        # make the unlink below fail (silently, via the `except OSError: pass`
-        # underneath), leaving a stray temp file too (Copilot review, PR
-        # #5321). Applying the mode after the write, still inside the `with`,
-        # keeps the file at mkstemp's own restrictive 0600 for the whole write
-        # and only widens it (when existing_mode grants that) right before
-        # publishing.
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        try:
+            handle = os.fdopen(fd, "w", encoding="utf-8")
+        except BaseException:
+            # os.fdopen(fd, ...) does not reliably close fd on failure: it
+            # depends on WHERE inside fdopen the failure happens. Verified
+            # empirically (not from memory) with the real, unmocked function:
+            # an invalid `mode` string fails argument validation before fd is
+            # touched and leaves it open (confirmed via /proc/self/fd count
+            # and a follow-up os.write on the same fd number succeeding);
+            # an invalid `encoding` fails after the underlying FileIO is
+            # already constructed, and CPython closes fd as part of that
+            # failure. This close is required for the first case and a no-op
+            # for the second: closing an fd CPython already closed raises
+            # OSError ("Bad file descriptor"), caught below (Copilot review,
+            # PR #5321).
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+            raise
+        # Once os.fdopen succeeds, `handle` owns fd; the `with` statement
+        # below closes it on any exit, so nothing past this point needs the
+        # explicit-close handling above.
+        with handle:
             handle.write(content)
+            # Applying the mode after the write, still inside the `with`,
+            # keeps the file at mkstemp's own restrictive 0600 for the whole
+            # write and only widens it (when existing_mode grants that)
+            # right before publishing. A prior version called
+            # os.chmod(tmp_name, ...) before os.fdopen: when chmod raised,
+            # the raw descriptor was never wrapped and never closed, leaking
+            # it for the life of the process, and on Windows the still-open
+            # handle could also make the unlink below fail silently, leaving
+            # a stray temp file too (Copilot review, PR #5321).
             if existing_mode is not None:
                 os.chmod(tmp_name, existing_mode)
         os.replace(tmp_name, path)

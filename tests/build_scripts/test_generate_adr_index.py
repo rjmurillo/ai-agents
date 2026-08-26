@@ -850,6 +850,18 @@ def test_atomic_write_preserves_the_original_when_the_write_fails(
     the temp file `mkstemp` created must be cleaned up, and the original
     ``OSError`` must propagate rather than being swallowed (Copilot review,
     PR #5321: "no case forces write ... to fail").
+
+    Also asserts the raw ``mkstemp`` descriptor itself was closed, not just
+    its named temp file unlinked. ``os.fdopen(fd, ...)`` does not reliably
+    close ``fd`` on every failure path (verified empirically: an invalid
+    ``mode`` string fails argument validation before ``fd`` is touched and
+    leaves it open, while an invalid ``encoding`` fails after the
+    underlying ``FileIO`` already owns ``fd`` and CPython closes it as part
+    of that failure). The mock here replaces ``os.fdopen`` outright, so it
+    never runs CPython's real cleanup either way; the only thing that can
+    close the real descriptor in this test is ``_atomic_write_text``'s own
+    ``except`` handler around the ``os.fdopen`` call (Copilot review round
+    3, PR #5321).
     """
     output = tmp_path / "README.md"
     original_content = "original content\n"
@@ -860,11 +872,27 @@ def test_atomic_write_preserves_the_original_when_the_write_fails(
 
     monkeypatch.setattr(generate_adr_index.os, "fdopen", _raise_on_fdopen)
 
+    def _open_fd_count() -> int:
+        return len(os.listdir("/proc/self/fd"))
+
+    before = _open_fd_count() if Path("/proc/self/fd").is_dir() else None
+
     with pytest.raises(OSError, match="disk full"):
         generate_adr_index._atomic_write_text(output, "new content\n")
 
     assert output.read_text(encoding="utf-8") == original_content
     assert _stray_temp_files(tmp_path, "README.md") == []
+    if before is not None:
+        after = _open_fd_count()
+        # Strict equality, not a "<= 1" tolerance: this test calls
+        # _atomic_write_text exactly once, so the defect this guards against
+        # (mkstemp's descriptor never closed when os.fdopen raises) leaks
+        # exactly one descriptor. A "<= 1" tolerance would accept that exact
+        # leak and never fail (confirmed: this assertion form passed against
+        # the reverted, un-fixed code before being tightened to "== 0").
+        assert after == before, (
+            f"leaked {after - before} file descriptor(s) when os.fdopen raised"
+        )
 
 
 def test_atomic_write_preserves_the_original_when_replace_fails(
