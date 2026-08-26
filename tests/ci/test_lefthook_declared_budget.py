@@ -114,6 +114,24 @@ CONTAINER_UNCLAMPED_JOBS = frozenset(
 # subprocess is bounded by the clamp instead. Before this work the largest was
 # 1800s.
 #
+# READ THIS BEFORE TRUSTING THE NUMBER. What the clamp bounds is one CHILD
+# PROCESS, not one job, and this model conflates them for every job that spawns
+# exactly one child. Two jobs spawn more:
+#
+#   * `python-tests` on the opt-in execution path holds an aggregate deadline
+#     in `run_pytest` and passes each child its remaining time, so the job is
+#     bounded, but at TEST_SUITE_TIMEOUT_SECONDS (780s), not at 240s.
+#   * `security-scan` has no aggregate deadline at all: `scan_pushed_heads`
+#     loops over pushed refs and each `_scan_pushed_head` gets a fresh clamp,
+#     so a push of N refs costs up to N * 150s.
+#
+# So this assertion is evidence for "no single subprocess outlives the
+# container", and only incidentally for the per-job reading. Raised in review on
+# PR #5319 and tracked in #5318. The measured hook is ~148s end to end and the
+# default collection path spawns one child, so the exposure is a tail case, not
+# the common one; that is a reason to size the fix deliberately rather than a
+# reason to keep claiming a bound that does not hold.
+#
 # Set to the actual largest, not above it. An earlier revision used 300s while
 # the PR claimed 240s, which meant a regression to 250s would have passed the
 # test that was supposed to be the claim's evidence. A ceiling with slack in it

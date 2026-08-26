@@ -110,7 +110,7 @@ jobs:
               - '.claude/rules/**'
               - '.github/instructions/**'
               - 'src/copilot-cli/instructions/**'
-              # Issue #5316. Pre-push stopped executing the suite on a
+              # Issue #5315. Pre-push stopped executing the suite on a
               # non-Python change (ADR-104) on the stated ground that CI
               # executes it instead. These roots are read as test inputs by
               # real tests and were absent from this filter, so a push touching
@@ -131,6 +131,17 @@ jobs:
               - '.agents/architecture/**'
               - '.agents/governance/**'
               - '.agents/AGENT-SYSTEM.md'
+              # Added in review on PR #5319, from two concrete misses a reviewer
+              # found by reading the tests rather than the filter:
+              #   .agents/critique/**  tests/build_scripts/test_hook_contract_knowledge.py
+              #                        opens ADR-084-debate-log.md directly
+              #   templates/agents/**  tests/test_pr_identity_gate.py reads
+              #                        analyst.shared.md directly
+              # The colocated test checks that every root here is referenced by
+              # a test. It cannot check the reverse, which is the direction that
+              # fails silently, and these two are what that gap looked like.
+              - '.agents/critique/**'
+              - 'templates/agents/**'
               - 'AGENTS.md'
               - 'README.md'
 
