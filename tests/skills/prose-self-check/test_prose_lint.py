@@ -21,7 +21,7 @@ if TESTS_SKILLS_DIR not in sys.path:
 
 from claude_skills_import import import_skill_script
 from commonmark_fence_cases import CASES as FENCE_CASES
-from commonmark_fence_cases import oracle_fence_lines
+from commonmark_fence_cases import FUZZ_BASELINE, oracle_fence_lines, random_documents
 
 mod = import_skill_script(".claude/skills/prose-self-check/scripts/prose_lint.py")
 lint_prose = mod.lint_prose
@@ -36,6 +36,17 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 VOICE_RULE = PROJECT_ROOT / ".claude" / "rules" / "voice.md"
 
 BANNED = {"delve", "robust", "comprehensive", "nuanced", "significant", "landscape"}
+
+
+def _masked_lines(text: str) -> set[int]:
+    """Return 0-indexed non-blank lines prose_lint blanks as fenced code."""
+    masked, _ = mod._blank_fenced_blocks(text)
+    source = text.splitlines()
+    return {
+        index
+        for index, line in enumerate(source)
+        if line != "" and index < len(masked) and masked[index] == ""
+    }
 
 
 def kinds(text: str, banned: set[str] | None = None) -> list[str]:
@@ -425,11 +436,35 @@ class TestCommonMarkOracle:
     @pytest.mark.parametrize("name", sorted(FENCE_CASES))
     def test_masked_lines_match_the_reference_parser(self, name: str) -> None:
         text = FENCE_CASES[name]
-        masked, _ = mod._blank_fenced_blocks(text)
-        source = text.splitlines()
-        ours = {
-            index
-            for index, line in enumerate(source)
-            if line != "" and index < len(masked) and masked[index] == ""
-        }
-        assert ours == oracle_fence_lines(text), name
+        assert _masked_lines(text) == oracle_fence_lines(text), name
+
+
+class TestCommonMarkFuzz:
+    """Randomized differential fuzzing against the reference parser.
+
+    The curated cases each pin one rule; this answers what is left. The
+    residual is one named family, documented in `commonmark_fence_cases`: a
+    fenced block inside a list item does not end when the document dedents out
+    of that item. Ratchet, not a pass/fail oracle. Lower it, never raise it to
+    make a run pass.
+    """
+
+    @pytest.mark.parametrize("seed", sorted(FUZZ_BASELINE))
+    def test_divergence_stays_at_or_below_baseline(self, seed: int) -> None:
+        diverged = [
+            text
+            for text in random_documents(seed)
+            if oracle_fence_lines(text) != _masked_lines(text)
+        ]
+        assert len(diverged) <= FUZZ_BASELINE[seed], (
+            f"seed {seed}: {len(diverged)} diverged, baseline {FUZZ_BASELINE[seed]}. "
+            f"First: {diverged[0]!r}"
+            if diverged
+            else ""
+        )
+
+    def test_the_fuzzer_can_actually_see_a_divergence(self) -> None:
+        # Negative control: a document from the known family must diverge, or
+        # the comparison above is measuring nothing.
+        text = "  1.     text\n     ~~~\n  ## H2\n"
+        assert oracle_fence_lines(text) != _masked_lines(text)

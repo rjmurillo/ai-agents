@@ -18,6 +18,8 @@ the intended behavior is first.
 
 from __future__ import annotations
 
+import random
+
 from markdown_it import MarkdownIt
 
 _MD = MarkdownIt("commonmark")
@@ -64,4 +66,92 @@ CASES: dict[str, str] = {
     "top level four space marker": "Text.\n\n    ~~~\n\nAfter.\n",
     "four columns past the container": "- item\n\n      ~~~\n\nAfter.\n",
     "blank line inside an item": "- item\n\n    ~~~\n    x\n    ~~~\n\nDone.\n",
+    # Rule 4 detail: leading zeros do not change an ordered list's start value.
+    "leading zero starts at one": ("Some prose.\n01. item\n    ~~~\n    x\n    ~~~\nafter\n"),
+    "three leading zeros start at one": (
+        "Some prose.\n001. item\n     ~~~\n     x\n     ~~~\nafter\n"
+    ),
+    "leading zero three cannot interrupt": (
+        "Some prose.\n003. item\n     ~~~\n     x\n     ~~~\nafter\n"
+    ),
+    # Rule 5: a thematic break matches the bullet grammar but is not an item.
+    "thematic break of stars": "* * *\n    ~~~\n    x\n    ~~~\nafter\n",
+    "thematic break of dashes": "- - -\n    ~~~\n    x\n    ~~~\nafter\n",
+    # Rule 6: a lazy continuation may dedent without closing its item.
+    "lazy paragraph continuation": (
+        "  1.  A paragraph\nwith two lines.\n\n      ```\n      x\n      ```\nafter\n"
+    ),
+    # Rule 7: paragraph state follows blocks, measured against the container.
+    "a fence ends the paragraph": (
+        "Para text.\n~~~\ncode\n~~~\n2. next\n    ```\n    y\n    ```\nafter\n"
+    ),
+    "heading indented inside a list": (
+        "- item\n  - nested\n    # Heading\n    2. next\n"
+        "        ```\n        y\n        ```\nafter\n"
+    ),
+    "thematic break inside a list": (
+        "- item\n  - nested\n    ***\n    2. next\n        ```\n        y\n        ```\nafter\n"
+    ),
+    "indented code is not a paragraph": "     ```\n - \n     ```\n",
+    "a marker with no padding is prose": " +  item\n1)text\n      ~~~\n",
 }
+
+
+# Randomized differential fuzzing.
+#
+# The curated cases above each pin one rule. The fuzzer answers the question
+# they cannot: what is left. It generates small documents from the constructs
+# that interact with list containers and compares against the same oracle.
+#
+# The residual is one named family, not noise. A fenced code block inside a
+# list item ends, in CommonMark, when the document dedents out of that item;
+# these scanners track a block's lifetime independently of its container's, so
+# they keep such a block open. That is pre-existing behavior, unchanged by the
+# container work, and it accounts for the great majority of the counts below.
+# Raw HTML blocks swallowing a fence are the other known cause.
+#
+# Treat these as a ratchet in the repository's usual sense: a regression pushes
+# a count up and fails, and work that closes part of the family lowers them.
+# Re-measure rather than editing a number to make a run pass.
+_FUZZ_INDENTS = ("", " ", "  ", "   ", "    ", "     ", "      ", "\t")
+_FUZZ_BULLETS = ("-", "*", "+")
+_FUZZ_ORDERED = ("1.", "2.", "01.", "003.", "1)", "10.", "9)")
+
+# Measured against `random_documents` and `prose_lint._blank_fenced_blocks`
+# at the commit that added this file. Of these, most are strict over-mask,
+# which is the container-lifetime family described above: 32 of 37, 25 of 28,
+# and 23 of 29 respectively.
+FUZZ_BASELINE = {1729: 37, 20260826: 28, 4242: 29}
+FUZZ_DOCUMENTS = 2000
+
+
+def _fuzz_line(rng: random.Random) -> str:
+    kind = rng.randrange(9)
+    indent = rng.choice(_FUZZ_INDENTS)
+    if kind == 0:
+        return ""
+    if kind == 1:
+        pad = rng.choice(_FUZZ_INDENTS[:6])
+        return indent + rng.choice(_FUZZ_BULLETS) + pad + rng.choice(("item", "", "robust"))
+    if kind == 2:
+        pad = rng.choice(_FUZZ_INDENTS[:6])
+        return indent + rng.choice(_FUZZ_ORDERED) + pad + rng.choice(("item", "", "text"))
+    if kind == 3:
+        return indent + rng.choice(("```", "~~~", "````", "```py", "~~~~"))
+    if kind == 4:
+        return indent + rng.choice(("prose text", "lazy line", "more words"))
+    if kind == 5:
+        return indent + rng.choice(("# H", "## H2"))
+    if kind == 6:
+        return indent + rng.choice(("***", "---", "___", "* * *", "- - -"))
+    if kind == 7:
+        return indent + rng.choice(("> quote", "code_ish()"))
+    return indent + rng.choice(("```", "~~~"))
+
+
+def random_documents(seed: int, count: int = FUZZ_DOCUMENTS) -> list[str]:
+    """Return *count* small Markdown documents, deterministic for *seed*."""
+    rng = random.Random(seed)
+    return [
+        "\n".join(_fuzz_line(rng) for _ in range(rng.randrange(3, 9))) + "\n" for _ in range(count)
+    ]
