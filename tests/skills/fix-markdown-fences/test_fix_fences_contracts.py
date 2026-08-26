@@ -30,12 +30,10 @@ import inspect
 from claude_skills_import import import_skill_script
 from commonmark_fence_cases import CASES as FENCE_CASES
 from commonmark_fence_cases import (
-    FUZZ_BASELINE,
-    FUZZ_DOCUMENTS,
     oracle_fence_lines,
-    random_documents,
     reference_lines,
 )
+from commonmark_fence_fuzz import FUZZ_BASELINE, FUZZ_DOCUMENTS, random_documents
 from markdown_it import MarkdownIt
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]

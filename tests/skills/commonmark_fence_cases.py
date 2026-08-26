@@ -58,7 +58,6 @@ behavior is first. The fuzz baselines below are what bound them.
 
 from __future__ import annotations
 
-import random
 import re
 
 from markdown_it import MarkdownIt
@@ -376,108 +375,39 @@ CASES: dict[str, str] = {
         "text\n\n    code\n\n2. item\n   ```\n   x\n   ```\n",
     "a four-column non-destination does not continue a definition":
         "[foo]:\n    a b\n2. ```\n   code\n   ```\n",
+    # Rule 16 continued, five more found by an adversarial sweep of the pending
+    # state rather than by review. Every one is a `--write` corruption: the
+    # reference parser reads the document as balanced and the tool appends to
+    # it. They share one cause, that a pending definition is an OPEN LEAF BLOCK
+    # and every block boundary has to say what it does to one.
+    #
+    # An indented code block is its own leaf block, so it ENDS a pending
+    # definition. The indent veto returned before saying so, and the title two
+    # lines down was then booked against a definition CommonMark had already
+    # closed.
+    "indented code ends a pending definition":
+        "[foo]: /url\n    zzz\n\"t\"\n2. ```\n",
+    # A new list item is a new container, and the pending state belonged to the
+    # one outside it. The caller re-parses a marker's remainder inside the item
+    # it just opened, and that pass consumed the stale flag.
+    "a list marker ends a pending destination":
+        "[foo]:\n- /url\nx\n  ```\nx\n",
+    "a list marker ends a pending title":
+        "[foo]: /url\n- \"t\"\nx\n  ```\nx\n",
+    # And the mirror of that: a line CONTINUING a pending definition is a lazy
+    # continuation, so it must not close the item holding it. Popping the item
+    # on a dedented title moved the fence below it from inside the item to
+    # column zero, where nothing could close it.
+    "a dedented title does not close the item holding its definition":
+        "- [foo]: /url\n\"title\"\n  ~~~\ncode\n",
+    # CommonMark normalises a label before comparing it, so one holding only
+    # whitespace normalises to empty and the line is not a definition. The
+    # blank-label guard tested space and tab, which let every other Unicode
+    # whitespace character through.
+    "a label of only Unicode whitespace is not a definition":
+        "[\u00a0]: /url\n2. item\n    ```\n    code\n",
+    # The control: whitespace INSIDE a real label is still a definition.
+    "Unicode whitespace inside a label is still a definition":
+        "[a\u00a0b]: /url\n2. ```\n   code\n   ```\n",
 }
 
-
-# Randomized differential fuzzing.
-#
-# The curated cases above each pin one rule. The fuzzer answers the question
-# they cannot: what is left. It generates small documents from the constructs
-# that interact with list containers and compares against the same oracle.
-#
-# This description deliberately carries NO count. It named a single family, a
-# fenced block outliving its list item, and went stale when rule 10 closed
-# exactly that; it was then rewritten with an explicit total and went stale
-# again when rule 15 closed most of it. A count duplicated in prose has now
-# drifted twice, so `FUZZ_BASELINE` below is the single numeric source of
-# truth. The residue's shape is described in this module's docstring and NOT
-# repeated here, because it has now been described wrongly twice: once as a
-# lazy/empty pairing, and once as `both carry five-or-more columns of padding`
-# under a sentence beginning `Measured`, when one of the two documents has a
-# maximum of two columns and no empty item at all. A description asserted as
-# measured and never re-measured is worse than none.
-#
-# Raw HTML is NOT among these: the generator emits no `<` at all
-# across all 6,000 documents, so it cannot appear in this residue. The fuzz
-# negative control pins raw HTML with a hand-written document instead.
-#
-# Treat these as a ratchet in the repository's usual sense: a regression pushes
-# a count up and fails, and work that closes part of the residue lowers them.
-# Re-measure rather than editing a number to make a run pass, and re-describe
-# the residue when a rule changes what it is made of.
-_FUZZ_INDENTS = ("", " ", "  ", "   ", "    ", "     ", "      ", "\t")
-_FUZZ_BULLETS = ("-", "*", "+")
-_FUZZ_ORDERED = ("1.", "2.", "01.", "003.", "1)", "10.", "9)")
-
-# Measured against `random_documents` and `prose_lint._blank_fenced_blocks`,
-# re-measured whenever a rule closes part of the residue.
-#
-# These are not comparable with figures recorded before rule 9, because the
-# generator was widened at the same time to emit marker lines whose remainder
-# is itself a block start. That family had produced a `--write` corruption the
-# fuzzer could not reach. On the widened generator the counts were 212, 247 and
-# 225; rule 10 (a block ends with its container) took them to what follows.
-# Rule 11 (a setext underline ends its paragraph) took seed 20260826 from 6.
-# Rule 12 (a marker line leaves paragraph state to its own remainder) took
-# seed 20260826 from 5 and seed 4242 from 6.
-#
-# Figures before the Unicode-whitespace widening are not comparable with what
-# follows either, for the same reason as the rule 9 discontinuity above: the
-# generator emitted no Unicode whitespace at ALL, so a `--write` corruption on
-# a closing fence carrying U+00A0 was invisible to every ratchet in the
-# repository, corpus and fuzzer alike. Review found it, not the fuzzer, twice
-# running. About 43 percent of documents per seed now carry U+00A0 or U+3000 in
-# a closer or a marker remainder. Measured teeth: against the scanner as it
-# stood before that fix, the widened generator diverges on 8, 12 and 8
-# documents for seeds 1729, 4242 and 20260826, and three of those also mutate a
-# well formed document on `--write`.
-FUZZ_BASELINE = {1729: 1, 20260826: 0, 4242: 1}
-FUZZ_DOCUMENTS = 2000
-
-
-def _fuzz_line(rng: random.Random) -> str:
-    kind = rng.randrange(9)
-    indent = rng.choice(_FUZZ_INDENTS)
-    if kind == 0:
-        return ""
-    if kind == 1:
-        pad = rng.choice(_FUZZ_INDENTS[:6])
-        # Draw order matters: it decides the document set, so keep the
-        # marker draw ahead of the body draw as it has always been.
-        marker = rng.choice(_FUZZ_BULLETS)
-        return indent + marker + pad + rng.choice(("item", "", "robust", "\u00a0"))
-    if kind == 2:
-        pad = rng.choice(_FUZZ_INDENTS[:6])
-        return indent + rng.choice(_FUZZ_ORDERED) + pad + rng.choice(("item", "", "text", "\u00a0"))
-    if kind == 3:
-        # The Unicode-whitespace suffixes are closer-position bait. A closing
-        # fence may be followed only by spaces and tabs, and reading that with
-        # `str.strip()` accepted U+00A0 as a blank info string, closed the
-        # block early, and let `--write` append a fence to a well formed
-        # document. No ratchet could see it: the generator emitted no Unicode
-        # whitespace anywhere.
-        return indent + rng.choice(
-            ("```", "~~~", "````", "```py", "~~~~", "```\u00a0", "~~~\u00a0", "```\u3000")
-        )
-    if kind == 4:
-        return indent + rng.choice(("prose text", "lazy line", "more words"))
-    if kind == 5:
-        return indent + rng.choice(("# H", "## H2"))
-    if kind == 6:
-        return indent + rng.choice(("***", "---", "___", "* * *", "- - -"))
-    if kind == 7:
-        return indent + rng.choice(("> quote", "code_ish()"))
-    # Rule 9 territory: a marker whose remainder is itself a block start. This
-    # family produced a `--write` corruption that review, not the fuzzer, found,
-    # because the generator could not emit it. It can now.
-    return indent + rng.choice(
-        ("- ```", "- ~~~", "- - ```", "1. ~~~info", "- # h", "- - a", "* ```py")
-    )
-
-
-def random_documents(seed: int, count: int = FUZZ_DOCUMENTS) -> list[str]:
-    """Return *count* small Markdown documents, deterministic for *seed*."""
-    rng = random.Random(seed)
-    return [
-        "\n".join(_fuzz_line(rng) for _ in range(rng.randrange(3, 9))) + "\n" for _ in range(count)
-    ]

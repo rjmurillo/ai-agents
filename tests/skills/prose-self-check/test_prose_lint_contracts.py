@@ -26,12 +26,10 @@ if TESTS_SKILLS_DIR not in sys.path:
 from claude_skills_import import import_skill_script
 from commonmark_fence_cases import CASES as FENCE_CASES
 from commonmark_fence_cases import (
-    FUZZ_BASELINE,
-    FUZZ_DOCUMENTS,
     oracle_fence_lines,
-    random_documents,
     reference_lines,
 )
+from commonmark_fence_fuzz import FUZZ_BASELINE, FUZZ_DOCUMENTS, random_documents
 
 mod = import_skill_script(".claude/skills/prose-self-check/scripts/prose_lint.py")
 
