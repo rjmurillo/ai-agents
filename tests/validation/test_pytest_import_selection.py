@@ -316,6 +316,46 @@ def test_the_collection_notice_repeats_the_selector_reason(
     assert "sentinel-reason-xyz" in capsys.readouterr().err
 
 
+def test_a_pytest_internal_error_is_not_reported_as_a_timeout(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Exit 3 is overloaded, and the code alone cannot tell the cases apart.
+
+    pytest returns 3 for an internal error. `_run_command` synthesizes 3 when
+    it kills a child on timeout, and again on an OSError launching the process.
+    `run_pytest` used to branch on the bare code, so a genuine pytest crash was
+    announced as "pytest suite timed out" and the developer was sent to the
+    budget instead of the traceback the child had already printed.
+
+    Raised in review on PR #5319. The sibling test above covers the real
+    timeout; this one covers the case that was being misread as one.
+    """
+    monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
+    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
+    monkeypatch.setattr(
+        git_hook_policy,
+        "_run_command",
+        lambda *_a, **_k: subprocess.CompletedProcess(
+            ["pytest"], 3, "", "INTERNALERROR> Traceback (most recent call last):\n"
+        ),
+    )
+    monkeypatch.setattr(git_hook_policy, "_print_process_output", lambda _r: None)
+
+    assert git_hook_policy.run_pytest(tmp_path) == 3, (
+        "the exit code must still reach the caller; only the diagnosis changes."
+    )
+
+    err = capsys.readouterr().err
+    assert "timed out" not in err, (
+        "a pytest internal error was announced as a timeout. The child's own "
+        f"stderr carries no timeout marker, so nothing here should: {err!r}"
+    )
+    assert "budget" not in err, (
+        "the budget was named for a failure that has nothing to do with it, "
+        f"which is where the reader gets sent next: {err!r}"
+    )
+
+
 def test_a_collection_timeout_names_the_collection_ceiling(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -327,10 +367,20 @@ def test_a_collection_timeout_names_the_collection_ceiling(
     """
     monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
     monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
+    # A bare exit 3 is no longer a timeout. `_run_command` synthesizes 3 when it
+    # kills a child AND pytest returns 3 for an internal error, so `run_pytest`
+    # reads the marker `_run_command` appends rather than the code. A fake that
+    # returns 3 with empty stderr is a crash, not a hang, so it has to carry the
+    # real message here (PR #5319).
     monkeypatch.setattr(
         git_hook_policy,
         "_run_command",
-        lambda *_a, **_k: subprocess.CompletedProcess(["pytest"], 3, "", ""),
+        lambda *_a, **kw: subprocess.CompletedProcess(
+            ["pytest"],
+            3,
+            "",
+            git_hook_policy._timeout_message(["pytest"], kw["timeout_seconds"]),
+        ),
     )
     monkeypatch.setattr(git_hook_policy, "_print_process_output", lambda _r: None)
 

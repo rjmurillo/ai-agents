@@ -813,8 +813,15 @@ def _run_command_bytes(
     """Byte-mode variant of ``_run_command``.
 
     Kills the process group on timeout for the same reason as ``_run_command``
-    (Issue #4217).
+    (Issue #4217), and clamps its deadline in a managed container for the same
+    reason again. The clamp was missing here until review on PR #5319 found it:
+    ADR-104 rule 8 says nothing local may outlive its environment, and a second
+    entry point that spawns children without the bound is a hole in that claim
+    however small its current call graph. Today the only caller passes the 90s
+    default, under the 150s ceiling, so this changes no behavior; it stops the
+    next caller that passes a larger value from escaping silently.
     """
+    timeout_seconds = _container_clamped(timeout_seconds)
     command = list(args)
     try:
         proc = subprocess.Popen(
@@ -867,9 +874,28 @@ def _timeout_bytes(value: bytes | str | None) -> bytes:
     return value
 
 
+# The phrase `_run_command` appends to a killed child's stderr, and the only
+# thing that distinguishes its synthesized exit 3 from a child that exited 3 on
+# its own. pytest uses 3 for an internal error, so a caller reading the code
+# alone reports "timed out" for a crash and sends the developer to the budget
+# instead of the traceback. Defined once so the producer below and `_timed_out`
+# cannot drift apart. Raised in review on PR #5319.
+TIMEOUT_MARKER = " timed out after "
+
+
 def _timeout_message(args: Sequence[str], timeout_seconds: float) -> str:
     subject = _timeout_subject(args)
-    return f"ERROR: {subject} timed out after {timeout_seconds:g} seconds\n"
+    return f"ERROR: {subject}{TIMEOUT_MARKER}{timeout_seconds:g} seconds\n"
+
+
+def _timed_out(result: subprocess.CompletedProcess[str]) -> bool:
+    """Whether `_run_command` killed this child, rather than it exiting 3 itself.
+
+    Exit 3 is overloaded: `_run_command` synthesizes it on timeout, on an
+    `OSError` launching the process, and pytest returns it for an internal
+    error. Only the marker `_run_command` appends says which happened.
+    """
+    return result.returncode == 3 and TIMEOUT_MARKER in (result.stderr or "")
 
 
 def _timeout_subject(args: Sequence[str]) -> str:
@@ -6965,7 +6991,7 @@ def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> i
             timeout_seconds=remaining,
         )
         _print_process_output(result)
-        if result.returncode == 3:
+        if _timed_out(result):
             # `remaining` is always fractionally below the full budget, even on
             # the first command, because the deadline and this subtraction call
             # time.monotonic() at two different instants. Comparing the two

@@ -7137,6 +7137,95 @@ def test_cli_e2e_runs_with_clean_plugin_environment(
     assert "COPILOT_PLUGIN_ROOT" not in env
 
 
+@pytest.mark.parametrize(
+    ("runner", "empty"),
+    [("_run_command", ""), ("_run_command_bytes", b"")],
+)
+def test_both_subprocess_entry_points_clamp_in_a_container(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    runner: str,
+    empty: object,
+) -> None:
+    """Two functions spawn children, so the bound has to be on both.
+
+    `_run_command_bytes` did not clamp until review on PR #5319. Its only
+    caller passes the 90s default, under the 150s ceiling, so nothing was
+    escaping in practice, which is exactly why nothing noticed: a second entry
+    point that spawns without the bound is a hole in ADR-104 rule 8 whatever
+    the current call graph looks like, and the next caller passing a larger
+    value would have found it in production rather than here.
+
+    Parametrized over both so neither can regress alone. A test that covered
+    only the clamped one would have passed throughout the period the other was
+    unclamped.
+    """
+    captured: dict[str, object] = {}
+
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
+
+        def __init__(self, _args: Sequence[str], **_kwargs: object) -> None:
+            pass
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[object, object]:
+            captured["timeout"] = timeout
+            return (empty, empty)
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
+    monkeypatch.setattr(
+        policy,
+        "_container_clamped",
+        lambda seconds: min(seconds, policy.CONTAINER_SUBPROCESS_CEILING_SECONDS),
+    )
+
+    getattr(policy, runner)(["true"], tmp_path, timeout_seconds=1_800.0)
+
+    ceiling = policy.CONTAINER_SUBPROCESS_CEILING_SECONDS
+    assert captured["timeout"] == ceiling, (
+        f"{runner} handed its child {captured['timeout']}s against a {ceiling}s "
+        "container ceiling, so that entry point spawns children the container "
+        "bound does not reach."
+    )
+
+
+def test_neither_entry_point_clamps_on_a_workstation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Control for the pair above: without a container the budget is untouched.
+
+    If this ever agrees with the test above, the clamp is unconditional and
+    that assertion is reading the ceiling under another name rather than
+    evidence that a container is detected.
+    """
+    captured: dict[str, object] = {}
+
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
+
+        def __init__(self, _args: Sequence[str], **_kwargs: object) -> None:
+            pass
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
+            captured["timeout"] = timeout
+            return ("", "")
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
+    monkeypatch.setattr(policy, "_container_clamped", lambda seconds: seconds)
+
+    policy._run_command(["true"], tmp_path, timeout_seconds=1_800.0)
+
+    assert captured["timeout"] == 1_800.0
+    assert captured["timeout"] > policy.CONTAINER_SUBPROCESS_CEILING_SECONDS
+
+
 def test_an_unavailable_container_detector_says_so_before_going_unclamped(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
