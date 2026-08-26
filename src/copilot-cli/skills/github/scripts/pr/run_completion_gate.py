@@ -404,9 +404,16 @@ def _load_config_bytes(raw: bytes, path: Path) -> dict[str, Any]:
     could not be parsed".
     """
     if not _HAVE_YAML:
+        # Name the interpreter rather than a bare `pip install`. The shipped
+        # skill invokes this through `uv run python`, which resolves to the
+        # consumer project's environment, while a bare `pip` targets whatever
+        # is first on PATH. Those can differ, so the old text could send an
+        # operator to install PyYAML somewhere the next run never looks.
         raise ConfigError(
-            "PyYAML is required to parse the completion-gate config; "
-            "install it via `pip install pyyaml`.",
+            "PyYAML is required to parse the completion-gate config; install "
+            f"it for the interpreter running this script ({sys.executable}). "
+            "Under uv that is `uv run --with pyyaml python ...`; a bare "
+            "`pip install pyyaml` may target a different environment.",
         )
     try:
         text = raw.decode("utf-8")

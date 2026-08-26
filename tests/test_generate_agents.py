@@ -19,13 +19,21 @@ sys.path.insert(0, str(_BUILD_DIR))
 
 from generate_agents import (  # noqa: E402
     generate_agents,
-    main,
     read_platform_config,
 )
 
 
-def _create_test_structure(tmp_path: Path) -> tuple[Path, Path, Path]:
+def _create_test_structure(
+    tmp_path: Path, *, with_model_tiers: bool = False
+) -> tuple[Path, Path, Path]:
     """Create a minimal test directory structure for agent generation.
+
+    ``with_model_tiers=True`` adds a ``model_tiers`` map to the vscode
+    platform config, matching real templates/platforms/vscode.yaml:18-21;
+    the default (False) preserves every existing caller's plain config,
+    since a manifest-pin test is the only kind that needs it (a manifest
+    entry's id can't reach a formatted output without one -- see
+    format_model_id_for_platform).
 
     Returns (repo_root, templates_path, output_root).
     """
@@ -36,16 +44,23 @@ def _create_test_structure(tmp_path: Path) -> tuple[Path, Path, Path]:
     # Platform configs
     platforms_dir = templates_path / "platforms"
     platforms_dir.mkdir(parents=True)
-    (platforms_dir / "vscode.yaml").write_text(
+    vscode_yaml = (
         "platform: vscode\n"
         "outputDir: src/vs-code-agents\n"
         "fileExtension: .agent.md\n"
         "frontmatter:\n"
         "  includeNameField: false\n"
         'handoffSyntax: "#runSubagent"\n'
-        'memoryPrefix: "serena/"\n',
-        encoding="utf-8",
+        'memoryPrefix: "serena/"\n'
     )
+    if with_model_tiers:
+        vscode_yaml += (
+            "model_tiers:\n"
+            '  opus: "Claude Opus 4.6 (copilot)"\n'
+            '  sonnet: "Claude Sonnet 4.6 (copilot)"\n'
+            '  haiku: "Claude Haiku 4.5 (copilot)"\n'
+        )
+    (platforms_dir / "vscode.yaml").write_text(vscode_yaml, encoding="utf-8")
 
     # Agents directory with a shared template
     agents_dir = templates_path / "agents"
@@ -65,6 +80,12 @@ def _create_test_structure(tmp_path: Path) -> tuple[Path, Path, Path]:
     output_root.mkdir(parents=True)
 
     return repo_root, templates_path, output_root
+
+
+# _write_keep_pin_manifest (shared by every manifest-pin end-to-end wiring
+# test) and the tests that use it live in test_generate_agents_manifest.py
+# and test_generate_agents_main.py, to keep this file under the taste-lint
+# file-size ratchet.
 
 
 class TestReadPlatformConfig:
@@ -205,6 +226,32 @@ class TestGenerateAgents:
         (output_root / "vs-code-agents").mkdir(parents=True, exist_ok=True)
         exit_code = generate_agents(templates_path, output_root, repo_root, validate=True)
         assert exit_code == 1
+
+    def test_output_root_symlink_ancestor_is_still_detected(
+        self, tmp_path: Path
+    ) -> None:
+        """The generator's own "cannot contain symlinks" contract must not
+        go blind at output_root itself: output_root is resolved (symlinks
+        dereferenced) before the containment check, and the ancestor scan
+        walks a SEPARATE lexical (unresolved) copy specifically so a
+        symlink placed at output_root's own path component -- not just
+        somewhere beneath it -- is still caught, matching the check's
+        stated scope rather than silently narrowing it. A real symlink is
+        required here (os.symlink), not a string that merely looks like
+        one: is_symlink() inspects the filesystem entry, and Windows CI
+        runners without symlink privilege raise OSError creating one, which
+        this test surfaces as a skip rather than a false pass."""
+        repo_root, templates_path, real_output = _create_test_structure(tmp_path)
+        linked_output = tmp_path / "repo" / "linked-src"
+        try:
+            linked_output.symlink_to(real_output, target_is_directory=True)
+        except OSError as exc:
+            pytest.skip(f"platform cannot create symlinks: {exc}")
+
+        exit_code = generate_agents(templates_path, linked_output, repo_root)
+
+        assert exit_code == 1
+        assert not (real_output / "vs-code-agents" / "test-agent.agent.md").exists()
 
     def test_no_platform_configs_returns_error(self, tmp_path: Path) -> None:
         repo_root = tmp_path / "repo"
@@ -386,46 +433,6 @@ class TestGenerateAgents:
         assert not (repo_root / ".git/hooks/pre-push").exists()
 
 
-class TestMain:
-    """Tests for main entry point."""
-
-    def test_missing_templates_path(self, tmp_path: Path) -> None:
-        exit_code = main(["--templates-path", str(tmp_path / "nonexistent")])
-        assert exit_code == 2
-
-    def test_help_flag(self) -> None:
-        with pytest.raises(SystemExit) as exc_info:
-            main(["--help"])
-        assert exc_info.value.code == 0
-
-    def test_full_run(self, tmp_path: Path) -> None:
-        repo_root, templates_path, output_root = _create_test_structure(tmp_path)
-        exit_code = main([
-            "--templates-path", str(templates_path),
-            "--output-root", str(output_root),
-        ])
-        assert exit_code == 0
-
-    def test_what_if_flag(self, tmp_path: Path) -> None:
-        repo_root, templates_path, output_root = _create_test_structure(tmp_path)
-        exit_code = main([
-            "--templates-path", str(templates_path),
-            "--output-root", str(output_root),
-            "--what-if",
-        ])
-        assert exit_code == 0
-
-    def test_validate_flag(self, tmp_path: Path) -> None:
-        repo_root, templates_path, output_root = _create_test_structure(tmp_path)
-
-        # Generate first, then validate
-        main([
-            "--templates-path", str(templates_path),
-            "--output-root", str(output_root),
-        ])
-        exit_code = main([
-            "--templates-path", str(templates_path),
-            "--output-root", str(output_root),
-            "--validate",
-        ])
-        assert exit_code == 0
+# TestMain (CLI entry point tests) moved to test_generate_agents_main.py
+# to keep this file under the taste-lint file-size ratchet; it imports
+# _create_test_structure from this module.
