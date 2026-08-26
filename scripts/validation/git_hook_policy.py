@@ -1546,8 +1546,8 @@ def _evidence_byte_count(content: str) -> int:
     characters carry no review text, so they count for nothing here and the
     floor stays a floor on real bytes.
 
-    The staged path no longer decodes lossily. ``_staged_debate_log_content``
-    decodes strictly and routes a blob that is not valid UTF-8 to the unreadable
+    The staged path no longer decodes lossily. ``_staged_debate_log_contents``
+    decodes strictly and routes a blob that is not valid UTF-8 to the undecodable
     report, so the inflation above cannot arrive through the gate any more. This
     stays because it is a property of the function rather than of one caller:
     ``debate_log_evidence_gap`` is public, takes text from wherever its caller

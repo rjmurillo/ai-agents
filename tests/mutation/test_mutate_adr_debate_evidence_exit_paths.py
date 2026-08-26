@@ -111,16 +111,25 @@ def test_m15_unresolved_markdown_escapes_are_detected(scratch_worktree: Path) ->
 _M16_ORIGINAL = b"""    if result.returncode == 1:
         return False
     if result.returncode != 0:
+        _print_process_output(result, stdout_stream=sys.stderr)
+        return None
 """
-_M16_MUTANT = b"""    if False:  # M16 mutant: the tri-state collapses to a boolean
+_M16_MUTANT = b"""    if result.returncode != 0:  # M16 mutant: every failure reads as False
         return False
-    if result.returncode != 0:
 """
 
 
 @pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
 def test_m16_regular_file_query_failure_collapsed_is_detected(scratch_worktree: Path) -> None:
-    """A broken ls-files must not be reported as a staged symlink."""
+    """A broken or timed-out ls-files must not be reported as a staged symlink.
+
+    The prior mutant only broke the rc=1 branch, which the "missing from the
+    index" test alone kills without touching a query failure at all. This
+    mutant deletes the ``None`` branch outright, collapsing every nonzero
+    code (128, a timeout's synthesized 3, or 1) to ``False``, so it is killed
+    only by a test that proves a genuine query failure is not misread as a
+    definite "not a regular file" answer. Found by review.
+    """
     original = (REPO_ROOT / _TARGET_REL).read_bytes()
     outcome = _apply_positive_mutant(
         scratch_worktree, original, _M16_ORIGINAL, _M16_MUTANT, "M16-regular-file-tristate"
