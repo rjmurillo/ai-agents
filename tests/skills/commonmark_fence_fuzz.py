@@ -65,6 +65,14 @@ _FUZZ_ORDERED = ("1.", "2.", "01.", "003.", "1)", "10.", "9)")
 # documents for seeds 1729, 4242 and 20260826, and three of those also mutate a
 # well formed document on `--write`.
 FUZZ_BASELINE = {1729: 1, 20260826: 0, 4242: 1}
+
+# Middle rewrites per seed, on documents the REFERENCE PARSER reads as balanced.
+# The zero-append assertion alone was too weak: it ignored every middle rewrite,
+# so a regression that invented new mistaken-closer paths stayed green as long
+# as it did not grow a document at the end. These pin what the deliberate
+# divergence actually costs, exactly, so a new one has to be declared. Together
+# the two are the whole claim: this many middle rewrites and no appends at all.
+FUZZ_MIDDLE_REWRITES = {1729: 3, 4242: 2, 20260826: 2}
 FUZZ_DOCUMENTS = 2000
 
 
