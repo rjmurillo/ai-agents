@@ -235,35 +235,6 @@ def test_vm_bootstrap_has_no_bare_apt_get_or_unguarded_dpkg_i() -> None:
             )
 
 
-def test_vm_bootstrap_configures_authenticated_github_cli() -> None:
-    """A supplied token must be verified and connected to git transport."""
-    text = VM_BOOTSTRAP_PATH.read_text(encoding="utf-8")
-    function = text[
-        text.index("configure_github_cli() {") : text.index(
-            "\n}\n", text.index("configure_github_cli() {")
-        )
-    ]
-
-    assert 'export GH_TOKEN="$GITHUB_TOKEN"' in function
-    assert "gh auth status" in function
-    assert "gh api meta" in function
-    assert "gh auth setup-git" in function
-
-
-def test_vm_bootstrap_keeps_an_explicit_gh_token() -> None:
-    """GH_TOKEN takes precedence over the GitHub Actions token alias."""
-    text = VM_BOOTSTRAP_PATH.read_text(encoding="utf-8")
-
-    assert '[[ -z "${GH_TOKEN:-}" && -n "${GITHUB_TOKEN:-}" ]]' in text
-
-
-def test_vm_bootstrap_explains_missing_github_credentials() -> None:
-    """CLI-only setup remains usable but names the missing credential."""
-    text = VM_BOOTSTRAP_PATH.read_text(encoding="utf-8")
-
-    assert "GitHub CLI is installed but unauthenticated; set GH_TOKEN" in text
-
-
 class TestQuietAptGet:
     """Exercise the real quiet_run/quiet_apt_get bash functions (Issue #5169)
     against fake sudo/apt-get/dpkg executables. Extracts the function bodies

@@ -124,15 +124,22 @@ configure_github_cli() {
         return 0
     fi
 
-    # Verify both the credential and API access now. A missing scope or stale
-    # token should fail during setup instead of surfacing later as a broken
-    # autonomous PR workflow. Use `meta` rather than `user`: `GET /user`
-    # returns 403 for Actions installation tokens, aborting bootstrap even
-    # when the token is valid for PR and issue operations.
-    gh auth status
+    # Verify authentication and API connectivity now, so a bad or stale
+    # token fails during setup instead of surfacing later as an obscure
+    # failure in an automated PR/issue workflow. This checks that the
+    # token is accepted and the API is reachable; it does not probe
+    # per-repository PR/issue write scope, which only a call against the
+    # target repository could confirm. Scope the status check to the
+    # active account on the target host: an unscoped `gh auth status`
+    # tests every stored account on every known host and fails if any one
+    # of them (unrelated to this token) is stale. Use `meta` rather than
+    # `user`: `GET /user` returns 403 for Actions installation tokens,
+    # aborting bootstrap even when the token is valid for PR and issue
+    # operations.
+    gh auth status --active --hostname github.com
     gh api meta >/dev/null
     gh auth setup-git
-    echo "✓ GitHub CLI authenticated and configured for git operations"
+    echo "✓ GitHub CLI authenticated and connected to github.com"
 }
 
 configure_github_cli
