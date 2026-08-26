@@ -85,13 +85,15 @@ def test_the_job_carries_a_deadline_at_all(
     """
     seen: list[float | None] = []
     _arrange(monkeypatch, ["head1"], clamp=lambda seconds: seconds)
-    monkeypatch.setattr(
-        policy,
-        "_scan_pushed_head",
-        lambda *_a, deadline=None, **_k: (seen.append(deadline), 0)[1],
-    )
-    # This one keeps the default: it is the test that asserts the argument
-    # arrived at all, so it has to be able to observe its absence.
+
+    # This fake keeps the default that `_record_deadlines` deliberately drops:
+    # it is the test that asserts the argument arrived at all, so it has to be
+    # able to observe its absence rather than raise on it.
+    def record(_head: str, *_a: object, deadline: float | None = None, **_k: object) -> int:
+        seen.append(deadline)
+        return 0
+
+    monkeypatch.setattr(policy, "_scan_pushed_head", record)
 
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 0
     assert seen and seen[0] is not None, (
@@ -241,8 +243,8 @@ def test_no_deadline_keeps_the_legacy_per_batch_budget(
     """Direct unit callers pass no deadline; they must not silently get zero."""
     seen: list[float] = []
 
-    def record(*_a: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        seen.append(float(kwargs["timeout_seconds"]))  # type: ignore[arg-type]
+    def record(*_a: object, **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        seen.append(float(kwargs["timeout_seconds"]))
         return subprocess.CompletedProcess([], 0, "", "")
 
     monkeypatch.setattr(policy, "_semgrep_target_batches", lambda targets, _root: [targets])
