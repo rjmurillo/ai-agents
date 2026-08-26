@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import builtins
 import io
 import json
 import os
@@ -14,6 +15,7 @@ import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
+from types import ModuleType
 from typing import Any, NoReturn, Self, cast
 from unittest import mock
 
@@ -6789,9 +6791,7 @@ def test_commit_limit_notice_covers_below_warning_through_alert(
     WARNING_THRESHOLD upward; below it, the push is silent.
     """
     update = _push_update(None)
-    monkeypatch.setattr(
-        policy, "_run_git", lambda *_args: _completed(0, f"{commit_count}\n")
-    )
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, f"{commit_count}\n"))
 
     result = policy._check_commit_limit(update, tmp_path)
 
@@ -7119,6 +7119,60 @@ def test_cli_e2e_runs_with_clean_plugin_environment(
     assert captured["timeout"] == policy.CLI_E2E_TIMEOUT_SECONDS
     assert "CLAUDE_PROJECT_DIR" not in env
     assert "COPILOT_PLUGIN_ROOT" not in env
+
+
+def test_an_unavailable_container_detector_says_so_before_going_unclamped(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The one hole in the per-job container bound must be audible.
+
+    `_container_clamped` degrades to the unclamped deadline when the sibling
+    detection module cannot be imported, which is the right call: a safety net
+    that can itself block a legitimate push is worse than no net. But the
+    degradation voids the bound the PR claims, and a claim that lapses without
+    saying so is the failure mode this whole change is about. Raised by a
+    spec-validation pass, which read the guarantee as unconditional and the
+    code as conditional, and was right about both.
+
+    Pinned on the warning rather than on a raise, deliberately. Failing closed
+    here would either clamp a workstation job that legitimately needs 20
+    minutes, or refuse the push outright over a broken import unrelated to the
+    diff. Both trade a rare silent gap for a common loud one.
+    """
+    real_import = builtins.__import__
+
+    # Signature mirrors `builtins.__import__` exactly rather than using
+    # *args/**kwargs. The loose form does not type-check: mypy resolves the
+    # forwarded call against __import__'s real overloads and rejects
+    # `object` for globals, fromlist, and level. Spelling the parameters out
+    # is the idiomatic fix and documents what the shim intercepts.
+    def refuse_the_detector(
+        name: str,
+        globals: Mapping[str, object] | None = None,
+        locals: Mapping[str, object] | None = None,
+        fromlist: Sequence[str] = (),
+        level: int = 0,
+    ) -> ModuleType:
+        if name == "run_workflow_local_test":
+            raise ImportError("simulated missing sibling module")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", refuse_the_detector)
+    monkeypatch.delitem(sys.modules, "run_workflow_local_test", raising=False)
+
+    assert policy._container_clamped(1140.0) == 1140.0, (
+        "an unavailable detector must not clamp: it cannot tell a container "
+        "from a workstation, and guessing either way is worse than the warning."
+    )
+
+    err = capsys.readouterr().err
+    for expected in ("container detection unavailable", "NOT applied", "ADR-104"):
+        assert expected in err, (
+            f"the degradation path did not say {expected!r}. Going unclamped "
+            "in silence leaves a container push able to outlive its "
+            "environment with nothing in the output to explain the reclaim."
+        )
 
 
 def test_a_container_clamps_the_cli_e2e_child_deadline(

@@ -707,10 +707,26 @@ def _container_clamped(timeout_seconds: float) -> float:
     caller of `git_hook_policy` pay for it. A missing sibling degrades to no
     clamp rather than raising: the clamp is a safety net, and a net that can
     break the push it protects is worse than no net.
+
+    That degradation is the one hole in the per-job container bound, so it is
+    loud. Silently returning the unclamped deadline would leave a container
+    push able to outlive its environment with nothing in the output saying the
+    guarantee had lapsed, which is the exact shape of failure this whole change
+    exists to remove: a claim held in place by something nobody can see. The
+    warning costs one line on a path that should never run.
     """
     try:
         from run_workflow_local_test import _is_remote_container
-    except ImportError:  # pragma: no cover - sibling module always ships
+    except ImportError:
+        print(
+            "WARNING: container detection unavailable "
+            "(run_workflow_local_test could not be imported), so the "
+            f"{CONTAINER_SUBPROCESS_CEILING_SECONDS:.0f}s container clamp is "
+            "NOT applied. Inside a managed container this push can exceed the "
+            "per-job ceiling and be reclaimed without a diagnostic. See "
+            "ADR-104 rule 8.",
+            file=sys.stderr,
+        )
         return timeout_seconds
     if not _is_remote_container():
         return timeout_seconds

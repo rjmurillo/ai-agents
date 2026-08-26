@@ -130,6 +130,50 @@ class TestTheUnsoundSkipStaysReverted:
         )
 
 
+# The four gates the reverted skip would have deferred, by their `_SEQUENCE`
+# name. Deletion is the limit case of the skip this module exists to prevent:
+# a gate that is gone is skipped on every push, by every hook, permanently.
+# The deferral tests below check that no gate *claims* another job ran it, which
+# says nothing about a gate that is simply no longer there.
+FORMERLY_DEFERRED_GATES = (
+    "Count Ratchets",
+    "Unreachable Code Detection",
+    "Path Normalization",
+    "Planning Artifacts",
+)
+
+
+class TestTheDeferredGatesStillExist:
+    """A deleted gate is a permanently skipped gate.
+
+    Raised by a spec-validation pass against the claim that these four "are no
+    longer skippable": the deferral tests below reject the mechanism that was
+    reverted, and would not notice the blunter version of the same outcome.
+    """
+
+    def test_every_formerly_deferred_gate_is_still_in_the_sequence(self) -> None:
+        present = {gate.name for gate in pre_pr_sequence._SEQUENCE}
+        missing = [name for name in FORMERLY_DEFERRED_GATES if name not in present]
+        assert missing == [], (
+            f"{missing} left the pre-PR sequence. These are the gates the "
+            "reverted skip would have deferred; each is a whole-tree scan that "
+            "the glob-gated fast-stage jobs do not substitute for on every "
+            "change class. Removing one reproduces the defect this module "
+            "documents, without the flag that made it reviewable."
+        )
+
+    def test_the_presence_check_reads_real_names(self) -> None:
+        """Negative control: a name that was never a gate must be reported.
+
+        Without this, the check above passes if `_SEQUENCE` is empty, if the
+        names drift into a shape nothing matches, or if the attribute read
+        silently yields nothing.
+        """
+        present = {gate.name for gate in pre_pr_sequence._SEQUENCE}
+        assert present, "_SEQUENCE exposed no gate names, so the check is vacuous."
+        assert "Gate That Never Existed" not in present
+
+
 class TestAnyFutureDeferralMustBeSound:
     """The condition that would make the reverted skip correct.
 

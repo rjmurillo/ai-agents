@@ -297,6 +297,14 @@ _ADR_104 = (
 )
 
 
+def _surface_not_stating(spellings: tuple[str, ...], surfaces: dict[str, str]) -> str | None:
+    """Name the first surface stating none of `spellings`, or None if all do."""
+    for surface, text in surfaces.items():
+        if not any(s in text for s in spellings):
+            return surface
+    return None
+
+
 def _collection_contract_surfaces(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> dict[str, str]:
@@ -332,33 +340,55 @@ def test_every_in_repo_surface_states_the_whole_collection_contract(
     monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
     monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
 
-    for surface, text in _collection_contract_surfaces(capsys, tmp_path).items():
-        assert any(s in text for s in spellings), (
-            f"{surface} does not state {label!r} (accepted spellings: {spellings}). "
-            "All three must name the same set of probed classes. If a class was "
-            "added or removed, probe it and update every surface plus this table; "
-            "if only the wording changed, add the new spelling here."
-        )
+    absent = _surface_not_stating(spellings, _collection_contract_surfaces(capsys, tmp_path))
+    assert absent is None, (
+        f"{absent} does not state {label!r} (accepted spellings: {spellings}). "
+        "All three must name the same set of probed classes. If a class was "
+        "added or removed, probe it and update every surface plus this table; "
+        "if only the wording changed, add the new spelling here."
+    )
 
 
 def test_the_contract_check_can_fail(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Negative control: a class no surface states must be reported missing.
+    """Negative control: strike a class from one surface and the check names it.
 
-    Without this the parametrized test above passes for every row and nobody
-    can tell whether it discriminates or whether the substrings are simply so
-    short that they match anything.
+    An earlier version of this control asserted only that an invented sentinel
+    was absent from every surface, which is true of any string nobody wrote and
+    proves nothing about whether the check above discriminates. It was written
+    after verifying discrimination by hand, and it did not encode what the hand
+    check did, so the committed test was weaker than the work behind it. A
+    spec-validation pass said so. That is the same vacuous-control defect this
+    branch already found once in the filter-root test, which is why the fix is
+    a real mutation rather than a better-worded assertion.
+
+    Mutating the string rather than the file on disk: the surfaces are read
+    into a dict, so doctoring the dict exercises the same predicate the real
+    check uses without a test that edits a tracked ADR and has to put it back.
     """
     monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
     monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
 
     surfaces = _collection_contract_surfaces(capsys, tmp_path)
-    assert surfaces, "no surfaces were collected, so the check above is vacuous"
-    for surface, text in surfaces.items():
-        assert "a deadlock in a conftest fixture" not in text, (
-            f"{surface} states a class this control assumed nobody probed. "
-            "Pick a different sentinel."
+    assert len(surfaces) == 3, f"expected three surfaces, got {sorted(surfaces)}"
+
+    spellings = COLLECTION_MISSES["two same-named test functions in one module"]
+    assert _surface_not_stating(spellings, surfaces) is None, (
+        "precondition failed: some surface already omits this class, so the "
+        "mutation below would not be what makes the check fire."
+    )
+
+    for target, text in surfaces.items():
+        struck = dict(surfaces)
+        struck[target] = text
+        for spelling in spellings:
+            struck[target] = struck[target].replace(spelling, "")
+        assert _surface_not_stating(spellings, struck) == target, (
+            f"striking {spellings} from {target} did not make the check report "
+            f"{target}. The check does not discriminate, so every row of the "
+            "parametrized test above passes for a reason other than the "
+            "surfaces actually stating the contract."
         )
 
 
