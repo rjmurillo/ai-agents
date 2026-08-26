@@ -522,14 +522,64 @@ class TestBlankNonProseBlockLines:
         assert out[3] == ""
         assert out[4] == "keep /c"
 
-    def test_keeps_inline_html_comment_on_a_prose_line(self):
-        # Only a comment CommonMark segments as its own block is blanked;
-        # one sharing a line with prose is not a separate html_block token.
-        # Asserts the whole line is untouched, not just that "prose"
-        # survives somewhere in it: a substring-only check would pass even
-        # if the inline comment or trailing text were dropped.
+    def test_blanks_an_inline_html_comment_sharing_a_line_with_prose(self):
+        # A comment opened mid-line (not starting the line) is not a
+        # standalone html_block token; CommonMark tokenizes it as html_inline
+        # instead. An earlier revision of this function left such comments
+        # untouched, reasoning that only a comment segmented as its own
+        # block needed hiding. That reasoning missed that an html_inline
+        # comment is exactly as invisible to a renderer as an html_block one,
+        # so it needs the same treatment: the multi-line variant below is
+        # what actually forges a hidden status, but the single-line case is
+        # the minimal instance of the same gap. Copilot found this on
+        # PR #5230. Asserts the exact transformed text: prose survives,
+        # the comment (markers and content) is replaced with spaces so the
+        # line length and every other line's content are preserved.
         text = "prose <!-- inline --> more prose\n"
-        assert blank_non_prose_block_lines(text) == text
+        assert blank_non_prose_block_lines(text) == "prose                 more prose\n"
+
+    def test_blank_code_block_lines_does_not_strip_an_inline_html_comment(self):
+        # Control proving the two functions still genuinely differ after the
+        # fix above: blank_code_block_lines is untouched by this change and
+        # keeps leaving inline HTML comments visible, matching its own
+        # documented contract for check_skill_md_portability.py.
+        text = "prose <!-- inline --> more prose\n"
+        assert blank_code_block_lines(text) == text
+
+    def test_hides_a_multiline_inline_html_comment_status(self):
+        # The real forgery vector Copilot found (PR #5230, mandatory finding):
+        # an HTML comment opened on a prose line can span multiple source
+        # lines while the paragraph stays open, since none of a comment's own
+        # "-->" or its hidden content interrupts a CommonMark paragraph. A
+        # `**Status**: Accepted` line inside such a comment is invisible on
+        # any CommonMark renderer, but the OLD blank_non_prose_block_lines
+        # left every paragraph line untouched, so check_adr_lifecycle.py's
+        # _INLINE_STATUS_RE would still read "Accepted" off the hidden line
+        # as the record's declared status. Asserts the exact transformed
+        # text: the whole comment span (spanning three source lines) becomes
+        # spaces, and the surrounding prose on its own lines is untouched.
+        text = "prose <!--\n**Status**: Accepted\n-->\nmore prose\n"
+        out = blank_non_prose_block_lines(text)
+        assert out.split("\n") == [
+            "prose     ",
+            "                    ",
+            "   ",
+            "more prose",
+            "",
+        ]
+        # A raw-text scan for the bold status label, exactly what
+        # check_adr_lifecycle.py's _INLINE_STATUS_RE does, must not find the
+        # hidden declaration once this function has run.
+        assert "**Status**" not in out
+
+    def test_still_shows_status_visible_alongside_a_multiline_comment(self):
+        # Control proving the fix above is not simply blanking every line the
+        # comment's paragraph occupies: a real, visible status declaration
+        # placed AFTER the multi-line comment on its own paragraph must
+        # survive, since check_adr_lifecycle.py still has to find it.
+        text = "prose <!--\nhidden\n-->\n\n**Status**: Accepted\n"
+        out = blank_non_prose_block_lines(text)
+        assert "**Status**: Accepted" in out
 
     def test_preserves_line_count(self):
         text = "a\n<!--\nb\nc\n-->\nd\n"

@@ -221,17 +221,69 @@ def blank_code_block_lines(markdown: str) -> str:
 
 
 def blank_non_prose_block_lines(markdown: str) -> str:
-    """Return ``markdown`` with fenced/indented code AND raw HTML block lines
-    blanked.
+    """Return ``markdown`` with fenced/indented code and raw HTML content
+    blanked, at both block and inline granularity.
 
-    Same contract as `blank_code_block_lines`, widened to also blank HTML
-    blocks (CommonMark's ``html_block`` token). Use this instead when the
-    caller matches a prose-only pattern that must not be read out of an HTML
-    comment or a `<details>` block: `check_adr_lifecycle.py`'s `_status_prose`
-    needs exactly this, since a lifecycle-status-shaped line inside an HTML
-    comment is documentation about status, not a declaration of it.
+    The block half has the same contract as `blank_code_block_lines`, widened
+    to also blank HTML blocks (CommonMark's ``html_block`` token). Use this
+    instead when the caller matches a prose-only pattern that must not be
+    read out of an HTML comment or a `<details>` block: `check_adr_lifecycle.py`'s
+    `_status_prose` needs exactly this, since a lifecycle-status-shaped line
+    inside an HTML comment is documentation about status, not a declaration
+    of it.
+
+    A block-level HTML comment (`<!--` starting its own line) is a distinct
+    `html_block` token and is blanked whole-line by the block half above. An
+    HTML comment that instead opens mid-paragraph (``prose <!--``) is not a
+    block at all: CommonMark tokenizes it as an ``html_inline`` child of the
+    paragraph's ``inline`` token, and that span can legally cross source
+    lines while the paragraph itself stays open, because only a handful of
+    constructs interrupt a paragraph (a blank line, an ATX heading, a list
+    marker, and similar; CommonMark spec section 4.9) and neither the
+    comment's own `-->` nor its hidden content is one of them. A
+    `**Status**: Accepted` line placed inside such a comment renders
+    invisible to a human reader on GitHub or any other CommonMark renderer,
+    while a raw-text regex scan over this function's block-only output would
+    still read it as the record's declared status, since paragraph lines
+    were left untouched. Copilot found this gap on PR #5230, one layer under
+    the block-level HTML comment gap the block half closes. Verified
+    empirically: parsing ``"prose <!--\\n**Status**: Accepted\\n-->\\n"``
+    produces one ``html_inline`` child token whose content is the entire
+    multi-line span, confirming a renderer treats it as one hidden unit
+    (`test_hides_a_multiline_inline_html_comment_status`,
+    tests/test_markdown_parser.py).
+
+    `_mask_inline_html_comments` (this module) implements the character-level
+    comment scan this needs, a narrower sibling of `_mask_inline_contexts`
+    kept for `extract_lookup_references`'s different needs (see its own
+    docstring for why the two cannot share one implementation): masking a
+    backtick-decorated status word here would break
+    `test_decorated_prose_matching_the_enum_passes`
+    (tests/validation/test_check_adr_lifecycle.py), since `` `Accepted` `` is
+    valid prose the corpus already relies on. It is also built for
+    `extract_lookup_references`'s different line-indexing convention
+    (``str.splitlines()``, which omits the trailing empty element
+    ``str.split("\\n")`` keeps when ``markdown`` ends in a newline -- the one
+    point where the two disagree). This function's block half is built on
+    ``str.split("\\n")`` indexing to match `_blank_block_lines`'s
+    line-count-preserving contract, so the two are reconciled here by
+    restoring that trailing element before indexing by line number.
     """
-    return _blank_block_lines(markdown, _NON_PROSE_BLOCK_TOKEN_TYPES)
+    md = _create_parser()
+    tokens = md.parse(markdown)
+    _raise_if_nesting_truncated(markdown, tokens, md)
+    ignored_lines = _ignored_block_lines(tokens)
+    lines = _mask_inline_html_comments(markdown, ignored_lines)
+    if markdown.endswith("\n"):
+        lines.append("")
+    line_count = len(lines)
+    for token in tokens:
+        if token.type not in _NON_PROSE_BLOCK_TOKEN_TYPES or token.map is None:
+            continue
+        start, end = token.map
+        for index in range(max(start, 0), min(end, line_count)):
+            lines[index] = ""
+    return "\n".join(lines)
 
 
 def _cell_text(content: str) -> str:
@@ -363,6 +415,62 @@ def _next_unescaped_backtick(
         if backslashes % 2 == 0:
             return absolute_start, len(run.group(0))
     return None
+
+
+def _mask_inline_html_comments(
+    markdown: str,
+    ignored_lines: set[int],
+) -> list[str]:
+    """Blank inline HTML comments outside ignored block lines.
+
+    The comment-tracking half of `_mask_inline_contexts` below, without its
+    inline-code masking. `blank_non_prose_block_lines` must not blank a
+    backtick-decorated status word: `` `Accepted` `` is valid prose in
+    `check_adr_lifecycle.py`'s own corpus
+    (`test_decorated_prose_matching_the_enum_passes`,
+    tests/validation/test_check_adr_lifecycle.py), so only HTML comment
+    content, which is genuinely invisible on any CommonMark renderer, is
+    masked here. `_mask_inline_contexts` cannot be reused as-is for this: its
+    other caller, `extract_lookup_references`, deliberately also blanks code
+    spans so a `.md` filename typeset in backticks is not read as a lookup
+    target, and that contract must not change for it.
+    """
+    characters = list(markdown)
+    in_comment = False
+    offset = 0
+
+    for line_number, line in enumerate(markdown.splitlines(keepends=True)):
+        if line_number in ignored_lines:
+            in_comment = False
+            offset += len(line)
+            continue
+
+        position = 0
+        while position < len(line):
+            if in_comment:
+                close = line.find("-->", position)
+                if close < 0:
+                    _mask_range(characters, offset + position, offset + len(line))
+                    break
+                _mask_range(characters, offset + position, offset + close + 3)
+                in_comment = False
+                position = close + 3
+                continue
+
+            comment_start = line.find("<!--", position)
+            if comment_start < 0:
+                break
+            in_comment = True
+            _mask_range(
+                characters,
+                offset + comment_start,
+                offset + comment_start + 4,
+            )
+            position = comment_start + 4
+
+        offset += len(line)
+
+    return "".join(characters).splitlines()
 
 
 def _mask_inline_contexts(
