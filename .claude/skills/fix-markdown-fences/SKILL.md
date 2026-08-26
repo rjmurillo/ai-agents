@@ -30,7 +30,7 @@ Scan and repair malformed closing fences in markdown files. Closing fences must 
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| Code block bleeds into text | Closing fence has language identifier | Remove identifier from closing fence |
+| Code block bleeds into text | Closing fence has language identifier | Insert a bare closing fence above it; the line then opens the next block |
 | Nested blocks render wrong | Missing closing fence before new opening | Insert closing fence |
 | Content cut off at end of file | Unclosed code block | Append closing fence |
 
@@ -167,59 +167,13 @@ When generating markdown with code blocks:
 2. Never copy the opening fence line to close
 3. Track block state when programmatically generating markdown
 
-<details>
-<summary><strong>Implementation: Python (Recommended)</strong></summary>
-
-```python
-import re
-from pathlib import Path
-
-def fix_markdown_fences(content: str) -> str:
-    """Fix malformed code fence closings in markdown content."""
-    lines = content.splitlines()
-    result = []
-    in_code_block = False
-    block_indent = ""
-
-    opening_pattern = re.compile(r'^(\s*)```(\w+)')
-    closing_pattern = re.compile(r'^(\s*)```\s*$')
-
-    for line in lines:
-        opening_match = opening_pattern.match(line)
-        closing_match = closing_pattern.match(line)
-
-        if opening_match:
-            if in_code_block:
-                result.append(f"{block_indent}```")
-            result.append(line)
-            block_indent = opening_match.group(1)
-            in_code_block = True
-        elif closing_match:
-            result.append(line)
-            in_code_block = False
-            block_indent = ""
-        else:
-            result.append(line)
-
-    if in_code_block:
-        result.append(f"{block_indent}```")
-
-    return '\n'.join(result)
-
-
-def fix_markdown_files(directory: Path, pattern: str = "**/*.md") -> list[str]:
-    """Fix all markdown files in directory. Returns list of fixed files."""
-    fixed = []
-    for file_path in directory.glob(pattern):
-        content = file_path.read_text()
-        fixed_content = fix_markdown_fences(content)
-        if content != fixed_content:
-            file_path.write_text(fixed_content)
-            fixed.append(str(file_path))
-    return fixed
-```
-
-</details>
+The shipped script does this for you; `scripts/fix_fences.py` is the
+implementation, and the Reference section above is the algorithm it runs. An
+earlier revision of this file inlined a copy of that parser here under
+"Implementation: Python (Recommended)". It was the pre-CommonMark version,
+which had no fence-length rule and so corrupted any document showing a
+three-backtick example inside a four-backtick container. It is gone rather
+than fixed: a second copy of a parser drifts from the one that ships.
 
 <details>
 <summary><strong>Implementation: Bash (Quick Check)</strong></summary>
