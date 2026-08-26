@@ -514,14 +514,35 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     # Resolve repo root: script is in build/, go up one level
-    # When paths are explicitly provided, derive repo root from templates path
+    # When paths are explicitly provided, derive repo root from templates path.
+    # templates_path itself must also be resolved to absolute here: generate_agents()
+    # computes each shared file's manifest unit key via
+    # shared_file.relative_to(repo_root), which raises ValueError (silently
+    # caught, source_unit=None) when templates_path stays relative while
+    # repo_root is absolute -- the common case for an invocation like
+    # `--templates-path templates`. A relative templates_path with no
+    # manifest wiring active would work by accident; with it active every
+    # valid KEEP_PIN entry would silently fail to resolve.
     if args.templates_path:
-        repo_root = args.templates_path.resolve().parent
+        templates_path = args.templates_path.resolve()
+        repo_root = templates_path.parent
     else:
         repo_root = _SCRIPT_DIR.parent
+        templates_path = repo_root / "templates"
 
-    templates_path = args.templates_path or (repo_root / "templates")
-    output_root = args.output_root or (repo_root / "src")
+    # output_root must also be absolute for the same reason: generate_agents()
+    # walks current = output_dir up via .parent comparing to the absolute
+    # repo_root (the symlink-ancestor check a few lines into the per-platform
+    # loop) until current == repo_root. A relative output_root never equals
+    # repo_root at any ancestor, including "." (Path(".").parent == Path(".")),
+    # so that walk never terminates: a relative --output-root, e.g.
+    # `--output-root src`, hangs the CLI rather than erroring. Discovered
+    # while adding the manifest-wiring regression test above; not something
+    # the manifest wiring itself introduced, but adjacent code this same fix
+    # already has to touch to resolve the sibling relative-path bug correctly.
+    output_root = (args.output_root.resolve() if args.output_root else None) or (
+        repo_root / "src"
+    )
 
     if not templates_path.is_dir():
         print(f"Error: Templates path not found: {templates_path}", file=sys.stderr)
