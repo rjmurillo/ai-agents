@@ -1995,6 +1995,48 @@ def _symlinked_config_component(config_arg: str) -> Path | None:
     return _first_symlinked_component(candidate, _PROJECT_ROOT)
 
 
+def _consumer_work_tree() -> Path | None:
+    """The consumer's git work-tree root, or ``None`` if not establishable.
+
+    This, and NOT ``_PROJECT_ROOT``, is the boundary install trust must be
+    disjoint from. ``_resolve_project_root`` exists to locate the repo's
+    ``scripts/`` package and falls back to the nearest ancestor of the cwd
+    holding ``.claude`` OR ``.git``. That heuristic is fine for finding
+    imports and is unsafe as a trust boundary, because **PR content can
+    create a `.claude` directory** and thereby move it.
+
+    The attack it enables (Copilot review, PR #5329): the host starts in
+    ``repo/subdir``; the PR adds ``repo/subdir/.claude``; ``_PROJECT_ROOT``
+    becomes ``repo/subdir``; a declared root of ``repo/.claude`` is then
+    neither above nor below it, so a disjointness test anchored on
+    ``_PROJECT_ROOT`` passes and a wholly PR-controlled config becomes
+    install-trusted, skipping byte-identity verification (CWE-829).
+    Reproduced end to end before this fix.
+
+    ``git rev-parse --show-toplevel`` cannot be moved this way: it reports
+    the real work tree, which is exactly the set of files the checked-out
+    PR controls.
+
+    Returns ``None`` when git is absent, errors, or the cwd is not in a work
+    tree. Callers MUST treat ``None`` as "no install trust" (fail closed):
+    if the extent of PR-controlled content cannot be established, nothing
+    can be shown to lie outside it.
+    """
+    try:
+        proc = _run_git(["rev-parse", "--show-toplevel"], Path.cwd())
+    except OSError:
+        return None
+    if proc.returncode != 0:
+        return None
+    toplevel = proc.stdout.decode(errors="replace").strip()
+    if not toplevel:
+        return None
+    try:
+        return Path(toplevel).resolve()
+    except OSError:
+        return None
+
+
 def _absolute_config_candidate(config_arg: str) -> Path:
     """``--config`` as an absolute path, resolved against the cwd once.
 
@@ -2069,6 +2111,12 @@ def _install_trusted_root(config_arg: str) -> Path | None:
     """
     project_root = _PROJECT_ROOT.resolve()
     candidate = _absolute_config_candidate(config_arg)
+    # Resolved lazily, on first use, and at most once. Only a DECLARED root
+    # can install-trust anything, so a run with neither variable set (the
+    # overwhelmingly common case, and every caller that predates issue
+    # #5112) must not pay a subprocess call or perturb a test's git mocks.
+    work_tree: Path | None = None
+    work_tree_resolved = False
 
     for env_var in _PLUGIN_ROOT_ENV_VARS:
         raw = os.environ.get(env_var, "").strip()
@@ -2095,6 +2143,20 @@ def _install_trusted_root(config_arg: str) -> Path | None:
         # /home/user install-trusted
         # /home/user/ai-agents/.claude/commands/pr-review-config.yaml.
         # Found by Copilot review on PR #5329.
+        if not work_tree_resolved:
+            work_tree = _consumer_work_tree()
+            work_tree_resolved = True
+        # Fail closed: with no establishable work tree, nothing can be shown
+        # to lie OUTSIDE PR-controlled content, so nothing install-trusts.
+        if work_tree is None:
+            return None
+        # Disjoint from the real work tree FIRST: that is the authoritative
+        # extent of PR-controlled content and the only one PR content
+        # cannot relocate. _PROJECT_ROOT is then checked as well, because
+        # in the installed case it may resolve somewhere the work-tree
+        # check does not cover, and a root overlapping either is refused.
+        if _is_within(root, work_tree) or _is_within(work_tree, root):
+            continue
         if _is_within(root, project_root) or _is_within(project_root, root):
             continue
         try:

@@ -71,15 +71,37 @@ _SCRIPT = (
 #     f"HALT: completion-gate config {config_path} is not trusted "
 _CONTAINMENT_REFUSAL = "Refusing to load config from unsafe path"
 _CONFIG_TRUST_HALT = "HALT: completion-gate config"
+# The command-trust halt, distinct from the config one above:
+#     f"HALT: completion-gate verifier files cannot be verified "
+_COMMAND_TRUST_HALT = "HALT: completion-gate verifier files"
 
-# `command` must be a non-empty STRING; _validate_criterion_schema rejects a
-# list ("criterion {name!r}: command must be a non-empty string"). An earlier
-# revision used ["true"] here, which could never have reached dispatch
-# (Copilot review, PR #5329).
+# Must satisfy _validate_criterion_schema in full, not merely parse as YAML.
+# Required: `name` (non-empty str), `verification: command`, `command` (non-empty
+# STRING; a list raises "command must be a non-empty string"), and exactly one of
+# `pass_when` / `pass_when_python`. An earlier revision used ["true"] with no
+# `verification` key, so every run died at schema validation and no case that
+# asserts on a LATER stage (command trust, dispatch) could observe that stage at
+# all. Found by mutation: removing the work-tree anchor left the bypass case
+# failing on a schema error rather than on the boundary under test.
 _CONFIG_BODY = """completion_criteria:
   - name: placeholder
+    verification: command
     command: "true"
+    pass_when: "exit_code == 0"
 """
+
+
+def _git_init(path: Path) -> None:
+    """Make `path` a real git work tree.
+
+    An empty ``.git`` directory is not enough: ``_consumer_work_tree`` shells
+    out to ``git rev-parse --show-toplevel``, which reports
+    "fatal: not a git repository" for one. Verified before relying on it.
+    """
+    subprocess.run(
+        ["git", "init", "--quiet"], cwd=path, check=True,
+        capture_output=True, text=True,
+    )
 
 
 def _install_plugin(tmp_path: Path) -> tuple[Path, Path, Path]:
@@ -99,7 +121,8 @@ def _install_plugin(tmp_path: Path) -> tuple[Path, Path, Path]:
     bundled_config.write_text(_CONFIG_BODY, encoding="utf-8")
 
     user_repo = tmp_path / "user_repo"
-    (user_repo / ".git").mkdir(parents=True)
+    user_repo.mkdir(parents=True)
+    _git_init(user_repo)
     return plugin_root, bundled_config, user_repo
 
 
@@ -295,4 +318,111 @@ def test_symlink_out_of_the_plugin_root_is_not_install_trusted(
     )
 
     assert _CONFIG_TRUST_HALT in result.stderr, result.stderr
+    assert result.returncode != 0, result.stdout
+
+
+def test_a_pr_created_nested_claude_cannot_relocate_the_trust_boundary(
+    tmp_path: Path,
+) -> None:
+    """The second bypass Copilot found on PR #5329, pinned.
+
+    ``_resolve_project_root`` falls back to the nearest ancestor of the cwd
+    holding ``.claude`` OR ``.git``, and PR content can create a ``.claude``
+    directory. With the host started in ``repo/subdir`` and the PR adding
+    ``repo/subdir/.claude``, ``_PROJECT_ROOT`` becomes ``repo/subdir``, so a
+    declared root of ``repo/.claude`` is neither above nor below it. A
+    disjointness test anchored on ``_PROJECT_ROOT`` therefore passed, and a
+    wholly PR-controlled config became install-trusted (CWE-829).
+
+    ``_install_trusted_root`` now anchors on ``git rev-parse --show-toplevel``,
+    which PR content cannot move. Reproduced end to end before the fix: the
+    config-trust halt was absent (verification skipped) and execution reached
+    command trust.
+
+    Asserted here on the containment refusal rather than on the absence of a
+    halt string. Once install trust is correctly withheld the run fails
+    EARLIER, at work-tree containment, so an absence-only assertion would pass
+    for the wrong reason.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True)
+    _git_init(repo)
+
+    # PR-controlled, inside the real work tree.
+    declared_root = repo / ".claude"
+    (declared_root / "commands").mkdir(parents=True)
+    config = declared_root / "commands" / "pr-review-config.yaml"
+    config.write_text(_CONFIG_BODY, encoding="utf-8")
+
+    # The nested .claude the malicious PR adds, in the directory the host
+    # starts from. This is what used to relocate _PROJECT_ROOT.
+    subdir = repo / "subdir"
+    (subdir / ".claude").mkdir(parents=True)
+
+    installed = tmp_path / "plug" / "skills" / "github" / "scripts" / "pr"
+    installed.mkdir(parents=True)
+    shutil.copy2(_SCRIPT, installed / "run_completion_gate.py")
+
+    env = dict(os.environ)
+    env.pop("COPILOT_PLUGIN_ROOT", None)
+    env["CLAUDE_PLUGIN_ROOT"] = str(declared_root)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(installed / "run_completion_gate.py"),
+            "--pull-request",
+            "1",
+            "--config",
+            str(config),
+        ],
+        cwd=subdir,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        check=False,
+    )
+
+    assert _CONTAINMENT_REFUSAL in result.stderr, result.stderr
+    # Never reached command trust, so no criterion could have run. With the
+    # bypass present this string WAS produced.
+    assert _COMMAND_TRUST_HALT not in result.stderr, result.stderr
+    assert result.returncode == 2, (result.returncode, result.stderr)
+
+
+def test_install_trust_fails_closed_outside_a_git_work_tree(
+    tmp_path: Path,
+) -> None:
+    """No establishable work tree means no install trust.
+
+    ``_consumer_work_tree`` returns ``None`` when git cannot report a
+    toplevel. Nothing can then be shown to lie outside PR-controlled
+    content, so install trust must be withheld rather than granted by
+    default. The layout is otherwise the valid one from ``_install_plugin``,
+    so the only difference from the passing case is the missing work tree.
+    """
+    plugin_root, config, user_repo = _install_plugin(tmp_path)
+    # Remove the marker that makes this look like a work tree. git then
+    # reports no toplevel for this cwd.
+    shutil.rmtree(user_repo / ".git")
+
+    # Precondition, not decoration. If TMPDIR happened to sit inside a
+    # repository, git would walk up and report ITS toplevel, install trust
+    # would be evaluated normally, and the assertions below would pass for
+    # a reason unrelated to the fail-closed branch under test.
+    probe = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=user_repo, capture_output=True, text=True, check=False,
+    )
+    assert probe.returncode != 0, (
+        f"cwd is inside a work tree at {probe.stdout.strip()!r}; "
+        "this case cannot exercise the fail-closed branch"
+    )
+
+    result = _run_gate(
+        plugin_root, config, user_repo, env_var="CLAUDE_PLUGIN_ROOT",
+    )
+
+    assert _CONTAINMENT_REFUSAL in result.stderr, result.stderr
     assert result.returncode != 0, result.stdout

@@ -3281,6 +3281,24 @@ class TestTrackedSubset:
         assert "git ls-files failed" in error
 
 
+def _git_work_tree(path: Path) -> Path:
+    """Create `path` as a real git work tree and return it.
+
+    _install_trusted_root fails closed when `git rev-parse --show-toplevel`
+    reports nothing, so a bare `.git` directory is not enough: git answers
+    "fatal: not a git repository" for one. Verified before relying on it.
+    """
+    path.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "init", "--quiet"],
+        cwd=path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return path
+
+
 class TestInstallTrustedRoot:
     """Unit coverage for _install_trusted_root (issue #5112, Option 1).
 
@@ -3439,13 +3457,48 @@ class TestInstallTrustedRoot:
     def test_a_relative_config_resolves_against_the_cwd(
         self, tmp_path, monkeypatch,
     ):
-        """--config may be relative; the gate must resolve it the same way."""
+        """--config may be relative; the gate resolves it against the cwd.
+
+        The cwd is a real work tree, because _install_trusted_root fails
+        closed when git cannot report a toplevel. A relative arg is only
+        install-trustable when it traverses OUT of that work tree and into
+        the declared root, which is what the host does when it passes the
+        bundled config by a path relative to the consumer repository.
+        """
+        consumer = _git_work_tree(tmp_path / "consumer")
         root = tmp_path / "plugin"
         self._config_in(root / "commands")
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
-        monkeypatch.chdir(root / "commands")
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        monkeypatch.chdir(consumer)
 
-        assert _dispatcher._install_trusted_root("pr-review-config.yaml") == root.resolve()
+        approved = _dispatcher._install_trusted_root(
+            "../plugin/commands/pr-review-config.yaml",
+        )
+
+        assert approved == root.resolve()
+
+    def test_a_relative_config_inside_the_work_tree_is_refused(
+        self, tmp_path, monkeypatch,
+    ):
+        """Discriminating control for the case above.
+
+        Same cwd, same declared root, same relative syntax; only the
+        traversal differs. This one stays inside the consumer work tree, so
+        it is PR-controlled and must keep the byte-identity check. Without
+        it the case above would pass for any relative path at all.
+        """
+        consumer = _git_work_tree(tmp_path / "consumer")
+        root = tmp_path / "plugin"
+        self._config_in(root / "commands")
+        self._config_in(consumer / "commands")
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        monkeypatch.chdir(consumer)
+
+        assert _dispatcher._install_trusted_root(
+            "commands/pr-review-config.yaml",
+        ) is None
 
 
 class TestEnforceConfigTrustInstallTrusted:
@@ -3510,29 +3563,34 @@ class TestInstallTrustedPathConsistency:
         Without the fix, validate_safe_path anchored the relative arg on
         the plugin root and loaded the decoy instead.
         """
-        root = tmp_path / "plugin"
-        work = root / "work"
-        work.mkdir(parents=True)
+        consumer = _git_work_tree(tmp_path / "consumer")
+        root = tmp_path / "inst" / "plugin"
+        rel = "../inst/plugin/pr-review-config.yaml"
 
         # The file the cwd-anchored resolution names, and the one
-        # _install_trusted_root approves.
-        approved = work / "pr-review-config.yaml"
+        # _install_trusted_root approves: consumer/../inst/plugin/<name>.
+        approved = root / "pr-review-config.yaml"
+        approved.parent.mkdir(parents=True)
         approved.write_text(
             "completion_criteria:\n  - name: approved\n", encoding="utf-8",
         )
-        # Same relative name, anchored on the plugin root instead.
-        decoy = root / "pr-review-config.yaml"
+        # The file the ROOT-anchored resolution names for the same arg:
+        # tmp/inst/plugin/../inst/plugin/<name> is tmp/inst/inst/plugin/<name>.
+        # The asymmetric nesting is what makes the two resolutions differ;
+        # with the root and the cwd at the same depth they coincide and the
+        # case cannot discriminate. Note this decoy sits OUTSIDE the root
+        # that install trust was granted for, which is the defect exactly.
+        decoy = tmp_path / "inst" / "inst" / "plugin" / "pr-review-config.yaml"
+        decoy.parent.mkdir(parents=True)
         decoy.write_text(
             "completion_criteria:\n  - name: decoy\n", encoding="utf-8",
         )
 
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
-        monkeypatch.chdir(work)
+        monkeypatch.chdir(consumer)
 
-        config_path, raw, install_root = _dispatcher._resolve_and_read_config(
-            "pr-review-config.yaml",
-        )
+        config_path, raw, install_root = _dispatcher._resolve_and_read_config(rel)
 
         assert install_root == root.resolve()
         assert config_path == approved.resolve()
