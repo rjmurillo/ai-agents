@@ -8,6 +8,7 @@ This is a Python port of Generate-Agents.ps1 tests following ADR-042 migration.
 
 from __future__ import annotations
 
+import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -202,11 +203,24 @@ class TestGenerateAgents:
             "}]}",
             encoding="utf-8",
         )
-        # ADR-080 rule 2 requires a *committed* sweep artifact;
-        # resolve_manifest_model checks the artifact exists as a file.
+        # ADR-080 rule 2 requires a *committed* sweep artifact whose content
+        # shows a qualifying result (resolve_manifest_model parses and
+        # cross-checks it against the manifest entry above; see
+        # _sweep_report_satisfies_rule2), not merely a file that exists.
         artifact_path = repo_root / "evals" / "test-agent-spike" / "sweep.json"
         artifact_path.parent.mkdir(parents=True)
-        artifact_path.write_text("{}", encoding="utf-8")
+        artifact_path.write_text(
+            json.dumps({
+                "decision": "KEEP_PIN",
+                "winner": "claude-opus-4-6",
+                "fixtures_sha": "abc123",
+                "default_model": "claude-sonnet-4-6",
+                "n_shared_fixtures": 8,
+                "recall_delta": 0.05,
+                "ci95": [0.01, 0.09],
+            }),
+            encoding="utf-8",
+        )
 
         exit_code = generate_agents(templates_path, output_root, repo_root)
         assert exit_code == 0

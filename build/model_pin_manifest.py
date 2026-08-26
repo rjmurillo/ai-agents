@@ -64,6 +64,19 @@ DEFAULT_MODEL = "claude-sonnet-4-6"
 # import, per the reuse decision above.
 MANIFEST_MAX_AGE_DAYS = 180
 
+# ADR-080 rule 2: a KEEP_PIN sweep must cover "at least 8 shared fixtures"
+# (.agents/architecture/ADR-080-model-pin-justification-policy.md:90).
+MIN_SHARED_FIXTURES = 8
+
+# Mirrors scripts/eval/_model_sweep_core.py:62 (DEFAULT_MIN_EFFECT = 0.05)
+# verbatim; the qualification formula it feeds
+# (``qualifies = delta >= min_effect and ci_low > 0.0``) is at that module's
+# line 306. Not imported: _model_sweep_core.py:35 does
+# ``from _report_aggregator import (...)``, a bare module-relative import
+# that requires scripts/eval on sys.path, the exact sys.path mutation this
+# module's docstring already avoids for check_model_pins.py's load_manifest.
+MIN_RECALL_DELTA = 0.05
+
 # A canonical versioned Claude id in the major.minor shape ADR-080's open-gap
 # finding names: ``claude-{tier}-{major}.{minor}`` or the hyphenated spelling
 # ``claude-{tier}-{major}-{minor}`` (scripts/validation/check_model_pins.py's
@@ -160,6 +173,80 @@ def load_pin_manifest(manifest_path: Path) -> dict[str, dict[str, object]]:
     return result
 
 
+def _report_model_id_matches(report_value: object, entry_value: object) -> bool:
+    """Normalize-compare one report model-id field against the entry's.
+
+    Shared by the ``winner``-vs-``model`` and ``default_model``-vs-
+    ``default_model`` legs of ``_sweep_report_satisfies_rule2``; split out
+    so that function stays under the cyclomatic-complexity ceiling
+    (``.claude/rules/code-quality.md``: methods <= complexity 10).
+    """
+    if not isinstance(report_value, str):
+        return False
+    return _normalize_id(report_value) == _normalize_id(str(entry_value or ""))
+
+
+def _report_measurements_qualify(report: dict[str, object]) -> bool:
+    """ADR-080 rule 2's numeric thresholds on an already-parsed report.
+
+    At least 8 shared fixtures, ``delta >= 0.05`` mean recall, and a
+    positive paired-bootstrap CI lower bound
+    (``.agents/architecture/ADR-080-model-pin-justification-policy.md:86-90``).
+    Split out of ``_sweep_report_satisfies_rule2`` for the same
+    complexity-ceiling reason as ``_report_model_id_matches``.
+    """
+    n_fixtures = report.get("n_shared_fixtures")
+    if not isinstance(n_fixtures, int) or n_fixtures < MIN_SHARED_FIXTURES:
+        return False
+    delta = report.get("recall_delta")
+    if not isinstance(delta, int | float) or delta < MIN_RECALL_DELTA:
+        return False
+    ci95 = report.get("ci95")
+    if not isinstance(ci95, list) or len(ci95) != 2:
+        return False
+    ci_low = ci95[0]
+    return isinstance(ci_low, int | float) and ci_low > 0.0
+
+
+def _sweep_report_satisfies_rule2(
+    artifact_path: Path, entry: dict[str, object]
+) -> bool:
+    """Parse the sweep artifact and cross-check its content against ``entry``.
+
+    ``(repo_root / artifact).is_file()`` in ``_entry_evidence_valid`` proves
+    only that some bytes exist at the path; a fixture that writes ``{}``
+    passes that check while carrying none of the evidence ADR-080 rule 2
+    requires. This function is the parse-and-check step that actually reads
+    the sweep report: rule 2 requires the report's own claims (winning
+    model, fixtures_sha, default_model) to agree with the manifest entry
+    citing it, not just be present, and requires the measured numbers
+    (fixture count, delta, CI) to actually qualify
+    (``_report_measurements_qualify``).
+
+    Canonical report schema: ``scripts/eval/_model_sweep_core.py:build_report``
+    (lines 460-511), specifically the ``decision``, ``winner``,
+    ``fixtures_sha``, ``default_model``, ``n_shared_fixtures``,
+    ``recall_delta``, and ``ci95`` fields that function writes.
+    """
+    try:
+        report = json.loads(artifact_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    if not isinstance(report, dict):
+        return False
+    if report.get("decision") != "KEEP_PIN":
+        return False
+    if not _report_model_id_matches(report.get("winner"), entry.get("model")):
+        return False
+    if report.get("fixtures_sha") != entry.get("fixtures_sha"):
+        return False
+    if not _report_model_id_matches(
+        report.get("default_model"), entry.get("default_model")
+    ):
+        return False
+    return _report_measurements_qualify(report)
+
+
 def _entry_evidence_valid(
     entry: dict[str, object], source_unit: str, repo_root: Path, default_model: str
 ) -> bool:
@@ -168,20 +255,33 @@ def _entry_evidence_valid(
     Split from ``resolve_manifest_model`` to keep that function's cyclomatic
     complexity low. Mirrors the corresponding legs of
     ``scripts/validation/check_model_pins.py:358-391``
-    (``_manifest_entry_valid``), with two differences:
+    (``_manifest_entry_valid``), with three differences:
 
     - It does not compare ``entry["model"]`` against a scanned unit's own
       ``model:`` frontmatter value: this module's callers are
       ``model_tier``-carrying templates that (by ADR-080 rule 1's design)
       do not have a ``model:`` field for the manifest entry to be checked
       against. See ``resolve_manifest_model``'s divergence note.
-    - It additionally requires the ``artifact`` path to exist as a file.
-      Canonical's ``_manifest_entry_valid`` calls ``_artifact_within_repo``
-      (a path-safety check only) and never checks existence, so an entry
-      whose sweep artifact was never committed passes canonical validation
-      as long as the path is well-formed. ADR-080 rule 2 requires "a
-      committed sweep artifact"; this function enforces the "committed"
-      half canonical does not.
+    - It additionally requires the ``artifact`` path to exist as a file,
+      and requires that file's own content to satisfy ADR-080 rule 2 (see
+      ``_sweep_report_satisfies_rule2``). Canonical's
+      ``_manifest_entry_valid`` calls ``_artifact_within_repo`` (a
+      path-safety check only) and never checks existence or content, so an
+      entry whose sweep artifact was never committed, or was committed
+      empty, passes canonical validation as long as the path is
+      well-formed. ADR-080 rule 2 requires "a committed sweep artifact"
+      showing specific measured numbers; this function enforces both
+      halves canonical does not.
+
+    Deliberately NOT checked: that ``artifact`` is git-tracked (as opposed
+    to merely present in the working tree). Canonical does not check this
+    either, and a locally-untracked artifact that passes generation here is
+    still caught by the existing ``generate_agents.py --validate`` CI gate
+    on the next clean checkout, where the untracked file is absent and the
+    pin no longer resolves. Adding a ``git ls-files`` check here would need
+    every positive-path test fixture to become a real git-tracked file
+    (not just a written one) for a risk this fail-closed backstop already
+    bounds; left as a documented gap rather than silently dropped.
     """
     if entry.get("decision") != "KEEP_PIN":
         return False
@@ -194,7 +294,10 @@ def _entry_evidence_valid(
         return False
     if not _artifact_within_repo(artifact, repo_root):
         return False
-    if not (repo_root / artifact).is_file():
+    artifact_path = repo_root / artifact
+    if not artifact_path.is_file():
+        return False
+    if not _sweep_report_satisfies_rule2(artifact_path, entry):
         return False
     return _normalize_id(str(entry.get("default_model", ""))) == _normalize_id(
         default_model
@@ -249,12 +352,18 @@ def resolve_manifest_model(
       This function now performs the full check itself
       (``_entry_evidence_valid``) rather than trust a governance check
       that cannot see the entry.
-    - **Requires the artifact to exist as a file.** Canonical's
-      ``_artifact_within_repo`` is a path-safety check only (CWE-22); it
-      never confirms the artifact was actually committed. ADR-080 rule 2
-      requires "a committed sweep artifact"; this function additionally
-      checks ``(repo_root / artifact).is_file()``, enforcing the
-      "committed" half canonical leaves unchecked.
+    - **Requires the artifact to exist as a file, and to contain real
+      evidence.** Canonical's ``_artifact_within_repo`` is a path-safety
+      check only (CWE-22); it never confirms the artifact was actually
+      committed, let alone that it holds a qualifying sweep result. ADR-080
+      rule 2 requires "a committed sweep artifact" showing ``delta >= 0.05``
+      and a positive bootstrap CI lower bound over at least 8 shared
+      fixtures; this function additionally checks
+      ``(repo_root / artifact).is_file()`` and parses that file to verify
+      those numbers and cross-check its ``winner``, ``fixtures_sha``, and
+      ``default_model`` against this manifest entry
+      (``_sweep_report_satisfies_rule2``), enforcing the "committed and
+      qualifying" half canonical leaves unchecked.
     - **Rejects a future-dated ``date`` (a negative age).** Canonical's
       ``age = (today - recorded_date).days; if age >
       MANIFEST_MAX_AGE_DAYS`` accepts any negative age (a typo'd future

@@ -10,6 +10,7 @@ This is a Python port of Generate-Agents.Common tests following ADR-042 migratio
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from datetime import datetime, timezone
@@ -431,7 +432,27 @@ class TestConvertFrontmatterForPlatform:
         if repo_root is not None and isinstance(entry.get("artifact"), str) and entry["artifact"]:
             artifact_path = repo_root / str(entry["artifact"])
             artifact_path.parent.mkdir(parents=True, exist_ok=True)
-            artifact_path.write_text("{}", encoding="utf-8")
+            # Content, not just presence, is now checked
+            # (_sweep_report_satisfies_rule2): the report must itself claim
+            # a qualifying KEEP_PIN result that agrees with this entry.
+            model = entry.get("model")
+            default_model = entry.get("default_model")
+            artifact_path.write_text(
+                json.dumps({
+                    "decision": "KEEP_PIN",
+                    "winner": model if isinstance(model, str) else "claude-opus-4-6",
+                    "fixtures_sha": entry.get("fixtures_sha"),
+                    "default_model": (
+                        default_model
+                        if isinstance(default_model, str)
+                        else "claude-sonnet-4-6"
+                    ),
+                    "n_shared_fixtures": 8,
+                    "recall_delta": 0.05,
+                    "ci95": [0.01, 0.09],
+                }),
+                encoding="utf-8",
+            )
         return {self._UNIT: entry}
 
     def test_manifest_keep_pin_resolves_ahead_of_haiku_tier(self, tmp_path: Path) -> None:
