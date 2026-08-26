@@ -52,10 +52,31 @@ behavior is first. The fuzz baselines below are what bound them.
 from __future__ import annotations
 
 import random
+import re
 
 from markdown_it import MarkdownIt
 
 _MD = MarkdownIt("commonmark")
+
+
+def reference_lines(text: str) -> list[str]:
+    """Split *text* the way the reference parser numbers lines.
+
+    NOT `str.splitlines()`. `markdown-it-py` normalizes CRLF and CR and then
+    splits on newlines only, so a token's `map` is indexed in THAT numbering.
+    `str.splitlines()` also breaks on U+000B, U+000C, U+001C to U+001E,
+    U+0085, U+2028 and U+2029, which shifts every later entry and makes the
+    blank filter below read a different line than the one the token names.
+
+    Measured: on documents carrying any of those characters the two splitters
+    give the oracle different answers, so this is not cosmetic. The oracle is
+    the ground truth for both scanners, and a ground truth that disagrees with
+    itself depending on how it is asked is worse than a wrong scanner.
+    """
+    lines = re.split(r"\r\n|\r|\n", text)
+    if lines and lines[-1] == "":
+        lines.pop()  # text ended with a terminator; no empty final line
+    return lines
 
 
 def oracle_fence_lines(text: str) -> set[int]:
@@ -64,7 +85,7 @@ def oracle_fence_lines(text: str) -> set[int]:
     Blank lines are excluded because they carry no prose either way, so
     including them would measure the comparison rather than the scanner.
     """
-    source = text.splitlines()
+    source = reference_lines(text)
     inside: set[int] = set()
     for token in _MD.parse(text):
         if token.type == "fence" and token.map:

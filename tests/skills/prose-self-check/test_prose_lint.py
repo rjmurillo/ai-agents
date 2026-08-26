@@ -26,6 +26,7 @@ from commonmark_fence_cases import (
     FUZZ_DOCUMENTS,
     oracle_fence_lines,
     random_documents,
+    reference_lines,
 )
 
 mod = import_skill_script(".claude/skills/prose-self-check/scripts/prose_lint.py")
@@ -46,7 +47,10 @@ BANNED = {"delve", "robust", "comprehensive", "nuanced", "significant", "landsca
 def _masked_lines(text: str) -> set[int]:
     """Return 0-indexed non-blank lines prose_lint blanks as fenced code."""
     masked, _ = mod._blank_fenced_blocks(text)
-    source = text.splitlines()
+    # NOT `str.splitlines()`. `_blank_fenced_blocks` indexes its mask by real
+    # line terminators, so pairing it with a splitlines list shifts every entry
+    # after a U+0085 or U+2028 and compares two different lines.
+    source = reference_lines(text)
     return {
         index
         for index, line in enumerate(source)

@@ -36,6 +36,7 @@ from commonmark_fence_cases import (
     FUZZ_DOCUMENTS,
     oracle_fence_lines,
     random_documents,
+    reference_lines,
 )
 from markdown_it import MarkdownIt
 
@@ -65,7 +66,10 @@ def _has_unclosed_fence(text: str) -> bool:
     text ended in a fence character, which called two genuinely unclosed
     documents balanced.
     """
-    source = text.splitlines()
+    # Reference numbering, not `str.splitlines()`: `token.map` is indexed the
+    # way the parser counts lines, so a splitlines length can exceed it and
+    # make an unclosed block look closed.
+    source = reference_lines(text)
     for token in _REFERENCE.parse(text):
         if token.type != "fence" or not token.map:
             continue
@@ -332,6 +336,38 @@ class TestCommonMarkOracle:
             assert repaired.splitlines()[2] == marker, text
             assert not repaired.endswith(marker + "\n" + marker + "\n"), text
             assert repair_markdown_fences(repaired) == repaired, text
+
+    def test_the_oracle_numbers_lines_the_way_the_reference_parser_does(self) -> None:
+        """The ground truth must not disagree with itself depending on how it is asked.
+
+        `markdown-it-py` normalizes CRLF and CR and then splits on newlines, so
+        a token's `map` is indexed in that numbering. The oracle used to run its
+        blank filter over `str.splitlines()`, which also breaks on U+000B,
+        U+000C, U+001C to U+001E, U+0085, U+2028 and U+2029. Every entry after
+        such a character shifts, so the filter read a different line than the
+        token named.
+
+        This matters more than a scanner bug: every measurement in this change
+        is taken against this oracle. The two splitters give different answers
+        on documents carrying those characters, which is what the second
+        assertion pins.
+        """
+        text = "```\n\u0085\n\nz\n```\nafter\n"
+
+        assert oracle_fence_lines(text) == {0, 1, 3, 4}
+
+        # Teeth: recompute with the splitter the oracle used to use. If this
+        # ever stops differing, the document no longer exercises the bug and
+        # the assertion above has quietly stopped guarding anything.
+        naive: set[int] = set()
+        source = text.splitlines()
+        for token in _REFERENCE.parse(text):
+            if token.type == "fence" and token.map:
+                start, stop = token.map
+                naive.update(
+                    i for i in range(start, min(stop, len(source))) if source[i] != ""
+                )
+        assert naive != oracle_fence_lines(text)
 
     def test_a_malformed_closer_reopens_at_its_own_length(self) -> None:
         """A mistaken closer becomes the next opener, at ITS fence length.
