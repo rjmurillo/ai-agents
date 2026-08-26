@@ -6678,6 +6678,43 @@ def _pytest_collection_command(repo_root: Path) -> list[str]:
     ]
 
 
+def _validated_full_suite_opt_in() -> str:
+    """Return the stripped opt-in value, or raise if it is not usable.
+
+    Split out of `_full_suite_stand_in` so `_resolve_pytest_commands` can call
+    it before it knows which path it is taking. Inside the stand-in it only ran
+    on the fallback path, so a narrowed import-graph selection silently ignored
+    `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=true`: the developer asked for the full
+    suite, did not get it, and was not told. The contract says any non-blank
+    value other than `1` is a configuration error, and a contract enforced on
+    one branch of two is not enforced.
+
+    Exactly the defect already fixed for `AI_AGENTS_PYTEST_WORKERS`, whose
+    validation was hoisted for the same reason a few commits earlier. The
+    reasoning was right there and was not carried across to the sibling flag.
+    Caught in review on PR #5319.
+
+    Returns the stripped value so callers do not re-derive it: `""` when unset
+    or blank, `"1"` when the caller opted in.
+
+    Raises:
+        ValueError: the variable is set to anything other than blank or `1`.
+    """
+    raw = os.environ.get(PYTEST_FULL_SUITE_LOCALLY_ENV)
+    if raw is None:
+        return ""
+    stripped = raw.strip()
+    if stripped and stripped != "1":
+        # Fail loud rather than quietly doing less than the caller asked for.
+        # `AI_AGENTS_PYTEST_WORKERS` already raises on a value it cannot use;
+        # a flag whose whole purpose is "run more" must not shrug at `true`.
+        raise ValueError(
+            f"{PYTEST_FULL_SUITE_LOCALLY_ENV} must be '1' or unset, got {raw!r}. "
+            "Unset collects the suite; '1' executes it locally."
+        )
+    return stripped
+
+
 def _full_suite_stand_in(repo_root: Path, reason: str) -> list[list[str]]:
     """Return what pre-push runs when the import graph cannot narrow the diff.
 
@@ -6690,16 +6727,8 @@ def _full_suite_stand_in(repo_root: Path, reason: str) -> list[list[str]]:
     ``AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`` restores the execution behavior
     for anyone who wants it on a machine that can afford it.
     """
-    raw = os.environ.get(PYTEST_FULL_SUITE_LOCALLY_ENV)
-    if raw is not None and raw.strip() and raw.strip() != "1":
-        # Fail loud rather than quietly doing less than the caller asked for.
-        # `AI_AGENTS_PYTEST_WORKERS` already raises on a value it cannot use;
-        # a flag whose whole purpose is "run more" must not shrug at `true`.
-        raise ValueError(
-            f"{PYTEST_FULL_SUITE_LOCALLY_ENV} must be '1' or unset, got {raw!r}. "
-            "Unset collects the suite; '1' executes it locally."
-        )
-    if raw is not None and raw.strip() == "1":
+    raw = _validated_full_suite_opt_in()
+    if raw == "1":
         # `.strip()` on both branches or a padded "1" passes the check above
         # and then silently takes the collection path anyway.
         print(
@@ -6753,6 +6782,9 @@ def _resolve_pytest_commands(
     # invalid AI_AGENTS_PYTEST_WORKERS pass unreported on the default path: the
     # developer asked for a worker count, did not get it, and was not told.
     _pytest_parallel_flags()
+    # Same reasoning as the line above, for the sibling flag: validate before
+    # branching, so an unusable value is reported whichever path is taken.
+    _validated_full_suite_opt_in()
     if changed_files is None:
         changed = select_tests.changed_from_git(repo_root, WORKFLOW_LOCAL_DEFAULT_BASE)
     else:

@@ -133,6 +133,33 @@ def test_opt_in_env_accepts_unset_blank_and_one(
     assert commands == expected
 
 
+def test_a_rejected_opt_in_value_is_reported_on_the_narrowed_path_too(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The branch the validation used to skip.
+
+    The check lived inside `_full_suite_stand_in`, which only the fallback
+    paths reach. With a narrowed import-graph selection,
+    `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=true` was silently ignored: the
+    developer asked for the full suite, did not get it, and was not told. A
+    contract enforced on one branch of two is not enforced.
+
+    Every other opt-in test drives the fallback path, so all of them passed
+    while this hole was open. Caught in review on PR #5319, and it is the same
+    defect fixed for `AI_AGENTS_PYTEST_WORKERS` a few commits earlier by
+    hoisting its validation for exactly this reason.
+    """
+    monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "true")
+    monkeypatch.setattr(
+        git_hook_policy.select_tests,
+        "select",
+        lambda *_a, **_k: Selection(full=False, tests=("tests/test_x.py",), reason="narrowed"),
+    )
+
+    with pytest.raises(ValueError, match=git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV):
+        git_hook_policy._resolve_pytest_commands(tmp_path, ["scripts/x.py"])
+
+
 def test_a_rejected_opt_in_value_exits_config_error_not_success(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
