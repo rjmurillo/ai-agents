@@ -146,6 +146,21 @@ jobs:
               # fails silently, and these two are what that gap looked like.
               - '.agents/critique/**'
               - 'templates/agents/**'
+              # Second batch, same method and same reviewer (PR #5319): found by
+              # reading tests for direct reads rather than by reading the filter.
+              #   .github/PULL_REQUEST_TEMPLATE.md
+              #       tests/external_signals/test_acceptance_criteria.py
+              #   .agents/schemas/**  tests/test_skill_output_schema.py
+              #   .claude/settings.json, .claude/hooks/**, src/copilot-cli/hooks/**
+              #       tests/build_scripts/test_hook_contract_knowledge.py
+              # None was matched by an extension glob: the filter carries no
+              # `**/*.json` or `**/*.md`, which is the point of the allowlist and
+              # also why a JSON or Markdown input has to be named to be seen.
+              - '.github/PULL_REQUEST_TEMPLATE.md'
+              - '.agents/schemas/**'
+              - '.claude/settings.json'
+              - '.claude/hooks/**'
+              - 'src/copilot-cli/hooks/**'
               - 'AGENTS.md'
               - 'README.md'
 

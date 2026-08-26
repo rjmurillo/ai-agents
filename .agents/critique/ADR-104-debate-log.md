@@ -3,7 +3,7 @@
 
 ## Summary
 
-- **Rounds**: 7
+- **Rounds**: 8
 - **Outcome**: Consensus to revise. Two Block votes, three Disagree-and-Commit,
   one Accept-with-findings. Every P0 was resolved by changing the code or the
   record, not by deferring it.
@@ -538,3 +538,49 @@ the PR named as unprovable; these are what that gap looked like in practice.
   replaced with a direct command would pass falsely.
 - A container-clamp timeout reports the aggregate budget rather than the clamp
   that actually fired, sending the reader to the wrong limit.
+
+## Round 8: the same correction, stopping short twice more
+
+A second Copilot pass on the corrected head. Two findings were new and two were
+places the previous round's correction had not reached.
+
+**The opt-in flag was validated on one branch of two.**
+`AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY` was checked inside `_full_suite_stand_in`,
+which only the fallback paths reach, so a narrowed import-graph selection
+silently ignored `=true`. The developer asked for the full suite, did not get
+it, and was not told. Every existing opt-in test drives the fallback path, so
+all of them passed with the hole open.
+
+This is the same defect already fixed for `AI_AGENTS_PYTEST_WORKERS`, hoisted
+out of the executing partitions a few commits earlier with the reasoning
+written at the call site. The reasoning sat two lines above the sibling flag
+and was not carried across. Fixing one instance of a pattern is not fixing the
+pattern, even when the fix is three lines and the second instance is adjacent.
+
+**The per-job retraction reached one of its two homes.** Round 7 corrected the
+Consequences section and left the Decision section asserting the same bound.
+That is the identical partial-correction failure Round 7 had just recorded
+about the issue body and PR description, committed again in the same artifact
+within one commit of writing it down. Both now state the enforced property.
+
+**Five more filter roots, found the same way as the previous two.**
+`PULL_REQUEST_TEMPLATE.md`, `.agents/schemas/`, `.claude/settings.json`,
+`.claude/hooks/`, and `src/copilot-cli/hooks/` are each opened by a test and
+matched nothing: the filter carries no `**/*.json` or `**/*.md`, so every JSON
+or Markdown input has to be named to be seen. Seven roots over two rounds, all
+found by reading tests rather than the filter, is the argument for a
+reverse-direction guard rather than a third round of this. That needs to
+resolve a path out of a test at rest, which is AST work; #5318 carries it.
+
+### Still open after this round
+
+- `scan_pushed_heads` has no aggregate deadline, so `security-scan` has no
+  job-level bound in a container. Issue #5318.
+- `push-ref-policy` carries a 2m cap over `check_push_refs`, which runs many
+  git children sequentially at 90s each. Raised this round and unverified; the
+  same aggregate-versus-child shape as the two above.
+- The budget model credits a clamp to any job not on the unclamped roster
+  without proving its command routes through `_run_command`.
+- A container-clamp timeout reports the aggregate budget rather than the clamp
+  that fired.
+- No reverse-direction guard on the CI filter.
