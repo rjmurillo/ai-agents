@@ -764,6 +764,11 @@ def test_a_consumer_without_pyyaml_exits_2_rather_than_crashing(
     # as 1 would read as a real gate verdict on a gate that never ran.
     assert result.returncode == 2, (result.returncode, result.stderr)
     assert "PyYAML is required" in result.stderr, result.stderr
+    # The remediation must name the interpreter that actually failed, not a
+    # bare `pip`. This subprocess ran under sys.executable, so that exact
+    # path appearing in stderr is what proves the message is targeted rather
+    # than merely worded well.
+    assert sys.executable in result.stderr, result.stderr
     # Absence assertion with a live positive control: the end-to-end case
     # above drives this same layout WITHOUT the overlay and reaches exit 0,
     # so a traceback here would be this overlay's doing and nothing else.

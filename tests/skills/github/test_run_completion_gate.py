@@ -3911,8 +3911,12 @@ class TestInstalledRuntimePrerequisites:
         assert code == 2, code
         err = capsys.readouterr().err
         assert "PyYAML is required" in err, err
-        # Actionable, not merely present: the operator is told what to do.
-        assert "pip install pyyaml" in err, err
+        # Actionable AND correctly targeted. Naming the interpreter is the
+        # point: the shipped skill runs this through `uv run python`, so a
+        # bare `pip install` can modify an environment the next run never
+        # consults. Raised by Copilot on PR #5331.
+        assert sys.executable in err, err
+        assert "uv run --with pyyaml" in err, err
 
 
 class TestInstallTrustedPathConsistency:
