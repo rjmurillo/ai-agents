@@ -190,9 +190,12 @@ def test_every_debate_log_in_the_working_tree_still_passes() -> None:
 def test_invalid_utf8_bytes_do_not_inflate_toward_the_byte_floor() -> None:
     """A short blob of invalid bytes must not clear a floor it does not reach.
 
-    The staged blob is decoded with ``errors="replace"``, so each invalid byte
-    becomes U+FFFD and re-encodes to three. 100 on-disk bytes measured 300 and
-    cleared the stated 300-byte floor before ``_evidence_byte_count`` existed.
+    Before ``_staged_debate_log_contents()`` began decoding strictly, a lossy
+    ``errors="replace"`` decode turned each invalid byte into U+FFFD, which
+    re-encodes to three bytes: 100 on-disk bytes measured 300 and cleared the
+    stated 300-byte floor. This test builds that same lossy decode directly,
+    bypassing the staged path entirely, to pin ``_evidence_byte_count`` itself
+    against the inflation regardless of which caller feeds it lossy text.
     """
     decoded = (b"\xff" * 100).decode("utf-8", errors="replace")
     assert len(decoded.encode("utf-8")) == 3 * 100, "the inflation is what is being pinned"

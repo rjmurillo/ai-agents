@@ -147,19 +147,24 @@ def test_positions_table_counts_as_a_verdict() -> None:
     ``test_a_notes_table_row_is_not_a_positions_table_verdict``.
     """
     content = (
-        "# ADR-084 Debate Log\n\n## Round 1\n\n### Agent stances\n\n"
+        "# ADR-084 Debate Log\n\n## Round 1\n\n### Table\n\n"
         "| Agent | Stance | Note |\n|---|---|---|\n"
         "| architect | BLOCK | P0-1: placement inverts rule 1. |\n"
         "| security | BLOCK | P0-2: orphaned line-number citations. |\n"
     ) + "\nFurther discussion of ADR-084 and its consequences follows here.\n" * 4
 
-    # The only label in the fixture is the table's own column header, so a
-    # header that stopped being read as a label would fail this test rather
-    # than let some other line supply the verdict.
+    # The heading is deliberately neutral text that does not itself match
+    # DEBATE_LOG_VERDICT_LABEL_RE (unlike a heading such as "Agent stances"
+    # would). The only label in the fixture is the table's own column
+    # header, so a header that stopped being read as a label would fail
+    # this test rather than let the heading supply the verdict instead.
+    # Found by review: the prior heading matched the same regex, so its
+    # six-line window already reached the BLOCK rows and this test passed
+    # even with the table-header path broken.
     labels = [
         line for line in content.splitlines() if policy.DEBATE_LOG_VERDICT_LABEL_RE.search(line)
     ]
-    assert labels == ["### Agent stances", "| Agent | Stance | Note |"], labels
+    assert labels == ["| Agent | Stance | Note |"], labels
 
     assert policy.debate_log_evidence_gap(content) is None
 

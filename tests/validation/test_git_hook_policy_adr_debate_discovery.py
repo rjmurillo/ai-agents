@@ -202,9 +202,10 @@ def test_a_path_missing_from_the_index_is_still_not_a_regular_file(
 ) -> None:
     """Exit 1 from `ls-files --error-unmatch` is an answer, not a failure.
 
-    The paired negative for the tri-state. Only git's fatal 128 means "could
-    not look"; a path simply absent from the index exits 1 and is a genuine
-    False. Without this, widening the failure branch to every non-zero code
+    The paired negative for the tri-state. Only exit 1 is a genuine answer,
+    "not staged"; every other nonzero code, including a fatal 128 or a
+    timeout's synthesized 3 (see the regression below), means "could not
+    look". Without this, widening the failure branch to every non-zero code
     would turn every unstaged path into an external error and the distinction
     would be noise.
     """
