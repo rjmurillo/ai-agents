@@ -3466,3 +3466,96 @@ class TestEnforceConfigTrustInstallTrusted:
 
         assert halt == 2
         assert trust.status == _dispatcher.TRUST_MALFORMED_REF
+
+
+class TestInstallTrustedPathConsistency:
+    """The path install-trust approves must be the path that is read.
+
+    Found by Semgrep's dangerous-subprocess-use-tainted-env-args on
+    PR #5329. validate_safe_path builds its result as
+    (resolved_base / path).resolve(), so handing it the environment-
+    declared root as the base made that root a component of the path
+    READ, not merely the boundary it is CHECKED against. For a relative
+    --config the two resolutions disagree, and the file authorized by
+    _install_trusted_root (cwd-anchored) is not the file loaded
+    (root-anchored). _resolve_and_read_config now reuses the approved
+    path instead.
+    """
+
+    def test_a_relative_config_reads_the_cwd_anchored_file(
+        self, tmp_path, monkeypatch,
+    ):
+        """Two files share a relative name; the cwd-anchored one wins.
+
+        Without the fix, validate_safe_path anchored the relative arg on
+        the plugin root and loaded the decoy instead.
+        """
+        root = tmp_path / "plugin"
+        work = root / "work"
+        work.mkdir(parents=True)
+
+        # The file the cwd-anchored resolution names, and the one
+        # _install_trusted_root approves.
+        approved = work / "pr-review-config.yaml"
+        approved.write_text(
+            "completion_criteria:\n  - name: approved\n", encoding="utf-8",
+        )
+        # Same relative name, anchored on the plugin root instead.
+        decoy = root / "pr-review-config.yaml"
+        decoy.write_text(
+            "completion_criteria:\n  - name: decoy\n", encoding="utf-8",
+        )
+
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        monkeypatch.chdir(work)
+
+        config_path, raw, install_root = _dispatcher._resolve_and_read_config(
+            "pr-review-config.yaml",
+        )
+
+        assert install_root == root.resolve()
+        assert config_path == approved.resolve()
+        assert b"approved" in raw
+        assert b"decoy" not in raw
+
+    def test_the_environment_root_cannot_redirect_an_absolute_config(
+        self, tmp_path, monkeypatch,
+    ):
+        """An absolute --config is unaffected by the root, as before."""
+        root = tmp_path / "plugin"
+        config = root / "commands" / "pr-review-config.yaml"
+        config.parent.mkdir(parents=True)
+        config.write_text(
+            "completion_criteria:\n  - name: absolute\n", encoding="utf-8",
+        )
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+
+        config_path, raw, install_root = _dispatcher._resolve_and_read_config(
+            str(config),
+        )
+
+        assert install_root == root.resolve()
+        assert config_path == config.resolve()
+        assert b"absolute" in raw
+
+    def test_a_config_outside_the_root_still_falls_back_to_containment(
+        self, tmp_path, monkeypatch,
+    ):
+        """Negative control: the install branch is not always taken."""
+        root = tmp_path / "plugin"
+        root.mkdir(parents=True)
+        outside = tmp_path / "outside" / "pr-review-config.yaml"
+        outside.parent.mkdir(parents=True)
+        outside.write_text("completion_criteria: []\n", encoding="utf-8")
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+
+        config_path, raw, install_root = _dispatcher._resolve_and_read_config(
+            str(outside),
+        )
+
+        assert install_root is None
+        assert config_path is None
+        assert raw is None

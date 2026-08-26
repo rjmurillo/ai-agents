@@ -1995,6 +1995,28 @@ def _symlinked_config_component(config_arg: str) -> Path | None:
     return _first_symlinked_component(candidate, _PROJECT_ROOT)
 
 
+def _absolute_config_candidate(config_arg: str) -> Path:
+    """``--config`` as an absolute path, resolved against the cwd once.
+
+    One helper so every consumer of ``--config`` agrees on which file the
+    argument names. ``validate_safe_path`` builds its result as
+    ``(resolved_base / path).resolve()``, so a RELATIVE ``--config``
+    resolves against whatever base it is handed. Passing a different base
+    would therefore silently name a different file than the one an
+    earlier check approved, which is the authorized-path-is-not-the-read-
+    path shape this gate exists to prevent (see ``_verify_config_trust``
+    on verifying the bytes that are executed).
+
+    The cwd is the right anchor because it is what ``_symlinked_config_
+    component`` already uses and what ``subprocess.run`` in
+    :func:`_evaluate_criterion` inherits.
+    """
+    candidate = Path(config_arg)
+    if not candidate.is_absolute():
+        candidate = Path.cwd() / candidate
+    return candidate
+
+
 def _install_trusted_root(config_arg: str) -> Path | None:
     """The host-declared plugin root that install-trusts ``config_arg``.
 
@@ -2046,9 +2068,7 @@ def _install_trusted_root(config_arg: str) -> Path | None:
     this gate can close.
     """
     project_root = _PROJECT_ROOT.resolve()
-    candidate = Path(config_arg)
-    if not candidate.is_absolute():
-        candidate = Path.cwd() / candidate
+    candidate = _absolute_config_candidate(config_arg)
 
     for env_var in _PLUGIN_ROOT_ENV_VARS:
         raw = os.environ.get(env_var, "").strip()
@@ -2093,17 +2113,38 @@ def _resolve_and_read_config(
     disagree if the environment changes between the calls.
     """
     install_root = _install_trusted_root(config_arg)
-    containment_base = install_root if install_root is not None else _PROJECT_ROOT
 
-    # The symlink probe is bounded to the project root by
-    # _first_symlinked_component, which skips every component outside it
-    # (run_completion_gate.py, "if not _is_within(probe, root): continue").
-    # For an install-trusted config it therefore inspects nothing and
-    # returns None, so it is skipped rather than run misleadingly. The
-    # CWE-59 hazard it guards is a PR-CREATED link; PR content cannot
-    # write the install directory, and condition 4 of
-    # _install_trusted_root already refuses a link that escapes it.
-    if install_root is None:
+    if install_root is not None:
+        # Do NOT route this through validate_safe_path with install_root
+        # as the base. That helper builds its result as
+        # (resolved_base / path).resolve(), which would make the
+        # environment-declared root a component of the path READ rather
+        # than only the boundary it is CHECKED against, and for a
+        # relative --config would name a different file than the one
+        # _install_trusted_root just approved. Containment against the
+        # root is already established, on this exact resolved path, by
+        # that function's condition 4, so reuse it.
+        #
+        # Keeping the root deny-only is also what stops an environment
+        # variable from participating in constructing a path whose
+        # contents become a criterion's argv.
+        #
+        # The symlink probe is skipped here rather than run: it is
+        # bounded to the project root by _first_symlinked_component
+        # ("if not _is_within(probe, root): continue"), so for an
+        # out-of-tree config it inspects nothing and returns None. The
+        # CWE-59 hazard it guards is a PR-CREATED link, and condition 4
+        # already refuses any link that escapes the install root.
+        try:
+            config_path = _absolute_config_candidate(config_arg).resolve()
+        except OSError as exc:
+            print(
+                f"Refusing to load config from unresolvable path "
+                f"{config_arg!r}: {exc}",
+                file=sys.stderr,
+            )
+            return None, None, None
+    else:
         symlink = _symlinked_config_component(config_arg)
         if symlink is not None:
             print(
@@ -2113,14 +2154,14 @@ def _resolve_and_read_config(
                 file=sys.stderr,
             )
             return None, None, None
-    try:
-        config_path = validate_safe_path(config_arg, containment_base)
-    except (FileNotFoundError, ValueError) as exc:
-        print(
-            f"Refusing to load config from unsafe path {config_arg!r}: {exc}",
-            file=sys.stderr,
-        )
-        return None, None, None
+        try:
+            config_path = validate_safe_path(config_arg, _PROJECT_ROOT)
+        except (FileNotFoundError, ValueError) as exc:
+            print(
+                f"Refusing to load config from unsafe path {config_arg!r}: {exc}",
+                file=sys.stderr,
+            )
+            return None, None, None
     try:
         return config_path, _read_config_bytes(config_path), install_root
     except ConfigError as exc:
