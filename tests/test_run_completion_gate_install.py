@@ -1,3 +1,9 @@
+# taste-lint: ignore file-size, one suite shares the installed-plugin
+# layout fixtures (_install_plugin, _git_init, _run_gate, _CONFIG_BODY)
+# across every install-trust state. Splitting it duplicates the layout
+# builder or moves it to a module that pytest's rootdir insertion does
+# not reliably import from tests/, and each case here is only readable
+# against the same layout. Same rationale as test_why_pr_blocked.py.
 """Runtime tests: run_completion_gate under an installed-plugin layout.
 
 Issue #2572: the installed Copilot plugin copy of run_completion_gate.py failed
