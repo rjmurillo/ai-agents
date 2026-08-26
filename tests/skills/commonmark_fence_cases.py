@@ -179,8 +179,8 @@ CASES: dict[str, str] = {
 #
 # This description used to name a single family, a fenced block outliving its
 # list item, and was left stale for one commit after rule 10 closed exactly
-# that. What remains is not one family and not much: a dozen documents across
-# the three seeds, in deep interactions between lazy continuations, empty
+# that. What remains is not one family and not much: six documents across the
+# three seeds, in deep interactions between lazy continuations, empty
 # items, and five-or-more columns of padding under nested markers. Raw HTML
 # blocks swallowing a fence are the other known cause and are what the fuzz
 # negative control pins.

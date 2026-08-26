@@ -462,11 +462,19 @@ class TestCommonMarkFuzz:
         # every seed with zero divergences and the coverage silently vanishes.
         assert len(documents) == FUZZ_DOCUMENTS
         diverged = [text for text in documents if oracle_fence_lines(text) != _masked_lines(text)]
-        assert len(diverged) <= FUZZ_BASELINE[seed], (
+        # Equality, not at-or-below. `tests/ci/test_cli_exit_contract_ratchet.py`
+        # states the rule for every counting ratchet in this repository:
+        #
+        #     a baseline above the real count is dead allowance, and a baseline
+        #     below it means every pull request is red for a reason that has
+        #     nothing to do with its diff
+        #
+        # At-or-below hides a fix that lowers the count, so a later regression
+        # back up to the stale number passes. Lower the baseline when a rule
+        # closes residue; that is the point of the ratchet.
+        assert len(diverged) == FUZZ_BASELINE[seed], (
             f"seed {seed}: {len(diverged)} diverged, baseline {FUZZ_BASELINE[seed]}. "
-            f"First: {diverged[0]!r}"
-            if diverged
-            else ""
+            + (f"First: {diverged[0]!r}" if diverged else "Lower the baseline.")
         )
 
     def test_the_fuzzer_can_actually_see_a_divergence(self) -> None:

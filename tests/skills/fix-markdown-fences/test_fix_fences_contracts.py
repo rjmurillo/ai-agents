@@ -24,9 +24,16 @@ TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
 if TESTS_SKILLS_DIR not in sys.path:
     sys.path.insert(0, TESTS_SKILLS_DIR)
 
+import inspect
+
 from claude_skills_import import import_skill_script
 from commonmark_fence_cases import CASES as FENCE_CASES
-from commonmark_fence_cases import oracle_fence_lines
+from commonmark_fence_cases import (
+    FUZZ_BASELINE,
+    FUZZ_DOCUMENTS,
+    oracle_fence_lines,
+    random_documents,
+)
 from markdown_it import MarkdownIt
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -270,3 +277,38 @@ class TestCommonMarkOracle:
             text = FENCE_CASES[name]
             assert oracle_fence_lines(text) == set(), name
             assert repair_markdown_fences(text) == text, name
+
+
+class TestScannerParity:
+    """The two scanners must not drift, and the fuzzer must see both.
+
+    `_ListContainers` is duplicated byte-for-byte because the skills ship as
+    separate plugin directories and neither is on the other's import path. The
+    fuzz ratchet used to run only in the prose suite, so a regression in this
+    scanner outside the curated cases would not have tripped it, and nothing
+    compared the two copies.
+    """
+
+    def test_the_container_class_is_identical_in_both_scanners(self) -> None:
+        prose = import_skill_script(".claude/skills/prose-self-check/scripts/prose_lint.py")
+        assert inspect.getsource(mod._ListContainers) == inspect.getsource(prose._ListContainers), (
+            "the duplicated container class has drifted between the two skills"
+        )
+
+    @pytest.mark.parametrize("seed", sorted(FUZZ_BASELINE))
+    def test_divergence_matches_baseline(self, seed: int) -> None:
+        documents = random_documents(seed)
+        assert len(documents) == FUZZ_DOCUMENTS
+        diverged = [
+            text
+            for text in documents
+            if oracle_fence_lines(text) != TestCommonMarkOracle._inside_fence(text)
+        ]
+        # Exact, for the reason given in the prose suite's twin: at-or-below
+        # hides a fix and lets a later regression pass. One baseline serves
+        # both scanners because the counts are equal, which is itself a check
+        # that the duplicated class is behaving identically.
+        assert len(diverged) == FUZZ_BASELINE[seed], (
+            f"seed {seed}: {len(diverged)} diverged, baseline {FUZZ_BASELINE[seed]}. "
+            + (f"First: {diverged[0]!r}" if diverged else "Lower the baseline.")
+        )
