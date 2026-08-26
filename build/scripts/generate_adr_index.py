@@ -895,7 +895,13 @@ def _atomic_write_text(path: Path, content: str) -> None:
     # regenerating a normally world-readable index would silently turn it
     # owner-only on POSIX. A symlink destination has no "existing regular
     # file mode" to preserve (the whole point is we are not writing through
-    # it), so it falls back to a plain default.
+    # it): granting it a fixed, world-readable mode here would let whatever
+    # planted the symlink also dictate the replacement file's permissions,
+    # so this case (and a first-ever generation with nothing to preserve)
+    # is left at mkstemp's own restrictive 0600 default instead (CodeQL
+    # py/overly-permissive-mask, PR #5321: a hardcoded world-readable
+    # fallback here could not distinguish the legitimate case from the
+    # attack one).
     existing_mode: int | None
     if path.is_symlink() or not path.is_file():
         existing_mode = None
@@ -906,14 +912,15 @@ def _atomic_write_text(path: Path, content: str) -> None:
             existing_mode = None
     fd, tmp_name = tempfile.mkstemp(dir=directory, prefix=f".{path.name}.", suffix=".tmp")
     try:
-        # os.fchmod is POSIX-only: on Windows it does not exist on the os
-        # module at all, so calling it here raised AttributeError before the
-        # write and before os.fdopen(fd, ...) ever ran, leaking the open
-        # descriptor and leaving the unlink below unable to remove it (Copilot
-        # review, PR #5321). os.chmod is path-based and portable; on Windows
-        # it only toggles the read-only bit, the same limited effect a plain
-        # open(path, "w") would have had.
-        os.chmod(tmp_name, existing_mode if existing_mode is not None else 0o644)
+        if existing_mode is not None:
+            # os.fchmod is POSIX-only: on Windows it does not exist on the os
+            # module at all, so calling it here raised AttributeError before
+            # the write and before os.fdopen(fd, ...) ever ran, leaking the
+            # open descriptor and leaving the unlink below unable to remove
+            # it (Copilot review, PR #5321). os.chmod is path-based and
+            # portable; on Windows it only toggles the read-only bit, the
+            # same limited effect a plain open(path, "w") would have had.
+            os.chmod(tmp_name, existing_mode)
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(content)
         os.replace(tmp_name, path)

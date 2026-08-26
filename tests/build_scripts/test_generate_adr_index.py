@@ -824,9 +824,9 @@ def test_generate_preserves_the_existing_destination_mode(tmp_path: Path) -> Non
     _corpus(directory)
     output = tmp_path / "README.md"
     output.write_text("stale placeholder\n", encoding="utf-8")
-    # 0o640, not the CLI's own 0o644 fallback: a broken preservation that
-    # always falls through to the fallback would pass this assertion at
-    # 0o644 by coincidence, since setup and fallback would be identical.
+    # 0o640, not mkstemp's own 0600 no-preservation default: a broken
+    # preservation that always fell through to the default would fail this
+    # assertion cleanly, since 0o640 != 0o600 and can never collide with it.
     output.chmod(0o640)
 
     generate_adr_index.generate(directory, output)
