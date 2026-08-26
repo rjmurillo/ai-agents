@@ -41,8 +41,22 @@ LEFTHOOK = REPO_ROOT / "lefthook.yml"
 # declared caps so the container bound is a number, not a hope.
 #
 # Jobs that do NOT route through `git_hook_policy._run_command` keep their
-# declared cap here, because nothing clamps them: they are named rather than
-# assumed, so a job moved onto or off that path shows up as a baseline change.
+# declared cap, because nothing clamps them.
+#
+# This roster used to decide that, as a denylist: any job not named here was
+# credited with a clamp. Review on PR #5319 named the hole. A job renamed, or
+# replaced with a command that does not reach `_run_command`, silently joined
+# the clamped side and the model reported a bound nothing enforces. The roster
+# promised in its own comment that such a move "shows up as a baseline change",
+# and it could not: nothing compared it to the configuration.
+#
+# `job_cost` now derives the answer from the job's own `run:` string, which is
+# where the routing actually lives, so a rename cannot lie to it. The roster
+# stays as the readable list and as the assertion's other side:
+# `test_the_roster_matches_what_the_config_actually_routes` requires the two to
+# agree in both directions, so a job crossing the boundary fails a test that
+# names it instead of changing a number quietly. At the time of writing they
+# agree exactly, 14 clamped and 20 not.
 CONTAINER_UNCLAMPED_JOBS = frozenset(
     {
         "repair-packed-refs",
@@ -83,9 +97,20 @@ def seconds(raw: object) -> float:
     return float(text)
 
 
+# The module whose `_run_command` applies the container clamp. A job whose
+# `run:` invokes it spawns its children through that function; a job that runs
+# anything else does not, whatever it is called.
+_CLAMPING_ENTRYPOINT = "git_hook_policy.py"
+
+
+def routes_through_the_clamp(entry: dict[str, Any]) -> bool:
+    """Whether this job's own command reaches `git_hook_policy._run_command`."""
+    return _CLAMPING_ENTRYPOINT in str(entry.get("run", ""))
+
+
 def job_cost(entry: dict[str, Any], clamp: float | None) -> float:
     declared = seconds(entry.get("timeout"))
-    if clamp is None or str(entry.get("name", "")) in CONTAINER_UNCLAMPED_JOBS:
+    if clamp is None or not routes_through_the_clamp(entry):
         return declared
     return min(declared, clamp)
 

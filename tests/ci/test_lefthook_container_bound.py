@@ -26,6 +26,7 @@ from tests.ci.lefthook_budget_model import (
     flatten,
     job_cost,
     load_config,
+    routes_through_the_clamp,
 )
 
 # The bound that matters is PER JOB, not the sum of every cap.
@@ -53,16 +54,16 @@ from tests.ci.lefthook_budget_model import (
 #     `_container_clamped`, so the job is bounded at 150s in a container on
 #     every path rather than at TEST_SUITE_TIMEOUT_SECONDS. Closed on PR #5319
 #     after review found the aggregate unclamped on the ordinary subset path.
-#   * `security-scan` has no aggregate deadline at all: `scan_pushed_heads`
-#     loops over pushed refs and each `_scan_pushed_head` gets a fresh clamp,
-#     so a push of N refs costs up to N * 150s. Still open, tracked in #5318.
+#   * `security-scan` runs one scan per pushed ref and batches targets within a
+#     ref. `scan_pushed_heads` now holds one deadline across all of them and
+#     passes the remaining time down, so the job is bounded at 150s in a
+#     container rather than at N refs times M batches times 150s. Closed on
+#     PR #5319, last of the four rounds spent on this same confusion.
 #
 # So this assertion is evidence for "no single subprocess outlives the
-# container", and for `python-tests` as a whole job, but not for `security-scan`
-# as a whole job. The measured hook is ~149s end to end and the default
-# collection path spawns one child, so the remaining exposure is a tail case,
-# not the common one; that is a reason to size the fix deliberately rather than
-# a reason to keep claiming a bound that does not hold.
+# container". The whole-job bound for those two comes from their own aggregate
+# deadlines, covered in `tests/test_safe_push_pr_branch.py` and
+# `tests/validation/test_security_scan_budget.py`, not from this number.
 #
 # Set to the actual largest, not above it. An earlier revision used 300s while
 # the PR claimed 240s, which meant a regression to 250s would have passed the
@@ -122,6 +123,39 @@ class TestNoSingleChildOutlivesAContainer:
             for job in flatten(entry)
         ]
         assert [c for c, _ in unclamped if c > CONTAINER_PER_JOB_CEILING_SECONDS] != []
+
+    def test_the_roster_matches_what_the_config_actually_routes(self) -> None:
+        """Both directions, because the model no longer takes the roster's word.
+
+        `job_cost` derives the clamp from the job's own `run:` string. The
+        roster is the readable list beside it, and a list that can drift from
+        the thing it describes is the hole review found on PR #5319: any job not
+        named there used to be credited with a clamp, so a rename onto a direct
+        command joined the clamped side silently.
+
+        Asserting both directions is what makes the roster load-bearing again. A
+        job that stops routing through `git_hook_policy.py` and is not added
+        here fails, and a job named here that starts routing through it fails
+        too, each naming itself.
+        """
+        jobs = [
+            job
+            for entry in load_config()["pre-push"]["jobs"]
+            if isinstance(entry, dict)
+            for job in flatten(entry)
+        ]
+        derived = {
+            str(job.get("name")) for job in jobs if not routes_through_the_clamp(job)
+        }
+
+        assert derived == set(CONTAINER_UNCLAMPED_JOBS), (
+            "the unclamped roster disagrees with the configuration. Only in the "
+            f"roster: {sorted(set(CONTAINER_UNCLAMPED_JOBS) - derived)}. Only in "
+            f"the config: {sorted(derived - set(CONTAINER_UNCLAMPED_JOBS))}. A "
+            "job that stopped invoking git_hook_policy.py belongs in the roster; "
+            "one that started invoking it belongs out of it. Do not edit the "
+            "roster to match without reading the job's command first."
+        )
 
     def test_every_unclamped_job_exists(self) -> None:
         """A stale name in the roster silently widens the clamp's coverage.
