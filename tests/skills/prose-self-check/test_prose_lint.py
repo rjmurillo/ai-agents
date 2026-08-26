@@ -239,7 +239,7 @@ class TestExitCodes:
         assert main([path, "--rules", str(tmp_path / "nope.md")]) == 2
 
     def test_missing_rules_degrades_to_structural_only(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
@@ -256,7 +256,7 @@ class TestOutput:
     """Report formats the agent reads."""
 
     def test_clean_run_still_names_layer_four(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         target = tmp_path / "d.md"
         target.write_text("The loader drops the message.\n", encoding="utf-8")
@@ -264,7 +264,7 @@ class TestOutput:
         assert "Layer 4" in capsys.readouterr().out
 
     def test_json_payload_carries_severity_counts(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         target = tmp_path / "d.md"
         target.write_text("A robust plan.\n", encoding="utf-8")

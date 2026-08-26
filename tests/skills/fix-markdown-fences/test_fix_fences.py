@@ -187,13 +187,13 @@ class TestExitCodes:
 class TestOutput:
     """Report formats the agent reads."""
 
-    def test_clean_run_says_so(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    def test_clean_run_says_so(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         (tmp_path / "ok.md").write_text("text\n", encoding="utf-8")
         main([str(tmp_path)])
         assert "No fence defects found" in capsys.readouterr().out
 
     def test_report_lines_carry_file_line_and_kind(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         (tmp_path / "bad.md").write_text("```py\nx\n```py\ny\n```\n", encoding="utf-8")
         main([str(tmp_path)])
@@ -201,7 +201,7 @@ class TestOutput:
         assert f"bad.md:3: {MALFORMED_CLOSING}" in out
 
     def test_json_output_is_machine_readable(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         bad = tmp_path / "bad.md"
         bad.write_text("```py\nx\n```py\ny\n```\n", encoding="utf-8")
