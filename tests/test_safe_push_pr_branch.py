@@ -1282,8 +1282,12 @@ def test_run_pytest_full_timeout_does_not_emit_exhaustion_message(
     assert "exhausted" not in err.lower()
     # The helper opts into local execution, which announces itself. That line
     # is a selection notice, not a diagnostic about the budget, so it must not
-    # be what satisfies the two assertions above.
-    assert "executing it locally" in err
+    # be what satisfies the two assertions above. The wording moved when the
+    # opt-in was hoisted ahead of selection on PR #5319: the notice is now
+    # emitted by `_resolve_pytest_commands` rather than by the stand-in, so it
+    # names the variable and says the graph was skipped.
+    assert "executing the whole suite locally" in err
+    assert git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV in err
 
 
 def test_run_pytest_budget_exhaustion_cosmetic_change_survives(
@@ -1327,10 +1331,12 @@ def test_the_clean_opt_in_run_prints_only_the_selection_notice(
     """
     _record_pytest_timeouts(monkeypatch, elapsed_per_command=1.0)
     assert git_hook_policy.run_pytest(tmp_path) == 0
+    # One line, and it no longer mentions the diff: the opt-in short-circuits
+    # ahead of selection on PR #5319, so nothing consults the import graph and
+    # the notice cannot report a reason for falling back to the whole suite.
     assert capsys.readouterr().err.splitlines() == [
-        "pytest selection: full suite (the diff against origin/main is "
-        "unavailable); executing it locally because "
-        f"{git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV}=1."
+        f"{git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV}=1: executing the "
+        "whole suite locally, skipping import-graph selection."
     ]
 
 
