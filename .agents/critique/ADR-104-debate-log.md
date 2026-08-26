@@ -719,16 +719,42 @@ JSONs opened by exact path in `tests/test_validate_session_json.py`, which is
 what disproved the premise that session content is inert. The number is
 evidence that the allowlist could not be finished by hand, not a census.
 
+### Round 9 addendum: rule 8 closed, and a guard that graded by name
+
+Two threads could not be resolved by explaining them, so they were fixed.
+
+**`scan_pushed_heads` now carries one deadline for the whole job.** It was the
+last unbounded path in pre-push: a loop over pushed refs, each ref batching its
+targets, every batch taking a fresh `_run_command` allowance, so a container
+push cost refs times batches times 150s. It now clamps `SEMGREP_TIMEOUT_SECONDS`
+once and passes the remaining time down to each batch, which leaves a one-ref
+workstation push unchanged and stays under ADR-054's enforced 900s. Rule 8 is
+closed for pre-push. Four rounds went into that one sentence, and the same
+confusion produced all four: a clamp on one child read as a bound on a job that
+runs many.
+
+**The budget model graded jobs by name, not by what they run.** Any pre-push job
+not on `CONTAINER_UNCLAMPED_JOBS` was credited with a clamp, so a job renamed or
+switched to a command that never reaches `_run_command` joined the clamped side
+silently. The roster's own comment promised such a move "shows up as a baseline
+change" and nothing compared it to the configuration. `job_cost` now reads the
+job's `run:` string, and a new test requires the roster and the derived set to
+agree in both directions. They already did, 14 clamped and 20 not, so this
+changes no number; it changes whether the number can quietly become wrong.
+
+**And one more sentinel hole, in a test written this round.** The container
+budget test captured each head's deadline through a fake with `deadline=0.0` as
+a default. Removing the production wiring made every head record the same
+sentinel, so "one job, one deadline" held and "not more than the ceiling" held
+by a margin of fifty-five years. Both assertions passed against an unbounded
+job. Caught by running the mutation rather than by reading the test, which is
+the only thing that has caught any of these.
+
 ### Still open after this round
 
-- `scan_pushed_heads` has no aggregate deadline, so `security-scan` has no
-  job-level bound in a container. Issue #5318.
 - `push-ref-policy` carries a 2m cap over `check_push_refs`, which runs many
-  git children sequentially at 90s each. Raised in round 8 and still unverified.
-- The budget model credits a clamp to any job not on the unclamped roster
-  without proving its command routes through `_run_command`.
-- A container-clamp timeout reports the aggregate budget rather than the clamp
-  that fired.
+  git children sequentially at 90s each. Raised in round 8 and still unverified;
+  the same aggregate-versus-child shape as the two now closed.
 - The base-ref ratchet skips where no base ref is reachable, which is a shallow
   CI checkout. The ceiling is the only guard there.
 - `workflow-local-run` is still unmeasured on the path its cap protects. The

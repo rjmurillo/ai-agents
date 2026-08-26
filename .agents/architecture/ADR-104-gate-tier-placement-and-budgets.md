@@ -183,14 +183,17 @@ through `_run_command` and carries its own 240s cap; every job whose work is a
 single subprocess is bounded by the clamp.
 
 Two jobs are not single-subprocess, so the per-subprocess clamp does not bound
-them by itself. `run_pytest` now clamps its own aggregate deadline, so the
-whole pytest step is held to 150s in a container whichever path it takes.
-`scan_pushed_heads` still holds no aggregate: it loops over pushed refs and each
-scan gets a fresh clamp, so N refs cost up to N times 150s. Rule 8 remains open
-for that one. The measured hook is ~149s end to end and the default collection
-path spawns one child, so this is the tail rather than the common case; that
-sizes the fix, it does not excuse the claim. Corrected over three review rounds
-on PR #5319, the pytest half closed and the scan half tracked in #5318.
+them by itself, and each now carries a deadline for the whole job.
+`run_pytest` clamps its aggregate, so the pytest step is held to 150s in a
+container whichever path it takes. `scan_pushed_heads` clamps one budget across
+every pushed ref and every target batch within a ref, where before each batch
+got a fresh allowance and N refs cost up to N times 150s.
+
+Rule 8 is closed for pre-push. It took four review rounds on PR #5319 to get
+there, and the shape repeated each time: a clamp on one child was read as a
+bound on a job that runs many. The record claimed the per-job bound before
+either aggregate existed, which is why the correction is written here rather
+than the claim quietly restated.
 
 The container detection is issue #2548's, imported rather than redefined; that
 issue established both the mechanism and the precedent of degrading a pre-push
@@ -491,22 +494,20 @@ itself mean tests ran.
   the ratchet stops it rising rather than bringing it down. Closing that needs
   the unmeasured jobs measured (issue #5318). On a workstation a hung e2e smoke
   can still run for 20 minutes, which is slow rather than destructive.
-- **The failure this record exists to stop is narrowed, not closed.** In a
-  container no single *subprocess* can exceed 150s, which is asserted. That is
-  not the same as a per-job bound, and an earlier revision of this section said
-  it was. `run_pytest` now clamps its aggregate deadline as well, so the whole
-  pytest step is bounded at 150s in a container rather than at 780s across
-  children. `scan_pushed_heads` holds no aggregate at all: it loops over pushed
-  refs and each scan gets a fresh clamp, so N refs cost up to N times 150s.
-  Rule 8 therefore remains open for that one path.
+- **The failure this record exists to stop is closed for pre-push, and the
+  route to closing it is the negative worth keeping.** In a container no single
+  subprocess exceeds 150s, and the two jobs that run several subprocesses now
+  hold their own aggregate deadlines, so no pre-push job can outlive the
+  container. An earlier revision of this section asserted that bound before
+  either aggregate existed, on the strength of the per-child clamp.
 
-  The measured hook is ~147s end to end and the default collection path spawns
-  one child, so the exposure is a tail case rather than the common one. That is
-  an argument for sizing the fix deliberately, not for leaving the record
-  claiming a bound it does not have. Corrected across three review rounds on
-  PR #5319: first the per-job claim, then the pytest aggregate, and this
-  paragraph itself, which kept naming the pytest path after the clamp closed
-  it. The remaining `scan_pushed_heads` aggregate is tracked in #5318.
+  Four review rounds were spent on the same confusion: a clamp on one child
+  read as a bound on a job that runs many. `run_pytest` was fixed first,
+  `scan_pushed_heads` last, and in between this paragraph twice described a gap
+  the previous commit had closed. The lesson is not about clamps. A safety
+  claim that is one inference away from what the code enforces will be made
+  again, and the only thing that caught it each time was a reviewer reading the
+  loop rather than the constant.
 
 ### Neutral
 
