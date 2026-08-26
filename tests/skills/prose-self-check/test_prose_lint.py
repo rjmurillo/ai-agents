@@ -9,6 +9,7 @@ test_prose_lint_cli.py.
 from __future__ import annotations
 
 import io
+import re
 import sys
 from pathlib import Path
 
@@ -19,6 +20,8 @@ if TESTS_SKILLS_DIR not in sys.path:
     sys.path.insert(0, TESTS_SKILLS_DIR)
 
 from claude_skills_import import import_skill_script
+from commonmark_fence_cases import CASES as FENCE_CASES
+from commonmark_fence_cases import oracle_fence_lines
 
 mod = import_skill_script(".claude/skills/prose-self-check/scripts/prose_lint.py")
 lint_prose = mod.lint_prose
@@ -339,3 +342,94 @@ class TestListNestedFences:
         masked, unterminated = mod._blank_fenced_blocks(source)
         assert unterminated is None
         assert masked[opener : opener + 3] == ["", "", ""]
+
+
+CITATION = re.compile(r"^# `(?P<path>[^`]+)` lines (?P<first>\d+)-(?P<last>\d+), verbatim:$")
+
+
+def extract_citation(source_lines: list[str]) -> tuple[str, int, int, list[str]]:
+    """Return (path, first, last, quoted lines) from a verbatim-citation comment.
+
+    The comment shape is a citation line, a bare `#`, the quoted lines each
+    prefixed with `# `, then a closing bare `#`.
+    """
+    for index, line in enumerate(source_lines):
+        match = CITATION.match(line)
+        if match is None:
+            continue
+        cursor = index + 1
+        assert source_lines[cursor] == "#", "citation must be followed by a bare '#'"
+        cursor += 1
+        quoted: list[str] = []
+        while source_lines[cursor] != "#":
+            assert source_lines[cursor].startswith("# "), source_lines[cursor]
+            quoted.append(source_lines[cursor][2:])
+            cursor += 1
+        return match["path"], int(match["first"]), int(match["last"]), quoted
+    raise AssertionError("no verbatim citation found")
+
+
+class TestSiblingBoundCitation:
+    """The verbatim quote of the sibling scanner's bound stays replayable.
+
+    `canonical-source-mirror.md` requires the claim to cite a path and quote the
+    contract verbatim. A hand-written line range goes stale the moment either
+    file moves, which it did once in review. This pins both.
+    """
+
+    SCRIPT = PROJECT_ROOT / ".claude" / "skills" / "prose-self-check" / "scripts" / "prose_lint.py"
+
+    def _cited(self) -> tuple[str, int, int, list[str]]:
+        return extract_citation(self.SCRIPT.read_text(encoding="utf-8").splitlines())
+
+    def test_sibling_bound_quote_matches_its_source(self) -> None:
+        rel, first, last, quoted = self._cited()
+        target = PROJECT_ROOT / ".claude" / rel
+        assert target.is_file(), f"cited path does not resolve: {target}"
+        actual = target.read_text(encoding="utf-8").splitlines()[first - 1 : last]
+        assert quoted == actual, (
+            f"citation drifted from {rel}:{first}-{last}\nquoted: {quoted}\nactual: {actual}"
+        )
+
+    def test_cited_path_is_plugin_root_relative(self) -> None:
+        # A `.claude/` prefix resolves to nothing in the src/copilot-cli mirror
+        # this file ships into, so the citation must be relative to the root.
+        rel, _, _, _ = self._cited()
+        assert not rel.startswith((".claude/", "src/")), rel
+        assert rel.startswith("skills/"), rel
+
+    def test_quote_is_the_load_bearing_bound(self) -> None:
+        _, _, _, quoted = self._cited()
+        body = "\n".join(quoted)
+        assert "def over_indented" in body
+        assert "_MAX_FENCE_INDENT" in body
+
+    def test_pin_fails_when_the_range_drifts(self) -> None:
+        # Negative control: shift the cited range by one and the pin must break.
+        rel, first, last, quoted = self._cited()
+        shifted = (
+            (PROJECT_ROOT / ".claude" / rel)
+            .read_text(encoding="utf-8")
+            .splitlines()[first : last + 1]
+        )
+        assert quoted != shifted, "the pin cannot detect drift on this input"
+
+
+class TestCommonMarkOracle:
+    """Masking matches `markdown-it-py` on every list-container case.
+
+    Hand-written expectations are what let four CommonMark rules land wrong in
+    the first place. These compare against a reference implementation instead.
+    """
+
+    @pytest.mark.parametrize("name", sorted(FENCE_CASES))
+    def test_masked_lines_match_the_reference_parser(self, name: str) -> None:
+        text = FENCE_CASES[name]
+        masked, _ = mod._blank_fenced_blocks(text)
+        source = text.splitlines()
+        ours = {
+            index
+            for index, line in enumerate(source)
+            if line != "" and index < len(masked) and masked[index] == ""
+        }
+        assert ours == oracle_fence_lines(text), name
