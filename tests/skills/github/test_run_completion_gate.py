@@ -3352,12 +3352,49 @@ class TestInstallTrustedRoot:
 
         assert _dispatcher._install_trusted_root(str(config)) is None
 
-    def test_a_root_that_is_not_a_directory_is_ignored(self, tmp_path, monkeypatch):
+    def test_surrounding_whitespace_is_stripped_from_a_real_root(
+        self, tmp_path, monkeypatch,
+    ):
+        """Discriminating twin for the case above.
+
+        The case above cannot observe the strip(): whitespace-only survives
+        it as a relative path that is not a directory, so the value is
+        dropped either way and the assertion holds against an unstripped
+        implementation. Mutation confirmed it, removing .strip() left the
+        whole file green.
+
+        A real root with stray spaces is the input the two implementations
+        disagree on. Unstripped, Path("  /abs/root") is RELATIVE (its first
+        component is the spaces), so it resolves under the cwd, is not a
+        directory, and nothing is trusted.
+        """
         root = tmp_path / "plugin"
         config = self._config_in(root / "commands")
-        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(tmp_path / "does-not-exist"))
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", f"  {root}  ")
 
-        assert _dispatcher._install_trusted_root(str(config)) is None
+        assert _dispatcher._install_trusted_root(str(config)) == root.resolve()
+
+    def test_a_root_that_is_not_a_directory_is_ignored(self, tmp_path, monkeypatch):
+        """A declared root must be a directory, not merely a path.
+
+        The config is placed INSIDE the declared root so containment
+        (condition 4) cannot be what refuses this. Without the is_dir()
+        check a plain FILE would install-trust a config named beneath it:
+        Path.resolve() does not require existence, so the containment test
+        happily succeeds against a path that cannot hold a file at all.
+        An earlier version of this case put the config elsewhere, so
+        containment refused it and the is_dir() check went unobserved;
+        mutation confirmed removing is_dir() left the file green.
+        """
+        not_a_dir = tmp_path / "plugin-root-is-a-file"
+        not_a_dir.write_text("", encoding="utf-8")
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(not_a_dir))
+
+        assert _dispatcher._install_trusted_root(
+            str(not_a_dir / "pr-review-config.yaml"),
+        ) is None
 
     def test_a_root_inside_the_project_root_is_refused(self, monkeypatch):
         """Condition 3: the PR-controlled in-repo fallback never widens.

@@ -252,6 +252,7 @@ import shlex
 import subprocess
 import sys
 import unicodedata
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -1179,6 +1180,20 @@ def _is_within(path: Path, root: Path) -> bool:
     return True
 
 
+def _are_disjoint(first: Path, second: Path) -> bool:
+    """True when neither path is at or under the other.
+
+    Containment in EITHER direction is the thing callers care about, and
+    testing only one of them is a live defect shape rather than a style
+    point: :func:`_install_trusted_root` shipped a one-way test and a
+    declared plugin root that was an ANCESTOR of the project passed it
+    while every PR-controlled file sat inside that root (CWE-829, found
+    by Copilot review on PR #5329). Naming the symmetric question once
+    keeps the two directions from drifting apart again.
+    """
+    return not (_is_within(first, second) or _is_within(second, first))
+
+
 def _first_symlinked_component(candidate: Path, root: Path) -> Path | None:
     """First symlinked component of ``candidate`` at or below ``root``.
 
@@ -2059,6 +2074,27 @@ def _absolute_config_candidate(config_arg: str) -> Path:
     return candidate
 
 
+def _declared_plugin_roots() -> Iterator[Path]:
+    """Existing directories named by the host's plugin-root variables.
+
+    Yields in ``_PLUGIN_ROOT_ENV_VARS`` order, so a host that exports both
+    resolves through the Copilot variable first, and skips a variable that
+    is unset, empty, whitespace, unresolvable, or not a directory. Declaring
+    a root is necessary for install trust and nowhere near sufficient:
+    :func:`_install_trusted_root` applies the boundary conditions.
+    """
+    for env_var in _PLUGIN_ROOT_ENV_VARS:
+        raw = os.environ.get(env_var, "").strip()
+        if not raw:
+            continue
+        try:
+            root = Path(raw).resolve()
+        except OSError:
+            continue
+        if root.is_dir():
+            yield root
+
+
 def _install_trusted_root(config_arg: str) -> Path | None:
     """The host-declared plugin root that install-trusts ``config_arg``.
 
@@ -2085,7 +2121,9 @@ def _install_trusted_root(config_arg: str) -> Path | None:
 
     1. ``COPILOT_PLUGIN_ROOT`` or ``CLAUDE_PLUGIN_ROOT`` is set and
        non-empty. An unset environment changes nothing.
+       (Applied by :func:`_declared_plugin_roots`.)
     2. The root resolves to an existing directory.
+       (Applied by :func:`_declared_plugin_roots`.)
     3. The resolved root is **not** at or under ``_PROJECT_ROOT``. This
        is what withholds install trust from the in-repo ``.claude/``
        fallback that the same command offers: that path is PR-controlled
@@ -2118,16 +2156,7 @@ def _install_trusted_root(config_arg: str) -> Path | None:
     work_tree: Path | None = None
     work_tree_resolved = False
 
-    for env_var in _PLUGIN_ROOT_ENV_VARS:
-        raw = os.environ.get(env_var, "").strip()
-        if not raw:
-            continue
-        try:
-            root = Path(raw).resolve()
-        except OSError:
-            continue
-        if not root.is_dir():
-            continue
+    for root in _declared_plugin_roots():
         # Condition 3: the declared root and the project tree must be
         # DISJOINT, checked in BOTH directions.
         #
@@ -2155,9 +2184,9 @@ def _install_trusted_root(config_arg: str) -> Path | None:
         # cannot relocate. _PROJECT_ROOT is then checked as well, because
         # in the installed case it may resolve somewhere the work-tree
         # check does not cover, and a root overlapping either is refused.
-        if _is_within(root, work_tree) or _is_within(work_tree, root):
+        if not _are_disjoint(root, work_tree):
             continue
-        if _is_within(root, project_root) or _is_within(project_root, root):
+        if not _are_disjoint(root, project_root):
             continue
         try:
             resolved_config = candidate.resolve()
