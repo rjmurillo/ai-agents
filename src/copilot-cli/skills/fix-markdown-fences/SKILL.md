@@ -128,9 +128,10 @@ documentation:
   it ends, with no closing marker, so a line that dedents below it closes it.
   Without either rule the tool kept a block open past its real end, and
   `--write` appended a closing fence to documents already well formed.
-- Known gaps, all three measured. A raw HTML block swallows a following fence, so a
-  fence inside one is read as a fence here and as HTML by CommonMark. And a
-  blockquote prefix is never stripped, so a fence inside `>` is invisible: the
+- Known gaps, each measured and none counted. A raw HTML block swallows a
+  following fence, so a fence inside one is read as a fence here and as HTML
+  by CommonMark. A blockquote prefix is never stripped, so a fence inside `>`
+  is invisible: the
   tool misses defects there rather than inventing them, checked by running
   `--write` over seven blockquote shapes, of which it changed only the two the
   reference parser also reads as unclosed. And a setext `===` underline
