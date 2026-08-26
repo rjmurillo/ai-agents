@@ -192,21 +192,41 @@ def test_the_filter_covers_every_tracked_rule_input(root: str):
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-def test_the_filter_still_skips_tracked_session_markdown():
-    """The fix must not widen the filter to unrelated Markdown."""
+def test_the_filter_now_selects_tracked_session_markdown():
+    """The inverse of what this test asserted until PR #5319, and deliberately.
+
+    It read "the fix must not widen the filter to unrelated Markdown" and
+    pinned session logs as the example of Markdown no test reads. A reverse
+    audit disproved the premise: parse every string literal in all test
+    modules, keep the ones resolving to a tracked file, and check each against
+    the filter. Session content was in the unmatched set, including
+    `.agents/sessions/2026-08-06-session-10004-memory-index-duplicate.json` and
+    `.agents/sessions/2026-02-11-session-1198-pr-review-1146-security-fixes.json`,
+    both opened by exact path in `tests/test_validate_session_json.py`. So the
+    tree this test protected as inert was carrying real inputs, and the
+    allowlist could not be finished by naming roots.
+
+    The filter now matches `**/*.md`, `**/*.json`, and `**/*.txt`. The operator
+    took that trade knowingly: a docs-only PR runs the matrix it used to skip,
+    which spends CI rather than skipping a gate, and only the first is visible
+    to whoever caused it.
+
+    Kept as a test rather than deleted, because the widening is a policy worth
+    defending. A future narrowing back to named roots has to fail this and say
+    why, instead of quietly reopening a hole that took four review rounds and
+    an audit to find.
+    """
     patterns = _python_filter()
-    inputs = [
-        path
-        for path in _tracked_files(".agents/sessions")
-        if path.endswith(".md")
-    ]
+    inputs = [path for path in _tracked_files(".agents/sessions") if path.endswith(".md")]
     assert inputs, "no tracked Markdown session logs, so this control is vacuous"
 
-    selected = [path for path in inputs if _selected(path, patterns)]
+    unselected = [path for path in inputs if not _selected(path, patterns)]
 
-    assert not selected, (
-        "Unrelated session Markdown now triggers pytest; keep the filter scoped "
-        f"to direct test inputs: {selected}"
+    assert not unselected, (
+        "Session Markdown no longer triggers pytest. The filter was widened to "
+        "'**/*.md' on PR #5319 after an audit found 120 candidate test inputs "
+        "it did not match; narrowing it back needs an argument, not a silent "
+        f"edit: {unselected}"
     )
 
 

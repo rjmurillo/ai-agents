@@ -1679,8 +1679,9 @@ def test_a_status_heading_inside_an_html_comment_is_not_the_records_status(tmp_p
     content scannable. ADR-TEMPLATE.md carries exactly this shape, an HTML
     comment documenting a former `## Status` section. `_status_prose` now
     uses `blank_non_prose_block_lines`, which blanks HTML blocks too, so the
-    comment's text is masked the same way a fenced sample already was
-    (PR #5209 round-4 review).
+    comment's text is masked the same way a fenced sample already was.
+    Copilot found this independently on both PR #5230 and the PR #5209
+    round-4 review.
     """
     adr_dir = _adr_dir(tmp_path)
     _write(
@@ -1696,7 +1697,13 @@ def test_a_status_heading_inside_an_html_comment_is_not_the_records_status(tmp_p
 
 
 def test_a_real_status_after_an_html_comment_is_still_found(tmp_path):
-    """Negative control: blanking HTML must not blank the real section."""
+    """Negative control: blanking HTML must not blank the real section.
+
+    Frontmatter says `accepted`; the comment forges an `Accepted` match
+    while the real section, further down, says `Proposed`. An unfixed
+    scanner reports 0 violations here (the forged match hides the real
+    drift); the fix must report 1.
+    """
     adr_dir = _adr_dir(tmp_path)
     _write(
         adr_dir,
@@ -1705,4 +1712,6 @@ def test_a_real_status_after_an_html_comment_is_still_found(tmp_path):
         "\n<!--\n## Status\n\nAccepted\n-->\n\n## Status\n\nProposed\n",
     )
 
-    assert _counts(tmp_path)["prose-frontmatter-agree"] == 1
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 1, (
+        "an HTML-comment-hidden status must not mask real drift"
+    )

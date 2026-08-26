@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -82,9 +83,11 @@ class TestBudgetExhaustionMessage:
     on the first command too, because the deadline and the subtraction read
     ``time.monotonic()`` at two different instants. Measured against the real
     clock, a first-and-only command that timed out printed "timed out after
-    1740s remaining of the 1740s budget (budget exhausted by earlier commands
-    in the suite)", which is self-contradictory and points the reader at
-    commands that never ran.
+    Ns remaining of the Ns budget (budget exhausted by earlier commands in the
+    suite)", which is self-contradictory and points the reader at commands that
+    never ran. The budget was 1740s when that was measured; it is
+    `TEST_SUITE_TIMEOUT_SECONDS` now and these tests read the constant rather
+    than a literal, so a budget change cannot silently invalidate them.
 
     These tests drive the real clock rather than a fake one. A fake clock can
     hand the code ``remaining == full_budget`` exactly, and production never
@@ -99,14 +102,35 @@ class TestBudgetExhaustionMessage:
         tmp_path: Path,
     ) -> tuple[int, str]:
         """Run run_pytest over len(returncodes) commands on the REAL clock."""
+        # The multi-command suite budget these tests are about only exists on
+        # the executing path. Since ADR-104 the default path builds a single
+        # collection command through `_full_suite_stand_in`, which bypasses the
+        # `_pytest_commands` patch below entirely, so opt in explicitly rather
+        # than patching a function the code under test no longer reaches.
+        monkeypatch.setenv(policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
         commands = [
             ["uv", "run", "python", "-m", "pytest", f"slice{i}"] for i in range(len(returncodes))
         ]
         calls = iter(returncodes)
-        monkeypatch.setattr(
-            "scripts.validation.git_hook_policy._run_command",
-            lambda *a, **kw: _make_completed(next(calls)),
-        )
+
+        def fake_run(*_a: object, **kw: Any) -> subprocess.CompletedProcess[str]:
+            """A 3 here means a timeout, so it must carry the timeout marker.
+
+            `run_pytest` stopped reading the bare exit code on PR #5319: pytest
+            returns 3 for an internal error and `_run_command` synthesizes 3
+            when it kills a child, so only the message `_run_command` appends
+            separates them. Without it these cases exercise the crash path and
+            assert about a message the crash path does not print.
+            """
+            code = next(calls)
+            stderr = (
+                policy._timeout_message(["pytest"], float(kw["timeout_seconds"]))
+                if code == 3
+                else ""
+            )
+            return subprocess.CompletedProcess([], code, "", stderr)
+
+        monkeypatch.setattr("scripts.validation.git_hook_policy._run_command", fake_run)
         monkeypatch.setattr(
             "scripts.validation.git_hook_policy._pytest_commands",
             lambda root: commands,
