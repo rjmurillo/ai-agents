@@ -451,8 +451,32 @@ def _line_start_offsets(markdown: str) -> list[int]:
     return offsets
 
 
+def _is_backslash_escaped(markdown: str, pos: int) -> bool:
+    """True if CommonMark's backslash-escape rule applies to
+    ``markdown[pos]``.
+
+    Counts the consecutive backslashes immediately before ``pos``. An odd
+    count means the final backslash pairs with and escapes this character;
+    an even count (including zero) means every backslash has already paired
+    with another backslash, so this character is unescaped. Mirrors the same
+    parity check `_next_unescaped_backtick` already applies for
+    `_mask_inline_contexts`'s line-local scan (`len(prefix) -
+    len(prefix.rstrip("\\\\"))`); duplicated here rather than shared because
+    that helper takes a single already-extracted line and this one must see
+    the whole document to find escapes preceding a candidate near a line
+    boundary.
+    """
+    prefix = markdown[:pos]
+    return (len(prefix) - len(prefix.rstrip("\\"))) % 2 == 1
+
+
 def _find_exact_backtick_run(
-    markdown: str, run_length: int, start: int, end: int
+    markdown: str,
+    run_length: int,
+    start: int,
+    end: int,
+    *,
+    require_unescaped: bool = False,
 ) -> int:
     """First position in ``markdown[start:end]`` of a backtick run whose
     length is EXACTLY ``run_length``, or -1 if none exists.
@@ -467,6 +491,35 @@ def _find_exact_backtick_run(
     whose neighboring character is also a backtick, and retrying forward,
     keeps this in step with the parser's own rule without needing to
     re-derive the rest of CommonMark's inline precedence.
+
+    ``require_unescaped``, set only by the OPENING-delimiter caller in
+    `_html_comment_inline_ranges`, additionally rejects a candidate
+    immediately preceded by an odd number of backslashes. A backslash-escaped
+    backtick in ordinary text (`` \\` ``) is a literal backtick character, not
+    a delimiter that can open a code span: markdown-it resolves it to a plain
+    `text` token with no `code_inline` counterpart, so treating it as an
+    opener finds a position the parser itself never treated as one. The
+    CLOSING-delimiter caller in `_code_span_end` MUST NOT set this, because
+    CommonMark backslash escapes do not apply inside code span content (spec
+    6.1): a closing backtick run may legitimately follow a literal backslash
+    that is part of the code's own text (verified empirically: `` `a\\\\`
+    more `` tokenizes as `code_inline("a\\\\")`, a code span whose content
+    ends in two literal backslashes right before the real closing backtick),
+    and rejecting that closer would search past the span's real end.
+
+    Without this check, an opening lookup can land on an escaped backtick and
+    `_code_span_end` then treats the following REAL opening backtick as if it
+    were the closer, shrinking the "span" to a few characters and leaving the
+    cursor short of the real code span's true end. If that real code span's
+    own content duplicates a later HTML comment's content, the subsequent
+    `html_inline` search (which starts from that too-short cursor) matches
+    the decoy inside the code span instead of the real, later comment.
+    Verified empirically: parsing `` "\\\\` `<!-- x -->` <!-- x -->\\n" ``
+    produces `text("\\` ")`, `code_inline("<!-- x -->")`, `text(" ")`,
+    `html_inline("<!-- x -->")`; `blank_non_prose_block_lines` on that input
+    blanked the code span's own visible text instead of the real trailing
+    comment, which stayed completely readable, before this fix. Copilot
+    found this on PR #5230 round 21, marked Mandatory.
     """
     target = "`" * run_length
     pos = start
@@ -477,7 +530,11 @@ def _find_exact_backtick_run(
         preceded_by_backtick = idx > 0 and markdown[idx - 1] == "`"
         after = idx + run_length
         followed_by_backtick = after < len(markdown) and markdown[after] == "`"
-        if not preceded_by_backtick and not followed_by_backtick:
+        if (
+            not preceded_by_backtick
+            and not followed_by_backtick
+            and not (require_unescaped and _is_backslash_escaped(markdown, idx))
+        ):
             return idx
         pos = idx + 1
 
@@ -622,7 +679,7 @@ def _html_comment_inline_ranges(
                 if not markup:
                     continue
                 open_start = _find_exact_backtick_run(
-                    markdown, len(markup), cursor, span_end
+                    markdown, len(markup), cursor, span_end, require_unescaped=True
                 )
                 if open_start < 0:
                     continue

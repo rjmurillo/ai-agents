@@ -721,6 +721,47 @@ class TestBlankNonProseBlockLines:
         assert "a b -->" not in out
         assert "<!--" not in out
 
+    def test_an_escaped_backtick_cannot_steal_a_real_code_spans_opener(self):
+        # Real gap in the round-20 fix above, found by Copilot (PR #5230,
+        # round 21, marked Mandatory): the delimiter-based opening lookup
+        # accepted a backslash-escaped backtick as a valid code_inline
+        # opener. `` \` `<!-- x -->` <!-- x -->\n `` tokenizes as
+        # text("` ") (the escaped backtick resolves to a literal "`"
+        # character, no code_inline of its own), code_inline("<!-- x -->")
+        # (the real, single visible code span), text(" "), html_inline
+        # ("<!-- x -->") (the real, hidden comment). The opening search
+        # started from the paragraph's start and found the escaped
+        # backtick's literal "`" character first: unpreceded and
+        # unfollowed by another backtick, it passed the flanking check,
+        # so `_code_span_end` then searched for a closer from just past
+        # it and found the REAL code span's own opening backtick,
+        # mistaking it for a closer. That shrank the "span" to a few
+        # characters and left the cursor short of the real code span's
+        # true end (still before its own visible "<!-- x -->" content).
+        # The subsequent `html_inline` search, starting from that
+        # too-short cursor, then matched the code span's own visible
+        # text (a decoy sharing the same content as the real, later
+        # comment) instead of the real comment further along, masking
+        # the visible code and leaving the real hidden comment fully
+        # readable. Verified empirically: this exact input, before this
+        # fix, blanked the code span's own content
+        # (`` `          ` ``) while leaving the real trailing
+        # `<!-- x -->` completely unmasked. Fixed by requiring the
+        # OPENING backtick-run lookup alone to reject a run preceded by
+        # an odd number of backslashes (CommonMark's escape-parity
+        # rule): a backslash-escaped backtick is a literal character to
+        # the parser, never a delimiter, so treating it as one finds a
+        # position the parser itself never opened a code span at. The
+        # CLOSING lookup keeps no such check, since CommonMark backslash
+        # escapes do not apply inside code span content and a real
+        # closer may legitimately follow a literal backslash that is
+        # part of the code's own text. Asserts the visible code span
+        # survives verbatim and the real comment after it is masked.
+        text = "\\` `<!-- x -->` <!-- x -->\n"
+        out = blank_non_prose_block_lines(text)
+        assert out.startswith("\\` `<!-- x -->`")
+        assert "<!--" not in out[out.index("-->") + len("-->") :]
+
     def test_preserves_line_count(self):
         text = "a\n<!--\nb\nc\n-->\nd\n"
         original = len(text.split("\n"))
