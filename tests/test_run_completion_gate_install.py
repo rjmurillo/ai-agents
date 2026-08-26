@@ -46,6 +46,7 @@ whether the gate accepts the bundled config at all.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -83,11 +84,17 @@ _COMMAND_TRUST_HALT = "HALT: completion-gate verifier files"
 # asserts on a LATER stage (command trust, dispatch) could observe that stage at
 # all. Found by mutation: removing the work-tree anchor left the bypass case
 # failing on a schema error rather than on the boundary under test.
+# The criterion emits a JSON object and pass_when reads a key out of it, so a
+# run that reaches dispatch is observable in the payload rather than inferred
+# from an exit code. `printf` is a bare interpreter name, so command trust
+# classifies it as external and there is no work-tree file to byte-compare.
+# `true` (YAML/Python) is not a pass_when literal; the evaluator wants `true`
+# lowercase, and `True` raises "Unrecognized literal in pass_when".
 _CONFIG_BODY = """completion_criteria:
   - name: placeholder
     verification: command
-    command: "true"
-    pass_when: "exit_code == 0"
+    command: "printf '{\\"gate_ran\\": true}'"
+    pass_when: "gate_ran == true"
 """
 
 
@@ -133,6 +140,7 @@ def _run_gate(
     *,
     env_var: str | None,
     env_value: str | None = None,
+    json_output: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     script = plugin_root / "skills" / "github" / "scripts" / "pr" / "run_completion_gate.py"
     env = dict(os.environ)
@@ -150,6 +158,7 @@ def _run_gate(
             "1",
             "--config",
             str(config),
+            *(["--json"] if json_output else []),
         ],
         cwd=user_repo,
         capture_output=True,
@@ -215,6 +224,42 @@ def test_claude_plugin_root_admits_the_bundled_config(tmp_path: Path) -> None:
     # appear. This is the assertion that fails if the root stops being
     # honored; the containment check above only proves the path was accepted.
     assert _CONFIG_TRUST_HALT not in result.stderr, result.stderr
+
+
+def test_the_bundled_config_runs_its_criteria_end_to_end(tmp_path: Path) -> None:
+    """Positive control for every absence assertion in this file.
+
+    The other install cases assert that a refusal string is ABSENT, which
+    cannot distinguish "install trust worked" from "the run died earlier for
+    an unrelated reason". This drives the same layout with --json and reads
+    the structured payload, so the claim is what the gate reported rather
+    than what a substring search did not find (testing.md MUST 9).
+
+    Requested in Copilot review on PR #5329: the acceptance criterion for
+    issue #5112 is that an installed /pr-review can DISPATCH its bundled
+    config, and until this case existed nothing observed a criterion running.
+    """
+    plugin_root, config, user_repo = _install_plugin(tmp_path)
+
+    result = _run_gate(
+        plugin_root, config, user_repo,
+        env_var="CLAUDE_PLUGIN_ROOT", json_output=True,
+    )
+
+    assert result.returncode == 0, (result.returncode, result.stderr)
+    payload = json.loads(result.stdout)
+    assert payload["config_trust"]["status"] == "install-trusted"
+    # The config was install-trusted; the FILES its criteria name were still
+    # verified. Widening the config origin must not widen the command
+    # boundary, so this is not incidental detail.
+    assert payload["command_trust"]["status"] == "trusted"
+    assert payload["all_passed"] is True
+    criterion = payload["criteria"][0]
+    # Proof of execution, not of acceptance: the gate ran the command and
+    # parsed what the command printed.
+    assert criterion["passed"] is True
+    assert criterion["exit_code"] == 0
+    assert criterion["stdout_json"] == {"gate_ran": True}
 
 
 def test_copilot_plugin_root_admits_the_bundled_config(tmp_path: Path) -> None:
