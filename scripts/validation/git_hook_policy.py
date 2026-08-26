@@ -18,6 +18,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unicodedata
 import warnings
@@ -134,6 +135,109 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
     }
 )
 ADR_ID_RE = re.compile(r"ADR-\d+", re.IGNORECASE)
+# Issue #5205: thresholds calibrated against the 86 debate logs in
+# .agents/critique on main. All 86 clear these; the smallest is 454 bytes.
+DEBATE_LOG_MIN_BYTES = 300
+# Canonical source: the fenced debate-log template in
+# .claude/skills/adr-review/references/artifacts.md. These are its unfilled
+# placeholder spans, quoted verbatim per .claude/rules/canonical-source-mirror.md.
+# A log still carrying any of them was copied and not filled in, and an unfilled
+# template is not a review: the shipped template clears the other four signals on
+# its own, because "Agent Positions" satisfies reviewer attribution and
+# "Outcome: [Consensus | Concluded Without Consensus]" satisfies a verdict label
+# beside a decision token. Found by review of PR #5308.
+#
+# Matching these literals rather than bracketed spans in general is deliberate.
+# A general placeholder regex was measured against the committed corpus and
+# would false-block 25 of 86 logs (29%), on task checkboxes, [PASS] markers,
+# confidence intervals such as [-0.20, +0.31], and bracketed ADR references.
+# These exact literals false-block 0 of 86.
+DEBATE_LOG_TEMPLATE_PLACEHOLDERS = (
+    "[ADR Title]",
+    "[N]",
+    "[Consensus | Concluded Without Consensus]",
+    "[proposed | accepted | needs-revision]",
+    "[Issue 1]",
+    "[Issue 2]",
+    "[Change 1]",
+    "[Change 2]",
+    "[If applicable]",
+    "| ... | ... |",
+)
+DEBATE_LOG_MIN_SECTIONS = 3
+DEBATE_LOG_VERDICT_WINDOW_LINES = 6
+# Canonical source: the "## Agent Roles" table in
+# .claude/skills/adr-review/SKILL.md. Quoted verbatim per
+# .claude/rules/canonical-source-mirror.md, which requires the contract itself
+# rather than a pointer to it. The heading is cited rather than a line range:
+# a range goes stale on any edit above it, and
+# test_the_quoted_role_table_is_still_verbatim_in_the_skill checks the quote
+# against the file, which a line number cannot do.
+#
+#     | Agent | Focus | Tie-Breaker Role |
+#     |-------|-------|------------------|
+#     | **architect** | Structure, governance, coherence, ADR compliance | Structural questions |
+#     | **critic** | Gaps, risks, alignment, completeness | None |
+#     | **independent-thinker** | Challenge assumptions, surface contrarian views | None |
+#     | **security** | Threat models, security trade-offs | None |
+#     | **analyst** | Root cause, evidence, feasibility | None |
+#     | **high-level-advisor** | Priority, resolve conflicts, break ties | Decision paralysis |
+#
+# Stricter/looser/different than canonical: LOOSER, deliberately. The skill
+# names these six as the agents that conduct a review. This gate does not
+# require all six, or even any of them by name: DEBATE_LOG_REVIEWER_RE below
+# also accepts "self-review", "participants", "reviewers", and "agents". That
+# divergence is the resolution of issue #5205's proposed six-role roster, which
+# was measured to false-block 18 of the 86 committed logs (21%), including
+# genuine single-reviewer, self-review, and owner-direction records. Acceptance criterion 3 of
+# that issue forbids false-blocking a genuine log, so the roster lost to the
+# requirement. The looseness is therefore intentional and load-bearing; do not
+# tighten these to the six roles without recalibrating against the corpus and
+# rewriting the logs the tightening would reject.
+DEBATE_LOG_ROLES = (
+    "architect",
+    "critic",
+    "independent-thinker",
+    "security",
+    "analyst",
+    "high-level-advisor",
+)
+# "agents?" is here because the canonical template in
+# .claude/skills/adr-review/references/artifacts.md labels its roster "Agent
+# Positions", so without it the gate rejects a log written to the document its
+# own error message cites. It is a weak signal on its own; the byte floor,
+# section count and verdict carry the weight.
+DEBATE_LOG_REVIEWER_RE = re.compile(
+    "|".join(
+        [
+            *(rf"\b{role}\b" for role in DEBATE_LOG_ROLES),
+            r"\bself[- ]review\b",
+            r"\bparticipants?\b",
+            r"\breviewers?\b",
+            r"\bagents?\b",
+        ]
+    ),
+    re.IGNORECASE,
+)
+DEBATE_LOG_DECISION_RE = re.compile(
+    r"\b(accept(?:ed)?|disagree[- ]and[- ]commit|d&c|block(?:ed|ing)?"
+    r"|needs[- ]revision|concluded)\b",
+    re.IGNORECASE,
+)
+# "decision", "direction", "governing evidence" and "ruling" are here because
+# the corpus contains records that conclude without ever writing "verdict": an
+# owner decides, and the record states the decision and its authority. Three of
+# the 86 committed logs are that genre, headed "Owner Direction" or "No debate
+# was held", and the narrower list false-blocked every one of them. Measured on
+# the current corpus: 3 of 86 rejected before, 0 after, and issue #5205's
+# 7-byte stub still fails. Found when the corpus grew from 79 to 86 while this
+# change was open and the calibration test caught it in CI.
+DEBATE_LOG_VERDICT_LABEL_RE = re.compile(
+    r"\b(verdict|position|consensus|outcome|recommendation|decision|direction"
+    r"|governing evidence|ruling|vote|stance)s?\b",
+    re.IGNORECASE,
+)
+DEBATE_LOG_HEADING_RE = re.compile(r"(?m)^#{1,6} \S")
 FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
 RETROSPECTIVE_EVIDENCE_PATTERNS = (
     re.compile(r"(?i)(##\s*retrospective|retrospective\s*section|learnings?\s*captured)"),
@@ -452,7 +556,17 @@ SEMGREP_COMMAND_LENGTH_LIMIT = 24_000
 # Lefthook owns the outer deadline; these child-process budgets must finish first.
 DEFAULT_SUBPROCESS_TIMEOUT_SECONDS = 90
 SEMGREP_TIMEOUT_SECONDS = 840
-MYPY_TIMEOUT_SECONDS = 840
+# Scoped to files differing from origin/main, so this is a handful of files,
+# not the tree. Measured 2.73s in-hook and 1.07s cold. Was 840s, which forced
+# a 15m outer cap through the ADR-086 item 9 headroom rule for no reason.
+MYPY_TIMEOUT_SECONDS = 60
+# Below the `workflow-local-run` lefthook cap (30m) per ADR-086 item 9. Unlike
+# the two above, this number is NOT measured: the only path a container can
+# exercise reports DEGRADED in under a second because actionlint is absent
+# there, and the `act` run this budget exists to bound has never been timed
+# in-hook. Cut to 540 earlier on this branch and restored in review (PR #5319),
+# because a cap without a measurement behind it is the thing ADR-104 rule 7
+# forbids, and this record cannot forbid it in one place and do it in another.
 WORKFLOW_LOCAL_TIMEOUT_SECONDS = 1_740
 # Scope the workflow-local gate to workflows this push changed versus the
 # origin/main merge base (three-dot diff). Lefthook's {push_files} is a
@@ -461,7 +575,63 @@ WORKFLOW_LOCAL_TIMEOUT_SECONDS = 1_740
 # delta. Override the base ref for tests or non-standard remotes.
 WORKFLOW_LOCAL_BASE_REF_ENV = "WORKFLOW_LOCAL_BASE_REF"
 WORKFLOW_LOCAL_DEFAULT_BASE = "origin/main"
-TEST_SUITE_TIMEOUT_SECONDS = 1_740
+# Kept below the `python-tests` lefthook cap (15m) so this fires first and the
+# reader gets a diagnostic instead of a bare kill (ADR-086 Decision item 9).
+# Only the opt-in local-execution path can reach it; the default collection
+# path is bounded by TEST_COLLECTION_TIMEOUT_SECONDS.
+# Hard ceiling on any subprocess this module spawns while running inside a
+# managed remote container. A container is reclaimed after a period without
+# progress, so a hung child there does not merely slow the push down, it
+# destroys it: the push dies with no diagnostic, the container restarts, and
+# the session re-derives its state before trying again. On a developer
+# workstation the same hang is an annoyance and the declared cap is the right
+# bound, so this clamp applies only where the environment can end the process.
+#
+# 150s is well above every measured in-hook cost of a job that routes through
+# here (the largest is python-tests at 38.84s, a 3.9x margin; semgrep is 13.43s)
+# and far below the roughly 679s at which a container reclamation was observed.
+# pre-pr-validation does not route through here and keeps its own cap, which is
+# why that cap is the expensive group's cost rather than this number.
+# Reuses the container detection issue #2548 introduced for workflow-local-run
+# rather than adding a second definition of "container".
+CONTAINER_SUBPROCESS_CEILING_SECONDS = 150.0
+
+# The whole-process bound, which is what "nothing outlives the container"
+# actually requires. The clamp above covers children spawned through
+# `_run_command`; it does not cover the work between them. Review on PR #5319
+# named three such gaps at once: `_resolve_pytest_commands` calls
+# `select_tests.changed_from_git`, which shells out unbounded, and builds the
+# import graph in-process; `scan_pushed_heads` discovers paths, materializes a
+# tree and probes semgrep's version before its aggregate clock starts. Each is
+# outside every deadline this module sets, so a hang there survived every bound
+# and the process still died to the reclaim it was supposed to prevent.
+#
+# Chasing each path would leave the next one to the next reviewer, so the bound
+# goes around the process instead: one watchdog armed in `main`, covering
+# selection, setup and execution alike, whatever a subcommand does.
+#
+# 15s above the subprocess ceiling so an inner deadline always fires first and
+# the reader gets the specific diagnostic rather than this one. Same ordering
+# rule as ADR-086 item 9, which this repository already applies between inner
+# budgets and lefthook caps.
+CONTAINER_PROCESS_CEILING_SECONDS = CONTAINER_SUBPROCESS_CEILING_SECONDS + 15.0
+
+TEST_SUITE_TIMEOUT_SECONDS = 780
+# Ceiling for the collection smoke that stands in for a local full-suite run.
+# Collection imports every test module without running a single test body, so
+# it is bounded by import cost rather than test cost. Measured on a 4-CPU
+# container, same suite: 8.9s pytest-internal / 14s wall on an idle box, 34.6s
+# wall while a full pytest run held the other cores. `ci-scripts.md` MUST-16
+# forbids sizing a pre-push cap from an idle run, so this ceiling is set from
+# the loaded figure with roughly 8x headroom rather than from the idle one, and
+# measured in-hook at ~14s collecting and ~38s on an import-graph subset
+# across fourteen real pushes; the workstation tail is still unmeasured
+# while firing (issue #5318).
+TEST_COLLECTION_TIMEOUT_SECONDS = 300
+# Opt back into executing the whole suite inside pre-push. Unset is the default
+# because that run duplicates CI's `pytest.yml` partition matrix on the same
+# commit while costing the push minutes it does not have; see ADR-104.
+PYTEST_FULL_SUITE_LOCALLY_ENV = "AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY"
 CLI_E2E_TIMEOUT_SECONDS = 1_140
 # Issue #4823: direct and CI bulk pytest use xdist `auto`, one worker per
 # logical CPU. Local pre-push is different because it shares the machine with
@@ -567,9 +737,7 @@ _GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
 # Format: __{sanitized}_{6-hex-digest} or just __{6-hex-digest} before .py.
 # The sanitized segment never contains __ (non-alnum runs collapse to single _),
 # so the last __ in a stem always marks the suffix boundary. Refs #4857.
-_HOOK_MATCHER_SUFFIX_RE = re.compile(
-    r"__(?:(?!__)[A-Za-z0-9_])*[0-9a-f]{6}(?=\.py$)"
-)
+_HOOK_MATCHER_SUFFIX_RE = re.compile(r"__(?:(?!__)[A-Za-z0-9_])*[0-9a-f]{6}(?=\.py$)")
 _PROMPT_OUTPUT_PREFIX = ".github/prompts/pr-quality-gate-"
 _PROMPT_SOURCE_PREFIX = ".claude/skills/review/references/"
 # build/scripts/generate_pr_quality_prompts.py:_FILENAME_RE
@@ -578,9 +746,7 @@ _PROMPT_ROLE_FILE_RE = re.compile(r"^[a-z][a-z0-9_-]*\.md$")
 # Reject every configured name before mirror mapping. Even top-level files that
 # the generator never visits must not gain an exemption merely because a
 # canonical file with the same name is tracked.
-_COPILOT_SKILL_EXCLUDES = frozenset(
-    {"AGENTS.md", "CLAUDE.md", "merge-resolver"}
-)
+_COPILOT_SKILL_EXCLUDES = frozenset({"AGENTS.md", "CLAUDE.md", "merge-resolver"})
 
 # Per-commit atomic file limit (AGENTS.md:24, .claude/rules/universal.md:15).
 # Generated companions (episodes, mcp, agents, memory-index) are exempt.
@@ -661,6 +827,44 @@ def _killpg_safe(pid: int) -> None:
         pass
 
 
+def _container_clamped(timeout_seconds: float) -> float:
+    """Bound a subprocess deadline to what a managed container can survive.
+
+    Returns ``timeout_seconds`` unchanged outside a container, and outside this
+    module's control in CI, where `_is_remote_container` returns False so a real
+    hang still fails the way CI expects.
+
+    The import is local because `run_workflow_local_test` is a sibling policy
+    module rather than a utility; importing it at module scope would make every
+    caller of `git_hook_policy` pay for it. A missing sibling degrades to no
+    clamp rather than raising: the clamp is a safety net, and a net that can
+    break the push it protects is worse than no net.
+
+    That degradation is the one hole in the per-job container bound, so it is
+    loud. Silently returning the unclamped deadline would leave a container
+    push able to outlive its environment with nothing in the output saying the
+    guarantee had lapsed, which is the exact shape of failure this whole change
+    exists to remove: a claim held in place by something nobody can see. The
+    warning costs one line on a path that should never run.
+    """
+    try:
+        from run_workflow_local_test import _is_remote_container
+    except ImportError:
+        print(
+            "WARNING: container detection unavailable "
+            "(run_workflow_local_test could not be imported), so the "
+            f"{CONTAINER_SUBPROCESS_CEILING_SECONDS:.0f}s container clamp is "
+            "NOT applied. Inside a managed container this push can exceed the "
+            "per-job ceiling and be reclaimed without a diagnostic. See "
+            "ADR-104 rule 8.",
+            file=sys.stderr,
+        )
+        return timeout_seconds
+    if not _is_remote_container():
+        return timeout_seconds
+    return min(timeout_seconds, CONTAINER_SUBPROCESS_CEILING_SECONDS)
+
+
 def _run_command(
     args: Sequence[str],
     repo_root: Path,
@@ -681,6 +885,7 @@ def _run_command(
     env = dict(process_env) if process_env is not None else _clean_git_env()
     if extra_env is not None:
         env.update(extra_env)
+    timeout_seconds = _container_clamped(timeout_seconds)
     command = list(args)
     try:
         proc = subprocess.Popen(
@@ -732,8 +937,15 @@ def _run_command_bytes(
     """Byte-mode variant of ``_run_command``.
 
     Kills the process group on timeout for the same reason as ``_run_command``
-    (Issue #4217).
+    (Issue #4217), and clamps its deadline in a managed container for the same
+    reason again. The clamp was missing here until review on PR #5319 found it:
+    ADR-104 rule 8 says nothing local may outlive its environment, and a second
+    entry point that spawns children without the bound is a hole in that claim
+    however small its current call graph. Today the only caller passes the 90s
+    default, under the 150s ceiling, so this changes no behavior; it stops the
+    next caller that passes a larger value from escaping silently.
     """
+    timeout_seconds = _container_clamped(timeout_seconds)
     command = list(args)
     try:
         proc = subprocess.Popen(
@@ -786,9 +998,28 @@ def _timeout_bytes(value: bytes | str | None) -> bytes:
     return value
 
 
+# The phrase `_run_command` appends to a killed child's stderr, and the only
+# thing that distinguishes its synthesized exit 3 from a child that exited 3 on
+# its own. pytest uses 3 for an internal error, so a caller reading the code
+# alone reports "timed out" for a crash and sends the developer to the budget
+# instead of the traceback. Defined once so the producer below and `_timed_out`
+# cannot drift apart. Raised in review on PR #5319.
+TIMEOUT_MARKER = " timed out after "
+
+
 def _timeout_message(args: Sequence[str], timeout_seconds: float) -> str:
     subject = _timeout_subject(args)
-    return f"ERROR: {subject} timed out after {timeout_seconds:g} seconds\n"
+    return f"ERROR: {subject}{TIMEOUT_MARKER}{timeout_seconds:g} seconds\n"
+
+
+def _timed_out(result: subprocess.CompletedProcess[str]) -> bool:
+    """Whether `_run_command` killed this child, rather than it exiting 3 itself.
+
+    Exit 3 is overloaded: `_run_command` synthesizes it on timeout, on an
+    `OSError` launching the process, and pytest returns it for an internal
+    error. Only the marker `_run_command` appends says which happened.
+    """
+    return result.returncode == 3 and TIMEOUT_MARKER in (result.stderr or "")
 
 
 def _timeout_subject(args: Sequence[str]) -> str:
@@ -1346,6 +1577,12 @@ def _is_debate_log_path(relative_path: str) -> bool:
     if safe_path is None:
         return False
     path = PurePosixPath(safe_path)
+    # Exactly .agents/critique, not below it. A log staged one directory deeper
+    # is not a candidate at all, so a commit carrying only such a file fails
+    # with the generic "requires a debate log staged in .agents/critique"
+    # rather than something that explains the nesting. Fails closed, so this is
+    # a diagnostic gap and not a hole, but it will read as the gate not seeing
+    # a file that is plainly there.
     return (
         path.parent == PurePosixPath(".agents/critique")
         and path.suffix == ".md"
@@ -1353,37 +1590,426 @@ def _is_debate_log_path(relative_path: str) -> bool:
     )
 
 
-def _staged_debate_log_paths(repo_root: Path) -> list[str]:
+def _staged_debate_log_paths(repo_root: Path) -> list[str] | None:
+    """Return the staged paths under the critique directory that look like logs.
+
+    ``T`` is in the filter, matching the three other staged-path queries in this
+    module. Without it a type change is invisible here: replacing an already
+    tracked regular debate log with a symlink stages as ``T``, never reaches the
+    non-regular-file check below, and rides through on a valid sibling's
+    evidence. Reproduced on this branch with exactly that shape, one tracked log
+    converted to a symlink beside one valid covering log::
+
+        M  .agents/architecture/ADR-042-python-migration-strategy.md
+        T  .agents/critique/ADR-042-debate-log.md
+        A  .agents/critique/ADR-042-review-debate-log.md
+        ACMR paths seen by the gate -> ['.agents/critique/ADR-042-review-debate-log.md']
+        check_adr_review_policy -> 0
+
+    The non-regular-file check was added for the add-a-symlink shape and did not
+    reach the convert-a-file shape, which is the same class of miss one filter
+    earlier. Issue #5205.
+
+    Returns None when the query itself fails, rather than an empty list. Both
+    block, since no candidates means no evidence, but the empty list blocks with
+    "requires a debate log staged in .agents/critique", which sends a committer
+    who already staged one to look for a file that is sitting right there. A
+    swallowed error that reports as an absence is the shape this whole gate is
+    about; it does not get a pass for being fail-closed.
+    """
     result = _run_git(
         repo_root,
         [
             "diff",
             "--cached",
             "--name-only",
-            "--diff-filter=ACMR",
+            "--diff-filter=ACMRT",
             "-z",
             "--",
             ".agents/critique",
         ],
     )
     if result.returncode != 0:
-        return []
+        _print_process_output(result, stdout_stream=sys.stderr)
+        return None
     return [path for path in result.stdout.split("\0") if _is_debate_log_path(path)]
 
 
-def _staged_debate_references_adr(
-    relative_path: str,
+def _referenced_adr_ids(content: str) -> set[str]:
+    return {match.group(0).upper() for match in ADR_ID_RE.finditer(content)}
+
+
+def _has_verdict(content: str) -> bool:
+    """Return True when a decision sits within the window of a verdict label.
+
+    One bounded path, deliberately. There used to be a second, unbounded one:
+    any pipe-prefixed row anywhere in the document containing a role and a
+    decision word counted as a positions table. Review showed that accepted
+    prose notes that decide nothing, for instance::
+
+        | architect | Open issue | dependency remains blocked |
+
+    which names a role and contains "blocked" while recording an open issue.
+
+    The fallback is deleted rather than narrowed, because it turned out to be
+    redundant once ``DEBATE_LOG_VERDICT_LABEL_RE`` covered the words real
+    positions tables head their columns with (position, stance, vote). A table
+    header is itself a label line, and its rows fall inside the window, so the
+    bounded branch already accepts every genuine positions table. Measured with
+    the fallback removed: 0 of the 86 committed logs rejected. Issue #5205.
+    """
+    lines = content.splitlines()
+    for index, line in enumerate(lines):
+        if not DEBATE_LOG_VERDICT_LABEL_RE.search(line):
+            continue
+        window = lines[index : index + DEBATE_LOG_VERDICT_WINDOW_LINES]
+        if any(DEBATE_LOG_DECISION_RE.search(entry) for entry in window):
+            return True
+    return False
+
+
+def _evidence_byte_count(content: str) -> int:
+    """Return the byte count of ``content``, ignoring replacement characters.
+
+    A lossy decode turns every byte that is not valid UTF-8 into U+FFFD, which
+    re-encodes to three bytes. Measuring the decoded text directly therefore
+    inflates the count threefold over the invalid span: 100 on-disk bytes of
+    ``0xFF`` measure 300 and clear a stated 300-byte floor. Replacement
+    characters carry no review text, so they count for nothing here and the
+    floor stays a floor on real bytes.
+
+    The staged path no longer decodes lossily. ``_staged_debate_log_contents``
+    decodes strictly and routes a blob that is not valid UTF-8 to the undecodable
+    report, so the inflation above cannot arrive through the gate any more. This
+    stays because it is a property of the function rather than of one caller:
+    ``debate_log_evidence_gap`` is public, takes text from wherever its caller
+    got it, and a future caller that decodes leniently would otherwise inherit
+    the bypass. Two independent things have to be wrong before the floor is.
+
+    Fail-closed against the measurement it replaces, which is the claim that
+    matters: for any input this returns at most what
+    ``len(content.encode("utf-8"))`` returned, since it encodes the same text
+    minus the replacement characters, so it admits nothing the old measurement
+    rejected. It is NOT bounded by the decoded character count, and saying so
+    would be wrong: 200 characters of U+00E9 measure 400 bytes here, which a
+    test pins.
+
+    The residual: an authored U+FFFD, one a committer typed on purpose rather
+    than one the decoder produced, loses three bytes here. The two are
+    indistinguishable after decoding, so the choice is which way to be wrong,
+    and undercounting can only block a log the committer can then lengthen,
+    while overcounting admits the invalid-byte bypass this exists to close.
+    None of the 86 committed logs contains a replacement character. Issue #5205.
+    """
+    return len(content.replace("\ufffd", "").encode("utf-8"))
+
+
+# Three normalizations, each closing a class of edit rather than one variant.
+#
+# Cf is the Unicode "format" category: zero-width space, ZWNJ, ZWJ, soft hyphen,
+# the bidi controls. Every one of them renders as nothing and none of them are
+# review content, so a placeholder wearing them is still a placeholder.
+#
+# A markdown backslash escape renders as the character it escapes, so `\]` and
+# `]` are the same document to every reader and different strings to a matcher.
+#
+# `[^\S\r\n]` is whitespace minus the line breaks, so U+00A0, U+2007 and U+202F
+# collapse while a placeholder still cannot match across a line it does not span.
+#
+# The class framing is the point, and it was learned the expensive way: this
+# check was defeated four times on this PR, by invalid bytes, ASCII spaces,
+# U+00A0, and markdown escapes. Each fix targeted the variant in front of it and
+# the next variant was cheaper than the last. Zero-width and soft hyphen cleared
+# the gate too and nobody had reported them; they were found by asking what else
+# is invisible rather than by waiting for the fifth review round.
+DEBATE_LOG_PLACEHOLDER_FORMAT_CATEGORY = "Cf"
+DEBATE_LOG_PLACEHOLDER_ESCAPE_RE = re.compile(r"\\([!-/:-@\[-`{-~])")
+DEBATE_LOG_PLACEHOLDER_SPACING_RE = re.compile(r"[^\S\r\n]+")
+DEBATE_LOG_PLACEHOLDER_PUNCTUATION_RE = re.compile(r" ?([\[\]|]) ?")
+
+
+def _normalized_for_placeholders(text: str) -> str:
+    """Return ``text`` with the spacing and case a placeholder edit can change.
+
+    Matching the template's literals exactly was defeated by editing them
+    rather than filling them in. Measured on the shipped template: adding one
+    space before each closing bracket stops all nine literals matching while
+    every other signal stays satisfied, so the visibly unedited template
+    cleared the gate for nine keystrokes. Upper-casing one word does the same.
+
+    Invisible formatting characters go, markdown backslash escapes resolve to
+    the character they escape, horizontal whitespace of any kind collapses,
+    spacing around ``[``, ``]`` and ``|`` goes, and the result case-folds.
+    Newlines survive so a placeholder cannot be matched across a line it does
+    not span. Calibrated like the literals themselves: 0 of the 86 committed
+    logs are rejected by the normalized comparison, the same as by the exact
+    one, with every variant above measured individually. Issue #5205.
+    """
+    visible = "".join(
+        character
+        for character in text
+        if unicodedata.category(character) != DEBATE_LOG_PLACEHOLDER_FORMAT_CATEGORY
+    )
+    unescaped = DEBATE_LOG_PLACEHOLDER_ESCAPE_RE.sub(r"\1", visible)
+    collapsed = DEBATE_LOG_PLACEHOLDER_SPACING_RE.sub(" ", unescaped)
+    return DEBATE_LOG_PLACEHOLDER_PUNCTUATION_RE.sub(r"\1", collapsed).casefold()
+
+
+def debate_log_evidence_gap(content: str) -> str | None:
+    """Return why ``content`` fails as review evidence, or None when it passes.
+
+    Issue #5205: the gate accepted any staged ``.agents/critique/*debate*.md``
+    whose bytes contained an ADR id, so a 7-byte file cleared it. These four
+    signals are calibrated against the 86 debate logs in ``.agents/critique`` on
+    main: all 86 pass, and a stub carrying only an ADR id fails on the first.
+
+    A fifth check rejects a log still carrying the canonical template's own
+    placeholders. The shipped template clears the four signals above unchanged,
+    so without it a contributor could copy the template, change the title, and
+    self-authorize an ADR lifecycle change with a document nobody filled in.
+
+    What this is worth, stated at the floor rather than at the ceiling. It
+    stops the accidental and the lazy: a 7-byte stub, an unfilled template, a
+    name-shaped file. It does not raise forgery to anything like "deliberately
+    constructed", and an earlier version of this docstring said otherwise.
+    ``test_the_weakest_currently_passing_log_is_pinned`` holds the real floor,
+    and it is about thirty seconds of typing::
+
+        # D
+
+        ## Outcome
+
+        Accepted.
+
+        ### Notes
+
+        agent
+
+        <filler to clear the byte floor>
+
+    Every signal is a property of text the committer controls, so a committer
+    who wants past this gate gets past it. Binding the gate to attestation of
+    the review itself is tracked on #5245 and #5247; until then this is a
+    tripwire, not a control.
+
+    One more limit worth naming here rather than leaving in a test docstring:
+    coverage is by citation, not by review. ``_referenced_adr_ids`` scans the
+    whole log, so a log that genuinely reviews ADR-042 and mentions ADR-005
+    once in a footer covers both. That is the semantics issue #5205 asked for
+    and it narrows defect 2 rather than closing it: one log can still authorize
+    a second record it never discusses, it just has to name it.
+    ``test_an_incidental_mention_covers_a_staged_id`` pins that behavior.
+    """
+    if _evidence_byte_count(content) < DEBATE_LOG_MIN_BYTES:
+        return f"shorter than {DEBATE_LOG_MIN_BYTES} bytes"
+    if len(DEBATE_LOG_HEADING_RE.findall(content)) < DEBATE_LOG_MIN_SECTIONS:
+        return f"fewer than {DEBATE_LOG_MIN_SECTIONS} markdown sections"
+    if not DEBATE_LOG_REVIEWER_RE.search(content):
+        return (
+            "no reviewer attribution (an adr-review role, 'participants', "
+            "'reviewers', 'agents' as in the template's 'Agent Positions', "
+            "or 'self-review')"
+        )
+    if not _has_verdict(content):
+        return (
+            "no verdict (a decision within "
+            f"{DEBATE_LOG_VERDICT_WINDOW_LINES} lines of a verdict, decision, "
+            "position, stance, vote or outcome label; a positions-table "
+            "header counts as that label)"
+        )
+    normalized = _normalized_for_placeholders(content)
+    unresolved = [
+        placeholder
+        for placeholder in DEBATE_LOG_TEMPLATE_PLACEHOLDERS
+        if _normalized_for_placeholders(placeholder) in normalized
+    ]
+    if unresolved:
+        shown = ", ".join(repr(placeholder) for placeholder in unresolved[:3])
+        return f"unfilled template placeholders ({shown})"
+    return None
+
+
+def _staged_debate_log_contents(
+    debate_logs: Sequence[str],
     repo_root: Path,
-    adr_ids: set[str],
-) -> bool:
-    if not _is_staged_regular_file(repo_root, relative_path):
-        return False
-    blob = _read_index_blob(repo_root, relative_path)
-    if blob is None:
-        return False
-    content = blob.decode("utf-8", errors="replace")
-    referenced = {match.group(0).upper() for match in ADR_ID_RE.finditer(content)}
-    return bool(referenced & adr_ids)
+) -> tuple[dict[str, str], list[str], list[str], dict[str, str]]:
+    """Return the readable logs, the undecodable ones, and the unreadable ones.
+
+    Neither failure list is silently dropped. Dropping fails open whenever
+    another staged log covers every staged id: the dropped log is simply
+    absent, both checks pass on its sibling, and the gate clears a commit
+    carrying a log nobody could read. Reproduced on this branch with one
+    unreadable log staged beside one valid covering log:
+    ``check_adr_review_policy`` returned 0.
+
+    Undecodable and unreadable are separate lists because they exit
+    differently. Bytes that are not UTF-8 are the committer's content and a
+    judgement about it is exit 1. ``git show`` refusing to produce the blob at
+    all is external and exit 3, the same reasoning the discovery query and the
+    per-path regular-file query already follow. Collapsing them reported a
+    broken index as though the committer had staged mojibake. Issue #5205.
+    """
+    contents: dict[str, str] = {}
+    undecodable: list[str] = []
+    unreadable: list[str] = []
+    unreadable_diagnostics: dict[str, str] = {}
+    for path in debate_logs:
+        if not _is_staged_regular_file(repo_root, path):  # pragma: no cover
+            # Unreachable from the only caller, which filters through
+            # `_staged_regular_file_state` first. Kept because it is the check
+            # that stops a staged symlink from being read as review evidence,
+            # and a future caller skipping the pre-filter would inherit that
+            # hole silently. Carved out per TESTING-RIGOR.md.
+            unreadable.append(path)
+            continue
+        blob_result = _run_git_bytes(repo_root, ["show", f":{path}"])
+        if blob_result.returncode != 0:
+            unreadable.append(path)
+            unreadable_diagnostics[path] = blob_result.stderr.decode("utf-8", errors="replace")
+            continue
+        blob = blob_result.stdout
+        try:
+            # Strict, not errors="replace". Lossy decoding destroys the
+            # evidence that the bytes were invalid, and every downstream signal
+            # then reads a document the committer did not write. Measured:
+            # corrupting one byte inside each of the ten template placeholders
+            # left the headings, roster column, outcome line and ADR id intact
+            # while every literal stopped matching, so the unfilled template
+            # cleared the gate at 402 on-disk bytes.
+            contents[path] = blob.decode("utf-8")
+        except UnicodeDecodeError:
+            undecodable.append(path)
+    return contents, undecodable, unreadable, unreadable_diagnostics
+
+
+def _staged_content_failure(
+    undecodable: Sequence[str],
+    unreadable: Sequence[str],
+    unreadable_diagnostics: Mapping[str, str],
+) -> int | None:
+    """Return the exit code for a log that could not be turned into text.
+
+    External first. A blob git would not produce says nothing about the
+    committer's evidence, so reporting it as bad content would be an
+    accusation about work that was never examined.
+    """
+    if unreadable:
+        # `git show`'s own stderr per path, not a generic claim that it is
+        # "above": a timeout, a permission failure, or a damaged index each
+        # says something different, and the committer needs to know which.
+        for path in sorted(unreadable):
+            diagnostic = unreadable_diagnostics.get(path, "").strip()
+            if diagnostic:
+                print(f"{path}: {diagnostic}", file=sys.stderr)
+        names = ", ".join(sorted(unreadable))
+        print(
+            f"ERROR: could not read the staged debate log blob; the git query failed: {names}.",
+            file=sys.stderr,
+        )
+        return 3
+    if undecodable:
+        names = ", ".join(sorted(undecodable))
+        print(
+            f"ERROR: staged debate log is not valid UTF-8 text: {names}. "
+            "A log that cannot be read is not review evidence.",
+            file=sys.stderr,
+        )
+        return 1
+    return None
+
+
+def _debate_log_evidence_error(contents: dict[str, str]) -> str | None:
+    """Return the first staged log's evidence gap, or None when all pass.
+
+    First, not all. A commit staging several inadequate logs is told about one
+    of them, fixes it, and rediscovers the next on the following attempt. That
+    is a worse loop than the unreadable and non-regular errors above, which
+    name every offending path at once, and it is a deliberate asymmetry only
+    in the sense that nobody has needed the batched form yet. Named here so the
+    next person to hit it knows it is a known shape rather than a bug.
+    """
+    for path in sorted(contents):
+        gap = debate_log_evidence_gap(contents[path])
+        if gap is not None:
+            return (
+                f"{path} is not a debate log: {gap}. "
+                "See .claude/skills/adr-review/references/artifacts.md."
+            )
+    return None
+
+
+def _uncovered_adr_ids(adr_ids: set[str], contents: dict[str, str]) -> set[str]:
+    # Fold zero padding on both sides through the module's one normalizer.
+    # ADR_ID_RE matches digits literally, so ADR-42 and ADR-042 are distinct
+    # strings; filenames here pad to three digits and prose does not, so a
+    # genuine log writing ADR-42 for ADR-042-*.md would fail this check.
+    # Under the old any() test a sibling log usually rescued that; requiring
+    # full coverage made it fatal. Issue #5205.
+    covered: set[str] = set()
+    for content in contents.values():
+        covered |= {_normalized_record_number(found) for found in _referenced_adr_ids(content)}
+    # Compare on the normalized key, report the staged filename form so the
+    # error names the id the committer will recognize.
+    return {staged for staged in adr_ids if _normalized_record_number(staged) not in covered}
+
+
+def _classify_staged_candidates(
+    candidates: Sequence[str],
+    repo_root: Path,
+) -> tuple[list[str], list[str], list[str]]:
+    """Split staged candidates into regular, non-regular, and unanswerable.
+
+    Three lists rather than a filter, because each one exits the gate
+    differently: a regular blob is evidence to weigh, a non-regular one is a
+    committer error worth exit 1, and a path git could not answer for is an
+    external failure worth exit 3. Collapsing any pair loses a distinction the
+    caller has to make.
+    """
+    regular: list[str] = []
+    irregular: list[str] = []
+    unknown: list[str] = []
+    for path in candidates:
+        state = _staged_regular_file_state(repo_root, path)
+        if state is None:
+            unknown.append(path)
+        elif state:
+            regular.append(path)
+        else:
+            irregular.append(path)
+    return regular, irregular, unknown
+
+
+def _usable_staged_logs(
+    candidates: Sequence[str],
+    repo_root: Path,
+) -> tuple[list[str], int | None]:
+    """Return the logs worth reading, or the exit code that stops the commit.
+
+    Both refusals report every offending path by name rather than the first,
+    because a committer fixing them one round trip at a time is the loop the
+    unreadable-log message already apologises for.
+    """
+    regular, irregular, unknown = _classify_staged_candidates(candidates, repo_root)
+    if unknown:
+        names = ", ".join(sorted(unknown))
+        print(
+            f"ERROR: could not tell whether these staged paths are regular "
+            f"files; the git query failed: {names}. The output above is git's.",
+            file=sys.stderr,
+        )
+        # 3 for the same reason the discovery failure is 3: nothing was
+        # examined. Calling this a symlink would accuse the committer of
+        # staging one.
+        return [], 3
+    if irregular:
+        names = ", ".join(sorted(irregular))
+        print(
+            f"ERROR: staged debate log is not a regular file: {names}. "
+            "A symlink is not review evidence.",
+            file=sys.stderr,
+        )
+        return [], 1
+    return regular, None
 
 
 def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
@@ -1404,11 +2030,32 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
     # skill writes to .agents/critique/.
     # Only stage-zero regular files in the caller's staged path set can satisfy
     # the gate. Working-tree-only evidence must not authorize an ADR commit.
-    debate_logs = [
-        path
-        for path in _staged_debate_log_paths(repo_root)
-        if _is_staged_regular_file(repo_root, path)
-    ]
+    #
+    # A non-regular candidate is reported, not filtered away. Dropping it here
+    # was the same fail-open shape as dropping an unreadable log: with one
+    # valid covering log staged beside it, nothing was left to fail on and a
+    # staged symlink named *debate*.md rode through on its sibling's evidence.
+    # Found by review of PR #5308.
+    candidates = _staged_debate_log_paths(repo_root)
+    if candidates is None:
+        print(
+            "ERROR: could not list the staged debate logs; the git query failed. "
+            "This is not the same as staging none.",
+            file=sys.stderr,
+        )
+        # 3, not 1. This function's return value is the CLI's exit code
+        # (`git_hook_policy.py` dispatch), and `AGENTS.md:50` reserves 1 for a
+        # logic violation and 3 for an external failure. Git refusing to answer
+        # is external, and collapsing it into 1 tells automation that the
+        # committer's evidence was rejected when the truth is that nothing was
+        # ever examined. This is one of several exits from this gate that use
+        # 3; `_usable_staged_logs` and `_staged_content_failure` below also
+        # return it for their own failed git queries. What stays 1 is any exit
+        # that is a judgement about staged evidence rather than about git.
+        return 3
+    debate_logs, candidate_failure = _usable_staged_logs(candidates, repo_root)
+    if candidate_failure is not None:
+        return candidate_failure
     if not debate_logs:
         print(
             "ERROR: ADR changes require a debate log staged in .agents/critique",
@@ -1416,12 +2063,37 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
         )
         return 1
 
-    adr_ids = _extract_adr_ids(gated_paths)
-    if adr_ids and not any(
-        _staged_debate_references_adr(path, repo_root, adr_ids) for path in debate_logs
-    ):
-        names = ", ".join(sorted(adr_ids))
-        print(f"ERROR: no debate log references the staged ADR IDs: {names}", file=sys.stderr)
+    contents, undecodable, unreadable, unreadable_diagnostics = _staged_debate_log_contents(
+        debate_logs, repo_root
+    )
+
+    # Neither list may be merely skipped: with a covering sibling, skipping
+    # clears the gate. They exit differently because they are different
+    # failures, external before the committer's own.
+    read_failure = _staged_content_failure(undecodable, unreadable, unreadable_diagnostics)
+    if read_failure is not None:
+        return read_failure
+
+    # Issue #5205 defect 1: a name-shaped file is not evidence that a review
+    # happened. Every staged log must carry evidence of one.
+    evidence_error = _debate_log_evidence_error(contents)
+    if evidence_error is not None:
+        print(f"ERROR: {evidence_error}", file=sys.stderr)
+        return 1
+
+    # Issue #5205 defect 2: this was any() over the union of staged ids, so one
+    # log naming one ADR authorized every ADR staged beside it. Require that
+    # every staged id is covered by the union of the staged logs.
+    missing = _uncovered_adr_ids(_extract_adr_ids(gated_paths), contents)
+    if missing:
+        names = ", ".join(sorted(missing))
+        # "no debate log references" was false whenever coverage was partial:
+        # a log may name ADR-042 while only ADR-005 is missing. The gate now
+        # requires every staged id, so the message names what is uncovered.
+        print(
+            f"ERROR: staged ADR IDs not referenced by any staged debate log: {names}",
+            file=sys.stderr,
+        )
         return 1
     return 0
 
@@ -2488,7 +3160,7 @@ def _mirror_source(relative_path: str) -> str | None:
     escape the limit, which is a larger hole than the friction it removes.
     """
     if relative_path.startswith(_PROMPT_OUTPUT_PREFIX):
-        role_file = relative_path[len(_PROMPT_OUTPUT_PREFIX):]
+        role_file = relative_path[len(_PROMPT_OUTPUT_PREFIX) :]
         if _PROMPT_ROLE_FILE_RE.fullmatch(role_file):
             return _PROMPT_SOURCE_PREFIX + role_file
         return None
@@ -2501,7 +3173,7 @@ def _mirror_source(relative_path: str) -> str | None:
     for output_prefix, source_prefix, suffix_map in _GENERATED_MIRRORS:
         if not relative_path.startswith(output_prefix):
             continue
-        remainder = relative_path[len(output_prefix):]
+        remainder = relative_path[len(output_prefix) :]
         if suffix_map is not None:
             output_suffix, source_suffix = suffix_map
             if not remainder.endswith(output_suffix):
@@ -2516,8 +3188,22 @@ def _mirror_source(relative_path: str) -> str | None:
     return None
 
 
-def _is_staged_regular_file(repo_root: Path, relative_path: str) -> bool:
-    """Return True only for a stage-zero regular blob in Git's index."""
+# Git's fatal exit. `ls-files --error-unmatch` exits 1 for a path that is simply
+# not in the index, which is an answer, and 128 when it could not look: not a
+# repository, a broken index, a permission failure. Measured both.
+GIT_FATAL_RETURNCODE = 128
+
+
+def _staged_regular_file_state(repo_root: Path, relative_path: str) -> bool | None:
+    """Return whether the path is a stage-zero regular blob, or None if unknown.
+
+    Tri-state, because ``False`` was answering two different questions. A path
+    that is not a regular staged blob and a query that could not run both came
+    back ``False``, and the ADR gate reports the first as "not a regular file:
+    a symlink is not review evidence" with exit 1. A broken git therefore
+    accused the committer of staging a symlink. That is the same swallow the
+    discovery query had, one function over and one review round later.
+    """
     safe_path = _safe_relative_path(relative_path)
     if safe_path is None:
         return False
@@ -2531,10 +3217,28 @@ def _is_staged_regular_file(repo_root: Path, relative_path: str) -> bool:
             f":(literal){safe_path}",
         ],
     )
-    if result.returncode != 0:
+    # 1 alone is a real answer, and the only one: `ls-files --error-unmatch`
+    # documents 1 for a path outside the index. Every other nonzero code is
+    # "could not look", not "looked, not there" -- including a timeout or a
+    # failed process start, which `_run_command` synthesizes as 3 and which
+    # this reached for before falling through to the same bucket as 128.
+    if result.returncode == 1:
         return False
+    if result.returncode != 0:
+        _print_process_output(result, stdout_stream=sys.stderr)
+        return None
     fields = result.stdout.partition("\t")[0].split()
     return len(fields) >= 3 and fields[0] in {"100644", "100755"} and fields[2] == "0"
+
+
+def _is_staged_regular_file(repo_root: Path, relative_path: str) -> bool:
+    """Return True only for a stage-zero regular blob in Git's index.
+
+    Kept as the boolean face of ``_staged_regular_file_state`` so the callers
+    that have no exit code to choose are unchanged. An unknown answer is not a
+    regular file to them, which is the fail-closed reading.
+    """
+    return _staged_regular_file_state(repo_root, relative_path) is True
 
 
 def _is_generated(relative_path: str, repo_root: Path | None = None) -> bool:
@@ -2634,8 +3338,7 @@ def check_atomic_commit(repo_root: Path) -> int:
     authored_count = len(authored)
     if merge_exempt:
         print(
-            f"INFO: {len(merge_exempt)} merge-brought file(s) excluded from "
-            "atomic-commit count.",
+            f"INFO: {len(merge_exempt)} merge-brought file(s) excluded from atomic-commit count.",
             file=sys.stderr,
         )
     if generated:
@@ -3768,10 +4471,37 @@ def _suppression_violations_in_text(head: str, path: str, text: str) -> list[str
 
 
 def scan_pushed_heads(stream: TextIO, repo_root: Path) -> int:
+    """Semgrep every pushed head, under one deadline for the whole job.
+
+    The deadline is the job-level bound ADR-104 rule 8 asks for. Without it this
+    function was the last unbounded path in pre-push: it loops over pushed refs,
+    each ref's scan batches its targets, and every batch got a fresh
+    `_run_command` allowance, so a container push cost refs times batches times
+    the 150s subprocess clamp. A clamp on one child says nothing about a job
+    that runs many, which is the same defect `run_pytest` carried until review
+    on PR #5319 and this is the sibling fix.
+
+    The budget is `SEMGREP_TIMEOUT_SECONDS`, which is what a single scan already
+    had, so a one-ref push is unchanged on a workstation. It stays under
+    ADR-054's enforced 900s security-scan budget, which this does not overturn.
+    In a managed container `_container_clamped` takes it to 150s for the job
+    rather than for each child.
+    """
     updates = _push_updates(stream, repo_root)
     if updates is None:
         return 2
+    budget = _container_clamped(SEMGREP_TIMEOUT_SECONDS)
+    deadline = time.monotonic() + budget
     for update in updates:
+        if time.monotonic() >= deadline:
+            print(
+                f"ERROR: security scan exceeded its {budget:g}s budget before "
+                f"reaching {update.head}. Earlier refs in this push consumed "
+                "it. Push fewer refs at once, or raise the budget with a "
+                "measurement behind it (ci-scripts.md MUST-16).",
+                file=sys.stderr,
+            )
+            return 1
         paths = _changed_commit_paths(update, repo_root)
         if paths is None:
             return 2
@@ -3783,7 +4513,7 @@ def scan_pushed_heads(stream: TextIO, repo_root: Path) -> int:
         ]
         if not scan_paths:
             continue
-        result = _scan_pushed_head(update.head, scan_paths, repo_root)
+        result = _scan_pushed_head(update.head, scan_paths, repo_root, deadline=deadline)
         if result != 0:
             return result
     return 0
@@ -3793,13 +4523,20 @@ def _scan_pushed_head(
     head: str,
     paths: Sequence[str],
     repo_root: Path,
+    *,
+    deadline: float | None = None,
 ) -> int:
+    """Scan one pushed head. `deadline` is the job's, shared across every head.
+
+    None means no aggregate bound, which is the shape direct unit callers use.
+    Production always passes one: `scan_pushed_heads` owns it.
+    """
     with tempfile.TemporaryDirectory(prefix="lefthook-semgrep-") as temp_dir:
         tree = Path(temp_dir)
         materialized = _materialize_commit_tree(head, tree, repo_root, paths)
         if materialized != 0:
             return materialized
-        result = _run_semgrep_tree(tree, paths, repo_root)
+        result = _run_semgrep_tree(tree, paths, repo_root, deadline=deadline)
         _print_process_output(result)
         if result.returncode != 0:
             return result.returncode
@@ -4134,16 +4871,37 @@ def _run_semgrep_tree(
     tree: Path,
     paths: Sequence[str],
     repo_root: Path,
+    *,
+    deadline: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    """Run semgrep over one materialized tree, in batches under one deadline.
+
+    `deadline` is the security-scan job's, shared with every other head in the
+    push. None keeps the legacy per-batch budget and is the shape direct unit
+    callers use; production passes the job's deadline down from
+    `scan_pushed_heads`.
+    """
     targets = [str(tree / path) for path in paths]
     finding: subprocess.CompletedProcess[str] | None = None
     last_result: subprocess.CompletedProcess[str] | None = None
     try:
         for batch in _semgrep_target_batches(targets, repo_root):
+            if deadline is None:
+                allowance = float(SEMGREP_TIMEOUT_SECONDS)
+            else:
+                allowance = deadline - time.monotonic()
+                if allowance <= 0:
+                    return subprocess.CompletedProcess(
+                        [],
+                        1,
+                        "",
+                        "security scan exceeded its budget before scanning "
+                        f"{len(batch)} remaining target(s)\n",
+                    )
             result = _run_command(
                 _semgrep_command("auto", batch, repo_root),
                 repo_root,
-                timeout_seconds=SEMGREP_TIMEOUT_SECONDS,
+                timeout_seconds=allowance,
             )
             if result.returncode not in {0, 1}:
                 return result
@@ -5812,16 +6570,12 @@ class _SquashMergeResult:
 
     __slots__ = ("lost_commits", "warning")
 
-    def __init__(
-        self, lost_commits: list[str] | None = None, warning: str | None = None
-    ) -> None:
+    def __init__(self, lost_commits: list[str] | None = None, warning: str | None = None) -> None:
         self.lost_commits = lost_commits
         self.warning = warning
 
 
-def _probe_squash_state(
-    remote_sha: str, local_sha: str, repo_root: Path
-) -> _SquashMergeResult:
+def _probe_squash_state(remote_sha: str, local_sha: str, repo_root: Path) -> _SquashMergeResult:
     """Interrogate git to determine whether a branch was squash-merged.
 
     Returns a result with:
@@ -5839,7 +6593,8 @@ def _probe_squash_state(
 
     # Find merge-base between origin/main and the remote tip.
     base_result = _run_git(
-        repo_root, ["merge-base", "origin/main", remote_sha],
+        repo_root,
+        ["merge-base", "origin/main", remote_sha],
     )
     if base_result.returncode != 0:
         return _SquashMergeResult(
@@ -5850,18 +6605,17 @@ def _probe_squash_state(
     merge_base = base_result.stdout.strip()
     if not merge_base:
         return _SquashMergeResult(
-            warning="merge-base with origin/main is empty. Cannot determine "
-            "squash-merge state."
+            warning="merge-base with origin/main is empty. Cannot determine squash-merge state."
         )
 
     # Files the branch touched relative to the merge-base.
     files_result = _run_git(
-        repo_root, ["diff", "--name-only", merge_base, remote_sha],
+        repo_root,
+        ["diff", "--name-only", merge_base, remote_sha],
     )
     if files_result.returncode != 0:
         return _SquashMergeResult(
-            warning="could not diff branch against merge-base. Cannot "
-            "determine squash-merge state."
+            warning="could not diff branch against merge-base. Cannot determine squash-merge state."
         )
     branch_files = [f for f in files_result.stdout.splitlines() if f.strip()]
     if not branch_files:
@@ -5882,12 +6636,12 @@ def _probe_squash_state(
 
     # Squash-merge confirmed. List commits that will be orphaned.
     lost_result = _run_git(
-        repo_root, ["rev-list", "--oneline", f"origin/main..{local_sha}"],
+        repo_root,
+        ["rev-list", "--oneline", f"origin/main..{local_sha}"],
     )
     if lost_result.returncode != 0:
         return _SquashMergeResult(
-            warning="squash-merge signature detected but could not list "
-            "orphaned commits."
+            warning="squash-merge signature detected but could not list orphaned commits."
         )
     lost = [line for line in lost_result.stdout.splitlines() if line.strip()]
     return _SquashMergeResult(lost_commits=lost if lost else None)
@@ -6561,25 +7315,173 @@ def _pytest_commands_for_subset(repo_root: Path, test_files: Sequence[str]) -> l
             ]
         )
     if pr_autofix:
-        commands.append(
-            [*base, "-m", "not integration", *_abs_test_paths(repo_root, pr_autofix)]
-        )
+        commands.append([*base, "-m", "not integration", *_abs_test_paths(repo_root, pr_autofix)])
     return commands
+
+
+def _pytest_collection_command(repo_root: Path) -> list[str]:
+    """Collect every non-integration test without executing any of them.
+
+    Collection imports each test module and instantiates each item, so it fails
+    on a broken import and on a syntax error. Those are the defects that would
+    otherwise burn a whole CI matrix before reporting the same thing.
+
+    It does NOT catch a missing fixture: a test that requests a fixture no
+    conftest defines collects clean and fails at run time. It does NOT catch
+    two same-named test functions in one module, where the second silently
+    shadows the first. It does NOT catch two test modules sharing a basename
+    across directories.
+
+    That last one was claimed as a catch and is not. It is a collection error
+    under pytest's default `prepend` import mode, and `pyproject.toml` sets
+    `--import-mode=importlib`, under which it collects clean. The probe behind
+    the wrong claim ran in a throwaway tree with no config and silently got the
+    other mode, so it measured a pytest this repository never runs. Caught in
+    review on PR #5319;
+    `test_a_same_basename_collision_goes_uncaught_under_production_config` now
+    pins it, and the behavior fixtures mirror the real addopts. Do not widen
+    this docstring's claim without a probe that carries production
+    configuration; the same claim is printed to developers in
+    `_full_suite_stand_in` and a wrong one tells them they are covered.
+
+    Three `-q` are deliberate. `pyproject.toml` sets `addopts = "-v ..."`, so
+    verbosity starts at +1 and a single `-q` nets to 0: measured 31765 lines of
+    node listing into the hook output on every fallback push, against 878 with
+    three. Hook output is a token cost, which is one of the costs this stand-in
+    exists to cut.
+    """
+    return [
+        sys.executable,
+        "-m",
+        "pytest",
+        "--collect-only",
+        "-q",
+        "-q",
+        "-q",
+        "-m",
+        "not integration",
+        str(repo_root / "tests"),
+    ]
+
+
+def _validated_full_suite_opt_in() -> str:
+    """Return the stripped opt-in value, or raise if it is not usable.
+
+    Split out of `_full_suite_stand_in` so `_resolve_pytest_commands` can call
+    it before it knows which path it is taking. Inside the stand-in it only ran
+    on the fallback path, so a narrowed import-graph selection silently ignored
+    `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=true`: the developer asked for the full
+    suite, did not get it, and was not told. The contract says any non-blank
+    value other than `1` is a configuration error, and a contract enforced on
+    one branch of two is not enforced.
+
+    Exactly the defect already fixed for `AI_AGENTS_PYTEST_WORKERS`, whose
+    validation was hoisted for the same reason a few commits earlier. The
+    reasoning was right there and was not carried across to the sibling flag.
+    Caught in review on PR #5319.
+
+    Returns the stripped value so callers do not re-derive it: `""` when unset
+    or blank, `"1"` when the caller opted in.
+
+    Raises:
+        ValueError: the variable is set to anything other than blank or `1`.
+    """
+    raw = os.environ.get(PYTEST_FULL_SUITE_LOCALLY_ENV)
+    if raw is None:
+        return ""
+    stripped = raw.strip()
+    if stripped and stripped != "1":
+        # Fail loud rather than quietly doing less than the caller asked for.
+        # `AI_AGENTS_PYTEST_WORKERS` already raises on a value it cannot use;
+        # a flag whose whole purpose is "run more" must not shrug at `true`.
+        raise ValueError(
+            f"{PYTEST_FULL_SUITE_LOCALLY_ENV} must be '1' or unset, got {raw!r}. "
+            "Unset lets the import graph narrow the diff, and collects the "
+            "whole suite when it cannot. '1' executes every partition locally "
+            "whatever the graph says, which is what the name promises."
+        )
+    return stripped
+
+
+def _full_suite_stand_in(repo_root: Path, reason: str) -> list[list[str]]:
+    """Return what pre-push runs when the import graph cannot narrow the diff.
+
+    Executing every test here duplicates CI's `pytest.yml` partition matrix on
+    the same commit. Measured on a 4-CPU container, that duplicate cost 475s of
+    a 679s push, and a push that long does not survive a container restart, so
+    the local copy of a remote gate was the thing preventing the push from
+    reaching the remote gate at all. Collect instead and let CI execute.
+
+    This is the collection path only. ``AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1``
+    is handled by `_resolve_pytest_commands` before selection runs, so it never
+    reaches here; an opt-in branch used to live in this function and became
+    unreachable when the flag was hoisted, which is why there is not one now.
+    """
+    print(
+        f"pytest selection: no import-graph subset ({reason}).\n"
+        "  Collecting every test instead of executing them. Collection blocks "
+        "on a broken\n"
+        "  import and on a syntax error. It does NOT run assertions, does NOT "
+        "catch a\n"
+        "  missing fixture, does NOT catch two same-named test functions in "
+        "one module,\n"
+        "  and does NOT catch a same-basename module collision (this repo "
+        "sets\n"
+        "  --import-mode=importlib, under which that collides silently).\n"
+        "  Assertions run in CI: .github/workflows/pytest.yml executes the full "
+        "partition\n"
+        "  matrix on every merge-queue commit, and on this PR only when the "
+        "diff matches\n"
+        "  its paths filter. A diff that matches neither runs no assertions "
+        "until the\n"
+        "  merge queue, so review a green PR of that shape accordingly.\n"
+        f"  Set {PYTEST_FULL_SUITE_LOCALLY_ENV}=1 to execute the suite here "
+        "instead. See ADR-104.",
+        file=sys.stderr,
+    )
+    return [_pytest_collection_command(repo_root)]
 
 
 def _resolve_pytest_commands(
     repo_root: Path,
     changed_files: Sequence[str] | None,
 ) -> list[list[str]]:
-    """Return the pytest commands to run: an import-graph subset or the full suite.
+    """Return the pytest commands to run: an import-graph subset or a stand-in.
 
-    Any failure to determine the diff, and any fail-safe verdict from the
-    selector, returns the full partition set. The subset is only used when the
-    graph maps every changed file with certainty.
+    `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` short-circuits everything below and
+    returns the executing partitions. The flag says full suite, so it has to
+    mean the full suite: an earlier revision validated the value and then threw
+    it away, so a developer who set it on a Python change got whatever subset
+    the import graph chose and was not told the difference. That is the same
+    silently-doing-less defect the flag's own reject-anything-but-1 rule exists
+    to prevent, one branch further along, and ADR-104's Implementation Notes
+    label this command "whole-suite execution". Caught in review on PR #5319.
+
+    Otherwise the subset is used only when the graph maps every changed file
+    with certainty. Any failure to determine the diff, and any fail-safe verdict
+    from the selector, falls back to `_full_suite_stand_in`, which collects
+    rather than executes.
 
     Raises:
-        ValueError: the worker override is invalid (from `_pytest_parallel_flags`).
+        ValueError: the worker override is invalid (from
+            `_pytest_parallel_flags`), or the full-suite opt-in is set to
+            anything other than blank or `1` (from
+            `_validated_full_suite_opt_in`). Both are validated before a path is
+            chosen, so either can raise on either path.
     """
+    # Validate the worker override before choosing commands, not as a side
+    # effect of building one. The collection stand-in takes no parallel flags,
+    # so a check that rode along inside the executing partitions would let an
+    # invalid AI_AGENTS_PYTEST_WORKERS pass unreported on the default path: the
+    # developer asked for a worker count, did not get it, and was not told.
+    _pytest_parallel_flags()
+    if _validated_full_suite_opt_in() == "1":
+        print(
+            f"{PYTEST_FULL_SUITE_LOCALLY_ENV}=1: executing the whole suite "
+            "locally, skipping import-graph selection.",
+            file=sys.stderr,
+        )
+        return _pytest_commands(repo_root)
     if changed_files is None:
         changed = select_tests.changed_from_git(repo_root, WORKFLOW_LOCAL_DEFAULT_BASE)
     else:
@@ -6588,10 +7490,12 @@ def _resolve_pytest_commands(
     # assert a clean success path keep passing. Only a narrowed subset, the new
     # behavior, announces itself.
     if changed is None:
-        return _pytest_commands(repo_root)
+        return _full_suite_stand_in(
+            repo_root, f"the diff against {WORKFLOW_LOCAL_DEFAULT_BASE} is unavailable"
+        )
     selection = select_tests.select(changed, repo_root)
     if selection.full:
-        return _pytest_commands(repo_root)
+        return _full_suite_stand_in(repo_root, selection.reason)
     print(
         f"pytest selection: {len(selection.tests)} test file(s) via import graph "
         f"(from {len(changed)} changed file(s)); reason: {selection.reason}",
@@ -6600,6 +7504,18 @@ def _resolve_pytest_commands(
     for rel in selection.tests:
         print(f"  {rel}", file=sys.stderr)
     return _pytest_commands_for_subset(repo_root, selection.tests)
+
+
+def _pytest_budget_seconds(commands: Sequence[Sequence[str]]) -> int:
+    """Seconds the whole pytest step may spend, sized to what it actually runs.
+
+    A collection stand-in imports modules and exits, so holding it to the
+    execution suite's ceiling would let an import hang block a push for 29
+    minutes. Anything that executes tests keeps the suite budget.
+    """
+    if len(commands) == 1 and "--collect-only" in commands[0]:
+        return TEST_COLLECTION_TIMEOUT_SECONDS
+    return TEST_SUITE_TIMEOUT_SECONDS
 
 
 def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> int:
@@ -6615,6 +7531,14 @@ def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> i
         "SKIP_RETROSPECTIVE_GATE",
         PYTEST_WORKER_CAP_ENV,
         PYTEST_WORKERS_ENV,
+        # Consumed here, so it must not reach the child. A test that invokes
+        # this policy inherits the parent's `=1` otherwise and takes the
+        # full-suite path where it meant to exercise the selector, which is the
+        # opposite of the behavior under test and reads as a passing selector.
+        # Its two siblings above were stripped for the same reason; this one
+        # was added later and did not get the same treatment. Raised in review
+        # on PR #5319.
+        PYTEST_FULL_SUITE_LOCALLY_ENV,
     ):
         env.pop(key, None)
     env["CLAUDE_PLUGIN_ROOT"] = str(repo_root / "src/copilot-cli")
@@ -6625,17 +7549,43 @@ def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> i
         return 2
     # The parent consumes this control before pytest starts. Leaving it in the
     # child environment changes tests that verify the default worker policy.
-    # TEST_SUITE_TIMEOUT_SECONDS is a budget for the whole suite, not per
-    # command. Splitting the suite across processes must not multiply how long
+    # The budget covers the whole pytest step, not one command. Splitting
+    # the suite across processes must not multiply how long
     # pre-push can block, or the hook outlives lefthook's own deadline and the
     # timeout looks nondeterministic.
-    deadline = time.monotonic() + TEST_SUITE_TIMEOUT_SECONDS
+    if not commands:
+        # `select_tests.Selection` promises a narrowed selection is never empty,
+        # and `_full_suite_stand_in` always returns one command. Both are other
+        # modules' invariants. This function decides whether a push is allowed,
+        # so it does not take a zero-test run on faith from either of them.
+        print(
+            "ERROR: test selection produced no pytest command. A push must "
+            "never pass by running zero tests; see select_tests.Selection.",
+            file=sys.stderr,
+        )
+        return 2
+    # Clamp the AGGREGATE, not only each child. `_run_command` bounds one
+    # subprocess at CONTAINER_SUBPROCESS_CEILING_SECONDS, which says nothing
+    # about a step that runs several: an import-graph subset emits up to four
+    # partition commands and takes the execution budget, so a Python push could
+    # spend 4 * 150s = 600s here inside a container. The reclaim this whole
+    # change exists to prevent was measured at ~679s, so that is not a tail
+    # case, it is the same failure on the common path for Python changes.
+    #
+    # The PR text claimed the exposure was limited because "the default path
+    # spawns one child". True for a Markdown push, which collects; false for a
+    # Python push, which subsets. Caught in review on PR #5319.
+    #
+    # Clamping here also repairs the diagnostic: the timeout message prints
+    # `budget`, so an unclamped aggregate told a reader their child had 780s
+    # when the clamp had given it 150s.
+    budget = _container_clamped(_pytest_budget_seconds(commands))
+    deadline = time.monotonic() + budget
     for index, command in enumerate(commands):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             print(
-                "ERROR: pytest suite exceeded the "
-                f"{TEST_SUITE_TIMEOUT_SECONDS}s budget before running {command}",
+                f"ERROR: pytest suite exceeded the {budget}s budget before running {command}",
                 file=sys.stderr,
             )
             return 1
@@ -6646,7 +7596,7 @@ def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> i
             timeout_seconds=remaining,
         )
         _print_process_output(result)
-        if result.returncode == 3:
+        if _timed_out(result):
             # `remaining` is always fractionally below the full budget, even on
             # the first command, because the deadline and this subtraction call
             # time.monotonic() at two different instants. Comparing the two
@@ -6658,16 +7608,16 @@ def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> i
                 print(
                     "ERROR: pytest suite timed out; the first command "
                     f"{command} consumed the whole "
-                    f"{TEST_SUITE_TIMEOUT_SECONDS}s budget on its own",
+                    f"{budget}s budget on its own",
                     file=sys.stderr,
                 )
             else:
-                consumed = TEST_SUITE_TIMEOUT_SECONDS - remaining
+                consumed = budget - remaining
                 plural = "" if index == 1 else "s"
                 print(
                     "ERROR: pytest suite timed out, budget exhausted with "
                     f"{remaining:g}s left of the "
-                    f"{TEST_SUITE_TIMEOUT_SECONDS}s budget "
+                    f"{budget}s budget "
                     f"({consumed:g}s already consumed by {index} earlier "
                     f"command{plural} in the suite)",
                     file=sys.stderr,
@@ -6709,11 +7659,7 @@ def _pushed_workflow_paths(
 
 
 def _select_pushed_workflows(paths: Sequence[str], repo_root: Path) -> list[str]:
-    existing = [
-        path
-        for path in paths
-        if (repo_root / _normalize_ratchet_path(path)).is_file()
-    ]
+    existing = [path for path in paths if (repo_root / _normalize_ratchet_path(path)).is_file()]
     base_ref = _workflow_local_base_ref()
     changed = _pushed_workflow_paths(paths, repo_root, base_ref)
     if changed is None:
@@ -6723,11 +7669,7 @@ def _select_pushed_workflows(paths: Sequence[str], repo_root: Path) -> list[str]
             file=sys.stderr,
         )
         return existing
-    return [
-        path
-        for path in existing
-        if _normalize_ratchet_path(path) in changed
-    ]
+    return [path for path in existing if _normalize_ratchet_path(path) in changed]
 
 
 def run_workflow_local(paths: Sequence[str], repo_root: Path) -> int:
@@ -7556,9 +8498,68 @@ def _add_simple_command(
     command.set_defaults(handler=handler)
 
 
+def _arm_container_watchdog(subcommand: str) -> threading.Timer | None:
+    """Bound this whole process in a managed container. None outside one.
+
+    `_container_clamped` bounds a child. This bounds everything, including the
+    work between children that no deadline reached: import-graph selection,
+    path discovery, tree materialization, and the unbounded `subprocess.run` in
+    `select_tests.changed_from_git`. A hang in any of those outlived every
+    bound this module sets and ended in the reclaim the bounds exist to
+    prevent.
+
+    `os._exit` rather than an exception: the thing being bounded is a hang, and
+    a hang can be somewhere an exception will not unwind from promptly. Losing
+    a temporary directory to an abrupt exit is cheaper than losing the push and
+    its diagnostic, which is what happens if this does not fire. The message
+    goes out first and is flushed, so the developer gets the one thing a
+    reclaimed push never gave them.
+
+    Not armed when the sibling detector cannot be imported, and says so, for
+    the same reason `_container_clamped` says so: a guarantee that lapses in
+    silence is worse than one that is absent.
+    """
+    try:
+        from run_workflow_local_test import _is_remote_container
+    except ImportError:
+        print(
+            "WARNING: container detection unavailable "
+            "(run_workflow_local_test could not be imported), so the "
+            f"{CONTAINER_PROCESS_CEILING_SECONDS:.0f}s whole-process watchdog "
+            "is NOT armed. See ADR-104 rule 8.",
+            file=sys.stderr,
+        )
+        return None
+    if not _is_remote_container():
+        return None
+
+    def _expire() -> None:
+        sys.stderr.write(
+            f"ERROR: git_hook_policy {subcommand} exceeded the "
+            f"{CONTAINER_PROCESS_CEILING_SECONDS:.0f}s container ceiling and "
+            "was stopped. A managed container reclaims a hook that stops "
+            "making progress, and a reclaimed push carries no diagnostic at "
+            "all, so this exits first and says why. The hang is outside every "
+            "per-child deadline: look at selection and setup, not at a "
+            "subprocess budget. See ADR-104 rule 8.\n"
+        )
+        sys.stderr.flush()
+        os._exit(3)
+
+    watchdog = threading.Timer(CONTAINER_PROCESS_CEILING_SECONDS, _expire)
+    watchdog.daemon = True
+    watchdog.start()
+    return watchdog
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    return int(args.handler(args))
+    watchdog = _arm_container_watchdog(str(getattr(args, "command", "") or "<subcommand>"))
+    try:
+        return int(args.handler(args))
+    finally:
+        if watchdog is not None:
+            watchdog.cancel()
 
 
 if __name__ == "__main__":

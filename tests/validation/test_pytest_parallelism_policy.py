@@ -325,6 +325,11 @@ def test_run_pytest_consumes_worker_override_before_child_process(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    # This test is about the flags the executing partitions carry, so it opts
+    # into local execution. Without the opt-in, `run_pytest` on a tmp_path with
+    # no resolvable diff builds the collection stand-in, which takes no worker
+    # flags at all and so has nothing to say about worker policy (ADR-104).
+    monkeypatch.setenv(policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
     monkeypatch.setenv(policy.PYTEST_WORKERS_ENV, "3")
     monkeypatch.setenv(policy.PYTEST_WORKER_CAP_ENV, "4")
     seen_commands: list[list[str]] = []
@@ -350,6 +355,14 @@ def test_run_pytest_consumes_worker_override_before_child_process(
     assert _flag_value(seen_commands[0], _WORKER_FLAGS) == "3"
     assert all(policy.PYTEST_WORKER_CAP_ENV not in env for env in seen_envs)
     assert all(policy.PYTEST_WORKERS_ENV not in env for env in seen_envs)
+    # Every control `run_pytest` consumes has to be stripped, not just the two
+    # that were there first. The opt-in leaking through makes a child test that
+    # invokes this policy take the full-suite path it did not ask for, so the
+    # test passes while exercising the wrong branch (PR #5319).
+    assert all(policy.PYTEST_FULL_SUITE_LOCALLY_ENV not in env for env in seen_envs), (
+        "the full-suite opt-in reached the child environment. A pytest child "
+        "that runs this policy again would inherit =1 and skip selection."
+    )
 
 
 def test_unset_env_produces_the_default_command(

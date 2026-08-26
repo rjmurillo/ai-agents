@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import builtins
 import io
 import json
 import os
@@ -14,6 +15,7 @@ import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
+from types import ModuleType
 from typing import Any, NoReturn, Self, cast
 from unittest import mock
 
@@ -319,6 +321,24 @@ def _write_today_session(repo: Path, content: str) -> Path:
     return session
 
 
+def _debate_log(*adr_ids: str) -> str:
+    """A log carrying the review evidence the gate requires (issue #5205).
+
+    A name-shaped stub no longer clears the gate, so fixtures that exercise the
+    id-matching branches have to get past the evidence branch first.
+    """
+    names = " and ".join(adr_ids)
+    return (
+        f"# ADR Debate Log: {names}\n\n"
+        "## Participants\n\n- architect agent\n- security agent\n\n"
+        "## Verdict: Accept\n\n"
+        f"The architect reviewed {names} and found no P0 or P1 issues. The\n"
+        "decision text matches the implementation and template compliance is\n"
+        "confirmed against the canonical structure for this record.\n"
+        "Alternatives considered are recorded in the decision section.\n"
+    )
+
+
 def test_adr_review_policy_blocks_stale_debate_reference(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -331,7 +351,7 @@ def test_adr_review_policy_blocks_stale_debate_reference(
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     debate = critique / "adr-042-debate.md"
-    _write_lf(debate, "ADR-042 review")
+    _write_lf(debate, _debate_log("ADR-042"))
     _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     result = policy.check_adr_review_policy(
@@ -351,7 +371,7 @@ def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     debate = critique / "adr-062-debate.md"
-    _write_lf(debate, "ADR-062 review")
+    _write_lf(debate, _debate_log("ADR-062"))
     _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     assert (
@@ -369,7 +389,7 @@ def test_adr_review_policy_matches_complete_adr_ids(tmp_path: Path) -> None:
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     debate = critique / "adr-0620-debate.md"
-    _write_lf(debate, "ADR-0620 review")
+    _write_lf(debate, _debate_log("ADR-0620"))
     _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     assert (
@@ -388,7 +408,7 @@ def test_adr_review_policy_rejects_symlinked_debate_evidence(tmp_path: Path) -> 
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     evidence = tmp_path / "evidence.md"
-    _write_lf(evidence, "ADR-062 review")
+    _write_lf(evidence, _debate_log("ADR-062"))
     debate = critique / "adr-062-debate.md"
     debate.symlink_to(evidence)
     _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
@@ -408,10 +428,17 @@ def test_adr_review_policy_missing_critique_dir_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """No .agents/critique/ directory at all means no debate logs: gate fails."""
+    # A real repository, because the premise is "the critique directory is
+    # absent", not "this is not a git checkout". Without the init, the staged-log
+    # query fails and the gate reports that failure rather than the absence
+    # (issue #5205), and this assertion would be met by an error message about
+    # git rather than about the missing directory.
+    _init_repo(tmp_path)
+
     # Only the old wrong dir exists; critique dir is absent.
     wrong = tmp_path / ".agents" / "analysis"
     wrong.mkdir(parents=True)
-    _write_lf(wrong / "adr-062-debate.md", "ADR-062 review")
+    _write_lf(wrong / "adr-062-debate.md", _debate_log("ADR-062"))
 
     result = policy.check_adr_review_policy(
         [".agents/architecture/ADR-062-navigation.md"],
@@ -793,7 +820,16 @@ def test_configuration_bounds_every_job() -> None:
         assert all(isinstance(job.get("timeout"), str) for job in jobs)
 
     pre_push = _job_map(config, "pre-push")
-    assert pre_push["python-tests"]["timeout"] == "30m"
+    # `python-tests` was 30m and was resized from in-hook measurement (ADR-104
+    # rule 7): the cap is the ceiling for the opt-in local-execution path, and
+    # its inner budget sits under it so the inner timeout fires first.
+    assert pre_push["python-tests"]["timeout"] == "15m"
+    # `workflow-local-run` stays at 30m and is pinned so a future cut has to
+    # come with a measurement. It was cut to 10m on the branch that resized
+    # `python-tests` and restored in review (PR #5319): rule 7 sizes a cap from
+    # a measured worst case, and the only firing path a container can time
+    # reports DEGRADED in 0.42s because actionlint is absent there, which is
+    # not the `act` run the cap protects.
     assert pre_push["workflow-local-run"]["timeout"] == "30m"
     assert pre_push["security-scan"]["timeout"] == "15m"
     assert pre_push["hook-anchoring-e2e"]["timeout"] == "20m"
@@ -926,7 +962,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         # generated-staleness gate's outer-cap clamp; the cross-check
         # against the actual timeout lives in
         # tests/validation/test_check_generated_staleness.py.
-        "PRE_PR_OUTER_CAP_SECONDS": "900",
+        "PRE_PR_OUTER_CAP_SECONDS": "240",
     }
     assert pre_push_jobs["python-tests"]["env"] == {"AI_AGENTS_PYTEST_WORKER_CAP": "4"}
     assert pre_push_jobs["push-ref-policy"]["use_stdin"] is True
@@ -3421,6 +3457,7 @@ def test_pushed_semgrep_scan_materializes_immutable_head(
         tree: Path,
         paths: Sequence[str],
         _root: Path,
+        **_kwargs: object,
     ) -> subprocess.CompletedProcess[str]:
         assert paths == ["nested/source.py"]
         assert not (tree / "unchanged.py").exists()
@@ -3456,6 +3493,7 @@ def test_pushed_semgrep_scan_reads_export_ignored_changed_blob(
         tree: Path,
         paths: Sequence[str],
         _root: Path,
+        **_kwargs: object,
     ) -> subprocess.CompletedProcess[str]:
         assert "nested/source.py" in paths
         content = (tree / "nested/source.py").read_text(encoding="utf-8")
@@ -3486,6 +3524,7 @@ def test_pushed_semgrep_scan_reads_unsubstituted_changed_blob(
         tree: Path,
         paths: Sequence[str],
         _root: Path,
+        **_kwargs: object,
     ) -> subprocess.CompletedProcess[str]:
         assert "source.js" in paths
         content = (tree / "source.js").read_text(encoding="utf-8")
@@ -3519,6 +3558,7 @@ def test_pushed_semgrep_scan_ignores_local_replacement_blob(
         tree: Path,
         paths: Sequence[str],
         _root: Path,
+        **_kwargs: object,
     ) -> subprocess.CompletedProcess[str]:
         assert paths == ["source.py"]
         content = (tree / "source.py").read_text(encoding="utf-8")
@@ -3551,7 +3591,9 @@ def test_pushed_semgrep_scan_rejects_non_regular_type_change(
     monkeypatch.setattr(
         policy,
         "_run_semgrep_tree",
-        lambda *_args: pytest.fail("Semgrep must not run on a non-regular snapshot"),
+        lambda *_args, **_kwargs: pytest.fail(
+            "Semgrep must not run on a non-regular snapshot"
+        ),
     )
 
     assert policy.scan_pushed_heads(stream, repo) == 2
@@ -3576,7 +3618,9 @@ def test_pushed_semgrep_validates_all_paths_before_suffix_selection(
     monkeypatch.setattr(
         policy,
         "_scan_pushed_head",
-        lambda *_args: pytest.fail("invalid pushed paths must not reach Semgrep"),
+        lambda *_args, **_kwargs: pytest.fail(
+            "invalid pushed paths must not reach Semgrep"
+        ),
     )
 
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 2
@@ -3600,7 +3644,9 @@ def test_pushed_semgrep_detects_collision_with_unchanged_head_path(
     monkeypatch.setattr(
         policy,
         "_scan_pushed_head",
-        lambda *_args: pytest.fail("colliding pushed trees must not reach Semgrep"),
+        lambda *_args, **_kwargs: pytest.fail(
+            "colliding pushed trees must not reach Semgrep"
+        ),
     )
 
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 2
@@ -6786,9 +6832,7 @@ def test_commit_limit_notice_covers_below_warning_through_alert(
     WARNING_THRESHOLD upward; below it, the push is silent.
     """
     update = _push_update(None)
-    monkeypatch.setattr(
-        policy, "_run_git", lambda *_args: _completed(0, f"{commit_count}\n")
-    )
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, f"{commit_count}\n"))
 
     result = policy._check_commit_limit(update, tmp_path)
 
@@ -7102,6 +7146,12 @@ def test_cli_e2e_runs_with_clean_plugin_environment(
             return ("", "")
 
     monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
+    # Pin the workstation contract. `_run_command` clamps a child's deadline
+    # inside a managed container (ADR-104 rule 8), and this repository's own
+    # dev containers set CLAUDECODE, so without this the assertion below reads
+    # the clamp rather than the budget it is about. The container behaviour is
+    # covered by its own test below.
+    monkeypatch.setattr(policy, "_container_clamped", lambda seconds: seconds)
 
     assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
     env = captured["env"]
@@ -7110,6 +7160,222 @@ def test_cli_e2e_runs_with_clean_plugin_environment(
     assert captured["timeout"] == policy.CLI_E2E_TIMEOUT_SECONDS
     assert "CLAUDE_PROJECT_DIR" not in env
     assert "COPILOT_PLUGIN_ROOT" not in env
+
+
+@pytest.mark.parametrize(
+    ("runner", "empty"),
+    [("_run_command", ""), ("_run_command_bytes", b"")],
+)
+def test_both_subprocess_entry_points_clamp_in_a_container(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    runner: str,
+    empty: object,
+) -> None:
+    """Two functions spawn children, so the bound has to be on both.
+
+    `_run_command_bytes` did not clamp until review on PR #5319. Its only
+    caller passes the 90s default, under the 150s ceiling, so nothing was
+    escaping in practice, which is exactly why nothing noticed: a second entry
+    point that spawns without the bound is a hole in ADR-104 rule 8 whatever
+    the current call graph looks like, and the next caller passing a larger
+    value would have found it in production rather than here.
+
+    Parametrized over both so neither can regress alone. A test that covered
+    only the clamped one would have passed throughout the period the other was
+    unclamped.
+    """
+    captured: dict[str, object] = {}
+
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
+
+        def __init__(self, _args: Sequence[str], **_kwargs: object) -> None:
+            pass
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[object, object]:
+            captured["timeout"] = timeout
+            return (empty, empty)
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
+    monkeypatch.setattr(
+        policy,
+        "_container_clamped",
+        lambda seconds: min(seconds, policy.CONTAINER_SUBPROCESS_CEILING_SECONDS),
+    )
+
+    getattr(policy, runner)(["true"], tmp_path, timeout_seconds=1_800.0)
+
+    ceiling = policy.CONTAINER_SUBPROCESS_CEILING_SECONDS
+    assert captured["timeout"] == ceiling, (
+        f"{runner} handed its child {captured['timeout']}s against a {ceiling}s "
+        "container ceiling, so that entry point spawns children the container "
+        "bound does not reach."
+    )
+
+
+def test_neither_entry_point_clamps_on_a_workstation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Control for the pair above: without a container the budget is untouched.
+
+    If this ever agrees with the test above, the clamp is unconditional and
+    that assertion is reading the ceiling under another name rather than
+    evidence that a container is detected.
+    """
+    captured: dict[str, object] = {}
+
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
+
+        def __init__(self, _args: Sequence[str], **_kwargs: object) -> None:
+            pass
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
+            captured["timeout"] = timeout
+            return ("", "")
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
+    monkeypatch.setattr(policy, "_container_clamped", lambda seconds: seconds)
+
+    policy._run_command(["true"], tmp_path, timeout_seconds=1_800.0)
+
+    assert captured["timeout"] == 1_800.0
+    assert captured["timeout"] > policy.CONTAINER_SUBPROCESS_CEILING_SECONDS
+
+
+def test_an_unavailable_container_detector_says_so_before_going_unclamped(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The one hole in the per-job container bound must be audible.
+
+    `_container_clamped` degrades to the unclamped deadline when the sibling
+    detection module cannot be imported, which is the right call: a safety net
+    that can itself block a legitimate push is worse than no net. But the
+    degradation voids the bound the PR claims, and a claim that lapses without
+    saying so is the failure mode this whole change is about. Raised by a
+    spec-validation pass, which read the guarantee as unconditional and the
+    code as conditional, and was right about both.
+
+    Pinned on the warning rather than on a raise, deliberately. Failing closed
+    here would either clamp a workstation job that legitimately needs 20
+    minutes, or refuse the push outright over a broken import unrelated to the
+    diff. Both trade a rare silent gap for a common loud one.
+    """
+    real_import = builtins.__import__
+
+    # Signature mirrors `builtins.__import__` exactly rather than using
+    # *args/**kwargs. The loose form does not type-check: mypy resolves the
+    # forwarded call against __import__'s real overloads and rejects
+    # `object` for globals, fromlist, and level. Spelling the parameters out
+    # is the idiomatic fix and documents what the shim intercepts.
+    def refuse_the_detector(
+        name: str,
+        globals: Mapping[str, object] | None = None,
+        locals: Mapping[str, object] | None = None,
+        fromlist: Sequence[str] = (),
+        level: int = 0,
+    ) -> ModuleType:
+        if name == "run_workflow_local_test":
+            raise ImportError("simulated missing sibling module")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", refuse_the_detector)
+    monkeypatch.delitem(sys.modules, "run_workflow_local_test", raising=False)
+
+    assert policy._container_clamped(1140.0) == 1140.0, (
+        "an unavailable detector must not clamp: it cannot tell a container "
+        "from a workstation, and guessing either way is worse than the warning."
+    )
+
+    err = capsys.readouterr().err
+    for expected in ("container detection unavailable", "NOT applied", "ADR-104"):
+        assert expected in err, (
+            f"the degradation path did not say {expected!r}. Going unclamped "
+            "in silence leaves a container push able to outlive its "
+            "environment with nothing in the output to explain the reclaim."
+        )
+
+
+def test_a_container_clamps_the_cli_e2e_child_deadline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The other half of the contract the test above pins.
+
+    A managed container is reclaimed after a period without progress, so a
+    child allowed 1140s there can outlive the environment and take the push
+    with it, leaving no diagnostic. On a workstation the same budget is
+    correct, which is why the two cases are asserted separately.
+    """
+    monkeypatch.delenv("SKIP_CLI_E2E", raising=False)
+    monkeypatch.setattr(policy.shutil, "which", lambda name: name if name == "copilot" else None)
+    captured: dict[str, object] = {}
+
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
+
+        def __init__(self, _args: Sequence[str], **kwargs: object) -> None:
+            captured.update(kwargs)
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
+            captured["timeout"] = timeout
+            return ("", "")
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setenv("CLAUDECODE", "1")
+
+    assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
+
+    assert captured["timeout"] == policy.CONTAINER_SUBPROCESS_CEILING_SECONDS
+    assert policy.CONTAINER_SUBPROCESS_CEILING_SECONDS < policy.CLI_E2E_TIMEOUT_SECONDS
+
+
+def test_ci_keeps_the_full_budget_even_inside_a_container_image(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Negative control: CI must not inherit the clamp.
+
+    CI runners can carry container markers, and a real hang there is a real
+    failure that should surface as one. `_is_remote_container` returns False
+    whenever the CI marker is truthy, and this is the assertion that says so.
+    """
+    monkeypatch.delenv("SKIP_CLI_E2E", raising=False)
+    monkeypatch.setattr(policy.shutil, "which", lambda name: name if name == "copilot" else None)
+    captured: dict[str, object] = {}
+
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
+
+        def __init__(self, _args: Sequence[str], **kwargs: object) -> None:
+            captured.update(kwargs)
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
+            captured["timeout"] = timeout
+            return ("", "")
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
+    monkeypatch.setenv("CLAUDECODE", "1")
+    monkeypatch.setenv("CI", "true")
+
+    assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
+    assert captured["timeout"] == policy.CLI_E2E_TIMEOUT_SECONDS
 
 
 def test_cli_e2e_without_cli_fails_closed(
@@ -8115,7 +8381,7 @@ def test_changed_commit_path_and_scan_edge_cases(
         "_changed_commit_paths",
         lambda *_args: ["source.py"],
     )
-    monkeypatch.setattr(policy, "_scan_pushed_head", lambda *_args: 2)
+    monkeypatch.setattr(policy, "_scan_pushed_head", lambda *_args, **_kwargs: 2)
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 2
     monkeypatch.setattr(policy, "_materialize_commit_tree", lambda *_args: 2)
     assert real_scan_pushed_head("head", ["source.py"], tmp_path) == 2
@@ -8131,7 +8397,7 @@ def test_changed_commit_path_and_scan_edge_cases(
         "_changed_commit_paths",
         lambda *_args: ["source.py"],
     )
-    monkeypatch.setattr(policy, "_scan_pushed_head", lambda *_args: 0)
+    monkeypatch.setattr(policy, "_scan_pushed_head", lambda *_args, **_kwargs: 0)
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 0
 
 
