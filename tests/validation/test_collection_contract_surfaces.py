@@ -1,0 +1,185 @@
+"""The collection contract, as stated to humans, kept in step across surfaces.
+
+Split out of `test_pytest_import_selection.py`, which crossed the 500-line
+taste threshold when these arrived. The seam is real rather than convenient:
+that module tests what the selector and the stand-in *do*, and this one tests
+what the repository *says* they do, in the three places it says it. The two
+fail for different reasons and are read by different people. A reader chasing
+why a push collected instead of executing wants the sibling module; a reader
+who changed the set of probed defect classes wants this one.
+
+Nothing here executes pytest. The claims these surfaces make are proved by
+behavior tests in the sibling module (`test_a_broken_import_...` and
+`test_the_other_two_probed_catches_also_block_the_push`), because three
+surfaces agreeing is a different property from any of them being true.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from scripts.validation import git_hook_policy
+
+
+def test_the_notice_states_every_probed_miss_not_just_the_first(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The developer-facing text must not under-list what collection misses.
+
+    `_pytest_collection_command`'s docstring says the same three-catch,
+    two-miss claim is printed here, and that a wrong one tells developers they
+    are covered when they are not. Nothing checked that, and it drifted: the
+    notice named the missing fixture and omitted two same-named test functions
+    in one module, so it under-listed the misses in the direction that reads as
+    more coverage than exists. Found by the PR's spec validator, which compared
+    the code, the ADR, and this string and noticed one disagreed.
+
+    Under-listing is the failure worth pinning. Over-listing a miss costs a
+    developer an unnecessary CI round trip; omitting one costs a defect that
+    reaches CI believing it was gated locally.
+    """
+    monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
+    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
+    git_hook_policy._resolve_pytest_commands(tmp_path, None)
+    # Whitespace-normalized: the notice hard-wraps, so a phrase can straddle a
+    # newline and a plain substring check would pass or fail on wrap position.
+    err = " ".join(capsys.readouterr().err.split())
+
+    for catches in ("broken\nimport", "syntax error", "same-basename module collision"):
+        assert " ".join(catches.split()) in err, f"notice no longer claims to catch {catches!r}"
+
+    for misses in ("does NOT catch a missing fixture", "same-named test functions in one module"):
+        assert misses in err, (
+            f"notice omits {misses!r}. Both misses were probed and collect "
+            "clean with exit 0; see _pytest_collection_command's docstring and "
+            "ADR-104 rule 5. A notice that lists fewer misses than were probed "
+            "tells the reader they are covered when they are not."
+        )
+
+
+# The collection contract, as concepts rather than sentences. Each entry is the
+# set of spellings that count as stating that class, because the three surfaces
+# below word it differently on purpose: a docstring explains, a notice is read
+# under time pressure by someone whose push just went a different way than they
+# expected, and an ADR rule is cited by number. Pinning one exact sentence
+# across all three would force the worst wording of the three onto the other two.
+#
+# What must not drift is the SET. A surface that stops naming a class is the
+# defect: the notice already did exactly that, listing one miss where the
+# docstring beside it listed two, and nothing caught it (see the notice test
+# above). The issue body is deliberately absent from this check, because it
+# lives on GitHub and no repository test can read it; it is kept in step by
+# hand, and that is a weaker guarantee stated as one rather than implied.
+COLLECTION_CATCHES = {
+    "a broken import": ("broken import",),
+    "a syntax error": ("syntax error",),
+    "a same-basename module collision": ("same-basename", "share a basename"),
+}
+COLLECTION_MISSES = {
+    "a missing fixture": ("missing fixture", "fixture no fixture satisfies"),
+    "two same-named test functions in one module": ("same-named test functions in one module",),
+}
+
+_ADR_104 = (
+    Path(__file__).resolve().parents[2]
+    / ".agents"
+    / "architecture"
+    / "ADR-104-gate-tier-placement-and-budgets.md"
+)
+
+
+def _surface_not_stating(spellings: tuple[str, ...], surfaces: dict[str, str]) -> str | None:
+    """Name the first surface stating none of `spellings`, or None if all do."""
+    for surface, text in surfaces.items():
+        if not any(s in text for s in spellings):
+            return surface
+    return None
+
+
+def _collection_contract_surfaces(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> dict[str, str]:
+    """The three in-repo places the contract is stated, whitespace-normalized."""
+    git_hook_policy._resolve_pytest_commands(tmp_path, None)
+    return {
+        "the _pytest_collection_command docstring": " ".join(
+            (git_hook_policy._pytest_collection_command.__doc__ or "").split()
+        ),
+        "the notice printed to the developer": " ".join(capsys.readouterr().err.split()),
+        "ADR-104 rule 5": " ".join(_ADR_104.read_text(encoding="utf-8").split()),
+    }
+
+
+@pytest.mark.parametrize(
+    ("label", "spellings"),
+    [*COLLECTION_CATCHES.items(), *COLLECTION_MISSES.items()],
+)
+def test_every_in_repo_surface_states_the_whole_collection_contract(
+    label: str,
+    spellings: tuple[str, ...],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Code, notice, and ADR must all name every probed class.
+
+    ADR-104 rule 5 says to state only the classes you probed. Three in-repo
+    surfaces state them, and a spec-validation pass observed that nothing kept
+    them in step: the guard that existed covered the notice alone, so the ADR
+    could drop a class, or gain one nobody probed, without any test noticing.
+    """
+    monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
+    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
+
+    absent = _surface_not_stating(spellings, _collection_contract_surfaces(capsys, tmp_path))
+    assert absent is None, (
+        f"{absent} does not state {label!r} (accepted spellings: {spellings}). "
+        "All three must name the same set of probed classes. If a class was "
+        "added or removed, probe it and update every surface plus this table; "
+        "if only the wording changed, add the new spelling here."
+    )
+
+
+def test_the_contract_check_can_fail(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Negative control: strike a class from one surface and the check names it.
+
+    An earlier version of this control asserted only that an invented sentinel
+    was absent from every surface, which is true of any string nobody wrote and
+    proves nothing about whether the check above discriminates. It was written
+    after verifying discrimination by hand, and it did not encode what the hand
+    check did, so the committed test was weaker than the work behind it. A
+    spec-validation pass said so. That is the same vacuous-control defect this
+    branch already found once in the filter-root test, which is why the fix is
+    a real mutation rather than a better-worded assertion.
+
+    Mutating the string rather than the file on disk: the surfaces are read
+    into a dict, so doctoring the dict exercises the same predicate the real
+    check uses without a test that edits a tracked ADR and has to put it back.
+    """
+    monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
+    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
+
+    surfaces = _collection_contract_surfaces(capsys, tmp_path)
+    assert len(surfaces) == 3, f"expected three surfaces, got {sorted(surfaces)}"
+
+    spellings = COLLECTION_MISSES["two same-named test functions in one module"]
+    assert _surface_not_stating(spellings, surfaces) is None, (
+        "precondition failed: some surface already omits this class, so the "
+        "mutation below would not be what makes the check fire."
+    )
+
+    for target, text in surfaces.items():
+        struck = dict(surfaces)
+        struck[target] = text
+        for spelling in spellings:
+            struck[target] = struck[target].replace(spelling, "")
+        assert _surface_not_stating(spellings, struck) == target, (
+            f"striking {spellings} from {target} did not make the check report "
+            f"{target}. The check does not discriminate, so every row of the "
+            "parametrized test above passes for a reason other than the "
+            "surfaces actually stating the contract."
+        )
