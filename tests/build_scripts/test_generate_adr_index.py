@@ -13,6 +13,8 @@ asserts on it would encode a count that is wrong by the next merge.
 
 from __future__ import annotations
 
+import os
+import stat
 import sys
 from pathlib import Path
 
@@ -778,6 +780,57 @@ def test_generate_does_not_write_through_a_symlinked_destination(tmp_path: Path)
     assert sentinel.read_text(encoding="utf-8") == sentinel_content
     assert not output.is_symlink()
     assert output.read_text(encoding="utf-8").startswith("# Architecture Decision Records")
+
+
+def test_main_does_not_dereference_a_symlinked_output_before_generating(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The CLI path must not resolve away the symlink guard above it.
+
+    ``generate()`` refusing to write through a symlink it is handed is not
+    enough: before this fix, ``main()``'s own ``_resolve()`` called
+    ``Path.resolve()`` on ``--output``, which follows the final symlink too,
+    so the CLI entry point silently rewrote a symlinked ``--output`` to its
+    target *before* ``generate()`` ever saw the symlink. The prior direct-
+    ``generate()`` test above never exercised that, because it calls
+    ``generate()`` directly and skips CLI path resolution entirely (Copilot
+    review, PR #5321).
+    """
+    directory = tmp_path / "architecture"
+    _corpus(directory)
+    sentinel = tmp_path / "sentinel.txt"
+    sentinel_content = "do not touch me\n"
+    sentinel.write_text(sentinel_content, encoding="utf-8")
+    output = tmp_path / "README.md"
+    output.symlink_to(sentinel)
+    monkeypatch.chdir(generate_adr_index._REPO_ROOT)
+
+    exit_code = generate_adr_index.main(["--adr-dir", str(directory), "--output", str(output)])
+
+    assert exit_code == 0
+    assert sentinel.read_text(encoding="utf-8") == sentinel_content
+    assert not output.is_symlink()
+    assert output.read_text(encoding="utf-8").startswith("# Architecture Decision Records")
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission bits do not apply on Windows")
+def test_generate_preserves_an_existing_destination_s_permissions(tmp_path: Path) -> None:
+    """Regenerating a committed index must not narrow its permissions.
+
+    ``tempfile.mkstemp`` creates its file mode ``0o600``, and ``os.replace``
+    publishes that mode onto the destination. Before this fix, every
+    regeneration of an already-committed, normally-readable index turned it
+    owner-only (Copilot review, PR #5321).
+    """
+    directory = tmp_path / "architecture"
+    _corpus(directory)
+    output = tmp_path / "README.md"
+    generate_adr_index.generate(directory, output)
+    os.chmod(output, 0o640)
+
+    generate_adr_index.generate(directory, output)
+
+    assert stat.S_IMODE(output.stat().st_mode) == 0o640
 
 
 def test_check_passes_when_the_committed_index_is_current(tmp_path: Path) -> None:

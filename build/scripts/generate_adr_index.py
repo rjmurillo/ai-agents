@@ -873,6 +873,17 @@ def render_index(records: Sequence[AdrRecord]) -> str:
 # --- CLI ------------------------------------------------------------------
 
 
+def _default_create_mode() -> int:
+    """Mode a brand-new file would get from ``open(path, "w")``: 0o666 masked by umask.
+
+    ``os.umask()`` has no read-only form; the only way to read the current
+    mask is to set one and immediately restore it.
+    """
+    current_umask = os.umask(0)
+    os.umask(current_umask)
+    return 0o666 & ~current_umask
+
+
 def _atomic_write_text(path: Path, content: str) -> None:
     """Write ``content`` to ``path`` atomically via a temp file plus ``os.replace``.
 
@@ -887,10 +898,24 @@ def _atomic_write_text(path: Path, content: str) -> None:
     file rather than written through. Verified empirically: replacing a
     symlink this way leaves its former target byte-for-byte unchanged and
     leaves ``path`` a regular file.
+
+    ``tempfile.mkstemp`` creates its file mode ``0o600``, and ``os.replace``
+    publishes that mode onto ``path``: regenerating a normally-readable,
+    already-committed index would otherwise turn it owner-only on every run.
+    ``path.stat()`` follows a symlink, so when ``path`` already exists (as a
+    regular file or a symlink) the temp file is chmod'd to match its current
+    mode before publishing; only a first-ever generation (no prior ``path``)
+    falls back to the mode a plain ``open(path, "w")`` would have used
+    (Copilot review, PR #5321).
     """
     directory = path.parent
+    try:
+        mode = path.stat().st_mode & 0o777
+    except OSError:
+        mode = _default_create_mode()
     fd, tmp_name = tempfile.mkstemp(dir=directory, prefix=f".{path.name}.", suffix=".tmp")
     try:
+        os.chmod(tmp_name, mode)
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(content)
         os.replace(tmp_name, path)
@@ -962,11 +987,32 @@ def _resolve(path: Path) -> Path:
     return path.resolve() if path.is_absolute() else (_REPO_ROOT / path).resolve()
 
 
+def _resolve_output(path: Path) -> Path:
+    """Anchor ``--output`` to the repository root without dereferencing a leaf symlink.
+
+    ``_resolve()`` (used for ``--adr-dir``, a read-only target where following
+    a symlink is fine) calls ``Path.resolve()`` on the whole path, which also
+    follows a symlink at the final component. Doing that here would resolve
+    ``--output`` to whatever a committed ``.agents/architecture/README.md``
+    symlink points at *before* ``generate()`` ever sees it, so
+    ``_atomic_write_text``'s ``os.replace``-based guard would receive the
+    symlink's target path directly and have nothing left to protect (CWE-59/
+    CWE-22; Copilot review, PR #5321, on the CLI entry point specifically:
+    the direct-``generate()`` regression test alone did not exercise this,
+    because it never went through path resolution at all). Resolving only the
+    parent directory keeps relative paths anchored to the repo root and lets
+    a symlinked intermediate directory resolve normally, while the final
+    component (a possible symlink) reaches ``generate()`` unresolved.
+    """
+    anchored = path if path.is_absolute() else (_REPO_ROOT / path)
+    return anchored.parent.resolve() / anchored.name
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point. Returns an ADR-035 exit code."""
     args = build_parser().parse_args(argv)
     adr_dir = _resolve(args.adr_dir)
-    output_path = _resolve(args.output)
+    output_path = _resolve_output(args.output)
 
     if not adr_dir.is_dir():
         print(f"Error: ADR directory not found: {adr_dir}", file=sys.stderr)
