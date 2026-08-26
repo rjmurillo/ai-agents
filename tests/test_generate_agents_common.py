@@ -10,8 +10,10 @@ This is a Python port of Generate-Agents.Common tests following ADR-042 migratio
 
 from __future__ import annotations
 
+import json
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Add build directory to path for imports
@@ -379,6 +381,157 @@ class TestConvertFrontmatterForPlatform:
         }
         result = convert_frontmatter_for_platform(fm, config, "test")
         assert "model_tier" not in result
+
+    _COPILOT_CONFIG: dict[str, object] = {
+        "platform": "copilot-cli",
+        "frontmatter": {"includeNameField": True},
+        "model_tiers": {
+            "opus": "claude-opus-4.6",
+            "sonnet": "claude-sonnet-4.6",
+            "haiku": "claude-haiku-4.5",
+        },
+    }
+    _VSCODE_CONFIG: dict[str, object] = {
+        "platform": "vscode",
+        "frontmatter": {"includeNameField": False},
+        "model_tiers": {
+            "opus": "Claude Opus 4.6 (copilot)",
+            "sonnet": "Claude Sonnet 4.6 (copilot)",
+            "haiku": "Claude Haiku 4.5 (copilot)",
+        },
+    }
+    _UNIT = "templates/agents/architect.shared.md"
+
+    def _keep_pin_manifest(
+        self, repo_root: Path | None = None, **entry_overrides: object
+    ) -> dict[str, dict[str, object]]:
+        # Full evidence shape: check_model_pins.scan_units() never sees a
+        # model_tier-only template (no top-level `model:` frontmatter for it
+        # to scan), so this evidence is validated only by
+        # resolve_manifest_model itself, not independently by CI. See the
+        # divergence note on build/model_pin_manifest.py:resolve_manifest_model.
+        # ADR-080 rule 2 requires a *committed* sweep artifact;
+        # resolve_manifest_model now checks the artifact exists as a file,
+        # so repo_root, when given, gets that file written under it.
+        # date uses the UTC date, matching resolve_manifest_model's own
+        # default (datetime.now(timezone.utc).date()): a host ahead of UTC
+        # would otherwise sometimes see date.today() read as "tomorrow" in
+        # UTC terms, which fails every positive test through this fixture
+        # via the age < 0 guard for reasons unrelated to what they check.
+        artifact = "evals/architect-spike/sweep.json"
+        entry: dict[str, object] = {
+            "unit": self._UNIT,
+            "model": "claude-opus-4-6",
+            "decision": "KEEP_PIN",
+            "date": datetime.now(timezone.utc).date().isoformat(),
+            "fixtures_sha": "abc123",
+            "artifact": artifact,
+            "default_model": "claude-sonnet-4-6",
+        }
+        entry.update(entry_overrides)
+        if repo_root is not None and isinstance(entry.get("artifact"), str) and entry["artifact"]:
+            artifact_path = repo_root / str(entry["artifact"])
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            # Content, not just presence, is now checked
+            # (_sweep_report_satisfies_rule2): the report must itself claim
+            # a qualifying KEEP_PIN result that agrees with this entry.
+            model = entry.get("model")
+            default_model = entry.get("default_model")
+            unit = entry.get("unit")
+            winner_id = model if isinstance(model, str) else "claude-opus-4-6"
+            default_id = (
+                default_model
+                if isinstance(default_model, str)
+                else "claude-sonnet-4-6"
+            )
+            # Matches build/generate_agents.py:265's agent_name derivation
+            # verbatim; see model_pin_sweep_evidence.py:_agent_name_from_unit.
+            agent = Path(str(unit)).stem.replace(".shared", "")
+            artifact_path.write_text(
+                json.dumps({
+                    "schemaVersion": "1",
+                    "agent": agent,
+                    "decision": "KEEP_PIN",
+                    "winner": winner_id,
+                    "fixtures_sha": entry.get("fixtures_sha"),
+                    "default_model": default_id,
+                    "models": [
+                        {"model_id": winner_id},
+                        {"model_id": default_id},
+                    ],
+                    "n_shared_fixtures": 8,
+                    "recall_delta": 0.05,
+                    "ci95": [0.01, 0.09],
+                }),
+                encoding="utf-8",
+            )
+        return {self._UNIT: entry}
+
+    def test_manifest_keep_pin_resolves_ahead_of_haiku_tier(self, tmp_path: Path) -> None:
+        """A fresh KEEP_PIN entry wins even when model_tier also says haiku:
+        manifest resolution is step 1, haiku-tier fallback is step 2."""
+        fm: dict[str, str | None] = {"description": "test", "model_tier": "haiku"}
+        result = convert_frontmatter_for_platform(
+            fm, self._COPILOT_CONFIG, "architect",
+            manifest=self._keep_pin_manifest(tmp_path), source_unit=self._UNIT,
+            repo_root=tmp_path,
+        )
+        assert result["model"] == "claude-opus-4.6"
+
+    def test_manifest_keep_pin_formats_per_platform(self, tmp_path: Path) -> None:
+        fm: dict[str, str | None] = {"description": "test"}
+        manifest = self._keep_pin_manifest(tmp_path)
+        copilot_result = convert_frontmatter_for_platform(
+            fm, self._COPILOT_CONFIG, "architect",
+            manifest=manifest, source_unit=self._UNIT, repo_root=tmp_path,
+        )
+        vscode_result = convert_frontmatter_for_platform(
+            fm, self._VSCODE_CONFIG, "architect",
+            manifest=manifest, source_unit=self._UNIT, repo_root=tmp_path,
+        )
+        assert copilot_result["model"] == "claude-opus-4.6"
+        assert vscode_result["model"] == "Claude Opus 4.6 (copilot)"
+
+    def test_manifest_entry_for_different_unit_does_not_resolve(self, tmp_path: Path) -> None:
+        """Negative control: the manifest carries evidence, but not for this
+        unit, so generation must fall back to the (empty) tier logic."""
+        fm: dict[str, str | None] = {"description": "test"}
+        result = convert_frontmatter_for_platform(
+            fm, self._COPILOT_CONFIG, "architect",
+            manifest=self._keep_pin_manifest(tmp_path),
+            source_unit="templates/agents/other.shared.md",
+            repo_root=tmp_path,
+        )
+        assert "model" not in result
+
+    def test_manifest_decision_not_keep_pin_falls_back(self, tmp_path: Path) -> None:
+        fm: dict[str, str | None] = {"description": "test", "model_tier": "haiku"}
+        result = convert_frontmatter_for_platform(
+            fm, self._COPILOT_CONFIG, "architect",
+            manifest=self._keep_pin_manifest(tmp_path, decision="RETIRE_PIN"),
+            source_unit=self._UNIT,
+            repo_root=tmp_path,
+        )
+        assert result["model"] == "claude-haiku-4.5"
+
+    def test_manifest_missing_repo_root_falls_back(self) -> None:
+        """repo_root=None (the default) must not resolve a manifest pin,
+        even with a valid manifest and source_unit: resolve_manifest_model
+        needs repo_root for the artifact path-safety check, so a caller
+        that omits it gets the pre-wiring fallback rather than a crash."""
+        fm: dict[str, str | None] = {"description": "test", "model_tier": "haiku"}
+        result = convert_frontmatter_for_platform(
+            fm, self._COPILOT_CONFIG, "architect",
+            manifest=self._keep_pin_manifest(), source_unit=self._UNIT,
+        )
+        assert result["model"] == "claude-haiku-4.5"
+
+    def test_manifest_none_reproduces_pre_wiring_behavior(self) -> None:
+        """manifest=None, source_unit=None (the default) is unaffected by
+        this feature: same output as before the manifest wiring existed."""
+        fm: dict[str, str | None] = {"description": "test", "model_tier": "haiku"}
+        result = convert_frontmatter_for_platform(fm, self._COPILOT_CONFIG, "architect")
+        assert result["model"] == "claude-haiku-4.5"
 
 
 class TestFormatFrontmatterYaml:
