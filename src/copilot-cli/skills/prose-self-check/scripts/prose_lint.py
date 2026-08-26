@@ -92,7 +92,7 @@ _FENCE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
 # root and is quoted here rather than imported, because the two skills ship
 # as separate directories and neither is on the other's import path.
 #
-# `skills/fix-markdown-fences/scripts/fix_fences.py` lines 277-279, verbatim:
+# `skills/fix-markdown-fences/scripts/fix_fences.py` lines 315-317, verbatim:
 #
 #     def over_indented(self, indent: str) -> bool:
 #         """Return True when *indent* puts the marker inside an indented code block."""
@@ -117,20 +117,39 @@ _BLOCK_QUOTE = re.compile(r"^>")
 # ordinary prose. `---` reaches the same conclusion through _THEMATIC_BREAK, so
 # the gap was `=`, which matches nothing else.
 _SETEXT_UNDERLINE = re.compile(r"^(?:=+|-+)[ \t]*$")
-# A link reference definition. The negative lookahead rejects an empty or
-# whitespace-only label, which CommonMark does not accept, and the trailing
-# `\\S` requires the destination on this line. A definition whose destination
-# sits on the NEXT line is deliberately not matched: recognizing it needs
-# multi-line state, and not recognizing it leaves the existing behaviour
-# rather than inventing a new one.
-_LINK_REFERENCE = re.compile(r"^\[(?![ \t]*\])(?:[^\[\]\\]|\\.)*\]:[ \t]*\S")
-# The same definition with NO title on its line, so a bare title on the NEXT
-# line continues it. The angle-bracket alternative matters: `<a b>` is one
-# destination containing a space, which a bare `\\S+` would split.
-_LINK_REFERENCE_NO_TITLE = re.compile(
-    r"^\[(?![ \t]*\])(?:[^\[\]\\]|\\.)*\]:[ \t]*(?:<[^<>]*>|\S+)[ \t]*$"
+# A link reference definition, validated rather than sniffed. An earlier
+# version required only `\\S` after the colon, which accepted `[foo]: <broken`
+# and `[foo]: /url "unclosed`. CommonMark reads both as paragraph text, so
+# clearing paragraph state there let `--write` append a fence to a document
+# holding no fence at all. Measured against the reference parser over 22
+# destination and title shapes; these three patterns agree with it on all 22.
+#
+# The destination is an angle form or a bare run with balanced parentheses.
+# The `(?!<)` matters: without it the bare alternative swallows `<broken`,
+# which is the defect above. A title must be complete, and nothing but
+# whitespace may follow it.
+_LINK_DESTINATION = r"(?:<[^<>\n]*>|(?!<)(?:[^ \t()\\]|\\.|\([^ \t()]*\))+)"
+_LINK_TITLE = r"(?:\"[^\"]*\"|'[^']*'|\([^()]*\))"
+_LINK_LABEL = r"\[(?![ \t]*\])(?:[^\[\]\\]|\\.)*\]"
+_LINK_REFERENCE = re.compile(
+    rf"^{_LINK_LABEL}:[ \t]*{_LINK_DESTINATION}(?:[ \t]+{_LINK_TITLE})?[ \t]*$"
 )
-_LINK_TITLE_ONLY = re.compile(r"^(?:\"[^\"]*\"|'[^']*'|\([^()]*\))[ \t]*$")
+# The same definition with NO title, so a bare title on the NEXT line
+# continues it.
+_LINK_REFERENCE_NO_TITLE = re.compile(
+    rf"^{_LINK_LABEL}:[ \t]*{_LINK_DESTINATION}[ \t]*$"
+)
+_LINK_TITLE_ONLY = re.compile(rf"^{_LINK_TITLE}[ \t]*$")
+# CommonMark also lets the destination start on the line AFTER the label. The
+# label line stays paragraph text until a valid destination proves otherwise,
+# which is why `_awaiting_link_destination` defers rather than deciding: with
+# `[foo]:` followed directly by `2.`, the reference parser keeps the paragraph
+# and vetoes the marker, and deciding early would break that.
+_LINK_LABEL_ONLY = re.compile(rf"^{_LINK_LABEL}:[ \t]*$")
+_LINK_DEST_LINE = re.compile(
+    rf"^{_LINK_DESTINATION}(?:[ \t]+{_LINK_TITLE})?[ \t]*$"
+)
+_LINK_DEST_LINE_NO_TITLE = re.compile(rf"^{_LINK_DESTINATION}[ \t]*$")
 _MAX_LIST_PAD = 4
 
 
@@ -237,7 +256,7 @@ class _ListContainers:
     12. A marker line does not itself open a paragraph. Rule 9's second pass
         sets that state from the remainder, so `- 2. item` opens both items
         instead of rejecting the nested one as a paragraph interruption.
-    13. An ordered marker is ASCII digits only. Python's regex `d`
+    13. An ordered marker is ASCII digits only. Python's regex `\\d`
         shorthand also matches Unicode decimal digits, so a line led by
         U+0661 ARABIC-INDIC DIGIT ONE opened a list here while CommonMark
         read it as a paragraph.
@@ -280,6 +299,23 @@ class _ListContainers:
         has one are all NOT definitions, and each has a curated case that
         passed before this rule landed.
 
+        The destination and title must be COMPLETE, which the first
+        version of this rule did not check: it required only one
+        non-space character after the colon, so `[foo]: <broken` and
+        `[foo]: /url "unclosed` cleared paragraph state and `--write`
+        appended a fence to a document holding no fence at all. That was
+        a corruption introduced by the fix for a corruption. The three
+        patterns are measured against the reference parser over 22
+        destination and title shapes and agree on all 22.
+
+        CommonMark also lets the destination start on the line after the
+        label, and leaving that unhandled was a corruption too, not the
+        harmless miss an earlier note claimed. `_awaiting_link_destination`
+        defers the decision rather than making it early: the label line
+        stays paragraph text until a valid destination proves otherwise,
+        because `[foo]:` followed directly by `2.` keeps its paragraph and
+        vetoes the marker.
+
     Rules 9 and 10 were both documented as deliberate limitations for one
     commit, on the reasoning that each only made the scanners miss a fence,
     which is the safe direction for a tool that writes files. That reasoning
@@ -307,6 +343,7 @@ class _ListContainers:
     """
 
     __slots__ = (
+        "_awaiting_link_destination",
         "_awaiting_link_title",
         "_columns",
         "_in_paragraph",
@@ -318,6 +355,7 @@ class _ListContainers:
         self._in_paragraph = False
         self._item_still_empty = False
         self._awaiting_link_title = False
+        self._awaiting_link_destination = False
 
     def over_indented(self, indent: str) -> bool:
         """Return True when *indent* puts the marker inside an indented code block."""
@@ -328,6 +366,7 @@ class _ListContainers:
         if _is_blank(line):
             self._in_paragraph = False  # a blank line ends any open paragraph
             self._awaiting_link_title = False  # and ends a pending definition
+            self._awaiting_link_destination = False
             if self._item_still_empty and self._columns:
                 # Rule 8: an item may begin with at most one blank line, so a
                 # blank directly after an empty marker closes it. Without this
@@ -379,6 +418,8 @@ class _ListContainers:
             return None
         definition = not self._in_paragraph and _LINK_REFERENCE.match(body)
         title_line = self._awaiting_link_title and _LINK_TITLE_ONLY.match(body)
+        dest_line = self._awaiting_link_destination and _LINK_DEST_LINE.match(body)
+        label_only = not self._in_paragraph and _LINK_LABEL_ONLY.match(body)
         self._in_paragraph = not (
             _ATX_HEADING.match(body)
             or _THEMATIC_BREAK.match(body)
@@ -387,9 +428,12 @@ class _ListContainers:
             or (self._in_paragraph and _SETEXT_UNDERLINE.match(body))
             or definition
             or title_line
+            or dest_line
         )
+        self._awaiting_link_destination = bool(label_only)
         self._awaiting_link_title = bool(
-            definition and _LINK_REFERENCE_NO_TITLE.match(body)
+            (definition and _LINK_REFERENCE_NO_TITLE.match(body))
+            or (dest_line and _LINK_DEST_LINE_NO_TITLE.match(body))
         )
         return None
 

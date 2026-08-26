@@ -120,8 +120,9 @@ documentation:
   closes with it, and the marker is then judged at the outer level where no
   paragraph is open. A link reference definition (`[foo]: /url`) is its own
   block and leaves no paragraph open, so a list may start after one; but a
-  definition cannot interrupt a paragraph that is already open, and a bare
-  title on the next line continues a definition that carried none. A blank line directly after an empty marker closes the
+  definition cannot interrupt a paragraph that is already open, its
+  destination and title must be complete (`[foo]: <broken` is prose), and
+  either the destination or a bare title may sit on the following line. A blank line directly after an empty marker closes the
   item, and a paragraph continuation line may dedent without closing it.
   Getting any of these wrong moves the content column, which moves what counts
   as a fence.

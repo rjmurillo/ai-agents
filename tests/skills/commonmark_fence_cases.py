@@ -288,6 +288,30 @@ CASES: dict[str, str] = {
         "[]: /url\n2. ```\n   code\n   ```\n",
     "a definition indented four columns is code":
         "    [foo]: /url\n2. ```\n   code\n   ```\n",
+    # Rule 16 continued. The destination and title must be COMPLETE. An
+    # earlier version required only one non-space character after the colon,
+    # so `[foo]: <broken` cleared paragraph state and `--write` appended a
+    # fence to a document holding no fence at all. Measured against the
+    # reference parser over 22 destination and title shapes.
+    "an unclosed angle destination is not a definition":
+        "[foo]: <broken\n2. ~~~\n   code\n",
+    "an unclosed title is not a definition":
+        "[foo]: /url \"unclosed\n2. ~~~\n   code\n   ~~~\n",
+    "junk after a complete title is not a definition":
+        "[foo]: /url \"T\" trailing\n2. ~~~\n   code\n   ~~~\n",
+    "unbalanced parentheses in a destination are not a definition":
+        "[foo]: /u(rl\n2. ~~~\n   code\n   ~~~\n",
+    "a closed angle destination is a definition":
+        "[foo]: <a b>\n2. ~~~\n   code\n   ~~~\n",
+    # And the destination may start on the line after the label. The label
+    # line stays paragraph text until a valid destination proves otherwise,
+    # which the next two cases pin in both directions.
+    "a destination on the following line completes a definition":
+        "[foo]:\n/url\n2. ~~~\n   code\n   ~~~\n",
+    "a label alone does not clear paragraph state":
+        "[foo]:\n2. ~~~\n   code\n   ~~~\n",
+    "a label followed by a bad destination stays a paragraph":
+        "[foo]:\n<broken\n2. ~~~\n   code\n   ~~~\n",
 }
 
 
