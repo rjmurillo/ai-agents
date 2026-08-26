@@ -126,23 +126,39 @@ def oracle_fence_lines(text: str) -> set[int]:
 # carries, and it bites harder here: the fuzzer emits no `[` in any of its
 # 6,000 documents, so nothing else covers rule 16 at all.
 #
-# A count alone would miss a delete-one-add-one edit, so the digest goes with
-# it. Both are asserted by a NON-parametrized test in each suite, which is
-# what makes them run when the dict is empty. Re-measure, never hand-edit:
+# A count alone would miss a delete-one-add-one edit, so a digest goes with it.
+# The digest covers each case's TEXT as well as its name: hashing names alone
+# left a hole one level down, where swapping a demanding fixture body for a
+# trivially balanced one keeps the count and the digest identical while every
+# parametrized suite goes quietly green. Both are asserted by a NON-parametrized
+# test in each suite, which is what makes them run when the dict is empty.
+# Re-measure, never hand-edit:
 #
-#     uv run python -c "import sys,hashlib; sys.path.insert(0,'tests/skills'); \
-#       import commonmark_fence_cases as O; n=sorted(O.CASES); \
-#       print(len(n), hashlib.sha256(chr(10).join(n).encode()).hexdigest()[:16])"
+#     uv run python -c "import sys; sys.path.insert(0,'tests/skills'); \
+#       import commonmark_fence_cases as O; print(O.case_inventory())"
 CASE_COUNT = 132
-CASE_DIGEST = "899f56c354f070fb"
+CASE_DIGEST = "fd64f2bf9b956988"
+
+# The cases where a balanced document is SUPPOSED to change under `--write`,
+# named rather than detected. Membership used to come from asking the scanner
+# whether it had reported a mistaken closer, which let a regression that
+# invented one exempt its own document from the corruption assertion. Data
+# cannot do that, and the digest above pins this list with the rest.
+MISTAKEN_CLOSER_CASES = frozenset(
+    {
+        "U+00A0 does not blank a closing fence's info string",
+        "U+3000 does not blank a closing fence's info string",
+        "a tilde closer carrying U+00A0 does not close either",
+    }
+)
 
 
 def case_inventory() -> tuple[int, str]:
     """Return the live (count, digest) of `CASES`, for comparison with the pin."""
     import hashlib
 
-    names = sorted(CASES)
-    return len(names), hashlib.sha256("\n".join(names).encode()).hexdigest()[:16]
+    payload = "\n".join(f"{name}\x00{CASES[name]}" for name in sorted(CASES))
+    return len(CASES), hashlib.sha256(payload.encode()).hexdigest()[:16]
 
 
 _CONTAINER_CASES: dict[str, str] = {

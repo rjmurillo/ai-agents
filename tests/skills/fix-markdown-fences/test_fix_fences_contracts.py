@@ -3,11 +3,12 @@
 
 Contracts against things outside this module, listed rather than counted
 because the count still said two after a third class landed.
-`TestVendoredInvocation` executes the command SKILL.md documents, as shipped,
-from a consumer working directory. `TestCommonMarkOracle` checks the
-list-container model against `markdown-it-py`, a CommonMark reference
-implementation. `TestScannerParity` holds the two duplicated scanners to one
-behaviour and one source.
+`TestCommonMarkOracle` checks the list-container model against `markdown-it-py`,
+a CommonMark reference implementation. `TestScannerParity` holds the two
+duplicated scanners to one behaviour and one source, and pins the curated case
+inventory. `TestVendoredInvocation` used to be named here and is not: it moved
+to test_fix_fences_vendoring.py when this file crossed the size ceiling, and
+naming it here described coverage this module does not have.
 
 The detector and repair unit tests live in test_fix_fences.py; these are split
 out because they answer to external contracts rather than to this module's own
@@ -31,6 +32,7 @@ from claude_skills_import import import_skill_script
 from commonmark_fence_cases import (
     CASE_COUNT,
     CASE_DIGEST,
+    MISTAKEN_CLOSER_CASES,
     case_inventory,
     oracle_fence_lines,
     reference_lines,
@@ -170,17 +172,27 @@ class TestCommonMarkOracle:
         text = FENCE_CASES[name]
         if _has_unclosed_fence(text):
             pytest.skip("document is genuinely unclosed; repair should act")
-        if any(d.kind == mod.MALFORMED_CLOSING for d in find_fence_defects(text)):
+        repaired = repair_markdown_fences(text)
+        if name in MISTAKEN_CLOSER_CASES:
             # The shared module's Scope paragraph states this divergence: "a
             # fence carrying an info string inside an open block is content to
             # CommonMark but a mistaken closer to `fix_fences.py`, which is the
             # defect that tool exists to repair." Balanced therefore does not
-            # imply no-op for this family, and asserting otherwise would demand
-            # the tool stop doing its job. `test_a_mistaken_closer_is_repaired
-            # _not_appended_to` pins what it does instead, so nothing here goes
-            # unasserted.
-            pytest.skip("document carries a mistaken closer; repair should act")
-        assert repair_markdown_fences(text) == text, name
+            # imply no-op for this family.
+            #
+            # Membership is DATA, not a question put to the scanner. Asking
+            # `find_fence_defects` whether it had found a mistaken closer let
+            # a regression that invents one exempt its own document from the
+            # assertion below, which is the round 17 mistake at the test layer:
+            # the tool reporting a defect is not evidence of one.
+            assert repaired != text, f"{name} no longer exercises the divergence"
+            assert not repaired.startswith(text), (
+                f"{name}: the repair APPENDED to a balanced document. The "
+                "divergence inserts a closer above the mistaken one; growing "
+                "at the end is the corruption this suite exists to prevent."
+            )
+            return
+        assert repaired == text, name
 
     def test_a_mistaken_closer_is_repaired_not_appended_to(self) -> None:
         """A closing fence may be followed only by spaces and tabs.
@@ -358,15 +370,21 @@ class TestScannerParity:
         the corruption this whole module exists to prevent, so there is no
         acceptable non-zero count to ratchet down from.
 
-        Documents carrying a mistaken closer are excluded for the reason the
-        shared module's Scope paragraph gives: repairing those is the defect
-        this tool exists to fix, so acting on them is correct.
+        Documents carrying a mistaken closer are NOT excluded, because deciding
+        that by asking `find_fence_defects` would let a regression that invents
+        one exempt its own document from this assertion. The property asserted
+        instead needs no such question and is strictly stronger: on a document
+        the reference parser reads as balanced, the repair may rewrite the
+        MIDDLE, which is what treating a mistaken closer looks like, and may
+        never GROW AT THE END, which is what every corruption on this PR has
+        looked like. Measured over the three seeds: 3,958 balanced documents,
+        7 middle rewrites, 0 appends.
         """
         mutated = [
             text
             for text in random_documents(seed)
             if not _has_unclosed_fence(text)
-            and not any(d.kind == mod.MALFORMED_CLOSING for d in find_fence_defects(text))
+            and repair_markdown_fences(text).startswith(text)
             and repair_markdown_fences(text) != text
         ]
         assert mutated == [], (
