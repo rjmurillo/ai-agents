@@ -13,6 +13,7 @@ asserts on it would encode a count that is wrong by the next merge.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -753,6 +754,265 @@ def test_generate_writes_the_index_and_exits_zero(tmp_path: Path) -> None:
 
     assert exit_code == 0
     assert output.read_text(encoding="utf-8").startswith("# Architecture Decision Records")
+
+
+def test_generate_does_not_write_through_a_symlinked_destination(tmp_path: Path) -> None:
+    """CWE-59/CWE-22: a symlinked ``--output`` must not corrupt its target.
+
+    A contributor who committed ``.agents/architecture/README.md`` as a
+    symlink (or a CI runner that checked out such a commit) must not have
+    this generator overwrite whatever the symlink points to. ``generate()``
+    writes atomically via a temp file plus ``os.replace``, which unlinks the
+    destination directory entry rather than following it (Copilot review,
+    originally found on the standalone extraction PR #5285).
+    """
+    directory = tmp_path / "architecture"
+    _corpus(directory)
+    sentinel = tmp_path / "sentinel.txt"
+    sentinel_content = "do not touch me\n"
+    sentinel.write_text(sentinel_content, encoding="utf-8")
+    output = tmp_path / "README.md"
+    output.symlink_to(sentinel)
+
+    generate_adr_index.generate(directory, output)
+
+    assert sentinel.read_text(encoding="utf-8") == sentinel_content
+    assert not output.is_symlink()
+    assert output.read_text(encoding="utf-8").startswith("# Architecture Decision Records")
+
+
+def test_generate_via_cli_does_not_write_through_a_symlinked_destination(
+    tmp_path: Path,
+) -> None:
+    """The CLI path must not silently dereference a symlinked ``--output``.
+
+    ``generate()`` alone is not the whole contract: ``main()`` resolves
+    ``args.output`` before calling it. A prior fix resolved the full path
+    (``Path.resolve()``, which follows a symlink at every component
+    including the last), so the process that actually runs via
+    ``build_all.py`` still overwrote a symlink's target even though the
+    unit test exercising ``generate()`` directly passed (Copilot review).
+    Drive ``main()`` here, the same entry point ``build_all.py`` uses, so a
+    regression in the CLI's own path anchoring fails this test even when
+    ``generate()`` itself is correct.
+    """
+    directory = tmp_path / "architecture"
+    _corpus(directory)
+    sentinel = tmp_path / "sentinel.txt"
+    sentinel_content = "do not touch me\n"
+    sentinel.write_text(sentinel_content, encoding="utf-8")
+    output = tmp_path / "README.md"
+    output.symlink_to(sentinel)
+
+    exit_code = generate_adr_index.main(["--adr-dir", str(directory), "--output", str(output)])
+
+    assert exit_code == 0
+    assert sentinel.read_text(encoding="utf-8") == sentinel_content
+    assert not output.is_symlink()
+    assert output.read_text(encoding="utf-8").startswith("# Architecture Decision Records")
+
+
+def test_generate_preserves_the_existing_destination_mode(tmp_path: Path) -> None:
+    """Regenerating a normally readable index must not turn it owner-only.
+
+    ``tempfile.mkstemp()`` creates its temp file mode 0600, and
+    ``os.replace()`` publishes that mode verbatim onto the destination. The
+    prior ``Path.write_text()`` call left an existing regular file's mode
+    untouched; the atomic-write replacement must match that (Copilot
+    review).
+    """
+    directory = tmp_path / "architecture"
+    _corpus(directory)
+    output = tmp_path / "README.md"
+    output.write_text("stale placeholder\n", encoding="utf-8")
+    # 0o640, not mkstemp's own 0600 no-preservation default: a broken
+    # preservation that always fell through to the default would fail this
+    # assertion cleanly, since 0o640 != 0o600 and can never collide with it.
+    output.chmod(0o640)
+
+    generate_adr_index.generate(directory, output)
+
+    assert (output.stat().st_mode & 0o777) == 0o640
+
+
+def _stray_temp_files(directory: Path, output_name: str) -> list[Path]:
+    return list(directory.glob(f".{output_name}.*.tmp"))
+
+
+def test_atomic_write_preserves_the_original_when_the_write_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failure mid-write must not corrupt or replace the existing destination.
+
+    Forces ``os.fdopen`` to raise before any content reaches the temp file's
+    handle, the earliest point ``_atomic_write_text``'s ``try`` block can
+    fail. The original destination and its content must survive untouched,
+    the temp file `mkstemp` created must be cleaned up, and the original
+    ``OSError`` must propagate rather than being swallowed (Copilot review,
+    PR #5321: "no case forces write ... to fail").
+
+    Also asserts the raw ``mkstemp`` descriptor itself was closed, not just
+    its named temp file unlinked. ``os.fdopen(fd, ...)`` does not reliably
+    close ``fd`` on every failure path (verified empirically: an invalid
+    ``mode`` string fails argument validation before ``fd`` is touched and
+    leaves it open, while an invalid ``encoding`` fails after the
+    underlying ``FileIO`` already owns ``fd`` and CPython closes it as part
+    of that failure). The mock here replaces ``os.fdopen`` outright, so it
+    never runs CPython's real cleanup either way; the only thing that can
+    close the real descriptor in this test is ``_atomic_write_text``'s own
+    ``except`` handler around the ``os.fdopen`` call (Copilot review round
+    3, PR #5321).
+    """
+    output = tmp_path / "README.md"
+    original_content = "original content\n"
+    output.write_text(original_content, encoding="utf-8")
+
+    def _raise_on_fdopen(*_args: object, **_kwargs: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(generate_adr_index.os, "fdopen", _raise_on_fdopen)
+
+    def _open_fd_count() -> int:
+        return len(os.listdir("/proc/self/fd"))
+
+    before = _open_fd_count() if Path("/proc/self/fd").is_dir() else None
+
+    with pytest.raises(OSError, match="disk full"):
+        generate_adr_index._atomic_write_text(output, "new content\n")
+
+    assert output.read_text(encoding="utf-8") == original_content
+    assert _stray_temp_files(tmp_path, "README.md") == []
+    if before is not None:
+        after = _open_fd_count()
+        # Strict equality, not a "<= 1" tolerance: this test calls
+        # _atomic_write_text exactly once, so the defect this guards against
+        # (mkstemp's descriptor never closed when os.fdopen raises) leaks
+        # exactly one descriptor. A "<= 1" tolerance would accept that exact
+        # leak and never fail (confirmed: this assertion form passed against
+        # the reverted, un-fixed code before being tightened to "== 0").
+        assert after == before, (
+            f"leaked {after - before} file descriptor(s) when os.fdopen raised"
+        )
+
+
+def test_atomic_write_preserves_the_original_when_replace_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failure during the atomic swap must not corrupt the existing destination.
+
+    Forces ``os.replace`` to raise after the temp file is fully written, the
+    latest point the ``try`` block can fail. The original destination must
+    survive untouched, the temp file must be cleaned up, and the original
+    ``OSError`` must propagate (Copilot review, PR #5321).
+    """
+    output = tmp_path / "README.md"
+    original_content = "original content\n"
+    output.write_text(original_content, encoding="utf-8")
+
+    def _raise_on_replace(*_args: object, **_kwargs: object) -> None:
+        raise OSError("cross-device link")
+
+    monkeypatch.setattr(generate_adr_index.os, "replace", _raise_on_replace)
+
+    with pytest.raises(OSError, match="cross-device link"):
+        generate_adr_index._atomic_write_text(output, "new content\n")
+
+    assert output.read_text(encoding="utf-8") == original_content
+    assert _stray_temp_files(tmp_path, "README.md") == []
+
+
+def test_atomic_write_propagates_the_original_error_when_cleanup_also_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed cleanup must not mask the write failure that triggered it.
+
+    Both ``os.replace`` (the write-path failure) and ``os.unlink`` (the
+    cleanup the ``except`` block attempts) are forced to raise. The
+    ``except OSError: pass`` around the cleanup call exists precisely so a
+    cleanup failure does not replace the original error with its own; this
+    proves that branch, which the two tests above cannot reach because their
+    cleanup always succeeds.
+    """
+    output = tmp_path / "README.md"
+    output.write_text("original content\n", encoding="utf-8")
+
+    def _raise_on_replace(*_args: object, **_kwargs: object) -> None:
+        raise OSError("original failure")
+
+    def _raise_on_unlink(*_args: object, **_kwargs: object) -> None:
+        raise OSError("cleanup also failed")
+
+    monkeypatch.setattr(generate_adr_index.os, "replace", _raise_on_replace)
+    monkeypatch.setattr(generate_adr_index.os, "unlink", _raise_on_unlink)
+
+    with pytest.raises(OSError, match="original failure"):
+        generate_adr_index._atomic_write_text(output, "new content\n")
+
+
+@pytest.mark.skipif(
+    not Path("/proc/self/fd").is_dir(), reason="requires /proc/self/fd (Linux only)"
+)
+def test_atomic_write_does_not_leak_the_temp_descriptor_when_chmod_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A ``chmod`` failure must not leak the ``mkstemp`` descriptor.
+
+    ``os.fdopen(fd, ...)`` is the first statement inside the ``with`` block
+    specifically so the raw descriptor ``tempfile.mkstemp()`` returns is
+    always either wrapped (and then owned by the ``with`` statement's
+    close-on-any-exit) or never separately acted on. A prior ordering called
+    ``os.chmod(tmp_name, ...)`` before ``os.fdopen``; when ``chmod`` raised,
+    that raw descriptor was never wrapped and never closed, leaking one file
+    descriptor per failure (Copilot review, PR #5321). Empirically confirmed
+    against the reverted ordering: 20 forced ``chmod`` failures leaked
+    exactly 20 descriptors (measured via ``/proc/self/fd`` count), 1:1 with
+    the failure count; a byte-identical restore was confirmed afterward.
+    """
+    output = tmp_path / "README.md"
+    output.write_text("existing content\n", encoding="utf-8")
+
+    def _raise_on_chmod(*_args: object, **_kwargs: object) -> None:
+        raise OSError("simulated chmod failure")
+
+    monkeypatch.setattr(generate_adr_index.os, "chmod", _raise_on_chmod)
+
+    def _open_fd_count() -> int:
+        return len(os.listdir("/proc/self/fd"))
+
+    before = _open_fd_count()
+    for _ in range(20):
+        with pytest.raises(OSError, match="simulated chmod failure"):
+            generate_adr_index._atomic_write_text(output, "new content\n")
+    after = _open_fd_count()
+
+    assert after - before <= 1, (
+        f"leaked {after - before} file descriptor(s) across 20 forced chmod failures"
+    )
+
+
+@pytest.mark.windows_path
+def test_generate_round_trips_on_windows_including_permission_preservation(
+    tmp_path: Path,
+) -> None:
+    """The atomic-write path (temp file, chmod, replace) must work on Windows.
+
+    ``os.fchmod`` does not exist on Windows and previously raised
+    ``AttributeError`` before any content was written, aborting generation
+    with the temp file's descriptor leaked (Copilot review, PR #5321). This
+    drives the real ``generate()`` entry point, not just a unit of
+    ``_atomic_write_text``, so a regression here fails on the platform where
+    it actually broke rather than only in a Linux CI job that never
+    exercises this branch.
+    """
+    directory = tmp_path / "architecture"
+    _corpus(directory)
+    output = tmp_path / "README.md"
+    output.write_text("stale placeholder\n", encoding="utf-8")
+
+    generate_adr_index.generate(directory, output)
+
+    assert output.read_text(encoding="utf-8").startswith("# Architecture Decision Records")
+    assert _stray_temp_files(tmp_path, "README.md") == []
 
 
 def test_check_passes_when_the_committed_index_is_current(tmp_path: Path) -> None:
