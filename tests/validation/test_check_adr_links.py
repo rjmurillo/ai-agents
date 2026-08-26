@@ -1,3 +1,14 @@
+# taste-lint: ignore file-size -- ten-plus rounds of ADR-review fixes (issue
+# #5192, #5199) added small regression tests to the existing file rather than
+# a new module. Round 8 alone crossed the 500-line ceiling for the first time
+# (491 -> 537 lines), and pre_pr.py's taste-count-ratchet caught it as a real
+# +1 regression against the baseline; suppressed there rather than split,
+# matching generate_adr_index.py's existing precedent for the same rule
+# (campaign QA report, Addendum 25). Later rounds kept adding tests to the
+# already-suppressed file. A split into cohesive modules (violation-class
+# tests, exemption tests, CLI exit-code tests) is real work tracked
+# separately; each review round only reconciles the current finding and
+# should not also refactor test structure. See PR #5230.
 """Tests for the ADR markdown link checker.
 
 Covers the four violation classes (unresolved, absolute, number-mismatch,

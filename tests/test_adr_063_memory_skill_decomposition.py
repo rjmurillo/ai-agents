@@ -64,6 +64,7 @@ try:
     _detector = import_skill_script(
         ".claude/skills/adr-review/scripts/detect_adr_changes.py"
     )
+    _index = import_skill_script("build/scripts/generate_adr_index.py")
 finally:
     for p in _paths_added:
         sys.path.remove(p)
@@ -114,8 +115,8 @@ class TestExistenceAndTitle:
     def test_adr_file_exists_at_canonical_path(self) -> None:
         assert ADR_PATH.is_file()
 
-    def test_title_names_the_decomposition_decision(self, adr_text: str) -> None:
-        """The title is the first H1, not assumed to be line one.
+    def test_title_names_the_decomposition_decision(self) -> None:
+        """The canonical title extractor resolves this record's title correctly.
 
         This asserted `splitlines()[0]` until frontmatter was added, at which
         point the first line became `---` and the test failed for a reason
@@ -123,15 +124,115 @@ class TestExistenceAndTitle:
         it, issue #5190 backfill). Anchoring an assertion to a position
         rather than to the structure it means is the same coupling that let
         a body `status:` line pass as frontmatter for months.
+
+        A later revision replaced the position anchor with
+        ``[ln for ln in ... if ln.startswith("# ADR-063:")]``, which filters
+        for the wanted line rather than locating the document's real first
+        H1. A file beginning with a wrong H1 (``# Wrong title``) followed
+        later by ``# ADR-063: ...`` still passed: the filter finds exactly
+        one matching line regardless of where it sits. Copilot's review on
+        PR #5230 caught this (2026-08-25); fixed by locating the first H1
+        by position with a regex matching the canonical title extractor's.
+
+        That fix still reimplemented the regex rather than calling the
+        canonical function, and applied it to the whole file including
+        frontmatter. The canonical extractor never sees frontmatter:
+        `build_record` (`generate_adr_index.py:556,574`) calls
+        `parse_frontmatter` first and passes only the returned body to
+        `_extract_title`. A frontmatter YAML comment starting with `#`
+        (ADR-068 and ADR-085 both open their block that way, per
+        `parse_frontmatter`'s own docstring at lines 267-270) would match
+        the reimplemented regex before the real title and could reject a
+        document the canonical extractor accepts. A second Copilot pass
+        caught this (2026-08-25).
+
+        Fixed by calling the canonical functions directly instead of
+        reimplementing them a second time: `_index.parse_frontmatter` then
+        `_index._extract_title`. This closes the input-contract gap by
+        construction, not by another hand-written regex that could drift
+        again, and it still catches the original defect: verified by
+        mutating the fixture body to open with a wrong H1, which shifts
+        `_extract_title`'s return from "Decompose the Memory Skill Into
+        Focused Sub-Skills" to "Wrong title" and fails this test's
+        assertions below. A control confirmed a `# migration note`
+        frontmatter comment does not affect the extracted title, the case
+        this round's fix closes.
+
+        That fix still did not match `build_record`'s own call shape: it
+        passed `parse_frontmatter`'s raw `body` straight to `_extract_title`,
+        but `build_record` (`generate_adr_index.py:563,574`) calls
+        `_strip_fences(body)` first and passes the result, `prose`, to
+        `_extract_title`. `_extract_title`'s own docstring
+        (`generate_adr_index.py:356-360`) states the precondition directly:
+        "Takes the fence-stripped body: a `# Heading` shown inside a
+        markdown code sample is sample text, and one appearing above the
+        record's own H1 used to be published as the record's title." Passing
+        raw `body` means this test could accept a record `build_record`
+        rejects (a fenced sample whose own `# Heading` sits above the real
+        title) whenever the sample's H1 does not happen to also satisfy this
+        test's loose substring assertions. A third Copilot pass caught this
+        (2026-08-25). Fixed by inserting the missing `_strip_fences` call,
+        matching `build_record`'s call shape exactly this time; proven by
+        `test_extract_title_requires_fence_stripped_input_like_build_record_does`
+        below, which fails on the raw-`body` call and passes once
+        fence-stripping is inserted (verified by reverting the fix locally
+        and re-running: the new test fails, the fenced-H1 wins).
+
+        That fix, calling `parse_frontmatter`, `_strip_fences`, and
+        `_extract_title` individually in the test body, still reimplemented
+        `build_record`'s own call SEQUENCE rather than driving it: a future
+        change to `build_record` that removes, reorders, or adds a step
+        between those three calls would leave this test green, since it
+        never runs `build_record` itself. Copilot found this on PR #5230
+        round 16 (previously missed, then resurfaced). Fixed by calling
+        `_index.build_record(ADR_PATH)` directly and asserting on the
+        `AdrRecord.title` it returns: this test now exercises the exact
+        production entry point every real ADR record goes through, and a
+        regression in `build_record`'s own pipeline order breaks this test
+        the same way it would break the real index build.
+        `test_extract_title_requires_fence_stripped_input_like_build_record_does`
+        below keeps its own direct calls to `parse_frontmatter`,
+        `_strip_fences`, and `_extract_title`: it exists specifically to pin
+        `_extract_title`'s fence-stripped-input precondition in isolation,
+        on a synthetic fixture `build_record` cannot be pointed at, so it is
+        not a duplicate of this test's coverage.
         """
-        title = next(
-            (line for line in adr_text.splitlines() if line.startswith("# ")),
-            None,
-        )
-        assert title is not None, "ADR has no H1 title"
-        assert title.startswith("# ADR-063:")
+        title = _index.build_record(ADR_PATH).title
         assert "memory" in title.lower()
         assert "decompos" in title.lower()
+
+    def test_extract_title_requires_fence_stripped_input_like_build_record_does(
+        self,
+    ) -> None:
+        """A fenced sample's own H1 must not outrank the record's real title.
+
+        Synthetic fixture, not the real ADR-063 body: a fenced code sample
+        containing `# Wrong title` sits before the record's real H1. This is
+        exactly the shape `_extract_title`'s docstring names as the reason it
+        requires fence-stripped input, and exactly what `build_record`
+        (`generate_adr_index.py:563,574`) guards against by calling
+        `_strip_fences(body)` before `_extract_title(prose, path)`.
+
+        Negative control: calling `_extract_title` on the RAW body (skipping
+        `_strip_fences`, the bug this test guards against) returns the
+        fenced sample's title instead, proving the fixture discriminates.
+        """
+        raw_body = (
+            "## Context\n\n"
+            "```markdown\n"
+            "# Wrong title\n"
+            "```\n\n"
+            "# ADR-063: Decompose the Memory Skill Into Focused Sub-Skills\n"
+        )
+
+        # Negative control: unstripped input is misled by the fenced H1.
+        misled_title = _index._extract_title(raw_body, ADR_PATH)
+        assert misled_title == "Wrong title"
+
+        # The fix: strip fences first, matching build_record's call shape.
+        prose = _index._strip_fences(raw_body)
+        title = _index._extract_title(prose, ADR_PATH)
+        assert title == "Decompose the Memory Skill Into Focused Sub-Skills"
 
 
 class TestRequiredSections:
