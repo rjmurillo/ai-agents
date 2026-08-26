@@ -463,10 +463,21 @@ itself mean tests ran.
   costs roughly 40s per push, because the cheap way to remove it was unsound.
 - The workstation declared sum is still 47.5 minutes against a 300s target, and
   the ratchet stops it rising rather than bringing it down. Closing that needs
-  the unmeasured jobs measured (issue #5318). In a container no single job can
-  exceed 240s, which is asserted, so the specific failure this record exists to
-  stop is closed; on a workstation a hung e2e smoke can still run for 20
-  minutes, which is slow rather than destructive.
+  the unmeasured jobs measured (issue #5318). On a workstation a hung e2e smoke
+  can still run for 20 minutes, which is slow rather than destructive.
+- **The failure this record exists to stop is narrowed, not closed.** In a
+  container no single *subprocess* can exceed 150s, which is asserted. That is
+  not the same as a per-job bound, and an earlier revision of this section said
+  it was. `run_pytest` holds an aggregate deadline over its children but at
+  780s on the opt-in path, and `scan_pushed_heads` holds none at all: it loops
+  over pushed refs and each scan gets a fresh clamp, so N refs cost up to N
+  times 150s. Rule 8 therefore remains open for those two paths.
+
+  The measured hook is ~148s end to end and the default collection path spawns
+  one child, so the exposure is a tail case rather than the common one. That is
+  an argument for sizing the fix deliberately, not for leaving the record
+  claiming a bound it does not have. Corrected in review on PR #5319; the
+  aggregate deadline is tracked in #5318.
 
 ### Neutral
 

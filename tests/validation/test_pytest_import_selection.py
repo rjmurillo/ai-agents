@@ -315,20 +315,23 @@ def test_the_other_probed_catch_also_blocks_the_push(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """The stand-in claims three catches; only one of them was executed.
+    """The stand-in's second catch, executed rather than argued.
 
-    `test_a_broken_import_...` above proves the first. The other two were
-    probed by hand when the claim was written and the probes were never
-    committed, so the repository held three claims and one proof. The contract
-    test elsewhere in this module checks that the docstring, the notice, and
-    ADR-104 rule 5 *agree* on the three, which is a different thing from any of
-    them being true: three surfaces can agree and all be wrong. Raised by a
-    spec-validation pass, which noticed the asymmetry between what is claimed
-    and what runs.
+    `test_a_broken_import_...` above proves the first. This proves the other
+    one. There were briefly three: the same-basename collision was claimed and
+    parametrized here, then removed when a probe under production
+    configuration showed it collects clean, and it now has its own negative
+    test below.
 
-    Exit codes differ by class (a syntax error exits 1, a collision exits 2), so
-    these assert non-zero rather than a specific code. What matters to the push
-    is that git refuses it, and lefthook treats any non-zero the same way.
+    Both halves of that history are worth keeping. The claims were held by
+    three surfaces agreeing, which is a different property from any of them
+    being true. And the first attempt to fix that by executing the real command
+    still measured the wrong pytest, because the fixture had no config file and
+    silently took a different import mode. Agreement is not truth, and
+    execution is not fidelity.
+
+    Asserts non-zero rather than a specific code: what matters is that git
+    refuses the push, and lefthook treats any non-zero the same way.
     """
     _mirror_production_pytest_config(tmp_path)
     tests_dir = tmp_path / "tests"

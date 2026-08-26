@@ -94,19 +94,29 @@ COLLECTION_CATCHES = {
     "a broken import": ("broken import",),
     "a syntax error": ("syntax error",),
 }
+
+# Misses carry their negation. An earlier revision listed the bare class name,
+# which a surface satisfies whether it says the class is caught or missed, so
+# the check could not detect a polarity inversion: exactly the failure that put
+# the basename collision in CATCHES for three commits. The deletion control
+# cannot find that either, because inverting a claim deletes nothing.
 COLLECTION_MISSES = {
-    "a missing fixture": ("missing fixture", "fixture no fixture satisfies"),
-    "two same-named test functions in one module": ("same-named test functions in one module",),
-    # Moved from CATCHES in review (PR #5319). A basename collision raises
+    "a missing fixture": (
+        "does not catch a missing fixture",
+        "does not catch a test whose fixture no fixture satisfies",
+    ),
+    "two same-named test functions in one module": (
+        "does not catch two same-named test functions in one module",
+    ),
+    # Moved here from CATCHES in review (PR #5319). A basename collision raises
     # under pytest's default `prepend` import mode and collects clean under
     # `--import-mode=importlib`, which `pyproject.toml` sets. The probe behind
     # the old claim ran without that config. This table agreeing with three
     # surfaces never made the claim true: agreement and truth are different
-    # properties, which is the whole reason the behavior tests exist next door.
+    # properties, which is why the behavior tests live next door.
     "a same-basename module collision": (
-        "same-basename",
-        "share a basename",
-        "sharing a basename",
+        "does not catch a same-basename module collision",
+        "does not catch two test modules sharing a basename",
     ),
 }
 
@@ -129,14 +139,24 @@ def _surface_not_stating(spellings: tuple[str, ...], surfaces: dict[str, str]) -
 def _collection_contract_surfaces(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> dict[str, str]:
-    """The three in-repo places the contract is stated, whitespace-normalized."""
+    """The three in-repo places the contract is stated, normalized for matching.
+
+    Lowercased as well as whitespace-collapsed. The notice shouts `does NOT
+    catch` and the ADR writes `does not catch`; both are the same claim, and a
+    spelling table that has to carry each surface's capitalization stops being
+    about the contract and starts being about typography.
+    """
     git_hook_policy._resolve_pytest_commands(tmp_path, None)
+
+    def normalize(text: str) -> str:
+        return " ".join(text.split()).lower()
+
     return {
-        "the _pytest_collection_command docstring": " ".join(
-            (git_hook_policy._pytest_collection_command.__doc__ or "").split()
+        "the _pytest_collection_command docstring": normalize(
+            git_hook_policy._pytest_collection_command.__doc__ or ""
         ),
-        "the notice printed to the developer": " ".join(capsys.readouterr().err.split()),
-        "ADR-104 rule 5": " ".join(_ADR_104.read_text(encoding="utf-8").split()),
+        "the notice printed to the developer": normalize(capsys.readouterr().err),
+        "ADR-104 rule 5": normalize(_ADR_104.read_text(encoding="utf-8")),
     }
 
 
@@ -168,6 +188,37 @@ def test_every_in_repo_surface_states_the_whole_collection_contract(
         "added or removed, probe it and update every surface plus this table; "
         "if only the wording changed, add the new spelling here."
     )
+
+
+@pytest.mark.parametrize(("label", "terms"), sorted(COLLECTION_CATCHES.items()))
+def test_no_surface_disclaims_a_class_it_is_supposed_to_catch(
+    label: str,
+    terms: tuple[str, ...],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The inversion the presence check cannot see.
+
+    The check above asks whether each class is named. Naming is not polarity: a
+    surface that said "does not catch a broken import" would satisfy a search
+    for "broken import" and quietly halve the local gate's advertised value.
+    The misses carry their negation in the spelling table, so this is the
+    matching guard for the other column.
+
+    Raised in review on PR #5319 alongside the polarity hole in the misses.
+    """
+    monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
+    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
+
+    for surface, text in _collection_contract_surfaces(capsys, tmp_path).items():
+        for term in terms:
+            assert f"does not catch {term}" not in text, (
+                f"{surface} says it does not catch {term!r}, but {label!r} is "
+                "in COLLECTION_CATCHES. Either the surface is wrong, or the "
+                "class was demoted and the table was not moved with it. Probe "
+                "it under production configuration before deciding which."
+            )
 
 
 def test_the_contract_check_can_fail(
