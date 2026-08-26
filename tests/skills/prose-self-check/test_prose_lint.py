@@ -464,7 +464,9 @@ class TestCommonMarkFuzz:
         )
 
     def test_the_fuzzer_can_actually_see_a_divergence(self) -> None:
-        # Negative control: a document from the known family must diverge, or
-        # the comparison above is measuring nothing.
-        text = "  1.     text\n     ~~~\n  ## H2\n"
+        # Negative control: a document from the one remaining known limitation
+        # must still diverge, or the comparison above is measuring nothing.
+        # This used to use a list-container case, which rule 10 then fixed, so
+        # the control silently stopped controlling for anything.
+        text = '<example type="X">\n```diff\n+ code\n```\nAfter.\n'
         assert oracle_fence_lines(text) != _masked_lines(text)

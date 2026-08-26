@@ -12,14 +12,18 @@ from CommonMark elsewhere on purpose: a fence carrying an info string inside an
 open block is content to CommonMark but a mistaken closer to `fix_fences.py`,
 which is the defect that tool exists to repair.
 
-Three known limitations are out of scope here, all of them measured rather than
-assumed. Raw HTML blocks swallow a following fence. A fenced block inside a list
-item does not end when the document dedents out of that item. And content on a
-marker line that is itself a block start is not re-processed, so `- - a` opens
-one container instead of two, `- ``` ` does not open a fenced block, and
-`- # h` is not read as a heading. Handling the last of those means re-parsing
-the rest of the line against the container just opened, which is a parser
-rather than a tracker; none of the three appears in this repository's Markdown.
+One known limitation is out of scope here: a raw HTML block (for example
+`<example ...>`) swallows a following fence, so the scanners read a fence there
+that CommonMark does not. Two others used to be listed and were implemented
+instead, because in each case the argument for tolerating them was that the gap
+only made the scanners miss a fence, and measurement showed the opposite. Both
+left a block open past its real end, so `--write` appended a closing fence to
+well-formed documents. Do not repeat that reasoning without measuring; see
+rules 9 and 10 in `_ListContainers`.
+
+What remains in the fuzz residue below is not one family. It is a handful of
+deep interactions between lazy continuations, empty items, and five-or-more
+columns of padding under nested markers.
 
 Do not widen these cases into those areas without deciding what the intended
 behavior is first. The fuzz baselines below are what bound them.
@@ -108,6 +112,13 @@ CASES: dict[str, str] = {
     "blank line closes an empty ordered item": "1)\n\n    ```\n    x\n    ```\n",
     "two blanks close an empty item": "-\n\n\n    ```\n    x\n    ```\n",
     "a blank keeps a non-empty item open": "- item\n\n    ```\n    x\n    ```\n",
+    # Rule 9: a marker line's remainder is re-parsed inside the item.
+    "backtick fence on the marker line": "- ```\n  x\n  ```\n\nEnd.\n",
+    "tilde fence on the marker line": "- ~~~\n  x\n  ~~~\n\nEnd.\n",
+    "fence with an info string on the marker line": ("1. ~~~info\n   x\n   ~~~\n\nEnd.\n"),
+    "two markers then a fence on one line": "- - ```\n    x\n    ```\n\nEnd.\n",
+    "a heading on the marker line": ("- # heading\n2. item\n      ```\n      x\n      ```\n"),
+    "two markers on one line": "- - a\n      ```\n      x\n      ```\n",
 }
 
 
@@ -132,9 +143,14 @@ _FUZZ_BULLETS = ("-", "*", "+")
 _FUZZ_ORDERED = ("1.", "2.", "01.", "003.", "1)", "10.", "9)")
 
 # Measured against `random_documents` and `prose_lint._blank_fenced_blocks`,
-# re-measured whenever a rule closes part of the residue. Adding rule 8 (a
-# blank line closes an empty item) took these from 37, 28 and 29.
-FUZZ_BASELINE = {1729: 34, 20260826: 27, 4242: 28}
+# re-measured whenever a rule closes part of the residue.
+#
+# These are not comparable with figures recorded before rule 9, because the
+# generator was widened at the same time to emit marker lines whose remainder
+# is itself a block start. That family had produced a `--write` corruption the
+# fuzzer could not reach. On the widened generator the counts were 212, 247 and
+# 225; rule 10 (a block ends with its container) took them to what follows.
+FUZZ_BASELINE = {1729: 1, 20260826: 6, 4242: 6}
 FUZZ_DOCUMENTS = 2000
 
 
@@ -159,7 +175,12 @@ def _fuzz_line(rng: random.Random) -> str:
         return indent + rng.choice(("***", "---", "___", "* * *", "- - -"))
     if kind == 7:
         return indent + rng.choice(("> quote", "code_ish()"))
-    return indent + rng.choice(("```", "~~~"))
+    # Rule 9 territory: a marker whose remainder is itself a block start. This
+    # family produced a `--write` corruption that review, not the fuzzer, found,
+    # because the generator could not emit it. It can now.
+    return indent + rng.choice(
+        ("- ```", "- ~~~", "- - ```", "1. ~~~info", "- # h", "- - a", "* ```py")
+    )
 
 
 def random_documents(seed: int, count: int = FUZZ_DOCUMENTS) -> list[str]:
