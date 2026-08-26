@@ -1,3 +1,14 @@
+---
+id: ADR-065
+status: proposed
+date: 2026-05-29
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
+---
+
 # ADR-065: Orchestrator Is a Deterministic Router and Retry Policy, Not a Supervisor
 
 ## Status

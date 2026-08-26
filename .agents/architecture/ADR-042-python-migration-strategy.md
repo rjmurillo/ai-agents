@@ -1,8 +1,26 @@
+---
+id: ADR-042
+status: accepted
+date: 2026-08-25
+decision-makers: [rjmurillo]
+supersedes: [ADR-005]
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-042: Python Migration Strategy
 
-## Status
+## Acceptance Evidence
 
-Accepted
+Ratified 2026-01-17 in PR #963. The six-role adr-review consensus is recorded at
+`.agents/critique/ADR-042-debate-log.md` (5 Concerns plus 1 Accept, resolved
+Disagree-and-Commit, all P0 findings marked RESOLVED), with supporting artifacts at
+`.agents/critique/ADR-042-independent-review.md`, `ADR-042-security-review.md`,
+`ADR-042-strategic-advisory.md`, and `ADR-042-python-migration-critique.md`.
+The citation is here because ADR-073 binds a transition to `status: accepted` to
+adr-review evidence, and a record that carries the enum without naming its evidence
+cannot be audited from itself.
 
 ## Date
 
@@ -133,6 +151,7 @@ When migrating a PowerShell script:
 
 - **Supersedes**: [ADR-005: PowerShell-Only Scripting Standard](./ADR-005-powershell-only-scripting.md)
 - **Companion**: [ADR-006: Thin Workflows, Testable Modules](./ADR-006-thin-workflows-testable-modules.md) (still applies)
+- **Downstream**: [ADR-031: Hybrid PowerShell Architecture](./ADR-031-hybrid-powershell-architecture.md) (rejected 2026-08-25: this migration removed its premise); [ADR-028: PowerShell Output Schema Consistency](./ADR-028-powershell-output-schema-consistency.md) (superseded 2026-08-25 by ADR-056, which re-platforms its principle for Python)
 - **Related**: PR #962 (skill-installer adoption)
 
 ## References

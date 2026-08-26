@@ -1,3 +1,14 @@
+---
+id: ADR-018
+status: accepted
+date: 2025-12-23
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
+---
+
 # ADR-018: Cache Invalidation Strategy for GitHub Data
 
 **Status**: Accepted

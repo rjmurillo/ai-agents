@@ -337,7 +337,7 @@ foreach ($dir in $directories) {
 
 **Usage**:
 
-1. Run the current Python fence fixer: `uv run python .claude/skills/fix-markdown-fences/fix_fences.py <path>`
+1. Run the current Python fence fixer: `uv run python .claude/skills/fix-markdown-fences/scripts/fix_fences.py <path>`
 2. Verify changes with: `git diff`
 3. Commit fixes
 

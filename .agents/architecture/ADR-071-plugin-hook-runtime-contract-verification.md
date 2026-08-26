@@ -1,5 +1,12 @@
 ---
+id: ADR-071
 status: accepted
+date: 2026-08-19
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
 ---
 
 # ADR-071: Plugin Hook Runtime-Contract Verification

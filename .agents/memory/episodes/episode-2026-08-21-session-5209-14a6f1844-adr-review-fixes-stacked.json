@@ -1,0 +1,464 @@
+{
+  "id": "episode-2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked",
+  "session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked",
+  "timestamp": "2026-08-21T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Carry the PR #5209 review-round fixes on a branch stacked on claude/adr-evaluation-tooling-6od8rd, because that branch cannot be pushed from this container. It sits at 47 commits against a 40 ceiling, and the commit-limit-bypass label the owner applied cannot be verified locally: check_pr_bypass_label.py shells out to gh, and gh has no GitHub access in this session (GraphQL and REST both return 403), so it fails closed on every label. Stacking clears the ceiling honestly rather than by exception: _unpushed_commit_count excludes commits another pushed branch already carries, so this push counts 9 rather than 47 (issue #3610).",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Audit the ADR corpus for gaps, tooling opportunities, and low-effort-model confusion",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix _get_adr_status frontmatter parsing (issue #5189)",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge origin/main, fix the setup-uv SHA duplication it exposed, file #5220",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix the UnicodeDecodeError family reported by Cursor Bugbot",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge the Bugbot autofix agent's concurrent fix",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge origin/main and combine two competing fixes to one test",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Address the Copilot review: duplicate-key class, ADR-063, template overreach",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-21T17:16:21+00:00",
+      "type": "commit",
+      "content": "Commit: 8f2605d2507a3d3da227793e11452d4ec53fb8eb",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-21T17:40:28+00:00",
+      "type": "commit",
+      "content": "Commit: b386b27cadbda6ee539b5e212beaad4c0d4eb88f",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Correct the stale nine-check claims Copilot found",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Close the prose-drift bypass Copilot found in _status_prose",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-measure a figure I had carried forward, and correct the commit message",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bring the two lifecycle files under ruff format",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Record a --no-verify invocation rather than let an absolute claim stand",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-21T18:50:21+00:00",
+      "type": "commit",
+      "content": "Commit: 48e418a47d67c5e5cca2893a33eae36569684690",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Align the documented ADR query recipe with the four real status readers",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Stop reporting an unterminated frontmatter block as an absent one",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix a mutation probe of mine that could not discriminate",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-21T19:23:20+00:00",
+      "type": "commit",
+      "content": "Commit: 4488070a5adfe28a29d4ffbad55e94fa3beb3534",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Move duplicate-key detection into the parser in all three ADR readers",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Stop a TypeError escaping the ADR index error contract",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Blank code fences before searching for a status declaration",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Assess Cursor's unprompted autofix commit rather than accept it",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-21T21:07:32+00:00",
+      "type": "commit",
+      "content": "Commit: 93e9768f59fcef17b7451bcccacbedc5324c884b",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e026"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Unblock the push: merge main for the lowered ruff baseline",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-21T21:14:55+00:00",
+      "type": "commit",
+      "content": "Commit: 1a465379a690325a2b8f18013dffcc661b1034c0",
+      "caused_by": [
+        "e024"
+      ],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-08-22T05:19:39+00:00",
+      "type": "commit",
+      "content": "Commit: 17e0a15f3",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e010",
+        "e011",
+        "e012",
+        "e013",
+        "e014",
+        "e016",
+        "e017",
+        "e018",
+        "e020",
+        "e021",
+        "e022",
+        "e023",
+        "e025",
+        "e026"
+      ],
+      "leads_to": [
+        "e028"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-08-22T05:20:00+00:00",
+      "type": "commit",
+      "content": "Commit: 5205bf29d",
+      "caused_by": [
+        "e027"
+      ],
+      "leads_to": [
+        "e029"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-08-22T05:24:14+00:00",
+      "type": "commit",
+      "content": "Commit: e34d46e35d9f924d0e73103e7f1dad0d8d889dee",
+      "caused_by": [
+        "e028"
+      ],
+      "leads_to": [
+        "e030"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-08-22T06:35:41+00:00",
+      "type": "commit",
+      "content": "Commit: 6a1a34d2d",
+      "caused_by": [
+        "e029"
+      ],
+      "leads_to": [
+        "e031"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e031",
+      "timestamp": "2026-08-22T06:36:13+00:00",
+      "type": "commit",
+      "content": "Commit: b4d3de5b8",
+      "caused_by": [
+        "e030"
+      ],
+      "leads_to": [
+        "e032"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e032",
+      "timestamp": "2026-08-22T06:36:52+00:00",
+      "type": "commit",
+      "content": "Commit: 73afcc8ec",
+      "caused_by": [
+        "e031"
+      ],
+      "leads_to": [
+        "e033"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e033",
+      "timestamp": "2026-08-22T06:37:19+00:00",
+      "type": "commit",
+      "content": "Commit: d5160a628",
+      "caused_by": [
+        "e032"
+      ],
+      "leads_to": [
+        "e034"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e034",
+      "timestamp": "2026-08-22T06:37:50+00:00",
+      "type": "commit",
+      "content": "Commit: 32cef31ce",
+      "caused_by": [
+        "e033"
+      ],
+      "leads_to": [
+        "e035"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e035",
+      "timestamp": "2026-08-22T06:43:20+00:00",
+      "type": "commit",
+      "content": "Commit: 75e7b1ee2",
+      "caused_by": [
+        "e034"
+      ],
+      "leads_to": [
+        "e036"
+      ],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    },
+    {
+      "id": "e036",
+      "timestamp": "2026-08-22T06:58:50+00:00",
+      "type": "commit",
+      "content": "Commit: d1fc64595bf5bc6e9c2d54b6a4210ef194f7eff7",
+      "caused_by": [
+        "e035"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 16,
+    "files_changed": 30
+  },
+  "lessons": []
+}

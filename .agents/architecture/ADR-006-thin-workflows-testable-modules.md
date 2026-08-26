@@ -1,3 +1,14 @@
+---
+id: ADR-006
+status: accepted
+date: 2026-04-29
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-006: Thin Workflows, Testable Modules
 
 **Status**: Accepted

@@ -1,3 +1,14 @@
+---
+id: ADR-048
+status: proposed
+date: 2026-02-23
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
+---
+
 # ADR-048: MCP Tool Ecosystem Expansion
 
 ## Status

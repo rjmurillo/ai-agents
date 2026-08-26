@@ -6,23 +6,21 @@ applyTo: '**/*.py,**/pyproject.toml,**/requirements*.txt'
 # Python Rules
 
 These rules apply when you write or review Python. The dev and install target is
-3.14 (`.python-version`, CI, `requires-python = ">=3.14"`, `ruff` target-version
-`py314`). But plugin hooks and skill scripts run under the host's ambient
-interpreter, which may be older, so a blocking gate
-(`scripts/validation/validate_python_syntax.py`, issue #2655) requires every
-tracked file to parse at the hook-portability syntax floor, currently 3.10.
-Write to that floor: avoid syntax newer than 3.10, such as PEP 695 generics
-(`def f[T]()`, 3.12+) and PEP 758 unparenthesized `except A, B:` (3.14). Defer to
-`pyproject.toml`, `ruff` config, and `mypy` settings over personal preference.
+3.14 (`.python-version`, CI, `requires-python = ">=3.14"`). But plugin hooks and
+skill scripts run under the host's ambient interpreter, which may be older, so a
+blocking gate (`scripts/validation/validate_python_syntax.py`, issue #2655)
+requires every tracked file to parse at the hook-portability syntax floor,
+currently 3.10. Write to that floor: avoid syntax newer than 3.10, such as PEP
+695 generics (`def f[T]()`, 3.12+) and PEP 758 unparenthesized `except A, B:`
+(3.14). Defer to `pyproject.toml`, `ruff` config, and `mypy` settings over
+personal preference.
 
 ## Typing
 
 - Type every public function signature: parameters and return. Internal helpers
   with obvious types may omit annotations, but a boundary without types is a bug.
 - Use built-in generics (`list[str]`, `dict[str, int]`, `tuple[int, ...]`) and
-  `X | None` instead of `Optional[X]`. Do not use PEP 695 generic syntax
-  (`def f[T](x: T) -> T`): it needs 3.12+ and the syntax-floor gate (3.10)
-  rejects it repo-wide.
+  `X | None` instead of `Optional[X]`.
 - Prefer precise types: `Sequence`/`Mapping` for read-only parameters,
   `Protocol` for structural interfaces, `Literal` for fixed string sets,
   `TypedDict` for structured dict payloads at a boundary.
@@ -45,12 +43,15 @@ Write to that floor: avoid syntax newer than 3.10, such as PEP 695 generics
 
 ## Tooling
 
-- `uv` for environments and dependency resolution; `ruff` for lint and format
-  (it replaces black, isort, flake8); `mypy` for types; `pytest` for tests.
+- `uv` for environments and dependency resolution; `ruff check` for lint; `mypy`
+  for types; `pytest` for tests.
 - Tests follow Arrange/Act/Assert, one behavior per test, names that describe the
   behavior (`returns_empty_when_no_rows`). Mock only at I/O and process
   boundaries; never mock the function under test.
 - Pin the interpreter and dependencies. Do not rely on the system Python.
+- **Never run `ruff format` or cite `ruff format --check` as a gate.**
+  No gate runs it; main does not conform. Issue #5304 and
+  `tests/validation/test_ruff_format_not_enforced.py` hold the evidence.
 
 ## Errors
 

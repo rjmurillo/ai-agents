@@ -422,6 +422,29 @@ def test_workflow_delegates_all_pr_validation_blocks():
     assert "Write-Error \"PR has $env:COMMIT_COUNT commits" not in workflow
 
 
+def test_post_pr_comment_step_updates_the_existing_comment_in_place() -> None:
+    """Issue #5210: a re-run must overwrite the prior verdict, not skip it.
+
+    ``post_issue_comment.py`` takes a write-once path by default: once a
+    comment carrying the ``PR-VALIDATION`` marker exists, every later run
+    printed "already exists. Skipping." and left the first run's verdict
+    showing forever, even after the underlying checks started passing.
+    ``--update-if-exists`` is the documented switch to the upsert path; this
+    pins it onto the step so a regression here is caught by a wiring test,
+    not discovered by a stale FAIL on a fixed PR (as PR #5209 was).
+    """
+    matching = [
+        step
+        for step in _pr_validation_steps()
+        if step.get("name") == "Post PR Comment"
+    ]
+    assert len(matching) == 1, "expected exactly one 'Post PR Comment' step"
+    run = matching[0].get("run", "")
+    assert "post_issue_comment.py" in run
+    assert "--marker \"PR-VALIDATION\"" in run
+    assert "--update-if-exists" in run
+
+
 
 
 class TestModelPinEnforcementIsWiredIntoCI:
