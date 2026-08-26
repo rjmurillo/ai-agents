@@ -75,13 +75,20 @@ generated writes. Expiry reports EXTERNAL (exit 3): the tree was never
 scored.
 
 The budget is one aggregate for the whole gate, not per row, so the gate's
-worst case is bounded below the process cap that contains it:
-``lefthook.yml`` runs ``pre-pr-validation`` under ``timeout: 15m`` (900s),
-and a lefthook cap kill lands on the whole process tree without the SIGINT
-path. ``_GATE_BUDGET_SECONDS + _TERMINATION_GRACE_SECONDS`` (450s) leaves
-the remaining half of the outer cap for the rest of the sequence (measured
-~130s). ``tests/validation/test_check_generated_staleness.py``
-pins that arithmetic against the live ``lefthook.yml``.
+worst case is bounded below the process cap that contains it: a lefthook cap
+kill lands on the whole process tree without the SIGINT path, so the gate must
+be done well before the job it runs inside is. The rule is
+``_GATE_BUDGET_SECONDS + _TERMINATION_GRACE_SECONDS <= cap / 2``, leaving the
+other half for the rest of the sequence.
+
+The cap itself is deliberately not restated here. An earlier revision of this
+paragraph quoted ``timeout: 15m (900s)`` and a 450s worst case; both were
+correct when written and both were wrong within a day of the cap moving to 4m,
+because prose beside a number is a copy nobody runs.
+``tests/validation/test_check_generated_staleness_termination.py`` reads the
+cap out of the live ``lefthook.yml`` and asserts the inequality, so the numbers
+have exactly one home and this text explains the rule rather than restating
+them.
 
 The static split alone cannot guarantee the SIGINT deadline fires first: the
 gate's clock starts when the sequence reaches it, after every earlier
