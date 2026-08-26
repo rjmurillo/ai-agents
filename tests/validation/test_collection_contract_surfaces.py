@@ -10,7 +10,7 @@ who changed the set of probed defect classes wants this one.
 
 Nothing here executes pytest. The claims these surfaces make are proved by
 behavior tests in the sibling module (`test_a_broken_import_...` and
-`test_the_other_two_probed_catches_also_block_the_push`), because three
+`test_the_other_probed_catch_also_blocks_the_push`), because three
 surfaces agreeing is a different property from any of them being true.
 """
 
@@ -28,9 +28,9 @@ def test_the_notice_states_every_probed_miss_not_just_the_first(
 ) -> None:
     """The developer-facing text must not under-list what collection misses.
 
-    `_pytest_collection_command`'s docstring says the same three-catch,
-    two-miss claim is printed here, and that a wrong one tells developers they
-    are covered when they are not. Nothing checked that, and it drifted: the
+    `_pytest_collection_command`'s docstring says the same two-catch,
+    three-miss claim is printed here, and that a wrong one tells developers
+    they are covered when they are not. Nothing checked that, and it drifted: the
     notice named the missing fixture and omitted two same-named test functions
     in one module, so it under-listed the misses in the direction that reads as
     more coverage than exists. Found by the PR's spec validator, which compared
@@ -47,15 +47,33 @@ def test_the_notice_states_every_probed_miss_not_just_the_first(
     # newline and a plain substring check would pass or fail on wrap position.
     err = " ".join(capsys.readouterr().err.split())
 
-    for catches in ("broken\nimport", "syntax error", "same-basename module collision"):
-        assert " ".join(catches.split()) in err, f"notice no longer claims to catch {catches!r}"
+    # Phrased as "blocks on X", so it fails if a catch is demoted to a miss
+    # without the wording moving with it. An earlier revision looped a variable
+    # named `catches` over a bare class name and asserted only that the string
+    # appeared somewhere, which stopped discriminating the moment the
+    # same-basename collision moved into the misses: "does NOT catch a
+    # same-basename module collision" satisfies a bare substring check for
+    # "same-basename module collision" perfectly well. A check that passes
+    # whichever side of the contract a class lands on is not checking the
+    # contract. Caught by the spec validator on PR #5319.
+    for catch in ("blocks on a broken import", "on a syntax error"):
+        assert catch in err, (
+            f"notice no longer claims to catch {catch!r}. Both were probed "
+            "under production configuration and exit 2; see "
+            "_pytest_collection_command's docstring and ADR-104 rule 5."
+        )
 
-    for misses in ("does NOT catch a missing fixture", "same-named test functions in one module"):
-        assert misses in err, (
-            f"notice omits {misses!r}. Both misses were probed and collect "
-            "clean with exit 0; see _pytest_collection_command's docstring and "
-            "ADR-104 rule 5. A notice that lists fewer misses than were probed "
-            "tells the reader they are covered when they are not."
+    for miss in (
+        "does NOT catch a missing fixture",
+        "does NOT catch two same-named test functions in one module",
+        "does NOT catch a same-basename module collision",
+    ):
+        assert miss in err, (
+            f"notice omits {miss!r}. All three were probed and collect clean "
+            "with exit 0 under this repository's --import-mode=importlib; see "
+            "_pytest_collection_command's docstring and ADR-104 rule 5. A "
+            "notice that lists fewer misses than were probed tells the reader "
+            "they are covered when they are not."
         )
 
 
