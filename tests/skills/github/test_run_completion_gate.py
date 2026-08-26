@@ -3337,7 +3337,7 @@ class TestInstallTrustedRoot:
         config = self._config_in(root / "commands")
         monkeypatch.setenv(env_var, str(root))
 
-        assert _dispatcher._install_trusted_root(str(config)) == root.resolve()
+        assert _dispatcher._install_trusted_root(str(config)).root == root.resolve()
 
     def test_empty_and_whitespace_values_are_ignored(self, tmp_path, monkeypatch):
         """An exported-but-empty variable is not a declaration.
@@ -3373,7 +3373,7 @@ class TestInstallTrustedRoot:
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", f"  {root}  ")
 
-        assert _dispatcher._install_trusted_root(str(config)) == root.resolve()
+        assert _dispatcher._install_trusted_root(str(config)).root == root.resolve()
 
     def test_a_root_that_is_not_a_directory_is_ignored(self, tmp_path, monkeypatch):
         """A declared root must be a directory, not merely a path.
@@ -3470,7 +3470,7 @@ class TestInstallTrustedRoot:
         link.symlink_to(target)
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
 
-        assert _dispatcher._install_trusted_root(str(link)) == root.resolve()
+        assert _dispatcher._install_trusted_root(str(link)).root == root.resolve()
 
     def test_copilot_root_is_consulted_before_claude_root(
         self, tmp_path, monkeypatch,
@@ -3489,7 +3489,7 @@ class TestInstallTrustedRoot:
         monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(copilot_root))
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(claude_root))
 
-        assert _dispatcher._install_trusted_root(str(config)) == copilot_root.resolve()
+        assert _dispatcher._install_trusted_root(str(config)).root == copilot_root.resolve()
 
     def test_a_relative_config_resolves_against_the_cwd(
         self, tmp_path, monkeypatch,
@@ -3513,7 +3513,7 @@ class TestInstallTrustedRoot:
             "../plugin/commands/pr-review-config.yaml",
         )
 
-        assert approved == root.resolve()
+        assert approved.root == root.resolve()
 
     def test_a_relative_config_inside_the_work_tree_is_refused(
         self, tmp_path, monkeypatch,
@@ -3541,24 +3541,98 @@ class TestInstallTrustedRoot:
 class TestEnforceConfigTrustInstallTrusted:
     """_enforce_config_trust short-circuits only on an install-trusted root."""
 
-    def test_install_root_proceeds_without_git_verification(self, tmp_path, monkeypatch):
-        """No _run_git call may happen: there is nothing to verify against."""
-        def _explode(*args, **kwargs):  # pragma: no cover - must not run
-            raise AssertionError("git must not run for an install-trusted config")
+    def test_install_root_skips_config_verification_but_not_the_ref_check(
+        self, tmp_path, monkeypatch,
+    ):
+        """Byte verification is skipped; ref validation is NOT.
 
-        monkeypatch.setattr(_dispatcher, "_run_git", _explode)
+        This case previously asserted that _run_git must never be called for
+        an install-trusted config, and stubbed it to raise. That contract was
+        wrong and the assertion enforced the wrong thing: the trust ANCHOR
+        still has to resolve to a remote-tracking ref, which takes a git
+        call, and skipping it let `--trusted-ref HEAD` make command trust
+        compare PR-modified verifiers against the PR's own commit (Copilot
+        review, PR #5329). What is skipped is _verify_config_trust's
+        byte-identity comparison, and only that.
+        """
+        calls: list[list[str]] = []
+
+        def _fake_git(args, cwd):
+            calls.append(args)
+            return subprocess.CompletedProcess(
+                args, 0, b"refs/remotes/origin/main\n", b"",
+            )
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _fake_git)
 
         trust, halt = _dispatcher._enforce_config_trust(
             tmp_path / "pr-review-config.yaml",
             "origin/main",
             False,
             b"completion_criteria: []\n",
-            tmp_path,
+            _dispatcher.InstallTrust(
+                tmp_path, tmp_path / "pr-review-config.yaml", tmp_path,
+            ),
         )
 
         assert halt is None
         assert trust.status == _dispatcher.TRUST_INSTALL_TRUSTED
         assert "install-trusted" in trust.detail
+        # Exactly one git call, and it is the anchor check. `cat-file`
+        # would mean byte verification ran, which install trust exists to
+        # skip; asserting the call list catches either drift.
+        assert calls == [["rev-parse", "--symbolic-full-name", "origin/main"]], calls
+
+    def test_install_root_refuses_a_local_ref(self, tmp_path, monkeypatch):
+        """HEAD passes the regex, so only the remote-tracking check stops it.
+
+        The reproduction behind this: with the ref unvalidated, command
+        trust compared a PR-modified verifier against the PR's own HEAD,
+        declared it trusted, and executed it. Exit 3, matching
+        TRUST_GIT_ERROR, so --approve-untrusted-config cannot override it.
+        """
+        def _fake_git(args, cwd):
+            return subprocess.CompletedProcess(args, 0, b"refs/heads/main\n", b"")
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _fake_git)
+
+        trust, halt = _dispatcher._enforce_config_trust(
+            tmp_path / "pr-review-config.yaml",
+            "HEAD",
+            True,  # approval must NOT rescue this
+            b"completion_criteria: []\n",
+            _dispatcher.InstallTrust(
+                tmp_path, tmp_path / "pr-review-config.yaml", tmp_path,
+            ),
+        )
+
+        assert halt == 3, halt
+        assert trust.status == _dispatcher.TRUST_GIT_ERROR
+        assert "remote-tracking" in trust.detail
+
+    def test_install_root_refuses_an_option_shaped_ref(self, tmp_path, monkeypatch):
+        """The regex guard now runs ahead of the short-circuit.
+
+        Discriminating twin for the case above: this one is stopped by the
+        regex and never reaches git, so _run_git raising proves the order.
+        """
+        def _explode(*args, **kwargs):
+            raise AssertionError("a malformed ref must not reach git")
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _explode)
+
+        trust, halt = _dispatcher._enforce_config_trust(
+            tmp_path / "pr-review-config.yaml",
+            "--upload-pack=touch /tmp/pwned",
+            False,
+            b"completion_criteria: []\n",
+            _dispatcher.InstallTrust(
+                tmp_path, tmp_path / "pr-review-config.yaml", tmp_path,
+            ),
+        )
+
+        assert halt == 2, halt
+        assert trust.status == _dispatcher.TRUST_MALFORMED_REF
 
     def test_without_install_root_verification_still_runs(self, tmp_path, monkeypatch):
         """Negative control: the short-circuit is gated on the argument.
@@ -3719,7 +3793,58 @@ class TestInstallTrustedPathConsistency:
         resolved = _dispatcher._resolve_and_read_config(rel)
 
         assert resolved.exit_code is None, resolved.exit_code
-        assert resolved.install_root == root.resolve()
+        assert resolved.install.root == root.resolve()
+        assert resolved.path == approved.resolve()
+        assert b"approved" in resolved.raw
+        assert b"decoy" not in resolved.raw
+
+    def test_the_approved_path_is_the_path_read(self, tmp_path, monkeypatch):
+        """The config is resolved ONCE, and the read reuses that result.
+
+        Simulates the CWE-367 swap Copilot reported: a repo-controlled
+        symlink changed between the containment decision and the read
+        resolves inside the root for the decision and outside it for the
+        read, with byte verification still skipped.
+
+        The swap is injected at the only place a second resolution could
+        happen, ``_absolute_config_candidate``. Call one is the decision,
+        inside ``_install_trusted_root``. Any call two is the re-resolution
+        the fix removed, and it gets the decoy. With the fix there is no
+        call two, so the decoy is unreachable no matter what it points at.
+
+        Written after mutation showed the earlier cases could not tell the
+        two apart: re-resolving returns the same path in a non-adversarial
+        fixture, so every one of them passed against the unfixed code.
+        """
+        root = tmp_path / "plugin"
+        approved = root / "commands" / "pr-review-config.yaml"
+        approved.parent.mkdir(parents=True)
+        approved.write_text(
+            "completion_criteria:\n  - name: approved\n", encoding="utf-8",
+        )
+        decoy = tmp_path / "decoy.yaml"
+        decoy.write_text(
+            "completion_criteria:\n  - name: decoy\n", encoding="utf-8",
+        )
+
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+
+        real = _dispatcher._absolute_config_candidate
+        calls: list[str] = []
+
+        def _swapping(config_arg):
+            calls.append(config_arg)
+            if len(calls) == 1:
+                return real(config_arg)
+            return decoy
+
+        monkeypatch.setattr(_dispatcher, "_absolute_config_candidate", _swapping)
+
+        resolved = _dispatcher._resolve_and_read_config(str(approved))
+
+        assert resolved.exit_code is None, resolved.exit_code
+        assert len(calls) == 1, f"resolved {len(calls)} times, expected 1"
         assert resolved.path == approved.resolve()
         assert b"approved" in resolved.raw
         assert b"decoy" not in resolved.raw
@@ -3742,7 +3867,7 @@ class TestInstallTrustedPathConsistency:
         )
 
         assert resolved.exit_code is None, resolved.exit_code
-        assert resolved.install_root == root.resolve()
+        assert resolved.install.root == root.resolve()
         assert resolved.path == config.resolve()
         assert b"absolute" in resolved.raw
 
@@ -3762,7 +3887,7 @@ class TestInstallTrustedPathConsistency:
             str(outside),
         )
 
-        assert resolved.install_root is None
+        assert resolved.install is None
         assert resolved.path is None
         assert resolved.raw is None
         # 2, not 3: the work tree resolved fine and the CONFIG is the

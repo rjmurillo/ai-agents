@@ -43,11 +43,23 @@ the gate really does print, one on each side of the decision:
     when it did not. That makes it the discriminator these tests turn on,
     falsifiable in both directions.
 
-These fixtures deliberately stop at the config boundary rather than proving a
-criterion executed. Reaching dispatch needs a real remote-tracking trusted ref
-and command-trust verification of every argv file, which is a different
-boundary with its own tests. What issue #5112 reports, and what these pin, is
-whether the gate accepts the bundled config at all.
+These fixtures reach dispatch, and one asserts on it.
+``test_the_bundled_config_runs_its_criteria_end_to_end`` runs the criterion and
+reads the parsed ``--json`` payload, because the absence assertions above
+cannot separate "install trust worked" from "the run died earlier for an
+unrelated reason".
+
+An earlier version of this paragraph claimed the opposite, that the fixtures
+"deliberately stop at the config boundary", on the reasoning that dispatch
+would need a real remote-tracking trusted ref and command-trust verification of
+every argv file. Both halves were wrong, and each was wrong in a way that hid a
+defect. ``_install_plugin`` now builds a real work tree WITH
+``refs/remotes/origin/main``, which the install-trusted path requires like any
+other; the version that lacked one passed only because the ref check was being
+skipped, and that skip was itself the security defect (Copilot review,
+PR #5329). And the criterion here names ``printf``, a bare interpreter name
+that command trust classifies as external, so there is no work-tree file to
+byte-compare. Both facts came from running it.
 """
 
 from __future__ import annotations
@@ -69,8 +81,10 @@ _SCRIPT = (
     / "run_completion_gate.py"
 )
 
-# Quoted verbatim from run_completion_gate so these cannot drift from the
-# messages they assert on (.claude/rules/canonical-source-mirror.md):
+# Quoted verbatim from .claude/skills/github/scripts/pr/run_completion_gate.py
+# (the canonical source; src/copilot-cli/... is its generated mirror) so these
+# cannot drift from the messages they assert on. The rule requires the path,
+# not just the module name (.claude/rules/canonical-source-mirror.md):
 #   _resolve_and_read_config:
 #     f"Refusing to load config from unsafe path {config_arg!r}: {exc}"
 #   _enforce_config_trust:
@@ -105,16 +119,31 @@ _CONFIG_BODY = """completion_criteria:
 
 
 def _git_init(path: Path) -> None:
-    """Make `path` a real git work tree.
+    """Make `path` a real git work tree with a remote-tracking trust anchor.
 
     An empty ``.git`` directory is not enough: ``_consumer_work_tree`` shells
     out to ``git rev-parse --show-toplevel``, which reports
     "fatal: not a git repository" for one. Verified before relying on it.
+
+    ``refs/remotes/origin/main`` is created because the default
+    ``--trusted-ref origin/main`` must resolve to a remote-tracking ref on
+    the install-trusted path too. An earlier fixture omitted it and passed
+    only because that check was being skipped, which was the bug (Copilot
+    review, PR #5329). A fixture that satisfies a guard only when the guard
+    is absent is not a fixture, it is the defect wearing a costume.
     """
-    subprocess.run(
-        ["git", "init", "--quiet"], cwd=path, check=True,
-        capture_output=True, text=True,
+    run = lambda *a: subprocess.run(  # noqa: E731
+        ["git", *a], cwd=path, check=True, capture_output=True, text=True,
     )
+    run("init", "--quiet")
+    run("config", "user.email", "test@example.invalid")
+    run("config", "user.name", "test")
+    run("commit", "--quiet", "--allow-empty", "-m", "base")
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=path, check=True,
+        capture_output=True, text=True,
+    ).stdout.strip()
+    run("update-ref", "refs/remotes/origin/main", head)
 
 
 def _install_plugin(tmp_path: Path) -> tuple[Path, Path, Path]:
@@ -147,6 +176,7 @@ def _run_gate(
     env_var: str | None,
     env_value: str | None = None,
     json_output: bool = False,
+    trusted_ref: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     script = plugin_root / "skills" / "github" / "scripts" / "pr" / "run_completion_gate.py"
     env = dict(os.environ)
@@ -165,6 +195,7 @@ def _run_gate(
             "--config",
             str(config),
             *(["--json"] if json_output else []),
+            *(["--trusted-ref", trusted_ref] if trusted_ref else []),
         ],
         cwd=user_repo,
         capture_output=True,
@@ -264,6 +295,51 @@ def test_install_trust_exits_3_when_git_is_not_on_path(tmp_path: Path) -> None:
     assert result.returncode == 3, (result.returncode, result.stderr)
     assert "could not run git" in result.stderr, result.stderr
     assert _CONTAINMENT_REFUSAL not in result.stderr, result.stderr
+
+
+def test_a_local_trusted_ref_is_refused_for_an_installed_config(
+    tmp_path: Path,
+) -> None:
+    """`--trusted-ref HEAD` cannot anchor trust, install-trusted or not.
+
+    Reproduced before the fix: install trust short-circuited ahead of BOTH
+    ref guards, and `_enforce_command_trust` repeats neither, so command
+    trust compared every work-tree verifier against the PR's OWN commit.
+    A PR-modified verifier was declared trusted and executed. Exit 3, and
+    `--approve-untrusted-config` does not override it.
+    """
+    plugin_root, config, user_repo = _install_plugin(tmp_path)
+
+    result = _run_gate(
+        plugin_root, config, user_repo,
+        env_var="CLAUDE_PLUGIN_ROOT", trusted_ref="HEAD",
+    )
+
+    assert result.returncode == 3, (result.returncode, result.stderr)
+    assert "remote-tracking" in result.stderr, result.stderr
+    # Proof no criterion ran: the fixture criterion prints this key.
+    assert "gate_ran" not in result.stdout, result.stdout
+
+
+def test_an_option_shaped_trusted_ref_is_refused_for_an_installed_config(
+    tmp_path: Path,
+) -> None:
+    """The regex guard runs ahead of the install short-circuit.
+
+    Before the fix the raw value reached a git invocation, which is the
+    argument-injection surface `_TRUSTED_REF_RE` exists to close.
+    """
+    plugin_root, config, user_repo = _install_plugin(tmp_path)
+
+    result = _run_gate(
+        plugin_root, config, user_repo,
+        env_var="CLAUDE_PLUGIN_ROOT",
+        trusted_ref="--upload-pack=touch /tmp/should-not-exist",
+    )
+
+    assert result.returncode == 2, (result.returncode, result.stderr)
+    assert "Refusing malformed --trusted-ref" in result.stderr, result.stderr
+    assert "gate_ran" not in result.stdout, result.stdout
 
 
 def test_the_bundled_config_runs_its_criteria_end_to_end(tmp_path: Path) -> None:

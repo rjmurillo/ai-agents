@@ -513,6 +513,38 @@ def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[bytes]:
     )
 
 
+def _require_remote_tracking_ref(
+    trust_anchor_ref: str,
+    cwd: Path,
+) -> TrustCheck | None:
+    """``None`` when the ref anchors trust; a git-error TrustCheck otherwise.
+
+    The ref must resolve to ``refs/remotes/*``. ``HEAD``, a local branch, a
+    tag, and a bare SHA are all refused, because the checked-out PR can move
+    or create them, which would make trust self-referential: the PR's own
+    content would become the thing its content is compared against.
+
+    Extracted so the install-trusted path and :func:`_verify_config_trust`
+    cannot diverge. They did: this check lived only in the latter, which
+    install trust skips, and `--trusted-ref HEAD` then let command trust
+    compare PR-modified verifiers against the PR's own commit and execute
+    them (Copilot review, PR #5329). One implementation, two callers, is
+    what keeps the two paths honest about the same requirement.
+    """
+    proc = _run_git(["rev-parse", "--symbolic-full-name", trust_anchor_ref], cwd)
+    full_name = proc.stdout.decode(errors="replace").strip()
+    if proc.returncode == 0 and full_name.startswith("refs/remotes/"):
+        return None
+    return TrustCheck(
+        TRUST_GIT_ERROR,
+        f"trusted ref {trust_anchor_ref!r} must resolve to a "
+        f"remote-tracking ref (refs/remotes/*), got "
+        f"{full_name or 'a local, detached, or unknown revision'}; "
+        f"HEAD and local branches can be moved by the checked-out "
+        f"PR and cannot anchor trust",
+    )
+
+
 def _verify_config_trust(
     config_path: Path,
     trust_anchor_ref: str,
@@ -588,19 +620,9 @@ def _verify_config_trust(
                 f"config {config_path} resolves outside git work tree {toplevel}",
             )
 
-        proc = _run_git(
-            ["rev-parse", "--symbolic-full-name", trust_anchor_ref], toplevel,
-        )
-        full_name = proc.stdout.decode(errors="replace").strip()
-        if proc.returncode != 0 or not full_name.startswith("refs/remotes/"):
-            return TrustCheck(
-                TRUST_GIT_ERROR,
-                f"trusted ref {trust_anchor_ref!r} must resolve to a "
-                f"remote-tracking ref (refs/remotes/*), got "
-                f"{full_name or 'a local, detached, or unknown revision'}; "
-                f"HEAD and local branches can be moved by the checked-out "
-                f"PR and cannot anchor trust",
-            )
+        anchor_error = _require_remote_tracking_ref(trust_anchor_ref, toplevel)
+        if anchor_error is not None:
+            return anchor_error
 
         proc = _run_git(
             ["rev-parse", "--verify", "--quiet", f"{trust_anchor_ref}^{{commit}}"],
@@ -681,7 +703,7 @@ def _enforce_config_trust(
     trust_anchor_ref: str,
     approved: bool,
     tree_bytes: bytes,
-    install_root: Path | None = None,
+    install: InstallTrust | None = None,
 ) -> tuple[TrustCheck, int | None]:
     """Gate dispatch on config trust; returns ``(trust, exit_code_or_None)``.
 
@@ -695,7 +717,7 @@ def _enforce_config_trust(
     never overridable, because approving with nothing to inspect would
     turn an unverifiable state into an execution path.
 
-    ``install_root``, when not ``None``, is the host-declared plugin root
+    ``install``, when not ``None``, carries the host-declared plugin root
     that install-trusts this config (issue #5112, Option 1). Verification
     is skipped rather than attempted: the config is outside the
     consumer's work tree, so the trusted ref has no copy of it to compare
@@ -706,23 +728,48 @@ def _enforce_config_trust(
     establishes; do not extend this branch to any config the consumer
     repository can write.
     """
-    if install_root is not None:
-        return (
-            TrustCheck(
-                TRUST_INSTALL_TRUSTED,
-                f"config {config_path} is install-trusted: it resides in "
-                f"host-declared plugin root {install_root}, outside the "
-                f"consumer work tree, which PR content cannot write",
-            ),
-            None,
-        )
-
+    # Ref validation runs BEFORE the install-trusted short-circuit, not
+    # after. Both guards on --trusted-ref used to sit on the path install
+    # trust skips: this regex, and the refs/remotes/* requirement inside
+    # _verify_config_trust. _enforce_command_trust repeats neither, so an
+    # install-trusted config left the ref wholly unvalidated while command
+    # trust still consumed it.
+    #
+    # Reproduced before this fix (Copilot review, PR #5329, High):
+    # --trusted-ref HEAD under install trust made command trust compare
+    # every work-tree verifier against the PR's OWN commit, so a
+    # PR-modified verify.sh was declared trusted and EXECUTED (its stderr
+    # marker reached the output). An option-shaped ref likewise reached a
+    # git invocation. Widening the config origin must not widen the
+    # command boundary, and skipping these checks did exactly that.
     if not _TRUSTED_REF_RE.match(trust_anchor_ref):
         print(
             f"Refusing malformed --trusted-ref {trust_anchor_ref!r}",
             file=sys.stderr,
         )
         return TrustCheck(TRUST_MALFORMED_REF, "malformed trusted ref"), 2
+
+    if install is not None:
+        # The regex admits HEAD, so it alone does not close the reproduction
+        # above. The refs/remotes/* requirement is the one that does, and
+        # _verify_config_trust (its usual home) is skipped here, so enforce
+        # it directly, in the work tree the install decision was made
+        # against rather than in some other repository.
+        anchor_error = _require_remote_tracking_ref(
+            trust_anchor_ref, install.work_tree,
+        )
+        if anchor_error is not None:
+            print(anchor_error.detail, file=sys.stderr)
+            return anchor_error, 3
+        return (
+            TrustCheck(
+                TRUST_INSTALL_TRUSTED,
+                f"config {config_path} is install-trusted: it resides in "
+                f"host-declared plugin root {install.root}, outside the "
+                f"consumer work tree, which PR content cannot write",
+            ),
+            None,
+        )
 
     trust = _verify_config_trust(config_path, trust_anchor_ref, tree_bytes)
     if trust.status == TRUST_TRUSTED:
@@ -2134,6 +2181,29 @@ def _absolute_config_candidate(config_arg: str) -> Path:
     return candidate
 
 
+class InstallTrust(NamedTuple):
+    """A config admitted by its ORIGIN, with everything that decision used.
+
+    Three fields, each carried rather than recomputed, because recomputing
+    any of them reopens a hole:
+
+    ``config_path`` is the resolved path :func:`_install_trusted_root`
+    actually approved. Resolving ``--config`` a second time to read it is a
+    TOCTOU window (CWE-367): a repo-controlled symlink swapped between the
+    two calls resolves inside the root for the decision and outside it for
+    the read, while ``root`` stays non-null and byte verification stays
+    skipped. Found by Copilot review on PR #5329.
+
+    ``work_tree`` is the boundary the decision was made against. It is also
+    the repository the trust anchor must be validated in, and validating it
+    somewhere else would answer a different question.
+    """
+
+    root: Path
+    config_path: Path
+    work_tree: Path
+
+
 def _host_declared_roots() -> Iterator[Path]:
     """Existing directories named by the host's plugin-root variables.
 
@@ -2166,7 +2236,7 @@ def _host_declared_roots() -> Iterator[Path]:
             yield root
 
 
-def _install_trusted_root(config_arg: str) -> Path | None:
+def _install_trusted_root(config_arg: str) -> InstallTrust | None:
     """The host-declared plugin root that install-trusts ``config_arg``.
 
     Returns the resolved root when every condition below holds, else
@@ -2285,8 +2355,10 @@ def _install_trusted_root(config_arg: str) -> Path | None:
             return None
         # Condition 4: resolution already followed any symlink, so a
         # link out of the install directory fails this containment.
+        # resolved_config is RETURNED, not recomputed by the caller: it is
+        # the exact path this containment approved (CWE-367).
         if _is_within(resolved_config, root):
-            return root
+            return InstallTrust(root, resolved_config, work_tree)
     return None
 
 
@@ -2304,7 +2376,7 @@ class ResolvedConfig(NamedTuple):
 
     path: Path | None
     raw: bytes | None
-    install_root: Path | None
+    install: InstallTrust | None
     exit_code: int | None
 
 
@@ -2328,7 +2400,7 @@ def _resolve_and_read_config(config_arg: str) -> ResolvedConfig:
     between the calls.
     """
     try:
-        install_root = _install_trusted_root(config_arg)
+        install = _install_trusted_root(config_arg)
     except WorkTreeUnavailableError as exc:
         # Exit 3, never 2: see WorkTreeUnavailableError. Not overridable by
         # --approve-untrusted-config, matching TRUST_GIT_ERROR, because
@@ -2341,8 +2413,8 @@ def _resolve_and_read_config(config_arg: str) -> ResolvedConfig:
         )
         return ResolvedConfig(None, None, None, 3)
 
-    if install_root is not None:
-        # Do NOT route this through validate_safe_path with install_root
+    if install is not None:
+        # Do NOT route this through validate_safe_path with the install root
         # as the base. That helper builds its result as
         # (resolved_base / path).resolve(), which would make the
         # environment-declared root a component of the path READ rather
@@ -2362,15 +2434,13 @@ def _resolve_and_read_config(config_arg: str) -> ResolvedConfig:
         # out-of-tree config it inspects nothing and returns None. The
         # CWE-59 hazard it guards is a PR-CREATED link, and condition 4
         # already refuses any link that escapes the install root.
-        try:
-            config_path = _absolute_config_candidate(config_arg).resolve()
-        except OSError as exc:
-            print(
-                f"Refusing to load config from unresolvable path "
-                f"{config_arg!r}: {exc}",
-                file=sys.stderr,
-            )
-            return ResolvedConfig(None, None, None, 2)
+        #
+        # Reused, never re-resolved. Calling .resolve() again here would
+        # be a second resolution of the same argument, and a repo-controlled
+        # symlink swapped between the two lands inside the root for the
+        # DECISION and outside it for the READ, with verification still
+        # skipped (CWE-367, Copilot review on PR #5329).
+        config_path = install.config_path
     else:
         symlink = _symlinked_config_component(config_arg)
         if symlink is not None:
@@ -2391,7 +2461,10 @@ def _resolve_and_read_config(config_arg: str) -> ResolvedConfig:
             return ResolvedConfig(None, None, None, 2)
     try:
         return ResolvedConfig(
-            config_path, _read_config_bytes(config_path), install_root, None,
+            config_path,
+            _read_config_bytes(config_path),
+            install,
+            None,
         )
     except ConfigError as exc:
         print(f"Failed to load config {config_path}: {exc}", file=sys.stderr)
@@ -2435,7 +2508,7 @@ def main(argv: list[str] | None = None) -> int:
         # python.md rejects, even though 0 never occurs here.
         return 2 if resolved.exit_code is None else resolved.exit_code
     config_path, raw_config = resolved.path, resolved.raw
-    install_root = resolved.install_root
+    install = resolved.install
 
     # CWE-829 trust boundary: no criterion command runs unless the
     # working-tree config is byte-identical to the trusted-ref copy, a
@@ -2449,7 +2522,7 @@ def main(argv: list[str] | None = None) -> int:
         args.trust_anchor_ref,
         args.approve_untrusted_config,
         raw_config,
-        install_root,
+        install,
     )
     if halt_code is not None:
         return halt_code
