@@ -3353,6 +3353,26 @@ class TestInstallTrustedRoot:
 
         assert _dispatcher._install_trusted_root(str(config)) is None
 
+    def test_an_ancestor_of_the_project_root_is_refused(self, monkeypatch):
+        """Condition 3 is disjointness, not one-way containment.
+
+        The bypass Copilot found on PR #5329. Testing only "the root is not
+        below the project" passes a root that is an ANCESTOR of the project,
+        while every PR-controlled file in the repo is inside that root, so
+        condition 4 passes too and a config the checked-out PR wrote becomes
+        install-trusted, skipping byte-identity verification (CWE-829).
+
+        Reproduced before the fix with the live project root: declared root
+        /home/user install-trusted
+        /home/user/ai-agents/.claude/commands/pr-review-config.yaml.
+        """
+        project_root = _dispatcher._PROJECT_ROOT.resolve()
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(project_root.parent))
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        pr_controlled = project_root / ".claude" / "commands" / "pr-review-config.yaml"
+
+        assert _dispatcher._install_trusted_root(str(pr_controlled)) is None
+
     def test_the_project_root_itself_is_refused(self, monkeypatch):
         """_is_within is true for root == root, so the repo itself is out."""
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(_dispatcher._PROJECT_ROOT))

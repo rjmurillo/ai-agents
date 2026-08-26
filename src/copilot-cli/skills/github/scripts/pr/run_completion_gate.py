@@ -2080,8 +2080,22 @@ def _install_trusted_root(config_arg: str) -> Path | None:
             continue
         if not root.is_dir():
             continue
-        # Condition 3: the in-repo fallback root never install-trusts.
-        if _is_within(root, project_root):
+        # Condition 3: the declared root and the project tree must be
+        # DISJOINT, checked in BOTH directions.
+        #
+        # Testing only "root is not below the project" leaves the
+        # ancestor direction open, and that direction is the whole
+        # bypass: with the project at $HOME/repo and
+        # CLAUDE_PLUGIN_ROOT=$HOME, the root is not below the project
+        # (so a one-way test passes it) while every PR-controlled file
+        # in the repo IS inside the root, so condition 4 passes too. A
+        # config the checked-out PR wrote would then be install-trusted
+        # and skip byte-identity verification entirely (CWE-829).
+        # Reproduced on this branch before the fix: declared root
+        # /home/user install-trusted
+        # /home/user/ai-agents/.claude/commands/pr-review-config.yaml.
+        # Found by Copilot review on PR #5329.
+        if _is_within(root, project_root) or _is_within(project_root, root):
             continue
         try:
             resolved_config = candidate.resolve()
