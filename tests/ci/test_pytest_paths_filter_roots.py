@@ -7,7 +7,7 @@ green `Run Python Tests` does not by itself mean tests ran.
 
 That makes the filter's non-extension entries load-bearing in a way the
 extension globs are not. `**/*.py` justifies itself. `.claude/skills/**` is a
-claim: that some test reads that tree and would not otherwise run. Issue #5316
+claim: that some test reads that tree and would not otherwise run. Issue #5315
 added several such roots on exactly that claim, after pre-push stopped
 executing the suite locally for non-Python changes (ADR-104) and left the
 delegation with nowhere to land at PR time.

@@ -599,7 +599,7 @@ pre-push:
               # `(skip) no matching push files` and the hook still exits 0, so
               # a skipped job is indistinguishable from a passed one. The four
               # gates here are whole-tree scans and are the drift backstop.
-              # Refs #5316; see ADR-104 "Rejected: deferral by scheduler claim".
+              # Refs #5317; see ADR-104 "Rejected: deferral by scheduler claim".
               # This job's own timeout (above) in seconds, so the
               # generated-staleness gate can clamp its deadline to the
               # process's remaining share; a test pins the two values.
@@ -615,9 +615,10 @@ pre-push:
           # `pytest.yml` partition matrix CI runs on the same commit, and on a
           # container checkout it was 475s of a 679s push, long enough that a
           # container restart killed the push before it reached the remote gate
-          # the local copy was imitating. The 30m cap is the ceiling for the
-          # opt-in `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` path; the default
-          # path is bounded by the inner 300s collection budget, not by this.
+          # the local copy was imitating. The 15m cap is the ceiling for the
+          # opt-in `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` path, whose inner
+          # aggregate budget is 780s; the default path is bounded by the inner
+          # 300s collection budget, not by this.
           # See ADR-104.
           - name: python-tests
             timeout: 15m

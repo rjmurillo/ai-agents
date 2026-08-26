@@ -148,7 +148,7 @@ class _Gate:
     skip would have removed the gate rather than deduplicated it. Measured on
     lefthook 2.1.10: a glob-filtered job reports ``(skip) no matching push
     files`` and the hook exits 0, so downstream cannot tell a skipped job from
-    a passed one. Refs #5316.
+    a passed one. Refs #5317.
     """
 
     name: str

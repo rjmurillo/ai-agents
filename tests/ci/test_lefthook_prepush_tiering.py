@@ -24,7 +24,7 @@ glob-gated job and one un-gated job, pushing a docs-only commit::
 A glob-skipped job is indistinguishable from a passed one. Every deferral
 target carried a `glob:` and `pre-pr-validation` carries none, so on a
 Markdown-only push the Python-globbed jobs never ran and the skip removed the
-gate instead of deduplicating it. The skip was reverted (issue #5316).
+gate instead of deduplicating it. The skip was reverted (issue #5317).
 
 Coverage:
 
