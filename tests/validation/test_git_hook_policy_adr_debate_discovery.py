@@ -208,6 +208,39 @@ def test_a_path_missing_from_the_index_is_still_not_a_regular_file(
     assert policy._staged_regular_file_state(adr_debate_repo, "no-such-file.md") is False
 
 
+def test_deleting_the_only_log_still_requires_one(
+    adr_debate_repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`D` is absent from the discovery filter on purpose, and that is correct.
+
+    Review asked whether deleting a matching log during an ADR change should
+    block, since `--diff-filter=ACMRT` omits deletions. Measured: it blocks,
+    for the right reason. A deleted path has no stage-zero blob, so it could
+    never be read as evidence; excluding it leaves nothing covering the staged
+    ADR and the coverage check refuses the commit.
+
+    Pinned because the reasoning is not visible from the filter string. Adding
+    `D` to it would send a deleted path to `_read_index_blob`, which would come
+    back empty and report the committer's deletion as an unreadable log: a
+    worse message for the same refusal.
+    """
+    tracked = _stage_log(adr_debate_repo, "ADR-042-debate-log.md", GENUINE_LOG)
+    _git(adr_debate_repo, "commit", "-m", "add a debate log")
+
+    (adr_debate_repo / tracked).unlink()
+    _edit(adr_debate_repo, ADR_42, "Rewritten decision text.")
+    _git(adr_debate_repo, "add", "-A")
+
+    status = _git(adr_debate_repo, "diff", "--cached", "--name-status").stdout
+    assert f"D\t{tracked}" in status, status
+    assert policy._staged_debate_log_paths(adr_debate_repo) == [], (
+        "a deleted log must not be discovered as a candidate; it has no blob"
+    )
+
+    assert policy.check_adr_review_policy([ADR_42], adr_debate_repo) == 1
+    assert "require a debate log" in capsys.readouterr().err
+
+
 def test_evidence_failures_keep_the_logic_exit_code(
     adr_debate_repo: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
