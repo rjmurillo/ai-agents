@@ -1,6 +1,6 @@
 ---
 name: fix-markdown-fences
-version: 1.1.0
+version: 1.3.0
 model: haiku
 model-rationale: cost. The 'haiku' rolling alias resolves via the platform model_tiers map to a tier priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).
 description: >-
@@ -30,7 +30,7 @@ Scan and repair malformed closing fences in markdown files. Closing fences must 
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| Code block bleeds into text | Closing fence has language identifier | Remove identifier from closing fence |
+| Code block bleeds into text | Closing fence has language identifier | Insert a bare closing fence above it; the line then opens the next block |
 | Nested blocks render wrong | Missing closing fence before new opening | Insert closing fence |
 | Content cut off at end of file | Unclosed code block | Append closing fence |
 
@@ -49,29 +49,113 @@ Scan and repair malformed closing fences in markdown files. Closing fences must 
 
 ## Process
 
+Do not walk the file by hand. Fence tracking is a state machine, and
+`fix_fences.py` runs it.
+
+1. **Report.** Run the script over the target path. It prints every defect as
+   `FILE:LINE: KIND: TEXT` and exits 1 when it finds any.
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/fix-markdown-fences/scripts/fix_fences.py" FILE_OR_DIR
+```
+
+2. **Read the report.** Two kinds appear:
+   - `malformed_closing`: a closing fence carries a language identifier, so
+     the block bleeds into the following prose.
+   - `unclosed_block`: the file ends with a block still open.
+
+3. **Decide, then write.** Repair is best-effort on an ambiguous file. When a
+   defect cluster sits inside documentation that shows fenced markdown, the
+   author usually wanted a wider container fence (four backticks around a
+   three-backtick example), not the closing fence the repair inserts. Widen
+   the container by hand in that case. Otherwise:
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/fix-markdown-fences/scripts/fix_fences.py" FILE_OR_DIR --write
+```
+
+4. **Confirm.** Re-run step 1. A clean tree exits 0. Then read `git diff` and
+   confirm only fence lines moved.
+
+## Scripts
+
+### fix_fences.py
+
+Detects and repairs malformed fence closings. Reporting is the default;
+`--write` is required to modify a file.
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/fix-markdown-fences/scripts/fix_fences.py" PATH [PATH ...]
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/fix-markdown-fences/scripts/fix_fences.py" PATH --write
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/fix-markdown-fences/scripts/fix_fences.py" PATH --json
+```
+
+Options: `--write` repairs in place, `--json` emits machine-readable output,
+`--pattern` sets the glob for directory scans (default `*.md`). Paths default
+to the current directory. `.git`, `node_modules`, `.venv`, and `__pycache__`
+are skipped.
+
+Fence matching follows CommonMark, which is what keeps the tool from damaging
+documentation:
+
+- A fence is three or more backticks or three or more tildes.
+- A closing fence uses the same character and is at least as long as the
+  opener, so a three-backtick example nested inside a four-backtick container
+  stays literal text.
+- A backtick opening fence whose info string contains a backtick is not a
+  fence.
+- A marker indented four or more spaces is an indented code block, not a
+  fence. That is what stops a repair from appending a fence to a document
+  that shows a bare fence inside an indented block. The cost is that a fence
+  nested that deep inside a list item is invisible here: the tool declines to
+  see a fence rather than inventing one, so it misses rather than corrupts.
+
+Files are read and written as bytes, so CRLF and CR endings survive, a UTF-8
+BOM survives, and the Unicode separators `str.splitlines` would swallow (form
+feed, U+0085, U+2028, U+2029) stay put. Each line keeps its own terminator, so
+a mixed-ending file is not normalized. Repair is idempotent.
+
+Exit codes (ADR-035):
+
+- `0` no defects found, or `--write` repaired every defect it found
+- `1` report mode found at least one defect; nothing was written
+- `2` a requested path does not exist, or a file could not be read or written
+
+## Reference: the algorithm
+
+Kept so a reader can audit the script, not so the agent can run it by hand.
+
 Track fence state while scanning line by line:
 
-1. **Detect opening fence**: Line matches the opening pattern below outside a block. Record indent level and enter "inside block" state.
-2. **Detect malformed closing fence**: While inside a block, line matches the malformed closing pattern below. Insert a proper closing fence before this line.
-3. **Detect valid closing fence**: Line matches the valid closing pattern below. Exit "inside block" state.
+1. **Detect opening fence**: outside a block, a line of three or more
+   backticks or tildes opens one. Record the character, the length, and the
+   indent.
+2. **Detect malformed closing fence**: inside a block, a line using the same
+   character at the same length or longer, carrying a non-empty info string.
+   Insert a bare closing fence before it.
+3. **Detect valid closing fence**: the same character at the same length or
+   longer with an empty info string. Exit the block.
+4. **At end of file**: a still-open block gets a bare closing fence appended.
 
-Regex patterns:
+## Verification
 
-````regex
-^\s*```[\w+-]+
-^\s*```[\w+-]+\s*$
-^\s*```\s*$
-````
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/fix-markdown-fences/scripts/fix_fences.py" PATH
+echo "exit=$?"   # 0 = clean, 1 = defects found, 2 = bad input
+```
 
-- [ ] No closing fences contain language identifiers
-- [ ] Markdown renders correctly in preview
-- [ ] `git diff` shows only fence-closing changes, no content modifications
+- [ ] The script exits 0 on the repaired path.
+- [ ] `git diff` shows only fence lines added, no content modifications.
+- [ ] Defects that belong inside a wider container fence were widened by
+      hand rather than closed by `--write`.
 
 ## Anti-Patterns
 
 | Avoid | Why | Instead |
 |-------|-----|---------|
-| Manually searching for bad fences | Error-prone in large files | Use the algorithm or grep pattern |
+| Manually searching for bad fences | Error-prone in large files, and the agent cannot track fence length by eye | Run `fix_fences.py` |
+| Simulating the state machine in-context | The script already does it, exactly and for free | Read the script's report |
+| Running `--write` across a whole repo unreviewed | A repair inside nested documentation is often the wrong fix | Report first, review, then write per path |
 | Copying opening fence line to close a block | Creates the exact bug this skill fixes | Always use plain ` ``` ` for closing |
 | Fixing fences without tracking block state | Misidentifies nested vs sequential blocks | Use the stateful line-by-line algorithm |
 
@@ -83,59 +167,13 @@ When generating markdown with code blocks:
 2. Never copy the opening fence line to close
 3. Track block state when programmatically generating markdown
 
-<details>
-<summary><strong>Implementation: Python (Recommended)</strong></summary>
-
-```python
-import re
-from pathlib import Path
-
-def fix_markdown_fences(content: str) -> str:
-    """Fix malformed code fence closings in markdown content."""
-    lines = content.splitlines()
-    result = []
-    in_code_block = False
-    block_indent = ""
-
-    opening_pattern = re.compile(r'^(\s*)```(\w+)')
-    closing_pattern = re.compile(r'^(\s*)```\s*$')
-
-    for line in lines:
-        opening_match = opening_pattern.match(line)
-        closing_match = closing_pattern.match(line)
-
-        if opening_match:
-            if in_code_block:
-                result.append(f"{block_indent}```")
-            result.append(line)
-            block_indent = opening_match.group(1)
-            in_code_block = True
-        elif closing_match:
-            result.append(line)
-            in_code_block = False
-            block_indent = ""
-        else:
-            result.append(line)
-
-    if in_code_block:
-        result.append(f"{block_indent}```")
-
-    return '\n'.join(result)
-
-
-def fix_markdown_files(directory: Path, pattern: str = "**/*.md") -> list[str]:
-    """Fix all markdown files in directory. Returns list of fixed files."""
-    fixed = []
-    for file_path in directory.glob(pattern):
-        content = file_path.read_text()
-        fixed_content = fix_markdown_fences(content)
-        if content != fixed_content:
-            file_path.write_text(fixed_content)
-            fixed.append(str(file_path))
-    return fixed
-```
-
-</details>
+The shipped script does this for you; `fix_fences.py` is the
+implementation, and the Reference section above is the algorithm it runs. An
+earlier revision of this file inlined a copy of that parser here under
+"Implementation: Python (Recommended)". It was the pre-CommonMark version,
+which had no fence-length rule and so corrupted any document showing a
+three-backtick example inside a four-backtick container. It is gone rather
+than fixed: a second copy of a parser drifts from the one that ships.
 
 <details>
 <summary><strong>Implementation: Bash (Quick Check)</strong></summary>
@@ -204,7 +242,7 @@ foreach ($dir in $directories) {
 
 1. **Nested indentation**: Preserves indent level from opening fence
 2. **Multiple consecutive blocks**: Each block tracked independently
-3. **File ending inside block**: Automatically closes unclosed blocks
-4. **Mixed line endings**: Accepts both `\n` and `\r\n` as input (normalizes output to `\n`)
+3. **File ending inside block**: Closes an unclosed block with a fence of the same character and length
+4. **Mixed line endings**: `\n`, `\r\n` and `\r` are preserved per line, as is a UTF-8 BOM and the presence or absence of a trailing newline
 
 </details>
