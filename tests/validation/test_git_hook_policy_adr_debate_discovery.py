@@ -155,6 +155,59 @@ def test_a_log_that_is_not_utf8_blocks_even_when_a_sibling_covers_every_id(
     assert bad in error, "the error must name the log that would not decode"
 
 
+def test_a_failed_regular_file_query_is_not_reported_as_a_symlink(
+    adr_debate_repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A broken `ls-files` must not accuse the committer of staging a symlink.
+
+    The per-path query returned a bare False both for "not a regular blob" and
+    for "could not look", and the gate reports the first as "not a regular
+    file: a symlink is not review evidence" with exit 1. So a broken git named
+    the committer's genuine log as a symlink. Same swallow as the discovery
+    query, one function over, found one review round later.
+
+    Fails the `ls-files` call specifically, not the discovery call, so the two
+    paths are pinned apart rather than together.
+    """
+    _edit(adr_debate_repo, ADR_42, "Rewritten decision text.")
+    _git(adr_debate_repo, "add", ADR_42)
+    _stage_log(adr_debate_repo, "ADR-042-debate-log.md", GENUINE_LOG)
+
+    real_run = policy._run_git
+
+    def fail_only_ls_files(root: Path, args: list[str]) -> object:
+        if args and args[0] == "ls-files":
+            return subprocess.CompletedProcess(
+                args, policy.GIT_FATAL_RETURNCODE, "", "fatal: not a git repository\n"
+            )
+        return real_run(root, args)
+
+    monkeypatch.setattr(policy, "_run_git", fail_only_ls_files)
+
+    assert policy.check_adr_review_policy([ADR_42], adr_debate_repo) == 3
+    error = capsys.readouterr().err
+    assert "the git query failed" in error
+    assert "fatal: not a git repository" in error
+    assert "symlink" not in error, (
+        "a failed query must not be reported as a non-regular file; the "
+        "committer staged a genuine log"
+    )
+
+
+def test_a_path_missing_from_the_index_is_still_not_a_regular_file(
+    adr_debate_repo: Path,
+) -> None:
+    """Exit 1 from `ls-files --error-unmatch` is an answer, not a failure.
+
+    The paired negative for the tri-state. Only git's fatal 128 means "could
+    not look"; a path simply absent from the index exits 1 and is a genuine
+    False. Without this, widening the failure branch to every non-zero code
+    would turn every unstaged path into an external error and the distinction
+    would be noise.
+    """
+    assert policy._staged_regular_file_state(adr_debate_repo, "no-such-file.md") is False
+
+
 def test_evidence_failures_keep_the_logic_exit_code(
     adr_debate_repo: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -1609,17 +1609,28 @@ def _evidence_byte_count(content: str) -> int:
     return len(content.replace("\ufffd", "").encode("utf-8"))
 
 
-# Any horizontal whitespace, not just ASCII space and tab. `[^\S\r\n]` is
-# whitespace minus the line breaks, so U+00A0, U+2007 and U+202F collapse too
-# while a placeholder still cannot match across a line it does not span.
-# Measured: with the ASCII-only class, one U+00A0 before each closing bracket
-# defeated all nine literals while every other signal stayed satisfied, so the
-# unfilled template cleared the gate again. Third variant of the same attack,
-# after invalid bytes and after ASCII spaces. Issue #5205.
+# Three normalizations, each closing a class of edit rather than one variant.
+#
+# Cf is the Unicode "format" category: zero-width space, ZWNJ, ZWJ, soft hyphen,
+# the bidi controls. Every one of them renders as nothing and none of them are
+# review content, so a placeholder wearing them is still a placeholder.
+#
+# A markdown backslash escape renders as the character it escapes, so `\]` and
+# `]` are the same document to every reader and different strings to a matcher.
+#
+# `[^\S\r\n]` is whitespace minus the line breaks, so U+00A0, U+2007 and U+202F
+# collapse while a placeholder still cannot match across a line it does not span.
+#
+# The class framing is the point, and it was learned the expensive way: this
+# check was defeated four times on this PR, by invalid bytes, ASCII spaces,
+# U+00A0, and markdown escapes. Each fix targeted the variant in front of it and
+# the next variant was cheaper than the last. Zero-width and soft hyphen cleared
+# the gate too and nobody had reported them; they were found by asking what else
+# is invisible rather than by waiting for the fifth review round.
+DEBATE_LOG_PLACEHOLDER_FORMAT_CATEGORY = "Cf"
+DEBATE_LOG_PLACEHOLDER_ESCAPE_RE = re.compile(r"\\([!-/:-@\[-`{-~])")
 DEBATE_LOG_PLACEHOLDER_SPACING_RE = re.compile(r"[^\S\r\n]+")
 DEBATE_LOG_PLACEHOLDER_PUNCTUATION_RE = re.compile(r" ?([\[\]|]) ?")
-
-
 def _normalized_for_placeholders(text: str) -> str:
     """Return ``text`` with the spacing and case a placeholder edit can change.
 
@@ -1629,13 +1640,21 @@ def _normalized_for_placeholders(text: str) -> str:
     every other signal stays satisfied, so the visibly unedited template
     cleared the gate for nine keystrokes. Upper-casing one word does the same.
 
-    Horizontal whitespace of any kind collapses, spacing around ``[``, ``]``
-    and ``|`` goes, and the result case-folds. Newlines are left alone so a
-    placeholder cannot be matched across a line it does not span. Calibrated
-    like the literals themselves: 0 of the 86 committed logs are rejected by
-    the normalized comparison, the same as by the exact one. Issue #5205.
+    Invisible formatting characters go, markdown backslash escapes resolve to
+    the character they escape, horizontal whitespace of any kind collapses,
+    spacing around ``[``, ``]`` and ``|`` goes, and the result case-folds.
+    Newlines survive so a placeholder cannot be matched across a line it does
+    not span. Calibrated like the literals themselves: 0 of the 86 committed
+    logs are rejected by the normalized comparison, the same as by the exact
+    one, with every variant above measured individually. Issue #5205.
     """
-    collapsed = DEBATE_LOG_PLACEHOLDER_SPACING_RE.sub(" ", text)
+    visible = "".join(
+        character
+        for character in text
+        if unicodedata.category(character) != DEBATE_LOG_PLACEHOLDER_FORMAT_CATEGORY
+    )
+    unescaped = DEBATE_LOG_PLACEHOLDER_ESCAPE_RE.sub(r"\1", visible)
+    collapsed = DEBATE_LOG_PLACEHOLDER_SPACING_RE.sub(" ", unescaped)
     return DEBATE_LOG_PLACEHOLDER_PUNCTUATION_RE.sub(r"\1", collapsed).casefold()
 
 
@@ -1776,6 +1795,65 @@ def _uncovered_adr_ids(adr_ids: set[str], contents: dict[str, str]) -> set[str]:
     }
 
 
+def _classify_staged_candidates(
+    candidates: Sequence[str],
+    repo_root: Path,
+) -> tuple[list[str], list[str], list[str]]:
+    """Split staged candidates into regular, non-regular, and unanswerable.
+
+    Three lists rather than a filter, because each one exits the gate
+    differently: a regular blob is evidence to weigh, a non-regular one is a
+    committer error worth exit 1, and a path git could not answer for is an
+    external failure worth exit 3. Collapsing any pair loses a distinction the
+    caller has to make.
+    """
+    regular: list[str] = []
+    irregular: list[str] = []
+    unknown: list[str] = []
+    for path in candidates:
+        state = _staged_regular_file_state(repo_root, path)
+        if state is None:
+            unknown.append(path)
+        elif state:
+            regular.append(path)
+        else:
+            irregular.append(path)
+    return regular, irregular, unknown
+
+
+def _usable_staged_logs(
+    candidates: Sequence[str],
+    repo_root: Path,
+) -> tuple[list[str], int | None]:
+    """Return the logs worth reading, or the exit code that stops the commit.
+
+    Both refusals report every offending path by name rather than the first,
+    because a committer fixing them one round trip at a time is the loop the
+    unreadable-log message already apologises for.
+    """
+    regular, irregular, unknown = _classify_staged_candidates(candidates, repo_root)
+    if unknown:
+        names = ", ".join(sorted(unknown))
+        print(
+            f"ERROR: could not tell whether these staged paths are regular "
+            f"files; the git query failed: {names}. The output above is git's.",
+            file=sys.stderr,
+        )
+        # 3 for the same reason the discovery failure is 3: nothing was
+        # examined. Calling this a symlink would accuse the committer of
+        # staging one.
+        return [], 3
+    if irregular:
+        names = ", ".join(sorted(irregular))
+        print(
+            f"ERROR: staged debate log is not a regular file: {names}. "
+            "A symlink is not review evidence.",
+            file=sys.stderr,
+        )
+        return [], 1
+    return regular, None
+
+
 def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
     gated_paths = _gated_adr_review_paths(paths, repo_root)
     if not gated_paths:
@@ -1815,16 +1893,9 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
         # ever examined. Every other exit from this gate stays 1, because those
         # are all judgements about staged evidence.
         return 3
-    debate_logs = [path for path in candidates if _is_staged_regular_file(repo_root, path)]
-    irregular = sorted(set(candidates) - set(debate_logs))
-    if irregular:
-        names = ", ".join(irregular)
-        print(
-            f"ERROR: staged debate log is not a regular file: {names}. "
-            "A symlink is not review evidence.",
-            file=sys.stderr,
-        )
-        return 1
+    debate_logs, candidate_failure = _usable_staged_logs(candidates, repo_root)
+    if candidate_failure is not None:
+        return candidate_failure
     if not debate_logs:
         print(
             "ERROR: ADR changes require a debate log staged in .agents/critique",
@@ -2960,8 +3031,22 @@ def _mirror_source(relative_path: str) -> str | None:
     return None
 
 
-def _is_staged_regular_file(repo_root: Path, relative_path: str) -> bool:
-    """Return True only for a stage-zero regular blob in Git's index."""
+# Git's fatal exit. `ls-files --error-unmatch` exits 1 for a path that is simply
+# not in the index, which is an answer, and 128 when it could not look: not a
+# repository, a broken index, a permission failure. Measured both.
+GIT_FATAL_RETURNCODE = 128
+
+
+def _staged_regular_file_state(repo_root: Path, relative_path: str) -> bool | None:
+    """Return whether the path is a stage-zero regular blob, or None if unknown.
+
+    Tri-state, because ``False`` was answering two different questions. A path
+    that is not a regular staged blob and a query that could not run both came
+    back ``False``, and the ADR gate reports the first as "not a regular file:
+    a symlink is not review evidence" with exit 1. A broken git therefore
+    accused the committer of staging a symlink. That is the same swallow the
+    discovery query had, one function over and one review round later.
+    """
     safe_path = _safe_relative_path(relative_path)
     if safe_path is None:
         return False
@@ -2975,10 +3060,23 @@ def _is_staged_regular_file(repo_root: Path, relative_path: str) -> bool:
             f":(literal){safe_path}",
         ],
     )
+    if result.returncode == GIT_FATAL_RETURNCODE:
+        _print_process_output(result, stdout_stream=sys.stderr)
+        return None
     if result.returncode != 0:
         return False
     fields = result.stdout.partition("\t")[0].split()
     return len(fields) >= 3 and fields[0] in {"100644", "100755"} and fields[2] == "0"
+
+
+def _is_staged_regular_file(repo_root: Path, relative_path: str) -> bool:
+    """Return True only for a stage-zero regular blob in Git's index.
+
+    Kept as the boolean face of ``_staged_regular_file_state`` so the callers
+    that have no exit code to choose are unchanged. An unknown answer is not a
+    regular file to them, which is the fail-closed reading.
+    """
+    return _staged_regular_file_state(repo_root, relative_path) is True
 
 
 def _is_generated(relative_path: str, repo_root: Path | None = None) -> bool:

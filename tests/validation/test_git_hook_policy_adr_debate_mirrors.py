@@ -295,6 +295,9 @@ def test_a_byte_corrupted_template_is_stopped_at_the_decode_not_by_the_signals()
         ("no-break space", "\u00a0"),
         ("figure space", "\u2007"),
         ("narrow no-break space", "\u202f"),
+        ("zero-width space", "\u200b"),
+        ("soft hyphen", "\u00ad"),
+        ("zero-width non-joiner", "\u200c"),
     ],
 )
 def test_any_horizontal_whitespace_in_a_placeholder_is_still_rejected(
@@ -408,3 +411,42 @@ def test_the_normalization_does_not_reject_any_committed_log() -> None:
             hits[path.name] = matched
 
     assert hits == {}
+
+
+def test_a_markdown_escaped_placeholder_is_still_rejected() -> None:
+    """`\\]` and `]` are the same document and different strings.
+
+    A backslash escape renders as the character it escapes, so an author can
+    escape every closing bracket and the internal pipe and the template still
+    reads exactly as shipped, while no literal matches. Reported by review as
+    the fourth defeat of this check; the fix resolves escapes rather than
+    adding a fifth special case.
+    """
+    template = _canonical_debate_log_template().replace("[ADR Title]", "ADR-042")
+
+    escaped = template
+    for placeholder in policy.DEBATE_LOG_TEMPLATE_PLACEHOLDERS:
+        if placeholder in escaped:
+            escaped = escaped.replace(
+                placeholder, placeholder.replace("]", "\\]").replace("|", "\\|")
+            )
+
+    assert not [p for p in policy.DEBATE_LOG_TEMPLATE_PLACEHOLDERS if p in escaped], (
+        "the escaping must actually defeat exact matching"
+    )
+    assert policy.DEBATE_LOG_REVIEWER_RE.search(escaped)
+    assert policy._has_verdict(escaped)
+
+    gap = policy.debate_log_evidence_gap(escaped)
+    assert gap is not None and gap.startswith("unfilled template placeholders"), gap
+
+
+def test_an_escape_before_a_letter_is_not_stripped() -> None:
+    """Only punctuation escapes resolve, which is what markdown defines.
+
+    The guard on the escape normalization. Stripping a backslash before any
+    character would rewrite prose that legitimately contains one, and markdown
+    only assigns meaning to a backslash before ASCII punctuation.
+    """
+    assert "\\n" in policy._normalized_for_placeholders("a\\nb")
+    assert "\\" not in policy._normalized_for_placeholders("a\\]b")
