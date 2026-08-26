@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: 586b1b4680f3a2a887625da28168eec6f16cab9c
+qaCommit: aac1400909c75935841732f7aea597ff557ee693
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -9,7 +9,7 @@ qaCommit: 586b1b4680f3a2a887625da28168eec6f16cab9c
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `main` (retargeted by GitHub after PR #5209 squash-merged and its branch was deleted; was `claude/adr-evaluation-tooling-6od8rd`)
-**Validated at commit**: `586b1b4680f3a2a887625da28168eec6f16cab9c` (see Addendum 60)
+**Validated at commit**: `aac1400909c75935841732f7aea597ff557ee693` (see Addendum 61)
 
 ## Verdict
 
@@ -1376,4 +1376,19 @@ Full evidence, including the exact `html_inline` token structure verified and th
 Full suites re-run clean: `tests/test_markdown_parser.py` (75 passed), combined with `tests/validation/test_check_adr_lifecycle.py`, `tests/validation/test_check_adr_links.py`, and `tests/skills/adr-review/` (440 passed). Corpus check unchanged at baseline (1 violation across 103 records). `pre_pr.py`: all validations passed on both commits.
 
 **Rebound to** `586b1b4680f3a2a887625da28168eec6f16cab9c`.
+
+## Addendum 61: same rounds 16 and 17 findings and fixes as Addendum 60 of the campaign report
+
+Same two rounds, same four findings, same fixes as Addendum 60 of the campaign report:
+
+1. Round 16 (mandatory): the round-15 substring scan confused a backtick-quoted `` `<!--` `` literal for a real comment opener, a false-negative gap. Fixed with `_html_comment_inline_ranges`, reading the parser's own `html_inline` tokens instead of re-scanning text (commit `086bb47b1`).
+2. Round 16 (previously-missed, resurfaced): the ADR-063 title test reimplemented `build_record`'s call sequence instead of driving it. Fixed to call `build_record` directly (commit `7cddeac5d`).
+3. Round 17 (mandatory): a decoy code span with byte-identical content to a later real comment could steal `_html_comment_inline_ranges`' position search, since the cursor advanced only past prior `html_inline` children. Fixed by advancing the cursor past every child in source order (commit `aac140090`).
+4. Round 17 (real, documentation-only): `_blank_block_lines`'s docstring claimed a "shared" contract that had stopped being true. Fixed by extracting the genuinely shared `_blank_matching_token_lines` loop (same commit).
+
+Full evidence, including the exact token structures verified for each finding and the mutation-proof failure modes, is in Addendum 60 of the campaign report.
+
+Full suites re-run clean after all four fixes: `tests/test_markdown_parser.py` (77 passed), combined with `tests/validation/test_check_adr_lifecycle.py`, `tests/validation/test_check_adr_links.py`, `tests/skills/adr-review/`, and `tests/test_adr_063_memory_skill_decomposition.py` (469 passed). Corpus check unchanged at baseline (1 violation across 103 records). `pre_pr.py`: all validations passed on every commit.
+
+**Rebound to** `aac1400909c75935841732f7aea597ff557ee693`.
 

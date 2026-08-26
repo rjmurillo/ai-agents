@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: 586b1b4680f3a2a887625da28168eec6f16cab9c
+qaCommit: aac1400909c75935841732f7aea597ff557ee693
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `586b1b4680f3a2a887625da28168eec6f16cab9c` (see Addendum 59)
+**Validated at commit**: `aac1400909c75935841732f7aea597ff557ee693` (see Addendum 60)
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -2567,4 +2567,22 @@ Mutation-proven: `git stash push -- scripts/utils/markdown_parser.py` (reverting
 Full suites re-run clean after both fixes: `tests/test_markdown_parser.py` (75 passed), `tests/validation/test_check_adr_lifecycle.py` (205 combined with the parser suite), `tests/validation/test_check_adr_links.py` and `tests/skills/adr-review/` (440 combined across all four files). `check_adr_lifecycle.py`'s corpus check: unchanged, 1 violation across 103 records, at baseline. `pre_pr.py`: all validations passed on both commits.
 
 **Rebound to** `586b1b4680f3a2a887625da28168eec6f16cab9c`.
+
+## Addendum 60: rounds 16 and 17, the round-15 comment mask replaced twice more, each time by a real Copilot finding
+
+Neither round got its own addendum when it landed; this one covers both, since the PASS evidence above still named `_mask_inline_html_comments`, an implementation removed two rounds ago. A round-17 Copilot review caught the staleness directly (`.agents/qa/2026-08-21-adr-corpus-campaign-qa.md:2565` at the time): "No later addendum validates or mutation-tests the implementation being merged". Real, and now fixed by this addendum.
+
+**Round 16, finding 1 (mandatory): the round-15 substring scan confused a backtick-quoted literal for a real comment opener.** `_mask_inline_html_comments` tracked an `in_comment` state by scanning raw text for `<!--`/`-->`, with no awareness of backtick code spans. `` `<!--` `` followed by `**Status**: Proposed` is CommonMark raw text, a `code_inline` token holding the literal characters `<!--`, not a comment; verified empirically that parsing it produces exactly that token plus separate `strong_open`/text/`strong_close` tokens for the status, with no `html_inline` token at all. The scan entered "in comment" state on the backtick-quoted marker anyway and masked the real status that followed until the next `-->` anywhere in the document, a false-negative gap where a genuine `prose-frontmatter-agree` drift could go undetected. Fixed (commit `086bb47b1`) by discarding the substring scan and adding `_html_comment_inline_ranges`, which reads the parser's own `html_inline` child tokens instead: the parser has already resolved comment-vs-code-span precedence by the time tokens exist, so reading its decision sidesteps re-deriving CommonMark's precedence rules by hand. Only tokens whose content opens with `<!--` are masked, so a bare visible tag like `<b>` is left alone. Added `test_a_literal_comment_marker_inside_backticks_is_not_a_comment`. Mutation-proven: reverting to the substring scan failed exactly this test while the ten round-15 tests stayed green.
+
+**Round 16, finding 2 (previously-missed, resurfaced): the ADR-063 title test reimplemented `build_record`'s call sequence instead of driving it.** `test_title_names_the_decomposition_decision` called `parse_frontmatter`, `_strip_fences`, and `_extract_title` individually, so a future change to `build_record` removing, reordering, or adding a step between those three calls would leave this test green, since it never ran `build_record` itself. Fixed (commit `7cddeac5d`) by calling `_index.build_record(ADR_PATH)` directly and asserting on the `AdrRecord.title` it returns.
+
+**Round 17, finding 1 (mandatory): a decoy code span with identical text to a later real comment could steal the match.** `_html_comment_inline_ranges` located each `html_inline` child's exact character offset by searching for its content from a cursor that advanced only past PRIOR `html_inline` children. `` `<!-- x -->` <!-- x --> `` tokenizes as `code_inline("<!-- x -->")`, `text(" ")`, `html_inline("<!-- x -->")`: searching for the `html_inline` child's content from the paragraph's start, without having advanced past the `code_inline` child's identical text, found the FIRST occurrence, inside the backticks, and masked visible code while leaving the real comment (and whatever it might hide) untouched. Verified empirically, matching Copilot's report exactly. Fixed (commit `aac140090`) by advancing the cursor past EVERY child in source order, not only `html_inline` ones, so an earlier decoy of any type is consumed by its own search step before a later real comment's search begins. Added `test_a_decoy_code_span_does_not_steal_the_real_comments_match`. Mutation-proven: reverting the cursor fix alone failed exactly this test while the twelve round-15/16 tests stayed green.
+
+**Round 17, finding 2 (real, documentation-only): `_blank_block_lines`'s docstring claimed to be the shared blanking loop for both `blank_code_block_lines` and `blank_non_prose_block_lines`, which had stopped being true once the latter grew its own inline-comment masking pass ahead of the block-blanking step and inlined that loop separately.** Fixed (commit `aac140090`, same commit as the cursor fix) by extracting the genuinely shared loop into `_blank_matching_token_lines`, called by both functions, rather than narrowing the docstring to describe a duplicated implementation. Behavior-preserving: all 77 tests in `tests/test_markdown_parser.py` passed both before and after the extraction.
+
+**Round 17, finding 3 (this addendum): the QA evidence itself, described above.** Fixed by writing this addendum with fresh evidence for the current implementation, rather than leaving Addendum 59's description of a removed helper standing as the most recent word.
+
+Full suites re-run clean after all four round-16/17 fixes: `tests/test_markdown_parser.py` (77 passed), combined with `tests/validation/test_check_adr_lifecycle.py`, `tests/validation/test_check_adr_links.py`, `tests/skills/adr-review/`, and `tests/test_adr_063_memory_skill_decomposition.py` (469 passed). `check_adr_lifecycle.py`'s corpus check: unchanged, 1 violation across 103 records, at baseline. `pre_pr.py`: all validations passed on every commit in this addendum.
+
+**Rebound to** `aac1400909c75935841732f7aea597ff557ee693`.
 
