@@ -3,59 +3,49 @@
 
 Automates the added-lines slice of the manual gate
 ``.claude/rules/canonical-source-mirror.md`` prescribes ("Before you merge a
-document that names a test, a symbol, or a count, run ``git grep -nF``...
-The only check is the one you run"). Prose discipline measurably fails
-there: PR #5322 found sixteen stale descriptions by review or audit rather
-than by any gate, while the one claim class with a machine replay (the
-sibling-bound line range) never recurred across thirteen real drifts. PR
-#5336 exists solely to repair four ``file:line`` citations that PR #5327
-made stale by inserting lines above the cited code. Issue #5337 tracks the
-cost: every such miss reaches a paid AI review round instead of a local
-deterministic check.
+document that names a test, a symbol, or a count, run ``git grep -nF``...").
+Prose discipline measurably fails there: PR #5322 found sixteen stale
+descriptions by review or audit rather than by any gate, while its one
+claim class with a machine replay never recurred across thirteen real
+drifts, and PR #5336 exists solely to repair four ``file:line`` citations
+PR #5327 made stale. Issue #5337 tracks the cost: every such miss reaches
+a paid AI review round instead of a local deterministic check.
 
-What this gate checks, for every citation of the form
-``some/path.ext:N`` or ``some/path.ext:N-M`` appearing on a line ADDED
-since the base ref (committed range only, ``base...HEAD``):
+For every citation shaped ``some/path.ext:N`` or ``some/path.ext:N-M`` on
+a line ADDED since the base ref (committed range only, ``base...HEAD``),
+the gate checks:
 
 1. the cited path is tracked at HEAD;
 2. the cited line numbers exist in the HEAD copy of that file;
 3. when the citing text names anchors (inline backtick spans, double-quoted
-   phrases, identifiers containing an underscore, or an indented
-   continuation line quoting the contract), at least one anchor appears
-   within the cited line range.
-   When none does, the finding reports where the first anchor actually
-   lives in the cited file, which is usually the corrected citation.
+   phrases, underscore identifiers, or an indented continuation quote), at
+   least one appears within the cited range. When none does, the finding
+   reports where the first anchor actually lives in the cited file, which
+   is usually the corrected citation.
 
-Scope decisions, deliberate:
-
-- Added lines only. Citations in historical documents (retrospectives,
-  session logs, memories) were true when written; re-policing them on
-  unrelated edits would manufacture noise. The historical roots list is
-  imported from ``scripts/validation/stale_script_refs.py``
-  (``HISTORICAL_ROOTS``), the sibling gate with the same problem shape.
-- HEAD is the state verified, because HEAD is what a push ships
-  (``.claude/rules/ci-scripts.md``, "Read the state you are asserting
-  about, and name the ref"). Uncommitted edits are checked once committed.
-- A citation with no discernible anchors is checked for existence and
-  range only. That is weaker, and it is still the half of the class that
-  needs no heuristics.
-- Paths without a ``/`` never match, so illustrative snippets such as
-  ``auth.ts:47`` in rule prose are ignored by construction.
+Scope decisions, deliberate: added lines only, because citations in
+historical documents (retrospectives, sessions, memories; the
+``HISTORICAL_ROOTS`` list is imported from the sibling gate
+``stale_script_refs``) were true when written and re-policing them on
+unrelated edits would manufacture noise. HEAD is the state verified,
+because HEAD is what a push ships (``.claude/rules/ci-scripts.md``, "Read
+the state you are asserting about, and name the ref"). A citation with no
+discernible anchors is checked for existence and range only. Paths
+without a ``/`` never match, so illustrative snippets such as
+``auth.ts:47`` in rule prose are ignored by construction.
 
 Escape hatch: put ``citation-freshness: ignore`` (with a reason) on the
-citing line or the line directly above it. There is no whole-gate skip
-flag: the marker is line-scoped on purpose, matching the taste-lint
-pattern of narrow, reasoned suppressions.
+citing line or the line directly above it. The marker is line-scoped on
+purpose, matching the taste-lint pattern of narrow, reasoned
+suppressions; there is no whole-gate skip flag.
 
 EXIT CODES (ADR-035):
   0 - no findings (prints examined counts so an idle run is
-      distinguishable from a clean one), or the base ref cannot be
-      resolved (prints ``[SKIP]`` with the reason; author-time pushes
-      always have a base, so the degraded case is vendor installs and
-      detached checkouts where the diff is undefined)
+      distinguishable from a clean one), or no base ref resolved (prints
+      ``[SKIP]``: with no base there is no added-lines range, which is the
+      vendor-install and detached-checkout case, not an author push)
   1 - findings
-  2 - configuration error (git itself failed)
-"""
+  2 - configuration error (git itself failed)"""
 
 from __future__ import annotations
 
@@ -202,6 +192,25 @@ def _strip_prose_decorations(text: str) -> str:
     return text.strip().strip(".,:;()[]{}'\"")
 
 
+def _span_anchor(span: str, citation_text: str) -> str | None:
+    """Return a quoted span as an anchor, or None when it is not one.
+
+    The citation itself (or a span containing it), path-shaped spans, bare
+    numeric ranges, and CLI flags are not anchors. A short span that is
+    merely a substring of the cited path still is one: `model` is a real
+    anchor even though the letters appear inside check_model_pins.py's own
+    name.
+    """
+    candidate = _strip_prose_decorations(span)
+    if not candidate or len(candidate) < 3 or citation_text in candidate:
+        return None
+    if _PATHLIKE.match(candidate) or _NUMERIC_SPAN.match(candidate):
+        return None
+    if candidate.startswith("-") or _CITATION.search(candidate):
+        return None
+    return candidate
+
+
 def _anchor_candidates(context_lines: list[str], citation_text: str) -> list[str]:
     """Extract anchor strings the citing text names near a citation.
 
@@ -217,24 +226,10 @@ def _anchor_candidates(context_lines: list[str], citation_text: str) -> list[str
         # Triple-quote delimiters would otherwise pair with the opening
         # quote of a real anchor and swallow it.
         masked = masked.replace('"""', " ").replace("'''", " ")
-        spans = _BACKTICK_SPAN.findall(masked) + _DQUOTE_SPAN.findall(masked)
-        for span in spans:
-            candidate = _strip_prose_decorations(span)
-            if not candidate or len(candidate) < 3:
-                continue
-            # Exclude the citation itself (or a span containing it), but not
-            # a short span that merely happens to be a substring of the
-            # cited path: `model` is a real anchor even though the letters
-            # appear inside check_model_pins.py's own name.
-            if citation_text in candidate:
-                continue
-            if _PATHLIKE.match(candidate) or _NUMERIC_SPAN.match(candidate):
-                continue
-            if candidate.startswith("-"):
-                continue
-            if _CITATION.search(candidate):
-                continue
-            anchors.append(candidate)
+        for span in _BACKTICK_SPAN.findall(masked) + _DQUOTE_SPAN.findall(masked):
+            candidate = _span_anchor(span, citation_text)
+            if candidate is not None:
+                anchors.append(candidate)
         # Mask spans and citations before harvesting bare identifiers so a
         # path segment such as model_pin_manifest never reads as an anchor.
         masked = _BACKTICK_SPAN.sub(" ", masked)
