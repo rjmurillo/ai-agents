@@ -64,7 +64,7 @@ def oracle_fence_lines(text: str) -> set[int]:
 
 
 # Each case is named for the CommonMark rule it exercises. `_ListContainers`
-# carries eleven numbered rules and every one of them was a real defect first,
+# carries fourteen numbered rules and every one was a real defect first,
 # most reported in review and the rest found by the fuzzer below; each was
 # reproduced against the reference parser before being fixed. The remaining
 # cases guard the opposite direction, that a fix did not make the scanners
@@ -160,6 +160,14 @@ CASES: dict[str, str] = {
     # CommonMark accepts start 2 there.
     "marker, nested marker, then fence": "- 2. ~~~\n     x\n     ~~~\n",
     "marker, nested marker one, then fence": "- 1. ~~~\n     x\n     ~~~\n",
+    # Rule 14: blank is spaces and tabs, not everything `str.strip()` removes.
+    "non-breaking space is not padding": "-\u00a0\n    ```\n    x\n    ```\n",
+    "non-breaking space line is not blank": "- ```\n  x\n\u00a0\nafter\n",
+    "non-breaking space inside an item": "- ~~~\n  x\n\u00a0\n  ~~~\n",
+    "a space after the marker is padding": "- \n    ```\n    x\n    ```\n",
+    # A fence with no closing marker that the container ends anyway. The
+    # public no-op assertion used to skip this, calling it unclosed.
+    "dedent terminates a marker-line fence": "- ```\n  x\nafter\n",
 }
 
 

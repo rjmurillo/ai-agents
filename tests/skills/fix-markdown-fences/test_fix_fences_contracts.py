@@ -42,18 +42,26 @@ def _has_unclosed_fence(text: str) -> bool:
 
     Read from the token rather than guessed from the string. A fence token
     spans its opener, its body, and its closing marker when one exists, while
-    `content` holds the body alone. So a span that exceeds the opener plus the
-    body by at least one line was closed by a marker, and one that does not
-    ran to the end of the document. An earlier version of this asked whether
-    the text ended in a fence character, which called two genuinely unclosed
+    `content` holds the body alone, so a span exceeding opener plus body by a
+    line was closed by a marker.
+
+    No marker is not the same as open at EOF, and conflating them was the
+    second bug in this helper. A fence can also end because its list item
+    ended: `- ``` ` then a dedented line has no closing marker, and the
+    reference parser still closes the token before the end. Calling that
+    unclosed made the public no-op assertion skip the container-close
+    behaviour it exists to guard. The first bug was cruder, asking whether the
+    text ended in a fence character, which called two genuinely unclosed
     documents balanced.
     """
+    source = text.splitlines()
     for token in _REFERENCE.parse(text):
         if token.type != "fence" or not token.map:
             continue
         span = token.map[1] - token.map[0]
         body = token.content.count("\n")
-        if span - 1 - body < 1:
+        marked = span - 1 - body >= 1
+        if not marked and token.map[1] >= len(source):
             return True
     return False
 
