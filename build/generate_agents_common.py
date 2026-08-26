@@ -12,11 +12,20 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     pass
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+from model_pin_manifest import (  # noqa: E402  (path set above)
+    format_model_id_for_platform,
+    resolve_manifest_model,
+)
 
 # Field ordering for frontmatter output
 _FIELD_ORDER = ("name", "description", "argument-hint", "tools", "model")
@@ -192,8 +201,20 @@ def convert_frontmatter_for_platform(
     frontmatter: dict[str, str | None],
     platform_config: dict[str, object],
     agent_name: str,
+    manifest: dict[str, dict[str, object]] | None = None,
+    source_unit: str | None = None,
 ) -> dict[str, str | None]:
-    """Transform frontmatter for a specific platform."""
+    """Transform frontmatter for a specific platform.
+
+    ``manifest`` and ``source_unit`` wire in the ADR-080 sidecar manifest
+    (``build.model_pin_manifest``): when ``source_unit`` names a unit that
+    carries a fresh ``KEEP_PIN`` entry, that entry's model id is formatted for
+    this platform and emitted instead of the haiku-tier default. Both default
+    to ``None``/absent, which reproduces the pre-manifest-wiring behavior
+    (haiku-tier-or-omit) exactly, so every existing caller and test is
+    unaffected. See ``convert_frontmatter_for_platform``'s model-resolution
+    block below for the full three-step order.
+    """
     result: dict[str, str | None] = {}
     # Support both new schema (provider + legacy block) and old schema (platform + top-level)
     platform_name = str(
@@ -219,18 +240,37 @@ def convert_frontmatter_for_platform(
         else:
             result.pop("name", None)
 
-        # Resolve model: only the 'haiku' tier is ever emitted, matching the
-        # sole cost exception ADR-080 rule 3 recognizes (a rolling alias
-        # resolving, via this same model_tiers map, to an id priced below the
-        # harness default). Any other tier, and the platform's own default
-        # model, injected a versioned pin no manifest evidence justified
-        # (ADR-080 rule 2), which breaks on the next retirement (issue #5313,
-        # the retired claude-opus-4.5). Omitting the field lets the harness
-        # inherit its own default at runtime instead.
+        # Resolve model in three steps, in order:
+        #   1. A manifest-justified versioned pin (ADR-080 rules 2 and 4:
+        #      a fresh KEEP_PIN entry for this source unit), formatted for
+        #      this platform. This is the manifest-to-generator wiring the
+        #      ADR-080 2026-08-12 Amendment named an "open gap"; see
+        #      build/model_pin_manifest.py.
+        #   2. The 'haiku' tier, matching the sole cost exception ADR-080
+        #      rule 3 recognizes (a rolling alias resolving, via this same
+        #      model_tiers map, to an id priced below the harness default).
+        #   3. Omit the field. Any other tier, and the platform's own
+        #      default model, injected a versioned pin no manifest evidence
+        #      justified (ADR-080 rule 2), which breaks on the next
+        #      retirement (issue #5313, the retired claude-opus-4.5).
+        #      Omitting the field lets the harness inherit its own default
+        #      at runtime instead.
         model_tier = frontmatter.get("model_tier")
         # Look for model_tiers in legacy block first, then top-level for backward compat
         model_tiers = legacy.get("model_tiers") or platform_config.get("model_tiers")
-        if model_tier == "haiku" and isinstance(model_tiers, dict) and "haiku" in model_tiers:
+        manifest_model_id = (
+            resolve_manifest_model(manifest, source_unit)
+            if manifest is not None and source_unit is not None
+            else None
+        )
+        formatted_manifest_model = (
+            format_model_id_for_platform(manifest_model_id, model_tiers)
+            if manifest_model_id is not None and isinstance(model_tiers, dict)
+            else None
+        )
+        if formatted_manifest_model is not None:
+            result["model"] = formatted_manifest_model
+        elif model_tier == "haiku" and isinstance(model_tiers, dict) and "haiku" in model_tiers:
             result["model"] = str(model_tiers["haiku"])
         else:
             result.pop("model", None)

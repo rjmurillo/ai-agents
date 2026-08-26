@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import sys
+from datetime import date as _date
 from pathlib import Path
 
 # Add build directory to path for imports
@@ -379,6 +380,87 @@ class TestConvertFrontmatterForPlatform:
         }
         result = convert_frontmatter_for_platform(fm, config, "test")
         assert "model_tier" not in result
+
+    _COPILOT_CONFIG: dict[str, object] = {
+        "platform": "copilot-cli",
+        "frontmatter": {"includeNameField": True},
+        "model_tiers": {
+            "opus": "claude-opus-4.6",
+            "sonnet": "claude-sonnet-4.6",
+            "haiku": "claude-haiku-4.5",
+        },
+    }
+    _VSCODE_CONFIG: dict[str, object] = {
+        "platform": "vscode",
+        "frontmatter": {"includeNameField": False},
+        "model_tiers": {
+            "opus": "Claude Opus 4.6 (copilot)",
+            "sonnet": "Claude Sonnet 4.6 (copilot)",
+            "haiku": "Claude Haiku 4.5 (copilot)",
+        },
+    }
+    _UNIT = "templates/agents/architect.shared.md"
+
+    def _keep_pin_manifest(self, **entry_overrides: object) -> dict[str, dict[str, object]]:
+        entry: dict[str, object] = {
+            "unit": self._UNIT,
+            "model": "claude-opus-4-6",
+            "decision": "KEEP_PIN",
+            "date": _date.today().isoformat(),
+        }
+        entry.update(entry_overrides)
+        return {self._UNIT: entry}
+
+    def test_manifest_keep_pin_resolves_ahead_of_haiku_tier(self) -> None:
+        """A fresh KEEP_PIN entry wins even when model_tier also says haiku:
+        manifest resolution is step 1, haiku-tier fallback is step 2."""
+        fm: dict[str, str | None] = {"description": "test", "model_tier": "haiku"}
+        result = convert_frontmatter_for_platform(
+            fm, self._COPILOT_CONFIG, "architect",
+            manifest=self._keep_pin_manifest(), source_unit=self._UNIT,
+        )
+        assert result["model"] == "claude-opus-4.6"
+
+    def test_manifest_keep_pin_formats_per_platform(self) -> None:
+        fm: dict[str, str | None] = {"description": "test"}
+        manifest = self._keep_pin_manifest()
+        copilot_result = convert_frontmatter_for_platform(
+            fm, self._COPILOT_CONFIG, "architect",
+            manifest=manifest, source_unit=self._UNIT,
+        )
+        vscode_result = convert_frontmatter_for_platform(
+            fm, self._VSCODE_CONFIG, "architect",
+            manifest=manifest, source_unit=self._UNIT,
+        )
+        assert copilot_result["model"] == "claude-opus-4.6"
+        assert vscode_result["model"] == "Claude Opus 4.6 (copilot)"
+
+    def test_manifest_entry_for_different_unit_does_not_resolve(self) -> None:
+        """Negative control: the manifest carries evidence, but not for this
+        unit, so generation must fall back to the (empty) tier logic."""
+        fm: dict[str, str | None] = {"description": "test"}
+        result = convert_frontmatter_for_platform(
+            fm, self._COPILOT_CONFIG, "architect",
+            manifest=self._keep_pin_manifest(),
+            source_unit="templates/agents/other.shared.md",
+        )
+        assert "model" not in result
+
+    def test_manifest_decision_not_keep_pin_falls_back(self) -> None:
+        fm: dict[str, str | None] = {"description": "test", "model_tier": "haiku"}
+        result = convert_frontmatter_for_platform(
+            fm, self._COPILOT_CONFIG, "architect",
+            manifest=self._keep_pin_manifest(decision="RETIRE_PIN"),
+            source_unit=self._UNIT,
+        )
+        assert result["model"] == "claude-haiku-4.5"
+
+    def test_manifest_none_reproduces_pre_wiring_behavior(self) -> None:
+        """manifest=None, source_unit=None (the default) is unaffected by
+        this feature: same output as before the manifest wiring existed."""
+        fm: dict[str, str | None] = {"description": "test", "model_tier": "haiku"}
+        result = convert_frontmatter_for_platform(fm, self._COPILOT_CONFIG, "architect")
+        assert result["model"] == "claude-haiku-4.5"
 
 
 class TestFormatFrontmatterYaml:

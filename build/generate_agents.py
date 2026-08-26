@@ -48,6 +48,7 @@ from generate_agents_common import (  # noqa: E402
     read_toolset_definitions,
     read_yaml_frontmatter,
 )
+from model_pin_manifest import load_pin_manifest  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from yaml_loader import ConfigError, load_platform_config  # noqa: E402
 
@@ -227,6 +228,14 @@ def generate_agents(
     print(f"Found {len(shared_files)} shared source file(s)")
     print()
 
+    # ADR-080 sidecar manifest of KEEP_PIN evidence, loaded once per run.
+    # Empty (or absent) manifest is the common case today: resolve_manifest_model
+    # then returns None for every unit and generation is unaffected. See
+    # build/model_pin_manifest.py for the resolution and formatting logic.
+    pin_manifest = load_pin_manifest(
+        repo_root / ".agents" / "governance" / "model-pin-evidence.json"
+    )
+
     generated = 0
     errors = 0
     differences: list[str] = []
@@ -234,6 +243,17 @@ def generate_agents(
     for shared_file in shared_files:
         agent_name = shared_file.stem.replace(".shared", "")
         print(f"Processing: {agent_name}")
+        # The manifest keys pins by repo-relative unit path
+        # (templates/agents/<name>.shared.md; matches check_model_pins.py's
+        # own _UNIT_GLOBS for this unit kind). A caller-supplied
+        # templates_path outside repo_root can't be expressed that way; fall
+        # back to None rather than fail generation, which just means no
+        # manifest-justified pin resolves for this run (ADR-080 rule 5's
+        # fail-closed default).
+        try:
+            source_unit = shared_file.relative_to(repo_root).as_posix()
+        except ValueError:
+            source_unit = None
 
         content = shared_file.read_text(encoding="utf-8")
         parsed = read_yaml_frontmatter(content)
@@ -338,7 +358,8 @@ def generate_agents(
                 continue
 
             transformed_fm = convert_frontmatter_for_platform(
-                frontmatter, platform, agent_name
+                frontmatter, platform, agent_name,
+                manifest=pin_manifest, source_unit=source_unit,
             )
 
             # Expand toolset references

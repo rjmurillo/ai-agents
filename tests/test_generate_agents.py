@@ -9,6 +9,7 @@ This is a Python port of Generate-Agents.ps1 tests following ADR-042 migration.
 from __future__ import annotations
 
 import sys
+from datetime import date as _date
 from pathlib import Path
 
 import pytest
@@ -159,6 +160,66 @@ class TestGenerateAgents:
         # ADR-080 rule 5 / issue #5313: no model_tier on the source unit means
         # no injected model, so a retired pin (e.g. claude-opus-4.5) can never
         # ship unjustified.
+        assert "model:" not in content
+
+    def test_manifest_keep_pin_reaches_generated_output(self, tmp_path: Path) -> None:
+        """End-to-end wiring proof (testing.md SHOULD 6): drives the real
+        generate_agents() entry point, not just convert_frontmatter_for_platform
+        directly, so a future change that stops passing manifest/source_unit
+        through the call site fails this test even if the helper's own unit
+        tests still pass."""
+        repo_root, templates_path, output_root = _create_test_structure(tmp_path)
+        platform = templates_path / "platforms" / "vscode.yaml"
+        platform.write_text(
+            "platform: vscode\n"
+            "outputDir: src/vs-code-agents\n"
+            "fileExtension: .agent.md\n"
+            "frontmatter:\n"
+            "  includeNameField: false\n"
+            'handoffSyntax: "#runSubagent"\n'
+            'memoryPrefix: "serena/"\n'
+            "model_tiers:\n"
+            '  opus: "Claude Opus 4.6 (copilot)"\n'
+            '  sonnet: "Claude Sonnet 4.6 (copilot)"\n'
+            '  haiku: "Claude Haiku 4.5 (copilot)"\n',
+            encoding="utf-8",
+        )
+        manifest_dir = repo_root / ".agents" / "governance"
+        manifest_dir.mkdir(parents=True)
+        (manifest_dir / "model-pin-evidence.json").write_text(
+            "{"
+            '"schema_version": "1", "pins": [{'
+            '"unit": "templates/agents/test-agent.shared.md", '
+            '"model": "claude-opus-4-6", '
+            '"decision": "KEEP_PIN", '
+            f'"date": "{_date.today().isoformat()}"'
+            "}]}",
+            encoding="utf-8",
+        )
+
+        exit_code = generate_agents(templates_path, output_root, repo_root)
+        assert exit_code == 0
+
+        output_file = output_root / "vs-code-agents" / "test-agent.agent.md"
+        content = output_file.read_text(encoding="utf-8")
+        assert "model: Claude Opus 4.6 (copilot)" in content
+
+    def test_no_manifest_entry_for_unit_omits_model(self, tmp_path: Path) -> None:
+        """Negative control for the same wiring: an empty manifest (today's
+        real .agents/governance/model-pin-evidence.json state) must not
+        change generation output at all."""
+        repo_root, templates_path, output_root = _create_test_structure(tmp_path)
+        manifest_dir = repo_root / ".agents" / "governance"
+        manifest_dir.mkdir(parents=True)
+        (manifest_dir / "model-pin-evidence.json").write_text(
+            '{"schema_version": "1", "pins": []}', encoding="utf-8"
+        )
+
+        exit_code = generate_agents(templates_path, output_root, repo_root)
+        assert exit_code == 0
+
+        output_file = output_root / "vs-code-agents" / "test-agent.agent.md"
+        content = output_file.read_text(encoding="utf-8")
         assert "model:" not in content
 
     def test_generated_content_has_lf_not_crlf(self, tmp_path: Path) -> None:
