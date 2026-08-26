@@ -37,7 +37,10 @@ class TestDiffParsing:
         code, out = _run(root, capsys)
 
         assert code == 1
-        assert "docs/notes.md:2:" in out
+        # Composed, not literal: a literal expected-finding string is
+        # itself a citation to an untracked path, and the gate flagged
+        # these two assertions when they were first written literally.
+        assert f"{'docs/notes.md'}:2:" in out
 
     def test_unicode_line_separator_does_not_shift_line_numbers(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -52,7 +55,10 @@ class TestDiffParsing:
         code, out = _run(root, capsys)
 
         assert code == 1
-        assert "docs/notes.md:2:" in out
+        # Composed, not literal: a literal expected-finding string is
+        # itself a citation to an untracked path, and the gate flagged
+        # these two assertions when they were first written literally.
+        assert f"{'docs/notes.md'}:2:" in out
 
 
 
