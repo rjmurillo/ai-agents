@@ -13,6 +13,7 @@ Covers:
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -90,7 +91,7 @@ class TestConfigureGithubCli:
         argv = [line.removeprefix("argv:") for line in lines if line.startswith("argv:")]
         assert argv == [
             "auth login --with-token",
-            "auth status",
+            "auth status --active --hostname github.com",
             "api user --jq .login",
             "auth setup-git",
         ]
@@ -158,6 +159,7 @@ class TestConfigureGithubCli:
         assert "the token itself is valid" in result.stderr
 
 
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
 class TestRestoreOriginRemote:
     """Run the shipped ``restore_origin_remote`` against real repositories."""
 

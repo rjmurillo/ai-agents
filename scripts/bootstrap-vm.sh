@@ -131,7 +131,10 @@ configure_github_cli() {
     fi
     unset github_token
 
-    if ! gh auth status; then
+    # Scope to the account just logged in: an unscoped `gh auth status`
+    # checks every stored account on every known host and fails if any one
+    # of them (unrelated to this token) is stale.
+    if ! gh auth status --active --hostname github.com; then
         echo "WARNING: gh auth status failed; continuing without GitHub authentication" >&2
         return 0
     fi
