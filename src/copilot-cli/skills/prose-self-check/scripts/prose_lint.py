@@ -75,7 +75,19 @@ _FENCE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
 # CommonMark caps a fence marker at three spaces of indent; at four it is
 # an indented code block and the backticks are literal content. Without
 # the cap a literal marker inside an indented block started masking and
-# hid the prose after it. The sibling fence script bounds it the same way.
+# hid the prose after it.
+#
+# Same bound as the sibling fence scanner, which ships in the same plugin
+# root at skills/fix-markdown-fences/scripts/fix_fences.py. Quoted verbatim
+# from its _over_indented helper (lines 102-104), against the
+# _MAX_FENCE_INDENT = 3 it sets at line 67:
+#
+#     def _over_indented(indent: str) -> bool:
+#         """Return True when *indent* puts the marker inside an indented code block."""
+#         return len(indent.expandtabs(4)) > _MAX_FENCE_INDENT
+#
+# This module keeps its own copy of that comparison rather than importing
+# it, and applies it at both fence call sites below.
 _MAX_FENCE_INDENT = 3
 # A code span may wrap one line but never spans a paragraph break. With
 # DOTALL and no bound, two stray backticks paragraphs apart paired and
