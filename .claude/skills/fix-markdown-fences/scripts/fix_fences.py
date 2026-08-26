@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 # taste-lint: ignore file-size
 # Over the 500-line ceiling. No exact total here: this comment adds lines to
-# the file it measures, so the figure was already wrong when written. Roughly
-# 150 lines are `_ListContainers`,
+# the file it measures, so the figure was already wrong when written. That
+# applies to the class total too: this comment said `roughly 150` while
+# `_ListContainers` had grown past 250, so the sentence warning about stale
+# counts carried one. No number here either. Most of this file is
+# `_ListContainers`,
 # which is duplicated byte-for-byte in prose-self-check because the two skills
 # ship as separate plugin directories and neither is on the other's import
 # path. The real fix is to move that class to the plugin's shared lib, which

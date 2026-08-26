@@ -3,7 +3,9 @@
 # Over the 500-line ceiling. This comment previously named an exact total, 504,
 # which was true when written and never re-measured; the replacement figure was
 # stale before the commit landed, because the comment adds lines to the file it
-# measures. So no total is quoted. Roughly 150 lines are `_ListContainers`,
+# measures. So no total is quoted, and none for the class either: this said
+# `roughly 150` while `_ListContainers` had grown past 250, which is the same
+# failure one sentence earlier. Most of this file is `_ListContainers`,
 # duplicated byte-for-byte in fix-markdown-fences because the two skills ship
 # as separate plugin directories and neither is on the other's import path.
 # The real fix is to move that class to the plugin's shared lib, which both
@@ -89,7 +91,7 @@ _FENCE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
 # root and is quoted here rather than imported, because the two skills ship
 # as separate directories and neither is on the other's import path.
 #
-# `skills/fix-markdown-fences/scripts/fix_fences.py` lines 241-243, verbatim:
+# `skills/fix-markdown-fences/scripts/fix_fences.py` lines 244-246, verbatim:
 #
 #     def over_indented(self, indent: str) -> bool:
 #         """Return True when *indent* puts the marker inside an indented code block."""
