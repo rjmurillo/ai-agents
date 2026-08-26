@@ -1700,7 +1700,7 @@ def debate_log_evidence_gap(content: str) -> str | None:
 def _staged_debate_log_contents(
     debate_logs: Sequence[str],
     repo_root: Path,
-) -> tuple[dict[str, str], list[str], list[str]]:
+) -> tuple[dict[str, str], list[str], list[str], dict[str, str]]:
     """Return the readable logs, the undecodable ones, and the unreadable ones.
 
     Neither failure list is silently dropped. Dropping fails open whenever
