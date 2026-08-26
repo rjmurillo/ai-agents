@@ -59,6 +59,7 @@ Need GitHub data?
 ├─ Validate PR description → validate_pr_description.py
 ├─ Issue info → get_issue_context.py
 ├─ Merge readiness check → test_pr_merge_ready.py
+├─ PR reports blocked/dirty and cause is unclear → why_pr_blocked.py
 ├─ Latest milestone → get_latest_semantic_milestone.py
 ├─ Actionable backlog → get_actionable_items.py
 └─ Need to take action?
@@ -142,6 +143,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `get_thread_by_id.py` | Get single thread by ID | `--thread-id` |
 | `get_thread_conversation_history.py` | Full thread comment history | `--thread-id`, `--include-minimized` |
 | `test_pr_merge_ready.py` | Check merge readiness | `--pull-request`, `--ignore-ci`, `--ignore-threads` |
+| `why_pr_blocked.py` | Diagnose a `mergeable_state`/`mergeStateStatus: blocked` PR: decomposes it into missing/failing/pending required checks, unresolved review threads, or merge conflicts, and says explicitly when none of those hold (the field can be stale) | `--pull-request`, `--base-branch`, `--output-format {json,human,auto}` |
 | `set_pr_auto_merge.py` | Enable/disable auto-merge | `--pull-request`, `--enable`/`--disable`, `--merge-method` |
 | `invoke_pr_comment_processing.py` | Process AI triage output | `--pr-number`, `--verdict`, `--findings-json` |
 | `new_pr.py` | Create PR with validation | `--title`, `--body`, `--base` |
@@ -319,6 +321,7 @@ Closes #123
 | Ignoring exit codes | Missing error handling | Check exit codes per ADR-035 |
 | Skipping idempotency markers | Duplicate comments | Use `--marker` parameter |
 | Raw `gh notify` or notifications API | 403 with app tokens | Use `get_actionable_items.py` |
+| Treating `mergeable_state`/`mergeStateStatus: blocked` as self-explanatory (e.g. inferring "pending approval") | It is a cached, frequently-stale field; `reviewDecision` reads null/none on both open and merged PRs, so approval status is not the gate | Run `why_pr_blocked.py` first. GitHub's "A conversation must be resolved before this pull request can be merged" message means unresolved review threads: resolve them (`resolve_pr_review_thread.py`), don't report the PR as blocked with nothing to act on |
 
 ---
 
