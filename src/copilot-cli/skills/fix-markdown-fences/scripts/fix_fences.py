@@ -94,6 +94,20 @@ _BLOCK_QUOTE = re.compile(r"^>")
 # ordinary prose. `---` reaches the same conclusion through _THEMATIC_BREAK, so
 # the gap was `=`, which matches nothing else.
 _SETEXT_UNDERLINE = re.compile(r"^(?:=+|-+)[ \t]*$")
+# A link reference definition. The negative lookahead rejects an empty or
+# whitespace-only label, which CommonMark does not accept, and the trailing
+# `\\S` requires the destination on this line. A definition whose destination
+# sits on the NEXT line is deliberately not matched: recognizing it needs
+# multi-line state, and not recognizing it leaves the existing behaviour
+# rather than inventing a new one.
+_LINK_REFERENCE = re.compile(r"^\[(?![ \t]*\])(?:[^\[\]\\]|\\.)*\]:[ \t]*\S")
+# The same definition with NO title on its line, so a bare title on the NEXT
+# line continues it. The angle-bracket alternative matters: `<a b>` is one
+# destination containing a space, which a bare `\\S+` would split.
+_LINK_REFERENCE_NO_TITLE = re.compile(
+    r"^\[(?![ \t]*\])(?:[^\[\]\\]|\\.)*\]:[ \t]*(?:<[^<>]*>|\S+)[ \t]*$"
+)
+_LINK_TITLE_ONLY = re.compile(r"^(?:\"[^\"]*\"|'[^']*'|\([^()]*\))[ \t]*$")
 _MAX_LIST_PAD = 4
 
 
@@ -208,6 +222,19 @@ class _ListContainers:
         second is dead code, because `_starts_a_block` returns False and
         `sync` returns at the lazy-continuation guard before it ever pops.
 
+    16. A link reference definition is its own leaf block, not a paragraph.
+        `[foo]: /url` left paragraph state open, rule 4 then vetoed a
+        following `2.`, the real closer read as a fresh opener, and
+        `--write` appended a stray fence to a document the reference parser
+        reads as balanced. It is scoped both ways, and each half was
+        measured rather than assumed: a definition cannot INTERRUPT an open
+        paragraph, so the test is gated on `not _in_paragraph`; and a bare
+        title on the NEXT line continues a definition that carried none,
+        which is why `_awaiting_link_title` exists. An empty label, four
+        columns of indent, and a second title once the definition already
+        has one are all NOT definitions, and each has a curated case that
+        passed before this rule landed.
+
     Rules 9 and 10 were both documented as deliberate limitations for one
     commit, on the reasoning that each only made the scanners miss a fence,
     which is the safe direction for a tool that writes files. That reasoning
@@ -234,12 +261,18 @@ class _ListContainers:
     rule above.
     """
 
-    __slots__ = ("_columns", "_in_paragraph", "_item_still_empty")
+    __slots__ = (
+        "_awaiting_link_title",
+        "_columns",
+        "_in_paragraph",
+        "_item_still_empty",
+    )
 
     def __init__(self) -> None:
         self._columns: list[int] = []
         self._in_paragraph = False
         self._item_still_empty = False
+        self._awaiting_link_title = False
 
     def over_indented(self, indent: str) -> bool:
         """Return True when *indent* puts the marker inside an indented code block."""
@@ -249,6 +282,7 @@ class _ListContainers:
         """Close containers that *line* has dedented out of."""
         if _is_blank(line):
             self._in_paragraph = False  # a blank line ends any open paragraph
+            self._awaiting_link_title = False  # and ends a pending definition
             if self._item_still_empty and self._columns:
                 # Rule 8: an item may begin with at most one blank line, so a
                 # blank directly after an empty marker closes it. Without this
@@ -298,12 +332,19 @@ class _ListContainers:
             # Indented code when no paragraph is open, a lazy continuation when
             # one is. Neither changes the state, and both differ from prose.
             return None
+        definition = not self._in_paragraph and _LINK_REFERENCE.match(body)
+        title_line = self._awaiting_link_title and _LINK_TITLE_ONLY.match(body)
         self._in_paragraph = not (
             _ATX_HEADING.match(body)
             or _THEMATIC_BREAK.match(body)
             or _starts_fence(body)
             or _BLOCK_QUOTE.match(body)
             or (self._in_paragraph and _SETEXT_UNDERLINE.match(body))
+            or definition
+            or title_line
+        )
+        self._awaiting_link_title = bool(
+            definition and _LINK_REFERENCE_NO_TITLE.match(body)
         )
         return None
 

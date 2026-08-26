@@ -118,7 +118,10 @@ documentation:
   change that start). That last veto is scoped to the item the paragraph lives
   in: a marker indented below the content column closes the item, the paragraph
   closes with it, and the marker is then judged at the outer level where no
-  paragraph is open. A blank line directly after an empty marker closes the
+  paragraph is open. A link reference definition (`[foo]: /url`) is its own
+  block and leaves no paragraph open, so a list may start after one; but a
+  definition cannot interrupt a paragraph that is already open, and a bare
+  title on the next line continues a definition that carried none. A blank line directly after an empty marker closes the
   item, and a paragraph continuation line may dedent without closing it.
   Getting any of these wrong moves the content column, which moves what counts
   as a fence.

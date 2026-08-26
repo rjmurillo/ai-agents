@@ -100,7 +100,7 @@ def oracle_fence_lines(text: str) -> set[int]:
 
 
 # Each case is named for the CommonMark rule it exercises. `_ListContainers`
-# carries fifteen numbered rules and every one was a real defect first,
+# carries sixteen numbered rules and every one was a real defect first,
 # most reported in review and the rest found by the fuzzer below; each was
 # reproduced against the reference parser before being fixed. The remaining
 # cases guard the opposite direction, that a fix did not make the scanners
@@ -264,6 +264,26 @@ CASES: dict[str, str] = {
     "U+2028 is not a line terminator": "a\u2028```\nreal prose\n",
     "a form feed is not a line terminator": "a\x0c```\nreal prose\n",
     "a group separator is not a line terminator": "a\x1d```\nreal prose\n",
+    # Rule 16. A link reference definition is its own leaf block, so it does
+    # not leave a paragraph open and a following `2.` may start a list. We
+    # read it as prose, vetoed the `2.` under rule 4, and `--write` appended a
+    # stray fence to a document the reference parser reads as balanced.
+    "a link reference definition is not a paragraph":
+        "[foo]: /url\n2. ```\n   code\n   ```\n",
+    "a title on the next line continues a definition":
+        "[foo]: /url\n\"T\"\n2. ```\n   code\n   ```\n",
+    # Controls for rule 16, every one of which passed BEFORE it landed. They
+    # pin the four ways it must NOT over-fire: a definition cannot interrupt
+    # an open paragraph, a second title is prose once the definition has one,
+    # an empty label is not a definition, and four columns of indent is code.
+    "a definition cannot interrupt a paragraph":
+        "text\n[foo]: /url\n2. ```\n   code\n   ```\n",
+    "a second title is prose once the definition has one":
+        "[foo]: /url \"A\"\n\"B\"\n2. ```\n   code\n   ```\n",
+    "an empty link label is not a definition":
+        "[]: /url\n2. ```\n   code\n   ```\n",
+    "a definition indented four columns is code":
+        "    [foo]: /url\n2. ```\n   code\n   ```\n",
 }
 
 
