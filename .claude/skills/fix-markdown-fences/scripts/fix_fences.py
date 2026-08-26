@@ -1,4 +1,15 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
+# Over the 500-line ceiling. No exact total here: this comment adds lines to
+# the file it measures, so the figure was already wrong when written. Roughly
+# 150 lines are `_ListContainers`,
+# which is duplicated byte-for-byte in prose-self-check because the two skills
+# ship as separate plugin directories and neither is on the other's import
+# path. The real fix is to move that class to the plugin's shared lib, which
+# both skills can already reach through the ADR-047 inline bootstrap; that is
+# a change to two skills' vendoring surface, so it is not being made inside a
+# review round on an unrelated fix. Scoped to file-size only; complexity and
+# every other rule still apply.
 """Detect and repair malformed markdown code fence closings.
 
 This replaces a line-by-line scan the agent used to run by hand. Fence

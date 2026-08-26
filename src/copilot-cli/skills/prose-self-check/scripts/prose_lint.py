@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 # taste-lint: ignore file-size
-# 504 lines against a 500 ceiling. The rule wants extraction, and extraction
-# is the wrong trade here: this ships inside a vendored plugin and is invoked
-# as a standalone script, so a second module needs a sys.path bootstrap and
-# adds a consumer-install failure mode for the sake of four lines. The cheap
-# reductions are already taken (the module docstring no longer restates
-# SKILL.md, the repeated finding notes are keyed by kind, and main() is split
-# into _resolve_banned_words and _emit_json). Scoped to file-size only;
-# complexity and every other rule still apply.
+# Over the 500-line ceiling. This comment previously named an exact total, 504,
+# which was true when written and never re-measured; the replacement figure was
+# stale before the commit landed, because the comment adds lines to the file it
+# measures. So no total is quoted. Roughly 150 lines are `_ListContainers`,
+# duplicated byte-for-byte in fix-markdown-fences because the two skills ship
+# as separate plugin directories and neither is on the other's import path.
+# The real fix is to move that class to the plugin's shared lib, which both
+# skills can already reach through the ADR-047 inline bootstrap; that is a
+# change to two skills' vendoring surface, so it is not being made inside a
+# review round on an unrelated fix. The cheap reductions here are already
+# taken (the module docstring no longer restates SKILL.md, the repeated
+# finding notes are keyed by kind, and main() is split into
+# _resolve_banned_words and _emit_json). Scoped to file-size only; complexity
+# and every other rule still apply.
 """Deterministic Layer 1 and Layer 2 checks for the prose-self-check skill.
 
 Both layers are pattern matches over text that the agent used to run by eye.
@@ -83,7 +89,7 @@ _FENCE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
 # root and is quoted here rather than imported, because the two skills ship
 # as separate directories and neither is on the other's import path.
 #
-# `skills/fix-markdown-fences/scripts/fix_fences.py` lines 129-131, verbatim:
+# `skills/fix-markdown-fences/scripts/fix_fences.py` lines 140-142, verbatim:
 #
 #     def over_indented(self, indent: str) -> bool:
 #         """Return True when *indent* puts the marker inside an indented code block."""
