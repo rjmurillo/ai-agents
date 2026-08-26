@@ -9,7 +9,6 @@ tools:
   - agent
   - cloudmcp-manager/*
   - serena/*
-model: claude-opus-4.6
 role: support
 ---
 # Retrospective Agent (Reflector)

@@ -18,7 +18,6 @@ tools:
   - perplexity/*
   - cloudmcp-manager/*
   - serena/*
-model: claude-opus-4.6
 role: executor
 ---
 

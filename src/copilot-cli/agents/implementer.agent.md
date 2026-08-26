@@ -17,7 +17,6 @@ tools:
   - github/add_issue_comment
   - cloudmcp-manager/*
   - serena/*
-model: claude-opus-4.6
 role: executor
 isolation_required: true
 ---
