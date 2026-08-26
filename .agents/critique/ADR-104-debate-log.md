@@ -584,3 +584,70 @@ resolve a path out of a test at rest, which is AST work; #5318 carries it.
 - A container-clamp timeout reports the aggregate budget rather than the clamp
   that fired.
 - No reverse-direction guard on the CI filter.
+
+## Round 9: the guards themselves could not fail
+
+A third Copilot pass. One finding was about the code under test; two were about
+the tests, and both of those were guards this branch had written to close
+earlier findings. A guard nobody has watched fail is a claim, not a check, which
+is the shape every round of this review keeps returning to.
+
+**The pytest step's budget was per child, not per step.** `_pytest_budget_seconds`
+returns `TEST_SUITE_TIMEOUT_SECONDS` (780s) for any multi-command set, which
+includes the ordinary import-graph subset path an everyday Python push takes,
+not only the opt-in. With a 150s clamp on each of four children a container push
+could reach roughly 600s against the ~679s at which a reclamation was observed:
+inside the margin, on the common path, in the exact failure mode this record
+exists to stop. `run_pytest` now clamps the aggregate, and the new test fails
+without that line.
+
+**The contract check read the whole ADR while claiming to read rule 5.** The
+collection contract is stated in three surfaces and kept in step by
+`test_collection_contract_surfaces.py`. Its ADR surface was the entire file. The
+Alternatives Considered table also says "A broken import would reach CI and burn
+a whole matrix", so deleting the catch from rule 5 would have left the check
+green on a phrase from a row about a rejected option. The surface is now the
+numbered rule 5 block alone, located by the numbering the debate log already
+cites, and the control doctors rule 5 while leaving the masking occurrence in
+place: reverting the narrowing makes it fail with the reviewer's own sentence.
+
+**The declared-budget ratchet was a ceiling wearing the word.** The module
+docstring opened "as a ratchet that may only fall", and the baseline it compares
+against sat twenty lines above the assertion that reads it, in the same file a
+branch edits. One commit could raise a job's timeout and that number together
+and satisfy both tests. The fix follows the repository's own count ratchets:
+recompute the same model from `lefthook.yml` as committed on the base ref and
+require the current total not to rise. That baseline is git history. The
+constant stays as a ceiling for environments with no base ref, documented as
+what it is, and a negative control now drives the comparison with a raised cap
+so the predicate has been observed failing.
+
+Both test findings are the same defect as the vacuous filter-root control and
+the invented sentinel earlier on this branch. Three instances is not three
+mistakes; it is one habit, which is writing the guard after the reasoning is
+already settled and letting the guard inherit the conclusion instead of testing
+for it. The countermeasure that has worked every time is cheap and was skipped
+every time: break the thing on purpose and watch the guard react.
+
+**Splitting followed, not led.** The base-ref ratchet pushed
+`test_lefthook_declared_budget.py` past the 500-line taste threshold. The model
+moved to `tests/ci/lefthook_budget_model.py` and the container bound to
+`tests/ci/test_lefthook_container_bound.py`, along the seam the module's own
+comments already drew: a workstation asks how long a job may take, a container
+asks whether anything can outlive it. A size ignore would have asserted the
+module could not be split while it visibly could.
+
+### Still open after this round
+
+- `scan_pushed_heads` has no aggregate deadline, so `security-scan` has no
+  job-level bound in a container. Issue #5318.
+- `push-ref-policy` carries a 2m cap over `check_push_refs`, which runs many
+  git children sequentially at 90s each. Raised in round 8 and still unverified.
+- The budget model credits a clamp to any job not on the unclamped roster
+  without proving its command routes through `_run_command`.
+- A container-clamp timeout reports the aggregate budget rather than the clamp
+  that fired.
+- The base-ref ratchet skips where no base ref is reachable, which is a shallow
+  CI checkout. The ceiling is the only guard there.
+- No reverse-direction guard on the CI filter.
+

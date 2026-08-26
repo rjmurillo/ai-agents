@@ -121,7 +121,18 @@ What is enforced is the **declared** worst case, which is what a container
 actually has to survive. `tests/ci/test_lefthook_declared_budget.py` sums each
 hook's caps through lefthook's own scheduling semantics (top level piped, so
 entries sum; a parallel group costs its slowest member; a piped group sums) and
-ratchets the total. It may only fall.
+holds the total down two ways. A ceiling in the test module runs anywhere and
+needs no git. The ratchet proper recomputes the same sum from `lefthook.yml` as
+committed on the base ref and requires the current total not to rise against it.
+
+Both, because the ceiling alone was published here as a ratchet and is not one:
+the number sits beside the assertion that reads it, so one edit raises a cap and
+the ceiling together and both tests still pass. Review on PR #5319 found that.
+The base-ref comparison has a baseline the branch cannot edit, which is the
+property "may only fall" was claiming. It needs the base ref present, so it runs
+on pre-push and skips on a shallow CI checkout; there the ceiling is the only
+guard. That gap is stated rather than closed, because a gate that reads a ref
+its environment may not have is worse than one that says when it did not run.
 
 That number was 4170s for pre-push, 69.5 minutes, against real pushes of
 142.39s. Caps resized from in-hook measurement bring it to 2850s.
@@ -145,7 +156,7 @@ outlive its environment and take the push with it, leaving no diagnostic.
 `git_hook_policy._container_clamped` answers the second question.
 `_run_command` is the funnel every expensive job's work passes through, and it
 clamps its child's deadline to 150s when `_is_remote_container()` is true.
-Workstations and CI are untouched. `tests/ci/test_lefthook_declared_budget.py`
+Workstations and CI are untouched. `tests/ci/test_lefthook_container_bound.py`
 models that clamp against the declared caps and asserts the result:
 
 The bound that matters is **per job**, not the sum of every cap. An earlier
