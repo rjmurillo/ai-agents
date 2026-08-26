@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json
-qaCommit: aac1400909c75935841732f7aea597ff557ee693
+qaCommit: 0647e876aeda29fc9c46eb7ac74c9e39a5e91530
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter one campaign's evidence across files (issue #3779). -->
 
 # QA: ADR Corpus Evaluation and Repair Campaign (issues #5189 to #5201, #5205)
 
 **Branch**: `claude/adr-evaluation-tooling-6od8rd`
-**Validated at commit**: `aac1400909c75935841732f7aea597ff557ee693` (see Addendum 60)
+**Validated at commit**: `0647e876aeda29fc9c46eb7ac74c9e39a5e91530` (see Addendum 61)
 **Session log**: `.agents/sessions/2026-08-21-session-5189-54e494d-adr-corpus-evaluation-and-tooling.json`
 
 ## Verdict
@@ -2585,4 +2585,24 @@ Neither round got its own addendum when it landed; this one covers both, since t
 Full suites re-run clean after all four round-16/17 fixes: `tests/test_markdown_parser.py` (77 passed), combined with `tests/validation/test_check_adr_lifecycle.py`, `tests/validation/test_check_adr_links.py`, `tests/skills/adr-review/`, and `tests/test_adr_063_memory_skill_decomposition.py` (469 passed). `check_adr_lifecycle.py`'s corpus check: unchanged, 1 violation across 103 records, at baseline. `pre_pr.py`: all validations passed on every commit in this addendum.
 
 **Rebound to** `aac1400909c75935841732f7aea597ff557ee693`.
+
+## Addendum 61: rounds 18 and 19, the same helper's cursor-advancement invariant broken and repaired twice more
+
+Two more rounds landed the round-17 fix into two successive false-negative gaps, both real, both mutation-proven. A round-18 Copilot review caught the first (marked Mandatory, citing CWE-20); a round-19 Copilot review caught the second in the round-18 fix itself, plus two docstring-accuracy findings on the round-18/19 tests.
+
+**Round 18, finding 1 (mandatory, CWE-20): a `text` child's entity-decoded content could steal a later comment's match.** The round-17 fix searched every child's `.content` to advance the cursor regardless of type, reasoning that a decoy needed consuming in source order whatever kind of token carried it. That reasoning does not hold for `text`: markdown-it-py resolves HTML entities in text content, so source `&amp; ` becomes `.content == "& "`, a string with no guaranteed relationship to the source bytes at the text token's own position. Verified empirically: parsing `"&amp; <!--\nStatus: Accepted\n--> & tail\n"` produces a leading text child whose decoded content (`"& "`) does not appear verbatim anywhere near its true source position, and a bounded `find` for it instead matches an unrelated literal `"& "` positioned AFTER the real comment, advancing the cursor past it. The subsequent search for the comment's own `html_inline` content then starts too late to find it, `found < 0` short-circuits the loop with no range recorded, and `**Status**: Accepted` stayed fully visible in `blank_non_prose_block_lines`'s output before the fix. Fixed (commit `bfdd295ba`) by restricting the searchable, cursor-advancing child types to a verbatim-content allowlist (`html_inline`, `code_inline`), neither of which is ever entity-decoded; `text` is now skipped without consulting `.content` at all. Added `test_an_entity_decoded_text_child_cannot_steal_a_later_comments_match`. Mutation-proven: reverting the type guard alone failed exactly this test while all 77 existing tests in the file stayed green.
+
+**Round 18, finding 2 (previously-missed): the earlier file-size taste-lint suppression on `tests/validation/test_check_adr_links.py` never lowered `scripts/ci/taste_count_baseline.txt` to record the improvement.** Fixed (same commit) by running the ratchet's own updater (576 -> 575).
+
+**Round 19, finding 1 (real): the round-18 allowlist itself had a gap, since `code_inline` content is not always source-verbatim.** CommonMark converts an embedded (non-boundary) line ending inside a multi-line code span to a single space; this is a real substitution, not merely trimming boundary whitespace, and the round-18 fix's justification for trusting `code_inline` did not account for it. Verified empirically: parsing `` "`<!--\nx -->` <!-- x -->\n" `` produces `code_inline("<!-- x -->")` (space-joined) as the paragraph's first child, byte-identical to the second, real `html_inline("<!-- x -->")` child. A bare `find` for that space-joined string does not match the code span's own (newline-joined) raw text, so it matches the LATER real comment's raw text instead, advancing the cursor past it; the subsequent `html_inline` search then starts too late to find anything, and `blank_non_prose_block_lines("`<!--\nx -->` <!-- x -->\n")` returned the input completely unmodified before the fix. Neither excluding `code_inline` entirely (which reopens the round-17 decoy) nor trusting it unconditionally (the round-18 bug itself) is safe. Fixed (commit `0647e876a`) with a new `_find_markup_anchored_occurrence` helper: a candidate match is trusted only when immediately flanked by the token's own markup delimiter (the backtick run for `code_inline`, always `""` for `html_inline`, so `html_inline` behavior is unchanged), retrying forward past a rejected candidate rather than giving up on the first match. This correctly rejects the round-19 accidental match (never backtick-flanked) while still finding the round-17 decoy (its own true position IS backtick-flanked). Added `test_a_normalized_multiline_code_span_cannot_steal_a_later_comments_match`. Mutation-proven: reverting the anchor check to a bare `find` failed exactly this test while all 78 other tests in the file stayed green.
+
+**Round 19, finding 2 (documentation-only): `test_an_entity_decoded_text_child_cannot_steal_a_later_comments_match`'s own comment quoted a fixture string, `"prose & more"`, that the test's actual input never produces.** The test's real fixture (`"&amp; <!--\n**Status**: Accepted\n--> & tail\n"`) decodes its leading text child to `"& "`, not `"prose & more"`, which was left over from an earlier exploratory reproduction. Fixed (same commit) by correcting the comment to describe the fixture the test actually runs.
+
+**Round 19, finding 3 (documentation-only): `test_a_decoy_code_span_does_not_steal_the_real_comments_match`'s comment still claimed the cursor advances "past EVERY child in source order," which round 18 had already falsified by restricting cursor advancement to `html_inline`/`code_inline` only.** Fixed (same commit) by describing the current source-verbatim-typed advancement instead of the pre-round-18 algorithm.
+
+**Round 19 also flagged the live PR description as literal placeholder text and the QA reports as stale.** The placeholder was a real but transient defect: an MCP tool call had been submitted with a literal `$(cat ...)` shell-substitution string as the PR body (the same mistake as an earlier round, described in the PR's own "Corrections to this description's earlier revisions"), caught and replaced with real content within the same session before the round-19 review's own findings were addressed here. Re-checked directly against the live PR at addendum-writing time: the body is the current, real, round-18-updated description, not a placeholder. The QA-staleness finding is this addendum.
+
+Full suites re-run clean after all round-18/19 fixes: `tests/test_markdown_parser.py` (79 passed), combined with `tests/validation/test_check_adr_lifecycle.py` and `tests/test_adr_063_memory_skill_decomposition.py` (236 passed). `check_adr_lifecycle.py`'s corpus check: unchanged, 1 violation across 103 records, at baseline. `pre_pr.py`: all validations passed on the round-18 commit; the round-19 commit's pre-commit hooks passed (taste-lint file-size/complexity findings on `markdown_parser.py` remain pre-existing and advisory-only, unchanged in kind since round 15).
+
+**Rebound to** `0647e876aeda29fc9c46eb7ac74c9e39a5e91530`.
 

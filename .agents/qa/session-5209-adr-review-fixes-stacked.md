@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-21-session-5209-14a6f1844-adr-review-fixes-stacked.json
-qaCommit: aac1400909c75935841732f7aea597ff557ee693
+qaCommit: 0647e876aeda29fc9c46eb7ac74c9e39a5e91530
 ---
 <!-- # taste-lint: ignore file-size, this is an append-only QA audit trail; addenda are numbered sequentially and splitting the file would break that numbering and scatter this stack's evidence across files (issue #3779). -->
 
@@ -9,7 +9,7 @@ qaCommit: aac1400909c75935841732f7aea597ff557ee693
 
 **Branch**: `claude/adr-5209-review-fixes`
 **Base**: `main` (retargeted by GitHub after PR #5209 squash-merged and its branch was deleted; was `claude/adr-evaluation-tooling-6od8rd`)
-**Validated at commit**: `aac1400909c75935841732f7aea597ff557ee693` (see Addendum 61)
+**Validated at commit**: `0647e876aeda29fc9c46eb7ac74c9e39a5e91530` (see Addendum 62)
 
 ## Verdict
 
@@ -1391,4 +1391,19 @@ Full evidence, including the exact token structures verified for each finding an
 Full suites re-run clean after all four fixes: `tests/test_markdown_parser.py` (77 passed), combined with `tests/validation/test_check_adr_lifecycle.py`, `tests/validation/test_check_adr_links.py`, `tests/skills/adr-review/`, and `tests/test_adr_063_memory_skill_decomposition.py` (469 passed). Corpus check unchanged at baseline (1 violation across 103 records). `pre_pr.py`: all validations passed on every commit.
 
 **Rebound to** `aac1400909c75935841732f7aea597ff557ee693`.
+
+## Addendum 62: same rounds 18 and 19 findings and fixes as Addendum 61 of the campaign report
+
+Same two rounds, same five findings, same fixes as Addendum 61 of the campaign report:
+
+1. Round 18 (mandatory, CWE-20): a `text` child's entity-decoded content (`&amp; ` -> `"& "`) could match an unrelated later literal and steal a real multiline comment's masking, leaving a forged `**Status**: Accepted` fully visible. Fixed by restricting the searchable, cursor-advancing child types to a verbatim-content allowlist (`html_inline`, `code_inline`); commit `bfdd295ba`.
+2. Round 18 (previously-missed): the earlier file-size taste-lint suppression's improvement was never recorded in `scripts/ci/taste_count_baseline.txt`. Fixed by running the ratchet updater (576 -> 575); same commit.
+3. Round 19 (real): the round-18 allowlist's `code_inline` member is not always source-verbatim, since CommonMark converts an embedded line ending inside a multi-line code span to a space. A crafted `` `<!--\nx -->` `` normalizes to match a later real `<!-- x -->` comment, stealing its position and leaving it unmasked. Fixed with a markup-anchor verification helper (`_find_markup_anchored_occurrence`) that requires a `code_inline` match be flanked by its own backtick delimiter before being trusted; commit `0647e876a`.
+4. Round 19 (documentation-only, two findings): a test comment quoted the wrong fixture string, and another test comment's "past EVERY child" claim had already been falsified by round 18's type restriction. Both corrected; same commit.
+
+Full evidence, including the exact token structures verified for each finding and the mutation-proof failure modes, is in Addendum 61 of the campaign report, which also addresses the round-19 finding that the live PR description was briefly a literal placeholder (a transient, already-corrected mistake, not a standing defect) and that these QA reports were stale (this addendum is the fix).
+
+Full suites re-run clean after all round-18/19 fixes: `tests/test_markdown_parser.py` (79 passed), combined with `tests/validation/test_check_adr_lifecycle.py` and `tests/test_adr_063_memory_skill_decomposition.py` (236 passed). Corpus check unchanged at baseline (1 violation across 103 records).
+
+**Rebound to** `0647e876aeda29fc9c46eb7ac74c9e39a5e91530`.
 
