@@ -385,11 +385,14 @@ def validate_generated_staleness(repo_root: Path) -> bool:
     """Registry entry point for ``pre_pr_sequence``.
 
         Canonical source of the consumed contract:
-        ``scripts/validation/pre_pr_sequence.py:147``, whose adapter signature reads
-        verbatim (quoted at column 0 so the 96-character original is reproduced
-        byte for byte rather than wrapped to fit an indent):
+        ``scripts/validation/pre_pr_sequence.py``, function ``_root_only``
+        (line 162 as of this writing; the name is the durable handle, the
+        number drifts and did, from 147, while this docstring still cited it).
+        Its adapter signature reads verbatim below, quoted at column 0 so the
+        96-character original is reproduced byte for byte rather than gaining
+        an indent this docstring would have added:
 
-    def _root_only(validator: Callable[[Path], bool]) -> Callable[[Path, argparse.Namespace], bool]:
+def _root_only(validator: Callable[[Path], bool]) -> Callable[[Path, argparse.Namespace], bool]:
 
         So the registry accepts exactly ``Callable[[Path], bool]``. Different than
         canonical: this module's own CLI keeps the richer ``_Status``, because
