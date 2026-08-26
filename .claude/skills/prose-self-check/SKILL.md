@@ -1,6 +1,6 @@
 ---
 name: prose-self-check
-version: 0.1.0
+version: 0.2.0
 description: Pre-emit AI-vernacular self-check an agent runs on its OWN prose
   before writing a session-log narrative, ADR context section, retrospective, or
   PR description. Four layers ordered by reader-trust, not ease of detection.
@@ -42,58 +42,69 @@ text you were asked to preserve, and one-line acknowledgements with no prose.
 
 ## Process
 
-Run the four layers in order. Do not stop at Layer 1; the weakest signal is
-first so you clear it cheaply, then spend attention where readers actually look.
+Layers 1 to 3 are pattern matches over text, so scripts run them. Layer 4 is
+the one no scanner can do, and it is where your attention belongs.
+
+Start by running both helpers over the artifact:
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/prose-self-check/scripts/prose_lint.py" FILE
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/prose-self-check/scripts/burstiness.py" FILE
+```
+
+`prose_lint.py` covers Layers 1 and 2 and exits 1 on any high-severity
+finding. Fix what it reports, re-run until it exits 0, then do Layer 4 by
+hand. Do not scan for these tells by eye; you will miss some and spend
+attention you need for Layer 4.
 
 ### Layer 1: Lexical (weakest signal)
 
-Tiered banned-list check. The canonical word list is NOT duplicated here. It
-lives in one place: the "Banned Vocabulary" section of `.claude/rules/voice.md`.
-Read that section now and apply it. Do not maintain a second copy; a forked list
-drifts.
+`prose_lint.py` runs this layer. It reports two tiers, and the tiering is the
+point:
 
-Two tiers:
+- **High-signal (`high`, fails the run).** Em-dash (U+2014) and en-dash
+  (U+2013), model-identity phrases (`as an AI language model`), and the
+  strongest tells in the banned list. Remove every one.
+- **Low-signal (`info`, never fails).** Words that top keyword scans but
+  readers rarely cite. The script reports them so Layer 4 can adjudicate:
+  a flagged word inside a paragraph that makes a real claim stays; one
+  inside filler goes with the filler. A blanket scrub here produces the
+  "robot pretending not to be a robot" over-correction and reads worse. The
+  exact low-signal set is the `LOW_SIGNAL_WORDS` constant in the script.
 
-- **High-signal (scrub on sight).** Em-dash (U+2014) and en-dash (U+2013),
-  any leftover model-identity phrase ("as an AI language model", "I'm just an
-  AI"), and the strongest tells in the voice.md list (for example `delve`,
-  `tapestry`, `showcase`). Remove these whenever they appear.
-- **Low-signal (do NOT flag on presence alone).** Words that top keyword scans
-  but readers rarely cite: `however`, `thus`, `moreover`, `additionally`,
-  `nuanced`, `comprehensive`. Flag one of these ONLY when the sentence it sits
-  in is also empty or bland (fails Layer 4). A blanket scrub here produces the
-  "robot pretending not to be a robot" over-correction and reads worse.
+The canonical word list is NOT duplicated in this skill or in the script. It
+lives in one place, the "Banned Vocabulary" section of `.claude/rules/voice.md`,
+and `prose_lint.py` parses it from there at runtime. A forked list drifts.
 
-The em-dash/en-dash ban is also a hard repo rule (`.claude/rules/universal.md`
-MUST NOT 5). Verify at the byte level, not by eye:
-
-```bash
-python3 -c 'import sys; print(open(sys.argv[1],"rb").read().count(chr(0x2014).encode()))' FILE
-```
-
-Swap `0x2014` (em-dash) for `0x2013` (en-dash) to count en-dashes. Both counts
-must be 0 outside the `tests/hooks/fixtures/` carve-out.
+The dash ban is also a hard repo rule (`.claude/rules/universal.md` MUST NOT
+5). The script verifies it at the character level, so no eyeballing is needed.
 
 ### Layer 2: Structural
 
-Sentence- and paragraph-shape tells. These are the #1 reader-cited sentence-level
-signals and survive any keyword pass. Scan for and rewrite:
+Sentence- and paragraph-shape tells. These are the #1 reader-cited
+sentence-level signals and survive any keyword pass. `prose_lint.py` detects
+the three that have a fixed shape:
 
-- **Contrast framing**: `not X, it's Y` / `it's not just X, it's Y` / `X isn't
-  about Y, it's about Z`. The single most-cited sentence tell. Rewrite to state
-  the claim directly.
-- **Manufactured trailing offers**: a closing sentence that proposes new,
-  uninvited scope ("Want me to also...", "I could also...", "Let me know if
-  you'd like..."). Delete it. (Mirrors the STOP-TOKEN rule in CLAUDE.md.)
+- **Contrast framing** (`contrast_framing`): `not X, it's Y` / `it's not just
+  X, it's Y` / `X isn't about Y, it's about Z`. The single most-cited sentence
+  tell. Rewrite to state the claim directly.
+- **Manufactured trailing offers** (`trailing_offer`): a sentence proposing
+  new, uninvited scope (`Want me to also`, `I could also`, `Let me know if
+  you'd like`). Delete it. (Mirrors the STOP-TOKEN rule in CLAUDE.md.)
+- **Signposting / throat-clearing openers** (`signposting`): `Honestly,` /
+  `Look,` / `Let's dive in` / `It's worth noting that` / `In today's
+  landscape`. Delete the opener; lead with the point.
+
+Two shapes stay yours because judging them needs the meaning, not the string:
+
 - **Rule-of-three padding**: three parallel adjectives or clauses where one
-  carries the meaning ("fast, reliable, and scalable"). Cut to the load-bearing
-  term.
-- **Signposting / throat-clearing openers**: `Honestly,` / `Look,` / `Let's
-  dive in` / `It's worth noting that` / `In today's landscape`. Delete the
-  opener; lead with the point.
-- **Inline-header lists**: bullets that each start with a bolded restatement of
-  the bullet ("**Speed**: it is fast.") when the bold adds nothing. Drop the
-  bold label or fold into prose.
+  carries the meaning ("fast, reliable, and scalable"). Cut to the
+  load-bearing term. Whether the third term is padding or content is a
+  reading, not a match.
+- **Inline-header lists**: bullets that each open with a bolded restatement
+  ("**Speed**: it is fast.") when the bold adds nothing. Drop the label or
+  fold into prose. The same shape is correct when the label is a real index
+  into a set, which is why the script does not flag it.
 
 ### Layer 3: Distributional (proxy only)
 
@@ -106,7 +117,7 @@ classifier (Pangram, GPTZero) is OUT of scope because it cannot run in-agent.
   and run others together. Use the helper:
 
 ```bash
-python3 .claude/skills/prose-self-check/scripts/burstiness.py FILE
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/prose-self-check/scripts/burstiness.py" FILE
 ```
 
   It prints sentence count, mean length, standard deviation, and a flat-rhythm
@@ -132,9 +143,10 @@ with the filler.
 
 After running all four layers, the artifact should:
 
-- Carry zero em-dashes and en-dashes (byte-verified).
-- Carry no high-signal lexical tells.
-- Contain no `not X, it's Y` contrast framing and no manufactured trailing offer.
+- Exit 0 from `prose_lint.py`, which means zero dashes, no high-signal
+  lexical tells, no contrast framing, no manufactured trailing offer, and no
+  signposting opener.
+- Have every `info` finding adjudicated by Layer 4 rather than scrubbed.
 - Vary sentence length (no flat-rhythm warning, or a deliberate reason to keep it).
 - Have every paragraph make a nameable, disagreeable claim.
 
@@ -142,16 +154,51 @@ Report what you changed, layer by layer, so the next reader can audit the pass.
 
 ## Anti-Patterns
 
-- Stopping at Layer 1 because the keywords are clean. The reader signal is in
-  Layers 2-4.
-- Reflexively scrubbing every `however` and `moreover`. Over-correction reads as
-  AI overcompensating. Flag low-signal words only when Layer 4 also fails.
-- Copying the banned-word list into this skill. The list lives in
-  `.claude/rules/voice.md`; read it there.
+- Scanning for these tells by eye. `prose_lint.py` does Layers 1 and 2
+  exactly; hand-scanning is slower, misses matches, and spends the attention
+  Layer 4 needs.
+- Stopping when `prose_lint.py` exits 0. It clears Layers 1 and 2 only. A
+  clean exit says nothing about whether the prose says anything.
+- Reflexively scrubbing every `info` finding. Over-correction reads as AI
+  overcompensating. Cut a low-signal word only when Layer 4 also fails.
+- Copying the banned-word list into this skill or into the script. The list
+  lives in `.claude/rules/voice.md`; the script parses it from there.
 - Running this on human-authored text. This is self-check on agent output only.
 - Treating the burstiness warning as a hard gate. It is a proxy and a prompt.
 
 ## Scripts
+
+### scripts/prose_lint.py
+
+Layers 1 and 2. Reports dashes, banned vocabulary (parsed from the voice
+rule), contrast framing, trailing offers, signposting openers, and
+model-identity phrases. Fenced code blocks and inline code spans are skipped.
+
+Usage:
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/prose-self-check/scripts/prose_lint.py" FILE [FILE ...]
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/prose-self-check/scripts/prose_lint.py" - < draft.md
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/prose-self-check/scripts/prose_lint.py" FILE --json
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/prose-self-check/scripts/prose_lint.py" FILE --rules PATH
+```
+
+Each finding prints as `FILE:LINE:COLUMN: SEVERITY: KIND: MATCH (note)`.
+`-` reads stdin, which is how you check a draft that is not a file yet.
+
+The voice rule is discovered in this order: `--rules`, then
+`$CLAUDE_PLUGIN_ROOT/rules/voice.md`, then
+`$COPILOT_PLUGIN_ROOT/instructions/voice.instructions.md`, then
+`.claude/rules/voice.md` or `.github/instructions/voice.instructions.md`
+under the current directory, then the same two paths under the plugin install
+root. When no copy is reachable the script warns on stderr and runs the dash
+and structural checks only, so a vendored install degrades instead of failing.
+
+Exit codes (ADR-035):
+
+- `0` no high-severity findings (`info` findings may still be present)
+- `1` at least one high-severity finding
+- `2` configuration error (a named file or the rules file cannot be read)
 
 ### scripts/burstiness.py
 
@@ -162,8 +209,8 @@ prose artifact. It is a proxy, not a gate.
 Usage:
 
 ```bash
-python3 .claude/skills/prose-self-check/scripts/burstiness.py FILE
-python3 .claude/skills/prose-self-check/scripts/burstiness.py FILE --json
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/prose-self-check/scripts/burstiness.py" FILE
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/prose-self-check/scripts/burstiness.py" FILE --json
 ```
 
 It prints sentence count, word count, mean and standard deviation of sentence
@@ -178,13 +225,14 @@ Exit codes (ADR-035):
 ## Verification
 
 ```bash
-python3 .claude/skills/prose-self-check/scripts/burstiness.py FILE
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/prose-self-check/scripts/prose_lint.py" FILE
+echo "exit=$?"   # 0 = Layers 1-2 clean, 1 = findings, 2 = bad input
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/prose-self-check/scripts/burstiness.py" FILE
 echo "exit=$?"   # 0 = analyzed, 2 = bad input
 ```
 
-- [ ] Exit 0 means the script analyzed the artifact; exit 2 is a bad-input error.
-- [ ] Em-dash and en-dash byte counts are both 0 (Layer 1).
-- [ ] No `not X, it's Y` contrast framing and no manufactured trailing offer (Layer 2).
+- [ ] `prose_lint.py` exits 0 (Layers 1 and 2 clean).
+- [ ] Every `info` finding was adjudicated by Layer 4, not scrubbed on sight.
 - [ ] No flat-rhythm warning, or a deliberate reason to keep the rhythm (Layer 3).
 - [ ] Every paragraph makes a nameable, disagreeable claim (Layer 4).
 
