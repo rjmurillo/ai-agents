@@ -41,12 +41,29 @@ possible.
 Trust model
 -----------
 
-This dispatcher executes ``command`` strings read from the YAML config.
-The config path MUST be controlled by the repository, never
-user-supplied beyond the validated default. Path traversal protection:
-``--config`` is canonicalised and rejected unless it lives under the
-repository root via
-``scripts.utils.path_validation.validate_safe_path``. The
+This dispatcher executes ``command`` strings read from the YAML config,
+so the config must come from an origin the checked-out PR cannot write.
+There are exactly TWO such origins, and conflating them is what earlier
+revisions of this paragraph did:
+
+  * A **repository** config, the default. ``--config`` is canonicalised
+    and rejected unless it lives under the repository root via
+    ``scripts.utils.path_validation.validate_safe_path``, and its bytes
+    are then verified against the trusted ref, because the repository
+    root is exactly the tree the PR CAN write.
+  * An **install-trusted** config (issue #5112, Option 1). It lives in a
+    host-declared plugin root whose tree is DISJOINT from both the
+    consumer's git work tree and ``_PROJECT_ROOT``, checked in both
+    containment directions. Byte verification is skipped because there
+    is nothing in the consumer repository to compare against; the origin
+    carries the trust. See :func:`_install_trusted_root` for the four
+    conditions and for what this does not close. The trust ANCHOR is
+    still validated on this path, including the ``refs/remotes/*``
+    requirement.
+
+"Disjoint" is not "outside": a root of ``$HOME`` with the repository at
+``$HOME/repo`` is outside the repository while containing every file the
+PR wrote, and a one-way test admitted exactly that (CWE-829). The
 ``pass_when_python`` evaluator no longer calls ``eval``: it parses the
 lambda with ``ast`` and walks a whitelisted node set, so a config
 expression cannot reach Python's class hierarchy or any builtin. This
@@ -87,6 +104,25 @@ window). The outcomes:
   * **git-error** -- verification itself is impossible (not a git work
     tree, trusted ref absent or not remote-tracking, git missing or
     timing out). Halt, exit 3.
+  * **install-trusted** -- the config lives inside a host-declared
+    plugin root (``COPILOT_PLUGIN_ROOT`` / ``CLAUDE_PLUGIN_ROOT``) that
+    is outside the consumer's work tree, so no comparison is attempted
+    and dispatch proceeds (issue #5112, Option 1). This is an ORIGIN
+    claim, not a verification outcome: the operator installed the
+    directory and PR content cannot write it, which is the same
+    reasoning ``_ARGV_EXTERNAL`` already applies to an installed-plugin
+    script named in a criterion's argv. The in-repo ``.claude/``
+    fallback is excluded by construction, because it is inside the work
+    tree and therefore PR-controlled. See
+    :func:`_install_trusted_root` for the four conditions and for the
+    residual this does not close.
+
+Before issue #5112 there was no such status and the bundled config was
+unreachable rather than untrusted: containment refused any ``--config``
+outside the project root, so an installed ``/pr-review`` halted before
+the trust check ran at all. Widening only the origin, and leaving the
+command boundary below untouched, is what keeps that fix from becoming
+a general relaxation.
 
 A human who has inspected the surfaced diff can approve execution
 explicitly by re-running with ``--approve-untrusted-config``, which
@@ -233,6 +269,7 @@ import shlex
 import subprocess
 import sys
 import unicodedata
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -324,6 +361,25 @@ class ConfigError(Exception):
     """
 
 
+class WorkTreeUnavailableError(Exception):
+    """The consumer's git work tree could not be established.
+
+    Raised by :func:`_consumer_work_tree` and handled in
+    :func:`_resolve_and_read_config`, which exits **3**, not 2. Per
+    ADR-035 and this repo's exit-code table (0 ok, 1 logic, 2 config,
+    3 external, 4 auth), a git probe that cannot run, times out, or
+    reports no work tree is an EXTERNAL failure. The config path is not
+    what is wrong, so reporting it as one sends the reader to the wrong
+    place. This is the same reasoning that already makes
+    :data:`TRUST_GIT_ERROR` exit 3 and non-overridable: with the extent
+    of PR-controlled content unknown, no approval could be informed.
+
+    It is raised only after a plugin-root variable has been declared and
+    named an existing directory. A run with neither variable set never
+    probes git and is unaffected.
+    """
+
+
 def _read_config_bytes(path: Path) -> bytes:
     """Read the config exactly once. Raises ConfigError on any failure mode.
 
@@ -384,6 +440,59 @@ TRUST_GIT_ERROR = "git-error"
 # (exit 2), not a verification outcome, so it does not reuse
 # TRUST_GIT_ERROR (whose contract is exit 3).
 TRUST_MALFORMED_REF = "malformed-ref"
+# Trust status for a config that lives inside a host-declared plugin root
+# outside the consumer's work tree (issue #5112, Option 1). It is NOT a
+# verification outcome: nothing is compared against the trusted ref,
+# because there is nothing in the consumer repository to compare against.
+# The origin itself carries the trust, exactly as _ARGV_EXTERNAL already
+# treats an installed-plugin script the argv names.
+TRUST_INSTALL_TRUSTED = "install-trusted"
+
+# Host-declared plugin roots, in the order resolve_pr_review_config() in
+# .claude/commands/pr-review.md consults them. Quoted verbatim from that
+# function per .claude/rules/canonical-source-mirror.md, first two list
+# entries only (the rest are the in-repo and installed-plugin fallbacks,
+# which this constant deliberately does not cover):
+#
+#     for root in \
+#       "${COPILOT_PLUGIN_ROOT:-}" \
+#       "${CLAUDE_PLUGIN_ROOT:-}" \
+#       ...
+#       if [ -n "$root" ] && [ -f "$root/commands/pr-review-config.yaml" ]; then
+#
+# The loop CONTINUES when a root is set but does not hold the config, so
+# COPILOT_PLUGIN_ROOT being set does not by itself exclude
+# CLAUDE_PLUGIN_ROOT. _host_declared_roots below matches that: it yields
+# both in order and the caller falls through to the second when the
+# first does not contain the config.
+#
+# An earlier revision cited ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}
+# as the canonical form. That expression lives elsewhere and means
+# something DIFFERENT: it selects COPILOT_PLUGIN_ROOT whenever that is
+# set, with no fall-through on a missing config. Copying its semantics
+# here would have broken the second-root case. Found by Copilot review
+# on PR #5329.
+_PLUGIN_ROOT_ENV_VARS = ("COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT")
+
+# This dispatcher's own location, used to bind install trust to the plugin
+# that SHIPS this file. Module-level so tests can rebind it; the value is
+# never read from the environment.
+#
+# Being a directory the host named is not evidence the root belongs to us.
+# This repository already documents that it may not: _resolve_lib_dir in
+# pr-comment-responder/scripts/cluster_threads.py says COPILOT_PLUGIN_ROOT is
+# "set by the Copilot CLI host, may point to whichever plugin triggered the
+# context-mode hook, not this one", and resolve_pr_conflicts.py records the
+# same for CLAUDE_PLUGIN_ROOT under issue #4961. Both defend by validating
+# each candidate before use; this function did not.
+#
+# Reproduced before the fix (Copilot review, PR #5329): a co-installed plugin
+# root exported as COPILOT_PLUGIN_ROOT, holding its own
+# commands/pr-review-config.yaml, was install-trusted, and its criterion
+# `sh -c '...'` EXECUTED, printing its marker to stderr. Command trust caught
+# nothing because a bare `sh`, an option `-c`, and an option VALUE are all
+# skipped, so no argv token resolved to a work-tree file (CWE-829).
+_DISPATCHER_PATH = Path(__file__).resolve()
 
 # A trusted ref must look like a git revision and must not start with
 # ``-`` so it can never be parsed as a git option (argument injection).
@@ -438,6 +547,53 @@ def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[bytes]:
         capture_output=True,
         timeout=_GIT_TIMEOUT_SECONDS,
         check=False,
+    )
+
+
+def _require_remote_tracking_ref(
+    trust_anchor_ref: str,
+    cwd: Path,
+) -> TrustCheck | None:
+    """``None`` when the ref anchors trust; a git-error TrustCheck otherwise.
+
+    The ref must resolve to ``refs/remotes/*``. ``HEAD``, a local branch, a
+    tag, and a bare SHA are all refused, because the checked-out PR can move
+    or create them, which would make trust self-referential: the PR's own
+    content would become the thing its content is compared against.
+
+    Extracted so the install-trusted path and :func:`_verify_config_trust`
+    cannot diverge. They did: this check lived only in the latter, which
+    install trust skips, and `--trusted-ref HEAD` then let command trust
+    compare PR-modified verifiers against the PR's own commit and execute
+    them (Copilot review, PR #5329). One implementation, two callers, is
+    what keeps the two paths honest about the same requirement.
+    """
+    # Guarded HERE, not at the call sites. _verify_config_trust happens to
+    # call this inside its own try, but the install-trusted caller invokes it
+    # directly, so a git timeout or a missing binary escaped as a traceback
+    # and exit 1 instead of the documented non-overridable exit 3. Putting
+    # the catch in the shared helper is what stops the two callers from
+    # disagreeing about it, which is the same failure that produced this
+    # helper in the first place (Copilot review, PR #5329).
+    try:
+        proc = _run_git(
+            ["rev-parse", "--symbolic-full-name", trust_anchor_ref], cwd,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return TrustCheck(
+            TRUST_GIT_ERROR,
+            f"could not resolve trusted ref {trust_anchor_ref!r}: {exc}",
+        )
+    full_name = proc.stdout.decode(errors="replace").strip()
+    if proc.returncode == 0 and full_name.startswith("refs/remotes/"):
+        return None
+    return TrustCheck(
+        TRUST_GIT_ERROR,
+        f"trusted ref {trust_anchor_ref!r} must resolve to a "
+        f"remote-tracking ref (refs/remotes/*), got "
+        f"{full_name or 'a local, detached, or unknown revision'}; "
+        f"HEAD and local branches can be moved by the checked-out "
+        f"PR and cannot anchor trust",
     )
 
 
@@ -516,19 +672,9 @@ def _verify_config_trust(
                 f"config {config_path} resolves outside git work tree {toplevel}",
             )
 
-        proc = _run_git(
-            ["rev-parse", "--symbolic-full-name", trust_anchor_ref], toplevel,
-        )
-        full_name = proc.stdout.decode(errors="replace").strip()
-        if proc.returncode != 0 or not full_name.startswith("refs/remotes/"):
-            return TrustCheck(
-                TRUST_GIT_ERROR,
-                f"trusted ref {trust_anchor_ref!r} must resolve to a "
-                f"remote-tracking ref (refs/remotes/*), got "
-                f"{full_name or 'a local, detached, or unknown revision'}; "
-                f"HEAD and local branches can be moved by the checked-out "
-                f"PR and cannot anchor trust",
-            )
+        anchor_error = _require_remote_tracking_ref(trust_anchor_ref, toplevel)
+        if anchor_error is not None:
+            return anchor_error
 
         proc = _run_git(
             ["rev-parse", "--verify", "--quiet", f"{trust_anchor_ref}^{{commit}}"],
@@ -609,6 +755,7 @@ def _enforce_config_trust(
     trust_anchor_ref: str,
     approved: bool,
     tree_bytes: bytes,
+    install: InstallTrust | None = None,
 ) -> tuple[TrustCheck, int | None]:
     """Gate dispatch on config trust; returns ``(trust, exit_code_or_None)``.
 
@@ -621,13 +768,60 @@ def _enforce_config_trust(
     inspectable diff or file for the human to have reviewed. git-error is
     never overridable, because approving with nothing to inspect would
     turn an unverifiable state into an execution path.
+
+    ``install``, when not ``None``, carries the host-declared plugin root
+    that install-trusts this config (issue #5112, Option 1). Verification
+    is skipped rather than attempted: the config is outside the
+    consumer's work tree, so the trusted ref has no copy of it to compare
+    against and :func:`_verify_config_trust` would return git-error, which
+    is not overridable and would halt at exit 3. That is precisely the
+    dead end the issue reports. Skipping is sound only because the origin
+    carries the trust, which is what :func:`_install_trusted_root`
+    establishes; do not extend this branch to any config the consumer
+    repository can write.
     """
+    # Ref validation runs BEFORE the install-trusted short-circuit, not
+    # after. Both guards on --trusted-ref used to sit on the path install
+    # trust skips: this regex, and the refs/remotes/* requirement inside
+    # _verify_config_trust. _enforce_command_trust repeats neither, so an
+    # install-trusted config left the ref wholly unvalidated while command
+    # trust still consumed it.
+    #
+    # Reproduced before this fix (Copilot review, PR #5329, High):
+    # --trusted-ref HEAD under install trust made command trust compare
+    # every work-tree verifier against the PR's OWN commit, so a
+    # PR-modified verify.sh was declared trusted and EXECUTED (its stderr
+    # marker reached the output). An option-shaped ref likewise reached a
+    # git invocation. Widening the config origin must not widen the
+    # command boundary, and skipping these checks did exactly that.
     if not _TRUSTED_REF_RE.match(trust_anchor_ref):
         print(
             f"Refusing malformed --trusted-ref {trust_anchor_ref!r}",
             file=sys.stderr,
         )
         return TrustCheck(TRUST_MALFORMED_REF, "malformed trusted ref"), 2
+
+    if install is not None:
+        # The regex admits HEAD, so it alone does not close the reproduction
+        # above. The refs/remotes/* requirement is the one that does, and
+        # _verify_config_trust (its usual home) is skipped here, so enforce
+        # it directly, in the work tree the install decision was made
+        # against rather than in some other repository.
+        anchor_error = _require_remote_tracking_ref(
+            trust_anchor_ref, install.work_tree,
+        )
+        if anchor_error is not None:
+            print(anchor_error.detail, file=sys.stderr)
+            return anchor_error, 3
+        return (
+            TrustCheck(
+                TRUST_INSTALL_TRUSTED,
+                f"config {config_path} is install-trusted: it resides in "
+                f"host-declared plugin root {install.root}, outside the "
+                f"consumer work tree, which PR content cannot write",
+            ),
+            None,
+        )
 
     trust = _verify_config_trust(config_path, trust_anchor_ref, tree_bytes)
     if trust.status == TRUST_TRUSTED:
@@ -1121,6 +1315,20 @@ def _is_within(path: Path, root: Path) -> bool:
     except ValueError:
         return False
     return True
+
+
+def _are_disjoint(first: Path, second: Path) -> bool:
+    """True when neither path is at or under the other.
+
+    Containment in EITHER direction is the thing callers care about, and
+    testing only one of them is a live defect shape rather than a style
+    point: :func:`_install_trusted_root` shipped a one-way test and a
+    declared plugin root that was an ANCESTOR of the project passed it
+    while every PR-controlled file sat inside that root (CWE-829, found
+    by Copilot review on PR #5329). Naming the symmetric question once
+    keeps the two directions from drifting apart again.
+    """
+    return not (_is_within(first, second) or _is_within(second, first))
 
 
 def _first_symlinked_component(candidate: Path, root: Path) -> Path | None:
@@ -1939,39 +2147,424 @@ def _symlinked_config_component(config_arg: str) -> Path | None:
     return _first_symlinked_component(candidate, _PROJECT_ROOT)
 
 
-def _resolve_and_read_config(
-    config_arg: str,
-) -> tuple[Path, bytes] | tuple[None, None]:
+def _resolve_or_none(path: Path) -> Path | None:
+    """``path.resolve()``, or ``None`` when it cannot be resolved.
+
+    Exists to normalize ONE portability trap into a single place.
+    ``Path.resolve()`` does not raise a single exception family across the
+    versions this ships to: on a symlink loop, CPython 3.10, 3.11 and 3.12
+    raise ``RuntimeError("Symlink loop from ...")`` from ``pathlib``, while
+    3.14 returns the unresolved path without raising. ``RuntimeError`` is
+    not an ``OSError``, so an ``except OSError`` guard lets the loop escape
+    as an unhandled traceback on exactly the interpreters the repo's
+    hook-portability floor targets (``.claude/rules/python.md``: skill
+    scripts run under the host's ambient interpreter, floor 3.10).
+
+    Measured rather than assumed: grep of ``pathlib.py`` in the 3.10, 3.11
+    and 3.12 stdlibs shows the raise; 3.14 returned the path for the same
+    two-link loop. Found by Copilot review on PR #5329, which is a
+    reminder that "it did not raise locally" says nothing about the
+    versions a plugin is installed onto.
+
+    Callers decide what ``None`` means. None of them may treat it as
+    success: an unresolvable path cannot be shown to lie inside or outside
+    any boundary.
+    """
+    try:
+        return path.resolve()
+    except (OSError, RuntimeError):
+        return None
+
+
+def _consumer_work_tree() -> Path:
+    """The consumer's git work-tree root, or :exc:`WorkTreeUnavailableError`.
+
+    This, and NOT ``_PROJECT_ROOT``, is the boundary install trust must be
+    disjoint from. ``_resolve_project_root`` exists to locate the repo's
+    ``scripts/`` package and falls back to the nearest ancestor of the cwd
+    holding ``.claude`` OR ``.git``. That heuristic is fine for finding
+    imports and is unsafe as a trust boundary, because **PR content can
+    create a `.claude` directory** and thereby move it.
+
+    The attack it enables (Copilot review, PR #5329): the host starts in
+    ``repo/subdir``; the PR adds ``repo/subdir/.claude``; ``_PROJECT_ROOT``
+    becomes ``repo/subdir``; a declared root of ``repo/.claude`` is then
+    neither above nor below it, so a disjointness test anchored on
+    ``_PROJECT_ROOT`` passes and a wholly PR-controlled config becomes
+    install-trusted, skipping byte-identity verification (CWE-829).
+    Reproduced end to end before this fix.
+
+    ``git rev-parse --show-toplevel`` cannot be moved this way: it reports
+    the real work tree, which is exactly the set of files the checked-out
+    PR controls.
+
+    Raises :exc:`WorkTreeUnavailableError` rather than returning a sentinel when
+    git is absent, times out, errors, or reports no work tree for the cwd.
+    That is an exit-3 ``git-error`` condition under this module's contract,
+    not an exit-2 config problem: the failure is external, the config path
+    may be perfectly well-formed, and it is the same "verification is
+    impossible" state that :data:`TRUST_GIT_ERROR` already covers and
+    deliberately makes non-overridable.
+
+    An earlier revision returned ``None`` here and let the caller fall
+    through to work-tree containment. It still failed closed, but it exited
+    2 printing "Refusing to load config from unsafe path", which names the
+    wrong cause: the path was not the problem, the unestablishable work tree
+    was. Found by Copilot review on PR #5329.
+
+    ``subprocess.TimeoutExpired`` is caught explicitly because it is NOT an
+    ``OSError`` (its MRO is TimeoutExpired -> SubprocessError -> Exception),
+    so an ``except OSError`` alone lets a 30-second git hang escape as an
+    unhandled traceback. The two other guarded ``_run_git`` callers in this
+    module already catch the pair; this one did not, which was the defect.
+    """
+    try:
+        proc = _run_git(["rev-parse", "--show-toplevel"], Path.cwd())
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise WorkTreeUnavailableError(f"could not run git: {exc}") from exc
+    if proc.returncode != 0:
+        raise WorkTreeUnavailableError(
+            f"git reported no work tree for {Path.cwd()}: "
+            f"{proc.stderr.decode(errors='replace').strip()}",
+        )
+    toplevel = proc.stdout.decode(errors="replace").strip()
+    if not toplevel:
+        raise WorkTreeUnavailableError(
+            f"git reported an empty work-tree root for {Path.cwd()}",
+        )
+    resolved = _resolve_or_none(Path(toplevel))
+    if resolved is None:
+        raise WorkTreeUnavailableError(
+            f"work-tree root {toplevel!r} does not resolve",
+        )
+    return resolved
+
+
+def _absolute_config_candidate(config_arg: str) -> Path:
+    """``--config`` as an absolute path, resolved against the cwd once.
+
+    One helper so every consumer of ``--config`` agrees on which file the
+    argument names. ``validate_safe_path`` builds its result as
+    ``(resolved_base / path).resolve()``, so a RELATIVE ``--config``
+    resolves against whatever base it is handed. Passing a different base
+    would therefore silently name a different file than the one an
+    earlier check approved, which is the authorized-path-is-not-the-read-
+    path shape this gate exists to prevent (see ``_verify_config_trust``
+    on verifying the bytes that are executed).
+
+    The cwd is the right anchor because it is what ``_symlinked_config_
+    component`` already uses and what ``subprocess.run`` in
+    :func:`_evaluate_criterion` inherits.
+    """
+    candidate = Path(config_arg)
+    if not candidate.is_absolute():
+        candidate = Path.cwd() / candidate
+    return candidate
+
+
+class InstallTrust(NamedTuple):
+    """A config admitted by its ORIGIN, with everything that decision used.
+
+    Three fields, each carried rather than recomputed, because recomputing
+    any of them reopens a hole:
+
+    ``config_path`` is the resolved path :func:`_install_trusted_root`
+    actually approved. Resolving ``--config`` a second time to read it is a
+    TOCTOU window (CWE-367): a repo-controlled symlink swapped between the
+    two calls resolves inside the root for the decision and outside it for
+    the read, while ``root`` stays non-null and byte verification stays
+    skipped. Found by Copilot review on PR #5329.
+
+    ``work_tree`` is the boundary the decision was made against. It is also
+    the repository the trust anchor must be validated in, and validating it
+    somewhere else would answer a different question.
+    """
+
+    root: Path
+    config_path: Path
+    work_tree: Path
+
+
+def _host_declared_roots() -> Iterator[Path]:
+    """Existing directories named by the host's plugin-root variables.
+
+    Named to avoid the substring ``_plugin_root``. That is not cosmetic:
+    ``TestBootstrapSourceCode`` in ``tests/skills/github/test_bootstrap_fallback.py``
+    selects "bootstrap scripts" with ``"_plugin_root" in f.read_text()`` and then
+    requires each one to carry the literal
+    ``os.path.isdir(os.path.join(_plugin_root, "lib", "github_core"))``.
+    This module reads those variables to decide config TRUST and never puts a
+    plugin root on ``sys.path`` (the only ``sys.path`` insert here is
+    ``_PROJECT_ROOT``), so it has no ``_plugin_root`` variable and that literal
+    would be dead code. An earlier name matched the fragment by accident and
+    failed the guard. Do not reintroduce the fragment.
+
+    Yields in ``_PLUGIN_ROOT_ENV_VARS`` order, so a host that exports both
+    resolves through the Copilot variable first, and skips a variable that
+    is unset, empty, whitespace, unresolvable, or not a directory. Declaring
+    a root is necessary for install trust and nowhere near sufficient:
+    :func:`_install_trusted_root` applies the boundary conditions.
+    """
+    for env_var in _PLUGIN_ROOT_ENV_VARS:
+        raw = os.environ.get(env_var, "").strip()
+        if not raw:
+            continue
+        root = _resolve_or_none(Path(raw))
+        if root is not None and root.is_dir():
+            yield root
+
+
+def _install_trusted_root(config_arg: str) -> InstallTrust | None:
+    """The host-declared plugin root that install-trusts ``config_arg``.
+
+    Returns the resolved root when every condition below holds, else
+    ``None`` (the caller then applies the normal work-tree containment
+    and trusted-ref verification unchanged).
+
+    Issue #5112: ``resolve_pr_review_config()`` in
+    ``.claude/commands/pr-review.md`` offers plugin roots as config
+    sources, but containment refused any ``--config`` outside
+    ``_PROJECT_ROOT``, so an installed ``/pr-review`` whose config
+    resolved to the bundled copy could not dispatch at all. Option 1 of
+    that issue admits the bundled copy as a second trusted ORIGIN.
+
+    Why an origin can carry trust here: the operator installed the
+    plugin, and PR content cannot write into the install directory
+    through the consumer repository. That is the same reasoning
+    :func:`_classify_argv_token` already applies under ``_ARGV_EXTERNAL``
+    to an installed-plugin script an argv names, so this widens the
+    config boundary to match a boundary the gate already draws, rather
+    than inventing a new trust class.
+
+    Conditions, each load-bearing:
+
+    1. ``COPILOT_PLUGIN_ROOT`` or ``CLAUDE_PLUGIN_ROOT`` is set and
+       non-empty. An unset environment changes nothing.
+       (Applied by :func:`_host_declared_roots`.)
+    2. The root resolves to an existing directory.
+       (Applied by :func:`_host_declared_roots`.)
+    3. The resolved root is **disjoint** from BOTH the consumer's git
+       work tree (:func:`_consumer_work_tree`) and ``_PROJECT_ROOT``,
+       where disjoint means neither path is at or under the other
+       (:func:`_are_disjoint`). All four containments are load-bearing
+       and each direction failed once:
+
+       * root under either boundary: withholds install trust from the
+         in-repo fallback the same command offers, which the checked-out
+         PR writes and which must keep the full byte-identity check.
+       * either boundary under root: a declared root of ``$HOME`` with
+         the project at ``$HOME/repo`` is not *below* the project, so a
+         one-way test admitted it while it contained every PR-controlled
+         file in the repo (CWE-829).
+
+       The work tree is checked FIRST and is the authoritative boundary,
+       because ``_PROJECT_ROOT`` is attacker-influenceable:
+       :func:`_resolve_project_root` stops at the nearest ancestor
+       holding a plugin directory, so a PR that adds one in a
+       subdirectory relocates it and makes a wholly PR-controlled root
+       look disjoint. ``git rev-parse --show-toplevel`` cannot be moved
+       that way. ``_PROJECT_ROOT`` is still checked as well, because in
+       the installed case it can resolve somewhere the work tree does
+       not cover.
+
+       Both bypasses were found by Copilot review on PR #5329, in
+       consecutive rounds, the second defeating the fix for the first.
+    4. The **resolved** config is inside the resolved root. Resolution
+       happens before containment, so a symlink planted in the install
+       directory that points back into the checked-out PR tree lands
+       outside the root and is refused (CWE-59). Only a link whose
+       target is also install-controlled survives.
+
+    Not widened by this function: the command boundary.
+    :func:`_enforce_command_trust` still verifies every work-tree file
+    the criteria name, so an install-trusted config cannot execute a
+    PR-rewritten verifier script.
+
+    Residual, recorded rather than claimed closed: an actor who can
+    already edit the workflow that invokes this gate can both set these
+    variables and write the directory they name. That actor can run
+    arbitrary commands in the same workflow, so this is a strictly
+    smaller capability than they already hold, and it is not a boundary
+    this gate can close.
+    """
+    project_root = _resolve_or_none(_PROJECT_ROOT)
+    if project_root is None:
+        # Fail closed. Condition 3 compares against this tree, and a
+        # boundary that cannot be resolved cannot be compared against.
+        return None
+    candidate = _absolute_config_candidate(config_arg)
+    # Resolved lazily, on first use, and at most once. Only a DECLARED root
+    # can install-trust anything, so a run with neither variable set (the
+    # overwhelmingly common case, and every caller that predates issue
+    # #5112) must not pay a subprocess call or perturb a test's git mocks.
+    # A failed probe raises WorkTreeUnavailableError out of this function rather
+    # than degrading to "no install trust"; see that class for why exit 3.
+    # Since the probe now returns a Path or raises, "still None" means
+    # "not yet resolved", so no separate resolved-flag is needed and the
+    # type narrows without an assert.
+    work_tree: Path | None = None
+
+    for root in _host_declared_roots():
+        # Condition 3a: the root must be the plugin that ships THIS file.
+        # A host variable names a plugin root; it does not promise the root
+        # is ours. See _DISPATCHER_PATH for the reproduction and for this
+        # repository's own record that the variable can name a foreign
+        # context-mode plugin.
+        if not _is_within(_DISPATCHER_PATH, root):
+            continue
+        # Condition 3b: the declared root and the project tree must be
+        # DISJOINT, checked in BOTH directions.
+        #
+        # Testing only "root is not below the project" leaves the
+        # ancestor direction open, and that direction is the whole
+        # bypass: with the project at $HOME/repo and
+        # CLAUDE_PLUGIN_ROOT=$HOME, the root is not below the project
+        # (so a one-way test passes it) while every PR-controlled file
+        # in the repo IS inside the root, so condition 4 passes too. A
+        # config the checked-out PR wrote would then be install-trusted
+        # and skip byte-identity verification entirely (CWE-829).
+        # Reproduced on this branch before the fix: declared root
+        # /home/user install-trusted
+        # /home/user/ai-agents/.claude/commands/pr-review-config.yaml.
+        # Found by Copilot review on PR #5329.
+        if work_tree is None:
+            work_tree = _consumer_work_tree()
+        # Disjoint from the real work tree FIRST: that is the authoritative
+        # extent of PR-controlled content and the only one PR content
+        # cannot relocate. _PROJECT_ROOT is then checked as well, because
+        # in the installed case it may resolve somewhere the work-tree
+        # check does not cover, and a root overlapping either is refused.
+        if not _are_disjoint(root, work_tree):
+            continue
+        if not _are_disjoint(root, project_root):
+            continue
+        resolved_config = _resolve_or_none(candidate)
+        if resolved_config is None:
+            return None
+        # Condition 4: resolution already followed any symlink, so a
+        # link out of the install directory fails this containment.
+        # resolved_config is RETURNED, not recomputed by the caller: it is
+        # the exact path this containment approved (CWE-367).
+        if _is_within(resolved_config, root):
+            return InstallTrust(root, resolved_config, work_tree)
+    return None
+
+
+class ResolvedConfig(NamedTuple):
+    """Outcome of resolving ``--config``.
+
+    ``exit_code`` is set if and only if resolution FAILED, and it carries
+    the code the process must exit with. Callers branch on it rather than
+    on ``path is None``, because the two failure kinds exit differently:
+    2 for a config problem (containment, symlink, unreadable) and 3 for an
+    external one (:exc:`WorkTreeUnavailableError`). The earlier 3-tuple form
+    could express only one of those, which is how a git-probe failure came
+    to be reported as an unsafe path (Copilot review, PR #5329).
+    """
+
+    path: Path | None
+    raw: bytes | None
+    install: InstallTrust | None
+    exit_code: int | None
+
+
+def _resolve_and_read_config(config_arg: str) -> ResolvedConfig:
     """Validate the config path and read it exactly once.
 
-    Returns ``(None, None)`` after printing to stderr when the path is
-    unsafe (CWE-22 containment), reaches through a repo-local symlink
-    (CWE-59), or is unreadable; the caller exits 2. The returned buffer
-    is the single read that gets trust-verified and then parsed
-    (CWE-367).
+    On success returns the path, the single read of its bytes, and the
+    install-trusted root or ``None``, with ``exit_code`` unset. That one
+    read is what gets trust-verified AND parsed, so there is no window for
+    the file to change between the two (CWE-367).
+
+    On failure prints to stderr and sets ``exit_code``: **2** when the path
+    is unsafe (CWE-22 containment), reaches through a repo-local symlink
+    (CWE-59), or is unreadable; **3** when the consumer's git work tree
+    could not be established, which is external rather than a config fault.
+
+    ``install_root`` is resolved HERE, once, and threaded to
+    :func:`_enforce_config_trust` rather than recomputed there, so the root
+    that decided containment is provably the root that decides trust.
+    Recomputing invites the two to disagree if the environment changes
+    between the calls.
     """
-    symlink = _symlinked_config_component(config_arg)
-    if symlink is not None:
+    try:
+        install = _install_trusted_root(config_arg)
+    except WorkTreeUnavailableError as exc:
+        # Exit 3, never 2: see WorkTreeUnavailableError. Not overridable by
+        # --approve-untrusted-config, matching TRUST_GIT_ERROR, because
+        # there is no inspectable artifact for an approval to be based on.
         print(
-            f"Refusing config path with symlinked component {symlink}: "
-            f"a repo-local symlink would redirect trust verification to "
-            f"its target and surface that file in the approval diff.",
+            f"Refusing to evaluate install trust: {exc}. A plugin root is "
+            f"declared, so the consumer work tree must be known to decide "
+            f"whether that root lies outside it.",
             file=sys.stderr,
         )
-        return None, None
+        return ResolvedConfig(None, None, None, 3)
+
+    if install is not None:
+        # Do NOT route this through validate_safe_path with the install root
+        # as the base. That helper builds its result as
+        # (resolved_base / path).resolve(), which would make the
+        # environment-declared root a component of the path READ rather
+        # than only the boundary it is CHECKED against, and for a
+        # relative --config would name a different file than the one
+        # _install_trusted_root just approved. Containment against the
+        # root is already established, on this exact resolved path, by
+        # that function's condition 4, so reuse it.
+        #
+        # Keeping the root deny-only is also what stops an environment
+        # variable from participating in constructing a path whose
+        # contents become a criterion's argv.
+        #
+        # The symlink probe is skipped here rather than run: it is
+        # bounded to the project root by _first_symlinked_component
+        # ("if not _is_within(probe, root): continue"), so for an
+        # out-of-tree config it inspects nothing and returns None. The
+        # CWE-59 hazard it guards is a PR-CREATED link, and condition 4
+        # already refuses any link that escapes the install root.
+        #
+        # Reused, never re-resolved. Calling .resolve() again here would
+        # be a second resolution of the same argument, and a repo-controlled
+        # symlink swapped between the two lands inside the root for the
+        # DECISION and outside it for the READ, with verification still
+        # skipped (CWE-367, Copilot review on PR #5329).
+        config_path = install.config_path
+    else:
+        symlink = _symlinked_config_component(config_arg)
+        if symlink is not None:
+            print(
+                f"Refusing config path with symlinked component {symlink}: "
+                f"a repo-local symlink would redirect trust verification to "
+                f"its target and surface that file in the approval diff.",
+                file=sys.stderr,
+            )
+            return ResolvedConfig(None, None, None, 2)
+        try:
+            config_path = validate_safe_path(config_arg, _PROJECT_ROOT)
+        except (FileNotFoundError, ValueError, RuntimeError) as exc:
+            # RuntimeError joins the pair because validate_safe_path calls
+            # (resolved_base / path).resolve() unguarded, and resolve()
+            # raises RuntimeError on a symlink loop under CPython 3.10 to
+            # 3.12 (see _resolve_or_none). Caught HERE rather than in that
+            # shared helper, which many other scripts call and which is out
+            # of scope for this change; that broader fix is flagged on the
+            # PR instead. Exit 2: a loop in --config is a bad config path,
+            # the same class as the containment failures beside it.
+            print(
+                f"Refusing to load config from unsafe path {config_arg!r}: {exc}",
+                file=sys.stderr,
+            )
+            return ResolvedConfig(None, None, None, 2)
     try:
-        config_path = validate_safe_path(config_arg, _PROJECT_ROOT)
-    except (FileNotFoundError, ValueError) as exc:
-        print(
-            f"Refusing to load config from unsafe path {config_arg!r}: {exc}",
-            file=sys.stderr,
+        return ResolvedConfig(
+            config_path,
+            _read_config_bytes(config_path),
+            install,
+            None,
         )
-        return None, None
-    try:
-        return config_path, _read_config_bytes(config_path)
     except ConfigError as exc:
         print(f"Failed to load config {config_path}: {exc}", file=sys.stderr)
-        return None, None
+        return ResolvedConfig(None, None, None, 2)
 
 
 def _extract_criteria(config: dict[str, Any]) -> list[Any] | None:
@@ -2002,18 +2595,30 @@ def main(argv: list[str] | None = None) -> int:
         print("Pull request number must be positive.", file=sys.stderr)
         return 2
 
-    config_path, raw_config = _resolve_and_read_config(args.config)
-    if config_path is None or raw_config is None:
-        return 2
+    resolved = _resolve_and_read_config(args.config)
+    if resolved.path is None or resolved.raw is None:
+        # One branch, not two: testing path/raw narrows the types AND
+        # detects failure, since exit_code is set on exactly the paths
+        # that leave them None. The conditional expression is the
+        # unreachable-default; `or 2` would be the falsy-override bug
+        # python.md rejects, even though 0 never occurs here.
+        return 2 if resolved.exit_code is None else resolved.exit_code
+    config_path, raw_config = resolved.path, resolved.raw
+    install = resolved.install
 
     # CWE-829 trust boundary: no criterion command runs unless the
-    # working-tree config is byte-identical to the trusted-ref copy or a
-    # human has explicitly approved the divergence.
+    # working-tree config is byte-identical to the trusted-ref copy, a
+    # human has explicitly approved the divergence, or the config came
+    # from an install-trusted origin the consumer repository cannot
+    # write (issue #5112). The command boundary below is NOT widened by
+    # the third case: an install-trusted config still cannot execute a
+    # PR-rewritten verifier script.
     trust, halt_code = _enforce_config_trust(
         config_path,
         args.trust_anchor_ref,
         args.approve_untrusted_config,
         raw_config,
+        install,
     )
     if halt_code is not None:
         return halt_code

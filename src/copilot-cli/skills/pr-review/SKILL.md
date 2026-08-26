@@ -14,8 +14,39 @@ Respond to PR review comments for: the problem statement from the conversation (
 
 Load configuration from `pr-review-config.yaml` for scripts, completion criteria,
 error recovery, and failure handling tables. In this repository the live config
-sits beside the PR review command. The bundled Copilot CLI copy is a reference
-artifact, not a runnable completion-gate config.
+sits beside the PR review command.
+
+The bundled copy IS runnable from an installed plugin (issue #5112, Option 1).
+When `resolve_pr_review_config` lands on a config inside a host-declared plugin
+root (`COPILOT_PLUGIN_ROOT` or `CLAUDE_PLUGIN_ROOT`) whose tree is **disjoint
+from** the consumer's git work tree, the completion gate treats that origin as
+install-trusted: the operator installed it and PR content cannot write there, so
+the gate skips the byte-identity check it would otherwise run against the trusted
+ref. This reverses an earlier stance that called the bundled copy a reference
+artifact; under that stance an installed `/pr-review` could not dispatch at all,
+because path containment refused the config before any check ran.
+
+**Disjoint, not merely "outside."** Neither tree may be at or under the other,
+and the difference is not pedantic. A root of `$HOME` with the repository at
+`$HOME/repo` is "outside" the work tree in the loose sense (it is not a
+subdirectory of it) while containing every file the checked-out PR wrote. That
+reading was in an earlier draft of this paragraph, and the matching one-way test
+in the gate admitted exactly that root, so a PR-authored config became
+install-trusted and skipped verification. Both directions are checked now.
+The boundary is the real work tree from `git rev-parse --show-toplevel`,
+because a directory marker inside the repository can be created by the PR and
+therefore cannot anchor trust. If the work tree cannot be established, no root
+install-trusts anything and the gate exits 3.
+
+Three limits, because the widening is narrow. The `$repo_root/.claude` fallback
+in the list below gets NO such treatment even if a plugin-root variable points
+at it: that path is written by the checked-out PR and keeps the full trust
+check. Only the config ORIGIN widens; the commands the config names are still
+verified against the trusted ref, so an install-trusted config cannot execute a
+PR-rewritten verifier script. And `--trusted-ref` is validated on this path like
+any other, including the requirement that it resolve to a remote-tracking ref:
+`HEAD` and local branches can be moved by the checked-out PR, so they cannot
+anchor trust and are refused.
 
 ## Context
 
