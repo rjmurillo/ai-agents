@@ -85,6 +85,10 @@ _LIST_MARKER = re.compile(
 _ATX_HEADING = re.compile(r"^#{1,6}([ \t]|$)")
 _THEMATIC_BREAK = re.compile(r"^(?:([-*_])[ \t]*)(?:\1[ \t]*){2,}$")
 _BLOCK_START = re.compile(r"^(?:`{3,}|~{3,}|>)")
+# Only a setext underline when a paragraph is already open; `===` on its own is
+# ordinary prose. `---` reaches the same conclusion through _THEMATIC_BREAK, so
+# the gap was `=`, which matches nothing else.
+_SETEXT_UNDERLINE = re.compile(r"^(?:=+|-+)[ \t]*$")
 _MAX_LIST_PAD = 4
 
 
@@ -151,6 +155,9 @@ class _ListContainers:
     10. A fenced block ends when the item holding it ends, with no closing
         marker, so a line that dedents below the block's container closes it.
         See `_container_closed`.
+    11. A setext underline ends the paragraph above it. `---` already reached
+        that conclusion as a thematic break, so only `=` was missing, and a
+        list could not interrupt after a setext H1.
 
     Rules 9 and 10 were both documented as deliberate limitations for one
     commit, on the reasoning that each only made the scanners miss a fence,
@@ -225,6 +232,7 @@ class _ListContainers:
             _ATX_HEADING.match(body)
             or _THEMATIC_BREAK.match(body)
             or _BLOCK_START.match(body)
+            or (self._in_paragraph and _SETEXT_UNDERLINE.match(body))
         )
         return None
 

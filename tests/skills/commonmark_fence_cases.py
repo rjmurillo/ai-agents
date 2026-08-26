@@ -119,6 +119,11 @@ CASES: dict[str, str] = {
     "two markers then a fence on one line": "- - ```\n    x\n    ```\n\nEnd.\n",
     "a heading on the marker line": ("- # heading\n2. item\n      ```\n      x\n      ```\n"),
     "two markers on one line": "- - a\n      ```\n      x\n      ```\n",
+    # Rule 11: a setext underline ends the paragraph above it.
+    "setext h1 ends the paragraph": ("Title\n===\n2. item\n    ~~~\n    robust\n    ~~~\n"),
+    "single equals is a setext underline": ("Title\n=\n2. item\n    ~~~\n    x\n    ~~~\n"),
+    "setext h2 ends the paragraph": "Title\n---\n2. item\n    ~~~\n    x\n    ~~~\n",
+    "equals with no paragraph is prose": ("\n===\n2. item\n    ~~~\n    x\n    ~~~\n"),
 }
 
 
@@ -150,7 +155,8 @@ _FUZZ_ORDERED = ("1.", "2.", "01.", "003.", "1)", "10.", "9)")
 # is itself a block start. That family had produced a `--write` corruption the
 # fuzzer could not reach. On the widened generator the counts were 212, 247 and
 # 225; rule 10 (a block ends with its container) took them to what follows.
-FUZZ_BASELINE = {1729: 1, 20260826: 6, 4242: 6}
+# Rule 11 (a setext underline ends its paragraph) took seed 20260826 from 6.
+FUZZ_BASELINE = {1729: 1, 20260826: 5, 4242: 6}
 FUZZ_DOCUMENTS = 2000
 
 
