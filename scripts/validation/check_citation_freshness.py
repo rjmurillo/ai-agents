@@ -36,7 +36,6 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPT_DIR.parent.parent
@@ -48,7 +47,12 @@ if str(_REPO_ROOT) not in sys.path:
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-from checks_common import _resolve_default_base_ref, _run_subprocess  # noqa: E402
+from checks_common import _resolve_default_base_ref  # noqa: E402
+from citation_head_state import (  # noqa: E402
+    _added_lines_since_base,
+    _head_tracked_paths,
+    _HeadFileCache,
+)
 from stale_script_refs import HISTORICAL_ROOTS  # noqa: E402
 
 IGNORE_MARKER = "citation-freshness: ignore"
@@ -78,7 +82,6 @@ _PATHLIKE = re.compile(rf"^[\w.-]*(?:/[\w.-]+)*\.(?:{_EXTENSIONS})$")
 # Inline (non-anchored) form of _PATHLIKE for masking paths mid-line.
 _PATHLIKE_INLINE = re.compile(rf"[\w.-]+(?:/[\w.-]+)+\.(?:{_EXTENSIONS})")
 _NUMERIC_SPAN = re.compile(r"^\d+(?:-\d+)?$")
-_HUNK_HEADER = re.compile(r"^@@ -\d+(?:,\d+)? \+(?P<new_start>\d+)(?:,(?P<new_count>\d+))? @@")
 
 
 @dataclass(frozen=True)
@@ -95,84 +98,11 @@ class Finding:
         return f"{self.citing_file}:{self.citing_line}: {self.citation}: {self.reason}"
 
 
-def _git(repo_root: Path, args: list[str]) -> tuple[int, str, str]:
-    """Run git in repo_root, returning (exit_code, stdout, stderr)."""
-    result = _run_subprocess(["git", "-C", str(repo_root), *args], timeout=60)
-    return cast("tuple[int, str, str]", result)
-
-
-def _head_tracked_paths(repo_root: Path) -> set[str] | None:
-    """Return the set of paths tracked at HEAD, or None on git failure."""
-    exit_code, stdout, _stderr = _git(
-        repo_root, ["ls-tree", "-r", "-z", "--name-only", "HEAD"]
-    )
-    if exit_code != 0:
-        return None
-    return {path for path in stdout.split("\0") if path}
-
-
-def _added_lines_since_base(
-    repo_root: Path, base_ref: str
-) -> dict[str, list[tuple[int, str]]] | None:
-    """Map citing file -> [(new line number, line text)] for added lines.
-
-    Parses ``git diff -U0 --diff-filter=ACMR base...HEAD``: the committed
-    changes this branch would push, excluding deletions (a deleted citing
-    file asserts nothing).
-    """
-    exit_code, stdout, _stderr = _git(
-        repo_root,
-        [
-            "diff",
-            "--no-color",
-            "-U0",
-            "--diff-filter=ACMR",
-            f"{base_ref}...HEAD",
-        ],
-    )
-    if exit_code != 0:
-        return None
-
-    added: dict[str, list[tuple[int, str]]] = {}
-    current_file: str | None = None
-    new_lineno = 0
-    for raw in stdout.splitlines():
-        if raw.startswith("+++ "):
-            target = raw[4:].strip()
-            current_file = None if target == "/dev/null" else target.removeprefix("b/")
-            continue
-        hunk = _HUNK_HEADER.match(raw)
-        if hunk:
-            new_lineno = int(hunk.group("new_start"))
-            continue
-        if current_file is None:
-            continue
-        if raw.startswith("+") and not raw.startswith("+++"):
-            added.setdefault(current_file, []).append((new_lineno, raw[1:]))
-            new_lineno += 1
-    return added
-
-
 def _is_exempt_citing_file(path: str) -> bool:
     """Return whether a citing file is out of this gate's scope."""
     if path.startswith(HISTORICAL_ROOTS):
         return True
     return any(fragment in path for fragment in _FIXTURE_FRAGMENTS)
-
-
-class _HeadFileCache:
-    """Lazy line-content reads from HEAD, one ``git show`` per file."""
-
-    def __init__(self, repo_root: Path) -> None:
-        self._repo_root = repo_root
-        self._cache: dict[str, list[str] | None] = {}
-
-    def lines(self, path: str) -> list[str] | None:
-        """Return the HEAD lines of path, or None if unreadable."""
-        if path not in self._cache:
-            exit_code, stdout, _stderr = _git(self._repo_root, ["show", f"HEAD:{path}"])
-            self._cache[path] = stdout.splitlines() if exit_code == 0 else None
-        return self._cache[path]
 
 
 def _strip_prose_decorations(text: str) -> str:
@@ -274,6 +204,11 @@ def _continuation_quote(citing_lines: list[str], line_index: int) -> str | None:
     so harvest it.
     """
     current = citing_lines[line_index]
+    # The documented shape: the citation line introduces the quote with a
+    # trailing colon. Without it, a nearby indented block is unrelated code
+    # and must not become an anchor this citation is judged against.
+    if not current.rstrip().endswith(":"):
+        return None
     # Markdown requires a blank line before an indented block, so skip
     # whitespace-only lines (bounded) before reading the candidate quote.
     following: str | None = None
@@ -296,83 +231,102 @@ def _continuation_quote(citing_lines: list[str], line_index: int) -> str | None:
     return body
 
 
+# The documented marker form is "citation-freshness: ignore -- <reason>";
+# a bare marker is a reasonless bypass and does not count.
+_IGNORE_WITH_REASON = re.compile(re.escape(IGNORE_MARKER) + r"\s+--\s+\S")
+
+
 def _has_ignore_marker(citing_lines: list[str] | None, line_number: int, line_text: str) -> bool:
-    """Return whether the citation line or the one above carries the marker."""
-    if IGNORE_MARKER in line_text:
+    """Return whether the citation line or the one above carries a reasoned marker."""
+    if _IGNORE_WITH_REASON.search(line_text):
         return True
     if citing_lines is None:
         return False
     previous_index = line_number - 2
-    return 0 <= previous_index < len(citing_lines) and IGNORE_MARKER in citing_lines[previous_index]
-
-
-def _check_citation(
-    citing_file: str,
-    line_number: int,
-    line_text: str,
-    match: re.Match[str],
-    tracked: set[str],
-    head_files: _HeadFileCache,
-) -> Finding | None:
-    """Check one citation match; return a Finding or None."""
-    cited_path = match.group("path").removeprefix("./")
-    start = int(match.group("start"))
-    end_group = match.group("end")
-    end = int(end_group) if end_group else start
-    citation_text = f"{cited_path}:{match.group('start')}" + (
-        f"-{end_group}" if end_group else ""
+    return 0 <= previous_index < len(citing_lines) and bool(
+        _IGNORE_WITH_REASON.search(citing_lines[previous_index])
     )
 
-    if cited_path not in tracked:
-        return Finding(citing_file, line_number, citation_text, "cited file not tracked at HEAD")
 
+def _sentence_continues(line: str) -> bool:
+    """A neighbor joins the citation's sentence unless it ends one."""
+    stripped = line.rstrip()
+    return bool(stripped.strip()) and not stripped.endswith((".", "!", "?"))
+
+
+def _context_lines(citing_lines: list[str] | None, line_index: int, line_text: str) -> list[str]:
+    """Return the citation line plus wrapped-sentence neighbors.
+
+    Neighbors join only while the sentence plausibly continues across the
+    wrap (the PR #5327/#5336 corpus shapes). A neighbor that finishes its
+    own sentence, or a citation line that finishes one, contributes no
+    anchors, so an unrelated identifier on a finished neighboring sentence
+    never becomes an assertion about this citation.
+    """
+    context = [line_text]
+    if citing_lines is None:
+        return context
+    for offset in (1, 2):
+        index = line_index - offset
+        if index < 0 or not _sentence_continues(citing_lines[index]):
+            break
+        context.insert(0, citing_lines[index])
+    if _sentence_continues(line_text) and line_index + 1 < len(citing_lines):
+        context.append(citing_lines[line_index + 1])
+    return context
+
+
+def _resolve_cited_range(
+    citing_file: str,
+    line_number: int,
+    citation_text: str,
+    cited_path: str,
+    start: int,
+    end: int,
+    tracked: set[str],
+    head_files: _HeadFileCache,
+) -> tuple[list[str] | None, Finding | None]:
+    """Resolve the cited lines at HEAD, or the Finding explaining why not."""
+
+    def refusal(reason: str) -> tuple[None, Finding]:
+        return None, Finding(citing_file, line_number, citation_text, reason)
+
+    if cited_path not in tracked:
+        return refusal("cited file not tracked at HEAD")
     cited_lines = head_files.lines(cited_path)
     if cited_lines is None:
-        return Finding(citing_file, line_number, citation_text, "cited file unreadable at HEAD")
-
+        return refusal("cited file unreadable at HEAD")
+    if start < 1:
+        return refusal(f"cites line {start}; line numbers are 1-based")
     if end < start:
-        return Finding(
-            citing_file, line_number, citation_text, f"cited range is reversed ({start}-{end})"
-        )
+        return refusal(f"cited range is reversed ({start}-{end})")
     if end > len(cited_lines):
-        return Finding(
-            citing_file,
-            line_number,
-            citation_text,
-            f"cites line {end} but the file has {len(cited_lines)} lines at HEAD",
-        )
+        return refusal(f"cites line {end} but the file has {len(cited_lines)} lines at HEAD")
+    return cited_lines, None
 
-    citing_lines = head_files.lines(citing_file)
-    if _has_ignore_marker(citing_lines, line_number, line_text):
-        return None
 
-    # Anchor context is the citing line plus its neighbors: the sentence
-    # around a citation regularly wraps, putting the named contract on the
-    # lines before or after (all three shapes occur in the PR #5327/#5336
-    # corpus, including a wrapped docstring whose named contract sits two
-    # lines above its trailing parenthesized citation).
-    context = [line_text]
+def _anchor_finding(
+    citing_file: str,
+    line_number: int,
+    citation_text: str,
+    line_text: str,
+    citing_lines: list[str] | None,
+    cited_lines: list[str],
+    start: int,
+    end: int,
+) -> Finding | None:
+    """Judge the citing text's anchors against the cited range."""
+    line_index = line_number - 1
+    anchors = _anchor_candidates(_context_lines(citing_lines, line_index, line_text), citation_text)
     if citing_lines is not None:
-        line_index = line_number - 1
-        for offset in (2, 1):
-            if 0 <= line_index - offset < len(citing_lines):
-                context.insert(0, citing_lines[line_index - offset])
-        if line_index + 1 < len(citing_lines):
-            context.append(citing_lines[line_index + 1])
-        anchors = _anchor_candidates(context, citation_text)
         quote = _continuation_quote(citing_lines, line_index)
         if quote is not None:
             anchors.append(quote)
-    else:
-        anchors = _anchor_candidates(context, citation_text)
-
     if not anchors:
         return None
-
     cited_text = "\n".join(cited_lines[start - 1 : end])
     if any(_anchor_matches(anchor, cited_text) for anchor in anchors):
         return None
-
     hint = ""
     for anchor in anchors:
         for index, content in enumerate(cited_lines, 1):
@@ -387,6 +341,40 @@ def _check_citation(
         line_number,
         citation_text,
         f"none of the cited anchors ({named}) appear at lines {start}-{end}{hint}",
+    )
+
+
+def _check_citation(
+    citing_file: str,
+    line_number: int,
+    line_text: str,
+    match: re.Match[str],
+    tracked: set[str],
+    head_files: _HeadFileCache,
+) -> Finding | None:
+    """Check one citation match; return a Finding or None.
+
+    The reasoned ignore marker is consulted first, so it exempts every
+    refusal class, a citation to a deliberately removed file included.
+    """
+    cited_path = match.group("path").removeprefix("./")
+    start = int(match.group("start"))
+    end_group = match.group("end")
+    end = int(end_group) if end_group else start
+    citation_text = f"{cited_path}:{match.group('start')}" + (
+        f"-{end_group}" if end_group else ""
+    )
+
+    citing_lines = head_files.lines(citing_file)
+    if _has_ignore_marker(citing_lines, line_number, line_text):
+        return None
+    cited_lines, finding = _resolve_cited_range(
+        citing_file, line_number, citation_text, cited_path, start, end, tracked, head_files
+    )
+    if finding is not None or cited_lines is None:
+        return finding
+    return _anchor_finding(
+        citing_file, line_number, citation_text, line_text, citing_lines, cited_lines, start, end
     )
 
 
