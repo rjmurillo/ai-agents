@@ -163,6 +163,9 @@ jobs:
               - 'src/copilot-cli/hooks/**'
               - 'AGENTS.md'
               - 'README.md'
+              # Eighth root, third round, same method (PR #5319):
+              #   docs/installation.md  tests/test_knowledge_surface_consistency.py
+              - 'docs/installation.md'
 
       - name: Determine if tests should run
         id: determine

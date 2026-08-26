@@ -6859,7 +6859,22 @@ def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> i
             file=sys.stderr,
         )
         return 2
-    budget = _pytest_budget_seconds(commands)
+    # Clamp the AGGREGATE, not only each child. `_run_command` bounds one
+    # subprocess at CONTAINER_SUBPROCESS_CEILING_SECONDS, which says nothing
+    # about a step that runs several: an import-graph subset emits up to four
+    # partition commands and takes the execution budget, so a Python push could
+    # spend 4 * 150s = 600s here inside a container. The reclaim this whole
+    # change exists to prevent was measured at ~679s, so that is not a tail
+    # case, it is the same failure on the common path for Python changes.
+    #
+    # The PR text claimed the exposure was limited because "the default path
+    # spawns one child". True for a Markdown push, which collects; false for a
+    # Python push, which subsets. Caught in review on PR #5319.
+    #
+    # Clamping here also repairs the diagnostic: the timeout message prints
+    # `budget`, so an unclamped aggregate told a reader their child had 780s
+    # when the clamp had given it 150s.
+    budget = _container_clamped(_pytest_budget_seconds(commands))
     deadline = time.monotonic() + budget
     for index, command in enumerate(commands):
         remaining = deadline - time.monotonic()

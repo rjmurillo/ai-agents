@@ -19,10 +19,7 @@ import pytest
 from scripts.validation import git_hook_policy
 
 _MODULE_PATH = (
-    Path(__file__).resolve().parents[1]
-    / ".github"
-    / "scripts"
-    / "safe_push_pr_branch.py"
+    Path(__file__).resolve().parents[1] / ".github" / "scripts" / "safe_push_pr_branch.py"
 )
 _spec = importlib.util.spec_from_file_location("safe_push_pr_branch", _MODULE_PATH)
 assert _spec and _spec.loader
@@ -97,11 +94,7 @@ def _commit_file(repo: Path, name: str, content: str) -> str:
 
 
 def test_parse_porcelain_keeps_source_destination_and_summary() -> None:
-    stdout = (
-        "To https://example/repo.git\n"
-        " \tHEAD:refs/heads/foo\t1111111..2222222\n"
-        "Done\n"
-    )
+    stdout = "To https://example/repo.git\n \tHEAD:refs/heads/foo\t1111111..2222222\nDone\n"
 
     refs = safe_push_pr_branch._parse_porcelain(stdout)
 
@@ -792,9 +785,7 @@ def test_pre_push_pytest_commands_include_safe_push_module() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     mutation_tests = str(repo_root / "tests" / "mutation")
     safe_push_tests = str(repo_root / "tests" / "test_safe_push_pr_branch.py")
-    mutation_signal_tests = str(
-        repo_root / "tests" / "test_mutation_workspace_signals.py"
-    )
+    mutation_signal_tests = str(repo_root / "tests" / "test_mutation_workspace_signals.py")
     pr_autofix_tests = str(repo_root / "tests" / "test_pr_autofix_late_live_state_gate.py")
 
     commands = git_hook_policy._pytest_commands(repo_root)
@@ -841,9 +832,7 @@ def test_pre_push_pytest_commands_include_safe_push_module() -> None:
     for marker, targets, ignores in parsed:
         if safe_push_tests in ignores:
             continue
-        reaches_module = safe_push_tests in targets or str(
-            repo_root / "tests"
-        ) in targets
+        reaches_module = safe_push_tests in targets or str(repo_root / "tests") in targets
         if reaches_module:
             assert "not integration" in marker, (marker, targets)
             assert "not safe_push_transport" in marker, (marker, targets)
@@ -951,6 +940,14 @@ def _record_pytest_timeouts(
     # behaviour under test rather than asserting it against one command.
     monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
 
+    # Pin the workstation contract. `run_pytest` now clamps the aggregate
+    # budget, not just each child, so inside a container these numbers would be
+    # the 150s ceiling rather than the budget under test. This repository's dev
+    # containers set CLAUDECODE, so without this the assertions would read the
+    # clamp and quietly stop testing what they name. The clamped case has its
+    # own test below.
+    monkeypatch.setattr(git_hook_policy, "_container_clamped", lambda seconds: seconds)
+
     def fake_monotonic() -> float:
         return clock["now"]
 
@@ -999,6 +996,10 @@ def test_run_pytest_gives_the_collection_stand_in_the_smaller_budget(
     there would restore a 29-minute ceiling on a push that never runs a test.
     """
     monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
+    # Workstation contract: the aggregate is now clamped in a container, and
+    # this repo's dev containers set CLAUDECODE, so the assertion would read
+    # the 150s ceiling instead of the collection budget it names.
+    monkeypatch.setattr(git_hook_policy, "_container_clamped", lambda seconds: seconds)
     seen: list[float] = []
 
     def fake_run_command(args: Any, repo_root: Any, **kwargs: Any):
@@ -1048,6 +1049,53 @@ def test_run_pytest_stops_on_the_first_failing_command(
 # ---------------------------------------------------------------------------
 
 
+def test_a_container_bounds_the_whole_pytest_step_not_just_each_child(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The failure the per-child clamp did not cover.
+
+    `_run_command` bounds one subprocess. An import-graph subset emits up to
+    four partition commands and takes the execution budget, so before this the
+    step could spend 4 * 150s = 600s inside a container against the ~679s at
+    which a reclaim was measured. That is the original failure on the common
+    path for a Python change, not a tail case, and the PR text had argued it
+    was a tail case on the strength of the Markdown path spawning one child.
+
+    Asserts the aggregate, which is the property that was missing: every child
+    sees a deadline drawn from a total no larger than the container ceiling, so
+    the sum cannot exceed it however many commands there are.
+
+    Caught in review on PR #5319.
+    """
+    monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
+    monkeypatch.setattr(
+        git_hook_policy,
+        "_container_clamped",
+        lambda seconds: min(seconds, git_hook_policy.CONTAINER_SUBPROCESS_CEILING_SECONDS),
+    )
+    seen: list[float] = []
+
+    def fake_run_command(args: Any, repo_root: Any, **kwargs: Any):
+        seen.append(kwargs["timeout_seconds"])
+        return subprocess.CompletedProcess(list(args), 0, "", "")
+
+    monkeypatch.setattr(git_hook_policy, "_run_command", fake_run_command)
+    monkeypatch.setattr(git_hook_policy, "_print_process_output", lambda result: None)
+
+    assert git_hook_policy.run_pytest(tmp_path) == 0
+    assert len(seen) > 1, (
+        "this test needs a multi-command set to say anything; the opt-in path "
+        "should emit the executing partitions."
+    )
+    ceiling = git_hook_policy.CONTAINER_SUBPROCESS_CEILING_SECONDS
+    assert seen[0] <= ceiling, (
+        f"the first child got {seen[0]}s against a {ceiling}s container "
+        "ceiling, so the aggregate was not clamped and the step can outlive "
+        "the container across several children."
+    )
+
+
 def test_run_pytest_budget_exhaustion_emits_exhaustion_message(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1063,6 +1111,7 @@ def test_run_pytest_budget_exhaustion_emits_exhaustion_message(
     # Suite-budget semantics live on the executing partition set; the
     # default pre-push path builds one collection command (ADR-104).
     monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
+    monkeypatch.setattr(git_hook_policy, "_container_clamped", lambda seconds: seconds)
     budget = git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
     # Use almost all the budget for the first command, leaving 10s for the
     # second.  Simulate the second command timing out (returncode 3).
@@ -1200,7 +1249,7 @@ _PRE_PUSH_HOOK = """#!/bin/sh
 exec {interpreter} "$0.py"
 """
 
-_PRE_PUSH_HOOK_PY = '''
+_PRE_PUSH_HOOK_PY = """
 import sys
 from pathlib import Path
 
@@ -1212,7 +1261,7 @@ codes = [
     git_hook_policy._check_non_fast_forward(ref, Path({work!r})) for ref in refs
 ]
 sys.exit(1 if any(codes) else 0)
-'''
+"""
 
 
 def _install_non_fast_forward_hook(repo: Path) -> None:
