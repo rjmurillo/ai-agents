@@ -118,6 +118,12 @@ class TestCodeIsSkipped:
     def test_shorter_fence_does_not_close_a_longer_one(self) -> None:
         assert kinds("````\n```\nrobust\n```\n````\n") == []
 
+    def test_stray_backticks_do_not_swallow_the_prose_between_them(self) -> None:
+        # Two lone backticks paragraphs apart used to pair and blank
+        # everything between, so a run missed real tells and exited 0.
+        text = "Use a ` here.\n\nA robust design.\n\nAnd a ` there.\n"
+        assert kinds(text) == ["banned_word"]
+
     def test_inline_span_wrapped_across_a_line_break_is_skipped(self) -> None:
         # A document that documents these tells wraps its examples.
         text = "Openers: `Honestly,` / `In today's\nlandscape`. Delete them.\n"

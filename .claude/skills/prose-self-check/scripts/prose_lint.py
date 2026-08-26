@@ -72,7 +72,11 @@ _TOKEN = re.compile(r"[A-Za-z]+(?:['-][A-Za-z]+)*")
 _NON_PROSE_NEIGHBORS = frozenset("/_>=\\")
 
 _FENCE = re.compile(r"^[ \t]*(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
-_INLINE_CODE = re.compile(r"`[^`]*`", re.DOTALL)
+# A code span may wrap one line but never spans a paragraph break. With
+# DOTALL and no bound, two stray backticks paragraphs apart paired and
+# blanked everything between them, so a run could miss an em dash and
+# still exit 0.
+_INLINE_CODE = re.compile(r"`(?:[^`\n]|\n(?!\n))*`")
 
 # Layer 2 structural tells. Each pattern targets one shape SKILL.md names.
 # A clause gap may cross one hard wrap but never a paragraph break, so a tell
