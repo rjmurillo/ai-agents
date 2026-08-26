@@ -5,10 +5,14 @@ the check: each mutant reverts one defect this gate is supposed to stop, and
 the #5205 regression suite has to come back red. If it does not, those tests
 are decoration.
 
-Fifteen mutants and one inverted control. Two revert the defects #5205
-reported; thirteen revert defects found by review of this PR, which are as much
-part of the contract as the originals. Each mutant carries its own banner and
-docstring at the point of definition, so the inventory here stays a table:
+Seventeen mutants and one inverted control, split across two files by
+number when the combined module crossed 500 lines: M4 through M12 and the
+inverted control here, M13 through M20 in
+``test_mutate_adr_debate_evidence_exit_paths.py``. Two revert the defects
+#5205 reported; fifteen revert defects found by review of this PR, which are
+as much part of the contract as the originals. Each mutant carries its own
+banner and docstring at the point of definition, so the inventory here stays
+a table naming the whole set, not just this file's half:
 
 ===== ======== ==================================================
  Id    Source   Reverts
@@ -28,6 +32,8 @@ docstring at the point of definition, so the inventory here stays a table:
  M16   review   the regular-file tri-state to a bare boolean
  M17   review   the Unicode format-character folding
  M18   review   the read-failure and decode-failure split
+ M19   review   the tri-state discriminator to "only 128 is unknown"
+ M20   review   the discarded git diagnostic on a failed blob read
  IC    control  nothing; a comment only, and MUST survive
 ===== ======== ==================================================
 
@@ -82,10 +88,8 @@ def test_m4_evidence_check_removed_is_detected(scratch_worktree: Path) -> None:
 # ---------------------------------------------------------------------------
 
 _M5_ORIGINAL = (
-    b"    return {\n"
-    b"        staged for staged in adr_ids"
-    b" if _normalized_record_number(staged) not in covered\n"
-    b"    }\n"
+    b"    return {staged for staged in adr_ids if _normalized_record_number(staged) not in "
+    b"covered}\n"
 )
 _M5_MUTANT = (
     b"    # M5 mutant: any() semantics restored\n"
@@ -178,7 +182,9 @@ _M9_ORIGINAL = b"""    lines = content.splitlines()
 _M9_MUTANT = b"""    lines = content.splitlines()
     if any(  # M9 mutant: unbounded positions-table fallback restored
         candidate.lstrip().startswith("|")
-        and DEBATE_LOG_ROLE_RE.search(candidate)
+        and re.search(
+            "|".join(rf"\\b{role}\\b" for role in DEBATE_LOG_ROLES), candidate, re.IGNORECASE
+        )
         and DEBATE_LOG_DECISION_RE.search(candidate)
         for candidate in lines
     ):
@@ -268,141 +274,6 @@ def test_m12_exact_placeholder_matching_is_detected(scratch_worktree: Path) -> N
 
 
 # ---------------------------------------------------------------------------
-# M13: narrow the placeholder whitespace class back to ASCII, restoring the
-# fail-open a review found on PR #5308
-# ---------------------------------------------------------------------------
-
-_M13_ORIGINAL = b'DEBATE_LOG_PLACEHOLDER_SPACING_RE = re.compile(r"[^\\S\\r\\n]+")\n'
-_M13_MUTANT = (
-    b"# M13 mutant: only ASCII space and tab collapse\n"
-    b'DEBATE_LOG_PLACEHOLDER_SPACING_RE = re.compile(r"[ \\t]+")\n'
-)
-
-
-@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
-def test_m13_ascii_only_whitespace_normalization_is_detected(scratch_worktree: Path) -> None:
-    """One U+00A0 before each closing bracket cleared the unfilled template."""
-    original = (REPO_ROOT / _TARGET_REL).read_bytes()
-    outcome = _apply_positive_mutant(
-        scratch_worktree, original, _M13_ORIGINAL, _M13_MUTANT, "M13-ascii-whitespace"
-    )
-    assert outcome == _OUTCOME_DEAD
-    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M13"
-
-
-# ---------------------------------------------------------------------------
-# M14: collapse the external failure back into the logic exit code
-# ---------------------------------------------------------------------------
-
-# Anchored on the comment above it: bare ``return 3`` occurs four times in the
-# module, and the harness's ambiguity guard rejected the unanchored pattern
-# rather than mutating an unrelated exit. That guard working is why this is a
-# two-line pattern.
-_M14_ORIGINAL = b"        # are all judgements about staged evidence.\n        return 3\n"
-_M14_MUTANT = (
-    b"        # are all judgements about staged evidence.\n"
-    b"        return 1  # M14 mutant: git failure reported as a logic violation\n"
-)
-
-
-@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
-def test_m14_external_failure_exit_code_is_detected(scratch_worktree: Path) -> None:
-    """AGENTS.md:50 reserves 3 for external failures; this gate is a CLI handler."""
-    original = (REPO_ROOT / _TARGET_REL).read_bytes()
-    outcome = _apply_positive_mutant(
-        scratch_worktree, original, _M14_ORIGINAL, _M14_MUTANT, "M14-exit-code-class"
-    )
-    assert outcome == _OUTCOME_DEAD
-    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M14"
-
-
-# ---------------------------------------------------------------------------
-# M15: stop resolving markdown escapes and invisible characters, restoring the
-# fourth and fifth defeats of the placeholder check
-# ---------------------------------------------------------------------------
-
-_M15_ORIGINAL = b'    unescaped = DEBATE_LOG_PLACEHOLDER_ESCAPE_RE.sub(r"\\1", visible)\n'
-_M15_MUTANT = b"    unescaped = visible  # M15 mutant: markdown escapes survive\n"
-
-
-@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
-def test_m15_unresolved_markdown_escapes_are_detected(scratch_worktree: Path) -> None:
-    """`\\]` renders as `]`, so the template reads as shipped and matches nothing."""
-    original = (REPO_ROOT / _TARGET_REL).read_bytes()
-    outcome = _apply_positive_mutant(
-        scratch_worktree, original, _M15_ORIGINAL, _M15_MUTANT, "M15-markdown-escapes"
-    )
-    assert outcome == _OUTCOME_DEAD
-    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M15"
-
-
-# ---------------------------------------------------------------------------
-# M16: collapse the per-path regular-file tri-state back into a boolean
-# ---------------------------------------------------------------------------
-
-_M16_ORIGINAL = b"    if result.returncode == GIT_FATAL_RETURNCODE:\n"
-_M16_MUTANT = b"    if False:  # M16 mutant: a failed ls-files reads as a non-regular file\n"
-
-
-@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
-def test_m16_regular_file_query_failure_collapsed_is_detected(scratch_worktree: Path) -> None:
-    """A broken ls-files must not be reported as a staged symlink."""
-    original = (REPO_ROOT / _TARGET_REL).read_bytes()
-    outcome = _apply_positive_mutant(
-        scratch_worktree, original, _M16_ORIGINAL, _M16_MUTANT, "M16-regular-file-tristate"
-    )
-    assert outcome == _OUTCOME_DEAD
-    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M16"
-
-
-# ---------------------------------------------------------------------------
-# M17: stop dropping Unicode format characters. M15 only removed the escape
-# resolution, so the zero-width and soft-hyphen cases had no mutant of their
-# own and could not prove they detect anything. Found by review.
-# ---------------------------------------------------------------------------
-
-_M17_ORIGINAL = b'    visible = "".join(\n'
-_M17_MUTANT = (
-    b'    visible = text  # M17 mutant: invisible characters survive\n    _unused = "".join(\n'
-)
-
-
-@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
-def test_m17_invisible_characters_surviving_is_detected(scratch_worktree: Path) -> None:
-    """Zero-width space and soft hyphen render as nothing and cleared the gate."""
-    original = (REPO_ROOT / _TARGET_REL).read_bytes()
-    outcome = _apply_positive_mutant(
-        scratch_worktree, original, _M17_ORIGINAL, _M17_MUTANT, "M17-format-characters"
-    )
-    assert outcome == _OUTCOME_DEAD
-    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M17"
-
-
-# ---------------------------------------------------------------------------
-# M18: collapse a blob git would not produce back into the decode failure
-# ---------------------------------------------------------------------------
-
-_M18_ORIGINAL = b"        if blob is None:\n            unreadable.append(path)\n"
-_M18_MUTANT = (
-    b"        if blob is None:\n"
-    b"            undecodable.append(path)  # M18 mutant: git failure reads as bad bytes\n"
-)
-
-
-@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
-def test_m18_read_failure_collapsed_into_decode_failure_is_detected(
-    scratch_worktree: Path,
-) -> None:
-    """A blob git will not produce is external, not the committer's mojibake."""
-    original = (REPO_ROOT / _TARGET_REL).read_bytes()
-    outcome = _apply_positive_mutant(
-        scratch_worktree, original, _M18_ORIGINAL, _M18_MUTANT, "M18-read-vs-decode"
-    )
-    assert outcome == _OUTCOME_DEAD
-    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M18"
-
-
-# ---------------------------------------------------------------------------
 # IC: comment-only change; the suite MUST survive it
 # ---------------------------------------------------------------------------
 
@@ -434,9 +305,14 @@ def _tests_running_the_inner_suite() -> list[str]:
 
 
 def test_every_inner_suite_test_raises_the_outer_timeout() -> None:
-    """Report the scope alongside the finding (testing.md MUST 10)."""
+    """Report the scope alongside the finding (testing.md MUST 10).
+
+    This file's own guard, covering M4 through M12 plus the inverted control.
+    ``test_mutate_adr_debate_evidence_exit_paths.py`` carries the sibling
+    guard for M13 through M20.
+    """
     names = _tests_running_the_inner_suite()
-    assert len(names) == 16, f"Expected 16 inner-suite tests, discovered {len(names)}: {names}"
+    assert len(names) == 10, f"Expected 10 inner-suite tests, discovered {len(names)}: {names}"
 
     unmarked = [
         name

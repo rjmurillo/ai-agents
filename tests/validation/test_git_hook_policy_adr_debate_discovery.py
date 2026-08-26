@@ -211,6 +211,70 @@ def test_a_path_missing_from_the_index_is_still_not_a_regular_file(
     assert policy._staged_regular_file_state(adr_debate_repo, "no-such-file.md") is False
 
 
+def test_a_failed_blob_read_preserves_gits_own_diagnostic(
+    adr_debate_repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The committer sees git's actual stderr, not a generic claim about it.
+
+    `_read_index_blob` discarded `git show`'s stderr on every nonzero result,
+    so the message this gate prints ("the git query failed") had nothing to
+    point at: a timeout, a permission failure, and a damaged index all
+    produced the same generic text. Found by review.
+
+    A specific, recognisable stderr string is asserted, not just "something
+    non-empty", so a future regression back to discarding it fails loudly
+    rather than passing on an empty string surviving into the output.
+    """
+    _edit(adr_debate_repo, ADR_42, "Rewritten decision text.")
+    _git(adr_debate_repo, "add", ADR_42)
+    _stage_log(adr_debate_repo, "ADR-042-debate-log.md", GENUINE_LOG)
+
+    real_run = policy._run_git_bytes
+
+    def fail_with_a_specific_diagnostic(root: Path, args: list[str]) -> object:
+        if args[:1] == ["show"]:
+            return subprocess.CompletedProcess(args, 1, b"", b"fatal: unable to read sha1 file\n")
+        return real_run(root, args)
+
+    monkeypatch.setattr(policy, "_run_git_bytes", fail_with_a_specific_diagnostic)
+
+    assert policy.check_adr_review_policy([ADR_42], adr_debate_repo) == 3
+    assert "fatal: unable to read sha1 file" in capsys.readouterr().err
+
+
+def test_a_regular_file_query_timeout_is_not_read_as_absent(
+    adr_debate_repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A timed-out ls-files must not be reported as a staged symlink.
+
+    `_run_command` synthesizes exit 3 for a timeout or a failed process start
+    (issue #4217), not 128. The tri-state discriminator originally checked
+    only for 128, so a timeout fell through to the "not a regular file"
+    branch and the committer's genuine log was accused of being a symlink.
+    Found by review.
+    """
+    _edit(adr_debate_repo, ADR_42, "Rewritten decision text.")
+    _git(adr_debate_repo, "add", ADR_42)
+    _stage_log(adr_debate_repo, "ADR-042-debate-log.md", GENUINE_LOG)
+
+    real_run = policy._run_git
+
+    def time_out_ls_files(root: Path, args: list[str]) -> object:
+        if args[:1] == ["ls-files"]:
+            return subprocess.CompletedProcess(args, 3, "", "TIMEOUT after 15.0s: git ls-files\n")
+        return real_run(root, args)
+
+    monkeypatch.setattr(policy, "_run_git", time_out_ls_files)
+
+    assert policy.check_adr_review_policy([ADR_42], adr_debate_repo) == 3
+    error = capsys.readouterr().err
+    assert "TIMEOUT" in error
+    assert "symlink" not in error, (
+        "a timed-out query must not be reported as a non-regular file; the "
+        "committer staged a genuine log"
+    )
+
+
 def test_deleting_the_only_log_still_requires_one(
     adr_debate_repo: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -308,10 +372,17 @@ def test_an_unreadable_staged_log_cannot_satisfy_coverage(
     _git(adr_debate_repo, "add", ADR_42)
     _stage_log(adr_debate_repo, "ADR-042-debate-log.md", GENUINE_LOG)
 
-    monkeypatch.setattr(policy, "_read_index_blob", lambda *_args, **_kwargs: None)
+    real_run = policy._run_git_bytes
 
-    # 3: `_read_index_blob` returning None means git would not produce the
-    # blob, which says nothing about the committer's evidence.
+    def fail_the_blob_read(root: Path, args: list[str]) -> object:
+        if args[:1] == ["show"]:
+            return subprocess.CompletedProcess(args, 1, b"", b"fatal: bad object\n")
+        return real_run(root, args)
+
+    monkeypatch.setattr(policy, "_run_git_bytes", fail_the_blob_read)
+
+    # 3: a `git show` that will not produce the blob says nothing about the
+    # committer's evidence.
     assert policy.check_adr_review_policy([ADR_42], adr_debate_repo) == 3
     # Assert the reason, not just the exit code. Before unreadable logs were
     # reported, this blocked only as a side effect of supplying no coverage,
@@ -338,12 +409,14 @@ def test_an_unreadable_log_blocks_even_when_a_sibling_covers_every_id(
     good = _stage_log(adr_debate_repo, "ADR-042-debate-log.md", GENUINE_LOG)
     bad = _stage_log(adr_debate_repo, "ADR-042-second-debate.md", GENUINE_LOG)
 
-    real_read = policy._read_index_blob
+    real_run = policy._run_git_bytes
 
-    def only_the_second_log_fails(root: Path, relative: str) -> bytes | None:
-        return None if relative == bad else real_read(root, relative)
+    def only_the_second_log_fails(root: Path, args: list[str]) -> object:
+        if args[:1] == ["show"] and args[1] == f":{bad}":
+            return subprocess.CompletedProcess(args, 1, b"", b"fatal: bad object\n")
+        return real_run(root, args)
 
-    monkeypatch.setattr(policy, "_read_index_blob", only_the_second_log_fails)
+    monkeypatch.setattr(policy, "_run_git_bytes", only_the_second_log_fails)
 
     # The sibling is genuinely sufficient on its own, so this fails open unless
     # the unreadable log is reported rather than skipped.

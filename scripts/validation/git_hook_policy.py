@@ -201,12 +201,6 @@ DEBATE_LOG_ROLES = (
     "analyst",
     "high-level-advisor",
 )
-# Word-bounded. Without \b, "the architecture is sound" satisfies "architect"
-# and "securityless" satisfies "security", so prose about the subject matter
-# would stand in for a named reviewer.
-DEBATE_LOG_ROLE_RE = re.compile(
-    "|".join(rf"\b{role}\b" for role in DEBATE_LOG_ROLES), re.IGNORECASE
-)
 # "agents?" is here because the canonical template in
 # .claude/skills/adr-review/references/artifacts.md labels its roster "Agent
 # Positions", so without it the gate rejects a log written to the document its
@@ -676,9 +670,7 @@ _GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
 # Format: __{sanitized}_{6-hex-digest} or just __{6-hex-digest} before .py.
 # The sanitized segment never contains __ (non-alnum runs collapse to single _),
 # so the last __ in a stem always marks the suffix boundary. Refs #4857.
-_HOOK_MATCHER_SUFFIX_RE = re.compile(
-    r"__(?:(?!__)[A-Za-z0-9_])*[0-9a-f]{6}(?=\.py$)"
-)
+_HOOK_MATCHER_SUFFIX_RE = re.compile(r"__(?:(?!__)[A-Za-z0-9_])*[0-9a-f]{6}(?=\.py$)")
 _PROMPT_OUTPUT_PREFIX = ".github/prompts/pr-quality-gate-"
 _PROMPT_SOURCE_PREFIX = ".claude/skills/review/references/"
 # build/scripts/generate_pr_quality_prompts.py:_FILENAME_RE
@@ -687,9 +679,7 @@ _PROMPT_ROLE_FILE_RE = re.compile(r"^[a-z][a-z0-9_-]*\.md$")
 # Reject every configured name before mirror mapping. Even top-level files that
 # the generator never visits must not gain an exemption merely because a
 # canonical file with the same name is tracked.
-_COPILOT_SKILL_EXCLUDES = frozenset(
-    {"AGENTS.md", "CLAUDE.md", "merge-resolver"}
-)
+_COPILOT_SKILL_EXCLUDES = frozenset({"AGENTS.md", "CLAUDE.md", "merge-resolver"})
 
 # Per-commit atomic file limit (AGENTS.md:24, .claude/rules/universal.md:15).
 # Generated companions (episodes, mcp, agents, memory-index) are exempt.
@@ -1604,6 +1594,8 @@ DEBATE_LOG_PLACEHOLDER_FORMAT_CATEGORY = "Cf"
 DEBATE_LOG_PLACEHOLDER_ESCAPE_RE = re.compile(r"\\([!-/:-@\[-`{-~])")
 DEBATE_LOG_PLACEHOLDER_SPACING_RE = re.compile(r"[^\S\r\n]+")
 DEBATE_LOG_PLACEHOLDER_PUNCTUATION_RE = re.compile(r" ?([\[\]|]) ?")
+
+
 def _normalized_for_placeholders(text: str) -> str:
     """Return ``text`` with the spacing and case a placeholder edit can change.
 
@@ -1728,6 +1720,7 @@ def _staged_debate_log_contents(
     contents: dict[str, str] = {}
     undecodable: list[str] = []
     unreadable: list[str] = []
+    unreadable_diagnostics: dict[str, str] = {}
     for path in debate_logs:
         if not _is_staged_regular_file(repo_root, path):  # pragma: no cover
             # Unreachable from the only caller, which filters through
@@ -1737,10 +1730,12 @@ def _staged_debate_log_contents(
             # hole silently. Carved out per TESTING-RIGOR.md.
             unreadable.append(path)
             continue
-        blob = _read_index_blob(repo_root, path)
-        if blob is None:
+        blob_result = _run_git_bytes(repo_root, ["show", f":{path}"])
+        if blob_result.returncode != 0:
             unreadable.append(path)
+            unreadable_diagnostics[path] = blob_result.stderr.decode("utf-8", errors="replace")
             continue
+        blob = blob_result.stdout
         try:
             # Strict, not errors="replace". Lossy decoding destroys the
             # evidence that the bytes were invalid, and every downstream signal
@@ -1752,12 +1747,13 @@ def _staged_debate_log_contents(
             contents[path] = blob.decode("utf-8")
         except UnicodeDecodeError:
             undecodable.append(path)
-    return contents, undecodable, unreadable
+    return contents, undecodable, unreadable, unreadable_diagnostics
 
 
 def _staged_content_failure(
     undecodable: Sequence[str],
     unreadable: Sequence[str],
+    unreadable_diagnostics: Mapping[str, str],
 ) -> int | None:
     """Return the exit code for a log that could not be turned into text.
 
@@ -1766,10 +1762,16 @@ def _staged_content_failure(
     accusation about work that was never examined.
     """
     if unreadable:
+        # `git show`'s own stderr per path, not a generic claim that it is
+        # "above": a timeout, a permission failure, or a damaged index each
+        # says something different, and the committer needs to know which.
+        for path in sorted(unreadable):
+            diagnostic = unreadable_diagnostics.get(path, "").strip()
+            if diagnostic:
+                print(f"{path}: {diagnostic}", file=sys.stderr)
         names = ", ".join(sorted(unreadable))
         print(
-            f"ERROR: could not read the staged debate log blob; the git query "
-            f"failed: {names}. The output above is git's.",
+            f"ERROR: could not read the staged debate log blob; the git query failed: {names}.",
             file=sys.stderr,
         )
         return 3
@@ -1813,14 +1815,10 @@ def _uncovered_adr_ids(adr_ids: set[str], contents: dict[str, str]) -> set[str]:
     # full coverage made it fatal. Issue #5205.
     covered: set[str] = set()
     for content in contents.values():
-        covered |= {
-            _normalized_record_number(found) for found in _referenced_adr_ids(content)
-        }
+        covered |= {_normalized_record_number(found) for found in _referenced_adr_ids(content)}
     # Compare on the normalized key, report the staged filename form so the
     # error names the id the committer will recognize.
-    return {
-        staged for staged in adr_ids if _normalized_record_number(staged) not in covered
-    }
+    return {staged for staged in adr_ids if _normalized_record_number(staged) not in covered}
 
 
 def _classify_staged_candidates(
@@ -1910,7 +1908,7 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
     if candidates is None:
         print(
             "ERROR: could not list the staged debate logs; the git query failed. "
-            "This is not the same as staging none, and the output above is git's.",
+            "This is not the same as staging none.",
             file=sys.stderr,
         )
         # 3, not 1. This function's return value is the CLI's exit code
@@ -1918,8 +1916,10 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
         # logic violation and 3 for an external failure. Git refusing to answer
         # is external, and collapsing it into 1 tells automation that the
         # committer's evidence was rejected when the truth is that nothing was
-        # ever examined. Every other exit from this gate stays 1, because those
-        # are all judgements about staged evidence.
+        # ever examined. This is one of several exits from this gate that use
+        # 3; `_usable_staged_logs` and `_staged_content_failure` below also
+        # return it for their own failed git queries. What stays 1 is any exit
+        # that is a judgement about staged evidence rather than about git.
         return 3
     debate_logs, candidate_failure = _usable_staged_logs(candidates, repo_root)
     if candidate_failure is not None:
@@ -1931,12 +1931,14 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
         )
         return 1
 
-    contents, undecodable, unreadable = _staged_debate_log_contents(debate_logs, repo_root)
+    contents, undecodable, unreadable, unreadable_diagnostics = _staged_debate_log_contents(
+        debate_logs, repo_root
+    )
 
     # Neither list may be merely skipped: with a covering sibling, skipping
     # clears the gate. They exit differently because they are different
     # failures, external before the committer's own.
-    read_failure = _staged_content_failure(undecodable, unreadable)
+    read_failure = _staged_content_failure(undecodable, unreadable, unreadable_diagnostics)
     if read_failure is not None:
         return read_failure
 
@@ -1957,8 +1959,7 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
         # a log may name ADR-042 while only ADR-005 is missing. The gate now
         # requires every staged id, so the message names what is uncovered.
         print(
-            "ERROR: staged ADR IDs not referenced by any staged debate log: "
-            f"{names}",
+            f"ERROR: staged ADR IDs not referenced by any staged debate log: {names}",
             file=sys.stderr,
         )
         return 1
@@ -3027,7 +3028,7 @@ def _mirror_source(relative_path: str) -> str | None:
     escape the limit, which is a larger hole than the friction it removes.
     """
     if relative_path.startswith(_PROMPT_OUTPUT_PREFIX):
-        role_file = relative_path[len(_PROMPT_OUTPUT_PREFIX):]
+        role_file = relative_path[len(_PROMPT_OUTPUT_PREFIX) :]
         if _PROMPT_ROLE_FILE_RE.fullmatch(role_file):
             return _PROMPT_SOURCE_PREFIX + role_file
         return None
@@ -3040,7 +3041,7 @@ def _mirror_source(relative_path: str) -> str | None:
     for output_prefix, source_prefix, suffix_map in _GENERATED_MIRRORS:
         if not relative_path.startswith(output_prefix):
             continue
-        remainder = relative_path[len(output_prefix):]
+        remainder = relative_path[len(output_prefix) :]
         if suffix_map is not None:
             output_suffix, source_suffix = suffix_map
             if not remainder.endswith(output_suffix):
@@ -3084,11 +3085,16 @@ def _staged_regular_file_state(repo_root: Path, relative_path: str) -> bool | No
             f":(literal){safe_path}",
         ],
     )
-    if result.returncode == GIT_FATAL_RETURNCODE:
+    # 1 alone is a real answer, and the only one: `ls-files --error-unmatch`
+    # documents 1 for a path outside the index. Every other nonzero code is
+    # "could not look", not "looked, not there" -- including a timeout or a
+    # failed process start, which `_run_command` synthesizes as 3 and which
+    # this reached for before falling through to the same bucket as 128.
+    if result.returncode == 1:
+        return False
+    if result.returncode != 0:
         _print_process_output(result, stdout_stream=sys.stderr)
         return None
-    if result.returncode != 0:
-        return False
     fields = result.stdout.partition("\t")[0].split()
     return len(fields) >= 3 and fields[0] in {"100644", "100755"} and fields[2] == "0"
 
@@ -3200,8 +3206,7 @@ def check_atomic_commit(repo_root: Path) -> int:
     authored_count = len(authored)
     if merge_exempt:
         print(
-            f"INFO: {len(merge_exempt)} merge-brought file(s) excluded from "
-            "atomic-commit count.",
+            f"INFO: {len(merge_exempt)} merge-brought file(s) excluded from atomic-commit count.",
             file=sys.stderr,
         )
     if generated:
@@ -6378,16 +6383,12 @@ class _SquashMergeResult:
 
     __slots__ = ("lost_commits", "warning")
 
-    def __init__(
-        self, lost_commits: list[str] | None = None, warning: str | None = None
-    ) -> None:
+    def __init__(self, lost_commits: list[str] | None = None, warning: str | None = None) -> None:
         self.lost_commits = lost_commits
         self.warning = warning
 
 
-def _probe_squash_state(
-    remote_sha: str, local_sha: str, repo_root: Path
-) -> _SquashMergeResult:
+def _probe_squash_state(remote_sha: str, local_sha: str, repo_root: Path) -> _SquashMergeResult:
     """Interrogate git to determine whether a branch was squash-merged.
 
     Returns a result with:
@@ -6405,7 +6406,8 @@ def _probe_squash_state(
 
     # Find merge-base between origin/main and the remote tip.
     base_result = _run_git(
-        repo_root, ["merge-base", "origin/main", remote_sha],
+        repo_root,
+        ["merge-base", "origin/main", remote_sha],
     )
     if base_result.returncode != 0:
         return _SquashMergeResult(
@@ -6416,18 +6418,17 @@ def _probe_squash_state(
     merge_base = base_result.stdout.strip()
     if not merge_base:
         return _SquashMergeResult(
-            warning="merge-base with origin/main is empty. Cannot determine "
-            "squash-merge state."
+            warning="merge-base with origin/main is empty. Cannot determine squash-merge state."
         )
 
     # Files the branch touched relative to the merge-base.
     files_result = _run_git(
-        repo_root, ["diff", "--name-only", merge_base, remote_sha],
+        repo_root,
+        ["diff", "--name-only", merge_base, remote_sha],
     )
     if files_result.returncode != 0:
         return _SquashMergeResult(
-            warning="could not diff branch against merge-base. Cannot "
-            "determine squash-merge state."
+            warning="could not diff branch against merge-base. Cannot determine squash-merge state."
         )
     branch_files = [f for f in files_result.stdout.splitlines() if f.strip()]
     if not branch_files:
@@ -6448,12 +6449,12 @@ def _probe_squash_state(
 
     # Squash-merge confirmed. List commits that will be orphaned.
     lost_result = _run_git(
-        repo_root, ["rev-list", "--oneline", f"origin/main..{local_sha}"],
+        repo_root,
+        ["rev-list", "--oneline", f"origin/main..{local_sha}"],
     )
     if lost_result.returncode != 0:
         return _SquashMergeResult(
-            warning="squash-merge signature detected but could not list "
-            "orphaned commits."
+            warning="squash-merge signature detected but could not list orphaned commits."
         )
     lost = [line for line in lost_result.stdout.splitlines() if line.strip()]
     return _SquashMergeResult(lost_commits=lost if lost else None)
@@ -7127,9 +7128,7 @@ def _pytest_commands_for_subset(repo_root: Path, test_files: Sequence[str]) -> l
             ]
         )
     if pr_autofix:
-        commands.append(
-            [*base, "-m", "not integration", *_abs_test_paths(repo_root, pr_autofix)]
-        )
+        commands.append([*base, "-m", "not integration", *_abs_test_paths(repo_root, pr_autofix)])
     return commands
 
 
@@ -7275,11 +7274,7 @@ def _pushed_workflow_paths(
 
 
 def _select_pushed_workflows(paths: Sequence[str], repo_root: Path) -> list[str]:
-    existing = [
-        path
-        for path in paths
-        if (repo_root / _normalize_ratchet_path(path)).is_file()
-    ]
+    existing = [path for path in paths if (repo_root / _normalize_ratchet_path(path)).is_file()]
     base_ref = _workflow_local_base_ref()
     changed = _pushed_workflow_paths(paths, repo_root, base_ref)
     if changed is None:
@@ -7289,11 +7284,7 @@ def _select_pushed_workflows(paths: Sequence[str], repo_root: Path) -> list[str]
             file=sys.stderr,
         )
         return existing
-    return [
-        path
-        for path in existing
-        if _normalize_ratchet_path(path) in changed
-    ]
+    return [path for path in existing if _normalize_ratchet_path(path) in changed]
 
 
 def run_workflow_local(paths: Sequence[str], repo_root: Path) -> int:
