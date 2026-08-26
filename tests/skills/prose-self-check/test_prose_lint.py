@@ -113,6 +113,15 @@ class TestCodeIsSkipped:
     def test_prose_after_a_closed_fence_is_checked(self) -> None:
         assert kinds("```\nrobust\n```\n\nA robust claim.\n") == ["banned_word"]
 
+    def test_marker_indented_four_spaces_is_not_a_fence(self) -> None:
+        # CommonMark: four spaces makes it an indented code block, so the
+        # backticks are literal. Treating it as a fence started masking and
+        # hid the prose after it. The sibling fence script bounds it the same.
+        assert kinds("Text.\n\n    ```\n\nA robust design.\n") == ["banned_word"]
+
+    def test_marker_indented_three_spaces_is_still_a_fence(self) -> None:
+        assert kinds("Text.\n\n   ```\nA robust design.\n") == ["unterminated_fence"]
+
     def test_shorter_fence_does_not_close_a_longer_one(self) -> None:
         assert kinds("````\n```\nrobust\n```\n````\n") == []
 

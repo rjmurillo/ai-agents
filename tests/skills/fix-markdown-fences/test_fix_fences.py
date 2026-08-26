@@ -10,6 +10,8 @@ exit-code contract SKILL.md documents (claude-agents MUST-7).
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -20,6 +22,8 @@ if TESTS_SKILLS_DIR not in sys.path:
     sys.path.insert(0, TESTS_SKILLS_DIR)
 
 from claude_skills_import import import_skill_script
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 mod = import_skill_script(".claude/skills/fix-markdown-fences/scripts/fix_fences.py")
 repair_markdown_fences = mod.repair_markdown_fences
@@ -308,3 +312,54 @@ class TestOutput:
         assert payload["defect_count"] == 1
         assert payload["repaired"] == []
         assert payload["files"][str(bad)][0]["kind"] == MALFORMED_CLOSING
+
+class TestVendoredInvocation:
+    """The command SKILL.md tells the agent to run, executed as shipped.
+
+    The other tests import the canonical module. This one runs the generated
+    plugin artifact as a subprocess from a directory that is not the repo,
+    which is the only shape that proves the documented invocation works in a
+    consumer install. The negative control pins that the bare relative path
+    the invocation replaced does not.
+    """
+
+    PLUGIN_REL = "skills/fix-markdown-fences/scripts/fix_fences.py"
+
+    def _consumer(self, tmp_path: Path) -> Path:
+        workdir = tmp_path / "consumer"
+        workdir.mkdir()
+        (workdir / "doc.md").write_text("```py\nx\n```py\ny\n```\n", encoding="utf-8")
+        return workdir
+
+    @pytest.mark.parametrize("root_var", ["CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT"])
+    def test_plugin_root_form_runs_from_a_foreign_cwd(
+        self, tmp_path: Path, root_var: str
+    ) -> None:
+        tree = ".claude" if root_var == "CLAUDE_PLUGIN_ROOT" else "src/copilot-cli"
+        plugin_root = PROJECT_ROOT / tree
+        script = plugin_root / self.PLUGIN_REL
+        assert script.is_file(), f"plugin artifact missing: {script}"
+        env = {**os.environ, root_var: str(plugin_root)}
+        result = subprocess.run(
+            [sys.executable, str(script), "doc.md"],
+            cwd=self._consumer(tmp_path),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert result.returncode == 1, result.stderr
+        assert "malformed_closing" in result.stdout
+
+    def test_bare_relative_path_fails_from_a_foreign_cwd(self, tmp_path: Path) -> None:
+        # The negative control: this is the form the SKILL.md invocation
+        # replaced, and it is exactly what breaks in a consumer install.
+        result = subprocess.run(
+            [sys.executable, f".claude/{self.PLUGIN_REL}", "doc.md"],
+            cwd=self._consumer(tmp_path),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert result.returncode != 0
+        assert "No such file" in result.stderr or "can't open file" in result.stderr
