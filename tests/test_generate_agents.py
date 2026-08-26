@@ -330,6 +330,11 @@ class TestGenerateAgents:
 
         copilot_content = copilot_file.read_text(encoding="utf-8")
         assert "name: test-agent" in copilot_content
+        # ADR-080 rule 5 / issue #5313: the fixture's legacy platform default
+        # is the retired claude-opus-4.5 pin that broke every un-overridden
+        # agent. The unfixed generator would copy it straight into the
+        # output; the fix must drop it instead of ever emitting it.
+        assert "model:" not in copilot_content
 
     def test_rejects_non_allowlisted_agent_output_directory(
         self, tmp_path: Path
