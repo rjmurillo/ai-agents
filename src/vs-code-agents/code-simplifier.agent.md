@@ -7,7 +7,6 @@ tools:
   - edit
   - search
   - execute
-model: Claude Sonnet 4.6 (copilot)
 role: support
 ---
 

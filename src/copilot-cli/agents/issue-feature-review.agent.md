@@ -12,7 +12,6 @@ tools:
   - github/list_commits
   - cloudmcp-manager/*
   - serena/*
-model: claude-sonnet-4.6
 role: coordinator
 ---
 
