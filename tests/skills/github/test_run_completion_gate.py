@@ -3279,3 +3279,190 @@ class TestTrackedSubset:
 
         assert tracked == set()
         assert "git ls-files failed" in error
+
+
+class TestInstallTrustedRoot:
+    """Unit coverage for _install_trusted_root (issue #5112, Option 1).
+
+    The subprocess-level behavior lives in
+    tests/test_run_completion_gate_install.py, which exercises the real
+    installed-plugin layout. These cover the helper's individual
+    conditions, including the ones that arrangement cannot isolate.
+
+    _PROJECT_ROOT is resolved at import time to this repository, so a
+    tmp_path root is outside it, which is exactly condition 3's
+    "not at or under the project root".
+    """
+
+    def _config_in(self, root, name="pr-review-config.yaml"):
+        root.mkdir(parents=True, exist_ok=True)
+        config = root / name
+        config.write_text("completion_criteria: []\n", encoding="utf-8")
+        return config
+
+    def test_unset_environment_install_trusts_nothing(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        config = self._config_in(tmp_path / "plugin")
+
+        assert _dispatcher._install_trusted_root(str(config)) is None
+
+    @pytest.mark.parametrize(
+        "env_var", ["CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT"],
+    )
+    def test_either_host_variable_install_trusts(
+        self, tmp_path, monkeypatch, env_var,
+    ):
+        monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        root = tmp_path / "plugin"
+        config = self._config_in(root / "commands")
+        monkeypatch.setenv(env_var, str(root))
+
+        assert _dispatcher._install_trusted_root(str(config)) == root.resolve()
+
+    def test_empty_and_whitespace_values_are_ignored(self, tmp_path, monkeypatch):
+        """An exported-but-empty variable is not a declaration.
+
+        Hosts and CI commonly export a variable with no value; treating
+        that as a plugin root would resolve Path("") to the cwd.
+        """
+        root = tmp_path / "plugin"
+        config = self._config_in(root / "commands")
+        monkeypatch.setenv("COPILOT_PLUGIN_ROOT", "   ")
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", "")
+
+        assert _dispatcher._install_trusted_root(str(config)) is None
+
+    def test_a_root_that_is_not_a_directory_is_ignored(self, tmp_path, monkeypatch):
+        root = tmp_path / "plugin"
+        config = self._config_in(root / "commands")
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(tmp_path / "does-not-exist"))
+
+        assert _dispatcher._install_trusted_root(str(config)) is None
+
+    def test_a_root_inside_the_project_root_is_refused(self, monkeypatch):
+        """Condition 3: the PR-controlled in-repo fallback never widens.
+
+        Uses the live project root, so this asserts the real containment
+        the gate applies rather than a stand-in.
+        """
+        in_repo_root = _dispatcher._PROJECT_ROOT / ".claude"
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(in_repo_root))
+        config = in_repo_root / "commands" / "pr-review-config.yaml"
+
+        assert _dispatcher._install_trusted_root(str(config)) is None
+
+    def test_the_project_root_itself_is_refused(self, monkeypatch):
+        """_is_within is true for root == root, so the repo itself is out."""
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(_dispatcher._PROJECT_ROOT))
+        config = _dispatcher._PROJECT_ROOT / "pyproject.toml"
+
+        assert _dispatcher._install_trusted_root(str(config)) is None
+
+    def test_a_config_outside_the_declared_root_is_refused(
+        self, tmp_path, monkeypatch,
+    ):
+        """Condition 4: declaring a root does not bless every path."""
+        root = tmp_path / "plugin"
+        root.mkdir(parents=True)
+        elsewhere = self._config_in(tmp_path / "elsewhere")
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+
+        assert _dispatcher._install_trusted_root(str(elsewhere)) is None
+
+    def test_a_symlink_escaping_the_root_is_refused(self, tmp_path, monkeypatch):
+        """Condition 4 resolves before containment (CWE-59)."""
+        root = tmp_path / "plugin"
+        (root / "commands").mkdir(parents=True)
+        target = self._config_in(tmp_path / "outside")
+        link = root / "commands" / "linked.yaml"
+        link.symlink_to(target)
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+
+        assert _dispatcher._install_trusted_root(str(link)) is None
+
+    def test_a_symlink_within_the_root_is_still_trusted(self, tmp_path, monkeypatch):
+        """The refusal is about escaping, not about links as such.
+
+        A link whose target is also install-controlled stays inside the
+        operator's own directory, so nothing PR-controlled is reached.
+        """
+        root = tmp_path / "plugin"
+        target = self._config_in(root / "real")
+        (root / "commands").mkdir(parents=True)
+        link = root / "commands" / "linked.yaml"
+        link.symlink_to(target)
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+
+        assert _dispatcher._install_trusted_root(str(link)) == root.resolve()
+
+    def test_copilot_root_is_consulted_before_claude_root(
+        self, tmp_path, monkeypatch,
+    ):
+        """Order matches resolve_pr_review_config's own precedence.
+
+        That command reads
+        ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}, so when
+        both are set and only one contains the config, the Copilot root
+        is the one that decides.
+        """
+        copilot_root = tmp_path / "copilot"
+        claude_root = tmp_path / "claude"
+        claude_root.mkdir(parents=True)
+        config = self._config_in(copilot_root / "commands")
+        monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(copilot_root))
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(claude_root))
+
+        assert _dispatcher._install_trusted_root(str(config)) == copilot_root.resolve()
+
+    def test_a_relative_config_resolves_against_the_cwd(
+        self, tmp_path, monkeypatch,
+    ):
+        """--config may be relative; the gate must resolve it the same way."""
+        root = tmp_path / "plugin"
+        self._config_in(root / "commands")
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        monkeypatch.chdir(root / "commands")
+
+        assert _dispatcher._install_trusted_root("pr-review-config.yaml") == root.resolve()
+
+
+class TestEnforceConfigTrustInstallTrusted:
+    """_enforce_config_trust short-circuits only on an install-trusted root."""
+
+    def test_install_root_proceeds_without_git_verification(self, tmp_path, monkeypatch):
+        """No _run_git call may happen: there is nothing to verify against."""
+        def _explode(*args, **kwargs):  # pragma: no cover - must not run
+            raise AssertionError("git must not run for an install-trusted config")
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _explode)
+
+        trust, halt = _dispatcher._enforce_config_trust(
+            tmp_path / "pr-review-config.yaml",
+            "origin/main",
+            False,
+            b"completion_criteria: []\n",
+            tmp_path,
+        )
+
+        assert halt is None
+        assert trust.status == _dispatcher.TRUST_INSTALL_TRUSTED
+        assert "install-trusted" in trust.detail
+
+    def test_without_install_root_verification_still_runs(self, tmp_path, monkeypatch):
+        """Negative control: the short-circuit is gated on the argument.
+
+        Without it the malformed-ref check is reached and returns exit 2,
+        proving the branch above is not simply always taken.
+        """
+        trust, halt = _dispatcher._enforce_config_trust(
+            tmp_path / "pr-review-config.yaml",
+            "--not-a-ref",
+            False,
+            b"completion_criteria: []\n",
+            None,
+        )
+
+        assert halt == 2
+        assert trust.status == _dispatcher.TRUST_MALFORMED_REF
