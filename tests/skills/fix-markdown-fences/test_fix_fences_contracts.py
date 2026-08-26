@@ -350,10 +350,10 @@ class TestScannerParity:
     @pytest.mark.parametrize("seed", sorted(FUZZ_BASELINE))
     def test_divergence_matches_baseline(self, seed: int) -> None:
         documents = random_documents(seed)
-        # An independent literal on purpose. Comparing against FUZZ_DOCUMENTS
-        # is self-referential: `random_documents` defaults `count` to it, so
-        # setting it to zero makes both sides zero and turns the ratchet below
-        # into a no-op that still passes.
+        # Pin the scope with an independent literal, on purpose. Comparing
+        # only against FUZZ_DOCUMENTS is self-referential: `random_documents`
+        # defaults `count` to it, so setting it to zero makes both sides zero
+        # and turns the ratchet below into a no-op that still passes.
         assert len(documents) == 2000 == FUZZ_DOCUMENTS
         diverged = [
             text

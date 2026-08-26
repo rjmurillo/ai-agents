@@ -456,14 +456,12 @@ class TestCommonMarkFuzz:
     """
 
     @pytest.mark.parametrize("seed", sorted(FUZZ_BASELINE))
-    def test_divergence_stays_at_or_below_baseline(self, seed: int) -> None:
+    def test_divergence_matches_baseline(self, seed: int) -> None:
         documents = random_documents(seed)
-        # Pin the scope. Without this, dropping FUZZ_DOCUMENTS to zero passes
-        # every seed with zero divergences and the coverage silently vanishes.
-        # An independent literal on purpose. Comparing against FUZZ_DOCUMENTS
-        # is self-referential: `random_documents` defaults `count` to it, so
-        # setting it to zero makes both sides zero and turns the ratchet below
-        # into a no-op that still passes.
+        # Pin the scope with an independent literal, on purpose. Comparing
+        # only against FUZZ_DOCUMENTS is self-referential: `random_documents`
+        # defaults `count` to it, so setting it to zero makes both sides zero
+        # and turns the ratchet below into a no-op that still passes.
         assert len(documents) == 2000 == FUZZ_DOCUMENTS
         diverged = [text for text in documents if oracle_fence_lines(text) != _masked_lines(text)]
         # Equality, not at-or-below. `tests/ci/test_cli_exit_contract_ratchet.py`
