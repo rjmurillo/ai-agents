@@ -29,7 +29,7 @@ def _create_test_structure(
     """Create a minimal test directory structure for agent generation.
 
     ``with_model_tiers=True`` adds a ``model_tiers`` map to the vscode
-    platform config, matching real templates/platforms/vscode.yaml:18-21;
+    platform config, matching real templates/platforms/vscode.yaml:20-23;
     the default (False) preserves every existing caller's plain config,
     since a manifest-pin test is the only kind that needs it (a manifest
     entry's id can't reach a formatted output without one -- see
