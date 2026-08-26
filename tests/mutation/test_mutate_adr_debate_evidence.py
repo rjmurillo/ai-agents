@@ -5,8 +5,8 @@ the check: each mutant reverts one defect this gate is supposed to stop, and
 the #5205 regression suite has to come back red. If it does not, those tests
 are decoration.
 
-Eleven mutants and one inverted control. Two revert the defects #5205
-reported; nine revert defects found by review of this PR, which are as much
+Thirteen mutants and one inverted control. Two revert the defects #5205
+reported; eleven revert defects found by review of this PR, which are as much
 part of the contract as the originals. Each mutant carries its own banner and
 docstring at the point of definition, so the inventory here stays a table:
 
@@ -24,6 +24,8 @@ docstring at the point of definition, so the inventory here stays a table:
  M12   review   placeholder matching to exact literals
  M13   review   the whitespace class to ASCII space and tab
  M14   review   the external exit code to the logic one
+ M15   review   markdown-escape and invisible-character folding
+ M16   review   the regular-file tri-state to a bare boolean
  IC    control  nothing; a comment only, and MUST survive
 ===== ======== ==================================================
 
@@ -41,140 +43,19 @@ different defects; the repository already keys mutation harnesses by issue.
 from __future__ import annotations
 
 import ast
-import os
-import subprocess
-import sys
-from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
-from scripts.testing.mutation_workspace import isolated_mutation_worktree
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-_TARGET_REL = Path("scripts") / "validation" / "git_hook_policy.py"
-# The two defects are only observable through the suite written for #5205.
-# Both halves of the split suite. The boundary module is not optional here:
-# M6's killer, test_invalid_utf8_bytes_do_not_inflate_toward_the_byte_floor,
-# lives there, so running only the sibling would report M6 SURVIVED.
-_TESTS = [
-    "tests/validation/test_git_hook_policy_adr_debate_evidence.py",
-    "tests/validation/test_git_hook_policy_adr_debate_boundaries.py",
-    "tests/validation/test_git_hook_policy_adr_debate_mirrors.py",
-    "tests/validation/test_git_hook_policy_adr_debate_discovery.py",
-]
-
-_OUTCOME_DEAD = "DEAD"
-_OUTCOME_SURVIVED = "SURVIVED"
-_OUTCOME_DID_NOT_APPLY = "DID-NOT-APPLY"
-
-# Same ordering contract as the sibling harness: the outer cap MUST exceed the
-# inner one, or pytest-timeout interrupts inside subprocess.communicate and the
-# failure names no command (issue #5102). The inner suite here is
-# four files of 62 cases total, well under the sibling's ~943, so these caps
-# carry wide margin.
-_INNER_SUBPROCESS_TIMEOUT_SECONDS = 300
-_OUTER_TEST_TIMEOUT_SECONDS = 360
-
-
-def _run_tests_in(wt_path: Path) -> subprocess.CompletedProcess[str]:
-    pycache = wt_path / "scripts" / "validation" / "__pycache__"
-    if pycache.exists():
-        import shutil
-
-        shutil.rmtree(pycache)
-
-    cmd = [
-        sys.executable,
-        "-m",
-        "pytest",
-        "--tb=short",
-        "-q",
-        "--import-mode=importlib",
-        *_TESTS,
-    ]
-    return subprocess.run(
-        cmd,
-        cwd=str(wt_path),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
-        timeout=_INNER_SUBPROCESS_TIMEOUT_SECONDS,
-    )
-
-
-def _assert_suite_ran(result: subprocess.CompletedProcess[str], label: str) -> None:
-    assert result.returncode != 4, (
-        f"{label}: pytest exited 4 (file or directory not found). "
-        f"Suite was never collected.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-    )
-    assert "no tests ran" not in result.stdout.lower(), (
-        f"{label}: no tests were collected.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-    )
-
-
-def _mutate(wt_path: Path, original: bytes, before: bytes, after: bytes, label: str) -> bytes:
-    count = original.count(before)
-    if count == 0:
-        raise AssertionError(
-            f"{_OUTCOME_DID_NOT_APPLY} ({label}): literal not found in target. "
-            "The file was changed; update this harness."
-        )
-    if count > 1:
-        raise AssertionError(f"PATTERN-AMBIGUOUS ({label}): expected 1 occurrence, found {count}.")
-    mutated = original.replace(before, after, 1)
-    assert mutated != original, f"Mutation {label} produced a byte-identical file"
-    (wt_path / _TARGET_REL).write_bytes(mutated)
-    return mutated
-
-
-def _run_mutant(
-    wt_path: Path, original: bytes, before: bytes, after: bytes, label: str
-) -> subprocess.CompletedProcess[str]:
-    _mutate(wt_path, original, before, after, label)
-    wt_target = wt_path / _TARGET_REL
-    try:
-        result = _run_tests_in(wt_path)
-    finally:
-        wt_target.write_bytes(original)
-        assert wt_target.read_bytes() == original, (
-            f"{label}: scratch worktree target was not restored to original bytes"
-        )
-    _assert_suite_ran(result, label)
-    return result
-
-
-def _apply_positive_mutant(
-    wt_path: Path, original: bytes, before: bytes, after: bytes, label: str
-) -> str:
-    result = _run_mutant(wt_path, original, before, after, label)
-    assert result.returncode != 0, (
-        f"MUTANT SURVIVED ({label}): suite passed after mutation. "
-        f"Tests do not detect the regression.\nstdout:\n{result.stdout}"
-    )
-    return _OUTCOME_DEAD
-
-
-@pytest.fixture()
-def scratch_worktree() -> Iterator[Path]:
-    """Provide a marked scratch git worktree; remove it after the test."""
-    with isolated_mutation_worktree(REPO_ROOT, [_TARGET_REL]) as workspace:
-        yield workspace.root
-
-
-def _active_target_unmodified() -> bool:
-    result = subprocess.run(
-        ["git", "diff", "--name-only", "HEAD", "--", str(_TARGET_REL)],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        cwd=str(REPO_ROOT),
-        check=False,
-    )
-    return result.returncode == 0 and not result.stdout.strip()
-
+from tests.mutation._adr_debate_harness import (
+    _OUTCOME_DEAD,
+    _OUTER_TEST_TIMEOUT_SECONDS,
+    _TARGET_REL,
+    REPO_ROOT,
+    _active_target_unmodified,
+    _apply_positive_mutant,
+    _run_mutant,
+)
 
 # ---------------------------------------------------------------------------
 # M4: neuter the evidence check, reverting defect 1
@@ -435,6 +316,45 @@ def test_m14_external_failure_exit_code_is_detected(scratch_worktree: Path) -> N
 
 
 # ---------------------------------------------------------------------------
+# M15: stop resolving markdown escapes and invisible characters, restoring the
+# fourth and fifth defeats of the placeholder check
+# ---------------------------------------------------------------------------
+
+_M15_ORIGINAL = b'    unescaped = DEBATE_LOG_PLACEHOLDER_ESCAPE_RE.sub(r"\\1", visible)\n'
+_M15_MUTANT = b"    unescaped = visible  # M15 mutant: markdown escapes survive\n"
+
+
+@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
+def test_m15_unresolved_markdown_escapes_are_detected(scratch_worktree: Path) -> None:
+    """`\\]` renders as `]`, so the template reads as shipped and matches nothing."""
+    original = (REPO_ROOT / _TARGET_REL).read_bytes()
+    outcome = _apply_positive_mutant(
+        scratch_worktree, original, _M15_ORIGINAL, _M15_MUTANT, "M15-markdown-escapes"
+    )
+    assert outcome == _OUTCOME_DEAD
+    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M15"
+
+
+# ---------------------------------------------------------------------------
+# M16: collapse the per-path regular-file tri-state back into a boolean
+# ---------------------------------------------------------------------------
+
+_M16_ORIGINAL = b"    if result.returncode == GIT_FATAL_RETURNCODE:\n"
+_M16_MUTANT = b"    if False:  # M16 mutant: a failed ls-files reads as a non-regular file\n"
+
+
+@pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
+def test_m16_regular_file_query_failure_collapsed_is_detected(scratch_worktree: Path) -> None:
+    """A broken ls-files must not be reported as a staged symlink."""
+    original = (REPO_ROOT / _TARGET_REL).read_bytes()
+    outcome = _apply_positive_mutant(
+        scratch_worktree, original, _M16_ORIGINAL, _M16_MUTANT, "M16-regular-file-tristate"
+    )
+    assert outcome == _OUTCOME_DEAD
+    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M16"
+
+
+# ---------------------------------------------------------------------------
 # IC: comment-only change; the suite MUST survive it
 # ---------------------------------------------------------------------------
 
@@ -468,7 +388,7 @@ def _tests_running_the_inner_suite() -> list[str]:
 def test_every_inner_suite_test_raises_the_outer_timeout() -> None:
     """Report the scope alongside the finding (testing.md MUST 10)."""
     names = _tests_running_the_inner_suite()
-    assert len(names) == 12, f"Expected 12 inner-suite tests, discovered {len(names)}: {names}"
+    assert len(names) == 14, f"Expected 14 inner-suite tests, discovered {len(names)}: {names}"
 
     unmarked = [
         name
