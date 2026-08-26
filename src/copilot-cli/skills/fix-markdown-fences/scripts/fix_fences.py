@@ -79,7 +79,9 @@ _MAX_FENCE_INDENT = 3
 
 _LIST_MARKER = re.compile(
     r"^(?P<indent>[ \t]*)"
-    r"(?:(?P<bullet>[-*+])|(?P<number>\d{1,9})(?P<delim>[.)]))"
+    # ASCII digits only. Python's `\d` also matches Unicode decimal digits, so
+    # `\u0661. item` opened a list here and CommonMark read it as a paragraph.
+    r"(?:(?P<bullet>[-*+])|(?P<number>[0-9]{1,9})(?P<delim>[.)]))"
     r"(?P<pad>[ \t]*)(?P<rest>.*)$"
 )
 _ATX_HEADING = re.compile(r"^#{1,6}([ \t]|$)")
@@ -151,13 +153,21 @@ class _ListContainers:
        after an empty marker closes it rather than continuing it.
     9. A marker line's remainder is re-parsed inside the item it just opened,
        so `- - a` opens two items and a fence marker after `- ` opens a block.
-       `observe` returns the column it opened for exactly this.
+       `observe` returns the column it opened for exactly this, and leaves
+       paragraph state to that second pass rather than guessing it here.
     10. A fenced block ends when the item holding it ends, with no closing
         marker, so a line that dedents below the block's container closes it.
         See `_container_closed`.
     11. A setext underline ends the paragraph above it. `---` already reached
         that conclusion as a thematic break, so only `=` was missing, and a
         list could not interrupt after a setext H1.
+    12. A marker line does not itself open a paragraph. Rule 9's second pass
+        sets that state from the remainder, so `- 2. item` opens both items
+        instead of rejecting the nested one as a paragraph interruption.
+    13. An ordered marker is ASCII digits only. Python's regex `d`
+        shorthand also matches Unicode decimal digits, so a line led by
+        U+0661 ARABIC-INDIC DIGIT ONE opened a list here while CommonMark
+        read it as a paragraph.
 
     Rules 9 and 10 were both documented as deliberate limitations for one
     commit, on the reasoning that each only made the scanners miss a fence,
@@ -218,7 +228,12 @@ class _ListContainers:
         if item is not None:
             column, has_content = item
             self._columns.append(column)
-            self._in_paragraph = has_content
+            # Not `has_content`. The caller re-parses the remainder inside the
+            # item just opened, and that pass sets the state from what the
+            # remainder actually is. Setting it here first made `- 2. item`
+            # mark the outer item as a paragraph, so the nested `2.` was then
+            # rejected as an interruption and never opened its own container.
+            self._in_paragraph = False
             self._item_still_empty = not has_content
             return column
         self._item_still_empty = False  # this line is the item's first content
