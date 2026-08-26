@@ -253,29 +253,31 @@ def blank_non_prose_block_lines(markdown: str) -> str:
     (`test_hides_a_multiline_inline_html_comment_status`,
     tests/test_markdown_parser.py).
 
-    `_mask_inline_html_comments` (this module) implements the character-level
-    comment scan this needs, a narrower sibling of `_mask_inline_contexts`
-    kept for `extract_lookup_references`'s different needs (see its own
-    docstring for why the two cannot share one implementation): masking a
-    backtick-decorated status word here would break
-    `test_decorated_prose_matching_the_enum_passes`
-    (tests/validation/test_check_adr_lifecycle.py), since `` `Accepted` `` is
-    valid prose the corpus already relies on. It is also built for
-    `extract_lookup_references`'s different line-indexing convention
-    (``str.splitlines()``, which omits the trailing empty element
-    ``str.split("\\n")`` keeps when ``markdown`` ends in a newline -- the one
-    point where the two disagree). This function's block half is built on
-    ``str.split("\\n")`` indexing to match `_blank_block_lines`'s
-    line-count-preserving contract, so the two are reconciled here by
-    restoring that trailing element before indexing by line number.
+    The inline half derives its masked ranges from the parser's own
+    ``html_inline`` tokens (`_html_comment_inline_ranges`), rather than
+    re-scanning raw text for `<!--`/`-->`. An earlier revision of this fix
+    used a hand-rolled substring scan (`_mask_inline_html_comments`, since
+    removed) that could not tell a real comment opener from the same three
+    characters appearing inside a backtick code span: `` `<!--` `` followed
+    by `**Status**: Proposed` is CommonMark raw text (a `code_inline` token
+    holding the literal `<!--`), not a comment, but the substring scan
+    entered "in comment" state anyway and masked the real status that
+    followed until the next `-->` anywhere in the document. Copilot found
+    this on PR #5230 round 16. The parser has already resolved this
+    precedence correctly by the time tokens exist (verified empirically:
+    parsing `` "`<!--` **Status**: Proposed" `` produces a `code_inline`
+    token holding `<!--`, and a separate `strong_open`/text/`strong_close`
+    for the status, with no `html_inline` token at all), so reading its
+    decision instead of re-deriving it sidesteps the whole class of
+    precedence bugs a hand-rolled scanner is exposed to.
     """
     md = _create_parser()
     tokens = md.parse(markdown)
     _raise_if_nesting_truncated(markdown, tokens, md)
-    ignored_lines = _ignored_block_lines(tokens)
-    lines = _mask_inline_html_comments(markdown, ignored_lines)
-    if markdown.endswith("\n"):
-        lines.append("")
+    characters = list(markdown)
+    for start, end in _html_comment_inline_ranges(tokens, markdown):
+        _mask_range(characters, start, end)
+    lines = "".join(characters).split("\n")
     line_count = len(lines)
     for token in tokens:
         if token.type not in _NON_PROSE_BLOCK_TOKEN_TYPES or token.map is None:
@@ -417,60 +419,68 @@ def _next_unescaped_backtick(
     return None
 
 
-def _mask_inline_html_comments(
-    markdown: str,
-    ignored_lines: set[int],
-) -> list[str]:
-    """Blank inline HTML comments outside ignored block lines.
+def _line_start_offsets(markdown: str) -> list[int]:
+    """Absolute character offset where each ``str.split("\\n")``-indexed line
+    begins.
 
-    The comment-tracking half of `_mask_inline_contexts` below, without its
-    inline-code masking. `blank_non_prose_block_lines` must not blank a
-    backtick-decorated status word: `` `Accepted` `` is valid prose in
-    `check_adr_lifecycle.py`'s own corpus
-    (`test_decorated_prose_matching_the_enum_passes`,
-    tests/validation/test_check_adr_lifecycle.py), so only HTML comment
-    content, which is genuinely invisible on any CommonMark renderer, is
-    masked here. `_mask_inline_contexts` cannot be reused as-is for this: its
-    other caller, `extract_lookup_references`, deliberately also blanks code
-    spans so a `.md` filename typeset in backticks is not read as a lookup
-    target, and that contract must not change for it.
+    ``offsets[i]`` is the index into ``markdown`` of line ``i``'s first
+    character, consistent with `_blank_block_lines`'s line numbering
+    (``markdown.split("\\n")``, not ``str.splitlines()``; the schemas differ
+    by the trailing empty element ``split`` keeps when the string ends in a
+    newline).
     """
-    characters = list(markdown)
-    in_comment = False
-    offset = 0
+    lines = markdown.split("\n")
+    offsets = [0]
+    for line in lines[:-1]:
+        offsets.append(offsets[-1] + len(line) + 1)
+    return offsets
 
-    for line_number, line in enumerate(markdown.splitlines(keepends=True)):
-        if line_number in ignored_lines:
-            in_comment = False
-            offset += len(line)
+
+def _html_comment_inline_ranges(
+    tokens: list[Token],
+    markdown: str,
+) -> list[tuple[int, int]]:
+    """Absolute (start, end) ranges covered by ``html_inline`` HTML comments.
+
+    Reads the parser's own ``html_inline`` child tokens rather than
+    re-scanning raw text for `<!--`/`-->`: the parser has already resolved
+    CommonMark's precedence between an HTML comment and a backtick code
+    span by the time these tokens exist, and a hand-rolled substring scan
+    for the same thing is exposed to getting that precedence wrong (see
+    `blank_non_prose_block_lines`'s docstring for the concrete Copilot
+    finding this replaced). Only tokens whose content opens with `<!--` are
+    returned: a bare inline tag such as `<b>` or `<img>` is not a comment,
+    its enclosed text still renders, and masking it would hide content a
+    reader can actually see.
+
+    Each parent ``inline`` token's own ``.map`` gives the source line range
+    its raw text spans; a child's exact character offset within that range
+    is recovered by searching for the child's own matched text
+    (``child.content``, which for a comment already includes any embedded
+    newlines) starting from a cursor that only advances, so two identical
+    comments in the same paragraph resolve to two distinct ranges rather
+    than the first one twice.
+    """
+    line_offsets = _line_start_offsets(markdown)
+    ranges: list[tuple[int, int]] = []
+    for token in tokens:
+        if token.type != "inline" or not token.children or token.map is None:
             continue
-
-        position = 0
-        while position < len(line):
-            if in_comment:
-                close = line.find("-->", position)
-                if close < 0:
-                    _mask_range(characters, offset + position, offset + len(line))
-                    break
-                _mask_range(characters, offset + position, offset + close + 3)
-                in_comment = False
-                position = close + 3
+        start_line, end_line = token.map
+        span_start = line_offsets[start_line]
+        span_end = (
+            line_offsets[end_line] if end_line < len(line_offsets) else len(markdown)
+        )
+        cursor = span_start
+        for child in token.children:
+            if child.type != "html_inline" or not child.content.startswith("<!--"):
                 continue
-
-            comment_start = line.find("<!--", position)
-            if comment_start < 0:
-                break
-            in_comment = True
-            _mask_range(
-                characters,
-                offset + comment_start,
-                offset + comment_start + 4,
-            )
-            position = comment_start + 4
-
-        offset += len(line)
-
-    return "".join(characters).splitlines()
+            found = markdown.find(child.content, cursor, span_end)
+            if found < 0:
+                continue
+            ranges.append((found, found + len(child.content)))
+            cursor = found + len(child.content)
+    return ranges
 
 
 def _mask_inline_contexts(

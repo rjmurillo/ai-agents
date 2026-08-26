@@ -581,6 +581,25 @@ class TestBlankNonProseBlockLines:
         out = blank_non_prose_block_lines(text)
         assert "**Status**: Accepted" in out
 
+    def test_a_literal_comment_marker_inside_backticks_is_not_a_comment(self):
+        # Real gap in an earlier revision of this fix, found by Copilot
+        # (PR #5230, round 16, marked Mandatory): that revision scanned raw
+        # text for "<!--" to find comment openers, and could not tell a real
+        # comment from the same three characters written literally inside a
+        # backtick code span. `` `<!--` `` is CommonMark raw text (a
+        # code_inline token holding the literal characters `<!--`), not a
+        # comment opener; only a `<!--` the PARSER itself classifies as
+        # html_inline is a real comment. The old substring scan entered
+        # "in comment" state on the backtick-quoted marker anyway and
+        # blanked the real "**Status**: Proposed" that followed until the
+        # next "-->" anywhere in the document. Verified empirically:
+        # markdown-it tokenizes `` "`<!--` **Status**: Proposed" `` as a
+        # code_inline child holding "<!--", plus separate strong_open/text/
+        # strong_close tokens for the status, with no html_inline token at
+        # all. Asserts the whole line survives untouched.
+        text = "`<!--` **Status**: Proposed\n"
+        assert blank_non_prose_block_lines(text) == text
+
     def test_preserves_line_count(self):
         text = "a\n<!--\nb\nc\n-->\nd\n"
         original = len(text.split("\n"))
