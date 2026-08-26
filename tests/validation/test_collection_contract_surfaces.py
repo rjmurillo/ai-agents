@@ -9,9 +9,9 @@ why a push collected instead of executing wants the sibling module; a reader
 who changed the set of probed defect classes wants this one.
 
 Nothing here executes pytest. The claims these surfaces make are proved by
-behavior tests in the sibling module (`test_a_broken_import_...` and
-`test_the_other_probed_catch_also_blocks_the_push`), because three
-surfaces agreeing is a different property from any of them being true.
+the probes in `test_collection_probes.py`, which run the real command against
+trees built to carry one defect each, because three surfaces agreeing is a
+different property from any of them being true.
 """
 
 from __future__ import annotations
