@@ -7,7 +7,7 @@ license: MIT
 
 # AI Agents Config Catalog
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/, scripts/validation/check_push_lock_before_commit.py) because its audience is repo contributors, not plugin consumers (issue #2050) -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/, scripts/validation/check_push_lock_before_commit.py, scripts/validation/git_hook_policy.py) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 Every flag, marker, and skip semantic in this repo, verified against code as
 of 2026-07-03. Hook registration surfaces were rechecked on 2026-08-19. Each
 escape hatch exists because a gate sometimes misfires; each one also has an
@@ -62,6 +62,8 @@ Lesson encoded: a global bypass with no teeth (no telemetry, no approval step) w
 | PEP 668 / uv | environment reality | Bare `pip` fails (externally managed env). Everything goes through `uv sync --frozen --extra dev`; skill scripts need `uv run python`, not `python3` (PyYAML lives in the venv) | Production | `ModuleNotFoundError: No module named 'yaml'` means you used the wrong interpreter | `pyproject.toml`, `.python-version` (3.14.6) |
 | pytest markers `unit`, `integration`, `safe_push_transport`, `security`, `smoke`, `windows_path` | pytest -m selectors | Filter test classes; `smoke` = real-CLI tests needing auth/credits, nightly only, and the smoke gate asserts they were NOT skipped (issue #2231 item 4); `safe_push_transport` = touches a non-local transport, excluded from pre-push | Production | Marking a test `smoke` to dodge CI is detected by the not-skipped assertion | `pyproject.toml [tool.pytest.ini_options].markers` |
 | `SKIP_PUSH_LOCK_COMMIT_GUARD` | env var (`=1` exact match) | Bypasses the `push-lock-commit-guard` pre-commit job (issue #5123), which otherwise refuses a commit while a push for the current branch name holds the canonical push-lock file | Production escape hatch | Scoped to one check, not global. Prints `push-lock: commit guard bypassed via SKIP_PUSH_LOCK_COMMIT_GUARD=1` so the bypass is visible in commit output; any other value (`0`, `true`, unset) leaves the guard enforced | `scripts/validation/check_push_lock_before_commit.py:71,177-180`; wired as `push-lock-commit-guard` in `lefthook.yml` |
+| `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY` | env var (`1` or unset; blank counts as unset) | Controls what `python-tests` runs pre-push. Unset: the import graph narrows the diff, and where it cannot, the fallback collects instead of executing, so a broken import and a syntax error still block the push and everything else is CI's. `1`: import-graph selection is skipped entirely and every partition executes locally, announced on stderr. Any other value raises rather than quietly doing less | Production opt-in | Scoped to one job, not a bypass: it makes the gate stricter, never weaker, so there is no abuse direction. Validated before a path is chosen, so `true` is reported whichever way selection would have gone, and the valid value acts on both paths rather than only on the fallback | `scripts/validation/git_hook_policy.py`, constant `PYTEST_FULL_SUITE_LOCALLY_ENV` (name), `_validated_full_suite_opt_in` and the short-circuit in `_resolve_pytest_commands` (semantics). Cited by symbol: two earlier line numbers here went stale within a day |
+| `AI_AGENTS_PYTEST_WORKERS` | env var (positive integer or `auto`; blank counts as unset) | Overrides the xdist worker count pre-push pytest runs with. Unset or blank: the policy picks the count. Any other value it cannot parse raises rather than falling back to a default the caller did not ask for | Production | Same fail-loud contract as the flag above and validated at the same point, after a version that checked it only inside the executing partitions let an invalid value pass unreported on the collection path | `scripts/validation/git_hook_policy.py`, constant `PYTEST_WORKERS_ENV` (name), `_pytest_parallel_flags` (semantics) |
 
 ## .env Keys (from .env.example)
 
@@ -190,6 +192,7 @@ moved or died: update this catalog before relying on it.
 | no version in any manifest or marketplace entry | `uv run python build/scripts/validate_plugin_version_bump.py` |
 | GIT_CONFIG_COUNT injection | `grep -n "GIT_CONFIG_COUNT" tests/conftest.py` |
 | pytest markers | `grep -n -A 5 "^markers" pyproject.toml` |
+| pre-push pytest opt-in and worker override | `grep -n "AI_AGENTS_PYTEST_" scripts/validation/git_hook_policy.py` |
 | .env keys | `grep -n -e "API_KEY" -e "COMPRESS_TOKENIZER" .env.example` |
 | hook registration surfaces | `uv run --frozen python -c "import json; s=json.load(open('.claude/settings.json'))['hooks']; print({k: len(v) for k, v in s.items()})"` |
 | repository-local Copilot sub-agent gate retired | `test ! -e .github/hooks/require-subagent-model.json && echo retired` (ADR-097 deleted this surface) |

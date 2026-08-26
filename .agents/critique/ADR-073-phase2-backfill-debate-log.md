@@ -542,7 +542,7 @@ much they should weigh on a reviewer:
 | ADR-038 | proposed | 2026-01-01 | [] | null | true |
 | ADR-040 | accepted | 2026-08-14 | [] | null | true |
 | ADR-041 | accepted | 2026-07-21 | [] | null | true |
-| ADR-042 | accepted | 2026-04-13 | [ADR-005] | null | true |
+| ADR-042 | accepted | 2026-08-25 | [ADR-005] | null | true |
 | ADR-043 | accepted | 2026-01-21 | [] | null | true |
 | ADR-045 | accepted | 2026-02-07 | [] | null | true |
 | ADR-046 | accepted | 2026-02-08 | [] | null | true |
@@ -863,3 +863,94 @@ the batch here as it lands.
 | 26 | ADR-005, ADR-017, ADR-026, ADR-036 |
 | 27 | ADR-039, ADR-040, ADR-042, ADR-055 |
 | 28 | ADR-061 |
+| 29 | ADR-042, ADR-063 |
+| 30 | ADR-042 |
+
+## Batch 29: restoring the deliberated ADR-042 and ADR-063 dates
+
+PR #5230's merge-conflict resolution had reverted both records' frontmatter
+`date` to the value in each file's own `## Date` section (`2026-01-17` for
+ADR-042, `2026-06-01` for ADR-063), reasoning that the campaign's bulk value
+was a mis-extraction. That reasoning checked only the top of each file. It
+missed that both records carry a later `## Amendment` section with real
+content changes and its own dated heading: ADR-042's "Amendment 1" is dated
+`2026-04-13` (line 169 of the record), and ADR-063's "Amendment 2026-07-27"
+updates a stale citation per ADR-088 (line 313). Per this ADR's own schema
+comment, `.agents/architecture/ADR-073-adr-lifecycle-frontmatter.md:49`,
+`date: YYYY-MM-DD # last updated`, the field tracks the most recent
+substantive edit, not initial adoption. The rows above (`ADR-042 | accepted |
+2026-04-13`, line 545; `ADR-063 | accepted | 2026-07-27`, line 563) already
+recorded the correct values, confirmed for ADR-042 by commit `4d1aaa5e1`
+(PR #1647, cited at line 601 above). The merge-conflict revert was the
+regression; the frontmatter and the generated index are restored to match
+this table.
+
+A Copilot review comment on PR #5230 flagged this same table row as "stale
+against the tree being merged" and asked for the row to be changed to match
+the (regressed) live frontmatter. Live verification against this record's own
+canonical schema definition and the amendment content showed the opposite
+direction was correct: the table was right, the frontmatter was wrong. Fixed
+by restoring the frontmatter rather than by editing this table.
+
+## Batch 30: Batch 29 was itself wrong; ADR-042's date is `2026-08-25`, not `2026-04-13`
+
+Batch 29 verified only that `2026-04-13` matched ADR-042's Amendment 1
+(confirmed by commit `4d1aaa5e1`, PR #1647) and stopped there. It never
+checked whether any later commit had touched the record's body again after
+that amendment. One had. Commit `cdf688a9f` (PR #5283, the repository owner's
+own commit, merged to `main` and already an ancestor of every branch this
+document has been edited on) landed at `2026-08-25T08:35:32-07:00`
+(`2026-08-25T15:35:32Z`), roughly 8 hours 40 minutes AFTER the commit that
+wrote this document's own `d331cba4f` fix (`2026-08-25T06:55:31+00:00`,
+i.e. `2026-08-25T06:55:31Z`). Verify with
+`git show -s --format='%H %aI' cdf688a9f d331cba4f`. `cdf688a9f`'s diff on
+ADR-042 is two hunks, not one:
+
+```diff
+ id: ADR-042
+ status: accepted
+-date: 2026-04-13
++date: 2026-08-25
+@@ Related Decisions
+ - **Supersedes**: [ADR-005: PowerShell-Only Scripting Standard](...)
+ - **Companion**: [ADR-006: Thin Workflows, Testable Modules](...) (still applies)
++- **Downstream**: [ADR-031: Hybrid PowerShell Architecture](...) (rejected
++  2026-08-25: this migration removed its premise); [ADR-028: PowerShell
++  Output Schema Consistency](...) (superseded 2026-08-25 by ADR-056, which
++  re-platforms its principle for Python)
+```
+
+The second hunk is a factual claim about two other records' status, added to
+ADR-042's own body: this is exactly the "content, not touch" test the rule
+above states, the same test that put `date: 2026-08-25` on ADR-036, ADR-055,
+and ADR-061 for citation repairs no larger than this one. The Downstream
+bullet is still present in the record today (verify with
+`grep -n Downstream .agents/architecture/ADR-042-python-migration-strategy.md`);
+whoever last edited this file kept the content and dropped only the frontmatter
+date that content justifies.
+
+Batch 29's own citation of `4d1aaa5e1`/PR #1647 is not wrong; it correctly
+establishes that `2026-04-13` was the right value as of that commit. It says
+nothing about `cdf688a9f`, which came later and changed the body again.
+Verifying a date against only the most recent Amendment SECTION, without also
+checking `git log` for the most recent commit touching the file, is the
+recurring failure mode: Addenda 46 and 51 of the campaign QA report had this
+right (`2026-08-25`, reasoning from the same Downstream bullet), and Batch
+29 plus Addendum 53 of the same report both overturned it, twice, based on a
+verification that was accurate as far as it went and stopped one commit too
+early. Full evidence and the exact `git log`/`git show` commands run are in
+Addendum 56 of `.agents/qa/2026-08-21-adr-corpus-campaign-qa.md`.
+
+**Restored `date: 2026-08-25`.** `.agents/architecture/README.md` regenerated
+to match. Do not revert this a third time without first running
+`git log -p -- .agents/architecture/ADR-042-python-migration-strategy.md`
+in full and checking every commit's diff for body content, not only the
+newest `## Amendment` heading's own dated subsection.
+
+**The "Status mapping for all 53 records reviewed" table above also needed
+this correction.** Its ADR-042 row (line 545) still read `2026-04-13`, the
+same value Batch 29 quoted from that row as authoritative before this batch
+overturned it. A Copilot review comment on PR #5230 caught the row lagging
+behind this batch's own conclusion. Updated to `2026-08-25` to match the
+frontmatter and README restored above; the other 52 rows are this table's
+original campaign-scan snapshot and are unaffected by this correction.
