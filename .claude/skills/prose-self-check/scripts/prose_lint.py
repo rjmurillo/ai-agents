@@ -107,7 +107,7 @@ _LIST_MARKER = re.compile(
 )
 _ATX_HEADING = re.compile(r"^#{1,6}([ \t]|$)")
 _THEMATIC_BREAK = re.compile(r"^(?:([-*_])[ \t]*)(?:\1[ \t]*){2,}$")
-_BLOCK_START = re.compile(r"^(?:`{3,}|~{3,}|>)")
+_BLOCK_QUOTE = re.compile(r"^>")
 # Only a setext underline when a paragraph is already open; `===` on its own is
 # ordinary prose. `---` reaches the same conclusion through _THEMATIC_BREAK, so
 # the gap was `=`, which matches nothing else.
@@ -118,6 +118,28 @@ _MAX_LIST_PAD = 4
 def _indent_width(text: str) -> int:
     """Return the column *text* occupies, tabs expanded to a 4-column stop."""
     return len(text.expandtabs(4))
+
+
+def _fence_match(line: str) -> re.Match[str] | None:
+    """Return the match when *line* is a fence opener, ignoring its indent.
+
+    CommonMark: a backtick opening fence may not carry a backtick in its info
+    string, which is what keeps ``a ``` b`` from opening a block. This module
+    matched the raw pattern at every opener and so accepted those, ending the
+    paragraph and masking the prose after it. Every opener path goes through
+    here now.
+    """
+    match = _FENCE.match(line)
+    if match is None:
+        return None
+    if match.group("fence")[0] == "`" and "`" in match.group("info"):
+        return None
+    return match
+
+
+def _starts_fence(text: str) -> bool:
+    """Return True when *text* opens a fenced block."""
+    return _fence_match(text) is not None
 
 
 def _container_closed(line: str, base: int) -> bool:
@@ -254,7 +276,8 @@ class _ListContainers:
         self._in_paragraph = not (
             _ATX_HEADING.match(body)
             or _THEMATIC_BREAK.match(body)
-            or _BLOCK_START.match(body)
+            or _starts_fence(body)
+            or _BLOCK_QUOTE.match(body)
             or (self._in_paragraph and _SETEXT_UNDERLINE.match(body))
         )
         return None
@@ -280,7 +303,8 @@ class _ListContainers:
         if len(content) - len(body) > _MAX_FENCE_INDENT:
             return False  # indented code cannot interrupt a paragraph
         return bool(
-            _BLOCK_START.match(body)
+            _starts_fence(body)
+            or _BLOCK_QUOTE.match(body)
             or _ATX_HEADING.match(body)
             or _THEMATIC_BREAK.match(body)
             or self._list_item(line) is not None
@@ -472,8 +496,12 @@ def _fence_in_item(
         rest = line.expandtabs(4)[column:]
         if not rest.strip():
             return None
-        nested = " " * column + rest.lstrip(" ")
-        match = _FENCE.match(nested)
+        # Keep whatever indentation is left after the content column. Five or
+        # more columns of padding leave four behind, which makes the rest of
+        # the line indented code rather than a block start; stripping it here
+        # opened a fence in literal code and let `--write` fence it.
+        nested = " " * column + rest
+        match = _fence_match(nested)
         if match is not None and not containers.over_indented(match.group("indent")):
             return match
         deeper = containers.observe(nested)
@@ -503,7 +531,7 @@ def _blank_fenced_blocks(text: str) -> tuple[list[str], int | None]:
             # Sync before classifying: a dedent must close its container
             # before the fence test reads the base.
             containers.sync(line)
-        match = _FENCE.match(line)
+        match = _fence_match(line)
         if match is not None and containers.over_indented(match.group("indent")):
             match = None
         if fence is None:

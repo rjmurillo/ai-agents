@@ -84,7 +84,7 @@ _LIST_MARKER = re.compile(
 )
 _ATX_HEADING = re.compile(r"^#{1,6}([ \t]|$)")
 _THEMATIC_BREAK = re.compile(r"^(?:([-*_])[ \t]*)(?:\1[ \t]*){2,}$")
-_BLOCK_START = re.compile(r"^(?:`{3,}|~{3,}|>)")
+_BLOCK_QUOTE = re.compile(r"^>")
 # Only a setext underline when a paragraph is already open; `===` on its own is
 # ordinary prose. `---` reaches the same conclusion through _THEMATIC_BREAK, so
 # the gap was `=`, which matches nothing else.
@@ -231,7 +231,8 @@ class _ListContainers:
         self._in_paragraph = not (
             _ATX_HEADING.match(body)
             or _THEMATIC_BREAK.match(body)
-            or _BLOCK_START.match(body)
+            or _starts_fence(body)
+            or _BLOCK_QUOTE.match(body)
             or (self._in_paragraph and _SETEXT_UNDERLINE.match(body))
         )
         return None
@@ -257,7 +258,8 @@ class _ListContainers:
         if len(content) - len(body) > _MAX_FENCE_INDENT:
             return False  # indented code cannot interrupt a paragraph
         return bool(
-            _BLOCK_START.match(body)
+            _starts_fence(body)
+            or _BLOCK_QUOTE.match(body)
             or _ATX_HEADING.match(body)
             or _THEMATIC_BREAK.match(body)
             or self._list_item(line) is not None
@@ -326,16 +328,32 @@ class _OpenFence:
         return self.indent + self.char * self.length
 
 
+def _fence_match(line: str) -> re.Match[str] | None:
+    """Return the match when *line* is a fence opener, ignoring its indent.
+
+    CommonMark: a backtick opening fence may not carry a backtick in its info
+    string, which is what keeps ``a ``` b`` from opening a block. Every opener
+    path goes through here so none of them can forget that rule.
+    """
+    match = _FENCE_RE.match(line)
+    if match is None:
+        return None
+    if match.group("fence")[0] == "`" and "`" in match.group("info"):
+        return None
+    return match
+
+
+def _starts_fence(text: str) -> bool:
+    """Return True when *text* opens a fenced block."""
+    return _fence_match(text) is not None
+
+
 def _open_fence(line: str, containers: _ListContainers) -> _OpenFence | None:
     """Return the fence that *line* opens, or None when it opens nothing."""
-    match = _FENCE_RE.match(line)
+    match = _fence_match(line)
     if match is None or containers.over_indented(match.group("indent")):
         return None
     fence = match.group("fence")
-    # CommonMark: a backtick opening fence may not carry a backtick in its
-    # info string, which is what keeps ``a ``` b`` from opening a block.
-    if fence[0] == "`" and "`" in match.group("info"):
-        return None
     return _OpenFence(char=fence[0], length=len(fence), indent=match.group("indent"))
 
 
@@ -386,7 +404,11 @@ def _open_fence_in_item(
         rest = line.expandtabs(4)[column:]
         if not rest.strip():
             return None
-        nested = " " * column + rest.lstrip(" ")
+        # Keep whatever indentation is left after the content column. Five or
+        # more columns of padding leave four behind, which makes the rest of
+        # the line indented code rather than a block start; stripping it here
+        # opened a fence in literal code and let `--write` fence it.
+        nested = " " * column + rest
         opened = _open_fence(nested, containers)
         if opened is not None:
             containers.opened_fence()
