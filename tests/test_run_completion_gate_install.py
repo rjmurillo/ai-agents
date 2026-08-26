@@ -226,6 +226,40 @@ def test_claude_plugin_root_admits_the_bundled_config(tmp_path: Path) -> None:
     assert _CONFIG_TRUST_HALT not in result.stderr, result.stderr
 
 
+def test_install_trust_exits_3_when_git_is_not_on_path(tmp_path: Path) -> None:
+    """Missing git is external (exit 3), like the non-work-tree case.
+
+    Same layout as the passing case; the only change is an emptied PATH, so
+    ``_run_git`` raises ``FileNotFoundError``. That IS an ``OSError``, so it
+    was already caught, but nothing asserted which code it produced and the
+    old code produced 2.
+    """
+    plugin_root, config, user_repo = _install_plugin(tmp_path)
+    script = (
+        plugin_root / "skills" / "github" / "scripts" / "pr"
+        / "run_completion_gate.py"
+    )
+    env = dict(os.environ)
+    env.pop("COPILOT_PLUGIN_ROOT", None)
+    env["CLAUDE_PLUGIN_ROOT"] = str(plugin_root)
+    # An empty directory as the whole PATH: git cannot be found, but the
+    # interpreter is invoked by absolute path so the run still starts.
+    empty_bin = tmp_path / "empty-bin"
+    empty_bin.mkdir()
+    env["PATH"] = str(empty_bin)
+
+    result = subprocess.run(
+        [sys.executable, str(script), "--pull-request", "1",
+         "--config", str(config)],
+        cwd=user_repo, capture_output=True, encoding="utf-8",
+        errors="replace", env=env, check=False,
+    )
+
+    assert result.returncode == 3, (result.returncode, result.stderr)
+    assert "could not run git" in result.stderr, result.stderr
+    assert _CONTAINMENT_REFUSAL not in result.stderr, result.stderr
+
+
 def test_the_bundled_config_runs_its_criteria_end_to_end(tmp_path: Path) -> None:
     """Positive control for every absence assertion in this file.
 
@@ -439,13 +473,19 @@ def test_a_pr_created_nested_claude_cannot_relocate_the_trust_boundary(
 def test_install_trust_fails_closed_outside_a_git_work_tree(
     tmp_path: Path,
 ) -> None:
-    """No establishable work tree means no install trust.
+    """No establishable work tree halts with exit 3, not exit 2.
 
-    ``_consumer_work_tree`` returns ``None`` when git cannot report a
-    toplevel. Nothing can then be shown to lie outside PR-controlled
-    content, so install trust must be withheld rather than granted by
-    default. The layout is otherwise the valid one from ``_install_plugin``,
-    so the only difference from the passing case is the missing work tree.
+    Nothing can be shown to lie outside PR-controlled content, so install
+    trust is withheld. The layout is otherwise the valid one from
+    ``_install_plugin``, so the only difference from the passing case is
+    the missing work tree.
+
+    The CODE is the point, not just the halt. An earlier revision returned
+    ``None`` from the probe and fell through to containment, exiting 2 with
+    "Refusing to load config from unsafe path". It failed closed, but named
+    the wrong cause: the path was fine, the work tree was not establishable.
+    Per ADR-035 and this repo's table (2 config, 3 external) that is a 3.
+    Found by Copilot review on PR #5329.
     """
     plugin_root, config, user_repo = _install_plugin(tmp_path)
     # Remove the marker that makes this look like a work tree. git then
@@ -469,5 +509,8 @@ def test_install_trust_fails_closed_outside_a_git_work_tree(
         plugin_root, config, user_repo, env_var="CLAUDE_PLUGIN_ROOT",
     )
 
-    assert _CONTAINMENT_REFUSAL in result.stderr, result.stderr
-    assert result.returncode != 0, result.stdout
+    assert result.returncode == 3, (result.returncode, result.stderr)
+    assert "Refusing to evaluate install trust" in result.stderr, result.stderr
+    # The old exit-2 message must be GONE, not merely accompanied. A
+    # positive-only assertion would pass on a run that printed both.
+    assert _CONTAINMENT_REFUSAL not in result.stderr, result.stderr

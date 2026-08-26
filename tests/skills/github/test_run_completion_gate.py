@@ -3578,6 +3578,95 @@ class TestEnforceConfigTrustInstallTrusted:
         assert trust.status == _dispatcher.TRUST_MALFORMED_REF
 
 
+class TestWorkTreeProbeFailure:
+    """A failed work-tree probe is exit 3, and a git hang is caught.
+
+    Copilot review, PR #5329. Two distinct defects behind one finding:
+
+    1. ``subprocess.TimeoutExpired`` is NOT an ``OSError`` (its MRO is
+       TimeoutExpired -> SubprocessError -> Exception), and ``_run_git``
+       passes ``timeout=_GIT_TIMEOUT_SECONDS``, so an ``except OSError``
+       alone let a 30-second git hang escape as an unhandled traceback.
+       The module's two other guarded ``_run_git`` callers already catch
+       the pair.
+    2. A probe failure was collapsed into "no install trust" and fell
+       through to containment, exiting 2 and naming the config path as
+       the problem when the path was fine.
+
+    Driven through ``main()`` so the assertion is on the integer the
+    process exits with, not on a helper's return value (testing.md MUST 8).
+    """
+
+    def _plugin_root(self, tmp_path, monkeypatch):
+        root = tmp_path / "plugin"
+        (root / "commands").mkdir(parents=True)
+        config = root / "commands" / "pr-review-config.yaml"
+        config.write_text(
+            "completion_criteria:\n"
+            "  - name: c\n"
+            "    verification: command\n"
+            '    command: "true"\n'
+            '    pass_when: "exit_code == 0"\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        return config
+
+    def test_a_git_timeout_exits_3_instead_of_raising(
+        self, tmp_path, monkeypatch, capsys,
+    ):
+        config = self._plugin_root(tmp_path, monkeypatch)
+
+        def _hang(args, cwd):
+            raise subprocess.TimeoutExpired(cmd=["git", *args], timeout=30)
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _hang)
+
+        code = _dispatcher.main(
+            ["--pull-request", "1", "--config", str(config)],
+        )
+
+        assert code == 3, code
+        err = capsys.readouterr().err
+        assert "could not run git" in err, err
+        assert "Refusing to load config from unsafe path" not in err, err
+
+    def test_a_missing_git_binary_exits_3(self, tmp_path, monkeypatch, capsys):
+        config = self._plugin_root(tmp_path, monkeypatch)
+
+        def _absent(args, cwd):
+            raise FileNotFoundError(2, "No such file or directory: 'git'")
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _absent)
+
+        code = _dispatcher.main(
+            ["--pull-request", "1", "--config", str(config)],
+        )
+
+        assert code == 3, code
+        assert "could not run git" in capsys.readouterr().err
+
+    def test_a_config_problem_still_exits_2(self, tmp_path, monkeypatch, capsys):
+        """Discriminating control: 3 must not swallow the config code.
+
+        Same declared root, same working git; only the config is wrong (it
+        is outside both the root and the project). Without this, a mutant
+        that returned 3 unconditionally would pass every case above.
+        """
+        self._plugin_root(tmp_path, monkeypatch)
+        outside = tmp_path / "outside" / "pr-review-config.yaml"
+        outside.parent.mkdir(parents=True)
+        outside.write_text("completion_criteria: []\n", encoding="utf-8")
+
+        code = _dispatcher.main(
+            ["--pull-request", "1", "--config", str(outside)],
+        )
+
+        assert code == 2, code
+        assert "Refusing to load config from unsafe path" in capsys.readouterr().err
+
+
 class TestInstallTrustedPathConsistency:
     """The path install-trust approves must be the path that is read.
 
@@ -3627,12 +3716,13 @@ class TestInstallTrustedPathConsistency:
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
         monkeypatch.chdir(consumer)
 
-        config_path, raw, install_root = _dispatcher._resolve_and_read_config(rel)
+        resolved = _dispatcher._resolve_and_read_config(rel)
 
-        assert install_root == root.resolve()
-        assert config_path == approved.resolve()
-        assert b"approved" in raw
-        assert b"decoy" not in raw
+        assert resolved.exit_code is None, resolved.exit_code
+        assert resolved.install_root == root.resolve()
+        assert resolved.path == approved.resolve()
+        assert b"approved" in resolved.raw
+        assert b"decoy" not in resolved.raw
 
     def test_the_environment_root_cannot_redirect_an_absolute_config(
         self, tmp_path, monkeypatch,
@@ -3647,13 +3737,14 @@ class TestInstallTrustedPathConsistency:
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
 
-        config_path, raw, install_root = _dispatcher._resolve_and_read_config(
+        resolved = _dispatcher._resolve_and_read_config(
             str(config),
         )
 
-        assert install_root == root.resolve()
-        assert config_path == config.resolve()
-        assert b"absolute" in raw
+        assert resolved.exit_code is None, resolved.exit_code
+        assert resolved.install_root == root.resolve()
+        assert resolved.path == config.resolve()
+        assert b"absolute" in resolved.raw
 
     def test_a_config_outside_the_root_still_falls_back_to_containment(
         self, tmp_path, monkeypatch,
@@ -3667,10 +3758,14 @@ class TestInstallTrustedPathConsistency:
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
 
-        config_path, raw, install_root = _dispatcher._resolve_and_read_config(
+        resolved = _dispatcher._resolve_and_read_config(
             str(outside),
         )
 
-        assert install_root is None
-        assert config_path is None
-        assert raw is None
+        assert resolved.install_root is None
+        assert resolved.path is None
+        assert resolved.raw is None
+        # 2, not 3: the work tree resolved fine and the CONFIG is the
+        # problem. The exit-3 branch is a different failure and has its
+        # own cases; asserting the code here keeps the two from merging.
+        assert resolved.exit_code == 2, resolved.exit_code
