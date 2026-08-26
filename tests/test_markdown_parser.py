@@ -622,6 +622,38 @@ class TestBlankNonProseBlockLines:
         assert out.startswith("`<!-- x -->` ")
         assert "<!-- x -->" not in out[len("`<!-- x -->` ") :]
 
+    def test_an_entity_decoded_text_child_cannot_steal_a_later_comments_match(self):
+        # Real gap in the round-17 fix above, found by Copilot (PR #5230,
+        # round 18, marked Mandatory, CWE-20): that fix searched EVERY
+        # child's content to advance the cursor, including "text" children,
+        # reasoning that any decoy needed consuming in source order. That
+        # reasoning assumed a child's ``.content`` is always a verbatim
+        # substring of the source, which does not hold for "text" tokens:
+        # markdown-it-py resolves HTML entities, so source "&amp; " becomes
+        # content "& ". Searching raw source for that DECODED string can
+        # match an unrelated LATER literal "& " rather than failing to
+        # match at all. Verified empirically: parsing
+        # "&amp; <!--\n**Status**: Accepted\n--> & tail\n" produces a text
+        # child "prose & more" for the "&amp;" span and a later, unrelated
+        # literal "& " after the real comment; searching for the decoded
+        # "& " from the paragraph start found that LATER literal instead of
+        # failing, advancing the cursor past the real multiline comment.
+        # The subsequent search for the comment's own html_inline content
+        # then started too late to find it, so no range was ever recorded,
+        # and "**Status**: Accepted" stayed fully visible in the output.
+        # Fixed by restricting the searchable/cursor-advancing child types
+        # to `_VERBATIM_CONTENT_CHILD_TYPES` (`html_inline`, `code_inline`),
+        # neither of which is ever entity-decoded; a "text" child is now
+        # skipped without consulting its content at all. Asserts the status
+        # is fully masked and the entity/tail text (both real prose)
+        # survive as literal, undecoded source bytes elsewhere in the
+        # output blanking only replaces characters with spaces.
+        text = "&amp; <!--\n**Status**: Accepted\n--> & tail\n"
+        out = blank_non_prose_block_lines(text)
+        assert "**Status**: Accepted" not in out
+        assert "&amp;" in out
+        assert "& tail" in out
+
     def test_preserves_line_count(self):
         text = "a\n<!--\nb\nc\n-->\nd\n"
         original = len(text.split("\n"))

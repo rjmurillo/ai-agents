@@ -451,6 +451,21 @@ def _line_start_offsets(markdown: str) -> list[int]:
     return offsets
 
 
+# Child token types whose ``.content`` is guaranteed to be a byte-for-byte
+# substring of the raw source, safe to locate with ``str.find``. ``text``
+# tokens are deliberately excluded: markdown-it-py resolves HTML entities
+# (`&amp;` -> `&`) and backslash escapes in text content, so `.content` can
+# differ from the source bytes at the same position, and searching for that
+# decoded string can match unrelated bytes anywhere else in the paragraph
+# (see `_html_comment_inline_ranges`'s docstring for the concrete exploit).
+# `html_inline` and `code_inline` do not undergo that decoding: HTML inline
+# spans copy raw source bytes verbatim, and CommonMark code spans only ever
+# trim boundary whitespace or collapse a line ending to a space, never
+# resolve an entity or escape, so any residual difference is still a proper
+# substring of the true span at the same relative offset.
+_VERBATIM_CONTENT_CHILD_TYPES = frozenset({"html_inline", "code_inline"})
+
+
 def _html_comment_inline_ranges(
     tokens: list[Token],
     markdown: str,
@@ -476,25 +491,46 @@ def _html_comment_inline_ranges(
     comments in the same paragraph resolve to two distinct ranges rather
     than the first one twice.
 
-    The cursor advances past EVERY child in source order, not only the
-    ``html_inline`` ones: an earlier revision searched only among
-    ``html_inline`` children, so a preceding sibling of any other type
-    whose own content happened to share bytes with a later real comment
-    could steal the match. `` `<!-- x -->` <!-- x --> `` tokenizes as
-    `code_inline("<!-- x -->")`, `text(" ")`, `html_inline("<!-- x -->")`;
-    searching for the ``html_inline`` child's content from the start of the
-    paragraph without first having advanced past the ``code_inline``
-    child's own identical text found the FIRST occurrence, inside the
-    backticks, and masked visible code while leaving the real comment (and
-    whatever it hides) untouched. Copilot found this on PR #5230 round 17,
-    marked Mandatory. Processing every child in encounter order and
-    advancing the cursor after each one's own match, even non-``html_inline``
-    children whose content is never masked, keeps the cursor past every
-    decoy by the time a later real comment's search begins. A child with
-    empty ``content`` (most markup tokens: ``strong_open``, ``em_open``,
-    ``softbreak``, and similar) matches the empty string at the cursor's
-    current position with zero length, which is a correct no-op rather than
-    a skip.
+    The cursor advances past every ``html_inline``/``code_inline`` child in
+    source order, not only ones that turn out to be comments: an earlier
+    revision searched only among ``html_inline`` children, so a preceding
+    ``code_inline`` sibling whose own content happened to share bytes with a
+    later real comment could steal the match. `` `<!-- x -->` <!-- x --> ``
+    tokenizes as `code_inline("<!-- x -->")`, `text(" ")`,
+    `html_inline("<!-- x -->")`; searching for the `html_inline` child's
+    content from the start of the paragraph without first having advanced
+    past the `code_inline` child's own identical text found the FIRST
+    occurrence, inside the backticks, and masked visible code while leaving
+    the real comment (and whatever it hides) untouched. Copilot found this
+    on PR #5230 round 17, marked Mandatory.
+
+    Only children in `_VERBATIM_CONTENT_CHILD_TYPES` advance the cursor or
+    are searched at all; every other child type (chiefly `text`, but also
+    markup tokens such as `strong_open` whose own content is empty) is
+    skipped without consulting `.content`. An earlier revision searched
+    every child's content regardless of type, reasoning that a decoy needed
+    consuming in source order whatever kind of token carried it. That
+    reasoning does not hold for `text`: markdown-it-py resolves HTML
+    entities and backslash escapes in text content, so `&amp; ` decodes to
+    `.content == "& "`, a string that need not appear anywhere near the
+    text token's true source position. `find("& ", cursor, span_end)` can
+    then match a later, unrelated literal `& ` that happens to sit after a
+    real multiline comment, advancing the cursor past that comment; the
+    subsequent search for the comment's own `html_inline` content then
+    starts too late to find it, `found < 0` short-circuits the loop with no
+    range recorded, and the comment's hidden `**Status**: Accepted` is never
+    masked. Verified empirically: `blank_non_prose_block_lines("&amp; <!--\\n"
+    "**Status**: Accepted\\n--> & tail\\n")` left `**Status**: Accepted`
+    fully visible in the output before this fix. Copilot found this on PR
+    #5230 round 18, marked Mandatory, citing CWE-20. Restricting the
+    searchable set to `html_inline`/`code_inline` closes it: neither type is
+    ever entity-decoded, so `find` can only match the child's own true
+    occurrence or an earlier decoy of the same guaranteed-verbatim kind,
+    which is exactly the case the cursor-advancement invariant already
+    covers. A `text` child's true consumed length is simply never modeled;
+    the cursor stays at its pre-child position, which only makes later
+    searches MORE conservative (an earlier stale cursor still finds the next
+    verbatim child's true first occurrence at or after it), never less.
     """
     line_offsets = _line_start_offsets(markdown)
     ranges: list[tuple[int, int]] = []
@@ -508,6 +544,8 @@ def _html_comment_inline_ranges(
         )
         cursor = span_start
         for child in token.children:
+            if child.type not in _VERBATIM_CONTENT_CHILD_TYPES:
+                continue
             content = child.content or ""
             if not content:
                 continue
