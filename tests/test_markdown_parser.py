@@ -613,10 +613,13 @@ class TestBlankNonProseBlockLines:
         # advanced past the code_inline child's identical text, found the
         # FIRST occurrence (inside the backticks) and masked visible code
         # while leaving the real comment, and whatever it might hide,
-        # untouched. Fixed by advancing the cursor past EVERY child in
-        # source order, not only html_inline ones. Asserts the exact
-        # transformed text: the visible code span survives verbatim, and
-        # only the real (second) comment is masked.
+        # untouched. Fixed by advancing the cursor past the source-verbatim
+        # child types (`html_inline`, `code_inline`) in source order;
+        # a later round narrowed this from "every child" once `text`
+        # children were found unsafe to use for the same purpose (see
+        # test_an_entity_decoded_text_child_cannot_steal_a_later_comments_match
+        # below). Asserts the exact transformed text: the visible code span
+        # survives verbatim, and only the real (second) comment is masked.
         text = "`<!-- x -->` <!-- x -->\n"
         out = blank_non_prose_block_lines(text)
         assert out.startswith("`<!-- x -->` ")
@@ -633,16 +636,17 @@ class TestBlankNonProseBlockLines:
         # content "& ". Searching raw source for that DECODED string can
         # match an unrelated LATER literal "& " rather than failing to
         # match at all. Verified empirically: parsing
-        # "&amp; <!--\n**Status**: Accepted\n--> & tail\n" produces a text
-        # child "prose & more" for the "&amp;" span and a later, unrelated
-        # literal "& " after the real comment; searching for the decoded
-        # "& " from the paragraph start found that LATER literal instead of
-        # failing, advancing the cursor past the real multiline comment.
-        # The subsequent search for the comment's own html_inline content
-        # then started too late to find it, so no range was ever recorded,
-        # and "**Status**: Accepted" stayed fully visible in the output.
-        # Fixed by restricting the searchable/cursor-advancing child types
-        # to `_VERBATIM_CONTENT_CHILD_TYPES` (`html_inline`, `code_inline`),
+        # "&amp; <!--\n**Status**: Accepted\n--> & tail\n" produces a
+        # leading text child whose decoded content is "& " (from the
+        # source's "&amp; " span) and a later, unrelated literal "& " after
+        # the real comment; searching for the decoded "& " from the
+        # paragraph start found that LATER literal instead of failing,
+        # advancing the cursor past the real multiline comment. The
+        # subsequent search for the comment's own html_inline content then
+        # started too late to find it, so no range was ever recorded, and
+        # "**Status**: Accepted" stayed fully visible in the output. Fixed
+        # by restricting the searchable/cursor-advancing child types to
+        # `_VERBATIM_SEARCH_CHILD_TYPES` (`html_inline`, `code_inline`),
         # neither of which is ever entity-decoded; a "text" child is now
         # skipped without consulting its content at all. Asserts the status
         # is fully masked and the entity/tail text (both real prose)
@@ -653,6 +657,40 @@ class TestBlankNonProseBlockLines:
         assert "**Status**: Accepted" not in out
         assert "&amp;" in out
         assert "& tail" in out
+
+    def test_a_normalized_multiline_code_span_cannot_steal_a_later_comments_match(
+        self,
+    ):
+        # Real gap in the round-18 fix above, found by Copilot (PR #5230,
+        # round 19): round 18 trusted a code_inline match once its type was
+        # in the searchable allowlist, reasoning CommonMark code spans only
+        # ever trim boundary whitespace and so any residual difference from
+        # raw source is still a proper substring at the same relative
+        # offset. That reasoning misses CommonMark's OTHER code-span
+        # transform: an embedded (non-boundary) line ending inside a
+        # multi-line code span is converted to a single space, which is a
+        # real substitution, not mere trimming. Verified empirically:
+        # parsing "`<!--\nx -->` <!-- x -->\n" produces
+        # code_inline("<!-- x -->") (space-joined, not newline-joined) as
+        # its first child, byte-identical to the second, real
+        # html_inline("<!-- x -->") child. A bare `find` for that
+        # space-joined string does not match the code span's own (newline
+        # -joined) raw text, so it matches the LATER real comment's raw
+        # text instead, advancing the cursor past it; the subsequent
+        # html_inline search then starts too late to find anything, and
+        # the whole input passed through unmodified. Fixed by requiring a
+        # code_inline match to be flanked by the token's own backtick
+        # markup (`_find_markup_anchored_occurrence`) before it is
+        # trusted: the accidental match at the real comment's position is
+        # not backtick-flanked and is rejected, so the search continues
+        # and finds nothing else to (incorrectly) consume, leaving the
+        # cursor at the paragraph start for the html_inline search to
+        # correctly locate the real comment. Asserts the visible multi-line
+        # code span survives verbatim and the real comment is masked.
+        text = "`<!--\nx -->` <!-- x -->\n"
+        out = blank_non_prose_block_lines(text)
+        assert out.startswith("`<!--\nx -->` ")
+        assert "<!-- x -->" not in out[len("`<!--\nx -->` ") :]
 
     def test_preserves_line_count(self):
         text = "a\n<!--\nb\nc\n-->\nd\n"
