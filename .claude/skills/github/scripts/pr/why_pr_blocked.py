@@ -664,9 +664,7 @@ def main(argv: list[str] | None = None) -> int:
         script_name="why_pr_blocked.py",
     )
 
-    if has_hard_blocker or pending:
-        return 1
-    return 0
+    return 1 if has_blocker else 0
 
 
 if __name__ == "__main__":  # pragma: no cover
