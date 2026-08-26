@@ -26,7 +26,9 @@ from __future__ import annotations
 
 import io
 import subprocess
+import sys
 import time
+import types
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +37,13 @@ import pytest
 from scripts.validation import git_hook_policy as policy
 
 _CONTAINER_CEILING = policy.CONTAINER_SUBPROCESS_CEILING_SECONDS
+
+
+def _detector(*, in_container: bool) -> types.ModuleType:
+    """A stand-in for the sibling module `_arm_container_watchdog` imports."""
+    module = types.ModuleType("run_workflow_local_test")
+    module._is_remote_container = lambda: in_container
+    return module
 
 
 def _update(head: str) -> policy.PushUpdate:
@@ -254,3 +263,58 @@ def test_no_deadline_keeps_the_legacy_per_batch_budget(
     policy._run_semgrep_tree(tmp_path, ["source.py"], tmp_path)
 
     assert seen == [float(policy.SEMGREP_TIMEOUT_SECONDS)]
+
+
+def test_the_watchdog_arms_only_in_a_container(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The whole-process bound, and the control that it is conditional.
+
+    `_container_clamped` bounds a child. Review on PR #5319 named three places
+    the work is not a child and no deadline reached it: `changed_from_git`
+    shells out unbounded, the import graph is built in-process, and this
+    module's own path discovery and tree materialization run before its
+    aggregate clock starts. The watchdog goes around the process instead of
+    around each of them.
+    """
+    armed: list[float] = []
+
+    class FakeTimer:
+        daemon = False
+
+        def __init__(self, interval: float, _fn: object) -> None:
+            armed.append(interval)
+
+        def start(self) -> None:
+            pass
+
+        def cancel(self) -> None:
+            pass
+
+    monkeypatch.setattr(policy.threading, "Timer", FakeTimer)
+
+    monkeypatch.setitem(
+        sys.modules,
+        "run_workflow_local_test",
+        _detector(in_container=False),
+    )
+    assert policy._arm_container_watchdog("pytest") is None
+    assert armed == [], "the watchdog armed outside a container"
+
+    monkeypatch.setitem(
+        sys.modules,
+        "run_workflow_local_test",
+        _detector(in_container=True),
+    )
+    assert policy._arm_container_watchdog("pytest") is not None
+    assert armed == [policy.CONTAINER_PROCESS_CEILING_SECONDS], (
+        f"the watchdog armed at {armed}, not the process ceiling."
+    )
+
+
+def test_the_process_ceiling_sits_above_the_subprocess_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An inner deadline must fire first, so the reader gets the useful message.
+
+    Same ordering rule as ADR-086 item 9. If these were equal the watchdog
+    could win the race and report "look at selection and setup" for a hang that
+    was a subprocess exceeding its own budget.
+    """
+    assert policy.CONTAINER_PROCESS_CEILING_SECONDS > policy.CONTAINER_SUBPROCESS_CEILING_SECONDS

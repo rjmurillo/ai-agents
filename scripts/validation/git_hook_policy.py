@@ -18,6 +18,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unicodedata
 import warnings
@@ -491,6 +492,26 @@ WORKFLOW_LOCAL_DEFAULT_BASE = "origin/main"
 # Reuses the container detection issue #2548 introduced for workflow-local-run
 # rather than adding a second definition of "container".
 CONTAINER_SUBPROCESS_CEILING_SECONDS = 150.0
+
+# The whole-process bound, which is what "nothing outlives the container"
+# actually requires. The clamp above covers children spawned through
+# `_run_command`; it does not cover the work between them. Review on PR #5319
+# named three such gaps at once: `_resolve_pytest_commands` calls
+# `select_tests.changed_from_git`, which shells out unbounded, and builds the
+# import graph in-process; `scan_pushed_heads` discovers paths, materializes a
+# tree and probes semgrep's version before its aggregate clock starts. Each is
+# outside every deadline this module sets, so a hang there survived every bound
+# and the process still died to the reclaim it was supposed to prevent.
+#
+# Chasing each path would leave the next one to the next reviewer, so the bound
+# goes around the process instead: one watchdog armed in `main`, covering
+# selection, setup and execution alike, whatever a subcommand does.
+#
+# 15s above the subprocess ceiling so an inner deadline always fires first and
+# the reader gets the specific diagnostic rather than this one. Same ordering
+# rule as ADR-086 item 9, which this repository already applies between inner
+# budgets and lefthook caps.
+CONTAINER_PROCESS_CEILING_SECONDS = CONTAINER_SUBPROCESS_CEILING_SECONDS + 15.0
 
 TEST_SUITE_TIMEOUT_SECONDS = 780
 # Ceiling for the collection smoke that stands in for a local full-suite run.
@@ -6934,6 +6955,14 @@ def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> i
         "SKIP_RETROSPECTIVE_GATE",
         PYTEST_WORKER_CAP_ENV,
         PYTEST_WORKERS_ENV,
+        # Consumed here, so it must not reach the child. A test that invokes
+        # this policy inherits the parent's `=1` otherwise and takes the
+        # full-suite path where it meant to exercise the selector, which is the
+        # opposite of the behavior under test and reads as a passing selector.
+        # Its two siblings above were stripped for the same reason; this one
+        # was added later and did not get the same treatment. Raised in review
+        # on PR #5319.
+        PYTEST_FULL_SUITE_LOCALLY_ENV,
     ):
         env.pop(key, None)
     env["CLAUDE_PLUGIN_ROOT"] = str(repo_root / "src/copilot-cli")
@@ -7893,9 +7922,68 @@ def _add_simple_command(
     command.set_defaults(handler=handler)
 
 
+def _arm_container_watchdog(subcommand: str) -> threading.Timer | None:
+    """Bound this whole process in a managed container. None outside one.
+
+    `_container_clamped` bounds a child. This bounds everything, including the
+    work between children that no deadline reached: import-graph selection,
+    path discovery, tree materialization, and the unbounded `subprocess.run` in
+    `select_tests.changed_from_git`. A hang in any of those outlived every
+    bound this module sets and ended in the reclaim the bounds exist to
+    prevent.
+
+    `os._exit` rather than an exception: the thing being bounded is a hang, and
+    a hang can be somewhere an exception will not unwind from promptly. Losing
+    a temporary directory to an abrupt exit is cheaper than losing the push and
+    its diagnostic, which is what happens if this does not fire. The message
+    goes out first and is flushed, so the developer gets the one thing a
+    reclaimed push never gave them.
+
+    Not armed when the sibling detector cannot be imported, and says so, for
+    the same reason `_container_clamped` says so: a guarantee that lapses in
+    silence is worse than one that is absent.
+    """
+    try:
+        from run_workflow_local_test import _is_remote_container
+    except ImportError:
+        print(
+            "WARNING: container detection unavailable "
+            "(run_workflow_local_test could not be imported), so the "
+            f"{CONTAINER_PROCESS_CEILING_SECONDS:.0f}s whole-process watchdog "
+            "is NOT armed. See ADR-104 rule 8.",
+            file=sys.stderr,
+        )
+        return None
+    if not _is_remote_container():
+        return None
+
+    def _expire() -> None:
+        sys.stderr.write(
+            f"ERROR: git_hook_policy {subcommand} exceeded the "
+            f"{CONTAINER_PROCESS_CEILING_SECONDS:.0f}s container ceiling and "
+            "was stopped. A managed container reclaims a hook that stops "
+            "making progress, and a reclaimed push carries no diagnostic at "
+            "all, so this exits first and says why. The hang is outside every "
+            "per-child deadline: look at selection and setup, not at a "
+            "subprocess budget. See ADR-104 rule 8.\n"
+        )
+        sys.stderr.flush()
+        os._exit(3)
+
+    watchdog = threading.Timer(CONTAINER_PROCESS_CEILING_SECONDS, _expire)
+    watchdog.daemon = True
+    watchdog.start()
+    return watchdog
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    return int(args.handler(args))
+    watchdog = _arm_container_watchdog(str(getattr(args, "command", "") or "<subcommand>"))
+    try:
+        return int(args.handler(args))
+    finally:
+        if watchdog is not None:
+            watchdog.cancel()
 
 
 if __name__ == "__main__":

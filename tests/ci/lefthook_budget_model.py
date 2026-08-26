@@ -97,15 +97,26 @@ def seconds(raw: object) -> float:
     return float(text)
 
 
-# The module whose `_run_command` applies the container clamp. A job whose
-# `run:` invokes it spawns its children through that function; a job that runs
-# anything else does not, whatever it is called.
-_CLAMPING_ENTRYPOINT = "git_hook_policy.py"
+# The module that bounds itself in a container. A job whose `run:` invokes it
+# is one `git_hook_policy` process, and `main` arms a watchdog at
+# CONTAINER_PROCESS_CEILING_SECONDS covering everything that process does.
+#
+# The earlier justification was weaker and review on PR #5319 said so: matching
+# this string proved the job spawns children through `_run_command`, which says
+# nothing about the work BETWEEN them. The reviewer's counterexamples were real
+# and specific, `changed_from_git` shelling out unbounded before the pytest
+# clock starts, and `scan_pushed_heads` discovering paths and materializing a
+# tree before its own. Neither was reached by any deadline, so a job could
+# exceed the number this model reports for it.
+#
+# What makes the derivation sound is the watchdog, not the string. The string
+# identifies the process; the process bounds itself.
+_SELF_BOUNDING_ENTRYPOINT = "git_hook_policy.py"
 
 
 def routes_through_the_clamp(entry: dict[str, Any]) -> bool:
-    """Whether this job's own command reaches `git_hook_policy._run_command`."""
-    return _CLAMPING_ENTRYPOINT in str(entry.get("run", ""))
+    """Whether this job runs as a `git_hook_policy` process, which bounds itself."""
+    return _SELF_BOUNDING_ENTRYPOINT in str(entry.get("run", ""))
 
 
 def job_cost(entry: dict[str, Any], clamp: float | None) -> float:
