@@ -3848,10 +3848,37 @@ def _suppression_violations_in_text(head: str, path: str, text: str) -> list[str
 
 
 def scan_pushed_heads(stream: TextIO, repo_root: Path) -> int:
+    """Semgrep every pushed head, under one deadline for the whole job.
+
+    The deadline is the job-level bound ADR-104 rule 8 asks for. Without it this
+    function was the last unbounded path in pre-push: it loops over pushed refs,
+    each ref's scan batches its targets, and every batch got a fresh
+    `_run_command` allowance, so a container push cost refs times batches times
+    the 150s subprocess clamp. A clamp on one child says nothing about a job
+    that runs many, which is the same defect `run_pytest` carried until review
+    on PR #5319 and this is the sibling fix.
+
+    The budget is `SEMGREP_TIMEOUT_SECONDS`, which is what a single scan already
+    had, so a one-ref push is unchanged on a workstation. It stays under
+    ADR-054's enforced 900s security-scan budget, which this does not overturn.
+    In a managed container `_container_clamped` takes it to 150s for the job
+    rather than for each child.
+    """
     updates = _push_updates(stream, repo_root)
     if updates is None:
         return 2
+    budget = _container_clamped(SEMGREP_TIMEOUT_SECONDS)
+    deadline = time.monotonic() + budget
     for update in updates:
+        if time.monotonic() >= deadline:
+            print(
+                f"ERROR: security scan exceeded its {budget:g}s budget before "
+                f"reaching {update.head}. Earlier refs in this push consumed "
+                "it. Push fewer refs at once, or raise the budget with a "
+                "measurement behind it (ci-scripts.md MUST-16).",
+                file=sys.stderr,
+            )
+            return 1
         paths = _changed_commit_paths(update, repo_root)
         if paths is None:
             return 2
@@ -3863,7 +3890,7 @@ def scan_pushed_heads(stream: TextIO, repo_root: Path) -> int:
         ]
         if not scan_paths:
             continue
-        result = _scan_pushed_head(update.head, scan_paths, repo_root)
+        result = _scan_pushed_head(update.head, scan_paths, repo_root, deadline=deadline)
         if result != 0:
             return result
     return 0
@@ -3873,13 +3900,20 @@ def _scan_pushed_head(
     head: str,
     paths: Sequence[str],
     repo_root: Path,
+    *,
+    deadline: float | None = None,
 ) -> int:
+    """Scan one pushed head. `deadline` is the job's, shared across every head.
+
+    None means no aggregate bound, which is the shape direct unit callers use.
+    Production always passes one: `scan_pushed_heads` owns it.
+    """
     with tempfile.TemporaryDirectory(prefix="lefthook-semgrep-") as temp_dir:
         tree = Path(temp_dir)
         materialized = _materialize_commit_tree(head, tree, repo_root, paths)
         if materialized != 0:
             return materialized
-        result = _run_semgrep_tree(tree, paths, repo_root)
+        result = _run_semgrep_tree(tree, paths, repo_root, deadline=deadline)
         _print_process_output(result)
         if result.returncode != 0:
             return result.returncode
@@ -4214,16 +4248,37 @@ def _run_semgrep_tree(
     tree: Path,
     paths: Sequence[str],
     repo_root: Path,
+    *,
+    deadline: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    """Run semgrep over one materialized tree, in batches under one deadline.
+
+    `deadline` is the security-scan job's, shared with every other head in the
+    push. None keeps the legacy per-batch budget and is the shape direct unit
+    callers use; production passes the job's deadline down from
+    `scan_pushed_heads`.
+    """
     targets = [str(tree / path) for path in paths]
     finding: subprocess.CompletedProcess[str] | None = None
     last_result: subprocess.CompletedProcess[str] | None = None
     try:
         for batch in _semgrep_target_batches(targets, repo_root):
+            if deadline is None:
+                allowance = float(SEMGREP_TIMEOUT_SECONDS)
+            else:
+                allowance = deadline - time.monotonic()
+                if allowance <= 0:
+                    return subprocess.CompletedProcess(
+                        [],
+                        1,
+                        "",
+                        "security scan exceeded its budget before scanning "
+                        f"{len(batch)} remaining target(s)\n",
+                    )
             result = _run_command(
                 _semgrep_command("auto", batch, repo_root),
                 repo_root,
-                timeout_seconds=SEMGREP_TIMEOUT_SECONDS,
+                timeout_seconds=allowance,
             )
             if result.returncode not in {0, 1}:
                 return result

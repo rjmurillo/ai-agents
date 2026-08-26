@@ -3432,6 +3432,7 @@ def test_pushed_semgrep_scan_materializes_immutable_head(
         tree: Path,
         paths: Sequence[str],
         _root: Path,
+        **_kwargs: object,
     ) -> subprocess.CompletedProcess[str]:
         assert paths == ["nested/source.py"]
         assert not (tree / "unchanged.py").exists()
@@ -3467,6 +3468,7 @@ def test_pushed_semgrep_scan_reads_export_ignored_changed_blob(
         tree: Path,
         paths: Sequence[str],
         _root: Path,
+        **_kwargs: object,
     ) -> subprocess.CompletedProcess[str]:
         assert "nested/source.py" in paths
         content = (tree / "nested/source.py").read_text(encoding="utf-8")
@@ -3497,6 +3499,7 @@ def test_pushed_semgrep_scan_reads_unsubstituted_changed_blob(
         tree: Path,
         paths: Sequence[str],
         _root: Path,
+        **_kwargs: object,
     ) -> subprocess.CompletedProcess[str]:
         assert "source.js" in paths
         content = (tree / "source.js").read_text(encoding="utf-8")
@@ -3530,6 +3533,7 @@ def test_pushed_semgrep_scan_ignores_local_replacement_blob(
         tree: Path,
         paths: Sequence[str],
         _root: Path,
+        **_kwargs: object,
     ) -> subprocess.CompletedProcess[str]:
         assert paths == ["source.py"]
         content = (tree / "source.py").read_text(encoding="utf-8")
@@ -3562,7 +3566,9 @@ def test_pushed_semgrep_scan_rejects_non_regular_type_change(
     monkeypatch.setattr(
         policy,
         "_run_semgrep_tree",
-        lambda *_args: pytest.fail("Semgrep must not run on a non-regular snapshot"),
+        lambda *_args, **_kwargs: pytest.fail(
+            "Semgrep must not run on a non-regular snapshot"
+        ),
     )
 
     assert policy.scan_pushed_heads(stream, repo) == 2
@@ -3587,7 +3593,9 @@ def test_pushed_semgrep_validates_all_paths_before_suffix_selection(
     monkeypatch.setattr(
         policy,
         "_scan_pushed_head",
-        lambda *_args: pytest.fail("invalid pushed paths must not reach Semgrep"),
+        lambda *_args, **_kwargs: pytest.fail(
+            "invalid pushed paths must not reach Semgrep"
+        ),
     )
 
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 2
@@ -3611,7 +3619,9 @@ def test_pushed_semgrep_detects_collision_with_unchanged_head_path(
     monkeypatch.setattr(
         policy,
         "_scan_pushed_head",
-        lambda *_args: pytest.fail("colliding pushed trees must not reach Semgrep"),
+        lambda *_args, **_kwargs: pytest.fail(
+            "colliding pushed trees must not reach Semgrep"
+        ),
     )
 
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 2
@@ -8257,7 +8267,7 @@ def test_changed_commit_path_and_scan_edge_cases(
         "_changed_commit_paths",
         lambda *_args: ["source.py"],
     )
-    monkeypatch.setattr(policy, "_scan_pushed_head", lambda *_args: 2)
+    monkeypatch.setattr(policy, "_scan_pushed_head", lambda *_args, **_kwargs: 2)
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 2
     monkeypatch.setattr(policy, "_materialize_commit_tree", lambda *_args: 2)
     assert real_scan_pushed_head("head", ["source.py"], tmp_path) == 2
@@ -8273,7 +8283,7 @@ def test_changed_commit_path_and_scan_edge_cases(
         "_changed_commit_paths",
         lambda *_args: ["source.py"],
     )
-    monkeypatch.setattr(policy, "_scan_pushed_head", lambda *_args: 0)
+    monkeypatch.setattr(policy, "_scan_pushed_head", lambda *_args, **_kwargs: 0)
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 0
 
 
