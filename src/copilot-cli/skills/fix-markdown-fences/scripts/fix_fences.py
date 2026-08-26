@@ -178,6 +178,21 @@ class _ListContainers:
     module's own container work, since the flat scanner never opened a
     container there at all. Prefer measuring a failure's direction over
     reasoning about it.
+
+    Blockquotes are the one container this does not track, and that gap is
+    stated here with the measurement rather than with the same argument that
+    failed twice above. A `>` prefix is never stripped, so a fence inside a
+    blockquote is invisible. `--write` was run over seven blockquote shapes:
+    balanced, unclosed, followed by a top-level fence, lazily closed, with a
+    malformed closer, nested in a list item, and carrying an info string. It
+    changed two, and the reference parser reads both of those as genuinely
+    unclosed, so the writes are correct. The cost is confined to missed
+    detections here and to blockquote code reaching the prose checks in the
+    sibling scanner. Four such markers exist in this repository, in two
+    archived session logs, and they are the whole of the remaining
+    under-masking. Closing it means consuming line prefixes through the entire
+    scan rather than reasoning in columns, which is a larger change than any
+    rule above.
     """
 
     __slots__ = ("_columns", "_in_paragraph", "_item_still_empty")
