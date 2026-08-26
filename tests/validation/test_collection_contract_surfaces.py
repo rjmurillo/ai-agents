@@ -249,9 +249,17 @@ def test_no_surface_disclaims_a_class_it_is_supposed_to_catch(
     monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
     monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
 
+    # An optional article between the negation and the term, because the
+    # surfaces write both forms. The spelling table holds bare terms ("broken
+    # import"), and the misses column beside it is phrased "does not catch a
+    # missing fixture". Searching for the concatenation alone missed exactly
+    # the wording a demoted catch would arrive in, so this guard could not see
+    # the inversion it names. Raised in review on PR #5319, in a guard added
+    # two rounds earlier to close the same class of hole.
     for surface, text in _collection_contract_surfaces(capsys, tmp_path).items():
         for term in terms:
-            assert f"does not catch {term}" not in text, (
+            disclaimer = re.compile(rf"does not catch (?:a |an |two )?{re.escape(term)}")
+            assert not disclaimer.search(text), (
                 f"{surface} says it does not catch {term!r}, but {label!r} is "
                 "in COLLECTION_CATCHES. Either the surface is wrong, or the "
                 "class was demoted and the table was not moved with it. Probe "

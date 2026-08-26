@@ -25,10 +25,15 @@ Two guards, because neither alone is a ratchet:
   one edit can raise a cap and the ceiling together. Review on PR #5319 said so.
 - the ratchet proper, which recomputes the same model from `lefthook.yml` as of
   the base ref and requires the current total not to rise against it. Its
-  baseline is git history, which the branch under test cannot edit. It needs the
-  base ref present, so it runs on pre-push (where the count ratchets already
-  read `origin/main`) and skips on a shallow CI checkout, leaving the ceiling as
-  the only guard there. That is a real gap, stated rather than papered over.
+  baseline is git history, which the branch under test cannot edit.
+
+  Its normal enforcement point is CI. `pytest.yml` checks out with
+  `fetch-depth: 0`, so the base ref is there and this executes. Pre-push, on a
+  change to `lefthook.yml` alone, cannot narrow the import graph from a YAML
+  file and takes the collection stand-in, which imports this module without
+  running it, so the cap-only edit this ratchet exists for is caught in CI
+  rather than locally. An earlier version of this paragraph had that backwards.
+  Where no base ref is reachable it skips and the ceiling is the only guard.
 
 Coverage:
 
@@ -44,6 +49,7 @@ Coverage:
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from typing import Any
 
@@ -116,18 +122,24 @@ def _config_at_ref(ref: str) -> dict[str, Any] | None:
     environment would read the pushing worktree's object store instead of this
     checkout's (issue #4914). This test runs inside that hook.
     """
-    try:
-        proc = subprocess.run(
-            ["git", "-C", str(REPO_ROOT), "show", f"{ref}:lefthook.yml"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-            env=count_ratchet.git_environment(),
-        )
-    except OSError:
-        return None
+    # No `except OSError`. It would turn "git could not be launched" into "the
+    # ref is absent", and the caller's response to absence is to skip the
+    # ratchet with a shallow-checkout explanation, which disables the one
+    # baseline this branch cannot edit and says nothing true about why. Git's
+    # absence is handled where the repository handles it, by the skipif marker
+    # on the test; anything else is a real failure and should read as one.
+    # Raised in review on PR #5319, citing
+    # `tests/ci/test_merge_tree_ratchet_check.py` and
+    # `tests/ci/test_count_ratchet_against_real_git.py` as the pattern.
+    proc = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "show", f"{ref}:lefthook.yml"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        env=count_ratchet.git_environment(),
+    )
     if proc.returncode != 0:
         return None
     data = yaml.safe_load(proc.stdout)
@@ -203,6 +215,7 @@ def test_baseline_is_not_slack(hook: str) -> None:
     )
 
 
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
 @pytest.mark.parametrize("hook", sorted(DECLARED_BUDGET_BASELINE_SECONDS))
 def test_declared_budget_does_not_rise_against_the_base_ref(hook: str) -> None:
     """The ratchet proper: the baseline is git history, not a line in this file.
