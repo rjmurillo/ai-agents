@@ -201,9 +201,7 @@ class TestShimDefect:
         assert defect is not None
         assert "/.venv/" in defect
 
-    def test_reports_unrelated_content_without_claiming_a_venv_path(
-        self, tmp_path: Path
-    ) -> None:
+    def test_reports_a_shim_that_never_calls_lefthook(self, tmp_path: Path) -> None:
         path = tmp_path / "pre-commit"
         path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         path.chmod(0o755)
@@ -212,7 +210,80 @@ class TestShimDefect:
 
         assert defect is not None
         assert "/.venv/" not in defect
-        assert "worktree-safe shim" in defect
+        assert "never hands the 'pre-commit' hook to lefthook" in defect
+
+    def test_reports_a_shim_that_dispatches_the_wrong_hook(self, tmp_path: Path) -> None:
+        path = tmp_path / "pre-commit"
+        path.write_text(hook_shim("pre-push"), encoding="utf-8")
+        path.chmod(0o755)
+
+        defect = shim_defect("pre-commit", path)
+
+        assert defect is not None
+        assert "never hands the 'pre-commit' hook to lefthook" in defect
+
+    def test_reports_a_machine_bound_absolute_path_that_is_not_a_venv(
+        self, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "pre-commit"
+        path.write_text(
+            '#!/bin/sh\nexec /opt/someones-box/lefthook run "pre-commit" "$@"\n',
+            encoding="utf-8",
+        )
+        path.chmod(0o755)
+
+        defect = shim_defect("pre-commit", path)
+
+        assert defect is not None
+        assert "/opt/someones-box/lefthook" in defect
+
+    def test_accepts_a_differently_worded_but_equally_safe_shim(
+        self, tmp_path: Path
+    ) -> None:
+        """Issue #4789 AC 4: the gate passes from both worktrees after either install.
+
+        A byte comparison cannot deliver that. This is the shim a second agent
+        installed into the shared hooks directory while this change was written.
+        """
+        path = tmp_path / "pre-commit"
+        path.write_text(
+            "#!/bin/sh\n"
+            "# worktree-safe lefthook shim: no absolute path.\n"
+            'if [ "$LEFTHOOK" = "0" ]; then\n'
+            "  exit 0\n"
+            "fi\n"
+            "\n"
+            "exec uv run --frozen lefthook run pre-commit \"$@\"\n",
+            encoding="utf-8",
+        )
+        path.chmod(0o755)
+
+        assert shim_defect("pre-commit", path) is None
+
+    def test_a_path_named_only_in_a_comment_is_documentation_not_a_defect(
+        self, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "pre-commit"
+        path.write_text(
+            "#!/bin/sh\n"
+            "# Rewrite it with: /home/someone/repo/scripts/install.py\n"
+            'exec uv run --frozen lefthook run "pre-commit" "$@"\n',
+            encoding="utf-8",
+        )
+        path.chmod(0o755)
+
+        assert shim_defect("pre-commit", path) is None
+
+    def test_machine_independent_paths_are_not_defects(self, tmp_path: Path) -> None:
+        path = tmp_path / "pre-commit"
+        path.write_text(
+            "#!/bin/sh\n"
+            'uv run --frozen lefthook run "pre-commit" "$@" >/dev/null\n',
+            encoding="utf-8",
+        )
+        path.chmod(0o755)
+
+        assert shim_defect("pre-commit", path) is None
 
     def test_reports_a_hook_that_is_not_decodable_text(self, tmp_path: Path) -> None:
         path = tmp_path / "pre-commit"
@@ -303,6 +374,19 @@ class TestWorktreeIsolationRegression:
         write_shims(primary, ["pre-commit"])
 
         assert write_shims(primary, ["pre-commit"]) == []
+
+    def test_a_safe_shim_written_by_something_else_is_left_alone(
+        self, primary: Path
+    ) -> None:
+        """Two safe installers must not overwrite each other on every run."""
+        shared = hooks_dir(primary) / "pre-commit"
+        shared.parent.mkdir(parents=True, exist_ok=True)
+        foreign = "#!/bin/sh\nexec uv run --frozen lefthook run pre-commit \"$@\"\n"
+        shared.write_text(foreign, encoding="utf-8")
+        shared.chmod(0o755)
+
+        assert write_shims(primary, ["pre-commit"]) == []
+        assert shared.read_text(encoding="utf-8") == foreign
 
 
 class TestCliExitCodes:

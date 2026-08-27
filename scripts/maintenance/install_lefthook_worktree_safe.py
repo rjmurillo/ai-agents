@@ -46,6 +46,14 @@ any ``core.hooksPath`` override and records its own
 ``$GIT_COMMON_DIR/info/lefthook.checksum`` state, then overwrites the shim files
 lefthook just wrote. ``--check`` never runs the install and never mutates.
 
+Looser than a byte comparison: ``--check`` accepts any shim that dispatches the
+right hook to lefthook and names no machine-bound absolute path, not only the
+one :func:`hook_shim` writes. Issue #4789's fourth acceptance criterion asks
+that the gate pass "from both worktrees after either install", and an exact
+comparison cannot deliver that. :func:`shim_defect` carries the incident.
+``write_shims`` follows the same rule, so an already-safe shim written by
+something else is left alone rather than fought over.
+
 Known limitation, not closed here
 ---------------------------------
 ``lefthook run`` re-syncs the hooks itself whenever the config checksum has
@@ -124,9 +132,19 @@ _TOP_LEVEL_KEY = re.compile(r"^([A-Za-z][A-Za-z0-9_-]*):")
 
 _HOOK_MODE = 0o755
 
-# The signature of the defect this installer exists to prevent: an absolute
-# path reaching into some checkout's virtual environment.
-_VENV_PATH = re.compile(r"(?:^|[\s\"'])/\S*/\.venv/")
+# An absolute path token. The negative lookbehind keeps `$dir/node_modules` and
+# `sed 's/a/b/'` out: a slash preceded by a word character or `$` continues an
+# expression, it does not open an absolute path.
+_ABSOLUTE_PATH = re.compile(r"(?<![\w$])/[A-Za-z0-9_.][^\s\"';|&)]*")
+
+# Absolute paths every machine resolves identically, so they cannot bind the
+# shared shim to one checkout. Everything else absolute is the defect.
+_MACHINE_INDEPENDENT_PATHS = ("/bin/sh", "/dev/null", "/usr/bin/env")
+
+# The measured signature of the defect: lefthook probes the uv virtual
+# environment and writes its absolute path into the shim. Named separately from
+# the general rule so the failure message can say what actually happened.
+_VENV_PATH = re.compile(r"(?<![\w$])/\S*/\.venv/")
 
 REPAIR_COMMAND = "uv run python scripts/maintenance/install_lefthook_worktree_safe.py"
 
@@ -243,8 +261,44 @@ def hooks_dir(repo_root: Path) -> Path:
     return path if path.is_absolute() else repo_root / path
 
 
+def _dispatch_pattern(hook: str) -> re.Pattern[str]:
+    """Match a line that hands ``hook`` to lefthook, quoted or bare."""
+    return re.compile(rf"lefthook\s+run\s+[\"']?{re.escape(hook)}[\"']?(?![\w-])")
+
+
+def _machine_bound_paths(content: str) -> list[str]:
+    """Return absolute paths in ``content`` that do not resolve the same everywhere.
+
+    Comment lines are exempt: a path named in a comment is documentation, not
+    something the shell will execute. The shebang is a comment by this rule and
+    is machine-independent anyway.
+    """
+    found: list[str] = []
+    for line in content.splitlines():
+        if line.lstrip().startswith("#"):
+            continue
+        for match in _ABSOLUTE_PATH.finditer(line):
+            token = match.group(0)
+            if token.startswith(_MACHINE_INDEPENDENT_PATHS):
+                continue
+            if token not in found:
+                found.append(token)
+    return found
+
+
 def shim_defect(hook: str, path: Path) -> str | None:
-    """Return why ``path`` is not a usable worktree-safe shim, or None."""
+    """Return why ``path`` is not a usable worktree-safe shim, or None.
+
+    The test is semantic, not a byte comparison against :func:`hook_shim`. Two
+    reasons, and the second is not hypothetical. Issue #4789's fourth acceptance
+    criterion is that the gate "passes from both worktrees after either
+    install", which a byte comparison cannot deliver: any two installers writing
+    equally safe but differently worded shims would each fail the other's check,
+    and whichever ran last would win. That happened during this change, when a
+    second agent installed a near-identical shim into the shared hooks directory
+    and an exact comparison rejected it. A shim that dispatches to the right
+    hook and binds to no machine is correct, however it is spelled.
+    """
     if not path.is_file():
         return f"{path} is missing"
     try:
@@ -253,14 +307,20 @@ def shim_defect(hook: str, path: Path) -> str | None:
         return f"{path} could not be read as text: {exc}"
     if not os.access(path, os.X_OK):
         return f"{path} is not executable, so git will ignore it"
-    if content == hook_shim(hook):
-        return None
     if _VENV_PATH.search(content) is not None:
         return (
             f"{path} bakes in an absolute '/.venv/' path, so it names one "
             "checkout's virtual environment and breaks for every other worktree"
         )
-    return f"{path} is not the worktree-safe shim for '{hook}'"
+    bound = _machine_bound_paths(content)
+    if bound:
+        return (
+            f"{path} runs the absolute path '{bound[0]}', which belongs to one "
+            "machine or checkout rather than to every worktree sharing this hook"
+        )
+    if _dispatch_pattern(hook).search(content) is None:
+        return f"{path} never hands the '{hook}' hook to lefthook"
+    return None
 
 
 def find_defects(repo_root: Path) -> tuple[list[str], int]:
