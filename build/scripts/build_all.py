@@ -1093,11 +1093,13 @@ def _snapshot_owned_prefixes(
     :class:`SnapshotIncompleteError` there so the caller aborts before any
     generator runs and no partial snapshot ever reaches restore.
 
-    A path that no longer exists when the read fails is skipped even under
+    A read that raises :class:`FileNotFoundError` is skipped even under
     ``strict``. Restore cannot delete what is not on disk, so a file that
     vanished between the ``rglob`` walk and the read cannot cause the data
     loss this guard exists to prevent, and aborting on it would make a
-    pre-push gate flaky for a race that is harmless.
+    pre-push gate flaky for a race that is harmless. Every other
+    :class:`OSError` raises under ``strict``: see :func:`_read_into_snapshot`
+    for why the errno is the only reliable discriminator here.
     """
     ignored = _ignored_paths(repo_root, prefixes) if exclude_ignored else set()
     snapshot: dict[Path, bytes] = {}
@@ -1131,11 +1133,45 @@ def _read_into_snapshot(
     and ``.agents/architecture/README.md`` are single-file owned prefixes, so
     the branch that handles them is exactly as exposed to the delete-on-
     unreadable bug as the walk is.
+
+    Only :class:`FileNotFoundError` from the read itself counts as "vanished".
+    Under ``strict`` every other :class:`OSError` raises, because restore CAN
+    delete a file that is still on disk.
+
+    The narrower ``strict and path.exists()`` guard this replaces was
+    fail-open. ``Path.exists()`` reports a boolean over two different
+    questions, "is it absent" and "could I stat it", and it answers both with
+    ``False``. On CPython 3.14.7 it delegates to ``os.path.exists``, whose
+    body is::
+
+        def exists(path):
+            try:
+                os.stat(path)
+            except (OSError, ValueError):
+                return False
+            return True
+
+    So a permission error, a stale handle, or a transient I/O failure on the
+    ``stat`` made ``exists()`` ``False`` for a file that was still there, the
+    strict branch was skipped, the path stayed out of the snapshot, and
+    :func:`_restore_owned_prefixes` deleted it as generator-created: the exact
+    data loss issue #4632 reproduction 2 reported. Measured with a symlink
+    loop, which needs no mock and no permission bits: ``exists()`` is
+    ``False`` while ``read_bytes()`` raises ``OSError(ELOOP)``, not
+    ``FileNotFoundError``.
+
+    The genuine race is unchanged. A file removed between the ``rglob`` walk
+    and the read raises ``FileNotFoundError`` (``ENOENT``) from ``read_bytes``,
+    which is skipped even under ``strict``: restore cannot delete what is not
+    on disk, so that race carries none of the data-loss risk strict mode
+    exists to prevent, and aborting on it would make a pre-push gate flaky.
     """
     try:
         snapshot[path] = path.read_bytes()
+    except FileNotFoundError:
+        return
     except OSError as exc:
-        if strict and path.exists():
+        if strict:
             raise SnapshotIncompleteError(
                 f"cannot read owned file {path}: {exc}"
             ) from exc

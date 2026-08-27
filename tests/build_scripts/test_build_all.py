@@ -2298,6 +2298,66 @@ def test_read_into_snapshot_skips_a_path_that_vanished(tmp_path: Path) -> None:
     assert snapshot == {}
 
 
+def _unstattable_unreadable_path(tmp_path: Path) -> Path:
+    """Return a path whose stat AND read both fail, and not with ENOENT.
+
+    A symlink loop, which needs no mock and no permission bits (this suite runs
+    as root in CI, where mode bits deny nothing). It reproduces the exact shape
+    the old ``strict and path.exists()`` guard read as "vanished": ``os.stat``
+    raises ``ELOOP`` so ``Path.exists()`` is ``False``, while ``read_bytes()``
+    raises ``OSError(ELOOP)`` rather than ``FileNotFoundError``.
+    """
+    loop = tmp_path / "loop"
+    loop.symlink_to(loop)
+    return loop
+
+
+def test_read_into_snapshot_raises_under_strict_when_stat_fails_too(
+    tmp_path: Path,
+) -> None:
+    """A non-ENOENT read failure must abort strict mode, whatever stat says.
+
+    The pre-fix guard asked ``path.exists()``, which cannot separate "gone"
+    from "cannot be stat'ed": it answers both with ``False``. A permission
+    error, a stale handle, or a transient I/O failure therefore skipped the
+    file, left it out of the snapshot, and let ``_restore_owned_prefixes``
+    delete it as generator-created, reopening #4632 reproduction 2.
+
+    The three preconditions are asserted rather than assumed, so this fails
+    loudly on a runtime where the loop stops reproducing the shape instead of
+    passing for the wrong reason.
+    """
+    loop = _unstattable_unreadable_path(tmp_path)
+    assert not loop.exists(), "precondition: the old guard must read this as gone"
+    with pytest.raises(OSError) as read_failure:
+        loop.read_bytes()
+    assert not isinstance(read_failure.value, FileNotFoundError), (
+        "precondition: the read must fail with something other than ENOENT"
+    )
+    assert loop.is_symlink(), "precondition: the path is still on disk"
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._read_into_snapshot({}, loop, strict=True)
+    assert "loop" in str(excinfo.value)
+
+
+def test_read_into_snapshot_skips_a_stat_failure_when_not_strict(
+    tmp_path: Path,
+) -> None:
+    """Inverse control: the .claude/ guard must keep skipping, not start failing.
+
+    Same input as the strict case above. The guard only compares snapshots and
+    cannot delete anything, so widening fail-closed to it would fail a pre-push
+    gate on a transient error for no safety gain.
+    """
+    loop = _unstattable_unreadable_path(tmp_path)
+    snapshot: dict[Path, bytes] = {}
+
+    build_all._read_into_snapshot(snapshot, loop, strict=False)
+
+    assert snapshot == {}
+
+
 def test_run_check_aborts_without_deleting_an_unreadable_owned_file(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
