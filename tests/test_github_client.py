@@ -114,6 +114,38 @@ class TestGhCliClientRestPost:
                 GhCliClient().rest_post("repos/o/r/issues/1/comments", {"body": "x"})
 
 
+class TestGhCliClientRestPostNoContent:
+    """A successful POST that answers with no body is a success, not a failure.
+
+    The Actions cancel endpoint answers ``202 Accepted`` with an empty body
+    (https://docs.github.com/rest/actions/workflow-runs#cancel-a-workflow-run),
+    so ``gh api`` writes nothing to stdout. Parsing that as JSON raised
+    ``JSONDecodeError`` on a call that had already cancelled the run, and
+    ``workflow_runs.cancel_runs`` catches ``ValueError``, so it recorded every
+    successful cancellation as failed and the CLI exited 3 after mutating.
+    """
+
+    ACTIONS_CANCEL = "repos/o/r/actions/runs/12345/cancel"
+
+    @pytest.mark.parametrize("body", ["", "\n", "   \n"])
+    def test_an_empty_202_body_returns_an_empty_dict(self, body: str):
+        with patch("subprocess.run", return_value=_completed(stdout=body)):
+            assert GhCliClient().rest_post(self.ACTIONS_CANCEL, {}) == {}
+
+    def test_a_non_empty_non_json_body_still_raises(self):
+        """Control: only an empty body is a no-content success. A body that is
+        present and unparseable is a malformed response and must stay loud.
+        """
+        with patch("subprocess.run", return_value=_completed(stdout="<html>502</html>")):
+            with pytest.raises(ValueError, match="non-JSON body"):
+                GhCliClient().rest_post(self.ACTIONS_CANCEL, {})
+
+    def test_a_json_array_body_raises_rather_than_mistyping_the_return(self):
+        with patch("subprocess.run", return_value=_completed(stdout="[1, 2]")):
+            with pytest.raises(ValueError, match="expected an object"):
+                GhCliClient().rest_post(self.ACTIONS_CANCEL, {})
+
+
 # ---------------------------------------------------------------------------
 # GhCliClient: rest_patch
 # ---------------------------------------------------------------------------

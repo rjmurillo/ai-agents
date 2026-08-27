@@ -7,11 +7,14 @@ live API.
 
 from __future__ import annotations
 
+import subprocess
 from typing import Any
+from unittest.mock import patch
 from urllib.parse import quote
 
 import pytest
 
+from scripts.github_core.gh_client import GhCliClient
 from scripts.github_core.workflow_runs import (
     PAGE_SIZE,
     JobsNotMaterializedError,
@@ -362,3 +365,41 @@ class TestCancelRuns:
         outcome = cancel_runs(client, "o/r", [1])
 
         assert outcome.failed[0][0] == 1
+
+
+class TestCancelAgainstTheRealTransport:
+    """Wiring proof: the production client, driven with the real 202 shape.
+
+    Every other case in this file substitutes ``FakeClient``, whose
+    ``rest_post`` returns ``{}`` and therefore cannot observe how the real
+    transport treats an empty body. GitHub answers the Actions cancel endpoint
+    with ``202 Accepted`` and no body
+    (https://docs.github.com/rest/actions/workflow-runs#cancel-a-workflow-run),
+    so ``gh api`` writes nothing to stdout. ``GhCliClient.rest_post`` parsed
+    that as JSON, raised ``JSONDecodeError`` (a ``ValueError``, which
+    ``cancel_runs`` catches), and booked every cancelled run as failed. The
+    CLI then exited 3 after the mutation had already landed.
+    """
+
+    def _completed(self, stdout: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=stdout, stderr=""
+        )
+
+    def test_an_empty_202_body_records_the_run_as_cancelled(self):
+        with patch("subprocess.run", return_value=self._completed("")):
+            outcome = cancel_runs(GhCliClient(), "o/r", [12345])
+
+        assert outcome.cancelled == (12345,)
+        assert outcome.failed == ()
+        assert outcome.is_complete is True
+
+    def test_control_a_malformed_non_empty_body_is_still_a_failure(self):
+        """Without this, a fix that swallowed every parse error would pass the
+        case above while hiding a real transport fault.
+        """
+        with patch("subprocess.run", return_value=self._completed("<html>502</html>")):
+            outcome = cancel_runs(GhCliClient(), "o/r", [12345])
+
+        assert outcome.cancelled == ()
+        assert outcome.is_complete is False
