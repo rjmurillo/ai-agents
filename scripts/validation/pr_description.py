@@ -652,8 +652,9 @@ _AUTO_CLOSE_KW: re.Pattern[str] = re.compile(
 # unstripped, so a closing link inside an example was read as a real one and
 # the gate passed on a pull request that closes nothing. Refs #3827.
 # A run of three or more backticks at the start of a line opens a fenced block,
-# which _FENCED_CODE_BLOCK owns. Letting the multiline alternative claim those
-# too would relabel a fence as an inline span and change the reported reason.
+# which _fenced_code_block_ranges owns. Letting the multiline alternative
+# claim those too would relabel a fence as an inline span and change the
+# reported reason.
 # So newlines are allowed only for runs of one or two backticks, which is where
 # the real gap was; longer runs stay single line and fences handle the rest.
 _INLINE_CODE_SPAN: re.Pattern[str] = re.compile(
@@ -664,12 +665,15 @@ _INLINE_CODE_SPAN: re.Pattern[str] = re.compile(
 
 # Fenced code block: backtick or tilde fence with optional language tag.
 # CommonMark 0.31.2 section 4.5: an unclosed fence still opens a code block
-# that runs to the end of the containing block, not to nothing. The first
-# alternative takes a real closing fence when one exists; the second consumes
-# to EOF when none does, so a body ending mid-fence is still recognized as a
-# fenced span instead of matching neither pattern (Copilot review on PR
-# #5371, which found this exact gap in the port at
-# .claude/skills/github/scripts/issue/check_existing_pr_for_issue.py).
+# that runs to the end of the containing block, not to nothing. The closing
+# fence must use the same character as the opener and be AT LEAST as long,
+# not exactly as long: a 3-backtick opener closes on a run of 3 or more
+# backticks. A single compiled pattern cannot express "at least as long"
+# with a fixed-length `\1` backreference, so `_fenced_code_block_ranges`
+# below finds each opener's run length first and builds that opener's
+# closer pattern dynamically (Copilot review on PR #5371, round 3, which
+# found this gap in the round-2 `\1`-based pattern at both this module and
+# the port at .claude/skills/github/scripts/issue/check_existing_pr_for_issue.py).
 #
 # `[ ]{0,3}` on both the opening and closing fence lines tolerates the
 # indentation CommonMark 0.31.2 section 4.5 allows (up to three spaces); a
@@ -677,13 +681,42 @@ _INLINE_CODE_SPAN: re.Pattern[str] = re.compile(
 # this module does not classify. `[ \t]*$` on the closer requires the line to
 # hold nothing but the fence run and optional trailing whitespace, so a line
 # like a fence marker followed by other text cannot end the block early:
-# `^\1` alone matched any line merely starting with the same run, closing the
-# block one line too soon and letting a real claim past it that GitHub still
-# renders as code (Copilot review on PR #5371, round 2).
-_FENCED_CODE_BLOCK: re.Pattern[str] = re.compile(
-    r"^[ ]{0,3}(`{3,}|~{3,})[^\n]*\n(?:.*?^[ ]{0,3}\1[ \t]*$|.*)",
-    re.DOTALL | re.MULTILINE,
+# a bare same-length match alone matched any line merely starting with the
+# same run, closing the block one line too soon and letting a real claim
+# past it that GitHub still renders as code (Copilot review on PR #5371,
+# round 2).
+_FENCE_OPEN_LINE: re.Pattern[str] = re.compile(
+    r"^[ ]{0,3}(`{3,}|~{3,})[^\n]*\n",
+    re.MULTILINE,
 )
+
+
+def _fenced_code_block_ranges(text: str) -> list[tuple[int, int]]:
+    """Return (start, end) pairs for every fenced code block in ``text``.
+
+    Walks openers left to right, and for each one builds a closer pattern
+    sized to that opener's own fence-character and run length (CommonMark
+    0.31.2 4.5: same character, length >= opener length). An opener with no
+    matching closer runs to the end of the text. ``pos`` advances to the end
+    of each resolved block so a fence-like line inside one block's content is
+    never re-read as a fresh opener.
+    """
+    ranges: list[tuple[int, int]] = []
+    pos = 0
+    while True:
+        opener = _FENCE_OPEN_LINE.search(text, pos)
+        if opener is None:
+            break
+        run = opener.group(1)
+        closer_pattern = re.compile(
+            rf"^[ ]{{0,3}}{re.escape(run[0])}{{{len(run)},}}[ \t]*$",
+            re.MULTILINE,
+        )
+        closer = closer_pattern.search(text, opener.end())
+        end = closer.end() if closer else len(text)
+        ranges.append((opener.start(), end))
+        pos = end
+    return ranges
 
 
 def _span_ranges(body: str, pattern: re.Pattern[str]) -> list[tuple[int, int]]:
@@ -723,7 +756,7 @@ def validate_closing_links(
         base_ref = base_branch
 
     issues: list[Issue] = []
-    fenced_ranges = _span_ranges(body, _FENCED_CODE_BLOCK)
+    fenced_ranges = _fenced_code_block_ranges(body)
     code_span_ranges = _span_ranges(body, _INLINE_CODE_SPAN)
     non_default_base = bool(base_ref and default_branch and base_ref != default_branch)
 

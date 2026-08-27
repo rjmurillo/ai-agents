@@ -67,8 +67,8 @@ _PullRequestPayload = dict[str, object]
 # the GraphQL `closingIssuesReferences` API), so a match inside either must
 # not count as the PR claiming implementation ownership of the issue. Ported
 # verbatim from `scripts/validation/pr_description.py` (`_INLINE_CODE_SPAN`
-# and `_FENCED_CODE_BLOCK`), which solves the identical problem for the PR
-# description validator's closing-link check (see that module's
+# and `_fenced_code_block_ranges`), which solves the identical problem for
+# the PR description validator's closing-link check (see that module's
 # `validate_closing_links`, issue #3827, PRs #4078 and #4716).
 #
 # Stricter/looser/different than canonical: identical patterns, same
@@ -78,35 +78,66 @@ _PullRequestPayload = dict[str, object]
 # module simply treats the match as not claiming ownership at all (a PR
 # quoting or documenting a closing keyword is not implementing the issue).
 #
-# The fenced-block alternation `(?:.*?^[ ]{0,3}\1[ \t]*$|.*)` is deliberate.
 # CommonMark 0.31.2 section 4.5 says the content of a fenced block runs
 # "until a closing code fence of the same type as the code block began with,
 # or until the end of the containing block", so an opening fence with no
-# closing fence still opens a code block that runs to end of input. The first
-# alternative takes a closing fence when one exists; the second consumes to
-# EOF when none does. Without it a body ending mid-fence matched neither span
-# pattern, so a keyword GitHub never links was read as a real claim (Copilot
-# review on PR #5371). Both alternatives live in `pr_description.py` too, so
-# the "ported verbatim" claim above stays true.
+# closing fence still opens a code block that runs to end of input, and a
+# closing fence must use the same character as the opener and be AT LEAST as
+# long, not exactly as long. Without the end-of-input fallback a body ending
+# mid-fence matched neither span pattern, so a keyword GitHub never links was
+# read as a real claim (Copilot review on PR #5371). A fixed-length `\1`
+# backreference cannot express "at least as long", so `_fenced_code_block_ranges`
+# below finds each opener's run length first and builds that opener's closer
+# pattern dynamically (Copilot review on PR #5371, round 3). Both mechanisms
+# live in `pr_description.py` too, so the "ported verbatim" claim above stays
+# true.
 #
 # `[ ]{0,3}` on both the opening and closing fence lines tolerates the
 # indentation CommonMark 0.31.2 section 4.5 allows (up to three spaces); a
 # fourth space starts an indented code block instead, a different construct
 # this module does not classify. `[ \t]*$` on the closer requires the line to
 # hold nothing but the fence run and optional trailing whitespace, so a line
-# like `` ```not-a-closer `` cannot end the block early: `^\1` alone matched
-# any line merely *starting* with the same run, closing the block one line
-# too soon and letting a real claim past it that GitHub still renders as code
-# (Copilot review on PR #5371).
+# like `` ```not-a-closer `` cannot end the block early: a bare same-length
+# match alone matched any line merely *starting* with the same run, closing
+# the block one line too soon and letting a real claim past it that GitHub
+# still renders as code (Copilot review on PR #5371, round 2).
 _INLINE_CODE_SPAN = re.compile(
     r"(?<!`)(`{1,2})(?!`)(?:[^\n]|\n(?!\s*\n))+?(?<!`)\1(?!`)"
     r"|"
     r"(?<!`)(`{3,})(?!`)[^\n]+?(?<!`)\2(?!`)"
 )
-_FENCED_CODE_BLOCK = re.compile(
-    r"^[ ]{0,3}(`{3,}|~{3,})[^\n]*\n(?:.*?^[ ]{0,3}\1[ \t]*$|.*)",
-    re.DOTALL | re.MULTILINE,
+_FENCE_OPEN_LINE = re.compile(
+    r"^[ ]{0,3}(`{3,}|~{3,})[^\n]*\n",
+    re.MULTILINE,
 )
+
+
+def _fenced_code_block_ranges(text: str) -> list[tuple[int, int]]:
+    """Return (start, end) pairs for every fenced code block in ``text``.
+
+    Walks openers left to right, and for each one builds a closer pattern
+    sized to that opener's own fence-character and run length (CommonMark
+    0.31.2 4.5: same character, length >= opener length). An opener with no
+    matching closer runs to the end of the text. ``pos`` advances to the end
+    of each resolved block so a fence-like line inside one block's content is
+    never re-read as a fresh opener.
+    """
+    ranges: list[tuple[int, int]] = []
+    pos = 0
+    while True:
+        opener = _FENCE_OPEN_LINE.search(text, pos)
+        if opener is None:
+            break
+        run = opener.group(1)
+        closer_pattern = re.compile(
+            rf"^[ ]{{0,3}}{re.escape(run[0])}{{{len(run)},}}[ \t]*$",
+            re.MULTILINE,
+        )
+        closer = closer_pattern.search(text, opener.end())
+        end = closer.end() if closer else len(text)
+        ranges.append((opener.start(), end))
+        pos = end
+    return ranges
 
 
 def _span_ranges(text: str, pattern: re.Pattern[str]) -> list[tuple[int, int]]:
@@ -134,7 +165,7 @@ def references_issue(text: str, issue: int, repo_slug: str = "") -> bool:
     if repo_slug:
         issue_ref = rf"(?:{re.escape(repo_slug)}#|#){issue}\b"
     pattern = re.compile(rf"(?i)\b(?:{_KEYWORDS})\b[\s:]*{issue_ref}")
-    fenced_ranges = _span_ranges(text, _FENCED_CODE_BLOCK)
+    fenced_ranges = _fenced_code_block_ranges(text)
     code_span_ranges = _span_ranges(text, _INLINE_CODE_SPAN)
     for match in pattern.finditer(text):
         pos = match.start()

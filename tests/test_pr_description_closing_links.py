@@ -189,6 +189,15 @@ class TestFencedCodeBlock:
         assert len(issues) == 1
         assert issues[0].severity == "CRITICAL"
 
+    def test_closer_longer_than_opener_still_closes_the_fence(self):
+        """CommonMark 0.31.2 4.5: the closer must be the same character and
+        AT LEAST as long as the opener, not exactly as long. A 3-backtick
+        opener closes on a 4-backtick line, so a keyword after it is real,
+        unfenced text and must be reported as a genuine closing keyword, not
+        excused as still-fenced (Copilot, PR #5371 round 3)."""
+        body = "```\nignore this\n````\nFixes #42\n"
+        assert validate_closing_links(body, "main", "main") == []
+
 
 class TestStackedPR:
     """Non-default base branch should produce WARNING when body has closing keywords."""

@@ -174,23 +174,51 @@ class TestReferencesIssue:
         body = "```\n```not-a-closer\nFixes #4965\n```\n"
         assert _check.references_issue(body, 4965) is False
 
+    def test_closer_longer_than_opener_still_closes_the_fence(self):
+        # CommonMark 0.31.2 4.5: the closer must be the same character and
+        # AT LEAST as long as the opener, not exactly as long. A 3-backtick
+        # opener closes on a 4-backtick line, so the claim after it is real,
+        # unfenced text (Copilot, PR #5371 round 3).
+        body = "```\nignore this\n````\nFixes #4965\n"
+        assert _check.references_issue(body, 4965) is True
+
 
 class TestSpanPatternsMatchCanonical:
-    """Drift guard for the two duplicated regex pairs (PR #5371 review).
+    """Drift guard for the two duplicated span-exclusion mechanisms (PR #5371 review).
 
     `references_issue()`'s span-exclusion patterns are ported verbatim from
     `scripts/validation/pr_description.py`. Nothing else keeps the two in
     sync, so a fix applied to one copy and not the other silently reopens
-    whichever gap the fix closed. Asserting the compiled `.pattern` strings
-    are equal converts the PR's own "confirm no drift" reviewer note into a
-    gate.
+    whichever gap the fix closed. `_INLINE_CODE_SPAN` stays one static
+    pattern, so a `.pattern`/`.flags` comparison still fits it. The fenced
+    block is no longer one static pattern (round 3: CommonMark's "at least
+    as long" closer rule needs a per-opener dynamic closer, not a fixed `\1`
+    backreference), so its drift guard compares `_fenced_code_block_ranges`
+    output on shared tricky inputs instead of comparing source text.
     """
 
     def test_inline_code_span_pattern_matches_canonical(self):
         assert _check._INLINE_CODE_SPAN.pattern == _prdesc._INLINE_CODE_SPAN.pattern
+        assert _check._INLINE_CODE_SPAN.flags == _prdesc._INLINE_CODE_SPAN.flags
 
-    def test_fenced_code_block_pattern_matches_canonical(self):
-        assert _check._FENCED_CODE_BLOCK.pattern == _prdesc._FENCED_CODE_BLOCK.pattern
+    def test_fence_open_line_pattern_matches_canonical(self):
+        assert _check._FENCE_OPEN_LINE.pattern == _prdesc._FENCE_OPEN_LINE.pattern
+        assert _check._FENCE_OPEN_LINE.flags == _prdesc._FENCE_OPEN_LINE.flags
+
+    def test_fenced_code_block_ranges_behavior_matches_canonical(self):
+        bodies = [
+            "```\nFixes #1\n```\n",
+            "~~~\nFixes #1",
+            "  ```\n  Fixes #1\n  ```\n",
+            "```\n```not-a-closer\nFixes #1\n```\n",
+            "```\nignore this\n````\nFixes #1\n",
+            "no fence here at all",
+            "```\nfirst\n```\ntext\n~~~\nsecond\n~~~\n",
+        ]
+        for body in bodies:
+            assert _check._fenced_code_block_ranges(
+                body
+            ) == _prdesc._fenced_code_block_ranges(body), body
 
 
 class TestFindOpenPrsForIssue:
