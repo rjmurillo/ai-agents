@@ -691,7 +691,7 @@ class _ListContainers:
         if _is_blank(line):
             return None  # `sync` already ended the paragraph
         if self._open_label_blank is not None:
-            if not self._starts_a_block(line):
+            if not self._ends_an_open_label(line):
                 self._consume_open_label(line)
                 return None
             self._open_label_blank = None
@@ -829,12 +829,54 @@ class _ListContainers:
             or self._list_item(line) is not None
         )
 
-    def _list_item(self, line: str) -> tuple[int, bool] | None:
+    def _ends_an_open_label(self, line: str) -> bool:
+        """Whether *line* ends a link label that opened on an earlier line.
+
+        Not the same question as `_starts_a_block`, and the gap between the
+        two was two separate `--write` corruptions.
+
+        A setext underline is not a block start, so `_starts_a_block` is right
+        to omit it, but `observe` already ends a paragraph on one and the
+        reference parser stops a label there too. Without this clause the `=`
+        in `[` / `=` / `2. ``` ` / `   ``` ` was swallowed as label text, the
+        paragraph never closed, rule 4 vetoed the `2.`, the item's fence never
+        opened, and its real closing fence became a fresh opener that `--write`
+        then closed by appending to a balanced document. `=` of any length and
+        `-` runs of one or two did this; `---` did not, because a thematic
+        break is already a block start.
+
+        Rule 4's veto must not apply here either. It asks whether a marker can
+        INTERRUPT a paragraph, which an empty bullet or an ordered marker other
+        than 1 cannot. The reference parser stops an open label at such a line
+        regardless, so asking the interrupt question let `[` / `*` / `]:a` /
+        `2. ``` ` complete a definition CommonMark never recognises. The veto
+        reads `self._in_paragraph`, which is always True while a label is open,
+        so the caller was deciding this line under the opposite assumption to
+        the one it applies one statement later.
+        """
+        if self._starts_a_block(line):
+            return True
+        content = self._relative(line)
+        body = content.lstrip(" ")
+        if len(content) - len(body) > _MAX_FENCE_INDENT:
+            return False  # rule 1: indented code, and it continues the label
+        if _SETEXT_UNDERLINE.match(body):
+            return True
+        return self._list_item(line, interrupting=False) is not None
+
+    def _list_item(
+        self, line: str, *, interrupting: bool | None = None
+    ) -> tuple[int, bool] | None:
         """Return *line*'s content column and whether its item has content.
 
         None when the line opens no list item. Returning both from the one
         match keeps the caller from re-matching a pattern that has already
         been shown to apply.
+
+        *interrupting* overrides the paragraph state rule 4's veto is read
+        against. It exists for one caller, `_ends_an_open_label`, which needs
+        rules 1, 2, 3 and 5 without rule 4; duplicating the marker grammar
+        there instead would add a fourth copy of it to keep in step.
         """
         content = self._relative(line)
         body = content.lstrip(" ")
@@ -850,7 +892,8 @@ class _ListContainers:
         marker_end = _indent_width(match.group("indent") + marker)
         empty = _is_blank(match.group("rest"))
         blocked = empty or (number is not None and int(number) != 1)
-        if self._in_paragraph and blocked and not self._outdents(match.group("indent")):
+        in_paragraph = self._in_paragraph if interrupting is None else interrupting
+        if in_paragraph and blocked and not self._outdents(match.group("indent")):
             return None  # rule 4: this marker cannot interrupt a paragraph
         if empty:
             return marker_end + 1, False  # rule 3

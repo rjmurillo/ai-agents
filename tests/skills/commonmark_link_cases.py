@@ -270,4 +270,32 @@ LINK_REFERENCE_CASES: dict[str, str] = {
         "[foo]: /url (a\nb\\(c)\n2. ```\n   code\n   ```\n",
     "a balanced pair stays inside a split title":
         "[foo]: /url (a\nb()c)\n2. ```\n   code\n   ```\n",
+    # Two more of the same species, found by a pre-merge audit asked to look
+    # for a THIRD asymmetry after review found the two above. Both were
+    # `--write` corruptions: the line was swallowed as label text, the
+    # paragraph never closed, rule 4 vetoed the marker below it, and the
+    # item's real closing fence became a fresh opener that the repair then
+    # closed by appending to a balanced document.
+    #
+    # Neither is a character-class asymmetry like the two above. They are
+    # asymmetries in which LINES end an open label, and both came from asking
+    # `_starts_a_block`, which answers a different question. A setext
+    # underline is not a block start, and rule 4's veto asks whether a marker
+    # can INTERRUPT a paragraph, which is not what stops a label.
+    "a setext underline ends a split label":
+        "[\n=\n2. ```\n   ```\n",
+    "a single dash ends a split label":
+        "[\n-\n2. ```\n   ```\n",
+    "an empty bullet ends a split label":
+        "[\n*\n]:a\n2. ```\n",
+    "an ordered marker other than one ends a split label":
+        "[\n2. \n]:a\n2. ```\n",
+    # Controls. The first two say the open label is what made the difference:
+    # the same documents without one already agreed. The third says a
+    # thematic break was never affected, because it IS a block start, which
+    # is how the gap hid: `---` behaved and `-` did not.
+    "a setext underline outside a split label is unchanged":
+        "x\n=\n2. ```\n   ```\n",
+    "a thematic break ends a split label as it always did":
+        "[\n---\n2. ```\n   ```\n",
 }

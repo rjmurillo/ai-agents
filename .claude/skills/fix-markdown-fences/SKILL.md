@@ -158,7 +158,13 @@ documentation:
   follows it, where CommonMark escapes only ASCII punctuation, so an escaped
   space and an escaped tab are read wrongly: 62 of 64 shapes agree. The spec
   rule was measured before being believed and is worse, 34 of 64 with 30
-  `--write` corruptions, so the permissive rule stays. And a setext `===`
+  `--write` corruptions, so the permissive rule stays. The escaped-TAB half is
+  destructive on its own account, because tabs are expanded to four-column
+  stops before the grammar sees them, so what the permissive rule eats depends
+  on the label's length: nine of eleven single-line label lengths turn a
+  balanced document into an unclosed one, and the two that do not are the two
+  that land on a tab stop. Escaped space and the next-line destination path
+  corrupt none of eleven. And a setext `===`
   underline
   directly under a list item, followed by a lazy continuation and then an
   indented fence, leaves that fence unseen. This one is DESTRUCTIVE too, and
