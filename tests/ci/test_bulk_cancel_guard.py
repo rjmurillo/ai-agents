@@ -30,16 +30,19 @@ from scripts.bulk_cancel_guard import (
     EXIT_OK,
     main,
 )
+from scripts.github_core import pull_request_targets
 from tests.ci.bulk_cancel_cli_fixtures import argv, write_runs
 from tests.ci.bulk_cancel_fixtures import (
     INCIDENT_PR_COUNT,
     OPTIONAL_CONTEXT,
-    OPTIONAL_WORKFLOW,
     REQUIRED_CONTEXT,
     SECOND_REQUIRED_CONTEXT,
     incident_runs,
 )
-from tests.ci.test_workflow_runs import FakeClient, page_url, runs_url
+from tests.ci.workflow_runs_fixtures import (
+    FakeClient,
+    page_url,
+)
 
 
 class TestDryRun:
@@ -286,76 +289,6 @@ class TestInputHandling:
         assert "cannot write manifest" in capsys.readouterr().err
 
 
-class TestLiveEnumeration:
-    def _pulls_client(self) -> FakeClient:
-        pulls = "repos/rjmurillo/ai-agents/pulls?state=open&base=main"
-        queued = runs_url("rjmurillo/ai-agents", "feat/a", "queued")
-        in_progress = runs_url("rjmurillo/ai-agents", "feat/a", "in_progress")
-        jobs = "repos/rjmurillo/ai-agents/actions/runs/11/jobs"
-        return FakeClient(
-            {
-                page_url(pulls, 1): [{"number": 7, "head": {"ref": "feat/a"}}],
-                page_url(queued, 1): {
-                    "workflow_runs": [
-                        {
-                            "id": 11,
-                            "name": OPTIONAL_WORKFLOW,
-                            "event": "synchronize",
-                            "status": "queued",
-                        }
-                    ]
-                },
-                page_url(in_progress, 1): {"workflow_runs": []},
-                page_url(jobs, 1): {"jobs": [{"name": OPTIONAL_CONTEXT}]},
-            }
-        )
-
-    def test_all_open_prs_enumerates_through_pagination(
-        self, workflows: Path, capsys
-    ):
-        client = self._pulls_client()
-
-        code = main(
-            ["--all-open-prs", "--workflows-dir", str(workflows)], client=client
-        )
-
-        assert code == EXIT_OK
-        assert "pull requests       : 1" in capsys.readouterr().out
-
-    def test_explicit_pr_numbers_resolve_their_head_branch(self, workflows: Path):
-        client = self._pulls_client()
-        client.responses["repos/rjmurillo/ai-agents/pulls/7"] = {
-            "head": {"ref": "feat/a"}
-        }
-
-        code = main(
-            ["--pr", "7", "--workflows-dir", str(workflows)], client=client
-        )
-
-        assert code == EXIT_OK
-
-    def test_a_pr_with_no_head_branch_exits_config(self, workflows: Path, capsys):
-        client = FakeClient({"repos/rjmurillo/ai-agents/pulls/7": {"head": None}})
-
-        code = main(["--pr", "7", "--workflows-dir", str(workflows)], client=client)
-
-        assert code == EXIT_CONFIG
-        assert "no head branch" in capsys.readouterr().err
-
-    def test_a_failing_api_read_exits_external(self, workflows: Path, capsys):
-        class ExplodingClient(FakeClient):
-            def rest_get(self, endpoint: str):
-                raise RuntimeError("gh api failed: 502")
-
-        code = main(
-            ["--all-open-prs", "--workflows-dir", str(workflows)],
-            client=ExplodingClient(),
-        )
-
-        assert code == EXIT_EXTERNAL
-        assert "GitHub API read failed" in capsys.readouterr().err
-
-
 class TestArrayPagination:
     def test_walks_past_a_full_page_and_stops_on_the_short_one(self):
         endpoint = "repos/o/r/pulls?state=open"
@@ -367,7 +300,7 @@ class TestArrayPagination:
             }
         )
 
-        items = bulk_cancel_guard.iter_paginated_list(client, endpoint)
+        items = pull_request_targets.iter_paginated_list(client, endpoint)
 
         assert len(items) == 101
         assert len(client.gets) == 2
@@ -381,10 +314,10 @@ class TestArrayPagination:
                 self.gets.append(url)
                 return full_page
 
-        monkeypatch.setattr(bulk_cancel_guard, "_MAX_LIST_PAGES", 3)
+        monkeypatch.setattr(pull_request_targets, "_MAX_LIST_PAGES", 3)
         client = AlwaysFull()
 
-        items = bulk_cancel_guard.iter_paginated_list(client, endpoint)
+        items = pull_request_targets.iter_paginated_list(client, endpoint)
 
         assert len(client.gets) == 3
         assert len(items) == 300
@@ -392,7 +325,7 @@ class TestArrayPagination:
     def test_a_non_list_body_ends_the_walk(self):
         client = FakeClient({page_url("repos/o/r/pulls", 1): {"message": "Not Found"}})
 
-        assert bulk_cancel_guard.iter_paginated_list(client, "repos/o/r/pulls") == []
+        assert pull_request_targets.iter_paginated_list(client, "repos/o/r/pulls") == []
 
 
 def test_main_builds_a_default_client_when_none_is_injected(tmp_path: Path, workflows: Path):

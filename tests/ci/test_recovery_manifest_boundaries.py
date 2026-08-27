@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import pytest
 
-from scripts.github_core.recovery_manifest import run_from_mapping
+from scripts.github_core.runs_file import run_from_mapping
 from scripts.github_core.workflow_event_subscriptions import (
     parse_workflow_subscriptions,
 )

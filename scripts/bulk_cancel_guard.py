@@ -36,6 +36,7 @@ EXIT CODES (AGENTS.md contract):
   1 - at least one required context has no verified recovery path
   2 - configuration error (bad arguments, unreadable or malformed input)
   3 - external error (GitHub API failure, or a partial cancellation)
+  4 - authentication error (gh has no usable credentials)
 """
 
 from __future__ import annotations
@@ -45,8 +46,6 @@ import json
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
-from urllib.parse import quote
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -57,31 +56,30 @@ from scripts.ci.ruleset_required_contexts import (
 )
 from scripts.github_core.gh_client import GhCliClient
 from scripts.github_core.protocol import GitHubClient
+from scripts.github_core.pull_request_targets import (
+    open_pull_request_targets,
+    pull_request_targets,
+)
 from scripts.github_core.recovery_manifest import (
     RecoveryManifest,
     WorkflowRun,
     manifest_to_dict,
     plan_recovery,
-    run_from_mapping,
 )
+from scripts.github_core.runs_file import load_runs_file
 from scripts.github_core.workflow_event_subscriptions import (
     RECOVERY_EVENTS,
+    WorkflowSubscriptions,
     load_workflow_subscriptions,
 )
-from scripts.github_core.workflow_runs import (
-    PAGE_SIZE,
-    cancel_runs,
-    collect_runs_for_branches,
-)
+from scripts.github_core.workflow_provenance import resolve_run_subscriptions
+from scripts.github_core.workflow_runs import cancel_runs, collect_runs_for_targets
 
 EXIT_OK = 0
 EXIT_BLOCKED = 1
 EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
-
-# Open PRs on this repository sit in the low hundreds; 50 pages of 100 is an
-# order of magnitude of headroom and bounds a paging bug against a live API.
-_MAX_LIST_PAGES = 50
+EXIT_AUTH = 4
 
 _DEFAULT_WORKFLOWS_DIR = Path(__file__).resolve().parents[1] / ".github" / "workflows"
 
@@ -139,12 +137,20 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--repository", default=REPOSITORY, help=f"owner/repo (default: {REPOSITORY})."
+        "--repository",
+        default=REPOSITORY,
+        help=(
+            f"owner/repo (default and only accepted value: {REPOSITORY}). The "
+            "required-context contract is pinned; see pinned_contract_error."
+        ),
     )
     parser.add_argument(
         "--branch",
         default=BRANCH,
-        help=f"Protected branch whose required contexts apply (default: {BRANCH}).",
+        help=(
+            "Protected branch whose required contexts apply (default and only "
+            f"accepted value: {BRANCH})."
+        ),
     )
     parser.add_argument(
         "--workflows-dir",
@@ -170,142 +176,17 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _run_from_manifest_entry(entry: object) -> WorkflowRun:
-    """Rebuild a run record from one recovery-manifest entry.
-
-    A manifest entry is a superset of a run record wearing different key names,
-    and it splits one ``contexts`` list into ``required_contexts`` and
-    ``other_contexts``. Rejoining them restores the original inventory exactly,
-    because ``_classify`` partitions on membership in the required set and
-    discards nothing.
-    """
-    if not isinstance(entry, Mapping):
-        raise ValueError(f"malformed recovery manifest entry: {entry!r}")
-    required = entry.get("required_contexts")
-    other = entry.get("other_contexts")
-    try:
-        return run_from_mapping(
-            {
-                "run_id": entry["run_id"],
-                "workflow_name": entry["workflow"],
-                "pr_number": entry["pull_request"],
-                "branch": entry["branch"],
-                "event": entry["event"],
-                "status": entry["status"],
-                "contexts": [
-                    *(required if isinstance(required, list) else []),
-                    *(other if isinstance(other, list) else []),
-                ],
-                "jobs_verified": entry.get("jobs_verified"),
-            }
-        )
-    except KeyError as exc:
-        raise ValueError(f"malformed recovery manifest entry: {entry!r}") from exc
-
-
-def load_runs_file(path: Path) -> list[WorkflowRun]:
-    """Read a captured run inventory, or a recovery manifest, from disk.
-
-    Two shapes are accepted, because the manifest this tool writes is the file
-    an operator reaches for mid-incident. A recovery manifest is recognized by
-    carrying both ``version`` and ``entries``; anything else is read as a run
-    inventory, either a bare list or an object with a ``runs`` key.
-
-    Raises:
-        ValueError: on unreadable, non-JSON, or structurally wrong input. The
-            caller converts this to exit code 2 rather than proceeding with a
-            partially-parsed inventory, because a dropped run record reads as
-            "nothing required here" and would be cancelled unguarded.
-    """
-    try:
-        raw = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        raise ValueError(f"cannot read {path}: {exc}") from exc
-    try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"{path} is not valid JSON: {exc}") from exc
-
-    if isinstance(payload, dict) and "entries" in payload and "version" in payload:
-        entries = payload["entries"]
-        if not isinstance(entries, list):
-            raise ValueError(f"{path} manifest entries must be a JSON list")
-        return [_run_from_manifest_entry(entry) for entry in entries]
-
-    records = payload.get("runs") if isinstance(payload, dict) else payload
-    if not isinstance(records, list):
-        raise ValueError(f"{path} must hold a JSON list of run records")
-    return [run_from_mapping(record) for record in records]
-
-
-def _open_pull_requests(
-    client: GitHubClient, repository: str, base: str
-) -> dict[str, int]:
-    """Map head branch to PR number for every open PR targeting ``base``."""
-    # Same reason as workflow_runs._query_value: a base ref carrying `&`, `?`,
-    # `#`, or `+` would otherwise inject or corrupt query parameters and return
-    # a different PR set than the operator named.
-    endpoint = (
-        f"repos/{quote(repository, safe='/')}/pulls"
-        f"?state=open&base={quote(base, safe='')}"
-    )
-    branches: dict[str, int] = {}
-    for payload in iter_paginated_list(client, endpoint):
-        number = payload.get("number")
-        head = payload.get("head")
-        ref = head.get("ref") if isinstance(head, dict) else None
-        if isinstance(number, int) and isinstance(ref, str) and ref:
-            branches[ref] = number
-    return branches
-
-
-def iter_paginated_list(client: GitHubClient, endpoint: str) -> list[dict[str, Any]]:
-    """Page a REST endpoint whose body is a bare JSON array.
-
-    The Actions endpoints wrap their items in an object, so
-    :func:`~scripts.github_core.workflow_runs.iter_paginated` reads a key. The
-    pulls endpoint returns a top-level array instead, which needs this second
-    walk. Both stop on the first short page.
-    """
-    separator = "&" if "?" in endpoint else "?"
-    items: list[dict[str, Any]] = []
-    for page in range(1, _MAX_LIST_PAGES + 1):
-        body: Any = client.rest_get(f"{endpoint}{separator}per_page={PAGE_SIZE}&page={page}")
-        if not isinstance(body, list) or not body:
-            return items
-        items.extend(entry for entry in body if isinstance(entry, dict))
-        if len(body) < PAGE_SIZE:
-            return items
-    return items
-
-
-def _pr_branches(
-    client: GitHubClient, repository: str, pr_numbers: Sequence[int]
-) -> dict[str, int]:
-    branches: dict[str, int] = {}
-    for number in pr_numbers:
-        payload = client.rest_get(
-            f"repos/{quote(repository, safe='/')}/pulls/{number}"
-        )
-        head = payload.get("head")
-        ref = head.get("ref") if isinstance(head, dict) else None
-        if not isinstance(ref, str) or not ref:
-            raise ValueError(f"pull request #{number} has no head branch")
-        branches[ref] = number
-    return branches
-
-
 def gather_runs(args: argparse.Namespace, client: GitHubClient) -> list[WorkflowRun]:
     """Resolve the run inventory from whichever source the operator chose."""
     if args.runs_file is not None:
         return load_runs_file(args.runs_file)
 
-    branches = (
-        _open_pull_requests(client, args.repository, args.branch)
+    targets = (
+        open_pull_request_targets(client, args.repository, args.branch)
         if args.all_open_prs
-        else _pr_branches(client, args.repository, args.pr_numbers or [])
+        else pull_request_targets(client, args.repository, args.pr_numbers or [])
     )
-    return collect_runs_for_branches(client, args.repository, branches)
+    return collect_runs_for_targets(client, args.repository, targets)
 
 
 def format_report(manifest: RecoveryManifest) -> str:
@@ -390,12 +271,92 @@ def _execute(
     return EXIT_EXTERNAL
 
 
+def pinned_contract_error(args: argparse.Namespace) -> str | None:
+    """Refuse a target the pinned required-context contract does not describe.
+
+    ``REQUIRED_CONTEXTS`` is the ruleset contract for ``rjmurillo/ai-agents``
+    ``main`` and nothing else, and every classification in ``_classify`` is
+    scored against it. Pointed at another repository or another protected
+    branch, the guard would score that target's runs against the wrong required
+    set: a context the real target requires and this contract does not is
+    classified as optional, and an optional run is cancelled with no recovery
+    event at all.
+
+    Constraining the options is the fail-closed half of the choice the reviewer
+    offered. Loading the target's own contract is the other half, and it needs a
+    live rulesets read plus a policy for what to do when that read fails, which
+    is a larger change than this review pass. Refusing is correct in the
+    meantime, because the alternative is planning a destructive batch against a
+    contract that does not describe the target.
+    """
+    if args.repository == REPOSITORY and args.branch == BRANCH:
+        return None
+    return (
+        f"required-context contract is pinned to {REPOSITORY} {BRANCH} "
+        f"(scripts/ci/ruleset_required_contexts.py), but --repository is "
+        f"{args.repository!r} and --branch is {args.branch!r}. Planning against "
+        "a target this contract does not describe would classify that target's "
+        "required checks as optional and cancel them with no recovery event."
+    )
+
+
+def _authenticated(client: GitHubClient) -> bool:
+    """Whether ``gh`` holds usable credentials, treating a probe error as no."""
+    try:
+        return client.is_authenticated()
+    except (RuntimeError, OSError, ValueError):
+        return False
+
+
+def _needs_credentials(args: argparse.Namespace) -> bool:
+    """Whether this invocation will read from or write to the live API.
+
+    A ``--runs-file`` dry run touches nothing and needs no credentials, which
+    keeps the offline replay path usable on a machine with no ``gh`` login.
+    ``--confirm`` always needs them, because cancelling is a live write however
+    the inventory was sourced.
+    """
+    return args.runs_file is None or args.confirm
+
+
+def _resolve_live_subscriptions(
+    args: argparse.Namespace,
+    client: GitHubClient,
+    runs: Sequence[WorkflowRun],
+    subscriptions: Mapping[str, WorkflowSubscriptions],
+) -> dict[int, WorkflowSubscriptions | None] | None:
+    """Pin each live-enumerated run to its own pull request's definition.
+
+    Returns None on the ``--runs-file`` path, where there is no network read to
+    make and the local corpus the operator supplied is the only source.
+    """
+    if args.runs_file is not None:
+        return None
+    return resolve_run_subscriptions(
+        client, args.repository, runs, base_subscriptions=subscriptions
+    )
+
+
 def main(argv: Sequence[str] | None = None, client: GitHubClient | None = None) -> int:
     """Entry point. See the module docstring for the exit-code contract."""
     args = build_parser().parse_args(sys.argv[1:] if argv is None else argv)
 
+    contract_error = pinned_contract_error(args)
+    if contract_error is not None:
+        print(f"[FAIL] {contract_error}", file=sys.stderr)
+        return EXIT_CONFIG
+
     if client is None:
         client = GhCliClient()
+
+    if _needs_credentials(args) and not _authenticated(client):
+        print(
+            "[FAIL] gh is not authenticated. Run `gh auth login` (or export a "
+            "token with repo and workflow scope) before planning against the "
+            "live API or confirming a cancellation.",
+            file=sys.stderr,
+        )
+        return EXIT_AUTH
 
     try:
         runs = gather_runs(args, client)
@@ -413,6 +374,9 @@ def main(argv: Sequence[str] | None = None, client: GitHubClient | None = None) 
         subscriptions=subscriptions,
         recovery_event=args.recovery_event,
         repository=args.repository,
+        subscriptions_by_run=_resolve_live_subscriptions(
+            args, client, runs, subscriptions
+        ),
     )
 
     print(format_report(manifest))

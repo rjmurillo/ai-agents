@@ -11,6 +11,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from scripts import bulk_cancel_guard
 from scripts.bulk_cancel_guard import (
     EXIT_BLOCKED,
@@ -26,7 +28,7 @@ from tests.ci.bulk_cancel_cli_fixtures import (
     write_workflows,
 )
 from tests.ci.bulk_cancel_fixtures import OPTIONAL_WORKFLOW, incident_runs
-from tests.ci.test_workflow_runs import FakeClient
+from tests.ci.workflow_runs_fixtures import FakeClient
 
 
 class TestManifestRoundTrip:
@@ -167,13 +169,119 @@ class TestManifestRoundTrip:
     ):
         broken = tmp_path / "recovery.json"
         broken.write_text(
-            json.dumps({"version": 1, "entries": [{"run_id": 1}]}), encoding="utf-8"
+            json.dumps(
+                {
+                    "version": 1,
+                    "entries": [
+                        {
+                            "run_id": 1,
+                            "required_contexts": [],
+                            "other_contexts": [],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
         )
 
         code = main(argv(broken, workflows), client=FakeClient())
 
         assert code == EXIT_CONFIG
         assert "malformed recovery manifest entry" in capsys.readouterr().err
+
+    @pytest.mark.parametrize("missing", ["required_contexts", "other_contexts"])
+    def test_a_manifest_entry_missing_a_context_array_exits_config(
+        self, tmp_path: Path, workflows: Path, capsys, missing: str
+    ):
+        """Copilot review on PR #5357: a truncated recovery record used to have
+        the missing array silently replaced with ``[]``, which reads as "this
+        run publishes nothing required" and cancels it with no recovery event.
+        A missing array is a configuration error, which is what
+        ``load_runs_file`` documents it will raise.
+        """
+        entry = {
+            "run_id": 1,
+            "workflow": "PR Validation",
+            "pull_request": 7,
+            "branch": "feat/x",
+            "event": "synchronize",
+            "status": "queued",
+            "required_contexts": ["Validate PR"],
+            "other_contexts": [],
+        }
+        del entry[missing]
+        broken = tmp_path / "recovery.json"
+        broken.write_text(
+            json.dumps({"version": 1, "entries": [entry]}), encoding="utf-8"
+        )
+
+        code = main(argv(broken, workflows), client=FakeClient())
+
+        assert code == EXIT_CONFIG
+        assert f"is missing '{missing}'" in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        "value", ["Validate PR", {"Validate PR": True}, 7, None, [7]]
+    )
+    def test_a_wrongly_typed_context_array_exits_config(
+        self, tmp_path: Path, workflows: Path, value: object
+    ):
+        """The same fail-open by a different route: a non-list, or a list of
+        non-strings, was coerced to ``[]`` rather than refused.
+        """
+        broken = tmp_path / "recovery.json"
+        broken.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "entries": [
+                        {
+                            "run_id": 1,
+                            "workflow": "PR Validation",
+                            "pull_request": 7,
+                            "branch": "feat/x",
+                            "event": "synchronize",
+                            "status": "queued",
+                            "required_contexts": value,
+                            "other_contexts": [],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        assert main(argv(broken, workflows), client=FakeClient()) == EXIT_CONFIG
+
+    def test_control_a_well_formed_entry_still_replays(
+        self, tmp_path: Path, workflows: Path
+    ):
+        """Without this, a fix that refused every manifest entry would pass
+        every negative case above.
+        """
+        good = tmp_path / "recovery.json"
+        good.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "entries": [
+                        {
+                            "run_id": 1,
+                            "workflow": "PR Validation",
+                            "pull_request": 7,
+                            "branch": "feat/x",
+                            "event": "synchronize",
+                            "status": "queued",
+                            "required_contexts": [],
+                            "other_contexts": ["Sync Labels"],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        assert main(argv(good, workflows), client=FakeClient()) == EXIT_OK
 
 
 class TestPathFilteredWorkflowBlocksTheCli:
@@ -198,7 +306,7 @@ class TestPathFilteredWorkflowBlocksTheCli:
         )
 
         assert code == EXIT_BLOCKED
-        assert "declares trigger path filters" in capsys.readouterr().out
+        assert "declares pull_request trigger path filters" in capsys.readouterr().out
 
     def test_control_the_same_workflows_without_paths_verify(
         self, tmp_path: Path, workflows: Path
