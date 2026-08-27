@@ -77,7 +77,7 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 3. **Classify complexity tier**: `agent_type: "project-toolkit:analyst"`: Read `engineering-complexity-tiers.md` (resolved via the "Path resolution" section above) and the diff. Assess as Tier 1-5. Use this to calibrate axis depth.
 4. **Select the Stage-2 axes with `select_axes.py`, then run the canonical ones.** Run `python3 <select_axes.py> --changed-path <PATH> ... [--effect <NAME> ...] [--pin <AXIS> ...] [--deep]` with every path from the verified three-dot diff of step 1 and every effect you read in the diff hunks. The selector is a pure function of those inputs, so the same change selects the same axes every time; do not re-derive the routing from prose. `resources/axis-selection.md`, co-located with this skill and resolved like `references/`, holds the effect vocabulary, the risk table, and the output fields.
 
-   Run the axes in `canonical_selected` (`analyst` is always there). `fail_closed: true` means the change could not be classified and every candidate was selected; that is intended, not an error. A skipped axis is never PASS: copy its reason from `skipped` into the output table verbatim.
+   Run the axes in `canonical_selected` (`analyst` is always there). `fail_closed: true` means the change could not be classified and every candidate was selected; that is intended, not an error. A skipped axis is never PASS.
 
    For each selected axis load `references/{role}.md`, then invoke `agent_type: "project-toolkit:{role}"` with that prompt as the system instruction, the same CONTEXT_MODE-prefixed diff as input, and that file's Output Schema as the response contract. A `When This Axis Applies` section, where an axis has one, calibrates depth; it never overrules the selection. If the harness registers no `{role}` subagent type (Copilot CLI today, and any axis with no matching agent such as `reliability` or `decision-rigor`), fall back to `agent_type: "project-toolkit:general-purpose"`; the prompt drives the review, not the subagent identity.
 
@@ -116,7 +116,7 @@ Findings table with one row per axis:
 | architect | WARN | selected - risk category | ... | ... |
 | devops | UNKNOWN | skipped - reason from `skipped` | ... | ... |
 
-One row per axis in the step-4 candidate set, then one per local axis: 15 rows with the current set, in the order the axes ran. Take the Selection cell from `selection_reasons` or `skipped` verbatim.
+One row per axis in the step-4 candidate set, then one per local axis: 15 rows with the current set, in the order the axes ran. Each Selection cell reads `always-on`, or `selected / skipped` plus its reason taken verbatim from `selection_reasons` or `skipped`.
 
 **FINAL VERDICT**: [PASS|WARN|CRITICAL_FAIL|UNKNOWN] (from `merge_verdicts`)
 
