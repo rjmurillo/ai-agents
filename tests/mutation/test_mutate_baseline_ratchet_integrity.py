@@ -13,15 +13,24 @@ Each mutant is:
   - applied in an isolated git worktree, suite run, result classified
   - restored and verified byte-identically inside the scratch worktree
 
-One inverted control asserts rc == 0 (suite SURVIVES a benign mutation).
+One inverted control asserts rc == 0 (suite SURVIVES a benign mutation). Every
+mutant here runs the one suite named by ``TEST_PATH``, so that single control
+covers the harness's only runner path.
+
 All test files are referenced by filesystem path, never dotted module name.
+
+The ``test_*`` wrappers below are the entry point (issue #4494: the file had no
+test_ functions, so pytest collected 0 items and reported exit 5 as success).
+There is no ``main()``: the script-style runner that used to sit here was
+invoked by no gate, test, or caller, and it graded every mutant sequentially in
+one shared worktree while the wrappers take a fresh worktree per test, so the
+two paths could disagree with nobody reading the one that had no caller.
 """
 
 from __future__ import annotations
 
 import shutil
 import subprocess
-import sys
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -217,44 +226,6 @@ def mutant_m4_inverted_control_benign(repo_root: Path) -> str:
     if result != "SURVIVED":
         return f"INVERTED-CONTROL-FAILED: expected SURVIVED, got {result}"
     return "SURVIVED"
-
-
-def main() -> int:
-    results: dict[str, str] = {}
-    with isolated_mutation_worktree(REPO_ROOT, TARGETS) as workspace:
-        results["M1-bool-check"] = mutant_m1_bool_check(workspace.root)
-        results["M2-diff-attr-guard"] = mutant_m2_diff_attr_guard(workspace.root)
-        results["M2b-diff-attr-none-guard"] = mutant_m2b_diff_attr_none_guard(
-            workspace.root
-        )
-        results["M3-scan-all-roots"] = mutant_m3_scan_all_roots(workspace.root)
-        results["M4-inverted-ctrl"] = mutant_m4_inverted_control_benign(
-            workspace.root
-        )
-
-    print("\n=== Mutation Results ===")
-    all_ok = True
-    for name, result in results.items():
-        expected = "SURVIVED" if "inverted" in name.lower() else "DEAD"
-        ok = result == expected
-        status = "PASS" if ok else "FAIL"
-        print(f"  [{status}] {name}: {result}")
-        if not ok:
-            all_ok = False
-
-    if not all_ok:
-        print("\nFAILURE: one or more mutants survived or inverted control failed")
-        return 1
-    print("\nAll mutants killed; inverted control survived.")
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
-
-
-# pytest-discoverable wrappers (issue #4494: file had no test_* functions,
-# so pytest collected 0 items and reported exit 5 as success).
 
 
 @pytest.fixture()
