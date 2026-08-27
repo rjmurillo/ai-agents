@@ -94,7 +94,7 @@ Interpreter note: `build/generate_agents.py` and `build/scripts/build_all.py` bo
 Useful flags, verified against source:
 
 - `build/generate_agents.py`: `--validate` (CI compare mode), `--what-if` (dry run, writes nothing), `--templates-path`, `--output-root`. Exit codes: 0 ok, 1 logic error or drift, 2 config error (docstring, generate_agents.py:13-16).
-- `build/scripts/build_all.py`: `--check` (staleness gate; snapshots and restores owned trees), `--clean`, `--audit-format json`, `--platform copilot-cli`. Exit codes: 0 ok, 1 generator error, 2 config error or staleness, 3 audit blocklist violation (docstring, build_all.py:16-20).
+- `build/scripts/build_all.py`: `--check` (staleness gate; snapshots and restores owned trees), `--clean`, `--audit-format json`, `--platform copilot-cli`. Exit codes: 0 ok, 1 generator error, 2 config error or staleness or (under `--check`) unreadable git state or an unreadable file under `OWNED_PREFIXES`, 3 audit blocklist violation (docstring, build_all.py:16-30). Only the staleness producer of exit 2 is cleared by regenerating and committing; the other three mean the run could not read what it needed (issue #4632).
 - `scripts/sync_plugin_lib.py`: no flag syncs, `--check` is the CI dry run (exit 1 when out of sync). It also rewrites `from scripts.x import` to relative imports; do not "fix" those imports in `.claude/lib/` by hand.
 
 ### Phase 3: Run the Drift Gates Locally Before Pushing
@@ -211,7 +211,7 @@ Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-
 | 7 generators and their order | build/scripts/build_all.py:435-443 | `grep -n -A9 "^GENERATORS" build/scripts/build_all.py` |
 | OWNED_PREFIXES trio | build/scripts/build_all.py:765 | `grep -n "OWNED_PREFIXES" build/scripts/build_all.py` |
 | .claude/ no-write invariant | build/scripts/build_all.py:674 (rule), :1013 (snapshot), :1076-1081 (enforcement) | `grep -n "REQ-003-010" build/scripts/build_all.py` |
-| build_all exit codes 0/1/2/3 | build/scripts/build_all.py:16-20 | `sed -n '16,20p' build/scripts/build_all.py` |
+| build_all exit codes 0/1/2/3 | build/scripts/build_all.py:16-30 | `sed -n '16,30p' build/scripts/build_all.py` |
 | generate_agents flags and exit codes | build/generate_agents.py:13-16,460-487 | `uv run python build/generate_agents.py --help` |
 | sync pairs scripts to .claude/lib | scripts/sync_plugin_lib.py:27-31 | `grep -n -A4 "SYNC_PAIRS" scripts/sync_plugin_lib.py` |
 | Plugin manifest locations, all version-free | the three plugin.json files | `python3 build/scripts/validate_plugin_version_bump.py` |

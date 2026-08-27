@@ -77,7 +77,7 @@ Three separate drift surfaces; run all three when you suspect any generation pro
 | Mirrors | `uv run python build/scripts/build_all.py --check` | exit 0 | A `.claude/` canonical edit was not regenerated, or a generated tree was hand-edited |
 | Plugin lib | `uv run python ./scripts/sync_plugin_lib.py --check` | `All plugin lib copies are in sync.`, exit 0 | `scripts/{hook_utilities,github_core,ai_review_common}` and `.claude/lib/` diverged |
 
-- `build_all.py --check` exits 2 on staleness (docstring, `build/scripts/build_all.py:19`). Its log legitimately says `Mode: Generate` mid-run; the snapshot/restore guard (#2440) makes the whole run read-only.
+- `build_all.py --check` exits 2 on staleness, and since issue #4632 also when it cannot read git state or a file under `OWNED_PREFIXES` (docstring, `build/scripts/build_all.py:19-21`). Read the stderr line before reaching for the staleness remedy: regenerating and committing fixes only the staleness producer. Its log legitimately says `Mode: Generate` mid-run; the snapshot/restore guard (#2440) makes the whole run read-only.
 - Trap, the expensive one: drift output shows a DIFFERENCE, not a DIRECTION. On 2025-12-15 an agent "fixed" drift by editing the canonical source to match the stale generated tree (commit reverted). Before fixing any drift red, answer "which side is the source of truth?" via `.agents/governance/GENERATOR-FILES.md`, then see `ai-agents-generation-and-release` for the regeneration workflow.
 
 ### Guard telemetry and maturity tiers (retired)
