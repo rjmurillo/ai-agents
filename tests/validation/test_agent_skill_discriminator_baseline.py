@@ -16,6 +16,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 import scripts.validation.agent_skill_discriminator_baseline as bmod
 from tests.validation.test_check_agent_skill_discriminator import (
     SCRIPT,
@@ -42,6 +44,41 @@ def _score(
     )
 
 
+def init_git(repo: Path) -> None:
+    """Make ``repo`` a git repository with a committed identity.
+
+    Module-level rather than a method so the sibling fail-closed test file can
+    import it, matching how this file imports its own fixture builders from
+    ``test_check_agent_skill_discriminator``.
+    """
+    for command in (
+        ["init", "-q"],
+        ["config", "user.email", "t@example.com"],
+        ["config", "user.name", "t"],
+    ):
+        subprocess.run(
+            ["git", "-C", str(repo), *command], check=True, capture_output=True
+        )
+
+
+def commit_all(repo: Path) -> None:
+    """Stage and commit everything in ``repo``, creating HEAD."""
+    subprocess.run(
+        ["git", "-C", str(repo), "add", "-A"], check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-qm", "seed"],
+        check=True,
+        capture_output=True,
+    )
+
+
+def seed_repo(repo: Path) -> None:
+    """Commit the scaffolded repo so ``git ls-tree HEAD`` can answer."""
+    init_git(repo)
+    commit_all(repo)
+
+
 class TestIsRegression:
     def test_agent_absent_from_baseline_uses_threshold(self) -> None:
         # No recorded floor: falls back to score>=2 (is_candidate).
@@ -58,13 +95,17 @@ class TestIsRegression:
 
 
 class TestFullCorpusAgentPaths:
+    """The corpus is read from ``HEAD``, never walked on disk (MUST-9)."""
+
     def test_collects_both_two_source_roots(self, tmp_path: Path) -> None:
         repo = _scaffold(tmp_path)
         rel_a = _write_agent(repo, "alpha", _prose_body())
         rel_b = _write_agent(repo, "beta", _prose_body(), shared_template=True)
+        seed_repo(repo)
 
         corpus = bmod.full_corpus_agent_paths(repo, mod.is_agent_path)
 
+        assert corpus is not None, "git could not list the seeded repo"
         assert set(corpus) == {rel_a, rel_b}
 
     def test_excludes_non_agent_reference_docs(self, tmp_path: Path) -> None:
@@ -72,16 +113,96 @@ class TestFullCorpusAgentPaths:
         rel = _write_agent(repo, "alpha", _prose_body())
         readme = repo / ".claude" / "agents" / "README.md"
         readme.write_text("# Not an agent\n", encoding="utf-8")
+        seed_repo(repo)
 
         corpus = bmod.full_corpus_agent_paths(repo, mod.is_agent_path)
 
         assert corpus == [rel]
 
-    def test_missing_directories_yield_empty_corpus(self, tmp_path: Path) -> None:
-        repo = tmp_path / "empty-repo"
-        repo.mkdir()
+    def test_an_untracked_agent_file_is_not_in_the_corpus(
+        self, tmp_path: Path
+    ) -> None:
+        """The discriminating input for the walk-versus-ref defect.
+
+        ``alpha`` is committed and ``ghost`` is not. A directory walk returns
+        both, so the same commit scores differently on a machine that happens
+        to have an extra agent file on disk, and a baseline recorded there
+        carries an entry CI can never reproduce. Reading ``HEAD`` returns
+        only ``alpha``.
+        """
+        repo = _scaffold(tmp_path)
+        rel = _write_agent(repo, "alpha", _prose_body())
+        seed_repo(repo)
+        untracked = _write_agent(repo, "ghost", _prose_body())
+
+        corpus = bmod.full_corpus_agent_paths(repo, mod.is_agent_path)
+
+        assert corpus == [rel]
+        assert untracked not in corpus
+        # Control: the file really is on disk, so a walk would have found it.
+        assert (repo / untracked).is_file()
+
+    def test_a_tracked_file_deleted_from_disk_is_still_in_the_corpus(
+        self, tmp_path: Path
+    ) -> None:
+        """The other half of the same defect: a partial checkout.
+
+        A walk reads a missing file as a missing agent and silently records a
+        smaller corpus. The ref still names it, and the caller then fails on
+        the unreadable file rather than recording a baseline without it.
+        """
+        repo = _scaffold(tmp_path)
+        rel = _write_agent(repo, "alpha", _prose_body())
+        seed_repo(repo)
+        (repo / rel).unlink()
+
+        assert bmod.full_corpus_agent_paths(repo, mod.is_agent_path) == [rel]
+
+    def test_a_repository_with_no_agents_yields_an_empty_corpus(
+        self, tmp_path: Path
+    ) -> None:
+        repo = _scaffold(tmp_path)
+        (repo / "README.md").write_text("# repo\n", encoding="utf-8")
+        seed_repo(repo)
 
         assert bmod.full_corpus_agent_paths(repo, mod.is_agent_path) == []
+
+    def test_a_directory_that_is_not_a_repository_fails_closed(
+        self, tmp_path: Path
+    ) -> None:
+        """``None``, not ``[]``. "git errored" is not "the tree is empty"."""
+        repo = tmp_path / "not-a-repo"
+        repo.mkdir()
+
+        assert bmod.full_corpus_agent_paths(repo, mod.is_agent_path) is None
+
+    def test_a_repository_with_no_commits_fails_closed(self, tmp_path: Path) -> None:
+        """``git ls-tree HEAD`` has no ref to read before the first commit."""
+        repo = _scaffold(tmp_path)
+        _write_agent(repo, "alpha", _prose_body())
+        init_git(repo)
+
+        assert bmod.full_corpus_agent_paths(repo, mod.is_agent_path) is None
+
+
+class TestValidateBaselineScores:
+    """A recorded score outside 0..3 is a config defect, not a gate outcome."""
+
+    def test_every_in_range_score_is_accepted(self) -> None:
+        bmod.validate_baseline_scores({"a.md": 0, "b.md": 1, "c.md": 2, "d.md": 3})
+
+    def test_a_score_above_the_ceiling_is_rejected(self) -> None:
+        """30 makes every computable score compare as "not risen"."""
+        with pytest.raises(ValueError, match=r"outside the valid range 0\.\.3"):
+            bmod.validate_baseline_scores({"a.md": 30})
+
+    def test_a_negative_score_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match=r"outside the valid range 0\.\.3"):
+            bmod.validate_baseline_scores({"a.md": -1})
+
+    def test_the_offending_path_is_named(self) -> None:
+        with pytest.raises(ValueError, match=r"stale/agent\.md"):
+            bmod.validate_baseline_scores({"ok/agent.md": 2, "stale/agent.md": 4})
 
 
 class TestBaselineFromScores:
@@ -140,27 +261,36 @@ def _run_with_baseline(
     )
 
 
+def run_update_baseline(
+    repo: Path, baseline_path: Path, *extra: str, cwd: Path | None = None
+) -> subprocess.CompletedProcess[str]:
+    """Drive ``--update-baseline`` from inside ``repo`` unless told otherwise.
+
+    ``cwd`` defaults to ``repo`` because that is how the mode is used: the
+    write path refuses a run started outside the root it was told to write
+    into (`.claude/rules/ci-scripts.md` MUST-7).
+    """
+    return subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--repo-root",
+            str(repo),
+            "--baseline",
+            str(baseline_path),
+            "--update-baseline",
+            *extra,
+        ],
+        cwd=str(cwd if cwd is not None else repo),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+
+
 class TestBaselineCli:
-    def _init_git(self, repo: Path) -> None:
-        for command in (
-            ["init", "-q"],
-            ["config", "user.email", "t@example.com"],
-            ["config", "user.name", "t"],
-        ):
-            subprocess.run(
-                ["git", "-C", str(repo), *command], check=True, capture_output=True
-            )
-
-    def _commit_all(self, repo: Path) -> None:
-        subprocess.run(
-            ["git", "-C", str(repo), "add", "-A"], check=True, capture_output=True
-        )
-        subprocess.run(
-            ["git", "-C", str(repo), "commit", "-qm", "seed"],
-            check=True,
-            capture_output=True,
-        )
-
     def test_update_baseline_records_every_agent_score(self, tmp_path: Path) -> None:
         repo = _scaffold(tmp_path)
         rel = _write_agent(repo, "shaped", _reference_body())
@@ -170,25 +300,10 @@ class TestBaselineCli:
             'Task(subagent_type="shaped"): do work.\n'
             'Invoke Skill(skill="pre-mortem") first.\n',
         )
-        self._init_git(repo)
+        seed_repo(repo)
         baseline_path = repo / "scripts" / "validation" / "baseline.json"
 
-        proc = subprocess.run(
-            [
-                sys.executable,
-                str(SCRIPT),
-                "--repo-root",
-                str(repo),
-                "--baseline",
-                str(baseline_path),
-                "--update-baseline",
-            ],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-        )
+        proc = run_update_baseline(repo, baseline_path)
 
         assert proc.returncode == 0, proc.stdout + proc.stderr
         data = json.loads(baseline_path.read_text(encoding="utf-8"))
@@ -261,50 +376,21 @@ class TestBaselineCli:
     def test_baseline_shrink_requires_explicit_override(self, tmp_path: Path) -> None:
         repo = _scaffold(tmp_path)
         _write_agent(repo, "shaped", _reference_body())
-        self._init_git(repo)
+        init_git(repo)
         baseline_path = repo / "scripts" / "validation" / "baseline.json"
         baseline_path.parent.mkdir(parents=True, exist_ok=True)
         baseline_path.write_text(
             json.dumps({"files": {"stale/agent.md": 3}}), encoding="utf-8"
         )
-        self._commit_all(repo)
+        commit_all(repo)
 
-        proc = subprocess.run(
-            [
-                sys.executable,
-                str(SCRIPT),
-                "--repo-root",
-                str(repo),
-                "--baseline",
-                str(baseline_path),
-                "--update-baseline",
-            ],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-        )
+        proc = run_update_baseline(repo, baseline_path)
 
         # The old repo's shaped.md replaces stale/agent.md entirely, which is
         # a dropped entry and must be refused without --allow-baseline-shrink.
         assert proc.returncode == 2, proc.stdout + proc.stderr
 
-        proc_allowed = subprocess.run(
-            [
-                sys.executable,
-                str(SCRIPT),
-                "--repo-root",
-                str(repo),
-                "--baseline",
-                str(baseline_path),
-                "--update-baseline",
-                "--allow-baseline-shrink",
-            ],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
+        proc_allowed = run_update_baseline(
+            repo, baseline_path, "--allow-baseline-shrink"
         )
         assert proc_allowed.returncode == 0, proc_allowed.stdout + proc_allowed.stderr
