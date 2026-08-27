@@ -13,14 +13,20 @@ Two claims are pinned here, one per gate:
    leg: the partition exists in the workflow, the runner maps it to
    ``tests/mutation``, and each harness file contributes collectable tests.
 
-Every assertion parses the YAML and asserts against the object graph. A
+Every wiring assertion parses the YAML and asserts against the object graph. A
 substring match on the file text passes when the step has been deleted and its
-name survives in a comment (`.claude/rules/testing.md` MUST 9).
+name survives in a comment (`.claude/rules/testing.md` MUST 9). The collection
+claim is proved the same way, by running the thing rather than reading it: it
+spawns pytest and reads the exit code, because an AST shape check asserts that
+``def test_*`` nodes exist, which is a different claim from AC1's "collects at
+least one test under pytest --collect-only".
 """
 
 from __future__ import annotations
 
-import ast
+import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +40,17 @@ LEFTHOOK = REPO_ROOT / "lefthook.yml"
 PYTEST_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "pytest.yml"
 GUARD_SCRIPT = "scripts/validation/check_zero_collection_tests.py"
 MUTATION_DIRECTORY = "tests/mutation"
+
+# Inherited pytest state would reach the child run as extra options or as a
+# worker identity it must not adopt (`.claude/rules/testing.md` SHOULD 12).
+_STRIPPED_PYTEST_ENVIRONMENT = frozenset(
+    {
+        "PYTEST_ADDOPTS",
+        "PYTEST_CURRENT_TEST",
+        "PYTEST_XDIST_WORKER",
+        "PYTEST_XDIST_WORKER_COUNT",
+    }
+)
 
 HARNESS_FILES = (
     "tests/mutation/test_mutate_baseline_ratchet_integrity.py",
@@ -129,13 +146,34 @@ def test_each_harness_defines_collectable_tests(relative: str) -> None:
     Both files carried the test_ prefix, sat inside testpaths, and defined no
     test function, so pytest collected nothing and exited 5, which every
     runner reads as success.
-    """
-    tree = ast.parse((REPO_ROOT / relative).read_text(encoding="utf-8"))
-    functions = [
-        node.name
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
-        and node.name.startswith("test_")
-    ]
 
-    assert functions, f"{relative} defines no module-level test_ function"
+    AC1 says "collects at least one test under pytest --collect-only", so this
+    runs the collection rather than inspecting the source. An AST shape check
+    passes for a harness whose test functions exist and are never collected: a
+    module-level skip, a collection error, and an import-mode shadowing all
+    leave the ``def test_*`` nodes intact while collecting nothing. Exit 0 is
+    the only outcome that means items were collected; 5 is nothing collected,
+    2 a collection error, 4 a bad path.
+    """
+    environment = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in _STRIPPED_PYTEST_ENVIRONMENT
+    }
+
+    completed = subprocess.run(
+        [sys.executable, "-m", "pytest", relative, "--collect-only", "-q"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=environment,
+        check=False,
+    )
+
+    assert completed.returncode == 0, (
+        f"{relative} collected nothing under --collect-only "
+        f"(exit {completed.returncode})\n{completed.stdout[-2000:]}\n"
+        f"{completed.stderr[-2000:]}"
+    )
