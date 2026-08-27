@@ -21,6 +21,21 @@ from memory_enhancement.hooks.user_prompt_submit_memory import (
 from memory_enhancement.search import SearchResult
 
 
+@pytest.fixture(autouse=True)
+def _neutral_harness_identity(monkeypatch):
+    """Clear both harness-identity signals before every test in this module.
+
+    pytest runs under Claude Code or Copilot CLI, and whichever is live exports
+    its own signal into the test process. `_render_for_host` branches on exactly
+    those two variables, so an inherited value decides the output shape for any
+    case that does not pin it, and the case then passes on one contributor's
+    machine and fails on the other's. Clearing here forces each case to name its
+    own host. This is `.claude/rules/testing.md` SHOULD-12 applied in-process.
+    """
+    monkeypatch.delenv("COPILOT_CLI", raising=False)
+    monkeypatch.delenv("CLAUDE_CODE_ENTRYPOINT", raising=False)
+
+
 class TestExtractQuery:
     """Tests for stop word filtering and term extraction."""
 
