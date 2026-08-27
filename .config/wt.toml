@@ -6,8 +6,14 @@
 # Files listed in .worktreeinclude (node_modules, .cache, etc.)
 copy = "wt step copy-ignored"
 
-# Install and verify Lefthook shims after the project environment is available
-configure-hooks = "uv run --frozen --extra dev lefthook install --reset-hooks-path && uv run --frozen --extra dev lefthook check-install"
+# Install and verify Lefthook shims after the project environment is available.
+# Not a bare `lefthook install`: git shares one hooks directory across every
+# worktree, and lefthook's generated shim bakes in an absolute path probed from
+# whichever worktree ran the install, so each new worktree pointed the shared
+# hook at its own .venv and broke it for all the others (issue #4789). The
+# installer below writes a shim that names no worktree-specific path, then
+# --check re-reads the files to confirm it.
+configure-hooks = "uv run --frozen --extra dev python scripts/maintenance/install_lefthook_worktree_safe.py && uv run --frozen --extra dev python scripts/maintenance/install_lefthook_worktree_safe.py --check"
 
 [pre-merge]
 # Run markdown linting before merge to catch documentation issues

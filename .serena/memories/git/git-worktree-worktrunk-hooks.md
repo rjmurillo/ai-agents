@@ -88,11 +88,17 @@ would need is a template syntax error rather than a filter.
 # .config/wt.toml
 [post-create]
 # Install the lefthook-managed hooks. This is the live command from
-# .config/wt.toml: --reset-hooks-path clears a stale core.hooksPath and
-# check-install verifies the shims landed. Do NOT set core.hooksPath by hand:
+# .config/wt.toml. It is NOT a bare `lefthook install`: git shares one hooks
+# directory across every worktree, and lefthook's generated shim bakes in an
+# absolute path probed from whichever worktree ran the install, so each new
+# worktree pointed the shared hook at its own .venv and broke it for all the
+# others (issue #4789). The installer below wraps `lefthook install
+# --reset-hooks-path`, which still clears a stale core.hooksPath, then
+# overwrites the shims with a body that names no worktree-specific path;
+# --check re-reads the files to confirm. Do NOT set core.hooksPath by hand:
 # .githooks is not tracked in this repository, and a core.hooksPath naming a
 # missing directory makes git run no hook and print no warning (issue #5090).
-configure-hooks = "uv run --frozen --extra dev lefthook install --reset-hooks-path && uv run --frozen --extra dev lefthook check-install"
+configure-hooks = "uv run --frozen --extra dev python scripts/maintenance/install_lefthook_worktree_safe.py && uv run --frozen --extra dev python scripts/maintenance/install_lefthook_worktree_safe.py --check"
 
 # Copy gitignored files from main worktree to eliminate cold starts
 copy = "wt step copy-ignored"

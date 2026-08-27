@@ -415,11 +415,19 @@ def test_workflows_choose_hook_installation_explicitly() -> None:
     assert missing_input == []
 
 
-def test_worktrunk_post_create_installs_lefthook() -> None:
+def test_worktrunk_post_create_installs_worktree_safe_lefthook_shims() -> None:
+    """A new worktree must not install lefthook's env-probed shim (issue #4789).
+
+    Git shares one hooks directory across every worktree, so a bare
+    ``lefthook install`` from a new worktree points the shared hook at that
+    worktree's own ``.venv`` and breaks every other checkout.
+    """
     text = WORKTRUNK_CONFIG_PATH.read_text(encoding="utf-8")
+    installer = "python scripts/maintenance/install_lefthook_worktree_safe.py"
 
     assert (
-        'configure-hooks = "uv run --frozen --extra dev lefthook install '
-        '--reset-hooks-path && uv run --frozen --extra dev lefthook check-install"' in text
+        f'configure-hooks = "uv run --frozen --extra dev {installer} '
+        f'&& uv run --frozen --extra dev {installer} --check"' in text
     )
+    assert "lefthook install --reset-hooks-path" not in text
     assert "core.hooksPath" not in text
