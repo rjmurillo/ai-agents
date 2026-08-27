@@ -139,11 +139,12 @@ def _anchor_matches(anchor: str, cited_text: str) -> bool:
 
 
 # An ATX heading per CommonMark: up to 3 leading spaces (4 is a code
-# block), optional blockquote markers, 1-6 hashes, then whitespace or end
-# of line. This is what "#hashtag" and 7-hash paragraphs fail and a
-# blockquoted "> ## heading" passes; the bare hash-prefix predicate below
-# stays the code-comment classifier.
-_ATX_HEADING = re.compile(r"^ {0,3}(?:> ?)*#{1,6}(?:[ \t]|$)")
+# block), optional blockquote markers each followed by up to 3 spaces,
+# 1-6 hashes, then whitespace or end of line. This is what "#hashtag"
+# and 7-hash paragraphs fail and a blockquoted "> ## heading" passes,
+# indented marker forms (">   ## heading") included; the bare
+# hash-prefix predicate below stays the code-comment classifier.
+_ATX_HEADING = re.compile(r"^ {0,3}(?:> {0,3})*#{1,6}(?:[ \t]|$)")
 
 
 def _atx_heading(line: str) -> bool:

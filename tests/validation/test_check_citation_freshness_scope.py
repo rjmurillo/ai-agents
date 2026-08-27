@@ -171,6 +171,21 @@ class TestScopeBoundaries:
 
         assert code == 0
 
+    def test_blockquote_marker_spacing_does_not_hide_a_heading(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # CodeRabbit's residual-risk note (PR #5341): CommonMark allows
+        # up to 3 spaces after a blockquote marker, so ">  ## heading"
+        # must classify as a heading, not as body text that absorbs the
+        # next blockquote line's backtick span.
+        root = _repo(tmp_path)
+        doc = f">  ## About {TARGET}:2\n> The `magic_token` helper is here.\n"
+        _add_doc(root, "docs/notes.md", doc)
+
+        code, _out = _run(root, capsys)
+
+        assert code == 0
+
     def test_hashtag_paragraph_is_body_text_not_a_heading(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
