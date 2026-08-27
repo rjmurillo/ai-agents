@@ -1,23 +1,39 @@
+# taste-lint: ignore file-size -- every helper here is asserted twice, once against
+# the six shipped surfaces and once against defective fixtures in the control
+# classes below. Splitting production assertions from their controls would put the
+# two halves of that pairing in different files, which is the exact structure that
+# let the previous version green-light a grant Claude Code cannot parse.
 """Structural guards for the security agent's review-scope tool contract.
 
-Issue #4781: the security agent could not enumerate a changeset because no
-surface granted it git or a pinned-diff retrieval path. It returned a blocked
-verdict it could not justify. These tests pin the repaired contract:
+Issue #4781: the agent could not enumerate a changeset because no surface
+granted it git or a pinned-diff retrieval path, so it returned a blocked verdict
+it could not justify.
 
-* the Claude surfaces declare an explicit ``tools`` allowlist,
-* that allowlist grants non-mutating git only, never a bare ``Bash``,
-* write access is scoped to the agent's own report paths,
-* every surface declares a pinned-diff retrieval path (SHA or PR),
-* every surface carries the scope-enumeration protocol and makes ``[BLOCKED]``
-  conditional on all three retrieval paths failing.
+The first repair declared permission-rule strings such as ``Bash(git diff:*)``
+in the subagent ``tools`` allowlist. Claude Code does not accept that syntax:
+the official contract (https://code.claude.com/docs/en/sub-agents, "Supported
+frontmatter fields" and "Available tools") documents ``tools`` as bare tool
+names plus the MCP patterns ``mcp__<server>`` and ``mcp__<server>__*``, with
+``tools: Read, Grep, Glob, Bash`` as its worked example. A parenthesised entry
+is not a grant at all, so that repair left the agent with no Bash and no Write,
+making the reported symptom permanent instead of fixing it. The earlier version
+of this module asserted those literal strings were present, so it green-lit the
+broken grant and would have blocked the correct fix.
 
-Each production assertion runs through a helper that the negative-control class
-below also calls on defective fixtures, so a helper that stops detecting is
+What replaces it: bare names, which are unscoped, with the read-only-git and
+report-path limits stated as prompt obligations on every surface. The documented
+enforcement mechanism is a subagent-scoped ``PreToolUse`` hook, which ADR-097
+and ``.claude/rules/tool-use-hook-bar.md`` gate behind an ADR review. Until that
+review lands, no surface may present the limits as a toolset property.
+
+Each production assertion runs through a helper the negative-control classes
+below also call on defective fixtures, so a helper that stops detecting is
 caught by its own control rather than passing silently.
 """
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -43,13 +59,15 @@ ALL_SECURITY_SURFACES = (
     VSCODE_GENERATED,
 )
 
-# Read-only git the review needs to enumerate and pin a changeset.
-REQUIRED_GIT_READS = (
-    "Bash(git status:*)",
-    "Bash(git diff:*)",
-    "Bash(git show:*)",
-    "Bash(git log:*)",
-    "Bash(git rev-parse:*)",
+# Bare tool names the enumeration protocol needs on a Claude surface. Bash is
+# what issue #4781 was missing; Write and Edit carry the review report.
+REQUIRED_CLAUDE_TOOLS = (
+    "Read",
+    "Grep",
+    "Glob",
+    "Bash",
+    "Write",
+    "Edit",
 )
 
 # Claude-side pinned-diff retrieval, used when local git is unavailable.
@@ -59,8 +77,8 @@ REQUIRED_PINNED_DIFF_CLAUDE = (
     "mcp__github__get_file_contents",
 )
 
-# Platform-side equivalents. Copilot and VS Code have no scoped shell, so a
-# pinned SHA or PR diff is their only enumeration path.
+# Platform-side equivalents. Copilot and VS Code have no shell, so a pinned SHA
+# or PR diff is their only enumeration path.
 REQUIRED_PINNED_DIFF_PLATFORM = (
     "github/pull_request_read",
     "github/get_commit",
@@ -68,37 +86,11 @@ REQUIRED_PINNED_DIFF_PLATFORM = (
     "github/list_commits",
 )
 
-# Any git subcommand that writes to the repository, the index, or a remote.
-MUTATING_GIT_SUBCOMMANDS = (
-    "add",
-    "am",
-    "apply",
-    "branch",
-    "checkout",
-    "cherry-pick",
-    "clean",
-    "clone",
-    "commit",
-    "fetch",
-    "init",
-    "merge",
-    "mv",
-    "pull",
-    "push",
-    "rebase",
-    "reset",
-    "restore",
-    "revert",
-    "rm",
-    "stash",
-    "submodule",
-    "switch",
-    "tag",
-    "worktree",
-)
+# A bare tool name: CamelCase letters and digits, no punctuation of any kind.
+BARE_TOOL_NAME = re.compile(r"^[A-Z][A-Za-z0-9]*$")
 
-# Write-capable tools that must never appear unscoped in a security allowlist.
-WRITE_TOOL_NAMES = ("write", "edit", "notebookedit", "multiedit")
+# The documented MCP forms: a whole server, or one tool on a server.
+MCP_TOOL_NAME = re.compile(r"^mcp__[a-z0-9_]+(__(\*|[a-z0-9_]+))?$")
 
 # GitHub MCP tools that mutate remote state.
 MUTATING_GITHUB_TOOLS = (
@@ -110,15 +102,46 @@ MUTATING_GITHUB_TOOLS = (
     "mcp__github__create_pull_request",
 )
 
-# Paths the security agent is allowed to write, per its own report templates.
-ALLOWED_WRITE_ROOTS = (".agents/security/", ".agents/planning/impact-analysis-security-")
-
+# Markers every surface must carry, whatever tools its harness grants.
 PROSE_MARKERS = (
     "### Review Scope Enumeration (required)",
-    "git status --porcelain",
+    "skipping any whose tools this harness does not grant",
     "A caller-supplied diff artifact",
     "Record the pinned scope in the verdict",
     "MUST NOT while enumerating",
+)
+
+# Shell-specific markers. Copilot and VS Code grant no shell tool, so the
+# concrete git commands are gated behind a capability clause rather than
+# mandated on every surface (issue #4781 review, finding 5).
+SHELL_PROSE_MARKERS = (
+    "If a shell tool is granted (Claude surfaces only):",
+    "git status --porcelain",
+    "On a harness with no shell",
+)
+
+# A read-only subcommand allowlist does not make a command read-only: `git diff`,
+# `git log`, and `git show` all accept `--output=<path>`. Measured on this branch,
+# `git diff HEAD~1 --output=<tmp>` wrote 3127 bytes and `git log -1 --output=<tmp>`
+# wrote 1186 bytes. Nothing enforces the limit, so the prose must name the hole.
+OUTPUT_HAZARD_MARKERS = (
+    "No `--output` or `-o` on `git diff`",
+    "No shell redirection into",
+)
+
+# Prompt obligations on every surface: the Claude allowlist grants bare
+# Bash/Write, and `$toolset:editor` grants unscoped `edit` on Copilot and VS Code.
+OBLIGATION_MARKERS = (
+    "obligations this prompt places on you, not properties of",
+    "No harness scopes them for you",
+    "hold the line yourself",
+)
+
+# Wording that would claim an enforcement no surface currently has.
+OVERCLAIM_PHRASES = (
+    "Mutating git is never granted",
+    "a guard that denies",
+    "PreToolUse guard",
 )
 
 BLOCKED_SENTENCE = (
@@ -142,58 +165,22 @@ def _tool_list(metadata: dict[str, object], key: str, source: Path) -> list[str]
     return tools
 
 
-def _bash_argument(tool: str) -> str | None:
-    """Return the argument inside ``Bash(...)``, or None when not a Bash grant.
+def find_unparseable_tool_entries(tools: list[str]) -> list[str]:
+    """Return entries Claude Code's ``tools`` allowlist cannot read as a tool name.
 
-    A bare ``Bash`` (no parentheses) returns the empty string, which callers
-    treat as unscoped.
+    Only two shapes are accepted: a bare CamelCase tool name, and an MCP
+    server-level or single-tool pattern. Anything carrying a parenthesised
+    specifier, a colon, a glob, or a path is permission-rule syntax that the
+    subagent loader does not parse, so declaring it silently grants nothing.
     """
-    stripped = tool.strip()
-    if stripped.casefold() == "bash":
-        return ""
-    if not stripped.casefold().startswith("bash("):
-        return None
-    if not stripped.endswith(")"):
-        return ""
-    return stripped[len("Bash(") : -1]
-
-
-def find_unsafe_shell_grants(tools: list[str]) -> list[str]:
-    """Return every shell grant that is unscoped or reaches a mutating command.
-
-    A grant is safe only when it is ``Bash(git <read-subcommand>:...)``. Bare
-    ``Bash``, a bare ``Bash(git:*)`` wildcard, and any non-git command all reach
-    ``git commit`` or ``git push`` and are reported.
-    """
-    offenders: list[str] = []
-    for tool in tools:
-        argument = _bash_argument(tool)
-        if argument is None:
-            continue
-        body = argument.split(":", 1)[0].strip()
-        words = body.split()
-        if len(words) < 2 or words[0] != "git":
-            offenders.append(tool)
-            continue
-        if words[1].casefold() in MUTATING_GIT_SUBCOMMANDS:
-            offenders.append(tool)
-    return offenders
-
-
-def find_unscoped_write_grants(tools: list[str]) -> list[str]:
-    """Return write grants that are unscoped or point outside the report paths."""
     offenders: list[str] = []
     for tool in tools:
         stripped = tool.strip()
-        base = stripped.split("(", 1)[0].casefold()
-        if base not in WRITE_TOOL_NAMES:
+        if BARE_TOOL_NAME.fullmatch(stripped):
             continue
-        if "(" not in stripped or not stripped.endswith(")"):
-            offenders.append(tool)
+        if MCP_TOOL_NAME.fullmatch(stripped):
             continue
-        target = stripped[len(base) + 1 : -1]
-        if not target.startswith(ALLOWED_WRITE_ROOTS):
-            offenders.append(tool)
+        offenders.append(tool)
     return offenders
 
 
@@ -212,6 +199,17 @@ def find_missing_tools(tools: list[str], required: tuple[str, ...]) -> list[str]
 def find_missing_prose(text: str, markers: tuple[str, ...]) -> list[str]:
     """Return the markers absent from *text*."""
     return [marker for marker in markers if marker not in text]
+
+
+def find_enforcement_overclaims(text: str) -> list[str]:
+    """Return phrases asserting an enforcement no surface currently provides.
+
+    The bare `tools` allowlist and `$toolset:editor` are both unscoped, so a
+    sentence promising the harness will refuse a mutating call is false on every
+    surface. That mismatch between promised and enforced scope is what issue
+    #4781's review named, and it reads as reassuring rather than as a defect.
+    """
+    return [phrase for phrase in OVERCLAIM_PHRASES if phrase in text]
 
 
 def blocked_is_conditional(text: str) -> str | None:
@@ -237,27 +235,24 @@ def test_claude_surface_declares_explicit_tools(path: Path) -> None:
 
 
 @pytest.mark.parametrize("path", CLAUDE_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
-def test_claude_surface_grants_read_only_git(path: Path) -> None:
+def test_claude_surface_uses_only_parseable_tool_names(path: Path) -> None:
+    """A parenthesised specifier grants nothing, so it is worse than omitting the key."""
     tools = _tool_list(_frontmatter(path), "tools", path)
 
-    missing = find_missing_tools(tools, REQUIRED_GIT_READS)
-    assert not missing, f"{path.relative_to(REPO_ROOT)}: missing git read grants {missing}"
+    offenders = find_unparseable_tool_entries(tools)
+    assert not offenders, (
+        f"{path.relative_to(REPO_ROOT)}: `tools` entries Claude Code cannot parse "
+        f"as tool names {offenders}; the allowlist takes bare names only"
+    )
 
 
 @pytest.mark.parametrize("path", CLAUDE_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
-def test_claude_surface_grants_no_mutating_shell(path: Path) -> None:
+def test_claude_surface_grants_the_tools_the_protocol_needs(path: Path) -> None:
+    """Issue #4781's symptom returns if Bash is absent, however it is spelled."""
     tools = _tool_list(_frontmatter(path), "tools", path)
 
-    offenders = find_unsafe_shell_grants(tools)
-    assert not offenders, f"{path.relative_to(REPO_ROOT)}: unsafe shell grants {offenders}"
-
-
-@pytest.mark.parametrize("path", CLAUDE_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
-def test_claude_surface_scopes_write_to_report_paths(path: Path) -> None:
-    tools = _tool_list(_frontmatter(path), "tools", path)
-
-    offenders = find_unscoped_write_grants(tools)
-    assert not offenders, f"{path.relative_to(REPO_ROOT)}: unscoped write grants {offenders}"
+    missing = find_missing_tools(tools, REQUIRED_CLAUDE_TOOLS)
+    assert not missing, f"{path.relative_to(REPO_ROOT)}: missing tool grants {missing}"
 
 
 @pytest.mark.parametrize("path", CLAUDE_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
@@ -278,7 +273,7 @@ def test_claude_surface_can_bind_to_a_sha(path: Path) -> None:
 
 @pytest.mark.parametrize("path", PLATFORM_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
 def test_platform_surface_can_bind_to_a_sha(path: Path) -> None:
-    """Copilot and VS Code have no scoped shell; a pinned SHA or PR is their only path."""
+    """Copilot and VS Code have no shell; a pinned SHA or PR is their only path."""
     tools = _tool_list(_frontmatter(path), "tools", path)
 
     missing = find_missing_tools(tools, REQUIRED_PINNED_DIFF_PLATFORM)
@@ -310,6 +305,63 @@ def test_every_surface_carries_the_enumeration_protocol(path: Path) -> None:
 @pytest.mark.parametrize(
     "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
 )
+def test_every_surface_gates_the_shell_path_on_capability(path: Path) -> None:
+    """Copilot and VS Code grant no shell, so step 1 must be conditional everywhere.
+
+    The body is one text copied to six surfaces, so the capability clause has to
+    travel with it. Mandating the bare `git status --porcelain` line on a
+    shell-less surface is what made the protocol unfollowable there.
+    """
+    text = path.read_text(encoding="utf-8")
+
+    missing = find_missing_prose(text, SHELL_PROSE_MARKERS)
+    assert not missing, (
+        f"{path.relative_to(REPO_ROOT)}: shell path is not capability-gated {missing}"
+    )
+
+
+@pytest.mark.parametrize(
+    "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
+)
+def test_every_surface_names_the_git_output_write_hazard(path: Path) -> None:
+    """A read-only subcommand list is not a read-only command list."""
+    text = path.read_text(encoding="utf-8")
+
+    missing = find_missing_prose(text, OUTPUT_HAZARD_MARKERS)
+    assert not missing, f"{path.relative_to(REPO_ROOT)}: --output hazard unstated {missing}"
+
+
+@pytest.mark.parametrize(
+    "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
+)
+def test_every_surface_states_the_limits_as_obligations(path: Path) -> None:
+    """Bare `Bash`/`Write` and `$toolset:editor` are unscoped on every surface."""
+    text = path.read_text(encoding="utf-8")
+
+    missing = find_missing_prose(text, OBLIGATION_MARKERS)
+    assert not missing, (
+        f"{path.relative_to(REPO_ROOT)}: limits are not framed as obligations {missing}"
+    )
+
+
+@pytest.mark.parametrize(
+    "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
+)
+def test_no_surface_claims_an_enforcement_it_lacks(path: Path) -> None:
+    """The promised-but-unenforced mismatch is the defect issue #4781's review named."""
+    text = path.read_text(encoding="utf-8")
+
+    overclaims = find_enforcement_overclaims(text)
+    assert not overclaims, (
+        f"{path.relative_to(REPO_ROOT)}: claims an enforcement no surface provides "
+        f"{overclaims}; state the limit as an obligation, or ship the guard and "
+        f"clear ADR-097 first"
+    )
+
+
+@pytest.mark.parametrize(
+    "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
+)
 def test_every_surface_makes_scope_blocked_conditional(path: Path) -> None:
     err = blocked_is_conditional(path.read_text(encoding="utf-8"))
 
@@ -320,7 +372,7 @@ def test_every_surface_makes_scope_blocked_conditional(path: Path) -> None:
     "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
 )
 def test_every_surface_forbids_mutating_git_in_prose(path: Path) -> None:
-    """The platform surfaces cannot scope shell, so the prohibition must be prose."""
+    """Nothing scopes the shell grant, so the prohibition has to be prose."""
     text = path.read_text(encoding="utf-8")
 
     for subcommand in ("commit", "push", "checkout", "reset", "stash", "clean"):
@@ -337,75 +389,77 @@ def test_claude_pair_stays_byte_identical() -> None:
 # --- Negative controls: the same helpers, run on defective input ---
 
 
-class TestShellGrantControls:
-    """Prove find_unsafe_shell_grants detects each way the grant can go wrong."""
+class TestToolNameControls:
+    """Prove find_unparseable_tool_entries rejects every non-tool-name shape."""
 
     @pytest.mark.parametrize(
         "tools",
         [
-            pytest.param(["Read", "Bash"], id="bare-bash"),
-            pytest.param(["Read", "Bash(git:*)"], id="git-wildcard"),
-            pytest.param(["Read", "Bash(git commit:*)"], id="git-commit"),
-            pytest.param(["Read", "Bash(git push:*)"], id="git-push"),
-            pytest.param(["Read", "Bash(git checkout:*)"], id="git-checkout"),
-            pytest.param(["Read", "Bash(git reset:*)"], id="git-reset"),
-            pytest.param(["Read", "Bash(git clean:*)"], id="git-clean"),
-            pytest.param(["Read", "Bash(git worktree:*)"], id="git-worktree"),
-            pytest.param(["Read", "Bash(gh pr merge:*)"], id="non-git-command"),
-            pytest.param(["Read", "Bash(rm -rf:*)"], id="destructive-shell"),
-            pytest.param(["Read", "Bash(uv run python:*)"], id="arbitrary-interpreter"),
-            pytest.param(["Read", "bash"], id="lowercase-bare-bash"),
-            pytest.param(["Read", "Bash(git status"], id="unterminated-grant"),
-        ],
-    )
-    def test_unsafe_shell_grant_detected(self, tools: list[str]) -> None:
-        assert find_unsafe_shell_grants(tools), f"should reject {tools}"
-
-    @pytest.mark.parametrize(
-        "tools",
-        [
-            pytest.param(list(REQUIRED_GIT_READS), id="the-shipped-allowlist"),
-            pytest.param(["Read", "Bash(git ls-files:*)"], id="git-ls-files"),
-            pytest.param(["Read", "Bash(git blame:*)"], id="git-blame"),
-            pytest.param(["Read", "Grep", "mcp__github__get_commit"], id="no-shell-at-all"),
-        ],
-    )
-    def test_safe_shell_grant_accepted(self, tools: list[str]) -> None:
-        """Inverted control: a correct allowlist must produce no offender."""
-        assert find_unsafe_shell_grants(tools) == []
-
-
-class TestWriteGrantControls:
-    """Prove find_unscoped_write_grants detects unscoped and out-of-scope writes."""
-
-    @pytest.mark.parametrize(
-        "tools",
-        [
-            pytest.param(["Read", "Write"], id="bare-write"),
-            pytest.param(["Read", "Edit"], id="bare-edit"),
-            pytest.param(["Read", "NotebookEdit"], id="bare-notebook-edit"),
-            pytest.param(["Read", "Write(src/**)"], id="source-tree-write"),
-            pytest.param(["Read", "Edit(.github/workflows/**)"], id="workflow-write"),
-            pytest.param(["Read", "Write(.agents/**)"], id="too-wide-agents-write"),
-            pytest.param(["Read", "Write(.agents/security/**"], id="unterminated-write"),
-        ],
-    )
-    def test_unscoped_write_detected(self, tools: list[str]) -> None:
-        assert find_unscoped_write_grants(tools), f"should reject {tools}"
-
-    @pytest.mark.parametrize(
-        "tools",
-        [
-            pytest.param(["Read", "Write(.agents/security/**)"], id="report-path"),
+            pytest.param(["Read", "Bash(git status:*)"], id="permission-rule-bash"),
+            pytest.param(["Read", "Bash(git diff:*)"], id="permission-rule-diff"),
+            pytest.param(["Read", "Bash(git diff --output=x:*)"], id="permission-rule-output"),
+            pytest.param(["Read", "Bash(git -C /other push:*)"], id="permission-rule-redirect"),
+            pytest.param(["Read", "Write(.agents/security/**)"], id="permission-rule-write"),
             pytest.param(
-                ["Read", "Edit(.agents/planning/impact-analysis-security-foo.md)"],
-                id="impact-analysis-path",
+                ["Read", "Edit(.agents/planning/impact-analysis-security-*.md)"],
+                id="permission-rule-edit",
             ),
-            pytest.param(["Read", "Grep", "Glob"], id="no-write-at-all"),
+            pytest.param(["Read", "Bash(git status"], id="unterminated-specifier"),
+            pytest.param(["Read", "bash"], id="lowercase-bare-name"),
+            pytest.param(["Read", "Agent(worker)"], id="agent-spawn-specifier"),
+            pytest.param(["Read", "mcp__github__*__extra"], id="malformed-mcp-pattern"),
+            pytest.param(["Read", ".claude/skills/x.py"], id="path-not-a-tool"),
+            pytest.param(["Read", "Bash, Write"], id="comma-joined-entry"),
         ],
     )
-    def test_scoped_write_accepted(self, tools: list[str]) -> None:
-        assert find_unscoped_write_grants(tools) == []
+    def test_unparseable_entry_detected(self, tools: list[str]) -> None:
+        assert find_unparseable_tool_entries(tools), f"should reject {tools}"
+
+    @pytest.mark.parametrize(
+        "tools",
+        [
+            pytest.param(list(REQUIRED_CLAUDE_TOOLS), id="the-shipped-bare-names"),
+            pytest.param(["Read", "WebSearch", "TodoWrite"], id="multiword-camel-case"),
+            pytest.param(["mcp__github", "mcp__serena__read_memory"], id="mcp-forms"),
+            pytest.param(["mcp__github__*"], id="mcp-server-wildcard"),
+        ],
+    )
+    def test_parseable_entry_accepted(self, tools: list[str]) -> None:
+        """Inverted control: a correct allowlist must produce no offender."""
+        assert find_unparseable_tool_entries(tools) == []
+
+
+class TestOverclaimControls:
+    """Prove find_enforcement_overclaims catches the ways prose can promise too much."""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param(
+                "- **Read-only git**: `git diff`. Mutating git is never granted.\n",
+                id="never-granted-claim",
+            ),
+            pytest.param(
+                "A PreToolUse guard on the `Bash` matcher denies anything else.\n",
+                id="guard-registration-claim",
+            ),
+            pytest.param(
+                "Some harnesses back them with a guard that denies the call.\n",
+                id="hedged-guard-claim",
+            ),
+        ],
+    )
+    def test_overclaim_detected(self, text: str) -> None:
+        assert find_enforcement_overclaims(text), f"should flag {text!r}"
+
+    def test_obligation_wording_accepted(self) -> None:
+        """Inverted control: the shipped wording must not read as an overclaim."""
+        honest = (
+            "These limits are obligations this prompt places on you, not properties "
+            "of the toolset you were handed. No harness scopes them for you.\n"
+        )
+
+        assert find_enforcement_overclaims(honest) == []
 
 
 class TestRemoteMutationControls:
@@ -418,10 +472,16 @@ class TestRemoteMutationControls:
 
 class TestMissingToolControls:
     def test_missing_required_tool_detected(self) -> None:
-        assert find_missing_tools(["Read"], REQUIRED_GIT_READS) == list(REQUIRED_GIT_READS)
+        assert find_missing_tools(["Read"], REQUIRED_CLAUDE_TOOLS) == [
+            name for name in REQUIRED_CLAUDE_TOOLS if name != "Read"
+        ]
+
+    def test_permission_rule_spelling_reads_as_absent(self) -> None:
+        """The exact defect: `Bash(git diff:*)` is present as text and absent as a grant."""
+        assert find_missing_tools(["Read", "Bash(git diff:*)"], ("Bash",)) == ["Bash"]
 
     def test_present_required_tools_accepted(self) -> None:
-        assert find_missing_tools(list(REQUIRED_GIT_READS), REQUIRED_GIT_READS) == []
+        assert find_missing_tools(list(REQUIRED_CLAUDE_TOOLS), REQUIRED_CLAUDE_TOOLS) == []
 
     def test_case_difference_still_matches(self) -> None:
         """Edge: frontmatter casing drift must not read as an absent grant."""
@@ -444,6 +504,27 @@ class TestProseControls:
 
     def test_present_prose_markers_accepted(self) -> None:
         assert find_missing_prose(" ".join(PROSE_MARKERS), PROSE_MARKERS) == []
+
+    def test_ungated_shell_prose_detected(self) -> None:
+        """Edge: naming the git commands without the capability clause is the defect."""
+        ungated = "1. **Local read-only git.** Run `git status --porcelain` for the diff.\n"
+
+        assert find_missing_prose(ungated, SHELL_PROSE_MARKERS)
+
+    def test_gated_shell_prose_accepted(self) -> None:
+        assert find_missing_prose(" ".join(SHELL_PROSE_MARKERS), SHELL_PROSE_MARKERS) == []
+
+    def test_subcommand_allowlist_without_output_hazard_detected(self) -> None:
+        """Edge: forbidding mutating subcommands leaves `git diff --output` open."""
+        partial = (
+            "**MUST NOT while enumerating.** No mutating git: `commit`, `push`, "
+            "`checkout`, `reset`, `stash`, `clean`.\n"
+        )
+
+        assert find_missing_prose(partial, OUTPUT_HAZARD_MARKERS)
+
+    def test_output_hazard_prose_accepted(self) -> None:
+        assert find_missing_prose(" ".join(OUTPUT_HAZARD_MARKERS), OUTPUT_HAZARD_MARKERS) == []
 
     def test_absent_blocked_verdict_detected(self) -> None:
         assert blocked_is_conditional(self.NO_BLOCKED_AT_ALL) is not None
