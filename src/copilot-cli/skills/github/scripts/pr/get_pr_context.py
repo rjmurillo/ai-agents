@@ -48,6 +48,7 @@ from github_core.api import (
     gh_graphql,
     resolve_repo_params,
 )
+from github_core.bot_config import canonicalize_login, is_bot
 from github_core.output import (
     add_output_format_arg,
     get_output_format,
@@ -352,6 +353,41 @@ def _record_context_fetch_failure(
     })
 
 
+def _author_is_bot(author: object) -> bool | None:
+    """Classify the PR author as a bot, or return None when it cannot be read.
+
+    Delegates the decision to `github_core.bot_config.is_bot`, the repository's
+    single authoritative bot-author rule, rather than re-deriving one here. The
+    obvious alternative, a `[bot]` login-suffix test at the call site, would
+    disagree with that rule on exactly the logins this repository sees most:
+    `bot_config.py` records that `gh pr view --json author` spells the Copilot
+    coding agent `app/copilot-swe-agent`, and its `_DEFAULT_BOT_ALIASES` maps
+    that verbatim to `copilot-swe-agent[bot]`. Neither `app/copilot-swe-agent`
+    nor `Copilot` carries a `[bot]` suffix, so a suffix test reads both as
+    humans. `canonicalize_login` runs first for that reason.
+
+    Stricter/looser/different than canonical: no divergence. This wraps
+    `is_bot` without widening or narrowing it. The only value this function
+    adds beyond the wrapper is the third state: `None` for an author GitHub did
+    not return, or returned without a usable login, so a caller can fail closed
+    on unknown authorship instead of reading a `False` it has not earned.
+
+    GitHub's own bot flag is honored when the payload carries it, mapped onto
+    the `user_type` parameter `is_bot` already documents ("Optional GitHub API
+    user type field (e.g., "Bot", "User")"). It is read defensively rather than
+    required: `_load_pr_data` fetches `author` through `gh pr view --json`, and
+    which subfields that emits varies by `gh` version, so the login path below
+    stands on its own when the flag is absent.
+    """
+    if not isinstance(author, dict):
+        return None
+    login = author.get("login")
+    if not isinstance(login, str) or not login:
+        return None
+    user_type = "Bot" if author.get("is_bot") is True else None
+    return is_bot(canonicalize_login(login), user_type)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -385,6 +421,12 @@ def main(argv: list[str] | None = None) -> int:
         "state": pr_data.get("state"),
         "is_draft": pr_data.get("isDraft", False),
         "author": author.get("login") if isinstance(author, dict) else None,
+        # Three-state on purpose: true, false, or null when the author could not
+        # be read. `/pr-autofix` forwards this to `test_pr_merge_ready.py
+        # --is-bot`, which is what separates a T5 bot PR (handled individually)
+        # from the T2-T4 unattended thread-fix loop, so a caller must be able to
+        # tell "not a bot" from "no answer" and fail closed on the second.
+        "author_is_bot": _author_is_bot(author),
         "head_branch": pr_data.get("headRefName"),
         "head_sha": pr_data.get("headRefOid"),
         "head_repo": head_repo.get("nameWithOwner"),

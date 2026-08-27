@@ -1203,3 +1203,113 @@ class TestExtendedMetadata:
         assert data["merge_state_status"] is None
         assert data["auto_merge"] is False
         assert data["reviews"] == []
+
+
+# ---------------------------------------------------------------------------
+# Tests: author_is_bot (issue #5208)
+# ---------------------------------------------------------------------------
+
+
+class TestAuthorIsBot:
+    """`author_is_bot` is what lets `/pr-autofix` reach tier T5.
+
+    `classify_tier` in `test_pr_merge_ready.py` returns T5 only when
+    `is_bot and (has_ci_failures or has_threads)`, and its `is_bot` parameter
+    defaults to `False`. The command had no author lookup at all, so it never
+    passed `--is-bot`, and every bot PR with a failing check or an unresolved
+    thread was classified T2-T4 and entered the unattended thread-fix loop.
+
+    Three states, not two. `None` means the author could not be read, which the
+    consumer must be able to tell apart from a real `False` so it can fail
+    closed. `test_unreadable_author_is_null_not_false` pins that distinction.
+
+    The delegation to `github_core.bot_config` is load bearing, not stylistic,
+    and it was measured rather than assumed. Replacing
+    `is_bot(canonicalize_login(login), user_type)` with the cheap alternative,
+    `login.lower().endswith("[bot]")`, fails exactly three of these cases and
+    passes the other six:
+
+        test_a_hyphen_bot_suffix_is_a_bot                            (rjmurillo-bot)
+        test_the_gh_author_spelling_of_the_copilot_coding_agent_is_a_bot
+        test_the_copilot_reviewer_alias_is_a_bot                     (Copilot)
+
+    Those three are the discrimination probe for the design choice. The middle
+    two are the ones that matter operationally: `app/copilot-swe-agent` and
+    `Copilot` are the spellings this repository's own bot PRs arrive under, so
+    a suffix test would read them as human-authored and leave issue #5208
+    unfixed for the exact population it is about.
+    """
+
+    def _data(self, capsys, author):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run",
+            return_value=_completed(stdout=_pr_json(author=author), rc=0),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        return json.loads(capsys.readouterr().out)["Data"]
+
+    def test_a_human_login_is_not_a_bot(self, capsys):
+        assert self._data(capsys, {"login": "alice"})["author_is_bot"] is False
+
+    def test_a_bracket_bot_suffix_is_a_bot(self, capsys):
+        assert self._data(capsys, {"login": "dependabot[bot]"})["author_is_bot"] is True
+
+    def test_a_hyphen_bot_suffix_is_a_bot(self, capsys):
+        assert self._data(capsys, {"login": "rjmurillo-bot"})["author_is_bot"] is True
+
+    def test_the_gh_author_spelling_of_the_copilot_coding_agent_is_a_bot(self, capsys):
+        """`app/copilot-swe-agent` carries no `[bot]` suffix and is still a bot.
+
+        `bot_config.py`'s `_DEFAULT_BOT_ALIASES` records this spelling with the
+        comment "gh pr view --json author returns this spelling", and maps it to
+        `copilot-swe-agent[bot]`. A suffix test at the call site would read the
+        Copilot coding agent's own PRs as human-authored, which is the exact
+        population issue #5208 is about.
+        """
+        assert self._data(capsys, {"login": "app/copilot-swe-agent"})["author_is_bot"] is True
+
+    def test_the_copilot_reviewer_alias_is_a_bot(self, capsys):
+        """`Copilot` is a configured bot carrying no suffix of either kind."""
+        assert self._data(capsys, {"login": "Copilot"})["author_is_bot"] is True
+
+    def test_the_api_bot_flag_is_honored_over_the_login(self, capsys):
+        """A login that looks human is still a bot when GitHub says so."""
+        assert self._data(capsys, {"login": "somebody", "is_bot": True})["author_is_bot"] is True
+
+    def test_a_non_boolean_api_bot_flag_falls_back_to_the_login(self, capsys):
+        """Only a real `True` counts; anything else leaves the login deciding.
+
+        Without the `is True` check, a truthy non-boolean such as the string
+        `"no"` would classify every author as a bot.
+        """
+        assert self._data(capsys, {"login": "alice", "is_bot": "no"})["author_is_bot"] is False
+        assert self._data(capsys, {"login": "alice", "is_bot": None})["author_is_bot"] is False
+
+    def test_unreadable_author_is_null_not_false(self, capsys):
+        """Three states. `False` is a claim; `None` is the absence of one.
+
+        Collapsing these to `False` is the fail-open direction: `/pr-autofix`
+        would read "not a bot" off a PR whose author GitHub never returned and
+        send it into the unattended loop.
+        """
+        assert self._data(capsys, None)["author_is_bot"] is None
+        assert self._data(capsys, {})["author_is_bot"] is None
+        assert self._data(capsys, {"login": ""})["author_is_bot"] is None
+        assert self._data(capsys, {"login": 7})["author_is_bot"] is None
+        assert self._data(capsys, "alice")["author_is_bot"] is None
+
+    def test_a_missing_author_key_is_null(self, capsys):
+        raw = json.loads(_pr_json())
+        del raw["author"]
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run",
+            return_value=_completed(stdout=json.dumps(raw), rc=0),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["author"] is None
+        assert data["author_is_bot"] is None
