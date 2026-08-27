@@ -27,6 +27,8 @@ import pytest
 from scripts.maintenance.install_lefthook_worktree_safe import (
     GIT_CLIENT_HOOKS,
     config_path,
+    config_paths,
+    declared_hook_names,
     declared_hooks,
     find_defects,
     hook_shim,
@@ -167,6 +169,100 @@ class TestDeclaredHooks:
         config.write_text("colors: false\n", encoding="utf-8")
 
         assert declared_hooks(config) == []
+
+
+class TestEveryConfigContributes:
+    """lefthook merges its config files, so reading only the first misses hooks."""
+
+    def test_config_paths_returns_every_config_present(self, primary: Path) -> None:
+        (primary / "lefthook-local.yml").write_text("pre-push:\n  jobs: []\n", encoding="utf-8")
+
+        assert config_paths(primary) == [
+            primary / "lefthook.yml",
+            primary / "lefthook-local.yml",
+        ]
+
+    def test_a_hook_declared_only_in_the_local_config_is_collected(
+        self, primary: Path
+    ) -> None:
+        (primary / "lefthook-local.yml").write_text("pre-push:\n  jobs: []\n", encoding="utf-8")
+
+        assert declared_hook_names(primary) == ["pre-commit", "pre-push"]
+
+    def test_a_hook_declared_only_in_the_local_config_is_examined(
+        self, primary: Path
+    ) -> None:
+        """``config_path`` returned the first match, so this hook went unchecked."""
+        (primary / "lefthook-local.yml").write_text("pre-push:\n  jobs: []\n", encoding="utf-8")
+        write_shims(primary, ["pre-commit"])
+
+        defects, examined = find_defects(primary)
+
+        assert examined == 2
+        assert any("pre-push" in defect and "is missing" in defect for defect in defects)
+
+    def test_a_name_declared_in_both_configs_is_examined_once(
+        self, primary: Path
+    ) -> None:
+        (primary / "lefthook-local.yml").write_text(
+            "pre-commit:\n  jobs: []\n", encoding="utf-8"
+        )
+
+        assert declared_hook_names(primary) == ["pre-commit"]
+
+
+class TestUnreadableConfig:
+    """A config this parser cannot read hooks out of fails; it never passes."""
+
+    def test_check_exits_one_on_a_json_config_with_no_hooks_installed(
+        self, tmp_path: Path
+    ) -> None:
+        """The gate used to print ``0 of 0`` and exit 0 with no hooks on disk."""
+        root = tmp_path / "json-config"
+        root.mkdir()
+        _git(root, "init", "-q", ".")
+        (root / "lefthook.json").write_text(
+            '{"pre-commit": {"jobs": [{"name": "noop", "run": "true"}]}}\n',
+            encoding="utf-8",
+        )
+        assert not (hooks_dir(root) / "pre-commit").exists()
+
+        assert main(["--check", "--repo-root", str(root)]) == 1
+
+    def test_check_names_the_parser_limitation_it_hit(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        root = tmp_path / "toml-config"
+        root.mkdir()
+        _git(root, "init", "-q", ".")
+        (root / "lefthook.toml").write_text('[pre-commit]\n', encoding="utf-8")
+
+        main(["--check", "--repo-root", str(root)])
+
+        assert "declares no client-side git hooks" in capsys.readouterr().err
+
+    def test_check_exits_one_on_a_yaml_config_whose_hooks_arrive_via_extends(
+        self, tmp_path: Path
+    ) -> None:
+        root = tmp_path / "extends-config"
+        root.mkdir()
+        _git(root, "init", "-q", ".")
+        (root / "lefthook.yml").write_text(
+            "extends:\n  - ./shared-lefthook.yml\n", encoding="utf-8"
+        )
+
+        assert main(["--check", "--repo-root", str(root)]) == 1
+
+    def test_the_install_path_refuses_a_config_it_cannot_read(
+        self, tmp_path: Path
+    ) -> None:
+        """ADR-035 exit 2: nothing to install is a configuration problem."""
+        root = tmp_path / "json-config"
+        root.mkdir()
+        _git(root, "init", "-q", ".")
+        (root / "lefthook.json").write_text('{"pre-commit": {}}\n', encoding="utf-8")
+
+        assert main(["--repo-root", str(root)]) == 2
 
 
 class TestShimDefect:
@@ -349,6 +445,59 @@ class TestShimDefect:
         assert defect is not None
         assert "never hands the 'pre-commit' hook to lefthook" in defect
 
+    def test_an_exit_above_the_dispatch_makes_the_hook_inert(
+        self, tmp_path: Path
+    ) -> None:
+        """The comment case one step further in: executed text that never runs.
+
+        Every other check passes and the dispatch line is real executed text,
+        so a scan that reads any matching line anywhere certifies a hook whose
+        first statement ends the script. The gate then reports a repository no
+        lefthook job protects, which is exactly the state the comment case
+        exists to refuse.
+        """
+        path = tmp_path / "pre-commit"
+        path.write_text(
+            "#!/bin/sh\nexit 0\n"
+            'exec uv run --frozen lefthook run "pre-commit" "$@"\n',
+            encoding="utf-8",
+        )
+        path.chmod(0o755)
+
+        defect = shim_defect("pre-commit", path)
+
+        assert defect is not None
+        assert "never hands the 'pre-commit' hook to lefthook" in defect
+
+    def test_an_exit_inside_an_if_block_does_not_end_the_scan(
+        self, tmp_path: Path
+    ) -> None:
+        """Control for the case above: the shim's own LEFTHOOK=0 guard is an exit.
+
+        Without the block tracking, tightening the scan to stop at any ``exit``
+        would reject every shim this installer writes, because the skip switch
+        exits before the dispatch line on the branch that fires.
+        """
+        path = tmp_path / "pre-commit"
+        path.write_text(hook_shim("pre-commit"), encoding="utf-8")
+        path.chmod(0o755)
+
+        assert "exit 0" in hook_shim("pre-commit")
+        assert shim_defect("pre-commit", path) is None
+
+    def test_an_exit_after_the_dispatch_is_not_a_defect(self, tmp_path: Path) -> None:
+        """Only an exit the shell reaches first disqualifies the dispatch below it."""
+        path = tmp_path / "pre-commit"
+        path.write_text(
+            "#!/bin/sh\n"
+            'uv run --frozen lefthook run "pre-commit" "$@"\n'
+            "exit $?\n",
+            encoding="utf-8",
+        )
+        path.chmod(0o755)
+
+        assert shim_defect("pre-commit", path) is None
+
     def test_a_trailing_comment_does_not_disqualify_a_real_dispatch(
         self, tmp_path: Path
     ) -> None:
@@ -480,6 +629,54 @@ class TestWorktreeIsolationRegression:
 
         assert os.access(shared, os.X_OK)
 
+    def test_a_new_hook_is_executable_the_moment_it_appears(
+        self, primary: Path
+    ) -> None:
+        """A write-then-chmod leaves a window where git silently skips the hook.
+
+        Git ignores a non-executable hook and prints no warning, so a newly
+        created shim sitting at the umask default until a later ``chmod`` is an
+        interval in which every worktree's commits go unvalidated. The rename
+        this asserts on carries the mode with it, so no such interval exists.
+        """
+        shared = hooks_dir(primary) / "pre-commit"
+        assert not shared.exists()
+
+        write_shims(primary, ["pre-commit"])
+
+        assert os.stat(shared).st_mode & 0o111
+
+    def test_a_rewrite_leaves_no_temporary_file_behind(self, primary: Path) -> None:
+        """The scratch file is renamed onto the hook, never left for git to find."""
+        write_shims(primary, ["pre-commit"])
+
+        leftovers = [
+            entry.name
+            for entry in hooks_dir(primary).iterdir()
+            if entry.name.endswith(".tmp")
+        ]
+
+        assert leftovers == []
+
+    def test_a_failed_write_leaves_no_temporary_file_behind(
+        self, primary: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Negative control for the case above: the cleanup runs on the error path."""
+        directory = hooks_dir(primary)
+        directory.mkdir(parents=True, exist_ok=True)
+
+        def _boom(_src: object, _dst: object) -> None:
+            raise OSError("rename refused")
+
+        monkeypatch.setattr(
+            "scripts.maintenance.install_lefthook_worktree_safe.os.replace", _boom
+        )
+
+        with pytest.raises(OSError):
+            write_shims(primary, ["pre-commit"])
+
+        assert [entry.name for entry in directory.iterdir() if entry.name.endswith(".tmp")] == []
+
     def test_rewriting_a_clean_shim_is_a_no_op(self, primary: Path) -> None:
         write_shims(primary, ["pre-commit"])
 
@@ -504,7 +701,8 @@ class TestSymlinkedHookPath:
 
     ``Path.write_text`` opens the resolved target, so writing onto a link edits
     a file outside ``$GIT_COMMON_DIR/hooks`` and leaves the hooks directory
-    still holding the link.
+    still holding the link. ``os.replace`` renames over the link itself, which
+    is why no explicit unlink step remains for these cases to depend on.
     """
 
     def test_writing_replaces_the_link_with_a_regular_file(

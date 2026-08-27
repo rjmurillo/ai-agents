@@ -57,18 +57,29 @@ comparison cannot deliver that. :func:`shim_defect` carries the incident.
 ``write_shims`` follows the same rule, so an already-safe shim written by
 something else is left alone rather than fought over.
 
-Stricter than reading the file as text: only lines a shell would execute count.
-``# lefthook run pre-commit`` followed by ``exit 0`` mentions the dispatch and
-runs nothing, so a whole-file scan reports an inert hook as a working shim and
-the gate then certifies a repository no lefthook job protects.
-:func:`_executed_lines` is the single definition both the dispatch check and
-the machine-bound-path scan read.
+Stricter than reading the file as text: only lines a shell would execute count,
+and only those a shell would still reach. ``# lefthook run pre-commit``
+followed by ``exit 0`` mentions the dispatch and runs nothing; so does a bare
+``exit 0`` placed above a real dispatch line. Either way a whole-file scan
+reports an inert hook as a working shim and the gate then certifies a
+repository no lefthook job protects. :func:`_executed_lines` is the single
+definition both the dispatch check and the machine-bound-path scan read, and
+:func:`_dispatches_to_lefthook` additionally stops at the first ``exit`` no
+enclosing block guards.
 
 Stricter than lefthook: a hook path that is a symlink is a defect, and
-``write_shims`` unlinks it instead of writing through it. ``Path.write_text``
-opens the resolved target, so a link in the shared hooks directory both aims
-git at another checkout's file and turns this installer into a writer of
-arbitrary paths outside ``$GIT_COMMON_DIR/hooks``.
+``write_shims`` replaces it by renaming a fresh regular file over it rather
+than writing through it. ``Path.write_text`` opens the resolved target, so a
+link in the shared hooks directory both aims git at another checkout's file and
+turns this installer into a writer of arbitrary paths outside
+``$GIT_COMMON_DIR/hooks``.
+
+Stricter than lefthook: a config this parser cannot read hooks out of is a
+defect rather than a pass. ``--check`` used to print ``0 of 0 examined hooks
+are worktree-safe`` and exit 0 against a repository with no hooks installed at
+all, because the parser reads top-level YAML mapping keys and the config was
+JSON, TOML, or a YAML file whose hooks arrive through ``extends:``. A gate that
+certifies an unprotected repository is worse than no gate.
 
 Known limitation, not closed here
 ---------------------------------
@@ -90,8 +101,10 @@ USAGE:
 
 EXIT CODES (ADR-035):
   0 - Shims are worktree-safe (or were just made so)
-  1 - --check found a divergent, missing, or non-executable shim
-  2 - Configuration error: not a git worktree, or no lefthook config present
+  1 - --check found a divergent, missing, or non-executable shim, or a config
+      this parser cannot read a hook name out of
+  2 - Configuration error: not a git worktree, no lefthook config present, or
+      (install path) a config yielding no hook name to install
   3 - External error: `lefthook install` failed or git could not be queried
 
 Refs Issue #4789.
@@ -161,6 +174,13 @@ _MACHINE_INDEPENDENT_PATHS = ("/bin/sh", "/dev/null", "/usr/bin/env")
 # environment and writes its absolute path into the shim. Named separately from
 # the general rule so the failure message can say what actually happened.
 _VENV_PATH = re.compile(r"(?<![\w$])/\S*/\.venv/")
+
+# Shell block structure, read only to decide whether an ``exit`` is guarded.
+# Deliberately shallow: this counts nesting, it does not parse shell. An
+# unguarded ``exit`` ends the script, so nothing after it can dispatch.
+_BLOCK_OPEN = re.compile(r"^(if|case|while|until|for)\b")
+_BLOCK_CLOSE = re.compile(r"^(fi|esac|done)\b")
+_UNCONDITIONAL_EXIT = re.compile(r"^exit\b")
 
 REPAIR_COMMAND = "uv run python scripts/maintenance/install_lefthook_worktree_safe.py"
 
@@ -236,13 +256,24 @@ def _git(repo_root: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
+def config_paths(repo_root: Path) -> list[Path]:
+    """Return every lefthook config present, in :data:`LEFTHOOK_CONFIG_NAMES` order.
+
+    Every one of them, not the first match: lefthook merges ``lefthook.yml``
+    with ``lefthook-local.yml``, so a hook declared only in the local file is a
+    hook git will run. Returning the first match alone left such a hook
+    unexamined while the check still reported a clean pass.
+    """
+    return [
+        candidate
+        for name in LEFTHOOK_CONFIG_NAMES
+        if (candidate := repo_root / name).is_file()
+    ]
+
+
 def config_path(repo_root: Path) -> Path | None:
-    """Return the lefthook config this repository uses, or None when it uses none."""
-    for name in LEFTHOOK_CONFIG_NAMES:
-        candidate = repo_root / name
-        if candidate.is_file():
-            return candidate
-    return None
+    """Return the first lefthook config present, or None when this repo uses none."""
+    return next(iter(config_paths(repo_root)), None)
 
 
 def declared_hooks(config: Path) -> list[str]:
@@ -261,6 +292,27 @@ def declared_hooks(config: Path) -> list[str]:
         if key in GIT_CLIENT_HOOKS and key not in hooks:
             hooks.append(key)
     return hooks
+
+
+def declared_hook_names(repo_root: Path) -> list[str]:
+    """Return every hook name declared across every lefthook config present."""
+    hooks: list[str] = []
+    for config in config_paths(repo_root):
+        for hook in declared_hooks(config):
+            if hook not in hooks:
+                hooks.append(hook)
+    return hooks
+
+
+def unreadable_config_defect(configs: list[Path]) -> str:
+    """Return why a present config yielded no hook to examine."""
+    named = ", ".join(str(config) for config in configs)
+    return (
+        f"{named} declares no client-side git hooks; this parser reads only "
+        "top-level YAML mapping keys, so a JSON, JSONC, or TOML config, or one "
+        "whose hooks arrive through extends: or remotes:, yields nothing to "
+        "verify and nothing here can vouch for the hooks git will run"
+    )
 
 
 def hooks_dir(repo_root: Path) -> Path:
@@ -304,9 +356,28 @@ def _dispatches_to_lefthook(hook: str, content: str) -> bool:
     and an ``exit 0`` runs nothing, so reading that as a working shim is a
     false negative in the detector: the gate would pass an inert hook and
     report the repository as protected while no lefthook job ever fires.
+
+    Reading every executed line has the same hole one step further in. A bare
+    ``exit 0`` above a real dispatch line is executed text, so it survives
+    :func:`_executed_lines`, and the dispatch below it never runs. The scan
+    therefore stops at the first ``exit`` no enclosing block guards, tracking
+    ``if``/``case``/``while``/``until``/``for`` against ``fi``/``esac``/``done``
+    so the shim's own ``LEFTHOOK=0`` early return, which sits inside an ``if``,
+    keeps counting as conditional.
     """
     pattern = _dispatch_pattern(hook)
-    return any(pattern.search(line) is not None for line in _executed_lines(content))
+    depth = 0
+    for line in _executed_lines(content):
+        if pattern.search(line) is not None:
+            return True
+        stripped = line.strip()
+        if _BLOCK_OPEN.match(stripped):
+            depth += 1
+        elif _BLOCK_CLOSE.match(stripped):
+            depth = max(depth - 1, 0)
+        elif depth == 0 and _UNCONDITIONAL_EXIT.match(stripped):
+            return False
+    return False
 
 
 def _machine_bound_paths(content: str) -> list[str]:
@@ -370,12 +441,20 @@ def shim_defect(hook: str, path: Path) -> str | None:
 
 
 def find_defects(repo_root: Path) -> tuple[list[str], int]:
-    """Return the shim defects and how many hooks were examined."""
-    config = config_path(repo_root)
-    if config is None:
+    """Return the shim defects and how many hooks were examined.
+
+    A present config that yields no hook is itself a defect, never a pass. The
+    zero-hook case used to reach ``_report_check`` as ``0 of 0`` and exit 0,
+    which is the shape of a gate that examined nothing reported as a gate that
+    found nothing wrong (``.claude/rules/ci-scripts.md`` MUST 12).
+    """
+    configs = config_paths(repo_root)
+    if not configs:
         return [], 0
+    hooks = declared_hook_names(repo_root)
+    if not hooks:
+        return [unreadable_config_defect(configs)], 0
     directory = hooks_dir(repo_root)
-    hooks = declared_hooks(config)
     defects = [
         defect
         for hook in hooks
@@ -411,16 +490,41 @@ def run_lefthook_install(repo_root: Path) -> None:
         raise GitQueryError(f"{' '.join(argv)} exited {result.returncode}")
 
 
-def write_shims(repo_root: Path, hooks: list[str]) -> list[Path]:
-    """Overwrite each hook file with its worktree-safe shim. Returns what changed.
+def _replace_with_shim(path: Path, body: str) -> None:
+    """Put ``body`` at ``path`` as an executable regular file, in one step.
 
-    An existing symlink is removed before the write rather than written
-    through. ``Path.write_text`` opens the resolved target, so writing onto a
-    symlink edits whatever it points at, anywhere on the filesystem, and leaves
-    the hooks directory still holding a link. Both halves defeat the purpose:
-    this installer exists to put one shared regular file where git looks, and a
-    link is precisely how one checkout aims the shared hook at its own tree.
-    Unlinking first keeps every write inside ``$GIT_COMMON_DIR/hooks``.
+    Several worktrees run this installer against the one shared hooks
+    directory, so every intermediate state a concurrent reader can observe has
+    to be a valid one. ``Path.write_text`` gives two bad ones: it truncates in
+    place, so a reader can exec a zero-length or half-written script, and the
+    ``chmod`` that follows leaves a newly created hook at the umask default
+    until it lands. Git skips a non-executable hook and prints no warning, so
+    that window is silent.
+
+    Writing a sibling temporary file and renaming it over the destination
+    closes both. ``os.replace`` is atomic within a directory, and it also
+    removes the need to unlink a symlink first: the rename replaces the link
+    itself rather than writing through to whatever it points at, which keeps
+    every write inside ``$GIT_COMMON_DIR/hooks``. The pid in the temporary name
+    keeps two concurrent installers off each other's scratch file.
+    """
+    tmp = path.parent / f".{path.name}.{os.getpid()}.tmp"
+    replaced = False
+    try:
+        tmp.write_text(body, encoding="utf-8")
+        tmp.chmod(_HOOK_MODE)
+        os.replace(tmp, path)
+        replaced = True
+    finally:
+        if not replaced:
+            tmp.unlink(missing_ok=True)
+
+
+def write_shims(repo_root: Path, hooks: list[str]) -> list[Path]:
+    """Overwrite each defective hook file with its worktree-safe shim.
+
+    Returns the paths that changed. A hook :func:`shim_defect` already accepts
+    is left byte-for-byte alone, so two safe installers do not fight over it.
     """
     directory = hooks_dir(repo_root)
     directory.mkdir(parents=True, exist_ok=True)
@@ -429,10 +533,7 @@ def write_shims(repo_root: Path, hooks: list[str]) -> list[Path]:
         path = directory / hook
         if shim_defect(hook, path) is None:
             continue
-        if path.is_symlink():
-            path.unlink()
-        path.write_text(hook_shim(hook), encoding="utf-8")
-        path.chmod(_HOOK_MODE)
+        _replace_with_shim(path, hook_shim(hook))
         written.append(path)
     return written
 
@@ -443,7 +544,8 @@ def _report_check(defects: list[str], examined: int) -> int:
         print(f"lefthook shims: OK, {examined} of {examined} examined hooks are worktree-safe")
         return 0
     print(
-        f"[FAIL] {len(defects)} of {examined} examined lefthook shims are not worktree-safe:",
+        f"[FAIL] {len(defects)} lefthook shim problem(s) found across "
+        f"{examined} examined hooks:",
         file=sys.stderr,
     )
     for defect in defects:
@@ -485,8 +587,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    config = config_path(repo_root)
-    if config is None:
+    configs = config_paths(repo_root)
+    if not configs:
         print(f"error: no lefthook config under {repo_root}", file=sys.stderr)
         return 2
 
@@ -495,8 +597,11 @@ def main(argv: list[str] | None = None) -> int:
             defects, examined = find_defects(repo_root)
             return _report_check(defects, examined)
 
+        hooks = declared_hook_names(repo_root)
+        if not hooks:
+            print(f"error: {unreadable_config_defect(configs)}", file=sys.stderr)
+            return 2
         run_lefthook_install(repo_root)
-        hooks = declared_hooks(config)
         written = write_shims(repo_root, hooks)
         defects, examined = find_defects(repo_root)
     except GitQueryError as exc:
