@@ -213,6 +213,15 @@ class TestExitCodes:
         assert "no 'Banned Vocabulary' section" in captured.err
         assert "banned_word" not in captured.out
 
+    def test_rules_file_that_is_not_utf8_exits_two(self, tmp_path: Path) -> None:
+        # UnicodeDecodeError is not an OSError, so it escaped the handler and
+        # produced a traceback instead of the documented config-error exit.
+        rules = tmp_path / "voice.md"
+        rules.write_bytes(b"## Banned Vocabulary\n\n`\xff\xfe`.\n")
+        draft = tmp_path / "d.md"
+        draft.write_text("text\n", encoding="utf-8")
+        assert main([str(draft), "--rules", str(rules)]) == 2
+
     def test_help_exits_zero(self) -> None:
         with pytest.raises(SystemExit) as exc:
             main(["--help"])
@@ -247,6 +256,20 @@ class TestOutput:
         target.write_text("The loader drops the message.\n", encoding="utf-8")
         main([str(target), "--rules", str(VOICE_RULE)])
         assert "Layer 4" in capsys.readouterr().out
+
+    def test_json_mode_still_warns_when_the_rule_has_no_section(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # The warning is the only signal the banned-word scan was disabled;
+        # JSON mode used to drop it and report success in silence.
+        rules = tmp_path / "voice.md"
+        rules.write_text("# Voice\n\nNo list here.\n", encoding="utf-8")
+        draft = tmp_path / "d.md"
+        draft.write_text("A robust plan.\n", encoding="utf-8")
+        assert main([str(draft), "--rules", str(rules), "--json"]) == 0
+        captured = capsys.readouterr()
+        assert "no 'Banned Vocabulary' section" in captured.err
+        assert json.loads(captured.out)["banned_word_count"] == 0
 
     def test_json_payload_carries_severity_counts(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

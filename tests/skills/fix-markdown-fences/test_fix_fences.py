@@ -21,6 +21,8 @@ if TESTS_SKILLS_DIR not in sys.path:
 
 from claude_skills_import import import_skill_script
 
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
 mod = import_skill_script(".claude/skills/fix-markdown-fences/scripts/fix_fences.py")
 repair_markdown_fences = mod.repair_markdown_fences
 find_fence_defects = mod.find_fence_defects
@@ -308,3 +310,102 @@ class TestOutput:
         assert payload["defect_count"] == 1
         assert payload["repaired"] == []
         assert payload["files"][str(bad)][0]["kind"] == MALFORMED_CLOSING
+
+
+class TestListNestedFences:
+    """A fence marker's indent is measured from its list item, not column zero."""
+
+    def test_malformed_closing_inside_a_list_item_is_reported(self) -> None:
+        assert kinds("- item\n\n    ```py\n    x\n    ```py\n    y\n    ```\n") == [
+            MALFORMED_CLOSING
+        ]
+
+    def test_unclosed_block_inside_a_list_item_is_reported(self) -> None:
+        assert kinds("- item\n\n    ```py\n    x\n") == [UNCLOSED_BLOCK]
+
+    def test_repair_closes_a_list_nested_block_at_its_own_indent(self) -> None:
+        out = repair_markdown_fences("- item\n\n    ```py\n    x\n")
+        assert out == "- item\n\n    ```py\n    x\n    ```\n"
+
+    def test_repair_is_idempotent_on_a_list_nested_block(self) -> None:
+        once = repair_markdown_fences("- item\n\n    ```py\n    x\n    ```py\n    y\n    ```\n")
+        assert repair_markdown_fences(once) == once
+
+    def test_top_level_indented_marker_is_still_left_alone(self) -> None:
+        text = "Text.\n\n    ```\n\nMore.\n"
+        assert kinds(text) == []
+        assert repair_markdown_fences(text) == text
+
+    def test_four_spaces_past_the_container_is_indented_code(self) -> None:
+        text = "- item\n\n      ```\n\nMore.\n"
+        assert kinds(text) == []
+        assert repair_markdown_fences(text) == text
+
+    def test_repository_example_is_clean_and_untouched(self) -> None:
+        # The same file the prose sibling regresses on: a four-space-indented
+        # fence under a nested list item. Measuring from column zero made the
+        # whole block invisible, so a defect inside one would go unreported.
+        source = (PROJECT_ROOT / "docs" / "codeql-rollout-checklist.md").read_text(encoding="utf-8")
+        assert find_fence_defects(source) == []
+        assert repair_markdown_fences(source) == source
+
+
+class TestAbortingStillReportsWhatItWrote:
+    """`--write` must not lose the record of files it already repaired.
+
+    Both abort paths in the per-file loop used to `return 2` before calling
+    `_report`, so a run that repaired one file and then met an unreadable one
+    exited 2 with the error on stderr, nothing on stdout, and no way for the
+    caller to learn that a file on disk had changed. In `--json` mode stdout
+    was empty, so a programmatic caller could not reconcile its own state.
+
+    The writes themselves were correct and complete. What was lost was the
+    record of them, which for a tool that edits files in place is the half the
+    operator needs. Found by a pre-merge audit, not by any test.
+    """
+
+    @staticmethod
+    def _bad_pair(tmp_path: Path) -> Path:
+        """A directory with one repairable file and one undecodable one."""
+        (tmp_path / "a.md").write_text("```\nunclosed\n", encoding="utf-8")
+        (tmp_path / "b_bad.md").write_bytes(b"\xff\xfe not utf-8\n")
+        return tmp_path
+
+    def test_text_mode_names_the_repaired_file_before_exiting(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        target = self._bad_pair(tmp_path)
+        code = main(["--write", str(target)])
+        out = capsys.readouterr()
+
+        assert code == 2, "the unreadable file must still abort with the config exit code"
+        assert "a.md" in out.out, "stdout must name the file that was repaired"
+        assert "Repaired" in out.out
+        assert "cannot read" in out.err, "the cause still belongs on stderr"
+        # The write really happened, which is why the report matters.
+        assert (tmp_path / "a.md").read_text(encoding="utf-8").endswith("```\n")
+
+    def test_json_mode_lists_the_repaired_file_before_exiting(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        target = self._bad_pair(tmp_path)
+        code = main(["--write", "--json", str(target)])
+        out = capsys.readouterr()
+
+        assert code == 2
+        payload = json.loads(out.out)
+        assert payload["repaired"] == [str(tmp_path / "a.md")], (
+            "a programmatic caller must be able to reconcile what changed on disk"
+        )
+
+    def test_a_clean_run_is_unaffected(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The control: without an unreadable file nothing about this changes."""
+        (tmp_path / "a.md").write_text("```\nunclosed\n", encoding="utf-8")
+        code = main(["--write", str(tmp_path)])
+        out = capsys.readouterr()
+
+        assert code == 0
+        assert "Repaired" in out.out
+        assert out.err == ""
