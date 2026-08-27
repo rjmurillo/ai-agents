@@ -364,6 +364,22 @@ Set `TERMINAL_STATUS` to the value the `Comment Map Status Vocabulary` table
 marks terminal for this outcome. Do not invent one: a status outside that table
 matches no terminal pattern and keeps the comment pending everywhere.
 
+The task row is the one Phase 6 renders, `- [ ] **TASK-[id]**: [description]`.
+It carries no `pending` token, so a step that matched one moved nothing and then
+failed its own verification. Marking a task done ticks the box and appends the
+terminal status: `- [x] **TASK-[id]**: [description] [COMPLETE]`.
+
+Not every comment has a task row. Phase 6 opens a `TASK-[id]` only for a comment
+it implements; a `[WONTFIX]`, `[DUPLICATE]`, or question outcome is answered in
+the Phase 5 immediate-reply table and never gets one. An absent row is the
+normal case for those outcomes, so the gate skips the task-list write rather
+than blocking. The comment-map write is not optional for any outcome.
+
+Atomic here means both artifacts move or neither does. The comment map is
+checked before either file is written, because a task list that moved while the
+map did not is exactly the split state Gate 4 reads as finished work still
+pending.
+
 ```bash
 COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
 TASK_LIST=".agents/pr-comments/PR-[number]/tasks.md"
@@ -383,15 +399,36 @@ printf '%s\n' "**Status**: $TERMINAL_STATUS" \
     exit 1
   }
 
-sed -i "s/TASK-$COMMENT_ID.*pending/TASK-$COMMENT_ID ... $TERMINAL_STATUS/" "$TASK_LIST"
+# Preflight the comment map before either file is written. Every step below is
+# a write, so an unreachable target has to stop the gate here: a task list that
+# moved while the comment map did not is the split state Gate 4 reads as
+# finished work still pending. One check covers both ways the map can fail, no
+# detail entry for this comment and an entry carrying no status field.
+sed -n "/^### Comment $COMMENT_ID /,/^---$/p" "$COMMENT_MAP" \
+  | grep -Eq "^\*\*Status\*\*: " || {
+    echo "[BLOCKED] Comment $COMMENT_ID has no status field in $COMMENT_MAP"
+    exit 1
+  }
+
+# The task row is optional. Phase 6 opens a TASK only for a comment it
+# implements; an immediate-reply outcome is answered in Phase 5 and never gets
+# one. Absent is fine. Present means it must move. The row starts with "- ",
+# which grep reads as a flag, so "--" terminates the option list.
+TASK_ROW="- [ ] **TASK-$COMMENT_ID**:"
+if grep -qF -- "$TASK_ROW" "$TASK_LIST"; then
+  sed -i "s|^- \[ \] \*\*TASK-$COMMENT_ID\*\*:\(.*\)$|- [x] **TASK-$COMMENT_ID**:\1 $TERMINAL_STATUS|" "$TASK_LIST"
+  grep -F -- "- [x] **TASK-$COMMENT_ID**:" "$TASK_LIST" | grep -qF -- "$TERMINAL_STATUS" || {
+    echo "[BLOCKED] TASK-$COMMENT_ID is not $TERMINAL_STATUS in $TASK_LIST"
+    exit 1
+  }
+fi
 
 # The write every later gate depends on. The address range is this comment's
 # detail entry, so a sibling comment's status is never touched.
 sed -i "/^### Comment $COMMENT_ID /,/^---$/ s|^\*\*Status\*\*: .*$|**Status**: $TERMINAL_STATUS|" "$COMMENT_MAP"
 
-# Verify both writes. The comment-map check is whole-line and literal, so a
-# status with trailing garbage fails here instead of surviving to Phase 8.1.
-grep -F "TASK-$COMMENT_ID ... $TERMINAL_STATUS" "$TASK_LIST" || exit 1
+# Verify the write. Whole-line and literal, so a status with trailing garbage
+# fails here instead of surviving to Phase 8.1.
 sed -n "/^### Comment $COMMENT_ID /,/^---$/p" "$COMMENT_MAP" \
   | grep -qxF "**Status**: $TERMINAL_STATUS" || {
     echo "[BLOCKED] Comment $COMMENT_ID is not $TERMINAL_STATUS in $COMMENT_MAP"
