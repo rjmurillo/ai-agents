@@ -13,6 +13,7 @@ import pytest
 
 from scripts.github_core.workflow_runs import (
     PAGE_SIZE,
+    JobsNotMaterializedError,
     cancel_runs,
     collect_runs_for_branches,
     iter_paginated,
@@ -125,6 +126,19 @@ class TestRunContexts:
 
         assert run_contexts(client, "o/r", 5) == ("Ok",)
 
+    def test_zero_job_records_raises_instead_of_returning_verified_empty(self):
+        """Issue #4835 gap: a run in this state is not evidence it publishes no
+        required context. Every valid workflow declares at least one job, so
+        zero records means GitHub has not materialized them yet (a queued
+        run), not that the run has none. Callers must fail closed, not treat
+        this the same as a resolved, verified empty context tuple.
+        """
+        endpoint = "repos/o/r/actions/runs/5/jobs"
+        client = FakeClient({page_url(endpoint, 1): {"jobs": []}})
+
+        with pytest.raises(JobsNotMaterializedError, match="run 5"):
+            run_contexts(client, "o/r", 5)
+
 
 class TestCollectRunsForBranches:
     def _client(self) -> FakeClient:
@@ -159,6 +173,7 @@ class TestCollectRunsForBranches:
         assert all(run.branch == "feat/a" for run in runs)
         by_id = {run.run_id: run for run in runs}
         assert by_id[11].contexts == ("Validate PR",)
+        assert by_id[11].jobs_verified is True
         assert by_id[12].status == "in_progress"
 
     def test_a_run_without_a_numeric_id_is_skipped(self):
@@ -184,6 +199,32 @@ class TestCollectRunsForBranches:
         runs = collect_runs_for_branches(client, "o/r", {"feat/a": 1})
 
         assert len(runs) == 1
+
+    def test_an_unmaterialized_run_is_included_but_marked_unverified(self):
+        """The exact scenario the AI-Spec-Validator flagged on PR #5357: a
+        queued run whose jobs endpoint has not caught up yet must still show
+        up in the inventory (so the operator sees it and its blast radius is
+        counted), but with contexts=() and jobs_verified=False rather than
+        silently resolving to a verified-safe empty context set.
+        """
+        endpoint = "repos/o/r/actions/runs?branch=feat/a&status=queued"
+        client = FakeClient(
+            {
+                page_url(endpoint, 1): {
+                    "workflow_runs": [
+                        {"id": 21, "name": "Validate PR", "event": "synchronize",
+                         "status": "queued"}
+                    ]
+                },
+                page_url("repos/o/r/actions/runs/21/jobs", 1): {"jobs": []},
+            }
+        )
+
+        runs = collect_runs_for_branches(client, "o/r", {"feat/a": 1}, statuses=["queued"])
+
+        assert len(runs) == 1
+        assert runs[0].contexts == ()
+        assert runs[0].jobs_verified is False
 
     def test_explicit_status_list_narrows_the_walk(self):
         endpoint = "repos/o/r/actions/runs?branch=feat/a&status=queued"

@@ -21,6 +21,7 @@ from scripts.github_core.recovery_manifest import WorkflowRun, active_statuses
 __all__ = [
     "PAGE_SIZE",
     "CancellationOutcome",
+    "JobsNotMaterializedError",
     "cancel_runs",
     "collect_runs_for_branches",
     "iter_paginated",
@@ -73,6 +74,18 @@ def iter_paginated(
             return
 
 
+class JobsNotMaterializedError(RuntimeError):
+    """The jobs endpoint returned zero records for a run that must have some.
+
+    Every valid workflow declares at least one job, so a genuinely empty
+    ``jobs`` response is not evidence the run publishes no required context.
+    It means GitHub has not finished materializing job records for the run
+    yet, which happens for a run still in ``queued`` state. Issue #4835: a
+    2026-08-09 panic rollback taught this codebase that an unverifiable run
+    must fail closed, not be waved through as safe.
+    """
+
+
 def run_contexts(client: GitHubClient, repository: str, run_id: int) -> tuple[str, ...]:
     """Return the check-run context names one workflow run publishes.
 
@@ -83,13 +96,24 @@ def run_contexts(client: GitHubClient, repository: str, run_id: int) -> tuple[st
 
     Duplicate names collapse: two jobs of one run may deliberately share a name
     so branch protection sees one required context.
+
+    Raises:
+        JobsNotMaterializedError: when the jobs endpoint returns zero records.
+            Callers must not treat this the same as a verified empty context
+            set; see the exception's docstring.
     """
     endpoint = f"repos/{repository}/actions/runs/{run_id}/jobs"
     names: list[str] = []
+    saw_any_job = False
     for job in iter_paginated(client, endpoint, "jobs"):
+        saw_any_job = True
         name = job.get("name")
         if isinstance(name, str) and name and name not in names:
             names.append(name)
+    if not saw_any_job:
+        raise JobsNotMaterializedError(
+            f"run {run_id} in {repository!r} returned zero job records"
+        )
     return tuple(names)
 
 
@@ -120,7 +144,11 @@ def collect_runs_for_branches(
         One :class:`WorkflowRun` per distinct run id, with its published check
         contexts resolved. A run whose id is missing or non-numeric is skipped:
         it cannot be cancelled by id, so including it would inflate the blast
-        radius with a run the tool could never act on.
+        radius with a run the tool could never act on. A run whose jobs have
+        not materialized yet (:class:`JobsNotMaterializedError`) is still
+        included, with ``contexts=()`` and ``jobs_verified=False`` so
+        :func:`~scripts.github_core.recovery_manifest.plan_recovery` blocks it
+        instead of treating the empty context set as verified-safe.
     """
     wanted = tuple(statuses) if statuses is not None else active_statuses()
     collected: dict[int, WorkflowRun] = {}
@@ -133,6 +161,15 @@ def collect_runs_for_branches(
                     continue
                 if raw_id in collected:
                     continue
+                try:
+                    contexts = run_contexts(client, repository, raw_id)
+                    jobs_verified = True
+                except JobsNotMaterializedError:
+                    # Fail closed (issue #4835): treat an unmaterialized run
+                    # as having unverifiable required context rather than
+                    # silently classifying it as safe to cancel.
+                    contexts = ()
+                    jobs_verified = False
                 collected[raw_id] = WorkflowRun(
                     run_id=raw_id,
                     workflow_name=str(payload.get("name") or ""),
@@ -140,7 +177,8 @@ def collect_runs_for_branches(
                     branch=branch,
                     event=str(payload.get("event") or ""),
                     status=str(payload.get("status") or status),
-                    contexts=run_contexts(client, repository, raw_id),
+                    contexts=contexts,
+                    jobs_verified=jobs_verified,
                 )
     return list(collected.values())
 

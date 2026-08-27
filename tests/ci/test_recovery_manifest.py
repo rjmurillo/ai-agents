@@ -10,6 +10,7 @@ import pytest
 from scripts.ci.ruleset_required_contexts import REQUIRED_CONTEXTS
 from scripts.github_core.recovery_manifest import (
     MANIFEST_VERSION,
+    WorkflowRun,
     dedupe_runs,
     manifest_to_dict,
     plan_recovery,
@@ -143,6 +144,80 @@ class TestRequiredContextGating:
         assert manifest.is_safe is False
         assert manifest.entries[0].required_contexts == (REQUIRED_CONTEXT,)
         assert manifest.entries[0].other_contexts == (OPTIONAL_CONTEXT,)
+
+
+class TestUnmaterializedJobsFailClosed:
+    """A queued run whose jobs have not materialized must not verify as safe.
+
+    2026-08-27 gap in the AI-Spec-Validator's PARTIAL verdict on PR #5357:
+    ``run_contexts`` returned ``()`` for a run whose jobs endpoint responded
+    with zero records (a live GitHub eventual-consistency race for a run still
+    in ``queued`` state, not evidence the run publishes no required context).
+    ``_classify`` could not tell that empty-because-unmaterialized apart from
+    empty-because-genuinely-no-required-job, and treated both as verified,
+    safe to cancel unguarded. This is the same fail-open shape the shared-
+    workflow-name fix elsewhere in this PR closed, one layer up.
+    """
+
+    def _run(self, *, jobs_verified: bool) -> WorkflowRun:
+        """Build the run the live ``--all-open-prs`` path would have produced.
+
+        Same shape either way: a queued run whose resolved ``contexts`` is
+        empty. ``jobs_verified`` is the only variable, so any behavior
+        difference between the two calls below is attributable to the flag
+        alone, not to some other property of the run.
+        """
+        return WorkflowRun(
+            run_id=1,
+            workflow_name=REQUIRED_WORKFLOW,
+            pr_number=7,
+            branch="feat/queued",
+            event="synchronize",
+            status="queued",
+            contexts=(),
+            jobs_verified=jobs_verified,
+        )
+
+    def test_negative_control_reproduces_the_old_fail_open_bug(self):
+        """Mutating back to the pre-fix state: an unmaterialized run reads as
+        having no required context and clears unguarded, exactly like the
+        code did before ``jobs_verified`` existed (the field always defaulted
+        to True, so this is the only state the old code could ever produce).
+        """
+        run = self._run(jobs_verified=True)
+
+        manifest = plan([run], healthy_subscriptions(), None)
+
+        assert manifest.is_safe is True, (
+            "negative control did not reproduce the bug: an unverified-jobs "
+            "run with jobs_verified=True still blocked, so the test is not "
+            "exercising the code path the fix changes"
+        )
+
+    def test_fix_blocks_the_same_run_once_jobs_verified_is_false(self):
+        run = self._run(jobs_verified=False)
+
+        manifest = plan([run], healthy_subscriptions(), None)
+
+        assert manifest.is_safe is False
+        reason = manifest.blocked[0].blocked_reason or ""
+        assert "materialized" in reason
+        assert "issue #4835" in reason
+
+    def test_run_from_mapping_defaults_to_jobs_verified_true(self):
+        run = run_from_mapping(
+            {
+                "run_id": 1,
+                "workflow_name": REQUIRED_WORKFLOW,
+                "pr_number": 7,
+                "branch": "feat/x",
+                "event": "synchronize",
+                "status": "queued",
+                "contexts": [],
+            }
+        )
+
+        assert run.jobs_verified is True
 
 
 class TestSharedWorkflowName:
