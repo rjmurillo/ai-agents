@@ -8,9 +8,7 @@ live API.
 from __future__ import annotations
 
 import subprocess
-from typing import Any
 from unittest.mock import patch
-from urllib.parse import quote
 
 import pytest
 
@@ -19,60 +17,19 @@ from scripts.github_core.workflow_runs import (
     PAGE_SIZE,
     JobsNotMaterializedError,
     cancel_runs,
-    collect_runs_for_branches,
+    collect_runs_for_targets,
     iter_paginated,
     run_contexts,
 )
-
-
-class FakeClient:
-    """Records reads and writes, answering from a canned response table."""
-
-    def __init__(self, responses: dict[str, Any] | None = None):
-        self.responses = responses or {}
-        self.gets: list[str] = []
-        self.posts: list[str] = []
-        self.post_failures: dict[str, Exception] = {}
-
-    def rest_get(self, endpoint: str) -> Any:
-        self.gets.append(endpoint)
-        if endpoint in self.responses:
-            return self.responses[endpoint]
-        return {}
-
-    def rest_post(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
-        self.posts.append(endpoint)
-        failure = self.post_failures.get(endpoint)
-        if failure is not None:
-            raise failure
-        return {}
-
-    def rest_patch(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
-        return {}
-
-    def graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
-        return {}
-
-    def is_authenticated(self) -> bool:
-        return True
-
-
-def page_url(endpoint: str, page: int) -> str:
-    separator = "&" if "?" in endpoint else "?"
-    return f"{endpoint}{separator}per_page={PAGE_SIZE}&page={page}"
-
-
-def runs_url(repository: str, branch: str, status: str) -> str:
-    """The branch-runs endpoint the module builds, with values percent-encoded.
-
-    Spelled out here rather than reusing the module's private helpers so the
-    encoding contract is asserted by the fixture rather than borrowed from the
-    code under test.
-    """
-    return (
-        f"repos/{quote(repository, safe='/')}/actions/runs"
-        f"?branch={quote(branch, safe='')}&status={quote(status, safe='')}"
-    )
+from tests.ci.workflow_runs_fixtures import (
+    BASE_REPOSITORY,
+    FORK_REPOSITORY,
+    FakeClient,
+    page_url,
+    run_payload,
+    runs_url,
+    target,
+)
 
 
 class TestIterPaginated:
@@ -171,8 +128,8 @@ class TestEndpointEncoding:
     def test_a_branch_carrying_a_query_separator_is_encoded(self):
         client = FakeClient()
 
-        collect_runs_for_branches(
-            client, "o/r", {self.HOSTILE_BRANCH: 1}, statuses=["queued"]
+        collect_runs_for_targets(
+            client, "o/r", [target(self.HOSTILE_BRANCH, 1)], statuses=["queued"]
         )
 
         assert len(client.gets) == 1
@@ -188,20 +145,15 @@ class TestEndpointEncoding:
         endpoint = runs_url("o/r", self.HOSTILE_BRANCH, "queued")
         client = FakeClient(
             {
-                page_url(endpoint, 1): {
-                    "workflow_runs": [
-                        {"id": 31, "name": "W", "event": "synchronize",
-                         "status": "queued"}
-                    ]
-                },
+                page_url(endpoint, 1): {"workflow_runs": [run_payload(31)]},
                 page_url("repos/o/r/actions/runs/31/jobs", 1): {
                     "jobs": [{"name": "Validate PR"}]
                 },
             }
         )
 
-        runs = collect_runs_for_branches(
-            client, "o/r", {self.HOSTILE_BRANCH: 1}, statuses=["queued"]
+        runs = collect_runs_for_targets(
+            client, "o/r", [target(self.HOSTILE_BRANCH, 1)], statuses=["queued"]
         )
 
         assert [run.run_id for run in runs] == [31]
@@ -223,7 +175,7 @@ class TestEndpointEncoding:
         assert client.gets[0].startswith("repos/o%20w/r%3Fx/actions/runs/5/jobs")
 
 
-class TestCollectRunsForBranches:
+class TestCollectRunsForTargets:
     def _client(self) -> FakeClient:
         queued = runs_url("o/r", "feat/a", "queued")
         in_progress = runs_url("o/r", "feat/a", "in_progress")
@@ -232,15 +184,11 @@ class TestCollectRunsForBranches:
         return FakeClient(
             {
                 page_url(queued, 1): {
-                    "workflow_runs": [
-                        {"id": 11, "name": "Validate PR", "event": "synchronize",
-                         "status": "queued"}
-                    ]
+                    "workflow_runs": [run_payload(11, name="Validate PR")]
                 },
                 page_url(in_progress, 1): {
                     "workflow_runs": [
-                        {"id": 12, "name": "Run Python Tests", "event": "synchronize",
-                         "status": "in_progress"}
+                        run_payload(12, name="Run Python Tests", status="in_progress")
                     ]
                 },
                 page_url(jobs_11, 1): {"jobs": [{"name": "Validate PR"}]},
@@ -249,7 +197,7 @@ class TestCollectRunsForBranches:
         )
 
     def test_collects_both_active_statuses_with_their_contexts(self):
-        runs = collect_runs_for_branches(self._client(), "o/r", {"feat/a": 42})
+        runs = collect_runs_for_targets(self._client(), "o/r", [target("feat/a", 42)])
 
         assert {run.run_id for run in runs} == {11, 12}
         assert all(run.pr_number == 42 for run in runs)
@@ -265,12 +213,12 @@ class TestCollectRunsForBranches:
             {page_url(endpoint, 1): {"workflow_runs": [{"name": "No id"}]}}
         )
 
-        assert collect_runs_for_branches(client, "o/r", {"feat/a": 1}) == []
+        assert collect_runs_for_targets(client, "o/r", [target("feat/a", 1)]) == []
 
     def test_the_same_run_id_across_two_statuses_is_collected_once(self):
         queued = runs_url("o/r", "feat/a", "queued")
         in_progress = runs_url("o/r", "feat/a", "in_progress")
-        payload = {"id": 11, "name": "W", "event": "synchronize", "status": "queued"}
+        payload = run_payload(11)
         client = FakeClient(
             {
                 page_url(queued, 1): {"workflow_runs": [payload]},
@@ -279,7 +227,7 @@ class TestCollectRunsForBranches:
             }
         )
 
-        runs = collect_runs_for_branches(client, "o/r", {"feat/a": 1})
+        runs = collect_runs_for_targets(client, "o/r", [target("feat/a", 1)])
 
         assert len(runs) == 1
 
@@ -294,16 +242,15 @@ class TestCollectRunsForBranches:
         client = FakeClient(
             {
                 page_url(endpoint, 1): {
-                    "workflow_runs": [
-                        {"id": 21, "name": "Validate PR", "event": "synchronize",
-                         "status": "queued"}
-                    ]
+                    "workflow_runs": [run_payload(21, name="Validate PR")]
                 },
                 page_url("repos/o/r/actions/runs/21/jobs", 1): {"jobs": []},
             }
         )
 
-        runs = collect_runs_for_branches(client, "o/r", {"feat/a": 1}, statuses=["queued"])
+        runs = collect_runs_for_targets(
+            client, "o/r", [target("feat/a", 1)], statuses=["queued"]
+        )
 
         assert len(runs) == 1
         assert runs[0].contexts == ()
@@ -313,9 +260,105 @@ class TestCollectRunsForBranches:
         endpoint = runs_url("o/r", "feat/a", "queued")
         client = FakeClient({page_url(endpoint, 1): {"workflow_runs": []}})
 
-        collect_runs_for_branches(client, "o/r", {"feat/a": 1}, statuses=["queued"])
+        collect_runs_for_targets(
+            client, "o/r", [target("feat/a", 1)], statuses=["queued"]
+        )
 
         assert all("in_progress" not in url for url in client.gets)
+
+
+class TestForkBranchNameCollision:
+    """Two forks can use one branch name. Only one of them owns the runs.
+
+    The Actions ``branch`` filter matches a head branch *name*, which is unique
+    inside a repository and not across repositories. So ``--pr N`` on a fork
+    pull request whose branch is ``patch-1`` also gets back every run from
+    every other open ``patch-1``, and before this guard those runs were
+    attributed to N and cancelled: a stranger's CI killed by a tool whose only
+    purpose is to make cancellation safe.
+    """
+
+    BRANCH = "patch-1"
+
+    def _client(self) -> FakeClient:
+        endpoint = runs_url(BASE_REPOSITORY, self.BRANCH, "queued")
+        return FakeClient(
+            {
+                page_url(endpoint, 1): {
+                    "workflow_runs": [
+                        run_payload(51, head_repository=BASE_REPOSITORY),
+                        run_payload(52, head_repository=FORK_REPOSITORY),
+                        run_payload(53, head_repository=None),
+                    ]
+                },
+                page_url(f"repos/{BASE_REPOSITORY}/actions/runs/51/jobs", 1): {
+                    "jobs": [{"name": "Validate PR"}]
+                },
+                page_url(f"repos/{BASE_REPOSITORY}/actions/runs/52/jobs", 1): {
+                    "jobs": [{"name": "Validate PR"}]
+                },
+                page_url(f"repos/{BASE_REPOSITORY}/actions/runs/53/jobs", 1): {
+                    "jobs": [{"name": "Validate PR"}]
+                },
+            }
+        )
+
+    def test_only_the_targets_own_head_repository_is_collected(self):
+        runs = collect_runs_for_targets(
+            self._client(),
+            BASE_REPOSITORY,
+            [target(self.BRANCH, 1, BASE_REPOSITORY)],
+            statuses=["queued"],
+        )
+
+        assert [run.run_id for run in runs] == [51]
+
+    def test_a_fork_target_collects_only_the_fork_run(self):
+        """Control for the case above: the filter selects by identity rather
+        than always preferring the base repository. Without it, a fix that
+        hardcoded the base repo would pass the first case and still be wrong.
+        """
+        runs = collect_runs_for_targets(
+            self._client(),
+            BASE_REPOSITORY,
+            [target(self.BRANCH, 2, FORK_REPOSITORY)],
+            statuses=["queued"],
+        )
+
+        assert [run.run_id for run in runs] == [52]
+        assert runs[0].pr_number == 2
+
+    def test_a_run_with_no_head_repository_is_never_attributed(self):
+        """Run 53 carries no ``head_repository``, so it cannot be attributed to
+        anyone. It is absent from both collections above; asserting that here
+        makes the fail-closed direction explicit rather than incidental.
+        """
+        for head_repository in (BASE_REPOSITORY, FORK_REPOSITORY):
+            runs = collect_runs_for_targets(
+                self._client(),
+                BASE_REPOSITORY,
+                [target(self.BRANCH, 1, head_repository)],
+                statuses=["queued"],
+            )
+
+            assert 53 not in {run.run_id for run in runs}
+
+    def test_two_pull_requests_sharing_a_branch_name_both_survive(self):
+        """A branch-keyed mapping collapsed these two into one entry, so one
+        pull request's runs went uncounted in the blast radius the operator
+        reads before confirming. A sequence of targets keeps both.
+        """
+        runs = collect_runs_for_targets(
+            self._client(),
+            BASE_REPOSITORY,
+            [
+                target(self.BRANCH, 1, BASE_REPOSITORY),
+                target(self.BRANCH, 2, FORK_REPOSITORY),
+            ],
+            statuses=["queued"],
+        )
+
+        assert {(run.run_id, run.pr_number) for run in runs} == {(51, 1), (52, 2)}
 
 
 class TestCancelRuns:

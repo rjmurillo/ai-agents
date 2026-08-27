@@ -23,8 +23,9 @@ __all__ = [
     "PAGE_SIZE",
     "CancellationOutcome",
     "JobsNotMaterializedError",
+    "PullRequestTarget",
     "cancel_runs",
-    "collect_runs_for_branches",
+    "collect_runs_for_targets",
     "iter_paginated",
     "run_contexts",
 ]
@@ -58,6 +59,37 @@ def _query_value(value: str) -> str:
     different run set than the one the operator is about to cancel.
     """
     return quote(value, safe="")
+
+
+@dataclass(frozen=True, slots=True)
+class PullRequestTarget:
+    """One pull request the operator asked to cancel runs for.
+
+    The Actions run-list endpoint filters on ``branch``, which matches the head
+    branch *name* and nothing else. A name is unique inside one repository and
+    not across repositories, so two open pull requests from two different forks
+    can both use ``patch-1`` and both appear under that filter. Cancelling on
+    the branch name alone therefore reaches into a pull request the operator
+    never named, which for ``--pr N`` means killing a stranger's CI.
+
+    ``head_repository`` is the discriminator that closes it: a branch name is
+    unique within its repository, so ``(branch, head_repository)`` identifies
+    exactly one open pull request. It is deliberately not the head SHA. A SHA
+    identifies one commit, and a pull request can carry queued runs for an
+    earlier commit that are still the operator's to cancel, so filtering on it
+    would silently drop runs the batch is supposed to cover.
+
+    Attributes:
+        pr_number: The pull request number, recorded on every run it owns.
+        branch: The head branch name, passed to the Actions ``branch`` filter.
+        head_repository: ``owner/repo`` of the head branch's repository, which
+            equals the base repository for a same-repo pull request and the
+            fork for a cross-repository one.
+    """
+
+    pr_number: int
+    branch: str
+    head_repository: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,42 +182,76 @@ def _branch_runs(
     yield from iter_paginated(client, endpoint, "workflow_runs")
 
 
-def collect_runs_for_branches(
+def run_head_repository(payload: Mapping[str, Any]) -> str | None:
+    """Read ``head_repository.full_name`` off a workflow-run payload.
+
+    Returns None when the field is absent or malformed, which callers must
+    treat as "this run cannot be attributed", never as a match.
+    """
+    head_repository = payload.get("head_repository")
+    if not isinstance(head_repository, Mapping):
+        return None
+    full_name = head_repository.get("full_name")
+    return full_name if isinstance(full_name, str) and full_name else None
+
+
+def collect_runs_for_targets(
     client: GitHubClient,
     repository: str,
-    branches: Mapping[str, int],
+    targets: Sequence[PullRequestTarget],
     *,
     statuses: Sequence[str] | None = None,
 ) -> list[WorkflowRun]:
-    """Enumerate the active workflow runs for each branch.
+    """Enumerate the active workflow runs each pull request owns.
+
+    The Actions ``branch`` filter matches a head branch *name*, which is not
+    unique across forks, so every returned run is checked against the target's
+    ``head_repository`` before it is attributed. See
+    :class:`PullRequestTarget` for why that is the right identity and why the
+    head SHA is not.
 
     Args:
         client: Transport used for every read. No writes happen here.
-        repository: ``owner/repo``.
-        branches: Branch name to the pull request number it belongs to.
+        repository: ``owner/repo`` of the base repository being enumerated.
+        targets: The pull requests to collect runs for. A sequence rather than
+            a branch-keyed mapping, because two open pull requests from two
+            forks can share one branch name and a mapping would silently drop
+            one of them.
         statuses: Run statuses to enumerate. Defaults to queued and
             in_progress, the two states a cancellation can act on.
 
     Returns:
         One :class:`WorkflowRun` per distinct run id, with its published check
-        contexts resolved. A run whose id is missing or non-numeric is skipped:
-        it cannot be cancelled by id, so including it would inflate the blast
-        radius with a run the tool could never act on. A run whose jobs have
-        not materialized yet (:class:`JobsNotMaterializedError`) is still
-        included, with ``contexts=()`` and ``jobs_verified=False`` so
+        contexts resolved. Three kinds of run are skipped rather than
+        attributed, and every one of them is the safe direction, since a run
+        left out of the inventory is a run this tool will not cancel:
+
+        - A missing or non-numeric ``id``. It cannot be cancelled by id, so
+          including it would only inflate the blast radius.
+        - A ``head_repository`` that does not match the target's. It belongs to
+          a different pull request that happens to share the branch name.
+        - A ``head_repository`` that is absent or malformed. The run cannot be
+          attributed at all, and an unattributable run must not be assumed to
+          be the operator's.
+
+        A run whose jobs have not materialized yet
+        (:class:`JobsNotMaterializedError`) is still included, with
+        ``contexts=()`` and ``jobs_verified=False`` so
         :func:`~scripts.github_core.recovery_manifest.plan_recovery` blocks it
         instead of treating the empty context set as verified-safe.
     """
     wanted = tuple(statuses) if statuses is not None else active_statuses()
     collected: dict[int, WorkflowRun] = {}
 
-    for branch, pr_number in branches.items():
+    for target in targets:
         for status in wanted:
-            for payload in _branch_runs(client, repository, branch, status):
+            for payload in _branch_runs(client, repository, target.branch, status):
                 raw_id = payload.get("id")
                 if not isinstance(raw_id, int):
                     continue
                 if raw_id in collected:
+                    continue
+                if run_head_repository(payload) != target.head_repository:
                     continue
                 try:
                     contexts = run_contexts(client, repository, raw_id)
@@ -199,12 +265,13 @@ def collect_runs_for_branches(
                 collected[raw_id] = WorkflowRun(
                     run_id=raw_id,
                     workflow_name=str(payload.get("name") or ""),
-                    pr_number=pr_number,
-                    branch=branch,
+                    pr_number=target.pr_number,
+                    branch=target.branch,
                     event=str(payload.get("event") or ""),
                     status=str(payload.get("status") or status),
                     contexts=contexts,
                     jobs_verified=jobs_verified,
+                    workflow_path=str(payload.get("path") or ""),
                 )
     return list(collected.values())
 

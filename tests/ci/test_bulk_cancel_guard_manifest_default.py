@@ -28,7 +28,7 @@ from scripts import bulk_cancel_guard
 from scripts.bulk_cancel_guard import EXIT_OK, main
 from tests.ci.bulk_cancel_cli_fixtures import argv, write_runs
 from tests.ci.bulk_cancel_fixtures import incident_runs
-from tests.ci.test_workflow_runs import FakeClient
+from tests.ci.workflow_runs_fixtures import FakeClient
 
 # The `workflows` fixture now lives in tests/ci/conftest.py, so pytest resolves
 # it by name without an import. That also drops the `__all__` re-export this
