@@ -5,7 +5,8 @@
 - **Date**: 2026-08-26 to 2026-08-27
 - **Agent**: Claude Code (remote session)
 - **Task Type**: Feature (deterministic validation gate), from a cost analysis
-- **Outcome**: Shipped on PR #5338; two Copilot review rounds fully addressed
+- **Outcome**: Shipped on PR #5338, in review at this writing; review
+  findings addressed round by round (four Copilot rounds so far)
 
 ## What shipped
 
@@ -65,12 +66,13 @@ incident record; issue #5339 (filed 2026-08-26) spun out of the session
   semantics) split the module along its real seams. The lesson matches
   the sibling `checks_changed_paths.py` precedent: extract at the seam,
   do not shave sentences.
-- **Copilot's two rounds were converging, not thrashing.** Round one found
-  eight defects, round two found five different ones; thirteen of
-  thirteen verifiable findings were real after independent verification.
-  One proposed remedy (suppressing neighbor anchors for anchorless
-  citation lines) was declined with a measured reason: it un-catches the
-  PR #5336 flagship case.
+- **Copilot's successive rounds (four by this writing) were converging,
+  not thrashing.** Each round surfaced distinct defects on new surfaces
+  rather than reshaping old ones, and the verifiable findings held up
+  under independent verification round after round. One proposed remedy
+  (suppressing neighbor anchors for anchorless citation lines) was
+  declined with a measured reason: it un-catches the PR #5336 flagship
+  case.
 
 ## Failure mode classification
 
