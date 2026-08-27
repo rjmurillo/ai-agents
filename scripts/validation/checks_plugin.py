@@ -199,20 +199,40 @@ def validate_plugin_version_bump(repo_root: Path) -> bool:
     ))
 
 
-def _lefthook_check_command() -> list[str] | None:
-    uv = shutil.which("uv")
-    if uv:
-        return [uv, "run", "--frozen", "lefthook", "check-install"]
-
-    return None
+_LEFTHOOK_SHIM_INSTALLER = "scripts/maintenance/install_lefthook_worktree_safe.py"
 
 
 def validate_lefthook_installed(repo_root: Path) -> bool:
-    """Fail when uv or Lefthook is unavailable, unconfigured, or not installed.
+    """Fail when the shared git hook shims are missing or worktree-specific.
 
     CI skips this local-clone check because workflows invoke validation directly.
-    A linked worktree keeps the existing warning policy because its hook storage
-    is shared with the primary clone and may be outside the current change scope.
+
+    Why this stopped calling ``lefthook check-install``
+    ---------------------------------------------------
+    That command answers a different question than its name suggests. Measured
+    against lefthook 2.1.10 on 2026-08-27, in throwaway repositories, exit codes
+    only: it exits 0 after an install and still exits 0 with the entire
+    ``.git/hooks`` directory deleted, and 0 with ``core.hooksPath`` pointed at a
+    nonexistent directory. It exits 1 before any install, when the config is
+    unparseable or absent, and after the config is edited without a reinstall.
+    What it reads is ``$GIT_COMMON_DIR/info/lefthook.checksum``, whose whole
+    content is one line of ``<md5-of-config> <timestamp>``. It never inspects a
+    hook file, so it could not see the defect in issue #4789 and could not see
+    hooks that had been deleted outright either.
+
+    So this gate now reads the hook files themselves, through
+    ``scripts/maintenance/install_lefthook_worktree_safe.py --check``, which owns
+    the shim contract and is the same code that writes it. One authoritative
+    representation, checked by the tool that produces it.
+
+    Stricter than the gate it replaces
+    ----------------------------------
+    The old gate softened to a warning inside a linked worktree (issue #2374) on
+    the reasoning that shared hook storage was outside a worktree's change
+    scope. That leniency protected the wrong party: the hooks are shared, so a
+    worktree's install is exactly what breaks the primary clone, and the primary
+    clone never had the leniency. A worktree-safe shim is correct for every
+    checkout at once, so no checkout needs an exemption and none is granted.
     """
     if (
         os.environ.get("GITHUB_ACTIONS", "").lower() in ("true", "1")
@@ -225,40 +245,19 @@ def validate_lefthook_installed(repo_root: Path) -> bool:
         print("[ERROR] lefthook.yml is absent; installation cannot be verified.", file=sys.stderr)
         return False
 
-    command = _lefthook_check_command()
-    if command is None:
-        print(
-            "[ERROR] uv is unavailable. Lefthook jobs run through uv. "
-            "Install uv, then run: uv sync --frozen --extra dev",
-            file=sys.stderr,
-        )
-        return False
+    installer = repo_root / _LEFTHOOK_SHIM_INSTALLER
+    if not installer.is_file():
+        raise MissingScriptSkip(f"{_LEFTHOOK_SHIM_INSTALLER} not present")
 
     exit_code, stdout, stderr = _run_subprocess(
-        command,
+        ["python3", str(installer), "--check", "--repo-root", str(repo_root)],
         cwd=repo_root,
     )
     if stdout.strip():
         print(stdout.strip())
     if stderr.strip():
         print(stderr.strip(), file=sys.stderr)
-    if exit_code == 0:
-        return True
-    if _is_linked_worktree(repo_root):
-        print(
-            "[WARNING] Lefthook is not installed in this linked worktree. "
-            "Install it from the primary clone with:\n"
-            "  uv run --frozen lefthook install --reset-hooks-path\n"
-            "  uv run --frozen lefthook check-install\n"
-            "(non-blocking here, Issue #2374)."
-        )
-        return True
-    print(
-        "[FAIL] Lefthook is not installed. Run:\n"
-        "  uv run --frozen lefthook install --reset-hooks-path\n"
-        "  uv run --frozen lefthook check-install"
-    )
-    return False
+    return bool(exit_code == 0)
 
 
 def _is_linked_worktree(repo_root: Path) -> bool:

@@ -4,19 +4,33 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
-from unittest.mock import call, patch
+from unittest.mock import patch
+
+import pytest
 
 
 class TestValidateLefthookInstalled:
-    """The local hook gate delegates to Lefthook through uv."""
+    """The local hook gate reads the shared hook shims, not lefthook's checksum.
+
+    ``lefthook check-install`` answers whether the recorded config checksum is
+    current, not whether any hook file is usable: measured on lefthook 2.1.10 it
+    exits 0 with ``.git/hooks`` deleted outright. The gate now delegates to
+    ``scripts/maintenance/install_lefthook_worktree_safe.py --check``, which owns
+    the shim contract and reads the files themselves (issue #4789).
+    """
 
     @staticmethod
-    def _write_config(repo_root: Path) -> None:
+    def _write_repo(repo_root: Path) -> Path:
+        """Create the two files the gate requires: the config and the installer."""
         (repo_root / "lefthook.yml").write_text("pre-commit: {}\n", encoding="utf-8")
+        installer = (
+            repo_root / "scripts" / "maintenance" / "install_lefthook_worktree_safe.py"
+        )
+        installer.parent.mkdir(parents=True, exist_ok=True)
+        installer.write_text("print('stub')\n", encoding="utf-8")
+        return installer
 
     def test_skipped_under_github_actions(self, tmp_path: Path) -> None:
-        import pytest
-
         from scripts.validation.pre_pr import MissingScriptSkip, validate_lefthook_installed
 
         with patch.dict("os.environ", {"GITHUB_ACTIONS": "true"}, clear=False):
@@ -24,8 +38,6 @@ class TestValidateLefthookInstalled:
                 validate_lefthook_installed(tmp_path)
 
     def test_skipped_under_ci(self, tmp_path: Path) -> None:
-        import pytest
-
         from scripts.validation.pre_pr import MissingScriptSkip, validate_lefthook_installed
 
         with patch.dict("os.environ", {"CI": "1", "GITHUB_ACTIONS": "false"}):
@@ -35,11 +47,10 @@ class TestValidateLefthookInstalled:
     def test_not_skipped_when_ci_is_false(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_lefthook_installed
 
-        self._write_config(tmp_path)
+        self._write_repo(tmp_path)
         with patch.dict("os.environ", {"CI": "false", "GITHUB_ACTIONS": "false"}):
-            with patch("checks_plugin.shutil.which", return_value="/bin/uv"):
-                with patch("checks_plugin._run_subprocess", return_value=(0, "OK", "")):
-                    assert validate_lefthook_installed(tmp_path) is True
+            with patch("checks_plugin._run_subprocess", return_value=(0, "OK", "")):
+                assert validate_lefthook_installed(tmp_path) is True
 
     def test_missing_config_fails_closed(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_lefthook_installed
@@ -47,102 +58,57 @@ class TestValidateLefthookInstalled:
         with patch.dict("os.environ", {"CI": "false", "GITHUB_ACTIONS": "false"}):
             assert validate_lefthook_installed(tmp_path) is False
 
-    def test_missing_uv_fails_closed(self, tmp_path: Path, capsys: Any) -> None:
-        from scripts.validation.pre_pr import validate_lefthook_installed
+    def test_missing_installer_script_skips(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import MissingScriptSkip, validate_lefthook_installed
 
-        self._write_config(tmp_path)
+        installer = self._write_repo(tmp_path)
+        installer.unlink()
         with patch.dict("os.environ", {"CI": "false", "GITHUB_ACTIONS": "false"}):
-            with patch("checks_plugin.shutil.which", return_value=None):
-                assert validate_lefthook_installed(tmp_path) is False
+            with patch("checks_plugin._run_subprocess") as mock_run:
+                with pytest.raises(MissingScriptSkip):
+                    validate_lefthook_installed(tmp_path)
 
-        output = capsys.readouterr()
-        assert "uv is unavailable" in output.err
-        assert "Lefthook jobs run through uv" in output.err
-
-    def test_direct_lefthook_does_not_bypass_missing_uv(self, tmp_path: Path) -> None:
-        from scripts.validation.pre_pr import validate_lefthook_installed
-
-        self._write_config(tmp_path)
-
-        def locate_tool(tool: str) -> str | None:
-            return None if tool == "uv" else "/bin/lefthook"
-
-        with patch.dict("os.environ", {"CI": "false", "GITHUB_ACTIONS": "false"}):
-            with patch(
-                "checks_plugin.shutil.which", side_effect=locate_tool
-            ) as mock_which:
-                with patch("checks_plugin._run_subprocess") as mock_run:
-                    assert validate_lefthook_installed(tmp_path) is False
-
-        assert mock_which.call_args_list == [call("uv")]
         mock_run.assert_not_called()
 
-    def test_uses_uv_to_match_configured_hook_runtime(self, tmp_path: Path) -> None:
+    def test_delegates_to_the_shim_installer_in_check_mode(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_lefthook_installed
 
-        self._write_config(tmp_path)
+        installer = self._write_repo(tmp_path)
         with patch.dict("os.environ", {"CI": "false", "GITHUB_ACTIONS": "false"}):
-            with patch("checks_plugin.shutil.which", return_value="/bin/uv") as mock_which:
-                with patch(
-                    "checks_plugin._run_subprocess", return_value=(0, "OK", "")
-                ) as mock_run:
-                    assert validate_lefthook_installed(tmp_path) is True
+            with patch(
+                "checks_plugin._run_subprocess", return_value=(0, "OK", "")
+            ) as mock_run:
+                assert validate_lefthook_installed(tmp_path) is True
 
-        assert mock_which.call_args_list == [call("uv")]
         mock_run.assert_called_once_with(
-            ["/bin/uv", "run", "--frozen", "lefthook", "check-install"],
+            ["python3", str(installer), "--check", "--repo-root", str(tmp_path)],
             cwd=tmp_path,
         )
 
-    def test_passes_when_check_install_exits_zero(self, tmp_path: Path) -> None:
-        from scripts.validation.pre_pr import validate_lefthook_installed
-
-        self._write_config(tmp_path)
-        with patch.dict("os.environ", {"CI": "false", "GITHUB_ACTIONS": "false"}):
-            with patch("checks_plugin.shutil.which", return_value="/bin/uv"):
-                with patch("checks_plugin._run_subprocess") as mock_run:
-                    mock_run.return_value = (0, "OK", "")
-                    assert validate_lefthook_installed(tmp_path) is True
-        mock_run.assert_called_once_with(
-            ["/bin/uv", "run", "--frozen", "lefthook", "check-install"],
-            cwd=tmp_path,
-        )
-
-    def test_fails_when_check_install_exits_nonzero(
+    def test_fails_when_the_shim_check_exits_nonzero(
         self, tmp_path: Path, capsys: Any
     ) -> None:
         from scripts.validation.pre_pr import validate_lefthook_installed
 
-        self._write_config(tmp_path)
+        self._write_repo(tmp_path)
         with patch.dict("os.environ", {"CI": "false", "GITHUB_ACTIONS": "false"}):
-            with patch("checks_plugin.shutil.which", return_value="/bin/uv"):
-                with patch("checks_plugin._run_subprocess", return_value=(1, "", "missing")):
-                    with patch("checks_plugin._is_linked_worktree", return_value=False):
-                        assert validate_lefthook_installed(tmp_path) is False
+            with patch(
+                "checks_plugin._run_subprocess",
+                return_value=(1, "", "[FAIL] pre-commit bakes in an absolute '/.venv/' path"),
+            ):
+                assert validate_lefthook_installed(tmp_path) is False
 
-        output = capsys.readouterr()
-        assert (
-            "uv run --frozen lefthook install --reset-hooks-path" in output.out
-        )
-        assert "uv run --frozen lefthook check-install" in output.out
+        assert "bakes in an absolute '/.venv/' path" in capsys.readouterr().err
 
-    def test_warns_not_fails_in_linked_worktree(
-        self, tmp_path: Path, capsys: Any
-    ) -> None:
+    def test_linked_worktree_gets_no_exemption(self, tmp_path: Path) -> None:
+        """The #2374 leniency is gone: shared hooks make every checkout the victim."""
         from scripts.validation.pre_pr import validate_lefthook_installed
 
-        self._write_config(tmp_path)
+        self._write_repo(tmp_path)
         with patch.dict("os.environ", {"CI": "false", "GITHUB_ACTIONS": "false"}):
-            with patch("checks_plugin.shutil.which", return_value="/bin/uv"):
-                with patch("checks_plugin._run_subprocess", return_value=(1, "", "missing")):
-                    with patch("checks_plugin._is_linked_worktree", return_value=True):
-                        assert validate_lefthook_installed(tmp_path) is True
-
-        output = capsys.readouterr()
-        assert (
-            "uv run --frozen lefthook install --reset-hooks-path" in output.out
-        )
-        assert "uv run --frozen lefthook check-install" in output.out
+            with patch("checks_plugin._run_subprocess", return_value=(1, "", "diverged")):
+                with patch("checks_plugin._is_linked_worktree", return_value=True):
+                    assert validate_lefthook_installed(tmp_path) is False
 
 
 class TestIsLinkedWorktree:
