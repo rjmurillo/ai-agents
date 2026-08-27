@@ -23,6 +23,8 @@ tools:
   - serena/*
   - perplexity/*
 role: executor
+# Requires fresh context and separate tool state to threat-model without inherited assumptions.
+isolation_required: true
 ---
 # Security Agent
 

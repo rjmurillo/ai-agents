@@ -1,5 +1,7 @@
 ---
 role: executor
+# Requires fresh context and separate tool state to threat-model without inherited assumptions.
+isolation_required: true
 description: Security specialist with a defense-first mindset. Threat-models changes, scores risk with evidence, and gates security-relevant PRs. Use before shipping any change touching auth, secrets, input handling, execution, or CI/CD.
 argument-hint: Specify the code, feature, or changes to security review
 tools_vscode:

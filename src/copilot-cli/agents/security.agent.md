@@ -23,6 +23,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
 role: executor
+isolation_required: true
 ---
 # Security Agent
 
