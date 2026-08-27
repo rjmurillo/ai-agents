@@ -55,7 +55,7 @@ Run `test_pr_merge_ready.py` for every open PR. Classify each into a tier (T1-T5
 
 ### Phase 2: Act per tier
 
-Walk the queue. For each PR, apply the tier's action set. T1 first (land-ready), then T2 (CI fix), then T3/T4 (threads), then T5 (bot).
+Walk the queue. For each PR, apply the tier's action set. T1 first (land-ready), then T2 (CI fix), then T3/T4 (threads). T5 is not processed by this loop: a bot-authored PR with a failure or unresolved threads is handed to a human, and the tier-dispatch block terminates the PR after the auto-merge disarm gate (issue #5208).
 
 **Per-PR live-state gate (BLOCKING, issue #2455).** Before any action runs on a PR (any tier: arming auto-merge, pushing a CI fix, posting a thread reply), call `check_pr_live_state.py` and branch on the JSON envelope `Data.action` field. The session-start triage snapshot is stale by the time the walk reaches each row in a repo with heavy merge automation, and the consequences of acting on a stale row are concrete: armed auto-merge on a redundant PR, conflict merges into a closed branch, duplicate logic landed twice.
 
