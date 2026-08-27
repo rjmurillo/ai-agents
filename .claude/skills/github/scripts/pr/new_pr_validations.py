@@ -196,8 +196,24 @@ def _validate_session_end(
     with _session_log_for_validation(repo_root, head, session_log) as session_log_path:
         if session_log_path is None:
             return
+        # The copy handed to the validator lives under
+        # .agents/scratch/session-log-validation/, so the validator cannot
+        # recover the log's logical identity from its own argv[1]. Without the
+        # identity the QA binding compares the QA report's recorded session
+        # against the scratch filename and every QA-linked log is rejected
+        # (issue #4783). scripts/validate_session_json.py ships the flag for
+        # exactly this case; its help text reads verbatim:
+        #     "Use this repository-relative logical session path for QA binding
+        #      when validating a ref-backed temporary copy."
+        # The scratch path stays last so it remains argv[-1].
         result = subprocess.run(
-            [sys.executable, validate_script, session_log_path],
+            [
+                sys.executable,
+                validate_script,
+                "--session-log-identity",
+                session_log,
+                session_log_path,
+            ],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -205,6 +221,13 @@ def _validate_session_end(
             timeout=60,
         )
         if result.returncode != 0:
+            # Print what the validator found. Discarding it left the author
+            # with "Session End validation failed" and nothing to act on,
+            # unlike _run_warning_validator above (issue #4783).
+            if result.stdout:
+                print(result.stdout, end="")
+            if result.stderr:
+                print(result.stderr, end="", file=sys.stderr)
             print("Session End validation failed", file=sys.stderr)
             raise SystemExit(1)
 

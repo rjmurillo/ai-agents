@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -27,6 +30,38 @@ assert _val_spec is not None and _val_spec.loader is not None
 _val_mod = importlib.util.module_from_spec(_val_spec)
 _val_spec.loader.exec_module(_val_mod)
 run_validations = _val_mod.run_validations
+
+
+def _qa_evidence(log: Path) -> str | None:
+    """Return the QA evidence path a session log names, when it names one."""
+    try:
+        data = json.loads(log.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    node: object = data
+    for key in ("protocolCompliance", "sessionEnd", "qaValidation", "evidence"):
+        if not isinstance(node, dict):
+            return None
+        node = node.get(key)
+    return node if isinstance(node, str) else None
+
+
+def _session_log_with_present_qa_report(repo_root: Path) -> tuple[Path, str]:
+    """Find a committed session log whose QA report is on disk, or skip.
+
+    The QA-binding path only runs when the log names an existing report, so a
+    test that exercises it needs a real pair rather than a synthetic log: the
+    session schema is large and a hand-built fixture would drift from it.
+    """
+    sessions = sorted((repo_root / ".agents" / "sessions").glob("*.json"))
+    for log in reversed(sessions):
+        evidence = _qa_evidence(log)
+        if evidence is None:
+            continue
+        report = repo_root / evidence
+        if report.is_file():
+            return log, evidence
+    pytest.skip("no committed session log pairs with a present QA report")
 
 
 class TestRunValidations:
@@ -236,6 +271,162 @@ class TestRunValidations:
             tmp_path / ".agents" / "scratch" / "session-log-validation"
         )
         assert not Path(validated_paths[0]).name.endswith("session-01.json")
+
+    def test_scratch_copy_carries_the_logical_session_identity(self, tmp_path):
+        """The validator must learn the real path the scratch copy stands for.
+
+        Without ``--session-log-identity`` the validator derives the session
+        identity from the scratch filename, so ``session_qa_binding`` compares
+        the QA report's recorded session against a random temp name and every
+        QA-linked log is rejected (issue #4783).
+        """
+        session_log = ".agents/sessions/2025-01-01-session-01.json"
+        validate_script = tmp_path / "scripts" / "validate_session_json.py"
+        validate_script.parent.mkdir(parents=True)
+        validate_script.write_text("# mock")
+        validator_argv: list[list[str]] = []
+
+        def fake_run(cmd, **kwargs):
+            if cmd[:3] == ["git", "diff", "--name-only"]:
+                return _completed(stdout=f"{session_log}\n", rc=0)
+            if cmd[:2] == ["git", "show"]:
+                return _completed(stdout='{"session": 1}\n', rc=0)
+            if "validate_session_json.py" in " ".join(cmd):
+                validator_argv.append(list(cmd))
+                return _completed(rc=0)
+            return _completed(rc=0)
+
+        with patch("subprocess.run", side_effect=fake_run):
+            run_validations(str(tmp_path), "main", "feat/not-checked-out")
+
+        assert len(validator_argv) == 1
+        argv = validator_argv[0]
+        assert "--session-log-identity" in argv
+        assert argv[argv.index("--session-log-identity") + 1] == session_log
+        # The scratch copy is still what gets read, and it stays last so the
+        # positional argument is unambiguous.
+        assert Path(argv[-1]).parent == (
+            tmp_path / ".agents" / "scratch" / "session-log-validation"
+        )
+
+    def test_identity_is_the_newest_session_log_when_several_changed(self, tmp_path):
+        """The identity must name the log actually copied, not the first match."""
+        older = ".agents/sessions/2025-01-01-session-01.json"
+        newer = ".agents/sessions/2025-01-02-session-10.json"
+        validate_script = tmp_path / "scripts" / "validate_session_json.py"
+        validate_script.parent.mkdir(parents=True)
+        validate_script.write_text("# mock")
+        shown: list[str] = []
+        identities: list[str] = []
+
+        def fake_run(cmd, **kwargs):
+            if cmd[:3] == ["git", "diff", "--name-only"]:
+                return _completed(stdout=f"{newer}\n{older}\n", rc=0)
+            if cmd[:2] == ["git", "show"]:
+                shown.append(cmd[2])
+                return _completed(stdout='{"session": 10}\n', rc=0)
+            if "validate_session_json.py" in " ".join(cmd):
+                identities.append(cmd[cmd.index("--session-log-identity") + 1])
+                return _completed(rc=0)
+            return _completed(rc=0)
+
+        with patch("subprocess.run", side_effect=fake_run):
+            run_validations(str(tmp_path), "main", "feat/branch")
+
+        assert identities == [newer]
+        assert shown == [f"feat/branch:{newer}"]
+
+    def test_session_validation_failure_prints_validator_output(
+        self, tmp_path, capsys
+    ):
+        """A genuine mismatch still fails, and says what the validator found."""
+        session_log = ".agents/sessions/2025-01-01-session-01.json"
+        validate_script = tmp_path / "scripts" / "validate_session_json.py"
+        validate_script.parent.mkdir(parents=True)
+        validate_script.write_text("# mock")
+        detail = (
+            "QA report session log does not match current session: "
+            ".agents/sessions/2025-01-02-session-02.json != " + session_log
+        )
+
+        def fake_run(cmd, **kwargs):
+            if cmd[:3] == ["git", "diff", "--name-only"]:
+                return _completed(stdout=f"{session_log}\n", rc=0)
+            if cmd[:2] == ["git", "show"]:
+                return _completed(stdout='{"session": 1}\n', rc=0)
+            if "validate_session_json.py" in " ".join(cmd):
+                return _completed(
+                    stdout="NON_COMPLIANT: 1 error\n",
+                    stderr=detail + "\n",
+                    rc=1,
+                )
+            return _completed(rc=0)
+
+        with patch("subprocess.run", side_effect=fake_run):
+            with pytest.raises(SystemExit) as exc:
+                run_validations(str(tmp_path), "main", "feat/branch")
+
+        assert exc.value.code == 1
+        captured = capsys.readouterr()
+        assert "NON_COMPLIANT: 1 error" in captured.out
+        assert detail in captured.err
+        assert "Session End validation failed" in captured.err
+
+    def test_identity_flag_changes_what_the_real_validator_binds_qa_against(self):
+        """Run the canonical validator both ways over one scratch copy.
+
+        The without-flag run is the negative control: it must produce the
+        QA-binding mismatch that issue #4783 reports. The with-flag run over
+        the identical bytes must not. Asserting only that the flag appears in
+        the validator's source would pin the wiring to itself and prove
+        nothing about behavior (`.claude/rules/canonical-source-mirror.md`).
+        """
+        repo_root = Path(__file__).resolve().parents[1]
+        validator = repo_root / "scripts" / "validate_session_json.py"
+        if not validator.is_file():
+            pytest.skip("canonical validator not present in this checkout")
+
+        source, evidence = _session_log_with_present_qa_report(repo_root)
+        scratch_dir = repo_root / ".agents" / "scratch" / "session-log-validation"
+        scratch_dir.mkdir(parents=True, exist_ok=True)
+        identity = source.relative_to(repo_root).as_posix()
+        mismatch = "QA report session log does not match current session"
+
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            suffix=".json",
+            prefix=".session-log-test-",
+            dir=scratch_dir,
+            delete=False,
+        ) as tmp:
+            tmp.write(source.read_text(encoding="utf-8"))
+            scratch_copy = tmp.name
+
+        def _validate(*extra: str) -> str:
+            completed = subprocess.run(
+                [sys.executable, str(validator), *extra, scratch_copy],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                cwd=repo_root,
+                timeout=180,
+            )
+            return completed.stdout + completed.stderr
+
+        try:
+            without_flag = _validate()
+            with_flag = _validate("--session-log-identity", identity)
+        finally:
+            Path(scratch_copy).unlink(missing_ok=True)
+
+        assert "unrecognized arguments" not in with_flag
+        assert mismatch in without_flag, (
+            "negative control did not fire; the scratch copy no longer "
+            f"triggers QA binding for {identity} (evidence {evidence})"
+        )
+        assert mismatch not in with_flag
 
     def test_session_log_missing_from_head_skips_validation(self, tmp_path, capsys):
         """Do not validate a stale worktree copy when the head lacks the log."""
