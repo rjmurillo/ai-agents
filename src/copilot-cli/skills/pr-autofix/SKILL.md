@@ -428,7 +428,51 @@ fi
 # tests/commands/test_pr_autofix_tier_dispatch_runtime.py executes the block
 # between the tier-dispatch markers under bash with fake producers, so the two
 # gate directions below are asserted behavior rather than described behavior.
-MERGE_READY=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" 2>/dev/null)
+CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
+    --output-format json 2>/dev/null)
+# Bot-author lookup, read BEFORE the tier producer because the tier depends on
+# it (issue #5208). classify_tier only reaches T5 when `is_bot and
+# (has_ci_failures or has_threads)`, and its `is_bot` parameter defaults to
+# False, so a producer call that omits --is-bot cannot return T5 at all: every
+# bot PR with a failing check or an unresolved thread came back T2, T3, or T4
+# and was pulled into the unattended thread-fix/round-cap loop that the tier
+# table below reserves for human handling ("| T5 | Bot PR with any failure or
+# threads | Handle individually |").
+# This is the same get_pr_context.py call the disarm gate below already made;
+# it moved up rather than being added, so the PR still costs one context fetch.
+# AUTO_MERGE is still parsed at the gate that consumes it.
+# The classification itself is NOT made here. get_pr_context.py emits
+# `author_is_bot` from github_core.bot_config.is_bot, the repository's one
+# authoritative bot-author rule. Re-deriving it here as a `[bot]` suffix test
+# would disagree with that rule on the logins this repository actually sees:
+# bot_config.py maps `app/copilot-swe-agent`, the spelling `gh pr view --json
+# author` returns for the Copilot coding agent, onto `copilot-swe-agent[bot]`,
+# and neither that spelling nor `Copilot` carries a `[bot]` suffix.
+IS_BOT=$(printf '%s' "$CTX" | jq -r 'if (.Data.author_is_bot | type) == "boolean" then (.Data.author_is_bot | tostring) else "unknown" end')
+# Fail CLOSED: an author this session could not classify is treated as a bot.
+# Same direction as the lease store's `lease-store-unavailable` verdict
+# documented below, and for the same reason: the two errors are not symmetric.
+# Guessing "human" on an unreadable author hands a PR nobody vouched for to the
+# unattended loop, which is the outcome the T5 tier exists to prevent.
+# Guessing "bot" costs a human one manual look at a PR that may not have needed
+# one, which is recoverable. Only a real JSON boolean `false` buys the
+# non-bot path; a missing field, a null, or a string spelling of a boolean is
+# "unknown" and takes the closed branch, matching the type-checked read the
+# PAGES_COMPLETE guard below uses for the same reason.
+if [ "$IS_BOT" = "false" ]; then
+    IS_BOT_FLAG=""
+else
+    IS_BOT_FLAG="--is-bot"
+    if [ "$IS_BOT" = "unknown" ]; then
+        echo "Cannot read author bot state for #$PR; classifying as a bot PR (fail closed)."
+    fi
+fi
+# Unquoted on purpose, and this is the one place in this block where that is
+# correct: the variable holds either the single literal token --is-bot or the
+# empty string, and quoting it would pass an empty argument that argparse
+# rejects. It is never attacker-influenced; both values are written above.
+# shellcheck disable=SC2086
+MERGE_READY=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" $IS_BOT_FLAG 2>/dev/null)
 # Deliberately no 2>/dev/null on either jq below. The producer's stderr is
 # suppressed above, so a jq parse error is the only signal an operator gets that
 # the producer emitted something unreadable, and both guards below would
@@ -537,8 +581,8 @@ esac
 # fix push could immediately land a PR whose readiness was never explicitly
 # verified in this session.  Disable auto-merge now, before any commit or push.
 # TIER and PAGES_COMPLETE were both read from the single producer call above.
-CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
-    --output-format json 2>/dev/null)
+# CTX was fetched before the tier producer, because the tier read needs the
+# author's bot state (issue #5208). One fetch still serves both reads.
 AUTO_MERGE=$(printf '%s' "$CTX" | jq -r '.Data.auto_merge_method // "null"' 2>/dev/null)
 # Empty stdin or a jq parse error yields an empty string, not "null". Treating
 # that as "armed" would fire the disarm path on no evidence, so skip instead.
@@ -667,7 +711,20 @@ Dispatcher exit contract (CWE-829 trust boundary, Issue #5072): exit 0 all crite
 ## Tier Definitions
 
 The `Tier` field in `test_pr_merge_ready.py` output is the authoritative
-classifier.  Pass `--is-bot` when the PR author is a bot.
+classifier.  Pass `--is-bot` when the PR author is a bot: `classify_tier`
+returns T5 only when `is_bot and (has_ci_failures or has_threads)`, and its
+`is_bot` parameter defaults to `False`, so a call that omits the flag can never
+return T5 and every bot PR lands in T2-T4 instead (issue #5208).
+
+Read the author's bot state from `get_pr_context.py`'s `author_is_bot` field,
+not from a `[bot]` login-suffix test. That field comes from
+`github_core.bot_config.is_bot` after `canonicalize_login`, which maps the
+`app/copilot-swe-agent` spelling `gh pr view --json author` returns onto
+`copilot-swe-agent[bot]`; neither that spelling nor `Copilot` carries a `[bot]`
+suffix, so a suffix test reads this repository's two most common bot authors as
+humans. When the field is absent or not a boolean, pass `--is-bot` anyway: an
+author nobody could classify must not enter the unattended loop. The
+tier-dispatch block above implements exactly that.
 
 ### Work-needed tiers
 
@@ -761,8 +818,12 @@ resolve_pr_scripts_dir() {
 }
 SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
 
-# Check merge readiness
-python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request {pr}
+# Check merge readiness. Add --is-bot when the PR author is a bot; without it
+# classify_tier cannot return T5, because its is_bot parameter defaults to
+# False and T5 requires `is_bot and (has_ci_failures or has_threads)`
+# (issue #5208). Source the answer from get_pr_context.py's author_is_bot
+# field and pass --is-bot when that field is absent or non-boolean.
+python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request {pr} [--is-bot]
 
 # Per-PR live-state gate (BLOCKING per Phase 2; issue #2455). Returns
 # exit 0 + Data.action=ACT when safe to proceed, exit 1 + Data.action=SKIP when
