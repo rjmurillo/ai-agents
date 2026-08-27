@@ -1,34 +1,64 @@
 """Every bare repository the test suite creates is rooted in a temp directory.
 
 Issue #4698 acceptance criterion 3: "Fixture-creating tests are shown to write
-bare repositories only under a temporary path." ``tests/bare_repo_scan.py``
-carries the scan and the reasoning behind each temp root it recognises; this
-module asserts the corpus result and pins the scan's discrimination.
+bare repositories only under a temporary path." ``tests/bare_repo_sites.py``
+reads each module's tokens and ``tests/bare_repo_scan.py`` turns them into a
+verdict; this module asserts the corpus result and pins the temp roots the scan
+recognises. ``tests/test_bare_repo_scan_targets.py`` pins the three narrower
+properties: what counts as a site, that a command's target must reach the root,
+and that a module-level command is a violation on sight.
 
 What the corpus assertion proves, exactly
 -----------------------------------------
-Every ``--bare`` and ``core.bare`` string literal under ``tests/`` sits inside a
-function whose paths are rooted in a temp directory, established one of four
-ways: a pytest temp fixture parameter, a ``tempfile`` factory call, the
-repository's own ``.pytest_tmp`` durable fixture root, or a parameter naming a
-fixture that is itself temp-rooted. A helper taking its target as a parameter,
-such as ``_init_git_repo`` in ``tests/gh_base_ref_test_helpers.py``, is admitted
-only when every caller reached through the call graph is itself temp-rooted.
+Every ``--bare`` and ``core.bare`` token under ``tests/`` that is being built
+into a command sits inside a function whose paths are rooted in a temp
+directory, **and** the command's own target traces back to that root. The root
+is established one of four ways: a pytest temp fixture parameter, a ``tempfile``
+factory call, the repository's own ``.pytest_tmp`` durable fixture root, or a
+parameter naming a fixture that is itself temp-rooted. A helper taking its
+target as a parameter, such as ``_init_git_repo`` in
+``tests/gh_base_ref_test_helpers.py``, is admitted only when every caller
+reached through the call graph is itself temp-rooted, and its parameters then
+count as roots inside its body.
+
+The target trace is what makes the claim about the command rather than about
+the function. ``def test_x(tmp_path): subprocess.run(["git", "init", "--bare",
+"/home/user/live.git"])`` roots the function and writes a bare repository into a
+live checkout; it is a violation here.
+
+What counts as a site
+---------------------
+A token is a site where it is being **built** into something a process could
+receive: an element of a list or tuple, a value in a dict, an argument to a
+call, or the right side of an assignment. A token being **compared** is not,
+which keeps assertions and expected-message data out of the corpus. Measured at
+``26911e9f0``: the old rule, any exact constant anywhere, counted 73 sites; the
+construction rule counts 70. The three dropped are all ``ast.Compare``
+operands, at ``tests/test_lefthook_integration.py:1377``,
+``tests/validation/test_check_repo_health.py:227``, and
+``tests/validation/test_check_repo_health_hostile_inputs.py:191``.
+
+Restricting further, to tokens lexically inside a ``subprocess`` argument list,
+was rejected because it under-reports. ``tests/gh_base_ref_test_helpers.py``
+builds ``args = ["git", "init"]``, appends ``--bare`` conditionally, and passes
+``args`` to ``subprocess.run`` two statements later, so a lexical test sees no
+site at a call that really does create a bare repository. The scanner follows
+the carrier instead.
 
 What it does not prove
 ----------------------
-Temp-rooting the enclosing function does not prove the specific argument handed
-to that one git command is the temp path; a temp-rooted test could still pass an
-absolute path elsewhere. This is a shape check over the call graph, not a taint
-analysis.
-
-It also reads argument-vector git calls only. A shell-form invocation, say
+It reads argument-vector git calls only. A shell-form invocation, say
 ``subprocess.run("git init --bare x", shell=True)``, carries the token inside a
 longer string and is not a site. That shape does not exist in the suite
 (``shell=True`` appears under ``tests/`` only in prose and in assertions
 forbidding it), and matching substrings instead would flag every assertion that
 quotes the repair command, such as the expected-message table in
 ``tests/validation/test_check_repo_health_reporting.py``.
+
+An environment site is graded on the function alone, not on a target. A token
+written with ``monkeypatch.setenv`` or handed over as ``env=`` names no
+repository: git applies ``GIT_CONFIG_KEY_0=core.bare`` wherever the child
+process lands, so the only question is the one the call graph already answers.
 
 The runtime complement is ``tests/test_git_isolation_blast_radius.py``, which
 runs a real child pytest under a hook-shaped hostile environment and asserts a
@@ -101,12 +131,12 @@ class TestTheTestSuiteRootsEveryBareRepositoryInTemp:
 
 
 class TestTheScannerRunsNoGitCommand:
-    """What justifies excluding the scanner's own two modules from the scan.
+    """What justifies excluding the scanner's own modules from the scan.
 
-    Both files hold ``--bare`` and ``core.bare`` as data: the token table in
-    ``tests/bare_repo_scan.py`` and the negative controls below. The exclusion is
-    safe only while neither shells out, so assert the precondition rather than
-    trusting the comment on ``SCANNER_MODULES``.
+    Each holds ``--bare`` and ``core.bare`` as data: the token table in
+    ``tests/bare_repo_sites.py`` and the negative controls below. The exclusion
+    is safe only while none of them shells out, so assert the precondition
+    rather than trusting the comment on ``SCANNER_MODULES``.
     """
 
     _PROCESS_SPAWNERS = frozenset(
@@ -132,7 +162,7 @@ class TestTheScannerRunsNoGitCommand:
             "Either drop the call or stop excluding the module."
         )
 
-    def test_both_excluded_modules_exist_and_are_excluded(self) -> None:
+    def test_every_excluded_module_exists_and_is_excluded(self) -> None:
         """A stale name in SCANNER_MODULES would silently exclude nothing."""
         sources = scannable_sources()
         for module in SCANNER_MODULES:
