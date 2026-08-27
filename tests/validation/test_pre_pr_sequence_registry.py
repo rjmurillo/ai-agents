@@ -65,6 +65,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Design Review Frontmatter',
     'Build Command Exit Gates',
     'Stale Script References',
+    'Citation Freshness (added lines)',
     'Documented Interpreter Portability',
     'Orphaned Build Deferrals',
     'Generated Artifact Staleness',
