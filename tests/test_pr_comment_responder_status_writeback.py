@@ -481,9 +481,7 @@ def test_gate_three_blocks_when_the_comment_is_not_in_the_map(tmp_path: Path) ->
         "Gate 3 blocked but left tasks.md modified, so the two artifacts "
         "disagree on a failure path (issue #4054)"
     )
-    assert comment_map.read_bytes() == map_before, (
-        "Gate 3 blocked but left comments.md modified"
-    )
+    assert comment_map.read_bytes() == map_before, "Gate 3 blocked but left comments.md modified"
 
 
 @requires_bash
