@@ -23,8 +23,15 @@ pre-commit:
     # It runs first because the failures it causes name the wrong component:
     # the incident produced four unrelated-looking diagnoses before the shared
     # cause was found. One accurate message has to precede all of them.
+    # Cap sized from the script's own watchdog, not from a default. The healthy
+    # path is one `git config --show-scope` read under GIT_TIMEOUT_SECONDS = 5,
+    # so 10s is that watchdog plus 5s of interpreter headroom. Measured on this
+    # checkout: 0.077s and 0.130s warm, 0.944s on the run that also built the
+    # venv. The pair below is funded from one allocation (see repair-packed-refs)
+    # so the stage's declared worst case does not rise; ADR-104 rule 7 and
+    # `tests/ci/test_lefthook_declared_budget.py` both refuse a cap that does.
     - name: repo-health
-      timeout: 20s
+      timeout: 10s
       run: uv run --frozen python scripts/validation/check_repo_health.py
 
     - name: repair-packed-refs
@@ -45,8 +52,12 @@ pre-commit:
     # test whose fixture reads live git state. Reuses the existing per-branch
     # push-lock file (push-lock.md) rather than a second scheme; blocks only
     # when that lock is currently held. Bypass: SKIP_PUSH_LOCK_COMMIT_GUARD=1.
+    # 30s -> 20s pays for repo-health's 10s above, so the pre-commit declared
+    # worst case is unchanged. This job's own bound is one subprocess under a
+    # `timeout=10` plus a non-blocking flock probe, and it measured 0.087s here,
+    # so 20s is still twice its internal ceiling.
     - name: push-lock-commit-guard
-      timeout: 30s
+      timeout: 20s
       run: uv run --frozen python scripts/validation/check_push_lock_before_commit.py
 
     - group:
@@ -422,12 +433,20 @@ pre-push:
     # five linked worktrees. The pre-push hook can therefore corrupt the
     # repository it is validating, so this runs before every job whose failure
     # the corruption would otherwise be blamed for.
+    # Same 10s as pre-commit, and for the same reason: the cap tracks the
+    # script's GIT_TIMEOUT_SECONDS = 5 watchdog plus interpreter headroom, not
+    # the stage it runs in. This job is a leading serial singleton, ahead of the
+    # parallel group, so the loaded-machine contention ci-scripts.md MUST-16
+    # measures on a group member does not apply to it.
     - name: repo-health
-      timeout: 1m
+      timeout: 10s
       run: uv run --frozen python scripts/validation/check_repo_health.py
 
+    # 1m -> 50s pays for repo-health's 10s above, so the pre-push declared worst
+    # case is unchanged. This job's single git call runs under a 15s watchdog, so
+    # 50s is still more than three times its internal ceiling.
     - name: repair-packed-refs
-      timeout: 1m
+      timeout: 50s
       run: uv run --frozen python scripts/maintenance/repair_packed_refs.py
 
     - name: mutation-safety

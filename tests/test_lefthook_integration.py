@@ -794,7 +794,11 @@ def test_configuration_uses_named_native_jobs() -> None:
     assert str(pre_commit["push-lock-commit-guard"]["run"]).endswith(
         "check_push_lock_before_commit.py"
     )
-    assert pre_commit["push-lock-commit-guard"]["timeout"] == "30s"
+    # 20s, not the original 30s: repo-health's 10s cap is funded from this job's
+    # slack so the pre-commit declared worst case does not rise against the base
+    # ref (tests/ci/test_lefthook_declared_budget.py). The guard's own bound is a
+    # `timeout=10` subprocess plus a non-blocking flock probe, so 20s is twice it.
+    assert pre_commit["push-lock-commit-guard"]["timeout"] == "20s"
     assert str(pre_push["retrospective-policy"]["run"]).endswith("git_hook_policy.py retrospective")
     assert pre_push["retrospective-policy"]["use_stdin"] is True
     pre_commit_names = [str(job["name"]) for job in _flatten_jobs(config["pre-commit"]["jobs"])]
