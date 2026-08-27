@@ -205,6 +205,39 @@ NEIGHBOURING_COMMANDS = (
     "az repos pr list --output json",
 )
 
+# The four mutating subcommands issue #4781's acceptance criterion names, in
+# the shapes this repository actually runs them. They are deliberately NOT in
+# `permissions.deny`; the test below pins that absence so the next reader does
+# not close the gap by breaking the repository.
+#
+# There is no narrower placement available. A subagent has no permission
+# surface of its own: https://code.claude.com/docs/en/sub-agents lists every
+# supported frontmatter field, and the only permission-adjacent three are
+# `tools`, `disallowedTools`, and `permissionMode`. None carries a rule.
+# `tools` and `disallowedTools` add or remove a whole tool, so the finest cut
+# they can express is "the security agent gets no Bash at all", which is issue
+# #4781's symptom. `permissionMode` selects how prompts are handled, not what
+# is denied. Deny rules therefore live only in the settings files, which are
+# scoped to a project or a user, never to one agent.
+#
+# Denying these session-wide would stop every other agent and this repository's
+# own automation. `git commit` and `git push` are the `AGENTS.md` End gate.
+# `git checkout` is emitted verbatim by `scripts/ci/mutation_harness_ciperms.py:113`
+# and reached through the `_git` helper in `scripts/ci/prepare_conflict_context.py`
+# and `scripts/ci/apply_ai_conflict_resolution.py`. That is the #5013 shape a wrong
+# deny on `Bash` produces: 127 unrelated commands denied over 21 minutes, per
+# the incident record in `.claude/rules/tool-use-hook-bar.md`.
+MUTATING_GIT_THE_PROMPT_FORBIDS = (
+    "git commit -m 'fix: thing'",
+    "git commit --amend --no-edit",
+    "git push origin HEAD",
+    "git push --force-with-lease origin HEAD",
+    "git checkout -- README.md",
+    "git checkout -b feat/thing",
+    "git reset --hard HEAD",
+    "git reset HEAD~1",
+)
+
 
 @pytest.mark.parametrize("command", ALL_EXPLOITS)
 def test_deny_rules_block_every_probed_exploit(command: str) -> None:
@@ -242,6 +275,57 @@ def test_deny_rules_do_not_reach_unrelated_work(command: str) -> None:
         f"{command!r} is denied. permissions.deny in .claude/settings.json is "
         f"session-wide, not scoped to the security subagent, so an overbroad "
         f"rule takes out unrelated work (the #5013 failure mode)."
+    )
+
+
+@pytest.mark.parametrize("command", MUTATING_GIT_THE_PROMPT_FORBIDS)
+def test_mutating_git_stays_an_obligation_not_a_control(command: str) -> None:
+    """`commit`, `push`, `checkout`, and `reset` are prose limits, not denials.
+
+    Issue #4781's acceptance criterion reads "commit, push, and
+    branch-mutation capabilities remain unavailable". On the Claude surfaces
+    that is a prompt obligation the agent holds, not a control the harness
+    enforces, and this test is the honest pin on that gap rather than a
+    silence. See the comment on `MUTATING_GIT_THE_PROMPT_FORBIDS` for why the
+    denial cannot be scoped to one subagent and what denying it session-wide
+    would cost.
+
+    If Claude Code ever gains a per-subagent permission surface, this test is
+    the one to delete, and the deny rules move there rather than into
+    `.claude/settings.json`.
+    """
+    assert not _denied_by(command, _deny_rules()), (
+        f"{command!r} is denied in .claude/settings.json. That file has no "
+        f"subagent scope, so this denies the command for every agent and for "
+        f"the repository's own commit, push, and conflict-resolution "
+        f"automation. Enforce the limit with a subagent-scoped PreToolUse "
+        f"hook under ADR-097 review, not with a session-wide deny."
+    )
+
+
+def test_the_matcher_would_catch_a_session_wide_mutation_deny() -> None:
+    """Negative control: the test above is not vacuous.
+
+    It asserts an absence, so it would pass against a matcher that had stopped
+    detecting anything. This proves the matcher still fires on the exact rules
+    the test exists to keep out of `.claude/settings.json`.
+    """
+    hypothetical = [
+        "Bash(git commit *)",
+        "Bash(git push *)",
+        "Bash(git checkout *)",
+        "Bash(git reset *)",
+    ]
+
+    undetected = [
+        command
+        for command in MUTATING_GIT_THE_PROMPT_FORBIDS
+        if not _denied_by(command, hypothetical)
+    ]
+
+    assert undetected == [], (
+        f"The matcher does not detect a whole-subcommand deny for: {undetected}. "
+        f"Until it does, the absence assertion above proves nothing."
     )
 
 
