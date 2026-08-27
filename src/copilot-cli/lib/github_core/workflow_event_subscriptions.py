@@ -62,11 +62,13 @@ import yaml
 
 __all__ = [
     "DEFAULT_PULL_REQUEST_TYPES",
+    "PULL_REQUEST_RECOVERY_EVENTS",
     "RECOVERY_EVENTS",
     "WorkflowSubscriptions",
     "declared_required_contexts",
     "load_workflow_subscriptions",
     "parse_workflow_subscriptions",
+    "pin_to_head_ref",
     "subscribes_to",
 ]
 
@@ -92,6 +94,19 @@ DEFAULT_PULL_REQUEST_TYPES: frozenset[str] = frozenset(
 RECOVERY_EVENTS: frozenset[str] = frozenset(
     {"synchronize", "reopened", "workflow_dispatch", "rerun"}
 )
+
+# The subset of RECOVERY_EVENTS that GitHub delivers through the
+# pull_request-family triggers, and therefore the only ones whose regeneration
+# is subject to those triggers' `paths`/`paths-ignore` filters.
+#
+# `workflow_dispatch` fires its own trigger, which has no path filters at all,
+# and `rerun` re-executes an existing run through the Actions API without
+# evaluating any trigger. Applying a `pull_request: paths:` filter to either
+# rejects a recovery mode that filter cannot affect: measured on this
+# repository's corpus, 6 workflow files declare `paths` on `pull_request`, so
+# scoping this correctly is the difference between two usable recovery modes
+# and none for those workflows.
+PULL_REQUEST_RECOVERY_EVENTS: frozenset[str] = frozenset({"synchronize", "reopened"})
 
 _PULL_REQUEST_TRIGGERS = ("pull_request", "pull_request_target")
 
@@ -315,6 +330,54 @@ def subscribes_to(subscriptions: WorkflowSubscriptions, event: str) -> bool:
     return event in subscriptions.pull_request_types
 
 
+def pin_to_head_ref(
+    head: WorkflowSubscriptions, base: WorkflowSubscriptions | None
+) -> WorkflowSubscriptions:
+    """Combine a pull request's own workflow definition with the base branch's.
+
+    ``head`` is the definition parsed from the ref GitHub will evaluate for the
+    pull request (its merge ref), and ``base`` is the same workflow as the base
+    branch declares it, or None when the base corpus has no file at that path.
+
+    The three fields answer three different questions, so they combine three
+    different ways:
+
+    - ``pull_request_types`` comes from ``head`` alone. GitHub evaluates the
+      merge commit's workflow file for pull_request-family events, so a pull
+      request that adds ``reopened`` really does get ``reopened`` on reopen and
+      one that drops it really does not. Reading the base branch here is what
+      let a pull request whose own workflow omits ``reopened`` verify against a
+      healthy checkout and be cancelled with no recovery path.
+    - ``has_workflow_dispatch`` needs both. GitHub lists a workflow for manual
+      dispatch only when it exists with that trigger on the repository's
+      default branch, so a pull request that adds ``workflow_dispatch`` cannot
+      be dispatched until it merges. Absent ``base``, this is False.
+    - ``job_names``, ``job_name_prefixes``, and ``has_path_filters`` take the
+      union, the same polarity :func:`_narrow_to_shared` uses: a context either
+      definition publishes is a context the cancellation might remove, and a
+      path filter on either side means the run might not regenerate.
+    """
+    if base is None:
+        return WorkflowSubscriptions(
+            name=head.name,
+            pull_request_types=head.pull_request_types,
+            has_workflow_dispatch=False,
+            job_names=head.job_names,
+            job_name_prefixes=head.job_name_prefixes,
+            has_path_filters=head.has_path_filters,
+        )
+    return WorkflowSubscriptions(
+        name=head.name,
+        pull_request_types=head.pull_request_types,
+        has_workflow_dispatch=(
+            head.has_workflow_dispatch and base.has_workflow_dispatch
+        ),
+        job_names=head.job_names | base.job_names,
+        job_name_prefixes=head.job_name_prefixes | base.job_name_prefixes,
+        has_path_filters=head.has_path_filters or base.has_path_filters,
+    )
+
+
 def _narrow_to_shared(
     first: WorkflowSubscriptions, second: WorkflowSubscriptions
 ) -> WorkflowSubscriptions:
@@ -359,12 +422,21 @@ def load_workflow_subscriptions(
     skipped rather than raising: one malformed workflow must not prevent the
     guard from reporting on the rest, and an absent entry already fails closed.
 
-    A filename key always describes exactly that file. A ``name:`` key that two
-    or more files declare describes all of them, narrowed by
-    :func:`_narrow_to_shared` to the events every one of them subscribes to.
-    Declared names are collected separately and merged in with ``setdefault`` so
-    a ``name:`` that collides with a different file's filename cannot displace
-    or narrow that file's own entry.
+    Every key that two or more workflow files can answer to is narrowed by
+    :func:`_narrow_to_shared` to what all of its claimants share. Two files
+    claim one key in two ways, and both must narrow:
+
+    - Two files declaring the same ``name:``.
+    - One file's declared ``name:`` equal to another file's filename. A run
+      record supplies the declared name, so a lookup of ``"release.yml"``
+      cannot tell the file named ``release.yml`` from the file that declares
+      ``name: release.yml``. Keeping only the filename record (the previous
+      ``setdefault`` behavior) drops the other claimant and can verify a
+      recovery event the run's real workflow does not subscribe to.
+
+    Narrowing a record with itself is a no-op (intersection with self is self,
+    union with self is self), so a file whose ``name:`` equals its own filename
+    is unaffected.
     """
     subscriptions: dict[str, WorkflowSubscriptions] = {}
     by_declared_name: dict[str, WorkflowSubscriptions] = {}
@@ -389,5 +461,8 @@ def load_workflow_subscriptions(
             )
 
     for name, merged in by_declared_name.items():
-        subscriptions.setdefault(name, merged)
+        existing = subscriptions.get(name)
+        subscriptions[name] = (
+            merged if existing is None else _narrow_to_shared(existing, merged)
+        )
     return subscriptions
