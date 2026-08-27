@@ -134,6 +134,16 @@
     }
   ],
   "endingCommit": "fd1e1cde8834d1b85e209da3397bbb7acf5fb43b",
+  "episodeMetrics": {
+    "commitHead": "db3a44323827e752c7f7afe0d32ba5edae25cb8d",
+    "filesChanged": 6,
+    "comparison": {
+      "kind": "githubPullRequest",
+      "pullRequest": 5049,
+      "base": "3532ac5c0a",
+      "head": "fd1e1cde8834d1b85e209da3397bbb7acf5fb43b"
+    }
+  },
   "nextSteps": [],
   "testsAdded": 17,
   "testsPassing": true,
