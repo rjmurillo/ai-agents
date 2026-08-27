@@ -115,6 +115,23 @@ class TestRawHtmlIsADestructiveGap:
         configuration decides whether it runs is not a ratchet.
         """
         assert len(self.OPENERS) == 10
+        # Identity, not just arity. Replacing one HTML block type with a
+        # duplicate of another keeps 10 openers and 20 corruptions, so the
+        # class would silently stop covering a CommonMark type while staying
+        # green. Same defect as the case digest that hashed names only.
+        assert len({o for o, _ in self.OPENERS}) == 10, "an opener is duplicated"
+        assert sorted(o for o, _ in self.OPENERS) == [
+            "<!-- c",
+            "<!DOCTYPE",
+            "<![CDATA[",
+            "<?php",
+            "<div>",
+            "<pre>",
+            "<script>",
+            "<style>",
+            "<table>",
+            "<x-tag>",
+        ]
         assert len(self._shapes()) == 20
         assert len(self.CLEAN_SHAPES) == 4
         # The headroom that lets the count rise. Without it the assertion below
@@ -306,3 +323,147 @@ class TestEscapedTabInASingleLineDestinationIsDestructive:
             if self._corrupts("[" + "f" * n + "]: /u\\ rl\n2. ```\n   code\n   ```\n")
         ]
         assert hits == [], f"the escaped-space sibling corrupted at lengths {hits}"
+
+
+class TestBlockquoteInterruptingAParagraphIsDestructive:
+    """The gap this module's docstring named and nothing measured.
+
+    A blockquote prefix is never stripped. That costs two different things,
+    and only one of them is a miss. A fence INSIDE a `>` block is invisible
+    and `--write` leaves it alone. A blockquote INTERRUPTING a paragraph is
+    destructive: CommonMark ends the paragraph and lazily continues the
+    quote, so a following marker opens a list and the fence closes with it,
+    while this scanner keeps the paragraph open and appends a closer to a
+    document the reference parser reads as balanced.
+
+    A review caught that the module docstring listed four destructive gaps
+    while only three classes existed here, so the blockquote count could
+    drift without failing anything. It was the one gap named in the
+    acceptance criteria as pinned and in fact pinned nowhere.
+
+    The shape set below is this module's own, not the twelve the shipped
+    prose was measured over, so the counts are not comparable with that
+    entry and are not meant to be. What both measurements agree on is that
+    the family writes.
+    """
+
+    SHAPES = {
+        "interrupts, ordered 2": "text\n> q\nmore\n2. ```\n   code\n   ```\n",
+        "interrupts, ordered 1": "text\n> q\nmore\n1. ```\n   code\n   ```\n",
+        "interrupts, bullet": "text\n> q\nmore\n- ```\n  code\n  ```\n",
+        "interrupts, no lazy line": "text\n> q\n2. ```\n   code\n   ```\n",
+        "interrupts, two quote lines": "text\n> q\n> r\nmore\n2. ```\n   code\n   ```\n",
+        "quote at start, no paragraph": "> q\nmore\n2. ```\n   code\n   ```\n",
+        "fence inside the quote": "> ```\n> code\n> ```\n",
+        "fence inside quote, unclosed": "> ```\n> code\n",
+        "quote then plain fence": "text\n> q\n\n```\ncode\n```\n",
+        "no quote at all": "text\nplain\nmore\n2. ```\n   code\n   ```\n",
+        "interrupts, tilde fence": "text\n> q\nmore\n2. ~~~\n   code\n   ~~~\n",
+        "interrupts, deeper indent": "text\n> q\nmore\n3. ```\n   code\n   ```\n",
+    }
+
+    #: Measured. Unsaturated on purpose: 5 of 12, so the count can rise as
+    #: well as fall, which the raw-HTML class originally could not.
+    CORRUPTING = 5
+
+    def test_the_shape_set_is_pinned(self) -> None:
+        """Not parametrized, so emptying SHAPES cannot disarm the count."""
+        assert len(self.SHAPES) == 12
+
+    def test_the_corruption_count_has_not_moved(self) -> None:
+        hits = [
+            name
+            for name, text in self.SHAPES.items()
+            if repair_markdown_fences(text) != text
+            and not _has_unclosed_fence(text)
+            and _has_unclosed_fence(repair_markdown_fences(text))
+        ]
+        assert len(hits) == self.CORRUPTING, (
+            f"{len(hits)} of {len(self.SHAPES)} blockquote shapes turn balanced into "
+            f"unclosed, pinned at {self.CORRUPTING}. Lower the pin if a fix closed part "
+            f"of the gap; a rise means it spread. Currently: {sorted(hits)}"
+        )
+
+    def test_a_fence_inside_a_quote_is_a_miss_and_not_a_write(self) -> None:
+        """The half of this gap that really is write-safe, asserted separately.
+
+        The shipped prose distinguishes these two, so the tests must too, or
+        a regression that started writing here would be absorbed by the count
+        above.
+        """
+        for text in ("> ```\n> code\n> ```\n", "> ```\n> code\n"):
+            assert repair_markdown_fences(text) == text, (
+                f"a fence inside a blockquote used to be left alone: {text!r}"
+            )
+
+
+class TestAMistakenCloserCanLeaveTheDocumentUnclosed:
+    """The only gap on this list that a file in THIS repository reaches.
+
+    The other four are hand-constructed shapes. This one is a tracked file.
+
+    A review pointed out that the fuzz corruption ratchet classified a repair
+    by EDIT SHAPE: `repaired.startswith(text)` meant an append, anything else
+    meant a middle rewrite, and only appends were asserted against. A repair
+    that rewrites the middle AND grows the document therefore failed
+    `startswith`, landed in the middle-rewrite count, and never reached the
+    zero-append assertion.
+
+    Chasing that produced this. The tool treats a fence carrying an info
+    string inside an open block as a mistaken closer, which is a deliberate
+    divergence from CommonMark and is normally harmless: it splits one fence
+    into two and the document stays balanced. On one arrangement it does not.
+    `--write` inserts a closer before the inner fence and appends another at
+    EOF, and the appended one is a fresh OPENER with nothing to close it.
+
+    Measured on the file below, and confirmed against `markdown-it` directly
+    rather than only through the balance predicate, because that predicate has
+    carried three separate bugs on this branch:
+
+        before: 1 fence token, map=[28, 38], does not reach EOF -> balanced
+        after : 3 fence tokens, the last map=[68, 69] reaching EOF with an
+                empty body and no closer -> unclosed
+
+    Across all 4,533 tracked Markdown files this is the only one, and the
+    corpus-wide scan that establishes that takes 18.5s, which is too slow for
+    this suite. So the count lives here in prose and the file itself is the
+    pin. Re-run the sweep when this changes.
+
+    The consequence for the PR's headline claim is stated rather than hidden:
+    "`--write` appends to no balanced document" was true and was measuring the
+    wrong property. Balanced-stays-balanced is the property, and by it this
+    repository has one failing file today.
+    """
+
+    FILE = "serena/memories/prompting/prompt-engineering-merge-conflict-analysis.md"
+
+    def _path(self) -> Path:
+        # Assembled rather than written whole: a literal path to a dotfile
+        # directory in a test is the kind of string a future sweep rewrites.
+        return Path(__file__).resolve().parents[3] / f".{self.FILE}"
+
+    def test_the_file_is_still_here_and_still_balanced(self) -> None:
+        """Without this, deleting or fixing the file makes the pin vacuous."""
+        path = self._path()
+        assert path.is_file(), (
+            f"{path} is gone. The corruption pin below cannot mean anything "
+            "without it; re-run the corpus sweep and re-derive this class."
+        )
+        assert not _has_unclosed_fence(path.read_text(encoding="utf-8")), (
+            "the input is supposed to be balanced; if it is not, this is no "
+            "longer the corruption case it was written for"
+        )
+
+    def test_write_still_breaks_it(self) -> None:
+        text = self._path().read_text(encoding="utf-8")
+        repaired = repair_markdown_fences(text)
+        assert repaired != text, "the repair no longer touches this file"
+        # The shape the old assertion could not see: not an append.
+        assert not repaired.startswith(text), (
+            "this became a pure append, which the shape-based assertion would "
+            "now catch; re-derive this class"
+        )
+        assert _has_unclosed_fence(repaired), (
+            "--write no longer leaves this file unclosed. If a fix did that, "
+            "delete this class and lower the corpus count in the PR body to 0."
+        )

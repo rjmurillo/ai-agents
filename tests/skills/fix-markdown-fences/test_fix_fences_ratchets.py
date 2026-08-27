@@ -160,6 +160,28 @@ class TestScannerParity:
             f"seed {seed}: --write mutated {len(mutated)} balanced document(s). "
             f"First: {mutated[0]!r}" if mutated else ""
         )
+        # The assertion above classifies by EDIT SHAPE, and a review showed
+        # that shape can hide the damage: a repair that rewrites the middle
+        # AND appends a closer fails `startswith`, so it lands in `rewritten`
+        # and the zero-append assertion never sees it. Measured, all seven of
+        # the middle rewrites across these seeds also grow the document, so
+        # the blind spot is occupied rather than theoretical.
+        #
+        # This asserts the OUTCOME instead, which no edit shape can evade: a
+        # document the reference parser reads as balanced must still read as
+        # balanced after the repair. That is the property the shape test was
+        # standing in for, and it is the same one the known-corruption pins
+        # use.
+        broke = [
+            text
+            for text in random_documents(seed)
+            if not _has_unclosed_fence(text)
+            and _has_unclosed_fence(repair_markdown_fences(text))
+        ]
+        assert broke == [], (
+            f"seed {seed}: --write turned {len(broke)} balanced document(s) into "
+            f"unclosed ones. First: {broke[0]!r}" if broke else ""
+        )
 
     @pytest.mark.parametrize("seed", sorted(FUZZ_BASELINE))
     def test_the_detector_and_the_repair_never_disagree(self, seed: int) -> None:
