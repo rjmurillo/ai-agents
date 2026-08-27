@@ -93,25 +93,41 @@ def test_a_second_no_op_arm_is_visible_to_the_dispatch_extractor() -> None:
     )
 
 
-@pytest.mark.parametrize("doc", [COMMAND_PATH, MIRROR_PATH])
-def test_skip_is_recognized_but_never_dispatched(doc: Path) -> None:
-    """Recognized is not actionable, and conflating them put SKIP on the acting path.
+# Recognized but never dispatched: the tier table gives each of these an action
+# that is not "keep working this PR", so neither may reach the gates.
+#
+# - SKIP ("Draft, merged, or closed", "No action"). Recognizing it in the
+#   pass-through arm let it reach the auto-merge disarm gate, where `SKIP != T1`
+#   holds, so a PR that went draft, merged, or closed after the live-state gate
+#   ran would have had auto-merge stripped by a loop that had just decided it
+#   was non-actionable.
+# - UNSUPPORTED (`mergeStateStatus` with no verified merge path). Dispatching it
+#   routes a PR with zero threads and zero CI failures into the T3/T4 round-cap
+#   thread-fix loop, which has no action to take and terminates only by burning
+#   the round cap and posting an escalation comment. Unlike SKIP it terminates
+#   after the disarm gate, not before, because "armed but not provably T1" is
+#   exactly true of it.
+_TERMINAL_TIERS = frozenset({"SKIP", "UNSUPPORTED"})
 
-    The command's own tier table reads `| SKIP | Draft, merged, or closed | No
-    action |`. Recognizing SKIP in the pass-through arm let it reach the
-    auto-merge disarm gate, where `SKIP != T1` holds, so a PR that went draft,
-    merged, or closed after the live-state gate ran would have had auto-merge
-    stripped by a loop that had just decided it was non-actionable.
-    """
+
+@pytest.mark.parametrize("doc", [COMMAND_PATH, MIRROR_PATH])
+def test_terminal_tiers_are_recognized_but_never_dispatched(doc: Path) -> None:
+    """Recognized is not actionable, and conflating them put SKIP on the acting path."""
     declared = declared_tiers()
     assert declared is not None
+    assert _TERMINAL_TIERS <= frozenset(declared), (
+        f"the producer no longer declares {sorted(_TERMINAL_TIERS - frozenset(declared))}; "
+        "update this list rather than the assertion below."
+    )
 
     dispatched = dispatched_tiers(doc.read_text(encoding="utf-8"))
     assert dispatched is not None, f"{doc.name} has no tier guard"
 
-    assert "SKIP" not in dispatched, (
-        f"{doc.name} dispatches SKIP, which the tier table defines as no action."
+    assert not (dispatched & _TERMINAL_TIERS), (
+        f"{doc.name} dispatches {sorted(dispatched & _TERMINAL_TIERS)}, which the tier "
+        "table defines as terminal."
     )
-    assert dispatched == frozenset(declared) - {"SKIP"}, (
-        f"{doc.name} dispatches {sorted(dispatched)}; expected every declared tier but SKIP."
+    assert dispatched == frozenset(declared) - _TERMINAL_TIERS, (
+        f"{doc.name} dispatches {sorted(dispatched)}; expected every declared tier "
+        f"except {sorted(_TERMINAL_TIERS)}."
     )
