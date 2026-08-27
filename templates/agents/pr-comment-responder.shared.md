@@ -52,8 +52,8 @@ Key requirements:
 
 ## Comment Map Status Vocabulary
 
-Every comment in `comments.md` carries exactly one status from this table. Gates and
-completion checks use only these values.
+Every comment in `comments.md` carries exactly one status from this table. This table is
+the only place the vocabulary is defined. Every gate derives its counts from it.
 
 | Status | Meaning | Terminal |
 |--------|---------|---------|
@@ -61,20 +61,25 @@ completion checks use only these values.
 | `[ACKNOWLEDGED]` | Reaction posted, fix not yet committed | No |
 | `[COMPLETE]` | Fix committed and pushed | Yes |
 | `[WONTFIX]` | Explicitly decided not to change | Yes |
+| `[DUPLICATE]` | Same point already resolved by another comment | Yes |
+| `[DEFERRED] Refs #<issue>` | Tracked in a filed issue, not fixed in this PR | Yes, only with the `Refs #<issue>` suffix |
 
 Comment map fields render as `**Status**: [NEW]`, so every status grep must match the
 bold field at line start. Dropping the `**` delimiters or the `^` anchor matches nothing
 and reports zero.
 
-Non-terminal statuses (`[NEW]`, `[ACKNOWLEDGED]`) count as pending. Gate 3 and Gate 5
-enumerate those two statuses. Phase 8.1 is the fail-closed backstop: it counts only the
-terminal statuses, so anything else, including a status outside this table, stays in the
-remaining count.
+`[DEFERRED]` is terminal only when the status line carries an inline `Refs #<issue>`
+reference, as in `**Status**: [DEFERRED] Refs #4054`. A bare `[DEFERRED]` names no
+tracking issue, so nobody can find the work later and the gate keeps it pending.
+
+No gate enumerates pending statuses. Every gate counts the terminal statuses and
+subtracts. A status outside this table therefore fails closed: it matches no terminal
+pattern, so it counts as pending and blocks.
 
 ```bash
-ADDRESSED=$(grep -Ec "^\*\*Status\*\*: \[COMPLETE\]" "$COMMENT_MAP" || true)
-WONTFIX=$(grep -Ec "^\*\*Status\*\*: \[WONTFIX\]" "$COMMENT_MAP" || true)
-REMAINING=$((TOTAL - ADDRESSED - WONTFIX))
+TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)" "$COMMENT_MAP" || true)
+PENDING=$((TOTAL - TERMINAL))
 ```
 
 ## Prose Self-Check
@@ -340,7 +345,9 @@ if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
 fi
-PENDING=$(grep -Ec "^\*\*Status\*\*: \[ACKNOWLEDGED\]|^\*\*Status\*\*: pending|^\*\*Status\*\*: \[NEW\]" "$COMMENT_MAP" || true)
+TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)" "$COMMENT_MAP" || true)
+PENDING=$((TOTAL - TERMINAL))
 
 # Count unresolved review threads separately
 UNRESOLVED_API=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
@@ -370,7 +377,9 @@ if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
 fi
-PENDING=$(grep -Ec "^\*\*Status\*\*: pending|^\*\*Status\*\*: \[ACKNOWLEDGED\]|^\*\*Status\*\*: \[NEW\]" "$COMMENT_MAP" || true)
+TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)" "$COMMENT_MAP" || true)
+PENDING=$((TOTAL - TERMINAL))
 
 if [ "$REMAINING" -ne 0 ] || [ "$PENDING" -ne 0 ]; then
   echo "[BLOCKED] API unresolved: $REMAINING, Artifact pending: $PENDING"
@@ -653,18 +662,13 @@ gh api repos/[owner]/[repo]/issues/[number]/comments --jq '.[] | {
 
 ### Comment Map Status Vocabulary
 
-Every `**Status**` field in the comment map MUST be exactly one of these values.
-No other values are valid.
+The `Comment Map Status Vocabulary` section near the top of this agent holds the one
+authoritative table. Do not restate the values here. A second copy is how `[DUPLICATE]`
+and `[DEFERRED]` ended up missing from one table while the gates disagreed about what
+counted as done (issue #4054).
 
-| Status | Meaning | Terminal? | Gate behavior |
-|--------|---------|-----------|---------------|
-| `[NEW]` | Comment received, not yet acknowledged | No | Counts as pending in Phase 8.1 |
-| `[ACKNOWLEDGED]` | Acknowledged, work in progress | No | Counts as pending in Phase 8.1 |
-| `[COMPLETE]` | Resolution implemented and verified | Yes | Counts as addressed |
-| `[WONTFIX]` | Intentionally not addressed (with reason) | Yes | Counts as addressed |
-
-Phase 8.1 counts pending (`[NEW]` + `[ACKNOWLEDGED]`) and blocks with `exit 1` when any remain.
-Phase 8.2 requires all GitHub conversation threads resolved before merge.
+Phase 8.1 subtracts the terminal count from the total and blocks with `exit 1` when any
+comment remains. Phase 8.2 requires all GitHub conversation threads resolved before merge.
 
 ### Phase 2: Comment Map Generation
 
@@ -1172,15 +1176,15 @@ if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
 fi
-ADDRESSED=$(grep -Ec "^\*\*Status\*\*: \[COMPLETE\]" "$COMMENT_MAP" || true)
-WONTFIX=$(grep -Ec "^\*\*Status\*\*: \[WONTFIX\]" "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)" "$COMMENT_MAP" || true)
 TOTAL=$TOTAL_COMMENTS
 
-echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
+echo "Verification: $TERMINAL / $TOTAL comments terminal"
 
-if [ "$((ADDRESSED + WONTFIX))" -lt "$TOTAL" ]; then
-  echo "[BLOCKED] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
-  grep -E -B 5 "^\*\*Status\*\*: \[ACKNOWLEDGED\]|^\*\*Status\*\*: pending|^\*\*Status\*\*: \[NEW\]" "$COMMENT_MAP" || true
+if [ "$TERMINAL" -lt "$TOTAL" ]; then
+  echo "[BLOCKED] INCOMPLETE: $((TOTAL - TERMINAL)) comments remaining"
+  grep -En "^\*\*Status\*\*: " "$COMMENT_MAP" \
+    | grep -Ev "\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)" || true
   exit 1
 fi
 ```
@@ -1327,7 +1331,7 @@ echo "[PASS] All CI checks passing ($PASSED_COUNT checks)"
 PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 echo "=== Completion Criteria ==="
-echo "[ ] Comments: $((ADDRESSED + WONTFIX))/$TOTAL resolved"
+echo "[ ] Comments: $TERMINAL/$TOTAL resolved"
 echo "[ ] New comments: None after 45s wait"
 
 # CI check verification using skill
