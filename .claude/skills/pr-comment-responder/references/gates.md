@@ -41,13 +41,42 @@ fi
 
 ## Gate 3: Artifact Update After Fix
 
-**After EVERY fix commit**: Update artifact status atomically.
+**After EVERY terminal outcome**: Update BOTH artifacts atomically.
+
+Gate 4, Gate 5, and Phase 8.1 count `comments.md` and nothing else. A step that
+moves only `tasks.md` leaves every status at the value the comment map was
+generated with, so pending never reaches zero and Phase 8 blocks on finished
+work. Set `TERMINAL_STATUS` to the value the agent's `Comment Map Status
+Vocabulary` table marks terminal for this outcome.
 
 ```bash
-sed -i "s/TASK-$COMMENT_ID.*pending/TASK-$COMMENT_ID ... [COMPLETE]/" \
-  .agents/pr-comments/PR-[number]/tasks.md
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+TASK_LIST=".agents/pr-comments/PR-[number]/tasks.md"
+TERMINAL_STATUS="[COMPLETE]"
 
-grep "TASK-$COMMENT_ID.*COMPLETE" .agents/pr-comments/PR-[number]/tasks.md || exit 1
+# The id reaches a sed address, so refuse anything but digits (CWE-78).
+case "$COMMENT_ID" in
+  ''|*[!0-9]*) echo "[BLOCKED] COMMENT_ID is not numeric: $COMMENT_ID"; exit 1 ;;
+esac
+
+# Refuse a status the gates will not accept, before anything is written. The
+# pattern is Gate 4's, so a value that clears here clears there, and the four
+# shapes it admits carry no sed metacharacter.
+printf '%s\n' "**Status**: $TERMINAL_STATUS" \
+  | grep -Eq "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" || {
+    echo "[BLOCKED] TERMINAL_STATUS is not a terminal value: $TERMINAL_STATUS"
+    exit 1
+  }
+
+sed -i "s/TASK-$COMMENT_ID.*pending/TASK-$COMMENT_ID ... $TERMINAL_STATUS/" "$TASK_LIST"
+sed -i "/^### Comment $COMMENT_ID /,/^---$/ s|^\*\*Status\*\*: .*$|**Status**: $TERMINAL_STATUS|" "$COMMENT_MAP"
+
+grep -F "TASK-$COMMENT_ID ... $TERMINAL_STATUS" "$TASK_LIST" || exit 1
+sed -n "/^### Comment $COMMENT_ID /,/^---$/p" "$COMMENT_MAP" \
+  | grep -qxF "**Status**: $TERMINAL_STATUS" || {
+    echo "[BLOCKED] Comment $COMMENT_ID is not $TERMINAL_STATUS in $COMMENT_MAP"
+    exit 1
+  }
 ```
 
 ## Gate 4: State Synchronization Before Resolution
