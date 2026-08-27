@@ -1,3 +1,6 @@
+# taste-lint: ignore file-size, one contract across nine carriers; splitting it
+# would duplicate the carrier list, the canonical patterns, and the comment-map
+# fixtures that every case here shares.
 """Regression coverage for pr-comment-responder comment-map status greps.
 
 Issue #4034: the workflow greps searched for ``Status: [X]`` while the
@@ -12,16 +15,28 @@ gate passed; Phase 8.1 subtracted the terminal statuses, so the same status
 blocked. Every gate now derives pending by subtracting the terminal count, so
 an unrecognized status fails closed everywhere.
 
+Subtraction alone still fails open on a corrupted map: strip every
+``**Status**:`` field and both counts read zero, so the difference is zero
+pending and the gate clears an artifact that describes nothing. Every gate now
+also compares ``TOTAL`` against ``$TOTAL_COMMENTS``, the API count Phase 1
+recorded, and blocks when the two disagree.
+
 The counting tests read the quoted argument out of the carrier and hand it to a
 real ``grep -Ec`` subprocess against a rendered comment map. A Python ``re``
 mirror cannot catch a shell-side typo, because the engines disagree silently:
 ``\\d`` is a digit class in Python and a literal ``d`` in POSIX ERE. See
 ``test_python_regex_mirror_would_miss_an_ere_typo``.
+
+The structural tests parse each fenced block separately and hold each one to the
+whole derivation. Flattening every grep in a carrier and asking whether the
+canonical pattern appears somewhere lets one gate drop a step while a sibling
+gate's intact copy keeps the assertion green.
 """
 
 from __future__ import annotations
 
 import re
+import shlex
 import shutil
 import subprocess
 from collections.abc import Sequence
@@ -32,6 +47,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 GREP = shutil.which("grep")
+BASH = shutil.which("bash")
 
 # The shared template generates VS Code and Copilot CLI source copies via
 # build/generate_agents.py. src/claude and installed agent copies are
@@ -95,6 +111,43 @@ FAIL_CLOSED_DERIVATION = "PENDING=$((TOTAL - TERMINAL))"
 # The guard that proves the comment map exists before any gate counts it.
 MAP_EXISTS_GUARD = 'if [ ! -f "$COMMENT_MAP" ]; then'
 
+# The two counting assignments as the carriers publish them, shell text and all.
+TOTAL_ASSIGNMENT_TEXT = f'TOTAL=$(grep -Ec "{STATUS_LINE_PATTERN}" "$COMMENT_MAP" || true)'
+TERMINAL_ASSIGNMENT_TEXT = f'TERMINAL=$(grep -Ec "{TERMINAL_PATTERN}" "$COMMENT_MAP" || true)'
+
+# The guard that proves the map is complete before the subtraction is trusted.
+# A map whose status fields were stripped counts zero total and zero terminal,
+# so the difference is zero pending and the gate clears an empty artifact.
+API_COUNT_INVARIANT = (
+    'if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then\n'
+    '  echo "[BLOCKED] Comment map carries $TOTAL status fields, '
+    'API reported $TOTAL_COMMENTS"\n'
+    "  exit 1\n"
+    "fi"
+)
+
+# Every step a fence that counts the comment map must publish, in this order.
+REQUIRED_DERIVATION_STEPS: tuple[str, ...] = (
+    MAP_EXISTS_GUARD,
+    TOTAL_ASSIGNMENT_TEXT,
+    TERMINAL_ASSIGNMENT_TEXT,
+    FAIL_CLOSED_DERIVATION,
+    API_COUNT_INVARIANT,
+)
+
+# The sections that own a counting fence. Hardcoded, never discovered from the
+# file: a carrier that loses Gate 4's fence must fail, not drop out of the set.
+VOCABULARY_SECTION_KEY = "Comment Map Status Vocabulary"
+GATE_SECTION_KEYS: tuple[str, ...] = ("Gate 4", "Gate 5", "Phase 8.1")
+SECTION_KEYS: tuple[str, ...] = (VOCABULARY_SECTION_KEY, *GATE_SECTION_KEYS)
+
+EXPECTED_DERIVATION_SECTIONS: dict[Path, frozenset[str]] = {
+    **{path: frozenset(SECTION_KEYS) for path in VOCABULARY_CARRIERS},
+    **{path: frozenset(GATE_SECTION_KEYS) for path in GATE_REFERENCE_CARRIERS},
+}
+
+MARKDOWN_HEADING_RE = re.compile(r"^#{1,6}\s+(?P<title>.+?)\s*$")
+
 # Any quoted argument to a grep invocation, whatever the flags.
 GREP_ANY_PATTERN_RE = re.compile(r"grep [^\"\n]*\"([^\"]+)\"")
 # Counting greps, complement greps, and the two named assignments.
@@ -130,14 +183,46 @@ SAMPLE_TOTAL_STATUS_LINES = 11
 SAMPLE_TERMINAL_LINES = 5
 SAMPLE_PENDING_LINES = SAMPLE_TOTAL_STATUS_LINES - SAMPLE_TERMINAL_LINES
 
+# Three comments the API reported, all of them worked to a terminal status.
+API_COMMENT_COUNT = 3
+COMPLETE_COMMENT_MAP_LINES: tuple[str, ...] = (
+    "### Comment 123 (@reviewer)",
+    "**Status**: [COMPLETE]",
+    "### Comment 124 (@reviewer)",
+    "**Status**: [WONTFIX]",
+    "### Comment 125 (@reviewer)",
+    "**Status**: [DEFERRED] Refs #4054",
+)
+
+# The same map after a bad edit stripped every status field. Both counts read
+# zero, so the subtraction reports zero pending on an artifact that records
+# nothing about the three comments the API said exist.
+STRIPPED_COMMENT_MAP_LINES: tuple[str, ...] = (
+    "### Comment 123 (@reviewer)",
+    "[COMPLETE]",
+    "### Comment 124 (@reviewer)",
+    "[WONTFIX]",
+    "### Comment 125 (@reviewer)",
+    "[DEFERRED] Refs #4054",
+)
+
+# One field survived the edit. Two comments lost theirs, so the map is short.
+PARTIAL_COMMENT_MAP_LINES: tuple[str, ...] = (
+    "### Comment 123 (@reviewer)",
+    "**Status**: [COMPLETE]",
+    "### Comment 124 (@reviewer)",
+    "[WONTFIX]",
+    "### Comment 125 (@reviewer)",
+    "[DEFERRED] Refs #4054",
+)
+
 VOCABULARY_ROW_RE = re.compile(
     r"^\| `\[(?P<status>[A-Z]+)\][^`]*` \| [^|]+ \| (?P<terminal>[^|]+)\|"
 )
 TABLE_HEADER = "| Status | Meaning |"
 
-BASH_FENCE_RE = re.compile(r"```bash\n(.*?)```", re.DOTALL)
-
 requires_grep = pytest.mark.skipif(GREP is None, reason="grep is not on PATH")
+requires_bash = pytest.mark.skipif(BASH is None, reason="bash is not on PATH")
 
 
 def _render_comment_map(tmp_path: Path, lines: Sequence[str]) -> Path:
@@ -181,6 +266,102 @@ def _terminal_statuses_in_pattern(pattern: str) -> set[str]:
 
 def _carrier_id(path: Path) -> str:
     return str(path.relative_to(REPO_ROOT))
+
+
+def _bash_fences(text: str) -> list[tuple[str, str]]:
+    """Return ``(owning heading, fence body)`` for every ``bash`` fence.
+
+    Every fenced block is consumed, not only the bash ones, so a ``#`` comment
+    inside a ``text`` or ``python`` fence cannot be mistaken for a heading and
+    mislabel the next bash fence.
+    """
+    fences: list[tuple[str, str]] = []
+    heading = ""
+    lines = text.splitlines()
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        if line.startswith("```"):
+            opener = line.strip()
+            index += 1
+            body: list[str] = []
+            while index < len(lines) and lines[index].strip() != "```":
+                body.append(lines[index])
+                index += 1
+            if opener == "```bash":
+                fences.append((heading, "\n".join(body) + "\n"))
+            index += 1
+            continue
+        match = MARKDOWN_HEADING_RE.match(line)
+        if match is not None:
+            heading = match.group("title")
+        index += 1
+    return fences
+
+
+def _section_key(heading: str) -> str | None:
+    for key in SECTION_KEYS:
+        if heading.startswith(key):
+            return key
+    return None
+
+
+def _counting_fences(text: str) -> list[tuple[str, str]]:
+    """Every bash fence that counts status fields out of the comment map."""
+    return [
+        (heading, body)
+        for heading, body in _bash_fences(text)
+        if GREP_COUNT_PATTERN_RE.search(body) and '"$COMMENT_MAP"' in body
+    ]
+
+
+def _derivation_script(
+    fence: str,
+    comment_map: Path,
+    total_comments: int,
+    *,
+    with_invariant: bool = True,
+) -> str:
+    """Lift a fence's counting steps out verbatim and make them runnable.
+
+    The slice runs from the ``TOTAL=`` assignment to the end of the API-count
+    invariant, which is exactly the derivation and excludes the ``gh api``
+    calls the surrounding gate makes. ``COMMENT_MAP`` and ``TOTAL_COMMENTS``
+    are injected because the carrier leaves both to the caller.
+    """
+    assert TOTAL_ASSIGNMENT_TEXT in fence, "fence publishes no canonical TOTAL assignment"
+    assert API_COUNT_INVARIANT in fence, (
+        "fence publishes no API-count invariant, so a stripped comment map "
+        "computes zero pending and clears the gate"
+    )
+    start = fence.index(TOTAL_ASSIGNMENT_TEXT)
+    end = fence.index(API_COUNT_INVARIANT) + len(API_COUNT_INVARIANT)
+    body = fence[start:end]
+    if not with_invariant:
+        body = body.replace(API_COUNT_INVARIANT, ":")
+    return (
+        f"COMMENT_MAP={shlex.quote(str(comment_map))}\n"
+        f"TOTAL_COMMENTS={total_comments}\n"
+        f"{body}\n"
+        'echo "PENDING=$PENDING"\n'
+    )
+
+
+def _run_derivation(script: str) -> subprocess.CompletedProcess[str]:
+    assert BASH is not None
+    return subprocess.run(
+        [BASH, "-c", script],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _gate_four_fence(path: Path) -> str:
+    for heading, body in _counting_fences(path.read_text(encoding="utf-8")):
+        if _section_key(heading) == "Gate 4":
+            return body
+    raise AssertionError(f"{_carrier_id(path)} publishes no Gate 4 counting fence")
 
 
 # The published patterns, executed by the shell they are written for.
@@ -278,6 +459,62 @@ def test_grep_runner_fails_loudly_on_a_pattern_grep_refuses(tmp_path: Path) -> N
 
 
 @pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_every_counting_fence_publishes_the_whole_derivation(path: Path) -> None:
+    """Each fence, on its own, must carry every step in order.
+
+    Flattening the file and asking whether each step appears somewhere lets one
+    gate drop its subtraction, or its API-count invariant, while a sibling
+    gate's intact copy keeps the assertion green. The fence is the unit.
+    """
+    fences = _counting_fences(path.read_text(encoding="utf-8"))
+    assert fences, f"{_carrier_id(path)} publishes no fence that counts the comment map"
+
+    for heading, body in fences:
+        offsets: list[int] = []
+        for step in REQUIRED_DERIVATION_STEPS:
+            assert step in body, (
+                f"{_carrier_id(path)} section {heading!r} counts the comment map "
+                f"without publishing {step!r}"
+            )
+            offsets.append(body.index(step))
+        assert offsets == sorted(offsets), (
+            f"{_carrier_id(path)} section {heading!r} publishes the derivation "
+            f"steps out of order; the map-exists guard, the two counts, the "
+            f"subtraction, and the API-count invariant must run in that order"
+        )
+
+
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_every_expected_section_owns_a_counting_fence(path: Path) -> None:
+    """Deleting a gate's fence must fail, not shrink the set under test.
+
+    The expected sections are hardcoded per carrier. A gate that loses its
+    fence stops being checked otherwise, which is how a per-fence assertion
+    silently becomes a no-op.
+    """
+    found = {
+        key
+        for heading, _ in _counting_fences(path.read_text(encoding="utf-8"))
+        if (key := _section_key(heading)) is not None
+    }
+    unkeyed = [
+        heading
+        for heading, _ in _counting_fences(path.read_text(encoding="utf-8"))
+        if _section_key(heading) is None
+    ]
+
+    assert not unkeyed, (
+        f"{_carrier_id(path)} counts the comment map under unrecognized "
+        f"section(s) {unkeyed}; add the section to SECTION_KEYS so the "
+        f"derivation there is checked"
+    )
+    assert found == EXPECTED_DERIVATION_SECTIONS[path], (
+        f"{_carrier_id(path)} counts the comment map in {sorted(found)}, "
+        f"expected {sorted(EXPECTED_DERIVATION_SECTIONS[path])}"
+    )
+
+
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
 def test_every_gate_publishes_the_canonical_patterns(path: Path) -> None:
     """Per-gate, not per-file: one gate dropping [DUPLICATE] must fail.
 
@@ -320,23 +557,98 @@ def test_every_counting_gate_proves_the_comment_map_exists(path: Path) -> None:
     turns that into an empty string, and ``$(( ))`` reads an empty string as 0.
     Every fenced block that counts the map must prove it exists first.
     """
-    text = path.read_text(encoding="utf-8")
-
     unguarded = []
-    for block in BASH_FENCE_RE.findall(text):
-        counting = [m for m in GREP_COUNT_PATTERN_RE.finditer(block) if '"$COMMENT_MAP"' in block]
-        if not counting:
-            continue
-        first_count = min(m.start() for m in counting)
+    for heading, block in _counting_fences(path.read_text(encoding="utf-8")):
+        first_count = min(m.start() for m in GREP_COUNT_PATTERN_RE.finditer(block))
         guard = block.find(MAP_EXISTS_GUARD)
         if guard == -1 or guard > first_count:
-            unguarded.append(block.strip().splitlines()[0])
+            unguarded.append(heading)
 
     assert not unguarded, (
         f"{_carrier_id(path)} counts the comment map without proving it exists "
         f"first, so an absent map computes zero pending and clears the gate "
         f"(issue #4054): {unguarded}"
     )
+
+
+# The API-count invariant, executed by the shell the carriers publish it for.
+
+
+@requires_bash
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_a_stripped_comment_map_blocks_the_gate(path: Path, tmp_path: Path) -> None:
+    """A map whose status fields were stripped must block, not read as done.
+
+    Both counts read zero, so the subtraction reports zero pending. Only the
+    comparison against the API count can tell that apart from a finished map.
+    """
+    comment_map = _render_comment_map(tmp_path, STRIPPED_COMMENT_MAP_LINES)
+    script = _derivation_script(_gate_four_fence(path), comment_map, API_COMMENT_COUNT)
+
+    result = _run_derivation(script)
+
+    assert result.returncode == 1, (
+        f"{_carrier_id(path)} Gate 4 cleared a comment map with every status "
+        f"field stripped: exit {result.returncode}, stdout {result.stdout!r}"
+    )
+    assert "[BLOCKED] Comment map carries 0 status fields, API reported 3" in result.stdout
+    assert "PENDING=" not in result.stdout, (
+        f"{_carrier_id(path)} Gate 4 reached the pending report after the "
+        f"invariant should have exited"
+    )
+
+
+@requires_bash
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_a_partially_stripped_comment_map_blocks_the_gate(path: Path, tmp_path: Path) -> None:
+    """Losing some status fields must block too, not shrink the denominator."""
+    comment_map = _render_comment_map(tmp_path, PARTIAL_COMMENT_MAP_LINES)
+    script = _derivation_script(_gate_four_fence(path), comment_map, API_COMMENT_COUNT)
+
+    result = _run_derivation(script)
+
+    assert result.returncode == 1, (
+        f"{_carrier_id(path)} Gate 4 cleared a comment map holding 1 of 3 "
+        f"status fields: exit {result.returncode}, stdout {result.stdout!r}"
+    )
+    assert "[BLOCKED] Comment map carries 1 status fields, API reported 3" in result.stdout
+
+
+@requires_bash
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_a_complete_comment_map_clears_the_invariant(path: Path, tmp_path: Path) -> None:
+    """Control: the invariant must not block a map that matches the API count."""
+    comment_map = _render_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
+    script = _derivation_script(_gate_four_fence(path), comment_map, API_COMMENT_COUNT)
+
+    result = _run_derivation(script)
+
+    assert result.returncode == 0, (
+        f"{_carrier_id(path)} Gate 4 blocked a complete comment map: "
+        f"exit {result.returncode}, stdout {result.stdout!r}"
+    )
+    assert "PENDING=0" in result.stdout
+
+
+@requires_bash
+def test_without_the_invariant_a_stripped_map_clears_the_gate(tmp_path: Path) -> None:
+    """Negative control: the invariant is what catches the stripped map.
+
+    Take the shipped Gate 4 derivation, remove only the API-count invariant,
+    and the same stripped map exits 0 with zero pending. That is the fail-open
+    Copilot reported on PR #5342, reproduced against the real shell.
+    """
+    fence = _gate_four_fence(REPO_ROOT / "templates/agents/pr-comment-responder.shared.md")
+    comment_map = _render_comment_map(tmp_path, STRIPPED_COMMENT_MAP_LINES)
+
+    without = _run_derivation(
+        _derivation_script(fence, comment_map, API_COMMENT_COUNT, with_invariant=False)
+    )
+    with_invariant = _run_derivation(_derivation_script(fence, comment_map, API_COMMENT_COUNT))
+
+    assert without.returncode == 0
+    assert "PENDING=0" in without.stdout
+    assert with_invariant.returncode == 1
 
 
 @pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
