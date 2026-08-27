@@ -146,6 +146,19 @@ class TestInlineCodeSpan:
         body = "```lang`x`\nFixes #4965\n"
         assert validate_closing_links(body, "main", "main") == []
 
+    def test_span_crossing_a_real_fence_does_not_hide_a_claim_after_it(self):
+        """A 4-backtick run in the paragraph before a real 3-backtick fence
+        can pair with a later 4-backtick run after the fence closes,
+        producing a candidate inline-span match that STARTS before the
+        fence and ENDS after it. CommonMark ends the paragraph where the
+        fence starts, so nothing can be inline-parsed across that boundary;
+        rejecting a span only when its START falls inside the fence (round
+        4) missed this shape and let the span engulf both the real fence
+        and a real claim right after it. Rejecting on any overlap, not just
+        start-containment, is required (Copilot, PR #5371 round 5)."""
+        body = "See ````\n```\nhidden\n```\nFixes #4965 end````\n"
+        assert validate_closing_links(body, "main", "main") == []
+
 
 class TestFencedCodeBlock:
     """Closing keyword inside a fenced block should be CRITICAL."""

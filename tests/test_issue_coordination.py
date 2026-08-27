@@ -198,6 +198,17 @@ class TestReferencesIssue:
         body = "```lang`x`\nFixes #4965\n"
         assert _check.references_issue(body, 4965) is True
 
+    def test_span_crossing_a_real_fence_does_not_hide_a_claim_after_it(self):
+        # A 4-backtick run in the paragraph before a real 3-backtick fence
+        # can pair with a later 4-backtick run after the fence closes,
+        # producing a candidate span that starts before the fence and ends
+        # after it, engulfing both the fence and a real claim right after
+        # it. Rejecting a span only when its start falls inside the fence
+        # (round 4) missed this shape and could let a duplicate PR through
+        # undetected (Copilot, PR #5371 round 5).
+        body = "See ````\n```\nhidden\n```\nFixes #4965 end````\n"
+        assert _check.references_issue(body, 4965) is True
+
 
 class TestSpanPatternsMatchCanonical:
     """Drift guard for the two duplicated span-exclusion mechanisms (PR #5371 review).
@@ -233,6 +244,7 @@ class TestSpanPatternsMatchCanonical:
             "```lang`x`\nFixes #1\n",
             "~~~lang`x`\nFixes #1\n~~~\n",
             "See ```example\nFixes #1\nend``` for details.",
+            "See ````\n```\nhidden\n```\nFixes #1 end````\n",
         ]
         for body in bodies:
             assert _check._fenced_code_block_ranges(
@@ -246,6 +258,7 @@ class TestSpanPatternsMatchCanonical:
             "See ```example\nFixes #1\nend``` for details.",
             "```\nFixes #1\n```\n",
             "```\nignore this\n````\nFixes #1\n",
+            "See ````\n```\nhidden\n```\nFixes #1 end````\n",
         ]
         for body in bodies:
             fenced = _check._fenced_code_block_ranges(body)

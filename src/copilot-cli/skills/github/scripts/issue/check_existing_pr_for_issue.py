@@ -178,19 +178,29 @@ def _in_any_range(pos: int, ranges: list[tuple[int, int]]) -> bool:
     return any(start <= pos < end for start, end in ranges)
 
 
+def _ranges_overlap(a: tuple[int, int], b: tuple[int, int]) -> bool:
+    return a[0] < b[1] and b[0] < a[1]
+
+
 def _code_spans_outside_fences(
     text: str, fenced_ranges: list[tuple[int, int]]
 ) -> list[tuple[int, int]]:
-    """Inline code-span ranges, excluding any that start inside a real fence.
+    """Inline code-span ranges, excluding any that overlap a real fence.
 
     A real fence always wins (CommonMark parses block structure before
     inline content, so nothing inside a fenced block's raw text is itself
-    inline-parsed). Ported verbatim from `pr_description.py`.
+    inline-parsed). Rejecting only a span whose START falls inside a fence
+    (round 4) misses a span that STARTS before a fence and ENDS after it --
+    e.g. a 4-backtick run in the paragraph before a fence, paired with a
+    later 4-backtick run after the fence closes -- which still engulfs the
+    fence and any real claim right after it (Copilot review on PR #5371,
+    round 5). Rejecting on any overlap closes both shapes. Ported verbatim
+    from `pr_description.py`.
     """
     return [
         span
         for span in _span_ranges(text, _INLINE_CODE_SPAN)
-        if not _in_any_range(span[0], fenced_ranges)
+        if not any(_ranges_overlap(span, fenced) for fenced in fenced_ranges)
     ]
 
 

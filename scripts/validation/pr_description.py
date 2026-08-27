@@ -761,24 +761,36 @@ def _in_any_range(pos: int, ranges: list[tuple[int, int]]) -> bool:
     return any(start <= pos < end for start, end in ranges)
 
 
+def _ranges_overlap(a: tuple[int, int], b: tuple[int, int]) -> bool:
+    return a[0] < b[1] and b[0] < a[1]
+
+
 def _code_spans_outside_fences(
     body: str, fenced_ranges: list[tuple[int, int]]
 ) -> list[tuple[int, int]]:
-    """Inline code-span ranges, excluding any that start inside a real fence.
+    """Inline code-span ranges, excluding any that overlap a real fence.
 
     CommonMark parses block structure before inline content, so nothing
     inside a fenced code block's raw text is itself inline-parsed; a real
     fence always wins. `_INLINE_CODE_SPAN` allows the 3+ backtick branch to
     span multiple lines (so a real multiline inline span is still caught),
-    which means it can also match all the way across a real fenced block.
-    Dropping any span whose start falls inside `fenced_ranges` keeps that
-    block reported as fenced rather than relabeled as an inline span
-    (Copilot review on PR #5371, round 4).
+    which means it can also match all the way across a real fenced block,
+    or (round 5) START before a fence and END after it -- e.g. a 4-backtick
+    run in the paragraph before a 3-backtick fence, paired with a later
+    4-backtick run after the fence closes. Filtering only on whether the
+    span's START falls inside a fence (round 4) misses that second shape,
+    since the span starts in the preceding paragraph, not inside the fence;
+    it still engulfs the fence and any real claim right after it, hiding a
+    real closing keyword or falsely reporting one that GitHub does link
+    (Copilot review on PR #5371, round 5). Rejecting on ANY overlap, not
+    just start-containment, closes both shapes: nothing can be inline-parsed
+    across a block boundary, so a span overlapping a fence at all is never
+    a real span.
     """
     return [
         span
         for span in _span_ranges(body, _INLINE_CODE_SPAN)
-        if not _in_any_range(span[0], fenced_ranges)
+        if not any(_ranges_overlap(span, fenced) for fenced in fenced_ranges)
     ]
 
 
