@@ -70,22 +70,37 @@ GATE_THREE_HEADING_KEY = "Gate 3"
 # every later gate counts does not.
 COMMENT_ID_GUARD = 'case "$COMMENT_ID" in'
 TERMINAL_STATUS_GUARD = "printf '%s\\n' \"**Status**: $TERMINAL_STATUS\" \\"
+# The preflight that makes the step atomic. It runs before either file is
+# written, so a comment the map cannot receive blocks with both artifacts
+# untouched instead of leaving the task list ahead of the map.
+COMMENT_MAP_PREFLIGHT = 'sed -n "/^### Comment $COMMENT_ID /,/^---$/p" "$COMMENT_MAP" \\'
+# Phase 6 renders the task row as `- [ ] **TASK-[id]**: [description]`, which
+# carries no `pending` token. The older `s/TASK-$COMMENT_ID.*pending/`
+# substitution therefore matched nothing against a real task list and then
+# failed its own verification, so Gate 3 could not pass. Marking a task done
+# ticks the box and appends the terminal status.
+TASK_ROW_GUARD = 'if grep -qF -- "$TASK_ROW" "$TASK_LIST"; then'
 TASK_LIST_WRITE = (
-    'sed -i "s/TASK-$COMMENT_ID.*pending/TASK-$COMMENT_ID ... $TERMINAL_STATUS/" "$TASK_LIST"'
+    'sed -i "s|^- \\[ \\] \\*\\*TASK-$COMMENT_ID\\*\\*:\\(.*\\)$'
+    '|- [x] **TASK-$COMMENT_ID**:\\1 $TERMINAL_STATUS|" "$TASK_LIST"'
 )
 COMMENT_MAP_WRITE = (
     'sed -i "/^### Comment $COMMENT_ID /,/^---$/ '
     's|^\\*\\*Status\\*\\*: .*$|**Status**: $TERMINAL_STATUS|" "$COMMENT_MAP"'
 )
-TASK_LIST_VERIFY = 'grep -F "TASK-$COMMENT_ID ... $TERMINAL_STATUS" "$TASK_LIST" || exit 1'
+TASK_LIST_VERIFY = (
+    'grep -F -- "- [x] **TASK-$COMMENT_ID**:" "$TASK_LIST" | grep -qF -- "$TERMINAL_STATUS"'
+)
 COMMENT_MAP_VERIFY = 'grep -qxF "**Status**: $TERMINAL_STATUS"'
 
 REQUIRED_GATE_THREE_STEPS: tuple[str, ...] = (
     COMMENT_ID_GUARD,
     TERMINAL_STATUS_GUARD,
+    COMMENT_MAP_PREFLIGHT,
+    TASK_ROW_GUARD,
     TASK_LIST_WRITE,
-    COMMENT_MAP_WRITE,
     TASK_LIST_VERIFY,
+    COMMENT_MAP_WRITE,
     COMMENT_MAP_VERIFY,
 )
 
@@ -138,9 +153,40 @@ def _write_comment_map(tmp_path: Path, comment_ids: Sequence[str]) -> Path:
     return target
 
 
+def _task_row(comment_id: str) -> list[str]:
+    """One task entry in the shape Phase 6 renders.
+
+    Quoted from the ``Implementation Tasks (Phase 6)`` template in
+    ``templates/agents/pr-comment-responder.shared.md``::
+
+        - [ ] **TASK-[id]**: [description]
+          - Comment: [comment_id] by @[author]
+          - File: [path]
+          - Plan: `.agents/pr-comments/PR-[number]/[comment_id]-plan.md`
+
+    No ``pending`` token appears anywhere in it. An earlier fixture appended
+    one, which made a Gate 3 step that matched on ``pending`` look correct
+    against a shape the workflow never emits.
+    """
+    return [
+        f"- [ ] **TASK-{comment_id}**: address comment {comment_id}",
+        f"  - Comment: {comment_id} by @reviewer",
+        "  - File: file.py",
+        f"  - Plan: `.agents/pr-comments/PR-5342/{comment_id}-plan.md`",
+    ]
+
+
 def _write_task_list(tmp_path: Path, comment_ids: Sequence[str]) -> Path:
-    lines = ["# PR #5342 Task List", ""]
-    lines.extend(f"- [ ] **TASK-{cid}**: address comment {cid} - pending" for cid in comment_ids)
+    lines = [
+        "# PR #5342 Task List",
+        "",
+        "## Implementation Tasks (Phase 6)",
+        "",
+        "### Critical Priority",
+        "",
+    ]
+    for comment_id in comment_ids:
+        lines.extend(_task_row(comment_id))
     target = tmp_path / "tasks.md"
     target.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return target
@@ -188,8 +234,11 @@ def _gate_three_script(
 
     body = fence[fence.index(COMMENT_ID_GUARD) :]
     if not with_map_writeback:
-        end = body.index(TASK_LIST_VERIFY) + len(TASK_LIST_VERIFY)
-        body = body[:end].replace(COMMENT_MAP_WRITE, ":")
+        # Cut at the comment-map write, not at the task-list verification: the
+        # verification sits inside the `if` that guards an optional task row,
+        # so truncating there would leave the block unterminated. Everything
+        # before the cut is the task-list half, `fi` included.
+        body = body[: body.index(COMMENT_MAP_WRITE)]
     return (
         f"COMMENT_MAP={shlex.quote(str(comment_map))}\n"
         f"TASK_LIST={shlex.quote(str(task_list))}\n"
@@ -253,7 +302,13 @@ def test_gate_three_writes_the_terminal_status_into_the_comment_map(
         "**Status**: [COMPLETE]",
         f"**Status**: {INITIAL_STATUS}",
     ], f"{_carrier_id(path)} Gate 3 did not write exactly the targeted comment"
-    assert "TASK-124 ... [COMPLETE]" in task_list.read_text(encoding="utf-8")
+    task_text = task_list.read_text(encoding="utf-8")
+    assert "- [x] **TASK-124**: address comment 124 [COMPLETE]" in task_text, (
+        f"{_carrier_id(path)} Gate 3 did not tick and annotate the task row"
+    )
+    assert "- [ ] **TASK-123**:" in task_text, (
+        f"{_carrier_id(path)} Gate 3 moved a sibling comment's task row"
+    )
 
 
 @requires_bash
@@ -404,6 +459,9 @@ def test_gate_three_blocks_when_the_comment_is_not_in_the_map(tmp_path: Path) ->
     comment_map = _write_comment_map(tmp_path, ("123",))
     task_list = _write_task_list(tmp_path, ("999",))
 
+    task_before = task_list.read_bytes()
+    map_before = comment_map.read_bytes()
+
     result = _run_gate_three(
         TEMPLATE,
         comment_map=comment_map,
@@ -414,6 +472,85 @@ def test_gate_three_blocks_when_the_comment_is_not_in_the_map(tmp_path: Path) ->
 
     assert result.returncode == 1, f"Gate 3 cleared a write that landed nowhere: {result.stdout!r}"
     assert "[BLOCKED] Comment 999" in result.stdout
+
+    # Atomic means both or neither. Exit code and message alone do not prove
+    # it: the step used to rewrite tasks.md first and only then discover the
+    # comment map had no entry to move, which left the two artifacts
+    # disagreeing on a path that reported failure.
+    assert task_list.read_bytes() == task_before, (
+        "Gate 3 blocked but left tasks.md modified, so the two artifacts "
+        "disagree on a failure path (issue #4054)"
+    )
+    assert comment_map.read_bytes() == map_before, (
+        "Gate 3 blocked but left comments.md modified"
+    )
+
+
+@requires_bash
+def test_gate_three_skips_an_absent_task_row(tmp_path: Path) -> None:
+    """An immediate-reply outcome has no task row, and that is not a failure.
+
+    Phase 6 opens a ``TASK-[id]`` only for a comment it implements. A
+    ``[WONTFIX]``, ``[DUPLICATE]``, or question outcome is answered from the
+    Phase 5 immediate-reply table and never gets one. A step that required the
+    row would block every one of those outcomes; the comment map still has to
+    move for all of them.
+    """
+    comment_map = _write_comment_map(tmp_path, ("123", "124"))
+    task_list = _write_task_list(tmp_path, ("123",))
+    task_before = task_list.read_bytes()
+
+    result = _run_gate_three(
+        TEMPLATE,
+        comment_map=comment_map,
+        task_list=task_list,
+        comment_id="124",
+        terminal_status="[WONTFIX]",
+    )
+
+    assert result.returncode == 0, (
+        f"Gate 3 blocked an outcome with no task row: {result.stdout!r} {result.stderr!r}"
+    )
+    assert _status_lines(comment_map) == [
+        f"**Status**: {INITIAL_STATUS}",
+        "**Status**: [WONTFIX]",
+    ], "Gate 3 did not move the comment map for a comment with no task row"
+    assert task_list.read_bytes() == task_before, (
+        "Gate 3 touched the task list for a comment that has no row in it"
+    )
+
+
+@requires_bash
+def test_the_old_task_row_substitution_never_matched_the_real_template(
+    tmp_path: Path,
+) -> None:
+    """Negative control: the step as shipped could not pass on a real task list.
+
+    Gate 3 substituted ``s/TASK-$COMMENT_ID.*pending/`` and then verified its
+    own output. The Phase 6 template renders no ``pending`` token, so the
+    substitution matched nothing, the verification found nothing, and the gate
+    exited 1 on a correctly worked comment.
+    """
+    task_list = _write_task_list(tmp_path, ("123",))
+    old_step = (
+        'sed -i "s/TASK-$COMMENT_ID.*pending/TASK-$COMMENT_ID ... $TERMINAL_STATUS/" "$TASK_LIST"\n'
+        'grep -F "TASK-$COMMENT_ID ... $TERMINAL_STATUS" "$TASK_LIST" || exit 1\n'
+    )
+    script = (
+        f"TASK_LIST={shlex.quote(str(task_list))}\n"
+        'COMMENT_ID=123\nTERMINAL_STATUS="[COMPLETE]"\n' + old_step
+    )
+
+    result = _run_derivation(script)
+
+    assert result.returncode == 1, (
+        "the old task-row substitution passed against the real template shape; "
+        "if it now matches, this control no longer proves the defect"
+    )
+    assert "pending" not in task_list.read_text(encoding="utf-8"), (
+        "the Phase 6 task template emits no `pending` token; a fixture that "
+        "adds one hides the defect this control pins"
+    )
 
 
 @requires_bash
