@@ -109,7 +109,7 @@ Everything else in this section remains manual. A claim that names a symbol, a t
 
   Every pattern in `patterns.py` matches a file path or a skill name. A test function name and a module constant are neither, so they are invisible to it.
 
-- markdownlint never sees governance prose at all. `.markdownlint-cli2.yaml:131` lists `- ".agents/**"` under `ignores:`, so a PASS on any `.agents/` path means the file was not linted.
+- markdownlint never sees governance prose at all. `.markdownlint-cli2.yaml:138` lists `- ".agents/**"` under `ignores:`, so a PASS on any `.agents/` path means the file was not linted.
 
 To every gate in the repository, a citation to a symbol with no line number is ordinary prose. For those claims, the only check is the one you run.
 
