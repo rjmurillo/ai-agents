@@ -82,6 +82,21 @@ class TestFreshCitationsPass:
 
         assert code == 0
 
+    def test_heading_with_colon_never_harvests_a_continuation_quote(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Regression (Copilot, PR #5341): the markdown flag reached
+        # _context_lines only, so a heading ending in a colon still took
+        # the indented body below it as a required continuation quote and
+        # failed a valid citation. A heading is a complete unit there too.
+        root = _repo(tmp_path)
+        doc = f"## About {TARGET}:2:\n\n    magic_token\n"
+        _add_doc(root, "docs/notes.md", doc)
+
+        code, _out = _run(root, capsys)
+
+        assert code == 0
+
     def test_indented_continuation_quote_present_in_range_exits_0(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:

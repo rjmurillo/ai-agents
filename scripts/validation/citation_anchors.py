@@ -138,8 +138,21 @@ def _anchor_matches(anchor: str, cited_text: str) -> bool:
     return False
 
 
+# An ATX heading per CommonMark: up to 3 leading spaces (4 is a code
+# block), optional blockquote markers, 1-6 hashes, then whitespace or end
+# of line. This is what "#hashtag" and 7-hash paragraphs fail and a
+# blockquoted "> ## heading" passes; the bare hash-prefix predicate below
+# stays the code-comment classifier.
+_ATX_HEADING = re.compile(r"^ {0,3}(?:> ?)*#{1,6}(?:[ \t]|$)")
+
+
+def _atx_heading(line: str) -> bool:
+    """Return whether a line is a Markdown ATX heading (blockquotes included)."""
+    return bool(_ATX_HEADING.match(line))
+
+
 def _hash_prefixed(line: str) -> bool:
-    """Return whether a line is a Markdown heading or a comment line."""
+    """Return whether a line's first non-blank character is a hash marker."""
     return line.lstrip().startswith("#")
 
 
@@ -219,32 +232,38 @@ def _context_lines(
     context = [segment]
     if citing_lines is None:
         return context
-    own_hash = _hash_prefixed(line_text)
-    if markdown and own_hash:
-        # In a Markdown citing file a hash prefix is a heading, and a
-        # heading is a complete unit: it never wraps into any neighbor,
-        # another heading included (the hash-match rule below would let
-        # equal-prefixed headings pool anchors). In code files the same
-        # prefix is a comment, which continues into comment lines.
+    if markdown and _atx_heading(line_text):
+        # A Markdown heading is a complete unit: it never wraps into any
+        # neighbor, another heading included (an equal-prefix rule would
+        # let adjacent headings pool anchors).
         return context
     own_indent = _indent_width(line_text)
+    own_hash = _hash_prefixed(line_text)
+
+    def _blocks(neighbor: str) -> bool:
+        # In Markdown only a real heading is a hash boundary, so a
+        # hashtag paragraph stays ordinary body text; in code files a
+        # comment marker must match on both sides, so comment lines
+        # continue into comment lines and never into code.
+        if markdown:
+            return _atx_heading(neighbor)
+        return _hash_prefixed(neighbor) != own_hash
+
     for offset in (1, 2):
         index = line_index - offset
         if index < 0 or not _sentence_continues(citing_lines[index]):
             break
         # A deeper-indented neighbor is an example or verbatim block
         # belonging to an earlier line (a sibling citation's continuation
-        # quote, say), not this sentence wrapping across lines. A hash
-        # prefix must match on both sides too: a heading never wraps into
-        # body text, while comment lines continue into comment lines.
+        # quote, say), not this sentence wrapping across lines.
         if _indent_width(citing_lines[index]) > own_indent:
             break
-        if _hash_prefixed(citing_lines[index]) != own_hash:
+        if _blocks(citing_lines[index]):
             break
         context.insert(0, citing_lines[index])
     if _sentence_continues(line_text) and line_index + 1 < len(citing_lines):
         following = citing_lines[line_index + 1]
-        if _indent_width(following) <= own_indent and _hash_prefixed(following) == own_hash:
+        if _indent_width(following) <= own_indent and not _blocks(following):
             context.append(following)
     return context
 

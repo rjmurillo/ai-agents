@@ -146,8 +146,8 @@ class TestScopeBoundaries:
         # #5341): a heading with no sentence-ending punctuation reads as
         # a continuing sentence. The shape is guarded twice, by the
         # indent guard (a hash marker counts as indentation, so a heading
-        # sits deeper than unindented body text) and by the hash-prefix
-        # mismatch, so this pins the behavior: only removing both hands
+        # sits deeper than unindented body text) and by the ATX-heading
+        # block, so this pins the behavior: only removing both hands
         # the heading's backtick span to the citation below it.
         root = _repo(tmp_path)
         doc = f"## The `magic_token` helper\nDetails in {TARGET}:2 today.\n"
@@ -156,6 +156,36 @@ class TestScopeBoundaries:
         code, _out = _run(root, capsys)
 
         assert code == 0
+
+    def test_blockquoted_heading_is_still_a_complete_unit(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Regression (Copilot, PR #5341): the bare hash-prefix predicate
+        # read "> ## heading" as body text, so a blockquoted heading
+        # citation absorbed the next blockquote line's backtick span.
+        root = _repo(tmp_path)
+        doc = f"> ## About {TARGET}:2\n> The `magic_token` helper is here.\n"
+        _add_doc(root, "docs/notes.md", doc)
+
+        code, _out = _run(root, capsys)
+
+        assert code == 0
+
+    def test_hashtag_paragraph_is_body_text_not_a_heading(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # The other direction of the ATX classifier (Copilot, PR #5341):
+        # "#hashtag" is not a heading (no space after the hash), so a
+        # citation on that line keeps its wrapped-sentence anchor and
+        # this stale claim must fail rather than pass anchorless.
+        root = _repo(tmp_path)
+        doc = f"The `magic_token` helper sits\n#hashtag {TARGET}:2 note\n"
+        _add_doc(root, "docs/notes.md", doc)
+
+        code, out = _run(root, capsys)
+
+        assert code == 1
+        assert "magic_token" in out
 
     def test_code_text_never_joins_a_comment_citation_backward(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

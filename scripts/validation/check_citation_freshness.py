@@ -54,6 +54,7 @@ from citation_anchors import (  # noqa: E402
     _URL,
     _anchor_candidates,
     _anchor_matches,
+    _atx_heading,
     _context_lines,
     _continuation_quote,
     _same_line_segment,
@@ -160,7 +161,10 @@ def _citation_anchors(
         _context_lines(citing_lines, line_index, line_text, segment, markdown),
         citation_text,
     )
-    if citing_lines is not None:
+    # A Markdown heading is a complete unit (see _context_lines), so a
+    # heading ending in a colon never harvests the indented body below
+    # it as a continuation quote either.
+    if citing_lines is not None and not (markdown and _atx_heading(line_text)):
         quote = _continuation_quote(citing_lines, line_index)
         if quote is not None:
             anchors.append(quote)
