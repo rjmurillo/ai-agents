@@ -29,15 +29,19 @@ Coverage:
 - positive: a healthy checkout and a healthy linked worktree exit 0 and name
   what was read.
 - negative: a bare-flagged checkout, linked worktree, subdirectory, and
-  ``--separate-git-dir`` checkout each exit 1 and name a repair per poisoned
-  scope; a poisoned shared config is reported from an immunized worktree; a
-  value git cannot parse exits 1 and says why no ``git config`` can clear it;
-  the CLI process itself exits nonzero, against a healthy control.
+  ``--separate-git-dir`` checkout each exit 1 and name a repair for the scope
+  that carries the value; a poisoned shared config is reported from an
+  immunized worktree; a value git cannot parse exits 1 and says why no ``git
+  config`` can clear it; the CLI process itself exits nonzero, against a
+  healthy control.
 - edge: a genuine bare repository, a bare repository nested inside a healthy
   checkout, and a non-repository exit 0; an invalid root exits 2; missing git
   and timeouts exit 3; every git boolean spelling of true is honored, and
-  ``false`` is not; the immunization line appears only when
-  ``extensions.worktreeConfig`` permits it.
+  ``false`` is not.
+
+``test_check_repo_health_reporting.py`` covers the failure report itself: the
+repair each config scope needs, and when the worktree-scoped immunization line
+is withheld.
 """
 
 from __future__ import annotations
@@ -303,91 +307,6 @@ class TestRepairNamesEveryScopeThatCarriesTheValue:
 
         assert code == 1
         assert "Fix: git config --worktree core.bare false" in capsys.readouterr().err
-
-    @pytest.mark.parametrize(
-        ("scope", "expected"),
-        [
-            ("local", "git config core.bare false"),
-            ("worktree", "git config --worktree core.bare false"),
-            ("global", "git config --global --unset-all core.bare"),
-            ("system", "git config --system --unset-all core.bare"),
-            ("command", "remove the command-scoped core.bare override"),
-            ("unheard-of", "git config core.bare false"),
-        ],
-    )
-    def test_every_scope_maps_to_a_command_that_can_clear_it(
-        self,
-        scope: str,
-        expected: str,
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        health = check_repo_health.RepoHealth(
-            "corrupted", work_tree=tmp_path, bare_scopes=((scope, "true"),)
-        )
-
-        check_repo_health._report_corruption(health)
-
-        assert f"Fix: {expected}" in capsys.readouterr().err
-
-    def test_two_poisoned_scopes_get_two_repairs(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        health = check_repo_health.RepoHealth(
-            "corrupted",
-            work_tree=tmp_path,
-            bare_scopes=(("local", "true"), ("worktree", "true")),
-        )
-
-        check_repo_health._report_corruption(health)
-
-        err = capsys.readouterr().err
-        assert "Fix: git config core.bare false" in err
-        assert "Fix: git config --worktree core.bare false" in err
-
-
-class TestImmunizationHintTracksTheWorktreeConfigExtension:
-    """``git config --worktree`` exits 128 without the extension enabled."""
-
-    @staticmethod
-    def _report(tmp_path: Path, *, worktree_config: bool) -> None:
-        check_repo_health._report_corruption(
-            check_repo_health.RepoHealth(
-                "corrupted",
-                work_tree=tmp_path,
-                bare_scopes=(("local", "true"),),
-                worktree_config=worktree_config,
-            )
-        )
-
-    def test_the_hint_appears_when_the_extension_is_enabled(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        self._report(tmp_path, worktree_config=True)
-
-        assert "in every worktree" in capsys.readouterr().err
-
-    def test_the_hint_is_withheld_when_the_extension_is_absent(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        self._report(tmp_path, worktree_config=False)
-
-        assert "in every worktree" not in capsys.readouterr().err
-
-    def test_the_hint_is_withheld_when_the_worktree_scope_is_the_offender(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """Immunizing with the value that is already wrong is not a repair."""
-        check_repo_health._report_corruption(
-            check_repo_health.RepoHealth(
-                "corrupted",
-                work_tree=tmp_path,
-                bare_scopes=(("worktree", "true"),),
-                worktree_config=True,
-            )
-        )
-
-        assert "in every worktree" not in capsys.readouterr().err
 
 
 class TestRepositoriesWithNoWorkTreeAreOutOfScope:
