@@ -156,6 +156,21 @@ _IMMUNIZATION = "git config --worktree core.bare false"
 
 _WORK_TREE_FATAL = "fatal: this operation must be run in a work tree"
 
+# git resolves the repository's location from the environment before it reads
+# any config, so an inherited value here makes every answer below describe a
+# different repository than the one the gate was pointed at. Measured on git
+# 2.43.0 against a corrupted checkout with GIT_DIR naming an unrelated bare
+# repository: `rev-parse --git-common-dir` and `worktree list --porcelain` both
+# answered for that other repository, turning live corruption into a verified
+# pass. GIT_COMMON_DIR redirects the anchor the same way. GIT_CONFIG_KEY_n and
+# its siblings are deliberately kept: a command-scoped core.bare arrives that
+# way and this gate exists to report it.
+_LOCATION_OVERRIDES = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR")
+
+# A `.git` marker file holds one short `gitdir:` line. Reading it unbounded lets
+# a marker symlinked at a character device such as /dev/zero stream forever,
+# which hangs the commit or push this gate runs inside.
+_MAX_MARKER_BYTES = 8192
 
 
 class GitExecutionError(RuntimeError):
@@ -189,6 +204,8 @@ def _git(repo_root: Path, *args: str, missing_ok: bool = False) -> str | None:
         raise GitExecutionError("git executable not found")
     env = os.environ.copy()
     env["LC_ALL"] = "C"
+    for name in _LOCATION_OVERRIDES:
+        env.pop(name, None)
     try:
         result = subprocess.run(
             [git, *args],
@@ -235,9 +252,18 @@ def _scoped_core_bare(repo_root: Path) -> tuple[tuple[str, str], ...]:
 
 
 def _marker_git_dir(marker: Path) -> Path | None:
-    """Resolve the git directory a ``.git`` file points at, or None."""
+    """Resolve the git directory a ``.git`` file points at, or None.
+
+    Only a regular file of plausible size is read. ``is_file`` follows the
+    symlink, so a ``.git`` symlinked at ``/dev/zero`` is rejected as a character
+    device rather than read until the gate is killed, and an oversized regular
+    file is refused before any of it reaches memory.
+    """
     try:
-        text = marker.read_text(encoding="utf-8", errors="replace")
+        if not marker.is_file() or marker.stat().st_size > _MAX_MARKER_BYTES:
+            return None
+        with marker.open(encoding="utf-8", errors="replace") as handle:
+            text = handle.read(_MAX_MARKER_BYTES)
     except OSError:
         return None
     for line in text.splitlines():
