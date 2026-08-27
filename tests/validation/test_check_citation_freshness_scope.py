@@ -42,6 +42,26 @@ class TestDiffParsing:
         # these two assertions when they were first written literally.
         assert f"{'docs/notes.md'}:2:" in out
 
+    def test_a_configured_textconv_driver_cannot_rewrite_the_parsed_diff(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Regression (Copilot round 2, PR #5338): .gitattributes assigns
+        # markdown a diff driver, so a contributor's configured textconv
+        # could rewrite the patch the parser reads. With --no-textconv the
+        # stale citation is still found; without it, the uppercased patch
+        # no longer matches the citation pattern and the gate goes silent.
+        root = _repo(tmp_path)
+        (root / ".gitattributes").write_text("*.md diff=markdown\n", encoding="utf-8")
+        _git(root, "add", "-A")
+        _git(root, "commit", "-q", "-m", "attrs")
+        _git(root, "config", "diff.markdown.textconv", "tr a-z A-Z <")
+        _add_doc(root, "docs/notes.md", f"See `{TARGET}:2` (`magic_token`).\n")
+
+        code, out = _run(root, capsys)
+
+        assert code == 1
+        assert "examined 1 citation(s)" in out
+
     def test_unicode_line_separator_does_not_shift_line_numbers(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -179,6 +199,51 @@ class TestScopeBoundaries:
         code, _out = _run(root, capsys)
 
         assert code == 0
+
+    def test_url_reference_is_not_scanned_as_a_citation(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Regression (Copilot round 2, PR #5338): a URL shaped like
+        # host/org/file.py:N read as a repository citation and failed as
+        # untracked, so an ordinary external link could block a push.
+        root = _repo(tmp_path)
+        url = "https://example.com/org/file.py:42"
+        _add_doc(root, "docs/notes.md", f"See {url} for the upstream form.\n")
+
+        code, out = _run(root, capsys)
+
+        assert code == 0
+        assert "examined 0 citation(s)" in out
+
+    def test_unquoted_bare_filename_is_not_a_required_anchor(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Regression (Copilot round 2, PR #5338): a slashless filename
+        # survived path masking, so its stem was harvested as an identifier
+        # anchor and failed an otherwise anchorless valid citation.
+        root = _repo(tmp_path)
+        _add_doc(root, "docs/notes.md", f"About model_pin_manifest.py, see {TARGET}:2 today.\n")
+
+        code, _out = _run(root, capsys)
+
+        assert code == 0
+
+    def test_same_line_citations_use_their_own_anchors(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Regression (Copilot round 2, PR #5338): anchors from every
+        # citation on a line were pooled, so a stale citation passed
+        # whenever its sibling's anchor matched its range. The midpoint
+        # split binds each anchor to its nearer citation.
+        root = _repo(tmp_path)
+        doc = f"See {TARGET}:2 (`magic_token`) and {TARGET}:2 (`PLACEHOLDER`).\n"
+        _add_doc(root, "docs/notes.md", doc)
+
+        code, out = _run(root, capsys)
+
+        assert code == 1
+        assert out.count("none of the cited anchors") == 1
+        assert "'magic_token'" in out
 
     def test_pathless_snippet_like_prose_never_matches(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
