@@ -231,6 +231,32 @@ def test_a_branch_that_never_moved_the_number_is_not_blocked(tmp_path, capsys) -
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
+def test_behind_base_does_not_short_circuit_the_count_leg(tmp_path, capsys) -> None:
+    """The two legs are independent, and the non-blocking one must not excuse.
+
+    ``_base_ref_verdict`` returns None for a behind-base branch, which is the
+    same value it returns when it has nothing to say, so ``run`` falls through
+    to ``count > baseline`` exactly as before. This branch is behind (fork
+    point 100 == recorded 100, base 99) and also measures 101 on its own
+    merits, so the BEHIND BASE notice prints and the count leg still blocks.
+
+    Without this case the diff proves only that the notice is reachable, never
+    that the gate survives it. A ``return EXIT_OK`` in place of that ``return
+    None`` would satisfy every other test in this section.
+    """
+    repo, baseline_file, main_ref = _main_lowered_to_99(tmp_path)
+    _git(repo, "checkout", "-q", "-b", "branch-e", f"{main_ref}~1")
+
+    rc = _run_against(repo, baseline_file, main_ref, count=101)
+
+    assert rc == count_ratchet.EXIT_REGRESSION
+    captured = capsys.readouterr()
+    assert "BEHIND BASE (not blocking)" in captured.out
+    assert "BASELINE ABOVE BASE" not in captured.err
+    assert "REGRESSION. 101 violations > baseline 100" in captured.err
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
 def test_a_branch_that_raised_the_number_itself_still_blocks(tmp_path, capsys) -> None:
     """The mirror of the case above: the widening hole stays shut.
 
