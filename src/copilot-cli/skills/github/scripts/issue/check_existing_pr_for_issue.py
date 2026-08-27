@@ -62,9 +62,50 @@ _GH_TIMEOUT_SECONDS = 30
 _GIT_TIMEOUT_SECONDS = 10
 _PullRequestPayload = dict[str, object]
 
+# Span-exclusion patterns for issue #3827: GitHub does not parse a closing
+# keyword inside an inline code span or a fenced code block (confirmed via
+# the GraphQL `closingIssuesReferences` API), so a match inside either must
+# not count as the PR claiming implementation ownership of the issue. Ported
+# verbatim from `scripts/validation/pr_description.py` (`_INLINE_CODE_SPAN`
+# and `_FENCED_CODE_BLOCK`), which solves the identical problem for the PR
+# description validator's closing-link check (see that module's
+# `validate_closing_links`, issue #3827, PRs #4078 and #4716).
+#
+# Stricter/looser/different than canonical: identical patterns, same
+# exclusion semantics. The one difference is what a match inside the
+# excluded span means: `pr_description.py` reports a CRITICAL (the author
+# meant to close the issue and the markup silently defeated it), while this
+# module simply treats the match as not claiming ownership at all (a PR
+# quoting or documenting a closing keyword is not implementing the issue).
+_INLINE_CODE_SPAN = re.compile(
+    r"(?<!`)(`{1,2})(?!`)(?:[^\n]|\n(?!\s*\n))+?(?<!`)\1(?!`)"
+    r"|"
+    r"(?<!`)(`{3,})(?!`)[^\n]+?(?<!`)\2(?!`)"
+)
+_FENCED_CODE_BLOCK = re.compile(
+    r"^(`{3,}|~{3,})[^\n]*\n.*?^\1",
+    re.DOTALL | re.MULTILINE,
+)
+
+
+def _span_ranges(text: str, pattern: re.Pattern[str]) -> list[tuple[int, int]]:
+    """Return (start, end) pairs for all non-overlapping matches of pattern."""
+    return [(m.start(), m.end()) for m in pattern.finditer(text)]
+
+
+def _in_any_range(pos: int, ranges: list[tuple[int, int]]) -> bool:
+    return any(start <= pos < end for start, end in ranges)
+
 
 def references_issue(text: str, issue: int, repo_slug: str = "") -> bool:
-    """Return True when ``text`` claims ``issue`` via a closing keyword."""
+    """Return True when ``text`` claims ``issue`` via a closing keyword.
+
+    A closing keyword found only inside an inline code span or a fenced code
+    block does not count: GitHub never creates a real closing link there, so
+    treating it as a claim of implementation ownership would let a PR that
+    merely quotes or documents a closing keyword suppress a legitimate new PR
+    as a false duplicate (issue #3827).
+    """
 
     if not text:
         return False
@@ -72,7 +113,14 @@ def references_issue(text: str, issue: int, repo_slug: str = "") -> bool:
     if repo_slug:
         issue_ref = rf"(?:{re.escape(repo_slug)}#|#){issue}\b"
     pattern = re.compile(rf"(?i)\b(?:{_KEYWORDS})\b[\s:]*{issue_ref}")
-    return bool(pattern.search(text))
+    fenced_ranges = _span_ranges(text, _FENCED_CODE_BLOCK)
+    code_span_ranges = _span_ranges(text, _INLINE_CODE_SPAN)
+    for match in pattern.finditer(text):
+        pos = match.start()
+        if _in_any_range(pos, fenced_ranges) or _in_any_range(pos, code_span_ranges):
+            continue
+        return True
+    return False
 
 
 def _run(cmd: list[str], *, timeout: int = _GH_TIMEOUT_SECONDS) -> subprocess.CompletedProcess[str]:

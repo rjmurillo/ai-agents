@@ -108,6 +108,41 @@ class TestReferencesIssue:
     def test_empty(self):
         assert _check.references_issue("", 5) is False
 
+    # -- issue #3827: closing keyword inside a code span must not count --
+
+    def test_inline_code_span_not_matched(self):
+        # Repro from issue #3827 comment (against issue 4965): a backtick-
+        # wrapped closing keyword never creates a real GitHub closing link,
+        # so it must not count as a claim of implementation ownership.
+        assert _check.references_issue("Example: `Fixes #4965`", 4965) is False
+
+    def test_double_backtick_inline_code_span_not_matched(self):
+        assert _check.references_issue("See `` Fixes #42 `` for context", 42) is False
+
+    def test_fenced_code_block_not_matched(self):
+        body = "Prior attempt:\n```\nFixes #4965\n```\n"
+        assert _check.references_issue(body, 4965) is False
+
+    def test_tilde_fenced_code_block_not_matched(self):
+        body = "~~~\nFixes #4965\n~~~\n"
+        assert _check.references_issue(body, 4965) is False
+
+    def test_bare_keyword_outside_code_span_still_matches(self):
+        # Positive control: the same keyword as a real claim, no markup.
+        assert _check.references_issue("Fixes #4965 on its own line", 4965) is True
+
+    def test_keyword_in_code_span_plus_real_claim_outside_still_matches(self):
+        # Edge: one match is excluded (code span) and a second, real match
+        # for the SAME issue exists outside any span. The function must not
+        # let the excluded match short-circuit the real one.
+        body = "Example: `Fixes #4965`. Fixes #4965"
+        assert _check.references_issue(body, 4965) is True
+
+    def test_diagnostic_reference_in_code_span_still_not_matched(self):
+        # Refs is already excluded by _KEYWORDS; confirm code-span exclusion
+        # does not accidentally flip a non-keyword into a match.
+        assert _check.references_issue("`Refs #4965`", 4965) is False
+
 
 class TestFindOpenPrsForIssue:
     def test_match_in_body(self):
@@ -132,6 +167,30 @@ class TestFindOpenPrsForIssue:
         with patch.object(_check.subprocess, "run", return_value=_proc(0, json.dumps([prs]))):
             out = _check.find_open_prs_for_issue("o", "r", 2477)
         assert [m["number"] for m in out] == [10]
+
+    def test_code_span_closing_keyword_does_not_suppress_new_pr(self):
+        # End-to-end regression for issue #3827: a PR that only quotes a
+        # closing keyword inside backticks (e.g. documenting the bug, as
+        # this repro does) must not be surfaced as an existing claim on the
+        # issue, or a legitimate new PR gets falsely blocked as a duplicate.
+        prs = [
+            {
+                "number": 5296,
+                "title": "docs(github): note the code-span closing-keyword defect",
+                "body": "The matcher incorrectly treats `Fixes #4965` as a real claim.",
+                "html_url": "https://github.com/rjmurillo/ai-agents/pull/5296",
+                "head": {"ref": "docs/note-3827-code-span-defect"},
+                "user": {"login": "rjmurillo"},
+            }
+        ]
+        with patch.object(
+            _check.subprocess,
+            "run",
+            return_value=_proc(0, json.dumps([prs])),
+        ):
+            out = _check.find_open_prs_for_issue("rjmurillo", "ai-agents", 4965)
+
+        assert out == []
 
     def test_diagnostic_reference_does_not_claim_implementation(self):
         prs = [
