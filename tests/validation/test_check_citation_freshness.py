@@ -93,9 +93,10 @@ class TestFreshCitationsPass:
         doc = f"## About {TARGET}:2:\n\n    magic_token\n"
         _add_doc(root, "docs/notes.md", doc)
 
-        code, _out = _run(root, capsys)
+        code, out = _run(root, capsys)
 
         assert code == 0
+        assert "examined 1 citation(s)" in out
 
     def test_indented_continuation_quote_present_in_range_exits_0(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

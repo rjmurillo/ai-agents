@@ -120,9 +120,10 @@ class TestScopeBoundaries:
         doc = f"## About {TARGET}:2\nThe `magic_token` helper is unrelated.\n"
         _add_doc(root, "docs/notes.md", doc)
 
-        code, _out = _run(root, capsys)
+        code, out = _run(root, capsys)
 
         assert code == 0
+        assert "examined 1 citation(s)" in out
 
     def test_adjacent_markdown_headings_never_pool_anchors(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -135,9 +136,10 @@ class TestScopeBoundaries:
         doc = f"## About {TARGET}:2\n## The `magic_token` helper\n"
         _add_doc(root, "docs/notes.md", doc)
 
-        code, _out = _run(root, capsys)
+        code, out = _run(root, capsys)
 
         assert code == 0
+        assert "examined 1 citation(s)" in out
 
     def test_unfinished_heading_above_a_body_citation_adds_no_anchors(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -153,9 +155,10 @@ class TestScopeBoundaries:
         doc = f"## The `magic_token` helper\nDetails in {TARGET}:2 today.\n"
         _add_doc(root, "docs/notes.md", doc)
 
-        code, _out = _run(root, capsys)
+        code, out = _run(root, capsys)
 
         assert code == 0
+        assert "examined 1 citation(s)" in out
 
     def test_blockquoted_heading_is_still_a_complete_unit(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -167,9 +170,10 @@ class TestScopeBoundaries:
         doc = f"> ## About {TARGET}:2\n> The `magic_token` helper is here.\n"
         _add_doc(root, "docs/notes.md", doc)
 
-        code, _out = _run(root, capsys)
+        code, out = _run(root, capsys)
 
         assert code == 0
+        assert "examined 1 citation(s)" in out
 
     def test_blockquote_marker_spacing_does_not_hide_a_heading(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -183,9 +187,10 @@ class TestScopeBoundaries:
         doc = f">    ## About {TARGET}:2\n> The `magic_token` helper is here.\n"
         _add_doc(root, "docs/notes.md", doc)
 
-        code, _out = _run(root, capsys)
+        code, out = _run(root, capsys)
 
         assert code == 0
+        assert "examined 1 citation(s)" in out
 
     def test_hashtag_paragraph_is_body_text_not_a_heading(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -214,9 +219,10 @@ class TestScopeBoundaries:
         doc = f"magic_token_reader = load()\n# See {TARGET}:2 for the value.\n"
         _add_doc(root, "docs/notes.py", doc)
 
-        code, _out = _run(root, capsys)
+        code, out = _run(root, capsys)
 
         assert code == 0
+        assert "examined 1 citation(s)" in out
 
     def test_finished_previous_sentence_is_not_an_anchor_source(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
