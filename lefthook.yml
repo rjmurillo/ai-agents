@@ -23,12 +23,19 @@ pre-commit:
     # It runs first because the failures it causes name the wrong component:
     # the incident produced four unrelated-looking diagnoses before the shared
     # cause was found. One accurate message has to precede all of them.
-    # Cap sized from the script's own watchdog, not from a default. The healthy
-    # path is one `git config --show-scope` read under GIT_TIMEOUT_SECONDS = 5,
-    # so 10s is that watchdog plus 5s of interpreter headroom. Measured on this
-    # checkout: 0.077s and 0.130s warm, 0.944s on the run that also built the
-    # venv. The pair below is funded from one allocation (see repair-packed-refs)
-    # so the stage's declared worst case does not rise; ADR-104 rule 7 and
+    # Cap sized from the script's own budget, not from a default. The script
+    # holds GIT_BUDGET_SECONDS = 7 across the whole evaluation and exits 3 when
+    # it runs out, so this 10s cap is that budget plus 3s of interpreter
+    # headroom and is never what stops the job. Measured on this checkout:
+    # 0.077s and 0.130s warm, 0.944s on the run that also built the venv.
+    # The per-call GIT_TIMEOUT_SECONDS = 5 watchdog does NOT bound the run: the
+    # corrupted path issues five sequential git calls, so the watchdog alone
+    # allows 25s and lefthook would kill the job before it printed the repair,
+    # which is the one message this gate exists to deliver.
+    # `tests/validation/test_check_repo_health_budget.py` parses this cap and
+    # fails if either number moves without the other. The pair below is funded
+    # from one allocation (see repair-packed-refs) so the stage's declared worst
+    # case does not rise; ADR-104 rule 7 and
     # `tests/ci/test_lefthook_declared_budget.py` both refuse a cap that does.
     - name: repo-health
       timeout: 10s
@@ -434,10 +441,12 @@ pre-push:
     # repository it is validating, so this runs before every job whose failure
     # the corruption would otherwise be blamed for.
     # Same 10s as pre-commit, and for the same reason: the cap tracks the
-    # script's GIT_TIMEOUT_SECONDS = 5 watchdog plus interpreter headroom, not
-    # the stage it runs in. This job is a leading serial singleton, ahead of the
-    # parallel group, so the loaded-machine contention ci-scripts.md MUST-16
-    # measures on a group member does not apply to it.
+    # script's GIT_BUDGET_SECONDS = 7 shared deadline plus interpreter headroom,
+    # not the stage it runs in. The script reports first whatever the machine is
+    # doing, so a slow run yields exit 3 naming the git call that ran out rather
+    # than a lefthook kill with no diagnosis. This job is a leading serial
+    # singleton, ahead of the parallel group, so the loaded-machine contention
+    # ci-scripts.md MUST-16 measures on a group member does not apply to it.
     - name: repo-health
       timeout: 10s
       run: uv run --frozen python scripts/validation/check_repo_health.py

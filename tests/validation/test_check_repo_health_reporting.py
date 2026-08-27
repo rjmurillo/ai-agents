@@ -47,7 +47,7 @@ def _report(
     worktree_config: bool = False,
 ) -> None:
     """Print the failure report for one constructed verdict."""
-    check_repo_health._report_corruption(
+    check_repo_health.report_corruption(
         check_repo_health.RepoHealth(
             "corrupted",
             work_tree=work_tree,
