@@ -38,6 +38,7 @@
 |graphql mutation query resolve thread reply batch nested: [skills-graphql-index](skills-graphql-index.md) (111)
 |jq json parse filter select map array object: [skills-jq-index](skills-jq-index.md) (356)
 |pr autofix lease bare checkout wrong branch local: [pr-autofix/bare-root-requires-pr-worktree-for-sha-audit](pr-autofix/bare-root-requires-pr-worktree-for-sha-audit.md) (299)
+|mcp tool body param shell substitution cat literal string update_pull_request create_pull_request: [ci/mcp-tool-params-are-not-shell-evaluated](ci/mcp-tool-params-are-not-shell-evaluated.md) (494)
 |gh extension notify combine metrics milestone webhook grep: [skills-gh-extensions-index](skills-gh-extensions-index.md) (346)
 |copilot review false-positive triage response cli agent frontmatter: [skills-copilot-index](skills-copilot-index.md) (497), [copilot/copilot-cli-frontmatter-regression-runbook](copilot/copilot-cli-frontmatter-regression-runbook.md) (1903)
 |triage stale closure verify history bot superseded duplicate: [pr-review/triage-001-verify-before-stale-closure](pr-review/triage-001-verify-before-stale-closure.md) (435), [pr-review/triage-002-bot-closure-verification](pr-review/triage-002-bot-closure-verification.md) (452)
