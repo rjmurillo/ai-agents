@@ -143,8 +143,13 @@ documentation:
   `--write` appended a closing fence to documents already well formed.
 - Known gaps, each measured and none counted. A raw HTML block swallows a
   following fence, so a fence inside one is read as a fence here and as HTML
-  by CommonMark. A blockquote prefix is never stripped, and that costs two
-  different things. A fence inside `>` is invisible, which is a miss: six
+  by CommonMark. That one is DESTRUCTIVE, not merely a disagreement, and it is
+  the worst gap on this list: the reference parser sees no fence at all, so the
+  document is balanced, and `--write` appends a closer anyway. Measured across
+  all seven CommonMark HTML block types, opener terminated and unterminated,
+  20 of 20 shapes are written to. Do not run `--write` unattended over
+  documents containing raw HTML blocks. A blockquote prefix is never stripped,
+  and that costs two different things. A fence inside `>` is invisible, which is a miss: six
   shapes diverge and `--write` changes none. A blockquote INTERRUPTING a
   paragraph is worse: CommonMark ends the paragraph and lazily continues the
   quote, so a following `2.` opens a list, while we keep the paragraph open

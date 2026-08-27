@@ -322,3 +322,89 @@ class TestOpenLabelStateIsBounded:
         filled.observe("  label text\n")
         filled.observe("   \n")
         assert filled._open_label_blank is False
+
+
+class TestRawHtmlIsADestructiveGap:
+    """Pin the one known gap where `--write` corrupts, so it cannot spread.
+
+    A raw HTML block swallows a following fence: CommonMark reads the whole
+    run as HTML and sees no fence at all, so the document is balanced, while
+    this scanner reads the fence and `--write` appends a closer to it. That is
+    the corruption class, not a miss, and it is the worst gap on the list.
+
+    Nothing measured it before. The existing negative control
+    (`test_the_fuzzer_can_actually_see_a_divergence` in the prose suite) uses a
+    raw HTML document but asserts only that the MASKING diverges; it says
+    nothing about what `--write` then does. So the destructive half was
+    documented in prose and pinned nowhere, which is how it stayed described as
+    a disagreement while being a bad write.
+
+    This is a ratchet in the repository's usual sense and NOT an endorsement.
+    Closing any part of the gap lowers the count and fails this test, which is
+    the point: re-measure and lower it, never raise it.
+    """
+
+    #: One opener per CommonMark HTML block type, each wrapping a fence, in
+    #: both the terminated and unterminated form. Kept as data so the scope
+    #: cannot be computed from the system under test.
+    OPENERS = (
+        ("<script>", "</script>"),
+        ("<pre>", "</pre>"),
+        ("<style>", "</style>"),
+        ("<!-- c", "-->"),
+        ("<?php", "?>"),
+        ("<!DOCTYPE", ">"),
+        ("<![CDATA[", "]]>"),
+        ("<div>", "</div>"),
+        ("<table>", "</table>"),
+        ("<x-tag>", "</x-tag>"),
+    )
+
+    #: Measured, not assumed: every one of the 20 shapes is written to.
+    CORRUPTING_SHAPES = 20
+
+    def _shapes(self) -> list[str]:
+        shapes = []
+        for opener, closer in self.OPENERS:
+            shapes.append(f"{opener}\n```\nAfter.\n")
+            shapes.append(f"{opener}\n```\nAfter.\n{closer}\n")
+        return shapes
+
+    def test_the_shape_set_is_pinned(self) -> None:
+        """Not parametrized, so it runs even if OPENERS is emptied.
+
+        Same defect and remedy as the fuzz seed pin above: a ratchet whose own
+        configuration decides whether it runs is not a ratchet.
+        """
+        assert len(self.OPENERS) == 10
+        assert len(self._shapes()) == 20
+
+    def test_the_corruption_count_has_not_grown(self) -> None:
+        corrupting = [
+            text
+            for text in self._shapes()
+            # The corruption class exactly: the ORACLE reads the input as
+            # balanced, and the repair APPENDS. A middle rewrite is the
+            # documented mistaken-closer divergence and does not count here.
+            if not _has_unclosed_fence(text)
+            and repair_markdown_fences(text).startswith(text)
+            and repair_markdown_fences(text) != text
+        ]
+        assert len(corrupting) == self.CORRUPTING_SHAPES, (
+            f"{len(corrupting)} of {len(self._shapes())} raw HTML shapes are written to, "
+            f"pinned at {self.CORRUPTING_SHAPES}. If a fix lowered this, lower the pin. "
+            "If something raised it, the gap spread and that is a regression."
+        )
+
+    def test_the_scanner_and_the_oracle_disagree_about_seeing_a_fence(self) -> None:
+        """The reason for the write, asserted rather than assumed.
+
+        Without this, a future change could leave the write count at 20 for a
+        different reason and the pin above would not notice.
+        """
+        text = "<div>\n```\nAfter.\n"
+        assert oracle_fence_lines(text) == set(), (
+            "the reference parser is supposed to see NO fence here; if it now "
+            "does, this whole class has changed and the pin needs re-deriving"
+        )
+        assert find_fence_defects(text), "the scanner is supposed to report a defect here"
