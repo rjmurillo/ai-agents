@@ -159,7 +159,8 @@ class TestAGlobalTrueUnderALocalFalseIsNotTheIncident:
         """The premise: the gate must agree with this, not contradict it."""
         repo, env = self._repo_with(tmp_path, "false")
 
-        scopes = _git(repo, "config", "--show-scope", "--type=bool", "--get-all", "core.bare", env=env)
+        read = ("config", "--show-scope", "--type=bool", "--get-all", "core.bare")
+        scopes = _git(repo, *read, env=env)
 
         assert scopes.splitlines() == ["global\ttrue", "local\tfalse"]
         assert _git(repo, "config", "--get", "core.bare", env=env) == "false"
