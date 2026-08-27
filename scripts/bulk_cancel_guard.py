@@ -26,6 +26,11 @@ USAGE:
   uv run python scripts/bulk_cancel_guard.py --runs-file runs.json \\
       --recovery-event synchronize --manifest recovery.json --confirm
 
+  # Retry after a partial cancellation: the manifest is itself a valid
+  # --runs-file, so the file the previous run wrote is the input to this one.
+  uv run python scripts/bulk_cancel_guard.py --runs-file recovery.json \\
+      --recovery-event synchronize --confirm
+
 EXIT CODES (AGENTS.md contract):
   0 - the plan validates; with --confirm, every run was cancelled
   1 - at least one required context has no verified recovery path
@@ -38,9 +43,10 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -106,7 +112,10 @@ def build_parser() -> argparse.ArgumentParser:
     source.add_argument(
         "--runs-file",
         type=Path,
-        help="JSON file holding a captured run inventory; no network reads.",
+        help=(
+            "JSON file holding a captured run inventory, or a recovery "
+            "manifest this tool wrote; no network reads."
+        ),
     )
     source.add_argument(
         "--all-open-prs",
@@ -161,8 +170,46 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _run_from_manifest_entry(entry: object) -> WorkflowRun:
+    """Rebuild a run record from one recovery-manifest entry.
+
+    A manifest entry is a superset of a run record wearing different key names,
+    and it splits one ``contexts`` list into ``required_contexts`` and
+    ``other_contexts``. Rejoining them restores the original inventory exactly,
+    because ``_classify`` partitions on membership in the required set and
+    discards nothing.
+    """
+    if not isinstance(entry, Mapping):
+        raise ValueError(f"malformed recovery manifest entry: {entry!r}")
+    required = entry.get("required_contexts")
+    other = entry.get("other_contexts")
+    try:
+        return run_from_mapping(
+            {
+                "run_id": entry["run_id"],
+                "workflow_name": entry["workflow"],
+                "pr_number": entry["pull_request"],
+                "branch": entry["branch"],
+                "event": entry["event"],
+                "status": entry["status"],
+                "contexts": [
+                    *(required if isinstance(required, list) else []),
+                    *(other if isinstance(other, list) else []),
+                ],
+                "jobs_verified": entry.get("jobs_verified"),
+            }
+        )
+    except KeyError as exc:
+        raise ValueError(f"malformed recovery manifest entry: {entry!r}") from exc
+
+
 def load_runs_file(path: Path) -> list[WorkflowRun]:
-    """Read a captured run inventory from disk.
+    """Read a captured run inventory, or a recovery manifest, from disk.
+
+    Two shapes are accepted, because the manifest this tool writes is the file
+    an operator reaches for mid-incident. A recovery manifest is recognized by
+    carrying both ``version`` and ``entries``; anything else is read as a run
+    inventory, either a bare list or an object with a ``runs`` key.
 
     Raises:
         ValueError: on unreadable, non-JSON, or structurally wrong input. The
@@ -179,6 +226,12 @@ def load_runs_file(path: Path) -> list[WorkflowRun]:
     except json.JSONDecodeError as exc:
         raise ValueError(f"{path} is not valid JSON: {exc}") from exc
 
+    if isinstance(payload, dict) and "entries" in payload and "version" in payload:
+        entries = payload["entries"]
+        if not isinstance(entries, list):
+            raise ValueError(f"{path} manifest entries must be a JSON list")
+        return [_run_from_manifest_entry(entry) for entry in entries]
+
     records = payload.get("runs") if isinstance(payload, dict) else payload
     if not isinstance(records, list):
         raise ValueError(f"{path} must hold a JSON list of run records")
@@ -189,7 +242,13 @@ def _open_pull_requests(
     client: GitHubClient, repository: str, base: str
 ) -> dict[str, int]:
     """Map head branch to PR number for every open PR targeting ``base``."""
-    endpoint = f"repos/{repository}/pulls?state=open&base={base}"
+    # Same reason as workflow_runs._query_value: a base ref carrying `&`, `?`,
+    # `#`, or `+` would otherwise inject or corrupt query parameters and return
+    # a different PR set than the operator named.
+    endpoint = (
+        f"repos/{quote(repository, safe='/')}/pulls"
+        f"?state=open&base={quote(base, safe='')}"
+    )
     branches: dict[str, int] = {}
     for payload in iter_paginated_list(client, endpoint):
         number = payload.get("number")
@@ -225,7 +284,9 @@ def _pr_branches(
 ) -> dict[str, int]:
     branches: dict[str, int] = {}
     for number in pr_numbers:
-        payload = client.rest_get(f"repos/{repository}/pulls/{number}")
+        payload = client.rest_get(
+            f"repos/{quote(repository, safe='/')}/pulls/{number}"
+        )
         head = payload.get("head")
         ref = head.get("ref") if isinstance(head, dict) else None
         if not isinstance(ref, str) or not ref:
@@ -301,8 +362,19 @@ def write_manifest(path: Path, manifest: RecoveryManifest) -> None:
 
 
 def _execute(
-    client: GitHubClient, manifest: RecoveryManifest, repository: str
+    client: GitHubClient,
+    manifest: RecoveryManifest,
+    repository: str,
+    manifest_path: Path,
 ) -> int:
+    """Cancel every planned run, naming a retry path that actually parses.
+
+    The retry instruction names ``--runs-file <manifest>`` rather than "the same
+    manifest", and ``load_runs_file`` accepts a manifest for exactly this
+    reason: the earlier wording pointed at a write-only file whose JSON shape
+    ``--runs-file`` rejected, so an operator following it mid-incident got exit
+    2 instead of a retry.
+    """
     run_ids = [entry.run_id for entry in manifest.entries]
     outcome = cancel_runs(client, repository, run_ids)
     print(f"cancelled {len(outcome.cancelled)} of {len(run_ids)} runs")
@@ -312,7 +384,8 @@ def _execute(
         print(f"  [FAIL] run {run_id}: {message}")
     print(
         f"partial cancellation: {len(outcome.failed)} runs still active. "
-        "Re-run with the same manifest to retry them."
+        f"Retry with --runs-file {manifest_path} --confirm "
+        "(cancelling an already-cancelled run is a no-op)."
     )
     return EXIT_EXTERNAL
 
@@ -368,7 +441,13 @@ def main(argv: Sequence[str] | None = None, client: GitHubClient | None = None) 
         )
         return EXIT_OK
 
-    return _execute(client, manifest, args.repository)
+    # resolve_manifest_path always yields a path under --confirm; restating the
+    # default keeps the retry instruction _execute prints pointing at a real
+    # file without asking the reader to trace the branch above.
+    confirmed_manifest_path = (
+        manifest_path if manifest_path is not None else _DEFAULT_MANIFEST_PATH
+    )
+    return _execute(client, manifest, args.repository, confirmed_manifest_path)
 
 
 if __name__ == "__main__":

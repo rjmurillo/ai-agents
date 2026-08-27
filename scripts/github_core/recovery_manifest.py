@@ -29,6 +29,7 @@ from typing import Any
 from scripts.github_core.workflow_event_subscriptions import (
     RECOVERY_EVENTS,
     WorkflowSubscriptions,
+    declared_required_contexts,
     subscribes_to,
 )
 
@@ -75,7 +76,24 @@ class WorkflowRun:
 
 @dataclass(frozen=True, slots=True)
 class RecoveryEntry:
-    """The recovery verdict for one run."""
+    """The recovery verdict for one run.
+
+    ``verification`` records *what was actually checked*, so ``verified: true``
+    is never ambiguous about how it was reached:
+
+    - ``subscription``: :func:`subscribes_to` matched a trigger the workflow
+      file declares.
+    - ``rerun``: no subscription was needed, because the operator will re-run
+      this run by its ``run_id`` through the Actions API.
+    - ``not-required``: the run publishes no required context, so no recovery
+      event applies.
+    - ``none``: nothing verified; the entry is blocked and ``blocked_reason``
+      says why.
+
+    ``jobs_verified`` mirrors :attr:`WorkflowRun.jobs_verified` so a manifest
+    replayed through ``--runs-file`` carries the same fail-closed state it was
+    written with, rather than defaulting back to trusted.
+    """
 
     run_id: int
     pr_number: int
@@ -88,6 +106,8 @@ class RecoveryEntry:
     recovery_event: str | None
     verified: bool
     blocked_reason: str | None
+    verification: str = "none"
+    jobs_verified: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,6 +158,10 @@ def run_from_mapping(payload: Mapping[str, Any]) -> WorkflowRun:
         contexts = payload["contexts"]
         if isinstance(contexts, str) or not isinstance(contexts, Iterable):
             raise ValueError(f"contexts must be a list of strings, got: {contexts!r}")
+        # An absent key keeps the documented default of True. An explicit false
+        # is honored so a manifest written for an unmaterialized run replays as
+        # unverified instead of silently regaining trust on the round trip.
+        recorded_verified = payload.get("jobs_verified")
         return WorkflowRun(
             run_id=int(payload["run_id"]),
             workflow_name=str(payload["workflow_name"]),
@@ -146,6 +170,7 @@ def run_from_mapping(payload: Mapping[str, Any]) -> WorkflowRun:
             event=str(payload["event"]),
             status=str(payload["status"]),
             contexts=tuple(str(item) for item in contexts),
+            jobs_verified=True if recorded_verified is None else bool(recorded_verified),
         )
     except (KeyError, TypeError) as exc:
         raise ValueError(f"malformed workflow run record: {payload!r}") from exc
@@ -190,12 +215,32 @@ def _classify(
     subscriptions: Mapping[str, WorkflowSubscriptions],
     recovery_event: str | None,
 ) -> RecoveryEntry:
-    """Decide whether one run may be cancelled."""
-    required_contexts = tuple(sorted(c for c in run.contexts if c in required))
+    """Decide whether one run may be cancelled.
+
+    The required-context set is the union of two sources, never one. The API
+    contributes what the jobs endpoint has materialized for this run; the
+    workflow file contributes every required context its job declarations could
+    publish. A queued run whose required job sits behind ``needs:`` has the
+    first set empty and the second populated, and reading only the first is what
+    let such a run clear as "publishes nothing required" (see
+    ``workflow_event_subscriptions`` for the measured count of gated jobs).
+    """
+    workflow = subscriptions.get(run.workflow_name)
+    from_api = {context for context in run.contexts if context in required}
+    from_definition = (
+        declared_required_contexts(workflow, required)
+        if workflow is not None
+        else frozenset()
+    )
+    required_contexts = tuple(sorted(from_api | from_definition))
     other_contexts = tuple(sorted(c for c in run.contexts if c not in required))
 
     def verdict(
-        *, event: str | None, verified: bool, reason: str | None
+        *,
+        event: str | None,
+        verified: bool,
+        reason: str | None,
+        verification: str = "none",
     ) -> RecoveryEntry:
         return RecoveryEntry(
             run_id=run.run_id,
@@ -209,6 +254,21 @@ def _classify(
             recovery_event=event,
             verified=verified,
             blocked_reason=reason,
+            verification=verification,
+            jobs_verified=run.jobs_verified,
+        )
+
+    if workflow is None:
+        # Fail closed ahead of the not-required early return. Without a
+        # definition the guard cannot enumerate what this run publishes, so an
+        # empty context tuple is an unread question rather than an answer.
+        return verdict(
+            event=recovery_event,
+            verified=False,
+            reason=(
+                f"no workflow definition found for {run.workflow_name!r}, so its "
+                "published contexts cannot be determined"
+            ),
         )
 
     if not required_contexts:
@@ -223,7 +283,9 @@ def _classify(
                     "trusted (issue #4835 fail-open guard)"
                 ),
             )
-        return verdict(event=None, verified=True, reason=None)
+        return verdict(
+            event=None, verified=True, reason=None, verification="not-required"
+        )
 
     if recovery_event is None:
         return verdict(
@@ -232,17 +294,6 @@ def _classify(
             reason=(
                 "publishes required contexts "
                 f"{', '.join(required_contexts)} and no recovery event was named"
-            ),
-        )
-
-    workflow = subscriptions.get(run.workflow_name)
-    if workflow is None:
-        return verdict(
-            event=recovery_event,
-            verified=False,
-            reason=(
-                f"no workflow definition found for {run.workflow_name!r}, so its "
-                f"subscription to {recovery_event!r} cannot be verified"
             ),
         )
 
@@ -257,7 +308,23 @@ def _classify(
             ),
         )
 
-    return verdict(event=recovery_event, verified=True, reason=None)
+    if workflow.has_path_filters:
+        return verdict(
+            event=recovery_event,
+            verified=False,
+            reason=(
+                f"{run.workflow_name!r} subscribes to {recovery_event!r} but "
+                "declares trigger path filters (paths/paths-ignore), so the "
+                "event is not guaranteed to regenerate the run"
+            ),
+        )
+
+    return verdict(
+        event=recovery_event,
+        verified=True,
+        reason=None,
+        verification="rerun" if recovery_event == "rerun" else "subscription",
+    )
 
 
 def plan_recovery(
@@ -337,6 +404,8 @@ def manifest_to_dict(manifest: RecoveryManifest) -> dict[str, Any]:
                 "other_contexts": list(entry.other_contexts),
                 "recovery_event": entry.recovery_event,
                 "verified": entry.verified,
+                "verification": entry.verification,
+                "jobs_verified": entry.jobs_verified,
                 "blocked_reason": entry.blocked_reason,
             }
             for entry in manifest.entries
