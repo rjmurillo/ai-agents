@@ -82,6 +82,22 @@ class TestFreshCitationsPass:
 
         assert code == 0
 
+    def test_heading_with_colon_never_harvests_a_continuation_quote(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Regression (Copilot, PR #5341): the markdown flag reached
+        # _context_lines only, so a heading ending in a colon still took
+        # the indented body below it as a required continuation quote and
+        # failed a valid citation. A heading is a complete unit there too.
+        root = _repo(tmp_path)
+        doc = f"## About {TARGET}:2:\n\n    magic_token\n"
+        _add_doc(root, "docs/notes.md", doc)
+
+        code, out = _run(root, capsys)
+
+        assert code == 0
+        assert "examined 1 citation(s)" in out
+
     def test_indented_continuation_quote_present_in_range_exits_0(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -156,6 +172,22 @@ class TestStaleCitationsFail:
     ) -> None:
         root = _repo(tmp_path)
         _add_doc(root, "docs/notes.py", f"# Matches {TARGET}:2's magic_token derivation\n")
+
+        code, out = _run(root, capsys)
+
+        assert code == 1
+        assert "magic_token" in out
+
+    def test_comment_continuation_anchor_still_joins_in_code_files(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # The heading boundary is Markdown-only (Copilot, PR #5341): in a
+        # code file a hash prefix is a comment, and a wrapped comment
+        # sentence still hands its identifier to the citation below, so
+        # this stale citation must keep failing on that anchor.
+        root = _repo(tmp_path)
+        doc = f"# The magic_token helper is defined at\n# {TARGET}:2 in the tree.\n"
+        _add_doc(root, "docs/notes.py", doc)
 
         code, out = _run(root, capsys)
 
@@ -291,6 +323,21 @@ class TestCliContract:
 
         assert code == 0
         assert "[SKIP]" in capsys.readouterr().out
+
+    def test_validate_wrapper_returns_false_on_git_failure(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # Spec-validation nit (PR #5338): the boolean wrapper's git-failure
+        # branch is the one pre_pr actually calls; pin it directly.
+        root = _repo(tmp_path)
+        monkeypatch.setattr(
+            checker, "_resolve_default_base_ref", lambda _root: "does-not-exist"
+        )
+
+        assert checker.validate_citation_freshness(root) is False
 
     def test_validate_wrapper_returns_false_on_findings(
         self,
