@@ -107,6 +107,20 @@ class TestStaleCitationsFail:
         assert code == 1
         assert "'magic_token' first appears at line 3" in out
 
+    def test_relocation_hint_survives_whitespace_differences(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Spec-validation finding (PR #5338): the hint search matched
+        # literally, so a re-spaced anchor produced a finding with no
+        # relocated line named. The search reuses _anchor_matches now.
+        root = _repo(tmp_path)
+        _add_doc(root, "docs/notes.md", f'"PLACEHOLDER  =  0" sits at {TARGET}:4.\n')
+
+        code, out = _run(root, capsys)
+
+        assert code == 1
+        assert "first appears at line 2" in out
+
     def test_plain_comment_identifier_anchor_fails_when_absent_from_range(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:

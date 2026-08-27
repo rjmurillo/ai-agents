@@ -62,6 +62,42 @@ class TestDiffParsing:
         assert code == 1
         assert "examined 1 citation(s)" in out
 
+    def test_a_pure_rename_does_not_reauthor_its_latent_citations(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Regression (Copilot round 4, PR #5338): with a contributor's
+        # diff.renames=false a pure rename degrades to delete-plus-add,
+        # so a stale citation that predates the branch reads as newly
+        # authored and blocks the push. --find-renames pins detection on.
+        root = _repo(tmp_path)
+        _git(root, "checkout", "-q", "main")
+        _add_doc(root, "docs/old.md", f"See `{TARGET}:2` (`magic_token`).\n")
+        _git(root, "checkout", "-q", "feature")
+        _git(root, "merge", "-q", "main")
+        _git(root, "config", "diff.renames", "false")
+        _git(root, "mv", "docs/old.md", "docs/renamed.md")
+        _git(root, "commit", "-q", "-m", "rename")
+
+        code, out = _run(root, capsys)
+
+        assert code == 0
+        assert "examined 0 citation(s)" in out
+
+    def test_non_ascii_citing_path_is_not_octal_escaped(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Same round: core.quotePath (default true) octal-escapes a
+        # non-ASCII path in the +++ header, so the citing file stops
+        # matching its HEAD path; pinned off, the finding names the
+        # real file.
+        root = _repo(tmp_path)
+        _add_doc(root, "docs/nötes.md", f"See `{TARGET}:2` (`magic_token`).\n")
+
+        code, out = _run(root, capsys)
+
+        assert code == 1
+        assert f"{'docs/nötes.md'}:1:" in out
+
     def test_unicode_line_separator_does_not_shift_line_numbers(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -169,6 +205,21 @@ class TestScopeBoundaries:
         root = _repo(tmp_path)
         doc = f"See `{TARGET}:2` (`magic_token`).\n"
         _add_doc(root, ".agents/retrospective/2020-01-01-note.md", doc)
+
+        code, out = _run(root, capsys)
+
+        assert code == 0
+        assert "examined 0 citation(s)" in out
+
+    def test_memory_episode_tree_is_never_scanned(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Regression (Copilot round 4, PR #5338): stale_script_refs's
+        # HISTORICAL_ROOTS has no .agents/memory/ entry, so new episode
+        # records under that 750-file historical tree could block a push.
+        root = _repo(tmp_path)
+        doc = f'{{"note": "See `{TARGET}:2` (`magic_token`)."}}\n'
+        _add_doc(root, ".agents/memory/episodes/episode-1.json", doc)
 
         code, out = _run(root, capsys)
 
@@ -324,6 +375,21 @@ class TestScopeBoundaries:
         _git(root, "commit", "-q", "-m", "cfg")
         dotfile = ".lint" + ".yaml"
         _add_doc(root, "docs/notes.md", f"Configured at {dotfile}:9 today.\n")
+
+        code, out = _run(root, capsys)
+
+        assert code == 1
+        assert "has 1 lines at HEAD" in out
+
+    def test_xml_citation_is_in_scope(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Spec-validation edge case (PR #5338): config.xml is a real text
+        # format contributors cite; it joins the extension allowlist.
+        root = _repo(tmp_path)
+        xml = "docs/config" + ".xml"
+        _add_doc(root, xml, "<a/>\n")
+        _add_doc(root, "docs/notes.md", f"See {xml}:10 today.\n")
 
         code, out = _run(root, capsys)
 
