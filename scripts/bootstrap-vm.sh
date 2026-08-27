@@ -212,8 +212,15 @@ if [[ -f "uv.lock" ]]; then
     echo "✓ Python dependencies synced into .venv (uv sync --frozen --extra dev)"
 
     if [[ -f "lefthook.yml" ]]; then
-        uv run --frozen lefthook install --reset-hooks-path
-        uv run --frozen lefthook check-install
+        # Not a bare `lefthook install`. Git shares one hooks directory across
+        # every worktree and lefthook's generated shim bakes in an absolute
+        # path probed from whichever checkout ran the install, so a bare
+        # install leaves every freshly bootstrapped VM failing the blocking
+        # `Lefthook Installed` pre-PR gate (issue #4789). The installer runs
+        # `lefthook install --reset-hooks-path` itself, so core.hooksPath is
+        # still cleared, then overwrites the shims with worktree-safe ones.
+        uv run --frozen python scripts/maintenance/install_lefthook_worktree_safe.py
+        uv run --frozen python scripts/maintenance/install_lefthook_worktree_safe.py --check
         echo "✓ Lefthook installed"
         uv run --frozen python scripts/maintenance/install_merge_drivers.py
         echo "✓ Git merge drivers registered"

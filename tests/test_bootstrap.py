@@ -206,13 +206,29 @@ def test_setup_hook_lib_path_is_idempotent(
         sys.path.remove(lib_dir)
 
 
+INSTALLER = "scripts/maintenance/install_lefthook_worktree_safe.py"
+
+
 def test_vm_bootstrap_installs_lefthook_after_dependency_sync() -> None:
     text = VM_BOOTSTRAP_PATH.read_text(encoding="utf-8")
 
     sync = text.index("uv sync --frozen --extra dev")
-    install = text.index("uv run --frozen lefthook install --reset-hooks-path")
-    assert sync < install
+    install = text.index(f"uv run --frozen python {INSTALLER}\n")
+    check = text.index(f"uv run --frozen python {INSTALLER} --check")
+    assert sync < install < check
     assert "git config core.hooksPath" not in text
+
+
+def test_vm_bootstrap_does_not_run_a_bare_lefthook_install() -> None:
+    """A bare install bakes the bootstrapping checkout's .venv into the shared
+    shim, so every freshly bootstrapped VM would start with the blocking
+    ``Lefthook Installed`` pre-PR gate already red (issue #4789)."""
+    for line in VM_BOOTSTRAP_PATH.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            continue
+        assert "lefthook install" not in stripped, stripped
+        assert "lefthook check-install" not in stripped, stripped
 
 
 def test_vm_bootstrap_has_no_bare_apt_get_or_unguarded_dpkg_i() -> None:
