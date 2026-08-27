@@ -76,6 +76,24 @@ GATE_REFERENCE_CARRIERS: tuple[Path, ...] = (
 
 CARRIER_PATHS: tuple[Path, ...] = VOCABULARY_CARRIERS + GATE_REFERENCE_CARRIERS
 
+# The skill entrypoint and its generated plugin copy. They publish completion
+# criteria in prose, not the greps, so they carry no derivation fence. They are
+# still what an agent reads first, so a stale copy hands out criteria narrower
+# than the gates enforce.
+SKILL_ENTRYPOINTS: tuple[Path, ...] = (
+    REPO_ROOT / ".claude/skills/pr-comment-responder/SKILL.md",
+    REPO_ROOT / "src/copilot-cli/skills/pr-comment-responder/SKILL.md",
+)
+
+# The four terminal status tokens the vocabulary table publishes. Spelled with
+# brackets so a prose mention of the bare word cannot satisfy the assertion.
+TERMINAL_STATUS_TOKENS: tuple[str, ...] = (
+    "[COMPLETE]",
+    "[WONTFIX]",
+    "[DUPLICATE]",
+    "[DEFERRED]",
+)
+
 VOCABULARY_HEADING = "## Comment Map Status Vocabulary"
 
 # The shell regexes every carrier must publish, quoted verbatim from
@@ -782,6 +800,31 @@ def test_phase_eight_one_blocks_instead_of_warning(path: Path) -> None:
     assert "[BLOCKED] INCOMPLETE" in text, (
         f"{_carrier_id(path)} Phase 8.1 must print a [BLOCKED] diagnostic"
     )
+
+
+@pytest.mark.parametrize("path", SKILL_ENTRYPOINTS, ids=_carrier_id)
+def test_skill_entrypoint_completion_criteria_name_every_terminal_status(
+    path: Path,
+) -> None:
+    """The entrypoint states completion; a stale copy narrows the vocabulary.
+
+    ``SKILL.md`` is what an agent reads before it reaches the gates. While it
+    defined completion as ``COMPLETE or WONTFIX`` it contradicted the gates,
+    which also accept ``[DUPLICATE]`` and a tracked ``[DEFERRED]``. An agent
+    following the entrypoint would keep working comments the gates already
+    counted terminal, or file the outcome under the wrong status.
+    """
+    text = path.read_text(encoding="utf-8")
+
+    assert "COMPLETE or WONTFIX" not in text, (
+        f"{_carrier_id(path)} still defines completion as the two-status "
+        f"vocabulary that predates [DUPLICATE] and [DEFERRED] (issue #4054)"
+    )
+    for status in TERMINAL_STATUS_TOKENS:
+        assert status in text, (
+            f"{_carrier_id(path)} completion criteria omit {status}, so an "
+            f"agent reading the entrypoint gets criteria the gates disagree with"
+        )
 
 
 # The vocabulary table is the single authority the greps are derived from.
