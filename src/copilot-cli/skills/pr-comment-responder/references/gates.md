@@ -55,15 +55,25 @@ grep "TASK-$COMMENT_ID.*COMPLETE" .agents/pr-comments/PR-[number]/tasks.md || ex
 **Before Phase 8**: Verify artifact state matches intended API state.
 
 ```bash
-COMPLETED=$(grep -c "\[COMPLETE\]" .agents/pr-comments/PR-[number]/tasks.md)
-TOTAL=$(grep -c "^- \[ \]\|^\[x\]" .agents/pr-comments/PR-[number]/tasks.md)
-
-UNRESOLVED_API=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
-
-if [ "$COMPLETED" -ne "$((TOTAL - UNRESOLVED_API))" ]; then
-  echo "[BLOCKED] Artifact COMPLETED ($COMPLETED) != API resolved"
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+if [ ! -f "$COMMENT_MAP" ]; then
+  echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
 fi
+TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" "$COMMENT_MAP" || true)
+PENDING=$((TOTAL - TERMINAL))
+
+# Count unresolved review threads separately
+UNRESOLVED_API=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
+
+# Verify alignment
+if [ "$PENDING" -ne 0 ]; then
+  echo "[BLOCKED] Comment map still has $PENDING pending comment(s)"
+  exit 1
+fi
+
+echo "Unresolved API threads: $UNRESOLVED_API"
 ```
 
 ## Gate 5: Final Verification
@@ -73,8 +83,12 @@ fi
 ```bash
 REMAINING=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
 COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+if [ ! -f "$COMMENT_MAP" ]; then
+  echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
+  exit 1
+fi
 TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
-TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)" "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
 
 if [ "$REMAINING" -ne 0 ] || [ "$PENDING" -ne 0 ]; then
@@ -91,11 +105,19 @@ echo "[PASS] All gates cleared"
 
 ```bash
 COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+if [ ! -f "$COMMENT_MAP" ]; then
+  echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
+  exit 1
+fi
 TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
-TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)" "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" "$COMMENT_MAP" || true)
+PENDING=$((TOTAL - TERMINAL))
 
-if [ "$TERMINAL" -lt "$TOTAL" ]; then
-  echo "[WARNING] INCOMPLETE: $((TOTAL - TERMINAL)) comments remaining"
+if [ "$PENDING" -ne 0 ]; then
+  echo "[BLOCKED] INCOMPLETE: $PENDING comment(s) not terminal"
+  grep -En "^\*\*Status\*\*: " "$COMMENT_MAP" \
+    | grep -Ev "\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" || true
+  exit 1
 fi
 ```
 
