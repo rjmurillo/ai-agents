@@ -28,7 +28,7 @@ If no argument, review the current branch diff against the base branch. Detect t
 
 The canonical set is `spec-compliance` as the Stage-1 gate plus 11 Stage-2 canonical axes (`analyst`, `architect`, `qa`, `security`, `devops`, `roadmap`, `reliability`, `observability`, `agent-safety`, `decision-rigor`, `code-quality`). `spec-compliance` and `analyst` always run. Callers can pin additional always-on axes, and the remaining axes are selected from verified changed paths and diff effects using each axis prompt's applicability guidance. `spec-compliance` runs first and gates Stage 2: only a `CRITICAL_FAIL` short-circuits the review (see Process step 2). A Stage-1 `UNKNOWN` (INCONCLUSIVE) does NOT short-circuit; Stage 2 still runs and the UNKNOWN is preserved as an UNKNOWN in the merge, because no spec or acceptance criteria could be located and that absence must never suppress a real Stage-2 finding. The caller decides how the merged verdict gates its workflow.
 
-`/review` is a strict superset of CI only in deep-review mode, when it runs the full canonical set. Risk-selected `/review` can be narrower than CI, because it may skip axes that do not apply. The 3 local-only skill axes (`code-qualities-assessment`, `golden-principles`, `taste-lints`) need local code execution and repo state, so CI cannot run them, but they are language-agnostic and can be selected or pinned as always-on when relevant.
+`/review` is a strict superset of CI only in deep-review mode, when it runs the full canonical set. Risk-selected `/review` can be narrower than CI, because it may skip axes that do not apply. The 3 local-only skill axes (`code-qualities-assessment`, `golden-principles`, `taste-lints`) need local code execution and repo state, so CI cannot run them, but they are language-agnostic and are risk-selected or pinned like any axis. They are tracked in a set of their own, never merged into the canonical set (step 4b).
 
 **Self-audit round cap (hard stop).** `/review` runs each axis once per invocation; no internal fix-and-re-review loop. The cap binds the caller: any skill, command, or agent chaining "fix, re-invoke `/review`, repeat" with no human checkpoint MUST NOT exceed 3 rounds for that invocation, even if it switches diff, branch, or PR mid-invocation. The caller tracks its own count for the whole invocation; `/review` holds no shared state. Only a new invocation, or a human checkpoint, resets the count. Hard stop, not a guideline. Round 3: `PASS` ships; `WARN`, `CRITICAL_FAIL`, or `UNKNOWN` escalates to the operator with every open finding (axis, verdict, location, recommendation); no self-acknowledging a `WARN` to ship. Never loop past round 3 silently.
 
@@ -40,7 +40,7 @@ Modeled on `.claude/skills/github/scripts/pr/check_pr_round_cap.py` (issue #5056
 
 This skill runs in two layouts: the source Claude Code project (where `.claude/` is the repo root) and a vendored plugin install (Copilot CLI and similar harnesses) where the consumer repo has no `.claude/` directory and the plugin lives outside the consumer's tree.
 
-- **Canonical axis prompts** (`{role}` is the stem of each `references/*.md` file: `spec-compliance|analyst|architect|qa|security|devops|roadmap|reliability|observability|agent-safety|decision-rigor|code-quality`, discovered, not hardcoded): resolve the `references/` directory via the first candidate that exists, then glob `*.md` inside it for the axis set:
+- **Canonical axis prompts** (`{role}` is the stem of each `references/*.md` file, discovered, not hardcoded; the current set is listed in the convergence contract above): resolve the `references/` directory via the first candidate that exists, then glob `*.md` inside it for the axis set:
   1. `${CLAUDE_SKILL_DIR}/references/` (if `CLAUDE_SKILL_DIR` is set by the harness)
   2. `.claude/skills/review/references/` (Claude Code project layout)
   3. `skills/review/references/` resolved relative to plugin install root (vendored install)
@@ -61,6 +61,7 @@ The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST a
 | Script | Purpose | Exit codes |
 |--------|---------|------------|
 | `scripts/validate_review_marker.py` | Validates the SHA-bound `Reviewed-By: /review@...` marker that `/ship` requires. | `0` valid marker, `1` missing or stale marker, `2` config error |
+| `scripts/select_axes.py` | Selects the Stage-2 canonical axes and the local-only skill axes from verified changed paths and diff effects. Emits the selection, per-axis reasons, and skips as JSON. | `0` selection emitted, `2` config error (unknown pinned axis, or references directory missing or empty) |
 
 ## Process
 
@@ -74,27 +75,16 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
    - **PASS, WARN, or UNKNOWN (INCONCLUSIVE)**: record the Stage-1 verdict and continue to step 3. A WARN or UNKNOWN here does not block Stage 2; it is merged alongside the other axes (per UNKNOWN handling, a Stage-1 UNKNOWN never overrides a real Stage-2 finding, and on an otherwise-PASS run it surfaces the one-line reason no spec or acceptance criteria could be located). The full FINAL VERDICT comes from `merge_verdicts` in step 7.
 
 3. **Classify complexity tier**: Task(subagent_type="analyst"): Read `engineering-complexity-tiers.md` (resolved via the "Path resolution" section above) and the diff. Assess as Tier 1-5. Use this to calibrate axis depth.
-4. **Run the Stage-2 canonical axes selected by change risk**, discovered from `references/*.md` after excluding `spec-compliance` (already run in step 2). Resolve the directory via the "Path resolution" section, then glob `*.md` and sort by stem for a stable order. Do not hardcode the axis list; the directory is the source of truth. Select axes in this order:
-   - start with `analyst` and any caller-pinned always-on axes
-   - inspect verified changed paths and diff effects
-   - use each axis prompt's `When This Axis Applies` and `Analysis Focus Areas` guidance to decide whether the change matches the axis risk
-   - if the change cannot be classified with confidence, or the caller explicitly requests a deep review, run the full set instead of a subset
-   - when an axis is skipped, record the selection reason and do not treat the skip as PASS
-   For each selected axis, load the canonical prompt for `{role}` (the file stem), then invoke `Task(subagent_type="{role}")` with that prompt as the system instruction, the same CONTEXT_MODE-prefixed diff as input, and the structured Output Schema from the canonical file as the response contract. If the harness does not register a `{role}` subagent type in its `Task` enum (Copilot CLI today, and any axis with no matching agent such as `reliability`, `observability`, `agent-safety`, `decision-rigor`), fall back to `Task(subagent_type="general-purpose")` with the canonical axis prompt as the system instruction; the prompt drives the review, not the subagent identity. The current Stage-2 canonical set (11 axes) is:
-   - axis 1: `analyst`
-   - axis 2: `architect`
-   - axis 3: `qa`
-   - axis 4: `security`
-   - axis 5: `devops`
-   - axis 6: `roadmap`
-   - axis 7: `reliability` (general-purpose fallback; no dedicated subagent)
-   - axis 8: `observability` (general-purpose fallback; no dedicated subagent)
-   - axis 9: `agent-safety` (general-purpose fallback; no dedicated subagent)
-   - axis 10: `decision-rigor` (general-purpose fallback; no dedicated subagent)
-   - axis 11: `code-quality` (general-purpose fallback; no dedicated subagent)
+4. **Select the Stage-2 axes with `scripts/select_axes.py`, then run the canonical ones.** Run `python3 <select_axes.py> --changed-path <PATH> ... [--effect <NAME> ...] [--pin <AXIS> ...] [--deep]` with every path from the verified three-dot diff of step 1 and every effect you read in the diff hunks. The selector is a pure function of those inputs, so the same change selects the same axes every time; do not re-derive the routing from prose. `resources/axis-selection.md`, co-located with this skill and resolved like `references/`, holds the effect vocabulary, the risk table, and the output fields.
+
+   Run the axes in `canonical_selected` (`analyst` is always there). `fail_closed: true` means the change could not be classified and every candidate was selected; that is intended, not an error. A skipped axis is never PASS: copy its reason from `skipped` into the output table verbatim.
+
+   For each selected axis load `references/{role}.md`, then invoke `Task(subagent_type="{role}")` with that prompt as the system instruction, the same CONTEXT_MODE-prefixed diff as input, and that file's Output Schema as the response contract. A `When This Axis Applies` section, where an axis has one, calibrates depth; it never overrules the selection. If the harness registers no `{role}` subagent type (Copilot CLI today, and any axis with no matching agent such as `reliability` or `decision-rigor`), fall back to `Task(subagent_type="general-purpose")`; the prompt drives the review, not the subagent identity.
 
 4a. **Validate scope of each axis output against the PR diff.** After each axis (steps 2, 3, and every axis in step 4) returns its findings text, run `validate_findings_scope.py` (resolved via the "Path resolution" section, under `scripts/validate_findings_scope.py`) to detect findings whose `location:` fields name files outside the three-dot diff collected in step 1. Invocation: `python3 <validate_findings_scope.py> --worktree <WORKTREE_PATH> --base-branch <BASE_BRANCH> --text <AXIS_TEXT> --emit-adjusted-text`. When the script exits 1 (out-of-scope locations found), replace the axis output with stdout from the script before extracting the verdict. The adjusted text marks each flagged location with `[pre-existing - not in this PR diff]`. If every cited location is outside the PR diff and the axis emitted a blocking verdict, the script downgrades that verdict to `WARN`, so an unrelated finding cannot block the reviewed PR. Do NOT suppress or skip the finding; preserve it with the label so the reviewer can see it was noted but does not belong to this change. When the script exits 0 (all in scope, or diff empty/unavailable), record stdout when present, otherwise record the axis output unmodified.
-5. **Run 3 chained skill axes** (local-only; CI does not run these). Run any selected local-only skill axes after the selected canonical axes. Scope the golden-principles and taste-lints axes to the PR diff by passing the base branch detected in step 1 (stored as `BASE_BRANCH`) as `--diff-scope`, quoted, so the gates evaluate only changed files, not the whole tree:
+4b. **Keep the local-only skill axes in their own selected set.** The 3 local axes (`code-qualities-assessment`, `golden-principles`, `taste-lints`) are sibling skills invoked with `Skill(skill="{name}")`. None has a `references/{name}.md` file, so a local axis that lands in the canonical set resolves to a prompt path that does not exist and is misloaded. `select_axes.py` reports them in `local_selected`, never in `canonical_selected`, including when `--pin` names one; keep the two lists separate for the rest of the run.
+
+5. **Run the selected chained skill axes** (local-only; CI does not run these). Run every axis in `local_selected` after the canonical ones; report the rest as skipped with its reason. Scope the golden-principles and taste-lints axes to the PR diff by passing the base branch detected in step 1 (stored as `BASE_BRANCH`) as `--diff-scope`, quoted, so the gates evaluate only changed files, not the whole tree:
 
 - local axis 1: Skill(skill="code-qualities-assessment"), invoking `python3 <assess.py> --target . --changed-only --base "origin/$BASE_BRANCH" --format json`. Its report labels authored, test, and generated files. Generated artifacts are reported as generator-owned and do not create local quality findings; evaluate their source and generation-drift evidence instead.
 - local axis 2: Skill(skill="golden-principles"), invoking `python3 <scan_principles.py> --diff-scope "origin/$BASE_BRANCH"`, where `<scan_principles.py>` is `golden-principles/scripts/scan_principles.py` resolved via the "Path resolution" section (chained-skill scripts). Do not assume the `.claude/` layout. Scope: golden-principles enforces toolkit-artifact governance for GP-001, GP-003, GP-004, GP-005, and GP-006 (script language, skill frontmatter, agent definitions, YAML logic, pinned Actions). GP-002 is enforced by hooks and review practice; GP-007 and GP-008 are enforced by taste-lints. A clean result on a non-toolkit repo means no rule applied, not that design was reviewed.
@@ -123,19 +113,10 @@ Findings table with one row per axis:
 |------|---------|-----------|-------|---------|
 | spec-compliance | PASS | always-on | (from get_verdict_emoji) | (Stage-1 gate; SKIPPED rows below when it short-circuits) |
 | analyst | PASS | always-on | (from get_verdict_emoji) | (one-line summary) |
-| architect | WARN | selected / skipped - reason | ... | ... |
-| qa | ... | selected / skipped - reason | ... | ... |
-| security | ... | selected / skipped - reason | ... | ... |
-| devops | ... | selected / skipped - reason | ... | ... |
-| roadmap | ... | selected / skipped - reason | ... | ... |
-| reliability | ... | selected / skipped - reason | ... | ... |
-| observability | ... | selected / skipped - reason | ... | ... |
-| agent-safety | ... | selected / skipped - reason | ... | ... |
-| decision-rigor | ... | selected / skipped - reason | ... | ... |
-| code-quality | ... | selected / skipped - reason | ... | ... |
-| code-qualities-assessment | ... | selected / skipped - reason | ... | ... |
-| golden-principles | ... | selected / skipped - reason | ... | ... |
-| taste-lints | ... | selected / skipped - reason | ... | ... |
+| architect | WARN | selected - risk category | ... | ... |
+| devops | UNKNOWN | skipped - reason from `skipped` | ... | ... |
+
+One row per axis in the step-4 candidate set, then one per local axis: 15 rows with the current set, in the order the axes ran. Take the Selection cell from `selection_reasons` or `skipped` verbatim.
 
 **FINAL VERDICT**: [PASS|WARN|CRITICAL_FAIL|UNKNOWN] (from `merge_verdicts`)
 
@@ -192,6 +173,7 @@ that is safe (idempotent in effect: the latest marker binds the current tip).
 
 - [ ] The `spec-compliance` Stage-1 axis file exists under `references/spec-compliance.md` and runs before Stage 2 (Process step 2)
 - [ ] Every non-spec `references/*.md` file is either selected by change risk or reported as SKIPPED with a reason, and deep review still runs the full set (11 with the current set: analyst, architect, qa, security, devops, roadmap, reliability, observability, agent-safety, decision-rigor, code-quality)
+- [ ] Stage-2 selection came from `scripts/select_axes.py` over the verified three-dot diff; the 3 local axes stayed in `local_selected`; an unclassifiable path or unknown `--effect` gave `fail_closed: true` and the full set
 - [ ] Each axis emits a parseable verdict line per the `extract_verdict` regex
 - [ ] The verdict library resolves under one of the two documented candidate paths
 - [ ] `merge_verdicts` produces a single final verdict consistent with the rules in Process step 7
