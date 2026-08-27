@@ -97,6 +97,26 @@ def _fake_repo(tmp_path: Path) -> Path:
     return tmp_path
 
 
+def _empty_memory_checkout(tmp_path: Path) -> Path:
+    """A checkout the hook can run inside whose memory tree starts empty.
+
+    The registered command cd's to CLAUDE_PROJECT_DIR, so a foreign cwd alone
+    still searches this repository's memories. Pointing the project directory
+    at a throwaway checkout is what makes the memory tree controllable; the
+    package tree and virtualenv are linked so the hook still loads its real
+    dependencies instead of failing open.
+    """
+    repo = tmp_path / "checkout"
+    (repo / ".git").mkdir(parents=True)
+    (repo / ".serena" / "memories").mkdir(parents=True)
+    (repo / "scripts").symlink_to(REPO_ROOT / "scripts", target_is_directory=True)
+    (repo / ".claude").symlink_to(REPO_ROOT / ".claude", target_is_directory=True)
+    venv = REPO_ROOT / ".venv"
+    if venv.is_dir():
+        (repo / ".venv").symlink_to(venv, target_is_directory=True)
+    return repo
+
+
 def _harness_env(project_dir: Path = REPO_ROOT) -> dict[str, str]:
     """The environment Claude Code hooks actually run in.
 
@@ -106,6 +126,9 @@ def _harness_env(project_dir: Path = REPO_ROOT) -> dict[str, str]:
     virtualenv, so the test drops it before launching.
     """
     env = dict(os.environ)
+    # An inherited COPILOT_CLI would flip the recall hook's stdout shape
+    # (issue #4727) in every case that never asked for it.
+    env.pop("COPILOT_CLI", None)
     virtual_env = env.pop("VIRTUAL_ENV", "")
     if virtual_env:
         venv_bin = {str(Path(virtual_env) / "bin"), str(Path(virtual_env) / "Scripts")}
@@ -121,6 +144,7 @@ def _run(
     payload: dict,
     cwd: Path,
     project_dir: Path = REPO_ROOT,
+    extra_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess:
     """Run one invoker exactly as registered, from an arbitrary cwd."""
     return _run_command(
@@ -128,6 +152,7 @@ def _run(
         payload,
         cwd,
         project_dir,
+        extra_env,
     )
 
 
@@ -136,9 +161,11 @@ def _run_command(
     payload: dict,
     cwd: Path,
     project_dir: Path = REPO_ROOT,
+    extra_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess:
     """Run one settings command under the Claude Code shell contract."""
     env = _harness_env(project_dir)
+    env.update(extra_env or {})
     return subprocess.run(
         ["sh", "-c", command],
         input=json.dumps(payload),
@@ -291,6 +318,86 @@ class TestInvokerExitCodes:
         assert result.returncode == 0, result.stderr
         assert "<session-reflection>" in result.stderr
         assert memory.read_text(encoding="utf-8") == before
+
+
+class TestRecallOutputShapePerHost:
+    """The recall hook's stdout shape is what each host actually consumes.
+
+    Issue #4727 probed Copilot CLI 1.0.79-6 on this same registration surface
+    with a matched pair: plain stdout was discarded, and a top-level
+    ``{"additionalContext": "..."}`` document reached the model. Claude Code
+    reads plain stdout on this event. These cases drive the registered command
+    exactly as settings.json spells it, differing only in whether COPILOT_CLI
+    is set, so the discriminating variable is the one the probe varied.
+
+    A unit test cannot observe host output handling, so the assertion is on
+    the shape the host parses: one JSON document with a top-level
+    ``additionalContext`` string, or bare text that is not JSON at all.
+    """
+
+    RECALL = ("UserPromptSubmit", "UserPromptSubmit/invoke_memory_recall.py")
+    PROMPT = {"prompt": "how does dispatch group registration work"}
+
+    @pytest.mark.unit
+    def test_copilot_receives_a_parseable_top_level_envelope(self, tmp_path):
+        result = _run(
+            *self.RECALL,
+            self.PROMPT,
+            _fake_repo(tmp_path),
+            extra_env={"COPILOT_CLI": "1"},
+        )
+
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout)
+        assert isinstance(payload, dict)
+        assert "<memory-context>" in payload["additionalContext"]
+
+    @pytest.mark.unit
+    def test_claude_still_receives_the_bare_block(self, tmp_path):
+        result = _run(*self.RECALL, self.PROMPT, _fake_repo(tmp_path))
+
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.lstrip().startswith("<memory-context>")
+        with pytest.raises(json.JSONDecodeError):
+            json.loads(result.stdout)
+
+    @pytest.mark.unit
+    def test_an_empty_copilot_cli_value_is_not_a_copilot_session(self, tmp_path):
+        """Presence of the name alone must not flip the shape; an exported but
+        empty variable is indistinguishable from unset for identity."""
+        result = _run(
+            *self.RECALL,
+            self.PROMPT,
+            _fake_repo(tmp_path),
+            extra_env={"COPILOT_CLI": ""},
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.lstrip().startswith("<memory-context>")
+
+    @pytest.mark.unit
+    def test_no_recall_emits_nothing_rather_than_an_empty_envelope(self, tmp_path):
+        """Silence, not an envelope wrapping an empty block.
+
+        The paired control writes one matching memory into the same checkout
+        and requires an envelope, so an empty stdout produced by a hook that
+        failed open cannot pass this case.
+        """
+        repo = _empty_memory_checkout(tmp_path)
+
+        empty = _run(*self.RECALL, self.PROMPT, repo, repo, {"COPILOT_CLI": "1"})
+
+        assert empty.returncode == 0, empty.stderr
+        assert empty.stdout == ""
+
+        (repo / ".serena" / "memories" / "dispatch-groups.md").write_text(
+            "# Dispatch Groups (2026-01-01)\n\nHow dispatch group registration works.\n",
+            encoding="utf-8",
+        )
+        populated = _run(*self.RECALL, self.PROMPT, repo, repo, {"COPILOT_CLI": "1"})
+
+        assert populated.returncode == 0, populated.stderr
+        assert "<memory-context>" in json.loads(populated.stdout)["additionalContext"]
 
 
 class TestFailOpenWithoutTheScriptsTree:

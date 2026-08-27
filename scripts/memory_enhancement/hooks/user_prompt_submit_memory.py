@@ -4,17 +4,27 @@
 Searches .serena/memories/ for content matching the user's prompt,
 ranks by confidence score, and injects top results via stdout.
 
+The stdout shape depends on the host, because the two harnesses read this
+event differently (issue #4727):
+
+- Claude Code adds plain ``UserPromptSubmit`` stdout to the model context, so
+  the memory block is printed bare.
+- GitHub Copilot CLI discards plain stdout on this event and consumes a
+  top-level ``{"additionalContext": "..."}`` envelope instead, so the block is
+  wrapped when ``COPILOT_CLI`` is set.
+
 Hook Type: UserPromptSubmit
 Exit Codes:
-    0 = always. Claude Code adds UserPromptSubmit stdout to the model's
-        context, so recall needs no non-zero code. Exit code 2 on this
-        event blocks prompt processing and erases the user's prompt, so
-        this hook must never return it (issue #4011).
+    0 = always. Both hosts read this hook's context from stdout, so recall
+        needs no non-zero code. Exit code 2 on this event blocks prompt
+        processing and erases the user's prompt, so this hook must never
+        return it (issue #4011).
 """
 
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -55,9 +65,33 @@ def main() -> int:
 
     results = _search_and_format(query, memories_dir, repo_root)
     if results:
-        print(results)
+        print(_render_for_host(results))
 
     return 0
+
+
+def _render_for_host(memory_context: str) -> str:
+    """Return the memory block in the stdout shape the running host reads.
+
+    Issue #4727 probed GitHub Copilot CLI 1.0.79-6 on the production
+    registration surface (``.claude/settings.json``) with a matched pair that
+    differed only in output form: plain stdout was discarded, and a top-level
+    ``{"additionalContext": "<sentinel>"}`` document reached the model. Claude
+    Code reads plain stdout on this event, so it keeps the bare block.
+
+    ``COPILOT_CLI`` is the harness identity signal. ``CLAUDE_PROJECT_DIR`` is
+    set under Copilot too and cannot distinguish the two.
+
+    Args:
+        memory_context: The rendered ``<memory-context>`` block.
+
+    Returns:
+        The block itself under Claude Code, or a one-line JSON envelope
+        carrying it under Copilot CLI.
+    """
+    if os.environ.get("COPILOT_CLI", "").strip():
+        return json.dumps({"additionalContext": memory_context})
+    return memory_context
 
 
 def _read_user_input() -> str:
@@ -109,7 +143,7 @@ def _find_repo_root(start: Path | None = None) -> Path | None:
 def _search_and_format(
     query: str, memories_dir: Path, repo_root: Path
 ) -> str:
-    """Search memories and format results for stderr injection.
+    """Search memories and format results for stdout injection.
 
     Args:
         query: Filtered search terms.
@@ -142,7 +176,9 @@ def _format_memory_context(results: list[SearchResult]) -> str:
         results: List of SearchResult objects.
 
     Returns:
-        Formatted string for stderr output.
+        Formatted string for stdout output. ``_render_for_host`` decides
+        whether it is printed bare or inside an ``additionalContext``
+        envelope.
     """
     lines = [
         "<memory-context>",

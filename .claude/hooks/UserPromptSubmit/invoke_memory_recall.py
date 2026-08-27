@@ -8,12 +8,16 @@ becomes a silent no-op.
 
 Hook Type: UserPromptSubmit (non-blocking, fail-open)
 Exit Codes:
-    0 = always. Matching memories go to stdout, which Claude Code adds to
-        the model context. Exit code 2 on this event would block prompt
-        processing and erase the user prompt, so this hook never blocks.
+    0 = always. Matching memories go to stdout. Claude Code adds plain
+        stdout on this event to the model context; Copilot CLI reads a
+        top-level ``additionalContext`` envelope instead, which the recall
+        hook emits when ``COPILOT_CLI`` is set. Exit code 2 on this event
+        would block prompt processing and erase the user prompt, so this
+        hook never blocks.
 
 References:
     - Issue #4011 (memory hooks were never registered)
+    - Issue #4727 (bare stdout was discarded under Copilot CLI 1.0.79-6)
 """
 
 from __future__ import annotations

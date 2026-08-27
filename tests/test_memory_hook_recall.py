@@ -14,6 +14,7 @@ from memory_enhancement.hooks.user_prompt_submit_memory import (
     _find_repo_root,
     _format_memory_context,
     _read_user_input,
+    _render_for_host,
     _search_and_format,
     main,
 )
@@ -109,8 +110,51 @@ class TestFindRepoRoot:
             assert result is None
 
 
+class TestRenderForHost:
+    """The stdout envelope each harness consumes (issue #4727).
+
+    Copilot CLI 1.0.79-6 discards plain UserPromptSubmit stdout and reads a
+    top-level ``{"additionalContext": "..."}`` document. Claude Code reads the
+    plain text. COPILOT_CLI is the only variable that distinguishes them;
+    CLAUDE_PROJECT_DIR is set under both.
+    """
+
+    BLOCK = "<memory-context>\nhit\n</memory-context>"
+
+    @pytest.mark.unit
+    def test_copilot_gets_a_top_level_additional_context_envelope(self, monkeypatch):
+        monkeypatch.setenv("COPILOT_CLI", "1")
+
+        payload = json.loads(_render_for_host(self.BLOCK))
+
+        assert payload == {"additionalContext": self.BLOCK}
+
+    @pytest.mark.unit
+    def test_claude_gets_the_block_unwrapped(self, monkeypatch):
+        monkeypatch.delenv("COPILOT_CLI", raising=False)
+
+        assert _render_for_host(self.BLOCK) == self.BLOCK
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("value", ["", "   ", "\t"])
+    def test_a_blank_copilot_cli_value_is_treated_as_absent(self, monkeypatch, value):
+        monkeypatch.setenv("COPILOT_CLI", value)
+
+        assert _render_for_host(self.BLOCK) == self.BLOCK
+
+    @pytest.mark.unit
+    def test_the_envelope_is_one_json_document(self, monkeypatch):
+        """Copilot parses at most one final JSON document per command hook, so
+        a multi-line block must not become several."""
+        monkeypatch.setenv("COPILOT_CLI", "true")
+
+        rendered = _render_for_host(self.BLOCK)
+
+        assert "\n" not in rendered
+
+
 class TestFormatMemoryContext:
-    """Tests for the stderr output format."""
+    """Tests for the stdout output format."""
 
     @pytest.mark.unit
     def test_format_single_result(self):
@@ -197,6 +241,7 @@ class TestExitContract:
     @pytest.mark.unit
     def test_match_writes_stdout_and_returns_zero(self, tmp_path, monkeypatch, capsys):
         repo = self._repo(tmp_path)
+        monkeypatch.delenv("COPILOT_CLI", raising=False)
         monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"prompt": "dispatch groups"})))
         monkeypatch.setattr(
             "memory_enhancement.hooks.user_prompt_submit_memory._find_repo_root",
@@ -215,8 +260,54 @@ class TestExitContract:
         assert captured.err == ""
 
     @pytest.mark.unit
+    def test_copilot_match_writes_one_envelope_and_returns_zero(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        repo = self._repo(tmp_path)
+        monkeypatch.setenv("COPILOT_CLI", "1")
+        monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"prompt": "dispatch groups"})))
+        monkeypatch.setattr(
+            "memory_enhancement.hooks.user_prompt_submit_memory._find_repo_root",
+            lambda start=None: repo,
+        )
+        monkeypatch.setattr(
+            "memory_enhancement.hooks.user_prompt_submit_memory._search_and_format",
+            lambda *_args: "<memory-context>hit</memory-context>",
+        )
+
+        exit_code = main()
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        payload = json.loads(captured.out)
+        assert payload["additionalContext"] == "<memory-context>hit</memory-context>"
+        assert captured.err == ""
+
+    @pytest.mark.unit
+    def test_no_match_writes_nothing_under_copilot(self, tmp_path, monkeypatch, capsys):
+        """An empty recall must stay silent rather than send an empty
+        envelope, which would inject a blank context block every prompt."""
+        repo = self._repo(tmp_path)
+        monkeypatch.setenv("COPILOT_CLI", "1")
+        monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"prompt": "dispatch groups"})))
+        monkeypatch.setattr(
+            "memory_enhancement.hooks.user_prompt_submit_memory._find_repo_root",
+            lambda start=None: repo,
+        )
+        monkeypatch.setattr(
+            "memory_enhancement.hooks.user_prompt_submit_memory._search_and_format",
+            lambda *_args: "",
+        )
+
+        exit_code = main()
+
+        assert exit_code == 0
+        assert capsys.readouterr().out == ""
+
+    @pytest.mark.unit
     def test_no_match_returns_zero_and_writes_nothing(self, tmp_path, monkeypatch, capsys):
         repo = self._repo(tmp_path)
+        monkeypatch.delenv("COPILOT_CLI", raising=False)
         monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"prompt": "dispatch groups"})))
         monkeypatch.setattr(
             "memory_enhancement.hooks.user_prompt_submit_memory._find_repo_root",
