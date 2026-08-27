@@ -11,13 +11,19 @@ tests/ci/test_bulk_cancel_guard.py.
 
 from __future__ import annotations
 
-from scripts.github_core.recovery_manifest import WorkflowRun
+from datetime import UTC, datetime
+
+from scripts.ci.ruleset_required_contexts import REQUIRED_CONTEXTS
+from scripts.github_core.recovery_manifest import WorkflowRun, plan_recovery
 from scripts.github_core.workflow_event_subscriptions import (
     WorkflowSubscriptions,
     parse_workflow_subscriptions,
 )
 
 INCIDENT_PR_COUNT = 41
+
+# Frozen so a manifest's `generated_at` is assertable.
+PINNED_CLOCK = datetime(2026, 8, 9, 12, 0, tzinfo=UTC)
 
 # Two required contexts drawn from the pinned ruleset contract in
 # scripts/ci/ruleset_required_contexts.py, plus one context that ruleset does
@@ -92,14 +98,53 @@ def incident_runs(pr_count: int = INCIDENT_PR_COUNT) -> list[WorkflowRun]:
     return runs
 
 
+def workflow_document(
+    name: str,
+    pr_types: list[str],
+    *,
+    jobs: dict[str, object] | None = None,
+    paths: list[str] | None = None,
+) -> dict[str, object]:
+    """Build one parsed workflow document in the shape the real files take.
+
+    ``jobs`` defaults to empty rather than to the workflow's own context so the
+    static job-name union contributes nothing unless a test opts in. That keeps
+    every case that predates the union scoring exactly the API-derived contexts
+    it was written against.
+    """
+    trigger: dict[str, object] = {"types": list(pr_types)}
+    if paths is not None:
+        trigger["paths"] = list(paths)
+    return {
+        "name": name,
+        "on": {"pull_request": trigger},
+        "jobs": dict(jobs or {}),
+    }
+
+
 def subscriptions_with(types: dict[str, list[str]]) -> dict[str, WorkflowSubscriptions]:
     """Build a name-to-subscriptions map from workflow name to its PR types."""
     return {
-        name: parse_workflow_subscriptions(
-            {"name": name, "on": {"pull_request": {"types": list(pr_types)}}}
-        )
+        name: parse_workflow_subscriptions(workflow_document(name, list(pr_types)))
         for name, pr_types in types.items()
     }
+
+
+def plan_with_pinned_contract(runs, subscriptions, recovery_event):
+    """Plan against the pinned ruleset contract and a fixed clock.
+
+    Shared by ``test_recovery_manifest.py`` and
+    ``test_recovery_manifest_context_sources.py`` so both score runs against the
+    same required-context set the production CLI passes.
+    """
+    return plan_recovery(
+        runs,
+        required=REQUIRED_CONTEXTS,
+        subscriptions=subscriptions,
+        recovery_event=recovery_event,
+        repository="rjmurillo/ai-agents",
+        now=PINNED_CLOCK,
+    )
 
 
 def healthy_subscriptions() -> dict[str, WorkflowSubscriptions]:

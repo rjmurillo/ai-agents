@@ -1,8 +1,12 @@
-"""Tests for the fail-closed recovery planner (issue #4835)."""
+"""Tests for the fail-closed recovery planner (issue #4835).
+
+Where a run's required-context set comes from, which is the union of the jobs
+API and the workflow file, is covered in
+``tests/ci/test_recovery_manifest_context_sources.py``.
+"""
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -13,7 +17,6 @@ from scripts.github_core.recovery_manifest import (
     WorkflowRun,
     dedupe_runs,
     manifest_to_dict,
-    plan_recovery,
     run_from_mapping,
     summarize_blast_radius,
 )
@@ -32,20 +35,12 @@ from tests.ci.bulk_cancel_fixtures import (
     reopened_omitting_subscriptions,
     subscriptions_with,
 )
-
-_CLOCK = datetime(2026, 8, 9, 12, 0, tzinfo=UTC)
-
-
-def plan(runs, subscriptions, recovery_event):
-    """Plan with the pinned ruleset contract and a fixed clock."""
-    return plan_recovery(
-        runs,
-        required=REQUIRED_CONTEXTS,
-        subscriptions=subscriptions,
-        recovery_event=recovery_event,
-        repository="rjmurillo/ai-agents",
-        now=_CLOCK,
-    )
+from tests.ci.bulk_cancel_fixtures import (
+    PINNED_CLOCK as _CLOCK,
+)
+from tests.ci.bulk_cancel_fixtures import (
+    plan_with_pinned_contract as plan,
+)
 
 
 class TestRequiredContextGating:
@@ -105,7 +100,7 @@ class TestRequiredContextGating:
     def test_non_required_run_needs_no_recovery_event(self):
         manifest = plan(
             [make_run(1, workflow=OPTIONAL_WORKFLOW, context=OPTIONAL_CONTEXT)],
-            {},
+            healthy_subscriptions(),
             None,
         )
 
@@ -113,6 +108,7 @@ class TestRequiredContextGating:
         assert manifest.entries[0].recovery_event is None
         assert manifest.entries[0].required_contexts == ()
         assert manifest.entries[0].other_contexts == (OPTIONAL_CONTEXT,)
+        assert manifest.entries[0].verification == "not-required"
 
     def test_rerun_is_accepted_for_a_workflow_with_no_pull_request_trigger(self):
         manifest = plan(
