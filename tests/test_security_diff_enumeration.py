@@ -121,19 +121,26 @@ SHELL_PROSE_MARKERS = (
 )
 
 # A read-only subcommand allowlist does not make a command read-only: `git diff`,
-# `git log`, and `git show` all accept `--output=<path>`. Measured on this branch,
-# `git diff HEAD~1 --output=<tmp>` wrote 3127 bytes and `git log -1 --output=<tmp>`
-# wrote 1186 bytes. Nothing enforces the limit, so the prose must name the hole.
+# `git log`, `git show`, and `git blame` all accept `--output=<path>`. Measured on
+# this branch against git 2.43.0, all four wrote their target and exited 0, and
+# `git -c diff.external=<cmd> diff` executed `<cmd>`. `.claude/settings.json` now
+# denies those forms on Claude surfaces, and
+# `tests/test_security_agent_git_write_guard.py` pins that control. The prose must
+# still name the hazard: the denylist matches command text, and no equivalent
+# surface exists on Copilot or VS Code.
 OUTPUT_HAZARD_MARKERS = (
     "No `--output` or `-o` on `git diff`",
     "No shell redirection into",
+    "config injection such as",
 )
 
 # Prompt obligations on every surface: the Claude allowlist grants bare
 # Bash/Write, and `$toolset:editor` grants unscoped `edit` on Copilot and VS Code.
+# The `permissions.deny` rules narrow the shell grant on Claude only, so the
+# obligation framing still holds for every limit those rules do not reach.
 OBLIGATION_MARKERS = (
     "obligations this prompt places on you, not properties of",
-    "No harness scopes them for you",
+    "No harness scopes the rest for you",
     "hold the line yourself",
 )
 
