@@ -327,7 +327,7 @@ vendor source does. See the environment inventory below.
 |---|---|---|
 | `PLUGIN_ROOT`, `COPILOT_PLUGIN_ROOT`, `CLAUDE_PLUGIN_ROOT` | Plugin install directory, for plugin hooks | OFFICIAL, changelog quoted above |
 | `COPILOT_CLI` | Claimed: `1` in subprocesses Copilot spawns | **RETRACTED, see correction below** |
-| `CLAUDE_PROJECT_DIR` | Not set. No vendor source places it on any Copilot surface | DOCS SILENT, and measured absent |
+| `CLAUDE_PROJECT_DIR` | Presence is CONTESTED: a live 1.0.79-6 hook (issue #4727) recorded it set; a static 1.0.80 byte search finds no reference | CONTESTED, see correction below |
 
 **Correction, 2026-08-27 (issue #5369).** An earlier revision cited a vendor
 changelog quote for `COPILOT_CLI` ("Git hooks can detect Copilot CLI

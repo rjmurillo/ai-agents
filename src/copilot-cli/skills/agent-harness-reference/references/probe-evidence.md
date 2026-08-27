@@ -468,9 +468,10 @@ the same machine), both because it fails safe for Claude and because, if
 `COPILOT_CLI` does turn out to be real, it would not identify the consuming
 host by itself: Copilot would export it into every shell it spawns, so a
 Claude session started underneath one would inherit it. `CLAUDE_PROJECT_DIR`
-discriminates in neither direction: Copilot does not set it, and it was also
-observed unset inside a Claude Code session, so its absence identifies
-nothing.
+discriminates in neither direction regardless of how the CONTESTED presence
+question above resolves: a live 1.0.79-6 hook recorded it set under Copilot
+(issue #4727), while it was separately observed unset inside a Claude Code
+session, so neither its presence nor its absence identifies the host.
 
 Durable tests: `TestRecallOutputShapePerHost` in
 `tests/test_memory_hook_registration.py`, which drives the registered command
