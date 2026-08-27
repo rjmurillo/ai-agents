@@ -208,6 +208,10 @@ class RepoHealth:
     scopes_read: int = 0
     effective_bare: bool = False
     worktree_config: bool = False
+    # A `true` a later scope overrides. Reported so a usable verdict on a
+    # repository whose config does contain `true` says which value was masked,
+    # rather than the flat "none set true" that would read as a wrong summary.
+    masked_scopes: tuple[tuple[str, str], ...] = ()
 
 
 def _git(repo_root: Path, *args: str, missing_ok: bool = False) -> str | None:
@@ -421,12 +425,74 @@ def _worktree_config_enabled(repo_root: Path) -> bool:
     return value == "true"
 
 
+def _effective_pair(
+    scoped: tuple[tuple[str, str], ...], *, ignore_worktree: bool = False
+) -> tuple[str, str] | None:
+    """Return the ``(scope, value)`` pair git resolves as effective, or None.
+
+    ``core.bare`` is single-valued, so git answers it with one value however
+    many scopes carry it: the last one wins. ``--show-scope --get-all`` emits
+    values in git's own precedence order, system through command, and
+    ``git config --get`` returns the final line. Measured on git 2.43.0, where
+    the ``--get`` column is the fact this function reproduces::
+
+        get-all                             --get    --is-bare-repository
+        global true, local false            false    false
+        local true, local false             false    false
+        local false, local true             true     true
+        local true, worktree false          false    false
+        local true, worktree false,
+          command false                     false    -
+
+    ``ignore_worktree`` answers the second question this gate needs: what a
+    sibling worktree carrying no override of its own sees. That is why the gate
+    cannot simply read ``--is-bare-repository``; see the module docstring.
+    """
+    considered = [pair for pair in scoped if not (ignore_worktree and pair[0] == "worktree")]
+    return considered[-1] if considered else None
+
+
+def _active_bare_scopes(scoped: tuple[tuple[str, str], ...]) -> tuple[tuple[str, str], ...]:
+    """Return the true-carrying scopes, but only when one of them is in force.
+
+    A ``true`` git has already overridden is not a defect. ``global true`` under
+    a ``local false``, or a stale ``local true`` followed by ``local false``,
+    leaves every worktree of the repository usable, so reporting it would print
+    a repair for a condition nobody has. Presence of the token is therefore not
+    the test; the effective value is.
+
+    Two effective values matter, because neither alone covers the incident:
+
+    * this vantage point's own value, so a worktree-scoped ``true`` is caught.
+    * the shared value a sibling without an override sees. The state issue
+      #4698 left behind is ``local true`` plus the worktree-scoped ``false``
+      GOTCHAS prescribes, where this checkout resolves usable while its
+      siblings are dead.
+
+    Every true-carrying scope is then reported, not only the governing one,
+    because clearing the top scope can expose a lower one and the reader is
+    better served seeing both repairs at once.
+    """
+    here = _effective_pair(scoped)
+    shared = _effective_pair(scoped, ignore_worktree=True)
+    in_force = (here is not None and here[1] == "true") or (
+        shared is not None and shared[1] == "true"
+    )
+    if not in_force:
+        return ()
+    return tuple((scope, value) for scope, value in scoped if value == "true")
+
+
 def diagnose(repo_root: Path) -> RepoHealth:
     """Classify the repository. Raises the typed errors above on failure."""
     scoped = _scoped_core_bare(repo_root)
-    bare_scopes = tuple((scope, value) for scope, value in scoped if value == "true")
+    bare_scopes = _active_bare_scopes(scoped)
     if not bare_scopes:
-        return RepoHealth("usable", scopes_read=len(scoped))
+        return RepoHealth(
+            "usable",
+            scopes_read=len(scoped),
+            masked_scopes=tuple(pair for pair in scoped if pair[1] == "true"),
+        )
 
     work_tree = _main_work_tree(repo_root, _common_git_dir(repo_root))
     if work_tree is None:
@@ -507,9 +573,11 @@ def _evaluate(repo_root: Path) -> int:
         return 3
 
     if health.status == "usable":
+        masked = ", ".join(f"{scope}={value}" for scope, value in health.masked_scopes)
+        detail = f"{masked} overridden by a later scope" if masked else "none set true"
         print(
             f"repo health: core.bare read in {health.scopes_read} config scope(s), "
-            f"none set true, for {repo_root}"
+            f"{detail}, for {repo_root}"
         )
         return 0
     if health.status == "bare_by_design":
