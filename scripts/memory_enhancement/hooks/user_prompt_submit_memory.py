@@ -108,11 +108,12 @@ def _render_for_host(memory_context: str) -> str:
       control" hits referenced above are all ``COPILOT_CLI_*``-prefixed names
       (``COPILOT_CLI_VERSION`` and similar), not the bare variable. Treat the
       ``COPILOT_CLI`` branch below as an unconfirmed heuristic, not a vendor
-      contract: it costs nothing when wrong (Claude sessions never reach it,
-      per the precedence order), but there is currently no verified
-      environment signal that positively identifies a Copilot-CLI-spawned
-      hook subprocess. See probe-evidence.md section 8b for the full
-      correction and the open follow-up to get a live-session probe.
+      contract: any Claude session that exports ``CLAUDE_CODE_ENTRYPOINT``
+      never reaches it, per the precedence order, so it costs nothing when
+      wrong there. But there is currently no verified environment signal that
+      positively identifies a Copilot-CLI-spawned hook subprocess. See
+      probe-evidence.md section 8b for the full correction and the open
+      follow-up to get a live-session probe.
 
     Because the positive Copilot signal is unconfirmed, the Claude signal is
     checked first and is the only branch this code can vouch for. Claude reads
@@ -130,6 +131,19 @@ def _render_for_host(memory_context: str) -> str:
     Copilot does not set it (same 1.0.80 search, 0 hits), so it is unset under
     Copilot rather than shared, but it is also unset in some Claude Code
     surfaces, so its absence identifies nothing.
+
+    Residual gap, disclosed rather than papered over: a Claude surface that
+    does not export ``CLAUDE_CODE_ENTRYPOINT`` and has inherited a stray
+    ``COPILOT_CLI`` from an ancestor would take the envelope branch and drop
+    the block silently. No second Claude signal is checked, because none is
+    measured for this purpose. ``CLAUDECODE`` appears in this repository only
+    as a managed-remote-container marker paired with ``CODESPACES``
+    (``scripts/validation/run_workflow_local_test.py``
+    ``_REMOTE_CONTAINER_ENV_MARKERS``), never as a host discriminator, and it
+    has not been searched against the Copilot CLI artifacts the way
+    ``CLAUDE_CODE_ENTRYPOINT`` was. Adding it here would trade a disclosed gap
+    for an undisclosed guess. This is an inherent limit of environment-variable
+    host detection, not a defect this code can close without a probe.
 
     Args:
         memory_context: The rendered ``<memory-context>`` block.

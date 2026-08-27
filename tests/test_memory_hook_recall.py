@@ -25,12 +25,16 @@ from memory_enhancement.search import SearchResult
 def _neutral_harness_identity(monkeypatch):
     """Clear both harness-identity signals before every test in this module.
 
-    pytest runs under Claude Code or Copilot CLI, and whichever is live exports
-    its own signal into the test process. `_render_for_host` branches on exactly
-    those two variables, so an inherited value decides the output shape for any
-    case that does not pin it, and the case then passes on one contributor's
-    machine and fails on the other's. Clearing here forces each case to name its
-    own host. This is `.claude/rules/testing.md` SHOULD-12 applied in-process.
+    pytest runs under Claude Code or Copilot CLI, and either variable can reach
+    the test process from the live harness or an ancestor shell. Claude Code
+    exports `CLAUDE_CODE_ENTRYPOINT`; `COPILOT_CLI` is an assumed Copilot
+    signal, not a vendor-confirmed one (see `_render_for_host`), so clearing it
+    guards against a stray inherited value rather than a known export.
+    `_render_for_host` branches on exactly those two variables, so an inherited
+    value decides the output shape for any case that does not pin it, and the
+    case then passes on one contributor's machine and fails on the other's.
+    Clearing here forces each case to name its own host. This is
+    `.claude/rules/testing.md` SHOULD-12 applied in-process.
     """
     monkeypatch.delenv("COPILOT_CLI", raising=False)
     monkeypatch.delenv("CLAUDE_CODE_ENTRYPOINT", raising=False)
@@ -132,11 +136,17 @@ class TestRenderForHost:
     top-level ``{"additionalContext": "..."}`` document. Claude Code reads the
     plain text and never a top-level ``additionalContext`` key.
 
-    Two variables discriminate, and the order matters. Copilot exports
-    ``COPILOT_CLI`` into every shell it spawns, so its presence alone does not
-    identify the consuming host; a Claude session launched from inside a Copilot
-    shell inherits it. ``CLAUDE_CODE_ENTRYPOINT`` is set by Claude Code and
-    never by Copilot CLI, so it takes precedence.
+    Two variables discriminate, and the order matters.
+    ``CLAUDE_CODE_ENTRYPOINT`` is the confirmed one: set by Claude Code, and 0
+    hits in the shipped Copilot CLI 1.0.80 artifacts. ``COPILOT_CLI`` is not
+    confirmed. No shipped Copilot CLI artifact, changelog entry, or official
+    doc names it as an environment variable, so the cases below simulate it
+    deliberately, pending a live-CLI probe (see ``_render_for_host`` and
+    probe-evidence.md section 8b). Even if it turns out to be real, its
+    presence alone would not identify the consuming host, because Copilot would
+    export it into every shell it spawns and a Claude session launched
+    underneath one would inherit it. Either way the Claude signal takes
+    precedence, which is the branch these cases pin.
 
     Every case sets both variables explicitly rather than deleting one and
     inheriting the other, because pytest itself runs under one of these two
@@ -172,7 +182,11 @@ class TestRenderForHost:
     def test_an_inherited_copilot_cli_does_not_override_a_live_claude_session(
         self, monkeypatch
     ):
-        """Both signals set means Claude is the consumer and Copilot is an ancestor.
+        """Both signals set is read as Claude consuming with Copilot upstream.
+
+        The class docstring records that ``COPILOT_CLI`` is simulated rather
+        than vendor-confirmed; this case pins the precedence that must hold
+        whether or not it is ever real.
 
         Claude reads a nested ``hookSpecificOutput`` envelope, so a top-level
         ``additionalContext`` document parses as structured output with no

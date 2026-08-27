@@ -166,8 +166,8 @@ def _harness_env(project_dir: Path = REPO_ROOT) -> dict[str, str]:
     env = dict(os.environ)
     # Drop both harness-identity signals; only the case that names one sets it
     # back. Either inherited value flips the recall hook's stdout shape (issue
-    # #4727), and they leak from opposite directions: COPILOT_CLI under Copilot
-    # CLI, CLAUDE_CODE_ENTRYPOINT under Claude Code. See testing.md SHOULD-12.
+    # #4727). CLAUDE_CODE_ENTRYPOINT is confirmed for Claude Code; COPILOT_CLI is
+    # assumed, not vendor-confirmed. See _render_for_host, testing.md SHOULD-12.
     env.pop("COPILOT_CLI", None)
     env.pop("CLAUDE_CODE_ENTRYPOINT", None)
     virtual_env = env.pop("VIRTUAL_ENV", "")
@@ -377,9 +377,9 @@ class TestRecallOutputShapePerHost:
     Issue #4727 probed Copilot CLI 1.0.79-6 on this same registration surface
     with a matched pair: plain stdout was discarded, and a top-level
     ``{"additionalContext": "..."}`` document reached the model. Claude Code
-    reads plain stdout on this event. These cases drive the registered command
-    exactly as settings.json spells it, differing only in whether COPILOT_CLI
-    is set, so the discriminating variable is the one the probe varied.
+    reads plain stdout on this event. The probe varied the output form, not the
+    environment; these cases vary COPILOT_CLI, the variable the hook branches on to
+    choose that form. It is simulated, not confirmed (see ``_render_for_host``).
 
     A unit test cannot observe host output handling, so the assertion is on
     the shape the host parses: one JSON document with a top-level
@@ -418,9 +418,9 @@ class TestRecallOutputShapePerHost:
 
     @pytest.mark.unit
     def test_a_live_claude_session_outranks_an_inherited_copilot_cli(self, tmp_path):
-        """Copilot exports COPILOT_CLI into every shell it spawns, so a nested
-        Claude session inherits it. Claude reads a nested hookSpecificOutput
-        envelope, so a top-level document would be parsed and silently dropped."""
+        """COPILOT_CLI is simulated, not vendor-confirmed (see _render_for_host);
+        if real, a nested Claude session inherits it. Claude reads a nested
+        hookSpecificOutput envelope and silently drops a top-level document."""
         repo = _seeded_memory_checkout(tmp_path)
 
         result = _run(
