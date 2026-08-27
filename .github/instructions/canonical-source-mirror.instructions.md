@@ -92,7 +92,7 @@ so the cited path needs an extension in `_EXTENSIONS`, and a slashless name coun
 _IGNORE_WITH_REASON = re.compile(re.escape(IGNORE_MARKER) + r"\s+--\s+\S")
 ```
 
-The gate checks: the cited file must be tracked at HEAD, the cited lines must exist, and when the citing sentence names the contract (a backtick span of 3+ characters, a double-quoted phrase of 4+, an identifier of 5+, or an indented verbatim quote; shorter tokens are a deliberate noise floor, not assertions) that content must actually appear at the cited lines. It reports where the content moved to when it can. Historical trees (retrospectives, sessions, memories) and `fixtures/` directories, whose files synthesize citations on purpose, are exempt, and a deliberate exception takes a `citation-freshness: ignore` marker with a reason on or above the line.
+The gate checks: the cited file must be tracked at HEAD, the cited lines must exist, and when the citing sentence names the contract (a backtick span of 3+ characters, a double-quoted phrase of 4+, an underscore identifier of 5+, or an indented verbatim quote; shorter tokens, and bare names with no underscore, are a deliberate noise floor, not assertions) that content must actually appear at the cited lines. It reports where the content moved to when it can. Historical trees (retrospectives, sessions, memories) and `fixtures/` directories, whose files synthesize citations on purpose, are exempt, and a deliberate exception takes a `citation-freshness: ignore` marker with a reason on or above the line.
 
 Everything else in this section remains manual. A claim that names a symbol, a test, or a count WITHOUT a line number is invisible to that gate, and two other gates look like they would catch it and do not:
 

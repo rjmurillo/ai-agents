@@ -210,13 +210,21 @@ def _context_lines(
     context = [segment]
     if citing_lines is None:
         return context
+    own_indent = _indent_width(line_text)
     for offset in (1, 2):
         index = line_index - offset
         if index < 0 or not _sentence_continues(citing_lines[index]):
             break
+        # A deeper-indented neighbor is an example or verbatim block
+        # belonging to an earlier line (a sibling citation's continuation
+        # quote, say), not this sentence wrapping across lines.
+        if _indent_width(citing_lines[index]) > own_indent:
+            break
         context.insert(0, citing_lines[index])
     if _sentence_continues(line_text) and line_index + 1 < len(citing_lines):
-        context.append(citing_lines[line_index + 1])
+        following = citing_lines[line_index + 1]
+        if _indent_width(following) <= own_indent:
+            context.append(following)
     return context
 
 

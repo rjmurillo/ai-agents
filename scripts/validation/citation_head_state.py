@@ -83,7 +83,10 @@ def _added_lines_since_base(
             "--find-renames",
             "--default-prefix",
             "-U0",
-            "--diff-filter=ACMR",
+            # T included: a symlink replaced by a regular file is a type
+            # change whose whole post-image is added lines this gate must
+            # scan; without it that content was silently unscanned.
+            "--diff-filter=ACMRT",
             f"{base_ref}...HEAD",
         ],
     )
