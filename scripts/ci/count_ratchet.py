@@ -52,8 +52,11 @@ Exit codes (AGENTS.md contract):
         the one at --base-ref; a branch merely behind the base ref is reported
         and not blocked, but only for a ratchet whose caller declares
         ``merge_tree_backed=True``, issue #5065)
-    2 - config error (baseline missing or malformed, bad args)
-    3 - external error (the underlying linter could not run)
+    2 - config error (baseline missing or malformed, bad args, or the fork
+        point tracks no baseline file)
+    3 - external error (the underlying linter could not run, or a git read
+        behind the --base-ref comparison could not answer: no fork point, or
+        an unreadable baseline at one)
 """
 
 from __future__ import annotations
@@ -484,6 +487,10 @@ BASELINE_RAISED = "raised"
 BASELINE_LOWERED = "lowered"
 BASELINE_UNCHANGED = "unchanged"
 
+FORK_POINT_UNREADABLE = "fork-point-unreadable"
+FORK_BASELINE_ABSENT = "fork-baseline-absent"
+FORK_BASELINE_UNREADABLE = "fork-baseline-unreadable"
+
 
 @dataclass(frozen=True, slots=True)
 class BaselineMove:
@@ -493,10 +500,32 @@ class BaselineMove:
     at_fork: int
 
 
+@dataclass(frozen=True, slots=True)
+class BaselineMoveFailure:
+    """Which of the two git reads failed, so the message can say which.
+
+    ``baseline_move`` performs two reads and either can fail for reasons that
+    share no remedy. Returning a bare None collapsed them, and the single
+    message that answered for all of them told the reader "this checkout's
+    history is unrelated to <base>: fetch the real base branch", which is an
+    unverified accusation in every case except the one it was written for, and
+    routes the reader to a `git fetch` that cannot fix their problem.
+
+    ``fork`` is the commit ``_fork_point`` named, present for every reason that
+    got past that read and None for ``FORK_POINT_UNREADABLE``. Carrying it lets
+    the message quote the commit whose baseline it could not read, which is the
+    one fact that separates "git cannot reach your history" from "git reached
+    it and the file there is missing or malformed".
+    """
+
+    reason: str
+    fork: str | None = None
+
+
 def baseline_move(
     repo_root: Path, base_ref: str, baseline: Path, recorded: int
-) -> BaselineMove | None:
-    """How this checkout moved the baseline number, or None when git cannot say.
+) -> BaselineMove | BaselineMoveFailure:
+    """How this checkout moved the baseline number, or why git could not say.
 
     ``recorded`` comes from ``read_baseline`` on the working tree, so a staged
     or unstaged edit counts exactly like a committed one: the pre-push hook
@@ -511,16 +540,22 @@ def baseline_move(
     accusation-without-measurement defect issue #4066 was filed for, one level
     down: the fork point was in hand and the direction was thrown away.
 
-    Failure is None rather than a direction so the caller fails closed. A gate
-    that read an unlaunchable git as "this branch changed nothing" would wave
-    through the widened allowance it exists to catch.
+    Failure is a named reason rather than a direction so the caller fails
+    closed. A gate that read an unlaunchable git as "this branch changed
+    nothing" would wave through the widened allowance it exists to catch. The
+    reason is measured, not inferred: which read failed is known here, and
+    ``baseline_absent_at_ref`` separates a fork commit that tracks no baseline
+    at all from one whose recorded value would not parse. The same defect one
+    level down again, and the reason this function no longer returns None.
     """
     fork = _fork_point(repo_root, base_ref)
     if fork is None:
-        return None
+        return BaselineMoveFailure(FORK_POINT_UNREADABLE)
     at_fork = baseline_at_ref(repo_root, fork, baseline)
+    if at_fork is None and baseline_absent_at_ref(repo_root, fork, baseline):
+        return BaselineMoveFailure(FORK_BASELINE_ABSENT, fork)
     if at_fork is None:
-        return None
+        return BaselineMoveFailure(FORK_BASELINE_UNREADABLE, fork)
     if recorded > at_fork:
         return BaselineMove(BASELINE_RAISED, at_fork)
     if recorded < at_fork:
@@ -552,14 +587,65 @@ def _lowered_here_message(facts: _BaseRefFacts, *, at_fork: int) -> str:
     )
 
 
+def _fork_baseline_absent_message(facts: _BaseRefFacts, *, fork: str) -> str:
+    """Report a fork point git named that tracks no baseline file, and block.
+
+    Distinct from ``_unreadable_fork_message`` because the history is readable:
+    git resolved the fork point without trouble, so "fetch the real base
+    branch" and "run `git fetch --unshallow`" are both wrong, and following
+    either leaves the reader exactly where they started.
+    """
+    return (
+        f"{facts.label}: FORK POINT RECORDS NO BASELINE. This tree records "
+        f"{facts.baseline}, {facts.base_ref} records {facts.base} "
+        f"(+{facts.excess}). The measured count is {facts.count}. git named "
+        f"the fork point ({fork}) and that commit tracks no baseline file, so "
+        f"there is no earlier value to compare this tree's against and the "
+        f"ratchet blocks rather than guess. The history is readable, so "
+        f"fetching more of it changes nothing. Probable cause: the baseline "
+        f"was added to {facts.base_ref} after this branch was cut. Merge or "
+        f"rebase from {facts.base_ref} so the fork point lands on a commit "
+        f"that records it."
+    )
+
+
+def _fork_baseline_unreadable_message(facts: _BaseRefFacts, *, fork: str) -> str:
+    """Report a fork point whose recorded baseline would not read, and block.
+
+    The third way the fork-point comparison fails, and the one with no remedy
+    in git plumbing: the commit is reachable and does track the file, so what
+    failed is reading a value out of it. ``baseline_at_ref`` has already
+    written git's own stderr when the read itself failed, which is why this
+    message points at the line above rather than restating it.
+    """
+    return (
+        f"{facts.label}: FORK POINT BASELINE UNREADABLE. This tree records "
+        f"{facts.baseline}, {facts.base_ref} records {facts.base} "
+        f"(+{facts.excess}). The measured count is {facts.count}. git named "
+        f"the fork point ({fork}) and that commit does track a baseline file, "
+        f"but its value could not be read, so whether this tree moved the "
+        f"number cannot be determined and the ratchet blocks rather than "
+        f"guess. The history is readable, so fetching more of it changes "
+        f"nothing. Probable cause: the value recorded at that commit is not an "
+        f"integer, or the git read failed; any git error is printed above this "
+        f"line."
+    )
+
+
 def _unreadable_fork_message(facts: _BaseRefFacts, *, shallow: bool) -> str:
-    """Report that git could not name a fork point, and block.
+    """Report that git could not name a fork point at all, and block.
 
     Its own state, never ``_above_base_message``. That message offers "if it
     did raise the baseline, restore {base}", an accusation this branch of the
     code explicitly could not verify: with no fork point there is no evidence
     about who moved the number. Reusing it told contributors who never touched
     the baseline to restore a value they never held.
+
+    Narrower than it was. This message now answers only for a failed
+    ``_fork_point`` read, the one state where reachability really is the
+    problem, so its shallow-clone and unrelated-history remedies are the
+    measured ones. A baseline that is merely absent or malformed at a fork
+    point git named without trouble gets its own message above.
     """
     cause = (
         "this is a shallow clone, so there is no common history to read: run "
@@ -620,17 +706,46 @@ def _behind_base_unbacked_message(facts: _BaseRefFacts) -> str:
     )
 
 
+def _verdict_for_fork_failure(
+    failure: BaselineMoveFailure, facts: _BaseRefFacts, *, shallow: bool
+) -> int:
+    """Block on a fork-point read that could not answer, naming which one failed.
+
+    Every branch here blocks; what differs is the diagnostic and the exit code
+    it reports under, per the AGENTS.md contract this module's header quotes.
+    A baseline that is absent or malformed at the fork point is a config error
+    (2), the same class ``run`` already reports for a baseline missing or
+    malformed in the working tree. A fork point git could not name, and a git
+    read that failed outright, are external (3), the same class
+    ``_base_ref_verdict`` already reports for an unreadable baseline at the
+    base ref itself. Neither is a regression: nothing measured says this branch
+    widened an allowance, which is exactly the claim ``EXIT_REGRESSION`` makes.
+
+    The ``fork is not None`` guards narrow the type and fail closed together:
+    a future reason that forgets to carry its fork point falls through to the
+    most conservative message rather than rendering a commit it does not have.
+    """
+    fork = failure.fork
+    if fork is not None and failure.reason == FORK_BASELINE_ABSENT:
+        print(_fork_baseline_absent_message(facts, fork=fork), file=sys.stderr)
+        return EXIT_CONFIG
+    if fork is not None and failure.reason == FORK_BASELINE_UNREADABLE:
+        print(_fork_baseline_unreadable_message(facts, fork=fork), file=sys.stderr)
+        return EXIT_EXTERNAL
+    print(_unreadable_fork_message(facts, shallow=shallow), file=sys.stderr)
+    return EXIT_EXTERNAL
+
+
 def _verdict_for_move(
-    move: BaselineMove | None,
+    move: BaselineMove | BaselineMoveFailure,
     facts: _BaseRefFacts,
     *,
     shallow: bool,
     merge_tree_backed: bool,
 ) -> int | None:
-    """Pick the message and exit code for one measured fork-point direction."""
-    if move is None:
-        print(_unreadable_fork_message(facts, shallow=shallow), file=sys.stderr)
-        return EXIT_REGRESSION
+    """Pick the message and exit code for one measured fork-point outcome."""
+    if isinstance(move, BaselineMoveFailure):
+        return _verdict_for_fork_failure(move, facts, shallow=shallow)
     if move.direction == BASELINE_RAISED:
         print(_above_base_message(facts), file=sys.stderr)
         return EXIT_REGRESSION
@@ -657,6 +772,11 @@ def _base_ref_verdict(
     A baseline above the one at the base ref blocks when this branch is what
     moved it, in either direction, and when git cannot say. ``count`` has to be
     measured before this runs so the verdict can report it (issue #4066).
+
+    "When git cannot say" is three states, not one, and each names the read
+    that failed rather than the one the message used to blame: no fork point
+    (external), a fork point that tracks no baseline (config), and a fork point
+    whose baseline would not read (external). See ``_verdict_for_fork_failure``.
 
     Issue #5065. The check used to block on ``baseline > base`` alone, which is
     a property of the base ref moving rather than of anything the branch
