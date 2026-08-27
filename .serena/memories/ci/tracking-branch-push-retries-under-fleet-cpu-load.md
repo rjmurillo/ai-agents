@@ -63,6 +63,22 @@ not `git push`'s (see `git-lock-pushes-per-branch-not-globally.md`'s
 real defect in the branch's diff without first checking whether the fleet was
 under load at push time.
 
+## Root cause found: not fleet load at all, see issue #5370
+
+The OOM-kill mechanism below is NOT fleet contention. Root-caused 2026-08-27
+(issue #5370): `build_all.py --check` OOM-kills itself standalone, with zero
+other processes running, whenever `.claude/worktrees/` holds enough registered
+git worktrees. Its REQ-003-010 snapshot guard (`_snapshot_owned_prefixes`)
+walks `.claude/` with `rglob("*")` and reads every file's bytes into memory;
+that walk has no embedded-repository boundary awareness, so it descends into
+every nested worktree checkout under `.claude/worktrees/<name>/` and reads
+each one's full working-tree content. Memory scales with worktree count, not
+with concurrent process count. The fix is in `build_all.py`, not in retry
+timing: see issue #5370 for the exact code path and suggested fix. Retrying
+with a load/memory check (below) is still a valid workaround until that lands,
+but pruning stale worktrees under `.claude/worktrees/` (see issue #4193, the
+GC script that exists but isn't wired up) is the more direct unblock.
+
 ## A second failure mode: OOM-kill, not CPU timeout
 
 The same session hit three more consecutive failures (v74-v76, 2026-08-27) with
