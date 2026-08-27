@@ -575,7 +575,7 @@ def _merge_state_status(pr: dict) -> str:
 # GraphQL `MergeStateStatus` reference: "Mergeable with passing commit status
 # and pre-receive hooks."  That is CLEAN plus pre-receive hooks, so the CLEAN
 # merge path executes it unchanged, and this repository already read it that
-# way before this script existed: `scripts/ci/check_pr_merge_state.py:19-20`
+# way before this script existed: `scripts/ci/check_pr_merge_state.py:27-28`
 # carries `PASS_STATES = {"BEHIND", "BLOCKED", "CLEAN", "HAS_HOOKS",
 # "UNSTABLE"}` against `FAIL_STATES = {"DIRTY"}`.  The "Merge path by
 # `mergeStateStatus`" table in `pr-autofix.md` names the CLEAN scripts for

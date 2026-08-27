@@ -1532,7 +1532,7 @@ class TestUnsupportedMergeStatesNeverReachT1:
     # has not defined yet.  The last one is the point of the allowlist: an
     # enumeration of blockers cannot cover it.  HAS_HOOKS is deliberately NOT
     # here: GitHub defines it as "Mergeable with passing commit status and
-    # pre-receive hooks", and `scripts/ci/check_pr_merge_state.py:19` lists it
+    # pre-receive hooks", and `scripts/ci/check_pr_merge_state.py:27` lists it
     # in PASS_STATES, so it is covered by the positive cases below instead.
     _UNSUPPORTED = ("UNKNOWN", "DRAFT", "A_STATE_GITHUB_ADDS_LATER")
 
@@ -1616,7 +1616,7 @@ class TestUnsupportedMergeStatesNeverReachT1:
 
         GitHub's GraphQL `MergeStateStatus` reference defines it as "Mergeable
         with passing commit status and pre-receive hooks", i.e. CLEAN plus
-        pre-receive hooks, and `scripts/ci/check_pr_merge_state.py:19` carries
+        pre-receive hooks, and `scripts/ci/check_pr_merge_state.py:27` carries
         `PASS_STATES = {"BEHIND", "BLOCKED", "CLEAN", "HAS_HOOKS",
         "UNSTABLE"}`. A PR on a repository with push rulesets reports
         `HAS_HOOKS` while fully green; blocking it stripped the author's armed

@@ -705,9 +705,10 @@ stops instead.
 `HAS_HOOKS` is executable, not blocked. GitHub's GraphQL `MergeStateStatus`
 reference defines it as "Mergeable with passing commit status and pre-receive
 hooks", which is `CLEAN` plus pre-receive hooks, so the `CLEAN` scripts land it
-unchanged. `scripts/ci/check_pr_merge_state.py` has always read it that way:
-its `PASS_STATES` holds `BEHIND`, `BLOCKED`, `CLEAN`, `HAS_HOOKS`, and
-`UNSTABLE` against a `FAIL_STATES` of `DIRTY` alone. Issue #4899 reopen: this
+unchanged. This repository's own push-time merge-state gate has always read it
+that way too: its `PASS_STATES` holds `BEHIND`, `BLOCKED`, `CLEAN`,
+`HAS_HOOKS`, and `UNSTABLE` against a `FAIL_STATES` of `DIRTY` alone, and
+`test_pr_merge_ready.py` cites that file and its line range. Issue #4899: this
 document briefly claimed `HAS_HOOKS` had no merge path at all, which left the
 repository carrying two contradictory definitions of the same enum value and,
 on any repository with pre-receive hooks (GitHub Enterprise, or push
