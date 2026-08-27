@@ -52,9 +52,15 @@ HOOK_PAYLOADS = (
     PROJECT_ROOT / "scripts/hooks/pre-push",
     PROJECT_ROOT / "scripts/hooks/commit-msg",
 )
+# Every file a job under test imports, not only the file the job names. The
+# fixture repository holds nothing else, so a script that grows a sibling import
+# fails here with ModuleNotFoundError until that sibling is listed. That is the
+# roster working: it caught `check_repo_health_report.py` on the commit that
+# split it out.
 POLICY_SUPPORT_FILES = (
     "scripts/maintenance/repair_packed_refs.py",
     "scripts/validation/check_repo_health.py",
+    "scripts/validation/check_repo_health_report.py",
     "scripts/validation/git_hook_policy.py",
     "scripts/validation/push_ref_staleness.py",
     "scripts/validation/sha_pinning.py",
