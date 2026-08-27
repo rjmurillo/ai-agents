@@ -7,6 +7,7 @@ once, which is how the two copies would drift.
 
 from __future__ import annotations
 
+import argparse
 import subprocess
 from pathlib import Path
 
@@ -43,6 +44,76 @@ def commit_all(repo: Path, message: str) -> None:
 def checkout(repo: Path, *argv: str) -> None:
     """Check out in ``repo``, failing the test if git refuses."""
     subprocess.run(["git", "-C", str(repo), "checkout", "-q", *argv], check=True)
+
+
+def git_checked(repo: Path, *args: str) -> None:
+    """Run git in ``repo``, failing the test if it refuses."""
+    subprocess.run(["git", "-C", str(repo), *args], check=True)
+
+
+def git_stdout(repo: Path, *args: str) -> str:
+    """Stripped stdout of a git command, failing the test if git refuses."""
+    return subprocess.run(
+        ["git", "-C", str(repo), *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    ).stdout.strip()
+
+
+def main_lowered_to_99(tmp_path: Path) -> tuple[Path, Path, str]:
+    """A repository whose default branch lowered ``baseline.txt`` 100 -> 99.
+
+    Returns ``(repo, baseline_file, main_ref)``. The commit before the lowering
+    is the fork point every branch built on this is cut from, which is the shape
+    issue #4057 recorded and issue #5065 re-read.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    init_repo(repo)
+
+    baseline_file = repo / "baseline.txt"
+    baseline_file.write_text("100\n", encoding="utf-8")
+    (repo / "seed.txt").write_text("seed\n", encoding="utf-8")
+    commit_all(repo, "main: baseline=100")
+
+    git_checked(repo, "checkout", "-q", "-b", "branch-a")
+    baseline_file.write_text("99\n", encoding="utf-8")
+    commit_all(repo, "branch-a: lower baseline to 99")
+
+    git_checked(repo, "checkout", "-q", "main")
+    git_checked(repo, "merge", "-q", "--ff-only", "branch-a")
+    return repo, baseline_file, "main"
+
+
+def run_with_count(
+    repo: Path,
+    baseline_file: Path,
+    base_ref: str,
+    count: int,
+    *,
+    merge_tree_backed: bool = True,
+) -> int:
+    """Drive ``count_ratchet.run`` over ``repo`` with the linter stubbed out.
+
+    Git is the boundary under test in the fork-point modules, so it is real;
+    the linter is not, so ``count`` stands in for it.
+    """
+    args = argparse.Namespace(
+        baseline=baseline_file,
+        repo_root=repo,
+        update=False,
+        base_ref=base_ref,
+    )
+    return count_ratchet.run(
+        args,
+        label="test",
+        counter=lambda _: count,
+        scan_error="scan failed",
+        regression_advice="fix violations",
+        merge_tree_backed=merge_tree_backed,
+    )
 
 
 class FakeCounter:
