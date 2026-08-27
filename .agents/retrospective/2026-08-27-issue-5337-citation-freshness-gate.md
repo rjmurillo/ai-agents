@@ -11,10 +11,12 @@
 
 The user's framing: mechanically checkable claims were reaching paid AI
 review rounds instead of a free local check, one full push cycle each (PR
-#5335 spent its third cycle on a claim a grep verifies; PR #5336 exists
-solely to repair four stale `file:line` citations; PR #5322 measured
-sixteen stale descriptions caught by review rather than any gate, while
-its one machine-replayed claim class never recurred). The solve had to be
+#5335, merged 2026-08-26 at `4e6a0db01`, spent its third cycle on a claim
+a grep verifies; PR #5336, merged 2026-08-26 at `191d89e7f`, exists
+solely to repair four stale `file:line` citations; PR #5322, opened
+2026-08-26 and still open at this writing, measured sixteen stale
+descriptions caught by review rather than any gate, while its one
+machine-replayed claim class never recurred). The solve had to be
 model-independent: a harness-enforced gate, not prompting, because it must
 bind Sonnet, Opus, and Fable class authors identically.
 
@@ -23,19 +25,22 @@ sequence: every citation the matcher recognizes (a slash-containing
 tracked path with a known text extension, then `:N` or `:N-M`) on a line
 added since the base ref is verified against HEAD (tracked, in range, and
 at least one anchor the citing sentence names present in the cited range,
-with the relocated line reported when content moved). Root-file citations
-with no directory separator stay out of the matcher by design, a boundary
-a live miss promptly tested (see below). Three modules: gate policy, anchor
+with the relocated line reported when content moved). A slashless name is
+verified only when a tracked root file backs it; an untracked bare name
+is read as an illustrative snippet. That root-file scope was widened in
+review after a live miss (see below); other extensions and pathless
+symbol claims remain out of the matcher. Three modules: gate policy, anchor
 semantics, git reads. Historical trees are exempt; the escape hatch is a
-line-scoped reasoned marker. Issue #5337 tracks the incident record;
-issue #5339 spun out of the session (the merge-state check's UNKNOWN
-transient, hit twice in one evening).
+line-scoped reasoned marker. Issue #5337 (filed 2026-08-26) tracks the
+incident record; issue #5339 (filed 2026-08-26) spun out of the session
+(the merge-state check's UNKNOWN transient, hit twice in one evening).
 
 ## What worked
 
 - **Calibration on real history before shipping.** Replaying the gate over
-  PR #5327's merged diff re-found every stale citation open PR #5336
-  fixes, plus two more no review round caught, and exposed five false
+  PR #5327's merged diff (merged 2026-08-26, merge commit `eb21d6276`)
+  re-found every stale citation PR #5336 fixes, plus two more no review
+  round caught, and exposed five false
   positives across the session (substring-of-path exclusion, docstring
   triple-quote pairing, wrapped-contract matching, bare-filename stems,
   token-bisecting segmentation). Each was verified against file content,
@@ -77,8 +82,8 @@ PR #5336 repairs, PR #5322's sixteen review-caught stale descriptions).
 The gate converts that class from review-detected to locally blocked. The
 class boundary was demonstrated in-session: while this PR claimed the
 class machine-checked, its own diff carried a stale citation to a
-root-level config file (`.markdownlint-cli2.yaml:131`, actual 138), which
-the matcher excludes by design, and an AI completeness check caught it,
+root-level config file (`.markdownlint-cli2.yaml:131`, actual 138), a
+shape the matcher then excluded, and an AI completeness check caught it,
 not the gate.
 
 ## Remediation
@@ -86,11 +91,11 @@ not the gate.
 - Gate shipped and wired: PR #5338, tracked by issue #5337 (this record).
 - Merge-state UNKNOWN transient, hit twice in-session: bounded retry in
   the check, issue #5339.
-- Follow-up scope, both on issue #5337: symbol-without-line-number claims
-  (the PR #5335 class) remain manual; root-level config paths
-  (slashless citations such as the one above) are excluded by the
-  matcher, and the live miss is the evidence for whether to widen it to
-  tracked root files.
+- Root-level citations: closed in review on PR #5338 itself. The matcher
+  now verifies a slashless name when a tracked root file backs it, so the
+  live-miss class above is in scope.
+- Follow-up scope on issue #5337: symbol-without-line-number claims (the
+  PR #5335 class) remain manual.
 
 ## Learnings
 
