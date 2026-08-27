@@ -2502,10 +2502,19 @@ def test_plain_build_reads_git_and_survives_because_that_read_fails_open(
     """
     seen_argv: list[list[str]] = []
 
-    class _RecordingNoGit(_NoGit):
+    class _RecordingNoGit:
+        """``_NoGit`` that records each argv before failing the launch.
+
+        Not a subclass: naming ``argv`` in the signature is what lets the
+        recording be typed, and that is a narrower signature than ``_NoGit.run``.
+        """
+
+        SubprocessError = subprocess.SubprocessError
+        TimeoutExpired = subprocess.TimeoutExpired
+
         @staticmethod
-        def run(*args: object, **_kwargs: object) -> object:
-            seen_argv.append(list(args[0]))  # type: ignore[arg-type]
+        def run(argv: list[str], *_args: object, **_kwargs: object) -> object:
+            seen_argv.append(list(argv))
             raise FileNotFoundError(2, "No such file or directory: 'git'")
 
     repo = tmp_path / "repo"
