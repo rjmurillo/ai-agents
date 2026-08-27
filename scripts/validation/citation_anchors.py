@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 
 _EXTENSIONS = (
-    "py|md|yml|yaml|json|ps1|psm1|sh|ts|js|toml|txt|ini|cfg|html|css|ipynb"
+    "py|md|yml|yaml|json|xml|csv|ps1|psm1|sh|ts|js|toml|txt|ini|cfg|html|css|ipynb"
 )
 
 # A citation: a repo path with a known extension, then :N or :N-M. The

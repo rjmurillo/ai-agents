@@ -70,6 +70,11 @@ IGNORE_MARKER = "citation-freshness: ignore"
 # Directory fragments whose files synthesize citations on purpose.
 _FIXTURE_FRAGMENTS = ("/fixtures/",)
 
+# Historical trees this gate exempts beyond stale_script_refs's tuple:
+# episode records are point-in-time captures, exactly like sessions and
+# retrospectives, and that tuple is another gate's contract to widen.
+_EXTRA_HISTORICAL_ROOTS = (".agents/memory/",)
+
 @dataclass(frozen=True)
 class Finding:
     """One citation on an added line that HEAD content contradicts."""
@@ -86,7 +91,7 @@ class Finding:
 
 def _is_exempt_citing_file(path: str) -> bool:
     """Return whether a citing file is out of this gate's scope."""
-    if path.startswith(HISTORICAL_ROOTS):
+    if path.startswith(HISTORICAL_ROOTS) or path.startswith(_EXTRA_HISTORICAL_ROOTS):
         return True
     return any(fragment in path for fragment in _FIXTURE_FRAGMENTS)
 
@@ -160,10 +165,13 @@ def _anchor_finding(
     cited_text = "\n".join(cited_lines[start - 1 : end])
     if any(_anchor_matches(anchor, cited_text) for anchor in anchors):
         return None
+    # The hint search reuses _anchor_matches so a wrapped or re-spaced
+    # anchor that would have satisfied the range check still names the
+    # line it moved to, not just that it is missing.
     hint = ""
     for anchor in anchors:
         for index, content in enumerate(cited_lines, 1):
-            if anchor in content:
+            if _anchor_matches(anchor, content):
                 hint = f"; {anchor!r} first appears at line {index}"
                 break
         if hint:

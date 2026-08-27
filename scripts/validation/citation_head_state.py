@@ -61,14 +61,25 @@ def _added_lines_since_base(
     # or textconv configure (.gitattributes assigns markdown a driver).
     # Matches scripts/validation/git_hook_policy.py:274 verbatim:
     #     TEXTUAL_DIFF_FLAGS = ("--no-ext-diff", "--no-textconv", "--text")
+    # Rename detection and path rendering are pinned too, following
+    # scripts/ci/diff_line_scope.py's git_diff_unified_zero: with a
+    # contributor's diff.renames=false a pure rename degrades to
+    # delete-plus-add and every latent citation in the renamed file
+    # reads as newly authored; core.quotePath octal-escapes non-ASCII
+    # paths so they stop matching HEAD; diff.noprefix/mnemonicPrefix
+    # change the +++ prefix this parser strips.
     exit_code, stdout, _stderr = _git(
         repo_root,
         [
+            "-c",
+            "core.quotePath=false",
             "diff",
             "--no-color",
             "--no-ext-diff",
             "--no-textconv",
             "--text",
+            "--find-renames",
+            "--default-prefix",
             "-U0",
             "--diff-filter=ACMR",
             f"{base_ref}...HEAD",
