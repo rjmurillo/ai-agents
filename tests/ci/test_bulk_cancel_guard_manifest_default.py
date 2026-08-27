@@ -26,12 +26,13 @@ import pytest
 
 from scripts import bulk_cancel_guard
 from scripts.bulk_cancel_guard import EXIT_OK, main
+from tests.ci.bulk_cancel_cli_fixtures import argv, write_runs
 from tests.ci.bulk_cancel_fixtures import incident_runs
-from tests.ci.test_bulk_cancel_guard import FakeClient, argv, workflows, write_runs
+from tests.ci.test_workflow_runs import FakeClient
 
-# `workflows` is a fixture imported for pytest's injection-by-name lookup;
-# it is never referenced as an expression, only as a test parameter name.
-__all__ = ["workflows"]
+# The `workflows` fixture now lives in tests/ci/conftest.py, so pytest resolves
+# it by name without an import. That also drops the `__all__` re-export this
+# module needed to keep the imported fixture from reading as dead.
 
 
 @pytest.fixture
