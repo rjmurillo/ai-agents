@@ -351,7 +351,7 @@ class TestRunFromMapping:
             run_from_mapping(record)
 
     def test_string_contexts_value_raises_instead_of_splitting_into_characters(self):
-        with pytest.raises(ValueError, match="contexts must be a list"):
+        with pytest.raises(ValueError, match="contexts must be a JSON list"):
             run_from_mapping(
                 {
                     "run_id": 1,

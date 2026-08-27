@@ -27,6 +27,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from scripts.github_core.workflow_event_subscriptions import (
+    PULL_REQUEST_RECOVERY_EVENTS,
     RECOVERY_EVENTS,
     WorkflowSubscriptions,
     declared_required_contexts,
@@ -44,6 +45,7 @@ __all__ = [
     "manifest_to_dict",
     "plan_recovery",
     "run_from_mapping",
+    "string_list",
     "summarize_blast_radius",
 ]
 
@@ -144,6 +146,51 @@ class RecoveryManifest:
         return not self.blocked
 
 
+def string_list(value: object, field: str) -> list[str]:
+    """Validate a JSON string array, rejecting every other shape.
+
+    Validation, never coercion. Accepting any iterable and stringifying its
+    items turns a malformed record into a plausible one: a nested object
+    becomes its key names, an integer becomes ``"7"``, and each of those is a
+    context string no ruleset requires, so the run reads as publishing nothing
+    required and is cancelled unguarded. A `str` is itself iterable and would
+    decompose into single characters, which is the same failure spelled
+    differently.
+
+    Raises:
+        ValueError: when ``value`` is not a list, or any item is not a string.
+    """
+    if not isinstance(value, list):
+        raise ValueError(f"{field} must be a JSON list of strings, got: {value!r}")
+    validated: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            raise ValueError(
+                f"{field} must hold only strings; got {item!r} in {value!r}"
+            )
+        validated.append(item)
+    return validated
+
+
+def _json_bool(value: object, field: str, *, default: bool) -> bool:
+    """Read a JSON boolean, rejecting anything truthiness would misread.
+
+    ``bool("false")`` is ``True`` and ``bool(0)`` is ``False``, so coercion
+    reads a malformed record as the opposite of what it says. For
+    ``jobs_verified`` the dangerous direction is the first: the string
+    ``"false"`` recorded for an unmaterialized run would replay as trusted and
+    clear a run whose published contexts were never read.
+
+    Raises:
+        ValueError: when ``value`` is present and is not a JSON boolean.
+    """
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    raise ValueError(f"{field} must be a JSON boolean (true/false), got: {value!r}")
+
+
 def run_from_mapping(payload: Mapping[str, Any]) -> WorkflowRun:
     """Build a :class:`WorkflowRun` from a JSON object.
 
@@ -155,13 +202,13 @@ def run_from_mapping(payload: Mapping[str, Any]) -> WorkflowRun:
             prevent.
     """
     try:
-        contexts = payload["contexts"]
-        if isinstance(contexts, str) or not isinstance(contexts, Iterable):
-            raise ValueError(f"contexts must be a list of strings, got: {contexts!r}")
+        contexts = string_list(payload["contexts"], "contexts")
         # An absent key keeps the documented default of True. An explicit false
         # is honored so a manifest written for an unmaterialized run replays as
         # unverified instead of silently regaining trust on the round trip.
-        recorded_verified = payload.get("jobs_verified")
+        jobs_verified = _json_bool(
+            payload.get("jobs_verified"), "jobs_verified", default=True
+        )
         return WorkflowRun(
             run_id=int(payload["run_id"]),
             workflow_name=str(payload["workflow_name"]),
@@ -169,8 +216,8 @@ def run_from_mapping(payload: Mapping[str, Any]) -> WorkflowRun:
             branch=str(payload["branch"]),
             event=str(payload["event"]),
             status=str(payload["status"]),
-            contexts=tuple(str(item) for item in contexts),
-            jobs_verified=True if recorded_verified is None else bool(recorded_verified),
+            contexts=tuple(contexts),
+            jobs_verified=jobs_verified,
         )
     except (KeyError, TypeError) as exc:
         raise ValueError(f"malformed workflow run record: {payload!r}") from exc
@@ -308,14 +355,21 @@ def _classify(
             ),
         )
 
-    if workflow.has_path_filters:
+    # Scoped to the events the filter can actually suppress. `has_path_filters`
+    # reads `paths`/`paths-ignore` off the pull_request-family triggers only
+    # (see `workflow_event_subscriptions._PATH_FILTER_KEYS`), so it bears on
+    # `synchronize` and `reopened` and on nothing else. `workflow_dispatch`
+    # fires a different trigger and `rerun` fires no trigger at all, so
+    # rejecting either on a pull_request path filter refuses a recovery mode
+    # that filter cannot affect.
+    if recovery_event in PULL_REQUEST_RECOVERY_EVENTS and workflow.has_path_filters:
         return verdict(
             event=recovery_event,
             verified=False,
             reason=(
                 f"{run.workflow_name!r} subscribes to {recovery_event!r} but "
-                "declares trigger path filters (paths/paths-ignore), so the "
-                "event is not guaranteed to regenerate the run"
+                "declares pull_request trigger path filters (paths/paths-ignore), "
+                "so the event is not guaranteed to regenerate the run"
             ),
         )
 

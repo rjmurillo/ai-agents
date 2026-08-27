@@ -197,7 +197,7 @@ class TestTriggerPathFilters:
 
         assert manifest.is_safe is False
         reason = manifest.blocked[0].blocked_reason or ""
-        assert "declares trigger path filters" in reason
+        assert "declares pull_request trigger path filters" in reason
 
     def test_control_the_same_workflow_without_paths_verifies(self):
         manifest = plan(
