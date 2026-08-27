@@ -63,6 +63,35 @@ def _resolve_validation_base(pr_base: str, explicit: str = "") -> str:
     return pr_base
 
 
+def _resolve_head_commit(head: str) -> str | None:
+    """Return the full commit SHA ``head`` names, or None when it will not resolve.
+
+    The session log is read out of ``head`` (a branch that may not be checked
+    out), so the QA staleness check has to be anchored on the same ref. Left to
+    itself the validator resolves its own validation head from local HEAD:
+    ``scripts/validate_session_json.py`` reads, verbatim,
+
+        validation_head = args.validation_head
+        if not existing_log and not args.creation_mode and validation_head is None:
+            validation_head = _resolve_full_commit("HEAD")
+
+    which is a different commit whenever ``--head`` names a branch the worktree
+    is not standing on.
+    """
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", f"{head}^{{commit}}"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+        env=_git_env(),
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
 def _run_warning_validator(argv: list[str], *, timeout: int) -> str | None:
     """Run a warning-only validator and name it when it failed to run."""
     name = os.path.basename(argv[1]) if len(argv) > 1 else argv[0]
@@ -193,43 +222,79 @@ def _validate_session_end(
     if not os.path.exists(validate_script):
         return
 
+    validation_head = _resolve_head_commit(head)
+    if validation_head is None:
+        print(
+            f"  WARNING: could not resolve {head} to a commit; skipping Session "
+            "End validation rather than binding the QA staleness check to local "
+            "HEAD, which is a different commit when the head branch is not "
+            "checked out.",
+            file=sys.stderr,
+        )
+        return
+
     with _session_log_for_validation(repo_root, head, session_log) as session_log_path:
         if session_log_path is None:
             return
-        # The copy handed to the validator lives under
-        # .agents/scratch/session-log-validation/, so the validator cannot
-        # recover the log's logical identity from its own argv[1]. Without the
-        # identity the QA binding compares the QA report's recorded session
-        # against the scratch filename and every QA-linked log is rejected
-        # (issue #4783). scripts/validate_session_json.py ships the flag for
-        # exactly this case; its help text reads verbatim:
-        #     "Use this repository-relative logical session path for QA binding
-        #      when validating a ref-backed temporary copy."
-        # The scratch path stays last so it remains argv[-1].
-        result = subprocess.run(
-            [
-                sys.executable,
-                validate_script,
-                "--session-log-identity",
-                session_log,
-                session_log_path,
-            ],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=60,
+        _run_session_validator(
+            validate_script,
+            session_log=session_log,
+            validation_head=validation_head,
+            session_log_path=session_log_path,
         )
-        if result.returncode != 0:
-            # Print what the validator found. Discarding it left the author
-            # with "Session End validation failed" and nothing to act on,
-            # unlike _run_warning_validator above (issue #4783).
-            if result.stdout:
-                print(result.stdout, end="")
-            if result.stderr:
-                print(result.stderr, end="", file=sys.stderr)
-            print("Session End validation failed", file=sys.stderr)
-            raise SystemExit(1)
+
+
+def _run_session_validator(
+    validate_script: str,
+    *,
+    session_log: str,
+    validation_head: str,
+    session_log_path: str,
+) -> None:
+    """Run the canonical session validator over one ref-backed scratch copy."""
+    # The copy handed to the validator lives under
+    # .agents/scratch/session-log-validation/, so the validator cannot
+    # recover the log's logical identity from its own argv[1]. Without the
+    # identity the QA binding compares the QA report's recorded session
+    # against the scratch filename and every QA-linked log is rejected
+    # (issue #4783). scripts/validate_session_json.py ships both flags for
+    # exactly this case; their help text reads verbatim:
+    #     "Use this repository-relative logical session path for QA binding
+    #      when validating a ref-backed temporary copy."
+    #     "Validate investigation-only scope through this commit instead of
+    #      stopping at the recorded endingCommit."
+    # env=_git_env() strips the git hook override variables, matching every
+    # other git-touching call in this module. The validator shells out to
+    # git for commit resolution and QA ancestry, so an inherited GIT_DIR
+    # would point those reads at another repository.
+    # The scratch path stays last so it remains argv[-1].
+    result = subprocess.run(
+        [
+            sys.executable,
+            validate_script,
+            "--session-log-identity",
+            session_log,
+            "--validation-head",
+            validation_head,
+            session_log_path,
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+        env=_git_env(),
+    )
+    # Print what the validator found on every outcome, matching
+    # _run_warning_validator above. Printing only on failure swallowed the
+    # warnings a COMPLIANT-with-warnings log emits (issue #4783).
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
+    if result.returncode != 0:
+        print("Session End validation failed", file=sys.stderr)
+        raise SystemExit(1)
 
 
 def _validate_skill_violations(

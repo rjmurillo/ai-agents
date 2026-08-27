@@ -1666,7 +1666,12 @@ def main() -> int:
             session_log=session_log,
             validation_head=validation_head,
         )
-        validate_filename_number(validated_path, data, result)
+        # Read the logical filename, not the physical one. On a ref-backed
+        # scratch copy `validated_path` is `.session-log-<random>.json`, which
+        # carries no session number, so this check silently reported nothing
+        # and a run that examined nothing looked exactly like a run that
+        # passed (`.claude/rules/ci-scripts.md` MUST 12).
+        validate_filename_number(Path(session_log), data, result)
         validate_qa_skip_scope(
             data,
             result,
