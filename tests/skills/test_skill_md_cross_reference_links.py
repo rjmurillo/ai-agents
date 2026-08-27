@@ -42,8 +42,9 @@ Two different fixes apply depending on what the link crosses:
   flagged the mirror as `unresolved` even after the source-tree depth
   was corrected). The working, pre-existing repo convention for this
   case is a backtick path citation, not a real link (see
-  `agent-harness-reference/SKILL.md:346-347`): depth-independent because
-  nothing resolves it against the containing file's directory.
+  `.claude/skills/agent-harness-reference/SKILL.md:346-347`):
+  depth-independent because nothing resolves it against the containing
+  file's directory.
 
 This module checks both fix shapes stay correct, and documents the
 depth-mismatch discovery with a dedicated unit test so it does not get

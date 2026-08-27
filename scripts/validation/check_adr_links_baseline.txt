@@ -75,6 +75,7 @@ absolute:.agents/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md:/.ag
 # levels below repo root but the generated src/copilot-cli/skills/memory-enhancement/
 # mirror sits four, so no single ../ count resolves the same relative link in
 # both trees. Converted both ADR citations to the repo's dominant
-# backtick-path convention (see agent-harness-reference/SKILL.md:346-347)
+# backtick-path convention (see
+# .claude/skills/agent-harness-reference/SKILL.md:346-347)
 # instead, which is depth-independent and already used by every other
 # cross-plugin-root citation in this codebase.
