@@ -522,6 +522,12 @@ pre-push:
             run: uv run --frozen --extra dev python scripts/ci/merge_tree_ratchet_check.py --base-ref origin/main
             glob:
               - "**/*.py"
+              - "**/*.pyi"
+              - "**/*.ipynb"
+              - "**/pyproject.toml"
+              - "**/ruff.toml"
+              - "**/.ruff.toml"
+              - "uv.lock"
               - "**/*.md"
               - "**/*.yml"
               - "**/*.yaml"

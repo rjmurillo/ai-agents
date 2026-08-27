@@ -34,12 +34,35 @@ class MergeTreeRatchet:
 
 _PYTHON = ("**/*.py",)
 
+# Every path the ruff count ratchet's own lefthook job triggers on, not only
+# the files ruff reads. `trigger_globs` below is the exact selector for the
+# merge-tree job (tests/test_lefthook_gate_config.py::
+# test_merge_tree_ratchet_globs_equal_registry_union), so a path that fires the
+# ruff ratchet and is absent here fires the waiver without its backstop: the
+# ruff job runs, prints BEHIND BASE (not blocking) on the strength of a
+# merge-tree gate that was skipped for the same change, and the branch passes
+# locally to fail in CI. A config-only change is the live case, because
+# pyproject.toml, ruff.toml, and uv.lock all move the violation count without
+# touching one .py file. Keep this in lockstep with the
+# `python-lint-count-ratchet` glob in `lefthook.yml`;
+# test_every_backed_ratchet_job_is_covered_by_the_merge_tree_job fails when the
+# two drift.
+_RUFF = (
+    "**/*.py",
+    "**/*.pyi",
+    "**/*.ipynb",
+    "**/pyproject.toml",
+    "**/ruff.toml",
+    "**/.ruff.toml",
+    "uv.lock",
+)
+
 RATCHETS: tuple[MergeTreeRatchet, ...] = (
     MergeTreeRatchet(
         "ruff count ratchet",
         "scripts/ci/ruff_count_baseline.txt",
         ruff_count_ratchet,
-        _PYTHON,
+        _RUFF,
     ),
     MergeTreeRatchet(
         "taste count ratchet",
