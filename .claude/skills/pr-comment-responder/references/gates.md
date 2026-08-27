@@ -286,7 +286,8 @@ PR. Do not retry a safe skip with a lower-level mutation.
 ```bash
 SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 sleep 45
-NEW_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments | jq '.TotalComments')
+RECHECK_PAYLOAD=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
+NEW_COMMENTS=$(printf '%s' "$RECHECK_PAYLOAD" | jq '.TotalComments')
 
 # Phase 1 recorded the API count in this artifact. Shell variables do not
 # survive between fenced blocks: each one runs in its own shell, so a gate that
@@ -305,7 +306,39 @@ esac
 
 if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
   echo "[NEW COMMENTS] $((NEW_COMMENTS - TOTAL_COMMENTS)) new comments detected"
-  # Fetch new comments, add to comment map with status [NEW]
+  # Append every comment the map has never seen, at status [NEW]. Every gate
+  # counts `**Status**:` fields out of the map, so a comment that arrives here
+  # and never lands in the map is invisible to every completion check: the pass
+  # can reach Gate 4 reporting zero pending work on a comment nobody read.
+  COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+  if [ ! -f "$COMMENT_MAP" ]; then
+    echo "[BLOCKED] Comment map not found: $COMMENT_MAP"
+    exit 1
+  fi
+  # Comment bodies are deliberately not inlined here. A reviewer comment can
+  # itself contain a line reading `**Status**: [COMPLETE]`, and the gates count
+  # that field with a line-anchored grep, so an inlined body would let a comment
+  # forge a terminal row for itself. Fill Context, Comment, and Analysis from
+  # the payload during triage instead.
+  #
+  # jq's @tsv escapes tabs and newlines inside field values, so a body, author,
+  # or path carrying either cannot break the field split below.
+  printf '%s' "$RECHECK_PAYLOAD" \
+    | jq -r '.Comments[] | [(.Id|tostring), (.Author // "unknown"), (.CommentType // "Review"), (.Path // "-"), (.Line // "-"), (.CreatedAt // "-")] | @tsv' \
+    | while IFS="$(printf '\t')" read -r ID AUTHOR CTYPE CPATH CLINE CREATED; do
+        if grep -q "^### Comment $ID " "$COMMENT_MAP"; then
+          continue
+        fi
+        {
+          printf '### Comment %s (@%s)\n\n' "$ID" "$AUTHOR"
+          printf '**Type**: %s\n' "$CTYPE"
+          printf '**Path**: %s\n' "$CPATH"
+          printf '**Line**: %s\n' "$CLINE"
+          printf '**Created**: %s\n' "$CREATED"
+          printf '**Status**: [NEW]\n\n'
+          printf -- '---\n\n'
+        } >> "$COMMENT_MAP"
+      done
 
   # The count artifact records how many status fields the comment map should
   # carry, so it moves with the append. Left at the Phase 1 snapshot it is
@@ -317,11 +350,20 @@ if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
   # the map against this file, so a file written first would clear a map that
   # never received the new rows, which is the fail-open case the invariant
   # exists to catch.
+  #
+  # The append above is what earns the refresh, so prove it landed before
+  # writing. A refresh over a map that never grew is the very fail-open the
+  # invariant exists to catch, written by the one line that feeds it.
+  APPENDED_STATUS=$(grep -c "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
+  if [ "$APPENDED_STATUS" -ne "$NEW_COMMENTS" ]; then
+    echo "[BLOCKED] Comment map carries $APPENDED_STATUS status fields after the append, API reported $NEW_COMMENTS"
+    exit 1
+  fi
   printf '%s\n' "$NEW_COMMENTS" > "$COUNT_FILE"
 fi
 ```
 
-The refresh is what makes this loop repeatable. Without it the second pass
+The append and the refresh together are what make this loop repeatable. Without it the second pass
 reaches Gate 4 with a comment map the recorded count contradicts, and no amount
 of correct work clears it.
 
