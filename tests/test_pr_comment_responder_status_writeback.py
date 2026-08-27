@@ -47,6 +47,7 @@ from tests.test_pr_comment_responder_status_greps import (
     _derivation_script,
     _gate_four_fence,
     _grep_count,
+    _record_api_count,
     _run_derivation,
     requires_bash,
     requires_grep,
@@ -339,8 +340,9 @@ def test_the_documented_workflow_reaches_zero_pending(path: Path, tmp_path: Path
 
     assert _grep_count(TERMINAL_PATTERN, comment_map) == len(API_COMMENT_IDS)
 
+    _record_api_count(tmp_path, len(API_COMMENT_IDS))
     gate_four = _run_derivation(
-        _derivation_script(_gate_four_fence(path), comment_map, len(API_COMMENT_IDS))
+        _derivation_script(_gate_four_fence(path), comment_map), cwd=tmp_path
     )
 
     assert gate_four.returncode == 0, (
@@ -356,8 +358,10 @@ def test_without_the_writeback_gate_four_blocks_forever(tmp_path: Path) -> None:
 
     Take the shipped Gate 3, truncate it after the task-list verification, and
     the step is exactly what it was before this fix. Every comment is worked,
-    every task is marked done, and Gate 4 still counts three pending. That is
-    the fail-closed trap issue #4054 reports, reproduced against the real shell.
+    every task is marked done, and Gate 4 blocks on three pending. That is the
+    fail-closed trap issue #4054 reports, reproduced against the real shell:
+    the exit code comes from the gate's own ``exit 1``, not from a count this
+    test read off stdout and interpreted for itself.
     """
     comment_map = _write_comment_map(tmp_path, API_COMMENT_IDS)
     task_list = _write_task_list(tmp_path, API_COMMENT_IDS)
@@ -376,17 +380,18 @@ def test_without_the_writeback_gate_four_blocks_forever(tmp_path: Path) -> None:
     assert _status_lines(comment_map) == [f"**Status**: {INITIAL_STATUS}"] * len(API_COMMENT_IDS)
     assert _grep_count(TERMINAL_PATTERN, comment_map) == 0
 
+    _record_api_count(tmp_path, len(API_COMMENT_IDS))
     gate_four = _run_derivation(
-        _derivation_script(_gate_four_fence(TEMPLATE), comment_map, len(API_COMMENT_IDS))
+        _derivation_script(_gate_four_fence(TEMPLATE), comment_map), cwd=tmp_path
     )
 
-    # The sliced derivation stops at the API-count invariant, so it reports the
-    # count rather than exiting. Gate 4's own check right after the slice reads
-    # `if [ "$PENDING" -ne 0 ]` and blocks on any nonzero value.
-    assert gate_four.returncode == 0
-    assert "PENDING=3" in gate_four.stdout, (
+    assert gate_four.returncode == 1, (
+        f"pre-fix workflow cleared Gate 4: exit {gate_four.returncode}, "
+        f"stdout {gate_four.stdout!r}"
+    )
+    assert "[BLOCKED] Comment map still has 3 pending comment(s)" in gate_four.stdout, (
         f"pre-fix workflow left {gate_four.stdout!r}; three worked comments "
-        f"must still read pending, which is the block issue #4054 reports"
+        f"must still block, which is the trap issue #4054 reports"
     )
 
 

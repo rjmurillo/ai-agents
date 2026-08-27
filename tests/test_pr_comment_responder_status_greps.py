@@ -133,6 +133,36 @@ MAP_EXISTS_GUARD = 'if [ ! -f "$COMMENT_MAP" ]; then'
 TOTAL_ASSIGNMENT_TEXT = f'TOTAL=$(grep -Ec "{STATUS_LINE_PATTERN}" "$COMMENT_MAP" || true)'
 TERMINAL_ASSIGNMENT_TEXT = f'TERMINAL=$(grep -Ec "{TERMINAL_PATTERN}" "$COMMENT_MAP" || true)'
 
+# The artifact Phase 1 records the API comment count in, and the block every
+# later fence reads it back with. Shell variables do not survive between fenced
+# blocks: an agent harness runs each one in a fresh shell, so a fence that read
+# ``$TOTAL_COMMENTS`` directly saw an empty string. ``[ -ne ]`` then printed
+# ``integer expression expected`` and exited 2, ``if`` reads a nonzero exit as
+# false, and the BLOCKED body below never ran. The invariant was inert.
+COUNT_ARTIFACT_PATH = ".agents/pr-comments/PR-[number]/total_comments.txt"
+COUNT_READ_BLOCK = (
+    f'COUNT_FILE="{COUNT_ARTIFACT_PATH}"\n'
+    'if [ ! -f "$COUNT_FILE" ]; then\n'
+    '  echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"\n'
+    "  exit 1\n"
+    "fi\n"
+    'TOTAL_COMMENTS=$(cat "$COUNT_FILE")\n'
+    'case "$TOTAL_COMMENTS" in\n'
+    "  ''|*[!0-9]*) echo \"[BLOCKED] Recorded comment count is not numeric: "
+    '$TOTAL_COMMENTS"; exit 1 ;;\n'
+    "esac"
+)
+
+# The steps Phase 1 must publish to record the count. The reader above and this
+# writer must name the same path, which
+# ``test_the_recorded_count_reaches_the_gate_that_reads_it`` proves by running
+# both against a real filesystem rather than by comparing these strings.
+COUNT_RECORD_STEPS: tuple[str, ...] = (
+    f'COUNT_FILE="{COUNT_ARTIFACT_PATH}"',
+    'mkdir -p "$(dirname "$COUNT_FILE")"',
+    "printf '%s\\n' \"$TOTAL_COMMENTS\" > \"$COUNT_FILE\"",
+)
+
 # The guard that proves the map is complete before the subtraction is trusted.
 # A map whose status fields were stripped counts zero total and zero terminal,
 # so the difference is zero pending and the gate clears an empty artifact.
@@ -150,14 +180,36 @@ REQUIRED_DERIVATION_STEPS: tuple[str, ...] = (
     TOTAL_ASSIGNMENT_TEXT,
     TERMINAL_ASSIGNMENT_TEXT,
     FAIL_CLOSED_DERIVATION,
+    COUNT_READ_BLOCK,
     API_COUNT_INVARIANT,
 )
+
+# The blocking half of a gate: the check that turns a nonzero pending count into
+# a nonzero exit. Gate 4 and Phase 8.1 test ``$PENDING`` alone; Gate 5 also
+# tests the unresolved-thread count, so the pattern matches the whole line.
+PENDING_BLOCK_RE = re.compile(r'^if \[ [^\n]*"\$PENDING" -ne 0 \][^\n]*; then$', re.M)
+BLOCK_END = "\nfi"
+
+# The gate's GitHub reads. This suite exercises the comment-map derivation, so
+# they are stubbed rather than dropped: dropping the assignment would leave the
+# blocking check comparing an unset variable, which is the defect under test.
+GH_GRAPHQL_ASSIGNMENT_RE = re.compile(r"^([A-Z_]+)=\$\(gh api graphql[^\n]*\)$", re.M)
+GH_STUB_PREAMBLE = "REMAINING=0\nUNRESOLVED_API=0\n"
 
 # The sections that own a counting fence. Hardcoded, never discovered from the
 # file: a carrier that loses Gate 4's fence must fail, not drop out of the set.
 VOCABULARY_SECTION_KEY = "Comment Map Status Vocabulary"
 GATE_SECTION_KEYS: tuple[str, ...] = ("Gate 4", "Gate 5", "Phase 8.1")
-SECTION_KEYS: tuple[str, ...] = (VOCABULARY_SECTION_KEY, *GATE_SECTION_KEYS)
+# Phase 8.5 re-derives the counts in its own fence. It is a separate shell from
+# Phase 8.1, so $TOTAL and $TERMINAL do not survive into it and its completion
+# summary printed an empty numerator over an empty denominator. Only the agent
+# carriers publish it as a fence; the gate reference states it as a table.
+AGENT_ONLY_SECTION_KEYS: tuple[str, ...] = ("Phase 8.5",)
+SECTION_KEYS: tuple[str, ...] = (
+    VOCABULARY_SECTION_KEY,
+    *GATE_SECTION_KEYS,
+    *AGENT_ONLY_SECTION_KEYS,
+)
 
 EXPECTED_DERIVATION_SECTIONS: dict[Path, frozenset[str]] = {
     **{path: frozenset(SECTION_KEYS) for path in VOCABULARY_CARRIERS},
@@ -178,6 +230,30 @@ TOTAL_ASSIGNMENT_RE = re.compile(r'TOTAL=\$\(grep -Ec "([^"]+)"')
 # terminal ones. This is the fail-open shape issue #4054 reports.
 ENUMERATED_PENDING_RE = re.compile(r"\\\[(?:NEW|ACKNOWLEDGED)\\\]|Status\\?\*?\*?: pending")
 
+# The accumulators the subtraction retired. ``ADDRESSED`` and ``WONTFIX`` were
+# separate counts that Phase 8.1 summed; every gate now derives TERMINAL and
+# TOTAL instead. A carrier that still reads one gets 0 from bash, which treats
+# an unset name in arithmetic as zero, so its summary reports no comments
+# resolved after a fully successful run.
+#
+# The lookbehind excludes ``[`` and ``\``, so the vocabulary table's
+# ``[WONTFIX]`` and the terminal grep's ``\[WONTFIX\]`` are not accumulators.
+RETIRED_ACCUMULATOR_RE = re.compile(
+    r"(?<![\w\\\[-])ADDRESSED(?![\w\]-])"
+    r"|(?<![\w\\\[-])WONTFIX\s*="
+    r"|\$\{?WONTFIX\}?(?!\w)"
+)
+
+# A status token rendered anywhere in the Step 2.2 Comment Index. Gate 3
+# rewrites the ``**Status**:`` detail line and never touches the index, so an
+# index status cell keeps whatever the template rendered for the life of the
+# artifact and ends up disagreeing with the detail entry it summarizes.
+COMMENT_INDEX_HEADING = "## Comment Index"
+INDEX_STATUS_TOKEN_RE = re.compile(
+    r"\[(?:NEW|ACKNOWLEDGED|COMPLETE|WONTFIX|DUPLICATE|DEFERRED)\]|(?<![\w-])pending(?![\w-])",
+    re.IGNORECASE,
+)
+
 # One rendered comment map. Thirteen detail entries: five terminal, eight that
 # must stay pending. The pending eight cover every way a status can fail to be
 # terminal: not yet worked ([NEW], [ACKNOWLEDGED]), a [DEFERRED] with no
@@ -190,7 +266,7 @@ ENUMERATED_PENDING_RE = re.compile(r"\\\[(?:NEW|ACKNOWLEDGED)\\\]|Status\\?\*?\*
 # terminal pattern reads ``#[1-9][0-9]*``; the older ``#[0-9]+`` admitted both
 # and let deferred work go terminal against a tracking issue nobody can open.
 SAMPLE_COMMENT_MAP_LINES: tuple[str, ...] = (
-    "| 123 | @reviewer | review | file.py#12 | pending | TBD | - |",
+    "| 123 | @reviewer | review | file.py#12 | TBD | - |",
     "**Status**: [NEW]",
     "**Status**: [ACKNOWLEDGED]",
     "**Status**: [COMPLETE]",
@@ -230,6 +306,18 @@ COMPLETE_COMMENT_MAP_LINES: tuple[str, ...] = (
     "**Status**: [COMPLETE]",
     "### Comment 124 (@reviewer)",
     "**Status**: [WONTFIX]",
+    "### Comment 125 (@reviewer)",
+    "**Status**: [DEFERRED] Refs #4054",
+)
+
+# The same three comments with one still unworked. All three status fields are
+# present, so the API-count invariant clears and the gate's blocking check on
+# $PENDING is what has to reject it.
+PENDING_COMMENT_MAP_LINES: tuple[str, ...] = (
+    "### Comment 123 (@reviewer)",
+    "**Status**: [COMPLETE]",
+    "### Comment 124 (@reviewer)",
+    "**Status**: [ACKNOWLEDGED]",
     "### Comment 125 (@reviewer)",
     "**Status**: [DEFERRED] Refs #4054",
 )
@@ -355,53 +443,121 @@ def _counting_fences(text: str) -> list[tuple[str, str]]:
     ]
 
 
+def _record_api_count(work_dir: Path, value: object | None) -> Path:
+    """Write the count artifact Phase 1 records, or leave it absent.
+
+    The carrier hardcodes the path, so the test creates it under the working
+    directory the derivation runs in rather than injecting a variable. Passing
+    ``None`` omits the file, which is the missing-artifact case.
+    """
+    count_file = work_dir / COUNT_ARTIFACT_PATH
+    if value is None:
+        return count_file
+    count_file.parent.mkdir(parents=True, exist_ok=True)
+    count_file.write_text(f"{value}\n", encoding="utf-8")
+    return count_file
+
+
 def _derivation_script(
     fence: str,
     comment_map: Path,
-    total_comments: int,
     *,
     with_invariant: bool = True,
+    with_count_read: bool = True,
 ) -> str:
     """Lift a fence's counting steps out verbatim and make them runnable.
 
-    The slice runs from the ``TOTAL=`` assignment to the end of the API-count
-    invariant, which is exactly the derivation and excludes the ``gh api``
-    calls the surrounding gate makes. ``COMMENT_MAP`` and ``TOTAL_COMMENTS``
-    are injected because the carrier leaves both to the caller.
+    The slice runs from the ``TOTAL=`` assignment through the end of the
+    blocking check that turns a nonzero pending count into a nonzero exit, so
+    the shipped gate's own ``exit 1`` is executed rather than described. Only
+    ``COMMENT_MAP`` is injected; the count artifact is read from the path the
+    carrier publishes, relative to the working directory the caller runs in.
+
+    ``with_invariant`` and ``with_count_read`` exist for the negative controls:
+    removing either step must let a bad comment map clear the gate.
     """
     assert TOTAL_ASSIGNMENT_TEXT in fence, "fence publishes no canonical TOTAL assignment"
     assert API_COUNT_INVARIANT in fence, (
         "fence publishes no API-count invariant, so a stripped comment map "
         "computes zero pending and clears the gate"
     )
+    assert COUNT_READ_BLOCK in fence, (
+        "fence publishes no count-artifact read, so $TOTAL_COMMENTS is unset "
+        "and the invariant below it never fires"
+    )
     start = fence.index(TOTAL_ASSIGNMENT_TEXT)
-    end = fence.index(API_COUNT_INVARIANT) + len(API_COUNT_INVARIANT)
-    body = fence[start:end]
+    invariant_end = fence.index(API_COUNT_INVARIANT) + len(API_COUNT_INVARIANT)
+    body = fence[start : _pending_block_end(fence, invariant_end)]
     if not with_invariant:
         body = body.replace(API_COUNT_INVARIANT, ":")
+    if not with_count_read:
+        body = body.replace(COUNT_READ_BLOCK, ":")
+    body = GH_GRAPHQL_ASSIGNMENT_RE.sub(r"\1=0", body)
     return (
         f"COMMENT_MAP={shlex.quote(str(comment_map))}\n"
-        f"TOTAL_COMMENTS={total_comments}\n"
+        f"{GH_STUB_PREAMBLE}"
         f"{body}\n"
         'echo "PENDING=$PENDING"\n'
     )
 
 
-def _run_derivation(script: str) -> subprocess.CompletedProcess[str]:
+def _pending_block_end(fence: str, after: int) -> int:
+    """Offset just past the ``fi`` of the fence's pending blocking check.
+
+    Slicing at the API-count invariant stopped one line short of the block the
+    gate exists for, so every derivation test observed a printed count and no
+    gate was ever proven to exit nonzero on pending work.
+    """
+    match = PENDING_BLOCK_RE.search(fence, after)
+    assert match is not None, (
+        "fence publishes no blocking check on $PENDING, so a pending comment "
+        "map reports a count instead of failing the gate"
+    )
+    return fence.index(BLOCK_END, match.end()) + len(BLOCK_END)
+
+
+def _run_derivation(script: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
     assert BASH is not None
     return subprocess.run(
         [BASH, "-c", script],
         capture_output=True,
         text=True,
         check=False,
+        cwd=None if cwd is None else str(cwd),
     )
 
 
-def _gate_four_fence(path: Path) -> str:
+def _gate_fence(path: Path, section: str) -> str:
     for heading, body in _counting_fences(path.read_text(encoding="utf-8")):
-        if _section_key(heading) == "Gate 4":
+        if _section_key(heading) == section:
             return body
-    raise AssertionError(f"{_carrier_id(path)} publishes no Gate 4 counting fence")
+    raise AssertionError(f"{_carrier_id(path)} publishes no {section} counting fence")
+
+
+def _gate_four_fence(path: Path) -> str:
+    return _gate_fence(path, "Gate 4")
+
+
+def _count_record_fence(path: Path) -> str:
+    """The Phase 1 steps that write the count artifact, ready to run.
+
+    Sliced from the ``COUNT_FILE=`` assignment so the preceding ``gh`` and
+    ``jq`` calls the retrieval fence makes are left out; ``TOTAL_COMMENTS`` is
+    supplied by the caller in their place.
+    """
+    for _, body in _bash_fences(path.read_text(encoding="utf-8")):
+        if COUNT_RECORD_STEPS[2] in body:
+            start = body.index(COUNT_RECORD_STEPS[0])
+            end = body.index(COUNT_RECORD_STEPS[2]) + len(COUNT_RECORD_STEPS[2])
+            return body[start:end]
+    raise AssertionError(f"{_carrier_id(path)} never records the API comment count")
+
+
+def _comment_index_rows(text: str) -> list[str]:
+    """The table rows the Step 2.2 template renders under ``## Comment Index``."""
+    start = text.index(COMMENT_INDEX_HEADING)
+    end = text.index("\n## ", start + len(COMMENT_INDEX_HEADING))
+    return [line for line in text[start:end].splitlines() if line.startswith("|")]
 
 
 # The published patterns, executed by the shell they are written for.
@@ -677,9 +833,10 @@ def test_a_stripped_comment_map_blocks_the_gate(path: Path, tmp_path: Path) -> N
     comparison against the API count can tell that apart from a finished map.
     """
     comment_map = _render_comment_map(tmp_path, STRIPPED_COMMENT_MAP_LINES)
-    script = _derivation_script(_gate_four_fence(path), comment_map, API_COMMENT_COUNT)
+    _record_api_count(tmp_path, API_COMMENT_COUNT)
+    script = _derivation_script(_gate_four_fence(path), comment_map)
 
-    result = _run_derivation(script)
+    result = _run_derivation(script, cwd=tmp_path)
 
     assert result.returncode == 1, (
         f"{_carrier_id(path)} Gate 4 cleared a comment map with every status "
@@ -697,9 +854,10 @@ def test_a_stripped_comment_map_blocks_the_gate(path: Path, tmp_path: Path) -> N
 def test_a_partially_stripped_comment_map_blocks_the_gate(path: Path, tmp_path: Path) -> None:
     """Losing some status fields must block too, not shrink the denominator."""
     comment_map = _render_comment_map(tmp_path, PARTIAL_COMMENT_MAP_LINES)
-    script = _derivation_script(_gate_four_fence(path), comment_map, API_COMMENT_COUNT)
+    _record_api_count(tmp_path, API_COMMENT_COUNT)
+    script = _derivation_script(_gate_four_fence(path), comment_map)
 
-    result = _run_derivation(script)
+    result = _run_derivation(script, cwd=tmp_path)
 
     assert result.returncode == 1, (
         f"{_carrier_id(path)} Gate 4 cleared a comment map holding 1 of 3 "
@@ -711,11 +869,17 @@ def test_a_partially_stripped_comment_map_blocks_the_gate(path: Path, tmp_path: 
 @requires_bash
 @pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
 def test_a_complete_comment_map_clears_the_invariant(path: Path, tmp_path: Path) -> None:
-    """Control: the invariant must not block a map that matches the API count."""
-    comment_map = _render_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
-    script = _derivation_script(_gate_four_fence(path), comment_map, API_COMMENT_COUNT)
+    """Control: a map that matches the API count must clear the whole gate.
 
-    result = _run_derivation(script)
+    The slice now runs through Gate 4's own ``exit 1`` on pending work, so this
+    control proves the blocking half stays quiet on a finished map rather than
+    blocking everything unconditionally.
+    """
+    comment_map = _render_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
+    _record_api_count(tmp_path, API_COMMENT_COUNT)
+    script = _derivation_script(_gate_four_fence(path), comment_map)
+
+    result = _run_derivation(script, cwd=tmp_path)
 
     assert result.returncode == 0, (
         f"{_carrier_id(path)} Gate 4 blocked a complete comment map: "
@@ -725,46 +889,129 @@ def test_a_complete_comment_map_clears_the_invariant(path: Path, tmp_path: Path)
 
 
 @requires_bash
-@pytest.mark.parametrize("bad_value", ["", "null", "-1", "3abc"])
-def test_a_non_numeric_total_comments_blocks_before_the_invariant(
-    bad_value: str, tmp_path: Path
-) -> None:
-    """A non-numeric API count must fail closed, not skip the invariant.
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_a_pending_comment_map_blocks_the_gate(path: Path, tmp_path: Path) -> None:
+    """The blocking half of the gate must exit nonzero, not report a count.
 
-    Phase 1 sets ``TOTAL_COMMENTS`` via ``jq`` without ``-e``; an API or
-    script failure can leave it empty or ``null``. ``[ "$TOTAL" -ne
-    "$TOTAL_COMMENTS" ]`` on a non-numeric right side raises ``integer
-    expression expected``, which is a nonzero exit from ``[`` and therefore
-    reads as *false* to ``if``, so the BLOCKED body is skipped and a
-    terminal-looking map clears this fail-closed gate anyway (PR #5342
-    review). Reproduced here against the real shell for
-    ``.claude/agents/pr-comment-responder.md``, which now guards
-    ``TOTAL_COMMENTS`` with a numeric ``case`` before the comparison runs.
+    Three comments, one still ``[ACKNOWLEDGED]``. The API count matches, so
+    the invariant clears and control reaches Gate 4's own
+    ``if [ "$PENDING" -ne 0 ]``. Until the slice reached that block no test in
+    this suite ever executed a gate's ``exit 1``.
     """
-    path = REPO_ROOT / ".claude/agents/pr-comment-responder.md"
-    fence = _gate_four_fence(path)
-    start = fence.index(TOTAL_ASSIGNMENT_TEXT)
-    end = fence.index(API_COUNT_INVARIANT) + len(API_COUNT_INVARIANT)
-    body = fence[start:end]
-    comment_map = _render_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
-    script = (
-        f"COMMENT_MAP={shlex.quote(str(comment_map))}\n"
-        f"TOTAL_COMMENTS={shlex.quote(bad_value)}\n"
-        f"{body}\n"
-        'echo "PENDING=$PENDING"\n'
-    )
+    comment_map = _render_comment_map(tmp_path, PENDING_COMMENT_MAP_LINES)
+    _record_api_count(tmp_path, API_COMMENT_COUNT)
+    script = _derivation_script(_gate_four_fence(path), comment_map)
 
-    result = _run_derivation(script)
+    result = _run_derivation(script, cwd=tmp_path)
 
     assert result.returncode == 1, (
-        f"non-numeric TOTAL_COMMENTS={bad_value!r} cleared the gate: "
+        f"{_carrier_id(path)} Gate 4 cleared a comment map holding 1 pending "
+        f"comment: exit {result.returncode}, stdout {result.stdout!r}"
+    )
+    assert "[BLOCKED] Comment map still has 1 pending comment(s)" in result.stdout
+
+
+@requires_bash
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_gate_five_blocks_a_pending_comment_map(path: Path, tmp_path: Path) -> None:
+    """Gate 5 owns the same blocking check and must also exit nonzero.
+
+    Its condition also reads the unresolved-thread count, which the slice
+    stubs to zero, so a nonzero exit here can only come from pending work.
+    """
+    comment_map = _render_comment_map(tmp_path, PENDING_COMMENT_MAP_LINES)
+    _record_api_count(tmp_path, API_COMMENT_COUNT)
+    script = _derivation_script(_gate_fence(path, "Gate 5"), comment_map)
+
+    result = _run_derivation(script, cwd=tmp_path)
+
+    assert result.returncode == 1, (
+        f"{_carrier_id(path)} Gate 5 cleared a comment map holding 1 pending "
+        f"comment: exit {result.returncode}, stdout {result.stdout!r}"
+    )
+    assert "[BLOCKED] API unresolved: 0, Artifact pending: 1" in result.stdout
+
+
+@requires_bash
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_a_missing_count_artifact_blocks_the_gate(path: Path, tmp_path: Path) -> None:
+    """No recorded API count means the invariant has nothing to check.
+
+    This is the shape the review reported: ``$TOTAL_COMMENTS`` never reached
+    the gate, so the comparison errored, read as false, and a comment map with
+    zero status fields passed. The gate must refuse to run instead.
+    """
+    comment_map = _render_comment_map(tmp_path, STRIPPED_COMMENT_MAP_LINES)
+    count_file = _record_api_count(tmp_path, None)
+    assert not count_file.exists(), "the missing-artifact case must start with no artifact"
+    script = _derivation_script(_gate_four_fence(path), comment_map)
+
+    result = _run_derivation(script, cwd=tmp_path)
+
+    assert result.returncode == 1, (
+        f"{_carrier_id(path)} Gate 4 ran without a recorded API count: "
         f"exit {result.returncode}, stdout {result.stdout!r}"
     )
-    assert "PENDING=" not in result.stdout, (
-        f"TOTAL_COMMENTS={bad_value!r} reached the pending report; "
-        f"the invariant should have exited first"
+    assert "[BLOCKED] API comment count not recorded" in result.stdout
+    assert "PENDING=" not in result.stdout
+
+
+@requires_bash
+@pytest.mark.parametrize("bad_value", ["", "null", "-1", "3abc"])
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_a_non_numeric_recorded_count_blocks_the_gate(
+    path: Path, bad_value: str, tmp_path: Path
+) -> None:
+    """A recorded count that is not a number must fail closed.
+
+    Phase 1 sets the count via ``jq`` without ``-e``; an API or script failure
+    records an empty string or ``null``. ``[ "$TOTAL" -ne "$TOTAL_COMMENTS" ]``
+    on a non-numeric right side prints ``integer expression expected`` and
+    exits 2, which ``if`` reads as false, so the BLOCKED body is skipped and a
+    terminal-looking map clears this fail-closed gate anyway.
+    """
+    comment_map = _render_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
+    _record_api_count(tmp_path, bad_value)
+    script = _derivation_script(_gate_four_fence(path), comment_map)
+
+    result = _run_derivation(script, cwd=tmp_path)
+
+    assert result.returncode == 1, (
+        f"{_carrier_id(path)} accepted a recorded count of {bad_value!r}: "
+        f"exit {result.returncode}, stdout {result.stdout!r}"
     )
-    assert "not a non-negative integer" in result.stdout
+    assert "[BLOCKED] Recorded comment count is not numeric" in result.stdout
+    assert "PENDING=" not in result.stdout
+
+
+@requires_bash
+def test_without_the_count_read_an_unset_variable_clears_the_gate(tmp_path: Path) -> None:
+    """Negative control: reading the artifact is what makes the invariant fire.
+
+    Remove only the count-artifact read and the fence is the shape the review
+    reported: ``$TOTAL_COMMENTS`` is unset, ``[ -ne ]`` exits 2 on the empty
+    right side, ``if`` reads that as false, and a comment map with every status
+    field stripped exits 0 reporting zero pending. The shipped fence, given the
+    same map and the same empty environment, exits 1.
+    """
+    fence = _gate_four_fence(REPO_ROOT / "templates/agents/pr-comment-responder.shared.md")
+    comment_map = _render_comment_map(tmp_path, STRIPPED_COMMENT_MAP_LINES)
+    count_file = _record_api_count(tmp_path, None)
+    assert not count_file.exists()
+
+    without = _run_derivation(
+        _derivation_script(fence, comment_map, with_count_read=False), cwd=tmp_path
+    )
+    shipped = _run_derivation(_derivation_script(fence, comment_map), cwd=tmp_path)
+
+    assert without.returncode == 0, (
+        "the pre-fix shape must reproduce the fail-open, or this control "
+        "proves nothing about the fix"
+    )
+    assert "PENDING=0" in without.stdout
+    assert "integer expression expected" in without.stderr
+    assert shipped.returncode == 1
+    assert "[BLOCKED] API comment count not recorded" in shipped.stdout
 
 
 @requires_bash
@@ -777,15 +1024,70 @@ def test_without_the_invariant_a_stripped_map_clears_the_gate(tmp_path: Path) ->
     """
     fence = _gate_four_fence(REPO_ROOT / "templates/agents/pr-comment-responder.shared.md")
     comment_map = _render_comment_map(tmp_path, STRIPPED_COMMENT_MAP_LINES)
+    _record_api_count(tmp_path, API_COMMENT_COUNT)
 
     without = _run_derivation(
-        _derivation_script(fence, comment_map, API_COMMENT_COUNT, with_invariant=False)
+        _derivation_script(fence, comment_map, with_invariant=False), cwd=tmp_path
     )
-    with_invariant = _run_derivation(_derivation_script(fence, comment_map, API_COMMENT_COUNT))
+    with_invariant = _run_derivation(_derivation_script(fence, comment_map), cwd=tmp_path)
 
     assert without.returncode == 0
     assert "PENDING=0" in without.stdout
     assert with_invariant.returncode == 1
+
+
+@requires_bash
+@pytest.mark.parametrize("path", VOCABULARY_CARRIERS, ids=_carrier_id)
+def test_the_recorded_count_reaches_the_gate_that_reads_it(path: Path, tmp_path: Path) -> None:
+    """Run Phase 1's writer and Gate 4's reader against one filesystem.
+
+    Comparing the two published path literals would only prove the document is
+    internally consistent. Executing the writer, then the reader, in the same
+    working directory proves the artifact the workflow creates is the artifact
+    the gate opens, which is the whole point of moving the count out of a
+    shell variable.
+    """
+    record = _count_record_fence(path)
+    comment_map = _render_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
+    count_file = _record_api_count(tmp_path, None)
+    assert not count_file.exists(), "Phase 1 must be the step that creates the artifact"
+
+    written = _run_derivation(f"TOTAL_COMMENTS={API_COMMENT_COUNT}\n{record}\n", cwd=tmp_path)
+    assert written.returncode == 0, (
+        f"{_carrier_id(path)} Phase 1 failed to record the count: {written.stderr!r}"
+    )
+    assert count_file.exists(), (
+        f"{_carrier_id(path)} Phase 1 wrote no artifact at {COUNT_ARTIFACT_PATH}"
+    )
+
+    result = _run_derivation(
+        _derivation_script(_gate_four_fence(path), comment_map), cwd=tmp_path
+    )
+
+    assert result.returncode == 0, (
+        f"{_carrier_id(path)} Gate 4 rejected the count Phase 1 recorded: "
+        f"exit {result.returncode}, stdout {result.stdout!r}"
+    )
+    assert "PENDING=0" in result.stdout
+
+
+@pytest.mark.parametrize("path", VOCABULARY_CARRIERS, ids=_carrier_id)
+def test_phase_one_records_the_api_count_on_every_retrieval_path(path: Path) -> None:
+    """Both retrieval paths must record the count, not just the preferred one.
+
+    The raw ``gh`` alternative computes the same total. A carrier that records
+    on one path only leaves every gate blocked for anyone who took the other.
+    """
+    text = path.read_text(encoding="utf-8")
+    records = [body for _, body in _bash_fences(text) if COUNT_RECORD_STEPS[2] in body]
+
+    assert len(records) == 2, (
+        f"{_carrier_id(path)} records the API count in {len(records)} fence(s); "
+        f"the preferred and raw-gh retrieval paths both need it"
+    )
+    for body in records:
+        for step in COUNT_RECORD_STEPS:
+            assert step in body, f"{_carrier_id(path)} records the count without {step!r}"
 
 
 @pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
@@ -826,6 +1128,61 @@ def test_no_carrier_enumerates_pending_statuses(path: Path) -> None:
         f"{_carrier_id(path)} still enumerates pending statuses, so a "
         f"status outside the table is counted as non-pending and the gate passes "
         f"(issue #4054): {offenders}"
+    )
+
+
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_no_carrier_reads_a_retired_status_accumulator(path: Path) -> None:
+    """The subtraction retired ADDRESSED and WONTFIX as separate counts.
+
+    Bash reads an unset name in arithmetic as 0, so a leftover
+    ``$((ADDRESSED + WONTFIX))`` prints ``0`` for a run in which every comment
+    reached a terminal status, contradicting the checklist row directly above
+    it. Nothing else in this suite can catch a retired variable: the dead-field
+    detector matches status spellings, not accumulator names.
+    """
+    offenders = [
+        f"line {number}: {line.strip()}"
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if RETIRED_ACCUMULATOR_RE.search(line)
+    ]
+    assert not offenders, (
+        f"{_carrier_id(path)} still reads an accumulator the terminal-count "
+        f"derivation retired, which reports 0 resolved on a finished run "
+        f"(issue #4054): {offenders}"
+    )
+
+
+@pytest.mark.parametrize("path", VOCABULARY_CARRIERS, ids=_carrier_id)
+def test_the_comment_index_template_renders_no_status_cell(path: Path) -> None:
+    """Step 2.2 must not publish a status the vocabulary table does not define.
+
+    The index rendered ``pending``, a value that appears in no row of the
+    authoritative table the same document calls the only place the vocabulary
+    is defined. Gate 3 never rewrites the index, so a fully worked PR ended
+    with the index reading ``pending`` for every comment while the detail entry
+    read terminal: the two-disagreeing-representations defect issue #4054 is
+    about, moved from the vocabulary tables into the comment map itself.
+    """
+    text = path.read_text(encoding="utf-8")
+    assert text.count(COMMENT_INDEX_HEADING) == 1, (
+        f"{_carrier_id(path)} publishes {text.count(COMMENT_INDEX_HEADING)} "
+        f"comment indexes; the template renders exactly one"
+    )
+
+    rows = _comment_index_rows(text)
+    assert len(rows) == 3, (
+        f"{_carrier_id(path)} comment index has {len(rows)} table lines, "
+        f"expected a header, a separator, and one template row"
+    )
+    assert "Status" not in rows[0], (
+        f"{_carrier_id(path)} comment index still declares a Status column, "
+        f"which Gate 3 never writes back: {rows[0]}"
+    )
+    offenders = [row for row in rows if INDEX_STATUS_TOKEN_RE.search(row)]
+    assert not offenders, (
+        f"{_carrier_id(path)} comment index renders a status token that Gate 3 "
+        f"never updates, so it disagrees with the detail entry: {offenders}"
     )
 
 
@@ -960,6 +1317,42 @@ def test_enumerated_pending_detector_flags_the_shape_shipped_before_this_fix() -
     assert ENUMERATED_PENDING_RE.search(r"^\*\*Status\*\*: \[NEW\]")
     assert not ENUMERATED_PENDING_RE.search(TERMINAL_PATTERN)
     assert not ENUMERATED_PENDING_RE.search(STATUS_LINE_PATTERN)
+
+
+def test_retired_accumulator_detector_flags_the_shape_shipped_before_this_fix() -> None:
+    """The detector must catch the accumulators, not the status vocabulary.
+
+    ``[WONTFIX]`` is a live terminal status and appears in the table, in the
+    terminal grep, and in prose. Flagging any of those would make the sweep
+    unusable, so the detector keys on the accumulator spellings alone.
+    """
+    assert RETIRED_ACCUMULATOR_RE.search(
+        'echo "[ ] Comments: $((ADDRESSED + WONTFIX))/$TOTAL resolved"'
+    )
+    assert RETIRED_ACCUMULATOR_RE.search('WONTFIX=$(grep -c "wontfix" "$COMMENT_MAP")')
+    assert RETIRED_ACCUMULATOR_RE.search('echo "$WONTFIX"')
+    assert RETIRED_ACCUMULATOR_RE.search("ADDRESSED=0")
+
+    assert not RETIRED_ACCUMULATOR_RE.search(
+        "| `[WONTFIX]` | Explicitly decided not to change | Yes |"
+    )
+    assert not RETIRED_ACCUMULATOR_RE.search(TERMINAL_PATTERN)
+    assert not RETIRED_ACCUMULATOR_RE.search("**Status**: [ACKNOWLEDGED]")
+    assert not RETIRED_ACCUMULATOR_RE.search("Track, Map, Addressed, Conversation")
+
+
+def test_index_status_detector_flags_the_cell_shipped_before_this_fix() -> None:
+    """The detector must catch the retired ``pending`` cell and any status token."""
+    assert INDEX_STATUS_TOKEN_RE.search(
+        "| [id] | @[author] | review/issue | [path]#[line] | pending | TBD | - |"
+    )
+    assert INDEX_STATUS_TOKEN_RE.search(
+        "| [id] | @[author] | review/issue | [path]#[line] | [ACKNOWLEDGED] | TBD | - |"
+    )
+    assert not INDEX_STATUS_TOKEN_RE.search(
+        "| [id] | @[author] | review/issue | [path]#[line] | TBD | - |"
+    )
+    assert not INDEX_STATUS_TOKEN_RE.search("| ID | Author | Type | Path/Line | Priority |")
 
 
 def test_terminal_statuses_in_pattern_reads_the_alternation() -> None:
