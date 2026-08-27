@@ -71,7 +71,20 @@ LEFTHOOK_CONFIG_NAMES = tuple(
 # means the install never ran or was overridden.
 PROBE_HOOK = "pre-push"
 
-REMEDY = "uv run --frozen lefthook install --reset-hooks-path"
+# Not a bare `lefthook install`. Git shares one hooks directory across every
+# worktree and lefthook's generated shim bakes in an absolute path probed from
+# whichever checkout ran the install, so the bare command repairs this gate and
+# immediately reds the adjacent `Lefthook Installed` gate, which rejects that
+# path (issue #4789). Both gates run in the same pre_pr.py sequence, so an
+# operator following an on-screen remedy must not be handed one that breaks the
+# gate below it. The installer runs `lefthook install --reset-hooks-path`
+# itself, so core.hooksPath is still cleared.
+#
+# Kept byte-identical with install_lefthook_worktree_safe.REPAIR_COMMAND rather
+# than imported: this module is imported by name with scripts/validation on
+# sys.path and is also run directly as a script, so neither invocation can
+# resolve scripts.maintenance. test_check_git_hook_health.py pins the two equal.
+REMEDY = "uv run python scripts/maintenance/install_lefthook_worktree_safe.py"
 WORKTREE_REMEDY = f"git config --worktree --unset-all core.hooksPath && {REMEDY}"
 GLOBAL_REMEDY = f"git config --global --unset-all core.hooksPath && {REMEDY}"
 SYSTEM_REMEDY = f"git config --system --unset-all core.hooksPath && {REMEDY}"
