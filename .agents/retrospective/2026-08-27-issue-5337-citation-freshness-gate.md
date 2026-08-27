@@ -19,10 +19,13 @@ model-independent: a harness-enforced gate, not prompting, because it must
 bind Sonnet, Opus, and Fable class authors identically.
 
 PR #5338 adds the `Citation Freshness (added lines)` gate to the `pre_pr`
-sequence: every `path:line` citation on a line added since the base ref is
-verified against HEAD (tracked, in range, and at least one anchor the
-citing sentence names present in the cited range, with the relocated line
-reported when content moved). Three modules: gate policy, anchor
+sequence: every citation the matcher recognizes (a slash-containing
+tracked path with a known text extension, then `:N` or `:N-M`) on a line
+added since the base ref is verified against HEAD (tracked, in range, and
+at least one anchor the citing sentence names present in the cited range,
+with the relocated line reported when content moved). Root-file citations
+with no directory separator stay out of the matcher by design, a boundary
+a live miss promptly tested (see below). Three modules: gate policy, anchor
 semantics, git reads. Historical trees are exempt; the escape hatch is a
 line-scoped reasoned marker. Issue #5337 tracks the incident record;
 issue #5339 spun out of the session (the merge-state check's UNKNOWN
@@ -63,6 +66,31 @@ transient, hit twice in one evening).
   One proposed remedy (suppressing neighbor anchors for anchorless
   citation lines) was declined with a measured reason: it un-catches the
   PR #5336 flagship case.
+
+## Failure mode classification
+
+Failure mode 9, confident-incorrectness recurrence
+(`.agents/governance/FAILURE-MODES.md`): a `file:line` claim is asserted
+confidently, drifts as the cited file changes, and recurs across PRs
+because no gate re-verifies it (PR #5335 cycle three, the four citations
+PR #5336 repairs, PR #5322's sixteen review-caught stale descriptions).
+The gate converts that class from review-detected to locally blocked. The
+class boundary was demonstrated in-session: while this PR claimed the
+class machine-checked, its own diff carried a stale citation to a
+root-level config file (`.markdownlint-cli2.yaml:131`, actual 138), which
+the matcher excludes by design, and an AI completeness check caught it,
+not the gate.
+
+## Remediation
+
+- Gate shipped and wired: PR #5338, tracked by issue #5337 (this record).
+- Merge-state UNKNOWN transient, hit twice in-session: bounded retry in
+  the check, issue #5339.
+- Follow-up scope, both on issue #5337: symbol-without-line-number claims
+  (the PR #5335 class) remain manual; root-level config paths
+  (slashless citations such as the one above) are excluded by the
+  matcher, and the live miss is the evidence for whether to widen it to
+  tracked root files.
 
 ## Learnings
 
