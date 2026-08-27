@@ -53,7 +53,15 @@ _ACTIVE_STATUSES = ("queued", "in_progress")
 
 @dataclass(frozen=True, slots=True)
 class WorkflowRun:
-    """One workflow run that a bulk cancellation would kill."""
+    """One workflow run that a bulk cancellation would kill.
+
+    ``jobs_verified`` distinguishes a run whose job records were actually read
+    from GitHub from one where the jobs endpoint returned zero records because
+    they have not materialized yet (see ``workflow_runs.run_contexts``). A run
+    loaded from a recorded manifest (:func:`run_from_mapping`) defaults to
+    verified: that path already fails closed on a missing ``contexts`` key, so
+    an explicit (even empty) list there is trusted as the real snapshot.
+    """
 
     run_id: int
     workflow_name: str
@@ -62,6 +70,7 @@ class WorkflowRun:
     event: str
     status: str
     contexts: tuple[str, ...]
+    jobs_verified: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -203,6 +212,17 @@ def _classify(
         )
 
     if not required_contexts:
+        if not run.jobs_verified:
+            return verdict(
+                event=None,
+                verified=False,
+                reason=(
+                    "GitHub returned zero job records for this run; its jobs "
+                    "may not have materialized yet (a queued run in this "
+                    "state), so the absence of a required context cannot be "
+                    "trusted (issue #4835 fail-open guard)"
+                ),
+            )
         return verdict(event=None, verified=True, reason=None)
 
     if recovery_event is None:
