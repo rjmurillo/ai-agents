@@ -244,6 +244,8 @@ def _label_opens(body: str) -> bool:
             continue
         if char == "]":
             return False  # it closed here, so the single-line patterns own it
+        if char == "[":
+            return False  # an UNESCAPED `[` is not allowed inside a label
         index += 1
     return True
 
@@ -561,6 +563,14 @@ class _ListContainers:
                 label = f"{self._open_label}\n{line[:index]}"
                 self._finish_open_label(label, line[index + 1 :])
                 return
+            if char == "[":
+                # The single-line `_LINK_LABEL` spells `[^\[\]\\]` and so has
+                # always rejected an unescaped `[`. This path did not, which
+                # made the multi-line label looser than the one-line one for
+                # no reason anyone chose.
+                self._open_label = None
+                self._in_paragraph = True
+                return
             index += 1
         self._open_label = f"{self._open_label}\n{line}"
 
@@ -605,6 +615,13 @@ class _ListContainers:
             if char == closer:
                 self._open_title = None
                 self._in_paragraph = bool(line[index + 1 :].strip(" \t"))
+                return
+            if closer == ")" and char == "(":
+                # Same asymmetry as the label above: `_title_end` rejects an
+                # unescaped `(` inside a parenthesised title on one line, and
+                # this path accepted it across lines.
+                self._open_title = None
+                self._in_paragraph = True
                 return
             index += 1
 
