@@ -158,3 +158,80 @@ to assume a stale one is wrong. Both were false here: the finding was real AND a
 - Refuted container-pop patch, 42 to 78 writes: PR comment 5431946446.
 - Quadratic label accumulation, measured 42.1us per line at 32,000 lines and 6.1 after: `6af10daa3`.
 - The dataclass-identity probe bug: same commit's verification, corrected before it was believed.
+
+## Correction, 2026-08-27, later the same day
+
+Appended rather than edited in place, per `.claude/rules/retros.md` MUST NOT 1.
+Two of this file's own MUSTs were missing when it landed, which a review caught,
+and the scope line was stale by two rounds.
+
+**Scope.** The Session Info above says rounds 15 to 21. Findings 6 and 7 came
+from round 22, and rounds 23 onward produced the material below. Read the scope
+as rounds 15 to 26.
+
+### Failure mode classification (MUST 2)
+
+Classified against `.agents/governance/FAILURE-MODES.md`:
+
+- **FM-9, confident-incorrectness recurrence (High).** The primary class.
+  Findings 1, 3, 5 and 6 are all instances: a claim asserted with confidence and
+  never checked against the source. The sharpest is not in the original list. I
+  cited a commit SHA, `5eee4c1`, in two review replies before the commit existed
+  and never ran `git cat-file -t` on it. That is the same defect this PR spent
+  twenty rounds finding in other people's claims, committed by the author of the
+  finding, in the reply reporting it. Corrected publicly rather than edited away.
+- **FM-10, silent defaults and guard-clause suppression (High).** Finding 2 and
+  everything downstream of it. Five guards on this branch could not fail: the
+  fuzz baseline that was its own seed list, the case table that could shrink
+  silently, the digest that hashed names and not bodies, the skip predicate that
+  asked the system under test, and the digest that did not cover the exemption
+  list. A sixth was mine, written while fixing the other five: a corruption pin
+  set to its own maximum, so the direction its failure message promised could
+  never fire.
+
+No new class is needed, so no ADR is proposed.
+
+### The finding that outranks the original five
+
+A gap filed as "a miss" is a claim about the OUTPUT, and for four rounds nobody
+measured the output. Four gaps were recorded as misses and every one of them
+writes: blockquote interrupting a paragraph, raw HTML at 20 of 20 shapes, a
+setext underline under a list item at 6 of 9, and an escaped tab at 9 of 11.
+
+Round 21 fixed the balance predicate that caused the first misclassification. I
+applied the correction to the entry that prompted it and not to the list it sat
+in, so the identical error survived one sentence away for two more rounds and
+two more entries. **A correction applied to the instance and not to the class is
+half a fix**, and that generalises past this file.
+
+Then the same shape appeared in the ratchet. The corruption assertion classified
+a repair by EDIT SHAPE (`repaired.startswith(text)`), so a repair that rewrote
+the middle AND grew the document was counted as a middle rewrite and never
+reached the zero-append assertion. Asserting the OUTCOME instead, that a
+balanced document stays balanced, found a corruption in a tracked file:
+`.serena/memories/prompting/prompt-engineering-merge-conflict-analysis.md`, the
+only one of 4,533. Every earlier gap on this PR was hand-constructed.
+
+### Remediation with owners (MUST 4)
+
+Each item names an owner and a state. "Author" means the agent driving PR #5322;
+items left open are owner decisions and are named as such on the PR.
+
+| # | Action | Owner | State |
+|---|---|---|---|
+| 1 | Measure the fix, not only the defect, before adopting any change derived from a spec, a review, or reasoning | Author | Done. Both measurements recorded in `SKILL.md` and the oracle module for the one rejected fix |
+| 2 | No guard may compute its scope from the system under test | Author | Done. Scope is data in every pin; six guards repaired |
+| 3 | Assert the outcome, not the edit shape, wherever a corruption is defined | Author | Done, `test_write_never_mutates_a_balanced_generated_document` |
+| 4 | Every gap that corrupts gets a pin holding shapes as data, an unsaturated count, and a not-parametrized scope assertion | Author | Done, `test_fix_fences_known_corruptions.py`, four classes plus the tracked-file case |
+| 5 | Verify every commit SHA with `git cat-file -t` before citing it | Author | Done for this PR; carried into the session check-in prompt |
+| 6 | Decide whether raw HTML, blockquotes and escaped tabs are built rather than documented | Repository owner | OPEN, three explicit decisions on PR #5322 |
+| 7 | Decide whether the duplicated container class and link grammar move to the plugin shared lib per ADR-047 | Repository owner | OPEN, on PR #5322 |
+| 8 | Decide whether `markdown-it-py` is the right authority for the six refuted claims | Repository owner | OPEN, on PR #5322 |
+
+### Additional evidence
+
+- Fabricated SHA and its public correction: PR #5322 review comments
+  `3867992057` and `3867992401`.
+- The three audit-found corruptions and their fix: `44e3503d2`.
+- Guards that could not fail in the promised direction: `c4a0ee621`.
+- Edit-shape blind spot and the tracked-file corruption: `32eb3e603`.
