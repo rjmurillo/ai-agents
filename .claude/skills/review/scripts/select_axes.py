@@ -27,10 +27,10 @@ never reports on it; it is excluded from the canonical candidate set.
 Selection is additive: one change can match several risk categories and
 every matched category contributes its axes.
 
-Fail-closed rule: when a changed path matches no known risk category, when a
-declared diff effect is not in the known vocabulary, or when a demanded axis
-has no ``references/{stem}.md`` prompt to load, every candidate axis is
-selected.  An unclassified change gets the full review, never an empty one,
+Fail-closed rule: when a changed path matches no known risk category, when the
+path list is empty or holds nothing but blanks, when a declared diff effect is
+not in the known vocabulary, or when a demanded axis has no
+``references/{stem}.md`` prompt to load, every candidate axis is selected.  An unclassified change gets the full review, never an empty one,
 and an incomplete prompt set widens the review instead of narrowing it.  A
 demanded axis with no prompt is reported in ``unresolved_axes`` so it never
 vanishes from both ``canonical_selected`` and ``skipped``.
@@ -222,7 +222,16 @@ _RISK_TABLE: tuple[tuple[str, Callable[[str], bool], tuple[str, ...], tuple[str,
 
 # Diff effects the caller verified in the diff body, which no path glob can
 # see. An effect outside this vocabulary fails closed.
+# The execution, untrusted-input, artifact, and rollback surfaces of the issue
+# #4981 routing table live here, not in _RISK_TABLE: they name what a diff
+# does, not what a path is called. Matched as path words over all 9588 tracked
+# files every candidate was pure noise ("eval" 183 paths, "commands" 58,
+# "artifact(s)" 62, "execution" 28, "rollback" 1), with no true risk surface
+# among them, re-creating the over-fire _SECURITY_WORDS above prevents.
 _EFFECT_TABLE: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    "command-execution": (("security",), ()),
+    "untrusted-input": (("security",), ()),
+    "artifact-or-rollback": (("devops", "security"), ()),
     "error-handling": (("reliability", "qa"), ()),
     "type-change": (("architect",), ()),
     "public-api": (("architect",), ()),
@@ -246,12 +255,12 @@ def _blanket_reason(
     deep: bool,
     unclassified: Sequence[str],
     unknown_effects: Sequence[str],
-    changed_paths: Sequence[str],
+    usable_paths: Sequence[str],
 ) -> str:
     """Return the reason recorded on every axis when the whole set runs."""
     if deep:
         return _DEEP_REASON
-    if unclassified or unknown_effects or not changed_paths:
+    if unclassified or unknown_effects or not usable_paths:
         return _FAIL_CLOSED_REASON
     return _UNRESOLVED_REASON
 
@@ -328,6 +337,12 @@ def select_axes(
     name either a canonical or a local axis; each is routed to its own
     family so a pinned local axis is never loaded as a canonical prompt.
     """
+    # classify_paths skips an empty-after-trimming entry rather than calling it
+    # unclassified, so testing the raw list let a blank-only list ("", "   ")
+    # reach the risk branch with nothing matched: fail_closed stayed false and
+    # the run narrowed to the always-on analyst alone. Judging emptiness on
+    # what survives normalization fails a blank list closed, like no list.
+    usable_paths = [raw for raw in changed_paths if _norm(raw)]
     categories, unclassified = classify_paths(changed_paths)
     canonical_sources, local_sources, unknown_effects = _contributions(categories, effects)
 
@@ -341,12 +356,12 @@ def select_axes(
         bool(unclassified)
         or bool(unknown_effects)
         or bool(unresolved_axes)
-        or not changed_paths
+        or not usable_paths
     )
     reasons: dict[str, str] = {}
 
     if deep or fail_closed:
-        blanket = _blanket_reason(deep, unclassified, unknown_effects, changed_paths)
+        blanket = _blanket_reason(deep, unclassified, unknown_effects, usable_paths)
         canonical_selected = set(canonical_candidates)
         local_selected = set(LOCAL_AXES)
         for axis in canonical_selected | local_selected:

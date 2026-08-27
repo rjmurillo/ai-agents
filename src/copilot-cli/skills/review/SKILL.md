@@ -176,7 +176,7 @@ that is safe (idempotent in effect: the latest marker binds the current tip).
 
 - [ ] The `spec-compliance` Stage-1 axis file exists under `references/spec-compliance.md` and runs before Stage 2 (Process step 2)
 - [ ] Every non-spec `references/*.md` file is either selected by change risk or reported as SKIPPED with a reason, and deep review still runs the full set (11 with the current set: analyst, architect, qa, security, devops, roadmap, reliability, observability, agent-safety, decision-rigor, code-quality)
-- [ ] Stage-2 selection came from `select_axes.py` over the verified three-dot diff; the 3 local axes stayed in `local_selected`; an unclassifiable path or unknown `--effect` gave `fail_closed: true` and the full set
+- [ ] Stage-2 selection came from `select_axes.py` over the verified three-dot diff; the 4 local axes stayed in `local_selected`; an unclassifiable path, a blank-only path list, or an unknown `--effect` gave `fail_closed: true` and the full set
 - [ ] Each axis emits a parseable verdict line per the `extract_verdict` regex
 - [ ] The verdict library resolves under one of the two documented candidate paths
 - [ ] `merge_verdicts` produces a single final verdict consistent with the rules in Process step 7
@@ -187,6 +187,6 @@ that is safe (idempotent in effect: the latest marker binds the current tip).
 
 - Verdict module: `.claude/lib/ai_review_common/verdict.py` (Claude layout) or `lib/ai_review_common/verdict.py` (vendored layout, plugin-root relative).
 - Canonical axes: every `.claude/skills/review/references/*.md` (Claude layout) or `${CLAUDE_SKILL_DIR}/references/*.md` resolved at runtime (works in both layouts); `spec-compliance` is the Stage-1 gate, and the non-spec files form the discovered Stage-2 axis set.
-- Skill chain: `.claude/skills/{code-qualities-assessment,golden-principles,taste-lints}/` (the build pipeline copies these into the plugin install too).
+- Skill chain: the 4 local axes at `.claude/skills/{code-qualities-assessment,doc-accuracy,golden-principles,taste-lints}/` (the build pipeline copies these too). Plus the 11 Stage-2 canonical axes and the Stage-1 gate: 16 rows.
 
 <!-- vendor-portability: declared. This skill body cites .claude/lib/ai_review_common/verdict.py (ships in the vendor install; the skill names the plugin-root-relative lib/ai_review_common/verdict.py fallback for the vendored layout) and mentions .agents/ only to assert that /review needs no .agents/ access. Also cites .claude/skills/github/scripts/pr/check_pr_round_cap.py as canonical-source-mirror evidence (issue #5260): a sibling in-plugin script cited for its contract, not resolved or run by /review. No upstream-only runtime dependency. Issue #2050. -->

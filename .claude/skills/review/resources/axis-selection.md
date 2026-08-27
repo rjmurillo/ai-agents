@@ -23,7 +23,8 @@ phantom axis.
 
 `error-handling`, `type-change`, `public-api`, `integration-point`,
 `new-code-path`, `dependency-change`, `agent-behavior`, `decision-record`,
-`comments-or-docstrings`.
+`comments-or-docstrings`, `command-execution`, `untrusted-input`,
+`artifact-or-rollback`.
 
 An effect outside this list fails closed rather than being ignored, so a typo
 costs a full review instead of silently selecting nothing.
@@ -96,6 +97,21 @@ nothing in the diff to review.
 | `agent-behavior` | `agent-safety` |
 | `decision-record` | `decision-rigor` |
 | `comments-or-docstrings` | `code-quality` |
+| `command-execution` | `security` |
+| `untrusted-input` | `security` |
+| `artifact-or-rollback` | `devops`, `security` |
+
+The last three cover the issue rows "Auth, secrets, execution, or untrusted
+input" and "CI, deployment, artifacts, or rollback". Their `auth`, `secrets`,
+`CI`, and `deployment` halves are path-shaped and live in the risk table above;
+the execution, untrusted-input, artifact, and rollback halves are not. Matching
+those as path words was measured against all 9588 tracked files and produced no
+true risk surface at all: `eval` matched 183 paths (an analysis corpus of
+`eval-*` reports), `commands` 58, `artifact` and `artifacts` 62 (mostly an
+eval-artifact report directory), `execution` 28 (ADR titles), `rollback` 1
+(an operations runbook). Declaring them from the diff body keeps the routing
+faithful to the issue without re-creating the over-fire the risk table's whole
+path word matching exists to prevent.
 
 ## Why selection is not left to prompt prose
 
