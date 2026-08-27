@@ -387,11 +387,27 @@ build never names the string", which is weaker than "the variable is never
 exported" but sufficient here, since a variable the implementation never spells
 cannot be set by it.
 
-Caveat recorded rather than hidden: every `COPILOT_CLI` hit is a
+Caveat recorded rather than hidden: every `COPILOT_CLI` hit in this table is a
 `COPILOT_CLI_*`-prefixed name (`COPILOT_CLI_VERSION`, `COPILOT_CLI_DIST_DIR`,
 `COPILOT_CLI_ENABLED_FEATURE_FLAGS`). The bare `COPILOT_CLI=1` variable is not
-visible as a standalone literal in either artifact, so its authority here is the
-vendor changelog quoted in `official-hook-contracts.md`, not this search.
+visible as a standalone literal in either artifact.
+
+**Correction, dated 2026-08-27 (issue #5369).** This section previously said the bare
+variable's "authority here is the vendor changelog quoted in
+official-hook-contracts.md, not this search." That changelog citation has
+since been re-verified against the actual installed `@github/copilot` package
+(every published version, via `npm pack`) and does not exist: no such entry,
+no such quoted text, no reference to the cited pull request, in any
+`changelog.json`. A follow-up byte search of the shipped
+`@github/copilot-linux-x64@1.0.80` `app.js` for a bare `COPILOT_CLI` literal
+(distinct from the `COPILOT_CLI_*`-prefixed names above) finds exactly one
+occurrence: `Fe.COPILOT_CLI="copilot_cli"`, an internal feature-flighting enum
+key, not an environment variable read or write. Official GitHub Copilot CLI
+docs and a community environment-variable reference for the CLI do not list a
+bare `COPILOT_CLI` variable either. There is currently no vendor-confirmed
+source for `COPILOT_CLI` as a host-identifying environment variable. See the
+"Environment variables Copilot CLI sets" correction in
+`official-hook-contracts.md` for the full account.
 
 Consequence for the anchor. Every command in `.claude/settings.json` opened with
 `cd "$CLAUDE_PROJECT_DIR"`, and Copilot loads that same file when the folder is
@@ -413,14 +429,19 @@ with the bare form as an in-test negative control.
 
 Consequence for the output shape: the memory-recall `UserPromptSubmit` hook
 emits the top-level envelope when `COPILOT_CLI` is set and no Claude signal is,
-and keeps plain stdout otherwise. `COPILOT_CLI` alone does not identify the
-consuming host, because Copilot exports it into every shell it spawns, so a
-Claude session started underneath one inherits it. `CLAUDE_CODE_ENTRYPOINT`
-therefore takes precedence; it is absent from this Copilot build per the table
-above, and observed set to `remote_mobile` in a Claude Code session on the same
-machine. `CLAUDE_PROJECT_DIR` discriminates in neither direction: Copilot does
-not set it, and it was also observed unset inside a Claude Code session, so its
-absence identifies nothing.
+and keeps plain stdout otherwise. This is a best-effort heuristic, not a
+verified contract: per the correction above, `COPILOT_CLI` is not confirmed to
+be set by Copilot CLI at all, so whether this branch ever fires under real
+Copilot CLI is open. `CLAUDE_CODE_ENTRYPOINT` is the only confirmed signal and
+takes precedence regardless (it is absent from this Copilot build per the
+table above, and observed set to `remote_mobile` in a Claude Code session on
+the same machine), both because it fails safe for Claude and because, if
+`COPILOT_CLI` does turn out to be real, it would not identify the consuming
+host by itself: Copilot would export it into every shell it spawns, so a
+Claude session started underneath one would inherit it. `CLAUDE_PROJECT_DIR`
+discriminates in neither direction: Copilot does not set it, and it was also
+observed unset inside a Claude Code session, so its absence identifies
+nothing.
 
 Durable tests: `TestRecallOutputShapePerHost` in
 `tests/test_memory_hook_registration.py`, which drives the registered command
