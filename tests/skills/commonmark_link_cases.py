@@ -2,10 +2,16 @@
 
 Split out of `commonmark_fence_cases` when that module crossed the 500 line
 taste ceiling for the second time. The seam is the rule: one leaf block took
-five review rounds and fifteen separate `--write` corruptions to get right,
-and its cases outgrew the container cases they used to sit beside. They are
-merged back into `CASES` there, so both suites still parametrize over one
-table and the inventory pin still covers the union.
+several review rounds to get right and its cases outgrew the container cases
+they used to sit beside. They are merged back into `CASES` there, so both
+suites still parametrize over one table and the inventory pin still covers the
+union.
+
+NO COUNT of the defects fixed under this rule appears here, deliberately. Three
+places carried one and gave three different answers, because splitting "a list
+marker ends a pending destination" and "a list marker ends a pending title"
+into one defect or two is a judgement, not a measurement. The cases below ARE
+the enumeration; anything that needs a number should count them.
 
 A `[` appears in none of the fuzzer's 6,000 generated documents, so every case
 below is the only coverage its behaviour has.
@@ -242,4 +248,26 @@ LINK_REFERENCE_CASES: dict[str, str] = {
     # The control, and the one exception the range check must not swallow.
     "a NUL is not a control for this purpose":
         "[foo]: /a\x00b\n2. ```\n   code\n   ```\n",
+    # Rule 16 continued. Two asymmetries between the single-line grammar and
+    # the multi-line one, both reported by review. `_LINK_LABEL` has always
+    # spelled `[^\[\]\\]` and `_title_end` has always rejected an unescaped
+    # `(` inside a parenthesised title; the continuation paths added for the
+    # multi-line forms accepted both. Nobody chose that looseness, it came
+    # with the new state. These are MISSES rather than corruptions, which the
+    # reports predicted the other way: we over-mask and fail to report a
+    # genuinely unclosed fence rather than inventing one.
+    "an unescaped bracket does not open a split label":
+        "[fo[\no]: /url\n2. ```\n   code\n   ```\n",
+    "an unescaped bracket on the second fragment ends a split label":
+        "[fo\no[p]: /url\n2. ```\n   code\n   ```\n",
+    "an unescaped parenthesis ends a split title":
+        "[foo]: /url (a\nb(c)\n2. ```\n   code\n   ```\n",
+    # The controls: escaping either one keeps it, and the other two title
+    # delimiters have no such rule.
+    "an escaped bracket stays inside a split label":
+        "[fo\\[\no]: /url\n2. ```\n   code\n   ```\n",
+    "an escaped parenthesis stays inside a split title":
+        "[foo]: /url (a\nb\\(c)\n2. ```\n   code\n   ```\n",
+    "a balanced pair stays inside a split title":
+        "[foo]: /url (a\nb()c)\n2. ```\n   code\n   ```\n",
 }
