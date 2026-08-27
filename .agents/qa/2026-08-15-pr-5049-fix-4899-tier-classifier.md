@@ -41,11 +41,14 @@ reading it", is the same error stated as fact.
 
 That mattered concretely. The classifier returned `T1` for any result with
 `CanMerge=true`, and `CanMerge` was `len(reasons) == 0` while
-`_evaluate_pr_state` appended a reason only for `BEHIND` and `BLOCKED`. A PR
-with `mergeStateStatus=HAS_HOOKS` therefore classified `T1` and armed
-auto-merge, though pr-autofix.md names a merge script only for `CLEAN` and
-`UNSTABLE`. Fixed by allowlisting the executable merge states; see the commit
-that adds this amendment.
+`_evaluate_pr_state` appended a reason only for `BEHIND` and `BLOCKED`, so any
+value nobody enumerated classified `T1` and armed auto-merge. A PR reporting
+`mergeStateStatus=A_STATE_GITHUB_ADDS_LATER`, the placeholder
+`tests/test_test_pr_merge_ready.py:1553` carries for a state GitHub adds later,
+has no merge row in pr-autofix.md and reached the merge tier anyway.
+`HAS_HOOKS` is not that example: the allowlist admits it and pr-autofix.md
+routes it down the `CLEAN` merge path. Fixed by allowlisting the executable
+merge states; see the commit that adds this amendment.
 
 **2. The session log's `handoffRead` evidence is wrong.**
 `.agents/sessions/2026-08-15-session-03-fix-4899.json` records
