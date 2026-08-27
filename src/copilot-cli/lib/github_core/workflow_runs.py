@@ -14,6 +14,7 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import quote
 
 from .protocol import GitHubClient
 from .recovery_manifest import WorkflowRun, active_statuses
@@ -35,6 +36,28 @@ PAGE_SIZE = 100
 # operation spans dozens of branches. Cap the walk so a paging bug cannot spin
 # forever against a live API.
 _MAX_PAGES = 50
+
+
+def _path_segment(value: str) -> str:
+    """Percent-encode a value used inside a REST path.
+
+    ``owner/repo`` is two segments, so the separator is preserved while every
+    other reserved character is escaped.
+    """
+    return quote(value, safe="/")
+
+
+def _query_value(value: str) -> str:
+    """Percent-encode a value used as a REST query-string parameter.
+
+    Nothing is safe here, the slash included. Git permits ``&`` and ``+`` in a
+    refname, and ``?`` and ``#`` reach this code from a caller that read a name
+    from an API payload rather than from git. Interpolated raw, a branch such as
+    ``feat/a&status=completed`` appends a second ``status`` parameter that
+    GitHub resolves ahead of the intended one, and the walk then enumerates a
+    different run set than the one the operator is about to cancel.
+    """
+    return quote(value, safe="")
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,7 +125,7 @@ def run_contexts(client: GitHubClient, repository: str, run_id: int) -> tuple[st
             Callers must not treat this the same as a verified empty context
             set; see the exception's docstring.
     """
-    endpoint = f"repos/{repository}/actions/runs/{run_id}/jobs"
+    endpoint = f"repos/{_path_segment(repository)}/actions/runs/{run_id}/jobs"
     names: list[str] = []
     saw_any_job = False
     for job in iter_paginated(client, endpoint, "jobs"):
@@ -120,7 +143,10 @@ def run_contexts(client: GitHubClient, repository: str, run_id: int) -> tuple[st
 def _branch_runs(
     client: GitHubClient, repository: str, branch: str, status: str
 ) -> Iterator[dict[str, Any]]:
-    endpoint = f"repos/{repository}/actions/runs?branch={branch}&status={status}"
+    endpoint = (
+        f"repos/{_path_segment(repository)}/actions/runs"
+        f"?branch={_query_value(branch)}&status={_query_value(status)}"
+    )
     yield from iter_paginated(client, endpoint, "workflow_runs")
 
 
@@ -196,7 +222,7 @@ def cancel_runs(
     cancelled: list[int] = []
     failed: list[tuple[int, str]] = []
     for run_id in run_ids:
-        endpoint = f"repos/{repository}/actions/runs/{run_id}/cancel"
+        endpoint = f"repos/{_path_segment(repository)}/actions/runs/{run_id}/cancel"
         try:
             client.rest_post(endpoint, {})
         except (RuntimeError, OSError, ValueError) as exc:
