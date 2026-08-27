@@ -34,7 +34,9 @@ mod = import_skill_script(
 )
 
 SCRIPT_PATH = PROJECT_ROOT / ".claude" / "skills" / "review" / "scripts" / "select_axes.py"
-REFERENCES_DIR = PROJECT_ROOT / ".claude" / "skills" / "review" / "references"
+REVIEW_SKILL_DIR = PROJECT_ROOT / ".claude" / "skills" / "review"
+REFERENCES_DIR = REVIEW_SKILL_DIR / "references"
+SIDECAR = REVIEW_SKILL_DIR / "resources" / "axis-selection.md"
 
 # The Stage-2 candidates the shipped references/ directory yields today.
 CANDIDATES = mod.discover_canonical_axes(REFERENCES_DIR)
@@ -212,24 +214,23 @@ class TestDemandedAxisWithNoPrompt:
             (tmp_path / f"{stem}.md").write_text("stub prompt\n", encoding="utf-8")
         return mod.discover_canonical_axes(tmp_path)
 
-    def test_demanded_but_missing_axis_is_reported(self, tmp_path: Path) -> None:
-        candidates = self._references(tmp_path, self.PARTIAL_SET)
-        result = mod.select_axes(
+    @staticmethod
+    def _partial_run(candidates: list[str]) -> dict:
+        # reliability is demanded by effect:error-handling, code-quality by
+        # the executable-code category; neither has a prompt in this set.
+        return mod.select_axes(
             changed_paths=["src/worker.py"],
             canonical_candidates=candidates,
             effects=["error-handling"],
         )
-        # reliability is demanded by effect:error-handling, code-quality by
-        # the executable-code category; neither has a prompt in this set.
+
+    def test_demanded_but_missing_axis_is_reported(self, tmp_path: Path) -> None:
+        result = self._partial_run(self._references(tmp_path, self.PARTIAL_SET))
         assert result["unresolved_axes"] == ["code-quality", "reliability"]
 
     def test_a_missing_demanded_axis_fails_closed(self, tmp_path: Path) -> None:
         candidates = self._references(tmp_path, self.PARTIAL_SET)
-        result = mod.select_axes(
-            changed_paths=["src/worker.py"],
-            canonical_candidates=candidates,
-            effects=["error-handling"],
-        )
+        result = self._partial_run(candidates)
         assert result["fail_closed"] is True
         assert set(result["canonical_selected"]) == set(candidates)
         assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
@@ -239,9 +240,7 @@ class TestDemandedAxisWithNoPrompt:
         candidates = self._references(tmp_path, self.PARTIAL_SET)
         for effects in ([], ["error-handling"]):
             result = mod.select_axes(
-                changed_paths=["docs/guide.md"],
-                canonical_candidates=candidates,
-                effects=effects,
+                changed_paths=["docs/guide.md"], canonical_candidates=candidates, effects=effects
             )
             accounted = set(result["canonical_selected"]) | set(result["skipped"])
             assert set(candidates) <= accounted, (effects, result)
@@ -254,10 +253,7 @@ class TestDemandedAxisWithNoPrompt:
         # must widen rather than report a clean narrow selection.
         candidates = self._references(tmp_path, ("qa", "security", "spec-compliance"))
         assert "analyst" not in candidates
-        result = mod.select_axes(
-            changed_paths=["docs/guide.md"],
-            canonical_candidates=candidates,
-        )
+        result = mod.select_axes(changed_paths=["docs/guide.md"], canonical_candidates=candidates)
         assert "analyst" in result["unresolved_axes"]
         assert result["fail_closed"] is True
 
@@ -270,10 +266,9 @@ class TestDemandedAxisWithNoPrompt:
 class TestTokenMatchingDoesNotOverFire:
     """Bare-substring matching selected specialists on ordinary paths."""
 
-    @pytest.mark.parametrize(
-        "path",
-        ["docs/authors.md", "src/tokenizer.py", "docs/release-notes.md"],
-    )
+    LOOKALIKES = ["docs/authors.md", "src/tokenizer.py", "docs/release-notes.md"]
+
+    @pytest.mark.parametrize("path", LOOKALIKES)
     def test_word_lookalike_paths_select_no_specialist(self, path: str) -> None:
         result = select([path])
         assert "security" not in result["canonical_selected"], path
@@ -283,12 +278,9 @@ class TestTokenMatchingDoesNotOverFire:
     @pytest.mark.parametrize(
         ("path", "expected"),
         [
-            ("src/auth/session.py", "security"),
-            ("src/oauth_client.py", "security"),
-            ("utils/sanitizer.py", "security"),
-            (".github/workflows/release.yml", "devops"),
-            ("deploy/main.tf", "devops"),
-            ("release/publish.yml", "devops"),
+            ("src/auth/session.py", "security"), ("src/oauth_client.py", "security"),
+            ("utils/sanitizer.py", "security"), (".github/workflows/release.yml", "devops"),
+            ("deploy/main.tf", "devops"), ("release/publish.yml", "devops"),
             ("Dockerfile", "devops"),
         ],
     )
@@ -434,7 +426,7 @@ class TestCliExitCodes:
 class TestSkillDocumentsTheSelector:
     """The SKILL.md Process must call the selector, not re-derive routing."""
 
-    SKILL_MD = PROJECT_ROOT / ".claude" / "skills" / "review" / "SKILL.md"
+    SKILL_MD = REVIEW_SKILL_DIR / "SKILL.md"
 
     def test_skill_body_invokes_the_selector_script(self) -> None:
         body = self.SKILL_MD.read_text(encoding="utf-8")
@@ -447,15 +439,12 @@ class TestSkillDocumentsTheSelector:
 
     def test_selection_sidecar_lives_outside_the_axis_references_directory(self) -> None:
         """A reference doc under references/ would enroll a phantom axis."""
-        sidecar = PROJECT_ROOT / ".claude" / "skills" / "review" / "resources" / "axis-selection.md"
-        assert sidecar.is_file()
+        assert SIDECAR.is_file()
         assert "axis-selection" not in CANDIDATES
         assert not (REFERENCES_DIR / "axis-selection.md").exists()
 
     def test_sidecar_documents_every_diff_effect_the_script_accepts(self) -> None:
-        text = (
-            PROJECT_ROOT / ".claude" / "skills" / "review" / "resources" / "axis-selection.md"
-        ).read_text(encoding="utf-8")
+        text = SIDECAR.read_text(encoding="utf-8")
         for effect in mod._EFFECT_TABLE:
             assert f"`{effect}`" in text, effect
 
@@ -469,9 +458,7 @@ class TestSkillDocumentsTheSelector:
         body = self.SKILL_MD.read_text(encoding="utf-8")
         assert "Pass `--deep` when" in body
 
-    def test_sidecar_names_exactly_the_prompts_lacking_an_applicability_section(
-        self,
-    ) -> None:
+    def test_sidecar_names_the_prompts_lacking_an_applicability_section(self) -> None:
         """The sidecar's claim about prose routing must match the tree.
 
         Deliberately not pinned to a fixed candidate count: the convergence
@@ -479,21 +466,18 @@ class TestSkillDocumentsTheSelector:
         enrolls an axis with no edit to the skill, so enrolling one that
         carries the section must not red this suite.
         """
+        section = "## When This Axis Applies"
         without = {
             axis
             for axis in CANDIDATES
-            if "## When This Axis Applies"
-            not in (REFERENCES_DIR / f"{axis}.md").read_text(encoding="utf-8")
+            if section not in (REFERENCES_DIR / f"{axis}.md").read_text(encoding="utf-8")
         }
         assert without, "the sidecar claims some prompts lack the section"
         assert len(without) < len(CANDIDATES), (
             "the sidecar's premise is that SOME prompts have the section"
         )
 
-        sidecar = (
-            PROJECT_ROOT / ".claude" / "skills" / "review" / "resources" / "axis-selection.md"
-        )
-        text = " ".join(sidecar.read_text(encoding="utf-8").split())
+        text = " ".join(SIDECAR.read_text(encoding="utf-8").split())
         marker = "These canonical prompts have no such section:"
         assert marker in text, "sidecar no longer states which prompts lack the section"
         claim = text.split(marker, 1)[1].split(".", 1)[0]
@@ -504,12 +488,9 @@ class TestSkillDocumentsTheSelector:
 @pytest.mark.parametrize(
     ("path", "expected_axis"),
     [
-        ("tests/test_router.py", "qa"),
-        ("src/auth/login.py", "security"),
-        ("uv.lock", "devops"),
-        (".github/actions/setup/action.yml", "devops"),
-        ("src/models.py", "architect"),
-        (".agents/architecture/ADR-099-thing.md", "decision-rigor"),
+        ("tests/test_router.py", "qa"), ("src/auth/login.py", "security"),
+        ("uv.lock", "devops"), (".github/actions/setup/action.yml", "devops"),
+        ("src/models.py", "architect"), (".agents/architecture/ADR-099-thing.md", "decision-rigor"),
         (".claude/skills/review/SKILL.md", "agent-safety"),
     ],
 )

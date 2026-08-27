@@ -57,48 +57,17 @@ STAGE1_AXIS = "spec-compliance"
 ALWAYS_ON_CANONICAL = ("analyst",)
 
 # Sibling skills invoked with Skill(skill=...), not references/{stem}.md.
-LOCAL_AXES = (
-    "code-qualities-assessment",
-    "doc-accuracy",
-    "golden-principles",
-    "taste-lints",
-)
+LOCAL_AXES = ("code-qualities-assessment", "doc-accuracy", "golden-principles", "taste-lints")
 
 _CODE_SUFFIXES = frozenset(
-    {
-        ".py",
-        ".ts",
-        ".tsx",
-        ".js",
-        ".jsx",
-        ".cs",
-        ".ps1",
-        ".psm1",
-        ".sh",
-        ".go",
-        ".rs",
-        ".rb",
-        ".java",
-    }
+    {".py", ".ts", ".tsx", ".js", ".jsx", ".cs", ".ps1", ".psm1", ".sh", ".go", ".rs", ".rb", ".java"}
 )
 
 _DEPENDENCY_MANIFESTS = frozenset(
     {
-        "pyproject.toml",
-        "uv.lock",
-        "poetry.lock",
-        "package.json",
-        "package-lock.json",
-        "pnpm-lock.yaml",
-        "yarn.lock",
-        "go.mod",
-        "go.sum",
-        "cargo.toml",
-        "cargo.lock",
-        "gemfile",
-        "gemfile.lock",
-        "directory.packages.props",
-        "packages.lock.json",
+        "pyproject.toml", "uv.lock", "poetry.lock", "package.json", "package-lock.json",
+        "pnpm-lock.yaml", "yarn.lock", "go.mod", "go.sum", "cargo.toml", "cargo.lock",
+        "gemfile", "gemfile.lock", "directory.packages.props", "packages.lock.json",
     }
 )
 
@@ -108,20 +77,8 @@ _DEPENDENCY_MANIFESTS = frozenset(
 # which is exactly the low-signal noise risk selection exists to remove.
 _SECURITY_WORDS = frozenset(
     {
-        "auth",
-        "authn",
-        "authz",
-        "oauth",
-        "secret",
-        "secrets",
-        "credential",
-        "credentials",
-        "password",
-        "passwords",
-        "token",
-        "tokens",
-        "permission",
-        "permissions",
+        "auth", "authn", "authz", "oauth", "secret", "secrets", "credential", "credentials",
+        "password", "passwords", "token", "tokens", "permission", "permissions",
     }
 )
 
@@ -136,13 +93,8 @@ _CI_PATH_TOKENS = (".github/workflows/", ".github/actions/")
 _CI_DIRECTORIES = frozenset({"deploy", "release"})
 _CI_FILENAMES = frozenset(
     {
-        "dockerfile",
-        "lefthook.yml",
-        "lefthook.yaml",
-        "release.yml",
-        "release.yaml",
-        "deploy.yml",
-        "deploy.yaml",
+        "dockerfile", "lefthook.yml", "lefthook.yaml", "release.yml", "release.yaml",
+        "deploy.yml", "deploy.yaml",
     }
 )
 _CI_FILENAME_PREFIXES = ("dockerfile.", "docker-compose", "deploy.")
@@ -152,33 +104,13 @@ _CI_FILENAME_SUFFIXES = (".tf", ".tfvars")
 _WORD_SPLIT = re.compile(r"[^a-z0-9]+")
 
 _TYPE_API_TOKENS = (
-    ".d.ts",
-    "types.py",
-    "types.ts",
-    "models.py",
-    "schema.py",
-    "schemas/",
-    ".proto",
-    "interfaces/",
-    "protocols.py",
-    "api.py",
-    "api.ts",
+    ".d.ts", "types.py", "types.ts", "models.py", "schema.py", "schemas/",
+    ".proto", "interfaces/", "protocols.py", "api.py", "api.ts",
 )
 
-_AGENT_ARTIFACT_TOKENS = (
-    "skill.md",
-    "/skills/",
-    "/agents/",
-    "/hooks/",
-    "/prompts/",
-    "/commands/",
-)
+_AGENT_ARTIFACT_TOKENS = ("skill.md", "/skills/", "/agents/", "/hooks/", "/prompts/", "/commands/")
 
-_TOOLKIT_TOKENS = _AGENT_ARTIFACT_TOKENS + (
-    ".github/workflows/",
-    ".github/actions/",
-    "/rules/",
-)
+_TOOLKIT_TOKENS = _AGENT_ARTIFACT_TOKENS + (".github/workflows/", ".github/actions/", "/rules/")
 
 
 def _norm(path: str) -> str:
