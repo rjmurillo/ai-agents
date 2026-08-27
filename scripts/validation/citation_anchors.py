@@ -138,6 +138,11 @@ def _anchor_matches(anchor: str, cited_text: str) -> bool:
     return False
 
 
+def _hash_prefixed(line: str) -> bool:
+    """Return whether a line is a Markdown heading or a comment line."""
+    return line.lstrip().startswith("#")
+
+
 def _indent_width(line: str) -> int:
     """Return the leading-whitespace width after any comment marker."""
     prefix = 0
@@ -211,19 +216,25 @@ def _context_lines(
     if citing_lines is None:
         return context
     own_indent = _indent_width(line_text)
+    own_hash = _hash_prefixed(line_text)
     for offset in (1, 2):
         index = line_index - offset
         if index < 0 or not _sentence_continues(citing_lines[index]):
             break
         # A deeper-indented neighbor is an example or verbatim block
         # belonging to an earlier line (a sibling citation's continuation
-        # quote, say), not this sentence wrapping across lines.
+        # quote, say), not this sentence wrapping across lines. A hash
+        # prefix must match on both sides too: a Markdown heading is a
+        # complete unit, so it never wraps into body text, while comment
+        # lines still continue into comment lines.
         if _indent_width(citing_lines[index]) > own_indent:
+            break
+        if _hash_prefixed(citing_lines[index]) != own_hash:
             break
         context.insert(0, citing_lines[index])
     if _sentence_continues(line_text) and line_index + 1 < len(citing_lines):
         following = citing_lines[line_index + 1]
-        if _indent_width(following) <= own_indent:
+        if _indent_width(following) <= own_indent and _hash_prefixed(following) == own_hash:
             context.append(following)
     return context
 
