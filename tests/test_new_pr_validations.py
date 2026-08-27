@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -265,6 +266,62 @@ class TestRunValidations:
             tmp_path / ".agents" / "scratch" / "session-log-validation"
         )
         assert not Path(validated_paths[0]).name.endswith("session-01.json")
+
+    def test_session_log_validated_when_head_is_checked_out_branch(
+        self, tmp_path, monkeypatch
+    ):
+        """git show resolves the log when head is the current branch too.
+
+        The non-checked-out counterpart above mocks every git call. This
+        exercises a real repository: head is the branch actually checked
+        out and the log already exists in the worktree, so the assertion
+        would fail if a future change read the working-tree file directly
+        instead of through ``git show <head>:<path>``.
+        """
+        session_log = ".agents/sessions/2025-01-01-session-02.json"
+        content = '{"session": 2}\n'
+        branch = "feature/checked-out"
+
+        def git(*args: str) -> None:
+            result = subprocess.run(
+                ["git", *args], cwd=tmp_path, capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=30,
+            )
+            assert result.returncode == 0, result.stderr
+
+        git("init", "-q", "-b", "main")
+        git("config", "user.email", "test@example.com")
+        git("config", "user.name", "Test")
+        (tmp_path / "root.txt").write_text("root\n", encoding="utf-8")
+        git("add", "-A")
+        git("commit", "-q", "-m", "root")
+        git("checkout", "-q", "-b", branch)
+        log_path = tmp_path / session_log
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.write_text(content, encoding="utf-8")
+        git("add", "-A")
+        git("commit", "-q", "-m", "add session log")
+
+        validate_script = tmp_path / "scripts" / "validate_session_json.py"
+        validate_script.parent.mkdir(parents=True)
+        validate_script.write_text("# mock")
+
+        real_run = subprocess.run
+        captured: list[tuple[str, str]] = []
+
+        def spy_run(cmd, **kwargs):
+            if "validate_session_json.py" in " ".join(str(part) for part in cmd):
+                identity = cmd[cmd.index("--session-log-identity") + 1]
+                captured.append((identity, Path(cmd[-1]).read_text(encoding="utf-8")))
+            return real_run(cmd, **kwargs)
+
+        monkeypatch.chdir(tmp_path)
+        with patch("subprocess.run", side_effect=spy_run):
+            run_validations(str(tmp_path), "main", branch)
+
+        # git show resolved the checked-out branch to the real working-tree
+        # bytes under the correct logical identity, not a stale or empty read.
+        assert captured == [(session_log, content)]
 
     def test_scratch_copy_carries_the_logical_session_identity(self, tmp_path):
         """The validator must learn the real path the scratch copy stands for.
