@@ -1612,7 +1612,7 @@ def test_git_diff_paths_ignores_inherited_git_dir_env(
 ) -> None:
     """An inherited GIT_DIR must not redirect diff/ls-files away from repo_root.
 
-    _git_diff_paths backs both --check (staleness) and the .claude/ guard. It
+    _git_diff_paths backs the --check staleness gate. It
     runs ``git -C repo_root diff`` and ``git ls-files``, which git resolves
     against an inherited GIT_DIR/GIT_WORK_TREE over ``-C`` (issue #2992). The
     scrub in _git_diff_paths removes the git location env vars so the diff is
@@ -2025,7 +2025,7 @@ def test_confirm_ignored_survives_non_utf8_paths(
     assert build_all._confirm_ignored(tmp_path, {raw}) == {raw}
 
 
-# Regression: #4632 — --check must fail closed, never delete ---------------
+# Regression: #4632, --check must fail closed, never delete ----------------
 #
 # Two fail-open paths let `build_all.py --check` report success over a tree it
 # never examined, and let a run documented as read-only delete a file it could
@@ -2103,6 +2103,56 @@ def test_git_diff_paths_raises_when_git_exits_nonzero(
     assert "128" in str(excinfo.value)
 
 
+def test_git_diff_paths_error_keeps_gits_stderr_to_one_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The message must stay one line so the pre-PR tail echo keeps it.
+
+    ``git diff --no-index`` prints 128 lines of flag documentation when it
+    refuses to run outside a repository, and
+    ``scripts/validation/check_generated_staleness.py`` echoes only the last
+    ``_MAX_OUTPUT_LINES = 40`` lines (``_echo_tail``) precisely so the
+    diagnosis is last. An unbounded detail pushes the diagnosis into the
+    "earlier line(s) omitted" bucket and shows the operator flag help instead.
+    """
+    diagnosis = "usage: git diff --no-index [<options>] <path> <path>"
+
+    class _Result:
+        returncode = 129
+        stdout = ""
+        stderr = "\n".join([diagnosis] + [f"    --flag-{i}" for i in range(199)])
+
+    monkeypatch.setattr(build_all.subprocess, "run", lambda *a, **k: _Result())
+
+    with pytest.raises(build_all.GitStateUnreadableError) as excinfo:
+        build_all._git_diff_paths(tmp_path)
+
+    message = str(excinfo.value)
+    assert len(message.splitlines()) == 1, message
+    assert diagnosis in message
+    assert "--flag-0" not in message
+
+
+def test_first_stderr_line_caps_a_single_unbroken_line() -> None:
+    """A one-line but enormous stderr must still be capped.
+
+    Edge case the line-count assertion above cannot see: git can emit a single
+    line longer than the terminal, and splitting on newlines alone would pass
+    it through whole.
+    """
+    assert (
+        len(build_all._first_stderr_line("x" * 5000))
+        == build_all._GIT_STDERR_DETAIL_CHARS
+    )
+
+
+def test_first_stderr_line_reports_absent_stderr() -> None:
+    """Empty, whitespace-only, and None stderr must all read as "(no stderr)"."""
+    assert build_all._first_stderr_line(None) == "(no stderr)"
+    assert build_all._first_stderr_line("") == "(no stderr)"
+    assert build_all._first_stderr_line("   \n \n") == "(no stderr)"
+
+
 def test_git_diff_paths_returns_paths_on_a_healthy_repo(tmp_path: Path) -> None:
     """Positive control: the new raising branches left the happy path intact."""
     repo = tmp_path / "repo"
@@ -2118,7 +2168,9 @@ def test_git_diff_paths_returns_paths_on_a_healthy_repo(tmp_path: Path) -> None:
 
 
 def test_run_check_returns_2_when_git_state_is_unreadable(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """#4632 reproduction 1: a broken git must fail the gate, not pass it.
 
@@ -2127,6 +2179,12 @@ def test_run_check_returns_2_when_git_state_is_unreadable(
     which is the same value a clean tree produces. The stale file is asserted
     unchanged so the #2440 read-only contract is shown to survive the new
     failure path rather than being traded for it.
+
+    ``--check`` reaches ``rc == 2`` from at least three places: the
+    REQ-003-010 guard, the pre-existing staleness branch, and this new git
+    branch. The stderr assertion is what pins this test to the git branch; the
+    exit code alone would stay green if a future change tripped the .claude/
+    guard under ``_NoGit`` and left the git branch dead.
     """
     repo = tmp_path / "repo"
     _init_git_repo(repo)
@@ -2157,6 +2215,8 @@ def test_run_check_returns_2_when_git_state_is_unreadable(
     )
 
     assert rc == 2, f"expected exit 2 when git state is unreadable, got {rc}"
+    err = capsys.readouterr().err
+    assert "cannot read git state" in err, err
     assert stale.read_text() == stale_text, (
         "--check must stay read-only on the git-unreadable path"
     )
@@ -2239,7 +2299,9 @@ def test_read_into_snapshot_skips_a_path_that_vanished(tmp_path: Path) -> None:
 
 
 def test_run_check_aborts_without_deleting_an_unreadable_owned_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """#4632 reproduction 2: --check must not delete what it could not read.
 
@@ -2248,6 +2310,10 @@ def test_run_check_aborts_without_deleting_an_unreadable_owned_file(
     the snapshot as generator-created and unlinked it. The surviving-file
     assertion is the point of the fix; the exit code alone would pass against
     a version that deleted the file and then failed.
+
+    The stderr assertion pins the exit to the pre-generation abort. ``--check``
+    reaches ``rc == 2`` from three branches, so the code alone cannot say which
+    one fired.
     """
     repo = tmp_path / "repo"
     _init_git_repo(repo)
@@ -2277,6 +2343,8 @@ def test_run_check_aborts_without_deleting_an_unreadable_owned_file(
     )
 
     assert rc == 2, f"expected exit 2 when an owned file is unreadable, got {rc}"
+    err = capsys.readouterr().err
+    assert "aborted before generation" in err, err
     assert protected.is_file(), (
         "--check deleted a pre-existing owned file it could not read"
     )

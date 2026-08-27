@@ -16,8 +16,18 @@ CLI:
 EXIT CODES:
     0 - success
     1 - generator logic error
-    2 - configuration error / staleness detected (--check)
+    2 - configuration error; staleness detected (--check); git state
+        unreadable (--check); a file under OWNED_PREFIXES that cannot be
+        read (--check, aborts before generation)
     3 - audit blocklist violation (REQ-003-011)
+
+Exit 2 has four producers and only the staleness one is fixed by
+regenerating and committing. The git-unreadable and unreadable-owned-file
+producers arrived with issue #4632, which reversed a promise the old
+:func:`_git_diff_paths` docstring made: "We do not want to fail when a
+contributor runs the script in a non-git working tree." ``--check`` in a
+non-git tree now exits 2. A plain (non-``--check``) build there still
+succeeds, because only ``--check`` reads git.
 """
 
 from __future__ import annotations
@@ -653,6 +663,23 @@ class GitStateUnreadableError(RuntimeError):
     """
 
 
+# git's stderr is unbounded, and the most common failure here is the worst
+# case: `git diff --no-index` prints 128 lines of flag documentation when it
+# refuses to run outside a repository. The pre-PR gate
+# (scripts/validation/check_generated_staleness.py) echoes only the last
+# _MAX_OUTPUT_LINES = 40 lines specifically so the diagnosis is last, so an
+# unbounded detail pushes the diagnosis into the "earlier line(s) omitted"
+# bucket and shows the operator nothing but flag help.
+_GIT_STDERR_DETAIL_CHARS = 200
+
+
+def _first_stderr_line(stderr: str | None) -> str:
+    """Return git's first stderr line, capped, for a one-line error message."""
+    raw = (stderr or "").strip()
+    first = raw.splitlines()[0] if raw else ""
+    return first[:_GIT_STDERR_DETAIL_CHARS] or "(no stderr)"
+
+
 def _git_diff_paths(repo_root: Path) -> list[str]:
     """Return changed paths via ``git diff --name-only`` UNION untracked.
 
@@ -673,6 +700,8 @@ def _git_diff_paths(repo_root: Path) -> list[str]:
     disk). Fail-closed here costs nothing in CI, which always has git, and
     the only caller is the ``--check`` staleness gate, so a plain
     (non-``--check``) build in a non-git working tree still succeeds.
+
+    The raised message stays one line: see :func:`_first_stderr_line`.
 
     The ``.claude/`` guard does NOT use this function. It compares two
     :func:`_snapshot_owned_prefixes` results; see
@@ -699,9 +728,9 @@ def _git_diff_paths(repo_root: Path) -> list[str]:
                 f"could not run {' '.join(argv)}: {exc}"
             ) from exc
         if proc.returncode != 0:
-            detail = (proc.stderr or "").strip() or "(no stderr)"
             raise GitStateUnreadableError(
-                f"{' '.join(argv)} exited {proc.returncode}: {detail}"
+                f"{' '.join(argv)} exited {proc.returncode}: "
+                f"{_first_stderr_line(proc.stderr)}"
             )
         for line in proc.stdout.splitlines():
             p = line.strip()
@@ -1027,12 +1056,26 @@ def _snapshot_owned_prefixes(
     window: the exact race issue #3856 closes.
 
     ``strict`` decides what an unreadable file means, and the two consumers
-    need opposite answers (issue #4632). The ``.claude/`` guard only
-    *compares* snapshots, so dropping a path it cannot read merely stops that
-    path being reported: ``strict=False`` and skip. ``--check`` *restores*
-    from its snapshot, and :func:`_restore_owned_prefixes` deletes anything on
-    disk the snapshot does not name, so the same skip turns a file the run
-    could not read into a file the run deletes. Issue #4632 reproduction 2
+    need opposite answers (issue #4632).
+
+    The ``.claude/`` guard takes ``strict=False``, and the cost of that is a
+    missed violation, not nothing. :func:`assert_no_claude_writes` builds
+    ``offending`` from ``current.items()`` and from
+    ``baseline.keys() - current.keys()``, so a ``.claude/`` path unreadable at
+    both snapshot times lands in neither set: on that one path the guard
+    cannot see a generator write, which is REQ-003-010 failing open. The trade
+    is deliberate. The guard can only report (it never deletes), and the
+    alternative is failing a pre-push gate on a transient permission error in
+    the same concurrent-write window issue #3773 describes. Do not read
+    ``strict=False`` here as the file's general convention: the neighbouring
+    :func:`_confirm_ignored` is fail-closed for this same guard, because there
+    the failure direction is reversed and a git that will not run leaves every
+    candidate reported rather than dropped.
+
+    ``--check`` takes ``strict=True``, because it *restores* from its
+    snapshot: :func:`_restore_owned_prefixes` deletes anything on disk the
+    snapshot does not name, so the same skip turns a file the run could not
+    read into a file the run deletes. Issue #4632 reproduction 2
     made one generated instruction file unreadable and observed
     ``rc=1 state=deleted``: a ``--check`` run, documented as read-only,
     destroyed a pre-existing file. ``strict=True`` raises
@@ -1331,7 +1374,7 @@ def _run_generators(
             # An empty diff and an unreadable git both yield zero paths. Only
             # the first one means the tree is clean (issue #4632).
             print(
-                f"STALENESS UNKNOWN — cannot read git state: {exc}",
+                f"STALENESS UNKNOWN: cannot read git state: {exc}",
                 file=sys.stderr,
             )
             audit.overall_exit = max(audit.overall_exit, 2)
@@ -1341,7 +1384,7 @@ def _run_generators(
             if any(p.startswith(prefix) for prefix in OWNED_PREFIXES)
         ]
         if diff:
-            print("STALENESS DETECTED — uncommitted regen drift:", file=sys.stderr)
+            print("STALENESS DETECTED: uncommitted regen drift:", file=sys.stderr)
             for p in diff:
                 print(f"  {p}", file=sys.stderr)
             audit.overall_exit = 2
