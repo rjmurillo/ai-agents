@@ -78,23 +78,33 @@ _PullRequestPayload = dict[str, object]
 # module simply treats the match as not claiming ownership at all (a PR
 # quoting or documenting a closing keyword is not implementing the issue).
 #
-# The fenced-block alternation `(?:.*?^\1|.*)` is deliberate. CommonMark
-# 0.31.2 section 4.5 says the content of a fenced block runs "until a closing
-# code fence of the same type as the code block began with, or until the end
-# of the containing block", so an opening fence with no closing fence still
-# opens a code block that runs to end of input. The first alternative takes a
-# closing fence when one exists; the second consumes to EOF when none does.
-# Without it a body ending mid-fence matched neither span pattern, so a
-# keyword GitHub never links was read as a real claim (Copilot review on PR
-# #5371). Both alternatives live in `pr_description.py` too, so the "ported
-# verbatim" claim above stays true.
+# The fenced-block alternation `(?:.*?^[ ]{0,3}\1[ \t]*$|.*)` is deliberate.
+# CommonMark 0.31.2 section 4.5 says the content of a fenced block runs
+# "until a closing code fence of the same type as the code block began with,
+# or until the end of the containing block", so an opening fence with no
+# closing fence still opens a code block that runs to end of input. The first
+# alternative takes a closing fence when one exists; the second consumes to
+# EOF when none does. Without it a body ending mid-fence matched neither span
+# pattern, so a keyword GitHub never links was read as a real claim (Copilot
+# review on PR #5371). Both alternatives live in `pr_description.py` too, so
+# the "ported verbatim" claim above stays true.
+#
+# `[ ]{0,3}` on both the opening and closing fence lines tolerates the
+# indentation CommonMark 0.31.2 section 4.5 allows (up to three spaces); a
+# fourth space starts an indented code block instead, a different construct
+# this module does not classify. `[ \t]*$` on the closer requires the line to
+# hold nothing but the fence run and optional trailing whitespace, so a line
+# like `` ```not-a-closer `` cannot end the block early: `^\1` alone matched
+# any line merely *starting* with the same run, closing the block one line
+# too soon and letting a real claim past it that GitHub still renders as code
+# (Copilot review on PR #5371).
 _INLINE_CODE_SPAN = re.compile(
     r"(?<!`)(`{1,2})(?!`)(?:[^\n]|\n(?!\s*\n))+?(?<!`)\1(?!`)"
     r"|"
     r"(?<!`)(`{3,})(?!`)[^\n]+?(?<!`)\2(?!`)"
 )
 _FENCED_CODE_BLOCK = re.compile(
-    r"^(`{3,}|~{3,})[^\n]*\n(?:.*?^\1|.*)",
+    r"^[ ]{0,3}(`{3,}|~{3,})[^\n]*\n(?:.*?^[ ]{0,3}\1[ \t]*$|.*)",
     re.DOTALL | re.MULTILINE,
 )
 

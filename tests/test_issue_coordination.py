@@ -15,6 +15,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import scripts.validation.pr_description as _prdesc
+
 _SCRIPTS_DIR = (
     Path(__file__).resolve().parents[1]
     / ".claude" / "skills" / "github" / "scripts" / "issue"
@@ -154,6 +156,41 @@ class TestReferencesIssue:
     def test_unclosed_tilde_fence_still_excludes_the_keyword_inside_it(self):
         body = "~~~\nFixes #4965"
         assert _check.references_issue(body, 4965) is False
+
+    def test_fence_indented_up_to_three_spaces_still_excludes_the_keyword(self):
+        # CommonMark 0.31.2 4.5 permits up to 3 spaces of indent on both the
+        # opening and closing fence (Copilot, PR #5371 round 2). A fence
+        # requiring column-0 anchoring would misread this as ordinary text
+        # and count the keyword as a real claim.
+        body = "  ```\n  Fixes #4965\n  ```\n"
+        assert _check.references_issue(body, 4965) is False
+
+    def test_a_line_starting_with_the_fence_chars_does_not_close_it_early(self):
+        # A closing fence line must hold nothing but the fence run and
+        # trailing whitespace. `` ```not-a-closer `` merely starts with the
+        # same run; ending the block there would let the following keyword
+        # (still code to GitHub) count as a real claim (Copilot, PR #5371
+        # round 2).
+        body = "```\n```not-a-closer\nFixes #4965\n```\n"
+        assert _check.references_issue(body, 4965) is False
+
+
+class TestSpanPatternsMatchCanonical:
+    """Drift guard for the two duplicated regex pairs (PR #5371 review).
+
+    `references_issue()`'s span-exclusion patterns are ported verbatim from
+    `scripts/validation/pr_description.py`. Nothing else keeps the two in
+    sync, so a fix applied to one copy and not the other silently reopens
+    whichever gap the fix closed. Asserting the compiled `.pattern` strings
+    are equal converts the PR's own "confirm no drift" reviewer note into a
+    gate.
+    """
+
+    def test_inline_code_span_pattern_matches_canonical(self):
+        assert _check._INLINE_CODE_SPAN.pattern == _prdesc._INLINE_CODE_SPAN.pattern
+
+    def test_fenced_code_block_pattern_matches_canonical(self):
+        assert _check._FENCED_CODE_BLOCK.pattern == _prdesc._FENCED_CODE_BLOCK.pattern
 
 
 class TestFindOpenPrsForIssue:

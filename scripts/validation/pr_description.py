@@ -670,8 +670,18 @@ _INLINE_CODE_SPAN: re.Pattern[str] = re.compile(
 # fenced span instead of matching neither pattern (Copilot review on PR
 # #5371, which found this exact gap in the port at
 # .claude/skills/github/scripts/issue/check_existing_pr_for_issue.py).
+#
+# `[ ]{0,3}` on both the opening and closing fence lines tolerates the
+# indentation CommonMark 0.31.2 section 4.5 allows (up to three spaces); a
+# fourth space starts an indented code block instead, a different construct
+# this module does not classify. `[ \t]*$` on the closer requires the line to
+# hold nothing but the fence run and optional trailing whitespace, so a line
+# like a fence marker followed by other text cannot end the block early:
+# `^\1` alone matched any line merely starting with the same run, closing the
+# block one line too soon and letting a real claim past it that GitHub still
+# renders as code (Copilot review on PR #5371, round 2).
 _FENCED_CODE_BLOCK: re.Pattern[str] = re.compile(
-    r"^(`{3,}|~{3,})[^\n]*\n(?:.*?^\1|.*)",
+    r"^[ ]{0,3}(`{3,}|~{3,})[^\n]*\n(?:.*?^[ ]{0,3}\1[ \t]*$|.*)",
     re.DOTALL | re.MULTILINE,
 )
 

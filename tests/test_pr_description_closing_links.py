@@ -154,6 +154,41 @@ class TestFencedCodeBlock:
         assert len(issues) == 1
         assert issues[0].severity == "CRITICAL"
 
+    def test_unclosed_backtick_fence_still_reports_the_keyword_as_fenced(self):
+        """CommonMark 0.31.2 4.5: an unclosed fence still runs to EOF (Copilot, PR #5371)."""
+        body = "```\nFixes #42"
+        issues = validate_closing_links(body, "main", "main")
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+        assert issues[0].issue_type == "Closing keyword in fenced code block"
+
+    def test_unclosed_tilde_fence_still_reports_the_keyword_as_fenced(self):
+        body = "~~~\nCloses #10"
+        issues = validate_closing_links(body, "main", "main")
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+
+    def test_fence_indented_up_to_three_spaces_is_still_a_fence(self):
+        """CommonMark 0.31.2 4.5 permits up to 3 spaces of indent on both
+        fences; the keyword inside must still be reported as fenced, not
+        read as ordinary un-indented text outside any span."""
+        body = "  ```\n  Fixes #42\n  ```\n"
+        issues = validate_closing_links(body, "main", "main")
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+        assert issues[0].issue_type == "Closing keyword in fenced code block"
+
+    def test_a_line_that_only_starts_with_the_fence_chars_does_not_close_it(self):
+        """A closing fence line must hold nothing but the fence run and
+        trailing whitespace. A line that merely starts with the same run
+        (e.g. a fence marker immediately followed by other text) is still
+        code to GitHub and must not end the block early (Copilot, PR #5371
+        round 2)."""
+        body = "```\n```not-a-closer\nFixes #42\n```\n"
+        issues = validate_closing_links(body, "main", "main")
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+
 
 class TestStackedPR:
     """Non-default base branch should produce WARNING when body has closing keywords."""
