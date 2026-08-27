@@ -68,6 +68,7 @@ __all__ = [
     "declared_required_contexts",
     "load_workflow_subscriptions",
     "parse_workflow_subscriptions",
+    "pin_to_head_ref",
     "subscribes_to",
 ]
 
@@ -327,6 +328,54 @@ def subscribes_to(subscriptions: WorkflowSubscriptions, event: str) -> bool:
     if event == "workflow_dispatch":
         return subscriptions.has_workflow_dispatch
     return event in subscriptions.pull_request_types
+
+
+def pin_to_head_ref(
+    head: WorkflowSubscriptions, base: WorkflowSubscriptions | None
+) -> WorkflowSubscriptions:
+    """Combine a pull request's own workflow definition with the base branch's.
+
+    ``head`` is the definition parsed from the ref GitHub will evaluate for the
+    pull request (its merge ref), and ``base`` is the same workflow as the base
+    branch declares it, or None when the base corpus has no file at that path.
+
+    The three fields answer three different questions, so they combine three
+    different ways:
+
+    - ``pull_request_types`` comes from ``head`` alone. GitHub evaluates the
+      merge commit's workflow file for pull_request-family events, so a pull
+      request that adds ``reopened`` really does get ``reopened`` on reopen and
+      one that drops it really does not. Reading the base branch here is what
+      let a pull request whose own workflow omits ``reopened`` verify against a
+      healthy checkout and be cancelled with no recovery path.
+    - ``has_workflow_dispatch`` needs both. GitHub lists a workflow for manual
+      dispatch only when it exists with that trigger on the repository's
+      default branch, so a pull request that adds ``workflow_dispatch`` cannot
+      be dispatched until it merges. Absent ``base``, this is False.
+    - ``job_names``, ``job_name_prefixes``, and ``has_path_filters`` take the
+      union, the same polarity :func:`_narrow_to_shared` uses: a context either
+      definition publishes is a context the cancellation might remove, and a
+      path filter on either side means the run might not regenerate.
+    """
+    if base is None:
+        return WorkflowSubscriptions(
+            name=head.name,
+            pull_request_types=head.pull_request_types,
+            has_workflow_dispatch=False,
+            job_names=head.job_names,
+            job_name_prefixes=head.job_name_prefixes,
+            has_path_filters=head.has_path_filters,
+        )
+    return WorkflowSubscriptions(
+        name=head.name,
+        pull_request_types=head.pull_request_types,
+        has_workflow_dispatch=(
+            head.has_workflow_dispatch and base.has_workflow_dispatch
+        ),
+        job_names=head.job_names | base.job_names,
+        job_name_prefixes=head.job_name_prefixes | base.job_name_prefixes,
+        has_path_filters=head.has_path_filters or base.has_path_filters,
+    )
 
 
 def _narrow_to_shared(

@@ -17,9 +17,9 @@ from scripts.github_core.recovery_manifest import (
     WorkflowRun,
     dedupe_runs,
     manifest_to_dict,
-    run_from_mapping,
     summarize_blast_radius,
 )
+from scripts.github_core.runs_file import run_from_mapping
 from scripts.github_core.workflow_event_subscriptions import (
     load_workflow_subscriptions,
 )

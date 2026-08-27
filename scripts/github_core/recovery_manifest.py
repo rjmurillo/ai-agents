@@ -44,8 +44,7 @@ __all__ = [
     "dedupe_runs",
     "manifest_to_dict",
     "plan_recovery",
-    "run_from_mapping",
-    "string_list",
+    "resolve_workflow",
     "summarize_blast_radius",
 ]
 
@@ -64,6 +63,14 @@ class WorkflowRun:
     loaded from a recorded manifest (:func:`run_from_mapping`) defaults to
     verified: that path already fails closed on a missing ``contexts`` key, so
     an explicit (even empty) list there is trusted as the real snapshot.
+
+    ``workflow_path`` is the repository-relative path of the workflow file that
+    produced the run, taken from the Actions run payload's ``path``. A run
+    record names its workflow, not its file, so this is the only handle on the
+    exact definition; it is what lets the live path fetch that file from the ref
+    GitHub will use for the recovery event rather than trusting one local
+    checkout. Empty when unknown, which the live resolver treats as
+    unresolvable and therefore blocked.
     """
 
     run_id: int
@@ -74,6 +81,7 @@ class WorkflowRun:
     status: str
     contexts: tuple[str, ...]
     jobs_verified: bool = True
+    workflow_path: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,6 +118,7 @@ class RecoveryEntry:
     blocked_reason: str | None
     verification: str = "none"
     jobs_verified: bool = True
+    workflow_path: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,83 +155,6 @@ class RecoveryManifest:
         return not self.blocked
 
 
-def string_list(value: object, field: str) -> list[str]:
-    """Validate a JSON string array, rejecting every other shape.
-
-    Validation, never coercion. Accepting any iterable and stringifying its
-    items turns a malformed record into a plausible one: a nested object
-    becomes its key names, an integer becomes ``"7"``, and each of those is a
-    context string no ruleset requires, so the run reads as publishing nothing
-    required and is cancelled unguarded. A `str` is itself iterable and would
-    decompose into single characters, which is the same failure spelled
-    differently.
-
-    Raises:
-        ValueError: when ``value`` is not a list, or any item is not a string.
-    """
-    if not isinstance(value, list):
-        raise ValueError(f"{field} must be a JSON list of strings, got: {value!r}")
-    validated: list[str] = []
-    for item in value:
-        if not isinstance(item, str):
-            raise ValueError(
-                f"{field} must hold only strings; got {item!r} in {value!r}"
-            )
-        validated.append(item)
-    return validated
-
-
-def _json_bool(value: object, field: str, *, default: bool) -> bool:
-    """Read a JSON boolean, rejecting anything truthiness would misread.
-
-    ``bool("false")`` is ``True`` and ``bool(0)`` is ``False``, so coercion
-    reads a malformed record as the opposite of what it says. For
-    ``jobs_verified`` the dangerous direction is the first: the string
-    ``"false"`` recorded for an unmaterialized run would replay as trusted and
-    clear a run whose published contexts were never read.
-
-    Raises:
-        ValueError: when ``value`` is present and is not a JSON boolean.
-    """
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    raise ValueError(f"{field} must be a JSON boolean (true/false), got: {value!r}")
-
-
-def run_from_mapping(payload: Mapping[str, Any]) -> WorkflowRun:
-    """Build a :class:`WorkflowRun` from a JSON object.
-
-    Raises:
-        ValueError: when a field is missing or has the wrong type. Failing here
-            is deliberate: a run record silently defaulted to an empty context
-            tuple would be classified as non-required and cancelled without a
-            recovery event, which is the exact failure this guard exists to
-            prevent.
-    """
-    try:
-        contexts = string_list(payload["contexts"], "contexts")
-        # An absent key keeps the documented default of True. An explicit false
-        # is honored so a manifest written for an unmaterialized run replays as
-        # unverified instead of silently regaining trust on the round trip.
-        jobs_verified = _json_bool(
-            payload.get("jobs_verified"), "jobs_verified", default=True
-        )
-        return WorkflowRun(
-            run_id=int(payload["run_id"]),
-            workflow_name=str(payload["workflow_name"]),
-            pr_number=int(payload["pr_number"]),
-            branch=str(payload["branch"]),
-            event=str(payload["event"]),
-            status=str(payload["status"]),
-            contexts=tuple(contexts),
-            jobs_verified=jobs_verified,
-        )
-    except (KeyError, TypeError) as exc:
-        raise ValueError(f"malformed workflow run record: {payload!r}") from exc
-
-
 def dedupe_runs(runs: Iterable[WorkflowRun]) -> list[WorkflowRun]:
     """Drop repeated run ids, keeping the first occurrence.
 
@@ -256,10 +188,31 @@ def summarize_blast_radius(runs: Sequence[WorkflowRun], required: frozenset[str]
     )
 
 
+def resolve_workflow(
+    run: WorkflowRun,
+    subscriptions: Mapping[str, WorkflowSubscriptions],
+    subscriptions_by_run: Mapping[int, WorkflowSubscriptions | None] | None,
+) -> WorkflowSubscriptions | None:
+    """Pick the workflow definition this run is scored against.
+
+    A per-run entry always wins, including an explicit None, which the live
+    resolver records for a run whose definition could not be fetched from the
+    ref GitHub will use. Falling back to the name map there would score the run
+    against a different checkout's copy of the file, which is the fail-open this
+    parameter exists to close.
+
+    Absent a per-run mapping entirely (the ``--runs-file`` replay path, which
+    performs no network reads), the name map is the only source there is.
+    """
+    if subscriptions_by_run is not None and run.run_id in subscriptions_by_run:
+        return subscriptions_by_run[run.run_id]
+    return subscriptions.get(run.workflow_name)
+
+
 def _classify(
     run: WorkflowRun,
     required: frozenset[str],
-    subscriptions: Mapping[str, WorkflowSubscriptions],
+    workflow: WorkflowSubscriptions | None,
     recovery_event: str | None,
 ) -> RecoveryEntry:
     """Decide whether one run may be cancelled.
@@ -271,8 +224,10 @@ def _classify(
     first set empty and the second populated, and reading only the first is what
     let such a run clear as "publishes nothing required" (see
     ``workflow_event_subscriptions`` for the measured count of gated jobs).
+
+    ``workflow`` is resolved by :func:`resolve_workflow`, not looked up here, so
+    the live path can pin each run to its own pull request's definition.
     """
-    workflow = subscriptions.get(run.workflow_name)
     from_api = {context for context in run.contexts if context in required}
     from_definition = (
         declared_required_contexts(workflow, required)
@@ -303,6 +258,7 @@ def _classify(
             blocked_reason=reason,
             verification=verification,
             jobs_verified=run.jobs_verified,
+            workflow_path=run.workflow_path,
         )
 
     if workflow is None:
@@ -388,6 +344,7 @@ def plan_recovery(
     subscriptions: Mapping[str, WorkflowSubscriptions],
     recovery_event: str | None,
     repository: str,
+    subscriptions_by_run: Mapping[int, WorkflowSubscriptions | None] | None = None,
     now: datetime | None = None,
 ) -> RecoveryManifest:
     """Build the recovery manifest for a proposed bulk cancellation.
@@ -396,10 +353,18 @@ def plan_recovery(
         runs: Runs the operator proposes to cancel. Duplicated run ids are
             collapsed before anything is counted.
         required: Required status check contexts for the protected branch.
-        subscriptions: Workflow name to its parsed event subscriptions.
+        subscriptions: Workflow name to its parsed event subscriptions, read
+            from one local workflow corpus.
         recovery_event: The event the operator will use to regenerate cancelled
             required contexts, or None when they named none.
         repository: ``owner/repo``, recorded in the manifest.
+        subscriptions_by_run: Run id to the definition GitHub will actually
+            evaluate for that run's pull request, or None for a run whose
+            definition could not be resolved. Supplied on the live enumeration
+            paths, where each pull request can carry its own version of the
+            workflow file. Omitted on the ``--runs-file`` replay path, which
+            reads nothing from the network. An entry present and None blocks
+            the run; see :func:`resolve_workflow`.
         now: Injected clock for deterministic tests.
 
     Raises:
@@ -416,7 +381,13 @@ def plan_recovery(
 
     unique = dedupe_runs(runs)
     entries = tuple(
-        _classify(run, required, subscriptions, recovery_event) for run in unique
+        _classify(
+            run,
+            required,
+            resolve_workflow(run, subscriptions, subscriptions_by_run),
+            recovery_event,
+        )
+        for run in unique
     )
     timestamp = (now or datetime.now(UTC)).isoformat()
     return RecoveryManifest(
@@ -452,6 +423,7 @@ def manifest_to_dict(manifest: RecoveryManifest) -> dict[str, Any]:
                 "pull_request": entry.pr_number,
                 "branch": entry.branch,
                 "workflow": entry.workflow_name,
+                "workflow_path": entry.workflow_path,
                 "event": entry.event,
                 "status": entry.status,
                 "required_contexts": list(entry.required_contexts),
