@@ -66,17 +66,14 @@ def _resolve_validation_base(pr_base: str, explicit: str = "") -> str:
 def _resolve_head_commit(head: str) -> str | None:
     """Return the full commit SHA ``head`` names, or None when it will not resolve.
 
-    The session log is read out of ``head`` (a branch that may not be checked
-    out), so the QA staleness check has to be anchored on the same ref. Left to
-    itself the validator resolves its own validation head from local HEAD:
-    ``scripts/validate_session_json.py`` reads, verbatim,
+    The log is read out of ``head``, a branch that may not be checked out, so
+    the QA staleness check has to be anchored on the same ref. Left to itself
+    the validator anchors on local HEAD instead;
+    ``scripts/validate_session_json.py`` reads, verbatim:
 
         validation_head = args.validation_head
         if not existing_log and not args.creation_mode and validation_head is None:
             validation_head = _resolve_full_commit("HEAD")
-
-    which is a different commit whenever ``--head`` names a branch the worktree
-    is not standing on.
     """
     result = subprocess.run(
         ["git", "rev-parse", "--verify", f"{head}^{{commit}}"],
@@ -225,48 +222,38 @@ def _validate_session_end(
     validation_head = _resolve_head_commit(head)
     if validation_head is None:
         print(
-            f"  WARNING: could not resolve {head} to a commit; skipping Session "
-            "End validation rather than binding the QA staleness check to local "
-            "HEAD, which is a different commit when the head branch is not "
-            "checked out.",
+            f"  WARNING: could not resolve {head} to a commit; skipping Session End "
+            "validation rather than binding QA staleness to local HEAD.",
             file=sys.stderr,
         )
         return
 
-    with _session_log_for_validation(repo_root, head, session_log) as session_log_path:
-        if session_log_path is None:
+    with _session_log_for_validation(repo_root, head, session_log) as scratch_path:
+        if scratch_path is None:
             return
         _run_session_validator(
-            validate_script,
-            session_log=session_log,
-            validation_head=validation_head,
-            session_log_path=session_log_path,
+            validate_script, session_log, validation_head, scratch_path
         )
 
 
 def _run_session_validator(
-    validate_script: str,
-    *,
-    session_log: str,
-    validation_head: str,
-    session_log_path: str,
+    validate_script: str, session_log: str, validation_head: str, scratch_path: str
 ) -> None:
     """Run the canonical session validator over one ref-backed scratch copy."""
-    # The copy handed to the validator lives under
-    # .agents/scratch/session-log-validation/, so the validator cannot
-    # recover the log's logical identity from its own argv[1]. Without the
-    # identity the QA binding compares the QA report's recorded session
-    # against the scratch filename and every QA-linked log is rejected
-    # (issue #4783). scripts/validate_session_json.py ships both flags for
-    # exactly this case; their help text reads verbatim:
+    # The scratch copy carries no logical identity, so without the flag the QA
+    # binding compares the report's recorded session against a temp filename
+    # and rejects every QA-linked log (issue #4783).
+    # scripts/validate_session_json.py help text, verbatim:
     #     "Use this repository-relative logical session path for QA binding
     #      when validating a ref-backed temporary copy."
     #     "Validate investigation-only scope through this commit instead of
     #      stopping at the recorded endingCommit."
-    # env=_git_env() strips the git hook override variables, matching every
-    # other git-touching call in this module. The validator shells out to
-    # git for commit resolution and QA ancestry, so an inherited GIT_DIR
-    # would point those reads at another repository.
+    # Wider than that second line reads: main() also passes --validation-head
+    # to validate_qa_report_evidence, so it sets the head QA staleness is
+    # measured against, not only investigation-only scope.
+    # env=_git_env() matches every other git-touching call here: the validator
+    # shells out to git for commit resolution and QA ancestry, so an inherited
+    # GIT_DIR would aim those reads at another repository.
     # The scratch path stays last so it remains argv[-1].
     result = subprocess.run(
         [
@@ -276,7 +263,7 @@ def _run_session_validator(
             session_log,
             "--validation-head",
             validation_head,
-            session_log_path,
+            scratch_path,
         ],
         capture_output=True,
         text=True,
@@ -285,9 +272,8 @@ def _run_session_validator(
         timeout=60,
         env=_git_env(),
     )
-    # Print what the validator found on every outcome, matching
-    # _run_warning_validator above. Printing only on failure swallowed the
-    # warnings a COMPLIANT-with-warnings log emits (issue #4783).
+    # Print on every outcome, matching _run_warning_validator above. Printing
+    # only on failure swallowed a COMPLIANT-with-warnings log's warnings.
     if result.stdout:
         print(result.stdout, end="")
     if result.stderr:
