@@ -36,12 +36,14 @@ Coverage:
   healthy control.
 - edge: a genuine bare repository, a bare repository nested inside a healthy
   checkout, and a non-repository exit 0; an invalid root exits 2; missing git
-  and timeouts exit 3; every git boolean spelling of true is honored, and
-  ``false`` is not.
+  and timeouts exit 3; a valueless ``core.bare`` is read as true, and an
+  explicit ``false`` is not read as bare.
 
 ``test_check_repo_health_reporting.py`` covers the failure report itself: the
 repair each config scope needs, and when the worktree-scoped immunization line
-is withheld.
+is withheld. ``test_check_repo_health_boolean_oracle.py`` covers which values
+count as bare at all, deriving every expectation from ``git rev-parse
+--is-bare-repository`` rather than from a list of spellings.
 """
 
 from __future__ import annotations
@@ -202,15 +204,6 @@ class TestBareFlaggedWorkTreesFail:
         _git(work, "config", "core.bare", "true")
 
         assert check_repo_health.main([str(work)]) == 1
-
-    @pytest.mark.parametrize("spelling", ["true", "yes", "on", "1"])
-    def test_every_git_spelling_of_true_is_honored(
-        self, spelling: str, tmp_path: Path
-    ) -> None:
-        repo = _make_repo(tmp_path)
-        _git(repo, "config", "core.bare", spelling)
-
-        assert check_repo_health.main([str(repo)]) == 1
 
     def test_a_valueless_core_bare_is_read_as_true(self, tmp_path: Path) -> None:
         """git reads a variable with no value as true, so the gate must too."""

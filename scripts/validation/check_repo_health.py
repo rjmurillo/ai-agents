@@ -137,9 +137,6 @@ GIT_TIMEOUT_SECONDS = 5
 # `git config --show-scope --get-all core.bare` exits 128 with this text.
 _BAD_BOOLEAN_MARKER = "bad boolean config value"
 
-# git reads a variable with no value as true, so an empty string belongs here.
-_TRUE_VALUES = frozenset({"", "true", "yes", "on", "1"})
-
 _SCOPE_REPAIRS = {
     "worktree": "git config --worktree core.bare false",
     "local": "git config core.bare false",
@@ -231,16 +228,25 @@ def _git(repo_root: Path, *args: str, missing_ok: bool = False) -> str | None:
     raise GitExecutionError(f"git {' '.join(args)} exited {result.returncode}: {stderr}")
 
 
-def _is_true(value: str) -> bool:
-    """Apply git's boolean reading, where a valueless variable means true."""
-    return value.strip().lower() in _TRUE_VALUES
-
-
 def _scoped_core_bare(repo_root: Path) -> tuple[tuple[str, str], ...]:
-    """Return every ``(scope, value)`` pair git holds for ``core.bare``."""
-    raw = _git(
-        repo_root, "config", "--show-scope", "--get-all", "core.bare", missing_ok=True
-    )
+    """Return every ``(scope, value)`` pair git holds for ``core.bare``.
+
+    ``--type=bool`` makes git do the parsing, so each value arrives already
+    normalized to ``true`` or ``false``. Reimplementing that reading here is
+    what a membership test over a fixed list of spellings got wrong in both
+    directions, measured on git 2.43.0: ``git_parse_maybe_bool`` falls through
+    to integer parsing, so every nonzero integer is true and a repository whose
+    ``git status`` already fatals on ``bare = 2`` passed the gate, while a
+    healthy ``bare = `` (explicitly empty, which git reads as false) blocked
+    every commit and push. The flag also separates the two spellings the untyped
+    listing renders identically, since ``--get-all`` prints an empty field for
+    both a valueless variable (``bare``, true) and an empty one (``bare = ``,
+    false). Unset still exits 1 and an unparseable value still exits 128 with
+    ``bad boolean config value``, leaving ``missing_ok`` and
+    ``UnreadableCoreBareError`` untouched.
+    """
+    read = ("config", "--show-scope", "--type=bool", "--get-all", "core.bare")
+    raw = _git(repo_root, *read, missing_ok=True)
     if not raw:
         return ()
     pairs = []
@@ -364,15 +370,20 @@ def _main_work_tree(repo_root: Path, common_dir: Path) -> Path | None:
 def _worktree_config_enabled(repo_root: Path) -> bool:
     """Report whether ``extensions.worktreeConfig`` permits a worktree-scoped fix."""
     value = _git(
-        repo_root, "config", "--get", "extensions.worktreeConfig", missing_ok=True
+        repo_root,
+        "config",
+        "--type=bool",
+        "--get",
+        "extensions.worktreeConfig",
+        missing_ok=True,
     )
-    return value is not None and _is_true(value)
+    return value == "true"
 
 
 def diagnose(repo_root: Path) -> RepoHealth:
     """Classify the repository. Raises the typed errors above on failure."""
     scoped = _scoped_core_bare(repo_root)
-    bare_scopes = tuple((scope, value) for scope, value in scoped if _is_true(value))
+    bare_scopes = tuple((scope, value) for scope, value in scoped if value == "true")
     if not bare_scopes:
         return RepoHealth("usable", scopes_read=len(scoped))
 
@@ -406,7 +417,7 @@ def _repair_lines(health: RepoHealth) -> list[str]:
 
 def _report_corruption(health: RepoHealth) -> None:
     """Name the condition, its blast radius, and a repair per poisoned scope."""
-    scopes = ", ".join(f"{scope}={value or 'true'}" for scope, value in health.bare_scopes)
+    scopes = ", ".join(f"{scope}={value}" for scope, value in health.bare_scopes)
     print(
         f"[FAIL] core.bare is set true ({scopes}) for a repository whose work "
         f"tree is {health.work_tree}.",

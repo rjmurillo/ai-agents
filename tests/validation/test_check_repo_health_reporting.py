@@ -94,13 +94,18 @@ class TestRepairNamesEveryScopeThatCarriesTheValue:
     def test_the_work_tree_and_every_poisoned_scope_are_named(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """A diagnosis the reader cannot act on is why this incident cost hours."""
-        _report(tmp_path, (("local", "true"), ("global", "yes")))
+        """A diagnosis the reader cannot act on is why this incident cost hours.
+
+        Both scopes read ``true`` because ``_scoped_core_bare`` asks git for
+        ``--type=bool`` and git normalizes every spelling it accepts, so
+        ``yes``, ``on`` and ``42`` never reach the report as themselves.
+        """
+        _report(tmp_path, (("local", "true"), ("global", "true")))
 
         err = capsys.readouterr().err
         assert str(tmp_path) in err
         assert "local=true" in err
-        assert "global=yes" in err
+        assert "global=true" in err
 
 
 class TestImmunizationHintTracksTheWorktreeConfigExtension:
