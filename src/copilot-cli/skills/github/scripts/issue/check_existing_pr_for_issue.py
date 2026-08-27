@@ -77,13 +77,24 @@ _PullRequestPayload = dict[str, object]
 # meant to close the issue and the markup silently defeated it), while this
 # module simply treats the match as not claiming ownership at all (a PR
 # quoting or documenting a closing keyword is not implementing the issue).
+#
+# The fenced-block alternation `(?:.*?^\1|.*)` is deliberate. CommonMark
+# 0.31.2 section 4.5 says the content of a fenced block runs "until a closing
+# code fence of the same type as the code block began with, or until the end
+# of the containing block", so an opening fence with no closing fence still
+# opens a code block that runs to end of input. The first alternative takes a
+# closing fence when one exists; the second consumes to EOF when none does.
+# Without it a body ending mid-fence matched neither span pattern, so a
+# keyword GitHub never links was read as a real claim (Copilot review on PR
+# #5371). Both alternatives live in `pr_description.py` too, so the "ported
+# verbatim" claim above stays true.
 _INLINE_CODE_SPAN = re.compile(
     r"(?<!`)(`{1,2})(?!`)(?:[^\n]|\n(?!\s*\n))+?(?<!`)\1(?!`)"
     r"|"
     r"(?<!`)(`{3,})(?!`)[^\n]+?(?<!`)\2(?!`)"
 )
 _FENCED_CODE_BLOCK = re.compile(
-    r"^(`{3,}|~{3,})[^\n]*\n.*?^\1",
+    r"^(`{3,}|~{3,})[^\n]*\n(?:.*?^\1|.*)",
     re.DOTALL | re.MULTILINE,
 )
 
@@ -231,13 +242,24 @@ def filter_prs_for_issue(
 
     Pure matching logic, separated from the ``gh`` fetch so the suppression
     rules are deterministically testable (issue #4965).
+
+    Title and body are matched independently, never as one joined string.
+    GitHub renders them as two separate Markdown documents, so a code span
+    cannot straddle them. Joining them let an unmatched backtick in the title
+    pair with one in the body to form a span that swallowed a real closing
+    keyword between them, hiding a genuine duplicate PR (Copilot review on PR
+    #5371). Each field now gets its own span-exclusion pass.
     """
     matches: list[_PullRequestPayload] = []
     for pr in _iter_pull_requests(prs):
         head_ref = _head_ref(pr)
         author_login = _author_login(pr)
-        text = f"{_as_text(pr.get('title'))}\n{_as_text(pr.get('body'))}"
-        if not references_issue(text, issue, repo_slug=repo_slug):
+        title = _as_text(pr.get("title"))
+        body = _as_text(pr.get("body"))
+        if not (
+            references_issue(title, issue, repo_slug=repo_slug)
+            or references_issue(body, issue, repo_slug=repo_slug)
+        ):
             continue
         if _is_self_branch_pr(
             author_login,
@@ -248,7 +270,7 @@ def filter_prs_for_issue(
             continue
         matches.append({
             "number": pr.get("number"),
-            "title": _as_text(pr.get("title")),
+            "title": title,
             "url": _as_text(pr.get("html_url") or pr.get("url")),
             "head": head_ref,
             "author": author_login,

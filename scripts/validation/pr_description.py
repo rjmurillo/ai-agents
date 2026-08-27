@@ -663,8 +663,15 @@ _INLINE_CODE_SPAN: re.Pattern[str] = re.compile(
 )
 
 # Fenced code block: backtick or tilde fence with optional language tag.
+# CommonMark 0.31.2 section 4.5: an unclosed fence still opens a code block
+# that runs to the end of the containing block, not to nothing. The first
+# alternative takes a real closing fence when one exists; the second consumes
+# to EOF when none does, so a body ending mid-fence is still recognized as a
+# fenced span instead of matching neither pattern (Copilot review on PR
+# #5371, which found this exact gap in the port at
+# .claude/skills/github/scripts/issue/check_existing_pr_for_issue.py).
 _FENCED_CODE_BLOCK: re.Pattern[str] = re.compile(
-    r"^(`{3,}|~{3,})[^\n]*\n.*?^\1",
+    r"^(`{3,}|~{3,})[^\n]*\n(?:.*?^\1|.*)",
     re.DOTALL | re.MULTILINE,
 )
 

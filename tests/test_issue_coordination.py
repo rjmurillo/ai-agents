@@ -143,6 +143,18 @@ class TestReferencesIssue:
         # does not accidentally flip a non-keyword into a match.
         assert _check.references_issue("`Refs #4965`", 4965) is False
 
+    def test_unclosed_fence_still_excludes_the_keyword_inside_it(self):
+        # Copilot review on PR #5371: CommonMark treats an unclosed fence as
+        # running to end of input, not as no fence at all. A body ending
+        # mid-fence must still be excluded, or the keyword inside it counts
+        # as a real claim GitHub never linked.
+        body = "Prior attempt:\n```\nFixes #4965"
+        assert _check.references_issue(body, 4965) is False
+
+    def test_unclosed_tilde_fence_still_excludes_the_keyword_inside_it(self):
+        body = "~~~\nFixes #4965"
+        assert _check.references_issue(body, 4965) is False
+
 
 class TestFindOpenPrsForIssue:
     def test_match_in_body(self):
@@ -167,6 +179,26 @@ class TestFindOpenPrsForIssue:
         with patch.object(_check.subprocess, "run", return_value=_proc(0, json.dumps([prs]))):
             out = _check.find_open_prs_for_issue("o", "r", 2477)
         assert [m["number"] for m in out] == [10]
+
+    def test_a_backtick_split_across_title_and_body_does_not_hide_a_real_claim(self):
+        # Copilot review on PR #5371: title and body are two separate
+        # Markdown documents, so a code span cannot straddle them. An
+        # unmatched backtick in the title paired with one in the body used
+        # to form an artificial cross-field span that swallowed a real
+        # closing keyword sitting in the body.
+        prs = [
+            {
+                "number": 42,
+                "title": "fix: handle the `weird case",
+                "body": "Fixes #4965`, see the linked discussion.",
+                "html_url": "u",
+                "head": {"ref": "b"},
+                "user": {"login": "alice"},
+            }
+        ]
+        with patch.object(_check.subprocess, "run", return_value=_proc(0, json.dumps([prs]))):
+            out = _check.find_open_prs_for_issue("o", "r", 4965)
+        assert [m["number"] for m in out] == [42]
 
     def test_code_span_closing_keyword_does_not_suppress_new_pr(self):
         # End-to-end regression for issue #3827: a PR that only quotes a
