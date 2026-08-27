@@ -31,10 +31,15 @@ and not rule 16. Closing it means modelling the `>` container, lazy
 continuation included, which is why it is still listed here rather than fixed.
 A third joined them, found by an adversarial audit rather than by any ratchet.
 A setext `===` underline directly under a list item, followed by a lazy
-continuation and then an indented fence, leaves the fence unseen. Measured the
-way the blockquote gap was, over seven shapes run through `--write`: four
-diverge and NONE is changed by the repair, so it is a miss and not a bad
-write. `---` under the same item agrees already, which is why rule 11 landed
+continuation and then an indented fence, leaves the fence unseen. It was
+recorded here as a miss, on a measurement that did not hold: re-measured over
+nine shapes run through `--write`, SEVEN are rewritten and six go in balanced
+and come out unclosed, so it is a corruption like the other two. The earlier
+seven-shape run reported four diverging and none rewritten; whatever it
+sampled, the family is not write-safe. This is the third gap on this list to
+be filed as a miss and turn out destructive once the balance predicate was
+fixed, which is the pattern worth remembering rather than any one entry.
+`---` under the same item agrees already, which is why rule 11 landed
 covering `-` and left this. Closing it means tracking where a setext underline
 sits relative to its container, not just that it occurred.
 

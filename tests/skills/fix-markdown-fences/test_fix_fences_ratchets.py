@@ -277,7 +277,8 @@ class TestOpenLabelStateIsBounded:
     """
 
     #: Enough continuation lines that any per-line accumulation is visible,
-    #: cheap enough to run in the suite. The old string reached ~150KB here.
+    #: cheap enough to run in the suite. The old string reached 173,940 bytes
+    #: here, measured with `sys.getsizeof` against the pre-6af10daa3 module.
     LINES = 5000
 
     def _state_after(self, continuations: int) -> object:
@@ -408,3 +409,78 @@ class TestRawHtmlIsADestructiveGap:
             "does, this whole class has changed and the pin needs re-deriving"
         )
         assert find_fence_defects(text), "the scanner is supposed to report a defect here"
+
+
+class TestSetextUnderAListItemIsDestructive:
+    """The third gap filed as a miss that turned out to corrupt.
+
+    A setext `===` underline directly under a list item, followed by a lazy
+    continuation and then an indented fence: the list item ending closes the
+    fence for CommonMark, so the document is balanced, and `--write` appends a
+    second fence at top level, which leaves it genuinely unclosed.
+
+    It was recorded as write-safe on a seven-shape run reporting none
+    rewritten. Re-measured over the nine shapes below, seven are rewritten and
+    six go in balanced and come out unclosed. Whatever the earlier run
+    sampled, the family is not write-safe.
+
+    That is three for three: blockquote-interrupting-a-paragraph, raw HTML,
+    and this. Each was filed as a miss, each turned out destructive once
+    someone measured the OUTPUT rather than only the divergence. The lesson is
+    the procedure, not the entry: a gap is write-safe only when a test says
+    so, and only these ratchets say so.
+
+    Not introduced here. Four of these shapes append identically on
+    `origin/main`; only the nested one is new to this branch, and over one
+    40,000 document corpus the branch removes 318 corruptions relative to
+    main and adds none. Nothing in the tracked corpus reaches this family.
+
+    Ratchet, not endorsement. Closing any part of it lowers the counts and
+    fails this test. Lower them; never raise.
+    """
+
+    #: Held as data so the scope cannot be computed from the system under test.
+    SHAPES = {
+        "trailing dedent": "- item\n===\nlazy\n  ```\nout\n",
+        "body then dedent": "- item\n===\nlazy\n  ```\n  body\nout\n",
+        "dedent then prose": "- item\n===\nlazy\n  ```\nout\nmore\n",
+        "ordered marker": "1. item\n===\nlazy\n   ```\nout\n",
+        "single equals": "- item\n=\nlazy\n  ```\nout\n",
+        "nested item": "- a\n  - item\n  ===\n  lazy\n    ```\n  out\n",
+        "fence closed in item": "- item\n===\nlazy\n  ```\n  body\n  ```\nout\n",
+        "no lazy line": "- item\n===\n  ```\nout\n",
+        "no trailing dedent": "- item\n===\nlazy\n  ```\n",
+    }
+
+    #: Measured, not assumed.
+    REWRITTEN = 7
+    BALANCED_IN_UNCLOSED_OUT = 6
+
+    def test_the_shape_set_is_pinned(self) -> None:
+        """Not parametrized, so emptying SHAPES cannot disarm the counts."""
+        assert len(self.SHAPES) == 9
+
+    def test_the_write_behaviour_has_not_moved(self) -> None:
+        rewritten = corrupting = 0
+        for text in self.SHAPES.values():
+            out = repair_markdown_fences(text)
+            if out == text:
+                continue
+            rewritten += 1
+            # The damage stated as a property of the OUTPUT, which is what the
+            # earlier seven-shape run never looked at: balanced going in,
+            # unclosed coming out.
+            if not _has_unclosed_fence(text) and _has_unclosed_fence(out):
+                corrupting += 1
+        assert (rewritten, corrupting) == (self.REWRITTEN, self.BALANCED_IN_UNCLOSED_OUT), (
+            f"{rewritten} of {len(self.SHAPES)} rewritten and {corrupting} turned from "
+            f"balanced into unclosed, pinned at {self.REWRITTEN} and "
+            f"{self.BALANCED_IN_UNCLOSED_OUT}. Lower the pins if a fix closed part of "
+            "the gap; a rise means it spread."
+        )
+
+    def test_the_smallest_shape_is_exactly_the_documented_one(self) -> None:
+        """Pin the example the shipped docs quote, so the two cannot drift."""
+        text = "- item\n===\nlazy\n  ```\nout\n"
+        assert repair_markdown_fences(text) == "- item\n===\nlazy\n  ```\nout\n  ```\n"
+        assert not _has_unclosed_fence(text), "input must be balanced for this to be a corruption"

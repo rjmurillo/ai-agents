@@ -161,8 +161,12 @@ documentation:
   `--write` corruptions, so the permissive rule stays. And a setext `===`
   underline
   directly under a list item, followed by a lazy continuation and then an
-  indented fence, leaves that fence unseen: seven shapes through `--write`,
-  four diverge and none is rewritten, so this one is a miss too. `---` under
+  indented fence, leaves that fence unseen. This one is DESTRUCTIVE too, and
+  it was recorded here as a miss on a measurement that did not hold: over nine
+  shapes, seven are rewritten and six go in balanced and come out unclosed.
+  The smallest is five lines, `- item` / `===` / `lazy` / two-space fence /
+  `out`, where the list item ending closes the fence for CommonMark and
+  `--write` appends a second one at top level. `---` under
   the same item already agrees. The scanners' agreement with a CommonMark
   reference is measured by the fuzz baselines in the repository's test suite.
 
