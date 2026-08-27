@@ -85,13 +85,24 @@ def _render_for_host(memory_context: str) -> str:
     ``{"additionalContext": "<sentinel>"}`` document reached the model. Claude
     Code reads plain stdout on this event, so it keeps the bare block.
 
-    Only one of the two signals is vendor-confirmed:
+    Neither signal is vendor-confirmed, and neither identifies the consuming
+    host:
 
-    - ``CLAUDE_CODE_ENTRYPOINT`` is set by Claude Code and never by Copilot CLI.
-      Measured on Copilot CLI 1.0.80: the literal string appears 0 times in the
-      shipped ``app.js`` and ``copilot`` binary, in a search where
-      ``COPILOT_CLI`` (12), ``additionalContext`` (24), and ``GITHUB_TOKEN``
-      (27) are the positive controls.
+    - ``CLAUDE_CODE_ENTRYPOINT`` is set by Claude Code and is never named in the
+      shipped Copilot CLI artifacts. Measured on Copilot CLI 1.0.80: the literal
+      string appears 0 times in the shipped ``app.js`` and ``copilot`` binary,
+      in a search where ``COPILOT_CLI`` (12), ``additionalContext`` (24), and
+      ``GITHUB_TOKEN`` (27) are the positive controls. Two limits on that
+      result. It is a static byte search over artifacts, not a read of a
+      running hook's environment, and a child process inherits every variable
+      its parent exported whether or not the child's own source ever spells the
+      name. And no Anthropic or GitHub document names the variable as a host
+      discriminator, so it grades EMPIRICAL and never OFFICIAL under the
+      agent-harness-reference contract table. What it evidences is process
+      ancestry, not the program consuming this hook: a Copilot CLI process
+      launched from a Claude-spawned shell inherits it, which is the same
+      inheritance flaw recorded below for ``COPILOT_CLI`` in the other
+      direction.
     - ``COPILOT_CLI`` is NOT vendor-confirmed. An earlier revision of this
       docstring quoted a changelog entry ("Git hooks can detect Copilot CLI
       subprocesses via the COPILOT_CLI=1 environment variable...", citing
@@ -115,8 +126,9 @@ def _render_for_host(memory_context: str) -> str:
       probe-evidence.md section 8b for the full correction and the open
       follow-up to get a live-session probe.
 
-    Because the positive Copilot signal is unconfirmed, the Claude signal is
-    checked first and is the only branch this code can vouch for. Claude reads
+    Because neither signal is confirmed, the ordering below is chosen to fail
+    safe rather than to be correct: the Claude signal is checked first, so every
+    ambiguous path defaults to the bare block. Claude reads
     a nested ``hookSpecificOutput`` envelope and never a top-level
     ``additionalContext`` key, so an envelope sent to Claude parses as
     structured output with no recognized field and the memory block is dropped
@@ -127,10 +139,13 @@ def _render_for_host(memory_context: str) -> str:
     fires under real Copilot CLI is unverified; if it never fires, recall
     remains silently inert under Copilot exactly as issue #4727 first found.
 
-    ``CLAUDE_PROJECT_DIR`` is not a usable discriminator in either direction.
-    Copilot does not set it (same 1.0.80 search, 0 hits), so it is unset under
-    Copilot rather than shared, but it is also unset in some Claude Code
-    surfaces, so its absence identifies nothing.
+    ``CLAUDE_PROJECT_DIR`` is not a usable discriminator in either direction,
+    and its presence under Copilot is itself contested. The same 1.0.80 artifact
+    search finds 0 hits, while the live environment listing in issue #4727 on
+    1.0.79-6 records the variable as present under Copilot and says outright
+    that it "cannot distinguish harnesses". The live read outranks the static
+    search on what a hook receives. It is also unset in some Claude Code
+    surfaces, so neither its presence nor its absence identifies a host.
 
     Residual gap, disclosed rather than papered over: a Claude surface that
     does not export ``CLAUDE_CODE_ENTRYPOINT`` and has inherited a stray

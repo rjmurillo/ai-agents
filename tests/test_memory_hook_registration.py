@@ -33,11 +33,10 @@ ALL_REGISTERED_COMMANDS = tuple(
     for hook in group.get("hooks", [])
 )
 
-# The project-directory anchor every hook command must open with. Copilot CLI
-# loads `.claude/settings.json` too but never exports `CLAUDE_PROJECT_DIR`, so a
-# bare `cd "$CLAUDE_PROJECT_DIR"` is `cd ""` there: a silent sh/dash no-op that
-# leaves relative script paths resolving against the host cwd. Measurement and
-# controls in `probe-evidence.md` section 8b (issue #4727).
+# The project-directory anchor every hook command must open with. Whether Copilot
+# exposes `CLAUDE_PROJECT_DIR` is contested (static 1.0.80 search finds nothing,
+# issue #4727's live 1.0.79-6 listing finds it set); the fallback is right either
+# way. Unset, `cd "$CLAUDE_PROJECT_DIR"` is `cd ""`: exit 0, cwd unchanged.
 PROJECT_DIR_ANCHOR = 'cd "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}" && '
 
 # The one memory the recall cases search for, so their prompt matches a body
@@ -271,8 +270,9 @@ class TestRegistration:
     def test_every_launcher_resolves_with_the_project_dir_unset(self, command, tmp_path):
         """The Copilot case: same command, no CLAUDE_PROJECT_DIR, foreign cwd.
 
-        The bare-anchor control proves the case discriminates; without it a
-        probe passing for an unrelated reason would read as evidence.
+        The bare-anchor control discriminates. Its nonzero status comes from the
+        relative-path checks, not `cd`: `cd ""` exits 0 and leaves cwd unchanged
+        (dash and bash), so the chain runs on into the wrong directory.
         """
         env = _harness_env()
         del env["CLAUDE_PROJECT_DIR"]
