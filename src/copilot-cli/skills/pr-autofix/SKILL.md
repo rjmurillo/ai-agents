@@ -724,13 +724,19 @@ always executable.
 
 | Tier | Criteria | Action |
 |------|----------|--------|
-| T1 | `CanMerge=true` (`CLEAN`, `HAS_HOOKS`, or `UNSTABLE` with all non-required failures disposed) | Merge via the appropriate merge path |
+| T1 | `CanMerge=true` (`CLEAN`, `HAS_HOOKS`, or `UNSTABLE` with all non-required failures disposed) | Merge via the row for that state in "Merge path by `mergeStateStatus`" below; each of the three names its own script |
 | T2 | CI failures only (required or undisposed non-required), no threads | Fix CI, verify required checks pass |
 | T3 | Threads only (CI passing) | Walk full thread lifecycle, then merge |
 | T4 | Both CI failures + threads | Fix CI first, then lifecycle threads |
 | T5 | Bot PR with any failure or threads | Handle individually |
 
 ### Merge-path states (not work tiers)
+
+Every row below is a state that cannot reach a work tier. `CLEAN`, `HAS_HOOKS`,
+and `UNSTABLE` are therefore absent by construction, not by omission: they are
+the three states that do reach T1, so their rows are the T1 row above and their
+per-state scripts are in "Merge path by `mergeStateStatus`". Adding `HAS_HOOKS`
+here would re-assert the thing issue #4899 fixed.
 
 | State | Criteria | Action |
 |-------|----------|--------|
