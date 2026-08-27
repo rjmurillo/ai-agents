@@ -316,7 +316,7 @@ After using this skill:
 
 - [examples.md](references/examples.md) - Usage examples and workflows
 - [confidence-scoring.md](references/confidence-scoring.md) - How confidence is calculated
-- [ADR-007](../../.agents/architecture/ADR-007-memory-first-architecture.md) - Memory-first architecture
-- [ADR-038](../../.agents/architecture/ADR-038-reflexion-memory-schema.md) - Reflexion memory schema
+- ADR-007 `.agents/architecture/ADR-007-memory-first-architecture.md` - Memory-first architecture
+- ADR-038 `.agents/architecture/ADR-038-reflexion-memory-schema.md` - Reflexion memory schema
 
 <!-- vendor-portability: declared. This skill links .agents/architecture/ADR-007 and ADR-038 as the memory-first and reflexion-schema ADRs, and names .github/workflows/memory-health.yml and .github/workflows/citation-verify.yml as the CI that runs these commands. All four sit outside the plugin root and are absent from a vendored install. Every one is a documentation citation; the enhancement logic reads none of them, the CLI behaves identically without them, and a vendored install loses only the links and the description of this repository's CI wiring. Issue #2050. -->
