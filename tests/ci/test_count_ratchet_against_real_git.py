@@ -163,127 +163,149 @@ def _git(repo: Path, *args: str) -> None:
     subprocess.run(["git", "-C", str(repo), *args], check=True)
 
 
-@pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
-def test_concurrent_baseline_lowering_detects_stale_branch(tmp_path: Path) -> None:
-    """Verify the concurrent-PR race condition described in Issue #4057.
+def _main_lowered_to_99(tmp_path: Path) -> tuple[Path, Path, str]:
+    """A repository whose default branch lowered ``baseline.txt`` 100 -> 99.
 
-    Scenario:
-      - main starts with baseline=100, count=100
-      - Branch A removes 1 violation, lowers baseline to 99, merges first
-      - Branch B also removed 1 violation but did NOT pick up A's merge
-        (baseline stays at 100 on branch B)
-      - When B runs --base-ref against the updated main (baseline=99),
-        the ratchet must fire BASELINE RAISED and return EXIT_REGRESSION
-
-    This proves that --base-ref is the enforcement point: a branch that has
-    not rebased onto the post-A main cannot slip through with a stale baseline.
-
-    Negative control: if branch B has baseline=99 (rebased), no regression.
+    Returns ``(repo, baseline_file, main_ref)``. The commit before the lowering
+    is the fork point every branch in this section is cut from, which is the
+    shape issue #4057 recorded and issue #5065 re-read.
     """
-    import argparse
-
     repo = tmp_path / "repo"
     repo.mkdir()
-    _git(repo, "init", "-q")
-    _git(repo, "config", "user.email", "t@example.com")
-    _git(repo, "config", "user.name", "t")
+    _init_repo(repo)
 
     baseline_file = repo / "baseline.txt"
     baseline_file.write_text("100\n", encoding="utf-8")
     (repo / "seed.txt").write_text("seed\n", encoding="utf-8")
-    _git(repo, "add", "baseline.txt", "seed.txt")
-    _git(repo, "commit", "-qm", "main: baseline=100")
+    _commit_all(repo, "main: baseline=100")
 
-    # Branch A: removes 1 violation, lowers baseline to 99
     _git(repo, "checkout", "-q", "-b", "branch-a")
     baseline_file.write_text("99\n", encoding="utf-8")
-    _git(repo, "add", "baseline.txt")
-    _git(repo, "commit", "-qm", "branch-a: lower baseline to 99")
+    _commit_all(repo, "branch-a: lower baseline to 99")
 
-    # Merge A into main
-    _git(
-        repo,
-        "checkout",
-        "-q",
-        "master" if (repo / ".git" / "refs" / "heads" / "master").exists() else "main",
+    _git(repo, "checkout", "-q", "main")
+    _git(repo, "merge", "-q", "--ff-only", "branch-a")
+    return repo, baseline_file, "main"
+
+
+def _run_against(repo: Path, baseline_file: Path, base_ref: str, count: int) -> int:
+    import argparse
+
+    args = argparse.Namespace(
+        baseline=baseline_file,
+        repo_root=repo,
+        update=False,
+        base_ref=base_ref,
     )
-    try:
-        _git(repo, "merge", "-q", "--ff-only", "branch-a")
-    except subprocess.CalledProcessError:
-        # Some git versions use 'master' by default
-        _git(repo, "checkout", "-q", "-b", "main", "branch-a")
+    return count_ratchet.run(
+        args,
+        label="test",
+        counter=lambda _: count,
+        scan_error="scan failed",
+        regression_advice="fix violations",
+    )
 
-    main_ref = subprocess.run(
-        ["git", "-C", str(repo), "rev-parse", "--abbrev-ref", "HEAD"],
-        capture_output=True, text=True, encoding="utf-8", check=True,
-    ).stdout.strip()
 
-    # Branch B: forked from original main (baseline=100), removes 1 violation
-    # but did NOT pick up A's merge. baseline.txt still says 100.
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
+def test_a_branch_that_never_moved_the_number_is_not_blocked(tmp_path, capsys) -> None:
+    """Issue #5065: being behind the base ref is not a violation.
+
+    Branch B is cut from the pre-lowering commit and edits nothing. Its
+    recorded 100 matches the fork point's 100, so the branch did not raise an
+    allowance; ``main`` lowered one underneath it. Blocking here made a
+    bookkeeping scalar a merge gate: on 2026-08-03, with
+    ``scripts/ci/taste_count_baseline.txt`` at 598 on ``main``, 31 of 33 open
+    non-draft PRs recorded a higher number and failed on it.
+
+    The count leg still runs: 100 <= 100 here, so the verdict is OK.
+    """
+    repo, baseline_file, main_ref = _main_lowered_to_99(tmp_path)
     _git(repo, "checkout", "-q", "-b", "branch-b", f"{main_ref}~1")
-    # Do not change baseline.txt - simulating a branch that didn't rebase
 
-    # Branch B's state: baseline file says 100 (stale), count is also 100
-    # (no actual fix on this branch). --base-ref points at main (baseline=99).
-    args_stale = argparse.Namespace(
-        baseline=baseline_file,   # still 100 on branch-b
-        repo_root=repo,
-        update=False,
-        base_ref=main_ref,
+    rc = _run_against(repo, baseline_file, main_ref, count=100)
+
+    assert rc == count_ratchet.EXIT_OK
+    out = capsys.readouterr().out
+    assert "BEHIND BASE (not blocking)" in out
+    assert "never moved the number" in out
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
+def test_a_branch_that_raised_the_number_itself_still_blocks(tmp_path, capsys) -> None:
+    """The mirror of the case above: the widening hole stays shut.
+
+    Same fork point, but this branch commits 101. The fork point records 100,
+    so the branch is what moved the scalar, and that is the only route by which
+    a higher number reaches ``main``.
+    """
+    repo, baseline_file, main_ref = _main_lowered_to_99(tmp_path)
+    _git(repo, "checkout", "-q", "-b", "branch-c", f"{main_ref}~1")
+    baseline_file.write_text("101\n", encoding="utf-8")
+    _commit_all(repo, "branch-c: widen the allowance")
+
+    rc = _run_against(repo, baseline_file, main_ref, count=99)
+
+    assert rc == count_ratchet.EXIT_REGRESSION
+    assert "BASELINE ABOVE BASE" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
+def test_an_uncommitted_raise_blocks_like_a_committed_one(tmp_path, capsys) -> None:
+    """Edge: the pre-push hook scans the working tree, so a dirty edit counts.
+
+    ``read_baseline`` reads the file on disk. A raise that is staged, or not
+    even staged, must reach the same verdict as one that is committed, or the
+    local gate is trivially side-stepped.
+    """
+    repo, baseline_file, main_ref = _main_lowered_to_99(tmp_path)
+    _git(repo, "checkout", "-q", "-b", "branch-d", f"{main_ref}~1")
+    baseline_file.write_text("101\n", encoding="utf-8")
+
+    rc = _run_against(repo, baseline_file, main_ref, count=99)
+
+    assert rc == count_ratchet.EXIT_REGRESSION
+    assert "BASELINE ABOVE BASE" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
+def test_an_unreadable_fork_point_fails_closed(tmp_path, capsys) -> None:
+    """Negative: git cannot name a fork point, so the old verdict stands.
+
+    A shallow clone or an unrelated history leaves ``git merge-base`` with
+    nothing to report. Reading that as "this branch changed nothing" would wave
+    through the widened allowance the check exists to catch, so it blocks.
+    """
+    repo, baseline_file, _ = _main_lowered_to_99(tmp_path)
+    unrelated = tmp_path / "unrelated"
+    unrelated.mkdir()
+    _init_repo(unrelated)
+    (unrelated / "other.txt").write_text("other\n", encoding="utf-8")
+    (unrelated / "baseline.txt").write_text("98\n", encoding="utf-8")
+    _commit_all(unrelated, "unrelated root")
+    _git(repo, "fetch", "-q", str(unrelated), "main:unrelated")
+
+    rc = _run_against(repo, baseline_file, "unrelated", count=99)
+
+    assert rc == count_ratchet.EXIT_REGRESSION
+    assert "BASELINE ABOVE BASE" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
+def test_a_count_above_the_baseline_still_regresses(tmp_path) -> None:
+    """Control: the count leg is untouched by the fork-point read."""
+    repo, baseline_file, main_ref = _main_lowered_to_99(tmp_path)
+
+    assert _run_against(repo, baseline_file, main_ref, count=100) == (
+        count_ratchet.EXIT_REGRESSION
     )
 
-    # A count function that always returns 100 (branch B removed no violations)
-    def count_100(_: Path) -> int:
-        return 100
 
-    rc_stale = count_ratchet.run(
-        args_stale,
-        label="test",
-        counter=count_100,
-        scan_error="scan failed",
-        regression_advice="fix violations",
-    )
-    # Branch B's baseline (100) > main's baseline (99) => BASELINE RAISED
-    assert rc_stale == count_ratchet.EXIT_REGRESSION, (
-        "BASELINE RAISED must fire when a stale branch has baseline > main's baseline"
-    )
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
+def test_a_current_branch_at_its_baseline_passes(tmp_path) -> None:
+    """Control: the ordinary green path still returns OK."""
+    repo, baseline_file, main_ref = _main_lowered_to_99(tmp_path)
 
-    # Negative control: branch B rebases and picks up baseline=99.
-    # Now branch_baseline == base_baseline => no BASELINE RAISED.
-    _git(repo, "checkout", "-q", main_ref)
-    args_fresh = argparse.Namespace(
-        baseline=baseline_file,   # now 99 after rebase checkout
-        repo_root=repo,
-        update=False,
-        base_ref=main_ref,
-    )
-
-    rc_fresh = count_ratchet.run(
-        args_fresh,
-        label="test",
-        counter=count_100,
-        scan_error="scan failed",
-        regression_advice="fix violations",
-    )
-    # count=100 > baseline=99 => regression, but it's a count regression not BASELINE RAISED
-    assert rc_fresh == count_ratchet.EXIT_REGRESSION, (
-        "count regression must still fire when count exceeds baseline"
-    )
-
-    # Positive control: branch with count at baseline, no stale issue
-    def count_99(_: Path) -> int:
-        return 99
-
-    rc_ok = count_ratchet.run(
-        args_fresh,
-        label="test",
-        counter=count_99,
-        scan_error="scan failed",
-        regression_advice="fix violations",
-    )
-    assert rc_ok == count_ratchet.EXIT_OK, (
-        "rebased branch with count == baseline must pass"
-    )
+    assert _run_against(repo, baseline_file, main_ref, count=99) == count_ratchet.EXIT_OK
 
 # ---------------------------------------------------------------------------
 # run(): the --base-ref verdict must be named from a count it actually took

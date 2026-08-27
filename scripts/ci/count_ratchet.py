@@ -48,7 +48,9 @@ from here would put the project's import graph behind every ratchet.
 
 Exit codes (AGENTS.md contract):
     0 - ok (count <= baseline, or --update records a decrease)
-    1 - regression (count > baseline, or baseline raised vs --base-ref)
+    1 - regression (count > baseline, or this branch raised the baseline above
+        the one at --base-ref; a branch merely behind the base ref is reported
+        and not blocked, issue #5065)
     2 - config error (baseline missing or malformed, bad args)
     3 - external error (the underlying linter could not run)
 """
@@ -436,13 +438,93 @@ def _above_base_message(base_ref: str, *, label: str, baseline: int, base: int, 
     )
 
 
+def _fork_point(repo_root: Path, base_ref: str) -> str | None:
+    """Commit where this branch left ``base_ref``, or None when git cannot say."""
+    proc = _git_run(repo_root, ["merge-base", "--", base_ref, "HEAD"])
+    if proc is None or proc.returncode != 0:
+        return None
+    return proc.stdout.strip() or None
+
+
+def baseline_moved_here(
+    repo_root: Path, base_ref: str, baseline: Path, recorded: int
+) -> bool | None:
+    """Whether this checkout itself moved the baseline number.
+
+    Returns True when the value at the fork point differs from ``recorded``,
+    False when the two agree, and None when either the fork point or the value
+    there could not be read. ``recorded`` comes from ``read_baseline`` on the
+    working tree, so a staged or unstaged edit counts exactly like a committed
+    one: the pre-push hook scans whatever is on disk.
+
+    This is the fork-point read that ``_above_base_message`` says two endpoint
+    reads cannot supply. Comparing the recorded value against the fork point,
+    rather than diffing the file's path, asks the question the ratchet cares
+    about: did this branch move the number, or is it carrying the number the
+    base ref used to hold? A whitespace-only edit changes the path diff and not
+    the number, and the number is what the ceiling is made of.
+
+    Failure is None rather than False so the caller fails closed. A gate that
+    read an unlaunchable git as "this branch changed nothing" would wave
+    through the widened allowance it exists to catch.
+    """
+    fork = _fork_point(repo_root, base_ref)
+    if fork is None:
+        return None
+    at_fork = baseline_at_ref(repo_root, fork, baseline)
+    if at_fork is None:
+        return None
+    return at_fork != recorded
+
+
+def _behind_base_message(
+    base_ref: str, *, label: str, baseline: int, base: int, count: int
+) -> str:
+    """Report a stale branch that never moved the number, without blocking it."""
+    return (
+        f"{label}: BEHIND BASE (not blocking). This tree records {baseline}, "
+        f"{base_ref} records {base} (+{baseline - base}), and the fork point "
+        f"records {baseline} as well, so this branch never moved the number: "
+        f"it is behind {base_ref}. The measured count is {count}. "
+        f"Merge or rebase from {base_ref} to clear this notice. What the "
+        f"merged result would measure is gated by "
+        f"scripts/ci/merge_tree_ratchet_check.py, not by this comparison."
+    )
+
+
 def _base_ref_verdict(
     args: argparse.Namespace, *, label: str, baseline: int, count: int
 ) -> int | None:
     """Exit code when ``--base-ref`` blocks the run, or None to keep going.
 
-    A baseline above the one at the base ref always blocks. ``count`` has to be
-    measured before this runs so the verdict can report it (issue #4066).
+    A baseline above the one at the base ref blocks when this branch is what
+    moved it, or when git cannot say. ``count`` has to be measured before this
+    runs so the verdict can report it (issue #4066).
+
+    Issue #5065. The check used to block on ``baseline > base`` alone, which is
+    a property of the base ref moving rather than of anything the branch
+    authored: the moment ``main`` lowers a baseline, every branch cut before
+    that lowering fails. Measured 2026-08-03 against
+    ``scripts/ci/taste_count_baseline.txt`` at 598 on ``main``: 31 of 33 open
+    non-draft PRs recorded a higher number, and the queue was blocked on a
+    bookkeeping value none of those branches had touched.
+
+    Passing a branch that merely holds an older number does not reopen the
+    widening hole, because the higher number can only reach the base branch
+    through a diff that writes it, and such a diff moves the fork-point
+    comparison to True and still blocks here. The merged result is gated
+    separately: ``scripts/ci/merge_tree_ratchet_check.py::_effective_baseline``
+    takes the lower of the two sides, verbatim::
+
+        if base_value is None or merged_value is None:
+            return None
+        return min(base_value, merged_value)
+
+    Stricter/looser/different than canonical: this check reads the fork point,
+    which the merge-tree gate never does, and it evaluates the branch's own
+    tree rather than the merged one. Neither subsumes the other. This one keeps
+    the recorded scalar one-directional; that one keeps the merged count under
+    the lower of the two ceilings.
     """
     root = args.repo_root.resolve()
     if baseline_absent_at_ref(root, args.base_ref, args.baseline):
@@ -457,6 +539,13 @@ def _base_ref_verdict(
         print(f"error: could not read the baseline at {args.base_ref}", file=sys.stderr)
         return EXIT_EXTERNAL
     if baseline <= base:
+        return None
+    if baseline_moved_here(root, args.base_ref, args.baseline, baseline) is False:
+        print(
+            _behind_base_message(
+                args.base_ref, label=label, baseline=baseline, base=base, count=count
+            )
+        )
         return None
     print(
         _above_base_message(args.base_ref, label=label, baseline=baseline, base=base, count=count),
