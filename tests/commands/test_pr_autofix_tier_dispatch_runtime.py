@@ -298,6 +298,7 @@ def test_the_fake_tier_producer_matches_the_real_output_shape(tmp_path: Path, do
     # fails on a fake that has stopped matching that contract.
     env["FAKE_TIER"] = "T1"
     env["FAKE_PAGES_COMPLETE"] = "true"
+    env["MERGE_READY_LOG"] = str(tmp_path / "merge-ready")
     process = subprocess.run(
         ["python3", str(scripts_dir / "test_pr_merge_ready.py")],
         env=env,
@@ -324,6 +325,22 @@ def test_the_fake_tier_producer_matches_the_real_output_shape(tmp_path: Path, do
     assert '"fetched_pages_complete": fetched_pages_complete,' in real
     assert "print(json.dumps(result, indent=2))" in real
     assert "write_skill_output" not in real, "the real producer started using the Data emitter"
+    # The flag the block forwards. If the producer drops it, the block starts
+    # passing an argument argparse rejects, and the whole loop breaks on every
+    # bot PR. That must fail here rather than in production (issue #5208).
+    assert '"--is-bot", action="store_true",' in real, (
+        "the real producer no longer declares --is-bot, which the tier-dispatch "
+        "block forwards for bot-authored PRs"
+    )
+
+    # The other end of the same contract: get_pr_context.py must still emit the
+    # field the block reads the author state from. Without this the block's
+    # type-checked read would silently fall to its fail-closed branch and every
+    # PR, human or not, would classify as a bot.
+    context = (REPO_ROOT / ".claude/skills/github/scripts/pr/get_pr_context.py").read_text(
+        encoding="utf-8"
+    )
+    assert '"author_is_bot": _author_is_bot(author),' in context
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)

@@ -5,11 +5,12 @@ markers from a shipped document and executes it with `bash`, against fake
 producer scripts on `$SCRIPTS_DIR`. Parameterized over the source command and
 its generated mirror, so a stale mirror fails.
 
-Two properties here were added only after a mutation proved the earlier version
-could not see the defect, and both are documented at their definitions: the
-fake `set_pr_auto_merge.py` records its argument vector rather than the bare
-fact of a call, and the queue walks two PRs so a per-PR skip is distinguishable
-from a queue abort.
+Three properties here were added only after a mutation proved the earlier
+version could not see the defect, and all three are documented at their
+definitions: the fake `set_pr_auto_merge.py` records its argument vector rather
+than the bare fact of a call, the fake `test_pr_merge_ready.py` does the same so
+a dropped `--is-bot` is visible (issue #5208), and the queue walks two PRs so a
+per-PR skip is distinguishable from a queue abort.
 
 Split from `test_pr_autofix_tier_dispatch_runtime.py` when it crossed the
 500-line taste rule, following the parser precedent in this directory: this
@@ -83,6 +84,15 @@ def write_fake_scripts(scripts_dir: Path) -> None:
 import json
 import os
 import sys
+from pathlib import Path
+
+# Records the argument vector, for the same reason the disarm fake does: the
+# bare fact of a call cannot distinguish a run that forwarded --is-bot from one
+# that did not, and that flag is the whole of issue #5208. Written before the
+# early exits below so a producer failure still records what it was asked for.
+Path(os.environ["MERGE_READY_LOG"]).open("a", encoding="utf-8").write(
+    "merge-ready " + " ".join(sys.argv[1:]) + "\\n"
+)
 
 tier = os.environ["FAKE_TIER"]
 
@@ -144,7 +154,18 @@ if os.environ["FAKE_AUTO_MERGE"] == "UNREADABLE":
 
 method = os.environ["FAKE_AUTO_MERGE"]
 payload = None if method == "null" else method
-print(json.dumps({"Success": True, "Data": {"auto_merge_method": payload}}))
+data = {"auto_merge_method": payload}
+
+# Same three shapes FAKE_PAGES_COMPLETE uses, and for the same reason: the
+# command type-checks this field, so a case has to be able to hand it a wrong
+# JSON type and an absent key, not only true and false. "OMIT" is the shape a
+# get_pr_context.py predating the field emits (issue #5208).
+author = os.environ["FAKE_AUTHOR_IS_BOT"]
+if author.startswith("RAW:"):
+    data["author_is_bot"] = json.loads(author[4:])
+elif author != "OMIT":
+    data["author_is_bot"] = author == "true"
+print(json.dumps({"Success": True, "Data": data}))
 """,
         encoding="utf-8",
     )
@@ -177,6 +198,7 @@ class DispatchRun:
         round_cap_log: Path,
         disarm_log: Path,
         cleanup_log: Path,
+        merge_ready_log: Path,
     ) -> None:
         self.process = process
         self.stdout = process.stdout
@@ -184,6 +206,21 @@ class DispatchRun:
         self.disarmed = disarm_log.exists()
         self.cleaned_up = cleanup_log.exists()
         self.disarm_argv = disarm_log.read_text(encoding="utf-8") if self.disarmed else ""
+        self.merge_ready_argv = (
+            merge_ready_log.read_text(encoding="utf-8") if merge_ready_log.exists() else ""
+        )
+
+    @property
+    def forwarded_is_bot(self) -> bool:
+        """True when every tier-producer call in this run carried `--is-bot`.
+
+        Every call, not any call, because the queue walks two PRs and both get
+        the same fake author. A read that returned true on one of two would
+        pass a block that forwarded the flag on the first pass and lost it on
+        the second, which is a shape a per-PR variable reset produces.
+        """
+        calls = [line for line in self.merge_ready_argv.splitlines() if line]
+        return bool(calls) and all("--is-bot" in line for line in calls)
 
     @property
     def reached_end(self) -> bool:
@@ -224,6 +261,7 @@ def run_dispatch(
     auto_merge: str = "null",
     round_action: str = "ACT",
     pages_complete: str = "true",
+    author_is_bot: str = "false",
     mutation_rc: str = "",
     tier_read: str = SHIPPED_TIER_READ,
     block_edit: tuple[str, str] | None = None,
@@ -240,6 +278,7 @@ def run_dispatch(
     round_cap_log = tmp_path / "round-cap"
     disarm_log = tmp_path / "disarm"
     cleanup_log = tmp_path / "cleanup"
+    merge_ready_log = tmp_path / "merge-ready"
 
     block = extract_dispatch((REPO_ROOT / doc).read_text(encoding="utf-8"))
     if tier_read != SHIPPED_TIER_READ:
@@ -290,6 +329,8 @@ done
             "FAKE_AUTO_MERGE": auto_merge,
             "FAKE_ROUND_ACTION": round_action,
             "FAKE_PAGES_COMPLETE": pages_complete,
+            "FAKE_AUTHOR_IS_BOT": author_is_bot,
+            "MERGE_READY_LOG": str(merge_ready_log),
             "MUTATION_RC_OVERRIDE": mutation_rc,
         }
     )
@@ -328,4 +369,4 @@ done
         assert expected_stderr in process.stderr, (
             f"expected {expected_stderr!r} on stderr, got: {process.stderr.strip()!r}"
         )
-    return DispatchRun(process, round_cap_log, disarm_log, cleanup_log)
+    return DispatchRun(process, round_cap_log, disarm_log, cleanup_log, merge_ready_log)
