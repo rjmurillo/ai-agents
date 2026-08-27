@@ -209,6 +209,54 @@ Evidence: In PR #47, QA agent added a regression test for a "simple" PathInfo bu
 Verify fix and assess regression test needs...
 ```
 
+## Comment Map Status Vocabulary
+
+Every comment in `comments.md` carries exactly one status from this table. This table is
+the only place the vocabulary is defined. Every gate derives its counts from it.
+
+| Status | Meaning | Terminal |
+|--------|---------|---------|
+| `[NEW]` | Fetched, not yet acknowledged | No |
+| `[ACKNOWLEDGED]` | Reaction posted, fix not yet committed | No |
+| `[COMPLETE]` | Fix committed and pushed | Yes |
+| `[WONTFIX]` | Explicitly decided not to change | Yes |
+| `[DUPLICATE]` | Same point already resolved by another comment | Yes |
+| `[DEFERRED] Refs #<issue>` | Tracked in a filed issue, not fixed in this PR | Yes, only with the `Refs #<issue>` suffix |
+
+Comment map fields render as `**Status**: [NEW]`, so every status grep must match the
+bold field at line start. Dropping the `**` delimiters or the `^` anchor matches nothing
+and reports zero.
+
+`[DEFERRED]` is terminal only when the status line carries an inline `Refs #<issue>`
+reference, as in `**Status**: [DEFERRED] Refs #4054`. A bare `[DEFERRED]` names no
+tracking issue, so nobody can find the work later and the gate keeps it pending.
+
+The terminal pattern ends at `[[:space:]]*$`, so a status line counts as terminal only
+when it ends at the status token, or at the `Refs #<issue>` reference for `[DEFERRED]`.
+`**Status**: [COMPLETE]oops` and `**Status**: [DEFERRED] Refs #4054garbage` match no
+terminal alternative and stay pending. Without the end anchor a matching prefix was
+enough, so a malformed value passed the gate.
+
+Every gate proves the comment map exists before counting. `grep -Ec` on a missing file
+exits non-zero and prints nothing, `|| true` turns that into an empty string, and shell
+arithmetic reads an empty string as 0. An absent map would otherwise compute zero pending
+and clear every gate with no artifact to verify.
+
+No gate enumerates pending statuses. Every gate counts the terminal statuses and
+subtracts. A status outside this table therefore fails closed: it matches no terminal
+pattern, so it counts as pending and blocks.
+
+```bash
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+if [ ! -f "$COMMENT_MAP" ]; then
+  echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
+  exit 1
+fi
+TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" "$COMMENT_MAP" || true)
+PENDING=$((TOTAL - TERMINAL))
+```
+
 ## Verification Gates (BLOCKING)
 
 These gates implement RFC 2119 MUST requirements. Proceeding without passing causes artifact drift.
@@ -284,18 +332,26 @@ grep "TASK-$COMMENT_ID.*COMPLETE" .agents/pr-comments/PR-[number]/tasks.md || ex
 **Before Phase 8 (thread resolution)**: Verify artifact state matches intended API state.
 
 ```bash
-# Count completed tasks in artifact
-COMPLETED=$(grep -c "\[COMPLETE\]" .agents/pr-comments/PR-[number]/tasks.md)
-TOTAL=$(grep -c "^- \[ \]\|^\[x\]" .agents/pr-comments/PR-[number]/tasks.md)
+# Count unresolved comments in the comment map
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+if [ ! -f "$COMMENT_MAP" ]; then
+  echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
+  exit 1
+fi
+TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" "$COMMENT_MAP" || true)
+PENDING=$((TOTAL - TERMINAL))
 
-# Count threads to resolve
+# Count unresolved review threads separately
 UNRESOLVED_API=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
 
 # Verify alignment
-if [ "$COMPLETED" -ne "$((TOTAL - UNRESOLVED_API))" ]; then
-  echo "[BLOCKED] Artifact COMPLETED ($COMPLETED) != API resolved ($((TOTAL - UNRESOLVED_API)))"
+if [ "$PENDING" -ne 0 ]; then
+  echo "[BLOCKED] Comment map still has $PENDING pending comment(s)"
   exit 1
 fi
+
+echo "Unresolved API threads: $UNRESOLVED_API"
 ```
 
 **Evidence required**: Counts match before proceeding.
@@ -310,8 +366,12 @@ REMAINING=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
 
 # Artifact state
 COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+if [ ! -f "$COMMENT_MAP" ]; then
+  echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
+  exit 1
+fi
 TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
-TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)" "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
 
 if [ "$REMAINING" -ne 0 ] || [ "$PENDING" -ne 0 ]; then
@@ -1075,18 +1135,28 @@ gh pr edit [number] --body "[updated body]"
 #### Phase 8.1: Comment Status Verification
 
 ```bash
-# Count addressed vs total
+# Derive pending exactly as Gate 4 and Gate 5 do: total minus terminal.
 COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
-TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)" "$COMMENT_MAP" || true)
-TOTAL=$TOTAL_COMMENTS
+if [ ! -f "$COMMENT_MAP" ]; then
+  echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
+  exit 1
+fi
+TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" "$COMMENT_MAP" || true)
+PENDING=$((TOTAL - TERMINAL))
+
+if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
+  echo "[BLOCKED] Comment map carries $TOTAL status fields, API reported $TOTAL_COMMENTS"
+  exit 1
+fi
 
 echo "Verification: $TERMINAL / $TOTAL comments terminal"
 
-if [ "$TERMINAL" -lt "$TOTAL" ]; then
-  echo "[WARNING] INCOMPLETE: $((TOTAL - TERMINAL)) comments remaining"
+if [ "$PENDING" -ne 0 ]; then
+  echo "[BLOCKED] INCOMPLETE: $PENDING comment(s) not terminal"
   grep -En "^\*\*Status\*\*: " "$COMMENT_MAP" \
-    | grep -Ev "\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)" || true
-  # Return to Phase 3 for unaddressed comments
+    | grep -Ev "\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" || true
+  exit 1
 fi
 ```
 
@@ -1212,7 +1282,7 @@ echo "[PASS] All CI checks passing ($passed checks)"
 
 | Criterion | Check | Status |
 |-----------|-------|--------|
-| All comments resolved | `grep -c -e "^\*\*Status\*\*: \[COMPLETE\]" -e "^\*\*Status\*\*: \[WONTFIX\]" "$COMMENT_MAP"` equals total | [ ] |
+| All comments resolved | Phase 8.1 reports `PENDING` (`TOTAL` minus `TERMINAL`) of 0 | [ ] |
 | No new comments | Re-check returned 0 new | [ ] |
 | CI checks pass | `get_pr_checks.py --pull-request [number]` MergeRefUsable = true and AllPassing = true | [ ] |
 | No unresolved threads | `gh pr view --json reviewThreads` all resolved | [ ] |

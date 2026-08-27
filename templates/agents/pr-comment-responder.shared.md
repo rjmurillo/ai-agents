@@ -72,13 +72,29 @@ and reports zero.
 reference, as in `**Status**: [DEFERRED] Refs #4054`. A bare `[DEFERRED]` names no
 tracking issue, so nobody can find the work later and the gate keeps it pending.
 
+The terminal pattern ends at `[[:space:]]*$`, so a status line counts as terminal only
+when it ends at the status token, or at the `Refs #<issue>` reference for `[DEFERRED]`.
+`**Status**: [COMPLETE]oops` and `**Status**: [DEFERRED] Refs #4054garbage` match no
+terminal alternative and stay pending. Without the end anchor a matching prefix was
+enough, so a malformed value passed the gate.
+
+Every gate proves the comment map exists before counting. `grep -Ec` on a missing file
+exits non-zero and prints nothing, `|| true` turns that into an empty string, and shell
+arithmetic reads an empty string as 0. An absent map would otherwise compute zero pending
+and clear every gate with no artifact to verify.
+
 No gate enumerates pending statuses. Every gate counts the terminal statuses and
 subtracts. A status outside this table therefore fails closed: it matches no terminal
 pattern, so it counts as pending and blocks.
 
 ```bash
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+if [ ! -f "$COMMENT_MAP" ]; then
+  echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
+  exit 1
+fi
 TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
-TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)" "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
 ```
 
@@ -346,7 +362,7 @@ if [ ! -f "$COMMENT_MAP" ]; then
   exit 1
 fi
 TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
-TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)" "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
 
 # Count unresolved review threads separately
@@ -378,7 +394,7 @@ if [ ! -f "$COMMENT_MAP" ]; then
   exit 1
 fi
 TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
-TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)" "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
 
 if [ "$REMAINING" -ne 0 ] || [ "$PENDING" -ne 0 ]; then
@@ -1170,21 +1186,27 @@ gh pr edit [number] --body "[updated body]"
 #### Phase 8.1: Comment Status Verification
 
 ```bash
-# Count addressed vs total
+# Derive pending exactly as Gate 4 and Gate 5 do: total minus terminal.
 COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
 if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
 fi
-TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)" "$COMMENT_MAP" || true)
-TOTAL=$TOTAL_COMMENTS
+TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" "$COMMENT_MAP" || true)
+PENDING=$((TOTAL - TERMINAL))
+
+if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
+  echo "[BLOCKED] Comment map carries $TOTAL status fields, API reported $TOTAL_COMMENTS"
+  exit 1
+fi
 
 echo "Verification: $TERMINAL / $TOTAL comments terminal"
 
-if [ "$TERMINAL" -lt "$TOTAL" ]; then
-  echo "[BLOCKED] INCOMPLETE: $((TOTAL - TERMINAL)) comments remaining"
+if [ "$PENDING" -ne 0 ]; then
+  echo "[BLOCKED] INCOMPLETE: $PENDING comment(s) not terminal"
   grep -En "^\*\*Status\*\*: " "$COMMENT_MAP" \
-    | grep -Ev "\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)" || true
+    | grep -Ev "\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" || true
   exit 1
 fi
 ```
@@ -1320,7 +1342,7 @@ echo "[PASS] All CI checks passing ($PASSED_COUNT checks)"
 
 | Criterion | Check | Status |
 |-----------|-------|--------|
-| All comments resolved | `grep -c -e "^\*\*Status\*\*: \[COMPLETE\]" -e "^\*\*Status\*\*: \[WONTFIX\]" "$COMMENT_MAP"` equals total | [ ] |
+| All comments resolved | Phase 8.1 reports `PENDING` (`TOTAL` minus `TERMINAL`) of 0 | [ ] |
 | No new comments | Re-check returned 0 new | [ ] |
 | CI checks pass | `get_pr_checks.py --pull-request [number]` MergeRefUsable = true and AllPassing = true | [ ] |
 | No unresolved threads | `gh pr view --json reviewThreads` all resolved | [ ] |
