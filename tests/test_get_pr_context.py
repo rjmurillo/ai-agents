@@ -1224,19 +1224,30 @@ class TestAuthorIsBot:
     closed. `test_unreadable_author_is_null_not_false` pins that distinction.
 
     The delegation to `github_core.bot_config` is load bearing, not stylistic,
-    and it was measured rather than assumed. Replacing
-    `is_bot(canonicalize_login(login), user_type)` with the cheap alternative,
-    `login.lower().endswith("[bot]")`, fails exactly three of these cases and
-    passes the other six:
+    and it was measured rather than assumed. Replacing the two lines
+
+        user_type = "Bot" if author.get("is_bot") is True else None
+        return bool(is_bot(canonicalize_login(login), user_type))
+
+    with the cheap alternative, `return login.lower().endswith("[bot]")`, fails
+    four of these cases and passes the other five:
 
         test_a_hyphen_bot_suffix_is_a_bot                            (rjmurillo-bot)
         test_the_gh_author_spelling_of_the_copilot_coding_agent_is_a_bot
         test_the_copilot_reviewer_alias_is_a_bot                     (Copilot)
+        test_the_api_bot_flag_is_honored_over_the_login
 
-    Those three are the discrimination probe for the design choice. The middle
-    two are the ones that matter operationally: `app/copilot-swe-agent` and
-    `Copilot` are the spellings this repository's own bot PRs arrive under, so
-    a suffix test would read them as human-authored and leave issue #5208
+    Those four are the discrimination probe for the design choice. The first
+    three fail on the alias table; the fourth fails because the substitution
+    drops the `user_type` argument as well, so GitHub's own `is_bot` flag stops
+    being consulted at all and `{"login": "somebody", "is_bot": True}` comes
+    back False. This said "exactly three" and listed three names until the
+    control was re-run: the substitution is one edit spanning both lines, and
+    counting only the alias failures reads the docstring instead of the diff.
+
+    The middle two are the ones that matter operationally: `app/copilot-swe-agent`
+    and `Copilot` are the spellings this repository's own bot PRs arrive under,
+    so a suffix test would read them as human-authored and leave issue #5208
     unfixed for the exact population it is about.
     """
 
