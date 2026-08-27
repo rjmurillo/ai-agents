@@ -203,7 +203,7 @@ for the threads that remain.
 
 ### Phase 3: Verify
 
-1. All comments resolved (COMPLETE or WONTFIX)
+1. Every comment carries a terminal status: `[COMPLETE]`, `[WONTFIX]`, `[DUPLICATE]`, or `[DEFERRED] Refs #<issue>`. The agent's `Comment Map Status Vocabulary` table is the only definition; do not restate it here. `[DEFERRED]` counts only with the tracking reference, and the issue number matches `#[1-9][0-9]*`, so `Refs #0` stays pending.
 2. No new comments after 45s wait
 3. CI checks passing, all threads resolved, commits pushed
 
@@ -247,7 +247,7 @@ Exit codes (per ADR-035, copied from the script docstring):
 
 ## Verification
 
-- [ ] All comments resolved (COMPLETE or WONTFIX)
+- [ ] Every comment carries a terminal status per the vocabulary table: `[COMPLETE]`, `[WONTFIX]`, `[DUPLICATE]`, or `[DEFERRED] Refs #<issue>`
 - [ ] No new comments after 45s wait
 - [ ] CI checks passing
 - [ ] All threads resolved

@@ -6,7 +6,7 @@
 # can name the same pair, so an allowance for one kind (say, unresolved)
 # would also silently hide a different, newly introduced kind (say,
 # number-mismatch) on the identical file and target (PR #5209 review,
-# discussion_r3831835196). 2 of the 18 entries below are `absolute`, not
+# discussion_r3831835196). 2 of the 14 entries below are `absolute`, not
 # `unresolved`, which is exactly the mixed baseline that check was written
 # against (re-measured after the round-5 fix removed a stale `absolute`
 # entry for docs/search-dont-load.md; Copilot, PR #5209 round-6 review
@@ -68,10 +68,14 @@ unresolved:.agents/security/benchmarks/README.md:../../architecture/ADR-042-pyth
 absolute:.agents/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md:/.agents/architecture/ADR-007-memory-first-architecture.md
 absolute:.agents/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md:/.agents/architecture/ADR-037-memory-router-architecture.md
 
-# One ../ hop short: the skill sits three levels below the repository root.
-# The copilot-cli copy is generated from the .claude source, so repairing the
-# .claude file and regenerating fixes both.
-unresolved:.claude/skills/memory-enhancement/SKILL.md:../../.agents/architecture/ADR-007-memory-first-architecture.md
-unresolved:.claude/skills/memory-enhancement/SKILL.md:../../.agents/architecture/ADR-038-reflexion-memory-schema.md
-unresolved:src/copilot-cli/skills/memory-enhancement/SKILL.md:../../.agents/architecture/ADR-007-memory-first-architecture.md
-unresolved:src/copilot-cli/skills/memory-enhancement/SKILL.md:../../.agents/architecture/ADR-038-reflexion-memory-schema.md
+# Issue #2796: the four `unresolved` entries formerly here for
+# memory-enhancement/SKILL.md are gone, not just re-pathed. The comment they
+# carried ("one ../ hop short... repairing the .claude file and regenerating
+# fixes both") was itself wrong: .claude/skills/memory-enhancement/ sits three
+# levels below repo root but the generated src/copilot-cli/skills/memory-enhancement/
+# mirror sits four, so no single ../ count resolves the same relative link in
+# both trees. Converted both ADR citations to the repo's dominant
+# backtick-path convention (see
+# .claude/skills/agent-harness-reference/SKILL.md:346-347)
+# instead, which is depth-independent and already used by every other
+# cross-plugin-root citation in this codebase.

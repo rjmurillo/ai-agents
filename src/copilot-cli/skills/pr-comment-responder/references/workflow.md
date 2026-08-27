@@ -320,7 +320,15 @@ After implementation:
 1. Commit with conventional message
 2. Reply with resolution (commit hash)
 3. Resolve conversation thread
-4. Update task list
+4. Run Gate 3, which marks the task in `tasks.md` and writes that comment's
+   `**Status**:` line in `comments.md`
+
+Step 4 updates both files or neither. Gate 4, Gate 5, and Phase 8.1 count
+`comments.md` alone, so a task marked done while the comment map still reads
+its generated status stays pending and blocks Phase 8 on finished work.
+
+Phase 5 outcomes never reach this phase. Record a Won't Fix, a Duplicate, or a
+Deferred through Gate 3 when you decide it, not here.
 
 ## Phase 7: PR Description Update
 
