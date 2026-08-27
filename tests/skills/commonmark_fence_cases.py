@@ -165,13 +165,20 @@ def oracle_fence_lines(text: str) -> set[int]:
 #     uv run python -c "import sys; sys.path.insert(0,'tests/skills'); \
 #       import commonmark_fence_cases as O; print(O.case_inventory())"
 CASE_COUNT = 148
-CASE_DIGEST = "968bc436ebeeabe9"
+CASE_DIGEST = "49fe7ea661b116ff"
 
 # The cases where a balanced document is SUPPOSED to change under `--write`,
 # named rather than detected. Membership used to come from asking the scanner
 # whether it had reported a mistaken closer, which let a regression that
 # invented one exempt its own document from the corruption assertion. Data
-# cannot do that, and the digest above pins this list with the rest.
+# cannot do that, and `case_inventory` hashes this list alongside the cases, so
+# the digest above pins it too.
+#
+# That last clause used to be false: the digest hashed `CASES` alone while this
+# comment claimed otherwise, and an audit caught it. The direction that matters
+# was the uncovered one. Emptying this list holds MORE documents to the
+# corruption assertion and fails three tests loudly; ADDING a name to it
+# exempts a document silently, which is the widening a pin exists to stop.
 MISTAKEN_CLOSER_CASES = frozenset(
     {
         "U+00A0 does not blank a closing fence's info string",
@@ -182,10 +189,18 @@ MISTAKEN_CLOSER_CASES = frozenset(
 
 
 def case_inventory() -> tuple[int, str]:
-    """Return the live (count, digest) of `CASES`, for comparison with the pin."""
+    """Return the live (count, digest) of the case tables, against the pin.
+
+    The digest covers `MISTAKEN_CLOSER_CASES` as well as `CASES`, because that
+    list decides which balanced documents are exempt from the corruption
+    assertion, and adding a name to it is a silent widening otherwise. The
+    count stays `len(CASES)`: it answers "how many contracts", and an
+    exemption is not one.
+    """
     import hashlib
 
     payload = "\n".join(f"{name}\x00{CASES[name]}" for name in sorted(CASES))
+    payload += "\x00exempt\x00" + "\x00".join(sorted(MISTAKEN_CLOSER_CASES))
     return len(CASES), hashlib.sha256(payload.encode()).hexdigest()[:16]
 
 

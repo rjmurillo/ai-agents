@@ -77,7 +77,25 @@ class TestRawHtmlIsADestructiveGap:
         ("<x-tag>", "</x-tag>"),
     )
 
-    #: Measured, not assumed: every one of the 20 shapes is written to.
+    #: Shapes that do NOT corrupt today, carried so the count below is not
+    #: pinned at its own maximum. An audit caught the first version of this
+    #: class doing exactly that: `CORRUPTING_SHAPES` was 20 out of 20
+    #: possible, so the "the gap spread" direction its failure message
+    #: promises could never fire, and a mutation that multiplied `--write`
+    #: corruption elsewhere left it green. A ratchet that can only move one
+    #: way is half a ratchet.
+    CLEAN_SHAPES = (
+        # The fence closes inside the HTML block, so there is nothing to append.
+        "<div>\n```\nAfter.\n```\n",
+        "<!-- c\n```\nAfter.\n```\n-->\n",
+        # Not an HTML block: a lone `<` and a bare word in angle brackets that
+        # CommonMark does not treat as a block start.
+        "< div>\n```\nAfter.\n```\n",
+        "a <span>b</span>\n```\nAfter.\n```\n",
+    )
+
+    #: Measured, not assumed: every one of the 20 HTML shapes is written to,
+    #: and none of the 4 clean shapes is.
     CORRUPTING_SHAPES = 20
 
     def _shapes(self) -> list[str]:
@@ -87,6 +105,9 @@ class TestRawHtmlIsADestructiveGap:
             shapes.append(f"{opener}\n```\nAfter.\n{closer}\n")
         return shapes
 
+    def _all_shapes(self) -> list[str]:
+        return self._shapes() + list(self.CLEAN_SHAPES)
+
     def test_the_shape_set_is_pinned(self) -> None:
         """Not parametrized, so it runs even if OPENERS is emptied.
 
@@ -95,11 +116,16 @@ class TestRawHtmlIsADestructiveGap:
         """
         assert len(self.OPENERS) == 10
         assert len(self._shapes()) == 20
+        assert len(self.CLEAN_SHAPES) == 4
+        # The headroom that lets the count rise. Without it the assertion below
+        # compares a subset of a 20-element set against 20 and cannot fail
+        # upward.
+        assert len(self._all_shapes()) == 24 > self.CORRUPTING_SHAPES
 
     def test_the_corruption_count_has_not_grown(self) -> None:
         corrupting = [
             text
-            for text in self._shapes()
+            for text in self._all_shapes()
             # The corruption class exactly: the ORACLE reads the input as
             # balanced, and the repair APPENDS. A middle rewrite is the
             # documented mistaken-closer divergence and does not count here.
@@ -108,7 +134,7 @@ class TestRawHtmlIsADestructiveGap:
             and repair_markdown_fences(text) != text
         ]
         assert len(corrupting) == self.CORRUPTING_SHAPES, (
-            f"{len(corrupting)} of {len(self._shapes())} raw HTML shapes are written to, "
+            f"{len(corrupting)} of {len(self._all_shapes())} shapes are written to, "
             f"pinned at {self.CORRUPTING_SHAPES}. If a fix lowered this, lower the pin. "
             "If something raised it, the gap spread and that is a regression."
         )
