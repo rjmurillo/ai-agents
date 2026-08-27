@@ -83,6 +83,21 @@ class TestDiffParsing:
         assert code == 0
         assert "examined 0 citation(s)" in out
 
+    def test_c_quoted_citing_path_is_decoded(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Regression (Copilot round 5, PR #5338): git C-quotes a header
+        # path carrying a quote even with core.quotePath=false, so the
+        # citing file stopped matching its HEAD path and its stale
+        # citation could pass unread. The shared unquoter decodes it.
+        root = _repo(tmp_path)
+        _add_doc(root, 'docs/od"d.md', f"See `{TARGET}:2` (`magic_token`).\n")
+
+        code, out = _run(root, capsys)
+
+        assert code == 1
+        assert 'od"d.md' in out
+
     def test_non_ascii_citing_path_is_not_octal_escaped(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -318,6 +333,22 @@ class TestScopeBoundaries:
         # in a report quote parsed as a repo citation and failed untracked.
         root = _repo(tmp_path)
         _add_doc(root, "docs/notes.md", f"Reported at /home/richard/repo/{TARGET}:2 today.\n")
+
+        code, out = _run(root, capsys)
+
+        assert code == 0
+        assert "examined 0 citation(s)" in out
+
+    def test_windows_absolute_path_is_not_a_repository_citation(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Regression (Copilot round 5, PR #5338): the left boundary
+        # excluded / but not backslash, so the matcher restarted at the
+        # tail of a Windows absolute path; with root files in scope,
+        # C:\tmp\README.md:42 read as a claim about the tracked README.
+        root = _repo(tmp_path)
+        readme = "README" + ".md"
+        _add_doc(root, "docs/notes.md", f"Logged at C:\\tmp\\{readme}:42 today.\n")
 
         code, out = _run(root, capsys)
 
