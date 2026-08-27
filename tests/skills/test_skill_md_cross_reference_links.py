@@ -1,17 +1,20 @@
 """Regression tests for issue #2796: dead cross-reference links in SKILL.md.
 
-`orphan-ref-validator/scripts/scan.py` checks two link classes today:
-`skill_name` (cross-skill prose mentions) and `script_path` (backticked
-`.py` references). It does not resolve general Markdown links
-(`[text](path)`) that point at other `.md` files, so a handful of
-`Cross-References`/`References` links drifted to paths that do not
-resolve when read the way every Markdown renderer (GitHub included)
-reads them: relative to the *containing file's own directory*, not the
-repo root. `scripts/validation/check_adr_links.py` covers `ADR-*.md`
-targets specifically, but not the non-ADR governance doc link.
+`.claude/skills/orphan-ref-validator/scripts/scan.py` checks two link
+classes today: `skill_name` (cross-skill prose mentions) and
+`script_path` (backticked `.py` references). It does not resolve
+general Markdown links (`[text](path)`) that point at other `.md`
+files, so a handful of `Cross-References`/`References` links drifted to
+paths that do not resolve when read the way every Markdown renderer
+(GitHub included) reads them: relative to the *containing file's own
+directory*, not the repo root. `scripts/validation/check_adr_links.py`
+covers `ADR-*.md` targets specifically, but not the non-ADR governance
+doc link.
 
-Two skills carried exactly this defect, reported against `main` on
-2026-08-05 (issue #2796 comment):
+The 2026-08-05 issue #2796 comment reports this defect across four
+skills: `golden-principles`, `memory-enhancement`, `session-init`, and
+`guard-maturity`. This PR repairs the first two; the other two are out
+of scope here. This module pins the two it repairs:
 
 - `.claude/skills/golden-principles/SKILL.md:138-140` linked
   `.agents/governance/golden-principles.md`,
@@ -75,13 +78,39 @@ def _resolve_markdown_link(source_file: Path, link_target: str) -> Path:
     return (source_file.parent / link_target).resolve()
 
 
-def _links_on_line(file_path: Path, line_no: int) -> list[str]:
-    line = file_path.read_text(encoding="utf-8").splitlines()[line_no - 1]
+def _section_lines(file_path: Path, heading: str) -> list[str]:
+    """Return the lines belonging to a Markdown ``## heading`` section.
+
+    Locating content by heading and label instead of an absolute line
+    number keeps these regression tests immune to unrelated prose landing
+    above the section (Copilot review, PR #5372).
+    """
+    lines = file_path.read_text(encoding="utf-8").splitlines()
+    heading_re = re.compile(rf"^##\s+{re.escape(heading)}\s*$")
+    start = next((i for i, line in enumerate(lines) if heading_re.match(line)), None)
+    assert start is not None, f"heading '## {heading}' not found in {file_path}"
+    end = next(
+        (i for i in range(start + 1, len(lines)) if re.match(r"^#{1,2}(?!#)", lines[i])),
+        len(lines),
+    )
+    return lines[start + 1 : end]
+
+
+def _line_with(file_path: Path, heading: str, needle: str) -> str:
+    """Return the one line in ``heading``'s section that contains ``needle``."""
+    matches = [line for line in _section_lines(file_path, heading) if needle in line]
+    assert len(matches) == 1, (
+        f"expected exactly one line containing {needle!r} in '## {heading}' "
+        f"of {file_path}, found {len(matches)}"
+    )
+    return matches[0]
+
+
+def _links_in(line: str) -> list[str]:
     return _MD_LINK_RE.findall(line)
 
 
-def _backtick_paths_on_line(file_path: Path, line_no: int) -> list[str]:
-    line = file_path.read_text(encoding="utf-8").splitlines()[line_no - 1]
+def _backtick_paths_in(line: str) -> list[str]:
     return _BACKTICK_PATH_RE.findall(line)
 
 
@@ -91,11 +120,12 @@ class TestGoldenPrinciplesCrossReferences:
     SKILL_MD = _REPO_ROOT / ".claude" / "skills" / "golden-principles" / "SKILL.md"
 
     def test_golden_principles_document_citation_resolves_repo_root_relative(self):
-        # Line 138 is now a backtick path citation, not a Markdown link
-        # (the .agents/ escape cannot be a depth-correct link; see module
-        # docstring). Resolved against the repo root, not this file's dir.
-        paths = _backtick_paths_on_line(self.SKILL_MD, 138)
-        assert paths, "expected a backtick-quoted path on line 138"
+        # Now a backtick path citation, not a Markdown link (the .agents/
+        # escape cannot be a depth-correct link; see module docstring).
+        # Resolved against the repo root, not this file's dir.
+        line = _line_with(self.SKILL_MD, "Cross-References", "golden-principles.md")
+        paths = _backtick_paths_in(line)
+        assert paths, f"expected a backtick-quoted path on: {line!r}"
         resolved = (_REPO_ROOT / paths[0]).resolve()
         assert resolved.is_file(), f"{paths[0]!r} does not resolve to a real file: {resolved}"
         assert resolved.name == "golden-principles.md"
@@ -103,18 +133,21 @@ class TestGoldenPrinciplesCrossReferences:
     def test_golden_principles_document_is_not_a_markdown_link(self):
         # Regression guard: converting this back to `[text](path)` would
         # reintroduce the exact depth-mismatch bug this fix avoids.
-        assert _links_on_line(self.SKILL_MD, 138) == []
+        line = _line_with(self.SKILL_MD, "Cross-References", "golden-principles.md")
+        assert _links_in(line) == []
 
     def test_taste_lints_link_resolves(self):
-        links = _links_on_line(self.SKILL_MD, 139)
-        assert links, "expected a Markdown link on line 139"
+        line = _line_with(self.SKILL_MD, "Cross-References", "taste-lints")
+        links = _links_in(line)
+        assert links, f"expected a Markdown link on: {line!r}"
         resolved = _resolve_markdown_link(self.SKILL_MD, links[0])
         assert resolved.is_file(), f"{links[0]!r} does not resolve to a real file: {resolved}"
         assert resolved == (_REPO_ROOT / ".claude" / "skills" / "taste-lints" / "SKILL.md")
 
     def test_quality_grades_link_resolves(self):
-        links = _links_on_line(self.SKILL_MD, 140)
-        assert links, "expected a Markdown link on line 140"
+        line = _line_with(self.SKILL_MD, "Cross-References", "quality-grades")
+        links = _links_in(line)
+        assert links, f"expected a Markdown link on: {line!r}"
         resolved = _resolve_markdown_link(self.SKILL_MD, links[0])
         assert resolved.is_file(), f"{links[0]!r} does not resolve to a real file: {resolved}"
         assert resolved == (_REPO_ROOT / ".claude" / "skills" / "quality-grades" / "SKILL.md")
@@ -126,15 +159,17 @@ class TestMemoryEnhancementAdrCitations:
     SKILL_MD = _REPO_ROOT / ".claude" / "skills" / "memory-enhancement" / "SKILL.md"
 
     def test_adr_007_citation_resolves_repo_root_relative(self):
-        paths = _backtick_paths_on_line(self.SKILL_MD, 319)
-        assert paths, "expected a backtick-quoted path on line 319"
+        line = _line_with(self.SKILL_MD, "References", "ADR-007-memory-first")
+        paths = _backtick_paths_in(line)
+        assert paths, f"expected a backtick-quoted path on: {line!r}"
         resolved = (_REPO_ROOT / paths[0]).resolve()
         assert resolved.is_file(), f"{paths[0]!r} does not resolve to a real file: {resolved}"
         assert resolved.name == "ADR-007-memory-first-architecture.md"
 
     def test_adr_038_citation_resolves_repo_root_relative(self):
-        paths = _backtick_paths_on_line(self.SKILL_MD, 320)
-        assert paths, "expected a backtick-quoted path on line 320"
+        line = _line_with(self.SKILL_MD, "References", "ADR-038-reflexion-memory-schema")
+        paths = _backtick_paths_in(line)
+        assert paths, f"expected a backtick-quoted path on: {line!r}"
         resolved = (_REPO_ROOT / paths[0]).resolve()
         assert resolved.is_file(), f"{paths[0]!r} does not resolve to a real file: {resolved}"
         assert resolved.name == "ADR-038-reflexion-memory-schema.md"
@@ -144,8 +179,10 @@ class TestMemoryEnhancementAdrCitations:
         # here resolves in the .claude source tree but NOT in the
         # generated src/copilot-cli mirror (see
         # TestMirrorDepthMismatch below), so it must stay a citation.
-        assert _links_on_line(self.SKILL_MD, 319) == []
-        assert _links_on_line(self.SKILL_MD, 320) == []
+        adr_007_line = _line_with(self.SKILL_MD, "References", "ADR-007-memory-first")
+        adr_038_line = _line_with(self.SKILL_MD, "References", "ADR-038-reflexion-memory-schema")
+        assert _links_in(adr_007_line) == []
+        assert _links_in(adr_038_line) == []
 
 
 class TestCopilotMirrorStaysInSync:
