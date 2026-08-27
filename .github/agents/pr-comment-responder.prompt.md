@@ -231,6 +231,11 @@ and reports zero.
 reference, as in `**Status**: [DEFERRED] Refs #4054`. A bare `[DEFERRED]` names no
 tracking issue, so nobody can find the work later and the gate keeps it pending.
 
+The issue number matches `#[1-9][0-9]*`, never `#[0-9]+`. GitHub numbers issues and
+pull requests from 1, so `#0` can never resolve. Admitting it would let a guaranteed
+non-reference mark deferred work terminal, which is the same lost-work failure a bare
+`[DEFERRED]` causes. `**Status**: [DEFERRED] Refs #0` stays pending.
+
 The terminal pattern ends at `[[:space:]]*$`, so a status line counts as terminal only
 when it ends at the status token, or at the `Refs #<issue>` reference for `[DEFERRED]`.
 `**Status**: [COMPLETE]oops` and `**Status**: [DEFERRED] Refs #4054garbage` match no
@@ -259,7 +264,7 @@ if [ ! -f "$COMMENT_MAP" ]; then
   exit 1
 fi
 TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
-TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
 
 if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
@@ -350,7 +355,7 @@ esac
 # pattern is Gate 4's, so a value that clears here clears there, and the four
 # shapes it admits carry no sed metacharacter.
 printf '%s\n' "**Status**: $TERMINAL_STATUS" \
-  | grep -Eq "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" || {
+  | grep -Eq "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" || {
     echo "[BLOCKED] TERMINAL_STATUS is not a terminal value: $TERMINAL_STATUS"
     exit 1
   }
@@ -386,7 +391,7 @@ if [ ! -f "$COMMENT_MAP" ]; then
   exit 1
 fi
 TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
-TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
 
 if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
@@ -424,7 +429,7 @@ if [ ! -f "$COMMENT_MAP" ]; then
   exit 1
 fi
 TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
-TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
 
 if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
@@ -1226,7 +1231,7 @@ if [ ! -f "$COMMENT_MAP" ]; then
   exit 1
 fi
 TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
-TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
 
 if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
@@ -1239,7 +1244,7 @@ echo "Verification: $TERMINAL / $TOTAL comments terminal"
 if [ "$PENDING" -ne 0 ]; then
   echo "[BLOCKED] INCOMPLETE: $PENDING comment(s) not terminal"
   grep -En "^\*\*Status\*\*: " "$COMMENT_MAP" \
-    | grep -Ev "\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" || true
+    | grep -Ev "\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" || true
   exit 1
 fi
 ```
