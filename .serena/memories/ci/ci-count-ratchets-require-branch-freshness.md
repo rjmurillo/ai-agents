@@ -1,5 +1,25 @@
 # The count ratchets make "behind main" a practical merge blocker even though the ruleset does not
 
+## Superseded in part by issue #5065 (2026-08-27)
+
+The behavior below is what `_base_ref_verdict` did up to issue #5065, and the
+measurements are still the record of what it cost. The verdict now reads the
+fork point with `git merge-base` and compares the recorded baseline against the
+value there:
+
+- Equal, so the branch never moved the number: prints `BEHIND BASE (not
+  blocking)` and evaluates the count leg as usual. The 31-of-33 shape recorded
+  under Evidence no longer blocks.
+- Different, so this branch's own tree moved the scalar, committed or dirty:
+  still `BASELINE ABOVE BASE` and still `EXIT_REGRESSION`.
+- Fork point unreadable, for instance a shallow clone: fails closed and blocks.
+
+The "must not be softened" section below still holds for what it actually
+protects, and the fix does not violate it: it does not pass a branch on
+`count <= base`. A higher number can only reach `main` through a diff that
+writes it, and such a diff still blocks. Syncing before a push remains good
+practice; it is no longer a precondition for a green baseline-above-base leg.
+
 ## Question
 
 `main`'s branch ruleset sets `strict_required_status_checks_policy: false` (measured 2026-08-14; reverted 2026-08-10), so
