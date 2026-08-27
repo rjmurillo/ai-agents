@@ -322,10 +322,15 @@ class TestSharedWorkflowNames:
         assert loaded["Dup"].has_path_filters is True
         assert loaded["b.yml"].has_path_filters is False
 
-    def test_a_filename_key_always_describes_that_one_file(self, tmp_path: Path):
+    def test_a_declared_name_colliding_with_a_filename_narrows_both(
+        self, tmp_path: Path
+    ):
         # `impostor.yml` declares the name "target.yml", which is also a real
-        # file. A filename is unambiguous by construction, so that key keeps
-        # describing the file it names rather than the set that answers to it.
+        # file. A run record supplies the declared name, so a lookup of
+        # "target.yml" cannot tell the two apart and must narrow to what both
+        # subscribe to. Keeping only the filename record (the previous
+        # `setdefault` behavior) answered yes for `reopened`, which impostor.yml
+        # does not declare.
         (tmp_path / "impostor.yml").write_text(
             "name: target.yml\non:\n  pull_request:\n    types: [opened]\n",
             encoding="utf-8",
@@ -336,4 +341,36 @@ class TestSharedWorkflowNames:
 
         loaded = load_workflow_subscriptions(tmp_path)
 
-        assert loaded["target.yml"].pull_request_types == frozenset({"reopened"})
+        assert loaded["target.yml"].pull_request_types == frozenset()
+        assert subscribes_to(loaded["target.yml"], "reopened") is False
+        assert loaded["impostor.yml"].pull_request_types == frozenset({"opened"})
+
+    def test_a_filename_collision_still_verifies_a_shared_event(self, tmp_path: Path):
+        # Control for the case above. Without it, a fix that emptied every
+        # colliding key outright would pass the negative test too.
+        (tmp_path / "impostor.yml").write_text(
+            "name: target.yml\non:\n  pull_request:\n    types: [opened, reopened]\n",
+            encoding="utf-8",
+        )
+        (tmp_path / "target.yml").write_text(
+            "on:\n  pull_request:\n    types: [reopened]\n", encoding="utf-8"
+        )
+
+        loaded = load_workflow_subscriptions(tmp_path)
+
+        assert subscribes_to(loaded["target.yml"], "reopened") is True
+
+    def test_a_name_equal_to_its_own_filename_is_not_narrowed(self, tmp_path: Path):
+        # Narrowing a record with itself is a no-op, so the one file that
+        # legitimately claims its own filename keeps its full subscription set.
+        (tmp_path / "solo.yml").write_text(
+            "name: solo.yml\non:\n  pull_request:\n    types: [opened, reopened]\n",
+            encoding="utf-8",
+        )
+
+        loaded = load_workflow_subscriptions(tmp_path)
+
+        assert loaded["solo.yml"].pull_request_types == frozenset(
+            {"opened", "reopened"}
+        )
+        assert subscribes_to(loaded["solo.yml"], "reopened") is True

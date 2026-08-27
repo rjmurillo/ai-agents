@@ -62,6 +62,7 @@ import yaml
 
 __all__ = [
     "DEFAULT_PULL_REQUEST_TYPES",
+    "PULL_REQUEST_RECOVERY_EVENTS",
     "RECOVERY_EVENTS",
     "WorkflowSubscriptions",
     "declared_required_contexts",
@@ -92,6 +93,19 @@ DEFAULT_PULL_REQUEST_TYPES: frozenset[str] = frozenset(
 RECOVERY_EVENTS: frozenset[str] = frozenset(
     {"synchronize", "reopened", "workflow_dispatch", "rerun"}
 )
+
+# The subset of RECOVERY_EVENTS that GitHub delivers through the
+# pull_request-family triggers, and therefore the only ones whose regeneration
+# is subject to those triggers' `paths`/`paths-ignore` filters.
+#
+# `workflow_dispatch` fires its own trigger, which has no path filters at all,
+# and `rerun` re-executes an existing run through the Actions API without
+# evaluating any trigger. Applying a `pull_request: paths:` filter to either
+# rejects a recovery mode that filter cannot affect: measured on this
+# repository's corpus, 6 workflow files declare `paths` on `pull_request`, so
+# scoping this correctly is the difference between two usable recovery modes
+# and none for those workflows.
+PULL_REQUEST_RECOVERY_EVENTS: frozenset[str] = frozenset({"synchronize", "reopened"})
 
 _PULL_REQUEST_TRIGGERS = ("pull_request", "pull_request_target")
 
@@ -359,12 +373,21 @@ def load_workflow_subscriptions(
     skipped rather than raising: one malformed workflow must not prevent the
     guard from reporting on the rest, and an absent entry already fails closed.
 
-    A filename key always describes exactly that file. A ``name:`` key that two
-    or more files declare describes all of them, narrowed by
-    :func:`_narrow_to_shared` to the events every one of them subscribes to.
-    Declared names are collected separately and merged in with ``setdefault`` so
-    a ``name:`` that collides with a different file's filename cannot displace
-    or narrow that file's own entry.
+    Every key that two or more workflow files can answer to is narrowed by
+    :func:`_narrow_to_shared` to what all of its claimants share. Two files
+    claim one key in two ways, and both must narrow:
+
+    - Two files declaring the same ``name:``.
+    - One file's declared ``name:`` equal to another file's filename. A run
+      record supplies the declared name, so a lookup of ``"release.yml"``
+      cannot tell the file named ``release.yml`` from the file that declares
+      ``name: release.yml``. Keeping only the filename record (the previous
+      ``setdefault`` behavior) drops the other claimant and can verify a
+      recovery event the run's real workflow does not subscribe to.
+
+    Narrowing a record with itself is a no-op (intersection with self is self,
+    union with self is self), so a file whose ``name:`` equals its own filename
+    is unaffected.
     """
     subscriptions: dict[str, WorkflowSubscriptions] = {}
     by_declared_name: dict[str, WorkflowSubscriptions] = {}
@@ -389,5 +412,8 @@ def load_workflow_subscriptions(
             )
 
     for name, merged in by_declared_name.items():
-        subscriptions.setdefault(name, merged)
+        existing = subscriptions.get(name)
+        subscriptions[name] = (
+            merged if existing is None else _narrow_to_shared(existing, merged)
+        )
     return subscriptions
