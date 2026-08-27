@@ -256,8 +256,8 @@ def test_table_terminal_column_agrees_with_the_terminal_grep(path: Path) -> None
     """Every status the table calls terminal must be in the terminal grep."""
     section = _vocabulary_section(path.read_text(encoding="utf-8"))
 
-    tabled_terminal = set()
-    tabled_pending = set()
+    tabled_terminal: set[str] = set()
+    tabled_pending: set[str] = set()
     for line in section.splitlines():
         match = VOCABULARY_ROW_RE.match(line)
         if match is None:
