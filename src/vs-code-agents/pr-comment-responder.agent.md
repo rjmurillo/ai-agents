@@ -90,6 +90,11 @@ No gate enumerates pending statuses. Every gate counts the terminal statuses and
 subtracts. A status outside this table therefore fails closed: it matches no terminal
 pattern, so it counts as pending and blocks.
 
+The Comment Index that Step 2.2 renders carries no status cell. Gate 3 rewrites
+the `**Status**:` detail line and nothing else, so an index column would keep
+whatever Step 2.2 rendered for the life of the artifact and disagree with the
+detail entry it summarizes. One representation, in the detail entry.
+
 ```bash
 COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
 if [ ! -f "$COMMENT_MAP" ]; then
@@ -100,16 +105,19 @@ TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
 TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
 
-# Phase 1 sets TOTAL_COMMENTS via `jq` without `-e`; an API or script failure
-# can leave it empty or `null`. `[ -ne ]` on a non-numeric right-hand side
-# raises `integer expression expected`, which is a nonzero exit from `[` and
-# reads as false to `if`, so the BLOCKED body below never runs and a
-# terminal-looking map clears the gate anyway. Fail closed before that.
+# Phase 1 recorded the API count in this artifact. Shell variables do not
+# survive between fenced blocks: each one runs in its own shell, so a gate that
+# read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
+# expression expected`, and that nonzero exit from `[` reads as false to `if`,
+# so the BLOCKED body never ran. Read the artifact and fail closed instead.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+if [ ! -f "$COUNT_FILE" ]; then
+  echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
+  exit 1
+fi
+TOTAL_COMMENTS=$(cat "$COUNT_FILE")
 case "$TOTAL_COMMENTS" in
-  ''|*[!0-9]*)
-    echo "[BLOCKED] TOTAL_COMMENTS is not a non-negative integer: $TOTAL_COMMENTS"
-    exit 1
-    ;;
+  ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
 esac
 
 if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
@@ -326,6 +334,20 @@ if [ ! -f "$PR_COMMENT_LOG" ]; then
   exit 1
 fi
 REACTIONS_ADDED=$(grep -c "reaction.*eyes" "$PR_COMMENT_LOG" || true)
+# Phase 1 recorded the API count in this artifact. Shell variables do not
+# survive between fenced blocks: each one runs in its own shell, so a gate that
+# read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
+# expression expected`, and that nonzero exit from `[` reads as false to `if`,
+# so the BLOCKED body never ran. Read the artifact and fail closed instead.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+if [ ! -f "$COUNT_FILE" ]; then
+  echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
+  exit 1
+fi
+TOTAL_COMMENTS=$(cat "$COUNT_FILE")
+case "$TOTAL_COMMENTS" in
+  ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
+esac
 COMMENT_COUNT=$TOTAL_COMMENTS
 
 if [ "$REACTIONS_ADDED" -ne "$COMMENT_COUNT" ]; then
@@ -346,6 +368,20 @@ test -f ".agents/pr-comments/PR-[number]/comments.md" || exit 1
 test -f ".agents/pr-comments/PR-[number]/tasks.md" || exit 1
 
 # Verify comment count matches
+# Phase 1 recorded the API count in this artifact. Shell variables do not
+# survive between fenced blocks: each one runs in its own shell, so a gate that
+# read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
+# expression expected`, and that nonzero exit from `[` reads as false to `if`,
+# so the BLOCKED body never ran. Read the artifact and fail closed instead.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+if [ ! -f "$COUNT_FILE" ]; then
+  echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
+  exit 1
+fi
+TOTAL_COMMENTS=$(cat "$COUNT_FILE")
+case "$TOTAL_COMMENTS" in
+  ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
+esac
 ARTIFACT_COUNT=$(grep -c "^| [0-9]" .agents/pr-comments/PR-[number]/comments.md)
 if [ "$ARTIFACT_COUNT" -ne "$TOTAL_COMMENTS" ]; then
   echo "[BLOCKED] Artifact count: $ARTIFACT_COUNT != API count: $TOTAL_COMMENTS"
@@ -458,16 +494,19 @@ TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
 TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
 
-# Phase 1 sets TOTAL_COMMENTS via `jq` without `-e`; an API or script failure
-# can leave it empty or `null`. `[ -ne ]` on a non-numeric right-hand side
-# raises `integer expression expected`, which is a nonzero exit from `[` and
-# reads as false to `if`, so the BLOCKED body below never runs and a
-# terminal-looking map clears the gate anyway. Fail closed before that.
+# Phase 1 recorded the API count in this artifact. Shell variables do not
+# survive between fenced blocks: each one runs in its own shell, so a gate that
+# read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
+# expression expected`, and that nonzero exit from `[` reads as false to `if`,
+# so the BLOCKED body never ran. Read the artifact and fail closed instead.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+if [ ! -f "$COUNT_FILE" ]; then
+  echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
+  exit 1
+fi
+TOTAL_COMMENTS=$(cat "$COUNT_FILE")
 case "$TOTAL_COMMENTS" in
-  ''|*[!0-9]*)
-    echo "[BLOCKED] TOTAL_COMMENTS is not a non-negative integer: $TOTAL_COMMENTS"
-    exit 1
-    ;;
+  ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
 esac
 
 if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
@@ -507,16 +546,19 @@ TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
 TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
 
-# Phase 1 sets TOTAL_COMMENTS via `jq` without `-e`; an API or script failure
-# can leave it empty or `null`. `[ -ne ]` on a non-numeric right-hand side
-# raises `integer expression expected`, which is a nonzero exit from `[` and
-# reads as false to `if`, so the BLOCKED body below never runs and a
-# terminal-looking map clears the gate anyway. Fail closed before that.
+# Phase 1 recorded the API count in this artifact. Shell variables do not
+# survive between fenced blocks: each one runs in its own shell, so a gate that
+# read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
+# expression expected`, and that nonzero exit from `[` reads as false to `if`,
+# so the BLOCKED body never ran. Read the artifact and fail closed instead.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+if [ ! -f "$COUNT_FILE" ]; then
+  echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
+  exit 1
+fi
+TOTAL_COMMENTS=$(cat "$COUNT_FILE")
 case "$TOTAL_COMMENTS" in
-  ''|*[!0-9]*)
-    echo "[BLOCKED] TOTAL_COMMENTS is not a non-negative integer: $TOTAL_COMMENTS"
-    exit 1
-    ;;
+  ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
 esac
 
 if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
@@ -722,6 +764,12 @@ TOTAL_COMMENTS=$(echo "$COMMENTS" | jq '.TotalComments')
 echo "$COMMENTS"
 echo "Total comments: $TOTAL_COMMENTS"
 
+# Record the API count where every later gate reads it. Shell variables do not
+# survive between fenced blocks, so the count has to reach them as an artifact.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+mkdir -p "$(dirname "$COUNT_FILE")"
+printf '%s\n' "$TOTAL_COMMENTS" > "$COUNT_FILE"
+
 # Returns all comments with: Id, CommentType (Review/Issue), Author, Path, Line, Body, DiffHunk, CreatedAt, InReplyToId
 ```
 
@@ -756,6 +804,12 @@ ISSUE_COMMENT_COUNT=$(echo "$ALL_ISSUE_COMMENTS" | jq 'length')
 # Total count
 TOTAL_COMMENTS=$((REVIEW_COMMENT_COUNT + ISSUE_COMMENT_COUNT))
 echo "Total comments: $TOTAL_COMMENTS (Review: $REVIEW_COMMENT_COUNT, Issue: $ISSUE_COMMENT_COUNT)"
+
+# Record the API count where every later gate reads it. Shell variables do not
+# survive between fenced blocks, so the count has to reach them as an artifact.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+mkdir -p "$(dirname "$COUNT_FILE")"
+printf '%s\n' "$TOTAL_COMMENTS" > "$COUNT_FILE"
 ```
 
 </details>
@@ -879,9 +933,9 @@ Save to: `.agents/pr-comments/PR-[number]/comments.md`
 
 ## Comment Index
 
-| ID | Author | Type | Path/Line | Status | Priority | Plan Ref |
-|----|--------|------|-----------|--------|----------|----------|
-| [id] | @[author] | review/issue | [path]#[line] | pending | TBD | - |
+| ID | Author | Type | Path/Line | Priority | Plan Ref |
+|----|--------|------|-----------|----------|----------|
+| [id] | @[author] | review/issue | [path]#[line] | TBD | - |
 
 ## Comments Detail
 
@@ -1348,16 +1402,19 @@ TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
 TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
 
-# Phase 1 sets TOTAL_COMMENTS via `jq` without `-e`; an API or script failure
-# can leave it empty or `null`. `[ -ne ]` on a non-numeric right-hand side
-# raises `integer expression expected`, which is a nonzero exit from `[` and
-# reads as false to `if`, so the BLOCKED body below never runs and a
-# terminal-looking map clears the gate anyway. Fail closed before that.
+# Phase 1 recorded the API count in this artifact. Shell variables do not
+# survive between fenced blocks: each one runs in its own shell, so a gate that
+# read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
+# expression expected`, and that nonzero exit from `[` reads as false to `if`,
+# so the BLOCKED body never ran. Read the artifact and fail closed instead.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+if [ ! -f "$COUNT_FILE" ]; then
+  echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
+  exit 1
+fi
+TOTAL_COMMENTS=$(cat "$COUNT_FILE")
 case "$TOTAL_COMMENTS" in
-  ''|*[!0-9]*)
-    echo "[BLOCKED] TOTAL_COMMENTS is not a non-negative integer: $TOTAL_COMMENTS"
-    exit 1
-    ;;
+  ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
 esac
 
 if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
@@ -1419,6 +1476,21 @@ SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 NEW_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments | jq '.TotalComments')
 
 # Compare to original count
+# Phase 1 recorded the API count in this artifact. Shell variables do not
+# survive between fenced blocks: each one runs in its own shell, so a gate that
+# read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
+# expression expected`, and that nonzero exit from `[` reads as false to `if`,
+# so the BLOCKED body never ran. Read the artifact and fail closed instead.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+if [ ! -f "$COUNT_FILE" ]; then
+  echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
+  exit 1
+fi
+TOTAL_COMMENTS=$(cat "$COUNT_FILE")
+case "$TOTAL_COMMENTS" in
+  ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
+esac
+
 if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
   echo "[NEW COMMENTS] $((NEW_COMMENTS - TOTAL_COMMENTS)) new comments detected"
   # Fetch new comments, add to comment map with status [NEW]
@@ -1516,6 +1588,43 @@ echo "[PASS] All CI checks passing ($PASSED_COUNT checks)"
 # Final verification
 PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
+# Re-derive the counts. This fence is a separate shell from Phase 8.1, so
+# $TOTAL and $TERMINAL do not survive into it and the summary would otherwise
+# report an empty numerator over an empty denominator.
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+if [ ! -f "$COMMENT_MAP" ]; then
+  echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
+  exit 1
+fi
+TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
+PENDING=$((TOTAL - TERMINAL))
+
+# Phase 1 recorded the API count in this artifact. Shell variables do not
+# survive between fenced blocks: each one runs in its own shell, so a gate that
+# read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
+# expression expected`, and that nonzero exit from `[` reads as false to `if`,
+# so the BLOCKED body never ran. Read the artifact and fail closed instead.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+if [ ! -f "$COUNT_FILE" ]; then
+  echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
+  exit 1
+fi
+TOTAL_COMMENTS=$(cat "$COUNT_FILE")
+case "$TOTAL_COMMENTS" in
+  ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
+esac
+
+if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
+  echo "[BLOCKED] Comment map carries $TOTAL status fields, API reported $TOTAL_COMMENTS"
+  exit 1
+fi
+
+if [ "$PENDING" -ne 0 ]; then
+  echo "[BLOCKED] $PENDING comment(s) not terminal"
+  exit 1
+fi
+
 echo "=== Completion Criteria ==="
 echo "[ ] Comments: $TERMINAL/$TOTAL resolved"
 echo "[ ] New comments: None after 45s wait"
@@ -1527,8 +1636,8 @@ if [ "$ALL_PASSING" = "true" ]; then
   CI_STATUS="PASS"
 else
   FAILED=$(echo "$CHECKS" | jq '.Data.FailedCount')
-  PENDING=$(echo "$CHECKS" | jq '.Data.PendingCount')
-  CI_STATUS="$FAILED failures, $PENDING pending"
+  CI_PENDING=$(echo "$CHECKS" | jq '.Data.PendingCount')
+  CI_STATUS="$FAILED failures, $CI_PENDING pending"
 fi
 echo "[ ] CI checks: $CI_STATUS"
 
