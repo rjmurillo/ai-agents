@@ -160,8 +160,17 @@ COUNT_READ_BLOCK = (
 COUNT_RECORD_STEPS: tuple[str, ...] = (
     f'COUNT_FILE="{COUNT_ARTIFACT_PATH}"',
     'mkdir -p "$(dirname "$COUNT_FILE")"',
-    "printf '%s\\n' \"$TOTAL_COMMENTS\" > \"$COUNT_FILE\"",
+    'printf \'%s\\n\' "$TOTAL_COMMENTS" > "$COUNT_FILE"',
 )
+
+# Phase 8.3 re-fetches after a push and appends the comments that arrived since
+# Phase 1 to the map with status ``[NEW]``. The recorded count is how many
+# status fields the map should carry, so it has to move with that append. Left
+# at the Phase 1 snapshot it is permanently smaller than the map, and the
+# API-count invariant below blocks every later pass on correct work.
+RECHECK_SECTION_KEY = "Phase 8.3"
+RECHECK_BLOCK_OPEN = 'if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then'
+COUNT_REFRESH_STEP = 'printf \'%s\\n\' "$NEW_COMMENTS" > "$COUNT_FILE"'
 
 # The guard that proves the map is complete before the subtraction is trusted.
 # A map whose status fields were stripped counts zero total and zero terminal,
@@ -310,6 +319,16 @@ COMPLETE_COMMENT_MAP_LINES: tuple[str, ...] = (
     "**Status**: [DEFERRED] Refs #4054",
 )
 
+# The map a second pass works against. A bot answered the push, Phase 8.3
+# appended its comment, and the agent then worked it to terminal. Four status
+# fields, all terminal, so the only thing that can still block Gate 4 is a
+# recorded count that never learned about the fourth.
+SECOND_PASS_COMMENT_MAP_LINES: tuple[str, ...] = COMPLETE_COMMENT_MAP_LINES + (
+    "### Comment 126 (@bot)",
+    "**Status**: [COMPLETE]",
+)
+SECOND_PASS_COMMENT_COUNT = API_COMMENT_COUNT + 1
+
 # The same three comments with one still unworked. All three status fields are
 # present, so the API-count invariant clears and the gate's blocking check on
 # $PENDING is what has to reject it.
@@ -432,6 +451,39 @@ def _section_key(heading: str) -> str | None:
         if heading.startswith(key):
             return key
     return None
+
+
+def _recheck_fence(path: Path) -> str:
+    """The Phase 8.3 fence that compares the fresh API count to the recorded one.
+
+    Matched on the heading rather than discovered from the body, so a carrier
+    that loses the fence fails here instead of dropping out of the set.
+    """
+    for heading, body in _bash_fences(path.read_text(encoding="utf-8")):
+        if heading.startswith(RECHECK_SECTION_KEY) and RECHECK_BLOCK_OPEN in body:
+            return body
+    raise AssertionError(f"{_carrier_id(path)} publishes no {RECHECK_SECTION_KEY} fence")
+
+
+def _recheck_script(fence: str, new_comments: int, *, with_refresh: bool = True) -> str:
+    """Lift Phase 8.3's count read and new-comment branch out verbatim.
+
+    Sliced from the count-artifact read so the ``python3`` re-fetch above it is
+    left out; ``NEW_COMMENTS`` is supplied by the caller in its place, which is
+    what that fetch would have assigned. ``with_refresh`` is the negative
+    control: dropping the refresh must leave the recorded count stale.
+    """
+    assert COUNT_READ_BLOCK in fence, "Phase 8.3 publishes no count-artifact read"
+    assert COUNT_REFRESH_STEP in fence, (
+        "Phase 8.3 appends new comments to the map without refreshing the "
+        "recorded count, so Gate 4's API-count invariant blocks every later pass"
+    )
+    start = fence.index(COUNT_READ_BLOCK)
+    end = fence.index(BLOCK_END, fence.index(RECHECK_BLOCK_OPEN)) + len(BLOCK_END)
+    body = fence[start:end]
+    if not with_refresh:
+        body = body.replace(COUNT_REFRESH_STEP, ":")
+    return f"NEW_COMMENTS={new_comments}\n{body}\n"
 
 
 def _counting_fences(text: str) -> list[tuple[str, str]]:
@@ -1060,15 +1112,73 @@ def test_the_recorded_count_reaches_the_gate_that_reads_it(path: Path, tmp_path:
         f"{_carrier_id(path)} Phase 1 wrote no artifact at {COUNT_ARTIFACT_PATH}"
     )
 
-    result = _run_derivation(
-        _derivation_script(_gate_four_fence(path), comment_map), cwd=tmp_path
-    )
+    result = _run_derivation(_derivation_script(_gate_four_fence(path), comment_map), cwd=tmp_path)
 
     assert result.returncode == 0, (
         f"{_carrier_id(path)} Gate 4 rejected the count Phase 1 recorded: "
         f"exit {result.returncode}, stdout {result.stdout!r}"
     )
     assert "PENDING=0" in result.stdout
+
+
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_a_second_pass_clears_the_gate_after_phase_eight_three_appends(
+    path: Path, tmp_path: Path
+) -> None:
+    """Run Phase 8.3's refresh, then Gate 4, against one filesystem.
+
+    Phase 8.3 appends the comments that arrived after the push, so the map
+    grows past the count Phase 1 recorded. Executing the refresh and then the
+    gate proves the loop the workflow tells the agent to repeat is actually
+    repeatable, rather than one pass that happens to line up.
+    """
+    _record_api_count(tmp_path, API_COMMENT_COUNT)
+
+    refreshed = _run_derivation(
+        _recheck_script(_recheck_fence(path), SECOND_PASS_COMMENT_COUNT), cwd=tmp_path
+    )
+    assert refreshed.returncode == 0, (
+        f"{_carrier_id(path)} Phase 8.3 failed on a new comment: {refreshed.stderr!r}"
+    )
+    assert "[NEW COMMENTS] 1 new comments detected" in refreshed.stdout
+
+    comment_map = _render_comment_map(tmp_path, SECOND_PASS_COMMENT_MAP_LINES)
+    result = _run_derivation(_derivation_script(_gate_four_fence(path), comment_map), cwd=tmp_path)
+
+    assert result.returncode == 0, (
+        f"{_carrier_id(path)} Gate 4 blocked a second pass in which every "
+        f"comment reached a terminal status: exit {result.returncode}, "
+        f"stdout {result.stdout!r}"
+    )
+    assert "PENDING=0" in result.stdout
+
+
+def test_without_the_refresh_a_second_pass_can_never_clear(tmp_path: Path) -> None:
+    """Negative control for the refresh above (PR #5342 review).
+
+    Phase 8.3 shipped the count read and the append with no write back to the
+    count artifact. The map then carried four status fields against a recorded
+    three, so Gate 4's API-count invariant blocked, and nothing an agent could
+    do to the comments moved either number. Removing only the refresh from the
+    canonical fence must reproduce that.
+    """
+    path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
+    _record_api_count(tmp_path, API_COMMENT_COUNT)
+
+    stale = _run_derivation(
+        _recheck_script(_recheck_fence(path), SECOND_PASS_COMMENT_COUNT, with_refresh=False),
+        cwd=tmp_path,
+    )
+    assert stale.returncode == 0
+
+    comment_map = _render_comment_map(tmp_path, SECOND_PASS_COMMENT_MAP_LINES)
+    result = _run_derivation(_derivation_script(_gate_four_fence(path), comment_map), cwd=tmp_path)
+
+    assert result.returncode == 1, (
+        "without the refresh a fully worked second pass still has to block, "
+        f"but the gate exited {result.returncode}: {result.stdout!r}"
+    )
+    assert "[BLOCKED] Comment map carries 4 status fields, API reported 3" in result.stdout
 
 
 @pytest.mark.parametrize("path", VOCABULARY_CARRIERS, ids=_carrier_id)
