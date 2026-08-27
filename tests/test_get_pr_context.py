@@ -1311,6 +1311,57 @@ class TestAuthorIsBot:
         assert self._data(capsys, {"login": 7})["author_is_bot"] is None
         assert self._data(capsys, "alice")["author_is_bot"] is None
 
+    @pytest.mark.parametrize(
+        "login",
+        [
+            pytest.param("   ", id="spaces-only"),
+            pytest.param("\t", id="tab-only"),
+            pytest.param("\n", id="newline-only"),
+            pytest.param(" \t \n ", id="mixed-whitespace-only"),
+            pytest.param(" alice ", id="padded-human-login"),
+            pytest.param(" dependabot[bot] ", id="padded-bot-login"),
+            pytest.param("al ice", id="interior-space"),
+        ],
+    )
+    def test_a_whitespace_bearing_login_is_null_not_false(self, capsys, login):
+        """A login nobody could have typed is unreadable, not human.
+
+        Same direction as `test_unreadable_author_is_null_not_false`, and the
+        hole that one left. `""` is rejected by `not login`, but `"   "` is
+        truthy, so it reached `is_bot`, matched no suffix and no configured
+        name, and came back a real `False`.
+
+        Negative control, measured against the pre-fix code at `49e1c1a96` by
+        calling `_author_is_bot` directly: `{"login": "   "}` returned `False`
+        and `{"login": "\\t"}` returned `False`, while `{"login": ""}` already
+        returned `None`. A PR whose author GitHub returned blank was therefore
+        forwarded to the tier producer as a human and entered the unattended
+        thread-fix loop, which is the fail-open direction the `None` state
+        exists to refuse.
+
+        The padded and interior cases are rejected rather than stripped and
+        classified: a whitespace-bearing login is malformed whichever end the
+        whitespace sits on, and classifying `" alice "` by its stripped form
+        would still hand back an unearned `False` off data GitHub cannot
+        produce. Real logins are `[A-Za-z0-9-]` only.
+        """
+        assert self._data(capsys, {"login": login})["author_is_bot"] is None
+
+    def test_the_whitespace_guard_does_not_reclassify_a_known_bot(self, capsys):
+        """No-over-fire control for the guard above.
+
+        A guard broad enough to reject `"   "` must not reject a name `is_bot`
+        already recognizes. Enumerated on this checkout, `bot_config`'s
+        `_BOT_ALIAS_MAP` keys and values together with `get_bot_authors()` are
+        28 names, and none contains a whitespace character, so the two
+        populations do not overlap. The three bot spellings below are the ones
+        this repository's own bot PRs arrive under; a broadened guard that also
+        swallowed them would leave issue #5208 unfixed while looking fixed.
+        """
+        for login in ("dependabot[bot]", "app/copilot-swe-agent", "Copilot"):
+            assert self._data(capsys, {"login": login})["author_is_bot"] is True, login
+        assert self._data(capsys, {"login": "alice"})["author_is_bot"] is False
+
     def test_a_missing_author_key_is_null(self, capsys):
         raw = json.loads(_pr_json())
         del raw["author"]
