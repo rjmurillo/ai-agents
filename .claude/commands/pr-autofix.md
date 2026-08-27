@@ -667,6 +667,15 @@ Dispatcher exit contract (CWE-829 trust boundary, Issue #5072): exit 0 all crite
 The `Tier` field in `test_pr_merge_ready.py` output is the authoritative
 classifier.  Pass `--is-bot` when the PR author is a bot.
 
+The classifier is total: every `mergeStateStatus` GitHub can report reaches
+exactly one row across the two tables below, and no state reaches T1 unless
+this document names a merge script for it. `CLEAN` and `UNSTABLE` are that
+set. `BEHIND`, `BLOCKED`, and `DIRTY` take their own merge-path rows. Every
+other value, `HAS_HOOKS` and `UNKNOWN` today plus anything GitHub adds later
+plus a missing value, blocks `CanMerge` and lands on T4 for investigation.
+Issue #4899 reopen: `HAS_HOOKS` previously reached T1, so the auto-merge path
+was armed for a state no row here can execute.
+
 ### Work-needed tiers
 
 | Tier | Criteria | Action |
@@ -674,7 +683,7 @@ classifier.  Pass `--is-bot` when the PR author is a bot.
 | T1 | `CanMerge=true` (`CLEAN` or `UNSTABLE` with all non-required failures disposed) | Merge via the appropriate merge path |
 | T2 | CI failures only (required or undisposed non-required), no threads | Fix CI, verify required checks pass |
 | T3 | Threads only (CI passing) | Walk full thread lifecycle, then merge |
-| T4 | Both CI failures + threads | Fix CI first, then lifecycle threads |
+| T4 | Both CI failures + threads, or a `mergeStateStatus` with no merge path | Fix CI first, then lifecycle threads; for an unsupported merge state, investigate before any merge attempt |
 | T5 | Bot PR with any failure or threads | Handle individually |
 
 ### Merge-path states (not work tiers)
@@ -805,6 +814,7 @@ GitHub refuses auto-merge for `UNSTABLE` PRs (issue #2439) and may also reject a
 | `UNSTABLE` with documented non-required failures | Direct merge (immediate) | Guard `merge_pr.py --strategy squash` |
 | `BEHIND` | Update branch first, then re-classify | Guard the fetch, merge, and push separately |
 | `DIRTY`/`CONFLICTING` | See Stale merge-state cache pattern below | merge-resolver agent if real conflict |
+| Anything else (`HAS_HOOKS`, `UNKNOWN`, missing, future) | No merge path. `test_pr_merge_ready.py` reports `CanMerge=false` and tier T4 | Investigate; do not attempt a merge |
 
 `set_pr_auto_merge.py` detects the `UNSTABLE` and already-`CLEAN` rejections from GitHub's GraphQL API and emits the direct-merge fallback command in its error output (exit 3) so the operator never has to translate the generic "GraphQL request failed" message themselves.
 
