@@ -28,6 +28,8 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 from checks_common import _run_subprocess  # noqa: E402
 
+from scripts.ci.diff_line_scope import unquote_diff_path  # noqa: E402
+
 _HUNK_HEADER = re.compile(r"^@@ -\d+(?:,\d+)? \+(?P<new_start>\d+)(?:,(?P<new_count>\d+))? @@")
 
 
@@ -98,7 +100,11 @@ def _added_lines_since_base(
             in_hunk = False
             continue
         if not in_hunk and raw.startswith("+++ "):
-            target = raw[4:].strip()
+            # Git C-quotes a header path carrying a quote, backslash, or
+            # control character even with core.quotePath=false; the shared
+            # unquoter (diff_line_scope's) decodes it so the citing file
+            # still matches its HEAD path and keeps its exemptions.
+            target = unquote_diff_path(raw[4:]).strip()
             current_file = None if target == "/dev/null" else target.removeprefix("b/")
             continue
         hunk = _HUNK_HEADER.match(raw)

@@ -81,7 +81,7 @@ One slice of this is now machine-checked. The `Citation Freshness (added lines)`
 
 ```python
 _CITATION = re.compile(
-    rf"(?<![\w./-])(?!\.\./)"
+    rf"(?<![\w./\\-])(?!\.\.[/\\])"
     rf"(?P<path>[\w.-]+(?:/[\w.-]+)*\.(?:{_EXTENSIONS})):(?P<start>\d+)(?:-(?P<end>\d+))?\b"
 )
 ```
