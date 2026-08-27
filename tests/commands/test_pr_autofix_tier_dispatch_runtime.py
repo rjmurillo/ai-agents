@@ -349,6 +349,39 @@ def test_skip_terminates_instead_of_reaching_the_disarm_gate(tmp_path: Path, doc
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_unsupported_disarms_first_then_terminates(tmp_path: Path, doc: str) -> None:
+    """UNSUPPORTED terminates, but one gate later than SKIP, and that is the point.
+
+    Both are recognized and non-actionable, and they differ on exactly one
+    thing: whether auto-merge survives. SKIP names a state the author chose
+    (draft, merged, closed), so stripping it would destroy that choice. This
+    one names a `mergeStateStatus` with no verified merge path, so "armed but
+    not provably T1" is exactly true of it and the arm must fall through to the
+    disarm gate before stopping. Read against
+    `test_skip_terminates_instead_of_reaching_the_disarm_gate` above, which
+    asserts the opposite `disarmed` value on the same harness.
+
+    `round_cap_called` is the other half. Before this tier existed the same PR
+    classified T4, which dispatches into the round-cap thread-fix loop with no
+    threads to fix and no CI to repair, so it terminated only by burning the
+    cap and posting an escalation comment (issue #4899 reopen).
+    """
+    run = run_dispatch(
+        tmp_path, doc, tier="UNSUPPORTED", auto_merge="SQUASH", round_action="ACT"
+    )
+
+    assert "Cannot determine tier" not in run.stdout, (
+        "UNSUPPORTED is declared in _TIER_ORDER, not a producer failure"
+    )
+    assert "no verified merge path" in run.stdout
+    assert run.disarmed, "auto-merge survived on a PR with no verified merge path"
+    assert not run.round_cap_called, "the round-cap breaker fired on a PR with no work"
+    assert not run.reached_end
+    assert run.cleaned_up
+    assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
 def test_a_comment_reword_changes_nothing(tmp_path: Path, doc: str) -> None:
     """The inverted control, in the suite rather than in a report.
 
