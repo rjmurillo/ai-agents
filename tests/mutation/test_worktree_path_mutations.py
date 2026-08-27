@@ -1,3 +1,7 @@
+# taste-lint: ignore file-size -- mutation harness; MUST 11 requires each control to
+# run byte-for-byte the same test_paths as the mutants it vouches for, and
+# test_every_runner_path_has_an_inert_control reads both lists from this module, so
+# splitting the specs from the controls would break the pairing it checks.
 """Mutation harness for issues #4160 and #4194.
 
 Reports four outcomes per mutation:
