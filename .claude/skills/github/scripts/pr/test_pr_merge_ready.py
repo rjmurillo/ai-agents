@@ -565,14 +565,26 @@ def _merge_state_status(pr: dict) -> str:
     return "" if value is None else str(value)
 
 
+# The only two merge states the caller knows how to execute.  Quoted verbatim
+# from `.claude/commands/pr-autofix.md`, "Ready-to-Merge Definition" item 4:
+#
+#     4. `mergeStateStatus == CLEAN` (or `UNSTABLE` with documented
+#        non-required failures).
+#
+# Its "Merge path by `mergeStateStatus`" table names a merge script for CLEAN
+# and for UNSTABLE only; BEHIND and DIRTY/CONFLICTING route to a repair step,
+# and every other value has no row at all.  Anything outside this set therefore
+# has no executable merge path, so it must not reach `CanMerge=True` (and
+# through it `Tier=T1`).  Issue #4899 reopen: `HAS_HOOKS` did exactly that.
+_SUPPORTED_MERGE_STATES = frozenset({"CLEAN", "UNSTABLE"})
+
+
 def _evaluate_pr_state(pr: dict, reasons: list[str]) -> str:
     """Append draft/state/merge-conflict reasons; return mergeable string.
 
     Also gates on ``mergeStateStatus == BEHIND`` (issue #2157): a branch
     behind its base cannot land, and this repo does not auto-update it on
-    auto-merge (issue #2048 concrete failure), so it must block. ``DRAFT``,
-    ``DIRTY``, and ``UNKNOWN`` are already covered by the ``isDraft`` and
-    ``mergeable`` checks.
+    auto-merge (issue #2048 concrete failure), so it must block.
 
     ``mergeStateStatus == BLOCKED`` blocks (issue #2326). A BLOCKED state
     means GitHub's branch protection still refuses the merge: a missing
@@ -584,6 +596,26 @@ def _evaluate_pr_state(pr: dict, reasons: list[str]) -> str:
     own four-condition merge gate (``.claude/commands/pr-autofix.md``,
     ``.claude/commands/pr-review-config.yaml``), which both require
     ``mergeStateStatus in ('CLEAN', 'UNSTABLE')``.
+
+    Every remaining ``mergeStateStatus`` also blocks, by allowlist rather than
+    by enumeration (issue #4899 reopen). Enumerating blockers fails open on
+    each value nobody listed: ``HAS_HOOKS`` reached ``CanMerge=True`` and so
+    ``Tier=T1``, which is the auto-merge path, while ``pr-autofix.md`` has no
+    merge script for that state. ``DIRTY`` was reachable the same way whenever
+    GitHub reported the conflict in ``mergeStateStatus`` but left ``mergeable``
+    at something other than ``CONFLICTING``. The allowlist closes both and
+    every future value GitHub adds, because a state this script has never heard
+    of is exactly a state the caller cannot execute.
+
+    An empty ``mergeStateStatus`` (the field absent or null in the API
+    response) blocks for the same reason. GitHub declares the field non-null,
+    so an empty value means the probe did not return the state rather than that
+    the state is benign, and the caller selects its merge path by that value.
+
+    Stricter than canonical: ``pr-autofix.md`` describes the merge path a human
+    or agent takes once ready. This function refuses to report ready at all for
+    a state that path cannot execute, so the two agree on CLEAN and UNSTABLE
+    and this one is strictly narrower everywhere else.
     """
     if pr["state"] != "OPEN":
         reasons.append(f"PR is {pr['state'].lower()}, not open")
@@ -594,15 +626,30 @@ def _evaluate_pr_state(pr: dict, reasons: list[str]) -> str:
         reasons.append("PR has merge conflicts")
     elif mergeable == "UNKNOWN":
         reasons.append("Merge status is being calculated")
-    merge_state = _merge_state_status(pr)
+    _append_merge_state_reason(_merge_state_status(pr), reasons)
+    return mergeable
+
+
+def _append_merge_state_reason(merge_state: str, reasons: list[str]) -> None:
+    """Append the blocking reason for ``merge_state``, if it blocks.
+
+    Silent only for the states in :data:`_SUPPORTED_MERGE_STATES`.
+    """
+    if merge_state in _SUPPORTED_MERGE_STATES:
+        return
     if merge_state == "BEHIND":
         reasons.append("Branch is behind base; update against the base branch before merging")
-    elif merge_state == "BLOCKED":
+        return
+    if merge_state == "BLOCKED":
         reasons.append(
             "Merge blocked by branch protection (missing review decision or "
             "unmet protection rule)"
         )
-    return mergeable
+        return
+    reasons.append(
+        f"Merge state {merge_state or '<missing>'} has no supported merge path "
+        f"(supported: {', '.join(sorted(_SUPPORTED_MERGE_STATES))})"
+    )
 
 
 # GitHub reports conflicts in two places:
@@ -1124,6 +1171,20 @@ def classify_tier(result: dict[str, Any], *, is_bot: bool = False) -> str:
     -------
     str
         One of the values in :data:`_TIER_ORDER`.
+
+    Totality
+    --------
+    Every ``mergeStateStatus`` GitHub can report reaches exactly one tier, and
+    no value reaches ``T1`` unless the caller can execute it (issue #4899
+    reopen). ``BEHIND``, ``BLOCKED``, and ``DIRTY`` take their own merge-path
+    tiers from :data:`_MERGE_STATE_TIERS`. ``CLEAN`` and ``UNSTABLE``, the two
+    states ``pr-autofix.md`` names a merge script for, reach ``T1`` when
+    ``CanMerge`` is true and a work tier otherwise. Every other value,
+    ``HAS_HOOKS`` and ``UNKNOWN`` today plus anything GitHub adds later, is
+    refused by :func:`_append_merge_state_reason`, so ``CanMerge`` is false and
+    the classification falls through to a work tier, landing on ``T4``
+    (investigate) when nothing else is wrong. ``T1`` is therefore reachable
+    only from a state with a merge path.
     """
     # --- Non-actionable states (SKIP) ---
     if result.get("IsDraft") or (result.get("State") or "").upper() in ("CLOSED", "MERGED"):
@@ -1145,7 +1206,9 @@ def classify_tier(result: dict[str, Any], *, is_bot: bool = False) -> str:
     if is_bot and (has_ci_failures or has_threads):
         return "T5"
 
-    # T1: merge-ready (CanMerge covers CLEAN and UNSTABLE-with-dispositions)
+    # T1: merge-ready.  CanMerge is false for any state outside
+    # _SUPPORTED_MERGE_STATES, so this arm covers CLEAN and
+    # UNSTABLE-with-dispositions and nothing else.
     if result.get("CanMerge"):
         return "T1"
 
@@ -1162,7 +1225,10 @@ def classify_tier(result: dict[str, Any], *, is_bot: bool = False) -> str:
         return "T2"
 
     # Edge: all checks pass, no threads, but CanMerge is False for another
-    # reason (e.g. UNKNOWN merge state).  Treat as T4 (needs investigation).
+    # reason.  This is where an unsupported mergeStateStatus (HAS_HOOKS,
+    # UNKNOWN, a state GitHub adds later, or a missing value) lands.  T4 means
+    # investigate, which is the correct handling for a state with no merge
+    # path; it is deliberately not T1.
     return "T4"
 
 

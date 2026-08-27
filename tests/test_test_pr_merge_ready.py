@@ -294,13 +294,20 @@ class TestCheckMergeReadiness:
         )
 
     def test_null_merge_state_status_normalizes_to_empty_string(self):
+        # Contract change, issue #4899 reopen. This case previously asserted
+        # CanMerge is True. GitHub declares mergeStateStatus non-null, so an
+        # empty value means the probe did not return the state, not that the
+        # state is benign, and the caller picks its merge path by that value.
+        # Normalization to "" is unchanged; readiness on "" is what flipped.
         pr_data = json.loads(json.dumps(_OPEN_PR))
         pr_data["repository"]["pullRequest"]["mergeStateStatus"] = None
         with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
             result = check_merge_readiness("o", "r", 42)
-        assert result["CanMerge"] is True
         assert result["MergeStateStatus"] == ""
-        assert result["Reasons"] == []
+        assert result["CanMerge"] is False
+        assert any("<missing>" in reason for reason in result["Reasons"]), (
+            f"a missing merge state must name itself; reasons: {result['Reasons']}"
+        )
 
     def test_unresolved_threads(self):
         pr_data = json.loads(json.dumps(_OPEN_PR))
@@ -1478,6 +1485,189 @@ class TestClassifyTier:
         from test_pr_merge_ready import _TIER_ORDER
         expected = {"T1", "T2", "T3", "T4", "T5", "BEHIND", "BLOCKED", "DIRTY", "SKIP"}
         assert set(_TIER_ORDER) == expected
+
+
+class TestUnsupportedMergeStatesNeverReachT1:
+    """Issue #4899 reopen: only an executable merge state may reach T1.
+
+    `.claude/commands/pr-autofix.md` "Ready-to-Merge Definition" item 4 reads:
+
+        4. `mergeStateStatus == CLEAN` (or `UNSTABLE` with documented
+           non-required failures).
+
+    and its "Merge path by `mergeStateStatus`" table names a merge script for
+    CLEAN and UNSTABLE only. Before this fix `_evaluate_pr_state` enumerated
+    blockers (BEHIND, BLOCKED) instead of allowlisting the executable states,
+    so HAS_HOOKS produced no reason, `CanMerge` was `len(reasons) == 0` and
+    therefore true, and `classify_tier` returned T1: the auto-merge path, for a
+    state pr-autofix cannot execute.
+    """
+
+    # Every mergeStateStatus in GitHub's enum that pr-autofix has no merge
+    # script for, plus a value GitHub has not defined yet.  The last one is the
+    # point of the allowlist: an enumeration of blockers cannot cover it.
+    _UNSUPPORTED = ("HAS_HOOKS", "UNKNOWN", "DRAFT", "A_STATE_GITHUB_ADDS_LATER")
+
+    def _clean_pr_in_state(self, merge_state):
+        """An otherwise perfectly mergeable PR in `merge_state`.
+
+        Threads resolved, required checks green, not draft, open, and
+        `mergeable == "MERGEABLE"`, so `merge_state` is the only thing that can
+        block. Without it every other gate passes and CanMerge is true.
+        """
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        pr_data["repository"]["pullRequest"]["mergeStateStatus"] = merge_state
+        return pr_data
+
+    @pytest.mark.parametrize("merge_state", _UNSUPPORTED)
+    def test_unsupported_merge_state_blocks_can_merge(self, merge_state):
+        pr_data = self._clean_pr_in_state(merge_state)
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["CanMerge"] is False, (
+            f"{merge_state} has no merge path in pr-autofix.md and must not "
+            f"report ready; reasons: {result['Reasons']}"
+        )
+        assert any(merge_state in reason for reason in result["Reasons"]), (
+            f"the blocking reason must name the state; reasons: {result['Reasons']}"
+        )
+
+    @pytest.mark.parametrize("merge_state", _UNSUPPORTED)
+    def test_unsupported_merge_state_is_never_t1(self, merge_state):
+        pr_data = self._clean_pr_in_state(merge_state)
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["Tier"] != "T1", (
+            f"{merge_state} reached the auto-merge tier; that is issue #4899"
+        )
+        assert result["Tier"] in _mod._TIER_ORDER
+
+    def test_has_hooks_lands_on_t4_for_investigation(self):
+        """The exact reopened shape: clean everywhere except the merge state.
+
+        Pinned separately from the parametrized case above so the tier the
+        classifier actually chooses is asserted, not merely that it is not T1.
+        """
+        pr_data = self._clean_pr_in_state("HAS_HOOKS")
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["UnresolvedThreads"] == 0
+        assert result["FailedRequiredChecks"] == []
+        assert result["PendingRequiredChecks"] == []
+        assert result["CIPassing"] is True
+        assert result["Tier"] == "T4"
+
+    def test_dirty_merge_state_blocks_without_a_conflicting_mergeable(self):
+        """DIRTY blocks on its own, not only via `mergeable == CONFLICTING`.
+
+        The old code caught DIRTY indirectly through the separate `mergeable`
+        field, so a response reporting the conflict in `mergeStateStatus` alone
+        left `reasons` empty.
+        """
+        pr_data = self._clean_pr_in_state("DIRTY")
+        assert pr_data["repository"]["pullRequest"]["mergeable"] == "MERGEABLE"
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["CanMerge"] is False
+        assert result["Tier"] == "DIRTY"
+
+    @pytest.mark.parametrize("merge_state", ["CLEAN", "UNSTABLE"])
+    def test_supported_merge_states_still_report_ready(self, merge_state):
+        """Positive control: the allowlist must not block the two real paths.
+
+        Without this, a fix that blocked every state would pass every negative
+        case above while breaking the feature outright.
+        """
+        pr_data = self._clean_pr_in_state(merge_state)
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["CanMerge"] is True, f"reasons: {result['Reasons']}"
+        assert result["Reasons"] == []
+        assert result["Tier"] == "T1"
+
+    def test_unstable_with_disposed_non_required_failure_is_t1(self, tmp_path):
+        """The `UNSTABLE` half of item 4: disposed non-required failures merge.
+
+        A failing non-required check makes GitHub report UNSTABLE. With a
+        recorded disposition it does not block, so this is the one case where a
+        red check still reaches T1, and the allowlist must leave it intact.
+        """
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        pull_request = pr_data["repository"]["pullRequest"]
+        pull_request["mergeStateStatus"] = "UNSTABLE"
+        rollup = pull_request["commits"]["nodes"][0]["commit"]["statusCheckRollup"]
+        rollup["contexts"]["nodes"].append({
+            "__typename": "CheckRun",
+            "name": "flaky-extra",
+            "status": "COMPLETED",
+            "conclusion": "FAILURE",
+            "isRequired": False,
+        })
+        dispositions = {
+            "flaky-extra": {
+                "disposition": "known-flaky",
+                "reason": "tracked in issue #4899",
+            },
+        }
+        dispositions_path = tmp_path / "dispositions.json"
+        dispositions_path.write_text(json.dumps(dispositions), encoding="utf-8")
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness(
+                "o", "r", 42, dispositions_file=str(dispositions_path),
+            )
+        assert result["FailedNonRequiredChecks"] != []
+        assert result["UndisposedNonRequiredFailures"] == []
+        assert result["CanMerge"] is True, f"reasons: {result['Reasons']}"
+        assert result["Tier"] == "T1"
+
+    def test_undisposed_non_required_failure_on_unstable_is_t2(self):
+        """Negative half of the pair above: no disposition, no T1."""
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        pull_request = pr_data["repository"]["pullRequest"]
+        pull_request["mergeStateStatus"] = "UNSTABLE"
+        rollup = pull_request["commits"]["nodes"][0]["commit"]["statusCheckRollup"]
+        rollup["contexts"]["nodes"].append({
+            "__typename": "CheckRun",
+            "name": "flaky-extra",
+            "status": "COMPLETED",
+            "conclusion": "FAILURE",
+            "isRequired": False,
+        })
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["UndisposedNonRequiredFailures"] == ["flaky-extra"]
+        assert result["CanMerge"] is False
+        assert result["Tier"] == "T2"
+
+    def test_draft_still_classifies_as_skip(self):
+        """A draft is SKIP, not the unsupported-state tier.
+
+        GitHub reports `mergeStateStatus == DRAFT` for a draft PR, which the
+        allowlist blocks. `classify_tier` checks `IsDraft` first, so the draft
+        must keep reaching SKIP rather than falling into a work tier.
+        """
+        pr_data = self._clean_pr_in_state("DRAFT")
+        pr_data["repository"]["pullRequest"]["isDraft"] = True
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["CanMerge"] is False
+        assert result["Tier"] == "SKIP"
+
+    def test_supported_state_set_matches_the_documented_merge_gate(self):
+        """The allowlist is exactly the pair pr-autofix.md names a script for.
+
+        Read from the command file rather than restated, so widening the set in
+        the script without widening the documented merge path fails here.
+        """
+        assert _mod._SUPPORTED_MERGE_STATES == frozenset({"CLEAN", "UNSTABLE"})
+        command = (
+            Path(__file__).resolve().parents[1]
+            / ".claude" / "commands" / "pr-autofix.md"
+        ).read_text(encoding="utf-8")
+        assert (
+            "`mergeStateStatus == CLEAN` (or `UNSTABLE` with documented "
+            "non-required failures)."
+        ) in command
 
 
 class TestTierInMergeReadinessOutput:
