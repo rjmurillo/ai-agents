@@ -1184,6 +1184,13 @@ def main(argv: list[str] | None = None) -> int:
             content = raw.decode("utf-8-sig")
         except (OSError, UnicodeDecodeError) as exc:
             print(f"Error: cannot read {file_path}: {exc}", file=sys.stderr)
+            # Report before aborting. `--write` may already have repaired
+            # files on disk, and exiting straight to 2 left the caller with an
+            # error on stderr, nothing on stdout, and no way to learn which
+            # files had changed. In `--json` mode that meant empty stdout, so
+            # a programmatic caller could not reconcile its own state either.
+            # The writes that happened were correct; only the record was lost.
+            _report(results, as_json=args.json, wrote=wrote)
             return 2
 
         defects = find_fence_defects(content)
@@ -1198,6 +1205,7 @@ def main(argv: list[str] | None = None) -> int:
             file_path.write_bytes(bom + repair_markdown_fences(content).encode("utf-8"))
         except OSError as exc:
             print(f"Error: cannot write {file_path}: {exc}", file=sys.stderr)
+            _report(results, as_json=args.json, wrote=wrote)  # same reason as above
             return 2
         wrote.append(str(file_path))
 

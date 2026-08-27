@@ -348,3 +348,64 @@ class TestListNestedFences:
         source = (PROJECT_ROOT / "docs" / "codeql-rollout-checklist.md").read_text(encoding="utf-8")
         assert find_fence_defects(source) == []
         assert repair_markdown_fences(source) == source
+
+
+class TestAbortingStillReportsWhatItWrote:
+    """`--write` must not lose the record of files it already repaired.
+
+    Both abort paths in the per-file loop used to `return 2` before calling
+    `_report`, so a run that repaired one file and then met an unreadable one
+    exited 2 with the error on stderr, nothing on stdout, and no way for the
+    caller to learn that a file on disk had changed. In `--json` mode stdout
+    was empty, so a programmatic caller could not reconcile its own state.
+
+    The writes themselves were correct and complete. What was lost was the
+    record of them, which for a tool that edits files in place is the half the
+    operator needs. Found by a pre-merge audit, not by any test.
+    """
+
+    @staticmethod
+    def _bad_pair(tmp_path: Path) -> Path:
+        """A directory with one repairable file and one undecodable one."""
+        (tmp_path / "a.md").write_text("```\nunclosed\n", encoding="utf-8")
+        (tmp_path / "b_bad.md").write_bytes(b"\xff\xfe not utf-8\n")
+        return tmp_path
+
+    def test_text_mode_names_the_repaired_file_before_exiting(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        target = self._bad_pair(tmp_path)
+        code = main(["--write", str(target)])
+        out = capsys.readouterr()
+
+        assert code == 2, "the unreadable file must still abort with the config exit code"
+        assert "a.md" in out.out, "stdout must name the file that was repaired"
+        assert "Repaired" in out.out
+        assert "cannot read" in out.err, "the cause still belongs on stderr"
+        # The write really happened, which is why the report matters.
+        assert (tmp_path / "a.md").read_text(encoding="utf-8").endswith("```\n")
+
+    def test_json_mode_lists_the_repaired_file_before_exiting(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        target = self._bad_pair(tmp_path)
+        code = main(["--write", "--json", str(target)])
+        out = capsys.readouterr()
+
+        assert code == 2
+        payload = json.loads(out.out)
+        assert payload["repaired"] == [str(tmp_path / "a.md")], (
+            "a programmatic caller must be able to reconcile what changed on disk"
+        )
+
+    def test_a_clean_run_is_unaffected(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The control: without an unreadable file nothing about this changes."""
+        (tmp_path / "a.md").write_text("```\nunclosed\n", encoding="utf-8")
+        code = main(["--write", str(tmp_path)])
+        out = capsys.readouterr()
+
+        assert code == 0
+        assert "Repaired" in out.out
+        assert out.err == ""
