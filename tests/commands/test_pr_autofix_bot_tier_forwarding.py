@@ -69,6 +69,102 @@ def test_a_human_authored_pr_does_not_forward_is_bot(tmp_path: Path, doc: str) -
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_a_t5_pr_is_handed_to_a_human_before_the_round_cap_breaker(
+    tmp_path: Path, doc: str
+) -> None:
+    """Making T5 reachable must not switch the circuit breaker off.
+
+    The breaker fires on `TIER = T3 or T4`. That was complete while `--is-bot`
+    was never forwarded: a bot PR with threads or CI failures classified T3 or
+    T4 and hit `check_pr_round_cap.py`, the cap added for issue #5056 after PR
+    #1887 ran 11+ rounds over 46 hours. Once the same PR classifies T5 the
+    condition no longer matches it, so an unterminated T5 would fall into the
+    tier actions with no cap and no human handoff, which is worse than the
+    defect issue #5208 reports.
+
+    The tier table reads "| T5 | Bot PR with any failure or threads | Handle
+    individually |", so the arm is a handoff. `round_cap_called` is the
+    discriminating read: a fall-through reaches the end of the block, and a T5
+    arm that terminated by falling into the breaker instead would call it.
+    """
+    run = run_dispatch(tmp_path, doc, tier="T5", author_is_bot="true")
+
+    assert "Tier T5" in run.stdout
+    assert not run.round_cap_called, "the breaker fired on a tier its condition excludes"
+    assert not run.reached_end, "a T5 PR fell through into the tier actions uncapped"
+    assert run.cleaned_up
+    assert run.queue_completed, "the T5 arm aborted the queue instead of skipping one PR"
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_a_t5_pr_is_disarmed_before_it_is_handed_over(tmp_path: Path, doc: str) -> None:
+    """T5 exits one gate later than SKIP, and the difference is load bearing.
+
+    SKIP names a state where disarming is meaningless or destroys a choice the
+    author made deliberately. A T5 PR is "armed but not provably T1", which is
+    the disarm gate's own trigger condition, so it has to pass through that gate
+    before it stops. Handing a human a PR that GitHub can still land on its own
+    is the CWE-284 shape the disarm ordering exists to prevent.
+    """
+    run = run_dispatch(tmp_path, doc, tier="T5", auto_merge="SQUASH", author_is_bot="true")
+
+    assert run.disarmed, "a T5 PR was handed over with auto-merge still armed"
+    assert "--disable" in run.disarm_argv, run.disarm_argv
+    assert "Tier T5" in run.stdout
+    assert not run.reached_end
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_a_stale_context_helper_is_named_rather_than_silently_reclassifying(
+    tmp_path: Path, doc: str
+) -> None:
+    """The version-skew case has its own cause and its own remedy.
+
+    `resolve_pr_scripts_dir` prefers the plugin caches over the repository
+    checkout, so until the plugin is reinstalled `$SCRIPTS_DIR/get_pr_context.py`
+    can be a copy predating issue #5208 that emits no `author_is_bot` key at all.
+    That fails closed like any other unreadable author, which combined with the
+    T5 arm above reclassifies every PR with a failure or a thread as T5 across
+    the whole repository. One indistinguishable notice makes that invisible;
+    naming the helper makes it fixable.
+    """
+    run = run_dispatch(tmp_path, doc, tier="T3", author_is_bot="OMIT")
+
+    assert "emits no author_is_bot field" in run.stdout, (
+        "an absent field was reported the same way as an unreadable value, so "
+        "an operator cannot tell a stale helper from a malformed author"
+    )
+    assert run.forwarded_is_bot
+    assert run.reached_end
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+@pytest.mark.parametrize(
+    "author_is_bot",
+    [
+        pytest.param("RAW:null", id="explicit-null"),
+        pytest.param('RAW:"false"', id="string-spelling-of-false"),
+    ],
+)
+def test_a_present_but_unreadable_field_is_not_blamed_on_a_stale_helper(
+    tmp_path: Path, doc: str, author_is_bot: str
+) -> None:
+    """The other half: a current helper must not be reported as stale.
+
+    Paired with the case above. A block that printed the stale-helper line for
+    every closed-branch verdict would satisfy that one alone and send every
+    operator to reinstall a plugin that is already current. `RAW:null` and the
+    string spelling both carry the key, so the helper is emitting the field and
+    the value is what cannot be read.
+    """
+    run = run_dispatch(tmp_path, doc, tier="T3", author_is_bot=author_is_bot)
+
+    assert "emits no author_is_bot field" not in run.stdout
+    assert "Cannot read author bot state" in run.stdout
+    assert run.forwarded_is_bot
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
 @pytest.mark.parametrize(
     "author_is_bot",
     [
@@ -153,11 +249,27 @@ def test_an_unreadable_context_still_skips_before_classifying(tmp_path: Path, do
     branch and the PR is classified as a bot, but the auto-merge guard below it
     still terminates the PR on the same missing evidence, so nothing acts on a
     tier computed from a fetch that never returned.
+
+    The author notice is asserted here rather than in the parametrized
+    unreadable-author case above because this is the one shape that produces it
+    without any `author_is_bot` value: empty stdin leaves `jq` printing nothing,
+    so the variable holds the empty string, which is neither `false` nor any
+    verdict the branch can name. The closed branch was taken silently, which is
+    exactly what `test_a_real_human_author_is_not_reported_as_unreadable` calls
+    load bearing, and the sibling `AUTO_MERGE` read six lines below already
+    documented the same trap.
     """
     run = run_dispatch(
         tmp_path, doc, tier="T3", auto_merge="UNREADABLE", author_is_bot="true"
     )
 
+    assert "Cannot read author bot state" in run.stdout, (
+        "an empty context fetch failed closed on the author with no message, so "
+        "an operator reading the log sees only the auto-merge skip"
+    )
+    assert "emits no author_is_bot field" not in run.stdout, (
+        "an empty fetch was blamed on a stale helper; nothing was read at all"
+    )
     assert "Cannot read auto-merge state" in run.stdout
     assert not run.reached_end, "the loop acted on a PR whose context fetch failed"
     assert run.cleaned_up

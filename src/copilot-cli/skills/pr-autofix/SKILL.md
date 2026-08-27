@@ -448,7 +448,24 @@ CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
 # bot_config.py maps `app/copilot-swe-agent`, the spelling `gh pr view --json
 # author` returns for the Copilot coding agent, onto `copilot-swe-agent[bot]`,
 # and neither that spelling nor `Copilot` carries a `[bot]` suffix.
-IS_BOT=$(printf '%s' "$CTX" | jq -r 'if (.Data.author_is_bot | type) == "boolean" then (.Data.author_is_bot | tostring) else "unknown" end')
+IS_BOT=$(printf '%s' "$CTX" | jq -r 'if (.Data | has("author_is_bot") | not) then "absent" elif (.Data.author_is_bot | type) == "boolean" then (.Data.author_is_bot | tostring) else "unknown" end')
+# `absent` is a separate verdict from `unknown` because it has a separate cause
+# and a separate remedy. resolve_pr_scripts_dir above prefers $COPILOT_PLUGIN_ROOT,
+# $CLAUDE_PLUGIN_ROOT, and the two installed-plugin caches AHEAD of the repository
+# checkout, so until the plugin is reinstalled $SCRIPTS_DIR/get_pr_context.py is
+# whatever version that cache holds. A copy predating issue #5208 emits no
+# author_is_bot key at all, which fails closed like any other unreadable author
+# and would otherwise reclassify EVERY PR with a failing check or an unresolved
+# thread as T5, repo-wide, announced by one indistinguishable line. Naming the
+# stale helper is what turns that from a silent reclassification into a fixable
+# report. Same hazard the "Checkout ownership for the readiness helper (issue
+# #2443)" section below records for test_pr_merge_ready.py.
+# Empty stdin or a jq parse error yields an empty string, not "unknown", which is
+# neither "false" nor any verdict the branch below can name; the fail-closed
+# branch would then be taken with no message at all. The sibling AUTO_MERGE read
+# further down documents the same trap. Normalize it here so every path out of
+# this read is a verdict with a name.
+IS_BOT=${IS_BOT:-unknown}
 # Fail CLOSED: an author this session could not classify is treated as a bot.
 # Same direction as the lease store's `lease-store-unavailable` verdict
 # documented below, and for the same reason: the two errors are not symmetric.
@@ -457,13 +474,18 @@ IS_BOT=$(printf '%s' "$CTX" | jq -r 'if (.Data.author_is_bot | type) == "boolean
 # Guessing "bot" costs a human one manual look at a PR that may not have needed
 # one, which is recoverable. Only a real JSON boolean `false` buys the
 # non-bot path; a missing field, a null, or a string spelling of a boolean is
-# "unknown" and takes the closed branch, matching the type-checked read the
-# PAGES_COMPLETE guard below uses for the same reason.
+# "absent" or "unknown" and takes the closed branch, matching the type-checked
+# read the PAGES_COMPLETE guard below uses for the same reason.
+# The notice fires on anything that is not the literal `true`, not on the two
+# named verdicts, so a future value out of the jq expression cannot slip through
+# the closed branch unannounced the way the empty string did.
 if [ "$IS_BOT" = "false" ]; then
     IS_BOT_FLAG=""
 else
     IS_BOT_FLAG="--is-bot"
-    if [ "$IS_BOT" = "unknown" ]; then
+    if [ "$IS_BOT" = "absent" ]; then
+        echo "Cannot read author bot state for #$PR: $SCRIPTS_DIR/get_pr_context.py emits no author_is_bot field, so that helper predates issue #5208; reinstall the plugin or run from the repository checkout. Classifying as a bot PR (fail closed)."
+    elif [ "$IS_BOT" != "true" ]; then
         echo "Cannot read author bot state for #$PR; classifying as a bot PR (fail closed)."
     fi
 fi
@@ -623,6 +645,27 @@ if [ "$TIER_KNOWN" = "no" ]; then
     cleanup_pr_autofix
     continue
 fi
+# T5 terminates here, and making it reachable is what created the need. The
+# round-cap breaker below fires on T3 and T4 only, which was complete while
+# --is-bot was never forwarded: a bot PR with threads or CI failures classified
+# T3 or T4 and hit the breaker. Now the same PR classifies T5, so without this
+# arm it would fall past a condition that no longer matches, into the tier
+# actions, with no cap and no human handoff. That is strictly worse than the
+# behavior the flag was added to fix: the breaker is the circuit added for issue
+# #5056 after PR #1887 ran 11+ rounds over 46 hours, and T5 would have been the
+# one tier running the unattended loop with it switched off.
+# The tier table below reads "| T5 | Bot PR with any failure or threads | Handle
+# individually |", so the executable arm is a handoff rather than a capped loop.
+# Placed here rather than at the SKIP arm for the reason that arm records: SKIP
+# names a state where disarming is meaningless or destructive, while a T5 PR is
+# "armed but not provably T1", which is the disarm gate's own trigger condition.
+# It therefore falls through that gate first, exactly like the unknown-tier exit
+# one gate above, and stops before any tier action.
+if [ "$TIER" = "T5" ]; then
+    echo "Tier T5 for #$PR (bot-authored PR with a failure or unresolved threads); handing to a human, no unattended fix loop."
+    cleanup_pr_autofix
+    continue
+fi
 if [ "$TIER" = "T3" ] || [ "$TIER" = "T4" ]; then
     ROUND_CAP=$(python3 "$SCRIPTS_DIR/check_pr_round_cap.py" \
         --pull-request "$PR" --output-format json)
@@ -691,7 +734,7 @@ Dispatcher exit contract (CWE-829 trust boundary, Issue #5072): exit 0 all crite
 ## Workflow
 
 1. Triage all open PRs into tiers T1-T5 using `test_pr_merge_ready.py`.
-2. Process T1 (land-ready) first, then T2 (CI fix), T3/T4 (threads), T5 (bot).
+2. Process T1 (land-ready) first, then T2 (CI fix), then T3/T4 (threads). T5 is not processed by this loop: a bot-authored PR with a failure or unresolved threads is handed to a human, and the tier-dispatch block terminates the PR after the auto-merge disarm gate (issue #5208).
 3. **Before acting on any PR, call `check_pr_live_state.py`** and skip the row when it returns `Data.action=SKIP` (issue #2455). The triage snapshot from step 1 goes stale fast in a repo with heavy merge automation; the gate catches PRs merged/closed mid-walk and PRs whose diff is already on `main` via a sibling consolidated PR.
 4. **Before any branch mutation, acquire the branch lease** via `pr_autofix_lease.py acquire` (issue #3413). A SKIP result means another session holds the branch; exit before creating a worktree or pushing. Release the lease via `pr_autofix_lease.py release` when done or on error. The lease is advisory; the Force-Push Safety SHA gate is the hard backstop. For any remote mutation that can outlive the final pre-mutation poll, keep renewal supervision active through the whole critical section and re-verify lease ownership immediately before the mutation. If renewal ownership is lost, block the mutation and release the lease before continuing.
 5. **On every pass through a T3/T4 PR, call `check_pr_round_cap.py`** and stop working that PR when it returns `Data.action=ESCALATE` (issue #5056). It caps how many fix/review rounds and how many wall-clock hours the thread-fix loop may run before it hands the PR back to a human; PR #1887 ran 11+ rounds over 46 hours with no cap in place. The script posts the escalation reason as a PR comment itself; the agent does not need to.
@@ -725,6 +768,14 @@ suffix, so a suffix test reads this repository's two most common bot authors as
 humans. When the field is absent or not a boolean, pass `--is-bot` anyway: an
 author nobody could classify must not enter the unattended loop. The
 tier-dispatch block above implements exactly that.
+
+Reaching T5 is only half of it. `check_pr_round_cap.py` caps the thread-fix loop
+for T3 and T4, so a bot PR that used to classify T3 or T4 was capped; once it
+classifies T5 that condition no longer matches it. The tier-dispatch block
+therefore terminates a T5 PR outright, after the auto-merge disarm gate and
+before the round-cap breaker. A T5 arm that fell through to the tier actions
+would run the unattended loop with the breaker switched off, which is worse than
+the defect issue #5208 reports.
 
 ### Work-needed tiers
 
@@ -823,7 +874,14 @@ SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
 # False and T5 requires `is_bot and (has_ci_failures or has_threads)`
 # (issue #5208). Source the answer from get_pr_context.py's author_is_bot
 # field and pass --is-bot when that field is absent or non-boolean.
-python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request {pr} [--is-bot]
+# Derived rather than written as a `[--is-bot]` placeholder: every other line in
+# this block runs as written once {pr} is substituted, so a bracketed token here
+# reaches argparse as a positional argument and the readiness call dies on
+# "unrecognized arguments" for anyone following the block literally. The
+# tier-dispatch block above carries the same derivation with its full rationale.
+IS_BOT_FLAG=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request {pr} --output-format json 2>/dev/null | jq -r 'if .Data.author_is_bot == false then "" else "--is-bot" end')
+# shellcheck disable=SC2086
+python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request {pr} $IS_BOT_FLAG
 
 # Per-PR live-state gate (BLOCKING per Phase 2; issue #2455). Returns
 # exit 0 + Data.action=ACT when safe to proceed, exit 1 + Data.action=SKIP when

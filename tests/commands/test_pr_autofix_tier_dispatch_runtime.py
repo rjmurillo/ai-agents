@@ -228,11 +228,11 @@ def test_an_unknown_tier_with_no_auto_merge_armed_calls_nothing(tmp_path: Path, 
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
-@pytest.mark.parametrize("tier", ["T2", "T5", "BEHIND", "BLOCKED", "DIRTY"])
+@pytest.mark.parametrize("tier", ["T2", "BEHIND", "BLOCKED", "DIRTY"])
 def test_a_valid_tier_exiting_nonzero_is_still_dispatched(
     tmp_path: Path, doc: str, tier: str
 ) -> None:
-    """Every declared tier is dispatched, and exit status is not the discriminator.
+    """Every dispatched tier is dispatched, and exit status is not the discriminator.
 
     Two things this pins. `test_pr_merge_ready.py` exits 1 for any PR that is
     not merge-ready, so these tiers legitimately arrive with a non-zero status,
@@ -242,8 +242,14 @@ def test_a_valid_tier_exiting_nonzero_is_still_dispatched(
     command's prose describes. BEHIND, BLOCKED, and DIRTY are declared return
     values; the guard first shipped rejecting them, which turned a healthy
     classification into "producer failed" and stopped the documented BEHIND and
-    DIRTY handling. SKIP is declared too but is not dispatched, so it has its
-    own test below rather than a row here.
+    DIRTY handling.
+
+    Two declared tiers are recognized without being dispatched, and each has its
+    own case rather than a row here. SKIP is a draft, merged, or closed PR. T5 is
+    a bot-authored PR with a failure or unresolved threads, which the tier table
+    hands to a human; it sat in this row while `--is-bot` was never forwarded and
+    the tier was therefore unreachable, and it moved out in the same change that
+    made it reachable (issue #5208, `test_pr_autofix_bot_tier_forwarding.py`).
     """
     run = run_dispatch(tmp_path, doc, tier=tier, auto_merge="null")
 
