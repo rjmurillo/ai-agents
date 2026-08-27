@@ -139,6 +139,24 @@ def _repo_health_timeouts() -> dict[str, int]:
     return found
 
 
+def _record_git_calls(monkeypatch: pytest.MonkeyPatch) -> list[tuple[list[str], Any]]:
+    """Record every git invocation the gate makes, still running the real one.
+
+    Returns a list of ``(argv, timeout)``. ``monkeypatch.setattr`` rather than a
+    bare assignment: it restores on teardown even when the test raises, and it
+    rebinds a module attribute without a type suppression.
+    """
+    seen: list[tuple[list[str], Any]] = []
+    real = check_repo_health.subprocess.run
+
+    def _record(argv: list[str], **kwargs: Any) -> Any:
+        seen.append((argv, kwargs.get("timeout")))
+        return real(argv, **kwargs)
+
+    monkeypatch.setattr(check_repo_health.subprocess, "run", _record)
+    return seen
+
+
 class TestTheDeclaredCapsAndTheBudgetAgree:
     """Edge: the arithmetic that makes the script, not lefthook, report first."""
 
@@ -169,7 +187,7 @@ class TestTheDeclaredCapsAndTheBudgetAgree:
         )
 
     def test_the_corrupted_path_issues_the_calls_this_file_counts(
-        self, tmp_path: Path
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """The count above is a claim about `diagnose`; this is the measurement.
 
@@ -182,42 +200,26 @@ class TestTheDeclaredCapsAndTheBudgetAgree:
         linked = tmp_path / "linked"
         _git(repo, "worktree", "add", "-q", "--detach", str(linked))
         _git(repo, "config", "core.bare", "true")
-        seen: list[str] = []
-        real = check_repo_health.subprocess.run
+        seen = _record_git_calls(monkeypatch)
 
-        def _record(argv: list[str], **kwargs: object) -> object:
-            seen.append(" ".join(argv[1:]))
-            return real(argv, **kwargs)
-
-        check_repo_health.subprocess.run = _record  # type: ignore[assignment]
-        try:
-            health = check_repo_health.diagnose(linked)
-        finally:
-            check_repo_health.subprocess.run = real  # type: ignore[assignment]
+        health = check_repo_health.diagnose(linked)
 
         assert health.status == "corrupted"
-        assert seen == list(_CORRUPTED_PATH_CALLS)
+        assert [" ".join(argv[1:]) for argv, _timeout in seen] == list(_CORRUPTED_PATH_CALLS)
 
 
 class TestAnExhaustedBudgetReportsInsteadOfRunningMoreGit:
     """Negative: the deadline fails closed, and names where it stopped."""
 
-    def test_diagnose_raises_before_spawning_git(self, tmp_path: Path) -> None:
+    def test_diagnose_raises_before_spawning_git(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         repo = _make_repo(tmp_path)
         spent = check_repo_health.GitBudget(total=0.0)
-        seen: list[list[str]] = []
-        real = check_repo_health.subprocess.run
+        seen = _record_git_calls(monkeypatch)
 
-        def _record(argv: list[str], **kwargs: object) -> object:
-            seen.append(argv)
-            return real(argv, **kwargs)
-
-        check_repo_health.subprocess.run = _record  # type: ignore[assignment]
-        try:
-            with pytest.raises(check_repo_health.GitExecutionError) as caught:
-                check_repo_health.diagnose(repo, budget=spent)
-        finally:
-            check_repo_health.subprocess.run = real  # type: ignore[assignment]
+        with pytest.raises(check_repo_health.GitExecutionError) as caught:
+            check_repo_health.diagnose(repo, budget=spent)
 
         # The isolating assertion: raising after spawning git would still leave
         # lefthook free to kill the job mid-call (`testing.md` SHOULD 7).
@@ -248,27 +250,19 @@ class TestAnExhaustedBudgetReportsInsteadOfRunningMoreGit:
         assert check_repo_health.main([str(repo)]) == 0
 
     def test_the_remaining_budget_clamps_the_per_call_watchdog(
-        self, tmp_path: Path
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """A late call must not be handed the full per-call watchdog."""
         repo = _make_repo(tmp_path)
         nearly_spent = check_repo_health.GitBudget(total=0.25)
-        seen: list[float] = []
-        real = check_repo_health.subprocess.run
+        seen = _record_git_calls(monkeypatch)
 
-        def _record(argv: list[str], **kwargs: Any) -> object:
-            seen.append(kwargs["timeout"])
-            return real(argv, **kwargs)
+        check_repo_health.diagnose(repo, budget=nearly_spent)
 
-        check_repo_health.subprocess.run = _record  # type: ignore[assignment]
-        try:
-            check_repo_health.diagnose(repo, budget=nearly_spent)
-        finally:
-            check_repo_health.subprocess.run = real  # type: ignore[assignment]
-
-        assert seen, "no git call was made, so nothing was clamped"
-        assert max(seen) <= 0.25
-        assert max(seen) < check_repo_health.GIT_TIMEOUT_SECONDS
+        timeouts = [timeout for _argv, timeout in seen]
+        assert timeouts, "no git call was made, so nothing was clamped"
+        assert max(timeouts) <= 0.25
+        assert max(timeouts) < check_repo_health.GIT_TIMEOUT_SECONDS
 
 
 class TestTheBudgetIsSharedRatherThanPerCall:

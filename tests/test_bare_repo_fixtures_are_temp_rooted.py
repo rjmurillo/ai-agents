@@ -33,10 +33,14 @@ receive: an element of a list or tuple, a value in a dict, an argument to a
 call, or the right side of an assignment. A token being **compared** is not,
 which keeps assertions and expected-message data out of the corpus. Measured at
 ``26911e9f0``: the old rule, any exact constant anywhere, counted 73 sites; the
-construction rule counts 70. The three dropped are all ``ast.Compare``
-operands, at ``tests/test_lefthook_integration.py:1377``,
-``tests/validation/test_check_repo_health.py:227``, and
-``tests/validation/test_check_repo_health_hostile_inputs.py:191``.
+construction rule counts 70. All three dropped are ``ast.Compare`` operands,
+each an ``assert "core.bare" in <stream>`` in
+``tests/test_lefthook_integration.py``,
+``tests/validation/test_check_repo_health.py``, and
+``tests/validation/test_check_repo_health_hostile_inputs.py``. Line numbers are
+left off on purpose: the claim is about a shape those files contain, not about
+a contract quoted at one line, which is the only thing
+``check_citation_freshness.py`` can keep true.
 
 Restricting further, to tokens lexically inside a ``subprocess`` argument list,
 was rejected because it under-reports. ``tests/gh_base_ref_test_helpers.py``
