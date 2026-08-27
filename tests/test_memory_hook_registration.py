@@ -33,22 +33,11 @@ ALL_REGISTERED_COMMANDS = tuple(
     for hook in group.get("hooks", [])
 )
 
-# The project-directory anchor every hook command must open with.
-#
-# `CLAUDE_PROJECT_DIR` is exported by Claude Code but NOT by GitHub Copilot CLI,
-# which also loads `.claude/settings.json` hooks. Measured on Copilot CLI 1.0.80
-# (issue #4727): the literal string `CLAUDE_PROJECT_DIR` appears 0 times in the
-# shipped `app.js` (9,173,451 bytes) and `copilot` binary (177,343,296 bytes),
-# against 12 hits for `COPILOT_CLI`, 24 for `additionalContext`, and 27 for
-# `GITHUB_TOKEN` in the same search as positive controls.
-#
-# With the variable unset, a bare `cd "$CLAUDE_PROJECT_DIR"` is `cd ""`, which
-# sh/dash treat as a silent no-op (exit 0, cwd unchanged). The relative script
-# path then resolves against the host's cwd and the launcher dies before the
-# hook runs. Measured from a repo subdirectory with the variable removed: the
-# bare form exits 2 with "can't open file ... [Errno 2]", and exit 2 on
-# UserPromptSubmit blocks prompt processing and erases the user's prompt
-# (issue #4011). The `:-` fallback exits 0 and recalls normally.
+# The project-directory anchor every hook command must open with. Copilot CLI
+# loads `.claude/settings.json` too but never exports `CLAUDE_PROJECT_DIR`, so a
+# bare `cd "$CLAUDE_PROJECT_DIR"` is `cd ""` there: a silent sh/dash no-op that
+# leaves relative script paths resolving against the host cwd. Measurement and
+# controls in `probe-evidence.md` section 8b (issue #4727).
 PROJECT_DIR_ANCHOR = 'cd "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}" && '
 
 # The one memory the recall cases search for, so their prompt matches a body
@@ -124,12 +113,11 @@ def _probe_launcher(
 def _fake_repo(tmp_path: Path) -> Path:
     """A throwaway checkout the hooks can walk up to when cwd decides the root.
 
-    This controls the memory tree only for a caller that also passes it as
-    `project_dir`. Every registered command begins by cd'ing to the project
-    directory, and `memory_enhancement.find_repo_root` then walks up from that
-    cwd, so passing this path as cwd alone leaves the hook searching this
-    repository's real `.serena/memories`. Use `_seeded_memory_checkout` for a
-    case whose assertion depends on which memories exist.
+    Controls the memory tree only for a caller that ALSO passes it as
+    `project_dir`: every registered command cd's there first, and
+    `find_repo_root` walks up from that cwd, so passing it as cwd alone leaves
+    the hook searching this repository's real `.serena/memories`. Use
+    `_seeded_memory_checkout` when an assertion depends on which memories exist.
     """
     (tmp_path / ".git").mkdir(exist_ok=True)
     memories = tmp_path / ".serena" / "memories" / "workflows"
@@ -139,10 +127,7 @@ def _fake_repo(tmp_path: Path) -> Path:
 
 
 def _seeded_memory_checkout(tmp_path: Path) -> Path:
-    """An isolated checkout holding exactly one memory the recall prompt hits.
-
-    Pass the result as BOTH cwd and project_dir so the anchor lands inside it.
-    """
+    """One memory the prompt hits. Pass as BOTH cwd and project_dir."""
     repo = _empty_memory_checkout(tmp_path)
     (repo / ".serena" / "memories" / "dispatch-groups.md").write_text(
         DISPATCH_GROUPS_MEMORY, encoding="utf-8"
@@ -179,13 +164,10 @@ def _harness_env(project_dir: Path = REPO_ROOT) -> dict[str, str]:
     virtualenv, so the test drops it before launching.
     """
     env = dict(os.environ)
-    # Both harness-identity signals are dropped, then set back only by the case
-    # that names one. Either inherited value flips the recall hook's stdout
-    # shape (issue #4727) in a case that never asked for it, and each leaks from
-    # a different direction: COPILOT_CLI when pytest runs under Copilot CLI,
-    # CLAUDE_CODE_ENTRYPOINT when it runs under Claude Code. A case left holding
-    # an inherited value passes on one developer's machine and fails on the
-    # other's, which is `.claude/rules/testing.md` SHOULD-12.
+    # Drop both harness-identity signals; only the case that names one sets it
+    # back. Either inherited value flips the recall hook's stdout shape (issue
+    # #4727), and they leak from opposite directions: COPILOT_CLI under Copilot
+    # CLI, CLAUDE_CODE_ENTRYPOINT under Claude Code. See testing.md SHOULD-12.
     env.pop("COPILOT_CLI", None)
     env.pop("CLAUDE_CODE_ENTRYPOINT", None)
     virtual_env = env.pop("VIRTUAL_ENV", "")
@@ -273,12 +255,7 @@ class TestRegistration:
 
     @pytest.mark.unit
     def test_every_hook_command_anchors_scripts_to_project_dir(self):
-        """The anchor must carry the fallback, not the bare variable.
-
-        Copilot CLI loads this same settings file but never exports
-        `CLAUDE_PROJECT_DIR`, so the bare form is `cd ""` there. See
-        PROJECT_DIR_ANCHOR for the measurement.
-        """
+        """The anchor must carry the fallback; see PROJECT_DIR_ANCHOR."""
         relative = [
             command
             for event in SETTINGS["hooks"]
@@ -294,9 +271,8 @@ class TestRegistration:
     def test_every_launcher_resolves_with_the_project_dir_unset(self, command, tmp_path):
         """The Copilot case: same command, no CLAUDE_PROJECT_DIR, foreign cwd.
 
-        The bare-anchor negative control below proves the case discriminates.
-        Without it a launcher probe that passed for an unrelated reason would
-        read as evidence the fallback works.
+        The bare-anchor control proves the case discriminates; without it a
+        probe passing for an unrelated reason would read as evidence.
         """
         env = _harness_env()
         del env["CLAUDE_PROJECT_DIR"]
@@ -410,10 +386,9 @@ class TestRecallOutputShapePerHost:
     ``additionalContext`` string, or bare text that is not JSON at all.
 
     Every case runs inside a seeded throwaway checkout passed as both cwd and
-    project directory, so the recall these assertions depend on comes from a
-    memory this file writes. Reading the live `.serena/memories` tree instead
-    would make the cases fail with an uncaught JSONDecodeError the day someone
-    renames the memory the prompt happens to match.
+    project directory, so the recall comes from a memory this file writes.
+    Reading the live tree instead would fail with an uncaught JSONDecodeError
+    the day someone renames the memory the prompt happens to match.
     """
 
     RECALL = ("UserPromptSubmit", "UserPromptSubmit/invoke_memory_recall.py")
@@ -443,10 +418,9 @@ class TestRecallOutputShapePerHost:
 
     @pytest.mark.unit
     def test_a_live_claude_session_outranks_an_inherited_copilot_cli(self, tmp_path):
-        """Copilot exports COPILOT_CLI into every shell it spawns, so a Claude
-        session started underneath one inherits it. Claude reads a nested
-        hookSpecificOutput envelope, so a top-level additionalContext document
-        would be parsed and dropped with no error."""
+        """Copilot exports COPILOT_CLI into every shell it spawns, so a nested
+        Claude session inherits it. Claude reads a nested hookSpecificOutput
+        envelope, so a top-level document would be parsed and silently dropped."""
         repo = _seeded_memory_checkout(tmp_path)
 
         result = _run(
