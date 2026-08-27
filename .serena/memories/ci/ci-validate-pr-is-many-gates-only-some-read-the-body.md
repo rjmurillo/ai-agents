@@ -231,6 +231,15 @@ clearing one of them proves nothing about the other. #4438, #4411, and #4392 wer
 confirmed cases: all three were step 20 at 598 versus 597, with descriptions that
 passed the description validator cleanly.
 
+Reconfirmed 2026-08-27 across five more PRs in one triage session (#5342, #5343,
+#5344, #5350, #5356), same shape every time: a tool script or a scope-description
+path (`.agents/planning/impact-analysis-security-*.md`, `count_ratchet.py`, a
+sibling skill's script) named in backticks under `## Changes` to explain context,
+not to claim a diff entry. Each was fixed the slow way, by rewriting the sentence to
+drop the backticks, because the citation-cue trick above (`see`, `per`, `e.g.`) was
+not tried first. The trick is faster and preserves the precise path: prefix the
+existing sentence with `see` rather than rewriting it.
+
 ## Related
 
 - [ci-infrastructure-003-job-status-verdict-distinction](ci-infrastructure-003-job-status-verdict-distinction.md).
