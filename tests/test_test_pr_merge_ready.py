@@ -1512,6 +1512,18 @@ def _add_failed_required_check(pr_data, name="required-thing"):
     })
 
 
+def _clean_pr_in_state(merge_state):
+    """An otherwise perfectly mergeable PR in `merge_state`.
+
+    Threads resolved, required checks green, not draft, open, and
+    `mergeable == "MERGEABLE"`, so `merge_state` is the only thing that can
+    block. Without it every other gate passes and CanMerge is true.
+    """
+    pr_data = json.loads(json.dumps(_OPEN_PR))
+    pr_data["repository"]["pullRequest"]["mergeStateStatus"] = merge_state
+    return pr_data
+
+
 class TestUnsupportedMergeStatesNeverReachT1:
     """Issue #4899 reopen: only a state with a merge path may reach T1.
 
@@ -1537,15 +1549,13 @@ class TestUnsupportedMergeStatesNeverReachT1:
     _UNSUPPORTED = ("UNKNOWN", "DRAFT", "A_STATE_GITHUB_ADDS_LATER")
 
     def _clean_pr_in_state(self, merge_state):
-        """An otherwise perfectly mergeable PR in `merge_state`.
+        """See the module-level `_clean_pr_in_state`.
 
-        Threads resolved, required checks green, not draft, open, and
-        `mergeable == "MERGEABLE"`, so `merge_state` is the only thing that can
-        block. Without it every other gate passes and CanMerge is true.
+        Kept as a thin delegate so the cases below read unchanged while the
+        negative-control class further down can build the same fixture without
+        reaching into this class.
         """
-        pr_data = json.loads(json.dumps(_OPEN_PR))
-        pr_data["repository"]["pullRequest"]["mergeStateStatus"] = merge_state
-        return pr_data
+        return _clean_pr_in_state(merge_state)
 
     @pytest.mark.parametrize("merge_state", _UNSUPPORTED)
     def test_unsupported_merge_state_blocks_can_merge(self, merge_state):
@@ -1781,6 +1791,144 @@ class TestUnsupportedMergeStatesNeverReachT1:
                 f"{state} is in the allowlist but has no row in the "
                 f'"Merge path by `mergeStateStatus`" table'
             )
+
+
+class TestTheAllowlistIsWhatBlocksTheUnsupportedStates:
+    """Negative control: restore the pre-fix shape, watch the cases above fail.
+
+    Every case in `TestUnsupportedMergeStatesNeverReachT1` asserts an outcome.
+    None of them, alone, proves the outcome comes from this change rather than
+    from a gate that already existed, and a test that passes identically before
+    and after a fix is not evidence for the fix. The PR body records a manual
+    revert-and-recount (12 failed, 96 passed). This class puts the same proof in
+    the suite, where CI re-runs it: a control nobody re-runs stops being
+    evidence the moment the code moves.
+
+    What the fix replaced. `_evaluate_pr_state` enumerated blockers. Verbatim
+    from `origin/main` at `.claude/skills/github/scripts/pr/`
+    `test_pr_merge_ready.py`:
+
+        merge_state = _merge_state_status(pr)
+        if merge_state == "BEHIND":
+            reasons.append("Branch is behind base; update against the base branch before merging")
+        elif merge_state == "BLOCKED":
+            reasons.append(
+                "Merge blocked by branch protection (missing review decision or "
+                "unmet protection rule)"
+            )
+
+    Any value nobody listed produced no reason. `CanMerge` is
+    `len(reasons) == 0`, and `classify_tier` carried no allowlist guard, so such
+    a state reached T1. The fix introduced `_SUPPORTED_MERGE_STATES` and made
+    both `_append_merge_state_reason` and `classify_tier` read it.
+
+    How the stand-in works, and what it is not. There is no pre-fix allowlist to
+    revert to, so the control widens the allowlist to hold the one state under
+    test. For that state this is exactly the pre-fix condition: no reason from
+    `_append_merge_state_reason`, and `classify_tier`'s guard inert. It is a
+    stand-in on the discriminating input, not a full revert of the diff.
+    `BEHIND` and `BLOCKED` are refused by `_readiness_without_the_allowlist`
+    below, because pre-fix those two blocked by explicit enumeration; widening
+    the allowlist to hold them would model a defect that never existed.
+
+    Measured, so the control is not merely asserted to work. Replacing the
+    widening below with `frozenset(_mod._SUPPORTED_MERGE_STATES)`, a no-op, and
+    re-running this class: 9 failed, 3 passed. The 9 are every case that
+    reproduces the defect. The 3 still green are exactly the inverted control at
+    the bottom, which the widening is supposed to leave untouched. So each case
+    here moves on the allowlist and on nothing else.
+    """
+
+    _UNSUPPORTED = TestUnsupportedMergeStatesNeverReachT1._UNSUPPORTED
+    _LATER = "A_STATE_GITHUB_ADDS_LATER"
+
+    @staticmethod
+    def _readiness_without_the_allowlist(pr_data, merge_state):
+        """Run `check_merge_readiness` with `merge_state` no longer excluded."""
+        assert merge_state not in ("BEHIND", "BLOCKED"), (
+            "pre-fix, BEHIND and BLOCKED blocked by explicit enumeration, so "
+            "widening the allowlist to hold either one models a defect that "
+            "never existed"
+        )
+        widened = frozenset(_mod._SUPPORTED_MERGE_STATES | {merge_state})
+        with (
+            patch("test_pr_merge_ready.gh_graphql", return_value=pr_data),
+            patch.object(_mod, "_SUPPORTED_MERGE_STATES", widened),
+        ):
+            return check_merge_readiness("o", "r", 42)
+
+    @pytest.mark.parametrize("merge_state", _UNSUPPORTED)
+    def test_without_the_allowlist_an_unsupported_state_reports_ready(self, merge_state):
+        """Discriminates `test_unsupported_merge_state_blocks_can_merge`."""
+        result = self._readiness_without_the_allowlist(
+            _clean_pr_in_state(merge_state), merge_state,
+        )
+        assert result["Reasons"] == [], (
+            "the pre-fix shape produced no blocking reason for an unlisted "
+            "state; if it does now, this control no longer discriminates"
+        )
+        assert result["CanMerge"] is True
+
+    @pytest.mark.parametrize("merge_state", _UNSUPPORTED)
+    def test_without_the_allowlist_an_unsupported_state_reaches_t1(self, merge_state):
+        """Discriminates the `is_never_t1` and `terminal_tier` cases.
+
+        T1 is the auto-merge path, so this is issue #4899 itself, reproduced.
+        """
+        result = self._readiness_without_the_allowlist(
+            _clean_pr_in_state(merge_state), merge_state,
+        )
+        assert result["Tier"] == "T1"
+
+    def test_without_the_allowlist_threads_fall_through_to_t3(self):
+        """Discriminates the thread half of the work-tier fallthrough.
+
+        T3's documented action ends in "then merge", for a state with no merge
+        path. That is what the terminal tier exists to prevent.
+        """
+        pr_data = _clean_pr_in_state(self._LATER)
+        _add_unresolved_thread(pr_data)
+        result = self._readiness_without_the_allowlist(pr_data, self._LATER)
+        assert result["UnresolvedThreads"] == 1
+        assert result["Tier"] == "T3"
+
+    def test_without_the_allowlist_a_failed_check_falls_through_to_t2(self):
+        """Discriminates the CI half of the same fallthrough."""
+        pr_data = _clean_pr_in_state(self._LATER)
+        _add_failed_required_check(pr_data)
+        result = self._readiness_without_the_allowlist(pr_data, self._LATER)
+        assert result["FailedRequiredChecks"] == ["required-thing"]
+        assert result["Tier"] == "T2"
+
+    def test_without_the_allowlist_dirty_reports_ready(self):
+        """Discriminates `test_dirty_merge_state_blocks_without_a_conflicting_mergeable`.
+
+        The tier stays `DIRTY` either way: `_MERGE_STATE_TIERS` carries a row
+        for it and `classify_tier` reads that table before the allowlist guard.
+        `CanMerge` is the half the fix moved, and it is the half that decides,
+        because pr-autofix's four-condition gate reads `CanMerge`.
+        """
+        pr_data = _clean_pr_in_state("DIRTY")
+        assert pr_data["repository"]["pullRequest"]["mergeable"] == "MERGEABLE"
+        result = self._readiness_without_the_allowlist(pr_data, "DIRTY")
+        assert result["CanMerge"] is True
+        assert result["Tier"] == "DIRTY"
+
+    @pytest.mark.parametrize("merge_state", ["CLEAN", "HAS_HOOKS", "UNSTABLE"])
+    def test_the_widening_is_inert_for_states_already_in_the_allowlist(self, merge_state):
+        """Inverted control: the stand-in must not pass by breaking everything.
+
+        A stand-in that flipped every outcome would satisfy every case above
+        while proving nothing about the allowlist. These three are already in
+        `_SUPPORTED_MERGE_STATES`, so the widening is a no-op and they must
+        still reach T1. The outcomes above therefore move because the state was
+        excluded, not because patching the module attribute fires.
+        """
+        result = self._readiness_without_the_allowlist(
+            _clean_pr_in_state(merge_state), merge_state,
+        )
+        assert result["CanMerge"] is True, f"reasons: {result['Reasons']}"
+        assert result["Tier"] == "T1"
 
 
 class TestTierInMergeReadinessOutput:
