@@ -14,9 +14,11 @@ from pathlib import Path
 import pytest
 import yaml
 
+from scripts.ci.ruleset_required_contexts import REQUIRED_CONTEXTS
 from scripts.github_core.workflow_event_subscriptions import (
     DEFAULT_PULL_REQUEST_TYPES,
     RECOVERY_EVENTS,
+    declared_required_contexts,
     load_workflow_subscriptions,
     parse_workflow_subscriptions,
     subscribes_to,
@@ -212,6 +214,7 @@ class TestLoadWorkflowSubscriptions:
         assert "reopened" in pr_validation.pull_request_types
         assert "synchronize" in pr_validation.pull_request_types
 
+
 class TestSharedWorkflowNames:
     """A ``name:`` two files declare resolves to what both files subscribe to.
 
@@ -286,6 +289,38 @@ class TestSharedWorkflowNames:
         loaded = load_workflow_subscriptions(tmp_path)
 
         assert loaded["Dup"].pull_request_types == frozenset({"opened"})
+
+    def test_job_names_union_rather_than_intersect_across_sharers(self, tmp_path: Path):
+        # Opposite polarity to the subscription narrowing above, and for the
+        # same reason: a context either file publishes is a context the
+        # cancellation might remove, so the larger claim is the safe one.
+        (tmp_path / "a.yml").write_text(
+            "name: Dup\non:\n  pull_request:\njobs:\n  a:\n    name: Validate PR\n",
+            encoding="utf-8",
+        )
+        (tmp_path / "b.yml").write_text(
+            "name: Dup\non:\n  pull_request:\njobs:\n  b:\n    name: Run Python Tests\n",
+            encoding="utf-8",
+        )
+
+        loaded = load_workflow_subscriptions(tmp_path)
+
+        assert declared_required_contexts(loaded["Dup"], REQUIRED_CONTEXTS) == frozenset(
+            {"Validate PR", "Run Python Tests"}
+        )
+
+    def test_a_path_filter_on_one_sharer_marks_the_shared_record(self, tmp_path: Path):
+        (tmp_path / "a.yml").write_text(
+            "name: Dup\non:\n  pull_request:\n    paths: ['docs/**']\n", encoding="utf-8"
+        )
+        (tmp_path / "b.yml").write_text(
+            "name: Dup\non:\n  pull_request:\n", encoding="utf-8"
+        )
+
+        loaded = load_workflow_subscriptions(tmp_path)
+
+        assert loaded["Dup"].has_path_filters is True
+        assert loaded["b.yml"].has_path_filters is False
 
     def test_a_filename_key_always_describes_that_one_file(self, tmp_path: Path):
         # `impostor.yml` declares the name "target.yml", which is also a real

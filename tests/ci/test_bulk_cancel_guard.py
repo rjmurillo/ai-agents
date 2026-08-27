@@ -8,6 +8,11 @@ Acceptance criteria from the issue, each covered below:
 - required runs cancel only when the manifest validates
 - pagination, queued/in-progress states, duplicate workflows, and partial
   cancellation failures all have cases
+
+Manifest replay and path-filter blocking live in
+``tests/ci/test_bulk_cancel_guard_replay.py``; the corpus writers and the
+default-manifest redirect they share with this module live in
+``tests/ci/bulk_cancel_cli_fixtures.py``.
 """
 
 from __future__ import annotations
@@ -25,93 +30,16 @@ from scripts.bulk_cancel_guard import (
     EXIT_OK,
     main,
 )
+from tests.ci.bulk_cancel_cli_fixtures import argv, write_runs
 from tests.ci.bulk_cancel_fixtures import (
     INCIDENT_PR_COUNT,
     OPTIONAL_CONTEXT,
     OPTIONAL_WORKFLOW,
     REQUIRED_CONTEXT,
-    REQUIRED_WORKFLOW,
     SECOND_REQUIRED_CONTEXT,
-    SECOND_REQUIRED_WORKFLOW,
     incident_runs,
 )
-from tests.ci.test_workflow_runs import FakeClient, page_url
-
-_HEALTHY = {
-    REQUIRED_WORKFLOW: ["opened", "synchronize", "reopened"],
-    SECOND_REQUIRED_WORKFLOW: ["opened", "synchronize", "reopened"],
-    OPTIONAL_WORKFLOW: ["opened", "synchronize", "reopened"],
-}
-_REOPEN_OMITTED = dict(_HEALTHY, **{REQUIRED_WORKFLOW: ["opened", "synchronize"]})
-
-
-def write_workflows(directory: Path, types: dict[str, list[str]]) -> Path:
-    """Materialize one workflow file per name with the given PR activity types."""
-    directory.mkdir(parents=True, exist_ok=True)
-    for index, (name, pr_types) in enumerate(types.items()):
-        body = {"name": name, "on": {"pull_request": {"types": list(pr_types)}}}
-        (directory / f"wf{index}.yml").write_text(json.dumps(body), encoding="utf-8")
-    return directory
-
-
-def write_runs(path: Path, runs) -> Path:
-    """Serialize run records into the CLI's --runs-file shape."""
-    path.write_text(
-        json.dumps(
-            [
-                {
-                    "run_id": run.run_id,
-                    "workflow_name": run.workflow_name,
-                    "pr_number": run.pr_number,
-                    "branch": run.branch,
-                    "event": run.event,
-                    "status": run.status,
-                    "contexts": list(run.contexts),
-                }
-                for run in runs
-            ]
-        ),
-        encoding="utf-8",
-    )
-    return path
-
-
-@pytest.fixture
-def workflows(tmp_path: Path) -> Path:
-    return write_workflows(tmp_path / "healthy", _HEALTHY)
-
-
-@pytest.fixture
-def workflows_missing_reopened(tmp_path: Path) -> Path:
-    return write_workflows(tmp_path / "omitted", _REOPEN_OMITTED)
-
-
-@pytest.fixture(autouse=True)
-def _default_manifest_path_stays_out_of_the_repo(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> Path:
-    """Redirect the production default manifest path into tmp_path.
-
-    scripts/bulk_cancel_guard.py:_DEFAULT_MANIFEST_PATH resolves under this
-    repo's own .agents/scratch/ so a real ``--confirm`` run always leaves a
-    manifest. Left unpatched, any test that exercises ``--confirm`` without
-    ``--manifest`` would write into the actual working tree (testing.md MUST
-    4). Nested under a subdirectory so tests also exercise write_manifest's
-    ``mkdir(parents=True)``.
-    """
-    default_path = tmp_path / "default-manifests" / "bulk-cancel-recovery.json"
-    monkeypatch.setattr(bulk_cancel_guard, "_DEFAULT_MANIFEST_PATH", default_path)
-    return default_path
-
-
-def argv(runs_file: Path, workflows_dir: Path, *extra: str) -> list[str]:
-    return [
-        "--runs-file",
-        str(runs_file),
-        "--workflows-dir",
-        str(workflows_dir),
-        *extra,
-    ]
+from tests.ci.test_workflow_runs import FakeClient, page_url, runs_url
 
 
 class TestDryRun:
@@ -361,10 +289,8 @@ class TestInputHandling:
 class TestLiveEnumeration:
     def _pulls_client(self) -> FakeClient:
         pulls = "repos/rjmurillo/ai-agents/pulls?state=open&base=main"
-        queued = "repos/rjmurillo/ai-agents/actions/runs?branch=feat/a&status=queued"
-        in_progress = (
-            "repos/rjmurillo/ai-agents/actions/runs?branch=feat/a&status=in_progress"
-        )
+        queued = runs_url("rjmurillo/ai-agents", "feat/a", "queued")
+        in_progress = runs_url("rjmurillo/ai-agents", "feat/a", "in_progress")
         jobs = "repos/rjmurillo/ai-agents/actions/runs/11/jobs"
         return FakeClient(
             {

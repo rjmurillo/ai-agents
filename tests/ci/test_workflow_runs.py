@@ -8,6 +8,7 @@ live API.
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import quote
 
 import pytest
 
@@ -56,6 +57,19 @@ class FakeClient:
 def page_url(endpoint: str, page: int) -> str:
     separator = "&" if "?" in endpoint else "?"
     return f"{endpoint}{separator}per_page={PAGE_SIZE}&page={page}"
+
+
+def runs_url(repository: str, branch: str, status: str) -> str:
+    """The branch-runs endpoint the module builds, with values percent-encoded.
+
+    Spelled out here rather than reusing the module's private helpers so the
+    encoding contract is asserted by the fixture rather than borrowed from the
+    code under test.
+    """
+    return (
+        f"repos/{quote(repository, safe='/')}/actions/runs"
+        f"?branch={quote(branch, safe='')}&status={quote(status, safe='')}"
+    )
 
 
 class TestIterPaginated:
@@ -140,10 +154,76 @@ class TestRunContexts:
             run_contexts(client, "o/r", 5)
 
 
+class TestEndpointEncoding:
+    """Interpolated values are percent-encoded before they reach the query.
+
+    Git permits ``&`` and ``+`` in a refname. Interpolated raw, a branch named
+    ``feat/a&status=completed`` appends a second ``status`` parameter, and the
+    walk enumerates completed runs instead of the queued ones the operator is
+    about to cancel: a wrong run set, silently.
+    """
+
+    HOSTILE_BRANCH = "feat/a&status=completed"
+
+    def test_a_branch_carrying_a_query_separator_is_encoded(self):
+        client = FakeClient()
+
+        collect_runs_for_branches(
+            client, "o/r", {self.HOSTILE_BRANCH: 1}, statuses=["queued"]
+        )
+
+        assert len(client.gets) == 1
+        url = client.gets[0]
+        assert "feat%2Fa%26status%3Dcompleted" in url
+        assert url.count("status=") == 1
+        assert "status=completed" not in url
+
+    def test_the_encoded_url_is_the_one_the_fake_answers(self):
+        """Control for the case above: the encoded URL is a real endpoint the
+        module reads through, not merely a string it happens to build.
+        """
+        endpoint = runs_url("o/r", self.HOSTILE_BRANCH, "queued")
+        client = FakeClient(
+            {
+                page_url(endpoint, 1): {
+                    "workflow_runs": [
+                        {"id": 31, "name": "W", "event": "synchronize",
+                         "status": "queued"}
+                    ]
+                },
+                page_url("repos/o/r/actions/runs/31/jobs", 1): {
+                    "jobs": [{"name": "Validate PR"}]
+                },
+            }
+        )
+
+        runs = collect_runs_for_branches(
+            client, "o/r", {self.HOSTILE_BRANCH: 1}, statuses=["queued"]
+        )
+
+        assert [run.run_id for run in runs] == [31]
+
+    def test_a_repository_owner_keeps_its_path_separator(self):
+        client = FakeClient()
+
+        cancel_runs(client, "o/r", [5])
+
+        assert client.posts == ["repos/o/r/actions/runs/5/cancel"]
+
+    def test_a_repository_with_a_reserved_character_is_encoded_per_segment(self):
+        client = FakeClient()
+
+        run_contexts_endpoint_client = client
+        with pytest.raises(JobsNotMaterializedError):
+            run_contexts(run_contexts_endpoint_client, "o w/r?x", 5)
+
+        assert client.gets[0].startswith("repos/o%20w/r%3Fx/actions/runs/5/jobs")
+
+
 class TestCollectRunsForBranches:
     def _client(self) -> FakeClient:
-        queued = "repos/o/r/actions/runs?branch=feat/a&status=queued"
-        in_progress = "repos/o/r/actions/runs?branch=feat/a&status=in_progress"
+        queued = runs_url("o/r", "feat/a", "queued")
+        in_progress = runs_url("o/r", "feat/a", "in_progress")
         jobs_11 = "repos/o/r/actions/runs/11/jobs"
         jobs_12 = "repos/o/r/actions/runs/12/jobs"
         return FakeClient(
@@ -177,7 +257,7 @@ class TestCollectRunsForBranches:
         assert by_id[12].status == "in_progress"
 
     def test_a_run_without_a_numeric_id_is_skipped(self):
-        endpoint = "repos/o/r/actions/runs?branch=feat/a&status=queued"
+        endpoint = runs_url("o/r", "feat/a", "queued")
         client = FakeClient(
             {page_url(endpoint, 1): {"workflow_runs": [{"name": "No id"}]}}
         )
@@ -185,8 +265,8 @@ class TestCollectRunsForBranches:
         assert collect_runs_for_branches(client, "o/r", {"feat/a": 1}) == []
 
     def test_the_same_run_id_across_two_statuses_is_collected_once(self):
-        queued = "repos/o/r/actions/runs?branch=feat/a&status=queued"
-        in_progress = "repos/o/r/actions/runs?branch=feat/a&status=in_progress"
+        queued = runs_url("o/r", "feat/a", "queued")
+        in_progress = runs_url("o/r", "feat/a", "in_progress")
         payload = {"id": 11, "name": "W", "event": "synchronize", "status": "queued"}
         client = FakeClient(
             {
@@ -207,7 +287,7 @@ class TestCollectRunsForBranches:
         counted), but with contexts=() and jobs_verified=False rather than
         silently resolving to a verified-safe empty context set.
         """
-        endpoint = "repos/o/r/actions/runs?branch=feat/a&status=queued"
+        endpoint = runs_url("o/r", "feat/a", "queued")
         client = FakeClient(
             {
                 page_url(endpoint, 1): {
@@ -227,7 +307,7 @@ class TestCollectRunsForBranches:
         assert runs[0].jobs_verified is False
 
     def test_explicit_status_list_narrows_the_walk(self):
-        endpoint = "repos/o/r/actions/runs?branch=feat/a&status=queued"
+        endpoint = runs_url("o/r", "feat/a", "queued")
         client = FakeClient({page_url(endpoint, 1): {"workflow_runs": []}})
 
         collect_runs_for_branches(client, "o/r", {"feat/a": 1}, statuses=["queued"])
