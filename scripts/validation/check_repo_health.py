@@ -47,15 +47,52 @@ alone would report the immunized checkout healthy while three of its siblings
 were dead.
 
 Bareness is only a defect where a work tree is meant to exist, and a genuine
-bare repository answers ``local\ttrue`` as well. The discriminator is a
-``.git`` marker naming *this* repository's git directory at the working
-directory or an ancestor: a directory in a normal checkout, a ``gitdir:`` file
-in a linked worktree or a ``git init --separate-git-dir`` checkout. Comparing
-the marker's target with ``git rev-parse --absolute-git-dir`` keeps a bare
-repository nested inside an unrelated checkout out of scope.
-``git worktree list --porcelain`` was probed as an alternative and rejected: it
-prints ``bare`` for the corrupted checkout, the separate-git-dir checkout, and
-the genuine bare repository alike.
+bare repository answers ``local\ttrue`` as well. The question the discriminator
+has to answer is whether the repository's **main** work tree is meant to exist,
+not whether the checkout being read has one.
+
+The two are not the same, and reading the second is what made this gate print
+destructive advice for a healthy layout. ``git clone --bare seed bareA.git``
+followed by ``git -C bareA.git worktree add wtA master`` is an ordinary git
+setup. ``wtA`` is a live checkout, ``git -C wtA status`` works, and ``wtA``
+carries a ``gitdir:`` marker naming its own private git directory, so anchoring
+on ``git rev-parse --absolute-git-dir`` finds a marker and calls the repository
+corrupted. It is not: ``local\ttrue`` there is the bare parent's config, read
+through the worktree, exactly as designed. Running the ``git config core.bare
+false`` the gate printed writes into that shared config and breaks the bare
+parent (``git -C bareA.git status`` then fails) along with every sibling
+worktree.
+
+So the anchor is ``git rev-parse --path-format=absolute --git-common-dir``,
+which answers the same shared path from the main checkout and from every linked
+worktree, and the main work tree is whichever of these names it:
+
+* a checkout at the working directory or an ancestor whose ``.git`` marker
+  resolves to the common directory. A ``.git`` directory in a normal checkout,
+  or a ``gitdir:`` file in a ``git init --separate-git-dir`` checkout, which
+  ``git worktree list`` no longer reports once the value is set.
+* otherwise the first ``worktree`` line of ``git worktree list --porcelain``,
+  which is the main worktree. This is the case a linked worktree needs, since
+  the main checkout is usually not one of its ancestors. Only that path is read
+  from the listing: its ``bare`` attribute is printed for the corrupted
+  checkout, the separate-git-dir checkout, and the genuine bare repository
+  alike, so it cannot carry the verdict.
+
+That path still needs one filesystem read, because git derives a bare
+repository's main-worktree path by stripping a trailing ``.git`` component:
+measured on git 2.43.0, a bare repository at ``dirD/.git`` reports ``worktree
+dirD`` and a poisoned checkout at ``corrupt/seed`` reports ``worktree
+corrupt/seed``, so the reported path is a pure function of the common directory
+and carries no evidence of its own. What separates them is content: the
+poisoned checkout holds its tracked files, ``dirD`` holds ``.git`` and nothing
+else. A directory that holds nothing but its own ``.git`` entry is a bare
+repository's phantom work tree, not a work tree.
+
+Ambiguity resolves toward "bare by design" on purpose. A miss leaves the reader
+with the four confusing failures this gate front-runs, which is the pre-gate
+status quo; a false alarm hands the reader a command that destroys a healthy
+repository. Only the second is irreversible, so a main work tree that holds no
+content is treated as absent.
 
 Where it runs: first in the ``pre-commit`` and ``pre-push`` job lists, ahead of
 ``repair-packed-refs``. The incident produced four plausible and independent
@@ -118,6 +155,7 @@ _DEFAULT_REPAIR = _SCOPE_REPAIRS["local"]
 _IMMUNIZATION = "git config --worktree core.bare false"
 
 _WORK_TREE_FATAL = "fatal: this operation must be run in a work tree"
+
 
 
 class GitExecutionError(RuntimeError):
@@ -213,22 +251,88 @@ def _marker_git_dir(marker: Path) -> Path | None:
     return None
 
 
-def _work_tree_root(start: Path, git_dir: Path) -> Path | None:
-    """Return the checkout whose ``.git`` marker names ``git_dir``, or None.
+def _work_tree_root(start: Path, common_dir: Path) -> Path | None:
+    """Return the checkout whose ``.git`` marker names ``common_dir``, or None.
 
     Ancestors are walked so an invocation from a subdirectory still finds the
-    checkout. The marker's target is compared with the repository's own git
-    directory so a bare repository sitting inside an unrelated checkout is not
-    attributed to that checkout.
+    checkout. Two comparisons matter and both are against the *common* git
+    directory, never against this checkout's own ``--absolute-git-dir``:
+
+    * a linked worktree's marker names its private git directory under
+      ``<common>/worktrees/<name>``, so it does not match, which is what stops a
+      healthy linked worktree of a genuinely bare repository being read as
+      evidence that a main work tree exists.
+    * a bare repository sitting inside an unrelated checkout does not match that
+      checkout's marker either, so it is not attributed to it.
+
+    A ``git init --separate-git-dir`` checkout does match, because its
+    ``gitdir:`` file names the common directory itself. That case needs the
+    walk: once ``core.bare`` is true, ``git worktree list`` names the git
+    directory as the main worktree and never mentions the real checkout.
     """
     for candidate in (start, *start.parents):
         marker = candidate / ".git"
         if not marker.exists():
             continue
         target = marker.resolve() if marker.is_dir() else _marker_git_dir(marker)
-        if target == git_dir:
+        if target == common_dir:
             return candidate
     return None
+
+
+def _common_git_dir(repo_root: Path) -> Path:
+    """Return the repository's shared git directory, absolute.
+
+    ``--path-format=absolute`` because the bare answer is relative to the
+    working directory (``.git`` from a checkout's top level, ``.`` inside a bare
+    repository), and lefthook already requires that flag of the git it runs.
+    """
+    raw = _git(repo_root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    if not raw:
+        raise GitExecutionError("git returned an empty git directory")
+    return Path(raw).resolve()
+
+
+def _reported_main_worktree(repo_root: Path) -> Path | None:
+    """Return the path on the first ``worktree`` line of the porcelain listing.
+
+    That first entry is the main worktree. Later entries are linked worktrees,
+    whose own health this gate does not decide.
+    """
+    raw = _git(repo_root, "worktree", "list", "--porcelain")
+    for line in (raw or "").splitlines():
+        before, separator, path = line.partition("worktree ")
+        if separator and not before and path:
+            return Path(path).resolve()
+    return None
+
+
+def _holds_checked_out_content(work_tree: Path) -> bool:
+    """Report whether a directory holds anything besides its own ``.git`` entry.
+
+    Measured on git 2.43.0: ``git clone --bare seed dirD/.git`` leaves ``dirD``
+    holding ``.git`` and nothing else while git names ``dirD`` as the main
+    worktree, which is indistinguishable by path from a poisoned checkout whose
+    git directory sits at the same place. A checkout holds its tracked files.
+    """
+    try:
+        with os.scandir(work_tree) as entries:
+            return any(entry.name != ".git" for entry in entries)
+    except OSError:
+        return False
+
+
+def _main_work_tree(repo_root: Path, common_dir: Path) -> Path | None:
+    """Return the main work tree this repository is meant to have, or None.
+
+    None is the "bare by design" verdict, and it is where every ambiguity
+    lands: see the module docstring for why a false alarm costs more than a
+    miss here.
+    """
+    candidate = _work_tree_root(repo_root, common_dir) or _reported_main_worktree(repo_root)
+    if candidate is None or candidate.resolve() == common_dir:
+        return None
+    return candidate if _holds_checked_out_content(candidate) else None
 
 
 def _worktree_config_enabled(repo_root: Path) -> bool:
@@ -246,11 +350,7 @@ def diagnose(repo_root: Path) -> RepoHealth:
     if not bare_scopes:
         return RepoHealth("usable", scopes_read=len(scoped))
 
-    raw_git_dir = _git(repo_root, "rev-parse", "--absolute-git-dir")
-    if not raw_git_dir:
-        raise GitExecutionError("git returned an empty git directory")
-
-    work_tree = _work_tree_root(repo_root, Path(raw_git_dir).resolve())
+    work_tree = _main_work_tree(repo_root, _common_git_dir(repo_root))
     if work_tree is None:
         return RepoHealth("bare_by_design", bare_scopes=bare_scopes, scopes_read=len(scoped))
 
@@ -336,8 +436,9 @@ def _evaluate(repo_root: Path) -> int:
         return 0
     if health.status == "bare_by_design":
         print(
-            f"repo health: skipped, {repo_root} is a bare repository with no "
-            "work tree (1 of 1 read scope expected to be bare)"
+            f"repo health: skipped, {repo_root} belongs to a bare repository "
+            f"with no work tree ({len(health.bare_scopes)} of "
+            f"{health.scopes_read} read scope(s) bare by design)"
         )
         return 0
 
