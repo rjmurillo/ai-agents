@@ -35,6 +35,7 @@ gate's intact copy keeps the assertion green.
 
 from __future__ import annotations
 
+import json
 import re
 import shlex
 import shutil
@@ -48,6 +49,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 GREP = shutil.which("grep")
 BASH = shutil.which("bash")
+# Phase 8.3's append parses the re-fetched payload with jq, the same tool the
+# fence already uses to read ``.TotalComments``. Executing the append is the
+# only way to prove the fence produces the row, so the tool is required rather
+# than mocked away.
+JQ = shutil.which("jq")
 
 # The shared template generates VS Code and Copilot CLI source copies via
 # build/generate_agents.py. src/claude and installed agent copies are
@@ -171,6 +177,48 @@ COUNT_RECORD_STEPS: tuple[str, ...] = (
 RECHECK_SECTION_KEY = "Phase 8.3"
 RECHECK_BLOCK_OPEN = 'if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then'
 COUNT_REFRESH_STEP = 'printf \'%s\\n\' "$NEW_COMMENTS" > "$COUNT_FILE"'
+
+# The map Phase 8.3 appends to, at the path the fence hardcodes. The gates read
+# the same file, so the append and every later count have to meet on disk.
+COMMENT_MAP_ARTIFACT_PATH = ".agents/pr-comments/PR-[number]/comments.md"
+
+# Phase 8.3's append: the pipeline that turns the re-fetched payload into the
+# rows the gates count. Shipped as a bare ``# Fetch new comments`` comment
+# through PR #5342, so the count refresh below moved while the map never did
+# and Gate 4's API-count invariant blocked every later pass (Copilot review of
+# commit e82aa27cc). Quoted verbatim so a carrier that drops it fails here.
+APPEND_STEP = (
+    "printf '%s' \"$RECHECK_PAYLOAD\" \\\n"
+    '    | jq -r \'.Comments[] | [(.Id|tostring), (.Author // "unknown"), '
+    '(.CommentType // "Review"), (.Path // "-"), (.Line // "-"), '
+    '(.CreatedAt // "-")] | @tsv\' \\\n'
+    "    | while IFS=\"$(printf '\\t')\" read -r ID AUTHOR CTYPE CPATH CLINE CREATED; do\n"
+    '        if grep -q "^### Comment $ID " "$COMMENT_MAP"; then\n'
+    "          continue\n"
+    "        fi\n"
+    "        {\n"
+    '          printf \'### Comment %s (@%s)\\n\\n\' "$ID" "$AUTHOR"\n'
+    "          printf '**Type**: %s\\n' \"$CTYPE\"\n"
+    "          printf '**Path**: %s\\n' \"$CPATH\"\n"
+    "          printf '**Line**: %s\\n' \"$CLINE\"\n"
+    "          printf '**Created**: %s\\n' \"$CREATED\"\n"
+    "          printf '**Status**: [NEW]\\n\\n'\n"
+    "          printf -- '---\\n\\n'\n"
+    '        } >> "$COMMENT_MAP"\n'
+    "      done"
+)
+
+# The check that proves the append landed before the count is refreshed. The
+# refresh is the one write that can clear the API-count invariant, so refreshing
+# it over a map that never grew is the fail-open the invariant exists to catch.
+APPEND_VERIFY_STEP = (
+    'APPENDED_STATUS=$(grep -c "^\\*\\*Status\\*\\*: " "$COMMENT_MAP" || true)\n'
+    '  if [ "$APPENDED_STATUS" -ne "$NEW_COMMENTS" ]; then\n'
+    '    echo "[BLOCKED] Comment map carries $APPENDED_STATUS status fields '
+    'after the append, API reported $NEW_COMMENTS"\n'
+    "    exit 1\n"
+    "  fi"
+)
 
 # The guard that proves the map is complete before the subtraction is trusted.
 # A map whose status fields were stripped counts zero total and zero terminal,
@@ -319,15 +367,24 @@ COMPLETE_COMMENT_MAP_LINES: tuple[str, ...] = (
     "**Status**: [DEFERRED] Refs #4054",
 )
 
-# The map a second pass works against. A bot answered the push, Phase 8.3
-# appended its comment, and the agent then worked it to terminal. Four status
-# fields, all terminal, so the only thing that can still block Gate 4 is a
-# recorded count that never learned about the fourth.
-SECOND_PASS_COMMENT_MAP_LINES: tuple[str, ...] = COMPLETE_COMMENT_MAP_LINES + (
-    "### Comment 126 (@bot)",
-    "**Status**: [COMPLETE]",
+# The comments the API reports on a second pass: the three Phase 1 recorded,
+# plus the bot answer that arrived after the push. The four-comment map is NOT
+# written here. Building it by hand is what let the earlier version of these
+# tests stay green while Phase 8.3's append was a bare shell comment: the test
+# supplied the row it claimed to verify. The map has to come out of the fence.
+FIRST_PASS_COMMENTS: tuple[tuple[int, str], ...] = (
+    (123, "reviewer"),
+    (124, "reviewer"),
+    (125, "reviewer"),
 )
-SECOND_PASS_COMMENT_COUNT = API_COMMENT_COUNT + 1
+NEW_COMMENT_ID = 126
+NEW_COMMENT_AUTHOR = "bot"
+SECOND_PASS_COMMENTS: tuple[tuple[int, str], ...] = FIRST_PASS_COMMENTS + (
+    (NEW_COMMENT_ID, NEW_COMMENT_AUTHOR),
+)
+SECOND_PASS_COMMENT_COUNT = len(SECOND_PASS_COMMENTS)
+APPENDED_HEADING = f"### Comment {NEW_COMMENT_ID} (@{NEW_COMMENT_AUTHOR})"
+APPENDED_STATUS_LINE = "**Status**: [NEW]"
 
 # The same three comments with one still unworked. All three status fields are
 # present, so the API-count invariant clears and the gate's blocking check on
@@ -370,12 +427,47 @@ TABLE_HEADER = "| Status | Meaning |"
 
 requires_grep = pytest.mark.skipif(GREP is None, reason="grep is not on PATH")
 requires_bash = pytest.mark.skipif(BASH is None, reason="bash is not on PATH")
+requires_jq = pytest.mark.skipif(JQ is None, reason="jq is not on PATH")
 
 
 def _render_comment_map(tmp_path: Path, lines: Sequence[str]) -> Path:
     target = tmp_path / "comments.md"
     target.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return target
+
+
+def _render_session_comment_map(work_dir: Path, lines: Sequence[str]) -> Path:
+    """Render the map at the path Phase 8.3 hardcodes, relative to ``work_dir``.
+
+    Phase 8.3 opens the map by literal path rather than by injected variable,
+    so a test that wants the fence to append has to put the pre-append map
+    where the fence will look for it.
+    """
+    target = work_dir / COMMENT_MAP_ARTIFACT_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return target
+
+
+def _recheck_payload(comments: Sequence[tuple[int, str]]) -> str:
+    """The ``get_pr_review_comments.py --include-issue-comments`` response shape.
+
+    Only the fields the append reads are populated. ``TotalComments`` is derived
+    from the row count rather than passed in, so the fixture cannot claim a
+    total its own comment list does not support.
+    """
+    rows = [
+        {
+            "Id": comment_id,
+            "Author": author,
+            "CommentType": "Review",
+            "Path": "src/example.py",
+            "Line": index + 1,
+            "CreatedAt": f"2026-08-27T00:0{index}:00Z",
+        }
+        for index, (comment_id, author) in enumerate(comments)
+    ]
+    return json.dumps({"TotalComments": len(rows), "Comments": rows})
 
 
 def _grep_count(pattern: str, comment_map: Path) -> int:
@@ -465,15 +557,40 @@ def _recheck_fence(path: Path) -> str:
     raise AssertionError(f"{_carrier_id(path)} publishes no {RECHECK_SECTION_KEY} fence")
 
 
-def _recheck_script(fence: str, new_comments: int, *, with_refresh: bool = True) -> str:
+def _recheck_script(
+    fence: str,
+    payload: str,
+    *,
+    with_append: bool = True,
+    with_verify: bool = True,
+    with_refresh: bool = True,
+) -> str:
     """Lift Phase 8.3's count read and new-comment branch out verbatim.
 
     Sliced from the count-artifact read so the ``python3`` re-fetch above it is
-    left out; ``NEW_COMMENTS`` is supplied by the caller in its place, which is
-    what that fetch would have assigned. ``with_refresh`` is the negative
-    control: dropping the refresh must leave the recorded count stale.
+    left out. The caller supplies the payload that fetch would have assigned,
+    and ``NEW_COMMENTS`` is derived from it by the same ``jq '.TotalComments'``
+    the fence publishes, so the fixture cannot hand the branch a total its own
+    comment list does not support.
+
+    The slice ends at the first column-zero ``fi``. Every ``fi`` inside the
+    branch is indented, so this is the branch's own terminator and not the
+    append's guard or the verification below it.
+
+    ``with_append``, ``with_verify``, and ``with_refresh`` are the negative
+    controls. Dropping the append reproduces the shape PR #5342 shipped: the
+    recorded count advances while the map never gains the row.
     """
     assert COUNT_READ_BLOCK in fence, "Phase 8.3 publishes no count-artifact read"
+    assert APPEND_STEP in fence, (
+        "Phase 8.3 advances the recorded count without appending the new "
+        "comments to the map, so the count grows while the map does not and "
+        "Gate 4's API-count invariant blocks every later pass"
+    )
+    assert APPEND_VERIFY_STEP in fence, (
+        "Phase 8.3 refreshes the recorded count without proving the append "
+        "landed, so a refresh over an unchanged map clears the invariant"
+    )
     assert COUNT_REFRESH_STEP in fence, (
         "Phase 8.3 appends new comments to the map without refreshing the "
         "recorded count, so Gate 4's API-count invariant blocks every later pass"
@@ -481,9 +598,17 @@ def _recheck_script(fence: str, new_comments: int, *, with_refresh: bool = True)
     start = fence.index(COUNT_READ_BLOCK)
     end = fence.index(BLOCK_END, fence.index(RECHECK_BLOCK_OPEN)) + len(BLOCK_END)
     body = fence[start:end]
+    if not with_append:
+        body = body.replace(APPEND_STEP, ":")
+    if not with_verify:
+        body = body.replace(APPEND_VERIFY_STEP, ":")
     if not with_refresh:
         body = body.replace(COUNT_REFRESH_STEP, ":")
-    return f"NEW_COMMENTS={new_comments}\n{body}\n"
+    return (
+        f"RECHECK_PAYLOAD={shlex.quote(payload)}\n"
+        "NEW_COMMENTS=$(printf '%s' \"$RECHECK_PAYLOAD\" | jq '.TotalComments')\n"
+        f"{body}\n"
+    )
 
 
 def _counting_fences(text: str) -> list[tuple[str, str]]:
@@ -1121,28 +1246,71 @@ def test_the_recorded_count_reaches_the_gate_that_reads_it(path: Path, tmp_path:
     assert "PENDING=0" in result.stdout
 
 
+def _work_appended_row_to_terminal(comment_map: Path) -> None:
+    """Stand in for the agent's Phase 5 work on the row Phase 8.3 appended.
+
+    Phase 5 rewrites the status field with a ``sed`` range edit once the fix
+    lands. Only that one field is touched here; the heading and the block Phase
+    8.3 wrote are left exactly as the fence emitted them, so what Gate 4 counts
+    is still the fence's output and not the test's.
+    """
+    text = comment_map.read_text(encoding="utf-8")
+    assert text.count(APPENDED_STATUS_LINE) == 1, (
+        "expected exactly one appended [NEW] row to work to terminal"
+    )
+    comment_map.write_text(
+        text.replace(APPENDED_STATUS_LINE, "**Status**: [COMPLETE]"), encoding="utf-8"
+    )
+
+
+@requires_bash
+@requires_jq
 @pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
-def test_a_second_pass_clears_the_gate_after_phase_eight_three_appends(
+def test_phase_eight_three_appends_the_new_comment_then_the_gate_clears(
     path: Path, tmp_path: Path
 ) -> None:
-    """Run Phase 8.3's refresh, then Gate 4, against one filesystem.
+    """Run Phase 8.3 against a real pre-append map, then run Gate 4 on its output.
 
-    Phase 8.3 appends the comments that arrived after the push, so the map
-    grows past the count Phase 1 recorded. Executing the refresh and then the
-    gate proves the loop the workflow tells the agent to repeat is actually
-    repeatable, rather than one pass that happens to line up.
+    The starting state is the three-comment map Phase 1 built and the count it
+    recorded. Phase 8.3 is handed a payload reporting four, and the fence
+    itself has to fetch the fourth and write its ``### Comment`` block at a
+    non-terminal status. Asserting that mutation before the gate runs is the
+    point: the earlier version of this test wrote the four-comment map itself,
+    so it stayed green while the append was a bare shell comment (Copilot
+    review of commit e82aa27cc).
     """
-    _record_api_count(tmp_path, API_COMMENT_COUNT)
+    count_file = _record_api_count(tmp_path, API_COMMENT_COUNT)
+    comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
+    before = comment_map.read_text(encoding="utf-8")
+    assert APPENDED_HEADING not in before, "the pre-append map must not carry the new row"
 
     refreshed = _run_derivation(
-        _recheck_script(_recheck_fence(path), SECOND_PASS_COMMENT_COUNT), cwd=tmp_path
+        _recheck_script(_recheck_fence(path), _recheck_payload(SECOND_PASS_COMMENTS)),
+        cwd=tmp_path,
     )
+
     assert refreshed.returncode == 0, (
-        f"{_carrier_id(path)} Phase 8.3 failed on a new comment: {refreshed.stderr!r}"
+        f"{_carrier_id(path)} Phase 8.3 failed on a new comment: "
+        f"exit {refreshed.returncode}, stdout {refreshed.stdout!r}, "
+        f"stderr {refreshed.stderr!r}"
     )
     assert "[NEW COMMENTS] 1 new comments detected" in refreshed.stdout
 
-    comment_map = _render_comment_map(tmp_path, SECOND_PASS_COMMENT_MAP_LINES)
+    after = comment_map.read_text(encoding="utf-8")
+    assert APPENDED_HEADING in after, (
+        f"{_carrier_id(path)} Phase 8.3 advanced the recorded count without "
+        f"appending {APPENDED_HEADING!r} to the map"
+    )
+    assert after.count(APPENDED_STATUS_LINE) == 1, (
+        f"{_carrier_id(path)} Phase 8.3 appended the row at a status other "
+        f"than {APPENDED_STATUS_LINE!r}, or appended it more than once"
+    )
+    assert after.startswith(before), "the append must not rewrite the rows already in the map"
+    assert count_file.read_text(encoding="utf-8").strip() == str(SECOND_PASS_COMMENT_COUNT), (
+        f"{_carrier_id(path)} left the recorded count behind the appended map"
+    )
+
+    _work_appended_row_to_terminal(comment_map)
     result = _run_derivation(_derivation_script(_gate_four_fence(path), comment_map), cwd=tmp_path)
 
     assert result.returncode == 0, (
@@ -1153,25 +1321,109 @@ def test_a_second_pass_clears_the_gate_after_phase_eight_three_appends(
     assert "PENDING=0" in result.stdout
 
 
-def test_without_the_refresh_a_second_pass_can_never_clear(tmp_path: Path) -> None:
-    """Negative control for the refresh above (PR #5342 review).
+@requires_bash
+@requires_jq
+def test_the_shipped_stub_advances_the_count_and_never_appends(tmp_path: Path) -> None:
+    """Negative control: today's shipped Phase 8.3, reproduced exactly.
 
-    Phase 8.3 shipped the count read and the append with no write back to the
-    count artifact. The map then carried four status fields against a recorded
-    three, so Gate 4's API-count invariant blocked, and nothing an agent could
-    do to the comments moved either number. Removing only the refresh from the
-    canonical fence must reproduce that.
+    PR #5342 shipped the count read, a bare ``# Fetch new comments`` comment
+    where the append belongs, and the refresh. Stripping the append and the
+    verification from the canonical fence rebuilds that shape. The recorded
+    count advances to four, the map still carries three rows, and every later
+    gate blocks on the difference. The assertions the positive test makes on
+    the appended row have to fail here, or they prove nothing about the fence.
+    """
+    path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
+    count_file = _record_api_count(tmp_path, API_COMMENT_COUNT)
+    comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
+
+    stub = _run_derivation(
+        _recheck_script(
+            _recheck_fence(path),
+            _recheck_payload(SECOND_PASS_COMMENTS),
+            with_append=False,
+            with_verify=False,
+        ),
+        cwd=tmp_path,
+    )
+
+    assert stub.returncode == 0, "the shipped stub exited 0; the control must reproduce that"
+    assert APPENDED_HEADING not in comment_map.read_text(encoding="utf-8"), (
+        "the control must reproduce the missing append, not perform it"
+    )
+    assert count_file.read_text(encoding="utf-8").strip() == str(SECOND_PASS_COMMENT_COUNT)
+
+    result = _run_derivation(_derivation_script(_gate_four_fence(path), comment_map), cwd=tmp_path)
+
+    assert result.returncode == 1, (
+        "a count advanced past a map that never grew has to block Gate 4, "
+        f"but the gate exited {result.returncode}: {result.stdout!r}"
+    )
+    assert "[BLOCKED] Comment map carries 3 status fields, API reported 4" in result.stdout
+
+
+@requires_bash
+@requires_jq
+def test_the_refresh_is_refused_when_the_append_does_not_land(tmp_path: Path) -> None:
+    """Phase 8.3 must not write a count the map cannot support.
+
+    The refresh is the one write that can clear the API-count invariant, so a
+    refresh over a map that never grew is the fail-open the invariant exists to
+    catch, produced by the line that feeds it. Removing only the append leaves
+    the verification in place, and the fence has to block rather than record a
+    total it just failed to create.
+    """
+    path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
+    count_file = _record_api_count(tmp_path, API_COMMENT_COUNT)
+    _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
+
+    result = _run_derivation(
+        _recheck_script(
+            _recheck_fence(path),
+            _recheck_payload(SECOND_PASS_COMMENTS),
+            with_append=False,
+        ),
+        cwd=tmp_path,
+    )
+
+    assert result.returncode == 1, (
+        f"Phase 8.3 recorded a count its own append never produced: {result.stdout!r}"
+    )
+    assert "[BLOCKED] Comment map carries 3 status fields after the append" in result.stdout
+    assert count_file.read_text(encoding="utf-8").strip() == str(API_COMMENT_COUNT), (
+        "the refresh must not run once the verification blocks"
+    )
+
+
+@requires_bash
+@requires_jq
+def test_without_the_refresh_a_second_pass_can_never_clear(tmp_path: Path) -> None:
+    """Negative control for the refresh (PR #5342 review).
+
+    An earlier Phase 8.3 read the count and appended with no write back to the
+    artifact. The map then carried four status fields against a recorded three,
+    so Gate 4's API-count invariant blocked, and nothing an agent could do to
+    the comments moved either number. Removing only the refresh reproduces it,
+    against the four-comment map the fence's own append produced.
     """
     path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
     _record_api_count(tmp_path, API_COMMENT_COUNT)
+    comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
 
     stale = _run_derivation(
-        _recheck_script(_recheck_fence(path), SECOND_PASS_COMMENT_COUNT, with_refresh=False),
+        _recheck_script(
+            _recheck_fence(path),
+            _recheck_payload(SECOND_PASS_COMMENTS),
+            with_refresh=False,
+        ),
         cwd=tmp_path,
     )
     assert stale.returncode == 0
+    assert APPENDED_HEADING in comment_map.read_text(encoding="utf-8"), (
+        "the append must still run; only the refresh is under control here"
+    )
 
-    comment_map = _render_comment_map(tmp_path, SECOND_PASS_COMMENT_MAP_LINES)
+    _work_appended_row_to_terminal(comment_map)
     result = _run_derivation(_derivation_script(_gate_four_fence(path), comment_map), cwd=tmp_path)
 
     assert result.returncode == 1, (
