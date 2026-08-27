@@ -15,6 +15,8 @@ helper's return value (`.claude/rules/testing.md` MUST 8).
 - neg/only-file: the sole file collecting nothing (pytest exit 5) -> exit 1
 - neg/stale: a declared file that starts collecting -> exit 1
 - edge/declared: a declared zero-collecting file -> exit 0
+- edge/module-skip: a module-level skip or importorskip -> exit 0 undeclared,
+  and exit 1 when it carries a declaration it no longer needs
 - edge/bare-marker: a declaration with no reason is not a declaration -> exit 1
 - edge/skipped-dirs: files under a dot directory or __pycache__ are not walked
 - edge/config: pyproject without testpaths -> exit 2; missing pyproject -> exit 2
@@ -50,6 +52,19 @@ python_files = ["test_*.py"]
 
 _REAL_TEST = "def test_passes():\n    assert True\n"
 _NO_TESTS = "def helper():\n    return 1\n"
+
+# Both raise Skipped while the Module collector runs, so no item ever exists on
+# the host that skips and every item exists on the host that does not.
+_MODULE_LEVEL_SKIP = (
+    "import pytest\n\n"
+    'pytest.skip("windows only", allow_module_level=True)\n\n\n'
+    "def test_windows_path():\n    assert True\n"
+)
+_IMPORT_OR_SKIP = (
+    "import pytest\n\n"
+    'pytest.importorskip("a_module_that_does_not_exist")\n\n\n'
+    "def test_needs_the_dependency():\n    assert True\n"
+)
 
 
 def _make_repo(root: Path, pyproject: str = _PYPROJECT) -> Path:
@@ -153,6 +168,59 @@ def test_a_declaration_on_a_file_that_collects_fails(
     assert exit_code == 1
     assert "tests/test_stale.py" in captured.err
     assert "stale declarations" in captured.out
+
+
+def test_a_module_level_skip_needs_no_declaration(tmp_path: Path) -> None:
+    """A file that skips on this host collects on another, so neither spelling fits.
+
+    Undeclared it would fail wherever it skips; declared it would fail as stale
+    wherever it collects. pyproject.toml sanctions the pattern with the
+    windows_path marker and the lefthook job has no OS gate, so the guard has to
+    read a module-level skip as the file answering for itself.
+    """
+    tests = _make_repo(tmp_path)
+    (tests / "test_windows_only.py").write_text(_MODULE_LEVEL_SKIP, encoding="utf-8")
+
+    assert _run(tmp_path) == 0
+
+
+def test_an_import_scope_importorskip_needs_no_declaration(tmp_path: Path) -> None:
+    """importorskip raises Skipped from the same collection phase as skip()."""
+    tests = _make_repo(tmp_path)
+    (tests / "test_optional_dependency.py").write_text(_IMPORT_OR_SKIP, encoding="utf-8")
+
+    assert _run(tmp_path) == 0
+
+
+def test_a_declaration_on_a_module_level_skip_is_stale(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The mirror of the case above: satisfying the guard makes a marker stale.
+
+    One set decides both directions, so a skipped module must not keep a
+    declaration it no longer needs, exactly as a collecting file must not.
+    """
+    tests = _make_repo(tmp_path)
+    (tests / "test_windows_only.py").write_text(
+        f"# {EXEMPTION_MARKER} was thought to collect nothing.\n{_MODULE_LEVEL_SKIP}",
+        encoding="utf-8",
+    )
+
+    exit_code = _run(tmp_path)
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "tests/test_windows_only.py" in captured.err
+    assert "stale declarations" in captured.out
+
+
+def test_a_module_level_skip_does_not_excuse_a_neighbour(tmp_path: Path) -> None:
+    """Negative control: the carve-out must not turn the guard off wholesale."""
+    tests = _make_repo(tmp_path)
+    (tests / "test_windows_only.py").write_text(_MODULE_LEVEL_SKIP, encoding="utf-8")
+    (tests / "test_collects_nothing.py").write_text(_NO_TESTS, encoding="utf-8")
+
+    assert _run(tmp_path) == 1
 
 
 def test_a_file_pytest_cannot_import_is_reported_as_external(tmp_path: Path) -> None:

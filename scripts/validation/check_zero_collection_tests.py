@@ -24,6 +24,18 @@ a ``pytest-zero-collection:`` marker plus a reason. The declaration is checked
 in both directions: a declared file that starts collecting tests fails too, so
 a marker cannot outlive the reason it was written for.
 
+A module pytest skips during collection also answers for itself and needs no
+marker. ``pytest.skip(..., allow_module_level=True)`` and an import-scope
+``pytest.importorskip`` both raise Skipped before any item exists, so the file
+contributes nothing to ``session.items`` on the host that skips it and
+everything on the host that does not. Treating that as a violation is
+unsatisfiable rather than strict: undeclared, the file fails wherever it skips;
+declared, it fails as a stale declaration wherever it collects. This repository
+sanctions the pattern (``pyproject.toml`` carries a ``windows_path`` marker for
+"Tests that exercise Windows path handling and must run on a Windows runner"),
+and the ``zero-collection-tests`` lefthook job carries no OS gate, so it runs on
+every contributor's pre-push on every platform.
+
 Exit codes (``AGENTS.md``): 0 ok, 1 violations found, 2 configuration unusable,
 3 pytest could not be run or its output could not be parsed.
 """
@@ -68,6 +80,26 @@ _REPORT_PLUGIN_SOURCE = '''"""Write the files pytest collected tests from to a J
 import json
 import os
 
+_skipped_modules = []
+
+
+def pytest_collectreport(report):
+    """Record a module pytest skipped during collection.
+
+    A module-level ``pytest.skip(..., allow_module_level=True)`` or an
+    import-scope ``pytest.importorskip`` raises Skipped while the Module
+    collector runs, so the file contributes no session items and would read as
+    collecting nothing. The collect report carries the module's nodeid, which
+    is the same relative path shape ``session.items`` yields; a nodeid holding
+    "::" belongs to a class or a parametrized node, not to a whole module.
+    """
+    if report.outcome != "skipped":
+        return
+    nodeid = getattr(report, "nodeid", "")
+    if not nodeid or "::" in nodeid:
+        return
+    _skipped_modules.append(nodeid)
+
 
 def pytest_collection_finish(session):
     target = os.environ.get("ZERO_COLLECTION_REPORT")
@@ -75,7 +107,14 @@ def pytest_collection_finish(session):
         return
     files = sorted({item.nodeid.split("::", 1)[0] for item in session.items})
     with open(target, "w", encoding="utf-8") as stream:
-        json.dump({"files": files, "items": len(session.items)}, stream)
+        json.dump(
+            {
+                "files": files,
+                "items": len(session.items),
+                "skipped_modules": sorted(set(_skipped_modules)),
+            },
+            stream,
+        )
 '''
 
 # Inherited pytest state would reach the child run as extra options or as a
@@ -161,7 +200,17 @@ def declares_exemption(text: str) -> bool:
 
 
 def collect_files(repo_root: Path, testpaths: Sequence[str]) -> set[str]:
-    """Return every path pytest collected at least one test from."""
+    """Return every path that answers the guard's question affirmatively.
+
+    That is a test file pytest collected at least one item from, plus a module
+    pytest skipped during collection. A module-level skip is a decision the file
+    makes about this host, not an empty file: undeclared it would fail wherever
+    it skips, and declared it would fail as stale wherever it collects, so no
+    single spelling could pass on both platforms. ``pyproject.toml`` sanctions
+    the pattern with the ``windows_path`` marker, and the ``zero-collection-tests``
+    lefthook job has no OS gate, so it runs on every contributor's pre-push on
+    every platform.
+    """
     with tempfile.TemporaryDirectory(prefix="zero-collection-") as scratch:
         scratch_root = Path(scratch)
         plugin = scratch_root / f"{_REPORT_PLUGIN_NAME}.py"
@@ -215,21 +264,26 @@ def collect_files(repo_root: Path, testpaths: Sequence[str]) -> set[str]:
                 f"pytest wrote no collection report ({exc}); "
                 f"exit was {completed.returncode}\n{completed.stdout[-2000:]}"
             ) from exc
-    return set(payload["files"])
+    return set(payload["files"]) | set(payload.get("skipped_modules") or [])
 
 
 def build_report(repo_root: Path) -> Report:
-    """Compare what pytest walks against what it collected."""
+    """Compare what pytest walks against what answered for itself.
+
+    A path is satisfied when pytest collected a test from it or skipped it at
+    module level. The same set decides both directions, so a declaration on a
+    file that now collects (or now skips at module level) reads as stale.
+    """
     testpaths, python_files = read_pytest_config(repo_root)
     examined = candidate_files(repo_root, testpaths, python_files)
-    collected = collect_files(repo_root, testpaths)
+    satisfied = collect_files(repo_root, testpaths)
 
     undeclared: list[str] = []
     stale: list[str] = []
     declared: list[str] = []
     for relative in examined:
         exempt = declares_exemption((repo_root / relative).read_text(encoding="utf-8"))
-        if relative in collected:
+        if relative in satisfied:
             if exempt:
                 stale.append(relative)
             continue
