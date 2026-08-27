@@ -54,6 +54,7 @@ from citation_anchors import (  # noqa: E402
     _URL,
     _anchor_candidates,
     _anchor_matches,
+    _atx_heading,
     _context_lines,
     _continuation_quote,
     _same_line_segment,
@@ -152,13 +153,18 @@ def _citation_anchors(
     segment: str,
     citing_lines: list[str] | None,
     line_number: int,
+    markdown: bool = False,
 ) -> list[str]:
     """Collect the anchors the citing sentence names for one citation."""
     line_index = line_number - 1
     anchors: list[str] = _anchor_candidates(
-        _context_lines(citing_lines, line_index, line_text, segment), citation_text
+        _context_lines(citing_lines, line_index, line_text, segment, markdown),
+        citation_text,
     )
-    if citing_lines is not None:
+    # A Markdown heading is a complete unit (see _context_lines), so a
+    # heading ending in a colon never harvests the indented body below
+    # it as a continuation quote either.
+    if citing_lines is not None and not (markdown and _atx_heading(line_text)):
         quote = _continuation_quote(citing_lines, line_index)
         if quote is not None:
             anchors.append(quote)
@@ -232,6 +238,7 @@ def _check_citation(
     )
 
     citing_lines = head_files.lines(citing_file)
+    markdown = citing_file.endswith(".md")
     if _has_ignore_marker(citing_lines, line_number, line_text):
         return None
     cited_lines, finding = _resolve_cited_range(
@@ -243,7 +250,7 @@ def _check_citation(
         # mechanical, so it is appended here too.
         if cited_lines is not None:
             anchors = _citation_anchors(
-                citation_text, line_text, segment, citing_lines, line_number
+                citation_text, line_text, segment, citing_lines, line_number, markdown
             )
             hint = _relocation_hint(anchors, cited_lines)
             if hint:
@@ -257,7 +264,9 @@ def _check_citation(
         citing_file,
         line_number,
         citation_text,
-        _citation_anchors(citation_text, line_text, segment, citing_lines, line_number),
+        _citation_anchors(
+            citation_text, line_text, segment, citing_lines, line_number, markdown
+        ),
         cited_lines,
         start,
         end,
