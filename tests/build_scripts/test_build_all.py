@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -2022,3 +2023,293 @@ def test_confirm_ignored_survives_non_utf8_paths(
     monkeypatch.setattr(build_all.subprocess, "run", lambda *a, **k: _Result())
 
     assert build_all._confirm_ignored(tmp_path, {raw}) == {raw}
+
+
+# Regression: #4632 — --check must fail closed, never delete ---------------
+#
+# Two fail-open paths let `build_all.py --check` report success over a tree it
+# never examined, and let a run documented as read-only delete a file it could
+# not read. Both are reproduced end to end below. Each end-to-end test fails
+# against the pre-fix code: rc=0 with stale output, and rc=1 with the file
+# gone, which are the two reproductions in the issue.
+
+
+class _NoGit:
+    """Stand-in for the ``subprocess`` module where git cannot be launched.
+
+    Patched into ``build_all``'s own namespace, not onto the real
+    ``subprocess`` module, so only build_all's git calls fail and the
+    generators keep working. This is the in-process equivalent of the issue's
+    ``PATH=/nonexistent`` reproduction.
+    """
+
+    SubprocessError = subprocess.SubprocessError
+    TimeoutExpired = subprocess.TimeoutExpired
+
+    @staticmethod
+    def run(*_args: object, **_kwargs: object) -> object:
+        raise FileNotFoundError(2, "No such file or directory: 'git'")
+
+
+def _fail_read_bytes_for(
+    monkeypatch: pytest.MonkeyPatch, target: Path, exc: OSError
+) -> None:
+    """Make ``target.read_bytes()`` raise ``exc``; every other path stays real.
+
+    Mocks at the I/O boundary rather than with ``chmod 000`` because this
+    suite runs as root in CI, where mode bits do not deny a read, so a
+    permission-based fixture would pass without ever exercising the failure.
+    """
+    real_read_bytes = Path.read_bytes
+
+    def fake_read_bytes(self: Path) -> bytes:
+        if self == target:
+            raise exc
+        return real_read_bytes(self)
+
+    monkeypatch.setattr(Path, "read_bytes", fake_read_bytes)
+
+
+def test_git_diff_paths_raises_when_git_cannot_be_launched(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """git failing to start must not read as "nothing changed"."""
+    monkeypatch.setattr(build_all, "subprocess", _NoGit)
+
+    with pytest.raises(build_all.GitStateUnreadableError):
+        build_all._git_diff_paths(tmp_path)
+
+
+def test_git_diff_paths_raises_when_git_exits_nonzero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A nonzero exit must raise, even when stdout carried usable-looking text.
+
+    stdout is non-empty on purpose: with empty output the real code and a
+    mutant that drops the return-code check are indistinguishable, so the test
+    would prove nothing. Same reasoning as
+    ``test_confirm_ignored_is_fail_closed_on_git_error``.
+    """
+
+    class _Result:
+        returncode = 128
+        stdout = "src/copilot-cli/skills/alpha/SKILL.md\n"
+        stderr = "fatal: not a git repository\n"
+
+    monkeypatch.setattr(build_all.subprocess, "run", lambda *a, **k: _Result())
+
+    with pytest.raises(build_all.GitStateUnreadableError) as excinfo:
+        build_all._git_diff_paths(tmp_path)
+    assert "128" in str(excinfo.value)
+
+
+def test_git_diff_paths_returns_paths_on_a_healthy_repo(tmp_path: Path) -> None:
+    """Positive control: the new raising branches left the happy path intact."""
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / "seed.txt").write_text("seed\n")
+    subprocess.run(["git", "-C", str(repo), "add", "seed.txt"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "init"], check=True
+    )
+    (repo / "seed.txt").write_text("changed\n")
+
+    assert "seed.txt" in build_all._git_diff_paths(repo)
+
+
+def test_run_check_returns_2_when_git_state_is_unreadable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#4632 reproduction 1: a broken git must fail the gate, not pass it.
+
+    Pre-fix this returned 0 while a stale generated file sat on disk, because
+    ``_git_diff_paths`` swallowed the launch failure and returned ``[]``,
+    which is the same value a clean tree produces. The stale file is asserted
+    unchanged so the #2440 read-only contract is shown to survive the new
+    failure path rather than being traded for it.
+    """
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    stale_text = "# stale, not what the generator would emit\n"
+    stale = repo / "src" / "copilot-cli" / "skills" / "alpha" / "SKILL.md"
+    stale.parent.mkdir(parents=True)
+    stale.write_text(stale_text)
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True
+    )
+
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+    monkeypatch.setattr(build_all, "subprocess", _NoGit)
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert rc == 2, f"expected exit 2 when git state is unreadable, got {rc}"
+    assert stale.read_text() == stale_text, (
+        "--check must stay read-only on the git-unreadable path"
+    )
+
+
+def test_snapshot_strict_raises_on_unreadable_owned_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """strict=True must refuse a snapshot missing a file that is on disk."""
+    owned = tmp_path / "src" / "copilot-cli" / "lib" / "frozen.py"
+    owned.parent.mkdir(parents=True)
+    owned.write_text("x = 1\n")
+    _fail_read_bytes_for(monkeypatch, owned, PermissionError(13, "denied"))
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(
+            tmp_path, build_all.OWNED_PREFIXES, strict=True
+        )
+    assert "frozen.py" in str(excinfo.value)
+
+
+def test_snapshot_strict_raises_on_unreadable_single_file_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The single-file prefix branch is as exposed as the directory walk.
+
+    ``docs/agent-catalog.md`` and ``.agents/architecture/README.md`` are
+    single-file entries in ``OWNED_PREFIXES``, so they never reach the
+    ``rglob`` loop. Covering only the walk would leave both of them deletable
+    by restore.
+    """
+    catalog = tmp_path / "docs" / "agent-catalog.md"
+    catalog.parent.mkdir(parents=True)
+    catalog.write_text("# catalog\n")
+    _fail_read_bytes_for(monkeypatch, catalog, PermissionError(13, "denied"))
+
+    with pytest.raises(build_all.SnapshotIncompleteError):
+        build_all._snapshot_owned_prefixes(
+            tmp_path, build_all.OWNED_PREFIXES, strict=True
+        )
+
+
+def test_snapshot_non_strict_skips_unreadable_owned_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The .claude/ guard only compares snapshots, so it must keep skipping.
+
+    Inverse of the strict case: making every caller fail closed would turn a
+    transient unreadable file into a failed build for a guard that cannot
+    delete anything.
+    """
+    owned = tmp_path / "src" / "copilot-cli" / "lib" / "frozen.py"
+    owned.parent.mkdir(parents=True)
+    owned.write_text("x = 1\n")
+    readable = owned.parent / "other.py"
+    readable.write_text("y = 2\n")
+    _fail_read_bytes_for(monkeypatch, owned, PermissionError(13, "denied"))
+
+    snapshot = build_all._snapshot_owned_prefixes(
+        tmp_path, build_all.OWNED_PREFIXES
+    )
+
+    assert owned not in snapshot
+    assert snapshot[readable] == b"y = 2\n"
+
+
+def test_read_into_snapshot_skips_a_path_that_vanished(tmp_path: Path) -> None:
+    """A file gone before the read cannot be deleted by restore, so skip it.
+
+    Aborting here would make a pre-push gate flaky for a race that carries
+    none of the data-loss risk strict mode exists to prevent.
+    """
+    snapshot: dict[Path, bytes] = {}
+
+    build_all._read_into_snapshot(
+        snapshot, tmp_path / "never-existed.py", strict=True
+    )
+
+    assert snapshot == {}
+
+
+def test_run_check_aborts_without_deleting_an_unreadable_owned_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#4632 reproduction 2: --check must not delete what it could not read.
+
+    Pre-fix this returned 1 with the file gone: the snapshot skipped it, and
+    ``_restore_owned_prefixes`` then classified an on-disk path absent from
+    the snapshot as generator-created and unlinked it. The surviving-file
+    assertion is the point of the fix; the exit code alone would pass against
+    a version that deleted the file and then failed.
+    """
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    protected = repo / "src" / "copilot-cli" / "lib" / "frozen.py"
+    protected.parent.mkdir(parents=True)
+    protected.write_text("x = 1\n")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True
+    )
+
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+    _fail_read_bytes_for(monkeypatch, protected, PermissionError(13, "denied"))
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert rc == 2, f"expected exit 2 when an owned file is unreadable, got {rc}"
+    assert protected.is_file(), (
+        "--check deleted a pre-existing owned file it could not read"
+    )
+
+
+def test_run_without_check_still_builds_when_an_owned_file_is_unreadable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A plain build takes no snapshot, so strict mode must not reach it.
+
+    Inverse control for the abort above: fail-closed belongs to ``--check``
+    alone, and widening it would break ordinary regeneration.
+    """
+    repo = tmp_path / "repo"
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    protected = repo / "src" / "copilot-cli" / "lib" / "frozen.py"
+    protected.parent.mkdir(parents=True)
+    protected.write_text("x = 1\n")
+
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+    _fail_read_bytes_for(monkeypatch, protected, PermissionError(13, "denied"))
+
+    rc = build_all.run(
+        repo, platform=None, check=False, clean=False, audit_format="md"
+    )
+
+    assert rc == 0, f"plain build must not fail closed on an owned file, got {rc}"

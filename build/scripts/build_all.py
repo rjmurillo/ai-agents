@@ -644,6 +644,15 @@ def write_audit(
 # --- .claude/ guard (REQ-003-010) ----------------------------------------
 
 
+class GitStateUnreadableError(RuntimeError):
+    """Raised when git cannot report the working-tree state (issue #4632).
+
+    A caller that swallows this and substitutes an empty path list cannot
+    tell "git says nothing changed" from "nobody asked git". Both render as
+    ``[]``. See :func:`_git_diff_paths`.
+    """
+
+
 def _git_diff_paths(repo_root: Path) -> list[str]:
     """Return changed paths via ``git diff --name-only`` UNION untracked.
 
@@ -653,12 +662,21 @@ def _git_diff_paths(repo_root: Path) -> list[str]:
     failures are detected: when a generator-owned file is removed from
     the index and then regenerated, ``git diff`` reports it as deleted
     but ``git status`` shows the regenerated copy as untracked. Without
-    the untracked half, --check and the .claude/ guard both miss it.
+    the untracked half, --check misses it.
 
-    Used by --check (staleness) and the .claude/ guard. A failure to run
-    git is treated as no-diff: this is a CI-side check, and CI always has
-    git. We do not want to fail when a contributor runs the script in a
-    non-git working tree.
+    Raises :class:`GitStateUnreadableError` when either git invocation fails to
+    start, times out, or exits nonzero. The prior behavior returned the
+    paths gathered so far, which for a broken git is the empty list: the
+    exact value a clean tree produces, so ``--check`` reported exit 0 over a
+    tree it never examined (issue #4632, reproduction 1: ``PATH=/nonexistent
+    build_all.py --check`` returned rc=0 with a stale generated file on
+    disk). Fail-closed here costs nothing in CI, which always has git, and
+    the only caller is the ``--check`` staleness gate, so a plain
+    (non-``--check``) build in a non-git working tree still succeeds.
+
+    The ``.claude/`` guard does NOT use this function. It compares two
+    :func:`_snapshot_owned_prefixes` results; see
+    :func:`assert_no_claude_writes`.
     """
     paths: list[str] = []
     seen: set[str] = set()
@@ -676,10 +694,15 @@ def _git_diff_paths(repo_root: Path) -> list[str]:
                 timeout=30,
                 env=scrubbed_env,
             )
-        except (OSError, subprocess.SubprocessError):
-            continue
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise GitStateUnreadableError(
+                f"could not run {' '.join(argv)}: {exc}"
+            ) from exc
         if proc.returncode != 0:
-            continue
+            detail = (proc.stderr or "").strip() or "(no stderr)"
+            raise GitStateUnreadableError(
+                f"{' '.join(argv)} exited {proc.returncode}: {detail}"
+            )
         for line in proc.stdout.splitlines():
             p = line.strip()
             if p and p not in seen:
@@ -958,11 +981,21 @@ def _ignored_paths(repo_root: Path, prefixes: tuple[str, ...]) -> set[Path]:
     return ignored
 
 
+class SnapshotIncompleteError(RuntimeError):
+    """Raised when a file under an owned prefix could not be snapshotted.
+
+    Only :func:`_snapshot_owned_prefixes` in ``strict`` mode raises this. See
+    that function for why an unreadable file is fatal to ``--check`` and
+    harmless to the ``.claude/`` guard.
+    """
+
+
 def _snapshot_owned_prefixes(
     repo_root: Path,
     prefixes: tuple[str, ...],
     *,
     exclude_ignored: bool = False,
+    strict: bool = False,
 ) -> dict[Path, bytes]:
     """Snapshot every file under ``prefixes`` into an in-memory dict.
 
@@ -992,6 +1025,25 @@ def _snapshot_owned_prefixes(
     pre-existing ``__pycache__`` under an owned prefix, which is the same
     cache-eviction that makes the next run recompile inside the guard
     window: the exact race issue #3856 closes.
+
+    ``strict`` decides what an unreadable file means, and the two consumers
+    need opposite answers (issue #4632). The ``.claude/`` guard only
+    *compares* snapshots, so dropping a path it cannot read merely stops that
+    path being reported: ``strict=False`` and skip. ``--check`` *restores*
+    from its snapshot, and :func:`_restore_owned_prefixes` deletes anything on
+    disk the snapshot does not name, so the same skip turns a file the run
+    could not read into a file the run deletes. Issue #4632 reproduction 2
+    made one generated instruction file unreadable and observed
+    ``rc=1 state=deleted``: a ``--check`` run, documented as read-only,
+    destroyed a pre-existing file. ``strict=True`` raises
+    :class:`SnapshotIncompleteError` there so the caller aborts before any
+    generator runs and no partial snapshot ever reaches restore.
+
+    A path that no longer exists when the read fails is skipped even under
+    ``strict``. Restore cannot delete what is not on disk, so a file that
+    vanished between the ``rglob`` walk and the read cannot cause the data
+    loss this guard exists to prevent, and aborting on it would make a
+    pre-push gate flaky for a race that is harmless.
     """
     ignored = _ignored_paths(repo_root, prefixes) if exclude_ignored else set()
     snapshot: dict[Path, bytes] = {}
@@ -1000,10 +1052,7 @@ def _snapshot_owned_prefixes(
         if root.is_file() and not root.is_symlink():
             if root in ignored:
                 continue
-            try:
-                snapshot[root] = root.read_bytes()
-            except OSError:
-                continue
+            _read_into_snapshot(snapshot, root, strict=strict)
             continue
         if root.exists() and not root.is_dir():
             continue
@@ -1014,14 +1063,28 @@ def _snapshot_owned_prefixes(
                 continue
             if path in ignored or (exclude_ignored and _is_bytecode_artifact(path)):
                 continue
-            try:
-                snapshot[path] = path.read_bytes()
-            except OSError:
-                # Unreadable file (permissions, race). Skip — restore will
-                # treat it as not-present which keeps the working tree at
-                # least as clean as it was before the run.
-                continue
+            _read_into_snapshot(snapshot, path, strict=strict)
     return snapshot
+
+
+def _read_into_snapshot(
+    snapshot: dict[Path, bytes], path: Path, *, strict: bool
+) -> None:
+    """Read ``path`` into ``snapshot``, or decide what its failure means.
+
+    Extracted so the single-file prefix branch and the directory walk in
+    :func:`_snapshot_owned_prefixes` cannot drift apart. ``docs/agent-catalog.md``
+    and ``.agents/architecture/README.md`` are single-file owned prefixes, so
+    the branch that handles them is exactly as exposed to the delete-on-
+    unreadable bug as the walk is.
+    """
+    try:
+        snapshot[path] = path.read_bytes()
+    except OSError as exc:
+        if strict and path.exists():
+            raise SnapshotIncompleteError(
+                f"cannot read owned file {path}: {exc}"
+            ) from exc
 
 
 def _restore_owned_prefixes(
@@ -1153,9 +1216,23 @@ def run(
     # BEFORE any generator runs so we can revert any writes after the
     # staleness diff is computed. This makes --check safe to call from
     # any worktree without dirtying it.
+    #
+    # A file that cannot be read is fatal HERE, before any generator runs and
+    # before the try/finally below arms the restore. Continuing with a partial
+    # snapshot would let _restore_owned_prefixes classify the unreadable file
+    # as generator-created and delete it (issue #4632).
     snapshot: dict[Path, bytes] | None = None
     if check:
-        snapshot = _snapshot_owned_prefixes(repo_root, OWNED_PREFIXES)
+        try:
+            snapshot = _snapshot_owned_prefixes(
+                repo_root, OWNED_PREFIXES, strict=True
+            )
+        except SnapshotIncompleteError as exc:
+            print(
+                f"Error: --check aborted before generation: {exc}",
+                file=sys.stderr,
+            )
+            return 2
 
     # REQ-003-010 (issue #2613): snapshot the .claude/ tree before any
     # generator runs so the no-write guard attributes only writes the
@@ -1248,8 +1325,19 @@ def _run_generators(
         # Limit staleness check to paths the generators actually own. Other
         # working-tree drift (e.g. uv.lock) is the user's responsibility,
         # not the build orchestrator's.
+        try:
+            changed = _git_diff_paths(repo_root)
+        except GitStateUnreadableError as exc:
+            # An empty diff and an unreadable git both yield zero paths. Only
+            # the first one means the tree is clean (issue #4632).
+            print(
+                f"STALENESS UNKNOWN — cannot read git state: {exc}",
+                file=sys.stderr,
+            )
+            audit.overall_exit = max(audit.overall_exit, 2)
+            changed = []
         diff = [
-            p for p in _git_diff_paths(repo_root)
+            p for p in changed
             if any(p.startswith(prefix) for prefix in OWNED_PREFIXES)
         ]
         if diff:
