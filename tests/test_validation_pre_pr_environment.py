@@ -1,9 +1,13 @@
-"""Lefthook, worktree, and workflow-YAML tests for scripts.validation.pre_pr.
+"""Lefthook and workflow-YAML tests for scripts.validation.pre_pr.
 
 Split from tests/test_validation_pre_pr.py (issue #4352). Covers:
 - validate_lefthook_installed
-- _is_linked_worktree
 - validate_workflow_yaml
+
+The ``_is_linked_worktree`` cases went with the helper. Nothing called it once
+``validate_lefthook_installed`` stopped downgrading inside a linked worktree
+(issue #4789): a shim that names no worktree-specific path is correct for every
+checkout, so no checkout needs the exemption the helper existed to grant.
 """
 
 from __future__ import annotations
@@ -16,7 +20,6 @@ from unittest.mock import patch
 import pytest
 
 from scripts.validation.pre_pr import (
-    _is_linked_worktree,
     validate_workflow_yaml,
 )
 
@@ -119,71 +122,7 @@ class TestValidateLefthookInstalled:
         self._write_repo(tmp_path)
         with patch.dict("os.environ", {"CI": "false", "GITHUB_ACTIONS": "false"}):
             with patch("checks_plugin._run_subprocess", return_value=(1, "", "diverged")):
-                with patch("checks_plugin._is_linked_worktree", return_value=True):
-                    assert validate_lefthook_installed(tmp_path) is False
-
-
-class TestIsLinkedWorktree:
-    """The git-hooks gate downgrades to a warning in a linked worktree (#2374)."""
-
-    def test_true_when_git_dir_differs_from_common_dir(self, tmp_path: Path) -> None:
-
-        with patch("checks_plugin.shutil.which", return_value="git"):
-            with patch("checks_plugin._run_subprocess") as mock_run:
-                mock_run.return_value = (
-                    0,
-                    "/repo/.git/worktrees/wt\n/repo/.git\n",
-                    "",
-                )
-                assert _is_linked_worktree(tmp_path) is True
-
-    def test_false_when_git_dir_equals_common_dir(self, tmp_path: Path) -> None:
-
-        with patch("checks_plugin.shutil.which", return_value="git"):
-            with patch("checks_plugin._run_subprocess") as mock_run:
-                mock_run.return_value = (0, "/repo/.git\n/repo/.git\n", "")
-                assert _is_linked_worktree(tmp_path) is False
-
-    def test_false_when_git_missing(self, tmp_path: Path) -> None:
-
-        with patch("checks_plugin.shutil.which", return_value=None):
-            assert _is_linked_worktree(tmp_path) is False
-
-    def test_false_when_rev_parse_fails(self, tmp_path: Path) -> None:
-
-        with patch("checks_plugin.shutil.which", return_value="git"):
-            with patch("checks_plugin._run_subprocess") as mock_run:
-                mock_run.return_value = (128, "", "fatal: not a git repository")
-                assert _is_linked_worktree(tmp_path) is False
-
-    def test_false_when_output_malformed(self, tmp_path: Path) -> None:
-
-        with patch("checks_plugin.shutil.which", return_value="git"):
-            with patch("checks_plugin._run_subprocess") as mock_run:
-                mock_run.return_value = (0, "only-one-line\n", "")
-                assert _is_linked_worktree(tmp_path) is False
-
-    def test_relative_paths_are_anchored_to_repo_root(
-        self, tmp_path: Path, monkeypatch: Any
-    ) -> None:
-
-        repo = tmp_path / "repo"
-        repo.mkdir()
-        common = repo / "common"
-        common.mkdir()
-        (repo / ".git").symlink_to(common, target_is_directory=True)
-        outside = tmp_path / "outside"
-        outside.mkdir()
-        (outside / ".git").mkdir()
-        monkeypatch.chdir(outside)
-
-        with patch("checks_plugin.shutil.which", return_value="git"):
-            with patch("checks_plugin._run_subprocess") as mock_run:
-                mock_run.return_value = (0, ".git\ncommon\n", "")
-                assert _is_linked_worktree(repo) is False
-
-        command = mock_run.call_args.args[0]
-        assert "--path-format=absolute" not in command
+                assert validate_lefthook_installed(tmp_path) is False
 
 
 class TestValidateWorkflowYaml:

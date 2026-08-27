@@ -13,7 +13,6 @@ so existing imports keep working.
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -258,42 +257,6 @@ def validate_lefthook_installed(repo_root: Path) -> bool:
     if stderr.strip():
         print(stderr.strip(), file=sys.stderr)
     return bool(exit_code == 0)
-
-
-def _is_linked_worktree(repo_root: Path) -> bool:
-    """True when ``repo_root`` is a linked git worktree, not the primary clone.
-
-    A linked worktree has a ``--git-dir`` that differs from its
-    ``--git-common-dir``; the primary clone has the two equal. Returns False
-    when git is unavailable or the paths cannot be resolved, so the caller
-    keeps its default hard-fail behavior rather than silently downgrading.
-    """
-    if not shutil.which("git"):
-        return False
-    exit_code, stdout, _ = _run_subprocess(
-        [
-            "git",
-            "-C",
-            str(repo_root),
-            "rev-parse",
-            "--git-dir",
-            "--git-common-dir",
-        ],
-        timeout=10,
-    )
-    if exit_code != 0:
-        return False
-    lines = [line.strip() for line in stdout.splitlines() if line.strip()]
-    if len(lines) != 2:
-        return False
-    git_dir, git_common_dir = lines
-    git_dir_path = Path(git_dir)
-    git_common_dir_path = Path(git_common_dir)
-    if not git_dir_path.is_absolute():
-        git_dir_path = repo_root / git_dir_path
-    if not git_common_dir_path.is_absolute():
-        git_common_dir_path = repo_root / git_common_dir_path
-    return git_dir_path.resolve() != git_common_dir_path.resolve()
 
 
 def _add_workflow_paths(repo_root: Path, diff_out: str, changed: list[str]) -> None:
