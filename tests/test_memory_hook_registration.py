@@ -33,6 +33,24 @@ ALL_REGISTERED_COMMANDS = tuple(
     for hook in group.get("hooks", [])
 )
 
+# The project-directory anchor every hook command must open with.
+#
+# `CLAUDE_PROJECT_DIR` is exported by Claude Code but NOT by GitHub Copilot CLI,
+# which also loads `.claude/settings.json` hooks. Measured on Copilot CLI 1.0.80
+# (issue #4727): the literal string `CLAUDE_PROJECT_DIR` appears 0 times in the
+# shipped `app.js` (9,173,451 bytes) and `copilot` binary (177,343,296 bytes),
+# against 12 hits for `COPILOT_CLI`, 24 for `additionalContext`, and 27 for
+# `GITHUB_TOKEN` in the same search as positive controls.
+#
+# With the variable unset, a bare `cd "$CLAUDE_PROJECT_DIR"` is `cd ""`, which
+# sh/dash treat as a silent no-op (exit 0, cwd unchanged). The relative script
+# path then resolves against the host's cwd and the launcher dies before the
+# hook runs. Measured from a repo subdirectory with the variable removed: the
+# bare form exits 2 with "can't open file ... [Errno 2]", and exit 2 on
+# UserPromptSubmit blocks prompt processing and erases the user's prompt
+# (issue #4011). The `:-` fallback exits 0 and recalls normally.
+PROJECT_DIR_ANCHOR = 'cd "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}" && '
+
 # (event, invoker path relative to .claude/hooks/)
 REGISTERED_HOOKS = (
     ("UserPromptSubmit", "UserPromptSubmit/invoke_memory_recall.py"),
@@ -81,6 +99,22 @@ def _launcher_probe(command: str) -> str:
     return f"{anchor.strip()} && {' && '.join(checks)}"
 
 
+def _probe_launcher(
+    command: str, env: dict[str, str], cwd: Path | None = None
+) -> subprocess.CompletedProcess:
+    """Run one launcher's resolution checks from a cwd that is not the root."""
+    return subprocess.run(
+        ["sh", "-c", _launcher_probe(command)],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        cwd=str(cwd if cwd is not None else REPO_ROOT / "scripts"),
+        env=env,
+        timeout=60,
+        check=False,
+    )
+
+
 def _fake_repo(tmp_path: Path) -> Path:
     """A throwaway checkout the hooks can walk up to.
 
@@ -126,9 +160,15 @@ def _harness_env(project_dir: Path = REPO_ROOT) -> dict[str, str]:
     virtualenv, so the test drops it before launching.
     """
     env = dict(os.environ)
-    # An inherited COPILOT_CLI would flip the recall hook's stdout shape
-    # (issue #4727) in every case that never asked for it.
+    # Both harness-identity signals are dropped, then set back only by the case
+    # that names one. Either inherited value flips the recall hook's stdout
+    # shape (issue #4727) in a case that never asked for it, and each leaks from
+    # a different direction: COPILOT_CLI when pytest runs under Copilot CLI,
+    # CLAUDE_CODE_ENTRYPOINT when it runs under Claude Code. A case left holding
+    # an inherited value passes on one developer's machine and fails on the
+    # other's, which is `.claude/rules/testing.md` SHOULD-12.
     env.pop("COPILOT_CLI", None)
+    env.pop("CLAUDE_CODE_ENTRYPOINT", None)
     virtual_env = env.pop("VIRTUAL_ENV", "")
     if virtual_env:
         venv_bin = {str(Path(virtual_env) / "bin"), str(Path(virtual_env) / "Scripts")}
@@ -214,15 +254,40 @@ class TestRegistration:
 
     @pytest.mark.unit
     def test_every_hook_command_anchors_scripts_to_project_dir(self):
+        """The anchor must carry the fallback, not the bare variable.
+
+        Copilot CLI loads this same settings file but never exports
+        `CLAUDE_PROJECT_DIR`, so the bare form is `cd ""` there. See
+        PROJECT_DIR_ANCHOR for the measurement.
+        """
         relative = [
             command
             for event in SETTINGS["hooks"]
             for command in _commands(event)
             if ".claude/hooks/" in command
-            and not command.startswith('cd "$CLAUDE_PROJECT_DIR" && ')
+            and not command.startswith(PROJECT_DIR_ANCHOR)
         ]
 
         assert relative == []
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("command", ALL_REGISTERED_COMMANDS)
+    def test_every_launcher_resolves_with_the_project_dir_unset(self, command, tmp_path):
+        """The Copilot case: same command, no CLAUDE_PROJECT_DIR, foreign cwd.
+
+        The bare-anchor negative control below proves the case discriminates.
+        Without it a launcher probe that passed for an unrelated reason would
+        read as evidence the fallback works.
+        """
+        env = _harness_env()
+        del env["CLAUDE_PROJECT_DIR"]
+        bare = 'cd "$CLAUDE_PROJECT_DIR" && ' + command[len(PROJECT_DIR_ANCHOR) :]
+
+        result = _probe_launcher(command, env)
+        control = _probe_launcher(bare, env)
+
+        assert result.returncode == 0, result.stderr
+        assert control.returncode != 0, "negative control passed; the probe proves nothing"
 
     @pytest.mark.unit
     def test_no_registration_names_a_missing_script(self):
@@ -239,16 +304,7 @@ class TestRegistration:
     @pytest.mark.unit
     @pytest.mark.parametrize("command", ALL_REGISTERED_COMMANDS)
     def test_every_hook_launcher_resolves_from_foreign_cwd(self, command, tmp_path):
-        result = subprocess.run(
-            ["sh", "-c", _launcher_probe(command)],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            cwd=str(tmp_path),
-            env=_harness_env(),
-            timeout=60,
-            check=False,
-        )
+        result = _probe_launcher(command, _harness_env(), tmp_path)
 
         assert result.returncode == 0, result.stderr
 
