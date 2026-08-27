@@ -348,18 +348,54 @@ fi
 
 ### Gate 3: Artifact Update After Fix
 
-**After EVERY fix commit**: Update artifact status atomically.
+**After EVERY terminal outcome**: Update BOTH artifacts atomically.
+
+The task list records what you did. The comment map records what the gates
+count. Gate 4, Gate 5, and Phase 8.1 read `comments.md` and nothing else, so a
+step that moves only `tasks.md` leaves every status at the value Step 2.2
+rendered. Pending never reaches zero and Phase 8 blocks on finished work.
+
+Set `TERMINAL_STATUS` to the value the `Comment Map Status Vocabulary` table
+marks terminal for this outcome. Do not invent one: a status outside that table
+matches no terminal pattern and keeps the comment pending everywhere.
 
 ```bash
-# IMMEDIATELY after git commit, update artifact
-sed -i "s/TASK-$COMMENT_ID.*pending/TASK-$COMMENT_ID ... [COMPLETE]/" \
-  .agents/pr-comments/PR-[number]/tasks.md
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+TASK_LIST=".agents/pr-comments/PR-[number]/tasks.md"
+TERMINAL_STATUS="[COMPLETE]"
 
-# Verify update applied
-grep "TASK-$COMMENT_ID.*COMPLETE" .agents/pr-comments/PR-[number]/tasks.md || exit 1
+# The id reaches a sed address, so refuse anything but digits (CWE-78).
+case "$COMMENT_ID" in
+  ''|*[!0-9]*) echo "[BLOCKED] COMMENT_ID is not numeric: $COMMENT_ID"; exit 1 ;;
+esac
+
+# Refuse a status the gates will not accept, before anything is written. The
+# pattern is Gate 4's, so a value that clears here clears there, and the four
+# shapes it admits carry no sed metacharacter.
+printf '%s\n' "**Status**: $TERMINAL_STATUS" \
+  | grep -Eq "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" || {
+    echo "[BLOCKED] TERMINAL_STATUS is not a terminal value: $TERMINAL_STATUS"
+    exit 1
+  }
+
+sed -i "s/TASK-$COMMENT_ID.*pending/TASK-$COMMENT_ID ... $TERMINAL_STATUS/" "$TASK_LIST"
+
+# The write every later gate depends on. The address range is this comment's
+# detail entry, so a sibling comment's status is never touched.
+sed -i "/^### Comment $COMMENT_ID /,/^---$/ s|^\*\*Status\*\*: .*$|**Status**: $TERMINAL_STATUS|" "$COMMENT_MAP"
+
+# Verify both writes. The comment-map check is whole-line and literal, so a
+# status with trailing garbage fails here instead of surviving to Phase 8.1.
+grep -F "TASK-$COMMENT_ID ... $TERMINAL_STATUS" "$TASK_LIST" || exit 1
+sed -n "/^### Comment $COMMENT_ID /,/^---$/p" "$COMMENT_MAP" \
+  | grep -qxF "**Status**: $TERMINAL_STATUS" || {
+    echo "[BLOCKED] Comment $COMMENT_ID is not $TERMINAL_STATUS in $COMMENT_MAP"
+    exit 1
+  }
 ```
 
-**Evidence required**: Task marked complete in artifact file.
+**Evidence required**: The task is marked in `tasks.md` AND that comment's
+`**Status**:` line in `comments.md` reads the terminal value.
 
 ### Gate 4: State Synchronization Before Resolution
 
@@ -1086,6 +1122,20 @@ Once clarified, I'll proceed with the implementation.
 Understood. This will require [brief scope]. Working on it now.
 ```
 
+#### Step 5.1: Record Terminal Outcomes Decided Here
+
+A Won't Fix, a Duplicate, and a Deferred are terminal, and none of them reaches
+Phase 6. Their comments never pass through Step 6.5, so record them now: run
+Gate 3 for each with the matching `TERMINAL_STATUS` (`[WONTFIX]`,
+`[DUPLICATE]`, or `[DEFERRED] Refs #<issue>`), which writes both `tasks.md` and
+that comment's `**Status**:` line in `comments.md`.
+
+Skipping this leaves a decided comment pending in the comment map, and Phase 8
+blocks on it exactly as it would on an unworked one.
+
+A Question or a Clarification is not terminal. Leave its status alone until the
+reviewer answers.
+
 ### Phase 6: Implementation
 
 Implement tasks in priority order. For each task:
@@ -1167,9 +1217,21 @@ python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "$THREAD_ID"
 
 **Note**: Thread IDs use the format `PRRT_xxx` (GraphQL node ID), not numeric comment IDs. Do not use bulk resolution in this workflow. Resolve each eligible bot-authored or explicitly approved thread by ID.
 
-#### Step 6.5: Update Task List
+#### Step 6.5: Record the Terminal Status
 
-Mark task as complete in `.agents/pr-comments/PR-[number]/tasks.md`.
+Run Gate 3 with `TERMINAL_STATUS="[COMPLETE]"`. It marks the task in
+`.agents/pr-comments/PR-[number]/tasks.md` and writes that comment's
+`**Status**:` line in `.agents/pr-comments/PR-[number]/comments.md` in the same
+step.
+
+Marking only the task list is the failure this step exists to prevent. The
+comment map is the artifact Gate 4, Gate 5, and Phase 8.1 count, so a fix that
+is committed and pushed while the map still reads its starting status stays
+pending forever.
+
+A comment that is genuinely still open, waiting on a reviewer reply or carrying
+`Action: Clarify`, keeps its non-terminal status. Phase 8 blocking on that one
+is the gate working; do not route around it by writing a terminal status.
 
 ### Phase 7: PR Description Update
 
