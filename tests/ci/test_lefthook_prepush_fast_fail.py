@@ -85,6 +85,7 @@ EXPENSIVE_JOBS = frozenset(
 )
 EXPENSIVE_STAGE_ROSTER = EXPENSIVE_JOBS | frozenset(
     {
+        "zero-collection-tests",
         "worktree-gc-report",
         "python-lint-advisory",
         "infrastructure-advisory",
