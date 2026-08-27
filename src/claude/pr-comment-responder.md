@@ -1406,9 +1406,8 @@ python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "$THREAD_ID"
 #### Step 6.5: Record the Terminal Status
 
 Run Gate 3 with `TERMINAL_STATUS="[COMPLETE]"`. It marks the task in
-`.agents/pr-comments/PR-[number]/tasks.md` and writes that comment's
-`**Status**:` line in `.agents/pr-comments/PR-[number]/comments.md` in the same
-step.
+`tasks.md` and writes that comment's `**Status**:` line in `comments.md` in the
+same step. Gate 3 names both paths, so this step does not restate them.
 
 Marking only the task list is the failure this step exists to prevent. The
 comment map is the artifact Gate 4, Gate 5, and Phase 8.1 count, so a fix that
