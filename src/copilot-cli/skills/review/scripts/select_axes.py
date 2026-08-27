@@ -72,6 +72,7 @@ _SECURITY_WORDS = frozenset(
     {
         "auth", "authn", "authz", "oauth", "secret", "secrets", "credential", "credentials",
         "password", "passwords", "token", "tokens", "permission", "permissions",
+        "authentication", "authorization", "security",
     }
 )
 
@@ -108,6 +109,8 @@ _TYPE_API_SUFFIXES = (".d.ts", ".proto")
 _TEST_NAME_PREFIXES = ("test_", "test.")
 _TEST_NAME_INFIXES = (".test.", ".tests.", ".spec.", "_test.", "_tests.", "_spec.")
 _TEST_DIRECTORIES = frozenset({"tests", "fixtures"})
+# pytest loads these by exact filename regardless of a test_/_test spelling.
+_TEST_EXACT_FILENAMES = frozenset({"conftest.py"})
 _AGENT_ARTIFACT_DIRECTORIES = frozenset({"skills", "agents", "hooks", "prompts", "commands"})
 _AGENT_ARTIFACT_FILENAMES = frozenset({"skill.md"})
 _TOOLKIT_DIRECTORIES = _AGENT_ARTIFACT_DIRECTORIES | {"rules"}
@@ -142,6 +145,8 @@ def _is_test_path(path: str) -> bool:
     if _TEST_DIRECTORIES & set(segments[:-1]):
         return True
     name = segments[-1] if segments else ""
+    if name in _TEST_EXACT_FILENAMES:
+        return True
     if name.startswith(_TEST_NAME_PREFIXES):
         return True
     return any(infix in name for infix in _TEST_NAME_INFIXES)

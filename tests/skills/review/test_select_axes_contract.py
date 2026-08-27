@@ -349,6 +349,42 @@ class TestPathPredicatesMatchSegmentsNotSubstrings:
         assert mod._is_roadmap_doc_path(mod._norm(path)) is False, path
         assert mod._is_decision_doc_path(mod._norm(path)) is False, path
 
+    def test_conftest_py_is_test_adjacent(self) -> None:
+        """AI-Spec-Validation on PR #5361: pytest loads conftest.py by exact
+        name, not by a test_/_test spelling, so the old prefix/infix check
+        silently skipped qa on it. Placed outside any tests/fixtures
+        directory so the existing directory check cannot pass this by
+        accident."""
+        result = select(["src/conftest.py"])
+        assert "qa" in result["canonical_selected"], result["matched_categories"]
+        assert result["fail_closed"] is False
+
+    @pytest.mark.parametrize("path", ["src/conftest_helpers.py", "src/myconftest.py"])
+    def test_a_name_that_merely_contains_conftest_is_not_conftest(self, path: str) -> None:
+        """Negative control: exact-filename matching must not become a substring match."""
+        assert mod._is_test_path(mod._norm(path)) is False, path
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "src/authentication/session.py",
+            "src/authorization/policy.py",
+            "src/security/policy.py",
+        ],
+    )
+    def test_an_authn_authz_security_directory_selects_security(self, path: str) -> None:
+        """AI-Spec-Validation on PR #5361: these directories classified as
+        executable code only, so fail_closed stayed False and the security
+        axis was silently skipped."""
+        result = select([path])
+        assert "security" in result["canonical_selected"], result["matched_categories"]
+        assert result["fail_closed"] is False, path
+
+    @pytest.mark.parametrize("path", ["docs/authenticity.md", "src/authors.py"])
+    def test_a_word_that_merely_contains_auth_is_not_security(self, path: str) -> None:
+        """Negative control: whole-word matching must not become a substring match."""
+        assert mod._is_security_path(mod._norm(path)) is False, path
+
 
 class TestConvergenceContractDoesNotPromiseZeroEditEnrollment:
     """The contract claimed enrolling an axis needs no edit to the skill body.
