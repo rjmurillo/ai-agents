@@ -69,14 +69,14 @@ contributes its axes.
 
 | Category | Matches | Canonical axes | Local axes |
 |----------|---------|----------------|------------|
-| `tests-or-fixtures` | a `tests/` or `fixtures/` path, a `test_*` or `*_test` file | `qa` | |
+| `tests-or-fixtures` | a whole `tests/` or `fixtures/` path segment, a `test_*` or `test.*` filename, or a `.test.`, `.tests.`, `.spec.`, `_test.`, `_tests.`, or `_spec.` name segment whatever suffix follows | `qa` | |
 | `auth-secrets-execution` | a whole path word of `auth`, `authn`, `authz`, `oauth`, `secret(s)`, `credential(s)`, `password(s)`, `token(s)`, `permission(s)`, a word starting `sanitiz` or `crypto`, or a `.env*` file | `security` | |
 | `dependencies` | a dependency manifest or lockfile (`pyproject.toml`, `uv.lock`, `package.json`, `*.csproj`, `go.mod`, `requirements*.txt`, and peers) | `security`, `devops` | |
 | `ci-deploy-artifacts` | `.github/workflows/`, `.github/actions/`, a `lefthook`, `Dockerfile`, `docker-compose`, `deploy.*`, or `release.yml` file, a `*.tf`/`*.tfvars` file, or a `deploy/` or `release/` directory | `devops`, `security` | |
-| `types-or-public-api` | `*.d.ts`, `types.*`, `models.py`, `schema.py`, `schemas/`, `*.proto`, `interfaces/`, `protocols.py`, `api.*` | `architect` | |
+| `types-or-public-api` | a `*.d.ts` or `*.proto` file, a whole `schemas/` or `interfaces/` path segment, or a whole basename of `types`, `api`, `models`, `schema`, `protocols`, or `interfaces` carrying any supported source suffix (`types.go` and `models.ts` count; `prototypes.py` does not) | `architect` | |
 | `agent-artifacts` | a file named `SKILL.md`, or a whole path segment of `skills/`, `agents/`, `hooks/`, `prompts/`, or `commands/` | `agent-safety` | |
-| `decision-records` | an `ADR-*` file, or an `architecture/` or `decisions/` path | `decision-rigor` | |
-| `roadmap-or-spec-docs` | a `roadmap/`, `planning/`, or `specs/` path | `roadmap` | |
+| `decision-records` | an `ADR-*` file, or a whole `architecture/` or `decisions/` path segment | `decision-rigor` | |
+| `roadmap-or-spec-docs` | a whole `roadmap/`, `planning/`, or `specs/` path segment | `roadmap` | |
 | `docs-and-instructions` | `*.md`, `*.mdx`, `*.rst`, `*.txt` | | `doc-accuracy` |
 | `executable-code` | a source file in a supported language | `code-quality` | `code-qualities-assessment`, `taste-lints` |
 | `toolkit-governance` | an agent artifact, a workflow, or a whole `rules/` path segment | | `golden-principles` |
@@ -91,15 +91,36 @@ case, 2 Stage-2 axes instead of 15.
 its GP rules govern; a clean result elsewhere means no rule applied, not that
 design was reviewed.
 
-`agent-artifacts` and `toolkit-governance` match whole path segments and whole
-filenames, for the same reason `auth-secrets-execution` matches whole path
-words. Bare substrings failed in both directions at once. `skill.md` inside
+Every category above matches whole path segments and whole filenames, for the
+same reason `auth-secrets-execution` matches whole path words. Bare substrings
+failed in both directions at once. `skill.md` inside
 `req-019-autoplan-router-skill.md` selected `agent-safety` and
-`golden-principles` on a requirements document (5 such files among the 9589
-tracked), while `/skills/` with its leading slash could not match a repo-root
+`golden-principles` on a requirements document (5 such files in the corpus
+below), while `/skills/` with its leading slash could not match a repo-root
 `skills/` directory at all, so an agent artifact in the vendored plugin layout
 skipped `agent-safety` silently. Segment matching drops those 5 and keeps every
 real `SKILL.md`.
+
+The same shape reached four more categories, and there the under-fire is the
+one that costs coverage, because the path still classifies as something else,
+so `fail_closed` stays false and the missing axis reads as a deliberate skip:
+
+- `Button.test.tsx` and `router.spec.js` matched no `(name, extension)` pair,
+  classified as `executable-code` alone, and skipped the required `qa` axis.
+- `fixtures/sample.json` at the repository root matched neither `/fixtures/`
+  nor any suffix, classified as nothing, and paid for a full fail-closed review.
+- `src/prototypes.py` contains the substring `types.py` and selected
+  `architect`; `src/types.go` matched no pair and skipped it.
+- `roadmap/plan.md`, `planning/work.md`, and `decisions/record.md` needed a
+  leading slash, so `docs-and-instructions` claimed each one and `roadmap` or
+  `decision-rigor` never ran.
+
+## Corpus
+
+Counts on this page are measured over the tracked files at this branch's HEAD:
+`git ls-tree -r -z --name-only HEAD` returns 9589 paths. A count is a
+measurement of one commit, so re-run it rather than carrying the number
+forward.
 
 `dependencies` routes to `security` and `devops`, not `architect`. The issue
 row reads "dependency and security review": `security` covers the supply-chain
@@ -127,9 +148,9 @@ The last three cover the issue rows "Auth, secrets, execution, or untrusted
 input" and "CI, deployment, artifacts, or rollback". Their `auth`, `secrets`,
 `CI`, and `deployment` halves are path-shaped and live in the risk table above;
 the execution, untrusted-input, artifact, and rollback halves are not. Matching
-those as path words was measured against all 9588 tracked files and produced no
+those as path words was measured against the whole corpus above and produced no
 true risk surface at all: `eval` matched 183 paths (an analysis corpus of
-`eval-*` reports), `commands` 58, `artifact` and `artifacts` 62 (mostly an
+`eval-*` reports), `commands` 58, `artifact` and `artifacts` 63 (mostly an
 eval-artifact report directory), `execution` 28 (ADR titles), `rollback` 1
 (an operations runbook). Declaring them from the diff body keeps the routing
 faithful to the issue without re-creating the over-fire the risk table's whole

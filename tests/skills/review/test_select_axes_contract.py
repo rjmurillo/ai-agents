@@ -243,6 +243,113 @@ class TestAgentArtifactMatchingIsSegmentShaped:
         assert mod._is_toolkit_artifact_path("src/service.py") is False
 
 
+class TestPathPredicatesMatchSegmentsNotSubstrings:
+    """Three predicates read raw substrings and dropped a required axis.
+
+    Each failure is silent, which is what makes it worse than an over-fire:
+    the path still classifies as something (executable-code, or
+    docs-and-instructions), so ``fail_closed`` stays false, no unclassified
+    path is reported, and the missing specialist looks like a deliberate skip.
+
+    * ``Button.test.tsx`` and ``router.spec.js`` matched no (name, extension)
+      pair, so a real test file skipped ``qa``.
+    * ``fixtures/sample.json`` at the repository root matched neither
+      ``/fixtures/`` nor any suffix, so it classified as nothing and paid for
+      a full fail-closed review.
+    * ``src/prototypes.py`` contains ``types.py`` and selected ``architect``;
+      ``src/types.go`` matched nothing and skipped it.
+    * ``roadmap/plan.md`` and ``decisions/record.md`` missed their leading
+      slash, so ``roadmap`` and ``decision-rigor`` never ran.
+
+    Every positive case asserts ``fail_closed is False`` as well, because a
+    fail-closed run selects every axis and would satisfy the axis assertion
+    for the wrong reason.
+    """
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "src/Button.test.tsx",
+            "web/router.spec.js",
+            "app/Cache.Tests.ps1",
+            "pkg/handler_test.go",
+            "lib/parser_spec.rb",
+        ],
+    )
+    def test_an_extension_neutral_test_name_selects_qa(self, path: str) -> None:
+        result = select([path])
+        assert "qa" in result["canonical_selected"], result["matched_categories"]
+        assert result["fail_closed"] is False, path
+
+    def test_a_repo_root_fixtures_directory_is_test_adjacent(self) -> None:
+        result = select(["fixtures/sample.json"])
+        assert result["unclassified_paths"] == []
+        assert result["fail_closed"] is False
+        assert "qa" in result["canonical_selected"]
+
+    @pytest.mark.parametrize(
+        "path", ["src/service.py", "docs/guide.md", "src/latest.py", "docs/fixtures"]
+    )
+    def test_an_ordinary_path_is_still_not_a_test(self, path: str) -> None:
+        """Negative control, including a FILE named ``fixtures``."""
+        assert mod._is_test_path(mod._norm(path)) is False, path
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "src/types.go",
+            "src/types.ts",
+            "app/api.rs",
+            "pkg/models.cs",
+            "core/protocols.py",
+            "proto/user.proto",
+            "web/global.d.ts",
+            "schemas/user.json",
+            "interfaces/reader.ts",
+        ],
+    )
+    def test_a_whole_type_or_api_name_selects_architect(self, path: str) -> None:
+        result = select([path])
+        assert "architect" in result["canonical_selected"], result["matched_categories"]
+        assert result["fail_closed"] is False, path
+
+    @pytest.mark.parametrize("path", ["src/prototypes.py", "src/subtypes.ts", "lib/apiary.py"])
+    def test_a_name_that_merely_contains_a_type_token_does_not(self, path: str) -> None:
+        result = select([path])
+        assert mod._is_type_or_api_path(mod._norm(path)) is False, path
+        assert "architect" not in result["canonical_selected"], path
+        assert result["fail_closed"] is False, path
+
+    @pytest.mark.parametrize(
+        ("path", "axis"),
+        [
+            ("roadmap/plan.md", "roadmap"),
+            ("planning/work.md", "roadmap"),
+            ("specs/req-001.md", "roadmap"),
+            ("decisions/record.md", "decision-rigor"),
+            ("architecture/overview.md", "decision-rigor"),
+        ],
+    )
+    def test_a_repo_root_doc_directory_selects_its_specialist(
+        self, path: str, axis: str
+    ) -> None:
+        result = select([path])
+        assert axis in result["canonical_selected"], result["matched_categories"]
+        assert result["fail_closed"] is False, path
+
+    def test_root_and_nested_layouts_route_alike(self) -> None:
+        assert (
+            select(["roadmap/plan.md"])["canonical_selected"]
+            == select([".agents/roadmap/plan.md"])["canonical_selected"]
+        )
+
+    @pytest.mark.parametrize("path", ["docs/roadmapping.md", "docs/decisiveness.md"])
+    def test_a_directory_name_prefix_is_not_a_directory(self, path: str) -> None:
+        """Negative control: segment matching must not become a prefix match."""
+        assert mod._is_roadmap_doc_path(mod._norm(path)) is False, path
+        assert mod._is_decision_doc_path(mod._norm(path)) is False, path
+
+
 class TestConvergenceContractDoesNotPromiseZeroEditEnrollment:
     """The contract claimed enrolling an axis needs no edit to the skill body.
 

@@ -8,21 +8,15 @@ needs.  It is a pure function of its arguments: the same paths and effects
 always produce the same selection, so the routing is testable instead of
 being re-derived by a model on each run.
 
-Two axis families exist and this script keeps them in separate output
-fields, because they are loaded differently and conflating them misloads a
-caller-pinned local axis:
-
-* **Canonical axes** are discovered from ``references/*.md`` and dispatched
-  with ``Task(subagent_type="{stem}")`` using ``references/{stem}.md`` as
-  the system prompt.
-* **Local-only skill axes** (``code-qualities-assessment``, ``doc-accuracy``,
-  ``golden-principles``, ``taste-lints``) are sibling skills invoked with
-  ``Skill(skill="{name}")``.  They have no ``references/{name}.md`` file, so
-  a local axis that lands in the canonical list resolves to a prompt path
-  that does not exist.
-
-``spec-compliance`` is the Stage-1 gate.  It always runs and this script
-never reports on it; it is excluded from the canonical candidate set.
+Two axis families stay in separate output fields, because they load
+differently and conflating them misloads a caller-pinned local axis.
+**Canonical axes** are discovered from ``references/*.md`` and dispatched with
+``Task(subagent_type="{stem}")`` using ``references/{stem}.md`` as the system
+prompt.  **Local-only skill axes** (see ``LOCAL_AXES``) are sibling skills
+invoked with ``Skill(skill="{name}")``; none has a ``references/{name}.md``
+file, so a local axis in the canonical list resolves to a path that does not
+exist.  ``spec-compliance`` is the Stage-1 gate: it always runs, is never
+reported here, and is excluded from the canonical candidate set.
 
 Selection is additive: one change can match several risk categories and
 every matched category contributes its axes.
@@ -30,10 +24,11 @@ every matched category contributes its axes.
 Fail-closed rule: when a changed path matches no known risk category, when the
 path list is empty or holds nothing but blanks, when a declared diff effect is
 not in the known vocabulary, or when a demanded axis has no
-``references/{stem}.md`` prompt to load, every candidate axis is selected.  An unclassified change gets the full review, never an empty one,
-and an incomplete prompt set widens the review instead of narrowing it.  A
-demanded axis with no prompt is reported in ``unresolved_axes`` so it never
-vanishes from both ``canonical_selected`` and ``skipped``.
+``references/{stem}.md`` prompt to load, every candidate axis is selected.  An
+unclassified change gets the full review, never an empty one, and an incomplete
+prompt set widens the review instead of narrowing it.  A demanded axis with no
+prompt is reported in ``unresolved_axes`` so it never vanishes from both
+``canonical_selected`` and ``skipped``.
 
 EXIT CODES (ADR-035):
     0 - A selection was emitted on stdout as JSON.
@@ -101,18 +96,23 @@ _CI_FILENAME_SUFFIXES = (".tf", ".tfvars")
 # Word boundary inside one path segment: any run of non-alphanumeric bytes.
 _WORD_SPLIT = re.compile(r"[^a-z0-9]+")
 
-_TYPE_API_TOKENS = (
-    ".d.ts", "types.py", "types.ts", "models.py", "schema.py", "schemas/",
-    ".proto", "interfaces/", "protocols.py", "api.py", "api.ts",
-)
-
-# Whole segments and whole filenames, for the reason _SECURITY_WORDS is whole
-# words. The former "/skills/"-style substrings over-fired on any prose named
-# "*-skill.md" (5 of 9588 tracked files) and under-fired on a repo-root
-# "skills/" directory, the vendored plugin layout. See resources/axis-selection.md.
+# Every set below is matched as a whole path segment, whole basename, or whole
+# name segment, for the reason _SECURITY_WORDS is whole words. Bare substrings
+# over-fired and under-fired at once, and the under-fire is the expensive half:
+# the path still classifies as something else, so fail_closed stays false and
+# the missing axis reads as a deliberate skip. resources/axis-selection.md,
+# "Risk categories", carries the measured cases behind each set.
+_TYPE_API_STEMS = frozenset({"types", "api", "models", "schema", "protocols", "interfaces"})
+_TYPE_API_DIRECTORIES = frozenset({"schemas", "interfaces"})
+_TYPE_API_SUFFIXES = (".d.ts", ".proto")
+_TEST_NAME_PREFIXES = ("test_", "test.")
+_TEST_NAME_INFIXES = (".test.", ".tests.", ".spec.", "_test.", "_tests.", "_spec.")
+_TEST_DIRECTORIES = frozenset({"tests", "fixtures"})
 _AGENT_ARTIFACT_DIRECTORIES = frozenset({"skills", "agents", "hooks", "prompts", "commands"})
 _AGENT_ARTIFACT_FILENAMES = frozenset({"skill.md"})
 _TOOLKIT_DIRECTORIES = _AGENT_ARTIFACT_DIRECTORIES | {"rules"}
+_DECISION_DIRECTORIES = frozenset({"architecture", "decisions"})
+_ROADMAP_DIRECTORIES = frozenset({"roadmap", "planning", "specs"})
 
 
 def _norm(path: str) -> str:
@@ -136,12 +136,15 @@ def _words(path: str) -> set[str]:
 
 
 def _is_test_path(path: str) -> bool:
-    name = path.rsplit("/", 1)[-1]
-    if "/tests/" in path or path.startswith("tests/") or "/fixtures/" in path:
+    # [:-1] drops the filename, so a file named "fixtures" is not a directory
+    # of them, and a repo-root "tests/" or "fixtures/" directory still counts.
+    segments = _segments(path)
+    if _TEST_DIRECTORIES & set(segments[:-1]):
         return True
-    if name.startswith("test_") or name.startswith("test."):
+    name = segments[-1] if segments else ""
+    if name.startswith(_TEST_NAME_PREFIXES):
         return True
-    return name.endswith(("_test.py", ".tests.ps1", ".test.ts", ".spec.ts", ".test.js"))
+    return any(infix in name for infix in _TEST_NAME_INFIXES)
 
 
 def _is_security_path(path: str) -> bool:
@@ -172,7 +175,14 @@ def _is_ci_deploy_path(path: str) -> bool:
 
 
 def _is_type_or_api_path(path: str) -> bool:
-    return any(token in path for token in _TYPE_API_TOKENS)
+    segments = _segments(path)
+    if _TYPE_API_DIRECTORIES & set(segments[:-1]):
+        return True
+    name = segments[-1] if segments else ""
+    if name.endswith(_TYPE_API_SUFFIXES):
+        return True
+    stem, dot, suffix = name.rpartition(".")
+    return bool(dot) and stem in _TYPE_API_STEMS and f".{suffix}" in _CODE_SUFFIXES
 
 
 def _is_agent_artifact_path(path: str) -> bool:
@@ -191,12 +201,14 @@ def _is_toolkit_artifact_path(path: str) -> bool:
 
 
 def _is_decision_doc_path(path: str) -> bool:
-    name = path.rsplit("/", 1)[-1]
-    return name.startswith("adr-") or "/architecture/" in path or "/decisions/" in path
+    segments = _segments(path)
+    if segments and segments[-1].startswith("adr-"):
+        return True
+    return bool(_DECISION_DIRECTORIES & set(segments[:-1]))
 
 
 def _is_roadmap_doc_path(path: str) -> bool:
-    return "/roadmap/" in path or "/planning/" in path or "/specs/" in path
+    return bool(_ROADMAP_DIRECTORIES & set(_segments(path)[:-1]))
 
 
 def _is_docs_path(path: str) -> bool:
@@ -224,11 +236,11 @@ _RISK_TABLE: tuple[tuple[str, Callable[[str], bool], tuple[str, ...], tuple[str,
     ("toolkit-governance", _is_toolkit_artifact_path, (), ("golden-principles",)),
 )
 
-# Diff effects the caller verified in the diff body, which no path glob can
-# see. An effect outside this vocabulary fails closed. The execution,
+# The 12 diff effects the caller verified in the diff body, which no path glob
+# can see. An effect outside this vocabulary fails closed. The execution,
 # untrusted-input, artifact, and rollback rows of issue #4981 live here rather
 # than in _RISK_TABLE: they name what a diff does, not what a path is called,
-# and matching them as path words was measured as pure noise. The counts are in
+# and matching them as path words measured as pure noise. Counts in
 # resources/axis-selection.md, "Diff-effect mapping".
 _EFFECT_TABLE: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "command-execution": (("security",), ()),
@@ -339,18 +351,15 @@ def select_axes(
     name either a canonical or a local axis; each is routed to its own
     family so a pinned local axis is never loaded as a canonical prompt.
     """
-    # classify_paths skips an empty-after-trimming entry rather than calling it
-    # unclassified, so testing the raw list let a blank-only list ("", "   ")
-    # reach the risk branch with nothing matched: fail_closed stayed false and
-    # the run narrowed to the always-on analyst alone. Judging emptiness on
-    # what survives normalization fails a blank list closed, like no list.
+    # classify_paths drops an empty-after-trimming entry rather than calling it
+    # unclassified, so judging emptiness on the raw list let ["", "   "] reach
+    # the risk branch with nothing matched and narrow to analyst alone.
     usable_paths = [raw for raw in changed_paths if _norm(raw)]
     categories, unclassified = classify_paths(changed_paths)
     canonical_sources, local_sources, unknown_effects = _contributions(categories, effects)
 
     # A demanded canonical axis with no references/{stem}.md prompt cannot be
-    # dispatched. Report it rather than dropping it from both output lists,
-    # and widen the review instead of silently narrowing it.
+    # dispatched. Report it rather than dropping it from both output lists.
     demanded = set(canonical_sources) | set(ALWAYS_ON_CANONICAL)
     unresolved_axes = sorted(demanded - set(canonical_candidates))
 
@@ -416,17 +425,11 @@ def _default_references_dir() -> Path:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
-        "--changed-path",
-        action="append",
-        default=[],
-        metavar="PATH",
+        "--changed-path", action="append", default=[], metavar="PATH",
         help="A path from the verified three-dot diff. Repeatable.",
     )
     parser.add_argument(
-        "--effect",
-        action="append",
-        default=[],
-        metavar="NAME",
+        "--effect", action="append", default=[], metavar="NAME",
         help=(
             "A diff effect verified in the diff body. Known values: "
             + ", ".join(sorted(_EFFECT_TABLE))
@@ -434,21 +437,15 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--pin",
-        action="append",
-        default=[],
-        metavar="AXIS",
+        "--pin", action="append", default=[], metavar="AXIS",
         help="A caller-pinned always-on axis, canonical or local. Repeatable.",
     )
     parser.add_argument(
-        "--deep",
-        action="store_true",
+        "--deep", action="store_true",
         help="Deep review: select every candidate axis regardless of risk.",
     )
     parser.add_argument(
-        "--references-dir",
-        type=Path,
-        default=None,
+        "--references-dir", type=Path, default=None,
         help="Directory holding the canonical axis prompts (references/*.md).",
     )
     return parser
