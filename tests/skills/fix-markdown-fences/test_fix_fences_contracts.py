@@ -61,6 +61,17 @@ def _has_unclosed_fence(text: str) -> bool:
     behaviour it exists to guard. The first bug was cruder, asking whether the
     text ended in a fence character, which called two genuinely unclosed
     documents balanced.
+
+    The third bug counted the body with `content.count("\n")`, which is one
+    short whenever the document does not end in a newline: the last body line
+    contributes no terminator. A genuinely unclosed fence running to such a
+    final line then looked marked, and the document looked balanced. Found by
+    sweeping every tracked Markdown file in this repository:
+    `.serena/memories/process/maintenance-003-homework-automation-justification.md`
+    ends without a trailing newline, and this helper called it balanced while
+    the reference parser leaves its last fence open across twelve lines.
+    Counting the body the way the parser counts lines fixes it, and is the
+    same correction `reference_lines` exists to make everywhere else.
     """
     # Reference numbering, not `str.splitlines()`: `token.map` is indexed the
     # way the parser counts lines, so a splitlines length can exceed it and
@@ -70,7 +81,7 @@ def _has_unclosed_fence(text: str) -> bool:
         if token.type != "fence" or not token.map:
             continue
         span = token.map[1] - token.map[0]
-        body = token.content.count("\n")
+        body = len(reference_lines(token.content))
         marked = span - 1 - body >= 1
         if not marked and token.map[1] >= len(source):
             return True
@@ -213,6 +224,30 @@ class TestCommonMarkOracle:
             assert repaired.splitlines()[2] == marker, text
             assert not repaired.endswith(marker + "\n" + marker + "\n"), text
             assert repair_markdown_fences(repaired) == repaired, text
+
+    def test_balance_is_decided_without_a_trailing_newline(self) -> None:
+        """The balance predicate is the ground truth for every corruption claim.
+
+        `_has_unclosed_fence` counted the body with `content.count("\\n")`,
+        which is one short when the document does not end in a newline: the
+        last body line contributes no terminator, so a genuinely unclosed
+        fence looked marked and the document looked balanced.
+
+        That predicate decides what counts as a corruption in this suite and in
+        every measurement quoted on this PR, so a false "balanced" is the worst
+        direction for it to fail in: it excuses a write instead of reporting
+        one. It survived two earlier corrections of this same helper and was
+        found by sweeping the repository, not by any test.
+
+        The pair below differs only in the final newline, and the answer must
+        not.
+        """
+        body = "```\nx\ny"
+        assert _has_unclosed_fence(body), "no trailing newline"
+        assert _has_unclosed_fence(body + "\n"), "trailing newline"
+        closed = "```\nx\n```"
+        assert not _has_unclosed_fence(closed), "closed, no trailing newline"
+        assert not _has_unclosed_fence(closed + "\n"), "closed, trailing newline"
 
     def test_the_oracle_numbers_lines_the_way_the_reference_parser_does(self) -> None:
         """The ground truth must not disagree with itself depending on how it is asked.
