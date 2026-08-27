@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import yaml
 
 from scripts.github_core.api import RepoInfo
 
@@ -32,6 +33,9 @@ def _import_script(name: str):
 
 
 _mod = _import_script("test_pr_merge_ready")
+# The completion-gate dispatcher, imported so the wiring test at the bottom of
+# this file can drive a real producer verdict through the real gate predicate.
+_gate = _import_script("run_completion_gate")
 main = _mod.main
 build_parser = _mod.build_parser
 check_merge_readiness = _mod.check_merge_readiness
@@ -1939,3 +1943,81 @@ class TestTierInMergeReadinessOutput:
             result = check_merge_readiness("o", "r", 42)
         assert "Tier" in result
         assert result["Tier"] in _mod._TIER_ORDER
+
+
+class TestSupportedStatesClearTheCompletionGate:
+    """Every state that reaches T1 must also clear pr-autofix's Phase 3 gate.
+
+    Wiring proof, per `.claude/rules/testing.md` SHOULD-6. The two halves of
+    this contract ship in different files and neither one's unit tests can see
+    the other:
+
+      * `_SUPPORTED_MERGE_STATES` in
+        `.claude/skills/github/scripts/pr/test_pr_merge_ready.py` decides which
+        `mergeStateStatus` values reach tier `T1`, the auto-merge tier.
+      * the `MergeStateStatus in (...)` clause of the `pass_when_python`
+        predicate for "PR is ready to merge (CI green, no conflicts)" in
+        `.claude/commands/pr-review-config.yaml` decides which values clear the
+        completion gate that `.claude/commands/pr-autofix.md` Phase 3 runs
+        before any merge is enabled.
+
+    A state accepted by the first and rejected by the second is a PR that
+    advances to the merge tier and then fails a mandatory gate with nothing
+    left to fix. `HAS_HOOKS` was in exactly that shape when it entered the
+    producer's allowlist. These cases run the real producer over a real
+    GraphQL payload and feed its actual output dict to the real predicate, so
+    widening one side without the other fails here rather than on a live PR.
+    """
+
+    _CONFIG_PATH = (
+        Path(__file__).resolve().parents[1]
+        / ".claude" / "commands" / "pr-review-config.yaml"
+    )
+    _CRITERION = "PR is ready to merge (CI green, no conflicts)"
+
+    @classmethod
+    def _shipped_predicate(cls) -> str:
+        config = yaml.safe_load(cls._CONFIG_PATH.read_text(encoding="utf-8"))
+        for criterion in config["completion_criteria"]:
+            if criterion.get("name") == cls._CRITERION:
+                return criterion["pass_when_python"]
+        raise AssertionError(
+            f"no criterion named {cls._CRITERION!r} in {cls._CONFIG_PATH}",
+        )
+
+    def _readiness_for(self, merge_state):
+        pr_data = _clean_pr_in_state(merge_state)
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            return check_merge_readiness("o", "r", 42)
+
+    @pytest.mark.parametrize("merge_state", sorted(_mod._SUPPORTED_MERGE_STATES))
+    def test_a_t1_verdict_clears_the_completion_gate(self, merge_state):
+        """Parametrized over the producer's own allowlist, not a copy of it.
+
+        Adding a state to `_SUPPORTED_MERGE_STATES` without adding it to the
+        gate's tuple adds a case here that fails, which is the drift this
+        class exists to catch.
+        """
+        result = self._readiness_for(merge_state)
+
+        assert result["Tier"] == "T1", (
+            f"{merge_state} is in _SUPPORTED_MERGE_STATES but did not reach "
+            f"T1; reasons: {result['Reasons']}"
+        )
+        assert _gate._eval_pass_when_python(result, self._shipped_predicate()) is True, (
+            f"{merge_state} reaches T1 (attempt merge) and then fails the "
+            f"mandatory completion gate in pr-review-config.yaml, so the PR "
+            f"dead-ends with no work left to do"
+        )
+
+    @pytest.mark.parametrize("merge_state", ["UNKNOWN", "A_STATE_GITHUB_ADDS_LATER"])
+    def test_an_unsupported_verdict_is_refused_by_the_completion_gate(self, merge_state):
+        """Discrimination control: the gate is not passing everything.
+
+        Without this, a predicate that ignored `MergeStateStatus` entirely
+        would satisfy every positive case above.
+        """
+        result = self._readiness_for(merge_state)
+
+        assert result["Tier"] == "UNSUPPORTED"
+        assert _gate._eval_pass_when_python(result, self._shipped_predicate()) is False
