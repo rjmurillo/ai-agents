@@ -15,7 +15,7 @@ caller-pinned local axis:
 * **Canonical axes** are discovered from ``references/*.md`` and dispatched
   with ``Task(subagent_type="{stem}")`` using ``references/{stem}.md`` as
   the system prompt.
-* **Local-only skill axes** (``code-qualities-assessment``,
+* **Local-only skill axes** (``code-qualities-assessment``, ``doc-accuracy``,
   ``golden-principles``, ``taste-lints``) are sibling skills invoked with
   ``Skill(skill="{name}")``.  They have no ``references/{name}.md`` file, so
   a local axis that lands in the canonical list resolves to a prompt path
@@ -27,9 +27,13 @@ never reports on it; it is excluded from the canonical candidate set.
 Selection is additive: one change can match several risk categories and
 every matched category contributes its axes.
 
-Fail-closed rule: when a changed path matches no known risk category, or a
-declared diff effect is not in the known vocabulary, every candidate axis is
-selected.  An unclassified change gets the full review, never an empty one.
+Fail-closed rule: when a changed path matches no known risk category, when a
+declared diff effect is not in the known vocabulary, or when a demanded axis
+has no ``references/{stem}.md`` prompt to load, every candidate axis is
+selected.  An unclassified change gets the full review, never an empty one,
+and an incomplete prompt set widens the review instead of narrowing it.  A
+demanded axis with no prompt is reported in ``unresolved_axes`` so it never
+vanishes from both ``canonical_selected`` and ``skipped``.
 
 EXIT CODES (ADR-035):
     0 - A selection was emitted on stdout as JSON.
@@ -41,6 +45,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
@@ -52,7 +57,12 @@ STAGE1_AXIS = "spec-compliance"
 ALWAYS_ON_CANONICAL = ("analyst",)
 
 # Sibling skills invoked with Skill(skill=...), not references/{stem}.md.
-LOCAL_AXES = ("code-qualities-assessment", "golden-principles", "taste-lints")
+LOCAL_AXES = (
+    "code-qualities-assessment",
+    "doc-accuracy",
+    "golden-principles",
+    "taste-lints",
+)
 
 _CODE_SUFFIXES = frozenset(
     {
@@ -92,28 +102,54 @@ _DEPENDENCY_MANIFESTS = frozenset(
     }
 )
 
-_SECURITY_TOKENS = (
-    "auth",
-    "secret",
-    "credential",
-    "password",
-    "token",
-    "crypto",
-    "sanitiz",
-    "permission",
+# Security words are matched against whole path words, never as bare
+# substrings: "auth" inside "docs/authors.md" and "token" inside
+# "src/tokenizer.py" both selected the security axis under substring matching,
+# which is exactly the low-signal noise risk selection exists to remove.
+_SECURITY_WORDS = frozenset(
+    {
+        "auth",
+        "authn",
+        "authz",
+        "oauth",
+        "secret",
+        "secrets",
+        "credential",
+        "credentials",
+        "password",
+        "passwords",
+        "token",
+        "tokens",
+        "permission",
+        "permissions",
+    }
 )
 
-_CI_TOKENS = (
-    ".github/workflows/",
-    ".github/actions/",
-    "lefthook.yml",
-    "dockerfile",
-    "docker-compose",
-    "/deploy/",
-    "deploy.",
-    ".tf",
-    "release",
+# Genuinely prefix-shaped: every real spelling starts with these ("sanitize",
+# "sanitizer", "sanitization"; "cryptography", "cryptographic").
+_SECURITY_WORD_PREFIXES = ("sanitiz", "crypto")
+
+# Directory-shaped and filename-shaped CI markers. The bare token "release"
+# used to match "docs/release-notes.md"; a deploy or release surface is a
+# directory or a workflow filename, so match those shapes instead.
+_CI_PATH_TOKENS = (".github/workflows/", ".github/actions/")
+_CI_DIRECTORIES = frozenset({"deploy", "release"})
+_CI_FILENAMES = frozenset(
+    {
+        "dockerfile",
+        "lefthook.yml",
+        "lefthook.yaml",
+        "release.yml",
+        "release.yaml",
+        "deploy.yml",
+        "deploy.yaml",
+    }
 )
+_CI_FILENAME_PREFIXES = ("dockerfile.", "docker-compose", "deploy.")
+_CI_FILENAME_SUFFIXES = (".tf", ".tfvars")
+
+# Word boundary inside one path segment: any run of non-alphanumeric bytes.
+_WORD_SPLIT = re.compile(r"[^a-z0-9]+")
 
 _TYPE_API_TOKENS = (
     ".d.ts",
@@ -150,6 +186,21 @@ def _norm(path: str) -> str:
     return path.replace("\\", "/").strip().lower()
 
 
+def _segments(path: str) -> list[str]:
+    """Return the non-empty path segments of a normalized path."""
+    return [segment for segment in path.split("/") if segment]
+
+
+def _words(path: str) -> set[str]:
+    """Split a normalized path into alphanumeric words.
+
+    ``src/auth/session.py`` yields ``{src, auth, session, py}``; the word set
+    is what security matching tests, so ``docs/authors.md`` (``authors``) and
+    ``src/tokenizer.py`` (``tokenizer``) no longer match ``auth``/``token``.
+    """
+    return {word for segment in _segments(path) for word in _WORD_SPLIT.split(segment) if word}
+
+
 def _is_test_path(path: str) -> bool:
     name = path.rsplit("/", 1)[-1]
     if "/tests/" in path or path.startswith("tests/") or "/fixtures/" in path:
@@ -162,7 +213,10 @@ def _is_test_path(path: str) -> bool:
 def _is_security_path(path: str) -> bool:
     if path.rsplit("/", 1)[-1].startswith(".env") or ".env." in path:
         return True
-    return any(token in path for token in _SECURITY_TOKENS)
+    words = _words(path)
+    if words & _SECURITY_WORDS:
+        return True
+    return any(word.startswith(_SECURITY_WORD_PREFIXES) for word in words)
 
 
 def _is_dependency_path(path: str) -> bool:
@@ -173,7 +227,14 @@ def _is_dependency_path(path: str) -> bool:
 
 
 def _is_ci_deploy_path(path: str) -> bool:
-    return any(token in path for token in _CI_TOKENS)
+    if any(token in path for token in _CI_PATH_TOKENS):
+        return True
+    name = path.rsplit("/", 1)[-1]
+    if name in _CI_FILENAMES or name.startswith(_CI_FILENAME_PREFIXES):
+        return True
+    if name.endswith(_CI_FILENAME_SUFFIXES):
+        return True
+    return bool(_CI_DIRECTORIES & set(_segments(path)[:-1]))
 
 
 def _is_type_or_api_path(path: str) -> bool:
@@ -217,7 +278,7 @@ _RISK_TABLE: tuple[tuple[str, Callable[[str], bool], tuple[str, ...], tuple[str,
     ("agent-artifacts", _is_agent_artifact_path, ("agent-safety",), ()),
     ("decision-records", _is_decision_doc_path, ("decision-rigor",), ()),
     ("roadmap-or-spec-docs", _is_roadmap_doc_path, ("roadmap",), ()),
-    ("docs-and-instructions", _is_docs_path, (), ()),
+    ("docs-and-instructions", _is_docs_path, (), ("doc-accuracy",)),
     (
         "executable-code",
         _is_code_path,
@@ -243,9 +304,24 @@ _EFFECT_TABLE: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
 
 _SKIP_REASON = "skipped - no changed path or diff effect matched this axis"
 _FAIL_CLOSED_REASON = "selected - fail-closed: change could not be classified"
+_UNRESOLVED_REASON = "selected - fail-closed: a demanded axis has no prompt to load"
 _DEEP_REASON = "selected - deep review requested"
 _ALWAYS_ON_REASON = "selected - always-on"
 _PINNED_REASON = "selected - caller-pinned always-on"
+
+
+def _blanket_reason(
+    deep: bool,
+    unclassified: Sequence[str],
+    unknown_effects: Sequence[str],
+    changed_paths: Sequence[str],
+) -> str:
+    """Return the reason recorded on every axis when the whole set runs."""
+    if deep:
+        return _DEEP_REASON
+    if unclassified or unknown_effects or not changed_paths:
+        return _FAIL_CLOSED_REASON
+    return _UNRESOLVED_REASON
 
 
 def discover_canonical_axes(references_dir: Path) -> list[str]:
@@ -323,26 +399,38 @@ def select_axes(
     categories, unclassified = classify_paths(changed_paths)
     canonical_sources, local_sources, unknown_effects = _contributions(categories, effects)
 
-    fail_closed = bool(unclassified) or bool(unknown_effects) or not changed_paths
+    # A demanded canonical axis with no references/{stem}.md prompt cannot be
+    # dispatched. Report it rather than dropping it from both output lists,
+    # and widen the review instead of silently narrowing it.
+    demanded = set(canonical_sources) | set(ALWAYS_ON_CANONICAL)
+    unresolved_axes = sorted(demanded - set(canonical_candidates))
+
+    fail_closed = (
+        bool(unclassified)
+        or bool(unknown_effects)
+        or bool(unresolved_axes)
+        or not changed_paths
+    )
     reasons: dict[str, str] = {}
 
     if deep or fail_closed:
-        blanket = _DEEP_REASON if deep else _FAIL_CLOSED_REASON
+        blanket = _blanket_reason(deep, unclassified, unknown_effects, changed_paths)
         canonical_selected = set(canonical_candidates)
         local_selected = set(LOCAL_AXES)
         for axis in canonical_selected | local_selected:
             reasons[axis] = blanket
     else:
-        canonical_selected = set(canonical_sources) & set(canonical_candidates)
+        # unresolved_axes is empty on this branch (a demanded axis with no
+        # prompt fails closed above), so every demanded axis is a candidate.
+        canonical_selected = set(canonical_sources)
         local_selected = set(local_sources) & set(LOCAL_AXES)
         for axis in canonical_selected:
             reasons[axis] = "selected - " + ", ".join(canonical_sources[axis])
         for axis in local_selected:
             reasons[axis] = "selected - " + ", ".join(local_sources[axis])
         for axis in ALWAYS_ON_CANONICAL:
-            if axis in canonical_candidates:
-                canonical_selected.add(axis)
-                reasons[axis] = _ALWAYS_ON_REASON
+            canonical_selected.add(axis)
+            reasons[axis] = _ALWAYS_ON_REASON
 
     for axis in pinned:
         if axis in LOCAL_AXES:
@@ -364,6 +452,7 @@ def select_axes(
         "matched_categories": categories,
         "unclassified_paths": unclassified,
         "unknown_effects": unknown_effects,
+        "unresolved_axes": unresolved_axes,
         "canonical_selected": sorted(canonical_selected),
         "local_selected": sorted(local_selected),
         "selection_reasons": dict(sorted(reasons.items())),

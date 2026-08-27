@@ -14,6 +14,7 @@ were stubbed to return the full set, the empty set, or a single family.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -82,6 +83,17 @@ class TestRequiredAdditiveRouting:
         result = select(["package-lock.json"])
         assert {"security", "devops"} <= set(result["canonical_selected"])
 
+    def test_dependency_change_does_not_select_architect(self) -> None:
+        """Issue #4981 row: 'Dependencies | dependency and security review'.
+
+        ``security`` covers the supply-chain half and ``devops`` owns build
+        and dependency wiring. A manifest bump changes no public interface,
+        so ``architect`` is deliberately not in this row. This is the one
+        mapping the deleted eval-side routing test claimed differently.
+        """
+        result = select(["pyproject.toml"])
+        assert "architect" not in result["canonical_selected"]
+
     def test_ci_change_selects_devops_and_security(self) -> None:
         result = select([".github/workflows/pr-validation.yml"])
         assert {"devops", "security"} <= set(result["canonical_selected"])
@@ -129,10 +141,13 @@ class TestRequiredAdditiveRouting:
 
 
 class TestLowRiskRunsFewerAxes:
-    def test_docs_only_change_runs_only_the_always_on_axis(self) -> None:
+    def test_docs_only_change_runs_the_always_on_axis_and_doc_accuracy(self) -> None:
+        # Issue #4981 routing row: "Docs and instruction claims ->
+        # documentation accuracy review". Still low-risk: 2 Stage-2 axes,
+        # not the full set.
         result = select(["docs/guide.md", "README.md"])
         assert result["canonical_selected"] == ["analyst"]
-        assert result["local_selected"] == []
+        assert result["local_selected"] == ["doc-accuracy"]
         assert result["fail_closed"] is False
 
     def test_docs_only_change_selects_fewer_axes_than_deep_review(self) -> None:
@@ -180,6 +195,109 @@ class TestFailClosed:
         assert result["mode"] == "deep"
 
 
+class TestDemandedAxisWithNoPrompt:
+    """A demanded axis with no ``references/{stem}.md`` must not vanish.
+
+    The selector intersected the demanded axes with the discovered candidate
+    set, so an axis a risk category or diff effect demanded, whose prompt file
+    was absent, appeared in neither ``canonical_selected`` nor ``skipped``
+    while ``fail_closed`` stayed false: the review silently got narrower.
+    """
+
+    PARTIAL_SET = ("analyst", "qa", "security", "devops", "architect", "spec-compliance")
+
+    @staticmethod
+    def _references(tmp_path: Path, stems: tuple[str, ...]) -> list[str]:
+        for stem in stems:
+            (tmp_path / f"{stem}.md").write_text("stub prompt\n", encoding="utf-8")
+        return mod.discover_canonical_axes(tmp_path)
+
+    def test_demanded_but_missing_axis_is_reported(self, tmp_path: Path) -> None:
+        candidates = self._references(tmp_path, self.PARTIAL_SET)
+        result = mod.select_axes(
+            changed_paths=["src/worker.py"],
+            canonical_candidates=candidates,
+            effects=["error-handling"],
+        )
+        # reliability is demanded by effect:error-handling, code-quality by
+        # the executable-code category; neither has a prompt in this set.
+        assert result["unresolved_axes"] == ["code-quality", "reliability"]
+
+    def test_a_missing_demanded_axis_fails_closed(self, tmp_path: Path) -> None:
+        candidates = self._references(tmp_path, self.PARTIAL_SET)
+        result = mod.select_axes(
+            changed_paths=["src/worker.py"],
+            canonical_candidates=candidates,
+            effects=["error-handling"],
+        )
+        assert result["fail_closed"] is True
+        assert set(result["canonical_selected"]) == set(candidates)
+        assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
+
+    def test_every_candidate_is_selected_or_skipped(self, tmp_path: Path) -> None:
+        # No axis disappears from both lists, on either branch.
+        candidates = self._references(tmp_path, self.PARTIAL_SET)
+        for effects in ([], ["error-handling"]):
+            result = mod.select_axes(
+                changed_paths=["docs/guide.md"],
+                canonical_candidates=candidates,
+                effects=effects,
+            )
+            accounted = set(result["canonical_selected"]) | set(result["skipped"])
+            assert set(candidates) <= accounted, (effects, result)
+
+    def test_missing_always_on_prompt_fails_closed_instead_of_being_dropped(
+        self, tmp_path: Path
+    ) -> None:
+        # Negative control for the guarded ALWAYS_ON loop: with no
+        # references/analyst.md the always-on axis cannot run, and the run
+        # must widen rather than report a clean narrow selection.
+        candidates = self._references(tmp_path, ("qa", "security", "spec-compliance"))
+        assert "analyst" not in candidates
+        result = mod.select_axes(
+            changed_paths=["docs/guide.md"],
+            canonical_candidates=candidates,
+        )
+        assert "analyst" in result["unresolved_axes"]
+        assert result["fail_closed"] is True
+
+    def test_a_complete_prompt_set_reports_no_unresolved_axes(self) -> None:
+        result = select(["src/worker.py"], effects=["error-handling"])
+        assert result["unresolved_axes"] == []
+        assert result["fail_closed"] is False
+
+
+class TestTokenMatchingDoesNotOverFire:
+    """Bare-substring matching selected specialists on ordinary paths."""
+
+    @pytest.mark.parametrize(
+        "path",
+        ["docs/authors.md", "src/tokenizer.py", "docs/release-notes.md"],
+    )
+    def test_word_lookalike_paths_select_no_specialist(self, path: str) -> None:
+        result = select([path])
+        assert "security" not in result["canonical_selected"], path
+        assert "devops" not in result["canonical_selected"], path
+        assert result["fail_closed"] is False, path
+
+    @pytest.mark.parametrize(
+        ("path", "expected"),
+        [
+            ("src/auth/session.py", "security"),
+            ("src/oauth_client.py", "security"),
+            ("utils/sanitizer.py", "security"),
+            (".github/workflows/release.yml", "devops"),
+            ("deploy/main.tf", "devops"),
+            ("release/publish.yml", "devops"),
+            ("Dockerfile", "devops"),
+        ],
+    )
+    def test_real_security_and_ci_paths_still_select(self, path: str, expected: str) -> None:
+        # Positive control: narrowing the match must not disarm the category.
+        result = select([path])
+        assert expected in result["canonical_selected"], result["matched_categories"]
+
+
 class TestPinnedAxesStayInTheirFamily:
     """Regression: PR #5010 conflated the canonical and local selected sets.
 
@@ -224,9 +342,23 @@ class TestLocalAxisSelection:
         result = select([".github/workflows/ci.yml"])
         assert "golden-principles" in result["local_selected"]
 
-    def test_docs_change_selects_no_local_axis(self) -> None:
+    def test_docs_change_selects_doc_accuracy(self) -> None:
         result = select(["docs/guide.md"])
-        assert result["local_selected"] == []
+        assert result["local_selected"] == ["doc-accuracy"]
+
+    def test_plain_text_change_selects_doc_accuracy_not_an_empty_specialist_set(
+        self,
+    ) -> None:
+        # Negative control for the defect this replaced: the docs category
+        # matched every text-shaped path and contributed no axis at all, so a
+        # .txt change was classified (no fail-closed) and reviewed by nobody.
+        result = select(["CHANGELOG.txt"])
+        assert result["local_selected"] == ["doc-accuracy"]
+        assert result["fail_closed"] is False
+
+    def test_code_change_does_not_select_doc_accuracy(self) -> None:
+        result = select(["src/service.py"])
+        assert "doc-accuracy" not in result["local_selected"]
 
 
 class TestPathNormalization:
@@ -327,16 +459,46 @@ class TestSkillDocumentsTheSelector:
         for effect in mod._EFFECT_TABLE:
             assert f"`{effect}`" in text, effect
 
-    def test_six_of_eleven_canonical_prompts_lack_an_applicability_section(self) -> None:
-        """Pins the count SKILL.md step 4 cites for why selection is not prose."""
-        without = [
+    def test_skill_body_states_when_to_pass_deep(self) -> None:
+        """AC-10 needs a runtime trigger, not only a documented mode.
+
+        The rewrite of Process step 4 dropped the only sentence telling the
+        reviewer when to request a deep review, so nothing in the Process set
+        ``--deep`` and the full-set mode was unreachable at runtime.
+        """
+        body = self.SKILL_MD.read_text(encoding="utf-8")
+        assert "Pass `--deep` when" in body
+
+    def test_sidecar_names_exactly_the_prompts_lacking_an_applicability_section(
+        self,
+    ) -> None:
+        """The sidecar's claim about prose routing must match the tree.
+
+        Deliberately not pinned to a fixed candidate count: the convergence
+        contract promises that dropping a ``references/{role}.md`` file
+        enrolls an axis with no edit to the skill, so enrolling one that
+        carries the section must not red this suite.
+        """
+        without = {
             axis
             for axis in CANDIDATES
             if "## When This Axis Applies"
             not in (REFERENCES_DIR / f"{axis}.md").read_text(encoding="utf-8")
-        ]
-        assert len(CANDIDATES) == 11, CANDIDATES
-        assert len(without) == 6, without
+        }
+        assert without, "the sidecar claims some prompts lack the section"
+        assert len(without) < len(CANDIDATES), (
+            "the sidecar's premise is that SOME prompts have the section"
+        )
+
+        sidecar = (
+            PROJECT_ROOT / ".claude" / "skills" / "review" / "resources" / "axis-selection.md"
+        )
+        text = " ".join(sidecar.read_text(encoding="utf-8").split())
+        marker = "These canonical prompts have no such section:"
+        assert marker in text, "sidecar no longer states which prompts lack the section"
+        claim = text.split(marker, 1)[1].split(".", 1)[0]
+        named = set(re.findall(r"`([a-z0-9-]+)`", claim))
+        assert named == without, (named, without)
 
 
 @pytest.mark.parametrize(
