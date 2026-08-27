@@ -237,6 +237,20 @@ class TestScopeBoundaries:
 
         assert code == 0
 
+    def test_top_level_fixtures_directory_is_never_scanned(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Spec-validation boundary case (PR #5338): the fragment match
+        # needed a leading slash to also exempt a repo-root fixtures/
+        # directory, not only nested ones.
+        root = _repo(tmp_path)
+        _add_doc(root, "fixtures/sample.md", f"See `{TARGET}:2` (`magic_token`).\n")
+
+        code, out = _run(root, capsys)
+
+        assert code == 0
+        assert "examined 0 citation(s)" in out
+
     def test_stale_citation_already_in_base_is_not_this_branch_claim(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
