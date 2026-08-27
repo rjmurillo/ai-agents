@@ -294,6 +294,14 @@ jobs:
         if: matrix.partition == 'bulk'
         run: python scripts/ci/validate_ai_review_budgets.py
 
+      # Issue #4494: a test_*.py inside testpaths that defines no test collects
+      # nothing and is counted in no failure, so it reads as a passing suite
+      # forever. Two mutation harnesses sat in that state, one of them grading
+      # mutants nobody read. Blocking on purpose: do NOT add continue-on-error.
+      - name: Check for zero-collection test files (blocking)
+        if: matrix.partition == 'bulk'
+        run: uv run --frozen python scripts/validation/check_zero_collection_tests.py
+
       # Issue #2939: keep repo-wide ruff debt from blocking unrelated PRs while
       # failing new violations in changed Python files.
       - name: Run ruff ratchet (changed Python files)

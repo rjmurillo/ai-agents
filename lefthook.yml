@@ -517,6 +517,15 @@ pre-push:
             timeout: 90s
             run: uv run --frozen python scripts/validation/check_unreachable_code.py .
             glob: "**/*.py"
+          # Issue #4494: a test_*.py inside testpaths that defines no test
+          # collects nothing, is counted in no failure, and reads as a passing
+          # suite forever. The guard runs one collection over testpaths, so it
+          # is slower than its neighbours here; the cap is sized for a loaded
+          # machine rather than the 14s a standalone run measures.
+          - name: zero-collection-tests
+            timeout: 5m
+            run: uv run --frozen python scripts/validation/check_zero_collection_tests.py
+            glob: ["**/*.py", "pyproject.toml"]
           - name: merge-tree-ratchet
             timeout: 90s
             run: uv run --frozen --extra dev python scripts/ci/merge_tree_ratchet_check.py --base-ref origin/main
