@@ -250,3 +250,75 @@ class TestScannerParity:
             f"seed {seed}: {len(diverged)} diverged, baseline {FUZZ_BASELINE[seed]}. "
             + (f"First: {diverged[0]!r}" if diverged else "Lower the baseline.")
         )
+
+
+class TestOpenLabelStateIsBounded:
+    """An open label must cost the same whatever follows it.
+
+    A link label may run across lines, so the scanner carries state from the
+    `[` until the `]`. That state used to be the label text, rebuilt with
+    `f"{self._open_label}\n{line}"` on every continuation line, so an
+    unmatched `[` near the top of a file copied a growing buffer once per line
+    below it. Measured on plain prose before the change, per-line cost rose
+    with file size (7.5us at 2,000 lines, 13.3us at 8,000, 42.1us at 32,000)
+    and doubling the file multiplied total time by 3 to 4 instead of by 2;
+    32,000 lines took 1.35s. Afterwards the per-line cost is flat near 6.1us
+    at every size, doubling costs 2.0x, and the same file takes 0.19s.
+
+    Only `_finish_open_label` ever read that text, and only to ask whether the
+    label was blank, so one bit replaced it.
+
+    A wall-clock assertion would be the direct test and would also be flaky on
+    a shared runner. This asserts the property underneath instead: whatever
+    the scanner carries across a continuation line does not grow with the
+    number of continuation lines. That rejects a return to the string and
+    equally rejects accumulating a list of segments to join at closure, which
+    is linear in time but still unbounded in space.
+    """
+
+    #: Enough continuation lines that any per-line accumulation is visible,
+    #: cheap enough to run in the suite. The old string reached ~150KB here.
+    LINES = 5000
+
+    def _state_after(self, continuations: int) -> object:
+        """Open a label, feed *continuations* plain lines, return the state."""
+        containers = mod._ListContainers()
+        containers.observe("[unclosed\n")
+        for index in range(continuations):
+            containers.observe(f"plain line {index} of ordinary prose\n")
+        return containers._open_label_blank
+
+    def test_the_state_does_not_grow_with_the_lines_it_spans(self) -> None:
+        few, many = self._state_after(10), self._state_after(self.LINES)
+        assert sys.getsizeof(few) == sys.getsizeof(many), (
+            "the open-label state grew with the number of continuation lines, "
+            "which is the quadratic accumulation this pin exists to reject"
+        )
+
+    def test_the_label_is_still_open_after_those_lines(self) -> None:
+        """The pin above is vacuous if the label closed itself along the way.
+
+        Without this, a regression that simply abandoned an open label on the
+        next line would leave `None` at both sizes and pass the size check.
+        """
+        assert self._state_after(self.LINES) is not None
+
+    def test_a_blank_label_and_a_filled_one_stay_distinguishable(self) -> None:
+        """One bit is enough only if it still answers the question asked.
+
+        `_finish_open_label` rejects a definition whose label normalises to
+        empty, so the bit must be true for an all-whitespace run and false as
+        soon as any line carries text.
+        """
+        blank = mod._ListContainers()
+        blank.observe("[\n")
+        blank.observe("   \n")
+        blank.observe("\t\n")
+        assert blank._open_label_blank is True
+
+        filled = mod._ListContainers()
+        filled.observe("[\n")
+        filled.observe("   \n")
+        filled.observe("  label text\n")
+        filled.observe("   \n")
+        assert filled._open_label_blank is False

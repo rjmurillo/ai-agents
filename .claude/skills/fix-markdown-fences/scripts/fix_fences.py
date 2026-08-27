@@ -484,7 +484,7 @@ class _ListContainers:
         "_columns",
         "_in_paragraph",
         "_item_still_empty",
-        "_open_label",
+        "_open_label_blank",
         "_open_title",
     )
 
@@ -495,7 +495,7 @@ class _ListContainers:
         self._awaiting_link_title = False
         self._awaiting_link_destination = False
         self._open_title: str | None = None
-        self._open_label: str | None = None
+        self._open_label_blank: bool | None = None
 
     def over_indented(self, indent: str) -> bool:
         """Return True when *indent* puts the marker inside an indented code block."""
@@ -508,7 +508,7 @@ class _ListContainers:
             self._awaiting_link_title = False  # and ends a pending definition
             self._awaiting_link_destination = False
             self._open_title = None  # an unclosed title dies with the blank too
-            self._open_label = None  # and so does an unclosed label
+            self._open_label_blank = None  # and so does an unclosed label
             if self._item_still_empty and self._columns:
                 # Rule 8: an item may begin with at most one blank line, so a
                 # blank directly after an empty marker closes it. Without this
@@ -527,7 +527,7 @@ class _ListContainers:
             self._awaiting_link_title
             or self._awaiting_link_destination
             or self._open_title is not None
-            or self._open_label is not None
+            or self._open_label_blank is not None
         )
         if (self._in_paragraph or pending) and not self._starts_a_block(line):
             return  # rule 6: a lazy continuation keeps its container open
@@ -549,10 +549,19 @@ class _ListContainers:
         self._awaiting_link_title = False
         self._awaiting_link_destination = False
         self._open_title = None
-        self._open_label = None
+        self._open_label_blank = None
 
     def _consume_open_label(self, line: str) -> None:
-        """Advance a label that opened on an earlier line over *line*."""
+        """Advance a label that opened on an earlier line over *line*.
+
+        Whether the label is blank is the only thing anything reads out of it,
+        so that one bit is all the scanner carries. Accumulating the text
+        instead copied the whole run on every continuation line, which made an
+        unmatched `[` near the top of a file quadratic in the lines below it.
+        Measured over plain prose before this change: 2,000 lines scanned at
+        7.5us per line and 32,000 at 42.1us, and doubling the file multiplied
+        the time by 3 to 4 rather than by 2.
+        """
         index = 0
         while index < len(line):
             char = line[index]
@@ -560,28 +569,29 @@ class _ListContainers:
                 index += 2
                 continue
             if char == "]":
-                label = f"{self._open_label}\n{line[:index]}"
-                self._finish_open_label(label, line[index + 1 :])
+                blank = self._open_label_blank and not line[:index].strip()
+                self._finish_open_label(bool(blank), line[index + 1 :])
                 return
             if char == "[":
                 # The single-line `_LINK_LABEL` spells `[^\[\]\\]` and so has
                 # always rejected an unescaped `[`. This path did not, which
                 # made the multi-line label looser than the one-line one for
                 # no reason anyone chose.
-                self._open_label = None
+                self._open_label_blank = None
                 self._in_paragraph = True
                 return
             index += 1
-        self._open_label = f"{self._open_label}\n{line}"
+        self._open_label_blank = self._open_label_blank and not line.strip()
 
-    def _finish_open_label(self, label: str, rest: str) -> None:
+    def _finish_open_label(self, blank: bool, rest: str) -> None:
         """Decide what a label closing on this line leaves open.
 
-        A label normalising to empty is not a definition, and neither is one
+        *blank* records whether every line of the label was whitespace. A
+        label normalising to empty is not a definition, and neither is one
         whose `]` is not followed by a colon; both make the whole run prose.
         """
-        self._open_label = None
-        if not label.strip() or not rest.startswith(":"):
+        self._open_label_blank = None
+        if blank or not rest.startswith(":"):
             self._in_paragraph = True
             return
         after = rest[1:]
@@ -635,11 +645,11 @@ class _ListContainers:
         """
         if _is_blank(line):
             return None  # `sync` already ended the paragraph
-        if self._open_label is not None:
+        if self._open_label_blank is not None:
             if not self._starts_a_block(line):
                 self._consume_open_label(line)
                 return None
-            self._open_label = None
+            self._open_label_blank = None
             self._in_paragraph = True
         if self._open_title is not None:
             if not self._starts_a_block(line):
@@ -677,7 +687,7 @@ class _ListContainers:
             self._awaiting_link_title = False
             self._awaiting_link_destination = False
             self._open_title = None
-            self._open_label = None
+            self._open_label_blank = None
             return column
         self._item_still_empty = False  # this line is the item's first content
         content = self._relative(line)
@@ -732,7 +742,7 @@ class _ListContainers:
         )
         # A label may open here and close lines later, at which point the rest
         # of THAT line carries the destination and title.
-        self._open_label = body[1:] if label_opens else None
+        self._open_label_blank = not body[1:].strip() if label_opens else None
         return None
 
     def _outdents(self, indent: str) -> bool:
