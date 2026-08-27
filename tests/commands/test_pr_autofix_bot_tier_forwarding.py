@@ -120,9 +120,14 @@ def test_a_stale_context_helper_is_named_rather_than_silently_reclassifying(
 ) -> None:
     """The version-skew case has its own cause and its own remedy.
 
-    `resolve_pr_scripts_dir` prefers the plugin caches over the repository
-    checkout, so until the plugin is reinstalled `$SCRIPTS_DIR/get_pr_context.py`
-    can be a copy predating issue #5208 that emits no `author_is_bot` key at all.
+    `resolve_pr_scripts_dir` tries `$COPILOT_PLUGIN_ROOT`, then
+    `$CLAUDE_PLUGIN_ROOT`, then `$repo_root/.claude`, and only then its three
+    installed-plugin caches, so a cache never outranks the checkout. Two paths
+    still reach a stale helper: an explicit plugin root pointing at an install
+    that predates the fix, or a session outside a checkout carrying
+    `skills/github/scripts/pr`, which falls through to a cache. Either way
+    `$SCRIPTS_DIR/get_pr_context.py` can be a copy predating issue #5208 that
+    emits no `author_is_bot` key at all.
     That fails closed like any other unreadable author, which combined with the
     T5 arm above reclassifies every PR with a failure or a thread as T5 across
     the whole repository. One indistinguishable notice makes that invisible;

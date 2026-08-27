@@ -448,10 +448,14 @@ CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
 # and neither that spelling nor `Copilot` carries a `[bot]` suffix.
 IS_BOT=$(printf '%s' "$CTX" | jq -r 'if (.Data | has("author_is_bot") | not) then "absent" elif (.Data.author_is_bot | type) == "boolean" then (.Data.author_is_bot | tostring) else "unknown" end')
 # `absent` is a separate verdict from `unknown` because it has a separate cause
-# and a separate remedy. resolve_pr_scripts_dir above prefers $COPILOT_PLUGIN_ROOT,
-# $CLAUDE_PLUGIN_ROOT, and the two installed-plugin caches AHEAD of the repository
-# checkout, so until the plugin is reinstalled $SCRIPTS_DIR/get_pr_context.py is
-# whatever version that cache holds. A copy predating issue #5208 emits no
+# and a separate remedy. resolve_pr_scripts_dir above tries $COPILOT_PLUGIN_ROOT
+# then $CLAUDE_PLUGIN_ROOT, then $repo_root/.claude, and only after that the three
+# installed-plugin caches; the caches never outrank the checkout, which is what
+# ci-scripts.md MUST-8 requires. So $SCRIPTS_DIR/get_pr_context.py is a stale copy
+# in exactly two situations: either plugin-root variable is set and points at an
+# install that predates the fix, or this session is running outside a checkout that
+# carries skills/github/scripts/pr and falls through to a cache. Diagnose in that
+# order, plugin roots first. A copy predating issue #5208 emits no
 # author_is_bot key at all, which fails closed like any other unreadable author
 # and would otherwise reclassify EVERY PR with a failing check or an unresolved
 # thread as T5, repo-wide, announced by one indistinguishable line. Naming the
