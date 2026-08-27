@@ -138,6 +138,26 @@ def _anchor_matches(anchor: str, cited_text: str) -> bool:
     return False
 
 
+# An ATX heading per CommonMark: up to 3 leading spaces (4 is a code
+# block), optional blockquote markers each followed by up to 4 spaces
+# (the marker's own optional space plus the heading's up-to-3 indent),
+# 1-6 hashes, then whitespace or end of line. This is what "#hashtag"
+# and 7-hash paragraphs fail and a blockquoted "> ## heading" passes,
+# indented marker forms (">    ## heading") included; the bare
+# hash-prefix predicate below stays the code-comment classifier.
+_ATX_HEADING = re.compile(r"^ {0,3}(?:> {0,4})*#{1,6}(?:[ \t]|$)")
+
+
+def _atx_heading(line: str) -> bool:
+    """Return whether a line is a Markdown ATX heading (blockquotes included)."""
+    return bool(_ATX_HEADING.match(line))
+
+
+def _hash_prefixed(line: str) -> bool:
+    """Return whether a line's first non-blank character is a hash marker."""
+    return line.lstrip().startswith("#")
+
+
 def _indent_width(line: str) -> int:
     """Return the leading-whitespace width after any comment marker."""
     prefix = 0
@@ -196,7 +216,11 @@ def _sentence_continues(line: str) -> bool:
 
 
 def _context_lines(
-    citing_lines: list[str] | None, line_index: int, line_text: str, segment: str
+    citing_lines: list[str] | None,
+    line_index: int,
+    line_text: str,
+    segment: str,
+    markdown: bool = False,
 ) -> list[str]:
     """Return this citation's slice of its line plus wrapped-sentence neighbors.
 
@@ -210,7 +234,23 @@ def _context_lines(
     context = [segment]
     if citing_lines is None:
         return context
+    if markdown and _atx_heading(line_text):
+        # A Markdown heading is a complete unit: it never wraps into any
+        # neighbor, another heading included (an equal-prefix rule would
+        # let adjacent headings pool anchors).
+        return context
     own_indent = _indent_width(line_text)
+    own_hash = _hash_prefixed(line_text)
+
+    def _blocks(neighbor: str) -> bool:
+        # In Markdown only a real heading is a hash boundary, so a
+        # hashtag paragraph stays ordinary body text; in code files a
+        # comment marker must match on both sides, so comment lines
+        # continue into comment lines and never into code.
+        if markdown:
+            return _atx_heading(neighbor)
+        return _hash_prefixed(neighbor) != own_hash
+
     for offset in (1, 2):
         index = line_index - offset
         if index < 0 or not _sentence_continues(citing_lines[index]):
@@ -220,10 +260,12 @@ def _context_lines(
         # quote, say), not this sentence wrapping across lines.
         if _indent_width(citing_lines[index]) > own_indent:
             break
+        if _blocks(citing_lines[index]):
+            break
         context.insert(0, citing_lines[index])
     if _sentence_continues(line_text) and line_index + 1 < len(citing_lines):
         following = citing_lines[line_index + 1]
-        if _indent_width(following) <= own_indent:
+        if _indent_width(following) <= own_indent and not _blocks(following):
             context.append(following)
     return context
 
