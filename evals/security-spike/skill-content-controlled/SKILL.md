@@ -86,17 +86,26 @@ BLOCKED is never the first move.
 
 **MUST NOT while enumerating.** No mutating git: `commit`, `push`, `checkout`,
 `switch`, `merge`, `rebase`, `reset`, `restore`, `stash`, `clean`, `tag`,
-`branch -d`, `apply`. No `--output` or `-o` on `git diff`, `git log`, or
-`git show`: those options write a file wherever you point them, so a read-only
-subcommand is not automatically a read-only command. No shell redirection into
-a file. No writes outside the review artifact paths this prompt names. Do not
-open credential stores or `.env` files to confirm a secret finding; cite the
-file and line from the diff instead.
+`branch -d`, `apply`. No `--output` or `-o` on `git diff`, `git log`,
+`git show`, or `git blame`: those options write a file wherever you point them,
+so a read-only subcommand is not automatically a read-only command. No
+`git -c <key>=<value>` and no `--exec-path`: config injection such as
+`diff.external` runs a program you name, which is command execution, not a file
+write. No shell redirection into a file. No writes outside the review artifact
+paths this prompt names. Do not open credential stores or `.env` files to
+confirm a secret finding; cite the file and line from the diff instead.
 
-These limits are obligations this prompt places on you, not properties of the
-toolset you were handed. No harness scopes them for you: the shell and editor
-grants you hold are unscoped on every surface. Assume nothing will stop you,
-and hold the line yourself.
+Two of these limits are enforced, and only on Claude surfaces. The
+`permissions.deny` rules in `.claude/settings.json` block `--output`,
+`--exec-path`, and the program-running config keys, and Claude Code evaluates
+deny rules ahead of allow rules and hooks. That denylist matches command text,
+so a flag assembled at runtime from a variable defeats it, and Copilot and VS
+Code have no equivalent surface.
+
+The rest are obligations this prompt places on you, not properties of the
+toolset you were handed. No harness scopes the rest for you: the editor grant
+you hold is unscoped on every surface, and the shell grant is unscoped apart
+from those deny rules. Assume nothing will stop you, and hold the line yourself.
 
 ### Workflow File Changes (Highest Risk)
 
