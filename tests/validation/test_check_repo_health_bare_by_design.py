@@ -25,20 +25,32 @@ The second layout is a bare repository stored at a path literally named
 ``.git``. git derives a bare repository's main-worktree path by stripping a
 trailing ``.git`` component, so ``git clone --bare seed dirD/.git`` reports
 ``worktree dirD``, which is the same shape a poisoned checkout at
-``corrupt/seed`` reports. Path alone cannot separate them; content can, and
-``TestContentSeparatesAWorkTreeFromAPhantomOne`` pins that.
+``corrupt/seed`` reports. Path alone cannot separate them.
+
+Content alone cannot either, and that was a live false positive: nothing stops
+a bare repository's holding directory carrying a README, a log, or a deploy
+script, and reading the listing alone called such a layout a checkout that had
+lost its files. The separating fact is repository metadata. A checkout has a
+staged index at ``<common>/index``; a bare repository has none, including one
+that has handed out linked worktrees, whose indexes live under
+``<common>/worktrees/<name>/``. ``TestTheStagedIndexSeparatesACheckoutFromABare
+Repository`` pins that measurement, and the content read stays as a second
+condition for the bare repository someone ran ``git read-tree`` inside.
 
 Coverage:
 
 - positive: a linked worktree of a genuinely bare repository, the bare parent
-  read through that worktree, and a bare repository at a ``.git``-named path
-  each exit 0 and print no repair, through ``main`` and through the CLI process.
+  read through that worktree, a bare repository at a ``.git``-named path, and
+  that same repository with an unrelated file beside it each exit 0 and print
+  no repair, through ``main`` and through the CLI process.
 - negative: the discriminating controls. A poisoned main checkout read from its
-  own linked worktree still exits 1, and a ``.git``-named parent that does hold
-  a checkout still exits 1, so the exit-0 cases above are not passing because
-  the gate stopped detecting anything.
-- edge: ``_holds_checked_out_content`` on a directory holding only ``.git``, on
-  a missing directory, and on a real checkout.
+  own linked worktree still exits 1, and a real checkout reported under the
+  same ``worktree holder`` shape still exits 1, so the exit-0 cases above are
+  not passing because the gate stopped detecting anything.
+- edge: ``_has_main_work_tree_index`` on a bare repository, a checkout, a bare
+  repository with a linked worktree, and a missing path;
+  ``_holds_checked_out_content`` on a directory holding only ``.git``, on a
+  missing directory, and on a real checkout.
 """
 
 from __future__ import annotations
@@ -262,18 +274,91 @@ class TestABareRepositoryStoredAtADotGitPath:
         assert "bare repository with no work tree" in captured.out
         assert _REPAIR not in captured.out + captured.err
 
-    def test_a_dot_git_named_repository_holding_a_checkout_still_exits_one(
+    def test_an_unrelated_file_beside_the_bare_repository_still_exits_zero(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Nothing stops a bare repository's holding directory holding a file.
+
+        A README, a log, or a deploy script sitting beside ``holder/.git`` is
+        ordinary. Reading the listing alone called that a checkout that had lost
+        its files and printed the repair that destroys the repository, which is
+        the false positive ``_has_main_work_tree_index`` exists to close.
+        """
+        holder = self._bare_at_dot_git(tmp_path)
+        (holder / "README.md").write_text("unrelated\n", encoding="utf-8")
+
+        code = check_repo_health.main([str(holder / ".git")])
+
+        assert code == 0
+        captured = capsys.readouterr()
+        assert _REPAIR not in captured.out + captured.err
+
+    def test_the_listing_alone_would_have_called_that_layout_a_checkout(
         self, tmp_path: Path
     ) -> None:
-        """The discriminating control: same path shape, real files beside it."""
+        """The control for the case above: the old read really did see content."""
         holder = self._bare_at_dot_git(tmp_path)
-        (holder / "checked-out.txt").write_text("content\n", encoding="utf-8")
+        (holder / "README.md").write_text("unrelated\n", encoding="utf-8")
 
+        assert check_repo_health._holds_checked_out_content(holder) is True
+        assert check_repo_health._has_main_work_tree_index(holder / ".git") is False
+
+    def test_a_real_checkout_at_the_same_path_shape_still_exits_one(
+        self, tmp_path: Path
+    ) -> None:
+        """The discriminating control: same reported shape, real staged index.
+
+        ``git worktree list`` names ``holder`` for both layouts, so if this
+        passed, the exit-0 cases above would prove only that the gate had
+        stopped detecting anything.
+        """
+        seed = _make_repo(tmp_path)
+        holder = tmp_path / "holder"
+        _git(tmp_path, "clone", "-q", str(seed), str(holder))
+        _git(holder, "config", "core.bare", "true")
+
+        listing = _try_git(holder / ".git", "worktree", "list", "--porcelain")
+        assert listing.stdout.splitlines()[0] == f"worktree {holder}"
+        assert check_repo_health._has_main_work_tree_index(holder / ".git") is True
         assert check_repo_health.main([str(holder / ".git")]) == 1
 
 
+class TestTheStagedIndexSeparatesACheckoutFromABareRepository:
+    """Edge: the repository metadata that a directory listing cannot supply.
+
+    Measured on git 2.43.0 and pinned here so a git version that starts
+    creating an index for a bare repository fails a test that names the reason
+    rather than silently widening the corrupted verdict.
+    """
+
+    def test_a_bare_repository_has_no_index(self, tmp_path: Path) -> None:
+        seed = _make_repo(tmp_path)
+        bare = tmp_path / "origin.git"
+        _git(tmp_path, "clone", "-q", "--bare", str(seed), str(bare))
+
+        assert check_repo_health._has_main_work_tree_index(bare) is False
+
+    def test_a_checkout_has_an_index(self, tmp_path: Path) -> None:
+        repo = _make_repo(tmp_path)
+
+        assert check_repo_health._has_main_work_tree_index(repo / ".git") is True
+
+    def test_a_bare_repository_that_handed_out_a_worktree_still_has_none(
+        self, tmp_path: Path
+    ) -> None:
+        """The linked worktree's index sits under ``worktrees/<name>/``."""
+        bare, _linked = _make_bare_with_worktree(tmp_path)
+
+        assert check_repo_health._has_main_work_tree_index(bare) is False
+        assert (bare / "worktrees" / "wtA" / "index").is_file()
+
+    def test_a_missing_common_directory_has_no_index(self, tmp_path: Path) -> None:
+        """Ambiguity resolves toward bare by design, so an absent path is False."""
+        assert check_repo_health._has_main_work_tree_index(tmp_path / "absent") is False
+
+
 class TestContentSeparatesAWorkTreeFromAPhantomOne:
-    """Edge: the one filesystem read the path comparison cannot replace."""
+    """Edge: the second condition, for a bare repository that gained an index."""
 
     def test_a_directory_holding_only_a_git_entry_holds_no_content(
         self, tmp_path: Path

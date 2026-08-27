@@ -78,15 +78,31 @@ worktree, and the main work tree is whichever of these names it:
   checkout, the separate-git-dir checkout, and the genuine bare repository
   alike, so it cannot carry the verdict.
 
-That path still needs one filesystem read, because git derives a bare
-repository's main-worktree path by stripping a trailing ``.git`` component:
-measured on git 2.43.0, a bare repository at ``dirD/.git`` reports ``worktree
-dirD`` and a poisoned checkout at ``corrupt/seed`` reports ``worktree
-corrupt/seed``, so the reported path is a pure function of the common directory
-and carries no evidence of its own. What separates them is content: the
-poisoned checkout holds its tracked files, ``dirD`` holds ``.git`` and nothing
-else. A directory that holds nothing but its own ``.git`` entry is a bare
-repository's phantom work tree, not a work tree.
+That path still needs corroboration, because git derives a bare repository's
+main-worktree path by stripping a trailing ``.git`` component: measured on git
+2.43.0, a bare repository at ``dirD/.git`` reports ``worktree dirD`` and a
+poisoned checkout at ``corrupt/seed`` reports ``worktree corrupt/seed``, so the
+reported path is a pure function of the common directory and carries no
+evidence of its own.
+
+What separates them is repository metadata, not a directory listing. A checkout
+has a staged index; a bare repository has none. Measured on git 2.43.0::
+
+    seed/.git/index                    True    ordinary checkout
+    corrupt/.git/index                 True    checkout later flagged bare
+    dirD/.git/index                    False   git clone --bare seed dirD/.git
+    holder/.git/index                  False   the same, with an unrelated
+                                               README sitting beside it
+    bareA.git/index                    False   bare repository that has handed
+                                               out a linked worktree
+    bareA.git/worktrees/wtA/index      True    that worktree's own index
+
+The listing read stays as a second, independent condition, because a bare
+repository that someone has run ``git read-tree`` inside does acquire an index
+while its phantom work tree still holds nothing but ``.git``. Both conditions
+have to hold: metadata proving a main work tree was ever staged, and content
+proving one is there now. A directory holding files beside a bare repository's
+``.git`` is neither, and reading content alone called that corrupted.
 
 Ambiguity resolves toward "bare by design" on purpose. A miss leaves the reader
 with the four confusing failures this gate front-runs, which is the pre-gate
@@ -354,15 +370,40 @@ def _holds_checked_out_content(work_tree: Path) -> bool:
         return False
 
 
+def _has_main_work_tree_index(common_dir: Path) -> bool:
+    """Report whether git holds a staged index for this repository's main work tree.
+
+    Repository metadata, which a directory listing is not. Measured on git
+    2.43.0: ``git init --bare`` and ``git clone --bare`` create no ``index``
+    entry, every checkout gains one from its first ``git add``, and a linked
+    worktree keeps its own under ``<common>/worktrees/<name>/index``, so a bare
+    repository that has handed out worktrees still has none of its own. The
+    module docstring carries the full measurement table.
+
+    Answering ``False`` for an unreadable path keeps ambiguity resolving toward
+    "bare by design", which is the direction the module docstring justifies.
+    """
+    try:
+        return (common_dir / "index").is_file()
+    except OSError:
+        return False
+
+
 def _main_work_tree(repo_root: Path, common_dir: Path) -> Path | None:
     """Return the main work tree this repository is meant to have, or None.
 
     None is the "bare by design" verdict, and it is where every ambiguity
     lands: see the module docstring for why a false alarm costs more than a
-    miss here.
+    miss here. A candidate has to clear both the metadata condition and the
+    content condition, because either alone admits a healthy layout: a file
+    sitting beside a bare repository's ``.git`` passes the content read, and a
+    bare repository someone ran ``git read-tree`` inside passes the metadata
+    read.
     """
     candidate = _work_tree_root(repo_root, common_dir) or _reported_main_worktree(repo_root)
     if candidate is None or candidate.resolve() == common_dir:
+        return None
+    if not _has_main_work_tree_index(common_dir):
         return None
     return candidate if _holds_checked_out_content(candidate) else None
 
