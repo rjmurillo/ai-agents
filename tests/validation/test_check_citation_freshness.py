@@ -57,15 +57,18 @@ class TestFreshCitationsPass:
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         # Regression: `util` is a fragment of the cited path's own name, and
-        # the first cut excluded any such span, flagging a correct citation
-        # found live in tests/test_model_pin_manifest.py (the `model` span
-        # against a check_model_pins.py citation).
+        # the first cut excluded any such span from the anchor set (found
+        # live on a `model` span against a check_model_pins.py citation).
+        # The discriminating direction (CodeRabbit, PR #5338): a stale
+        # citation whose ONLY anchor is that fragment must fail; the old
+        # exclusion would leave it anchorless and vacuously passing.
         root = _repo(tmp_path)
-        _add_doc(root, "docs/notes.md", f"A truthy `PLACEHOLDER` or pin ({TARGET}:2).\n")
+        _add_doc(root, "docs/notes.md", f"A `util` helper ({TARGET}:2).\n")
 
-        code, _out = _run(root, capsys)
+        code, out = _run(root, capsys)
 
-        assert code == 0
+        assert code == 1
+        assert "'util'" in out
 
     def test_dotted_prose_anchor_matches_on_its_final_segment(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

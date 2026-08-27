@@ -285,9 +285,11 @@ class TestScopeBoundaries:
         assert code == 0
         assert "examined 1 citation(s)" in out
 
-    def test_pathless_snippet_like_prose_never_matches(
+    def test_untracked_bare_name_is_skipped_as_illustrative(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
+        # A slashless name with no tracked root file behind it is an
+        # illustrative snippet, never a claim, and is not even counted.
         root = _repo(tmp_path)
         _add_doc(root, "docs/notes.md", "Fix the null check at auth.ts:47 first.\n")
 
@@ -295,6 +297,50 @@ class TestScopeBoundaries:
 
         assert code == 0
         assert "examined 0 citation(s)" in out
+
+    def test_tracked_root_file_stale_citation_fails(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Regression (CodeRabbit + spec validation, PR #5338): the live
+        # miss was a stale citation to root-level .markdownlint-cli2.yaml,
+        # invisible while the matcher required a slash. A slashless name
+        # backed by a tracked root file is a claim and is verified.
+        root = _repo(tmp_path)
+        readme = "README" + ".md"
+        _add_doc(root, "docs/notes.md", f"Per {readme}:5, the base doc.\n")
+
+        code, out = _run(root, capsys)
+
+        assert code == 1
+        assert "has 1 lines at HEAD" in out
+
+    def test_tracked_root_dotfile_stale_citation_fails(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # The incident shape exactly: a hidden root config file.
+        root = _repo(tmp_path)
+        (root / ".lint.yaml").write_text("rules: none\n", encoding="utf-8")
+        _git(root, "add", "-A")
+        _git(root, "commit", "-q", "-m", "cfg")
+        dotfile = ".lint" + ".yaml"
+        _add_doc(root, "docs/notes.md", f"Configured at {dotfile}:9 today.\n")
+
+        code, out = _run(root, capsys)
+
+        assert code == 1
+        assert "has 1 lines at HEAD" in out
+
+    def test_tracked_root_file_fresh_citation_passes(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        root = _repo(tmp_path)
+        readme = "README" + ".md"
+        _add_doc(root, "docs/notes.md", f"Per {readme}:1, the base doc.\n")
+
+        code, out = _run(root, capsys)
+
+        assert code == 0
+        assert "examined 1 citation(s)" in out
 
 
 

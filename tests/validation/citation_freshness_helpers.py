@@ -36,6 +36,7 @@ def _git(root: Path, *args: str) -> None:
         text=True,
         encoding="utf-8",
         errors="replace",
+        timeout=120,
     )
 
 
