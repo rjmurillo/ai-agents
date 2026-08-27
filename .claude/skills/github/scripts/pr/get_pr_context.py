@@ -356,17 +356,17 @@ def _record_context_fetch_failure(
 def _author_is_bot(author: object) -> bool | None:
     """Classify the PR author as a bot, or return None when it cannot be read.
 
-    Stricter/looser/different than canonical: no divergence. The decision is
-    `github_core.bot_config.is_bot`, this repo's one authoritative bot-author rule.
-    `canonicalize_login` runs first because that module's `_DEFAULT_BOT_ALIASES` maps
-    `app/copilot-swe-agent` (its comment: "gh pr view --json author returns this
-    spelling") onto `copilot-swe-agent[bot]`; neither that nor `Copilot` carries a `[bot]`
-    suffix, so a suffix test here would read this repo's own bot PRs as human-authored.
-    GitHub's own flag feeds `user_type`; `bool()` is for mypy. The third state is the addition:
-    `None` for an absent, login-less, or whitespace-bearing author, so a caller fails closed
-    rather than read an unearned `False` (issue #5208). `is_bot` matches on suffixes and a name
-    table, so `"   "` came back a real `False` until this guard, and none of the 28 names it
-    consults carries whitespace, so no known bot is reclassified (`TestAuthorIsBot`).
+    Canonical rule, `scripts/github_core/bot_config.py:328`, verbatim:
+    `def is_bot(login: str, user_type: str | None = None) -> bool:`. `canonicalize_login`
+    (line 309) runs first so `app/copilot-swe-agent` and `Copilot`, the spellings this repo's
+    own bot PRs arrive under, reach it as `[bot]` logins; GitHub's flag feeds `user_type`.
+
+    Stricter/looser/different than canonical. *Stricter input boundary*: canonical takes
+    `login: str` and classifies anything, so `"   "` came back a real `False`; this takes
+    `author: object` and refuses a non-dict, an empty or non-`str` login, and any login
+    bearing whitespace, reclassifying no known bot (no canonical name has any). *Tri-state
+    return*: canonical always returns `bool`; this returns `bool | None`, `None` for every
+    input that boundary refuses, so a caller fails closed rather than an unearned `False`.
     """
     if not isinstance(author, dict):
         return None
