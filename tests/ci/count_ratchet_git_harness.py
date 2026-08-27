@@ -67,8 +67,15 @@ def run_ratchet(
     counter,
     *,
     base_ref: str | None = None,
+    merge_tree_backed: bool = True,
 ) -> int:
-    """Drive the real entry point over ``repo`` with a fake counter."""
+    """Drive the real entry point over ``repo`` with a fake counter.
+
+    ``merge_tree_backed`` defaults to True because the stand-in models the five
+    registered ratchets. Pass False to model the subprocess-encoding ratchet,
+    whose baseline is absent from
+    ``scripts/ci/merge_tree_ratchet_registry.py::RATCHETS``.
+    """
     argv = ["--repo-root", str(repo), "--baseline", str(baseline)]
     if base_ref is not None:
         argv += ["--base-ref", base_ref]
@@ -79,4 +86,5 @@ def run_ratchet(
         counter=counter,
         scan_error="scan failed",
         regression_advice="fix them.",
+        merge_tree_backed=merge_tree_backed,
     )
