@@ -127,6 +127,25 @@ class TestInlineCodeSpan:
         assert len(issues) == 1
         assert issues[0].severity == "CRITICAL"
 
+    def test_multiline_triple_backtick_inline_span_is_caught(self):
+        """CommonMark 0.31.2 6.1 allows a code span to cross lines for any
+        delimiter length, not just short runs; confining the 3+ backtick
+        branch to a single line missed this and read the keyword as a
+        genuine bare claim (Copilot, PR #5371 round 4)."""
+        body = "See ```example\nFixes #4965\nend``` for details."
+        issues = validate_closing_links(body, "main", "main")
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+        assert "inline code span" in issues[0].issue_type
+
+    def test_backtick_fence_opener_with_backtick_in_info_string_is_not_a_fence(self):
+        """CommonMark 0.31.2 4.5: a backtick fence's info string must not
+        itself contain a backtick; an opener that does isn't a fence at
+        all, so text after it is ordinary prose, not fenced content
+        (Copilot, PR #5371 round 4)."""
+        body = "```lang`x`\nFixes #4965\n"
+        assert validate_closing_links(body, "main", "main") == []
+
 
 class TestFencedCodeBlock:
     """Closing keyword inside a fenced block should be CRITICAL."""
@@ -153,6 +172,16 @@ class TestFencedCodeBlock:
         issues = validate_closing_links(body, "main", "main")
         assert len(issues) == 1
         assert issues[0].severity == "CRITICAL"
+
+    def test_tilde_fence_info_string_may_contain_a_backtick(self):
+        """CommonMark 0.31.2 4.5 restricts backticks in the info string to
+        backtick fences only; a tilde fence's info string is unrestricted,
+        so this must still open a real fence (Copilot, PR #5371 round 4)."""
+        body = "~~~lang`x`\nFixes #42\n~~~\n"
+        issues = validate_closing_links(body, "main", "main")
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+        assert issues[0].issue_type == "Closing keyword in fenced code block"
 
     def test_unclosed_backtick_fence_still_reports_the_keyword_as_fenced(self):
         """CommonMark 0.31.2 4.5: an unclosed fence still runs to EOF (Copilot, PR #5371)."""

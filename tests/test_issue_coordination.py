@@ -182,6 +182,22 @@ class TestReferencesIssue:
         body = "```\nignore this\n````\nFixes #4965\n"
         assert _check.references_issue(body, 4965) is True
 
+    def test_multiline_triple_backtick_inline_span_still_excludes_the_keyword(self):
+        # CommonMark 0.31.2 6.1 allows a code span to cross lines for any
+        # delimiter length; confining the 3+ backtick branch to a single
+        # line missed this and read the keyword as a genuine bare claim
+        # (Copilot, PR #5371 round 4).
+        body = "See ```example\nFixes #4965\nend``` for details."
+        assert _check.references_issue(body, 4965) is False
+
+    def test_backtick_fence_opener_with_backtick_in_info_string_is_not_a_fence(self):
+        # CommonMark 0.31.2 4.5: a backtick fence's info string must not
+        # itself contain a backtick; an opener that does isn't a fence at
+        # all, so a real keyword after it is a genuine unfenced claim
+        # (Copilot, PR #5371 round 4).
+        body = "```lang`x`\nFixes #4965\n"
+        assert _check.references_issue(body, 4965) is True
+
 
 class TestSpanPatternsMatchCanonical:
     """Drift guard for the two duplicated span-exclusion mechanisms (PR #5371 review).
@@ -214,11 +230,28 @@ class TestSpanPatternsMatchCanonical:
             "```\nignore this\n````\nFixes #1\n",
             "no fence here at all",
             "```\nfirst\n```\ntext\n~~~\nsecond\n~~~\n",
+            "```lang`x`\nFixes #1\n",
+            "~~~lang`x`\nFixes #1\n~~~\n",
+            "See ```example\nFixes #1\nend``` for details.",
         ]
         for body in bodies:
             assert _check._fenced_code_block_ranges(
                 body
             ) == _prdesc._fenced_code_block_ranges(body), body
+
+    def test_code_spans_outside_fences_behavior_matches_canonical(self):
+        bodies = [
+            "`Fixes #1`",
+            "``Fixes #1``",
+            "See ```example\nFixes #1\nend``` for details.",
+            "```\nFixes #1\n```\n",
+            "```\nignore this\n````\nFixes #1\n",
+        ]
+        for body in bodies:
+            fenced = _check._fenced_code_block_ranges(body)
+            assert _check._code_spans_outside_fences(
+                body, fenced
+            ) == _prdesc._code_spans_outside_fences(body, fenced), body
 
 
 class TestFindOpenPrsForIssue:

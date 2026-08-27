@@ -101,13 +101,42 @@ _PullRequestPayload = dict[str, object]
 # match alone matched any line merely *starting* with the same run, closing
 # the block one line too soon and letting a real claim past it that GitHub
 # still renders as code (Copilot review on PR #5371, round 2).
+#
+# CommonMark allows a line ending inside a code span for every delimiter
+# length, not just short runs; confining the 3+ backtick branch to a single
+# line missed a real multiline inline span and read the keyword inside it as
+# a genuine bare claim (Copilot review on PR #5371, round 4). Letting that
+# branch go multiline means it can also match all the way across a real
+# fenced block; `_code_spans_outside_fences` below handles that at the call
+# site by dropping any span match that starts inside a real fence, so a
+# fence still reports as fenced rather than relabeled as an inline span.
+#
+# The two `_FENCE_OPEN_LINE` alternatives are deliberately asymmetric.
+# CommonMark 0.31.2 section 4.5: "If the info string comes after a backtick
+# fence, it may not contain any backtick characters." A tilde fence's info
+# string has no such restriction. `(?![^\n]*`)` on the backtick alternative
+# rejects a line like ` ```lang`x` ` from opening a fence at all, exactly as
+# CommonMark reads it as ordinary text instead (Copilot review on PR #5371,
+# round 4).
+#
+# Known limitation, left deliberately out of scope: this line-anchored
+# search does not reparse list-item or blockquote container prefixes
+# (`- ` / `> `) the way CommonMark does, so a fence nested inside a list
+# item or blockquote is not recognized as a fence at all (Copilot review on
+# PR #5371, round 4, suppressed comments). A closing keyword inside such a
+# nested fence is therefore read as an unfenced bare claim rather than
+# excluded. This preflight targets the common shape of a PR description (a
+# top-level fenced example), not arbitrary nested Markdown containers;
+# closing this gap needs container-prefix-aware line parsing, which is a
+# larger change than this fix round scopes to. Same limitation in
+# `pr_description.py`.
 _INLINE_CODE_SPAN = re.compile(
     r"(?<!`)(`{1,2})(?!`)(?:[^\n]|\n(?!\s*\n))+?(?<!`)\1(?!`)"
     r"|"
-    r"(?<!`)(`{3,})(?!`)[^\n]+?(?<!`)\2(?!`)"
+    r"(?<!`)(`{3,})(?!`)(?:[^\n]|\n(?!\s*\n))+?(?<!`)\2(?!`)"
 )
 _FENCE_OPEN_LINE = re.compile(
-    r"^[ ]{0,3}(`{3,}|~{3,})[^\n]*\n",
+    r"^[ ]{0,3}(?:(`{3,})(?![^\n]*`)|(~{3,}))[^\n]*\n",
     re.MULTILINE,
 )
 
@@ -128,7 +157,7 @@ def _fenced_code_block_ranges(text: str) -> list[tuple[int, int]]:
         opener = _FENCE_OPEN_LINE.search(text, pos)
         if opener is None:
             break
-        run = opener.group(1)
+        run = opener.group(1) or opener.group(2)
         closer_pattern = re.compile(
             rf"^[ ]{{0,3}}{re.escape(run[0])}{{{len(run)},}}[ \t]*$",
             re.MULTILINE,
@@ -149,6 +178,22 @@ def _in_any_range(pos: int, ranges: list[tuple[int, int]]) -> bool:
     return any(start <= pos < end for start, end in ranges)
 
 
+def _code_spans_outside_fences(
+    text: str, fenced_ranges: list[tuple[int, int]]
+) -> list[tuple[int, int]]:
+    """Inline code-span ranges, excluding any that start inside a real fence.
+
+    A real fence always wins (CommonMark parses block structure before
+    inline content, so nothing inside a fenced block's raw text is itself
+    inline-parsed). Ported verbatim from `pr_description.py`.
+    """
+    return [
+        span
+        for span in _span_ranges(text, _INLINE_CODE_SPAN)
+        if not _in_any_range(span[0], fenced_ranges)
+    ]
+
+
 def references_issue(text: str, issue: int, repo_slug: str = "") -> bool:
     """Return True when ``text`` claims ``issue`` via a closing keyword.
 
@@ -166,7 +211,7 @@ def references_issue(text: str, issue: int, repo_slug: str = "") -> bool:
         issue_ref = rf"(?:{re.escape(repo_slug)}#|#){issue}\b"
     pattern = re.compile(rf"(?i)\b(?:{_KEYWORDS})\b[\s:]*{issue_ref}")
     fenced_ranges = _fenced_code_block_ranges(text)
-    code_span_ranges = _span_ranges(text, _INLINE_CODE_SPAN)
+    code_span_ranges = _code_spans_outside_fences(text, fenced_ranges)
     for match in pattern.finditer(text):
         pos = match.start()
         if _in_any_range(pos, fenced_ranges) or _in_any_range(pos, code_span_ranges):

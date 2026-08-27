@@ -644,23 +644,34 @@ _AUTO_CLOSE_KW: re.Pattern[str] = re.compile(
 )
 
 # GFM inline code span: one or more backticks as the opening fence, closed by
-# the same-length backtick run. Does not cross newlines. Handles single (`),
-# double (``), triple (```) etc. The previous pattern only matched single
-# backticks, missing ``...`` spans entirely (issue #3827).
+# the same-length backtick run. Handles single (`), double (``), triple
+# (```) etc. The previous pattern only matched single backticks, missing
+# ``...`` spans entirely (issue #3827).
 # CommonMark allows a line ending inside a code span; only a blank line ends
 # it. Restricting the body to [^\n] left a span written across two lines
 # unstripped, so a closing link inside an example was read as a real one and
-# the gate passed on a pull request that closes nothing. Refs #3827.
-# A run of three or more backticks at the start of a line opens a fenced block,
-# which _fenced_code_block_ranges owns. Letting the multiline alternative
-# claim those too would relabel a fence as an inline span and change the
-# reported reason.
-# So newlines are allowed only for runs of one or two backticks, which is where
-# the real gap was; longer runs stay single line and fences handle the rest.
+# the gate passed on a pull request that closes nothing. Refs #3827. This
+# applies to every run length: CommonMark 0.31.2 section 6.1 does not
+# restrict multiline content to short backtick runs. Confining the 3+
+# branch to a single line (an earlier round of this fix) left a real gap:
+# ` ```example\nFixes #N\nend``` ` is one multiline inline span per spec
+# (GitHub renders `Fixes #N` as code, no closing link created), and the
+# single-line branch missed it entirely, reading the keyword as a genuine
+# bare claim (Copilot review on PR #5371, round 4).
+#
+# A run of three or more backticks at the start of a line can ALSO open a
+# fenced block, which `_fenced_code_block_ranges` owns, and going multiline
+# here means this pattern can now also match all the way across a real
+# fenced block. That is handled at the call site, not in this pattern:
+# `validate_closing_links`/`references_issue` compute `fenced_ranges` first
+# and drop any code-span match whose start falls inside one, so a real
+# fence still reports as "fenced code block", never relabeled as an inline
+# span (matching CommonMark's block-before-inline precedence, since nothing
+# inside a fenced block's raw content is inline-parsed in the first place).
 _INLINE_CODE_SPAN: re.Pattern[str] = re.compile(
     r"(?<!`)(`{1,2})(?!`)(?:[^\n]|\n(?!\s*\n))+?(?<!`)\1(?!`)"
     r"|"
-    r"(?<!`)(`{3,})(?!`)[^\n]+?(?<!`)\2(?!`)"
+    r"(?<!`)(`{3,})(?!`)(?:[^\n]|\n(?!\s*\n))+?(?<!`)\2(?!`)"
 )
 
 # Fenced code block: backtick or tilde fence with optional language tag.
@@ -685,8 +696,30 @@ _INLINE_CODE_SPAN: re.Pattern[str] = re.compile(
 # same run, closing the block one line too soon and letting a real claim
 # past it that GitHub still renders as code (Copilot review on PR #5371,
 # round 2).
+#
+# The two alternatives are deliberately asymmetric. CommonMark 0.31.2
+# section 4.5: "If the info string comes after a backtick fence, it may not
+# contain any backtick characters." A tilde fence's info string has no such
+# restriction. `(?![^\n]*`)` on the backtick alternative rejects a line like
+# ` ```lang`x` `, whose info string carries a backtick, from opening a fence
+# at all -- exactly as CommonMark reads it as ordinary text instead
+# (Copilot review on PR #5371, round 4). Without this, that line was misread
+# as a valid opener, and everything after it (up to the next actual closer
+# or EOF) was misclassified as fenced, hiding a real closing keyword that
+# follows.
+#
+# Known limitation, left deliberately out of scope: this line-anchored
+# search does not reparse list-item or blockquote container prefixes
+# (`- ` / `> `) the way CommonMark does, so a fence nested inside a list
+# item or blockquote is not recognized as a fence at all (Copilot review on
+# PR #5371, round 4, suppressed comments). A closing keyword inside such a
+# nested fence is therefore read as an unfenced bare claim rather than
+# excluded. This preflight targets the common shape of a PR description (a
+# top-level fenced example), not arbitrary nested Markdown containers;
+# closing this gap needs container-prefix-aware line parsing, which is a
+# larger change than this fix round scopes to.
 _FENCE_OPEN_LINE: re.Pattern[str] = re.compile(
-    r"^[ ]{0,3}(`{3,}|~{3,})[^\n]*\n",
+    r"^[ ]{0,3}(?:(`{3,})(?![^\n]*`)|(~{3,}))[^\n]*\n",
     re.MULTILINE,
 )
 
@@ -707,7 +740,7 @@ def _fenced_code_block_ranges(text: str) -> list[tuple[int, int]]:
         opener = _FENCE_OPEN_LINE.search(text, pos)
         if opener is None:
             break
-        run = opener.group(1)
+        run = opener.group(1) or opener.group(2)
         closer_pattern = re.compile(
             rf"^[ ]{{0,3}}{re.escape(run[0])}{{{len(run)},}}[ \t]*$",
             re.MULTILINE,
@@ -726,6 +759,27 @@ def _span_ranges(body: str, pattern: re.Pattern[str]) -> list[tuple[int, int]]:
 
 def _in_any_range(pos: int, ranges: list[tuple[int, int]]) -> bool:
     return any(start <= pos < end for start, end in ranges)
+
+
+def _code_spans_outside_fences(
+    body: str, fenced_ranges: list[tuple[int, int]]
+) -> list[tuple[int, int]]:
+    """Inline code-span ranges, excluding any that start inside a real fence.
+
+    CommonMark parses block structure before inline content, so nothing
+    inside a fenced code block's raw text is itself inline-parsed; a real
+    fence always wins. `_INLINE_CODE_SPAN` allows the 3+ backtick branch to
+    span multiple lines (so a real multiline inline span is still caught),
+    which means it can also match all the way across a real fenced block.
+    Dropping any span whose start falls inside `fenced_ranges` keeps that
+    block reported as fenced rather than relabeled as an inline span
+    (Copilot review on PR #5371, round 4).
+    """
+    return [
+        span
+        for span in _span_ranges(body, _INLINE_CODE_SPAN)
+        if not _in_any_range(span[0], fenced_ranges)
+    ]
 
 
 def validate_closing_links(
@@ -757,7 +811,7 @@ def validate_closing_links(
 
     issues: list[Issue] = []
     fenced_ranges = _fenced_code_block_ranges(body)
-    code_span_ranges = _span_ranges(body, _INLINE_CODE_SPAN)
+    code_span_ranges = _code_spans_outside_fences(body, fenced_ranges)
     non_default_base = bool(base_ref and default_branch and base_ref != default_branch)
 
     has_closing_keyword = False
