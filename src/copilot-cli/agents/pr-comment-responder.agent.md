@@ -1473,8 +1473,28 @@ sleep 45
 # Re-fetch comments (include issue comments to catch AI Quality Gate, CodeRabbit summaries, etc.)
 PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
+# This re-fetch is the only thing that can see a comment posted since the last
+# pass, so both halves of it have to block on failure. Left unchecked, a
+# nonzero exit from the fetch or a payload jq cannot parse leaves NEW_COMMENTS
+# empty or `null`; `[ -gt ]` on a non-numeric operand then raises `integer
+# expression expected`, which is a nonzero exit from `[` and reads as false to
+# `if`, so the branch below never runs and the pass continues as though the API
+# reported no new comments.
 RECHECK_PAYLOAD=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
+RECHECK_STATUS=$?
+if [ "$RECHECK_STATUS" -ne 0 ]; then
+  echo "[BLOCKED] Comment re-fetch failed (exit $RECHECK_STATUS)"
+  exit 1
+fi
 NEW_COMMENTS=$(printf '%s' "$RECHECK_PAYLOAD" | jq '.TotalComments')
+JQ_STATUS=$?
+if [ "$JQ_STATUS" -ne 0 ]; then
+  echo "[BLOCKED] Comment re-fetch payload is not parseable JSON (jq exit $JQ_STATUS)"
+  exit 1
+fi
+case "$NEW_COMMENTS" in
+  ''|*[!0-9]*) echo "[BLOCKED] Re-fetched comment count is not numeric: $NEW_COMMENTS"; exit 1 ;;
+esac
 
 # Compare to original count
 # Phase 1 recorded the API count in this artifact. Shell variables do not
