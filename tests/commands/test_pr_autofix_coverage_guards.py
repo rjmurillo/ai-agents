@@ -20,6 +20,7 @@ checks the check.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -47,6 +48,12 @@ from tests.commands.pr_autofix_field_parser import (
 # check and stays invisible. Copilot caught that on PR #5176, on the guard
 # below; the other two took the same source-only fixture, so all three are
 # parameterized rather than only the one reported.
+
+
+# A bracketed token in argument position, the shape `[--is-bot]` had. Anchored on a
+# preceding space so a shell array subscript or a jq array literal is unaffected, and
+# on a leading dash so a markdown link label inside a fence is not read as an argument.
+_BRACKETED_ARGUMENT = re.compile(r"\s\[-{1,2}[A-Za-z][A-Za-z0-9-]*\]")
 
 
 @pytest.mark.parametrize("doc", [COMMAND_PATH, MIRROR_PATH])
@@ -350,4 +357,36 @@ def test_the_verification_checklist_covers_the_completeness_half(doc: Path) -> N
         "the dispatch block disarms on incomplete completeness evidence, but the "
         "verification checklist still describes the disarm as non-T1 only, so an "
         "agent can report compliance without checking the newer condition"
+    )
+
+
+@pytest.mark.parametrize("doc", [COMMAND_PATH, MIRROR_PATH])
+def test_the_scripts_reference_block_carries_no_optional_argument_placeholder(doc: Path) -> None:
+    """A runnable fence must not carry a token argparse rejects.
+
+    The `## Scripts` block is a bash fence whose every line runs as written once
+    `{pr}` is substituted, and it exists to serve the CI-triage fix pattern. It
+    shipped `test_pr_merge_ready.py --pull-request {pr} [--is-bot]`, so an agent
+    following the block literally handed argparse an extra positional and got
+    `unrecognized arguments`. Issue #5208 named this invocation site alongside
+    the tier-dispatch one; only the dispatch site was made executable.
+
+    The guard is on the shape rather than on the wording: a bracketed token in a
+    command line inside a bash fence is a placeholder wherever it appears, and
+    the fix for one is the fix for all of them, which is to derive the value.
+    """
+    body = doc.read_text(encoding="utf-8")
+    fences = body.split("```")
+    placeholders = [
+        line.strip()
+        for index, fence in enumerate(fences)
+        if index % 2 == 1 and fence.startswith("bash")
+        for line in fence.splitlines()
+        if not line.lstrip().startswith("#") and _BRACKETED_ARGUMENT.search(line)
+    ]
+
+    assert placeholders == [], (
+        f"{doc.name} carries a bracketed optional-argument placeholder on a runnable line: "
+        f"{placeholders}. argparse reads it as a positional and the command exits on "
+        "`unrecognized arguments`. Derive the flag instead, as the tier-dispatch block does."
     )

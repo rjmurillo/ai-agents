@@ -875,9 +875,20 @@ SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
 # Derived rather than written as a `[--is-bot]` placeholder: every other line in
 # this block runs as written once {pr} is substituted, so a bracketed token here
 # reaches argparse as a positional argument and the readiness call dies on
-# "unrecognized arguments" for anyone following the block literally. The
-# tier-dispatch block above carries the same derivation with its full rationale.
-IS_BOT_FLAG=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request {pr} --output-format json 2>/dev/null | jq -r 'if .Data.author_is_bot == false then "" else "--is-bot" end')
+# "unrecognized arguments" for anyone following the block literally.
+# Read the verdict as a word, then map it to the flag, rather than emitting the
+# flag straight from jq. Emitting it directly forces the non-bot answer and a
+# failed fetch onto the same empty string, so an unreadable context would buy
+# the human path: that is the fail-OPEN direction the tier-dispatch block above
+# refuses, for the reasons recorded there. The absent-versus-unknown split that
+# block makes is a diagnostic for the unattended loop and is deliberately not
+# repeated here; both take the closed branch either way.
+IS_BOT=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request {pr} --output-format json 2>/dev/null | jq -r 'if (.Data.author_is_bot | type) == "boolean" then (.Data.author_is_bot | tostring) else "unknown" end')
+if [ "${IS_BOT:-unknown}" = "false" ]; then
+    IS_BOT_FLAG=""
+else
+    IS_BOT_FLAG="--is-bot"
+fi
 # shellcheck disable=SC2086
 python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request {pr} $IS_BOT_FLAG
 
