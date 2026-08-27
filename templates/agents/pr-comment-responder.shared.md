@@ -83,6 +83,12 @@ exits non-zero and prints nothing, `|| true` turns that into an empty string, an
 arithmetic reads an empty string as 0. An absent map would otherwise compute zero pending
 and clear every gate with no artifact to verify.
 
+Every gate also proves the map is complete before it trusts the subtraction. A map whose
+`**Status**:` fields were stripped counts zero total and zero terminal, so the difference
+is zero pending and the gate clears a map that describes nothing. Each gate compares
+`TOTAL` against `$TOTAL_COMMENTS`, the API count Phase 1 recorded, and blocks when the two
+disagree.
+
 No gate enumerates pending statuses. Every gate counts the terminal statuses and
 subtracts. A status outside this table therefore fails closed: it matches no terminal
 pattern, so it counts as pending and blocks.
@@ -96,6 +102,11 @@ fi
 TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
 TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
+
+if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
+  echo "[BLOCKED] Comment map carries $TOTAL status fields, API reported $TOTAL_COMMENTS"
+  exit 1
+fi
 ```
 
 ## Prose Self-Check
@@ -365,6 +376,11 @@ TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
 TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
 
+if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
+  echo "[BLOCKED] Comment map carries $TOTAL status fields, API reported $TOTAL_COMMENTS"
+  exit 1
+fi
+
 # Count unresolved review threads separately
 UNRESOLVED_API=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
 
@@ -377,7 +393,7 @@ fi
 echo "Unresolved API threads: $UNRESOLVED_API"
 ```
 
-**Evidence required**: The comment map exists, pending artifact entries are 0, and the unresolved API thread count is recorded before proceeding.
+**Evidence required**: The comment map exists, its status-field count equals the API comment count, pending artifact entries are 0, and the unresolved API thread count is recorded before proceeding.
 
 ### Gate 5: Final Verification
 
@@ -397,6 +413,11 @@ TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
 TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
 
+if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
+  echo "[BLOCKED] Comment map carries $TOTAL status fields, API reported $TOTAL_COMMENTS"
+  exit 1
+fi
+
 if [ "$REMAINING" -ne 0 ] || [ "$PENDING" -ne 0 ]; then
   echo "[BLOCKED] API unresolved: $REMAINING, Artifact pending: $PENDING"
   exit 1
@@ -405,7 +426,7 @@ fi
 echo "[PASS] All gates cleared"
 ```
 
-**Evidence required**: Both counts are zero.
+**Evidence required**: The status-field count equals the API comment count, and both the unresolved API count and the pending artifact count are zero.
 
 ## Workflow Protocol
 
