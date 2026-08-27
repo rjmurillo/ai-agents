@@ -59,6 +59,7 @@ from citation_anchors import (  # noqa: E402
     _same_line_segment,
 )
 from citation_head_state import (  # noqa: E402
+    HeadReadError,
     _added_lines_since_base,
     _head_tracked_paths,
     _HeadFileCache,
@@ -125,59 +126,80 @@ def _resolve_cited_range(
 ) -> tuple[list[str] | None, Finding | None]:
     """Resolve the cited lines at HEAD, or the Finding explaining why not."""
 
-    def refusal(reason: str) -> tuple[None, Finding]:
-        return None, Finding(citing_file, line_number, citation_text, reason)
+    def refusal(reason: str, lines: list[str] | None) -> tuple[list[str] | None, Finding]:
+        return lines, Finding(citing_file, line_number, citation_text, reason)
 
     if cited_path not in tracked:
-        return refusal("cited file not tracked at HEAD")
+        return refusal("cited file not tracked at HEAD", None)
+    # Range refusals still hand back the cited lines so the caller can
+    # append a relocation hint: an out-of-range citation is exactly the
+    # moved-content case the hint exists to repair.
     cited_lines = head_files.lines(cited_path)
-    if cited_lines is None:
-        return refusal("cited file unreadable at HEAD")
     if start < 1:
-        return refusal(f"cites line {start}; line numbers are 1-based")
+        return refusal(f"cites line {start}; line numbers are 1-based", cited_lines)
     if end < start:
-        return refusal(f"cited range is reversed ({start}-{end})")
+        return refusal(f"cited range is reversed ({start}-{end})", cited_lines)
     if end > len(cited_lines):
-        return refusal(f"cites line {end} but the file has {len(cited_lines)} lines at HEAD")
+        return refusal(
+            f"cites line {end} but the file has {len(cited_lines)} lines at HEAD", cited_lines
+        )
     return cited_lines, None
 
 
-def _anchor_finding(
-    citing_file: str,
-    line_number: int,
+def _citation_anchors(
     citation_text: str,
     line_text: str,
     segment: str,
     citing_lines: list[str] | None,
-    cited_lines: list[str],
-    start: int,
-    end: int,
-) -> Finding | None:
-    """Judge the citing text's anchors against the cited range."""
+    line_number: int,
+) -> list[str]:
+    """Collect the anchors the citing sentence names for one citation."""
     line_index = line_number - 1
-    anchors = _anchor_candidates(
+    anchors: list[str] = _anchor_candidates(
         _context_lines(citing_lines, line_index, line_text, segment), citation_text
     )
     if citing_lines is not None:
         quote = _continuation_quote(citing_lines, line_index)
         if quote is not None:
             anchors.append(quote)
+    return anchors
+
+
+def _relocation_hint(anchors: list[str], cited_lines: list[str]) -> str:
+    """Name the line an anchor moved to, or return an empty string.
+
+    Two passes reuse _anchor_matches: exact single lines first (the
+    precise answer), then two-line windows so an anchor wrapped across a
+    line break in the cited file still yields a repairable hint.
+    """
+    for anchor in anchors:
+        for index, content in enumerate(cited_lines, 1):
+            if _anchor_matches(anchor, content):
+                return f"; {anchor!r} first appears at line {index}"
+    for anchor in anchors:
+        for index in range(len(cited_lines) - 1):
+            window = f"{cited_lines[index]}\n{cited_lines[index + 1]}"
+            if _anchor_matches(anchor, window):
+                return f"; {anchor!r} first appears at line {index + 1}"
+    return ""
+
+
+def _anchor_finding(
+    citing_file: str,
+    line_number: int,
+    citation_text: str,
+    anchors: list[str],
+    cited_lines: list[str],
+    start: int,
+    end: int,
+) -> Finding | None:
+    """Judge the citing text's anchors against the cited range."""
     if not anchors:
         return None
     cited_text = "\n".join(cited_lines[start - 1 : end])
     if any(_anchor_matches(anchor, cited_text) for anchor in anchors):
         return None
-    # The hint search reuses _anchor_matches so a wrapped or re-spaced
-    # anchor that would have satisfied the range check still names the
-    # line it moved to, not just that it is missing.
-    hint = ""
-    for anchor in anchors:
-        for index, content in enumerate(cited_lines, 1):
-            if _anchor_matches(anchor, content):
-                hint = f"; {anchor!r} first appears at line {index}"
-                break
-        if hint:
-            break
+    hint = _relocation_hint(anchors, cited_lines)
     named = ", ".join(repr(anchor) for anchor in anchors[:4])
     return Finding(
         citing_file,
@@ -215,15 +237,27 @@ def _check_citation(
     cited_lines, finding = _resolve_cited_range(
         citing_file, line_number, citation_text, cited_path, start, end, tracked, head_files
     )
-    if finding is not None or cited_lines is None:
+    if finding is not None:
+        # A range refusal on a readable file is the moved-content case;
+        # the hint that names the new line is what makes the repair
+        # mechanical, so it is appended here too.
+        if cited_lines is not None:
+            anchors = _citation_anchors(
+                citation_text, line_text, segment, citing_lines, line_number
+            )
+            hint = _relocation_hint(anchors, cited_lines)
+            if hint:
+                finding = Finding(
+                    citing_file, line_number, citation_text, finding.reason + hint
+                )
         return finding
+    if cited_lines is None:
+        return None
     return _anchor_finding(
         citing_file,
         line_number,
         citation_text,
-        line_text,
-        segment,
-        citing_lines,
+        _citation_anchors(citation_text, line_text, segment, citing_lines, line_number),
         cited_lines,
         start,
         end,
@@ -243,6 +277,30 @@ def find_stale_citations(repo_root: Path, base_ref: str) -> list[Finding] | None
     findings: list[Finding] = []
     files_scanned = 0
     citations_checked = 0
+    try:
+        return _scan_added_lines(
+            added, tracked, head_files, findings, files_scanned, citations_checked, base_ref
+        )
+    except HeadReadError as error:
+        # An operational git failure mid-run is the config-error exit,
+        # never a stale-citation finding against a tracked file.
+        print(
+            f"[citation-freshness] git could not read {error} at HEAD",
+            file=sys.stderr,
+        )
+        return None
+
+
+def _scan_added_lines(
+    added: dict[str, list[tuple[int, str]]],
+    tracked: set[str],
+    head_files: _HeadFileCache,
+    findings: list[Finding],
+    files_scanned: int,
+    citations_checked: int,
+    base_ref: str,
+) -> list[Finding]:
+    """Scan every added line for citations; may raise HeadReadError."""
     for citing_file in sorted(added):
         if _is_exempt_citing_file(citing_file):
             continue
@@ -304,7 +362,7 @@ def validate_citation_freshness(repo_root: Path) -> bool:
         return True
     findings = find_stale_citations(repo_root, base_ref)
     if findings is None:
-        print("[citation-freshness] git failed while collecting the diff", file=sys.stderr)
+        print("[citation-freshness] git failed while reading repository state", file=sys.stderr)
         return False
     _report_findings(findings)
     return not findings
@@ -339,7 +397,7 @@ def main(argv: list[str] | None = None) -> int:
 
     findings = find_stale_citations(repo_root, base_ref)
     if findings is None:
-        print("[citation-freshness] git failed while collecting the diff", file=sys.stderr)
+        print("[citation-freshness] git failed while reading repository state", file=sys.stderr)
         return 2
     _report_findings(findings)
     return 1 if findings else 0

@@ -123,22 +123,34 @@ def _added_lines_since_base(
     return added
 
 
+class HeadReadError(RuntimeError):
+    """``git show`` failed for a path tracked at HEAD.
+
+    Every path this gate reads was just listed by ``ls-tree`` or named by
+    the diff, so a failed read is an operational git failure, not a
+    property of any citation; callers surface it as the documented
+    config-error exit, never as a stale-citation finding.
+    """
+
+
 class _HeadFileCache:
     """Lazy line-content reads from HEAD, one ``git show`` per file."""
 
     def __init__(self, repo_root: Path) -> None:
         self._repo_root = repo_root
-        self._cache: dict[str, list[str] | None] = {}
+        self._cache: dict[str, list[str]] = {}
 
-    def lines(self, path: str) -> list[str] | None:
-        """Return the HEAD lines of path (LF-only split), or None if unreadable."""
+    def lines(self, path: str) -> list[str]:
+        """Return the HEAD lines of path (LF-only split).
+
+        Raises :class:`HeadReadError` when git cannot produce the content.
+        """
         if path not in self._cache:
             exit_code, stdout, _stderr = _git(self._repo_root, ["show", f"HEAD:{path}"])
             if exit_code != 0:
-                self._cache[path] = None
-            else:
-                lines = stdout.split("\n")
-                if lines and lines[-1] == "":
-                    lines.pop()
-                self._cache[path] = lines
+                raise HeadReadError(path)
+            lines = stdout.split("\n")
+            if lines and lines[-1] == "":
+                lines.pop()
+            self._cache[path] = lines
         return self._cache[path]
