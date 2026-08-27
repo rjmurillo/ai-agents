@@ -6,6 +6,13 @@ alongside its sibling ``citation_head_state.py``: this module owns what
 counts as a citation, what counts as an anchor the citing text names, and
 which slice of a line each citation on it owns. The gate module keeps the
 policy (exemptions, the ignore marker, findings, wiring).
+
+Anchors carry a deliberate noise floor: backtick spans need 3 or more
+characters, double-quoted phrases 4 or more, and bare identifiers 5 or
+more. One- and two-letter tokens (``x``, ``OK``, ``a_b``) appear in
+nearly every line of code, so treating them as assertions would fail
+correct citations wholesale; a citation whose only nearby tokens are
+that short is checked for existence and range, not content.
 """
 
 from __future__ import annotations

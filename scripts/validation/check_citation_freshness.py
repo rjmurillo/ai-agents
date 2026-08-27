@@ -93,7 +93,9 @@ def _is_exempt_citing_file(path: str) -> bool:
     """Return whether a citing file is out of this gate's scope."""
     if path.startswith(HISTORICAL_ROOTS) or path.startswith(_EXTRA_HISTORICAL_ROOTS):
         return True
-    return any(fragment in path for fragment in _FIXTURE_FRAGMENTS)
+    # The leading slash makes the fragment match a top-level fixtures/
+    # directory too, not only nested ones (diff paths are repo-relative).
+    return any(fragment in f"/{path}" for fragment in _FIXTURE_FRAGMENTS)
 
 
 _IGNORE_WITH_REASON = re.compile(re.escape(IGNORE_MARKER) + r"\s+--\s+\S")
@@ -284,7 +286,8 @@ def _report_findings(findings: list[Finding]) -> None:
         print(
             f"[citation-freshness] {len(findings)} stale citation(s). Fix the "
             f"line numbers against HEAD, or mark a deliberate exception with "
-            f"'{IGNORE_MARKER} -- <reason>' on or above the line."
+            f"'{IGNORE_MARKER} -- <reason>' on the citing line or the line "
+            f"directly above it."
         )
 
 
