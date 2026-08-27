@@ -305,8 +305,25 @@ esac
 
 if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
   echo "[NEW COMMENTS] $((NEW_COMMENTS - TOTAL_COMMENTS)) new comments detected"
+  # Fetch new comments, add to comment map with status [NEW]
+
+  # The count artifact records how many status fields the comment map should
+  # carry, so it moves with the append. Left at the Phase 1 snapshot it is
+  # smaller than the map from this point on, and Gate 4's
+  # `TOTAL -ne TOTAL_COMMENTS` invariant blocks every later pass on correct
+  # work: the map holds the new rows the recorded count has never heard of.
+  #
+  # Refresh AFTER the rows are appended, never before. The invariant compares
+  # the map against this file, so a file written first would clear a map that
+  # never received the new rows, which is the fail-open case the invariant
+  # exists to catch.
+  printf '%s\n' "$NEW_COMMENTS" > "$COUNT_FILE"
 fi
 ```
+
+The refresh is what makes this loop repeatable. Without it the second pass
+reaches Gate 4 with a comment map the recorded count contradicts, and no amount
+of correct work clears it.
 
 ### Phase 8.4: CI Check Verification
 
