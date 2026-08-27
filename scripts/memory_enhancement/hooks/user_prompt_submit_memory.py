@@ -11,7 +11,10 @@ event differently (issue #4727):
   the memory block is printed bare.
 - GitHub Copilot CLI discards plain stdout on this event and consumes a
   top-level ``{"additionalContext": "..."}`` envelope instead, so the block is
-  wrapped when ``COPILOT_CLI`` is set.
+  wrapped when ``COPILOT_CLI`` is set and no Claude signal is.
+
+``_render_for_host`` carries the citation for both signals and the reason the
+Claude signal takes precedence.
 
 Hook Type: UserPromptSubmit
 Exit Codes:
@@ -79,8 +82,35 @@ def _render_for_host(memory_context: str) -> str:
     ``{"additionalContext": "<sentinel>"}`` document reached the model. Claude
     Code reads plain stdout on this event, so it keeps the bare block.
 
-    ``COPILOT_CLI`` is the harness identity signal. ``CLAUDE_PROJECT_DIR`` is
-    set under Copilot too and cannot distinguish the two.
+    Both signals are cited, not assumed:
+
+    - ``COPILOT_CLI`` is set to ``1`` by Copilot CLI for the subprocesses it
+      spawns. Vendor source, quoted verbatim from the ``changelog.json`` shipped
+      inside the ``@github/copilot`` npm package under version ``0.0.421``:
+      "Git hooks can detect Copilot CLI subprocesses via the COPILOT_CLI=1
+      environment variable to skip interactive prompts"
+      (github/copilot-agent-runtime#4049).
+    - ``CLAUDE_CODE_ENTRYPOINT`` is set by Claude Code and never by Copilot CLI.
+      Measured on Copilot CLI 1.0.80: the literal string appears 0 times in the
+      shipped ``app.js`` and ``copilot`` binary, in a search where
+      ``COPILOT_CLI`` (12), ``additionalContext`` (24), and ``GITHUB_TOKEN``
+      (27) are the positive controls.
+
+    Presence of ``COPILOT_CLI`` alone does not identify the consuming host,
+    which is why the Claude signal is checked first. Copilot exports
+    ``COPILOT_CLI`` into every shell it spawns, so a Claude Code session started
+    from inside a Copilot shell inherits it. Claude reads a nested
+    ``hookSpecificOutput`` envelope and never a top-level ``additionalContext``
+    key, so an envelope sent to Claude parses as structured output with no
+    recognized field and the memory block is dropped with no error. That is the
+    silent inertness of issues #4011 and #4727, reproduced on the other harness.
+    Checking the Claude signal first fails safe: the bare block is what Claude
+    reads, and Copilot discards it exactly as it did before this hook changed.
+
+    ``CLAUDE_PROJECT_DIR`` is not a usable discriminator in either direction.
+    Copilot does not set it (same 1.0.80 search, 0 hits), so it is unset under
+    Copilot rather than shared, but it is also unset in some Claude Code
+    surfaces, so its absence identifies nothing.
 
     Args:
         memory_context: The rendered ``<memory-context>`` block.
@@ -89,6 +119,8 @@ def _render_for_host(memory_context: str) -> str:
         The block itself under Claude Code, or a one-line JSON envelope
         carrying it under Copilot CLI.
     """
+    if os.environ.get("CLAUDE_CODE_ENTRYPOINT", "").strip():
+        return memory_context
     if os.environ.get("COPILOT_CLI", "").strip():
         return json.dumps({"additionalContext": memory_context})
     return memory_context

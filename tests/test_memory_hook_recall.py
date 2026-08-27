@@ -115,15 +115,33 @@ class TestRenderForHost:
 
     Copilot CLI 1.0.79-6 discards plain UserPromptSubmit stdout and reads a
     top-level ``{"additionalContext": "..."}`` document. Claude Code reads the
-    plain text. COPILOT_CLI is the only variable that distinguishes them;
-    CLAUDE_PROJECT_DIR is set under both.
+    plain text and never a top-level ``additionalContext`` key.
+
+    Two variables discriminate, and the order matters. Copilot exports
+    ``COPILOT_CLI`` into every shell it spawns, so its presence alone does not
+    identify the consuming host; a Claude session launched from inside a Copilot
+    shell inherits it. ``CLAUDE_CODE_ENTRYPOINT`` is set by Claude Code and
+    never by Copilot CLI, so it takes precedence.
+
+    Every case sets both variables explicitly rather than deleting one and
+    inheriting the other, because pytest itself runs under one of these two
+    harnesses and would otherwise supply the answer.
     """
 
     BLOCK = "<memory-context>\nhit\n</memory-context>"
 
+    @staticmethod
+    def _host(monkeypatch, *, copilot: str | None, claude: str | None) -> None:
+        """Pin both harness signals so nothing leaks in from the test runner."""
+        for name, value in (("COPILOT_CLI", copilot), ("CLAUDE_CODE_ENTRYPOINT", claude)):
+            if value is None:
+                monkeypatch.delenv(name, raising=False)
+            else:
+                monkeypatch.setenv(name, value)
+
     @pytest.mark.unit
     def test_copilot_gets_a_top_level_additional_context_envelope(self, monkeypatch):
-        monkeypatch.setenv("COPILOT_CLI", "1")
+        self._host(monkeypatch, copilot="1", claude=None)
 
         payload = json.loads(_render_for_host(self.BLOCK))
 
@@ -131,14 +149,53 @@ class TestRenderForHost:
 
     @pytest.mark.unit
     def test_claude_gets_the_block_unwrapped(self, monkeypatch):
-        monkeypatch.delenv("COPILOT_CLI", raising=False)
+        self._host(monkeypatch, copilot=None, claude=None)
 
         assert _render_for_host(self.BLOCK) == self.BLOCK
 
     @pytest.mark.unit
+    def test_an_inherited_copilot_cli_does_not_override_a_live_claude_session(
+        self, monkeypatch
+    ):
+        """Both signals set means Claude is the consumer and Copilot is an ancestor.
+
+        Claude reads a nested ``hookSpecificOutput`` envelope, so a top-level
+        ``additionalContext`` document parses as structured output with no
+        recognized field and the memory block is dropped with no error. Sending
+        the bare block instead fails safe in the other direction: Copilot merely
+        discards it, which is what it did before this hook existed.
+        """
+        self._host(monkeypatch, copilot="1", claude="cli")
+
+        assert _render_for_host(self.BLOCK) == self.BLOCK
+
+    @pytest.mark.unit
+    def test_copilot_alone_still_gets_the_envelope(self, monkeypatch):
+        """The control for the case above: without the Claude signal, the same
+        COPILOT_CLI value must still produce the envelope."""
+        self._host(monkeypatch, copilot="1", claude=None)
+
+        assert json.loads(_render_for_host(self.BLOCK)) == {
+            "additionalContext": self.BLOCK
+        }
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("value", ["", "   ", "\t"])
+    def test_a_blank_claude_entrypoint_does_not_suppress_the_envelope(
+        self, monkeypatch, value
+    ):
+        """An exported but empty Claude signal is indistinguishable from unset,
+        so it must not strip a real Copilot session's envelope."""
+        self._host(monkeypatch, copilot="1", claude=value)
+
+        assert json.loads(_render_for_host(self.BLOCK)) == {
+            "additionalContext": self.BLOCK
+        }
+
+    @pytest.mark.unit
     @pytest.mark.parametrize("value", ["", "   ", "\t"])
     def test_a_blank_copilot_cli_value_is_treated_as_absent(self, monkeypatch, value):
-        monkeypatch.setenv("COPILOT_CLI", value)
+        self._host(monkeypatch, copilot=value, claude=None)
 
         assert _render_for_host(self.BLOCK) == self.BLOCK
 
@@ -146,7 +203,7 @@ class TestRenderForHost:
     def test_the_envelope_is_one_json_document(self, monkeypatch):
         """Copilot parses at most one final JSON document per command hook, so
         a multi-line block must not become several."""
-        monkeypatch.setenv("COPILOT_CLI", "true")
+        self._host(monkeypatch, copilot="true", claude=None)
 
         rendered = _render_for_host(self.BLOCK)
 
