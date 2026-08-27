@@ -356,28 +356,17 @@ def _record_context_fetch_failure(
 def _author_is_bot(author: object) -> bool | None:
     """Classify the PR author as a bot, or return None when it cannot be read.
 
-    Delegates the decision to `github_core.bot_config.is_bot`, the repository's
-    single authoritative bot-author rule, rather than re-deriving one here. The
-    obvious alternative, a `[bot]` login-suffix test at the call site, would
-    disagree with that rule on exactly the logins this repository sees most:
-    `bot_config.py` records that `gh pr view --json author` spells the Copilot
-    coding agent `app/copilot-swe-agent`, and its `_DEFAULT_BOT_ALIASES` maps
-    that verbatim to `copilot-swe-agent[bot]`. Neither `app/copilot-swe-agent`
-    nor `Copilot` carries a `[bot]` suffix, so a suffix test reads both as
-    humans. `canonicalize_login` runs first for that reason.
-
-    Stricter/looser/different than canonical: no divergence. This wraps
-    `is_bot` without widening or narrowing it. The only value this function
-    adds beyond the wrapper is the third state: `None` for an author GitHub did
-    not return, or returned without a usable login, so a caller can fail closed
-    on unknown authorship instead of reading a `False` it has not earned.
-
-    GitHub's own bot flag is honored when the payload carries it, mapped onto
-    the `user_type` parameter `is_bot` already documents ("Optional GitHub API
-    user type field (e.g., "Bot", "User")"). It is read defensively rather than
-    required: `_load_pr_data` fetches `author` through `gh pr view --json`, and
-    which subfields that emits varies by `gh` version, so the login path below
-    stands on its own when the flag is absent.
+    Stricter/looser/different than canonical: no divergence. The decision is
+    `github_core.bot_config.is_bot`, this repo's one authoritative bot-author rule.
+    `canonicalize_login` runs first because that module's `_DEFAULT_BOT_ALIASES`
+    maps `app/copilot-swe-agent` (its comment: "gh pr view --json author returns
+    this spelling") onto `copilot-swe-agent[bot]`. Neither that spelling nor
+    `Copilot` carries a `[bot]` suffix, so re-deriving the rule as a suffix test
+    here would read this repo's own bot PRs as human-authored. GitHub's own flag
+    feeds `is_bot`'s documented `user_type`, read defensively since the author
+    subfields `gh pr view --json` emits vary by `gh` version.
+    The third state is what this adds: `None` for an absent or login-less author,
+    so a caller can fail closed rather than read an unearned `False` (issue #5208).
     """
     if not isinstance(author, dict):
         return None
@@ -421,11 +410,7 @@ def main(argv: list[str] | None = None) -> int:
         "state": pr_data.get("state"),
         "is_draft": pr_data.get("isDraft", False),
         "author": author.get("login") if isinstance(author, dict) else None,
-        # Three-state on purpose: true, false, or null when the author could not
-        # be read. `/pr-autofix` forwards this to `test_pr_merge_ready.py
-        # --is-bot`, which is what separates a T5 bot PR (handled individually)
-        # from the T2-T4 unattended thread-fix loop, so a caller must be able to
-        # tell "not a bot" from "no answer" and fail closed on the second.
+        # Three-state; see _author_is_bot. Forwarded as --is-bot (issue #5208).
         "author_is_bot": _author_is_bot(author),
         "head_branch": pr_data.get("headRefName"),
         "head_sha": pr_data.get("headRefOid"),
