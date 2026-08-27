@@ -33,7 +33,9 @@ caught by its own control rather than passing silently.
 
 from __future__ import annotations
 
+import os
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -59,18 +61,31 @@ ALL_SECURITY_SURFACES = (
     VSCODE_GENERATED,
 )
 
-# Bare tool names the enumeration protocol needs on a Claude surface. Bash is
-# what issue #4781 was missing; Write and Edit carry the review report.
+# Bare tool names the enumeration protocol needs on a Claude surface. Reading
+# the pinned snapshot and writing the report are the whole job.
 REQUIRED_CLAUDE_TOOLS = (
     "Read",
     "Grep",
     "Glob",
-    "Bash",
     "Write",
+)
+
+# Tool grants no security surface may declare. `Bash` is the CWE-78 carrier the
+# PR #5356 review flagged: a settings-file deny rule matches command text
+# case-sensitively while git config keys are case-insensitive, so
+# `git -c Diff.External=<cmd>` reaches the same handler as the denied
+# `diff.external`. Enumerating casings is not a control and a session-wide deny
+# on the mutating subcommands breaks every other agent (the #5013 shape), so the
+# absent grant is the only enforcement available. `Edit` goes with it: the
+# deliverables are new report files, which `Write` creates, so `Edit` bought a
+# source-mutation vector and no capability.
+FORBIDDEN_CLAUDE_TOOLS = (
+    "Bash",
     "Edit",
 )
 
-# Claude-side pinned-diff retrieval, used when local git is unavailable.
+# Claude-side pinned-diff retrieval. With no shell on any surface this is the
+# enumeration path, not a fallback.
 REQUIRED_PINNED_DIFF_CLAUDE = (
     "mcp__github__pull_request_read",
     "mcp__github__get_commit",
@@ -105,39 +120,73 @@ MUTATING_GITHUB_TOOLS = (
 # Markers every surface must carry, whatever tools its harness grants.
 PROSE_MARKERS = (
     "### Review Scope Enumeration (required)",
-    "skipping any whose tools this harness does not grant",
+    "skipping any whose tools this",
     "A caller-supplied diff artifact",
     "Record the pinned scope in the verdict",
     "MUST NOT while enumerating",
 )
 
-# Shell-specific markers. Copilot and VS Code grant no shell tool, so the
-# concrete git commands are gated behind a capability clause rather than
-# mandated on every surface (issue #4781 review, finding 5).
-SHELL_PROSE_MARKERS = (
+# No surface grants a shell any more, so the prose must say so plainly rather
+# than gate a local-git path on a capability nobody has. A surface that still
+# describes running git locally is describing a tool the agent cannot call.
+NO_SHELL_PROSE_MARKERS = (
+    "No surface grants this agent a shell",
+    "never through a local command",
+    "Do not route around the missing shell",
+)
+
+# Wording that would put a local git command back in the protocol. These are
+# the exact strings the pre-fix prose carried; if any returns, the agent is
+# being told to run something it has no tool for.
+REVIVED_SHELL_PROSE = (
     "If a shell tool is granted (Claude surfaces only):",
     "git status --porcelain",
-    "On a harness with no shell",
+    "**Local read-only git.**",
+)
+
+# Finding 3 of the PR #5356 review: `git diff` omits staged changes and no
+# ordinary diff form carries untracked files, so a staged-only or new-file
+# change could take a verdict without its content ever being read. The snapshot
+# must be complete and the file count must come from that same snapshot.
+SNAPSHOT_COMPLETENESS_MARKERS = (
+    "`git diff HEAD` rather than a bare `git diff`",
+    "which omits staged changes",
+    "every untracked file the",
+    "Derive the changed-file count from the same snapshot",
+)
+
+# Finding 1 of the same review. The prose must record why a denylist cannot be
+# the control, so nobody re-adds the shell and re-derives the deny rules.
+CASE_SENSITIVITY_MARKERS = (
+    "matches command text case-sensitively",
+    "git config keys",
+    "`Diff.External`",
+)
+
+# Finding 6 of the same review. The PowerShell validation block runs
+# `dotnet test`, lefthook, and `git diff --cached`; with no shell the agent must
+# request that run rather than attempt it.
+VALIDATION_REQUEST_MARKERS = (
+    "CI Environment Security Testing (request, do not run)",
+    "**You cannot run them.**",
+    "Ask the caller or",
 )
 
 # A read-only subcommand allowlist does not make a command read-only: `git diff`,
 # `git log`, `git show`, and `git blame` all accept `--output=<path>`. Measured on
 # this branch against git 2.43.0, all four wrote their target and exited 0, and
-# `git -c diff.external=<cmd> diff` executed `<cmd>`. `.claude/settings.json` now
-# denies those forms on Claude surfaces, and
-# `tests/test_security_agent_git_write_guard.py` pins that control. The prose must
-# still name the hazard: the denylist matches command text, and no equivalent
-# surface exists on Copilot or VS Code.
+# `git -c diff.external=<cmd> diff` executed `<cmd>`. Removing the shell grant is
+# what closes those, so the prose must name the hazard the absent grant addresses
+# rather than leave a future reader to re-add `Bash` believing it was harmless.
 OUTPUT_HAZARD_MARKERS = (
-    "No `--output` or `-o` on `git diff`",
-    "No shell redirection into",
+    "the `--output` and `-o`",
+    "write a file wherever you point it",
     "config injection such as",
 )
 
-# Prompt obligations on every surface: the Claude allowlist grants bare
-# Bash/Write, and `$toolset:editor` grants unscoped `edit` on Copilot and VS Code.
-# The `permissions.deny` rules narrow the shell grant on Claude only, so the
-# obligation framing still holds for every limit those rules do not reach.
+# Prompt obligations on every surface: `Write` on Claude and `$toolset:editor`
+# on Copilot and VS Code are both unscoped, so the report-path limit is prose.
+# The shell limit is no longer in this class; it is enforced by absence.
 OBLIGATION_MARKERS = (
     "obligations this prompt places on you, not properties of",
     "No harness scopes the rest for you",
@@ -152,7 +201,7 @@ OVERCLAIM_PHRASES = (
 )
 
 BLOCKED_SENTENCE = (
-    "Return `[BLOCKED] Cannot evaluate: review scope not enumerable` only when all"
+    "Return `[BLOCKED] Cannot evaluate: review scope not enumerable` only when all\npaths fail."
 )
 
 
@@ -201,6 +250,18 @@ def find_missing_tools(tools: list[str], required: tuple[str, ...]) -> list[str]
     """Return the required tool names absent from *tools*."""
     normalized = {tool.strip().casefold() for tool in tools}
     return [name for name in required if name.casefold() not in normalized]
+
+
+def find_present_tools(tools: list[str], forbidden: tuple[str, ...]) -> list[str]:
+    """Return the forbidden tool names present in *tools*.
+
+    Casefolded on both sides on purpose. Claude Code's own ``tools`` loader is
+    the authority on which spelling grants the tool, and this check must not be
+    the thing that a `bash` or `BASH` entry slips past. That is the same
+    case-blindness bug, one layer up, that the absent grant exists to avoid.
+    """
+    normalized = {tool.strip().casefold() for tool in tools}
+    return [name for name in forbidden if name.casefold() in normalized]
 
 
 def find_missing_prose(text: str, markers: tuple[str, ...]) -> list[str]:
@@ -255,11 +316,34 @@ def test_claude_surface_uses_only_parseable_tool_names(path: Path) -> None:
 
 @pytest.mark.parametrize("path", CLAUDE_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
 def test_claude_surface_grants_the_tools_the_protocol_needs(path: Path) -> None:
-    """Issue #4781's symptom returns if Bash is absent, however it is spelled."""
+    """Reading the pinned snapshot and writing the report are the whole job."""
     tools = _tool_list(_frontmatter(path), "tools", path)
 
     missing = find_missing_tools(tools, REQUIRED_CLAUDE_TOOLS)
     assert not missing, f"{path.relative_to(REPO_ROOT)}: missing tool grants {missing}"
+
+
+@pytest.mark.parametrize("path", CLAUDE_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+def test_claude_surface_grants_no_shell_and_no_editor(path: Path) -> None:
+    """`Bash` is the CWE-78 carrier the PR #5356 review flagged as Risk 8/10.
+
+    The deny rules in the repository settings file cannot substitute for the
+    absent grant: they match command text case-sensitively, and git config keys
+    are case-insensitive, so `git -c Diff.External=<cmd>` runs `<cmd>` while no
+    lowercase rule matches. Enumerating casings is not a control. Absence is.
+
+    `Edit` rides along because issue #4781's acceptance criterion puts write,
+    commit, push, and secret reads out of reach, and `Edit` reached source files
+    while adding nothing the report writes need.
+    """
+    tools = _tool_list(_frontmatter(path), "tools", path)
+
+    present = find_present_tools(tools, FORBIDDEN_CLAUDE_TOOLS)
+    assert not present, (
+        f"{path.relative_to(REPO_ROOT)}: declares forbidden grants {present}. "
+        f"A shell grant reopens `git -c Diff.External=` (case-insensitive to git, "
+        f"case-sensitive to the deny matcher) and `git commit`/`git push`."
+    )
 
 
 @pytest.mark.parametrize("path", CLAUDE_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
@@ -312,18 +396,80 @@ def test_every_surface_carries_the_enumeration_protocol(path: Path) -> None:
 @pytest.mark.parametrize(
     "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
 )
-def test_every_surface_gates_the_shell_path_on_capability(path: Path) -> None:
-    """Copilot and VS Code grant no shell, so step 1 must be conditional everywhere.
+def test_every_surface_states_that_no_shell_is_granted(path: Path) -> None:
+    """One body reaches six surfaces, so the no-shell statement must travel with it.
 
-    The body is one text copied to six surfaces, so the capability clause has to
-    travel with it. Mandating the bare `git status --porcelain` line on a
-    shell-less surface is what made the protocol unfollowable there.
+    A surface that still offers a local-git path is describing a tool the agent
+    cannot call, which is issue #4781's symptom wearing the opposite costume: the
+    agent follows step 1, gets nothing, and blocks on scope.
     """
     text = path.read_text(encoding="utf-8")
 
-    missing = find_missing_prose(text, SHELL_PROSE_MARKERS)
+    missing = find_missing_prose(text, NO_SHELL_PROSE_MARKERS)
+    assert not missing, f"{path.relative_to(REPO_ROOT)}: no-shell contract unstated {missing}"
+
+
+@pytest.mark.parametrize(
+    "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
+)
+def test_no_surface_revives_the_local_git_path(path: Path) -> None:
+    """The removed local-git step must not come back while no surface has a shell."""
+    text = path.read_text(encoding="utf-8")
+
+    revived = [marker for marker in REVIVED_SHELL_PROSE if marker in text]
+    assert not revived, (
+        f"{path.relative_to(REPO_ROOT)}: local-git enumeration prose is back {revived}; "
+        f"no surface grants a shell, so this step cannot be followed"
+    )
+
+
+@pytest.mark.parametrize(
+    "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
+)
+def test_every_surface_requires_a_complete_snapshot(path: Path) -> None:
+    """A staged-only or new-file change must not take a verdict unreviewed.
+
+    `git diff` omits staged changes and no ordinary diff form carries untracked
+    files, so an artifact built from either can hide the whole change while the
+    verdict reads as covering it.
+    """
+    text = path.read_text(encoding="utf-8")
+
+    missing = find_missing_prose(text, SNAPSHOT_COMPLETENESS_MARKERS)
     assert not missing, (
-        f"{path.relative_to(REPO_ROOT)}: shell path is not capability-gated {missing}"
+        f"{path.relative_to(REPO_ROOT)}: snapshot completeness unstated {missing}"
+    )
+
+
+@pytest.mark.parametrize(
+    "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
+)
+def test_every_surface_records_why_a_denylist_is_not_the_control(path: Path) -> None:
+    """Without this, the next reader re-adds `Bash` and re-derives the deny rules."""
+    text = path.read_text(encoding="utf-8")
+
+    missing = find_missing_prose(text, CASE_SENSITIVITY_MARKERS)
+    assert not missing, (
+        f"{path.relative_to(REPO_ROOT)}: case-sensitivity limit unstated {missing}"
+    )
+
+
+@pytest.mark.parametrize(
+    "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
+)
+def test_every_surface_reframes_the_validation_block_as_a_request(path: Path) -> None:
+    """`Run no other command` and a block running `dotnet test` cannot both hold.
+
+    The PowerShell block runs `dotnet test`, a lefthook invocation, and
+    `git diff --cached`. With no shell the agent cannot run any of it, so the
+    prompt must ask for the run rather than instruct one it cannot perform.
+    """
+    text = path.read_text(encoding="utf-8")
+
+    missing = find_missing_prose(text, VALIDATION_REQUEST_MARKERS)
+    assert not missing, (
+        f"{path.relative_to(REPO_ROOT)}: validation block still reads as executable "
+        f"{missing}; it contradicts the no-shell contract"
     )
 
 
@@ -378,19 +524,91 @@ def test_every_surface_makes_scope_blocked_conditional(path: Path) -> None:
 @pytest.mark.parametrize(
     "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
 )
-def test_every_surface_forbids_mutating_git_in_prose(path: Path) -> None:
-    """Nothing scopes the shell grant, so the prohibition has to be prose."""
+def test_every_surface_names_the_mutations_the_absent_shell_closes(path: Path) -> None:
+    """Name what the absent grant buys, or the next reader cannot weigh re-adding it.
+
+    These four are issue #4781's acceptance criterion. Before this change they
+    were prompt obligations against a bare `Bash` grant; now they are unreachable,
+    and the prose has to say which it is so a reviewer can tell a control from a
+    promise.
+    """
     text = path.read_text(encoding="utf-8")
 
-    for subcommand in ("commit", "push", "checkout", "reset", "stash", "clean"):
+    for subcommand in ("commit", "push", "checkout", "reset"):
         assert f"`{subcommand}`" in text, (
-            f"{path.relative_to(REPO_ROOT)}: prose does not forbid `git {subcommand}`"
+            f"{path.relative_to(REPO_ROOT)}: prose does not name `git {subcommand}` "
+            f"among the mutations the absent shell closes"
         )
 
 
 def test_claude_pair_stays_byte_identical() -> None:
     """The canonical and runtime Claude copies are hand-maintained in lockstep."""
     assert CLAUDE_CANONICAL.read_bytes() == CLAUDE_RUNTIME.read_bytes()
+
+
+def test_a_bare_git_diff_really_hides_staged_and_new_files(tmp_path: Path) -> None:
+    """Live control for the completeness prose: the hazard is real, not theoretical.
+
+    PR #5356 finding 3 says a staged-only or new-file change can take a security
+    verdict without its content ever being read. This builds that exact repository
+    and measures it against real git rather than asserting it from memory:
+
+    - a staged edit is invisible to a bare `git diff` and visible to `git diff HEAD`
+    - an untracked new file is invisible to BOTH, so no diff form covers it
+
+    If a future git changes either behaviour, this fails and the completeness
+    paragraph in the six agent surfaces can be relaxed. Until then it is the
+    evidence behind that paragraph.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    env = {
+        **os.environ,
+        "GIT_CONFIG_GLOBAL": str(tmp_path / "gitconfig-absent"),
+        "GIT_CONFIG_SYSTEM": str(tmp_path / "gitconfig-absent"),
+        "GIT_TERMINAL_PROMPT": "0",
+    }
+
+    def git(*args: str) -> str:
+        run = subprocess.run(
+            ["git", *args], cwd=repo, env=env, capture_output=True, text=True, check=False
+        )
+        return run.stdout
+
+    if subprocess.run(["git", "init", "-q"], cwd=repo, env=env, check=False).returncode != 0:
+        pytest.skip("git is unavailable in this environment")
+    git("config", "user.email", "control@example.invalid")
+    git("config", "user.name", "control")
+    (repo / "tracked.txt").write_text("original\n", encoding="utf-8")
+    git("add", "tracked.txt")
+    git("commit", "-qm", "seed")
+
+    # The two shapes the review named: a staged edit and an untracked new file.
+    (repo / "tracked.txt").write_text("STAGED_SECRET_CHANGE\n", encoding="utf-8")
+    git("add", "tracked.txt")
+    (repo / "new_file.txt").write_text("UNTRACKED_SECRET_CHANGE\n", encoding="utf-8")
+
+    bare_diff = git("diff")
+    head_diff = git("diff", "HEAD")
+    untracked = git("ls-files", "--others", "--exclude-standard")
+
+    assert "STAGED_SECRET_CHANGE" not in bare_diff, (
+        "control failed: a bare `git diff` showed a staged change, so the "
+        "completeness prose is warning about a hazard that does not exist"
+    )
+    assert "STAGED_SECRET_CHANGE" in head_diff, (
+        "control failed: `git diff HEAD` did not show the staged change, so it "
+        "is not the remedy the prose names"
+    )
+    assert "UNTRACKED_SECRET_CHANGE" not in bare_diff
+    assert "UNTRACKED_SECRET_CHANGE" not in head_diff, (
+        "control failed: `git diff HEAD` showed untracked content, so the prose "
+        "requirement to add untracked file content separately is unnecessary"
+    )
+    assert "new_file.txt" in untracked, (
+        "control failed: the new file was not untracked, so this test did not "
+        "build the changeset shape it claims to measure"
+    )
 
 
 # --- Negative controls: the same helpers, run on defective input ---
@@ -512,14 +730,65 @@ class TestProseControls:
     def test_present_prose_markers_accepted(self) -> None:
         assert find_missing_prose(" ".join(PROSE_MARKERS), PROSE_MARKERS) == []
 
-    def test_ungated_shell_prose_detected(self) -> None:
-        """Edge: naming the git commands without the capability clause is the defect."""
-        ungated = "1. **Local read-only git.** Run `git status --porcelain` for the diff.\n"
+    def test_missing_no_shell_statement_detected(self) -> None:
+        """Edge: a surface that says nothing about the shell fails the pin."""
+        silent = "Work these paths in order and stop at the first pinned scope.\n"
 
-        assert find_missing_prose(ungated, SHELL_PROSE_MARKERS)
+        assert find_missing_prose(silent, NO_SHELL_PROSE_MARKERS)
 
-    def test_gated_shell_prose_accepted(self) -> None:
-        assert find_missing_prose(" ".join(SHELL_PROSE_MARKERS), SHELL_PROSE_MARKERS) == []
+    def test_no_shell_statement_accepted(self) -> None:
+        joined = " ".join(NO_SHELL_PROSE_MARKERS)
+
+        assert find_missing_prose(joined, NO_SHELL_PROSE_MARKERS) == []
+
+    def test_revived_local_git_step_detected(self) -> None:
+        """Edge: re-adding the local-git step is the regression this pin catches."""
+        revived = "1. **Local read-only git.** Run `git status --porcelain` for the diff.\n"
+
+        assert [marker for marker in REVIVED_SHELL_PROSE if marker in revived]
+
+    def test_shipped_prose_has_no_revived_local_git_step(self) -> None:
+        clean = " ".join(NO_SHELL_PROSE_MARKERS)
+
+        assert [marker for marker in REVIVED_SHELL_PROSE if marker in clean] == []
+
+    def test_partial_snapshot_prose_detected(self) -> None:
+        """Edge: naming the artifact path without the completeness bar is the defect.
+
+        This is the exact shape of PR #5356's finding 3: an artifact built from a
+        bare `git diff` omits staged changes, and no ordinary diff form carries
+        untracked files, so a new-file change reads as an empty changeset.
+        """
+        partial = "2. **A caller-supplied diff artifact.** Read the diff file named.\n"
+
+        assert find_missing_prose(partial, SNAPSHOT_COMPLETENESS_MARKERS)
+
+    def test_complete_snapshot_prose_accepted(self) -> None:
+        joined = " ".join(SNAPSHOT_COMPLETENESS_MARKERS)
+
+        assert find_missing_prose(joined, SNAPSHOT_COMPLETENESS_MARKERS) == []
+
+    def test_denylist_claim_without_case_limit_detected(self) -> None:
+        """Edge: naming the deny rules without their case limit is the overclaim."""
+        partial = "The deny rules block `--output`, `--exec-path`, and `diff.external`.\n"
+
+        assert find_missing_prose(partial, CASE_SENSITIVITY_MARKERS)
+
+    def test_case_limit_prose_accepted(self) -> None:
+        joined = " ".join(CASE_SENSITIVITY_MARKERS)
+
+        assert find_missing_prose(joined, CASE_SENSITIVITY_MARKERS) == []
+
+    def test_executable_validation_block_detected(self) -> None:
+        """Edge: the pre-fix heading reads as an instruction to run the block."""
+        executable = "3. **CI Environment Security Testing**\n\nReproduce CI locally:\n"
+
+        assert find_missing_prose(executable, VALIDATION_REQUEST_MARKERS)
+
+    def test_validation_request_prose_accepted(self) -> None:
+        joined = " ".join(VALIDATION_REQUEST_MARKERS)
+
+        assert find_missing_prose(joined, VALIDATION_REQUEST_MARKERS) == []
 
     def test_subcommand_allowlist_without_output_hazard_detected(self) -> None:
         """Edge: forbidding mutating subcommands leaves `git diff --output` open."""

@@ -1,3 +1,7 @@
+# taste-lint: ignore file-size -- one matcher model and the corpus that exercises
+# it. Splitting them puts a production assertion in one file and the negative
+# control that proves it can fail in another, which is the vacuous-pin shape this
+# file exists to prevent.
 """Enforcement for the read-only-git limit the security agent's prompt states.
 
 Issue #4781 gave the `security` subagent Bash so it could enumerate a diff. A
@@ -43,6 +47,7 @@ subcommands is documented vendor behavior, not an inference drawn here.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -238,6 +243,56 @@ MUTATING_GIT_THE_PROMPT_FORBIDS = (
     "git reset HEAD~1",
 )
 
+# Git config section and variable names are case-insensitive, so every casing
+# below reaches the same handler as the lowercase form in
+# ARBITRARY_EXECUTION_EXPLOITS. Claude Code's deny matcher compares command text
+# case-sensitively, so none of these matches any rule in .claude/settings.json.
+#
+# This is PR #5356's finding 1 (CWE-78, Risk 8/10), pinned as an absence rather
+# than papered over. The vector is not closed by widening the rules: the casing
+# space for `diff.external` alone is 2**12, and enumerating it is not a control,
+# only a longer list that still misses one. What closes it for the security
+# agent is that the agent is granted no `Bash` tool at all (see
+# tests/test_security_diff_enumeration.py::
+# test_claude_surface_grants_no_shell_and_no_editor).
+#
+# The rules stay because they are session-wide and every other agent does hold
+# `Bash`, where blocking the lowercase spelling is real defence in depth against
+# an untrusted diff that names one. They are not a boundary, and nothing in this
+# repository may describe them as one.
+# Each pair is (spelling the rules do catch, spelling git treats as identical).
+# Pairing them is what makes the control exact: a bare `.lower()` of the second
+# element would not reproduce the first, because two of the rules spell their
+# key in camelCase. That is its own finding, recorded in the last two rows: for
+# `core.sshCommand` and `uploadpack.packObjectsHook`, even the ALL-lowercase
+# spelling bypasses the rule, so the gap is not limited to exotic casings.
+CASE_VARIANT_CONFIG_INJECTION = (
+    (
+        "git -c diff.external='touch /tmp/pwned' diff HEAD~1",
+        "git -c Diff.External='touch /tmp/pwned' diff HEAD~1",
+    ),
+    (
+        "git -c diff.external='touch /tmp/pwned' diff HEAD~1",
+        "git -c DIFF.EXTERNAL='touch /tmp/pwned' diff HEAD~1",
+    ),
+    (
+        "git -c core.pager=/tmp/evil.sh log -1",
+        "git -c Core.Pager=/tmp/evil.sh log -1",
+    ),
+    (
+        "git -c core.fsmonitor=/tmp/evil.sh diff",
+        "git -c Core.FsMonitor=/tmp/evil.sh diff",
+    ),
+    (
+        "git -c core.sshCommand=/tmp/evil.sh log -1",
+        "git -c core.sshcommand=/tmp/evil.sh log -1",
+    ),
+    (
+        "git -c uploadpack.packObjectsHook=/tmp/evil.sh log",
+        "git -c uploadpack.packobjectshook=/tmp/evil.sh log",
+    ),
+)
+
 
 @pytest.mark.parametrize("command", ALL_EXPLOITS)
 def test_deny_rules_block_every_probed_exploit(command: str) -> None:
@@ -280,19 +335,20 @@ def test_deny_rules_do_not_reach_unrelated_work(command: str) -> None:
 
 @pytest.mark.parametrize("command", MUTATING_GIT_THE_PROMPT_FORBIDS)
 def test_mutating_git_stays_an_obligation_not_a_control(command: str) -> None:
-    """`commit`, `push`, `checkout`, and `reset` are prose limits, not denials.
+    """`commit`, `push`, `checkout`, and `reset` are not denied session-wide.
 
-    Issue #4781's acceptance criterion reads "commit, push, and
-    branch-mutation capabilities remain unavailable". On the Claude surfaces
-    that is a prompt obligation the agent holds, not a control the harness
-    enforces, and this test is the honest pin on that gap rather than a
-    silence. See the comment on `MUTATING_GIT_THE_PROMPT_FORBIDS` for why the
-    denial cannot be scoped to one subagent and what denying it session-wide
-    would cost.
+    Issue #4781's acceptance criterion reads "commit, push, and branch-mutation
+    capabilities remain unavailable". For the security agent that criterion is
+    now met by construction: the agent is granted no `Bash` tool, so none of
+    these commands is reachable from it at all. The absence, not a rule in this
+    file, is what closes it.
 
-    If Claude Code ever gains a per-subagent permission surface, this test is
-    the one to delete, and the deny rules move there rather than into
-    `.claude/settings.json`.
+    What this test pins is the separate fact that the rules in
+    `.claude/settings.json` do NOT deny these commands for every other agent,
+    and must not start. See the comment on `MUTATING_GIT_THE_PROMPT_FORBIDS` for
+    what denying them session-wide would cost: this repository's own End gate,
+    its conflict automation, and the #5013 shape where a wrong deny on `Bash`
+    took out 127 unrelated commands over 21 minutes.
     """
     assert not _denied_by(command, _deny_rules()), (
         f"{command!r} is denied in .claude/settings.json. That file has no "
@@ -300,6 +356,99 @@ def test_mutating_git_stays_an_obligation_not_a_control(command: str) -> None:
         f"the repository's own commit, push, and conflict-resolution "
         f"automation. Enforce the limit with a subagent-scoped PreToolUse "
         f"hook under ADR-097 review, not with a session-wide deny."
+    )
+
+
+@pytest.mark.parametrize(
+    "command", [variant for _canonical, variant in CASE_VARIANT_CONFIG_INJECTION]
+)
+def test_mixed_case_config_injection_is_not_denied(command: str) -> None:
+    """PR #5356 finding 1, pinned as the known gap it is.
+
+    Git treats config section and variable names case-insensitively, so
+    `Diff.External` runs the program `diff.external` would run. The deny matcher
+    compares command text case-sensitively, so no rule fires. Enumerating the
+    2**12 casings of one key is not a control.
+
+    The security agent is closed against this because it holds no `Bash` tool.
+    Every other agent that does hold one is exposed to the mixed-case spelling,
+    and this test exists so that fact stays visible rather than being assumed
+    away by the lowercase rules sitting next to it.
+
+    Delete this test only when the matcher canonicalizes config keys, or when a
+    subagent-scoped permission surface makes the rules unnecessary. Do not
+    "fix" it by adding casing variants to .claude/settings.json.
+    """
+    assert not _denied_by(command, _deny_rules()), (
+        f"{command!r} is now denied. If the matcher gained case-insensitive "
+        f"comparison, delete this test and the caveat prose in the security "
+        f"agent surfaces. If instead casing variants were enumerated in "
+        f".claude/settings.json, revert that: the casing space is 2**12 per key "
+        f"and a longer list is not a control."
+    )
+
+
+def test_lowercase_config_injection_is_denied_as_the_case_control() -> None:
+    """Negative control for the test above: it is not vacuously passing.
+
+    The absence assertion would also hold against a matcher that had stopped
+    detecting anything at all. Feeding the same keys in their lowercase spelling
+    proves the matcher still fires, so the mixed-case pass is really about
+    casing and not about a broken helper.
+    """
+    rules = _deny_rules()
+    canonical = [canonical for canonical, _variant in CASE_VARIANT_CONFIG_INJECTION]
+
+    undetected = [command for command in canonical if not _denied_by(command, rules)]
+    assert not undetected, (
+        f"control failed: the matcher did not deny {undetected}, so "
+        f"test_mixed_case_config_injection_is_not_denied proves nothing about casing"
+    )
+
+
+def test_git_honors_a_mixed_case_config_key(tmp_path: Path) -> None:
+    """Live control: `Diff.External` really does reach git's diff.external handler.
+
+    Without this, the mixed-case pin rests on a claim about git rather than on
+    git's behaviour, and a reader could dismiss the gap as theoretical. If a
+    future git stops case-folding config keys, this fails and the gap is closed
+    at the source.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    marker = tmp_path / "external-ran.txt"
+    env = {
+        **os.environ,
+        "GIT_CONFIG_GLOBAL": str(tmp_path / "gitconfig-absent"),
+        "GIT_CONFIG_SYSTEM": str(tmp_path / "gitconfig-absent"),
+        "GIT_TERMINAL_PROMPT": "0",
+    }
+
+    def git(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["git", *args], cwd=repo, env=env, capture_output=True, text=True, check=False
+        )
+
+    if git("init", "-q").returncode != 0:
+        pytest.skip("git is unavailable in this environment")
+    git("config", "user.email", "control@example.invalid")
+    git("config", "user.name", "control")
+    (repo / "a.txt").write_text("one\n", encoding="utf-8")
+    git("add", "a.txt")
+    git("commit", "-qm", "seed")
+    (repo / "a.txt").write_text("two\n", encoding="utf-8")
+
+    external = tmp_path / "external.sh"
+    external.write_text(f"#!/bin/sh\ntouch {marker}\n", encoding="utf-8")
+    external.chmod(0o755)
+
+    result = git("-c", f"Diff.External={external}", "diff")
+
+    assert marker.exists(), (
+        f"git did not run the program named by the mixed-case key `Diff.External`. "
+        f"rc={result.returncode} stdout={result.stdout[-400:]!r} "
+        f"stderr={result.stderr[-400:]!r}. If git stopped case-folding config "
+        f"keys, the mixed-case gap this file pins no longer exists."
     )
 
 
