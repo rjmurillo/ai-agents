@@ -314,7 +314,56 @@ bounds the identity of named push-pr invocations; it is not a Python or shell
 sandbox. `test_dispatchers_allow_dynamic_launcher_that_never_names_the_script`
 pins that boundary so it stays a decision rather than a discovery.
 
-## 8. Re-running a probe
+## 8. UserPromptSubmit output shape on the repository settings surface
+
+Issue #4727.
+
+Version: GitHub Copilot CLI 1.0.79-6, Linux. Isolated `COPILOT_HOME`, folder
+trust granted, `--no-custom-instructions` so no plugin or instruction layer
+could inject the sentinel.
+
+Method: register a `UserPromptSubmit` command hook, submit one prompt, and ask
+the model whether it saw an opaque sentinel absent from the prompt text. Vary
+only the output form.
+
+Observed:
+
+| Surface | Event | Payload | Ran | Reached model |
+|---|---|---|---|---|
+| `.github/hooks` | `UserPromptSubmit` | `{"additionalContext":"..."}` | yes | yes |
+| `.github/hooks` | `userPromptSubmitted` | `{"additionalContext":"..."}` | yes | yes |
+| `.github/hooks` | `UserPromptSubmit` | plain text | yes | no |
+| `.claude/settings.json` | `UserPromptSubmit` | plain text | yes | no |
+| `.claude/settings.json` | `UserPromptSubmit` | `{"additionalContext":"..."}` | yes | yes |
+
+The negative control is the matched pair on the last two rows: same file, same
+event, same session shape, differing only in output form. Plain stdout was
+discarded and the envelope arrived, so the discarded payload cannot be blamed
+on the hook failing to run.
+
+Repository hooks do load from `.claude/settings.json` when the folder is
+trusted; the runtime log line is `Loading repo hooks in prompt mode (folder is
+trusted or opt-in set)`. An earlier probe showing nothing firing was an
+untrusted-folder artifact.
+
+Docs remain silent on an output field for this event, so this is
+version-scoped empirical behavior, not a vendor guarantee.
+
+Consequence: `scripts/memory_enhancement/hooks/user_prompt_submit_memory.py`
+emits the top-level envelope when `COPILOT_CLI` is set and keeps plain stdout
+otherwise. `COPILOT_CLI` is the harness identity signal; `CLAUDE_PROJECT_DIR`
+is set under both hosts and cannot distinguish them.
+
+Durable test: `TestRecallOutputShapePerHost` in
+`tests/test_memory_hook_registration.py`, which drives the registered command
+with and without `COPILOT_CLI`.
+
+Unprobed, and left alone deliberately: the `SessionStart` dispatcher relay and
+the `PreCompact` hook. Automatic-compaction delivery on Copilot is still
+unmeasured (section 4 above), so the output channel there is moot until
+someone probes it.
+
+## 9. Re-running a probe
 
 Use `ai-agents-empirical-probe-toolkit` recipe 1.
 

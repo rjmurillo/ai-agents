@@ -250,7 +250,7 @@ Source: hook reference, Progress messages.
 | SubagentStart | `additionalContext` |
 | PostToolUseFailure exit 2 | stdout is appended as `additionalContext` |
 | PreCompact | DOCS SILENT: no config-file output field is documented |
-| UserPromptSubmitted / UserPromptSubmit | DOCS SILENT: no config-file output field is documented |
+| UserPromptSubmitted / UserPromptSubmit | DOCS SILENT: no config-file output field is documented. Probed 1.0.79-6: a top-level `additionalContext` is consumed, plain stdout is not |
 
 `suppressOutput` is not present in the official config-file hook reference.
 It appears in implementation-only SDK types. Status: DOCS SILENT for config
@@ -261,8 +261,12 @@ successful PostToolUse observers. It discards SessionStart and PreCompact stdout
 because current producers include branch-controlled repository prose that must
 not reach model-visible channels. Direct rollback commands suppress both stdout
 and stderr while retaining producer side effects. It also discards
-UserPromptSubmit stdout and stderr in dispatcher and direct rollback modes
-because no model-context field is documented and stderr reach is docs silent.
+UserPromptSubmit stdout and stderr in dispatcher and direct rollback modes.
+That choice tracks the documentation, which names no model-context field for
+the event and leaves stderr reach silent. It does not track the runtime, which
+is now measured: a direct `UserPromptSubmit` producer that needs model reach
+emits the top-level `additionalContext` envelope itself, keyed on
+`COPILOT_CLI`, rather than relying on plain stdout.
 PostToolUseFailure remains a direct host registration so exit-2 stdout keeps its
 documented recovery-context behavior. Unclassified events also remain direct
 until reviewed. Partial output from failed consolidated observers is discarded
