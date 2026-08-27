@@ -69,6 +69,12 @@ like it held a corrupting file. It does not:
     appends to an oracle-balanced file, the corruption class       0
     middle rewrites, the documented mistaken-closer divergence    48
 
+Re-derived later in the session as a cross-tab of shape against oracle balance, which is the
+form the PR now carries, over 4,532 files: 4,470 untouched, 48 middle rewrites of balanced files,
+11 middle rewrites of unclosed ones, 3 appends to unclosed ones, and 0 appends to balanced ones.
+The 14 above is the 3 plus the 11, grouped by balance rather than by shape. Same measurement, two
+groupings, and the grouping has to be stated or the two look like a contradiction.
+
 ### Finding 4: Two loops implementing the same grammar, with nothing holding them together
 
 Three mutations of the detector's closing branch moved no repair behaviour at all. The reason was
@@ -88,6 +94,43 @@ corruption but was first misclassified as a miss BY ME, because my probe asked w
 reported no defect and the tool reported a false one.
 
 The site and the consequence are two claims. Verifying one does not verify the other.
+
+### Finding 6: A probe that compared two module copies invented a divergence in every file
+
+Round 22 reported a quadratic accumulation in the multi-line label. To prove the rewrite changed
+no behaviour I loaded the committed scanner and the reworked one side by side and compared their
+output over all 4,532 tracked Markdown files. Every single file came back different, with the two
+lists printing identically:
+
+    committed: [Defect(line=474, kind='malformed_closing', text='```markdown'), ...]
+    reworked:  [Defect(line=474, kind='malformed_closing', text='```markdown'), ...]
+
+`Defect` is a dataclass, and the two modules were loaded under different names, so the two classes
+are different types and no two instances ever compare equal. The probe was measuring module
+identity, not scanner behaviour. Comparing field tuples instead gave the real answer: zero files
+differ, across both `find_fence_defects` and `repair_markdown_fences`.
+
+This is the fifth hand-rolled probe on this PR to be wrong, and the failure direction is the one
+that matters. Here it was harmless because 4,532 of 4,532 is obviously absurd. Had the rewrite
+touched a handful of files, a per-file "differs" verdict would have looked exactly like a real
+regression, and the fix would have been to the scanner rather than to the probe.
+
+(The same session hit its sibling: loading a module containing `slots=True` dataclasses raises
+`AttributeError` inside `dataclasses` unless the module is registered in `sys.modules` before
+`exec_module` runs. That one fails loudly, which is why it cost a minute and not a conclusion.)
+
+### Finding 7: Two thirds of a review round was already fixed before it arrived
+
+Round 22 filed four comments. Two were real and current. Two named an asymmetry that had been
+fixed three commits earlier: the review ran against the previous head, and the fix was pushed
+between the review starting and its comments landing.
+
+Answering them still took a lookup, because "I already fixed that" is a claim like any other. The
+check that settled it was `git show <reviewed-sha>:<file> | grep -c <guard>` against the same count
+at HEAD: one occurrence there, two here, and `git log -S` naming the commit that added the second.
+
+Worth stating because the cheap move is to assume a review is current, and the second-cheapest is
+to assume a stale one is wrong. Both were false here: the finding was real AND already closed.
 
 ## Phase 2: Remediation
 
@@ -113,3 +156,5 @@ The site and the consequence are two claims. Verifying one does not verify the o
 - The balance-predicate bug and the corpus sweep that found it: `ee6079de7`.
 - Detector-versus-repair pin, and the file split it forced: `2cedc44d3`.
 - Refuted container-pop patch, 42 to 78 writes: PR comment 5431946446.
+- Quadratic label accumulation, measured 42.1us per line at 32,000 lines and 6.1 after: `6af10daa3`.
+- The dataclass-identity probe bug: same commit's verification, corrected before it was believed.
