@@ -27,7 +27,16 @@ producers arrived with issue #4632, which reversed a promise the old
 :func:`_git_diff_paths` docstring made: "We do not want to fail when a
 contributor runs the script in a non-git working tree." ``--check`` in a
 non-git tree now exits 2. A plain (non-``--check``) build there still
-succeeds, because only ``--check`` reads git.
+succeeds, because :func:`_git_diff_paths` is reached only under ``--check``.
+
+That last sentence is a claim about one function, not about the script.
+Every run, ``--check`` or not, snapshots ``.claude/`` for the REQ-003-010
+guard with ``exclude_ignored=True``, and that path calls
+:func:`_ignored_paths`, which shells out to ``git ls-files``. A plain build
+in a broken-git tree therefore does read git; it survives because
+:func:`_ignored_paths` tolerates its own failures and returns what it
+gathered, not because nothing asked git. Do not read the fail-closed change
+here as "the script only touches git under ``--check``".
 """
 
 from __future__ import annotations
@@ -699,7 +708,9 @@ def _git_diff_paths(repo_root: Path) -> list[str]:
     build_all.py --check`` returned rc=0 with a stale generated file on
     disk). Fail-closed here costs nothing in CI, which always has git, and
     the only caller is the ``--check`` staleness gate, so a plain
-    (non-``--check``) build in a non-git working tree still succeeds.
+    (non-``--check``) build in a non-git working tree still succeeds. That is
+    this function's caller set, not the script's git use: :func:`_ignored_paths`
+    runs git on every build and fails open (see the module docstring).
 
     The raised message stays one line: see :func:`_first_stderr_line`.
 

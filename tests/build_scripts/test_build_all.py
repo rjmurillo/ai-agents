@@ -2381,3 +2381,55 @@ def test_run_without_check_still_builds_when_an_owned_file_is_unreadable(
     )
 
     assert rc == 0, f"plain build must not fail closed on an owned file, got {rc}"
+
+
+def test_plain_build_reads_git_and_survives_because_that_read_fails_open(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A plain build DOES read git; it survives because that read fails open.
+
+    Pins the corrected module-docstring claim. ``_git_diff_paths`` is the only
+    git read gated on ``--check``. The REQ-003-010 guard reads git on every
+    run, from two call sites: ``run()`` takes the ``claude_baseline`` snapshot
+    with ``exclude_ignored=True``, and ``assert_no_claude_writes`` takes the
+    comparison snapshot the same way. Both route through ``_ignored_paths``,
+    which shells out to ``git ls-files``. So "a plain build succeeds in a
+    broken-git tree" is true, and "because nothing reads git" is not.
+
+    ``rc == 0`` alone cannot tell those apart: it holds under both readings.
+    The argv spy is the discriminating half, and it fails if a future change
+    stops the guard from consulting git at all, which would silently turn the
+    ignore set into "nothing is ignored".
+    """
+    seen_argv: list[list[str]] = []
+
+    class _RecordingNoGit(_NoGit):
+        @staticmethod
+        def run(*args: object, **_kwargs: object) -> object:
+            seen_argv.append(list(args[0]))  # type: ignore[arg-type]
+            raise FileNotFoundError(2, "No such file or directory: 'git'")
+
+    repo = tmp_path / "repo"
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+    monkeypatch.setattr(build_all, "subprocess", _RecordingNoGit)
+
+    rc = build_all.run(
+        repo, platform=None, check=False, clean=False, audit_format="md"
+    )
+
+    assert rc == 0, f"a plain build must survive a broken git, got {rc}"
+    assert any("ls-files" in argv for argv in seen_argv), (
+        "a plain build is expected to consult git for the ignore set; "
+        f"recorded git invocations: {seen_argv}"
+    )
