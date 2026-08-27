@@ -18,6 +18,15 @@ pre-merge-commit:
 pre-commit:
   piped: true
   jobs:
+    # Issue #4698: a push can write core.bare=true into the shared .git/config,
+    # which leaves every worktree unable to run a command needing a work tree.
+    # It runs first because the failures it causes name the wrong component:
+    # the incident produced four unrelated-looking diagnoses before the shared
+    # cause was found. One accurate message has to precede all of them.
+    - name: repo-health
+      timeout: 20s
+      run: uv run --frozen python scripts/validation/check_repo_health.py
+
     - name: repair-packed-refs
       timeout: 20s
       run: uv run --frozen python scripts/maintenance/repair_packed_refs.py
@@ -392,7 +401,7 @@ pre-commit:
 # everything after it (verified empirically on lefthook 2.1.10: a failing job
 # inside a `parallel: true` group makes later top-level jobs report
 # "(skip) broken pipe"). Stage order:
-#   1. Singleton guards (repair-packed-refs, mutation-safety,
+#   1. Singleton guards (repo-health, repair-packed-refs, mutation-safety,
 #      push-ref-staleness).
 #   2. Fast stage, stdin half: the piped group of cheap ref-payload policies.
 #   3. Fast stage, parallel half: ratchets and policy gates that each finish
@@ -408,6 +417,15 @@ pre-commit:
 pre-push:
   piped: true
   jobs:
+    # Issue #4698: measured twice in one session, a push wrote core.bare=true
+    # into the shared .git/config and broke the main checkout plus three of
+    # five linked worktrees. The pre-push hook can therefore corrupt the
+    # repository it is validating, so this runs before every job whose failure
+    # the corruption would otherwise be blamed for.
+    - name: repo-health
+      timeout: 1m
+      run: uv run --frozen python scripts/validation/check_repo_health.py
+
     - name: repair-packed-refs
       timeout: 1m
       run: uv run --frozen python scripts/maintenance/repair_packed_refs.py
