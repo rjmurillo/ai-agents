@@ -54,6 +54,12 @@ BASH = shutil.which("bash")
 # only way to prove the fence produces the row, so the tool is required rather
 # than mocked away.
 JQ = shutil.which("jq")
+# Phase 8.3 fetches the fresh payload by invoking ``python3`` on the github
+# skill's script. The producer-failure cases have to observe that invocation's
+# exit status reach the shipped guard, so the fence's own command line runs
+# against a stand-in script rather than being replaced by a synthesized
+# assignment.
+PYTHON3 = shutil.which("python3")
 
 # The shared template generates VS Code and Copilot CLI source copies via
 # build/generate_agents.py. src/claude and installed agent copies are
@@ -177,6 +183,65 @@ COUNT_RECORD_STEPS: tuple[str, ...] = (
 RECHECK_SECTION_KEY = "Phase 8.3"
 RECHECK_BLOCK_OPEN = 'if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then'
 COUNT_REFRESH_STEP = 'printf \'%s\\n\' "$NEW_COMMENTS" > "$COUNT_FILE"'
+
+# Phase 8.3's re-fetch, and the two guards that keep its failures from reading
+# as "no new comments arrived".
+#
+# The fence shipped both producers unchecked through PR #5342: the assignment
+# ignored the script's exit status, and ``jq '.TotalComments'`` can emit an
+# empty string or ``null`` from a payload it could not parse or that carries no
+# such key. ``[ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]`` then raises ``integer
+# expression expected`` and exits 2, ``if`` reads that nonzero exit as false,
+# and the new-comment branch is skipped. The re-fetch is the only thing that
+# can see a comment posted since the last pass, so a failed one silently
+# cleared the very case Phase 8.3 exists for (PR #5342 review).
+#
+# Same defect class as the TOTAL_COMMENTS guard in commit e6726cd74, a
+# different variable and a different comparison site, so the numeric check
+# reuses that commit's ``case ... in ''|*[!0-9]*)`` idiom verbatim.
+RECHECK_PRODUCER_LINE = (
+    'RECHECK_PAYLOAD=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py"'
+    " --pull-request [number] --include-issue-comments)"
+)
+RECHECK_STATUS_GUARD = (
+    "RECHECK_STATUS=$?\n"
+    'if [ "$RECHECK_STATUS" -ne 0 ]; then\n'
+    '  echo "[BLOCKED] Comment re-fetch failed (exit $RECHECK_STATUS)"\n'
+    "  exit 1\n"
+    "fi"
+)
+NEW_COUNT_ASSIGNMENT = "NEW_COMMENTS=$(printf '%s' \"$RECHECK_PAYLOAD\" | jq '.TotalComments')"
+NEW_COUNT_GUARD = (
+    "JQ_STATUS=$?\n"
+    'if [ "$JQ_STATUS" -ne 0 ]; then\n'
+    '  echo "[BLOCKED] Comment re-fetch payload is not parseable JSON'
+    ' (jq exit $JQ_STATUS)"\n'
+    "  exit 1\n"
+    "fi\n"
+    'case "$NEW_COMMENTS" in\n'
+    "  ''|*[!0-9]*) echo \"[BLOCKED] Re-fetched comment count is not numeric:"
+    ' $NEW_COMMENTS"; exit 1 ;;\n'
+    "esac"
+)
+
+# The stand-in the producer-failure cases install where the fence looks for the
+# real fetch script. Reads the payload from a sibling file so no payload text
+# has to survive a round trip through Python source quoting.
+RECHECK_PRODUCER_STUB = (
+    "import pathlib\n"
+    "import sys\n"
+    "\n"
+    'sys.stdout.write(pathlib.Path(__file__).with_name("payload.json").read_text(\n'
+    '    encoding="utf-8"\n'
+    "))\n"
+    "sys.exit({exit_code})\n"
+)
+
+# Payloads the re-fetch can hand back that are not a usable comment count.
+# ``not json`` is what a traceback or a proxy error page looks like to jq, and
+# ``{}`` is a well-formed response missing the one key the fence reads.
+UNPARSEABLE_PAYLOAD = "not json\n"
+KEYLESS_PAYLOAD = "{}\n"
 
 # The map Phase 8.3 appends to, at the path the fence hardcodes. The gates read
 # the same file, so the append and every later count have to meet on disk.
@@ -428,6 +493,7 @@ TABLE_HEADER = "| Status | Meaning |"
 requires_grep = pytest.mark.skipif(GREP is None, reason="grep is not on PATH")
 requires_bash = pytest.mark.skipif(BASH is None, reason="bash is not on PATH")
 requires_jq = pytest.mark.skipif(JQ is None, reason="jq is not on PATH")
+requires_python3 = pytest.mark.skipif(PYTHON3 is None, reason="python3 is not on PATH")
 
 
 def _render_comment_map(tmp_path: Path, lines: Sequence[str]) -> Path:
@@ -557,30 +623,67 @@ def _recheck_fence(path: Path) -> str:
     raise AssertionError(f"{_carrier_id(path)} publishes no {RECHECK_SECTION_KEY} fence")
 
 
+def _install_recheck_producer(work_dir: Path, payload: str, *, exit_code: int = 0) -> Path:
+    """Install a stand-in for the fetch script Phase 8.3 runs, and return SCRIPTS_DIR.
+
+    The fence invokes ``python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py"``.
+    Only ``SCRIPTS_DIR`` is injected, so the shipped command line, its exit
+    status, and the guard that reads that status all run for real. ``exit_code``
+    is the producer-failure control: a nonzero exit with whatever the script
+    managed to print is exactly what a network error or a traceback leaves
+    behind.
+    """
+    scripts_dir = work_dir / "stub-github-scripts"
+    target = scripts_dir / "pr" / "get_pr_review_comments.py"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    (target.parent / "payload.json").write_text(payload, encoding="utf-8")
+    target.write_text(RECHECK_PRODUCER_STUB.format(exit_code=exit_code), encoding="utf-8")
+    return scripts_dir
+
+
 def _recheck_script(
     fence: str,
-    payload: str,
+    scripts_dir: Path,
     *,
+    with_fetch_guards: bool = True,
     with_append: bool = True,
     with_verify: bool = True,
     with_refresh: bool = True,
 ) -> str:
-    """Lift Phase 8.3's count read and new-comment branch out verbatim.
+    """Lift Phase 8.3's re-fetch, count read, and new-comment branch out verbatim.
 
-    Sliced from the count-artifact read so the ``python3`` re-fetch above it is
-    left out. The caller supplies the payload that fetch would have assigned,
-    and ``NEW_COMMENTS`` is derived from it by the same ``jq '.TotalComments'``
-    the fence publishes, so the fixture cannot hand the branch a total its own
-    comment list does not support.
+    Sliced from the ``RECHECK_PAYLOAD=`` assignment, so the fetch the fence
+    publishes is the command that runs and its exit status is the one the
+    shipped guard reads. ``SCRIPTS_DIR`` is injected to point the invocation at
+    the stand-in ``_install_recheck_producer`` wrote; the ``sleep 45`` above it
+    is left out. ``NEW_COMMENTS`` is derived by the fence's own
+    ``jq '.TotalComments'``, so the fixture cannot hand the branch a total its
+    own payload does not support.
 
-    The slice ends at the first column-zero ``fi``. Every ``fi`` inside the
-    branch is indented, so this is the branch's own terminator and not the
-    append's guard or the verification below it.
+    The slice ends at the first column-zero ``fi`` at or after the branch
+    opener. Every ``fi`` inside the branch is indented, so this is the branch's
+    own terminator and not the append's guard or the verification below it. The
+    guards added ahead of the opener close at column zero too, which is why the
+    search starts at the opener rather than at the top of the slice.
 
-    ``with_append``, ``with_verify``, and ``with_refresh`` are the negative
-    controls. Dropping the append reproduces the shape PR #5342 shipped: the
-    recorded count advances while the map never gains the row.
+    ``with_fetch_guards``, ``with_append``, ``with_verify``, and
+    ``with_refresh`` are the negative controls. Dropping the fetch guards
+    reproduces the shape PR #5342 shipped: a failed or malformed re-fetch reads
+    as "no new comments" and the pass continues. Dropping the append reproduces
+    the earlier one: the recorded count advances while the map never gains the
+    row.
     """
+    assert RECHECK_PRODUCER_LINE in fence, "Phase 8.3 publishes no re-fetch"
+    assert RECHECK_STATUS_GUARD in fence, (
+        "Phase 8.3 uses the re-fetch payload without checking the producer's "
+        "exit status, so a failed fetch leaves NEW_COMMENTS empty, `[ -gt ]` "
+        "errors out, and the pass continues as though no new comments arrived"
+    )
+    assert NEW_COUNT_ASSIGNMENT in fence, "Phase 8.3 publishes no NEW_COMMENTS assignment"
+    assert NEW_COUNT_GUARD in fence, (
+        "Phase 8.3 compares NEW_COMMENTS without checking jq or validating the "
+        "value, so an unparseable or keyless payload reads as no new comments"
+    )
     assert COUNT_READ_BLOCK in fence, "Phase 8.3 publishes no count-artifact read"
     assert APPEND_STEP in fence, (
         "Phase 8.3 advances the recorded count without appending the new "
@@ -595,20 +698,18 @@ def _recheck_script(
         "Phase 8.3 appends new comments to the map without refreshing the "
         "recorded count, so Gate 4's API-count invariant blocks every later pass"
     )
-    start = fence.index(COUNT_READ_BLOCK)
+    start = fence.index(RECHECK_PRODUCER_LINE)
     end = fence.index(BLOCK_END, fence.index(RECHECK_BLOCK_OPEN)) + len(BLOCK_END)
     body = fence[start:end]
+    if not with_fetch_guards:
+        body = body.replace(RECHECK_STATUS_GUARD, ":").replace(NEW_COUNT_GUARD, ":")
     if not with_append:
         body = body.replace(APPEND_STEP, ":")
     if not with_verify:
         body = body.replace(APPEND_VERIFY_STEP, ":")
     if not with_refresh:
         body = body.replace(COUNT_REFRESH_STEP, ":")
-    return (
-        f"RECHECK_PAYLOAD={shlex.quote(payload)}\n"
-        "NEW_COMMENTS=$(printf '%s' \"$RECHECK_PAYLOAD\" | jq '.TotalComments')\n"
-        f"{body}\n"
-    )
+    return f"SCRIPTS_DIR={shlex.quote(str(scripts_dir))}\n{body}\n"
 
 
 def _counting_fences(text: str) -> list[tuple[str, str]]:
@@ -1265,6 +1366,7 @@ def _work_appended_row_to_terminal(comment_map: Path) -> None:
 
 @requires_bash
 @requires_jq
+@requires_python3
 @pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
 def test_phase_eight_three_appends_the_new_comment_then_the_gate_clears(
     path: Path, tmp_path: Path
@@ -1283,9 +1385,10 @@ def test_phase_eight_three_appends_the_new_comment_then_the_gate_clears(
     comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
     before = comment_map.read_text(encoding="utf-8")
     assert APPENDED_HEADING not in before, "the pre-append map must not carry the new row"
+    scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(SECOND_PASS_COMMENTS))
 
     refreshed = _run_derivation(
-        _recheck_script(_recheck_fence(path), _recheck_payload(SECOND_PASS_COMMENTS)),
+        _recheck_script(_recheck_fence(path), scripts_dir),
         cwd=tmp_path,
     )
 
@@ -1323,6 +1426,7 @@ def test_phase_eight_three_appends_the_new_comment_then_the_gate_clears(
 
 @requires_bash
 @requires_jq
+@requires_python3
 def test_the_shipped_stub_advances_the_count_and_never_appends(tmp_path: Path) -> None:
     """Negative control: today's shipped Phase 8.3, reproduced exactly.
 
@@ -1336,11 +1440,12 @@ def test_the_shipped_stub_advances_the_count_and_never_appends(tmp_path: Path) -
     path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
     count_file = _record_api_count(tmp_path, API_COMMENT_COUNT)
     comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
+    scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(SECOND_PASS_COMMENTS))
 
     stub = _run_derivation(
         _recheck_script(
             _recheck_fence(path),
-            _recheck_payload(SECOND_PASS_COMMENTS),
+            scripts_dir,
             with_append=False,
             with_verify=False,
         ),
@@ -1364,6 +1469,7 @@ def test_the_shipped_stub_advances_the_count_and_never_appends(tmp_path: Path) -
 
 @requires_bash
 @requires_jq
+@requires_python3
 def test_the_refresh_is_refused_when_the_append_does_not_land(tmp_path: Path) -> None:
     """Phase 8.3 must not write a count the map cannot support.
 
@@ -1376,11 +1482,12 @@ def test_the_refresh_is_refused_when_the_append_does_not_land(tmp_path: Path) ->
     path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
     count_file = _record_api_count(tmp_path, API_COMMENT_COUNT)
     _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
+    scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(SECOND_PASS_COMMENTS))
 
     result = _run_derivation(
         _recheck_script(
             _recheck_fence(path),
-            _recheck_payload(SECOND_PASS_COMMENTS),
+            scripts_dir,
             with_append=False,
         ),
         cwd=tmp_path,
@@ -1397,6 +1504,7 @@ def test_the_refresh_is_refused_when_the_append_does_not_land(tmp_path: Path) ->
 
 @requires_bash
 @requires_jq
+@requires_python3
 def test_without_the_refresh_a_second_pass_can_never_clear(tmp_path: Path) -> None:
     """Negative control for the refresh (PR #5342 review).
 
@@ -1409,11 +1517,12 @@ def test_without_the_refresh_a_second_pass_can_never_clear(tmp_path: Path) -> No
     path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
     _record_api_count(tmp_path, API_COMMENT_COUNT)
     comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
+    scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(SECOND_PASS_COMMENTS))
 
     stale = _run_derivation(
         _recheck_script(
             _recheck_fence(path),
-            _recheck_payload(SECOND_PASS_COMMENTS),
+            scripts_dir,
             with_refresh=False,
         ),
         cwd=tmp_path,
@@ -1431,6 +1540,145 @@ def test_without_the_refresh_a_second_pass_can_never_clear(tmp_path: Path) -> No
         f"but the gate exited {result.returncode}: {result.stdout!r}"
     )
     assert "[BLOCKED] Comment map carries 4 status fields, API reported 3" in result.stdout
+
+
+# The three ways the re-fetch can come back unusable, each paired with the
+# producer exit status that produces it and the diagnostic the fence owes the
+# reader. A case per shape so a regression names the one it readmitted.
+BROKEN_RECHECK_CASES: tuple[tuple[str, str, int, str], ...] = (
+    (
+        "producer-failure",
+        "",
+        1,
+        "[BLOCKED] Comment re-fetch failed (exit 1)",
+    ),
+    (
+        "unparseable-payload",
+        UNPARSEABLE_PAYLOAD,
+        0,
+        "[BLOCKED] Comment re-fetch payload is not parseable JSON",
+    ),
+    (
+        "keyless-payload",
+        KEYLESS_PAYLOAD,
+        0,
+        "[BLOCKED] Re-fetched comment count is not numeric: null",
+    ),
+)
+
+
+@requires_bash
+@requires_jq
+@requires_python3
+@pytest.mark.parametrize(
+    ("payload", "exit_code", "expected"),
+    [case[1:] for case in BROKEN_RECHECK_CASES],
+    ids=[case[0] for case in BROKEN_RECHECK_CASES],
+)
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_a_broken_recheck_blocks_instead_of_reading_as_no_new_comments(
+    path: Path, payload: str, exit_code: int, expected: str, tmp_path: Path
+) -> None:
+    """A re-fetch that fails or returns garbage must block Phase 8.3.
+
+    The re-fetch is the only thing in the loop that can see a comment posted
+    since the last pass, so treating its failure as "nothing arrived" clears the
+    exact case the phase exists for. The fence's own producer line runs against
+    a stand-in that reproduces each failure, and the shipped guards are what
+    have to turn it into a nonzero exit.
+    """
+    count_file = _record_api_count(tmp_path, API_COMMENT_COUNT)
+    comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
+    scripts_dir = _install_recheck_producer(tmp_path, payload, exit_code=exit_code)
+
+    result = _run_derivation(_recheck_script(_recheck_fence(path), scripts_dir), cwd=tmp_path)
+
+    assert result.returncode == 1, (
+        f"{_carrier_id(path)} Phase 8.3 continued past a broken re-fetch: "
+        f"exit {result.returncode}, stdout {result.stdout!r}, "
+        f"stderr {result.stderr!r}"
+    )
+    assert expected in result.stdout, (
+        f"{_carrier_id(path)} blocked without naming the failure: {result.stdout!r}"
+    )
+    assert count_file.read_text(encoding="utf-8").strip() == str(API_COMMENT_COUNT), (
+        "a blocked re-fetch must not move the recorded count"
+    )
+    assert APPENDED_HEADING not in comment_map.read_text(encoding="utf-8"), (
+        "a blocked re-fetch must not append rows the payload never carried"
+    )
+
+
+@requires_bash
+@requires_jq
+@requires_python3
+@pytest.mark.parametrize(
+    ("payload", "exit_code"),
+    [case[1:3] for case in BROKEN_RECHECK_CASES],
+    ids=[case[0] for case in BROKEN_RECHECK_CASES],
+)
+def test_without_the_fetch_guards_a_broken_recheck_reads_as_no_new_comments(
+    payload: str, exit_code: int, tmp_path: Path
+) -> None:
+    """Negative control: the fail-open PR #5342 shipped, reproduced exactly.
+
+    The shipped fence assigned RECHECK_PAYLOAD without reading the producer's
+    exit status and derived NEW_COMMENTS with a bare ``jq '.TotalComments'``.
+    Stripping only the two guards rebuilds that shape. Every case here exits 0
+    with no diagnostic and no append, which is a pass reporting no new comments
+    on a re-fetch that never returned a count. If these assertions did not hold,
+    the positive test above would prove nothing about the guards.
+    """
+    path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
+    _record_api_count(tmp_path, API_COMMENT_COUNT)
+    comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
+    scripts_dir = _install_recheck_producer(tmp_path, payload, exit_code=exit_code)
+
+    result = _run_derivation(
+        _recheck_script(_recheck_fence(path), scripts_dir, with_fetch_guards=False),
+        cwd=tmp_path,
+    )
+
+    assert result.returncode == 0, (
+        "the control must reproduce the shipped fail-open, which exited 0: "
+        f"exit {result.returncode}, stdout {result.stdout!r}"
+    )
+    assert "[BLOCKED]" not in result.stdout, (
+        f"the control must block nothing, but printed {result.stdout!r}"
+    )
+    assert "[NEW COMMENTS]" not in result.stdout, (
+        "the shipped shape skipped the branch entirely rather than entering it"
+    )
+    assert APPENDED_HEADING not in comment_map.read_text(encoding="utf-8"), (
+        "the control must reproduce the skipped branch, not perform the append"
+    )
+
+
+@requires_bash
+@requires_jq
+@requires_python3
+def test_a_healthy_recheck_with_no_new_comments_still_clears(tmp_path: Path) -> None:
+    """The guards must not block the case they sit in front of.
+
+    A re-fetch that succeeds and reports the same count the artifact records is
+    the ordinary quiet pass. Blocking it would turn every clean loop into a
+    false stop, which is the inverse failure of the fail-open under test.
+    """
+    path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
+    count_file = _record_api_count(tmp_path, API_COMMENT_COUNT)
+    comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
+    scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(FIRST_PASS_COMMENTS))
+
+    result = _run_derivation(_recheck_script(_recheck_fence(path), scripts_dir), cwd=tmp_path)
+
+    assert result.returncode == 0, (
+        f"Phase 8.3 blocked a healthy re-fetch reporting no new comments: "
+        f"exit {result.returncode}, stdout {result.stdout!r}, stderr {result.stderr!r}"
+    )
+    assert "[BLOCKED]" not in result.stdout
+    assert "[NEW COMMENTS]" not in result.stdout
+    assert count_file.read_text(encoding="utf-8").strip() == str(API_COMMENT_COUNT)
+    assert APPENDED_HEADING not in comment_map.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("path", VOCABULARY_CARRIERS, ids=_carrier_id)
