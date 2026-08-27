@@ -1229,26 +1229,34 @@ class TestAuthorIsBot:
         user_type = "Bot" if author.get("is_bot") is True else None
         return bool(is_bot(canonicalize_login(login), user_type))
 
-    with the cheap alternative, `return login.lower().endswith("[bot]")`, fails
-    four of these cases and passes the other five:
+    with the cheap alternative, `return login.lower().endswith("[bot]")`, and
+    running `pytest tests/test_get_pr_context.py -k TestAuthorIsBot` gives
+    5 failed, 12 passed of 17 collected. Four failures are the discrimination
+    probe, and they fail for three different reasons, not one:
 
-        test_a_hyphen_bot_suffix_is_a_bot                            (rjmurillo-bot)
+        test_a_hyphen_bot_suffix_is_a_bot (rjmurillo-bot)
+            Dropped SUFFIX detection, not an alias miss. `canonicalize_login`
+            returns this login unchanged; canonical
+            `bot_config._BOT_SUFFIXES = ("[bot]", "-bot")` and the substitution
+            keeps only the first of the two.
         test_the_gh_author_spelling_of_the_copilot_coding_agent_is_a_bot
-        test_the_copilot_reviewer_alias_is_a_bot                     (Copilot)
+        test_the_copilot_reviewer_alias_is_a_bot (Copilot)
+            Alias table. `canonicalize_login` maps `app/copilot-swe-agent` to
+            `copilot-swe-agent[bot]` and `Copilot` to `github-copilot[bot]`;
+            the substitution never canonicalizes, so it tests the raw login.
         test_the_api_bot_flag_is_honored_over_the_login
+            Dropped `user_type` argument. The substitution is one edit spanning
+            both lines, so GitHub's own flag stops being consulted at all and
+            `{"login": "somebody", "is_bot": True}` comes back False.
 
-    Those four are the discrimination probe for the design choice. The first
-    three fail on the alias table; the fourth fails because the substitution
-    drops the `user_type` argument as well, so GitHub's own `is_bot` flag stops
-    being consulted at all and `{"login": "somebody", "is_bot": True}` comes
-    back False. This said "exactly three" and listed three names until the
-    control was re-run: the substitution is one edit spanning both lines, and
-    counting only the alias failures reads the docstring instead of the diff.
+    The fifth failure, `test_the_whitespace_guard_does_not_reclassify_a_known_bot`,
+    is collateral rather than a fourth cause: it enumerates the same two alias
+    logins as its no-over-fire control.
 
-    The middle two are the ones that matter operationally: `app/copilot-swe-agent`
-    and `Copilot` are the spellings this repository's own bot PRs arrive under,
-    so a suffix test would read them as human-authored and leave issue #5208
-    unfixed for the exact population it is about.
+    The two alias cases are the ones that matter operationally.
+    `app/copilot-swe-agent` and `Copilot` are the spellings this repository's own
+    bot PRs arrive under, so a suffix test would read them as human-authored and
+    leave issue #5208 unfixed for the exact population it is about.
     """
 
     def _data(self, capsys, author):
