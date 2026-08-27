@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, the shim template and the check that decides
+# which shims are acceptable must stay in one file: they encode the same
+# contract from two directions, and splitting them is how the two drift apart.
 """Install git hook shims that no single worktree can poison.
 
 Git keeps one hooks directory per repository, in ``$GIT_COMMON_DIR/hooks``, and
@@ -53,6 +56,19 @@ that the gate pass "from both worktrees after either install", and an exact
 comparison cannot deliver that. :func:`shim_defect` carries the incident.
 ``write_shims`` follows the same rule, so an already-safe shim written by
 something else is left alone rather than fought over.
+
+Stricter than reading the file as text: only lines a shell would execute count.
+``# lefthook run pre-commit`` followed by ``exit 0`` mentions the dispatch and
+runs nothing, so a whole-file scan reports an inert hook as a working shim and
+the gate then certifies a repository no lefthook job protects.
+:func:`_executed_lines` is the single definition both the dispatch check and
+the machine-bound-path scan read.
+
+Stricter than lefthook: a hook path that is a symlink is a defect, and
+``write_shims`` unlinks it instead of writing through it. ``Path.write_text``
+opens the resolved target, so a link in the shared hooks directory both aims
+git at another checkout's file and turns this installer into a writer of
+arbitrary paths outside ``$GIT_COMMON_DIR/hooks``.
 
 Known limitation, not closed here
 ---------------------------------
@@ -266,6 +282,33 @@ def _dispatch_pattern(hook: str) -> re.Pattern[str]:
     return re.compile(rf"lefthook\s+run\s+[\"']?{re.escape(hook)}[\"']?(?![\w-])")
 
 
+def _executed_lines(content: str) -> list[str]:
+    """Return the lines of ``content`` a shell would execute.
+
+    A ``#`` comment is documentation, not something ``/bin/sh`` runs, so no
+    claim about what a shim does may be read from one. The shebang is a comment
+    by this rule and carries no dispatch anyway.
+
+    Single source of what "executed" means for this module: both the
+    machine-bound-path scan and the dispatch check read it, so the two cannot
+    disagree about whether a commented line counts.
+    """
+    return [line for line in content.splitlines() if not line.lstrip().startswith("#")]
+
+
+def _dispatches_to_lefthook(hook: str, content: str) -> bool:
+    """Return whether ``content`` actually hands ``hook`` to lefthook.
+
+    Scanning the whole file would accept a hook whose only mention of the
+    dispatch sits in a comment. A file holding ``# lefthook run pre-commit``
+    and an ``exit 0`` runs nothing, so reading that as a working shim is a
+    false negative in the detector: the gate would pass an inert hook and
+    report the repository as protected while no lefthook job ever fires.
+    """
+    pattern = _dispatch_pattern(hook)
+    return any(pattern.search(line) is not None for line in _executed_lines(content))
+
+
 def _machine_bound_paths(content: str) -> list[str]:
     """Return absolute paths in ``content`` that do not resolve the same everywhere.
 
@@ -274,9 +317,7 @@ def _machine_bound_paths(content: str) -> list[str]:
     is machine-independent anyway.
     """
     found: list[str] = []
-    for line in content.splitlines():
-        if line.lstrip().startswith("#"):
-            continue
+    for line in _executed_lines(content):
         for match in _ABSOLUTE_PATH.finditer(line):
             token = match.group(0)
             if token.startswith(_MACHINE_INDEPENDENT_PATHS):
@@ -299,6 +340,11 @@ def shim_defect(hook: str, path: Path) -> str | None:
     and an exact comparison rejected it. A shim that dispatches to the right
     hook and binds to no machine is correct, however it is spelled.
     """
+    if path.is_symlink():
+        return (
+            f"{path} is a symlink, not a regular file, so git runs whatever it "
+            "points at and one checkout can aim the shared hook at its own tree"
+        )
     if not path.is_file():
         return f"{path} is missing"
     try:
@@ -318,7 +364,7 @@ def shim_defect(hook: str, path: Path) -> str | None:
             f"{path} runs the absolute path '{bound[0]}', which belongs to one "
             "machine or checkout rather than to every worktree sharing this hook"
         )
-    if _dispatch_pattern(hook).search(content) is None:
+    if not _dispatches_to_lefthook(hook, content):
         return f"{path} never hands the '{hook}' hook to lefthook"
     return None
 
@@ -366,7 +412,16 @@ def run_lefthook_install(repo_root: Path) -> None:
 
 
 def write_shims(repo_root: Path, hooks: list[str]) -> list[Path]:
-    """Overwrite each hook file with its worktree-safe shim. Returns what changed."""
+    """Overwrite each hook file with its worktree-safe shim. Returns what changed.
+
+    An existing symlink is removed before the write rather than written
+    through. ``Path.write_text`` opens the resolved target, so writing onto a
+    symlink edits whatever it points at, anywhere on the filesystem, and leaves
+    the hooks directory still holding a link. Both halves defeat the purpose:
+    this installer exists to put one shared regular file where git looks, and a
+    link is precisely how one checkout aims the shared hook at its own tree.
+    Unlinking first keeps every write inside ``$GIT_COMMON_DIR/hooks``.
+    """
     directory = hooks_dir(repo_root)
     directory.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
@@ -374,6 +429,8 @@ def write_shims(repo_root: Path, hooks: list[str]) -> list[Path]:
         path = directory / hook
         if shim_defect(hook, path) is None:
             continue
+        if path.is_symlink():
+            path.unlink()
         path.write_text(hook_shim(hook), encoding="utf-8")
         path.chmod(_HOOK_MODE)
         written.append(path)

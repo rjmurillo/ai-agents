@@ -1,3 +1,7 @@
+# taste-lint: ignore file-size, one test module per module under test. Every
+# class here shares the `primary` and `linked` fixtures, which build real git
+# repositories with real linked worktrees, so a split would move the fixtures
+# to a conftest and hide the setup the shared-hooks assertions depend on.
 """Tests for the worktree-safe lefthook shim installer.
 
 Git keeps one hooks directory per repository and every linked worktree reads it,
@@ -295,6 +299,112 @@ class TestShimDefect:
         assert defect is not None
         assert "could not be read as text" in defect
 
+    def test_a_dispatch_named_only_in_a_comment_is_not_a_dispatch(
+        self, tmp_path: Path
+    ) -> None:
+        """An inert hook must not satisfy the gate on the strength of a comment.
+
+        The discriminating input for the whole-file scan this replaces: every
+        other check passes (regular file, executable, decodable, no absolute
+        path), so the comment alone decided the verdict and the gate reported
+        a hook that runs no lefthook job as protecting the repository.
+        """
+        path = tmp_path / "pre-commit"
+        path.write_text(
+            "#!/bin/sh\n# lefthook run pre-commit\nexit 0\n", encoding="utf-8"
+        )
+        path.chmod(0o755)
+
+        defect = shim_defect("pre-commit", path)
+
+        assert defect is not None
+        assert "never hands the 'pre-commit' hook to lefthook" in defect
+
+    def test_a_commented_out_shim_body_is_not_a_dispatch(self, tmp_path: Path) -> None:
+        path = tmp_path / "pre-commit"
+        path.write_text(
+            "#!/bin/sh\n"
+            '# exec uv run --frozen lefthook run "pre-commit" "$@"\n'
+            "exit 0\n",
+            encoding="utf-8",
+        )
+        path.chmod(0o755)
+
+        defect = shim_defect("pre-commit", path)
+
+        assert defect is not None
+        assert "never hands the 'pre-commit' hook to lefthook" in defect
+
+    def test_an_indented_comment_is_still_a_comment(self, tmp_path: Path) -> None:
+        path = tmp_path / "pre-commit"
+        path.write_text(
+            '#!/bin/sh\nif true; then\n    # lefthook run "pre-commit"\n'
+            "    exit 0\nfi\n",
+            encoding="utf-8",
+        )
+        path.chmod(0o755)
+
+        defect = shim_defect("pre-commit", path)
+
+        assert defect is not None
+        assert "never hands the 'pre-commit' hook to lefthook" in defect
+
+    def test_a_trailing_comment_does_not_disqualify_a_real_dispatch(
+        self, tmp_path: Path
+    ) -> None:
+        """Control for the three cases above: only the leading ``#`` disqualifies.
+
+        Without this, tightening the check to reject every line holding a ``#``
+        would pass all of them while breaking a shim that genuinely runs.
+        """
+        path = tmp_path / "pre-commit"
+        path.write_text(
+            "#!/bin/sh\n"
+            'exec uv run --frozen lefthook run "pre-commit" "$@"  # dispatch\n',
+            encoding="utf-8",
+        )
+        path.chmod(0o755)
+
+        assert shim_defect("pre-commit", path) is None
+
+    def test_reports_a_hook_path_that_is_a_symlink(self, tmp_path: Path) -> None:
+        """A link is a defect even when its target is a perfectly good shim.
+
+        git runs what the link resolves to, so a link in the shared hooks
+        directory is exactly how one checkout aims the shared hook at its own
+        tree, which is the defect issue #4789 exists for.
+        """
+        target = tmp_path / "elsewhere" / "pre-commit"
+        target.parent.mkdir()
+        target.write_text(hook_shim("pre-commit"), encoding="utf-8")
+        target.chmod(0o755)
+        path = tmp_path / "pre-commit"
+        path.symlink_to(target)
+
+        defect = shim_defect("pre-commit", path)
+
+        assert defect is not None
+        assert "symlink" in defect
+
+    def test_reports_a_broken_symlink_as_a_symlink_not_as_missing(
+        self, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "pre-commit"
+        path.symlink_to(tmp_path / "no-such-target")
+
+        defect = shim_defect("pre-commit", path)
+
+        assert defect is not None
+        assert "symlink" in defect
+
+    def test_a_regular_file_is_not_reported_as_a_symlink(self, tmp_path: Path) -> None:
+        """Control for the two cases above: the check reads link-ness, not content."""
+        path = tmp_path / "pre-commit"
+        path.write_text(hook_shim("pre-commit"), encoding="utf-8")
+        path.chmod(0o755)
+
+        assert shim_defect("pre-commit", path) is None
+
 
 class TestSharedHooksDirectory:
     """The premise: one hooks directory serves the primary clone and its worktrees."""
@@ -389,6 +499,67 @@ class TestWorktreeIsolationRegression:
         assert shared.read_text(encoding="utf-8") == foreign
 
 
+class TestSymlinkedHookPath:
+    """A hook path that is a link must be replaced, never written through.
+
+    ``Path.write_text`` opens the resolved target, so writing onto a link edits
+    a file outside ``$GIT_COMMON_DIR/hooks`` and leaves the hooks directory
+    still holding the link.
+    """
+
+    def test_writing_replaces_the_link_with_a_regular_file(
+        self, primary: Path
+    ) -> None:
+        outside = primary.parent / "outside-the-hooks-directory"
+        outside.write_text("PRECIOUS\n", encoding="utf-8")
+        shared = hooks_dir(primary) / "pre-commit"
+        shared.parent.mkdir(parents=True, exist_ok=True)
+        shared.symlink_to(outside)
+
+        written = write_shims(primary, ["pre-commit"])
+
+        assert written == [shared]
+        assert outside.read_text(encoding="utf-8") == "PRECIOUS\n"
+        assert not shared.is_symlink()
+        assert shared.read_text(encoding="utf-8") == hook_shim("pre-commit")
+        assert find_defects(primary) == ([], 1)
+
+    def test_a_link_to_a_valid_shim_is_still_replaced(self, primary: Path) -> None:
+        """The link's target being correct does not make the link correct."""
+        target = primary.parent / "someone-elses-pre-commit"
+        target.write_text(hook_shim("pre-commit"), encoding="utf-8")
+        target.chmod(0o755)
+        shared = hooks_dir(primary) / "pre-commit"
+        shared.parent.mkdir(parents=True, exist_ok=True)
+        shared.symlink_to(target)
+
+        assert write_shims(primary, ["pre-commit"]) == [shared]
+        assert not shared.is_symlink()
+
+    def test_the_check_cli_exits_one_on_a_symlinked_hook(self, primary: Path) -> None:
+        shared = hooks_dir(primary) / "pre-commit"
+        shared.parent.mkdir(parents=True, exist_ok=True)
+        target = primary.parent / "someone-elses-pre-commit"
+        target.write_text(hook_shim("pre-commit"), encoding="utf-8")
+        target.chmod(0o755)
+        shared.symlink_to(target)
+
+        assert main(["--check", "--repo-root", str(primary)]) == 1
+
+    def test_the_check_cli_does_not_replace_the_link(self, primary: Path) -> None:
+        """``--check`` reports; only the install path may mutate."""
+        shared = hooks_dir(primary) / "pre-commit"
+        shared.parent.mkdir(parents=True, exist_ok=True)
+        target = primary.parent / "someone-elses-pre-commit"
+        target.write_text(hook_shim("pre-commit"), encoding="utf-8")
+        target.chmod(0o755)
+        shared.symlink_to(target)
+
+        main(["--check", "--repo-root", str(primary)])
+
+        assert shared.is_symlink()
+
+
 class TestCliExitCodes:
     """ADR-035 codes, asserted on ``main`` rather than on a helper (testing MUST 8)."""
 
@@ -425,6 +596,18 @@ class TestCliExitCodes:
         main(["--check", "--repo-root", str(primary)])
 
         assert "1 of 1 examined hooks" in capsys.readouterr().out
+
+    def test_check_exits_one_on_a_hook_whose_only_dispatch_is_a_comment(
+        self, primary: Path
+    ) -> None:
+        shared = hooks_dir(primary) / "pre-commit"
+        shared.parent.mkdir(parents=True, exist_ok=True)
+        shared.write_text(
+            "#!/bin/sh\n# lefthook run pre-commit\nexit 0\n", encoding="utf-8"
+        )
+        shared.chmod(0o755)
+
+        assert main(["--check", "--repo-root", str(primary)]) == 1
 
     def test_check_never_mutates_the_hooks_directory(self, primary: Path) -> None:
         shared = hooks_dir(primary) / "pre-commit"
