@@ -86,7 +86,21 @@ The rules above assume the thing you cite exists. In a repository worked through
 
 You write documentation on branch A naming a test, a constant, or a function that you added on branch B. Your shell finds it. Every reader of branch A does not. If A merges first it ships a pointer to nothing.
 
-One slice of this is now machine-checked. The `Citation Freshness (added lines)` gate in the `pre_pr` validation sequence (issue #5337) verifies path-plus-line-number citations on lines added since the base ref, where the cited path contains a directory separator and a known text extension (bare root-file names such as a repository's top-level instructions file, and illustrative snippets with no directory, deliberately stay out of the matcher): the cited file must be tracked at HEAD, the cited lines must exist, and when the citing sentence names the contract (a backtick span, a double-quoted phrase, an underscore identifier, or an indented verbatim quote) that content must actually appear at the cited lines. It reports where the content moved to when it can. Historical trees (retrospectives, sessions, memories) are exempt, and a deliberate exception takes a `citation-freshness: ignore` marker with a reason on or above the line.
+One slice of this is now machine-checked. The `Citation Freshness (added lines)` gate in the `pre_pr` validation sequence (issue #5337; implementation `check_citation_freshness.py` under the validation-scripts tree, with matcher and anchor semantics in its sibling `citation_anchors.py`; the directory prefix is omitted here because this rule ships in the plugin instruction mirrors, where an upstream-only path would dangle) verifies path-plus-line-number citations on lines added since the base ref. Its matcher, quoted verbatim from `citation_anchors.py`:
+
+```python
+_CITATION = re.compile(
+    rf"(?P<path>[\w.-]+(?:/[\w.-]+)+\.(?:{_EXTENSIONS})):(?P<start>\d+)(?:-(?P<end>\d+))?\b"
+)
+```
+
+so the cited path must contain a directory separator and an extension in `_EXTENSIONS`; bare root-file names such as a repository's top-level instructions file, and illustrative snippets with no directory, deliberately stay out of the matcher. The escape hatch counts only in its reasoned form, quoted verbatim from `check_citation_freshness.py`:
+
+```python
+_IGNORE_WITH_REASON = re.compile(re.escape(IGNORE_MARKER) + r"\s+--\s+\S")
+```
+
+The gate checks: the cited file must be tracked at HEAD, the cited lines must exist, and when the citing sentence names the contract (a backtick span, a double-quoted phrase, an underscore identifier, or an indented verbatim quote) that content must actually appear at the cited lines. It reports where the content moved to when it can. Historical trees (retrospectives, sessions, memories) are exempt, and a deliberate exception takes a `citation-freshness: ignore` marker with a reason on or above the line.
 
 Everything else in this section remains manual. A claim that names a symbol, a test, or a count WITHOUT a line number is invisible to that gate, and two other gates look like they would catch it and do not:
 
