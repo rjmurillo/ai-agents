@@ -212,16 +212,93 @@ class TestLoadWorkflowSubscriptions:
         assert "reopened" in pr_validation.pull_request_types
         assert "synchronize" in pr_validation.pull_request_types
 
-    def test_first_file_wins_when_two_workflows_share_a_name(self, tmp_path: Path):
-        (tmp_path / "a.yml").write_text(
-            "name: Dup\non:\n  pull_request:\n    types: [synchronize]\n",
+class TestSharedWorkflowNames:
+    """A ``name:`` two files declare resolves to what both files subscribe to.
+
+    A run record names its workflow, not its file. Resolving such a name to one
+    arbitrary file is the fail-open path issue #4835 exists to close: the guard
+    would clear a run for cancellation on a subscription its real workflow never
+    declared, leaving a required context with no way back.
+    """
+
+    def write_pair(self, directory: Path, first_types: str, second_types: str) -> None:
+        """Write two workflow files that declare the same name."""
+        (directory / "a.yml").write_text(
+            f"name: Dup\non:\n  pull_request:\n    types: {first_types}\n",
             encoding="utf-8",
         )
+        (directory / "b.yml").write_text(
+            f"name: Dup\non:\n  pull_request:\n    types: {second_types}\n",
+            encoding="utf-8",
+        )
+
+    def test_an_event_only_one_sharer_declares_does_not_verify(self, tmp_path: Path):
+        # The incident scenario: reopening the PR regenerates a.yml and not
+        # b.yml, so the name "Dup" must not answer yes for `reopened`.
+        self.write_pair(tmp_path, "[opened, reopened]", "[opened, synchronize]")
+
+        loaded = load_workflow_subscriptions(tmp_path)
+
+        assert loaded["Dup"].pull_request_types == frozenset({"opened"})
+        assert subscribes_to(loaded["Dup"], "reopened") is False
+
+    def test_an_event_every_sharer_declares_still_verifies(self, tmp_path: Path):
+        # The control for the case above. Without it, a fix that dropped the
+        # ambiguous name outright would pass the negative test too.
+        self.write_pair(tmp_path, "[opened, reopened]", "[reopened, synchronize]")
+
+        loaded = load_workflow_subscriptions(tmp_path)
+
+        assert subscribes_to(loaded["Dup"], "reopened") is True
+
+    def test_each_sharer_still_resolves_by_its_own_filename(self, tmp_path: Path):
+        self.write_pair(tmp_path, "[synchronize]", "[reopened]")
+
+        loaded = load_workflow_subscriptions(tmp_path)
+
+        assert loaded["a.yml"].pull_request_types == frozenset({"synchronize"})
+        assert loaded["b.yml"].pull_request_types == frozenset({"reopened"})
+
+    def test_workflow_dispatch_needs_every_sharer_to_declare_it(self, tmp_path: Path):
+        (tmp_path / "a.yml").write_text(
+            "name: Dup\non:\n  pull_request:\n  workflow_dispatch:\n", encoding="utf-8"
+        )
         (tmp_path / "b.yml").write_text(
-            "name: Dup\non:\n  pull_request:\n    types: [reopened]\n", encoding="utf-8"
+            "name: Dup\non:\n  pull_request:\n", encoding="utf-8"
         )
 
         loaded = load_workflow_subscriptions(tmp_path)
 
-        assert loaded["Dup"].pull_request_types == frozenset({"synchronize"})
-        assert loaded["b.yml"].pull_request_types == frozenset({"reopened"})
+        assert subscribes_to(loaded["Dup"], "workflow_dispatch") is False
+        assert subscribes_to(loaded["a.yml"], "workflow_dispatch") is True
+
+    def test_three_sharers_narrow_to_what_all_three_declare(self, tmp_path: Path):
+        for filename, types in (
+            ("a.yml", "[opened, reopened, synchronize]"),
+            ("b.yml", "[opened, reopened]"),
+            ("c.yml", "[opened, synchronize]"),
+        ):
+            (tmp_path / filename).write_text(
+                f"name: Dup\non:\n  pull_request:\n    types: {types}\n",
+                encoding="utf-8",
+            )
+
+        loaded = load_workflow_subscriptions(tmp_path)
+
+        assert loaded["Dup"].pull_request_types == frozenset({"opened"})
+
+    def test_a_filename_key_always_describes_that_one_file(self, tmp_path: Path):
+        # `impostor.yml` declares the name "target.yml", which is also a real
+        # file. A filename is unambiguous by construction, so that key keeps
+        # describing the file it names rather than the set that answers to it.
+        (tmp_path / "impostor.yml").write_text(
+            "name: target.yml\non:\n  pull_request:\n    types: [opened]\n",
+            encoding="utf-8",
+        )
+        (tmp_path / "target.yml").write_text(
+            "on:\n  pull_request:\n    types: [reopened]\n", encoding="utf-8"
+        )
+
+        loaded = load_workflow_subscriptions(tmp_path)
+
+        assert loaded["target.yml"].pull_request_types == frozenset({"reopened"})

@@ -27,6 +27,13 @@ One YAML trap is load-bearing here. ``on`` is a YAML 1.1 boolean literal, so
 and would report every workflow as subscribing to nothing, which fails open in
 the direction that matters: a workflow with no recorded subscription must never
 be treated as recoverable.
+
+A workflow ``name:`` is the identifier a run record carries, and GitHub does not
+require it to be unique across files. Two files may declare the same name, so a
+name resolves to a *set* of workflow files, not to one. Every event answered for
+such a name is therefore the intersection across that set: only an event every
+sharer subscribes to can regenerate the run, because the name alone does not say
+which file produced it. See :func:`load_workflow_subscriptions`.
 """
 
 from __future__ import annotations
@@ -65,7 +72,12 @@ _PULL_REQUEST_TRIGGERS = ("pull_request", "pull_request_target")
 
 @dataclass(frozen=True, slots=True)
 class WorkflowSubscriptions:
-    """The events one workflow file subscribes to.
+    """The events a workflow subscribes to.
+
+    One instance describes one workflow file, except for the record
+    :func:`load_workflow_subscriptions` files under a ``name:`` that several
+    files declare. That record describes the whole set and holds only what every
+    file in it subscribes to.
 
     Attributes:
         name: The workflow's ``name:`` value, or its filename when unnamed.
@@ -172,6 +184,28 @@ def subscribes_to(subscriptions: WorkflowSubscriptions, event: str) -> bool:
     return event in subscriptions.pull_request_types
 
 
+def _narrow_to_shared(
+    first: WorkflowSubscriptions, second: WorkflowSubscriptions
+) -> WorkflowSubscriptions:
+    """Keep only the subscriptions two same-named workflow files share.
+
+    Intersection is the fail-closed reading of an ambiguous name. A run record
+    names its workflow, not its file, so when two files answer to that name the
+    caller cannot tell which one produced the run. An event only one of them
+    declares regenerates only one of them, so promising it would be the same
+    fail-open mistake issue #4835 exists to prevent, one level up: the guard
+    would report a verified recovery path for a run whose real workflow has
+    none.
+    """
+    return WorkflowSubscriptions(
+        name=first.name,
+        pull_request_types=first.pull_request_types & second.pull_request_types,
+        has_workflow_dispatch=(
+            first.has_workflow_dispatch and second.has_workflow_dispatch
+        ),
+    )
+
+
 def load_workflow_subscriptions(
     workflows_dir: Path,
 ) -> dict[str, WorkflowSubscriptions]:
@@ -181,8 +215,16 @@ def load_workflow_subscriptions(
     caller holding either identifier resolves. A file that fails to parse is
     skipped rather than raising: one malformed workflow must not prevent the
     guard from reporting on the rest, and an absent entry already fails closed.
+
+    A filename key always describes exactly that file. A ``name:`` key that two
+    or more files declare describes all of them, narrowed by
+    :func:`_narrow_to_shared` to the events every one of them subscribes to.
+    Declared names are collected separately and merged in with ``setdefault`` so
+    a ``name:`` that collides with a different file's filename cannot displace
+    or narrow that file's own entry.
     """
     subscriptions: dict[str, WorkflowSubscriptions] = {}
+    by_declared_name: dict[str, WorkflowSubscriptions] = {}
     if not workflows_dir.is_dir():
         return subscriptions
 
@@ -198,5 +240,11 @@ def load_workflow_subscriptions(
         parsed = parse_workflow_subscriptions(document, fallback_name=path.name)
         subscriptions[path.name] = parsed
         if parsed.name:
-            subscriptions.setdefault(parsed.name, parsed)
+            already = by_declared_name.get(parsed.name)
+            by_declared_name[parsed.name] = (
+                parsed if already is None else _narrow_to_shared(already, parsed)
+            )
+
+    for name, merged in by_declared_name.items():
+        subscriptions.setdefault(name, merged)
     return subscriptions
