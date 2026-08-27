@@ -1,4 +1,4 @@
-# Tracking-branch push fails under this session's own fleet CPU load, not a real regression
+# Tracking-branch push fails under this session's own fleet CPU/memory load, not a real regression
 
 ## Statement
 
@@ -62,6 +62,40 @@ not `git push`'s (see `git-lock-pushes-per-branch-not-globally.md`'s
 `[FAIL] Generated Artifact Staleness` or a `pre-pr-validation` timeout as a
 real defect in the branch's diff without first checking whether the fleet was
 under load at push time.
+
+## A second failure mode: OOM-kill, not CPU timeout
+
+The same session hit three more consecutive failures (v74-v76, 2026-08-27) with
+`ps aux | grep -E "pytest|pre_pr"` reading 0-7 (load looked clear) and `free -h`
+showing 12-14Gi available immediately before each retry. Each still failed:
+
+```
+[FAIL] build_all.py --check failed (exit -9). Examined 2 of 2 checks.
+[FAIL] build_all.py --check was killed on timeout; the tree was never scored.
+```
+
+`dmesg` showed the real cause was a memory-cgroup OOM kill, not CPU starvation:
+
+```
+oom-kill:constraint=CONSTRAINT_MEMCG, task=python3, pid=8633
+Memory cgroup out of memory: Killed process 8633 (python3)
+  total-vm:13605188kB anon-rss:13370104kB
+```
+
+One `build_all.py --check` invocation grew to ~13.4GB RSS on a 15GB-total
+container and got killed by the memcg limit, not the 240s lefthook timeout.
+`ps`-based load checks (count of `pytest`/`pre_pr` processes) do not see this:
+a single heavy `build_all.py` run, or a handful of concurrent ones each holding
+large working sets, can exhaust memory while the process *count* looks idle.
+Check `free -h` (available column) in addition to the process count before
+retrying; a push launched when available memory is in the low single digits
+of GB is as likely to fail as one launched into high CPU contention, even
+though `ps` reports near-zero load.
+
+Same recipe applies: retry with the flock'd background-push-plus-monitor
+pattern once `free -h` shows several GB available, and treat a repeat
+`exit -9`/`killed on timeout` on `build_all.py --check` as this pattern,
+not a code regression, unless the diff itself changed `build_all.py`.
 
 ## Why this isn't worth root-causing further
 
