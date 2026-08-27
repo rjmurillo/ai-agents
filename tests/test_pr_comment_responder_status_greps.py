@@ -725,6 +725,49 @@ def test_a_complete_comment_map_clears_the_invariant(path: Path, tmp_path: Path)
 
 
 @requires_bash
+@pytest.mark.parametrize("bad_value", ["", "null", "-1", "3abc"])
+def test_a_non_numeric_total_comments_blocks_before_the_invariant(
+    bad_value: str, tmp_path: Path
+) -> None:
+    """A non-numeric API count must fail closed, not skip the invariant.
+
+    Phase 1 sets ``TOTAL_COMMENTS`` via ``jq`` without ``-e``; an API or
+    script failure can leave it empty or ``null``. ``[ "$TOTAL" -ne
+    "$TOTAL_COMMENTS" ]`` on a non-numeric right side raises ``integer
+    expression expected``, which is a nonzero exit from ``[`` and therefore
+    reads as *false* to ``if``, so the BLOCKED body is skipped and a
+    terminal-looking map clears this fail-closed gate anyway (PR #5342
+    review). Reproduced here against the real shell for
+    ``.claude/agents/pr-comment-responder.md``, which now guards
+    ``TOTAL_COMMENTS`` with a numeric ``case`` before the comparison runs.
+    """
+    path = REPO_ROOT / ".claude/agents/pr-comment-responder.md"
+    fence = _gate_four_fence(path)
+    start = fence.index(TOTAL_ASSIGNMENT_TEXT)
+    end = fence.index(API_COUNT_INVARIANT) + len(API_COUNT_INVARIANT)
+    body = fence[start:end]
+    comment_map = _render_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
+    script = (
+        f"COMMENT_MAP={shlex.quote(str(comment_map))}\n"
+        f"TOTAL_COMMENTS={shlex.quote(bad_value)}\n"
+        f"{body}\n"
+        'echo "PENDING=$PENDING"\n'
+    )
+
+    result = _run_derivation(script)
+
+    assert result.returncode == 1, (
+        f"non-numeric TOTAL_COMMENTS={bad_value!r} cleared the gate: "
+        f"exit {result.returncode}, stdout {result.stdout!r}"
+    )
+    assert "PENDING=" not in result.stdout, (
+        f"TOTAL_COMMENTS={bad_value!r} reached the pending report; "
+        f"the invariant should have exited first"
+    )
+    assert "not a non-negative integer" in result.stdout
+
+
+@requires_bash
 def test_without_the_invariant_a_stripped_map_clears_the_gate(tmp_path: Path) -> None:
     """Negative control: the invariant is what catches the stripped map.
 

@@ -93,6 +93,18 @@ TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
 TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
 
+# Phase 1 sets TOTAL_COMMENTS via `jq` without `-e`; an API or script failure
+# can leave it empty or `null`. `[ -ne ]` on a non-numeric right-hand side
+# raises `integer expression expected`, which is a nonzero exit from `[` and
+# reads as false to `if`, so the BLOCKED body below never runs and a
+# terminal-looking map clears the gate anyway. Fail closed before that.
+case "$TOTAL_COMMENTS" in
+  ''|*[!0-9]*)
+    echo "[BLOCKED] TOTAL_COMMENTS is not a non-negative integer: $TOTAL_COMMENTS"
+    exit 1
+    ;;
+esac
+
 if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
   echo "[BLOCKED] Comment map carries $TOTAL status fields, API reported $TOTAL_COMMENTS"
   exit 1
@@ -480,6 +492,18 @@ TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
 TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
 
+# Phase 1 sets TOTAL_COMMENTS via `jq` without `-e`; an API or script failure
+# can leave it empty or `null`. `[ -ne ]` on a non-numeric right-hand side
+# raises `integer expression expected`, which is a nonzero exit from `[` and
+# reads as false to `if`, so the BLOCKED body below never runs and a
+# terminal-looking map clears the gate anyway. Fail closed before that.
+case "$TOTAL_COMMENTS" in
+  ''|*[!0-9]*)
+    echo "[BLOCKED] TOTAL_COMMENTS is not a non-negative integer: $TOTAL_COMMENTS"
+    exit 1
+    ;;
+esac
+
 if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
   echo "[BLOCKED] Comment map carries $TOTAL status fields, API reported $TOTAL_COMMENTS"
   exit 1
@@ -516,6 +540,18 @@ fi
 TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
 TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
+
+# Phase 1 sets TOTAL_COMMENTS via `jq` without `-e`; an API or script failure
+# can leave it empty or `null`. `[ -ne ]` on a non-numeric right-hand side
+# raises `integer expression expected`, which is a nonzero exit from `[` and
+# reads as false to `if`, so the BLOCKED body below never runs and a
+# terminal-looking map clears the gate anyway. Fail closed before that.
+case "$TOTAL_COMMENTS" in
+  ''|*[!0-9]*)
+    echo "[BLOCKED] TOTAL_COMMENTS is not a non-negative integer: $TOTAL_COMMENTS"
+    exit 1
+    ;;
+esac
 
 if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
   echo "[BLOCKED] Comment map carries $TOTAL status fields, API reported $TOTAL_COMMENTS"
@@ -1489,6 +1525,18 @@ fi
 TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
 TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
+
+# Phase 1 sets TOTAL_COMMENTS via `jq` without `-e`; an API or script failure
+# can leave it empty or `null`. `[ -ne ]` on a non-numeric right-hand side
+# raises `integer expression expected`, which is a nonzero exit from `[` and
+# reads as false to `if`, so the BLOCKED body below never runs and a
+# terminal-looking map clears the gate anyway. Fail closed before that.
+case "$TOTAL_COMMENTS" in
+  ''|*[!0-9]*)
+    echo "[BLOCKED] TOTAL_COMMENTS is not a non-negative integer: $TOTAL_COMMENTS"
+    exit 1
+    ;;
+esac
 
 if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
   echo "[BLOCKED] Comment map carries $TOTAL status fields, API reported $TOTAL_COMMENTS"
