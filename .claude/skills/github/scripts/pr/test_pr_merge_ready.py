@@ -621,7 +621,12 @@ def _evaluate_pr_state(pr: dict, reasons: list[str]) -> str:
         reasons.append(f"PR is {pr['state'].lower()}, not open")
     if pr.get("isDraft"):
         reasons.append("PR is in draft state")
-    mergeable = pr.get("mergeable", "")
+    # Normalized the same way as `_merge_state_status`: `.get(key, default)`
+    # returns None, not the default, when the key is present and explicitly
+    # null, which GraphQL payloads do emit. Collapsing it here is what lets
+    # this function honor its declared `-> str`.
+    raw_mergeable = pr.get("mergeable")
+    mergeable = "" if raw_mergeable is None else str(raw_mergeable)
     if mergeable == "CONFLICTING":
         reasons.append("PR has merge conflicts")
     elif mergeable == "UNKNOWN":
