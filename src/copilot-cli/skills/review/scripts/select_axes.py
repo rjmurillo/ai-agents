@@ -71,10 +71,8 @@ _DEPENDENCY_MANIFESTS = frozenset(
     }
 )
 
-# Security words are matched against whole path words, never as bare
-# substrings: "auth" inside "docs/authors.md" and "token" inside
-# "src/tokenizer.py" both selected the security axis under substring matching,
-# which is exactly the low-signal noise risk selection exists to remove.
+# Whole path words, never bare substrings: "auth" inside "docs/authors.md" and
+# "token" inside "src/tokenizer.py" both selected the security axis before.
 _SECURITY_WORDS = frozenset(
     {
         "auth", "authn", "authz", "oauth", "secret", "secrets", "credential", "credentials",
@@ -108,9 +106,13 @@ _TYPE_API_TOKENS = (
     ".proto", "interfaces/", "protocols.py", "api.py", "api.ts",
 )
 
-_AGENT_ARTIFACT_TOKENS = ("skill.md", "/skills/", "/agents/", "/hooks/", "/prompts/", "/commands/")
-
-_TOOLKIT_TOKENS = _AGENT_ARTIFACT_TOKENS + (".github/workflows/", ".github/actions/", "/rules/")
+# Whole segments and whole filenames, for the reason _SECURITY_WORDS is whole
+# words. The former "/skills/"-style substrings over-fired on any prose named
+# "*-skill.md" (5 of 9588 tracked files) and under-fired on a repo-root
+# "skills/" directory, the vendored plugin layout. See resources/axis-selection.md.
+_AGENT_ARTIFACT_DIRECTORIES = frozenset({"skills", "agents", "hooks", "prompts", "commands"})
+_AGENT_ARTIFACT_FILENAMES = frozenset({"skill.md"})
+_TOOLKIT_DIRECTORIES = _AGENT_ARTIFACT_DIRECTORIES | {"rules"}
 
 
 def _norm(path: str) -> str:
@@ -174,11 +176,18 @@ def _is_type_or_api_path(path: str) -> bool:
 
 
 def _is_agent_artifact_path(path: str) -> bool:
-    return any(token in path for token in _AGENT_ARTIFACT_TOKENS)
+    # [:-1] drops the filename, so a file named "skills" is not a directory of
+    # them (same convention as _is_ci_deploy_path above).
+    segments = _segments(path)
+    if segments and segments[-1] in _AGENT_ARTIFACT_FILENAMES:
+        return True
+    return bool(_AGENT_ARTIFACT_DIRECTORIES & set(segments[:-1]))
 
 
 def _is_toolkit_artifact_path(path: str) -> bool:
-    return any(token in path for token in _TOOLKIT_TOKENS)
+    if _is_agent_artifact_path(path) or any(t in path for t in _CI_PATH_TOKENS):
+        return True
+    return bool(_TOOLKIT_DIRECTORIES & set(_segments(path)[:-1]))
 
 
 def _is_decision_doc_path(path: str) -> bool:
@@ -211,23 +220,16 @@ _RISK_TABLE: tuple[tuple[str, Callable[[str], bool], tuple[str, ...], tuple[str,
     ("decision-records", _is_decision_doc_path, ("decision-rigor",), ()),
     ("roadmap-or-spec-docs", _is_roadmap_doc_path, ("roadmap",), ()),
     ("docs-and-instructions", _is_docs_path, (), ("doc-accuracy",)),
-    (
-        "executable-code",
-        _is_code_path,
-        ("code-quality",),
-        ("code-qualities-assessment", "taste-lints"),
-    ),
+    ("executable-code", _is_code_path, ("code-quality",), ("code-qualities-assessment", "taste-lints")),
     ("toolkit-governance", _is_toolkit_artifact_path, (), ("golden-principles",)),
 )
 
 # Diff effects the caller verified in the diff body, which no path glob can
-# see. An effect outside this vocabulary fails closed.
-# The execution, untrusted-input, artifact, and rollback surfaces of the issue
-# #4981 routing table live here, not in _RISK_TABLE: they name what a diff
-# does, not what a path is called. Matched as path words over all 9588 tracked
-# files every candidate was pure noise ("eval" 183 paths, "commands" 58,
-# "artifact(s)" 62, "execution" 28, "rollback" 1), with no true risk surface
-# among them, re-creating the over-fire _SECURITY_WORDS above prevents.
+# see. An effect outside this vocabulary fails closed. The execution,
+# untrusted-input, artifact, and rollback rows of issue #4981 live here rather
+# than in _RISK_TABLE: they name what a diff does, not what a path is called,
+# and matching them as path words was measured as pure noise. The counts are in
+# resources/axis-selection.md, "Diff-effect mapping".
 _EFFECT_TABLE: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "command-execution": (("security",), ()),
     "untrusted-input": (("security",), ()),
@@ -352,12 +354,7 @@ def select_axes(
     demanded = set(canonical_sources) | set(ALWAYS_ON_CANONICAL)
     unresolved_axes = sorted(demanded - set(canonical_candidates))
 
-    fail_closed = (
-        bool(unclassified)
-        or bool(unknown_effects)
-        or bool(unresolved_axes)
-        or not usable_paths
-    )
+    fail_closed = bool(unclassified or unknown_effects or unresolved_axes) or not usable_paths
     reasons: dict[str, str] = {}
 
     if deep or fail_closed:

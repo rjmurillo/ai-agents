@@ -9,6 +9,18 @@ This directory is not `references/`. `/review` discovers its canonical axis set 
 globbing `references/*.md`, so a non-axis document placed there would enroll a
 phantom axis.
 
+## Enrolling an axis
+
+Discovery is a runtime glob, so a new `references/{role}.md` file routes with no
+change to `select_axes.py`. Enrollment is not edit-free, though: the axis names
+and the counts stated in SKILL.md (the convergence contract, Process step 7,
+Output, Verification) document that directory rather than drive it, and
+`tests/skills/review/test_select_axes_contract.py::TestSkillCountClaimsMatchTheCode`
+reds when they drift. Measured: copying `references/qa.md` to
+`references/perf.md` reds 5 tests in that suite, 4 of them count claims read
+straight out of SKILL.md. Enrolling an axis is the prompt file plus a prose
+update, never a routing-logic change.
+
 ## Inputs
 
 | Flag | Meaning |
@@ -62,12 +74,12 @@ contributes its axes.
 | `dependencies` | a dependency manifest or lockfile (`pyproject.toml`, `uv.lock`, `package.json`, `*.csproj`, `go.mod`, `requirements*.txt`, and peers) | `security`, `devops` | |
 | `ci-deploy-artifacts` | `.github/workflows/`, `.github/actions/`, a `lefthook`, `Dockerfile`, `docker-compose`, `deploy.*`, or `release.yml` file, a `*.tf`/`*.tfvars` file, or a `deploy/` or `release/` directory | `devops`, `security` | |
 | `types-or-public-api` | `*.d.ts`, `types.*`, `models.py`, `schema.py`, `schemas/`, `*.proto`, `interfaces/`, `protocols.py`, `api.*` | `architect` | |
-| `agent-artifacts` | a `SKILL.md`, or a `skills/`, `agents/`, `hooks/`, `prompts/`, or `commands/` path | `agent-safety` | |
+| `agent-artifacts` | a file named `SKILL.md`, or a whole path segment of `skills/`, `agents/`, `hooks/`, `prompts/`, or `commands/` | `agent-safety` | |
 | `decision-records` | an `ADR-*` file, or an `architecture/` or `decisions/` path | `decision-rigor` | |
 | `roadmap-or-spec-docs` | a `roadmap/`, `planning/`, or `specs/` path | `roadmap` | |
 | `docs-and-instructions` | `*.md`, `*.mdx`, `*.rst`, `*.txt` | | `doc-accuracy` |
 | `executable-code` | a source file in a supported language | `code-quality` | `code-qualities-assessment`, `taste-lints` |
-| `toolkit-governance` | an agent artifact, a workflow, or a `rules/` path | | `golden-principles` |
+| `toolkit-governance` | an agent artifact, a workflow, or a whole `rules/` path segment | | `golden-principles` |
 
 `docs-and-instructions` routes to the `doc-accuracy` skill, which verifies
 documentation claims against the code they describe. A docs-only change still
@@ -78,6 +90,16 @@ case, 2 Stage-2 axes instead of 15.
 `golden-principles` is scoped to toolkit artifacts because that is the surface
 its GP rules govern; a clean result elsewhere means no rule applied, not that
 design was reviewed.
+
+`agent-artifacts` and `toolkit-governance` match whole path segments and whole
+filenames, for the same reason `auth-secrets-execution` matches whole path
+words. Bare substrings failed in both directions at once. `skill.md` inside
+`req-019-autoplan-router-skill.md` selected `agent-safety` and
+`golden-principles` on a requirements document (5 such files among the 9589
+tracked), while `/skills/` with its leading slash could not match a repo-root
+`skills/` directory at all, so an agent artifact in the vendored plugin layout
+skipped `agent-safety` silently. Segment matching drops those 5 and keeps every
+real `SKILL.md`.
 
 `dependencies` routes to `security` and `devops`, not `architect`. The issue
 row reads "dependency and security review": `security` covers the supply-chain

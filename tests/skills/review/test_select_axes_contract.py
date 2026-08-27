@@ -49,8 +49,10 @@ class TestDeepReviewRunsTheWholeSet:
     claims -> documentation accuracy review", which enrolls ``doc-accuracy``
     as a 4th local axis, and the non-goals forbid removing an existing axis
     to compensate. So the full set is 15 Stage-2 axes and 16 reported rows.
-    These assertions derive both totals rather than hardcoding them, so
-    enrolling a further axis reds this test instead of silently drifting.
+    Each total is asserted twice: once derived from the shipped set, and once
+    pinned to today's number. The derived half holds the contract, the pinned
+    half is the tripwire, so enrolling a further axis reds this test instead of
+    drifting silently.
     """
 
     def test_deep_review_selects_every_canonical_and_local_axis(self) -> None:
@@ -154,6 +156,126 @@ class TestDiffBodyEffectsCoverTheRemainingRoutingRows:
         result = select(["docs/guide.md"], effects=["command-executionn"])
         assert result["fail_closed"] is True
         assert result["unknown_effects"] == ["command-executionn"]
+
+
+class TestAgentArtifactMatchingIsSegmentShaped:
+    """The agent-artifact tokens over-fired and under-fired at the same time.
+
+    ``_AGENT_ARTIFACT_TOKENS`` matched bare substrings, so ``skill.md`` inside
+    ``req-019-autoplan-router-skill.md`` selected ``agent-safety`` and
+    ``golden-principles`` on a requirements document, while ``/skills/`` with
+    its leading slash could not match a repo-root ``skills/`` directory at all.
+    The second half is the worse one: an agent artifact in the vendored plugin
+    layout SKILL.md documents skipped ``agent-safety`` silently, which fails
+    open against this module's fail-closed rule.
+    """
+
+    # Real tracked files. Each is prose whose name merely ends "-skill.md".
+    OVER_FIRE = [
+        ".agents/specs/requirements/req-019-autoplan-router-skill.md",
+        ".serena/memories/testing/testing-get-pr-checks-skill.md",
+        ".agents/archive/planning/eval-617-spec-generator-skill.md",
+    ]
+
+    # The repo-root layout a vendored plugin install presents (SKILL.md
+    # "Path resolution", candidate 3), which the leading-slash tokens missed.
+    UNDER_FIRE = [
+        "skills/review/SKILL.md",
+        "agents/planner.md",
+        "hooks/session_start.py",
+        "prompts/security.md",
+        "commands/ship.md",
+    ]
+
+    # Positive control: the shapes that already worked must keep working.
+    STILL_MATCH = [
+        ".claude/skills/review/SKILL.md",
+        "src/copilot-cli/skills/review/scripts/select_axes.py",
+        ".claude/agents/implementer.md",
+        ".agents/hooks/hooks.yaml",
+    ]
+
+    @pytest.mark.parametrize("path", OVER_FIRE)
+    def test_prose_named_like_a_skill_selects_no_agent_axis(self, path: str) -> None:
+        result = select([path])
+        assert "agent-safety" not in result["canonical_selected"], path
+        assert "golden-principles" not in result["local_selected"], path
+        # Guard the guard: an unclassified path would fail closed and select
+        # everything, which would pass the two assertions above for the wrong
+        # reason. These paths classify as docs, so risk mode really ran.
+        assert result["fail_closed"] is False, path
+
+    @pytest.mark.parametrize("path", UNDER_FIRE)
+    def test_repo_root_artifact_directories_select_agent_safety(self, path: str) -> None:
+        result = select([path])
+        assert "agent-safety" in result["canonical_selected"], result["matched_categories"]
+
+    @pytest.mark.parametrize("path", STILL_MATCH)
+    def test_nested_artifact_paths_still_select_agent_safety(self, path: str) -> None:
+        result = select([path])
+        assert "agent-safety" in result["canonical_selected"], result["matched_categories"]
+
+    def test_root_rules_directory_selects_golden_principles(self) -> None:
+        assert "golden-principles" in select(["rules/universal.md"])["local_selected"]
+
+    def test_workflow_still_selects_golden_principles(self) -> None:
+        # Negative control for the rewrite: toolkit-governance must not have
+        # collapsed into agent-artifacts and lost its CI half.
+        result = select([".github/workflows/ci.yml"])
+        assert "golden-principles" in result["local_selected"]
+        assert "agent-safety" not in result["canonical_selected"]
+
+    @pytest.mark.parametrize("path", ["docs/skills", "src/agents", "notes/hooks"])
+    def test_a_file_named_like_an_artifact_directory_is_not_one(self, path: str) -> None:
+        """Edge: the last segment is the filename, never a directory."""
+        assert mod._is_agent_artifact_path(mod._norm(path)) is False, path
+
+    @pytest.mark.parametrize(
+        "path",
+        [".claude\\skills\\review\\SKILL.md", ".CLAUDE/SKILLS/REVIEW/SKILL.MD"],
+    )
+    def test_separator_and_case_variants_still_match(self, path: str) -> None:
+        """Edge: normalization runs before segment matching, in both layouts."""
+        assert mod._is_agent_artifact_path(mod._norm(path)) is True, path
+
+    def test_an_ordinary_source_path_matches_neither_category(self) -> None:
+        assert mod._is_agent_artifact_path("src/service.py") is False
+        assert mod._is_toolkit_artifact_path("src/service.py") is False
+
+
+class TestConvergenceContractDoesNotPromiseZeroEditEnrollment:
+    """The contract claimed enrolling an axis needs no edit to the skill body.
+
+    Measured: copying ``references/qa.md`` to ``references/perf.md`` reds five
+    tests in this suite, four of them count claims read straight out of
+    SKILL.md. Runtime discovery is real; zero-edit enrollment was not.
+    """
+
+    BODY = (REVIEW_SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
+    SIDECAR_TEXT = (REVIEW_SKILL_DIR / "resources" / "axis-selection.md").read_text(
+        encoding="utf-8"
+    )
+
+    def test_the_body_does_not_claim_enrollment_needs_no_edit(self) -> None:
+        assert "no edit to this skill body" not in self.BODY
+
+    def test_the_body_states_that_enrollment_is_not_edit_free(self) -> None:
+        assert "Enrollment is not edit-free" in self.BODY
+
+    def test_the_body_still_claims_runtime_discovery(self) -> None:
+        # Negative control: the reconciliation must not have deleted the true
+        # half of the contract along with the false half. SKILL.md sits within
+        # 5 bytes of its 24576-byte size gate, so the detail lives in the
+        # sidecar and only the corrected claim stays in the body.
+        assert "auto-discovers the axis set from `references/*.md`" in self.BODY
+
+    def test_the_sidecar_names_the_test_that_holds_the_counts_true(self) -> None:
+        assert "TestSkillCountClaimsMatchTheCode" in self.SIDECAR_TEXT
+
+    def test_the_named_holder_exists_in_this_module(self) -> None:
+        """Positive control: a cross-reference to a test that does not exist
+        is worse than no cross-reference."""
+        assert "TestSkillCountClaimsMatchTheCode" in globals()
 
 
 class TestSkillCountClaimsMatchTheCode:
