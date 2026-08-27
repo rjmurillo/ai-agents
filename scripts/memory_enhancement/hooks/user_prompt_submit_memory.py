@@ -11,10 +11,13 @@ event differently (issue #4727):
   the memory block is printed bare.
 - GitHub Copilot CLI discards plain stdout on this event and consumes a
   top-level ``{"additionalContext": "..."}`` envelope instead, so the block is
-  wrapped when ``COPILOT_CLI`` is set and no Claude signal is.
+  wrapped when ``COPILOT_CLI`` is set and no Claude signal is. ``COPILOT_CLI``
+  is an unconfirmed heuristic, not a vendor-documented signal; see
+  ``_render_for_host`` for the correction and what is actually verified.
 
-``_render_for_host`` carries the citation for both signals and the reason the
-Claude signal takes precedence.
+``_render_for_host`` carries the citation for the one signal that is
+confirmed, the correction for the one that is not, and the reason the Claude
+signal takes precedence either way.
 
 Hook Type: UserPromptSubmit
 Exit Codes:
@@ -82,30 +85,46 @@ def _render_for_host(memory_context: str) -> str:
     ``{"additionalContext": "<sentinel>"}`` document reached the model. Claude
     Code reads plain stdout on this event, so it keeps the bare block.
 
-    Both signals are cited, not assumed:
+    Only one of the two signals is vendor-confirmed:
 
-    - ``COPILOT_CLI`` is set to ``1`` by Copilot CLI for the subprocesses it
-      spawns. Vendor source, quoted verbatim from the ``changelog.json`` shipped
-      inside the ``@github/copilot`` npm package under version ``0.0.421``:
-      "Git hooks can detect Copilot CLI subprocesses via the COPILOT_CLI=1
-      environment variable to skip interactive prompts"
-      (github/copilot-agent-runtime#4049).
     - ``CLAUDE_CODE_ENTRYPOINT`` is set by Claude Code and never by Copilot CLI.
       Measured on Copilot CLI 1.0.80: the literal string appears 0 times in the
       shipped ``app.js`` and ``copilot`` binary, in a search where
       ``COPILOT_CLI`` (12), ``additionalContext`` (24), and ``GITHUB_TOKEN``
       (27) are the positive controls.
+    - ``COPILOT_CLI`` is NOT vendor-confirmed. An earlier revision of this
+      docstring quoted a changelog entry ("Git hooks can detect Copilot CLI
+      subprocesses via the COPILOT_CLI=1 environment variable...", citing
+      ``changelog.json`` version ``0.0.421`` and
+      ``github/copilot-agent-runtime#4049``). That citation was checked against
+      the actual installed ``@github/copilot`` package (all published versions,
+      including current) and does not exist: no such entry, no such string, no
+      such PR reference, anywhere in ``changelog.json``. A byte search of the
+      shipped 1.0.80 ``app.js`` finds exactly one bare ``COPILOT_CLI`` literal,
+      and it is an unrelated feature-flighting enum key
+      (``COPILOT_CLI="copilot_cli"``), not an environment variable read or
+      write. Official GitHub docs and the community environment-variable
+      reference for Copilot CLI do not list it either. The 12 "positive
+      control" hits referenced above are all ``COPILOT_CLI_*``-prefixed names
+      (``COPILOT_CLI_VERSION`` and similar), not the bare variable. Treat the
+      ``COPILOT_CLI`` branch below as an unconfirmed heuristic, not a vendor
+      contract: it costs nothing when wrong (Claude sessions never reach it,
+      per the precedence order), but there is currently no verified
+      environment signal that positively identifies a Copilot-CLI-spawned
+      hook subprocess. See probe-evidence.md section 8b for the full
+      correction and the open follow-up to get a live-session probe.
 
-    Presence of ``COPILOT_CLI`` alone does not identify the consuming host,
-    which is why the Claude signal is checked first. Copilot exports
-    ``COPILOT_CLI`` into every shell it spawns, so a Claude Code session started
-    from inside a Copilot shell inherits it. Claude reads a nested
-    ``hookSpecificOutput`` envelope and never a top-level ``additionalContext``
-    key, so an envelope sent to Claude parses as structured output with no
-    recognized field and the memory block is dropped with no error. That is the
-    silent inertness of issues #4011 and #4727, reproduced on the other harness.
-    Checking the Claude signal first fails safe: the bare block is what Claude
-    reads, and Copilot discards it exactly as it did before this hook changed.
+    Because the positive Copilot signal is unconfirmed, the Claude signal is
+    checked first and is the only branch this code can vouch for. Claude reads
+    a nested ``hookSpecificOutput`` envelope and never a top-level
+    ``additionalContext`` key, so an envelope sent to Claude parses as
+    structured output with no recognized field and the memory block is dropped
+    with no error. That is the silent inertness of issues #4011 and #4727,
+    reproduced on the other harness. Checking the Claude signal first fails
+    safe: the bare block is what Claude reads, and Copilot discards it exactly
+    as it did before this hook changed. Whether the ``COPILOT_CLI`` branch ever
+    fires under real Copilot CLI is unverified; if it never fires, recall
+    remains silently inert under Copilot exactly as issue #4727 first found.
 
     ``CLAUDE_PROJECT_DIR`` is not a usable discriminator in either direction.
     Copilot does not set it (same 1.0.80 search, 0 hits), so it is unset under
