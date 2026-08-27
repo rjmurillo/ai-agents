@@ -382,10 +382,29 @@ Observed occurrences:
 
 The four positive controls are the negative control for the search itself: a
 method that finds `additionalContext` 24 times in the same file on the same pass
-is not failing to find `CLAUDE_PROJECT_DIR`. Read the two zero rows as "this
-build never names the string", which is weaker than "the variable is never
-exported" but sufficient here, since a variable the implementation never spells
-cannot be set by it.
+is not failing to find `CLAUDE_PROJECT_DIR`. Read the two zero rows as exactly
+what they say: this build never names the string, so Copilot CLI is not itself
+the setter. That is strictly weaker than "a hook subprocess never receives the
+variable", and no static search can close the gap. A child inherits every
+variable its parent exported whether or not its own source spells the name, the
+same inheritance this section relies on below for nested sessions. An earlier
+revision of this paragraph drew the stronger conclusion,
+reasoning that a variable the implementation never spells cannot be set by it.
+That inference is invalid for environment variables and is withdrawn. Only a
+read of a running hook subprocess's own environment settles what a hook
+receives; issue #5369 tracks that live probe.
+
+That gap is not hypothetical: a live read already exists and disagrees. The
+"Harness detection" section of issue #4727 lists the environment visible to a
+repo hook under Copilot CLI 1.0.79-6, includes `CLAUDE_PROJECT_DIR`, and states
+it "is set under Copilot and cannot distinguish harnesses". A live read
+outranks a static search on what a hook receives, so the row above must not be
+restated as "Copilot does not export `CLAUDE_PROJECT_DIR`". The two results are
+compatible in ways this evidence cannot separate: inheritance from the
+launching shell, a name the artifact never spells literally, or a difference
+between 1.0.79-6 and 1.0.80. Treat presence as CONTESTED and anchor defensively
+regardless; the `:-` fallback is correct whether the variable is set, unset, or
+inherited, so the fix never depended on settling this.
 
 Caveat recorded rather than hidden: every `COPILOT_CLI` hit in this table is a
 `COPILOT_CLI_*`-prefixed name (`COPILOT_CLI_VERSION`, `COPILOT_CLI_DIST_DIR`,
@@ -411,14 +430,24 @@ source for `COPILOT_CLI` as a host-identifying environment variable. See the
 
 Consequence for the anchor. Every command in `.claude/settings.json` opened with
 `cd "$CLAUDE_PROJECT_DIR"`, and Copilot loads that same file when the folder is
-trusted. With the variable unset, `cd ""` is a silent no-op in sh and dash: exit
-0, cwd unchanged. Measured from a repository subdirectory with the variable
+trusted. With the variable unset, `cd ""` is a silent no-op: exit 0, cwd
+unchanged, nothing on stderr. Re-measured 2026-08-27 in dash (this platform's
+`/bin/sh`) and bash, since POSIX leaves an empty operand unspecified and the
+claim is per-shell rather than universal: `sh -c 'cd "" && echo ran'` prints
+`ran` and exits 0, so the chain continues and the anchor fails to move rather
+than failing. Measured from a repository subdirectory with the variable
 removed, running the registered recall command two ways:
 
 | Anchor | cwd after `cd` | Exit | stdout |
 |---|---|---|---|
 | `cd "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"` | repository root | 0 | `<memory-context>` block |
 | `cd "$CLAUDE_PROJECT_DIR"` (control) | the subdirectory | 2 | empty; `can't open file ... [Errno 2]` |
+
+Read the control's exit 2 carefully: it is not `cd` failing. `cd ""` returned 0
+and the chain ran on; Python then could not open the relative script path from
+the unchanged cwd, which the recorded `[Errno 2]` names. A launcher that failed
+at `cd` would stop before running anything, while this one walks into the wrong
+directory, which is what makes the bare anchor dangerous rather than broken.
 
 Exit 2 on `UserPromptSubmit` blocks prompt processing and erases the user's
 prompt (issue #4011), so the bare anchor was worse than inert on this event. The

@@ -351,10 +351,10 @@ Copilot probe (blocked here, section 8b below) to resolve either way.
 
 Two consequences, both keyed on Copilot also loading `.claude/settings.json` when trusted:
 
-- `cd "$CLAUDE_PROJECT_DIR"` expands to `cd ""` under Copilot, which sh and
-  dash accept as a no-op, so a relative script path resolves against the
-  host's working directory instead. Anchor with a fallback. This follows from
-  `CLAUDE_PROJECT_DIR` being measured absent, not from `COPILOT_CLI`.
+- `cd "$CLAUDE_PROJECT_DIR"` expands to `cd ""` wherever unset, which dash and
+  bash accept as a no-op: exit 0, cwd unchanged, `&&` continues, so a relative
+  path resolves against the host's cwd. Anchor with a fallback; it is right
+  either way, since whether Copilot exposes the variable is CONTESTED (#4727).
 - If `COPILOT_CLI` does turn out to be real, it would identify the process
   tree, not the consuming host: Copilot would export it into every shell it
   spawns, so a Claude Code session started from inside a Copilot shell would
