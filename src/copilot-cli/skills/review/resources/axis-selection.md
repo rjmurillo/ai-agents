@@ -1,9 +1,9 @@
 # Axis selection reference
 
-Detail for Process steps 4 and 4b of the `review` skill. `scripts/select_axes.py`
-is the source of truth for which Stage-2 axes run; this file explains its inputs,
-its output, and the rules behind the mapping. `python3 <select_axes.py> --help`
-prints the same flag list.
+Detail for Process steps 4 and 4b of the `review` skill. `select_axes.py`, in this
+skill's own script directory, is the source of truth for which Stage-2 axes run;
+this file explains its inputs, its output, and the rules behind the mapping.
+`python3 <select_axes.py> --help` prints the same flag list.
 
 This directory is not `references/`. `/review` discovers its canonical axis set by
 globbing `references/*.md`, so a non-axis document placed there would enroll a
@@ -91,8 +91,6 @@ prompt's `When This Axis Applies` section. Six of the eleven canonical prompts
 have no such section (`analyst`, `architect`, `qa`, `security`, `devops`,
 `roadmap`), so for most axes there was nothing to read and the routing was
 re-derived on each run. The selector is a pure function of its arguments, so the
-same change selects the same axes every time and each rule above is asserted
-against real output by `tests/skills/review/test_select_axes.py` in the source
-repo. Issue #4981 records the reopening that motivated this.
-
-<!-- vendor-portability: names tests/skills/review/test_select_axes.py, which lives in the rjmurillo/ai-agents repository and does not ship with the plugin. Cited so a contributor can find the assertions behind this table; a consumer needs nothing from that path at runtime. -->
+same change selects the same axes every time, and the source repository's review
+skill test suite asserts each rule above against the script's real output. Issue
+#4981 records the reopening that motivated this.

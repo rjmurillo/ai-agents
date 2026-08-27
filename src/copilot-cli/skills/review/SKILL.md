@@ -61,7 +61,7 @@ The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST a
 | Script | Purpose | Exit codes |
 |--------|---------|------------|
 | `scripts/validate_review_marker.py` | Validates the SHA-bound `Reviewed-By: /review@...` marker that `/ship` requires. | `0` valid marker, `1` missing or stale marker, `2` config error |
-| `scripts/select_axes.py` | Selects the Stage-2 canonical axes and the local-only skill axes from verified changed paths and diff effects. Emits the selection, per-axis reasons, and skips as JSON. | `0` selection emitted, `2` config error (unknown pinned axis, or references directory missing or empty) |
+| `select_axes.py` (same directory) | Selects the Stage-2 canonical axes and the local-only skill axes from verified changed paths and diff effects. Emits the selection, per-axis reasons, and skips as JSON. | `0` selection emitted, `2` config error (unknown pinned axis, or references directory missing or empty) |
 
 ## Process
 
@@ -75,7 +75,7 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
    - **PASS, WARN, or UNKNOWN (INCONCLUSIVE)**: record the Stage-1 verdict and continue to step 3. A WARN or UNKNOWN here does not block Stage 2; it is merged alongside the other axes (per UNKNOWN handling, a Stage-1 UNKNOWN never overrides a real Stage-2 finding, and on an otherwise-PASS run it surfaces the one-line reason no spec or acceptance criteria could be located). The full FINAL VERDICT comes from `merge_verdicts` in step 7.
 
 3. **Classify complexity tier**: `agent_type: "project-toolkit:analyst"`: Read `engineering-complexity-tiers.md` (resolved via the "Path resolution" section above) and the diff. Assess as Tier 1-5. Use this to calibrate axis depth.
-4. **Select the Stage-2 axes with `scripts/select_axes.py`, then run the canonical ones.** Run `python3 <select_axes.py> --changed-path <PATH> ... [--effect <NAME> ...] [--pin <AXIS> ...] [--deep]` with every path from the verified three-dot diff of step 1 and every effect you read in the diff hunks. The selector is a pure function of those inputs, so the same change selects the same axes every time; do not re-derive the routing from prose. `resources/axis-selection.md`, co-located with this skill and resolved like `references/`, holds the effect vocabulary, the risk table, and the output fields.
+4. **Select the Stage-2 axes with `select_axes.py`, then run the canonical ones.** Run `python3 <select_axes.py> --changed-path <PATH> ... [--effect <NAME> ...] [--pin <AXIS> ...] [--deep]` with every path from the verified three-dot diff of step 1 and every effect you read in the diff hunks. The selector is a pure function of those inputs, so the same change selects the same axes every time; do not re-derive the routing from prose. `resources/axis-selection.md`, co-located with this skill and resolved like `references/`, holds the effect vocabulary, the risk table, and the output fields.
 
    Run the axes in `canonical_selected` (`analyst` is always there). `fail_closed: true` means the change could not be classified and every candidate was selected; that is intended, not an error. A skipped axis is never PASS: copy its reason from `skipped` into the output table verbatim.
 
@@ -173,7 +173,7 @@ that is safe (idempotent in effect: the latest marker binds the current tip).
 
 - [ ] The `spec-compliance` Stage-1 axis file exists under `references/spec-compliance.md` and runs before Stage 2 (Process step 2)
 - [ ] Every non-spec `references/*.md` file is either selected by change risk or reported as SKIPPED with a reason, and deep review still runs the full set (11 with the current set: analyst, architect, qa, security, devops, roadmap, reliability, observability, agent-safety, decision-rigor, code-quality)
-- [ ] Stage-2 selection came from `scripts/select_axes.py` over the verified three-dot diff; the 3 local axes stayed in `local_selected`; an unclassifiable path or unknown `--effect` gave `fail_closed: true` and the full set
+- [ ] Stage-2 selection came from `select_axes.py` over the verified three-dot diff; the 3 local axes stayed in `local_selected`; an unclassifiable path or unknown `--effect` gave `fail_closed: true` and the full set
 - [ ] Each axis emits a parseable verdict line per the `extract_verdict` regex
 - [ ] The verdict library resolves under one of the two documented candidate paths
 - [ ] `merge_verdicts` produces a single final verdict consistent with the rules in Process step 7
