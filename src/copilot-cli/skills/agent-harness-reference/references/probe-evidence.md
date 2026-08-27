@@ -349,10 +349,10 @@ untrusted-folder artifact.
 Docs remain silent on an output field for this event, so this is
 version-scoped empirical behavior, not a vendor guarantee.
 
-Consequence: `scripts/memory_enhancement/hooks/user_prompt_submit_memory.py`
-emits the top-level envelope when `COPILOT_CLI` is set and keeps plain stdout
-otherwise. `COPILOT_CLI` is the harness identity signal; `CLAUDE_PROJECT_DIR`
-is set under both hosts and cannot distinguish them.
+Consequence: the memory-recall `UserPromptSubmit` hook emits the top-level
+envelope when `COPILOT_CLI` is set and keeps plain stdout otherwise.
+`COPILOT_CLI` is the harness identity signal; `CLAUDE_PROJECT_DIR` is set
+under both hosts and cannot distinguish them.
 
 Durable test: `TestRecallOutputShapePerHost` in
 `tests/test_memory_hook_registration.py`, which drives the registered command
