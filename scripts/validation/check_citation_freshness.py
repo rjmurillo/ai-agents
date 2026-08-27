@@ -48,6 +48,15 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from checks_common import _resolve_default_base_ref  # noqa: E402
+from citation_anchors import (  # noqa: E402
+    _CITATION,
+    _URL,
+    _anchor_candidates,
+    _anchor_matches,
+    _context_lines,
+    _continuation_quote,
+    _same_line_segment,
+)
 from citation_head_state import (  # noqa: E402
     _added_lines_since_base,
     _head_tracked_paths,
@@ -59,30 +68,6 @@ IGNORE_MARKER = "citation-freshness: ignore"
 
 # Directory fragments whose files synthesize citations on purpose.
 _FIXTURE_FRAGMENTS = ("/fixtures/",)
-
-_EXTENSIONS = (
-    "py|md|yml|yaml|json|ps1|psm1|sh|ts|js|toml|txt|ini|cfg|html|css|ipynb"
-)
-
-# A citation: a slash-containing repo path with a known extension, then
-# :N or :N-M. The path class excludes backticks, quotes, parens, and
-# colons, so surrounding markup never leaks into the path.
-_CITATION = re.compile(
-    rf"(?P<path>[\w.-]+(?:/[\w.-]+)+\.(?:{_EXTENSIONS})):(?P<start>\d+)(?:-(?P<end>\d+))?\b"
-)
-
-_URL = re.compile(r"https?://\S+")
-_BACKTICK_SPAN = re.compile(r"`+([^`]+)`+")
-# Double-quoted phrases are anchors too: prose quotes the cited contract
-# ('a KEEP_PIN sweep must cover "at least 8 shared fixtures"'). Minimum 4
-# chars so quoted articles and flags stay out.
-_DQUOTE_SPAN = re.compile(r'"([^"\n]{4,})"')
-_IDENTIFIER = re.compile(r"\b[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+\b")
-_PATHLIKE = re.compile(rf"^[\w.-]*(?:/[\w.-]+)*\.(?:{_EXTENSIONS})$")
-# Inline (non-anchored) form of _PATHLIKE for masking paths mid-line.
-_PATHLIKE_INLINE = re.compile(rf"[\w.-]+(?:/[\w.-]+)+\.(?:{_EXTENSIONS})")
-_NUMERIC_SPAN = re.compile(r"^\d+(?:-\d+)?$")
-
 
 @dataclass(frozen=True)
 class Finding:
@@ -105,134 +90,6 @@ def _is_exempt_citing_file(path: str) -> bool:
     return any(fragment in path for fragment in _FIXTURE_FRAGMENTS)
 
 
-def _strip_prose_decorations(text: str) -> str:
-    """Drop trailing punctuation an anchor picked up from prose."""
-    return text.strip().strip(".,:;()[]{}'\"")
-
-
-def _span_anchor(span: str, citation_text: str) -> str | None:
-    """Return a quoted span as an anchor, or None when it is not one.
-
-    The citation itself (or a span containing it), path-shaped spans, bare
-    numeric ranges, and CLI flags are not anchors. A short span that is
-    merely a substring of the cited path still is one: `model` is a real
-    anchor even though the letters appear inside check_model_pins.py's own
-    name.
-    """
-    candidate = _strip_prose_decorations(span)
-    if not candidate or len(candidate) < 3 or citation_text in candidate:
-        return None
-    if _PATHLIKE.match(candidate) or _NUMERIC_SPAN.match(candidate):
-        return None
-    if candidate.startswith("-") or _CITATION.search(candidate):
-        return None
-    return candidate
-
-
-def _anchor_candidates(context_lines: list[str], citation_text: str) -> list[str]:
-    """Extract anchor strings the citing text names near a citation.
-
-    ``context_lines`` is the citing line with its immediate neighbors.
-    An anchor is text the author asserts lives at the cited location:
-    a backtick span, an underscore identifier, or (handled by the
-    caller) an indented continuation quote. Paths, URLs, bare numeric
-    spans, CLI flags, and the citation itself are never anchors.
-    """
-    anchors: list[str] = []
-    for line in context_lines:
-        masked = _URL.sub(" ", line)
-        # Triple-quote delimiters would otherwise pair with the opening
-        # quote of a real anchor and swallow it.
-        masked = masked.replace('"""', " ").replace("'''", " ")
-        for span in _BACKTICK_SPAN.findall(masked) + _DQUOTE_SPAN.findall(masked):
-            candidate = _span_anchor(span, citation_text)
-            if candidate is not None:
-                anchors.append(candidate)
-        # Mask spans and citations before harvesting bare identifiers so a
-        # path segment such as model_pin_manifest never reads as an anchor.
-        masked = _BACKTICK_SPAN.sub(" ", masked)
-        masked = _DQUOTE_SPAN.sub(" ", masked)
-        masked = _CITATION.sub(" ", masked)
-        masked = _PATHLIKE_INLINE.sub(" ", masked)
-        for identifier in _IDENTIFIER.findall(masked):
-            if len(identifier) >= 5:
-                anchors.append(identifier)
-    seen: set[str] = set()
-    unique: list[str] = []
-    for anchor in anchors:
-        if anchor not in seen:
-            seen.add(anchor)
-            unique.append(anchor)
-    return unique
-
-
-def _anchor_matches(anchor: str, cited_text: str) -> bool:
-    """Return whether an anchor is satisfied by the cited text.
-
-    Both sides are whitespace-normalized so a quoted contract that wraps
-    across lines in either file still matches. Prose also qualifies names
-    the source never spells (``mod.func`` for a file that only says
-    ``def func``), so a dotted anchor matches on its final segment too.
-    """
-    normalized_anchor = " ".join(anchor.split())
-    normalized_text = " ".join(cited_text.split())
-    if normalized_anchor in normalized_text:
-        return True
-    if "." in normalized_anchor:
-        tail = normalized_anchor.rsplit(".", 1)[-1]
-        return len(tail) >= 3 and tail in normalized_text
-    return False
-
-
-def _indent_width(line: str) -> int:
-    """Return the leading-whitespace width after any comment marker."""
-    prefix = 0
-    while prefix < len(line) and line[prefix] in " \t":
-        prefix += 1
-    if line[prefix : prefix + 1] == "#":
-        rest = line[prefix + 1 :]
-        return prefix + 1 + (len(rest) - len(rest.lstrip(" \t")))
-    return prefix
-
-
-def _continuation_quote(citing_lines: list[str], line_index: int) -> str | None:
-    """Return the next line's quoted contract when it is indented deeper.
-
-    The model_pin_manifest docstring shape PR #5336 repaired: the citation
-    line ends with a colon and the following line indents a verbatim quote
-    of the cited contract. That quote is the strongest anchor available,
-    so harvest it.
-    """
-    current = citing_lines[line_index]
-    # The documented shape: the citation line introduces the quote with a
-    # trailing colon. Without it, a nearby indented block is unrelated code
-    # and must not become an anchor this citation is judged against.
-    if not current.rstrip().endswith(":"):
-        return None
-    # Markdown requires a blank line before an indented block, so skip
-    # whitespace-only lines (bounded) before reading the candidate quote.
-    following: str | None = None
-    for offset in range(1, 4):
-        index = line_index + offset
-        if index >= len(citing_lines):
-            return None
-        if citing_lines[index].strip():
-            following = citing_lines[index]
-            break
-    if following is None:
-        return None
-    body = following.lstrip(" \t").lstrip("#").strip()
-    if len(body) < 3:
-        return None
-    if _indent_width(following) <= _indent_width(current):
-        return None
-    if _NUMERIC_SPAN.match(body) or _PATHLIKE.match(body):
-        return None
-    return body
-
-
-# The documented marker form is "citation-freshness: ignore -- <reason>";
-# a bare marker is a reasonless bypass and does not count.
 _IGNORE_WITH_REASON = re.compile(re.escape(IGNORE_MARKER) + r"\s+--\s+\S")
 
 
@@ -246,34 +103,6 @@ def _has_ignore_marker(citing_lines: list[str] | None, line_number: int, line_te
     return 0 <= previous_index < len(citing_lines) and bool(
         _IGNORE_WITH_REASON.search(citing_lines[previous_index])
     )
-
-
-def _sentence_continues(line: str) -> bool:
-    """A neighbor joins the citation's sentence unless it ends one."""
-    stripped = line.rstrip()
-    return bool(stripped.strip()) and not stripped.endswith((".", "!", "?"))
-
-
-def _context_lines(citing_lines: list[str] | None, line_index: int, line_text: str) -> list[str]:
-    """Return the citation line plus wrapped-sentence neighbors.
-
-    Neighbors join only while the sentence plausibly continues across the
-    wrap (the PR #5327/#5336 corpus shapes). A neighbor that finishes its
-    own sentence, or a citation line that finishes one, contributes no
-    anchors, so an unrelated identifier on a finished neighboring sentence
-    never becomes an assertion about this citation.
-    """
-    context = [line_text]
-    if citing_lines is None:
-        return context
-    for offset in (1, 2):
-        index = line_index - offset
-        if index < 0 or not _sentence_continues(citing_lines[index]):
-            break
-        context.insert(0, citing_lines[index])
-    if _sentence_continues(line_text) and line_index + 1 < len(citing_lines):
-        context.append(citing_lines[line_index + 1])
-    return context
 
 
 def _resolve_cited_range(
@@ -310,6 +139,7 @@ def _anchor_finding(
     line_number: int,
     citation_text: str,
     line_text: str,
+    segment: str,
     citing_lines: list[str] | None,
     cited_lines: list[str],
     start: int,
@@ -317,7 +147,9 @@ def _anchor_finding(
 ) -> Finding | None:
     """Judge the citing text's anchors against the cited range."""
     line_index = line_number - 1
-    anchors = _anchor_candidates(_context_lines(citing_lines, line_index, line_text), citation_text)
+    anchors = _anchor_candidates(
+        _context_lines(citing_lines, line_index, line_text, segment), citation_text
+    )
     if citing_lines is not None:
         quote = _continuation_quote(citing_lines, line_index)
         if quote is not None:
@@ -348,6 +180,7 @@ def _check_citation(
     citing_file: str,
     line_number: int,
     line_text: str,
+    segment: str,
     match: re.Match[str],
     tracked: set[str],
     head_files: _HeadFileCache,
@@ -374,7 +207,15 @@ def _check_citation(
     if finding is not None or cited_lines is None:
         return finding
     return _anchor_finding(
-        citing_file, line_number, citation_text, line_text, citing_lines, cited_lines, start, end
+        citing_file,
+        line_number,
+        citation_text,
+        line_text,
+        segment,
+        citing_lines,
+        cited_lines,
+        start,
+        end,
     )
 
 
@@ -396,10 +237,20 @@ def find_stale_citations(repo_root: Path, base_ref: str) -> list[Finding] | None
             continue
         files_scanned += 1
         for line_number, line_text in added[citing_file]:
-            for match in _CITATION.finditer(line_text):
+            # URLs are masked before scanning so an external link shaped
+            # like host/org/file.py:N never reads as a repository citation.
+            scannable = _URL.sub(" ", line_text)
+            matches = list(_CITATION.finditer(scannable))
+            for index, match in enumerate(matches):
                 citations_checked += 1
                 finding = _check_citation(
-                    citing_file, line_number, line_text, match, tracked, head_files
+                    citing_file,
+                    line_number,
+                    line_text,
+                    _same_line_segment(scannable, matches, index),
+                    match,
+                    tracked,
+                    head_files,
                 )
                 if finding is not None:
                     findings.append(finding)

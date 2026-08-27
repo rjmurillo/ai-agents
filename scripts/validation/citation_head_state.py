@@ -57,11 +57,18 @@ def _added_lines_since_base(
     file asserts nothing). File headers are recognized only OUTSIDE hunks,
     so an added line whose content begins ``++ `` is never misread as one.
     """
+    # Deterministic textual output whatever the contributor's diff drivers
+    # or textconv configure (.gitattributes assigns markdown a driver).
+    # Matches scripts/validation/git_hook_policy.py:274 verbatim:
+    #     TEXTUAL_DIFF_FLAGS = ("--no-ext-diff", "--no-textconv", "--text")
     exit_code, stdout, _stderr = _git(
         repo_root,
         [
             "diff",
             "--no-color",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--text",
             "-U0",
             "--diff-filter=ACMR",
             f"{base_ref}...HEAD",
