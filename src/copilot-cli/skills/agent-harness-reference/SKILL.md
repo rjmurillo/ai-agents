@@ -65,6 +65,9 @@ citations, and docs-silent classifications.
 | Exit codes vs ADR-035 | Claude hooks are exempt from ADR-035 exit-code taxonomy; each event follows the harness contract | CODE | Surviving hook contract in `.claude/hooks/SessionStart/invoke_context_loader.py` (the `invoke_observation_sync.py` citation was retired with that hook by ADR-097) |
 | `CLAUDE_PLUGIN_ROOT` | Set by Claude Code to the plugin install dir; cwd is the USER working dir, not the plugin root | EMPIRICAL (Claude Code 2.1.159, session 1873) | ADR-071 "Verified Runtime Contract" section |
 | Lib bootstrap | Hooks resolve shared lib via `CLAUDE_PLUGIN_ROOT` when set; otherwise a fixed relative parent-walk (`Path(__file__).resolve().parents[N] / "lib"`), not a search for `.claude-plugin/plugin.json` | CODE | `.claude/hooks/SessionStart/invoke_context_loader.py:38-45` (the `invoke_observation_sync.py` citation was retired with that hook by ADR-097) |
+| `CLAUDE_PROJECT_DIR` under Copilot CLI | Not exported. Copilot loads `.claude/settings.json` hooks but never sets this variable, so a bare `cd "$CLAUDE_PROJECT_DIR"` anchor is `cd ""`, a silent no-op. Anchor with `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}` | EMPIRICAL (Copilot CLI 1.0.80, issue #4727) | `references/probe-evidence.md` section 8b |
+| `COPILOT_CLI` | Set to `1` for subprocesses Copilot CLI spawns; the documented way a hook detects it is running under Copilot | OFFICIAL | Vendor `changelog.json` shipped in the `@github/copilot` package, version `0.0.421`; quoted in `references/official-hook-contracts.md` |
+| `CLAUDE_CODE_ENTRYPOINT` | Set by Claude Code, absent from the Copilot CLI build measured. Use it, not `COPILOT_CLI` alone, to identify the consuming host: Copilot exports `COPILOT_CLI` into every shell it spawns, so a Claude session started underneath one inherits it | EMPIRICAL (Copilot CLI 1.0.80 and Claude Code, issue #4727) | `references/probe-evidence.md` section 8b |
 
 ## When to Refresh
 

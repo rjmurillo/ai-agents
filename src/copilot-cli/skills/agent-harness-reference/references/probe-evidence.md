@@ -349,14 +349,84 @@ untrusted-folder artifact.
 Docs remain silent on an output field for this event, so this is
 version-scoped empirical behavior, not a vendor guarantee.
 
-Consequence: the memory-recall `UserPromptSubmit` hook emits the top-level
-envelope when `COPILOT_CLI` is set and keeps plain stdout otherwise.
-`COPILOT_CLI` is the harness identity signal; `CLAUDE_PROJECT_DIR` is set
-under both hosts and cannot distinguish them.
+### 8b. Which environment variables identify the host
 
-Durable test: `TestRecallOutputShapePerHost` in
+The rows above establish the output shape. They say nothing about how a hook
+decides which host is reading it, and an earlier version of this section
+asserted that `CLAUDE_PROJECT_DIR` "is set under both hosts" with no probe row
+and no citation. That claim was wrong. What follows replaces it.
+
+Version: GitHub Copilot CLI 1.0.80 (`copilot --version`), Linux, installed from
+`@github/copilot` for this measurement. Note the version differs from the
+1.0.79-6 used for the output-shape rows above; these are separate measurements.
+
+Method: byte search of the two shipped implementation artifacts,
+`node_modules/@github/copilot-linux-x64/app.js` (9,173,451 bytes) and the
+`copilot` engine binary (177,343,296 bytes). A live session probe was not
+possible in this environment: `copilot -p` refused with "Authentication token
+found but could not be validated", because the sandbox's GitHub proxy binds
+sessions to configured repositories and blocks the user-login endpoint the CLI
+calls at startup. So this is a static measurement of the shipped implementation,
+not an observation of a running hook subprocess. It is graded accordingly.
+
+Observed occurrences:
+
+| String | `app.js` | `copilot` binary | Role |
+|---|---|---|---|
+| `COPILOT_CLI` | 12 | 3 | positive control |
+| `additionalContext` | 24 | 0 | positive control |
+| `GITHUB_TOKEN` | 27 | 0 | positive control |
+| `COPILOT_PLUGIN_ROOT` | 1 | 0 | positive control |
+| `CLAUDE_PROJECT_DIR` | 0 | 0 | the question |
+| `CLAUDE_CODE_ENTRYPOINT` | 0 | 0 | the question |
+
+The four positive controls are the negative control for the search itself: a
+method that finds `additionalContext` 24 times in the same file on the same pass
+is not failing to find `CLAUDE_PROJECT_DIR`. Read the two zero rows as "this
+build never names the string", which is weaker than "the variable is never
+exported" but sufficient here, since a variable the implementation never spells
+cannot be set by it.
+
+Caveat recorded rather than hidden: every `COPILOT_CLI` hit is a
+`COPILOT_CLI_*`-prefixed name (`COPILOT_CLI_VERSION`, `COPILOT_CLI_DIST_DIR`,
+`COPILOT_CLI_ENABLED_FEATURE_FLAGS`). The bare `COPILOT_CLI=1` variable is not
+visible as a standalone literal in either artifact, so its authority here is the
+vendor changelog quoted in `official-hook-contracts.md`, not this search.
+
+Consequence for the anchor. Every command in `.claude/settings.json` opened with
+`cd "$CLAUDE_PROJECT_DIR"`, and Copilot loads that same file when the folder is
+trusted. With the variable unset, `cd ""` is a silent no-op in sh and dash: exit
+0, cwd unchanged. Measured from a repository subdirectory with the variable
+removed, running the registered recall command two ways:
+
+| Anchor | cwd after `cd` | Exit | stdout |
+|---|---|---|---|
+| `cd "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"` | repository root | 0 | `<memory-context>` block |
+| `cd "$CLAUDE_PROJECT_DIR"` (control) | the subdirectory | 2 | empty; `can't open file ... [Errno 2]` |
+
+Exit 2 on `UserPromptSubmit` blocks prompt processing and erases the user's
+prompt (issue #4011), so the bare anchor was worse than inert on this event. The
+settings file now carries the `:-` fallback, and
+`test_every_launcher_resolves_with_the_project_dir_unset` in
+`tests/test_memory_hook_registration.py` runs every registered launcher this way
+with the bare form as an in-test negative control.
+
+Consequence for the output shape: the memory-recall `UserPromptSubmit` hook
+emits the top-level envelope when `COPILOT_CLI` is set and no Claude signal is,
+and keeps plain stdout otherwise. `COPILOT_CLI` alone does not identify the
+consuming host, because Copilot exports it into every shell it spawns, so a
+Claude session started underneath one inherits it. `CLAUDE_CODE_ENTRYPOINT`
+therefore takes precedence; it is absent from this Copilot build per the table
+above, and observed set to `remote_mobile` in a Claude Code session on the same
+machine. `CLAUDE_PROJECT_DIR` discriminates in neither direction: Copilot does
+not set it, and it was also observed unset inside a Claude Code session, so its
+absence identifies nothing.
+
+Durable tests: `TestRecallOutputShapePerHost` in
 `tests/test_memory_hook_registration.py`, which drives the registered command
-with and without `COPILOT_CLI`.
+under each host signal from a seeded isolated checkout, and `TestRenderForHost`
+in `tests/test_memory_hook_recall.py`, which covers the precedence branch and
+its control.
 
 Unprobed, and left alone deliberately: the `SessionStart` dispatcher relay and
 the `PreCompact` hook. Automatic-compaction delivery on Copilot is still

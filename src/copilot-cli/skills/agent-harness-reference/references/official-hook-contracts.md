@@ -317,6 +317,43 @@ Source: pinned Copilot CLI changelog.
 The hook reference does not list these variables in its cloud environment
 table, which is expected because installed plugins do not run in cloud agent.
 
+Note the scope: this entry covers **plugin** hooks and names three plugin-root
+variables. It does not put `CLAUDE_PROJECT_DIR` on any Copilot surface, and no
+vendor source does. See the environment inventory below.
+
+### Environment variables Copilot CLI sets
+
+| Variable | Contract | Status |
+|---|---|---|
+| `PLUGIN_ROOT`, `COPILOT_PLUGIN_ROOT`, `CLAUDE_PLUGIN_ROOT` | Plugin install directory, for plugin hooks | OFFICIAL, changelog quoted above |
+| `COPILOT_CLI` | `1` in subprocesses Copilot spawns, so a subprocess can detect it is running under Copilot | OFFICIAL, changelog quoted below |
+| `CLAUDE_PROJECT_DIR` | Not set. No vendor source places it on any Copilot surface | DOCS SILENT, and measured absent |
+
+On `COPILOT_CLI`, the vendor changelog states, quoted verbatim:
+
+> Git hooks can detect Copilot CLI subprocesses via the COPILOT_CLI=1
+> environment variable to skip interactive prompts
+
+Source: the `changelog.json` shipped inside the `@github/copilot` npm package,
+under version key `0.0.421`, entry type `fixed`, referencing
+`github/copilot-agent-runtime` pull request 4049. Read from the installed
+package rather than a web copy, so the citation is the artifact the CLI ships
+with.
+
+Two consequences for a repository hook, both keyed on the fact that Copilot also
+loads `.claude/settings.json` when the folder is trusted:
+
+- An anchor of the form `cd "$CLAUDE_PROJECT_DIR"` expands to `cd ""` under
+  Copilot, which sh and dash accept as a no-op, so a relative script path then
+  resolves against the host's working directory. Anchor with a fallback.
+- `COPILOT_CLI` identifies the process tree, not the consuming host. Copilot
+  exports it into every shell it spawns, which is what the changelog entry
+  describes, so a Claude Code session started from inside a Copilot shell
+  inherits it. A hook choosing an output shape must check a positive Claude
+  signal first.
+
+Both are measured in `probe-evidence.md` section 8b, with positive controls.
+
 ## Claude Code
 
 ### Primary source
