@@ -97,8 +97,8 @@ _CANONICAL_MAJOR_MINOR_RE = re.compile(
 )
 
 # The two known target shapes a platform's own ``model_tiers`` map spells its
-# tier defaults in today. See templates/platforms/copilot-cli.yaml:107-110
-# (dot form) and templates/platforms/vscode.yaml:18-21 (display form, shared
+# tier defaults in today. See templates/platforms/copilot-cli.yaml:109-112
+# (dot form) and templates/platforms/vscode.yaml:20-23 (display form, shared
 # by visual-studio.yaml). Matching against these rather than hardcoding a
 # per-platform-name template means a platform YAML's spelling stays the one
 # source of truth for its own format.
@@ -380,9 +380,9 @@ def format_model_id_for_platform(
     ``_normalize_id`` treats as canonical), but each platform's
     ``model_tiers`` map spells its OWN default id differently, for example:
 
-        templates/platforms/copilot-cli.yaml:107-110 (dot form):
+        templates/platforms/copilot-cli.yaml:109-112 (dot form):
             opus: "claude-opus-4.6"
-        templates/platforms/vscode.yaml:18-21 (display form, shared by
+        templates/platforms/vscode.yaml:20-23 (display form, shared by
         visual-studio.yaml):
             opus: "Claude Opus 4.6 (copilot)"
 

@@ -15,7 +15,7 @@ that merge cleanly on the first call -- refs issue #4393.)
 
 Exit codes (ADR-035):
     0 - No blocking cause found (PR may be mergeable)
-    1 - Blocking cause found (missing, failing, or unresolved threads)
+    1 - Blocking cause found (missing, failing, pending, or unresolved threads)
     2 - PR not found or config error
     3 - API error
 """
@@ -664,11 +664,7 @@ def main(argv: list[str] | None = None) -> int:
         script_name="why_pr_blocked.py",
     )
 
-    if has_hard_blocker:
-        return 1
-    if pending:
-        return 2
-    return 0
+    return 1 if has_blocker else 0
 
 
 if __name__ == "__main__":  # pragma: no cover
