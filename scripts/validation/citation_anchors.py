@@ -201,7 +201,11 @@ def _sentence_continues(line: str) -> bool:
 
 
 def _context_lines(
-    citing_lines: list[str] | None, line_index: int, line_text: str, segment: str
+    citing_lines: list[str] | None,
+    line_index: int,
+    line_text: str,
+    segment: str,
+    markdown: bool = False,
 ) -> list[str]:
     """Return this citation's slice of its line plus wrapped-sentence neighbors.
 
@@ -215,8 +219,15 @@ def _context_lines(
     context = [segment]
     if citing_lines is None:
         return context
-    own_indent = _indent_width(line_text)
     own_hash = _hash_prefixed(line_text)
+    if markdown and own_hash:
+        # In a Markdown citing file a hash prefix is a heading, and a
+        # heading is a complete unit: it never wraps into any neighbor,
+        # another heading included (the hash-match rule below would let
+        # equal-prefixed headings pool anchors). In code files the same
+        # prefix is a comment, which continues into comment lines.
+        return context
+    own_indent = _indent_width(line_text)
     for offset in (1, 2):
         index = line_index - offset
         if index < 0 or not _sentence_continues(citing_lines[index]):
@@ -224,9 +235,8 @@ def _context_lines(
         # A deeper-indented neighbor is an example or verbatim block
         # belonging to an earlier line (a sibling citation's continuation
         # quote, say), not this sentence wrapping across lines. A hash
-        # prefix must match on both sides too: a Markdown heading is a
-        # complete unit, so it never wraps into body text, while comment
-        # lines still continue into comment lines.
+        # prefix must match on both sides too: a heading never wraps into
+        # body text, while comment lines continue into comment lines.
         if _indent_width(citing_lines[index]) > own_indent:
             break
         if _hash_prefixed(citing_lines[index]) != own_hash:

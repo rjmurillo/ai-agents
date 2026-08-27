@@ -162,6 +162,22 @@ class TestStaleCitationsFail:
         assert code == 1
         assert "magic_token" in out
 
+    def test_comment_continuation_anchor_still_joins_in_code_files(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # The heading boundary is Markdown-only (Copilot, PR #5341): in a
+        # code file a hash prefix is a comment, and a wrapped comment
+        # sentence still hands its identifier to the citation below, so
+        # this stale citation must keep failing on that anchor.
+        root = _repo(tmp_path)
+        doc = f"# The magic_token helper is defined at\n# {TARGET}:2 in the tree.\n"
+        _add_doc(root, "docs/notes.py", doc)
+
+        code, out = _run(root, capsys)
+
+        assert code == 1
+        assert "magic_token" in out
+
     def test_indented_continuation_quote_absent_from_range_fails(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:

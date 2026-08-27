@@ -124,6 +124,54 @@ class TestScopeBoundaries:
 
         assert code == 0
 
+    def test_adjacent_markdown_headings_never_pool_anchors(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Regression (Copilot, PR #5341): two headings share the hash
+        # prefix, so the mismatch guard alone let a cited heading join
+        # the next heading and absorb its backtick span as a required
+        # anchor. A heading joins nothing, another heading included.
+        root = _repo(tmp_path)
+        doc = f"## About {TARGET}:2\n## The `magic_token` helper\n"
+        _add_doc(root, "docs/notes.md", doc)
+
+        code, _out = _run(root, capsys)
+
+        assert code == 0
+
+    def test_unfinished_heading_above_a_body_citation_adds_no_anchors(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # The backward direction of the heading boundary (Copilot, PR
+        # #5341): a heading with no sentence-ending punctuation reads as
+        # a continuing sentence. The shape is guarded twice, by the
+        # indent guard (a hash marker counts as indentation, so a heading
+        # sits deeper than unindented body text) and by the hash-prefix
+        # mismatch, so this pins the behavior: only removing both hands
+        # the heading's backtick span to the citation below it.
+        root = _repo(tmp_path)
+        doc = f"## The `magic_token` helper\nDetails in {TARGET}:2 today.\n"
+        _add_doc(root, "docs/notes.md", doc)
+
+        code, _out = _run(root, capsys)
+
+        assert code == 0
+
+    def test_code_text_never_joins_a_comment_citation_backward(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # The input that isolates the backward hash-mismatch break: a
+        # continuing code line sits at indent 0, below the comment's
+        # marker-inclusive indent, so only the prefix mismatch stops its
+        # identifier becoming this citation's required anchor.
+        root = _repo(tmp_path)
+        doc = f"magic_token_reader = load()\n# See {TARGET}:2 for the value.\n"
+        _add_doc(root, "docs/notes.py", doc)
+
+        code, _out = _run(root, capsys)
+
+        assert code == 0
+
     def test_finished_previous_sentence_is_not_an_anchor_source(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
