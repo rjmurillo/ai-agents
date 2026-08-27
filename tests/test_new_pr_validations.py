@@ -313,7 +313,7 @@ class TestRunValidations:
             if "validate_session_json.py" in " ".join(str(part) for part in cmd):
                 identity = cmd[cmd.index("--session-log-identity") + 1]
                 captured.append((identity, Path(cmd[-1]).read_text(encoding="utf-8")))
-            return real_run(cmd, **kwargs)
+            return real_run(cmd, **kwargs)  # subprocess-encoding: strict-ok
 
         monkeypatch.chdir(tmp_path)
         with patch("subprocess.run", side_effect=spy_run):
