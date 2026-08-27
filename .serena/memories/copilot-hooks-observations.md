@@ -35,10 +35,18 @@ Do not repeat web research unless the reference skill's refresh rules apply.
   `.claude/settings.json` surface while discarding plain stdout, against a
   matched-pair control (issue #4727). Version-scoped runtime behavior, not a
   vendor guarantee; the docs row above stays DOCS SILENT.
-- Copilot CLI does not export `CLAUDE_PROJECT_DIR`, so a hook command in
-  `.claude/settings.json` anchored as `cd "$CLAUDE_PROJECT_DIR"` runs `cd ""`
-  there, a silent sh/dash no-op that leaves relative script paths resolving
-  against the host cwd. Anchor with
+- Whether Copilot CLI exposes `CLAUDE_PROJECT_DIR` to a hook is CONTESTED; do
+  not assert either way. The shipped 1.0.80 artifacts never name the string, but
+  the live environment listing in issue #4727 on 1.0.79-6 records it as present
+  and says it "cannot distinguish harnesses". A static byte search cannot see a
+  variable inherited from an ancestor shell, and a live read outranks it on what
+  a hook receives. Anchor defensively either way; the `:-` fallback is correct
+  whether the variable is set, unset, or inherited. Where it is unset, a hook
+  command in
+  `.claude/settings.json` anchored as `cd "$CLAUDE_PROJECT_DIR"` runs `cd ""`,
+  which exits 0 and leaves cwd unchanged in dash and bash, so the `&&` chain
+  continues and relative script paths resolve against the host cwd. The anchor
+  does not fail, it silently fails to move. Anchor with
   `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}`. Measured on 1.0.80:
   0 occurrences in the shipped `app.js` and engine binary, with `COPILOT_CLI`,
   `additionalContext`, `GITHUB_TOKEN`, and `COPILOT_PLUGIN_ROOT` as positive
@@ -52,10 +60,14 @@ Do not repeat web research unless the reference skill's refresh rules apply.
   one bare `COPILOT_CLI` literal, an unrelated feature-flighting enum key, not
   an environment variable. Treat `COPILOT_CLI` as an unconfirmed heuristic.
   Check `CLAUDE_CODE_ENTRYPOINT` first regardless when choosing an output
-  shape: it is the only vendor-confirmed signal, and if `COPILOT_CLI` does turn
-  out to be real, it would identify a process tree, not the consuming host
-  (Copilot would export it into every shell it starts, so a Claude Code
-  session launched underneath one would inherit it). See
+  shape, but not because it is reliable. It is empirically observed and never
+  vendor-confirmed: no Anthropic or GitHub document names it as a host
+  discriminator. It is also evidence of process ancestry rather than of the
+  consuming host, and the inheritance runs both ways. A Copilot CLI process
+  launched from a Claude-spawned shell keeps `CLAUDE_CODE_ENTRYPOINT`, exactly
+  as a Claude session launched under Copilot would keep `COPILOT_CLI` if that
+  variable turned out to be real. Neither identifies the consuming host, so the
+  precedence is a fail-safe default for Claude, not a discriminator. See
   `.claude/skills/agent-harness-reference/references/official-hook-contracts.md`
   for the full correction.
 - Cloud agent loads only default-branch `.github/hooks/*.json`. It does not

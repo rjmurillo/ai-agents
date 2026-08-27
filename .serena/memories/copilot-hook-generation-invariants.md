@@ -132,13 +132,16 @@ both `hooks.json` and the referenced `plugin-*` dispatch group. Generated output
   policy choice about branch-controlled producer text, not a claim that the
   channel is unavailable. A direct producer needing model reach emits that
   envelope itself, keyed on a host check that prefers `CLAUDE_CODE_ENTRYPOINT`
-  over `COPILOT_CLI`. `CLAUDE_CODE_ENTRYPOINT` is the only vendor-confirmed
-  half of that check; `COPILOT_CLI` is an unconfirmed heuristic (a prior
-  changelog citation for it does not exist in any published `@github/copilot`
-  version, per the correction in `official-hook-contracts.md`). The precedence
-  is kept regardless, both because it fails safe for Claude and because, if
-  `COPILOT_CLI` does turn out to be real, Copilot would export it into every
-  shell it spawns and a nested Claude session would inherit it.
+  over `COPILOT_CLI`. Neither half is vendor-confirmed. `CLAUDE_CODE_ENTRYPOINT`
+  is empirically observed, and no vendor document names it as a host
+  discriminator; `COPILOT_CLI` is an unconfirmed heuristic whose prior changelog
+  citation does not exist in any published `@github/copilot` version, per the
+  correction in `official-hook-contracts.md`. Both are process-ancestry signals
+  rather than consuming-host signals, and the inheritance runs both ways: a
+  Copilot process launched from a Claude-spawned shell keeps
+  `CLAUDE_CODE_ENTRYPOINT`, just as a nested Claude session would keep
+  `COPILOT_CLI`. The precedence is kept because it fails safe for Claude, not
+  because it identifies the host.
 - Only explicitly classified events receive dispatcher modes. Unclassified
   future events remain direct until output and failure semantics are reviewed.
 - A PostToolUse `modifiedResult` or pre-structured output producer changes the
