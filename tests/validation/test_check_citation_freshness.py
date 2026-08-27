@@ -121,6 +121,36 @@ class TestStaleCitationsFail:
         assert code == 1
         assert "first appears at line 2" in out
 
+    def test_relocation_hint_finds_an_anchor_wrapped_across_lines(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Regression (Copilot round 7, PR #5338): the hint searched one
+        # line at a time, so an anchor spanning a line break in the cited
+        # file produced a finding with no relocated line named. The
+        # two-line window pass names it.
+        root = _repo(tmp_path)
+        doc = f'"PLACEHOLDER = 0 def magic_token():" sits at {TARGET}:5.\n'
+        _add_doc(root, "docs/notes.md", doc)
+
+        code, out = _run(root, capsys)
+
+        assert code == 1
+        assert "first appears at line 2" in out
+
+    def test_out_of_range_citation_names_the_relocated_line(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Same round: an out-of-range citation returned before anchor
+        # extraction, so the exact moved-content case the hint exists to
+        # repair got only the file length.
+        root = _repo(tmp_path)
+        _add_doc(root, "docs/notes.md", f"See `{TARGET}:9` (`magic_token`).\n")
+
+        code, out = _run(root, capsys)
+
+        assert code == 1
+        assert "has 5 lines at HEAD; 'magic_token' first appears at line 3" in out
+
     def test_plain_comment_identifier_anchor_fails_when_absent_from_range(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -212,6 +242,28 @@ class TestCliContract:
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         assert checker.main(["--repo-root", str(tmp_path)]) == 2
+
+    def test_git_show_failure_is_exit_2_not_a_finding(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # Regression (Copilot round 7, PR #5338): a mid-run git show
+        # failure was reported as a stale-citation finding (exit 1); an
+        # operational failure is the documented config-error exit 2.
+        root = _repo(tmp_path)
+        _add_doc(root, "docs/notes.md", f"See `{TARGET}:2` (`magic_token`).\n")
+        import citation_head_state
+
+        def boom(_self: object, path: str) -> list[str]:
+            raise citation_head_state.HeadReadError(path)
+
+        monkeypatch.setattr(citation_head_state._HeadFileCache, "lines", boom)
+
+        code, _out = _run(root, capsys)
+
+        assert code == 2
 
     def test_main_exits_2_when_git_fails_mid_run(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
