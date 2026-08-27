@@ -985,5 +985,5 @@ Per PR processed:
 - [ ] `mergeStateStatus` is `CLEAN` or `HAS_HOOKS` (or `UNSTABLE` with documented non-required failures).
 - [ ] Branch is up to date with `main` (`mergeStateStatus` not `BEHIND`).
 - [ ] Force-push safety check ran before any push: `git rev-parse "refs/heads/$BRANCH"` matched the PR's expected `head.sha`.
-- [ ] Correct merge path chosen by state: `set_pr_auto_merge.py --enable` for `CLEAN`, `merge_pr.py --strategy squash` for `UNSTABLE` with documented non-required failures (see "Merge path by `mergeStateStatus`" table; issue #2439).
+- [ ] Correct merge path chosen by state: `set_pr_auto_merge.py --enable` for `CLEAN` and for `HAS_HOOKS`, which takes the `CLEAN` path unchanged, `merge_pr.py --strategy squash` for `UNSTABLE` with documented non-required failures (see "Merge path by `mergeStateStatus`" table; issue #2439).
 - [ ] All four Ready-to-Merge conditions hold before the merge command runs (CanMerge=True is insufficient alone).
