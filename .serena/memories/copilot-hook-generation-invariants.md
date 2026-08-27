@@ -132,8 +132,13 @@ both `hooks.json` and the referenced `plugin-*` dispatch group. Generated output
   policy choice about branch-controlled producer text, not a claim that the
   channel is unavailable. A direct producer needing model reach emits that
   envelope itself, keyed on a host check that prefers `CLAUDE_CODE_ENTRYPOINT`
-  over `COPILOT_CLI`, because Copilot exports `COPILOT_CLI` into every shell it
-  spawns and a nested Claude session inherits it.
+  over `COPILOT_CLI`. `CLAUDE_CODE_ENTRYPOINT` is the only vendor-confirmed
+  half of that check; `COPILOT_CLI` is an unconfirmed heuristic (a prior
+  changelog citation for it does not exist in any published `@github/copilot`
+  version, per the correction in `official-hook-contracts.md`). The precedence
+  is kept regardless, both because it fails safe for Claude and because, if
+  `COPILOT_CLI` does turn out to be real, Copilot would export it into every
+  shell it spawns and a nested Claude session would inherit it.
 - Only explicitly classified events receive dispatcher modes. Unclassified
   future events remain direct until output and failure semantics are reviewed.
 - A PostToolUse `modifiedResult` or pre-structured output producer changes the

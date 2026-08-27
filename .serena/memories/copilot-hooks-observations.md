@@ -43,11 +43,21 @@ Do not repeat web research unless the reference skill's refresh rules apply.
   0 occurrences in the shipped `app.js` and engine binary, with `COPILOT_CLI`,
   `additionalContext`, `GITHUB_TOKEN`, and `COPILOT_PLUGIN_ROOT` as positive
   controls in the same search.
-- `COPILOT_CLI=1` identifies a Copilot-spawned subprocess, not the consuming
-  host: Copilot exports it into every shell it starts, so a Claude Code session
-  launched underneath one inherits it. Check `CLAUDE_CODE_ENTRYPOINT` first when
-  choosing an output shape. Vendor source for `COPILOT_CLI` is the
-  `changelog.json` shipped in the `@github/copilot` package, version `0.0.421`.
+- `COPILOT_CLI=1` as a Copilot-spawned-subprocess signal is RETRACTED, not
+  confirmed (issue #5369 tracks the needed live probe). An earlier note here
+  cited `changelog.json` in the `@github/copilot`
+  package, version `0.0.421`, for this. That citation was re-verified against
+  the actual installed package (every published version) and does not exist:
+  no such entry, anywhere. A byte search of the shipped 1.0.80 `app.js` finds
+  one bare `COPILOT_CLI` literal, an unrelated feature-flighting enum key, not
+  an environment variable. Treat `COPILOT_CLI` as an unconfirmed heuristic.
+  Check `CLAUDE_CODE_ENTRYPOINT` first regardless when choosing an output
+  shape: it is the only vendor-confirmed signal, and if `COPILOT_CLI` does turn
+  out to be real, it would identify a process tree, not the consuming host
+  (Copilot would export it into every shell it starts, so a Claude Code
+  session launched underneath one would inherit it). See
+  `.claude/skills/agent-harness-reference/references/official-hook-contracts.md`
+  for the full correction.
 - Cloud agent loads only default-branch `.github/hooks/*.json`. It does not
   load installed plugins or settings files.
 - The official changelog documents `PLUGIN_ROOT`, `COPILOT_PLUGIN_ROOT`, and
