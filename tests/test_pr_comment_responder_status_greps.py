@@ -4,12 +4,13 @@ Issue #4034: the workflow greps searched for ``Status: [X]`` while the
 comment-map detail field emits ``**Status**: [X]``. The old patterns counted
 zero pending, complete, and wontfix comments, which made the gates dead.
 
-PR #4277 review follow-up: the ``Comment Map Status Vocabulary`` section still
-published one dead example, ``grep -Ec "Status: \\[NEW\\]|Status:
-\\[ACKNOWLEDGED\\]|Status: pending"``. The first detector here missed it twice:
-it never listed ``[NEW]``, and it required a quote immediately before each
-status token, so alternatives after a ``|`` were invisible. The detector below
-flags any unbolded status field anywhere in a carrier.
+Issue #4054: the vocabulary was published twice, the two copies both omitted
+``[DUPLICATE]`` and ``[DEFERRED]``, and the two gate families disagreed about
+what an unlisted status meant. Gate 4 and Gate 5 enumerated pending statuses,
+so any status outside their list was silently treated as non-pending and the
+gate passed; Phase 8.1 subtracted the terminal statuses, so the same status
+blocked. Every gate now derives pending by subtracting the terminal count, so
+an unrecognized status fails closed everywhere.
 """
 
 from __future__ import annotations
@@ -41,15 +42,16 @@ CARRIER_PATHS: tuple[Path, ...] = (
 # gates references carry the greps but not the vocabulary section.
 VOCABULARY_HEADING = "## Comment Map Status Vocabulary"
 
-PENDING_STATUS_PATTERNS = (
-    r"^\*\*Status\*\*: \[ACKNOWLEDGED\]",
-    r"^\*\*Status\*\*: pending",
+# The two shell regexes every carrier must publish, quoted verbatim from
+# templates/agents/pr-comment-responder.shared.md. TOTAL counts every rendered
+# status field; TERMINAL counts the ones the table marks terminal. Pending is
+# the difference, never an enumeration, so an unlisted status stays pending.
+STATUS_LINE_PATTERN = r"^\*\*Status\*\*: "
+TERMINAL_PATTERN = (
+    r"^\*\*Status\*\*: "
+    r"(\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)"
 )
-TERMINAL_STATUS_PATTERNS = (
-    r"^\*\*Status\*\*: \[COMPLETE\]",
-    r"^\*\*Status\*\*: \[WONTFIX\]",
-)
-REQUIRED_PATTERN_TEXT = (*PENDING_STATUS_PATTERNS, *TERMINAL_STATUS_PATTERNS)
+REQUIRED_PATTERN_TEXT = (STATUS_LINE_PATTERN, TERMINAL_PATTERN)
 
 # A status field reference that is not the emitted bold form. Matches the
 # escaped shell-regex spelling (``Status: \[NEW\]``) and the bare spelling
@@ -57,31 +59,48 @@ REQUIRED_PATTERN_TEXT = (*PENDING_STATUS_PATTERNS, *TERMINAL_STATUS_PATTERNS)
 # in a ``|`` chain is still caught. The emitted form reads ``**Status**: [NEW]``
 # and cannot match, because ``Status`` there is followed by ``**``.
 DEAD_STATUS_FIELD_RE = re.compile(
-    r"Status: (?:\\?\[(?:NEW|ACKNOWLEDGED|COMPLETE|WONTFIX)\\?\]|pending)"
+    r"Status: (?:\\?\[(?:NEW|ACKNOWLEDGED|COMPLETE|WONTFIX|DUPLICATE|DEFERRED)\\?\]"
+    r"|pending)"
 )
 
-# The fail-closed derivation published in the vocabulary section: pending is
-# whatever is not terminal, so a status outside the table stays in the count.
-FAIL_CLOSED_DERIVATION = "REMAINING=$((TOTAL - ADDRESSED - WONTFIX))"
+# The fail-closed derivation published in the vocabulary section.
+FAIL_CLOSED_DERIVATION = "PENDING=$((TOTAL - TERMINAL))"
 
-GREP_PATTERN_RE = re.compile(r'grep -Ec "([^"]+)"')
+# Any quoted argument to a grep invocation, whatever the flags.
+GREP_ANY_PATTERN_RE = re.compile(r"grep [^\"\n]*\"([^\"]+)\"")
+# Only the counting greps, used to read the vocabulary section's derivation.
+GREP_COUNT_PATTERN_RE = re.compile(r'grep -Ec "([^"]+)"')
 
-# One rendered comment map. Five detail entries, one of them carrying a status
-# outside the documented table.
+# A grep argument that enumerates pending statuses instead of subtracting the
+# terminal ones. This is the fail-open shape issue #4054 reports.
+ENUMERATED_PENDING_RE = re.compile(r"\\\[(?:NEW|ACKNOWLEDGED)\\\]|Status\\?\*?\*?: pending")
+
+# One rendered comment map. Eight detail entries: four terminal, and four that
+# must stay pending, including a bare [DEFERRED] with no tracking reference and
+# an invented [BOGUS] status that appears in no table.
 SAMPLE_COMMENT_MAP_LINES = (
     "| 123 | @reviewer | review | file.py#12 | pending | TBD | - |",
     "**Status**: [NEW]",
     "**Status**: [ACKNOWLEDGED]",
     "**Status**: [COMPLETE]",
     "**Status**: [WONTFIX]",
-    "**Status**: [ESCALATED]",
+    "**Status**: [DUPLICATE]",
+    "**Status**: [DEFERRED] Refs #4054",
+    "**Status**: [DEFERRED]",
+    "**Status**: [BOGUS]",
 )
-SAMPLE_TOTAL_COMMENTS = 5
+SAMPLE_TOTAL_STATUS_LINES = 8
+SAMPLE_TERMINAL_LINES = 4
+
+VOCABULARY_ROW_RE = re.compile(
+    r"^\| `\[(?P<status>[A-Z]+)\][^`]*` \| [^|]+ \| (?P<terminal>[^|]+)\|"
+)
+TABLE_HEADER = "| Status | Meaning |"
 
 
-def _count_status(lines: tuple[str, ...] | list[str], patterns: tuple[str, ...]) -> int:
-    compiled = [re.compile(pattern) for pattern in patterns]
-    return sum(any(pattern.search(line) for pattern in compiled) for line in lines)
+def _count_matching(lines: tuple[str, ...], pattern: str) -> int:
+    compiled = re.compile(pattern)
+    return sum(1 for line in lines if compiled.search(line))
 
 
 def _vocabulary_section(text: str) -> str:
@@ -97,13 +116,27 @@ def _vocabulary_carriers() -> tuple[Path, ...]:
     )
 
 
+def _terminal_statuses_in_pattern(pattern: str) -> set[str]:
+    return set(re.findall(r"\\\[([A-Z]+)\\\]", pattern))
+
+
 def test_status_regexes_match_emitted_comment_map_fields() -> None:
     """The shell regexes must match rendered comment-map status fields."""
-    assert _count_status(SAMPLE_COMMENT_MAP_LINES, PENDING_STATUS_PATTERNS) == 1
-    assert _count_status(SAMPLE_COMMENT_MAP_LINES, TERMINAL_STATUS_PATTERNS) == 2
-    assert _count_status(SAMPLE_COMMENT_MAP_LINES, (r"Status: \[ACKNOWLEDGED\]",)) == 0
-    assert _count_status(SAMPLE_COMMENT_MAP_LINES, (r"Status: \[COMPLETE\]",)) == 0
-    assert _count_status(SAMPLE_COMMENT_MAP_LINES, (r"Status: \[NEW\]",)) == 0
+    assert _count_matching(SAMPLE_COMMENT_MAP_LINES, STATUS_LINE_PATTERN) == (
+        SAMPLE_TOTAL_STATUS_LINES
+    )
+    assert _count_matching(SAMPLE_COMMENT_MAP_LINES, TERMINAL_PATTERN) == (
+        SAMPLE_TERMINAL_LINES
+    )
+    assert _count_matching(SAMPLE_COMMENT_MAP_LINES, r"Status: \[COMPLETE\]") == 0
+    assert _count_matching(SAMPLE_COMMENT_MAP_LINES, r"Status: \[NEW\]") == 0
+
+
+def test_bare_deferred_is_not_terminal() -> None:
+    """[DEFERRED] without a tracking reference must stay pending."""
+    assert _count_matching(("**Status**: [DEFERRED]",), TERMINAL_PATTERN) == 0
+    assert _count_matching(("**Status**: [DEFERRED] Refs #4054",), TERMINAL_PATTERN) == 1
+    assert _count_matching(("**Status**: [DEFERRED] Refs #",), TERMINAL_PATTERN) == 0
 
 
 def test_dead_detector_flags_the_pattern_shipped_before_this_fix() -> None:
@@ -114,8 +147,22 @@ def test_dead_detector_flags_the_pattern_shipped_before_this_fix() -> None:
         "Status: \\[ACKNOWLEDGED\\]",
         "Status: pending",
     ]
+    assert DEAD_STATUS_FIELD_RE.search("Status: [DUPLICATE]")
+    assert DEAD_STATUS_FIELD_RE.search("Status: [DEFERRED]")
     assert not DEAD_STATUS_FIELD_RE.search("**Status**: [NEW]")
     assert DEAD_STATUS_FIELD_RE.search("**Status: [NEW]")
+
+
+def test_enumerated_pending_detector_flags_the_shape_shipped_before_this_fix() -> None:
+    """The detector must catch the fail-open greps issue #4054 reports."""
+    gate_five = (
+        r"^\*\*Status\*\*: pending|^\*\*Status\*\*: \[ACKNOWLEDGED\]"
+        r"|^\*\*Status\*\*: \[NEW\]"
+    )
+    assert ENUMERATED_PENDING_RE.search(gate_five)
+    assert ENUMERATED_PENDING_RE.search(r"^\*\*Status\*\*: \[NEW\]")
+    assert not ENUMERATED_PENDING_RE.search(TERMINAL_PATTERN)
+    assert not ENUMERATED_PENDING_RE.search(STATUS_LINE_PATTERN)
 
 
 @pytest.mark.parametrize(
@@ -131,7 +178,7 @@ def test_status_greps_anchor_to_bold_comment_map_field(path: Path) -> None:
     for pattern_text in REQUIRED_PATTERN_TEXT:
         assert pattern_text in text, (
             f"{path.relative_to(REPO_ROOT)} must use anchored comment-map "
-            f"status pattern {pattern_text!r} for issue #4034"
+            f"status pattern {pattern_text!r} for issues #4034 and #4054"
         )
 
     dead = [
@@ -142,6 +189,42 @@ def test_status_greps_anchor_to_bold_comment_map_field(path: Path) -> None:
     assert not dead, (
         f"{path.relative_to(REPO_ROOT)} still references an unbolded status "
         f"field that greps zero rows: {dead}"
+    )
+
+
+@pytest.mark.parametrize(
+    "path",
+    CARRIER_PATHS,
+    ids=lambda p: str(p.relative_to(REPO_ROOT)),
+)
+def test_no_carrier_enumerates_pending_statuses(path: Path) -> None:
+    """No gate may enumerate pending statuses; an unlisted status must block."""
+    text = path.read_text(encoding="utf-8")
+
+    offenders = [
+        f"line {number}: {line.strip()}"
+        for number, line in enumerate(text.splitlines(), 1)
+        for pattern in GREP_ANY_PATTERN_RE.findall(line)
+        if ENUMERATED_PENDING_RE.search(pattern)
+    ]
+    assert not offenders, (
+        f"{path.relative_to(REPO_ROOT)} still enumerates pending statuses, so a "
+        f"status outside the table is counted as non-pending and the gate passes "
+        f"(issue #4054): {offenders}"
+    )
+
+
+@pytest.mark.parametrize(
+    "path",
+    _vocabulary_carriers(),
+    ids=lambda p: str(p.relative_to(REPO_ROOT)),
+)
+def test_vocabulary_is_published_exactly_once(path: Path) -> None:
+    """One table, one vocabulary. A second copy is how statuses go missing."""
+    text = path.read_text(encoding="utf-8")
+    assert text.count(TABLE_HEADER) == 1, (
+        f"{path.relative_to(REPO_ROOT)} publishes {text.count(TABLE_HEADER)} status "
+        f"vocabulary tables; issue #4054 requires exactly one"
     )
 
 
@@ -158,10 +241,41 @@ def test_vocabulary_section_publishes_fail_closed_derivation(path: Path) -> None
         f"{path.relative_to(REPO_ROOT)} vocabulary section must publish "
         f"{FAIL_CLOSED_DERIVATION!r}, not an enumerating pending grep"
     )
-    assert sorted(GREP_PATTERN_RE.findall(section)) == sorted(TERMINAL_STATUS_PATTERNS), (
-        f"{path.relative_to(REPO_ROOT)} vocabulary section must grep only the "
-        f"terminal statuses {TERMINAL_STATUS_PATTERNS}"
+    assert sorted(GREP_COUNT_PATTERN_RE.findall(section)) == sorted(REQUIRED_PATTERN_TEXT), (
+        f"{path.relative_to(REPO_ROOT)} vocabulary section must count only the "
+        f"status-line total and the terminal statuses {REQUIRED_PATTERN_TEXT}"
     )
+
+
+@pytest.mark.parametrize(
+    "path",
+    _vocabulary_carriers(),
+    ids=lambda p: str(p.relative_to(REPO_ROOT)),
+)
+def test_table_terminal_column_agrees_with_the_terminal_grep(path: Path) -> None:
+    """Every status the table calls terminal must be in the terminal grep."""
+    section = _vocabulary_section(path.read_text(encoding="utf-8"))
+
+    tabled_terminal = set()
+    tabled_pending = set()
+    for line in section.splitlines():
+        match = VOCABULARY_ROW_RE.match(line)
+        if match is None:
+            continue
+        target = (
+            tabled_terminal
+            if match.group("terminal").strip().startswith("Yes")
+            else tabled_pending
+        )
+        target.add(match.group("status"))
+
+    assert tabled_terminal, f"{path.relative_to(REPO_ROOT)} table parsed no terminal rows"
+    assert tabled_terminal == _terminal_statuses_in_pattern(TERMINAL_PATTERN), (
+        f"{path.relative_to(REPO_ROOT)} table marks {sorted(tabled_terminal)} terminal "
+        f"but the grep matches {sorted(_terminal_statuses_in_pattern(TERMINAL_PATTERN))}"
+    )
+    assert not tabled_pending & tabled_terminal
+    assert tabled_pending == {"NEW", "ACKNOWLEDGED"}
 
 
 @pytest.mark.parametrize(
@@ -172,14 +286,16 @@ def test_vocabulary_section_publishes_fail_closed_derivation(path: Path) -> None
 def test_published_greps_count_a_rendered_comment_map(path: Path) -> None:
     """Run the published patterns: they must count real rows, fail closed."""
     section = _vocabulary_section(path.read_text(encoding="utf-8"))
-    patterns = tuple(GREP_PATTERN_RE.findall(section))
+    patterns = GREP_COUNT_PATTERN_RE.findall(section)
 
-    terminal = _count_status(SAMPLE_COMMENT_MAP_LINES, patterns)
-    remaining = SAMPLE_TOTAL_COMMENTS - terminal
+    total = _count_matching(SAMPLE_COMMENT_MAP_LINES, STATUS_LINE_PATTERN)
+    terminal = _count_matching(SAMPLE_COMMENT_MAP_LINES, TERMINAL_PATTERN)
+    assert set(patterns) == {STATUS_LINE_PATTERN, TERMINAL_PATTERN}
 
-    assert terminal == 2, (
-        f"{path.relative_to(REPO_ROOT)} publishes patterns that count "
-        f"{terminal} terminal rows in a rendered comment map, expected 2"
-    )
-    # [NEW], [ACKNOWLEDGED], and the undocumented [ESCALATED] all remain.
-    assert remaining == 3
+    pending = total - terminal
+
+    assert total == SAMPLE_TOTAL_STATUS_LINES
+    assert terminal == SAMPLE_TERMINAL_LINES
+    # [NEW], [ACKNOWLEDGED], the untracked [DEFERRED], and the invented [BOGUS]
+    # all remain pending. The unlisted status blocks instead of passing.
+    assert pending == 4
