@@ -19,8 +19,11 @@ from __future__ import annotations
 
 import re
 
+# Text formats this repository actually cites; extend when a real
+# citation to a new format appears rather than enumerating every
+# extension in existence (each entry adds matcher surface).
 _EXTENSIONS = (
-    "py|md|yml|yaml|json|xml|csv|ps1|psm1|sh|ts|js|toml|txt|ini|cfg|html|css|ipynb"
+    "py|md|yml|yaml|json|jsonc|xml|csv|ps1|psm1|psd1|sh|ts|js|toml|txt|ini|cfg|html|css|ipynb"
 )
 
 # A citation: a repo path with a known extension, then :N or :N-M. The
