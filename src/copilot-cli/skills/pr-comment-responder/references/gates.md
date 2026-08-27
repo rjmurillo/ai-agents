@@ -63,7 +63,7 @@ esac
 # pattern is Gate 4's, so a value that clears here clears there, and the four
 # shapes it admits carry no sed metacharacter.
 printf '%s\n' "**Status**: $TERMINAL_STATUS" \
-  | grep -Eq "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" || {
+  | grep -Eq "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" || {
     echo "[BLOCKED] TERMINAL_STATUS is not a terminal value: $TERMINAL_STATUS"
     exit 1
   }
@@ -90,7 +90,7 @@ if [ ! -f "$COMMENT_MAP" ]; then
   exit 1
 fi
 TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
-TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
 
 if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
@@ -122,7 +122,7 @@ if [ ! -f "$COMMENT_MAP" ]; then
   exit 1
 fi
 TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
-TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
 
 if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
@@ -149,7 +149,7 @@ if [ ! -f "$COMMENT_MAP" ]; then
   exit 1
 fi
 TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
-TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
 PENDING=$((TOTAL - TERMINAL))
 
 if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
@@ -160,7 +160,7 @@ fi
 if [ "$PENDING" -ne 0 ]; then
   echo "[BLOCKED] INCOMPLETE: $PENDING comment(s) not terminal"
   grep -En "^\*\*Status\*\*: " "$COMMENT_MAP" \
-    | grep -Ev "\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)[[:space:]]*$" || true
+    | grep -Ev "\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" || true
   exit 1
 fi
 ```

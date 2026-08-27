@@ -87,7 +87,7 @@ VOCABULARY_HEADING = "## Comment Map Status Vocabulary"
 # was enough, so ``[COMPLETE]oops`` and ``[DEFERRED] Refs #4054garbage``
 # counted as terminal and cleared the gate.
 STATUS_LINE_PATTERN = r"^\*\*Status\*\*: "
-TERMINAL_BODY = r"(\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)"
+TERMINAL_BODY = r"(\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)"
 END_ANCHOR = r"[[:space:]]*$"
 TERMINAL_PATTERN = STATUS_LINE_PATTERN + TERMINAL_BODY + END_ANCHOR
 # The failure diagnostic pipes through `grep -En`, which prefixes each line
@@ -160,11 +160,17 @@ TOTAL_ASSIGNMENT_RE = re.compile(r'TOTAL=\$\(grep -Ec "([^"]+)"')
 # terminal ones. This is the fail-open shape issue #4054 reports.
 ENUMERATED_PENDING_RE = re.compile(r"\\\[(?:NEW|ACKNOWLEDGED)\\\]|Status\\?\*?\*?: pending")
 
-# One rendered comment map. Eleven detail entries: five terminal, six that must
-# stay pending. The pending six cover every way a status can fail to be
+# One rendered comment map. Thirteen detail entries: five terminal, eight that
+# must stay pending. The pending eight cover every way a status can fail to be
 # terminal: not yet worked ([NEW], [ACKNOWLEDGED]), a [DEFERRED] with no
-# tracking reference, an invented [BOGUS] that appears in no table, and two
-# malformed values whose valid prefix used to be enough to pass the gate.
+# tracking reference, an invented [BOGUS] that appears in no table, two
+# malformed values whose valid prefix used to be enough to pass the gate, and
+# two unresolvable issue numbers.
+#
+# ``Refs #0`` and ``Refs #007`` are the guaranteed-non-reference cases. GitHub
+# numbers issues and pull requests from 1, so neither can ever resolve. The
+# terminal pattern reads ``#[1-9][0-9]*``; the older ``#[0-9]+`` admitted both
+# and let deferred work go terminal against a tracking issue nobody can open.
 SAMPLE_COMMENT_MAP_LINES: tuple[str, ...] = (
     "| 123 | @reviewer | review | file.py#12 | pending | TBD | - |",
     "**Status**: [NEW]",
@@ -178,10 +184,26 @@ SAMPLE_COMMENT_MAP_LINES: tuple[str, ...] = (
     "**Status**: [BOGUS]",
     "**Status**: [COMPLETE]oops",
     "**Status**: [DEFERRED] Refs #4054garbage",
+    "**Status**: [DEFERRED] Refs #0",
+    "**Status**: [DEFERRED] Refs #007",
 )
-SAMPLE_TOTAL_STATUS_LINES = 11
+SAMPLE_TOTAL_STATUS_LINES = 13
 SAMPLE_TERMINAL_LINES = 5
 SAMPLE_PENDING_LINES = SAMPLE_TOTAL_STATUS_LINES - SAMPLE_TERMINAL_LINES
+
+# The status lines that must never count as terminal, each paired with why. A
+# dedicated case per line so a regression names the shape it readmitted rather
+# than only moving an aggregate count.
+NON_TERMINAL_STATUS_LINES: tuple[tuple[str, str], ...] = (
+    ("**Status**: [NEW]", "fetched, not yet acknowledged"),
+    ("**Status**: [ACKNOWLEDGED]", "reaction posted, fix not committed"),
+    ("**Status**: [DEFERRED]", "no tracking reference"),
+    ("**Status**: [BOGUS]", "appears in no vocabulary table"),
+    ("**Status**: [COMPLETE]oops", "trailing garbage after a valid prefix"),
+    ("**Status**: [DEFERRED] Refs #4054garbage", "trailing garbage after the reference"),
+    ("**Status**: [DEFERRED] Refs #0", "GitHub numbers issues from 1, so #0 never resolves"),
+    ("**Status**: [DEFERRED] Refs #007", "leading zero is not a GitHub issue number"),
+)
 
 # Three comments the API reported, all of them worked to a terminal status.
 API_COMMENT_COUNT = 3
@@ -418,6 +440,60 @@ def test_end_anchor_keeps_malformed_terminal_values_pending(tmp_path: Path) -> N
     )
     comment_map = _render_comment_map(tmp_path, well_formed)
     assert _grep_count(TERMINAL_PATTERN, comment_map) == len(well_formed)
+
+
+@requires_grep
+@pytest.mark.parametrize(
+    ("status_line", "reason"),
+    NON_TERMINAL_STATUS_LINES,
+    ids=[line.removeprefix("**Status**: ") for line, _ in NON_TERMINAL_STATUS_LINES],
+)
+def test_a_non_terminal_status_line_stays_pending(
+    status_line: str, reason: str, tmp_path: Path
+) -> None:
+    """Each way a status can fail to be terminal, named one shape per case."""
+    comment_map = _render_comment_map(tmp_path, (status_line,))
+    assert _grep_count(TERMINAL_PATTERN, comment_map) == 0, (
+        f"{status_line!r} counted as terminal; it must stay pending because {reason}"
+    )
+
+
+@requires_grep
+@pytest.mark.parametrize("issue_number", ("1", "9", "10", "4054"))
+def test_a_real_issue_number_still_marks_deferred_terminal(
+    issue_number: str, tmp_path: Path
+) -> None:
+    """The tightened number class must not cost a legitimate reference.
+
+    Guards the inverse of ``test_a_non_terminal_status_line_stays_pending``:
+    narrowing ``#[0-9]+`` to ``#[1-9][0-9]*`` must reject only the numbers
+    GitHub cannot issue, never a tracked deferral.
+    """
+    comment_map = _render_comment_map(tmp_path, (f"**Status**: [DEFERRED] Refs #{issue_number}",))
+    assert _grep_count(TERMINAL_PATTERN, comment_map) == 1
+
+
+@requires_grep
+def test_the_old_number_class_is_the_bug_the_new_one_fixes(tmp_path: Path) -> None:
+    """Negative control: ``#[0-9]+`` admits the numbers GitHub never issues.
+
+    Issues and pull requests are numbered from 1, so ``Refs #0`` names nothing
+    that can be opened. Under the old class it counted terminal, so the gates
+    cleared deferred work whose tracking issue does not and cannot exist.
+    """
+    old_pattern = (
+        STATUS_LINE_PATTERN
+        + r"(\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[0-9]+)"
+        + END_ANCHOR
+    )
+    unresolvable = (
+        "**Status**: [DEFERRED] Refs #0",
+        "**Status**: [DEFERRED] Refs #007",
+    )
+    comment_map = _render_comment_map(tmp_path, unresolvable)
+
+    assert _grep_count(old_pattern, comment_map) == len(unresolvable)
+    assert _grep_count(TERMINAL_PATTERN, comment_map) == 0
 
 
 @requires_grep
