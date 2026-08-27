@@ -51,6 +51,12 @@ ALL_REGISTERED_COMMANDS = tuple(
 # (issue #4011). The `:-` fallback exits 0 and recalls normally.
 PROJECT_DIR_ANCHOR = 'cd "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}" && '
 
+# The one memory the recall cases search for, so their prompt matches a body
+# this file controls rather than whatever the live repository happens to hold.
+DISPATCH_GROUPS_MEMORY = (
+    "# Dispatch Groups (2026-01-01)\n\nHow dispatch group registration works.\n"
+)
+
 # (event, invoker path relative to .claude/hooks/)
 REGISTERED_HOOKS = (
     ("UserPromptSubmit", "UserPromptSubmit/invoke_memory_recall.py"),
@@ -116,19 +122,32 @@ def _probe_launcher(
 
 
 def _fake_repo(tmp_path: Path) -> Path:
-    """A throwaway checkout the hooks can walk up to.
+    """A throwaway checkout the hooks can walk up to when cwd decides the root.
 
-    Keeps the real .serena/memories tree out of reach even though the hooks
-    are read-only, so a regression that reintroduces a write cannot touch it.
+    This controls the memory tree only for a caller that also passes it as
+    `project_dir`. Every registered command begins by cd'ing to the project
+    directory, and `memory_enhancement.find_repo_root` then walks up from that
+    cwd, so passing this path as cwd alone leaves the hook searching this
+    repository's real `.serena/memories`. Use `_seeded_memory_checkout` for a
+    case whose assertion depends on which memories exist.
     """
     (tmp_path / ".git").mkdir(exist_ok=True)
     memories = tmp_path / ".serena" / "memories" / "workflows"
     memories.mkdir(parents=True, exist_ok=True)
-    (memories / "dispatch-groups.md").write_text(
-        "# Dispatch Groups (2026-01-01)\n\nHow dispatch group registration works.\n",
-        encoding="utf-8",
-    )
+    (memories / "dispatch-groups.md").write_text(DISPATCH_GROUPS_MEMORY, encoding="utf-8")
     return tmp_path
+
+
+def _seeded_memory_checkout(tmp_path: Path) -> Path:
+    """An isolated checkout holding exactly one memory the recall prompt hits.
+
+    Pass the result as BOTH cwd and project_dir so the anchor lands inside it.
+    """
+    repo = _empty_memory_checkout(tmp_path)
+    (repo / ".serena" / "memories" / "dispatch-groups.md").write_text(
+        DISPATCH_GROUPS_MEMORY, encoding="utf-8"
+    )
+    return repo
 
 
 def _empty_memory_checkout(tmp_path: Path) -> Path:
@@ -389,6 +408,12 @@ class TestRecallOutputShapePerHost:
     A unit test cannot observe host output handling, so the assertion is on
     the shape the host parses: one JSON document with a top-level
     ``additionalContext`` string, or bare text that is not JSON at all.
+
+    Every case runs inside a seeded throwaway checkout passed as both cwd and
+    project directory, so the recall these assertions depend on comes from a
+    memory this file writes. Reading the live `.serena/memories` tree instead
+    would make the cases fail with an uncaught JSONDecodeError the day someone
+    renames the memory the prompt happens to match.
     """
 
     RECALL = ("UserPromptSubmit", "UserPromptSubmit/invoke_memory_recall.py")
@@ -396,12 +421,9 @@ class TestRecallOutputShapePerHost:
 
     @pytest.mark.unit
     def test_copilot_receives_a_parseable_top_level_envelope(self, tmp_path):
-        result = _run(
-            *self.RECALL,
-            self.PROMPT,
-            _fake_repo(tmp_path),
-            extra_env={"COPILOT_CLI": "1"},
-        )
+        repo = _seeded_memory_checkout(tmp_path)
+
+        result = _run(*self.RECALL, self.PROMPT, repo, repo, {"COPILOT_CLI": "1"})
 
         assert result.returncode == 0, result.stderr
         payload = json.loads(result.stdout)
@@ -410,7 +432,9 @@ class TestRecallOutputShapePerHost:
 
     @pytest.mark.unit
     def test_claude_still_receives_the_bare_block(self, tmp_path):
-        result = _run(*self.RECALL, self.PROMPT, _fake_repo(tmp_path))
+        repo = _seeded_memory_checkout(tmp_path)
+
+        result = _run(*self.RECALL, self.PROMPT, repo, repo)
 
         assert result.returncode == 0, result.stderr
         assert result.stdout.lstrip().startswith("<memory-context>")
@@ -418,15 +442,31 @@ class TestRecallOutputShapePerHost:
             json.loads(result.stdout)
 
     @pytest.mark.unit
-    def test_an_empty_copilot_cli_value_is_not_a_copilot_session(self, tmp_path):
-        """Presence of the name alone must not flip the shape; an exported but
-        empty variable is indistinguishable from unset for identity."""
+    def test_a_live_claude_session_outranks_an_inherited_copilot_cli(self, tmp_path):
+        """Copilot exports COPILOT_CLI into every shell it spawns, so a Claude
+        session started underneath one inherits it. Claude reads a nested
+        hookSpecificOutput envelope, so a top-level additionalContext document
+        would be parsed and dropped with no error."""
+        repo = _seeded_memory_checkout(tmp_path)
+
         result = _run(
             *self.RECALL,
             self.PROMPT,
-            _fake_repo(tmp_path),
-            extra_env={"COPILOT_CLI": ""},
+            repo,
+            repo,
+            {"COPILOT_CLI": "1", "CLAUDE_CODE_ENTRYPOINT": "cli"},
         )
+
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.lstrip().startswith("<memory-context>")
+
+    @pytest.mark.unit
+    def test_an_empty_copilot_cli_value_is_not_a_copilot_session(self, tmp_path):
+        """Presence of the name alone must not flip the shape; an exported but
+        empty variable is indistinguishable from unset for identity."""
+        repo = _seeded_memory_checkout(tmp_path)
+
+        result = _run(*self.RECALL, self.PROMPT, repo, repo, {"COPILOT_CLI": ""})
 
         assert result.returncode == 0, result.stderr
         assert result.stdout.lstrip().startswith("<memory-context>")
@@ -447,8 +487,7 @@ class TestRecallOutputShapePerHost:
         assert empty.stdout == ""
 
         (repo / ".serena" / "memories" / "dispatch-groups.md").write_text(
-            "# Dispatch Groups (2026-01-01)\n\nHow dispatch group registration works.\n",
-            encoding="utf-8",
+            DISPATCH_GROUPS_MEMORY, encoding="utf-8"
         )
         populated = _run(*self.RECALL, self.PROMPT, repo, repo, {"COPILOT_CLI": "1"})
 
