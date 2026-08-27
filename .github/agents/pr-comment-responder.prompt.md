@@ -1399,17 +1399,24 @@ echo "[PASS] All CI checks passing ($passed checks)"
 | Commits pushed | `git status` shows "up to date with origin" | [ ] |
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Final verification
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 echo "=== Completion Criteria ==="
-echo "[ ] Comments: $((ADDRESSED + WONTFIX))/$TOTAL resolved"
+echo "[ ] Comments: $TERMINAL/$TOTAL resolved"
 echo "[ ] New comments: None after 45s wait"
 
 # CI check verification using skill
-checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number])
-all_passing=$(echo "$checks" | jq -r '.Data.AllPassing')
-ci_status=$([ "$all_passing" = "true" ] && echo "PASS" || echo "BLOCKED")
-echo "[ ] CI checks: $ci_status"
+CHECKS=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number])
+ALL_PASSING=$(echo "$CHECKS" | jq -r '.Data.AllPassing')
+if [ "$ALL_PASSING" = "true" ]; then
+  CI_STATUS="PASS"
+else
+  FAILED=$(echo "$CHECKS" | jq '.Data.FailedCount')
+  PENDING=$(echo "$CHECKS" | jq '.Data.PendingCount')
+  CI_STATUS="$FAILED failures, $PENDING pending"
+fi
+echo "[ ] CI checks: $CI_STATUS"
 
 echo "[ ] Pushed: $(git status -sb | head -1)"
 ```
