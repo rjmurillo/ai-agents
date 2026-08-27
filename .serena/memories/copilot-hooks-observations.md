@@ -30,6 +30,24 @@ Do not repeat web research unless the reference skill's refresh rules apply.
 - SessionStart and PostToolUse document `additionalContext`. PreCompact and
   UserPromptSubmitted document no config-file output field. Whether exit-0
   stderr enters model context remains docs silent.
+- Docs silence on UserPromptSubmit output is not absence. Copilot CLI 1.0.79-6
+  was measured consuming a top-level `additionalContext` document on the
+  `.claude/settings.json` surface while discarding plain stdout, against a
+  matched-pair control (issue #4727). Version-scoped runtime behavior, not a
+  vendor guarantee; the docs row above stays DOCS SILENT.
+- Copilot CLI does not export `CLAUDE_PROJECT_DIR`, so a hook command in
+  `.claude/settings.json` anchored as `cd "$CLAUDE_PROJECT_DIR"` runs `cd ""`
+  there, a silent sh/dash no-op that leaves relative script paths resolving
+  against the host cwd. Anchor with
+  `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}`. Measured on 1.0.80:
+  0 occurrences in the shipped `app.js` and engine binary, with `COPILOT_CLI`,
+  `additionalContext`, `GITHUB_TOKEN`, and `COPILOT_PLUGIN_ROOT` as positive
+  controls in the same search.
+- `COPILOT_CLI=1` identifies a Copilot-spawned subprocess, not the consuming
+  host: Copilot exports it into every shell it starts, so a Claude Code session
+  launched underneath one inherits it. Check `CLAUDE_CODE_ENTRYPOINT` first when
+  choosing an output shape. Vendor source for `COPILOT_CLI` is the
+  `changelog.json` shipped in the `@github/copilot` package, version `0.0.421`.
 - Cloud agent loads only default-branch `.github/hooks/*.json`. It does not
   load installed plugins or settings files.
 - The official changelog documents `PLUGIN_ROOT`, `COPILOT_PLUGIN_ROOT`, and

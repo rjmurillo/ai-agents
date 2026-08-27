@@ -126,7 +126,14 @@ both `hooks.json` and the referenced `plugin-*` dispatch group. Generated output
 - UserPromptSubmit has no documented config-file output field. The generated
   dispatcher and direct rollback commands send its successful stdout to stderr
   and emit no host JSON. Whether stderr enters model context remains docs
-  silent.
+  silent. Docs silence is not absence: Copilot CLI 1.0.79-6 was measured
+  consuming a top-level `additionalContext` document on this event while
+  discarding plain stdout (issue #4727). The dispatcher's suppression is a
+  policy choice about branch-controlled producer text, not a claim that the
+  channel is unavailable. A direct producer needing model reach emits that
+  envelope itself, keyed on a host check that prefers `CLAUDE_CODE_ENTRYPOINT`
+  over `COPILOT_CLI`, because Copilot exports `COPILOT_CLI` into every shell it
+  spawns and a nested Claude session inherits it.
 - Only explicitly classified events receive dispatcher modes. Unclassified
   future events remain direct until output and failure semantics are reviewed.
 - A PostToolUse `modifiedResult` or pre-structured output producer changes the

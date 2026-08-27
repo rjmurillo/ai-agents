@@ -422,7 +422,15 @@ events and execute those shims in process through
      child-process stderr, then discard the raw content. SessionStart has a
      documented `additionalContext` field, but repository policy rejects the
      current branch-controlled producer text as model context. PreCompact and
-     UserPromptSubmit have no documented config-file output field. Normal
+     UserPromptSubmit have no documented config-file output field. Docs silence
+     is not a measurement, and for UserPromptSubmit the two now disagree: the
+     event stays DOCS SILENT, while Copilot CLI 1.0.79-6 was measured to consume
+     a top-level `additionalContext` document on the `.claude/settings.json`
+     surface and to discard plain stdout, against a matched-pair control (issue
+     #4727, `probe-evidence.md` section 8). The adapter's discard therefore
+     tracks the documentation by choice, not by necessity, and a producer that
+     needs model reach emits that envelope itself rather than relying on plain
+     stdout. Normal
      discard diagnostics name the lifecycle event and never repeat the content
      if a future vendored source activates one of these adapters.
      Capture-failure and observer-exit diagnostics are fixed but can be generic.
@@ -562,7 +570,7 @@ The current reasons to keep the dispatcher are:
 | Persistent daemon | Rejected because lifecycle, IPC, stale state, and recovery exceed the current need. |
 | Keep output-bearing observers direct | Required unless an event-specific merger preserves one valid JSON document. |
 | Keep PreCompact direct with shell suppression | Rejected as the normal mode when a vendored source exists because it restores repeated startup. Retained as a tested rollback shape. |
-| Keep UserPromptSubmit direct | Rejected when a vendored source exists because plaintext output has no documented host field and direct entries restore repeated startup. |
+| Keep UserPromptSubmit direct | Rejected when a vendored source exists because plaintext output has no documented host field and direct entries restore repeated startup. The no-documented-field half is docs silence, not absence: Copilot CLI 1.0.79-6 was measured to consume a top-level `additionalContext` document on this event (issue #4727), so a producer needing model reach emits that envelope rather than depending on the channel this row rejects. |
 | Discard observer stdout by default | Rejected. Dormant SessionStart, PreCompact, and UserPromptSubmit adapters have reviewed discard policies. Active PostToolUse uses `additionalContext`, and unclassified events stay direct. |
 | Consolidate observers but direct-register every PreToolUse gate | The current PreToolUse inventory is three shims, all timed, so on Copilot direct registration would start one interpreter per matched call versus the dispatcher plus its three children (four starts, #4706), and only for calls that actually match one of the three gates rather than for every PreToolUse-eligible call. The dispatcher remains on the live generation path; simplification requires a new architecture decision under re-evaluation trigger 5. |
 | Reorder guards by perceived risk, or split selected critical gates | No stable criticality contract exists, and reordering only changes which later guards a hang bypasses. A split is a narrower form of the hybrid and needs the same measurement. |
@@ -844,7 +852,12 @@ important ways:
    observer exit code and no raw content. Capture-failure and observer-exit
    diagnostics remain fixed but can be event-neutral. The dormant
    UserPromptSubmit adapter also discards both channels because no output field
-   is documented and stderr model reach is docs silent.
+   is documented and stderr model reach is docs silent. Both remain DOCS SILENT.
+   The stdout half is no longer unmeasured: Copilot CLI 1.0.79-6 consumes a
+   top-level `additionalContext` document on this event and discards plain
+   stdout (issue #4727). The discard stands as a policy choice about
+   branch-controlled producer text, not as a claim that the channel is
+   unavailable, and a producer needing model reach emits the envelope itself.
    PostToolUseFailure stays direct so exit-2 recovery context reaches the host.
    Every unclassified event stays direct. A new field-bearing producer requires
    a field-specific merger or direct registration.
