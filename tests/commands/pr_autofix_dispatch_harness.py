@@ -5,12 +5,13 @@ markers from a shipped document and executes it with `bash`, against fake
 producer scripts on `$SCRIPTS_DIR`. Parameterized over the source command and
 its generated mirror, so a stale mirror fails.
 
-Three properties here were added only after a mutation proved the earlier
-version could not see the defect, and all three are documented at their
+Four properties here were added only after a mutation proved the earlier
+version could not see the defect, and all four are documented at their
 definitions: the fake `set_pr_auto_merge.py` records its argument vector rather
 than the bare fact of a call, the fake `test_pr_merge_ready.py` does the same so
-a dropped `--is-bot` is visible (issue #5208), and the queue walks two PRs so a
-per-PR skip is distinguishable from a queue abort.
+a dropped `--is-bot` is visible (issue #5208), the fake `get_pr_context.py`
+records one line per call so a duplicated context fetch is countable, and the
+queue walks two PRs so a per-PR skip is distinguishable from a queue abort.
 
 Split from `test_pr_autofix_tier_dispatch_runtime.py` when it crossed the
 500-line taste rule, following the parser precedent in this directory: this
@@ -148,6 +149,18 @@ print(json.dumps({
         """\
 import json
 import os
+import sys
+from pathlib import Path
+
+# Records the PR it was asked about, one line per call, for the same reason the
+# two producers above record argv: the bare fact of a call cannot distinguish
+# one context fetch per PR from two. Moving the author lookup ahead of the tier
+# producer (issue #5208) put a second consumer on this fetch, and the block's
+# own comment claims "One fetch still serves both reads". Written before the
+# early exit below so an unreadable-context case still counts its call.
+Path(os.environ["CONTEXT_LOG"]).open("a", encoding="utf-8").write(
+    "context " + " ".join(sys.argv[1:]) + "\\n"
+)
 
 if os.environ["FAKE_AUTO_MERGE"] == "UNREADABLE":
     raise SystemExit(1)
@@ -199,6 +212,7 @@ class DispatchRun:
         disarm_log: Path,
         cleanup_log: Path,
         merge_ready_log: Path,
+        context_log: Path,
     ) -> None:
         self.process = process
         self.stdout = process.stdout
@@ -209,6 +223,12 @@ class DispatchRun:
         self.merge_ready_argv = (
             merge_ready_log.read_text(encoding="utf-8") if merge_ready_log.exists() else ""
         )
+        self.context_argv = context_log.read_text(encoding="utf-8") if context_log.exists() else ""
+
+    @property
+    def context_fetches(self) -> list[str]:
+        """One entry per `get_pr_context.py` invocation, in call order."""
+        return [line for line in self.context_argv.splitlines() if line]
 
     @property
     def forwarded_is_bot(self) -> bool:
@@ -279,6 +299,7 @@ def run_dispatch(
     disarm_log = tmp_path / "disarm"
     cleanup_log = tmp_path / "cleanup"
     merge_ready_log = tmp_path / "merge-ready"
+    context_log = tmp_path / "context"
 
     block = extract_dispatch((REPO_ROOT / doc).read_text(encoding="utf-8"))
     if tier_read != SHIPPED_TIER_READ:
@@ -332,6 +353,7 @@ done
             "FAKE_AUTHOR_IS_BOT": author_is_bot,
             "MERGE_READY_LOG": str(merge_ready_log),
             "MUTATION_RC_OVERRIDE": mutation_rc,
+            "CONTEXT_LOG": str(context_log),
         }
     )
     process = subprocess.run(
@@ -369,4 +391,6 @@ done
         assert expected_stderr in process.stderr, (
             f"expected {expected_stderr!r} on stderr, got: {process.stderr.strip()!r}"
         )
-    return DispatchRun(process, round_cap_log, disarm_log, cleanup_log, merge_ready_log)
+    return DispatchRun(
+        process, round_cap_log, disarm_log, cleanup_log, merge_ready_log, context_log
+    )

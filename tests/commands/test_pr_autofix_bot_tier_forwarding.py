@@ -241,6 +241,47 @@ def test_the_author_lookup_runs_before_the_tier_producer(tmp_path: Path, doc: st
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_the_context_is_fetched_exactly_once_per_pr(tmp_path: Path, doc: str) -> None:
+    """One fetch per PR, counted rather than claimed.
+
+    The case above proves the fetch moved ahead of the tier producer and that
+    the disarm gate still reads `$AUTO_MERGE`. Neither assertion can count: a
+    block that fetched once for the author read and a second time at the disarm
+    gate satisfies both, and its docstring's closing claim, "the move did not
+    cost the PR a second API call", would be the only thing saying otherwise.
+    The block itself claims it twice, at the fetch ("the PR still costs one
+    context fetch") and at the disarm gate ("One fetch still serves both
+    reads"), so it is a stated contract with no test behind it.
+
+    Cost is the whole point of the contract. `get_pr_context.py` runs `gh pr
+    view` plus a paginated `reviewThreads` GraphQL walk, so a duplicate is a
+    second round trip against the same rate limit for every PR in the queue,
+    every pass through the loop.
+
+    Exactly one, not at most one: a block that dropped the fetch entirely would
+    leave `$CTX` unset, and while `set -u` catches that today, an edit that
+    also gave `$CTX` a default would not be caught by an upper bound alone.
+
+    The harness walks two PRs, so the assertion is on the per-PR count. A
+    single-PR check could not tell one-per-PR from one-per-queue, and
+    one-per-queue is the shape a fetch hoisted above the loop produces: PR
+    5177 would then be classified off PR 5176's author and auto-merge state.
+    """
+    run = run_dispatch(tmp_path, doc, tier="T3", auto_merge="SQUASH", author_is_bot="true")
+
+    fetches = run.context_fetches
+    assert len(fetches) == 2, (
+        "the two-PR queue did not cost exactly one context fetch per PR; calls "
+        f"were {fetches!r}"
+    )
+    for pr in ("5176", "5177"):
+        matching = [line for line in fetches if f"--pull-request {pr}" in line]
+        assert len(matching) == 1, (
+            f"PR #{pr} was fetched {len(matching)} times, not once; calls were {fetches!r}"
+        )
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
 def test_an_unreadable_context_still_skips_before_classifying(tmp_path: Path, doc: str) -> None:
     """A context fetch that fails outright is a skip, not a bot guess.
 
