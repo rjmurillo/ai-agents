@@ -16,18 +16,33 @@ CLI:
 EXIT CODES:
     0 - success
     1 - generator logic error
-    2 - configuration error; staleness detected (--check); git state
-        unreadable (--check); a file under OWNED_PREFIXES that cannot be
-        read (--check, aborts before generation)
-    3 - audit blocklist violation (REQ-003-011)
+    2 - configuration error; staleness detected (--check); a file under
+        OWNED_PREFIXES that cannot be read (--check, aborts before
+        generation)
+    3 - audit blocklist violation (REQ-003-011); git state unreadable
+        (--check)
 
-Exit 2 has four producers and only the staleness one is fixed by
-regenerating and committing. The git-unreadable and unreadable-owned-file
-producers arrived with issue #4632, which reversed a promise the old
-:func:`_git_diff_paths` docstring made: "We do not want to fail when a
-contributor runs the script in a non-git working tree." ``--check`` in a
-non-git tree now exits 2. A plain (non-``--check``) build there still
-succeeds, because :func:`_git_diff_paths` is reached only under ``--check``.
+Exit 2 has three producers and only the staleness one is fixed by
+regenerating and committing. The unreadable-owned-file producer arrived with
+issue #4632.
+
+Exit 3 covers the two failures that are not a stale tree: an audit blocklist
+violation, and a git that could not answer. Git is an external tool and
+``AGENTS.md`` reads "0=ok|1=logic|2=config|3=external", so every git-read
+failure lands here: a git that will not launch, one that times out, and one
+that exits nonzero. Neither exit-3 producer is cleared by regenerating.
+
+Do not split "not a git repository" back out to 2. It is a git fatal like any
+other, git localizes its fatal messages so no stderr match is reliable, and
+routing it to 2 would put "your environment is broken" back in the same code
+as "regenerate and commit", which is the conflation this split exists to
+remove.
+
+Issue #4632 reversed a promise the old :func:`_git_diff_paths` docstring
+made: "We do not want to fail when a contributor runs the script in a non-git
+working tree." ``--check`` in a non-git tree now exits 3. A plain
+(non-``--check``) build there still succeeds, because :func:`_git_diff_paths`
+is reached only under ``--check``.
 
 That last sentence is a claim about one function, not about the script.
 Every run, ``--check`` or not, snapshots ``.claude/`` for the REQ-003-010
@@ -701,7 +716,9 @@ def _git_diff_paths(repo_root: Path) -> list[str]:
     the untracked half, --check misses it.
 
     Raises :class:`GitStateUnreadableError` when either git invocation fails to
-    start, times out, or exits nonzero. The prior behavior returned the
+    start, times out, or exits nonzero. All three are external failures, and
+    the ``--check`` handler maps them to exit 3 per ``AGENTS.md``; see the
+    module docstring. The prior behavior returned the
     paths gathered so far, which for a broken git is the empty list: the
     exact value a clean tree produces, so ``--check`` reported exit 0 over a
     tree it never examined (issue #4632, reproduction 1: ``PATH=/nonexistent
@@ -1420,11 +1437,19 @@ def _run_generators(
         except GitStateUnreadableError as exc:
             # An empty diff and an unreadable git both yield zero paths. Only
             # the first one means the tree is clean (issue #4632).
+            #
+            # Exit 3, not 2. Git is an external tool, and AGENTS.md's exit-code
+            # contract reads "0=ok|1=logic|2=config|3=external". Exit 2 here
+            # told a caller the same thing staleness tells it, so "you are
+            # missing git" and "your generated tree is stale" arrived as one
+            # code and the caller could recommend a regeneration that cannot
+            # fix the problem. See the module docstring for why a non-repository
+            # root is not split back out to 2.
             print(
                 f"STALENESS UNKNOWN: cannot read git state: {exc}",
                 file=sys.stderr,
             )
-            audit.overall_exit = max(audit.overall_exit, 2)
+            audit.overall_exit = max(audit.overall_exit, 3)
             changed = []
         diff = [
             p for p in changed

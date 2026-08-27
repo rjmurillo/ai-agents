@@ -2167,7 +2167,7 @@ def test_git_diff_paths_returns_paths_on_a_healthy_repo(tmp_path: Path) -> None:
     assert "seed.txt" in build_all._git_diff_paths(repo)
 
 
-def test_run_check_returns_2_when_git_state_is_unreadable(
+def test_run_check_returns_3_when_git_state_is_unreadable(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -2180,11 +2180,13 @@ def test_run_check_returns_2_when_git_state_is_unreadable(
     unchanged so the #2440 read-only contract is shown to survive the new
     failure path rather than being traded for it.
 
-    ``--check`` reaches ``rc == 2`` from at least three places: the
-    REQ-003-010 guard, the pre-existing staleness branch, and this new git
-    branch. The stderr assertion is what pins this test to the git branch; the
-    exit code alone would stay green if a future change tripped the .claude/
-    guard under ``_NoGit`` and left the git branch dead.
+    The code is 3, not 2. Git is external and ``AGENTS.md`` reserves 3 for
+    external failures, so a missing git no longer arrives as the same code as
+    staleness, which is the one exit-2 producer a regeneration fixes.
+
+    ``--check`` reaches ``rc == 2`` from three places, so the code alone never
+    pinned this test to the git branch; the stderr assertion did, and it still
+    does now that the code is 3 and shared with the audit blocklist.
     """
     repo = tmp_path / "repo"
     _init_git_repo(repo)
@@ -2214,12 +2216,49 @@ def test_run_check_returns_2_when_git_state_is_unreadable(
         repo, platform=None, check=True, clean=False, audit_format="md"
     )
 
-    assert rc == 2, f"expected exit 2 when git state is unreadable, got {rc}"
+    assert rc == 3, f"expected exit 3 when git state is unreadable, got {rc}"
     err = capsys.readouterr().err
     assert "cannot read git state" in err, err
     assert stale.read_text() == stale_text, (
         "--check must stay read-only on the git-unreadable path"
     )
+
+
+def test_cli_exits_3_when_git_state_is_unreadable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The CLI, not just ``run()``, must return the external code.
+
+    ``.claude/rules/testing.md`` MUST 8: a test for a gate drives ``main(argv)``
+    and asserts the integer the program returns. Every caller of this script
+    reads a process exit code, and ``run()``'s return value only becomes one
+    because ``main`` passes it through: this asserts the thing callers see.
+
+    Paired with the ``run()`` test above rather than replacing it, because that
+    one carries the read-only assertion on the stale file.
+    """
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+    monkeypatch.setattr(build_all, "subprocess", _NoGit)
+
+    rc = build_all.main(["--repo-root", str(repo), "--check"])
+
+    assert rc == 3, f"expected CLI exit 3 when git state is unreadable, got {rc}"
+    assert "cannot read git state" in capsys.readouterr().err
 
 
 def test_snapshot_strict_raises_on_unreadable_owned_file(
