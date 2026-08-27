@@ -292,6 +292,21 @@ class TestCliContract:
         assert code == 0
         assert "[SKIP]" in capsys.readouterr().out
 
+    def test_validate_wrapper_returns_false_on_git_failure(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # Spec-validation nit (PR #5338): the boolean wrapper's git-failure
+        # branch is the one pre_pr actually calls; pin it directly.
+        root = _repo(tmp_path)
+        monkeypatch.setattr(
+            checker, "_resolve_default_base_ref", lambda _root: "does-not-exist"
+        )
+
+        assert checker.validate_citation_freshness(root) is False
+
     def test_validate_wrapper_returns_false_on_findings(
         self,
         tmp_path: Path,
