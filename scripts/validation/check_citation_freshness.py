@@ -18,8 +18,9 @@ Deliberate scope: added lines only, so historical trees (``stale_script_refs``'s
 re-policed. HEAD is the state verified, because HEAD is what a push ships
 (``.claude/rules/ci-scripts.md``, "Read the state you are asserting
 about, and name the ref"). Anchorless citations get existence and range
-checks only, and paths without a ``/`` never match, so illustrative
-snippets such as ``auth.ts:47`` stay ignored by construction. Escape
+checks only. A slashless name is verified only when it names a file
+tracked at the repository root (``.markdownlint-cli2.yaml:138``), so
+illustrative snippets such as ``auth.ts:47`` stay ignored. Escape
 hatch: ``citation-freshness: ignore`` (with a reason) on the citing line
 or the line above; line-scoped on purpose, no whole-gate skip.
 
@@ -242,6 +243,12 @@ def find_stale_citations(repo_root: Path, base_ref: str) -> list[Finding] | None
             scannable = _URL.sub(" ", line_text)
             matches = list(_CITATION.finditer(scannable))
             for index, match in enumerate(matches):
+                # A slashless name is a claim only when a tracked root
+                # file backs it; otherwise it is an illustrative snippet
+                # (auth.ts:47) and is skipped before it is even counted.
+                cited_path = match.group("path").removeprefix("./")
+                if "/" not in cited_path and cited_path not in tracked:
+                    continue
                 citations_checked += 1
                 finding = _check_citation(
                     citing_file,

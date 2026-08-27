@@ -91,17 +91,17 @@ One slice of this is now machine-checked. The `Citation Freshness (added lines)`
 ```python
 _CITATION = re.compile(
     rf"(?<![\w./-])(?!\.\./)"
-    rf"(?P<path>[\w.-]+(?:/[\w.-]+)+\.(?:{_EXTENSIONS})):(?P<start>\d+)(?:-(?P<end>\d+))?\b"
+    rf"(?P<path>[\w.-]+(?:/[\w.-]+)*\.(?:{_EXTENSIONS})):(?P<start>\d+)(?:-(?P<end>\d+))?\b"
 )
 ```
 
-so the cited path must contain a directory separator and an extension in `_EXTENSIONS`; bare root-file names such as a repository's top-level instructions file, and illustrative snippets with no directory, deliberately stay out of the matcher. The escape hatch counts only in its reasoned form, quoted verbatim from `check_citation_freshness.py`:
+so the cited path needs an extension in `_EXTENSIONS`, and a slashless name counts only when it names a file tracked at the repository root (the shape a stale citation in this very rule once took); an untracked bare name is read as an illustrative snippet and skipped. Absolute and parent-relative paths never match. The escape hatch counts only in its reasoned form, quoted verbatim from `check_citation_freshness.py`:
 
 ```python
 _IGNORE_WITH_REASON = re.compile(re.escape(IGNORE_MARKER) + r"\s+--\s+\S")
 ```
 
-The gate checks: the cited file must be tracked at HEAD, the cited lines must exist, and when the citing sentence names the contract (a backtick span, a double-quoted phrase, an underscore identifier, or an indented verbatim quote) that content must actually appear at the cited lines. It reports where the content moved to when it can. Historical trees (retrospectives, sessions, memories) are exempt, and a deliberate exception takes a `citation-freshness: ignore` marker with a reason on or above the line.
+The gate checks: the cited file must be tracked at HEAD, the cited lines must exist, and when the citing sentence names the contract (a backtick span, a double-quoted phrase, an underscore identifier, or an indented verbatim quote) that content must actually appear at the cited lines. It reports where the content moved to when it can. Historical trees (retrospectives, sessions, memories) and `fixtures/` directories, whose files synthesize citations on purpose, are exempt, and a deliberate exception takes a `citation-freshness: ignore` marker with a reason on or above the line.
 
 Everything else in this section remains manual. A claim that names a symbol, a test, or a count WITHOUT a line number is invisible to that gate, and two other gates look like they would catch it and do not:
 

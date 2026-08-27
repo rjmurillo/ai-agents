@@ -16,16 +16,19 @@ _EXTENSIONS = (
     "py|md|yml|yaml|json|ps1|psm1|sh|ts|js|toml|txt|ini|cfg|html|css|ipynb"
 )
 
-# A citation: a slash-containing repo path with a known extension, then
-# :N or :N-M. The path class excludes backticks, quotes, parens, and
-# colons, so surrounding markup never leaks into the path. The left
-# boundary rejects a start preceded by a path character, so an absolute
+# A citation: a repo path with a known extension, then :N or :N-M. The
+# path class excludes backticks, quotes, parens, and colons, so
+# surrounding markup never leaks into the path. The left boundary
+# rejects a start preceded by a path character, so an absolute
 # filesystem path (/home/...) never yields a phantom repo citation from
 # its tail, and the lookahead keeps parent-relative ../ paths out; ./ is
-# still accepted (the gate strips that prefix).
+# still accepted (the gate strips that prefix). The slash group is
+# optional so tracked root files (.markdownlint-cli2.yaml:138) are in
+# scope; the gate skips a slashless name not tracked at the repo root,
+# which is what keeps illustrative snippets (auth.ts:47) out.
 _CITATION = re.compile(
     rf"(?<![\w./-])(?!\.\./)"
-    rf"(?P<path>[\w.-]+(?:/[\w.-]+)+\.(?:{_EXTENSIONS})):(?P<start>\d+)(?:-(?P<end>\d+))?\b"
+    rf"(?P<path>[\w.-]+(?:/[\w.-]+)*\.(?:{_EXTENSIONS})):(?P<start>\d+)(?:-(?P<end>\d+))?\b"
 )
 
 _URL = re.compile(r"https?://\S+")
