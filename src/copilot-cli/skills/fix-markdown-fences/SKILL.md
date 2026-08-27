@@ -92,7 +92,7 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/fix-markd
 
 Options: `--write` repairs in place, `--json` emits machine-readable output,
 `--pattern` sets the glob for directory scans (default `*.md`). Paths default
-to the current directory. `.git`, `node_modules`, `.venv`, and `__pycache__`
+to the current directory. `.git`, `node_modules`, `.venv`, `venv`, and `__pycache__`
 are skipped.
 
 Fence matching follows CommonMark, which is what keeps the tool from damaging
@@ -257,7 +257,9 @@ than fixed: a second copy of a parser drifts from the one that ships.
 
 ```bash
 # Find files with potential issues
-grep -rEn --include="*.md" -- '```\w+' . | grep -vE "^[^:]*:[0-9]*:[[:space:]]*```\w+[[:space:]]*$"
+# Single quotes throughout: a backtick inside DOUBLE quotes opens command
+# substitution, and this line used to fail `bash -n` for that reason.
+grep -rEn --include="*.md" -- '```\w+' . | grep -vE '^[^:]*:[0-9]*:[[:space:]]*```\w+[[:space:]]*$'
 ```
 
 </details>

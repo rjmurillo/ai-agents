@@ -91,6 +91,33 @@ class TestScannerParity:
                 f"{name} has drifted"
             )
         assert mod._TITLE_CLOSERS == prose._TITLE_CLOSERS, "_TITLE_CLOSERS has drifted"
+        # The CONTAINER grammar, added after a fresh-eyes review found the same
+        # hole this guard was written to close, one layer out. `_ListContainers`
+        # is compared by source, but the module-level patterns its methods
+        # reach for are not inside the class, so `_BLOCK_QUOTE` and its
+        # siblings could drift between the two scanners with every test green.
+        # That is the fifth time on this branch a defect landed just outside
+        # whatever the parity guard covered.
+        for name in (
+            "_ATX_HEADING",
+            "_BLOCK_QUOTE",
+            "_LIST_MARKER",
+            "_SETEXT_UNDERLINE",
+            "_THEMATIC_BREAK",
+        ):
+            assert getattr(mod, name).pattern == getattr(prose, name).pattern, (
+                f"{name} has drifted between the two scanners"
+            )
+        for name in ("_MAX_FENCE_INDENT", "_MAX_LIST_PAD"):
+            assert getattr(mod, name) == getattr(prose, name), f"{name} has drifted"
+        # `_LINE_SPLIT_RE` legitimately differs: the repair splits with the
+        # separators kept, so its copy wraps the alternation in a group. What
+        # must NOT differ is which characters count as terminators, and the PR
+        # claims exactly that, so assert the claim rather than exempting the
+        # name.
+        assert mod._LINE_SPLIT_RE.pattern.strip("()") == prose._LINE_SPLIT_RE.pattern.strip("()"), (
+            "the two scanners no longer agree on what a line terminator is"
+        )
         for name in (
             "_angle_destination_end",
             "_link_destination_end",
