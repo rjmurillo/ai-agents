@@ -79,6 +79,18 @@ _MAX_LIST_PAGES = 50
 
 _DEFAULT_WORKFLOWS_DIR = Path(__file__).resolve().parents[1] / ".github" / "workflows"
 
+# Issue #4835 acceptance criteria: "Emit a recovery manifest that can
+# regenerate each cancelled context" is a hard requirement, not an opt-in.
+# --confirm without --manifest previously cancelled required-context runs
+# with no manifest written anywhere, leaving no durable record to replay if
+# the runs needed to be re-triggered. This path is the fallback destination
+# so a confirmed cancellation always leaves one, matching the repo-relative
+# scratch convention documented in .claude/rules/ci-scripts.md and used by
+# scripts/ci/artifact_collect.py.
+_DEFAULT_MANIFEST_PATH = (
+    Path(__file__).resolve().parents[1] / ".agents" / "scratch" / "bulk-cancel-recovery.json"
+)
+
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser for the guard CLI."""
@@ -135,7 +147,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--manifest",
         type=Path,
         default=None,
-        help="Write the recovery manifest JSON to this path.",
+        help=(
+            "Write the recovery manifest JSON to this path. When omitted "
+            f"and --confirm is set, defaults to {_DEFAULT_MANIFEST_PATH} so "
+            "a confirmed cancellation always leaves a durable manifest."
+        ),
     )
     parser.add_argument(
         "--confirm",
@@ -258,6 +274,24 @@ def format_report(manifest: RecoveryManifest) -> str:
     return "\n".join(lines)
 
 
+def resolve_manifest_path(args: argparse.Namespace) -> Path | None:
+    """Decide where to write the recovery manifest, if anywhere.
+
+    An explicit ``--manifest`` always wins. Absent one, ``--confirm`` still
+    MUST leave a durable manifest behind: cancelling required-context runs
+    with zero record of what was cancelled is the exact incident this guard
+    exists to prevent (issue #4835). A dry run with no ``--manifest`` keeps
+    writing nothing, since a plan that mutates nothing needs no recovery
+    record.
+    """
+    manifest: Path | None = args.manifest
+    if manifest is not None:
+        return manifest
+    if args.confirm:
+        return _DEFAULT_MANIFEST_PATH
+    return None
+
+
 def write_manifest(path: Path, manifest: RecoveryManifest) -> None:
     """Serialize the manifest to ``path``."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -310,13 +344,14 @@ def main(argv: Sequence[str] | None = None, client: GitHubClient | None = None) 
 
     print(format_report(manifest))
 
-    if args.manifest is not None:
+    manifest_path = resolve_manifest_path(args)
+    if manifest_path is not None:
         try:
-            write_manifest(args.manifest, manifest)
+            write_manifest(manifest_path, manifest)
         except OSError as exc:
             print(f"[FAIL] cannot write manifest: {exc}", file=sys.stderr)
             return EXIT_CONFIG
-        print(f"recovery manifest written to {args.manifest}")
+        print(f"recovery manifest written to {manifest_path}")
 
     if not manifest.is_safe:
         print(

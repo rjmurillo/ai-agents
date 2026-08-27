@@ -86,6 +86,24 @@ def workflows_missing_reopened(tmp_path: Path) -> Path:
     return write_workflows(tmp_path / "omitted", _REOPEN_OMITTED)
 
 
+@pytest.fixture(autouse=True)
+def _default_manifest_path_stays_out_of_the_repo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Path:
+    """Redirect the production default manifest path into tmp_path.
+
+    scripts/bulk_cancel_guard.py:_DEFAULT_MANIFEST_PATH resolves under this
+    repo's own .agents/scratch/ so a real ``--confirm`` run always leaves a
+    manifest. Left unpatched, any test that exercises ``--confirm`` without
+    ``--manifest`` would write into the actual working tree (testing.md MUST
+    4). Nested under a subdirectory so tests also exercise write_manifest's
+    ``mkdir(parents=True)``.
+    """
+    default_path = tmp_path / "default-manifests" / "bulk-cancel-recovery.json"
+    monkeypatch.setattr(bulk_cancel_guard, "_DEFAULT_MANIFEST_PATH", default_path)
+    return default_path
+
+
 def argv(runs_file: Path, workflows_dir: Path, *extra: str) -> list[str]:
     return [
         "--runs-file",
