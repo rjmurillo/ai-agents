@@ -62,6 +62,32 @@ class TestDiffParsing:
         assert code == 1
         assert "examined 1 citation(s)" in out
 
+    def test_a_type_change_to_regular_file_is_scanned(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Regression (Copilot round 6, PR #5338): --diff-filter=ACMR
+        # omitted type changes, so a symlink replaced by a regular file
+        # carried its whole content as unscanned added lines.
+        root = _repo(tmp_path)
+        _git(root, "checkout", "-q", "main")
+        (root / "docs").mkdir(exist_ok=True)
+        (root / "docs" / "link.md").symlink_to("../README.md")
+        _git(root, "add", "-A")
+        _git(root, "commit", "-q", "-m", "link")
+        _git(root, "checkout", "-q", "feature")
+        _git(root, "merge", "-q", "main")
+        (root / "docs" / "link.md").unlink()
+        (root / "docs" / "link.md").write_text(
+            f"See `{TARGET}:2` (`magic_token`).\n", encoding="utf-8"
+        )
+        _git(root, "add", "-A")
+        _git(root, "commit", "-q", "-m", "replace")
+
+        code, out = _run(root, capsys)
+
+        assert code == 1
+        assert "examined 1 citation(s)" in out
+
     def test_a_pure_rename_does_not_reauthor_its_latent_citations(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -131,8 +157,6 @@ class TestDiffParsing:
         # these two assertions when they were first written literally.
         assert f"{'docs/notes.md'}:2:" in out
 
-
-
 class TestScopeBoundaries:
     def test_ignore_marker_on_the_line_above_suppresses(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -194,6 +218,26 @@ class TestScopeBoundaries:
         # introduced one, failing an otherwise anchorless citation.
         root = _repo(tmp_path)
         doc = f"See {TARGET}:2 today.\n\n    unrelated_block_content()\n"
+        _add_doc(root, "docs/notes.md", doc)
+
+        code, _out = _run(root, capsys)
+
+        assert code == 0
+
+    def test_deeper_indented_example_block_is_not_sentence_context(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # False positive found replaying post-merge history (the corpus
+        # shape PR #5336's own fix text carries): a deeper-indented
+        # example line above a citation belongs to the PREVIOUS
+        # citation as its continuation quote, not to this sentence.
+        root = _repo(tmp_path)
+        doc = (
+            f"    first {TARGET}:3 (spelled):\n"
+            f"        def magic_token():\n"
+            f"    second {TARGET}:2 (spelled, shared by\n"
+            f"    others):\n"
+        )
         _add_doc(root, "docs/notes.md", doc)
 
         code, _out = _run(root, capsys)
