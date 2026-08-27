@@ -474,12 +474,16 @@ PAGES_COMPLETE=$(printf '%s' "$MERGE_READY" | jq -r 'if (.fetched_pages_complete
 # test_pr_merge_ready.py exits 1 for any not-merge-ready PR, so T2 through T4 are
 # legitimately non-zero.
 # The accepted set is the producer's own, quoted verbatim from
-# test_pr_merge_ready.py:1103, which classify_tier's docstring names as the
-# range of its return value:
-#   _TIER_ORDER = ("T1", "T2", "T3", "T4", "T5", "BEHIND", "BLOCKED", "DIRTY", "SKIP")
-# The four beyond the T1-T5 ladder are real: SKIP for a draft, closed, or merged
-# PR, and BEHIND/BLOCKED/DIRTY from the merge-state lookup. Listing only the
-# ladder rejected those as producer failures and silently disabled the
+# test_pr_merge_ready.py, which classify_tier's docstring names as the range of
+# its return value:
+#   _TIER_ORDER = (
+#       "T1", "T2", "T3", "T4", "T5",
+#       "BEHIND", "BLOCKED", "DIRTY", "SKIP", "UNSUPPORTED",
+#   )
+# The five beyond the T1-T5 ladder are real: SKIP for a draft, closed, or merged
+# PR, BEHIND/BLOCKED/DIRTY from the merge-state lookup, and UNSUPPORTED for a
+# mergeStateStatus this repository has no verified merge path for. Listing only
+# the ladder rejected those as producer failures and silently disabled the
 # documented BEHIND and DIRTY handling.
 # tests/commands/test_pr_autofix_tier_contract.py pins this list against the
 # producer so the two cannot drift apart again.
@@ -505,12 +509,28 @@ PAGES_COMPLETE=$(printf '%s' "$MERGE_READY" | jq -r 'if (.fetched_pages_complete
 # producer crash the one path where this loop leaves auto-merge armed on a PR
 # it never assessed, and contradicted this change's own claim that the armed
 # set only shrinks.
+# UNSUPPORTED is recognized and terminates, like SKIP, but it terminates one
+# gate later, for the same reason the unknown-tier arm does. SKIP names a state
+# whose author chose it, so stripping auto-merge would destroy that choice.
+# UNSUPPORTED names a mergeStateStatus with no verified merge path, so "armed
+# but not provably T1" is exactly true of it and the disarm gate below must run
+# first. It is a separate arm rather than a T4 because T4 dispatches into the
+# round-cap thread-fix loop, and an UNSUPPORTED PR routinely carries zero
+# threads and zero CI failures: that loop would have no action to take and
+# would terminate only by burning the round cap and posting an escalation
+# comment on a PR with nothing to escalate.
 TIER_KNOWN=yes
+TIER_TERMINAL=no
 case "$TIER" in
     SKIP)
         echo "Tier SKIP for #$PR (draft, merged, or closed); no action."
         cleanup_pr_autofix
         continue
+        ;;
+    UNSUPPORTED)
+        MERGE_STATE=$(printf '%s' "$MERGE_READY" | jq -r '.MergeStateStatus // ""')
+        echo "Tier UNSUPPORTED for #$PR (mergeStateStatus '${MERGE_STATE:-<missing>}' has no verified merge path); disarming auto-merge if armed, then skipping."
+        TIER_TERMINAL=yes
         ;;
     T1|T2|T3|T4|T5|BEHIND|BLOCKED|DIRTY) ;;
     *)
@@ -571,9 +591,10 @@ if [ "$AUTO_MERGE" != "null" ] && [ "$TIER_TRUSTED_T1" != "yes" ]; then
         continue
     fi
 fi
-# The unknown-tier arm resumes here, one gate later than SKIP leaves. Everything
-# below needs a tier to mean anything, so it stops now.
-if [ "$TIER_KNOWN" = "no" ]; then
+# The unknown-tier and UNSUPPORTED arms resume here, one gate later than SKIP
+# leaves, so both have had auto-merge stripped above. Everything below needs a
+# tier with an action behind it, and neither of these has one, so both stop now.
+if [ "$TIER_KNOWN" = "no" ] || [ "$TIER_TERMINAL" = "yes" ]; then
     cleanup_pr_autofix
     continue
 fi
@@ -656,7 +677,7 @@ Dispatcher exit contract (CWE-829 trust boundary, Issue #5072): exit 0 all crite
 1. Branch up to date with `main` (`mergeStateStatus` not `BEHIND`).
 2. All required checks pass.
 3. All conversations addressed: READ, TRIAGED, SOLVED (if Blocking), REPLIED with course of action, RESOLVED.
-4. `mergeStateStatus == CLEAN` (or `UNSTABLE` with documented non-required failures).
+4. `mergeStateStatus` is `CLEAN` or `HAS_HOOKS` (or `UNSTABLE` with documented non-required failures).
 
 `CanMerge=True` from `test_pr_merge_ready.py` alone is insufficient. Cross-check all four conditions.
 
@@ -669,21 +690,41 @@ classifier.  Pass `--is-bot` when the PR author is a bot.
 
 The classifier is total: every `mergeStateStatus` GitHub can report reaches
 exactly one row across the two tables below, and no state reaches T1 unless
-this document names a merge script for it. `CLEAN` and `UNSTABLE` are that
-set. `BEHIND`, `BLOCKED`, and `DIRTY` take their own merge-path rows. Every
-other value, `HAS_HOOKS` and `UNKNOWN` today plus anything GitHub adds later
-plus a missing value, blocks `CanMerge` and lands on T4 for investigation.
-Issue #4899 reopen: `HAS_HOOKS` previously reached T1, so the auto-merge path
-was armed for a state no row here can execute.
+this document names a merge script for it. `CLEAN`, `HAS_HOOKS`, and
+`UNSTABLE` are that set. `BEHIND`, `BLOCKED`, and `DIRTY` take their own
+merge-path rows. Every other value, `UNKNOWN` and a missing value today plus
+anything GitHub adds later, blocks `CanMerge` and takes the `UNSUPPORTED` row.
+
+`UNSUPPORTED` is a merge-path row rather than a work tier because the work
+tiers name work this loop can do and there is none: such a PR routinely
+carries zero unresolved threads and zero CI failures, and T3 and T4 dispatch
+into the round-cap thread-fix loop, which would then terminate only by burning
+the round cap and posting an escalation comment. It disarms auto-merge and
+stops instead.
+
+`HAS_HOOKS` is executable, not blocked. GitHub's GraphQL `MergeStateStatus`
+reference defines it as "Mergeable with passing commit status and pre-receive
+hooks", which is `CLEAN` plus pre-receive hooks, so the `CLEAN` scripts land it
+unchanged. `scripts/ci/check_pr_merge_state.py` has always read it that way:
+its `PASS_STATES` holds `BEHIND`, `BLOCKED`, `CLEAN`, `HAS_HOOKS`, and
+`UNSTABLE` against a `FAIL_STATES` of `DIRTY` alone. Issue #4899 reopen: this
+document briefly claimed `HAS_HOOKS` had no merge path at all, which left the
+repository carrying two contradictory definitions of the same enum value and,
+on any repository with pre-receive hooks (GitHub Enterprise, or push
+rulesets), sent a fully green PR into the round-cap loop.
 
 ### Work-needed tiers
 
+Every tier below is reached only from a `mergeStateStatus` this document names
+a merge script for (`CLEAN`, `HAS_HOOKS`, `UNSTABLE`), so "then merge" in T3 is
+always executable.
+
 | Tier | Criteria | Action |
 |------|----------|--------|
-| T1 | `CanMerge=true` (`CLEAN` or `UNSTABLE` with all non-required failures disposed) | Merge via the appropriate merge path |
+| T1 | `CanMerge=true` (`CLEAN`, `HAS_HOOKS`, or `UNSTABLE` with all non-required failures disposed) | Merge via the appropriate merge path |
 | T2 | CI failures only (required or undisposed non-required), no threads | Fix CI, verify required checks pass |
 | T3 | Threads only (CI passing) | Walk full thread lifecycle, then merge |
-| T4 | Both CI failures + threads, or a `mergeStateStatus` with no merge path | Fix CI first, then lifecycle threads; for an unsupported merge state, investigate before any merge attempt |
+| T4 | Both CI failures + threads | Fix CI first, then lifecycle threads |
 | T5 | Bot PR with any failure or threads | Handle individually |
 
 ### Merge-path states (not work tiers)
@@ -694,6 +735,7 @@ was armed for a state no row here can execute.
 | BLOCKED | `MergeStateStatus == "BLOCKED"` (branch protection, pending reviews) | Wait for external gate (review approval, etc.) |
 | DIRTY | `MergeStateStatus == "DIRTY"` (merge conflict) | Resolve conflict via the merge-resolver agent, then reclassify |
 | SKIP | Draft, merged, or closed | No action |
+| UNSUPPORTED | `MergeStateStatus` outside `CLEAN`/`HAS_HOOKS`/`UNSTABLE`/`BEHIND`/`BLOCKED`/`DIRTY` (`UNKNOWN`, missing, or a value GitHub adds later) | Disarm auto-merge, then stop and hand the PR to a human. Do not attempt a merge and do not enter the round-cap loop |
 
 ## Fix Patterns
 
@@ -811,10 +853,11 @@ GitHub refuses auto-merge for `UNSTABLE` PRs (issue #2439) and may also reject a
 | `mergeStateStatus` | Path | Script |
 |---|---|---|
 | `CLEAN` | Auto-merge when waiting is useful; direct merge if GitHub returns the already-clean rejection | Guard `set_pr_auto_merge.py --enable`, then guard the `merge_pr.py --strategy squash` fallback |
+| `HAS_HOOKS` | Same path as `CLEAN`. GitHub defines it as "Mergeable with passing commit status and pre-receive hooks" | Guard `set_pr_auto_merge.py --enable`, then guard the `merge_pr.py --strategy squash` fallback |
 | `UNSTABLE` with documented non-required failures | Direct merge (immediate) | Guard `merge_pr.py --strategy squash` |
 | `BEHIND` | Update branch first, then re-classify | Guard the fetch, merge, and push separately |
 | `DIRTY`/`CONFLICTING` | See Stale merge-state cache pattern below | merge-resolver agent if real conflict |
-| Anything else (`HAS_HOOKS`, `UNKNOWN`, missing, future) | No merge path. `test_pr_merge_ready.py` reports `CanMerge=false` and tier T4 | Investigate; do not attempt a merge |
+| Anything else (`UNKNOWN`, missing, future) | No verified merge path in this document. `test_pr_merge_ready.py` reports `CanMerge=false` and tier `UNSUPPORTED` | Disarm auto-merge, then hand to a human. Refusing is deliberately conservative: GitHub may well accept the merge, but nothing here has been verified against that state |
 
 `set_pr_auto_merge.py` detects the `UNSTABLE` and already-`CLEAN` rejections from GitHub's GraphQL API and emits the direct-merge fallback command in its error output (exit 3) so the operator never has to translate the generic "GraphQL request failed" message themselves.
 
@@ -930,7 +973,7 @@ Per PR processed:
 - [ ] CI-failure triage step 1 ran before any log reading (T2/T4 only, issue #5073): `triage_red_check.py --check-name "<name>"` verdict recorded per failing check; RED_ON_MAIN failures were attributed to main with the EvidenceUrl, not investigated on the PR.
 - [ ] All required CI checks pass (T2/T4 only).
 - [ ] Every review thread is READ, TRIAGED, SOLVED (if Blocking), REPLIED with course of action, and RESOLVED (T3/T4 only).
-- [ ] `mergeStateStatus` is `CLEAN` (or `UNSTABLE` with documented non-required failures).
+- [ ] `mergeStateStatus` is `CLEAN` or `HAS_HOOKS` (or `UNSTABLE` with documented non-required failures).
 - [ ] Branch is up to date with `main` (`mergeStateStatus` not `BEHIND`).
 - [ ] Force-push safety check ran before any push: `git rev-parse "refs/heads/$BRANCH"` matched the PR's expected `head.sha`.
 - [ ] Correct merge path chosen by state: `set_pr_auto_merge.py --enable` for `CLEAN`, `merge_pr.py --strategy squash` for `UNSTABLE` with documented non-required failures (see "Merge path by `mergeStateStatus`" table; issue #2439).
