@@ -100,10 +100,18 @@ as load-bearing as the artifact's bytes.
    both channels, then discards the content because current producers include
    branch-controlled repository prose.
    Their direct rollback commands suppress stdout and stderr while preserving
-   side effects. It also suppresses UserPromptSubmit stdout and stderr because
-   the official config-file contract documents no output field for that event
-   and does not document stderr as a model-context channel. Direct rollback
-   commands preserve that channel choice.
+   side effects. It also suppresses UserPromptSubmit stdout and stderr, and
+   direct rollback commands preserve that choice. Read that suppression as a
+   docs-silence policy, not as a measurement: the official config-file
+   contract documents no output field for the event and does not document
+   stderr as a model-context channel, and both remain silent. The runtime is
+   no longer silent. Issue #4727 probed Copilot CLI 1.0.79-6 on the
+   `.claude/settings.json` surface with a matched pair, plain stdout against a
+   top-level `{"additionalContext": "..."}` document, and only the envelope
+   reached the model. A UserPromptSubmit producer that needs model reach
+   therefore emits that envelope itself, keyed on `COPILOT_CLI`, which is what
+   the memory-recall hook now does. Version-scoped empirical behavior on
+   1.0.79-6, not a vendor guarantee.
    PostToolUseFailure and unclassified future events remain direct because their
    host output semantics have no reviewed generic merger. Do not invent or erase
    event semantics. Claude grouped gates may terminate only on a validated,
