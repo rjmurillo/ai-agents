@@ -479,6 +479,17 @@ def contract_violations(text: str) -> list[str]:
     also names a field the producer lacks, but reporting both would describe
     a single defect twice: the field name cannot be judged until the envelope
     is right, so the envelope finding wins.
+
+    A read of the envelope object itself, the exact path `.Data` on a wrapped
+    producer, is exempt from both checks. It is not a field read: `jq`'s only
+    way to ask whether a key is present is `has`, which needs the containing
+    object (`.Data | has("author_is_bot")`), and the command needs that
+    question to tell a stale helper that emits no `author_is_bot` key from a
+    current one that emits `null` (issue #5208). Judged as a field read it
+    fails both ways at once, reported as a missing `.Data` prefix and as a
+    `Data` field the producer never emits, neither of which is a defect. The
+    exemption is the exact path only, so `.Data.anything` still runs both
+    checks and a real mismatch inside the envelope is unaffected.
     """
     problems: list[str] = []
     for lineno, line in logical_lines(text):
@@ -495,6 +506,8 @@ def contract_violations(text: str) -> list[str]:
         if read.script is None:
             continue
         schema = derive_producer_schema(read.script)
+        if schema.wraps_in_data and read.path == ".Data":
+            continue
         finding = _envelope_violation(read, schema) or _field_violation(read, schema)
         if finding:
             problems.append(finding)

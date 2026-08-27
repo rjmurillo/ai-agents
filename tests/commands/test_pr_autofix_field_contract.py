@@ -171,6 +171,36 @@ def test_detects_unknown_field_on_wrapped_producer() -> None:
     assert "emits no `tier` field" in violations[0]
 
 
+def test_reading_the_envelope_object_itself_is_not_a_violation() -> None:
+    """`jq`'s `has` needs the object, and that read is not a field read.
+
+    Telling a producer that emits no `author_is_bot` key from one that emits
+    `null` requires `.Data | has("author_is_bot")` (issue #5208), and jq offers
+    no way to ask that without naming the containing object. Judged as a field
+    read the bare `.Data` fails both checks at once: it lacks a `.Data.` prefix
+    and names a `Data` field the payload does not carry.
+    """
+    body = _piped_read("get_pr_context", '.Data | has("author_is_bot")')
+
+    assert contract_violations(body) == []
+
+
+def test_a_field_inside_the_envelope_is_still_checked_beside_a_has_read() -> None:
+    """Discrimination probe for the exemption above.
+
+    The surviving input that makes the assertion above false is a program that
+    also names a real field mismatch: if the exemption were widened from the
+    exact path to any read starting `.Data`, this program's `.Data.nonesuch`
+    would be waved through too. It must still be reported.
+    """
+    body = _piped_read("get_pr_context", '.Data | has("author_is_bot") | .Data.nonesuch')
+
+    violations = contract_violations(body)
+
+    assert len(violations) == 1
+    assert "emits no `nonesuch` field" in violations[0]
+
+
 def test_wrapped_producer_payload_keys_are_derivable() -> None:
     """Field checking on wrapped producers is real, not silently skipped.
 
