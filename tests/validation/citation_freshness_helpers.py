@@ -35,6 +35,7 @@ def _git(root: Path, *args: str) -> None:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
 
 

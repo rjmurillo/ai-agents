@@ -196,6 +196,19 @@ class TestCliContract:
     ) -> None:
         assert checker.main(["--repo-root", str(tmp_path)]) == 2
 
+    def test_main_exits_2_when_git_fails_mid_run(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Regression (Copilot round 3, PR #5338): the diff-collection
+        # failure branch was untested, so a git failure after the repo
+        # check could have silently passed instead of exiting 2.
+        root = _repo(tmp_path)
+
+        code = checker.main(["--repo-root", str(root), "--base", "does-not-exist"])
+
+        assert code == 2
+        assert "git failed" in capsys.readouterr().err
+
     def test_main_skips_cleanly_when_no_base_resolves(
         self,
         tmp_path: Path,

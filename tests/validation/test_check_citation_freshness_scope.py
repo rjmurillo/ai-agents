@@ -245,6 +245,46 @@ class TestScopeBoundaries:
         assert out.count("none of the cited anchors") == 1
         assert "'magic_token'" in out
 
+    def test_absolute_filesystem_path_is_not_a_repository_citation(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Regression (Copilot round 3, PR #5338): without a left boundary
+        # the matcher started after the leading slash, so an absolute path
+        # in a report quote parsed as a repo citation and failed untracked.
+        root = _repo(tmp_path)
+        _add_doc(root, "docs/notes.md", f"Reported at /home/richard/repo/{TARGET}:2 today.\n")
+
+        code, out = _run(root, capsys)
+
+        assert code == 0
+        assert "examined 0 citation(s)" in out
+
+    def test_parent_relative_path_is_not_a_repository_citation(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Same round: ../ prefixes name a path outside the repo root, so
+        # they are never claims about tracked content; ./ remains accepted.
+        root = _repo(tmp_path)
+        _add_doc(root, "docs/notes.md", f"See ../{TARGET}:2 in the sibling checkout.\n")
+
+        code, out = _run(root, capsys)
+
+        assert code == 0
+        assert "examined 0 citation(s)" in out
+
+    def test_dot_slash_prefix_still_matches(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Control for the left boundary: the ./ spelling stays in scope
+        # (the gate strips the prefix before resolving the path).
+        root = _repo(tmp_path)
+        _add_doc(root, "docs/notes.md", f"See ./{TARGET}:3 (`magic_token`).\n")
+
+        code, out = _run(root, capsys)
+
+        assert code == 0
+        assert "examined 1 citation(s)" in out
+
     def test_pathless_snippet_like_prose_never_matches(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
