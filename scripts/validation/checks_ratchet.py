@@ -1,4 +1,4 @@
-"""Run the pre-push count ratchets inside the pre-PR gate (issue #4251).
+"""Run every count ratchet from one authoritative registry (issues #4251, #5317).
 
 AGENTS.md names one pre-PR gate, ``scripts/validation/pre_pr.py``. Before this
 module existed that gate ran none of the count ratchets; they ran only at
@@ -10,10 +10,9 @@ The ratchets together finish in about three seconds, so the entire signal
 is available long before the suite starts. Running them here converts that
 674 second round trip into a local three second one.
 
-Command shape is copied from ``lefthook.yml``'s ``*-ratchet`` jobs rather than
-reinvented, and ``tests/ci/test_pre_pr_runs_lefthook_ratchets.py`` asserts the
-two stay identical. Adding a ratchet to ``lefthook.yml`` without adding
-it here fails that test, which is the drift this module exists to prevent.
+The pre-push hook and pre-PR runner both delegate to this module. Keeping the
+ratchet set and command construction here avoids eight parallel hook jobs
+duplicating the registry while preserving early failure before expensive jobs.
 """
 
 from __future__ import annotations
@@ -234,3 +233,17 @@ def validate_count_ratchets(repo_root: Path) -> bool:
         )
         return False
     return True
+
+
+def main() -> int:
+    """Run all registered ratchets for the current repository."""
+    try:
+        passed = validate_count_ratchets(Path.cwd())
+    except MissingScriptSkip as exc:
+        print(f"[SKIP] count ratchets: {exc}")
+        return 0
+    return 0 if passed else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
