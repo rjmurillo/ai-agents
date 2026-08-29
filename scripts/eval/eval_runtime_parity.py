@@ -61,6 +61,8 @@ from _runtime_parity import (
     SENTINEL,
     Fixture,
     ParityConfigError,
+    SemanticTailGrader,
+    hash_file,
     hash_installed_agent,
     live_files,
     load_fixtures,
@@ -70,6 +72,7 @@ from _runtime_parity import (
     score_assertions,
     verify_worktree_identity,
 )
+from _runtime_parity_grader import SemanticGraderError, make_semantic_tail_grader
 
 EXIT_OK = 0
 EXIT_LOGIC = 1
@@ -81,6 +84,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_FIXTURES = Path(__file__).parent / "examples" / "runtime-parity-fixtures.json"
 DEFAULT_MODEL = "claude-opus-4.6"
 DEFAULT_TIMEOUT = 900.0
+DEFAULT_GRADER_PROVIDER = "copilot-cli"
 MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 
@@ -173,11 +177,14 @@ def build_argv(
             model,
             *_tool_args(fixture.tools, harness),
         ]
+    copilot_instruction_args = (
+        [] if fixture.copilot_instruction is not None else ["--no-custom-instructions"]
+    )
     return [
         executable,
         "--agent",
         "parity",
-        "--no-custom-instructions",
+        *copilot_instruction_args,
         *(["--no-ask-user"] if "question" not in fixture.tools else []),
         "--disable-builtin-mcps",
         "--no-remote",
@@ -268,6 +275,7 @@ def _score_runtime_result(
     run: subprocess.CompletedProcess[str],
     events: Sequence[Mapping[str, object]],
     workspace: Path,
+    semantic_tail_grader: SemanticTailGrader | None = None,
 ) -> tuple[dict[str, object], int]:
     response, resolved_model = (
         _claude_result(events) if harness == "claude" else _copilot_result(events)
@@ -278,7 +286,34 @@ def _score_runtime_result(
         resolved_model = structured_tool_model(events)
     files = live_files(fixture, workspace)
     assertion_text = question_payload(tools) if mechanism == "structured_event" else response
-    assertions = score_assertions(fixture, assertion_text, files)
+    try:
+        assertions = score_assertions(
+            fixture,
+            assertion_text,
+            files,
+            semantic_tail_grader=semantic_tail_grader,
+        )
+    except SemanticGraderError as exc:
+        return (
+            {
+                "provenance": "Claude runtime"
+                if harness == "claude"
+                else "Copilot runtime",
+                "command": _redacted_argv(argv, harness),
+                "exit_code": run.returncode,
+                "resolved_model": resolved_model,
+                "raw_output": run.stdout,
+                "stderr": run.stderr,
+                "response": response,
+                "question_mechanism": mechanism,
+                "tool_events": tools,
+                "subagent_events": subagents,
+                "assertions": [],
+                "error": f"semantic grader unavailable: {exc}",
+                "passed": False,
+            },
+            EXIT_EXTERNAL,
+        )
     code = EXIT_OK if run.returncode == 0 else _failure_code(run)
     if run.returncode == 0 and (mechanism == "no_answer" or not resolved_model):
         code = EXIT_EXTERNAL
@@ -318,6 +353,7 @@ def _run_fixture(
     workspace: Path,
     runner: Runner,
     timeout: float,
+    semantic_tail_grader: SemanticTailGrader | None = None,
 ) -> tuple[dict[str, object], int]:
     run, argv, failure = _invoke_runtime(
         fixture, harness, executable, model, workspace, runner, timeout
@@ -329,7 +365,15 @@ def _run_fixture(
     if failure is not None:
         return failure, EXIT_EXTERNAL
     assert events is not None
-    return _score_runtime_result(fixture, harness, argv, run, events, workspace)
+    return _score_runtime_result(
+        fixture,
+        harness,
+        argv,
+        run,
+        events,
+        workspace,
+        semantic_tail_grader,
+    )
 
 
 def _default_output() -> Path:
@@ -365,13 +409,18 @@ def _probe_versions(
 
 
 def _fixture_record(fixture: Fixture) -> dict[str, object]:
-    return {
+    record = {
         "id": fixture.fixture_id,
         "claude_agent_sha256": hash_installed_agent(fixture.claude_agent),
         "copilot_agent_sha256": hash_installed_agent(fixture.copilot_agent),
         "fixture_sha256": hashlib.sha256(fixture.prompt.encode("utf-8")).hexdigest(),
         "controls": _control_report(fixture),
     }
+    if fixture.claude_instruction is not None:
+        record["claude_instruction_sha256"] = hash_file(fixture.claude_instruction)
+    if fixture.copilot_instruction is not None:
+        record["copilot_instruction_sha256"] = hash_file(fixture.copilot_instruction)
+    return record
 
 
 def _run_fixture_pair(
@@ -382,6 +431,7 @@ def _run_fixture_pair(
     copilot_bin: str,
     runner: Runner,
     timeout: float,
+    semantic_tail_grader: SemanticTailGrader | None = None,
 ) -> tuple[dict[str, object], int, str | None]:
     record = _fixture_record(fixture)
     claude, claude_code = _run_fixture(
@@ -392,6 +442,7 @@ def _run_fixture_pair(
         workspaces / fixture.fixture_id / "claude",
         runner,
         timeout,
+        semantic_tail_grader,
     )
     record["claude"] = claude
     if claude_code != EXIT_OK:
@@ -404,6 +455,7 @@ def _run_fixture_pair(
         workspaces / fixture.fixture_id / "copilot",
         runner,
         timeout,
+        semantic_tail_grader,
     )
     record["copilot"] = copilot
     if copilot_code != EXIT_OK:
@@ -420,6 +472,7 @@ def _run_live_fixtures(
     copilot_bin: str,
     runner: Runner,
     timeout: float,
+    semantic_tail_grader: SemanticTailGrader | None = None,
 ) -> tuple[list[dict[str, object]], str, int]:
     records: list[dict[str, object]] = []
     final_code = EXIT_OK
@@ -433,6 +486,7 @@ def _run_live_fixtures(
             copilot_bin,
             runner,
             timeout,
+            semantic_tail_grader,
         )
         records.append(record)
         final_code = max(final_code, code)
@@ -452,16 +506,32 @@ def run_evaluation(
     copilot_bin: str,
     timeout: float,
     dry_run: bool,
+    grader_provider: str = DEFAULT_GRADER_PROVIDER,
+    grader_model: str | None = None,
+    semantic_tail_grader: SemanticTailGrader | None = None,
     runner: Runner = _run_in_process_group,
 ) -> tuple[dict[str, object], int]:
     """Run all fixtures, stopping immediately on a resolved-model mismatch."""
     fixtures = load_fixtures(fixtures_path)
+    resolved_grader_model = grader_model or model
+    needs_grader = any(
+        spec.kind == "semantic_response_tail"
+        for fixture in fixtures
+        for spec in fixture.assertions
+    )
+    if needs_grader and not dry_run and semantic_tail_grader is None:
+        semantic_tail_grader = make_semantic_tail_grader(
+            grader_provider,
+            resolved_grader_model,
+        )
     workspaces = output.parent / "workspaces"
     if not dry_run and (output.exists() or workspaces.exists()):
         raise ParityConfigError("output path already contains a runtime parity run")
     report: dict[str, object] = {
         "schema_version": 1,
         "requested_model": model,
+        "grader_provider": grader_provider if needs_grader else None,
+        "grader_model": resolved_grader_model if needs_grader else None,
         "cli_versions": _probe_versions(output, claude_bin, copilot_bin, runner, timeout),
         "fixture_count": len(fixtures),
         "fixtures": [],
@@ -479,6 +549,7 @@ def run_evaluation(
         copilot_bin,
         runner,
         timeout,
+        semantic_tail_grader,
     )
     report["fixtures"] = records
     report["verdict"] = verdict
@@ -494,6 +565,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--claude-bin", default="claude")
     parser.add_argument("--copilot-bin", default="copilot")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
+    parser.add_argument("--grader-provider", default=DEFAULT_GRADER_PROVIDER)
+    parser.add_argument("--grader-model")
     parser.add_argument("--dry-run", action="store_true")
     return parser
 
@@ -517,6 +590,8 @@ def main(argv: Sequence[str] | None = None, *, runner: Runner = _run_in_process_
             copilot_bin=args.copilot_bin,
             timeout=args.timeout,
             dry_run=args.dry_run,
+            grader_provider=args.grader_provider,
+            grader_model=args.grader_model,
             runner=runner,
         )
     except ParityConfigError as exc:

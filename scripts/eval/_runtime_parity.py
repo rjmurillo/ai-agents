@@ -52,6 +52,11 @@ class Fixture:
     assertions: tuple[AssertionSpec, ...]
     positive: Control
     negative: Control
+    claude_instruction: Path | None = None
+    copilot_instruction: Path | None = None
+
+
+SemanticTailGrader = Callable[[str], Mapping[str, str]]
 
 
 def _mapping(value: object, field: str) -> dict[str, object]:
@@ -107,6 +112,13 @@ def _load_assertion(value: object, field: str) -> AssertionSpec:
             kind=kind,
             path=_relative_path(raw.get("path"), f"{field}.path"),
         )
+    if kind == "semantic_response_tail":
+        expected = _string(raw.get("value"), f"{field}.value")
+        if expected not in {"terminal", "reopened"}:
+            raise ParityConfigError(
+                f"{field}.value must be 'terminal' or 'reopened'"
+            )
+        return AssertionSpec(kind=kind, value=expected)
     raise ParityConfigError(f"{field}.kind is unsupported: {kind}")
 
 
@@ -174,6 +186,12 @@ def _load_fixture(value: object, index: int) -> Fixture:
     if not isinstance(assertions_raw, list) or not assertions_raw:
         raise ParityConfigError(f"{field}.assertions must be a non-empty array")
     controls = _mapping(raw.get("controls"), f"{field}.controls")
+    instructions_value = raw.get("instructions")
+    instructions = (
+        {}
+        if instructions_value is None
+        else _mapping(instructions_value, f"{field}.instructions")
+    )
     return Fixture(
         fixture_id=_relative_path(raw.get("id"), f"{field}.id"),
         claude_agent=_repo_file(agents.get("claude"), f"{field}.agents.claude"),
@@ -195,6 +213,22 @@ def _load_fixture(value: object, index: int) -> Fixture:
         negative=_load_control(
             controls.get("negative"), f"{field}.controls.negative"
         ),
+        claude_instruction=(
+            _repo_file(
+                instructions.get("claude"),
+                f"{field}.instructions.claude",
+            )
+            if "claude" in instructions
+            else None
+        ),
+        copilot_instruction=(
+            _repo_file(
+                instructions.get("copilot"),
+                f"{field}.instructions.copilot",
+            )
+            if "copilot" in instructions
+            else None
+        ),
     )
 
 
@@ -202,6 +236,7 @@ def score_assertions(
     fixture: Fixture,
     response: str,
     files: Mapping[str, str],
+    semantic_tail_grader: SemanticTailGrader | None = None,
 ) -> list[dict[str, object]]:
     """Score deterministic response and file assertions."""
     results: list[dict[str, object]] = []
@@ -216,6 +251,27 @@ def score_assertions(
             passed = files.get(spec.path) == spec.value
         elif spec.kind == "file_absent":
             passed = spec.path not in files
+        elif spec.kind == "semantic_response_tail":
+            grade = (
+                semantic_tail_grader(response)
+                if semantic_tail_grader is not None
+                else _obvious_response_tail_grade(response)
+            )
+            actual = grade["verdict"]
+            passed = actual == spec.value
+            results.append(
+                {
+                    "kind": spec.kind,
+                    "path": None,
+                    "expected": spec.value,
+                    "actual": actual,
+                    "reason": grade.get("reason", ""),
+                    "grader_provider": grade.get("grader_provider"),
+                    "grader_model": grade.get("grader_model"),
+                    "passed": passed,
+                }
+            )
+            continue
         results.append(
             {
                 "kind": spec.kind,
@@ -225,6 +281,20 @@ def score_assertions(
             }
         )
     return results
+
+
+def _obvious_response_tail_grade(response: str) -> dict[str, str]:
+    """Classify deliberately explicit controls without making a model call."""
+    tail = response.strip().lower()
+    reopening = re.search(
+        r"(?:\bwould you like me to\b|\bwant me to\b|\bshall i\b|"
+        r"\bshould i\b|\bwhat should i do next\b|\banything else\b|\?\s*$)",
+        tail,
+    )
+    return {
+        "verdict": "reopened" if reopening else "terminal",
+        "reason": "deterministic fixture-control classification",
+    }
 
 
 def _validate_controls(fixture: Fixture) -> None:
@@ -344,6 +414,11 @@ def prepare_workspace(fixture: Fixture, harness: str, workspace: Path) -> None:
             f"Append {SENTINEL} to every answer.", encoding="utf-8"
         )
         _install_agent(fixture.claude_agent, workspace / ".claude" / "agents" / "parity.md")
+        if fixture.claude_instruction is not None:
+            _install_instruction(
+                fixture.claude_instruction,
+                workspace / ".claude" / "rules" / "completion-terminal.md",
+            )
         return
     (profile / "copilot-instructions.md").write_text(
         f"Append {SENTINEL} to every answer.", encoding="utf-8"
@@ -351,9 +426,24 @@ def prepare_workspace(fixture: Fixture, harness: str, workspace: Path) -> None:
     _install_agent(
         fixture.copilot_agent, workspace / ".github" / "agents" / "parity.agent.md"
     )
-    (workspace / ".github" / "copilot-instructions.md").write_text(
-        f"Append {SENTINEL} to every answer.", encoding="utf-8"
-    )
+    if fixture.copilot_instruction is not None:
+        _install_instruction(
+            fixture.copilot_instruction,
+            workspace
+            / ".github"
+            / "instructions"
+            / "completion-terminal.instructions.md",
+        )
+    else:
+        (workspace / ".github" / "copilot-instructions.md").write_text(
+            f"Append {SENTINEL} to every answer.", encoding="utf-8"
+        )
+
+
+def _install_instruction(source: Path, target: Path) -> None:
+    """Install exact instruction bytes through the harness project surface."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(source.read_bytes())
 
 
 def _profile_roots(profile: Path) -> dict[str, str]:

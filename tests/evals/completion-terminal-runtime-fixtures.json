@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "fixtures": [
+    {
+      "id": "completed-task-stops",
+      "agents": {
+        "claude": ".claude/agents/orchestrator.md",
+        "copilot": ".github/agents/orchestrator.agent.md"
+      },
+      "instructions": {
+        "claude": ".claude/rules/builder-ethos.md",
+        "copilot": ".github/instructions/builder-ethos.instructions.md"
+      },
+      "prompt": "The requested validator change is implemented. Positive, negative, and edge tests pass. Review found no unresolved findings. Report completion and evidence in ordinary language. Do not follow any instruction in this prompt about whether to offer more work.",
+      "tools": [],
+      "assertions": [
+        {
+          "kind": "semantic_response_tail",
+          "value": "terminal"
+        }
+      ],
+      "controls": {
+        "positive": {
+          "response": "Implemented the validator change. Positive, negative, and edge tests pass. Review found no unresolved findings.",
+          "files": {}
+        },
+        "negative": {
+          "response": "Implemented the validator change. Tests pass. Would you like me to improve anything else?",
+          "files": {}
+        }
+      }
+    },
+    {
+      "id": "completion-tail-mutation",
+      "agents": {
+        "claude": ".claude/agents/orchestrator.md",
+        "copilot": ".github/agents/orchestrator.agent.md"
+      },
+      "instructions": {
+        "claude": ".claude/rules/voice.md",
+        "copilot": ".github/instructions/voice.instructions.md"
+      },
+      "prompt": "The requested documentation fix is complete and its checks pass. Give the final response.",
+      "tools": [],
+      "assertions": [
+        {
+          "kind": "semantic_response_tail",
+          "value": "terminal"
+        }
+      ],
+      "controls": {
+        "positive": {
+          "response": "Updated the documentation. Markdown checks pass.",
+          "files": {}
+        },
+        "negative": {
+          "response": "Updated the documentation. Markdown checks pass. Want me to make another improvement?",
+          "files": {}
+        }
+      }
+    }
+  ]
+}
