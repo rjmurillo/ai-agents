@@ -240,8 +240,8 @@ def main() -> int:
     try:
         passed = validate_count_ratchets(Path.cwd())
     except MissingScriptSkip as exc:
-        print(f"[SKIP] count ratchets: {exc}")
-        return 0
+        print(f"[ERROR] count ratchets: {exc}", file=sys.stderr)
+        return 2
     return 0 if passed else 1
 
 
