@@ -163,9 +163,11 @@ class TestAggregateLefthookDelegation:
         """
         job = _real_count_ratchets_job()
         assert job is not None
-        raw_timeout = str(job.get("timeout"))
-        assert raw_timeout.endswith("s")
-        lefthook_cap_seconds = int(raw_timeout[:-1])
+        raw_timeout = job.get("timeout")
+        if isinstance(raw_timeout, str) and raw_timeout.endswith("s"):
+            lefthook_cap_seconds = int(raw_timeout[:-1])
+        else:
+            lefthook_cap_seconds = int(raw_timeout)
         assert lefthook_cap_seconds > checks_ratchet._AGGREGATE_TIMEOUT_SECONDS
 
     def test_main_returns_nonzero_when_a_ratchet_fails(

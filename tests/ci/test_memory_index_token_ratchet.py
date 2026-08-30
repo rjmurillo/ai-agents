@@ -53,6 +53,7 @@ def _count_ratchets_job() -> dict | None:
         None,
     )
 
+
 _spec = importlib.util.spec_from_file_location("memory_index_token_ratchet", _MODULE_PATH)
 assert _spec is not None and _spec.loader is not None
 ratchet = importlib.util.module_from_spec(_spec)
