@@ -957,6 +957,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     assert "glob" not in pre_push_jobs["pre-pr-validation"]
     assert "glob" not in pre_push_jobs["python-tests"]
     assert pre_push_jobs["pre-pr-validation"]["env"] == {
+        "AI_AGENTS_PRE_PR_FAST_STAGE_RAN": "1",
         "SKIP_AUTOFIX": "1",
         # The job's own timeout in seconds, consumed by the
         # generated-staleness gate's outer-cap clamp; the cross-check
@@ -1194,7 +1195,7 @@ def test_runtime_configuration_validates_with_pinned_lefthook() -> None:
     )
 
     assert config["lefthook"] == "uv run --frozen lefthook"
-    assert version.stdout.splitlines()[0] == "2.1.10"
+    assert version.stdout.splitlines()[0] == "2.1.11"
     assert validated.returncode == 0
     assert "All good" in validated.stdout
 
