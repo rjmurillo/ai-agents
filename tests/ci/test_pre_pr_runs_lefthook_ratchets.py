@@ -50,6 +50,36 @@ import checks_ratchet  # noqa: E402
 import pre_pr_sequence  # noqa: E402
 
 _GATE_NAME = "Count Ratchets"
+_EXPECTED_RATCHETS = (
+    ("python-lint-ratchet", "scripts/ci/ruff_ratchet.py", True, False),
+    ("python-lint-count-ratchet", "scripts/ci/ruff_count_ratchet.py", True, True),
+    ("taste-count-ratchet", "scripts/ci/taste_count_ratchet.py", False, True),
+    (
+        "type-ignore-count-ratchet",
+        "scripts/ci/type_ignore_count_ratchet.py",
+        False,
+        True,
+    ),
+    (
+        "memory-index-count-ratchet",
+        "scripts/ci/memory_index_count_ratchet.py",
+        False,
+        True,
+    ),
+    (
+        "cli-exit-contract-ratchet",
+        "scripts/ci/cli_exit_contract_ratchet.py",
+        False,
+        True,
+    ),
+    (
+        "memory-index-token-ratchet",
+        "scripts/ci/memory_index_token_ratchet.py",
+        False,
+        False,
+    ),
+    ("merge-tree-ratchet", "scripts/ci/merge_tree_ratchet_check.py", True, True),
+)
 
 
 def _walk_jobs(jobs: object, out: list[dict]) -> None:
@@ -103,7 +133,10 @@ class TestAggregateLefthookDelegation:
         assert job.get("glob") is None
 
     def test_registry_contains_all_eight_ratchets(self) -> None:
-        assert len(checks_ratchet.RATCHETS) == 8
+        assert tuple(
+            (ratchet.job_name, ratchet.script, ratchet.extra_dev, ratchet.uses_base_ref)
+            for ratchet in checks_ratchet.RATCHETS
+        ) == _EXPECTED_RATCHETS
 
     def test_command_builder_adds_dev_extra_when_required(self) -> None:
         ratchet = next(r for r in checks_ratchet.RATCHETS if r.extra_dev)

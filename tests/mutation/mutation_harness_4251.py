@@ -27,7 +27,12 @@ LEFTHOOK_REL = Path("lefthook.yml")
 TARGETS = (SEQ_REL, RAT_REL, LEFTHOOK_REL)
 TEST = "tests/ci/test_pre_pr_runs_lefthook_ratchets.py"
 
-COUNT_GATE_ROW = '    _Gate("Count Ratchets", _root_only(validate_count_ratchets)),\n'
+COUNT_GATE_ROW = """    _Gate(
+        "Count Ratchets",
+        _root_only(validate_count_ratchets),
+        already_run_by="count-ratchets",
+    ),
+"""
 SEQUENCE_TAIL = ")\n\n\ndef run_all_validations("
 
 
@@ -84,21 +89,21 @@ def _run_mutants(repo_root: Path) -> int:
             '    Ratchet("taste-count-ratchet", '
             '"scripts/ci/taste_count_ratchet.py", False, True),\n',
             "",
-            f"{TEST}::TestParityWithLefthook",
+            f"{TEST}::TestAggregateLefthookDelegation::test_registry_contains_all_eight_ratchets",
         ),
         (
             "M4 drop --extra dev from the command builder",
             ratchet,
             '        cmd += ["--extra", "dev"]',
             "        pass",
-            f"{TEST}::TestParityWithLefthook::test_commands_match",
+            f"{TEST}::TestAggregateLefthookDelegation::test_command_builder_adds_dev_extra_when_required",
         ),
         (
             "M5 drop --base-ref from the command builder",
             ratchet,
             '        cmd += ["--base-ref", base_ref]',
             "        pass",
-            f"{TEST}::TestParityWithLefthook::test_commands_match",
+            f"{TEST}::TestAggregateLefthookDelegation::test_command_builder_adds_base_ref_when_required",
         ),
         (
             "M6 gate always passes",
@@ -115,13 +120,11 @@ def _run_mutants(repo_root: Path) -> int:
             f"{TEST}::TestValidatorBehaviour::test_fails_when_one_ratchet_exits_nonzero",
         ),
         (
-            "M8 add a fifth ratchet to lefthook only",
+            "M8 unwire the aggregate lefthook job",
             lefthook,
-            "          - name: taste-count-ratchet",
-            "          - name: phantom-count-ratchet\n"
-            "            run: uv run --frozen python scripts/ci/phantom.py\n\n"
-            "          - name: taste-count-ratchet",
-            f"{TEST}::TestParityWithLefthook::test_job_names_match",
+            "          - name: count-ratchets",
+            "          - name: phantom-count-ratchets",
+            f"{TEST}::TestAggregateLefthookDelegation::test_aggregate_job_exists",
         ),
     ]
     snapshots = {

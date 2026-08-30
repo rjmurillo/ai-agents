@@ -1,7 +1,6 @@
-"""Mutation harness for issue #4041: taste-count-ratchet pre-push wiring.
+"""Mutation harness for issue #4041 ratchet registry wiring.
 
-Verifies that each added lefthook.yml entry is individually load-bearing
-by mutating it and asserting the wiring tests detect the regression.
+Verifies that the taste and type-ignore registry entries are load-bearing.
 
 Rules:
 - Count each pattern; refuse if count != 1 (PATTERN-AMBIGUOUS).
@@ -22,9 +21,10 @@ from scripts.testing.mutation_workspace import (
 )
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_LEFTHOOK_REL = Path("lefthook.yml")
+_RATCHET_REL = Path("scripts/validation/checks_ratchet.py")
 _TESTS = [
     "tests/ci/test_lefthook_ratchet_wiring.py",
+    "tests/ci/test_pre_pr_runs_lefthook_ratchets.py",
 ]
 
 
@@ -58,31 +58,29 @@ def _apply_mutant(original: bytes, old: bytes, new: bytes) -> bytes:
 
 
 def run_mutants(repo_root: Path) -> None:
-    lefthook = repo_root / _LEFTHOOK_REL
-    original_bytes = lefthook.read_bytes()
+    registry = repo_root / _RATCHET_REL
+    original_bytes = registry.read_bytes()
 
     mutants = [
         (
-            "remove taste-count-ratchet job name",
-            b"          - name: taste-count-ratchet",
-            b"          - name: XYZZY-DELETED-4041",
+            "remove taste-count-ratchet registry name",
+            b'Ratchet("taste-count-ratchet",',
+            b'Ratchet("XYZZY-DELETED-4041",',
         ),
         (
-            "remove type-ignore-count-ratchet job name",
-            b"          - name: type-ignore-count-ratchet",
-            b"          - name: XYZZY-DELETED-4039",
+            "remove type-ignore-count-ratchet registry name",
+            b'"type-ignore-count-ratchet",',
+            b'"XYZZY-DELETED-4039",',
         ),
         (
-            "remove taste-count-ratchet run command",
-            # Pattern includes leading spaces to match exactly one occurrence; noqa: E501
-            b"            run: uv run --frozen python scripts/ci/taste_count_ratchet.py --base-ref origin/main",  # noqa: E501
-            b"            run: echo MUTANT-DELETED",
+            "remove taste-count-ratchet script",
+            b'"scripts/ci/taste_count_ratchet.py"',
+            b'"scripts/ci/MUTANT_DELETED.py"',
         ),
         (
-            "remove type-ignore-count-ratchet run command",
-            # Pattern includes leading spaces to match exactly one occurrence; noqa: E501
-            b"            run: uv run --frozen python scripts/ci/type_ignore_count_ratchet.py --base-ref origin/main",  # noqa: E501
-            b"            run: echo MUTANT-DELETED-4039",
+            "remove type-ignore-count-ratchet script",
+            b'"scripts/ci/type_ignore_count_ratchet.py"',
+            b'"scripts/ci/MUTANT_DELETED_4039.py"',
         ),
     ]
 
@@ -90,7 +88,7 @@ def run_mutants(repo_root: Path) -> None:
     for name, old, new in mutants:
         print(f"\n--- Mutant: {name} ---")
         mutated = _apply_mutant(original_bytes, old, new)
-        lefthook.write_bytes(mutated)
+        registry.write_bytes(mutated)
         try:
             rc = _run_tests(repo_root)
             if rc == 0:
@@ -101,8 +99,8 @@ def run_mutants(repo_root: Path) -> None:
             else:
                 print(f"  PASS: tests caught the mutation (exit {rc})")
         finally:
-            lefthook.write_bytes(original_bytes)
-        restored = lefthook.read_bytes()
+            registry.write_bytes(original_bytes)
+        restored = registry.read_bytes()
         assert restored == original_bytes, "Restore was not byte-identical!"
 
     if failures:
@@ -115,7 +113,7 @@ def run_mutants(repo_root: Path) -> None:
 
 
 def main() -> None:
-    with isolated_mutation_worktree(_REPO_ROOT, [_LEFTHOOK_REL]) as workspace:
+    with isolated_mutation_worktree(_REPO_ROOT, [_RATCHET_REL]) as workspace:
         run_mutants(workspace.root)
 
 

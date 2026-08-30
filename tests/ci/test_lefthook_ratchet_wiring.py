@@ -56,8 +56,13 @@ class TestAggregateRatchetWiring:
         assert job.get("glob") is None
 
     def test_registry_retains_taste_and_type_ignore_ratchets(self) -> None:
-        names = {ratchet.job_name for ratchet in checks_ratchet.RATCHETS}
-        assert {"taste-count-ratchet", "type-ignore-count-ratchet"} <= names
+        by_name = {ratchet.job_name: ratchet for ratchet in checks_ratchet.RATCHETS}
+        assert by_name["taste-count-ratchet"].script == (
+            "scripts/ci/taste_count_ratchet.py"
+        )
+        assert by_name["type-ignore-count-ratchet"].script == (
+            "scripts/ci/type_ignore_count_ratchet.py"
+        )
 
     def test_registry_retains_all_eight_ratchets(self) -> None:
         assert len(checks_ratchet.RATCHETS) == 8
