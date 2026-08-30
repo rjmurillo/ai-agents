@@ -68,5 +68,7 @@ def test_aggregate_job_mutations_fail_wiring_tests(
     finally:
         lefthook.write_text(original, encoding="utf-8")
 
+    assert return_code != 4, f"Mutation suite did not collect:\n{output}"
+    assert "no tests ran" not in output.lower(), output
     assert (return_code != 0) is should_fail, output
     assert lefthook.read_text(encoding="utf-8") == original
