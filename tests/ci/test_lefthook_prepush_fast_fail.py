@@ -45,15 +45,8 @@ FAST_STDIN_GATES = (
 )
 FAST_PARALLEL_GATES = frozenset(
     {
-        "python-lint-ratchet",
-        "python-lint-count-ratchet",
-        "taste-count-ratchet",
-        "type-ignore-count-ratchet",
-        "memory-index-count-ratchet",
-        "cli-exit-contract-ratchet",
-        "memory-index-token-ratchet",
+        "count-ratchets",
         "python-unreachable-statements",
-        "merge-tree-ratchet",
         "path-normalization",
         "planning-artifacts",
         "branch-scope",
@@ -226,11 +219,11 @@ class TestStageOrdering:
                     jobs:
                       - name: python-tests
                         run: pytest
-                - name: taste-count-ratchet
+                - name: count-ratchets
                   run: ratchet
             """
         )
-        gate = _entry_index_of(misordered, "taste-count-ratchet")
+        gate = _entry_index_of(misordered, "count-ratchets")
         expensive = _entry_index_of(misordered, "python-tests")
         assert gate is not None and expensive is not None
         assert not gate < expensive
@@ -466,5 +459,4 @@ class TestFastStageMembershipIsExact:
             "stage. Add each to a roster in this module so its scheduling is "
             "a decision, not an accident (issue #5066)."
         )
-
 

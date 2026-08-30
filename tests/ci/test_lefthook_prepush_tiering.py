@@ -1,4 +1,4 @@
-"""The pre-push tier boundary from ADR-104, pinned against `lefthook.yml`.
+"""The pre-push deferral boundary from ADR-104, pinned against `lefthook.yml`.
 
 Issue context: a pre-push that ran the whole pytest suite measured 679s on a
 4-CPU container for a one-file Markdown push, 498.52s of it in `python-tests`.
@@ -6,33 +6,15 @@ A container restart during that window killed the push. ADR-104 draws the
 boundary: pre-push blocks on checks that are cheap and would otherwise waste a
 CI run, and delegates whole-suite execution to CI.
 
-This module exists mostly to keep one specific mistake from coming back.
-
-An earlier revision of this branch skipped four `pre_pr.py` gates on the claim
-that the pre-push fast stage had already run them, justified by the hook being
-`piped: true`. That claim is false, and the test written to protect it checked
-the wrong half: it resolved job names and entry order, which catches a rename,
-and never read `glob`. Piping proves no earlier job FAILED. It does not prove
-one RAN. Measured on lefthook 2.1.10 against a fixture repo with one
-glob-gated job and one un-gated job, pushing a docs-only commit::
-
-    |  py-only-gate (skip) no matching push files
-    |  always-gate > ALWAYS GATE RAN
-    summary: (done in 0.02 seconds)   OK always-gate
-    EXIT=0
-
-A glob-skipped job is indistinguishable from a passed one. Every deferral
-target carried a `glob:` and `pre-pr-validation` carries none, so on a
-Markdown-only push the Python-globbed jobs never ran and the skip removed the
-gate instead of deduplicating it. The skip was reverted (issue #5317).
+The first deferral attempt trusted piped ordering but ignored target globs.
+Issue #5317 makes the four targets unconditional, so piped ordering now proves
+they ran and passed before pre-pr-validation starts.
 
 Coverage:
 
 - positive: the hook is still piped, which the fast-fail staging depends on.
-- negative: no pre-push or pre-commit job claims a fast stage ran, and no gate
-  in the pre-PR sequence carries a deferral.
-- edge: if a deferral is ever reintroduced, its target must carry no `glob`,
-  which is the condition that would make the claim true.
+- negative: a synthetic glob on any target makes the soundness check fail.
+- edge: direct pre-PR callers leave the scheduler flag unset.
 """
 
 from __future__ import annotations
@@ -52,9 +34,13 @@ if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 import pre_pr_sequence  # noqa: E402
 
-# The reverted flag. Named as a literal because the constant it used to match
-# no longer exists, and this test's job is to notice if either comes back.
-REVERTED_FAST_STAGE_FLAG = "AI_AGENTS_PRE_PR_FAST_STAGE_RAN"
+FAST_STAGE_FLAG = "AI_AGENTS_PRE_PR_FAST_STAGE_RAN"
+EXPECTED_DEFERRALS = {
+    "Count Ratchets": "count-ratchets",
+    "Unreachable Code Detection": "python-unreachable-statements",
+    "Path Normalization": "path-normalization",
+    "Planning Artifacts": "planning-artifacts",
+}
 
 
 def _config() -> dict[str, Any]:
@@ -106,29 +92,20 @@ class TestPipedSchedulingStillHolds:
         assert _config()["pre-push"].get("piped") is True
 
 
-class TestTheUnsoundSkipStaysReverted:
-    """Regression guard for the defect described in this module's docstring."""
+class TestDeferralClaimIsScoped:
+    """Only the lefthook pre-PR job may claim the fast stage passed."""
 
-    def test_no_job_claims_the_fast_stage_ran(self) -> None:
+    def test_only_pre_pr_validation_claims_the_fast_stage_ran(self) -> None:
         offenders = {
             str(job.get("name"))
             for hook in ("pre-push", "pre-commit")
             for job in _all_jobs(hook)
-            if isinstance(job.get("env"), dict) and REVERTED_FAST_STAGE_FLAG in job["env"]
+            if isinstance(job.get("env"), dict) and FAST_STAGE_FLAG in job["env"]
         }
-        assert offenders == set(), (
-            f"{sorted(offenders)} set {REVERTED_FAST_STAGE_FLAG}. That flag "
-            "asserted a fast-stage job had run, which `piped: true` does not "
-            "prove for a glob-gated job. See this module's docstring and the "
-            "lefthook 2.1.10 measurement in it before reintroducing it."
-        )
+        assert offenders == {"pre-pr-validation"}
 
-    def test_no_gate_defers_to_a_scheduler_claim(self) -> None:
-        assert _deferrals() == {}, (
-            f"Gates {sorted(_deferrals())} carry a deferral. If this is "
-            "deliberate, the next test states the condition that makes a "
-            "deferral sound; satisfy it."
-        )
+    def test_exactly_the_duplicate_gates_defer(self) -> None:
+        assert _deferrals() == EXPECTED_DEFERRALS
 
 
 # The four gates the reverted skip would have deferred, by their `_SEQUENCE`
@@ -192,47 +169,37 @@ class TestTheDeferredGatesStillExist:
             self.test_every_formerly_deferred_gate_is_still_in_the_sequence()
 
 
-class TestAnyFutureDeferralMustBeSound:
-    """The condition that would make the reverted skip correct.
-
-    Kept live rather than deleted with the feature: this is the assertion the
-    original test should have carried, and it is what a reviewer needs the
-    next time someone proposes the same optimization.
-    """
-
-    def test_a_deferral_target_must_not_be_glob_gated(self) -> None:
-        unsound: list[str] = []
-        for gate_name, job_name in _deferrals().items():
-            job = _job_named("pre-push", job_name)
-            if job is None:
-                unsound.append(f"{gate_name} defers to {job_name!r}, which does not exist")
-            elif job.get("glob") is not None:
-                unsound.append(
-                    f"{gate_name} defers to {job_name!r}, which carries "
-                    f"glob={job['glob']!r} and so does not run on every push"
-                )
-        assert unsound == [], "\n".join(unsound)
-
-    def test_the_rule_would_have_caught_the_reverted_skip(self) -> None:
-        """Negative control: the four former targets are all glob-gated.
-
-        Without this, the rule above passes vacuously today (there are no
-        deferrals) and nobody can tell whether it discriminates.
-        """
-        former_targets = (
-            "python-unreachable-statements",
-            "path-normalization",
-            "planning-artifacts",
-            "python-lint-ratchet",
-        )
-        for name in former_targets:
-            job = _job_named("pre-push", name)
-            assert job is not None, f"{name!r} is missing from pre-push."
-            assert job.get("glob") is not None, (
-                f"{name!r} no longer carries a glob. If its glob was removed "
-                "on purpose, a deferral to it would now be sound and this "
-                "control needs a different example."
+def _unsound_deferrals() -> list[str]:
+    unsound: list[str] = []
+    for gate_name, job_name in _deferrals().items():
+        job = _job_named("pre-push", job_name)
+        if job is None:
+            unsound.append(f"{gate_name} defers to {job_name!r}, which does not exist")
+        elif job.get("glob") is not None:
+            unsound.append(
+                f"{gate_name} defers to {job_name!r}, which carries "
+                f"glob={job['glob']!r} and so does not run on every push"
             )
+    return unsound
+
+
+class TestEveryDeferralIsSound:
+    def test_a_deferral_target_must_not_be_glob_gated(self) -> None:
+        assert _unsound_deferrals() == []
+
+    def test_the_rule_rejects_a_globbed_target(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        real_lookup = _job_named
+
+        def lookup(hook: str, name: str) -> dict[str, Any] | None:
+            job = real_lookup(hook, name)
+            if name == "count-ratchets" and job is not None:
+                return {**job, "glob": "**/*.py"}
+            return job
+
+        monkeypatch.setattr(sys.modules[__name__], "_job_named", lookup)
+        assert any("Count Ratchets" in item for item in _unsound_deferrals())
 
 
 # ADR-104 rule 9. A job that cannot fail is not a gate, and pre-push carries six

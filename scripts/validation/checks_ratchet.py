@@ -1,4 +1,4 @@
-"""Run the pre-push count ratchets inside the pre-PR gate (issue #4251).
+"""Run every count ratchet from one authoritative registry (issues #4251, #5317).
 
 AGENTS.md names one pre-PR gate, ``scripts/validation/pre_pr.py``. Before this
 module existed that gate ran none of the count ratchets; they ran only at
@@ -10,20 +10,23 @@ The ratchets together finish in about three seconds, so the entire signal
 is available long before the suite starts. Running them here converts that
 674 second round trip into a local three second one.
 
-Command shape is copied from ``lefthook.yml``'s ``*-ratchet`` jobs rather than
-reinvented, and ``tests/ci/test_pre_pr_runs_lefthook_ratchets.py`` asserts the
-two stay identical. Adding a ratchet to ``lefthook.yml`` without adding
-it here fails that test, which is the drift this module exists to prevent.
+The pre-push hook and pre-PR runner both delegate to this module. Keeping the
+ratchet set and command construction here avoids eight parallel hook jobs
+duplicating the registry while preserving early failure before expensive jobs.
 """
 
 from __future__ import annotations
 
 import shutil
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
@@ -37,11 +40,11 @@ from checks_common import (  # noqa: E402
 
 @dataclass(frozen=True)
 class Ratchet:
-    """One count ratchet, described exactly as ``lefthook.yml`` invokes it.
+    """One ratchet command and its diagnostic job name.
 
     Attributes:
-        job_name: The ``name`` of the matching ``pre-push`` job in
-            ``lefthook.yml``. The parity test keys on this.
+        job_name: Stable diagnostic name retained from the former individual
+            pre-push job.
         script: Path relative to the repository root.
         extra_dev: True when the job passes ``--extra dev``. The two ruff
             ratchets shell out to a bare ``ruff`` executable, so they need the
@@ -92,14 +95,16 @@ RATCHETS: tuple[Ratchet, ...] = (
     ),
 )
 
+_AGGREGATE_TIMEOUT_SECONDS = 85
+
 
 def build_command(ratchet: Ratchet, base_ref: str) -> list[str]:
-    """Build the argv for one ratchet, matching its ``lefthook.yml`` job.
+    """Build the argv for one entry in the aggregate ratchet registry.
 
     Invoking through ``uv`` rather than :data:`sys.executable` is deliberate.
     The ruff ratchets need the dev extra, which the ambient interpreter running
     ``pre_pr.py`` may not carry, and matching lefthook exactly is what lets the
-    parity test compare the two as strings.
+    registry preserve the former per-job command contract.
     """
     cmd = ["uv", "run", "--frozen"]
     if ratchet.extra_dev:
@@ -218,9 +223,22 @@ def validate_count_ratchets(repo_root: Path) -> bool:
         return False
 
     failures: list[str] = []
+    deadline = time.monotonic() + _AGGREGATE_TIMEOUT_SECONDS
     for ratchet in RATCHETS:
+        remaining_seconds = int(deadline - time.monotonic())
+        if remaining_seconds <= 0:
+            failures.append(ratchet.job_name)
+            print(
+                f"[FAIL] {ratchet.job_name} not run: aggregate timeout exhausted.",
+                file=sys.stderr,
+            )
+            continue
         cmd = build_command(ratchet, base_oid)
-        exit_code, stdout, stderr = _run_subprocess(cmd, cwd=repo_root)
+        exit_code, stdout, stderr = _run_subprocess(
+            cmd,
+            cwd=repo_root,
+            timeout=remaining_seconds,
+        )
         if exit_code != 0:
             failures.append(ratchet.job_name)
             _print_output(ratchet.job_name, stdout, stderr)
@@ -234,3 +252,17 @@ def validate_count_ratchets(repo_root: Path) -> bool:
         )
         return False
     return True
+
+
+def main() -> int:
+    """Run all registered ratchets for the current repository."""
+    try:
+        passed = validate_count_ratchets(Path.cwd())
+    except MissingScriptSkip as exc:
+        print(f"[ERROR] count ratchets: {exc}", file=sys.stderr)
+        return 2
+    return 0 if passed else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

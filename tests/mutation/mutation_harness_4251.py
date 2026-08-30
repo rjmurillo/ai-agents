@@ -27,11 +27,16 @@ LEFTHOOK_REL = Path("lefthook.yml")
 TARGETS = (SEQ_REL, RAT_REL, LEFTHOOK_REL)
 TEST = "tests/ci/test_pre_pr_runs_lefthook_ratchets.py"
 
-COUNT_GATE_ROW = '    _Gate("Count Ratchets", _root_only(validate_count_ratchets)),\n'
+COUNT_GATE_ROW = """    _Gate(
+        "Count Ratchets",
+        _root_only(validate_count_ratchets),
+        already_run_by="count-ratchets",
+    ),
+"""
 SEQUENCE_TAIL = ")\n\n\ndef run_all_validations("
 
 
-def run_tests(repo_root: Path, node: str) -> tuple[bool, str]:
+def run_tests(repo_root: Path, node: str) -> tuple[int, str]:
     purge_bytecode(repo_root)
     proc = subprocess.run(
         ["uv", "run", "--frozen", "--extra", "dev", "python", "-m", "pytest", node, "-q"],
@@ -40,7 +45,12 @@ def run_tests(repo_root: Path, node: str) -> tuple[bool, str]:
         cwd=repo_root,
         timeout=300,
     )
-    return proc.returncode == 0, (proc.stdout or "") + (proc.stderr or "")
+    return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+
+
+def _assert_suite_ran(return_code: int, output: str, node: str) -> None:
+    if return_code == 4 or "no tests ran" in output.lower():
+        raise RuntimeError(f"Mutation selector did not run: {node}\n{output[-3000:]}")
 
 
 def mutate(path: Path, old: str, new: str) -> None:
@@ -84,21 +94,21 @@ def _run_mutants(repo_root: Path) -> int:
             '    Ratchet("taste-count-ratchet", '
             '"scripts/ci/taste_count_ratchet.py", False, True),\n',
             "",
-            f"{TEST}::TestParityWithLefthook",
+            f"{TEST}::TestAggregateLefthookDelegation::test_registry_contains_all_eight_ratchets",
         ),
         (
             "M4 drop --extra dev from the command builder",
             ratchet,
             '        cmd += ["--extra", "dev"]',
             "        pass",
-            f"{TEST}::TestParityWithLefthook::test_commands_match",
+            f"{TEST}::TestAggregateLefthookDelegation::test_command_builder_adds_dev_extra_when_required",
         ),
         (
             "M5 drop --base-ref from the command builder",
             ratchet,
             '        cmd += ["--base-ref", base_ref]',
             "        pass",
-            f"{TEST}::TestParityWithLefthook::test_commands_match",
+            f"{TEST}::TestAggregateLefthookDelegation::test_command_builder_adds_base_ref_when_required",
         ),
         (
             "M6 gate always passes",
@@ -115,13 +125,11 @@ def _run_mutants(repo_root: Path) -> int:
             f"{TEST}::TestValidatorBehaviour::test_fails_when_one_ratchet_exits_nonzero",
         ),
         (
-            "M8 add a fifth ratchet to lefthook only",
+            "M8 unwire the aggregate lefthook job",
             lefthook,
-            "          - name: taste-count-ratchet",
-            "          - name: phantom-count-ratchet\n"
-            "            run: uv run --frozen python scripts/ci/phantom.py\n\n"
-            "          - name: taste-count-ratchet",
-            f"{TEST}::TestParityWithLefthook::test_job_names_match",
+            "          - name: count-ratchets",
+            "          - name: phantom-count-ratchets",
+            f"{TEST}::TestAggregateLefthookDelegation::test_aggregate_job_exists",
         ),
     ]
     snapshots = {
@@ -130,8 +138,9 @@ def _run_mutants(repo_root: Path) -> int:
     }
     results: list[tuple[str, str]] = []
     try:
-        ok, out = run_tests(repo_root, TEST)
-        if not ok:
+        return_code, out = run_tests(repo_root, TEST)
+        _assert_suite_ran(return_code, out, TEST)
+        if return_code != 0:
             print("NEGATIVE CONTROL FAILED: unmutated suite is red.")
             print(out[-3000:])
             return 1
@@ -144,8 +153,9 @@ def _run_mutants(repo_root: Path) -> int:
                 apply_m2(sequence)
             else:
                 mutate(path, old, new)
-            ok, out = run_tests(repo_root, node)
-            verdict = "SURVIVED (VACUOUS)" if ok else "KILLED"
+            return_code, out = run_tests(repo_root, node)
+            _assert_suite_ran(return_code, out, node)
+            verdict = "SURVIVED (VACUOUS)" if return_code == 0 else "KILLED"
             tail = out.strip().splitlines()[-1] if out.strip() else ""
             results.append((label, f"{verdict} :: {node.split('::', 1)[-1]} :: {tail}"))
             print(f"{label}: {verdict}")
@@ -160,9 +170,11 @@ def _run_mutants(repo_root: Path) -> int:
         print(f"{label}: {detail}")
         if "SURVIVED" in detail:
             survived += 1
-    ok, out = run_tests(repo_root, TEST)
-    print(f"\nPost-restore suite green: {ok} :: {out.strip().splitlines()[-1]}")
-    return 1 if survived or not ok else 0
+    return_code, out = run_tests(repo_root, TEST)
+    _assert_suite_ran(return_code, out, TEST)
+    is_green = return_code == 0
+    print(f"\nPost-restore suite green: {is_green} :: {out.strip().splitlines()[-1]}")
+    return 1 if survived or not is_green else 0
 
 
 def main() -> int:
