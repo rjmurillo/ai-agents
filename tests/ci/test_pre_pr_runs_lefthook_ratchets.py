@@ -164,6 +164,7 @@ class TestAggregateLefthookDelegation:
         job = _real_count_ratchets_job()
         assert job is not None
         raw_timeout = job.get("timeout")
+        assert isinstance(raw_timeout, (str, int))
         if isinstance(raw_timeout, str) and raw_timeout.endswith("s"):
             lefthook_cap_seconds = int(raw_timeout[:-1])
         else:
