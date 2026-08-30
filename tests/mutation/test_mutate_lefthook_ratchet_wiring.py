@@ -36,17 +36,27 @@ def mutation_repo() -> Iterator[Path]:
 
 
 @pytest.mark.parametrize(
-    ("old", "new"),
+    ("old", "new", "should_fail"),
     [
-        ("          - name: count-ratchets", "          - name: deleted-ratchets"),
+        (
+            "          - name: count-ratchets",
+            "          - name: deleted-ratchets",
+            True,
+        ),
         (
             "            run: uv run --frozen python scripts/validation/checks_ratchet.py",
             "            run: echo MUTANT-DELETED",
+            True,
+        ),
+        (
+            "    # a ratchet or policy miss costs seconds, not a full pytest run.",
+            "    # an inert comment mutation must leave wiring tests green.",
+            False,
         ),
     ],
 )
 def test_aggregate_job_mutations_fail_wiring_tests(
-    mutation_repo: Path, old: str, new: str
+    mutation_repo: Path, old: str, new: str, should_fail: bool
 ) -> None:
     lefthook = mutation_repo / _LEFTHOOK_REL
     original = lefthook.read_text(encoding="utf-8")
@@ -58,5 +68,5 @@ def test_aggregate_job_mutations_fail_wiring_tests(
     finally:
         lefthook.write_text(original, encoding="utf-8")
 
-    assert return_code != 0, f"Mutant survived:\n{output}"
+    assert (return_code != 0) is should_fail, output
     assert lefthook.read_text(encoding="utf-8") == original
