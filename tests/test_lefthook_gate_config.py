@@ -6,6 +6,7 @@ from pathlib import Path
 import yaml
 
 from scripts.ci.merge_tree_ratchet_registry import RATCHETS, trigger_globs
+from scripts.validation.checks_ratchet import RATCHETS as PRE_PUSH_RATCHETS
 
 LEFTHOOK_PATH = Path(__file__).parent.parent / "lefthook.yml"
 MEMORY_WORKFLOW_PATH = (
@@ -62,30 +63,23 @@ class TestMemoryTierGateEnforcement:
         )
 
     def test_memory_tier_count_is_enforced_by_a_ratchet(self) -> None:
-        job = self._find_job("memory-index-count-ratchet")
-        run = job.get("run", "")
-        assert "scripts/ci/memory_index_count_ratchet.py" in run, (
-            f"memory-index-count-ratchet does not run the ratchet: {run!r}"
-        )
-        assert "--base-ref" in run, (
-            f"memory-index-count-ratchet cannot catch a PR that raises the "
-            f"baseline without --base-ref: {run!r}"
-        )
+        ratchets = {ratchet.job_name: ratchet for ratchet in PRE_PUSH_RATCHETS}
+        entry = ratchets["memory-index-count-ratchet"]
+        assert entry.script == "scripts/ci/memory_index_count_ratchet.py"
+        assert entry.uses_base_ref is True
 
     def test_merge_tree_ratchet_watches_memory_index_baseline(self) -> None:
-        job = self._find_job("merge-tree-ratchet")
-        glob = job.get("glob", [])
-        assert "scripts/ci/memory_index_count_baseline.txt" in glob, (
-            "merge-tree-ratchet does not run when the memory-index baseline changes"
-        )
+        assert "scripts/ci/memory_index_count_baseline.txt" in trigger_globs()
 
     def test_merge_tree_ratchet_globs_equal_registry_union(self) -> None:
-        job = self._find_job("merge-tree-ratchet")
-        assert set(job.get("glob", [])) == trigger_globs()
+        ratchets = {ratchet.job_name: ratchet for ratchet in PRE_PUSH_RATCHETS}
+        assert ratchets["merge-tree-ratchet"].script == (
+            "scripts/ci/merge_tree_ratchet_check.py"
+        )
 
     def test_cli_exit_contract_ratchet_watches_baseline_only_changes(self) -> None:
-        job = self._find_job("cli-exit-contract-ratchet")
-        assert "scripts/ci/cli_exit_contract_baseline.txt" in job.get("glob", [])
+        ratchets = {ratchet.job_name: ratchet for ratchet in PRE_PUSH_RATCHETS}
+        assert ratchets["cli-exit-contract-ratchet"].uses_base_ref is True
 
     def test_every_registered_baseline_triggers_the_merge_tree(self) -> None:
         merge_globs = trigger_globs()

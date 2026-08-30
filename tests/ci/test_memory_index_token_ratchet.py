@@ -262,7 +262,7 @@ class TestRegisteredInBothGates:
         names = {r.job_name for r in checks_ratchet.RATCHETS}
         assert "memory-index-token-ratchet" in names
 
-    def test_declared_as_a_pre_push_job_in_lefthook(self) -> None:
+    def test_aggregate_registry_runner_is_the_pre_push_job(self) -> None:
         text = (_REPO_ROOT / "lefthook.yml").read_text(encoding="utf-8")
-        assert "memory-index-token-ratchet" in text
-        assert "scripts/ci/memory_index_token_ratchet.py" in text
+        assert "- name: count-ratchets" in text
+        assert "scripts/validation/checks_ratchet.py" in text

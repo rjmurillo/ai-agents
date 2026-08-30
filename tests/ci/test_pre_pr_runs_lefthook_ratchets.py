@@ -102,6 +102,18 @@ class TestAggregateLefthookDelegation:
         assert job is not None
         assert job.get("glob") is None
 
+    def test_registry_contains_all_eight_ratchets(self) -> None:
+        assert len(checks_ratchet.RATCHETS) == 8
+
+    def test_command_builder_adds_dev_extra_when_required(self) -> None:
+        ratchet = next(r for r in checks_ratchet.RATCHETS if r.extra_dev)
+        assert "--extra" in checks_ratchet.build_command(ratchet, "origin/main")
+
+    def test_command_builder_adds_base_ref_when_required(self) -> None:
+        ratchet = next(r for r in checks_ratchet.RATCHETS if r.uses_base_ref)
+        command = checks_ratchet.build_command(ratchet, "origin/main")
+        assert command[-2:] == ["--base-ref", "origin/main"]
+
     def test_missing_aggregate_job_is_detected(self) -> None:
         synthetic = {"pre-push": {"jobs": [{"name": "other", "run": "true"}]}}
         assert collect_count_ratchets_job(synthetic) is None
