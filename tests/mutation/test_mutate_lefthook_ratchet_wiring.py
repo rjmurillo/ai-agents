@@ -14,12 +14,12 @@ from scripts.testing.mutation_workspace import isolated_mutation_worktree
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _LEFTHOOK_REL = Path("lefthook.yml")
-_TEST_MODULE = "tests.ci.test_lefthook_ratchet_wiring"
+_TEST_PATH = "tests/ci/test_lefthook_ratchet_wiring.py"
 
 
 def _run_wiring_tests(repo_root: Path) -> tuple[int, str]:
     result = subprocess.run(
-        [sys.executable, "-m", "pytest", "--pyargs", _TEST_MODULE, "-x", "-q"],
+        [sys.executable, "-m", "pytest", _TEST_PATH, "-x", "-q"],
         capture_output=True,
         encoding="utf-8",
         errors="replace",

@@ -151,6 +151,23 @@ class TestAggregateLefthookDelegation:
         synthetic = {"pre-push": {"jobs": [{"name": "other", "run": "true"}]}}
         assert collect_count_ratchets_job(synthetic) is None
 
+    def test_aggregate_deadline_leaves_headroom_under_the_lefthook_cap(self) -> None:
+        """A YAML cap at or below the internal deadline restores the hard kill.
+
+        ``checks_ratchet._AGGREGATE_TIMEOUT_SECONDS`` only protects the
+        remaining ratchets from Lefthook's SIGKILL when the outer ``timeout``
+        in ``lefthook.yml`` leaves headroom above it. Pinning the internal
+        constant alone (see
+        ``test_each_ratchet_uses_the_remaining_aggregate_time`` above) stays
+        green even if the YAML cap is lowered to match or fall below it.
+        """
+        job = _real_count_ratchets_job()
+        assert job is not None
+        raw_timeout = str(job.get("timeout"))
+        assert raw_timeout.endswith("s")
+        lefthook_cap_seconds = int(raw_timeout[:-1])
+        assert lefthook_cap_seconds > checks_ratchet._AGGREGATE_TIMEOUT_SECONDS
+
     def test_main_returns_nonzero_when_a_ratchet_fails(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
