@@ -257,7 +257,9 @@ class TestValidatorBehaviour:
         def record_timeout(
             _args: list[str], **kwargs: object
         ) -> tuple[int, str, str]:
-            timeouts.append(int(kwargs["timeout"]))
+            timeout = kwargs["timeout"]
+            assert isinstance(timeout, int)
+            timeouts.append(timeout)
             return 0, "", ""
 
         monkeypatch.setattr(checks_ratchet, "_run_subprocess", record_timeout)
