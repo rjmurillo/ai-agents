@@ -28,7 +28,7 @@ _TESTS = [
 ]
 
 
-def _run_tests(repo_root: Path) -> int:
+def _run_tests(repo_root: Path) -> tuple[int, str]:
     purge_bytecode(repo_root)
     result = subprocess.run(
         [
@@ -41,9 +41,16 @@ def _run_tests(repo_root: Path) -> int:
         ],
         cwd=repo_root,
         capture_output=True,
+        encoding="utf-8",
+        errors="replace",
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
     )
-    return result.returncode
+    return result.returncode, result.stdout + result.stderr
+
+
+def _assert_suite_ran(return_code: int, output: str) -> None:
+    if return_code == 4 or "no tests ran" in output.lower():
+        raise RuntimeError(f"Mutation suite did not run:\n{output[-3000:]}")
 
 
 def _apply_mutant(original: bytes, old: bytes, new: bytes) -> bytes:
@@ -60,6 +67,10 @@ def _apply_mutant(original: bytes, old: bytes, new: bytes) -> bytes:
 def run_mutants(repo_root: Path) -> None:
     registry = repo_root / _RATCHET_REL
     original_bytes = registry.read_bytes()
+    baseline_code, baseline_output = _run_tests(repo_root)
+    _assert_suite_ran(baseline_code, baseline_output)
+    if baseline_code != 0:
+        raise RuntimeError(f"Unmutated suite is red:\n{baseline_output[-3000:]}")
 
     mutants = [
         (
@@ -90,7 +101,8 @@ def run_mutants(repo_root: Path) -> None:
         mutated = _apply_mutant(original_bytes, old, new)
         registry.write_bytes(mutated)
         try:
-            rc = _run_tests(repo_root)
+            rc, output = _run_tests(repo_root)
+            _assert_suite_ran(rc, output)
             if rc == 0:
                 failures.append(
                     f"SURVIVING MUTANT: '{name}' - tests passed when they should have failed"
@@ -102,6 +114,20 @@ def run_mutants(repo_root: Path) -> None:
             registry.write_bytes(original_bytes)
         restored = registry.read_bytes()
         assert restored == original_bytes, "Restore was not byte-identical!"
+
+    inert = _apply_mutant(
+        original_bytes,
+        b"one authoritative registry",
+        b"the authoritative registry",
+    )
+    registry.write_bytes(inert)
+    try:
+        inert_code, inert_output = _run_tests(repo_root)
+        _assert_suite_ran(inert_code, inert_output)
+        if inert_code != 0:
+            failures.append("INVERTED CONTROL FAILED: inert mutation was rejected")
+    finally:
+        registry.write_bytes(original_bytes)
 
     if failures:
         print("\n\nSURVIVING MUTANTS DETECTED:")

@@ -157,6 +157,12 @@ class TestAggregateLefthookDelegation:
         monkeypatch.setattr(checks_ratchet, "validate_count_ratchets", lambda _root: False)
         assert checks_ratchet.main() == 1
 
+    def test_main_returns_zero_when_every_ratchet_passes(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(checks_ratchet, "validate_count_ratchets", lambda _root: True)
+        assert checks_ratchet.main() == 0
+
     def test_main_returns_config_error_when_uv_is_missing(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -234,6 +240,30 @@ class TestValidatorBehaviour:
             for ratchet in checks_ratchet.RATCHETS
         ]
         assert [" ".join(a) for a in seen] == expected
+
+    def test_each_ratchet_uses_the_remaining_aggregate_time(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            checks_ratchet, "_resolve_default_base_ref", lambda _root: "origin/main"
+        )
+        monkeypatch.setattr(checks_ratchet, "_refresh_remote_base", lambda *_a: "")
+        monkeypatch.setattr(checks_ratchet, "_resolve_base_oid", lambda *_a: "a" * 40)
+        monotonic_values = iter((100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0))
+        timeouts: list[int] = []
+
+        monkeypatch.setattr(checks_ratchet.time, "monotonic", lambda: next(monotonic_values))
+
+        def record_timeout(
+            _args: list[str], **kwargs: object
+        ) -> tuple[int, str, str]:
+            timeouts.append(int(kwargs["timeout"]))
+            return 0, "", ""
+
+        monkeypatch.setattr(checks_ratchet, "_run_subprocess", record_timeout)
+
+        assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is True
+        assert timeouts == [84, 83, 82, 81, 80, 79, 78, 77]
 
     def test_fails_when_one_ratchet_exits_nonzero(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
