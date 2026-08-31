@@ -256,6 +256,26 @@ class TestEnableAutoMergeErrors:
         stderr = capsys.readouterr().err
         assert "--strategy rebase" in stderr
 
+    def test_has_hooks_status_follows_the_same_path_as_clean(self, capsys):
+        """HAS_HOOKS is allowlisted as equivalent to CLEAN for auto-merge.
+
+        GitHub defines HAS_HOOKS as "Mergeable with passing commit status
+        and pre-receive hooks." The auto-merge attempt follows the same
+        CLEAN path: GitHub may refuse with the same "clean status" message
+        because there is nothing for auto-merge to wait on.
+        """
+        err = RuntimeError(
+            "GraphQL request failed: gh: Pull request Pull request "
+            "is in clean status",
+        )
+        with patch("set_pr_auto_merge.gh_graphql", side_effect=err):
+            with pytest.raises(SystemExit) as exc:
+                enable_auto_merge("o", "r", 5359, "PR_hh", "SQUASH", "", "")
+            assert exc.value.code == 3
+        stderr = capsys.readouterr().err
+        assert "merge_pr.py" in stderr
+        assert "5359" in stderr
+
     def test_blocked_status_does_not_trigger_clean_or_unstable_fallback(
         self, capsys,
     ):

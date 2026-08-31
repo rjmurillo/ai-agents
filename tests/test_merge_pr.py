@@ -190,6 +190,37 @@ class TestMain:
         assert output["Data"]["action"] == "merged"
         assert output["Data"]["strategy"] == "merge"
 
+    def test_has_hooks_merge_follows_clean_path(self, capsys):
+        """HAS_HOOKS is accepted as a mergeable state like CLEAN."""
+        state_json = json.dumps({
+            "state": "OPEN", "mergeable": "MERGEABLE",
+            "mergeStateStatus": "HAS_HOOKS", "headRefName": "feature",
+        })
+        call_count = 0
+
+        def _side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return _completed(stdout=state_json, rc=0)
+            return _completed(rc=0)
+
+        with patch(
+            "merge_pr.assert_gh_authenticated",
+        ), patch(
+            "merge_pr.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
+        ), patch(
+            "subprocess.run",
+            side_effect=_side_effect,
+        ):
+            rc = main(["--pull-request", "50", "--strategy", "squash"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["action"] == "merged"
+
     def test_auto_merge(self, capsys):
         state_json = json.dumps({
             "state": "OPEN", "mergeable": "MERGEABLE",
