@@ -289,6 +289,11 @@ State the measurement, then the disposition.
   not merely undesirable to act on.
 - Unreproduced: name what you tried, leave it open, say what would settle it.
 
+How the reply is published (disposition, address-the-code conduct, attribution,
+and the verify-then-route decision) is owned by the `conversation-protocol`
+skill. This skill decides what the finding is worth; that one decides how the
+reply reads on the thread.
+
 ## Verification
 
 Before you resolve the thread:
