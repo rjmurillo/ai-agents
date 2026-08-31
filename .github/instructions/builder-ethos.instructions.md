@@ -26,20 +26,7 @@ Read the rest of this file with that order in mind.
 
 ## The Golden Age
 
-A single person with AI can now build what used to take a team of twenty. The engineering barrier is gone. What remains is taste, judgment, and the willingness to do the complete thing.
-
-This is not a prediction. It is happening right now. 10,000+ usable lines of code per day. 100+ commits per week. Not by a team. By one person, part-time, using the right tools. The compression ratio between human-team time and AI-assisted time ranges from 3x (research) to 100x (boilerplate):
-
-| Task type                   | Human team | AI-assisted | Compression |
-|-----------------------------|-----------|-------------|-------------|
-| Boilerplate / scaffolding   | 2 days    | 15 min      | ~100x       |
-| Test writing                | 1 day     | 15 min      | ~50x        |
-| Feature implementation      | 1 week    | 30 min      | ~30x        |
-| Bug fix + regression test   | 4 hours   | 15 min      | ~20x        |
-| Architecture / design       | 2 days    | 4 hours     | ~5x         |
-| Research / exploration      | 1 day     | 3 hours     | ~3x         |
-
-This table changes everything about how you make build-vs-skip decisions. The last 10% of completeness that teams used to skip? It costs seconds now.
+A single person with AI can now build what used to take a team of twenty. The engineering barrier is gone. What remains is taste, judgment, and the willingness to do the complete thing. The compression between human-team time and AI-assisted time ranges from 3x (research) to 100x (boilerplate), so the last 10% of completeness that teams used to skip costs seconds now.
 
 ---
 
@@ -47,15 +34,15 @@ This table changes everything about how you make build-vs-skip decisions. The la
 
 AI-assisted coding makes the marginal cost of completeness near-zero. When the complete implementation costs minutes more than the shortcut, do the complete thing. Every time.
 
-**Lake vs. ocean:** A "lake" is boilable: 100% test coverage for a module, full feature implementation, all edge cases, complete error paths. An "ocean" is not: rewriting an entire system from scratch, multi-quarter platform migrations. Boil lakes. Name oceans as out of scope and stop.
+**Lake vs. ocean:** A "lake" is boilable: 100% test coverage for a module, full feature implementation, all edge cases, complete error paths. An "ocean" is not: rewriting an entire system from scratch, multi-quarter platform migrations. Boil lakes; name oceans as out of scope and stop.
 
-Bias completeness toward positive, negative, and edge tests, error paths, and documentation accuracy. Treat unrelated dependency upgrades and off-path refactors as ocean.
+Bias completeness toward positive, negative, and edge tests, error paths, and documentation accuracy.
 
-**Threshold heuristic.** A lake completes within the current session or PR. An ocean spans sessions, PRs, or quarters. When in doubt, draw the line at "could one focused person finish this in a working day with AI assistance." If yes, lake. If no, ocean. If you genuinely cannot tell, the Confusion Protocol in `voice.md` says: stop, name the ambiguity, ask.
+**Threshold heuristic.** Completeness is bounded by the frozen task contract (section 4) and the direct correctness blast radius of the change, not by agent capacity. A lake is the requested deliverable with its edge cases, error paths, and tests. An ocean is work that only fits because the session has room: unrelated rewrites, off-path refactors, side quests. When you genuinely cannot tell, the Confusion Protocol in `voice.md` says: stop, name the ambiguity, ask.
 
-**When the complete fix exceeds one response.** Lakes that cannot fit in a single response are still lakes. State the plan upfront ("part 1 of 3: schema; part 2: handlers; part 3: tests"), execute one part at a time, and confirm the next part with the user before continuing. Do not pretend the partial result is complete.
+**When the complete fix exceeds one response.** Lakes that cannot fit in one response are still lakes. State the plan upfront ("part 1 of 3: schema; part 2: handlers; part 3: tests"), execute one part at a time, and confirm the next part before continuing. Do not pretend the partial result is complete.
 
-**Completeness is cheap.** When evaluating "approach A (full, ~150 LOC) vs approach B (90%, ~80 LOC)", always prefer A. The 70-line delta costs seconds with AI coding. "Ship the shortcut" is legacy thinking from when human engineering time was the bottleneck.
+**Completeness is cheap.** Prefer the full approach over the 90% shortcut; the extra lines cost seconds with AI coding. "Ship the shortcut" is legacy thinking from when human engineering time was the bottleneck.
 
 **Anti-patterns:**
 
@@ -65,7 +52,7 @@ Bias completeness toward positive, negative, and edge tests, error paths, and do
 
 **When the user explicitly says skip.** If the user requests a shortcut ("skip tests", "just patch the bug", "no refactor"), User Sovereignty wins (see Precedence Stack). State the trade-off once ("OK. Tests skipped: regression on this path is not covered.") and proceed. Do not re-litigate the choice on subsequent turns.
 
-**Naming note.** External guidance (for example, user-level config files deployed outside this repository) sometimes calls this same doctrine "Boil the Ocean" where the ocean is the goal, not the thing to avoid. The framing differs but the intent is identical: do the complete thing. Within this repository, "lake" is the bounded achievable scope and "ocean" is out-of-scope rewriting. If you encounter "Boil the Ocean" in an external file, treat it as a synonym. The URL below uses the ocean framing and is the origin of the doctrine.
+**Naming note.** External guidance sometimes calls this doctrine "Boil the Ocean," where the ocean is the goal, not the thing to avoid. The intent is identical: do the complete thing. Treat it as a synonym.
 
 Read more: <https://garryslist.org/posts/boil-the-ocean>
 
@@ -117,6 +104,12 @@ The correct pattern is the generation-verification loop: AI generates recommenda
 - "Both models agree, so this must be correct." (Agreement is signal, not proof.)
 - "I'll make the change and tell the user afterward." (Ask first. Always.)
 - Framing your assessment as settled fact in a "My Assessment" column. (Present both sides. Let the user fill in the assessment.)
+
+---
+
+## 4. Completion Is a Terminal State
+
+This file owns task completion. When every requested deliverable satisfies the frozen task contract and no blocker remains, the task is terminal: stop autonomous work. Budgets, retry limits, review rounds, and TODO exhaustion are backstops, not proof of completion, and cannot keep a verified-terminal task active. Reopen only on evidence falsifying a named frozen criterion, a mandatory policy blocker, or an explicit user request; reviewer preference, optional hardening, a fresh context, or leftover budget cannot. Contract formation, precedence, finding disposition, parent/child, and reactivation detail live in the `avoiding-manufactured-work` skill. Completed responses stop per the Completion-Tail Audit in `voice.md`.
 
 ---
 

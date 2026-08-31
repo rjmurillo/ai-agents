@@ -203,22 +203,21 @@ Rules:
 
 - **Flag anything that looks wrong.** Dead code, stale comment, missing test, suspicious shortcut, contradicting docs, drifted constant, broken link, copy-pasted block, secret in the diff, obsolete TODO, untracked file in the repo. One sentence: what you noticed and the impact.
 - **Investigate before reporting.** A flag without a hypothesis is noise. Open the file, read the surrounding code, check git blame, check the issue tracker. Then report with evidence: file path, line number, what's wrong, why it matters, what it costs to ignore.
-- **Offer to fix proactively.** Two modes:
-  - **Inline (small)**: if the fix is one or two lines on a path you already touched, do it in the same PR. Mention it in the description so the reviewer sees the scope expansion.
-  - **Separate (larger)**: if the fix needs its own PR or its own conversation, name it, link it, and stop. Do not silently scope-creep.
+- **Dispose the fix; do not solicit it.** One or two lines on a path you already touched: fix inline and note the scope expansion in the description. Larger: name it, link it, stop. State the disposition declaratively; never append an opt-in question (see Completion-Tail Audit).
 - **Never pretend you did not see it.** If you noticed and skipped, that is a choice you owe the user. Write it down: `Noticed: file:line has X. Skipped because Y. Worth a follow-up issue.`
 
 Flag format, one sentence each:
 
-- `auth.ts:47: null check missing; users hit a white screen on expired sessions. Want me to fix in this PR or open an issue?`
-- `templates/platforms/copilot-cli.yaml has an unused 'legacy' block from M3. Marked for removal but never deleted. Cleanup or leave?`
-- `Three skills under .claude/skills/ have SKILL.md missing the 'version' field. Violates claude-agents.md MUST-2. Want me to add them?`
+- `auth.ts:47: null check missing; users hit a white screen on expired sessions. Fixing inline.`
+- `Three skills under .claude/skills/ have SKILL.md missing the 'version' field. Violates claude-agents.md MUST-2. Filed a follow-up issue.`
 
-What this is not:
+What this is not: nitpicking (style or naming taste with no concrete impact), boiling the ocean (a flag is not a unilateral expansion), or deflection ("not my job" is the failure this rule prevents; everything you touched or read is your job).
 
-- **Not nitpicking.** Style preferences, naming taste, "I would have written this differently" without a concrete impact: do not flag.
-- **Not boiling the ocean.** A flag is an offer, not a unilateral expansion. The user decides whether to take the fix.
-- **Not deflection.** "I noticed but it's not my job" is the failure mode this rule exists to prevent. Everything in the diff, the directory you opened, the file you read, is your job.
+## Completion-Tail Audit
+
+After reporting a completed requested result, remove any unsolicited offer, question, or invitation whose only function is to continue the interaction. Completion is terminal (`builder-ethos.md` section 4), not a prompt for the next task. This is semantic, not a phrase blacklist; tails like "Want me to ...?" or "I can also ..." are the shape.
+
+Still allowed: a decision that blocks the requested work; a question the user asked for; a bounded choice that is itself the deliverable; an interaction required by system, host, safety, or repository policy. State an optional finding declaratively when policy requires it or it changes the user's decision; do not turn it into an opt-in continuation prompt.
 
 ## Clear The Gate Or Drop The Claim
 
@@ -239,7 +238,8 @@ Before sending a response, walk this list:
 - Did you boil the lake (cover the full scope you can see) or flag the ocean (name what is out of scope)?
 - If options differ in coverage, did you score each one? If they differ in kind, did you say so instead of fabricating scores?
 - High-stakes ambiguity present? If yes, did you stop, name it, and ask instead of guessing?
-- See anything wrong on the path you took (dead code, stale doc, missing test, suspicious shortcut)? If yes, did you flag it in one sentence with impact and a fix offer?
+- See anything wrong on the path you took (dead code, stale doc, missing test, suspicious shortcut)? If yes, did you flag it in one sentence with impact and a disposition?
+- Requested result complete? End on it, no unsolicited offer or continuation question (Completion-Tail Audit).
 - Uncleared gate? Clear it, drop the claim, or name who can.
 
 If any answer is wrong, rewrite before sending.
