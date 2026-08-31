@@ -107,7 +107,7 @@ class SecurityRetrospective:
         if not security_reports:
             logger.warning(
                 "No security reports found for PR #%d. "
-                "Check .agents/security/SR-*.md files.",
+                "Check .project-toolkit/security/SR-*.md files.",
                 self.pr_number,
             )
 
@@ -173,9 +173,9 @@ class SecurityRetrospective:
         return 0
 
     def _load_security_reports(self) -> list[dict[str, Any]]:
-        """Load security reports from .agents/security/SR-*.md files."""
+        """Load security reports from .project-toolkit/security/SR-*.md files."""
         reports: list[dict[str, object]] = []
-        security_dir = self.repo_root / ".agents" / "security"
+        security_dir = self.repo_root / ".project-toolkit" / "security"
 
         if not security_dir.exists():
             return reports
@@ -434,7 +434,9 @@ class SecurityRetrospective:
         self, fn: FalseNegative, memory_data: dict[str, Any]
     ) -> None:
         """Write to local JSON fallback for audit trail."""
-        fallback_path = self.repo_root / ".agents" / "security" / "false-negatives.json"
+        fallback_path = (
+            self.repo_root / ".project-toolkit" / "security" / "false-negatives.json"
+        )
 
         existing = []
         if fallback_path.exists():
@@ -517,7 +519,7 @@ The security agent failed to detect a {fn.severity} severity vulnerability.
 ### Corrective Actions
 
 1. [ ] Update `src/claude/security.md` with detection pattern
-2. [ ] Add benchmark test case to `.agents/security/benchmarks/`
+2. [ ] Add benchmark test case to `.project-toolkit/security/benchmarks/`
 3. [ ] Verify agent detects similar patterns after update
 
 ## References
@@ -575,7 +577,7 @@ The security agent failed to detect a {fn.severity} severity vulnerability.
         if not self.false_negatives:
             return
 
-        benchmarks_dir = self.repo_root / ".agents" / "security" / "benchmarks"
+        benchmarks_dir = self.repo_root / ".project-toolkit" / "security" / "benchmarks"
 
         if self.dry_run:
             logger.info(
@@ -598,7 +600,7 @@ The security agent failed to detect a {fn.severity} severity vulnerability.
 
         report_path = (
             self.repo_root
-            / ".agents"
+            / ".project-toolkit"
             / "analysis"
             / f"security-false-negative-rca-pr{self.pr_number}.md"
         )
@@ -659,7 +661,7 @@ and corrective actions.
 
 - PR: https://github.com/rjmurillo/ai-agents/pull/{self.pr_number}
 - Serena Memories: `.serena/memories/security-false-negative-*-pr{self.pr_number}.md`
-- Local Fallback: `.agents/security/false-negatives.json`
+- Local Fallback: `.project-toolkit/security/false-negatives.json`
 """
 
         if self.dry_run:
