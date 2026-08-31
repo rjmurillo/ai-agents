@@ -58,6 +58,22 @@ def _completed(
     return result
 
 
+def test_generated_report_uses_project_toolkit_root(tmp_path: Path) -> None:
+    """Generated security work products never recreate the legacy root."""
+    with patch.object(PreCommitSecurityCheck, "_find_repo_root", return_value=tmp_path):
+        security_check = PreCommitSecurityCheck(skip_codeql=True)
+    with patch(
+        "scripts.security.invoke_precommit_security.subprocess.run",
+        return_value=_completed(0, stdout="feature/test\n"),
+    ):
+        report = security_check._generate_security_report([], [])
+
+    assert report is not None
+    assert report.parent == tmp_path / ".project-toolkit" / "security"
+    assert report.is_file()
+    assert not (tmp_path / ".agents").exists()
+
+
 class TestEnsurePsscriptanalyzerTimeout:
     """pwsh calls must time out rather than hang the commit forever."""
 
@@ -341,7 +357,7 @@ class TestRunStagingFailClosed:
             )
         )
         check.__dict__["_generate_security_report"] = MagicMock(
-            return_value=Path("/repo/.agents/security/SR-x.md")
+            return_value=Path("/repo/.project-toolkit/security/SR-x.md")
         )
 
     def test_staging_failure_blocks_commit(
@@ -806,7 +822,7 @@ class TestCriticalHookPaths:
         self, check: PreCommitSecurityCheck
     ) -> None:
         config = Path("/repo/Lefthook.yml")
-        report = Path("/repo/.agents/security/SR-test.md")
+        report = Path("/repo/.project-toolkit/security/SR-test.md")
 
         with (
             patch.object(check, "_get_staged_files", return_value=[config]),
