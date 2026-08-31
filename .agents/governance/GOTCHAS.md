@@ -481,6 +481,18 @@ is bad. Check `git config core.bare` before believing a push failure, and
 re-verify against a repaired repository before attributing anything to your
 change. Tracked in issue #4698.
 
+Detection now exists. `scripts/validation/check_repo_health.py` runs as the
+first `pre-commit` and `pre-push` job and fails with a repair named for the
+config scope that carries the value. It reads every scope rather than the
+effective answer, because the immunization above makes a repaired worktree
+report itself healthy while its siblings are still dead. It cannot help from a
+worktree git already refuses: lefthook resolves the top level before its first
+job and exits 128 there, so run the script by hand in that case:
+
+```
+uv run --frozen python scripts/validation/check_repo_health.py
+```
+
 ## When several unrelated checks fail at once, suspect the substrate
 
 The `core.bare` incident above produced four plausible and independent-looking
