@@ -40,6 +40,7 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from active_plan_closeout import validate_active_plan_closeout
+from check_agents_write_targets import validate_agents_write_targets
 from check_adr_lifecycle import validate_adr_lifecycle
 from check_adr_links import validate_adr_links
 from check_citation_freshness import validate_citation_freshness
@@ -238,6 +239,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # existed, and six violations still accumulated, because nothing read the
     # recipes.
     _Gate("Worktree Recipe Destinations", _root_only(validate_worktree_recipes)),
+    _Gate("Legacy .agents Write Targets", _root_only(validate_agents_write_targets)),
     # Advisory companion to the gate above: the same rule measured against the
     # machine rather than the tree. Reports worktrees sitting under /tmp
     # (including orphans git no longer lists) and a low /tmp free-space floor.
