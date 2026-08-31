@@ -60,6 +60,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Push Lock Path Agreement',
     'Index Line Endings',
     'Worktree Recipe Destinations',
+    'Legacy .agents Write Targets',
     'Temp-filesystem Worktrees (advisory)',
     'Serena Memory Worktree Scope (advisory)',
     'Session End Validation',
