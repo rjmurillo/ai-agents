@@ -20,6 +20,7 @@ module is the machinery, that one is the cases.
 
 from __future__ import annotations
 
+import json
 import os
 import shlex
 import subprocess
@@ -102,7 +103,7 @@ from pathlib import Path
 # that did not, and that flag is the whole of issue #5208. Written before the
 # early exits below so a producer failure still records what it was asked for.
 Path(os.environ["MERGE_READY_LOG"]).open("a", encoding="utf-8").write(
-    "merge-ready " + " ".join(sys.argv[1:]) + "\\n"
+    json.dumps(sys.argv[1:]) + "\\n"
 )
 
 tier = os.environ["FAKE_TIER"]
@@ -117,6 +118,14 @@ if tier == "CRASH":
 if tier == "MALFORMED":
     print("not json at all")
     raise SystemExit(1)
+if tier == "PREFIX_MALFORMED":
+    print(json.dumps({
+        "Success": True,
+        "Tier": "T1",
+        "Ready": True,
+        "fetched_pages_complete": True,
+    }) + "\\n{GARBAGE")
+    raise SystemExit(0)
 if tier == "ERROR_OBJECT":
     print(json.dumps({"Success": False, "Error": "rate limited"}))
     raise SystemExit(1)
@@ -136,7 +145,8 @@ if pages.startswith("RAW:"):
 elif pages != "OMIT":
     payload["fetched_pages_complete"] = pages == "true"
 print(json.dumps(payload, indent=2))
-raise SystemExit(0 if tier == "T1" else 1)
+forced_rc = os.environ.get("FAKE_MERGE_READY_RC", "")
+raise SystemExit(int(forced_rc) if forced_rc else (0 if tier == "T1" else 1))
 """,
         encoding="utf-8",
     )
@@ -170,7 +180,7 @@ from pathlib import Path
 # early exit below so an unreadable-context case still counts its call.
 context_log = Path(os.environ["CONTEXT_LOG"])
 context_log.open("a", encoding="utf-8").write(
-    "context " + " ".join(sys.argv[1:]) + "\\n"
+    json.dumps(sys.argv[1:]) + "\\n"
 )
 call_number = len(context_log.read_text(encoding="utf-8").splitlines())
 
@@ -222,7 +232,7 @@ from pathlib import Path
 # for, so `--disable` could become `--enable` with the whole suite green. That
 # mutation was verified to survive before this line existed.
 Path(os.environ["DISARM_LOG"]).open("a", encoding="utf-8").write(
-    "disarmed " + " ".join(sys.argv[1:]) + "\\n"
+    json.dumps(sys.argv[1:]) + "\\n"
 )
 print(json.dumps({"Success": True, "Data": {"disabled": True}}))
 """,
@@ -256,7 +266,22 @@ class DispatchRun:
     @property
     def context_fetches(self) -> list[str]:
         """One entry per `get_pr_context.py` invocation, in call order."""
-        return [line for line in self.context_argv.splitlines() if line]
+        return [" ".join(call) for call in self.context_calls]
+
+    @property
+    def context_calls(self) -> list[list[str]]:
+        """Exact argv for each context producer call."""
+        return [json.loads(line) for line in self.context_argv.splitlines() if line]
+
+    @property
+    def merge_ready_calls(self) -> list[list[str]]:
+        """Exact argv for each readiness producer call."""
+        return [json.loads(line) for line in self.merge_ready_argv.splitlines() if line]
+
+    @property
+    def disarm_calls(self) -> list[list[str]]:
+        """Exact argv for each auto-merge mutation call."""
+        return [json.loads(line) for line in self.disarm_argv.splitlines() if line]
 
     @property
     def forwarded_is_bot(self) -> bool:
@@ -267,13 +292,13 @@ class DispatchRun:
         pass a block that forwarded the flag on the first pass and lost it on
         the second, which is a shape a per-PR variable reset produces.
         """
-        calls = [shlex.split(line)[1:] for line in self.merge_ready_argv.splitlines() if line]
+        calls = self.merge_ready_calls
         return bool(calls) and all("--is-bot" in call for call in calls)
 
     @property
     def did_not_forward_is_bot(self) -> bool:
         """True when every tier-producer call omitted the exact flag token."""
-        calls = [shlex.split(line)[1:] for line in self.merge_ready_argv.splitlines() if line]
+        calls = self.merge_ready_calls
         return bool(calls) and all("--is-bot" not in call for call in calls)
 
     @property
@@ -316,6 +341,7 @@ def run_dispatch(
     round_action: str = "ACT",
     pages_complete: str = "true",
     author_is_bot: str = "false",
+    merge_ready_rc: str = "",
     mutation_rc: str = "",
     tier_read: str = SHIPPED_TIER_READ,
     block_edit: tuple[str, str] | None = None,
@@ -386,6 +412,7 @@ done
             "FAKE_PAGES_COMPLETE": pages_complete,
             "FAKE_AUTHOR_IS_BOT": author_is_bot,
             "MERGE_READY_LOG": str(merge_ready_log),
+            "FAKE_MERGE_READY_RC": merge_ready_rc,
             "MUTATION_RC_OVERRIDE": mutation_rc,
             "CONTEXT_LOG": str(context_log),
         }
@@ -447,6 +474,7 @@ def run_scripts_readiness(tmp_path: Path, doc: str, *, author_is_bot: str) -> li
             "FAKE_AUTO_MERGE": "null",
             "FAKE_PAGES_COMPLETE": "true",
             "FAKE_TIER": "T1",
+            "FAKE_MERGE_READY_RC": "",
             "MERGE_READY_LOG": str(merge_ready_log),
         }
     )
@@ -466,4 +494,4 @@ def run_scripts_readiness(tmp_path: Path, doc: str, *, author_is_bot: str) -> li
     )
     calls = [line for line in merge_ready_log.read_text(encoding="utf-8").splitlines() if line]
     assert len(calls) == 1, f"expected one readiness call, got {calls!r}"
-    return shlex.split(calls[0])[1:]
+    return json.loads(calls[0])

@@ -162,7 +162,9 @@ def test_a_failed_mutation_is_reported(tmp_path: Path, doc: str) -> None:
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
-@pytest.mark.parametrize("failure", ["CRASH", "MALFORMED", "ERROR_OBJECT"])
+@pytest.mark.parametrize(
+    "failure", ["CRASH", "MALFORMED", "PREFIX_MALFORMED", "ERROR_OBJECT"]
+)
 def test_a_producer_that_names_no_tier_disarms_then_skips(
     tmp_path: Path, doc: str, failure: str
 ) -> None:
@@ -190,7 +192,9 @@ def test_a_producer_that_names_no_tier_disarms_then_skips(
         tier=failure,
         auto_merge="SQUASH",
         round_action="ACT",
-        expected_stderr="jq: parse error" if failure == "MALFORMED" else None,
+        expected_stderr=(
+            "jq: parse error" if failure in {"MALFORMED", "PREFIX_MALFORMED"} else None
+        ),
     )
 
     assert "Cannot determine tier" in run.stdout
@@ -200,6 +204,22 @@ def test_a_producer_that_names_no_tier_disarms_then_skips(
     assert not run.round_cap_called
     assert not run.reached_end, "the loop kept acting without a valid tier"
     assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_t1_payload_with_nonzero_status_is_not_trusted(tmp_path: Path, doc: str) -> None:
+    """A success payload and failure exit cannot jointly authorize merge."""
+    run = run_dispatch(
+        tmp_path,
+        doc,
+        tier="T1",
+        auto_merge="SQUASH",
+        merge_ready_rc="1",
+    )
+
+    assert "Cannot determine tier" in run.stdout
+    assert run.disarmed
+    assert not run.reached_end
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)

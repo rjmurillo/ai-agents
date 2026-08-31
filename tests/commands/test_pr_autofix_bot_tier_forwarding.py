@@ -268,6 +268,33 @@ def test_a_flag_lookalike_is_not_the_is_bot_token(tmp_path: Path, doc: str) -> N
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_every_dispatch_call_targets_its_current_pr(tmp_path: Path, doc: str) -> None:
+    """The two-PR queue must not reuse one PR number."""
+    run = run_dispatch(
+        tmp_path,
+        doc,
+        tier="T3",
+        auto_merge="SQUASH",
+        author_is_bot="true",
+    )
+
+    assert run.merge_ready_calls == [
+        ["--pull-request", "5176", "--is-bot"],
+        ["--pull-request", "5177", "--is-bot"],
+    ]
+    assert run.context_calls == [
+        ["--pull-request", "5176", "--output-format", "json"],
+        ["--pull-request", "5176", "--output-format", "json"],
+        ["--pull-request", "5177", "--output-format", "json"],
+        ["--pull-request", "5177", "--output-format", "json"],
+    ]
+    assert run.disarm_calls == [
+        ["--pull-request", "5176", "--disable", "--output-format", "json"],
+        ["--pull-request", "5177", "--disable", "--output-format", "json"],
+    ]
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
 def test_a_real_human_author_is_not_reported_as_unreadable(tmp_path: Path, doc: str) -> None:
     """The diagnostic must discriminate, or it is noise on every PR.
 

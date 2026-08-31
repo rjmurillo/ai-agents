@@ -507,13 +507,20 @@ fi
 # empty string, and quoting it would pass an empty argument that argparse
 # rejects. It is never attacker-influenced; both values are written above.
 # shellcheck disable=SC2086
-MERGE_READY=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" $IS_BOT_FLAG 2>/dev/null)
+if MERGE_READY=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" $IS_BOT_FLAG 2>/dev/null); then
+    MERGE_READY_RC=0
+else
+    MERGE_READY_RC=$?
+fi
 # Deliberately no 2>/dev/null on either jq below. The producer's stderr is
 # suppressed above, so a jq parse error is the only signal an operator gets that
 # the producer emitted something unreadable, and both guards below would
 # otherwise skip the PR with no explanation. Adding the redirect here was tried
 # and the runtime suite failed it by name; see the malformed-producer case.
-TIER=$(printf '%s' "$MERGE_READY" | jq -r '.Tier // "UNKNOWN"')
+if ! TIER=$(printf '%s' "$MERGE_READY" | jq -r '.Tier // "UNKNOWN"'); then
+    TIER="UNKNOWN"
+fi
+TIER=${TIER:-UNKNOWN}
 # Captured once and read twice, because the tier alone does not say whether the
 # evidence behind it was complete. classify_tier returns T1 on CanMerge, and
 # CanMerge is `len(reasons) == 0` with fetched_pages_complete computed after it
@@ -540,14 +547,23 @@ TIER=$(printf '%s' "$MERGE_READY" | jq -r '.Tier // "UNKNOWN"')
 # worse direction: malformed evidence granting a merge is the thing this guard
 # exists to refuse. Only a real JSON boolean is accepted now; every other type,
 # including a string spelling of a boolean, is "unknown" and denies.
-PAGES_COMPLETE=$(printf '%s' "$MERGE_READY" | jq -r 'if (.fetched_pages_complete | type) == "boolean" then (.fetched_pages_complete | tostring) else "unknown" end')
+if ! PAGES_COMPLETE=$(printf '%s' "$MERGE_READY" | jq -r 'if (.fetched_pages_complete | type) == "boolean" then (.fetched_pages_complete | tostring) else "unknown" end'); then
+    PAGES_COMPLETE="unknown"
+fi
+PAGES_COMPLETE=${PAGES_COMPLETE:-unknown}
+# Exit 1 is the producer's documented not-ready verdict and is valid for every
+# non-T1 tier. Any higher exit, or T1 paired with exit 1, contradicts the
+# payload and cannot buy a merge.
+if [ "$MERGE_READY_RC" -gt 1 ] || { [ "$MERGE_READY_RC" -eq 1 ] && [ "$TIER" = "T1" ]; }; then
+    TIER="UNKNOWN"
+    PAGES_COMPLETE="unknown"
+fi
 # .claude/commands/pr-review-config.yaml already ANDs this field into its
 # completion-gate criterion, so this is the same safety rule applied at the
 # other place a merge can be armed, not a new policy.
-# Fail closed on a tier the producer never declared. Without pipefail jq masks a
-# producer failure, and the two failure shapes do not even agree with each other:
-# empty stdout (crash, or unparseable JSON) leaves TIER empty, while a JSON error
-# object leaves it UNKNOWN. Both skip the T3/T4 breaker below AND satisfy
+# Fail closed on a tier the producer never declared. Empty or malformed stdout
+# and a JSON error object all normalize to UNKNOWN. That skips the T3/T4 breaker
+# below AND satisfies
 # TIER != T1 in the disarm gate, so without this guard the loop would keep
 # acting on a PR whose tier it never learned. Acting is the harm here; disarming
 # is not, so the guard stops the acting and still runs the disarm gate.
