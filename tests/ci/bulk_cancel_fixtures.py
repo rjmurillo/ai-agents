@@ -56,6 +56,7 @@ def make_run(
     branch: str | None = None,
     event: str = "synchronize",
     status: str = "queued",
+    head_repo: str = "",
 ) -> WorkflowRun:
     """Build one run record with sensible incident-shaped defaults.
 
@@ -72,6 +73,7 @@ def make_run(
         event=event,
         status=status,
         contexts=(resolved,),
+        head_repo=head_repo,
     )
 
 

@@ -137,6 +137,7 @@ def run_from_mapping(payload: Mapping[str, Any]) -> WorkflowRun:
             contexts=tuple(contexts),
             jobs_verified=jobs_verified,
             workflow_path=_optional_str(payload.get("workflow_path"), "workflow_path"),
+            head_repo=_optional_str(payload.get("head_repo"), "head_repo") or "",
         )
     except (KeyError, TypeError) as exc:
         raise ValueError(f"malformed workflow run record: {payload!r}") from exc
