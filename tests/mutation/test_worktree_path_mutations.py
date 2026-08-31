@@ -173,7 +173,7 @@ def _classify(proc: subprocess.CompletedProcess[str]) -> str:
 
     Mirrors ``_classify`` in the sibling harness
     ``tests/mutation/test_mutate_baseline_ratchet_integrity.py``, quoted verbatim
-    from its lines 58 to 65::
+    from its lines 67 to 75::
 
         def _classify(proc: subprocess.CompletedProcess[str]) -> str:
             if proc.returncode == 4:
