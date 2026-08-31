@@ -21,11 +21,12 @@ Two policies:
   creates anything.
 
 - `resolve_artifact_root(subdir, base=None)` is the WRITE path. Skills write
-  artifacts to a consumer-side location, defaulting to `<cwd>/.agents/<subdir>`.
+  artifacts to a consumer-side location, defaulting to
+  `<cwd>/.project-toolkit/<subdir>`.
   The directory is created lazily (parents=True, exist_ok=True). A caller that
   already knows the repository root (for example a session script that resolved
   it from git) passes it as `base` so the artifact anchors at
-  `<base>/.agents/<subdir>` instead of the current working directory. The root
+  `<base>/.project-toolkit/<subdir>` instead of the current working directory. The root
   is overridable by the `AI_AGENTS_ARTIFACT_ROOT` environment variable so a
   consumer can redirect every skill's output to one place; the override wins
   over both `base` and the cwd default.
@@ -42,7 +43,7 @@ Relationship to existing skills:
   uses `COPILOT_PLUGIN_ROOT` or `CLAUDE_PLUGIN_ROOT` because packaged plugin
   installs expose the plugin root, not one skill directory. The write path is
   new (the `/review` skill has no write artifact), modeled on `/spec` Step 0 writing
-  `.agents/metrics/STEP-0-METRICS.md` lazily under the consumer cwd. The
+  `.project-toolkit/metrics/STEP-0-METRICS.md` lazily under the consumer cwd. The
   AI_AGENTS_ARTIFACT_ROOT override is added so the consumer, not the skill,
   owns the artifact location.
 
@@ -163,7 +164,7 @@ def artifact_dir(subdir: str | Path, base: str | Path | None = None) -> Path:
         subdir: Artifact subdirectory under the artifact root (for example
             "analysis" or "metrics"). Must not be absolute or escape the
             root with `..`.
-        base: Optional base directory whose `.agents` subdirectory anchors the
+        base: Optional base directory whose `.project-toolkit` subdirectory anchors the
             artifact root. Defaults to the current working directory. The
             `AI_AGENTS_ARTIFACT_ROOT` override, when set, takes precedence.
 
@@ -185,9 +186,9 @@ def artifact_dir(subdir: str | Path, base: str | Path | None = None) -> Path:
         base_root = Path(base).expanduser().resolve()
         if not base_root.is_dir():
             raise ValueError(f"base must be an existing directory: {base_root}")
-        root = base_root / ".agents"
+        root = base_root / ".project-toolkit"
     else:
-        root = Path.cwd().resolve() / ".agents"
+        root = Path.cwd().resolve() / ".project-toolkit"
 
     return (root / sub).resolve()
 
@@ -195,8 +196,9 @@ def artifact_dir(subdir: str | Path, base: str | Path | None = None) -> Path:
 def resolve_artifact_root(subdir: str | Path, base: str | Path | None = None) -> Path:
     """Resolve and create the write directory for a skill artifact.
 
-    The default root is `<cwd>/.agents`. A caller that already knows the
-    repository root passes it as `base` so the root becomes `<base>/.agents`.
+    The default root is `<cwd>/.project-toolkit`. A caller that already knows the
+    repository root passes it as `base` so the root becomes
+    `<base>/.project-toolkit`.
     Both are overridden by the `AI_AGENTS_ARTIFACT_ROOT` environment variable,
     which a consumer sets to redirect every skill's output to one place. The
     returned directory (`<root>/<subdir>`) is created lazily with parents.
@@ -208,7 +210,7 @@ def resolve_artifact_root(subdir: str | Path, base: str | Path | None = None) ->
         subdir: Artifact subdirectory under the artifact root (for example
             "analysis" or "metrics"). Must not be absolute or escape the
             root with `..`.
-        base: Optional base directory whose `.agents` subdirectory anchors the
+        base: Optional base directory whose `.project-toolkit` subdirectory anchors the
             artifact root. Defaults to the current working directory. The
             `AI_AGENTS_ARTIFACT_ROOT` override, when set, takes precedence.
 
