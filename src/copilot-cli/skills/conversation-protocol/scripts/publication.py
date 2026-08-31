@@ -37,9 +37,10 @@ from __future__ import annotations
 
 import re
 import sys
-from collections.abc import Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import SupportsInt, cast
 
 # ---------------------------------------------------------------------------
 # Disposition and severity
@@ -325,11 +326,15 @@ class RoundState:
         }
 
     @staticmethod
-    def from_dict(data: dict[str, object]) -> RoundState:
+    def from_dict(data: Mapping[str, object]) -> RoundState:
+        # Deserialization boundary: a handoff payload is untyped. Cast the
+        # values to the shapes the constructor needs; int() still coerces a
+        # JSON number or numeric string at runtime.
+        resolved_raw = data.get("resolved") or []
         return RoundState(
-            round_count=int(data["round_count"]),  # type: ignore[arg-type]
-            max_rounds=int(data.get("max_rounds", 3)),  # type: ignore[arg-type]
-            resolved=frozenset(data.get("resolved", []) or []),  # type: ignore[arg-type]
+            round_count=int(cast(SupportsInt, data["round_count"])),
+            max_rounds=int(cast(SupportsInt, data.get("max_rounds", 3))),
+            resolved=frozenset(cast(Iterable[str], resolved_raw)),
         )
 
 
