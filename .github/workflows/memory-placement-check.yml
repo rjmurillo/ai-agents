@@ -1,0 +1,129 @@
+# Memory Placement Check (Issue #5391)
+#
+# Flags Serena memories that read as normative or procedural content rather
+# than evidence, so a convention does not end up bound only to an MCP-gated
+# surface that Codex and Copilot may never load
+# (.claude/rules/knowledge-persistence.md, "Placement contract").
+#
+# The gate runs with the committed debt register, so a memory already at or
+# above the threshold when the gate landed does not fail an unrelated PR; it
+# fails only if its score rises. Weekly, the whole corpus is re-scored so a
+# memory that drifted normative without an edit to itself is still surfaced.
+#
+# Logic lives in scripts/validation/check_memory_placement.py per ADR-006
+# (thin workflows) and ADR-042 (Python-first). The checker imports
+# markdown-it through scripts/utils/markdown_parser.py, so every step uses
+# `uv run --frozen`, never bare python3 (.claude/rules/ci-scripts.md MUST-18).
+# Uses dorny/paths-filter (Issue #103) so the workflow satisfies required-check
+# contracts on every PR and skips with a passing status when no memory changed.
+
+name: Memory Placement Check
+
+on:
+  schedule:
+    # Weekly full-corpus scan: surfaces placement debt that change-triggered
+    # mode never sees. Runs Sunday 04:00 UTC.
+    - cron: '0 4 * * 0'
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  BASELINE_PATH: scripts/validation/memory_placement_baseline.json
+
+jobs:
+  check-paths:
+    name: Detect memory changes
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    outputs:
+      should-run-placement: ${{ github.event_name == 'workflow_dispatch' && 'true' || github.event_name == 'schedule' && 'true' || steps.filter.outputs.memories }}
+      full-corpus: ${{ github.event_name == 'schedule' && 'true' || 'false' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check path filters
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        if: github.event_name != 'workflow_dispatch' && github.event_name != 'schedule'
+        with:
+          filters: |
+            memories:
+              - '.serena/memories/**.md'
+              - 'scripts/validation/check_memory_placement.py'
+              - 'scripts/validation/memory_placement_signals.py'
+              - 'scripts/validation/memory_placement_baseline.py'
+              - 'scripts/validation/memory_placement_baseline.json'
+              - '.github/workflows/memory-placement-check.yml'
+
+  validate-placement:
+    name: Score changed memories
+    needs: check-paths
+    if: needs.check-paths.outputs.should-run-placement == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+
+      - name: Compute changed memory files
+        id: changed
+        if: needs.check-paths.outputs.full-corpus != 'true'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          DELIMITER="memory_files_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          echo "files<<${DELIMITER}" >> "${GITHUB_OUTPUT}"
+          if [ -n "${BASE_SHA}" ] && [ -n "${HEAD_SHA}" ]; then
+            git diff --name-only --diff-filter=ACMR "${BASE_SHA}" "${HEAD_SHA}" \
+              -- .serena/memories >> "${GITHUB_OUTPUT}"
+          else
+            git ls-files .serena/memories >> "${GITHUB_OUTPUT}"
+          fi
+          echo "${DELIMITER}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run placement check (changed files)
+        if: needs.check-paths.outputs.full-corpus != 'true'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          CHANGED_FILES: ${{ steps.changed.outputs.files }}
+        run: |
+          uv run --frozen python scripts/validation/check_memory_placement.py \
+            --baseline "${BASELINE_PATH}"
+
+      - name: Run placement check (full corpus)
+        if: needs.check-paths.outputs.full-corpus == 'true'
+        run: |
+          uv run --frozen python scripts/validation/check_memory_placement.py \
+            --all --baseline "${BASELINE_PATH}"
+
+  skip-placement:
+    name: Skip placement check (no memory changes)
+    needs: check-paths
+    if: needs.check-paths.outputs.should-run-placement != 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 1
+    steps:
+      - name: Checkout code
+        # Required for dorny/paths-filter pattern consistency.
+        # See: .serena/memories/ci-infrastructure-dorny-paths-filter-checkout.md
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Skip message
+        run: |
+          echo "No memory changes detected - skipping placement check"
