@@ -69,12 +69,22 @@ __all__ = [
     "EXIT_EXTERNAL",
     "EXIT_OK",
     "EXIT_REGRESSION",
+    "MERGE_TREE_BACKED",
     "current_count",
     "list_violations",
     "main",
 ]
 
 _BASELINE_PATH = Path(__file__).with_name("memory_index_count_baseline.txt")
+
+MERGE_TREE_BACKED = True
+"""This baseline is registered in ``merge_tree_ratchet_registry.py::RATCHETS``.
+
+Registration is what lets ``count_ratchet.run`` pass a branch that merely holds
+a number ``main`` lowered underneath it: the merged result is measured by
+``scripts/ci/merge_tree_ratchet_check.py`` instead. Pinned against the registry
+by ``tests/ci/test_merge_tree_backing_declarations.py``.
+"""
 
 _VALIDATOR = Path("scripts/validate_memory_tier.py")
 
@@ -262,6 +272,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "can reach it (issue #4313)."
         ),
         lister=list_violations,
+        merge_tree_backed=MERGE_TREE_BACKED,
     )
 
 
