@@ -41,8 +41,9 @@ reading it", is the same error stated as fact.
 
 That mattered concretely. The classifier returned `T1` for any result with
 `CanMerge=true`, and `CanMerge` was `len(reasons) == 0` while
-`_evaluate_pr_state` appended a reason only for `BEHIND` and `BLOCKED`, so any
-value nobody enumerated classified `T1` and armed auto-merge. A PR reporting
+`_evaluate_pr_state` appended a reason for `BEHIND` and `BLOCKED` (as well as
+non-open state, draft status, `CONFLICTING`, and `UNKNOWN`), so any
+mergeStateStatus value outside that set classified `T1` and armed auto-merge. A PR reporting
 `mergeStateStatus=A_STATE_GITHUB_ADDS_LATER`, the placeholder
 `tests/test_test_pr_merge_ready.py:1553` carries for a state GitHub adds later,
 has no merge row in pr-autofix.md and reached the merge tier anyway.

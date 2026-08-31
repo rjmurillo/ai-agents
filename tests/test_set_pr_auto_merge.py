@@ -232,8 +232,8 @@ class TestEnableAutoMergeErrors:
             # Exit 3 per ADR-035 (external/API error).
             assert exc.value.code == 3
         stderr = capsys.readouterr().err
-        # Names the state explicitly so operators recognize it.
-        assert "CLEAN" in stderr
+        # States that the merge state is already satisfied.
+        assert "already satisfied" in stderr
         # Points to the documented fallback script.
         assert "merge_pr.py" in stderr
         # Includes the PR number so the suggested command is copy-pasteable.
@@ -273,6 +273,7 @@ class TestEnableAutoMergeErrors:
                 enable_auto_merge("o", "r", 5359, "PR_hh", "SQUASH", "", "")
             assert exc.value.code == 3
         stderr = capsys.readouterr().err
+        assert "already satisfied" in stderr
         assert "merge_pr.py" in stderr
         assert "5359" in stderr
 
@@ -307,7 +308,7 @@ class TestEnableAutoMergeErrors:
         captured = capsys.readouterr()
         # Must not have routed through either fallback message.
         assert "UNSTABLE merge state" not in captured.err
-        assert "CLEAN merge state" not in captured.err
+        assert "already satisfied" not in captured.err
         # Confirms the normal enabled-summary printed.
         assert "Auto-merge enabled" in captured.out
 
