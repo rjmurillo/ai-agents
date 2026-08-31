@@ -3,9 +3,9 @@
 Refs #5208. `classify_tier` in `test_pr_merge_ready.py` returns T5 only through
 `is_bot and (has_ci_failures or has_threads)`, and its `is_bot` parameter
 defaults to `False`. The command performed no author lookup and never passed
-`--is-bot`, so T5 was unreachable: every bot PR with a failing check or an
-unresolved thread classified T2-T4 and entered the unattended
-thread-fix/round-cap loop the tier table reserves for human handling.
+`--is-bot`, so T5 was unreachable: every affected bot PR that reached
+work-tier classification entered the T2-T4 unattended thread-fix/round-cap
+loop the tier table reserves for human handling.
 
 Split from `test_pr_autofix_tier_dispatch_runtime.py` rather than appended to
 it, following the precedent that file records for its own split from the
@@ -37,9 +37,9 @@ def test_a_bot_authored_pr_forwards_is_bot_to_the_tier_producer(
     `classify_tier` reaches T5 only through `is_bot and (has_ci_failures or
     has_threads)`, and its `is_bot` parameter defaults to `False`. The command
     performed no author lookup at all and never passed the flag, so T5 was
-    unreachable and every bot PR with a failing check or an unresolved thread
-    was classified T2-T4 and swept into the unattended thread-fix/round-cap
-    loop the tier table reserves for human handling.
+    unreachable and every affected bot PR that reached work-tier classification
+    was swept into the T2-T4 unattended thread-fix/round-cap loop the tier table
+    reserves for human handling.
 
     T3 here rather than T5 on purpose: the fake producer echoes whatever tier
     the case names, so asserting on the returned tier would assert on the fake.
@@ -79,17 +79,18 @@ def test_a_t5_pr_is_handed_to_a_human_before_the_round_cap_breaker(
     """Making T5 reachable must not switch the circuit breaker off.
 
     The breaker fires on `TIER = T3 or T4`. That was complete while `--is-bot`
-    was never forwarded: a bot PR with threads or CI failures classified T3 or
-    T4 and hit `check_pr_round_cap.py`, the cap added for issue #5056 after PR
-    #1887 ran 11+ rounds over 46 hours. Once the same PR classifies T5 the
-    condition no longer matches it, so an unterminated T5 would fall into the
-    tier actions with no cap and no human handoff, which is worse than the
-    defect issue #5208 reports.
+    was never forwarded: an affected bot PR that reached work-tier
+    classification became T3 or T4 and hit `check_pr_round_cap.py`, the cap
+    added for issue #5056 after PR #1887 ran 11+ rounds over 46 hours. Once the
+    same PR classifies T5 the condition no longer matches it, so an unterminated
+    T5 would fall into the tier actions with no cap and no human handoff, which
+    is worse than the defect issue #5208 reports.
 
-    The tier table reads "| T5 | Bot PR with any failure or threads | Handle
-    individually |", so the arm is a handoff. `round_cap_called` is the
-    discriminating read: a fall-through reaches the end of the block, and a T5
-    arm that terminated by falling into the breaker instead would call it.
+    The tier table assigns individual handling to bot PRs that pass merge-state
+    gates but still have failures or threads, so the arm is a handoff.
+    `round_cap_called` is the discriminating read: a fall-through reaches the
+    end of the block, and a T5 arm that terminated by falling into the breaker
+    instead would call it.
     """
     run = run_dispatch(tmp_path, doc, tier="T5", author_is_bot="true")
 

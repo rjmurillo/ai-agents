@@ -1216,8 +1216,9 @@ class TestAuthorIsBot:
     `classify_tier` in `test_pr_merge_ready.py` returns T5 only when
     `is_bot and (has_ci_failures or has_threads)`, and its `is_bot` parameter
     defaults to `False`. The command had no author lookup at all, so it never
-    passed `--is-bot`, and every bot PR with a failing check or an unresolved
-    thread was classified T2-T4 and entered the unattended thread-fix loop.
+    passed `--is-bot`, and every affected bot PR that reached work-tier
+    classification was classified T2-T4 and entered the unattended thread-fix
+    loop.
 
     Three states, not two. `None` means the author could not be read, which the
     consumer must be able to tell apart from a real `False` so it can fail

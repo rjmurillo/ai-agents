@@ -173,11 +173,10 @@ import sys
 from pathlib import Path
 
 # Records the PR it was asked about, one line per call, for the same reason the
-# two producers above record argv: the bare fact of a call cannot distinguish
-# one context fetch per PR from two. Moving the author lookup ahead of the tier
-# producer (issue #5208) put a second consumer on this fetch, and the block's
-# own comment claims "One fetch still serves both reads". Written before the
-# early exit below so an unreadable-context case still counts its call.
+# two producers above record argv: the bare fact of a call cannot prove the
+# author read happened before tiering and the auto-merge read happened after
+# it. Written before the early exit below so an unreadable-context case still
+# counts its call.
 context_log = Path(os.environ["CONTEXT_LOG"])
 context_log.open("a", encoding="utf-8").write(
     json.dumps(sys.argv[1:]) + "\\n"
