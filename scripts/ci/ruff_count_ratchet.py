@@ -65,19 +65,10 @@ MERGE_TREE_BACKED = True
 Registration is what lets ``count_ratchet.run`` pass a branch that merely holds
 a number ``main`` lowered underneath it: the merged result is measured by
 ``scripts/ci/merge_tree_ratchet_check.py`` instead. Pinned against the registry
-by ``tests/ci/test_merge_tree_backing_declarations.py``.
-
-Registration is necessary and not sufficient, because the merge-tree job selects
-on ``merge_tree_ratchet_registry.trigger_globs()`` while this ratchet's own
-lefthook job selects on its own ``glob:``. Any path in the second and not the
-first takes this waiver with its backstop skipped for the same change, which
-passes locally and fails in CI. Ruff's registry entry therefore lists every path
-the ``python-lint-count-ratchet`` job fires on, config files included, not only
-the ``*.py``, ``*.pyi`` and ``*.ipynb`` this module reads: a change to
-``pyproject.toml``, ``ruff.toml`` or ``uv.lock`` moves the count without
-touching a counted file. ``tests/test_lefthook_gate_config.py::
-test_every_backed_ratchet_job_is_covered_by_the_merge_tree_job`` holds the two
-scopes together for every backed ratchet.
+by ``tests/ci/test_merge_tree_backing_declarations.py``. The local
+``count-ratchets`` aggregate and CI merge-tree step both run without path
+filters, so registry membership is the complete backstop eligibility
+invariant.
 """
 
 # Every extension ruff lints. Kept in lockstep with the workflow paths filter.

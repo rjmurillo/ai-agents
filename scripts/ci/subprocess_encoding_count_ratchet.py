@@ -10,12 +10,11 @@ import graph.
 
 Exit codes (AGENTS.md contract):
     0 - ok (count <= baseline)
-    1 - regression (count > baseline, or the recorded baseline sits above the
-        one at --base-ref for any reason, including a branch merely behind it;
-        see MERGE_TREE_BACKED below for why this one does not get the waiver
-        the registered ratchets get)
-    2 - config error (baseline missing or malformed, bad args)
-    3 - external error (checker could not run)
+    1 - regression (count > baseline, or a successful fork-point comparison
+        proves the recorded baseline sits above the one at --base-ref)
+    2 - config error (baseline missing or malformed, fork baseline absent,
+        bad args)
+    3 - external error (checker, git, or fork baseline read failed)
 """
 
 from __future__ import annotations
@@ -64,9 +63,9 @@ current one: with baseline 238 against a tree of 234, four new violations
 measure 238, pass under the stale ceiling, and land above ``main``'s 234.
 
 Registering it would be the other fix and is deliberately not taken here: it
-adds a sixth evaluation to a 90s pre-push lefthook job and to pr-validation,
-which is a gate change (ci-scripts MUST-13) rather than a defect repair.
-Pinned against the registry by
+adds a sixth evaluation to the local count-ratchets aggregate and to
+pr-validation, which is a gate change (ci-scripts MUST-13) rather than a defect
+repair. Pinned against the registry by
 ``tests/ci/test_merge_tree_backing_declarations.py``, so flipping this to True
 without registering the baseline fails.
 """
