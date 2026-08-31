@@ -6,13 +6,27 @@ priority: high
 
 # Knowledge Persistence Rule
 
-When you learn a durable fact, convention, or decision procedure that future sessions must honor, choose the persistence surface by who must obey it and across which harnesses. This repository runs under Claude, Codex, and Copilot. A convention that lives in only one harness's memory is invisible to the other two.
+When you learn a durable fact, convention, or decision procedure that future sessions must honor, choose the persistence surface by who must obey it and across which harnesses. This repository runs under Claude, Codex, and Copilot; a convention living in one harness's memory is invisible to the other two.
 
-## Decision procedure
+## Placement contract
 
-1. **Ephemeral, this-task-only**: do not persist as a rule. Record unfinished issue state in the per-issue handoff.
-2. **Retrieval aid, non-binding**: Serena memory (`.serena/memories/`, committed but MCP-gated) or Copilot Memory (the `store_memory` tool, GitHub-scoped and per-user). Use these for "useful to recall," never as the binding for a convention other harnesses must follow. Serena is not guaranteed loaded on every harness; Copilot Memory does not reach Claude or Codex at all.
-3. **Durable convention that binds every contributor and every harness**: a rule file under `.claude/rules/<name>.md`. This is the canonical surface.
+Six destinations, no overlap. Choose by what the content is, not by where it was learned.
+
+| Destination | Content |
+|-------------|---------|
+| `.claude/rules/<name>.md` | A convention every contributor and harness must obey |
+| `.claude/skills/<name>/SKILL.md` | A reusable procedure you run on demand |
+| `.claude/agents/<name>.md` | A role contract needing persona, judgment, and isolated context |
+| `.serena/memories/` (MCP-gated) or Copilot Memory (`store_memory`, per-user) | Evidence: what happened, what was measured, why. It cites; it never commands |
+| Per-issue handoff | Unfinished state for this task only |
+| Delete or merge | What another destination already carries |
+
+Skill versus agent: the criteria are in `scripts/validation/check_agent_skill_discriminator.py` and the audit it cites. Do not restate them.
+
+1. **Mandatory behavior MUST NOT depend on Serena retrieval** (MUST NOT 1 below, as placement). Serena is MCP-gated, Copilot Memory reaches neither Claude nor Codex, and a compacted session loses both. What must hold on every run is a rule, a skill, or an agent.
+2. **Precedence**: a `.claude/` artifact outranks a memory on the same concept. The memory keeps evidence only and cites the artifact by path; a memory that contradicts it is the defect, whichever came first.
+3. **Retention**: keep a thinned memory only while it holds evidence the artifact lacks (a measurement, an incident, a PR number). Delete it once it only paraphrases; a paraphrase drifts.
+4. **Enforcement**: `scripts/validation/check_memory_placement.py`; exceptions via a `placement_exception:` frontmatter key or `[memory-placement: <rationale>]` in the PR body.
 
 ## MUST
 
@@ -30,39 +44,13 @@ When you learn a durable fact, convention, or decision procedure that future ses
 
 ## When to write a Serena memory (tier 2 guidance)
 
-Write a Serena memory when ALL of the following hold:
+Write one when ALL of these hold, and skip it otherwise:
 
-- The information was derived during this session (observed behavior, a gotcha, a
-  project-specific pattern, a decision rationale, a non-obvious codebase fact).
-- It is NOT already expressed in an existing rule or Serena memory
-  (search existing Serena memories first).
-- A future session working on the same area would save 5+ minutes by having it.
-- It does NOT need to be a guaranteed binding for every harness and contributor. Serena is
-  MCP-gated, so must-obey conventions belong in a rule file instead.
-
-Do NOT write a Serena memory when:
-
-- The same information is already in an existing rule, writing a duplicate
-  creates drift if the rule is later updated.
-- The convention must bind every harness or every contributor -> use `.claude/rules/` instead.
-- The information is ephemeral to this task only (no future session needs it).
-- It is trivially re-derivable from the codebase in under a minute.
-
-SHOULD check before writing: search Serena with 2-3 keywords from the insight. If a
-memory already covers it, augment the existing entry rather than creating a duplicate.
-
-## Net-new information decision checklist
-
-Before persisting anything, ask in order:
-
-1. **Already covered?** Search existing rules and Serena memories. If yes, augment; do not duplicate.
-2. **Re-derivable easily?** If a `Grep` or `Read` would surface it in under a minute, skip.
-3. **Required investigation?** If it took failed attempts, non-obvious codebase traversal, or
-   cross-file reasoning to arrive at -> persist it.
-4. **Which surface?**
-   - Binds all harnesses / all contributors -> `.claude/rules/<name>.md` (+ mirrors)
-   - Retrieval context, useful to recall -> write a Serena memory
-   - Ephemeral / task-only -> neither; session log only if relevant for handoff
+- Derived this session: observed behavior, a gotcha, a project-specific pattern, a decision rationale, a non-obvious codebase fact.
+- Not already in a rule or a memory. Search Serena with 2-3 keywords first; if one covers it, augment that one, because a duplicate drifts once the original is updated.
+- Not re-derivable by a `Grep` or `Read` in under a minute; reaching it took failed attempts, non-obvious traversal, or cross-file reasoning.
+- Useful to a future session on the same area (5+ minutes saved), not ephemeral to this task.
+- Not a guaranteed binding for every harness and contributor (see the placement contract above).
 
 ## MUST NOT
 
@@ -78,3 +66,4 @@ Before persisting anything, ask in order:
 - `.claude/rules/generated-artifacts.md`. Regenerate-and-commit-in-the-same-change discipline.
 - `.claude/rules/plugin-version-bump.md`. Why the manifests carry no version field.
 - `.claude/rules/canonical-source-mirror.md`. Load-bearing "mirrors" claims must cite and quote the source.
+- `scripts/validation/check_memory_placement.py`. Placement gate for `.serena/memories/` (issue #5391).
