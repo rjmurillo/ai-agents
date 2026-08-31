@@ -15,6 +15,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import scripts.validation.pr_description as _prdesc
+
 _SCRIPTS_DIR = (
     Path(__file__).resolve().parents[1]
     / ".claude" / "skills" / "github" / "scripts" / "issue"
@@ -108,6 +110,162 @@ class TestReferencesIssue:
     def test_empty(self):
         assert _check.references_issue("", 5) is False
 
+    # -- issue #3827: closing keyword inside a code span must not count --
+
+    def test_inline_code_span_not_matched(self):
+        # Repro from issue #3827 comment (against issue 4965): a backtick-
+        # wrapped closing keyword never creates a real GitHub closing link,
+        # so it must not count as a claim of implementation ownership.
+        assert _check.references_issue("Example: `Fixes #4965`", 4965) is False
+
+    def test_double_backtick_inline_code_span_not_matched(self):
+        assert _check.references_issue("See `` Fixes #42 `` for context", 42) is False
+
+    def test_fenced_code_block_not_matched(self):
+        body = "Prior attempt:\n```\nFixes #4965\n```\n"
+        assert _check.references_issue(body, 4965) is False
+
+    def test_tilde_fenced_code_block_not_matched(self):
+        body = "~~~\nFixes #4965\n~~~\n"
+        assert _check.references_issue(body, 4965) is False
+
+    def test_bare_keyword_outside_code_span_still_matches(self):
+        # Positive control: the same keyword as a real claim, no markup.
+        assert _check.references_issue("Fixes #4965 on its own line", 4965) is True
+
+    def test_keyword_in_code_span_plus_real_claim_outside_still_matches(self):
+        # Edge: one match is excluded (code span) and a second, real match
+        # for the SAME issue exists outside any span. The function must not
+        # let the excluded match short-circuit the real one.
+        body = "Example: `Fixes #4965`. Fixes #4965"
+        assert _check.references_issue(body, 4965) is True
+
+    def test_diagnostic_reference_in_code_span_still_not_matched(self):
+        # Refs is already excluded by _KEYWORDS; confirm code-span exclusion
+        # does not accidentally flip a non-keyword into a match.
+        assert _check.references_issue("`Refs #4965`", 4965) is False
+
+    def test_unclosed_fence_still_excludes_the_keyword_inside_it(self):
+        # Copilot review on PR #5371: CommonMark treats an unclosed fence as
+        # running to end of input, not as no fence at all. A body ending
+        # mid-fence must still be excluded, or the keyword inside it counts
+        # as a real claim GitHub never linked.
+        body = "Prior attempt:\n```\nFixes #4965"
+        assert _check.references_issue(body, 4965) is False
+
+    def test_unclosed_tilde_fence_still_excludes_the_keyword_inside_it(self):
+        body = "~~~\nFixes #4965"
+        assert _check.references_issue(body, 4965) is False
+
+    def test_fence_indented_up_to_three_spaces_still_excludes_the_keyword(self):
+        # CommonMark 0.31.2 4.5 permits up to 3 spaces of indent on both the
+        # opening and closing fence (Copilot, PR #5371 round 2). A fence
+        # requiring column-0 anchoring would misread this as ordinary text
+        # and count the keyword as a real claim.
+        body = "  ```\n  Fixes #4965\n  ```\n"
+        assert _check.references_issue(body, 4965) is False
+
+    def test_a_line_starting_with_the_fence_chars_does_not_close_it_early(self):
+        # A closing fence line must hold nothing but the fence run and
+        # trailing whitespace. `` ```not-a-closer `` merely starts with the
+        # same run; ending the block there would let the following keyword
+        # (still code to GitHub) count as a real claim (Copilot, PR #5371
+        # round 2).
+        body = "```\n```not-a-closer\nFixes #4965\n```\n"
+        assert _check.references_issue(body, 4965) is False
+
+    def test_closer_longer_than_opener_still_closes_the_fence(self):
+        # CommonMark 0.31.2 4.5: the closer must be the same character and
+        # AT LEAST as long as the opener, not exactly as long. A 3-backtick
+        # opener closes on a 4-backtick line, so the claim after it is real,
+        # unfenced text (Copilot, PR #5371 round 3).
+        body = "```\nignore this\n````\nFixes #4965\n"
+        assert _check.references_issue(body, 4965) is True
+
+    def test_multiline_triple_backtick_inline_span_still_excludes_the_keyword(self):
+        # CommonMark 0.31.2 6.1 allows a code span to cross lines for any
+        # delimiter length; confining the 3+ backtick branch to a single
+        # line missed this and read the keyword as a genuine bare claim
+        # (Copilot, PR #5371 round 4).
+        body = "See ```example\nFixes #4965\nend``` for details."
+        assert _check.references_issue(body, 4965) is False
+
+    def test_backtick_fence_opener_with_backtick_in_info_string_is_not_a_fence(self):
+        # CommonMark 0.31.2 4.5: a backtick fence's info string must not
+        # itself contain a backtick; an opener that does isn't a fence at
+        # all, so a real keyword after it is a genuine unfenced claim
+        # (Copilot, PR #5371 round 4).
+        body = "```lang`x`\nFixes #4965\n"
+        assert _check.references_issue(body, 4965) is True
+
+    def test_span_crossing_a_real_fence_does_not_hide_a_claim_after_it(self):
+        # A 4-backtick run in the paragraph before a real 3-backtick fence
+        # can pair with a later 4-backtick run after the fence closes,
+        # producing a candidate span that starts before the fence and ends
+        # after it, engulfing both the fence and a real claim right after
+        # it. Rejecting a span only when its start falls inside the fence
+        # (round 4) missed this shape and could let a duplicate PR through
+        # undetected (Copilot, PR #5371 round 5).
+        body = "See ````\n```\nhidden\n```\nFixes #4965 end````\n"
+        assert _check.references_issue(body, 4965) is True
+
+
+class TestSpanPatternsMatchCanonical:
+    """Drift guard for the two duplicated span-exclusion mechanisms (PR #5371 review).
+
+    `references_issue()`'s span-exclusion patterns are ported verbatim from
+    `scripts/validation/pr_description.py`. Nothing else keeps the two in
+    sync, so a fix applied to one copy and not the other silently reopens
+    whichever gap the fix closed. `_INLINE_CODE_SPAN` stays one static
+    pattern, so a `.pattern`/`.flags` comparison still fits it. The fenced
+    block is no longer one static pattern (round 3: CommonMark's "at least
+    as long" closer rule needs a per-opener dynamic closer, not a fixed `\1`
+    backreference), so its drift guard compares `_fenced_code_block_ranges`
+    output on shared tricky inputs instead of comparing source text.
+    """
+
+    def test_inline_code_span_pattern_matches_canonical(self):
+        assert _check._INLINE_CODE_SPAN.pattern == _prdesc._INLINE_CODE_SPAN.pattern
+        assert _check._INLINE_CODE_SPAN.flags == _prdesc._INLINE_CODE_SPAN.flags
+
+    def test_fence_open_line_pattern_matches_canonical(self):
+        assert _check._FENCE_OPEN_LINE.pattern == _prdesc._FENCE_OPEN_LINE.pattern
+        assert _check._FENCE_OPEN_LINE.flags == _prdesc._FENCE_OPEN_LINE.flags
+
+    def test_fenced_code_block_ranges_behavior_matches_canonical(self):
+        bodies = [
+            "```\nFixes #1\n```\n",
+            "~~~\nFixes #1",
+            "  ```\n  Fixes #1\n  ```\n",
+            "```\n```not-a-closer\nFixes #1\n```\n",
+            "```\nignore this\n````\nFixes #1\n",
+            "no fence here at all",
+            "```\nfirst\n```\ntext\n~~~\nsecond\n~~~\n",
+            "```lang`x`\nFixes #1\n",
+            "~~~lang`x`\nFixes #1\n~~~\n",
+            "See ```example\nFixes #1\nend``` for details.",
+            "See ````\n```\nhidden\n```\nFixes #1 end````\n",
+        ]
+        for body in bodies:
+            assert _check._fenced_code_block_ranges(
+                body
+            ) == _prdesc._fenced_code_block_ranges(body), body
+
+    def test_code_spans_outside_fences_behavior_matches_canonical(self):
+        bodies = [
+            "`Fixes #1`",
+            "``Fixes #1``",
+            "See ```example\nFixes #1\nend``` for details.",
+            "```\nFixes #1\n```\n",
+            "```\nignore this\n````\nFixes #1\n",
+            "See ````\n```\nhidden\n```\nFixes #1 end````\n",
+        ]
+        for body in bodies:
+            fenced = _check._fenced_code_block_ranges(body)
+            assert _check._code_spans_outside_fences(
+                body, fenced
+            ) == _prdesc._code_spans_outside_fences(body, fenced), body
+
 
 class TestFindOpenPrsForIssue:
     def test_match_in_body(self):
@@ -132,6 +290,50 @@ class TestFindOpenPrsForIssue:
         with patch.object(_check.subprocess, "run", return_value=_proc(0, json.dumps([prs]))):
             out = _check.find_open_prs_for_issue("o", "r", 2477)
         assert [m["number"] for m in out] == [10]
+
+    def test_a_backtick_split_across_title_and_body_does_not_hide_a_real_claim(self):
+        # Copilot review on PR #5371: title and body are two separate
+        # Markdown documents, so a code span cannot straddle them. An
+        # unmatched backtick in the title paired with one in the body used
+        # to form an artificial cross-field span that swallowed a real
+        # closing keyword sitting in the body.
+        prs = [
+            {
+                "number": 42,
+                "title": "fix: handle the `weird case",
+                "body": "Fixes #4965`, see the linked discussion.",
+                "html_url": "u",
+                "head": {"ref": "b"},
+                "user": {"login": "alice"},
+            }
+        ]
+        with patch.object(_check.subprocess, "run", return_value=_proc(0, json.dumps([prs]))):
+            out = _check.find_open_prs_for_issue("o", "r", 4965)
+        assert [m["number"] for m in out] == [42]
+
+    def test_code_span_closing_keyword_does_not_suppress_new_pr(self):
+        # End-to-end regression for issue #3827: a PR that only quotes a
+        # closing keyword inside backticks (e.g. documenting the bug, as
+        # this repro does) must not be surfaced as an existing claim on the
+        # issue, or a legitimate new PR gets falsely blocked as a duplicate.
+        prs = [
+            {
+                "number": 5296,
+                "title": "docs(github): note the code-span closing-keyword defect",
+                "body": "The matcher incorrectly treats `Fixes #4965` as a real claim.",
+                "html_url": "https://github.com/rjmurillo/ai-agents/pull/5296",
+                "head": {"ref": "docs/note-3827-code-span-defect"},
+                "user": {"login": "rjmurillo"},
+            }
+        ]
+        with patch.object(
+            _check.subprocess,
+            "run",
+            return_value=_proc(0, json.dumps([prs])),
+        ):
+            out = _check.find_open_prs_for_issue("rjmurillo", "ai-agents", 4965)
+
+        assert out == []
 
     def test_diagnostic_reference_does_not_claim_implementation(self):
         prs = [
