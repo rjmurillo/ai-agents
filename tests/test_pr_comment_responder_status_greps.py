@@ -151,7 +151,7 @@ TERMINAL_ASSIGNMENT_TEXT = f'TERMINAL=$(grep -Ec "{TERMINAL_PATTERN}" "$COMMENT_
 # ``$TOTAL_COMMENTS`` directly saw an empty string. ``[ -ne ]`` then printed
 # ``integer expression expected`` and exited 2, ``if`` reads a nonzero exit as
 # false, and the BLOCKED body below never ran. The invariant was inert.
-COUNT_ARTIFACT_PATH = ".agents/pr-comments/PR-[number]/total_comments.txt"
+COUNT_ARTIFACT_PATH = ".project-toolkit/pr-comments/PR-[number]/total_comments.txt"
 COUNT_READ_BLOCK = (
     f'COUNT_FILE="{COUNT_ARTIFACT_PATH}"\n'
     'if [ ! -f "$COUNT_FILE" ]; then\n'
@@ -245,7 +245,7 @@ KEYLESS_PAYLOAD = "{}\n"
 
 # The map Phase 8.3 appends to, at the path the fence hardcodes. The gates read
 # the same file, so the append and every later count have to meet on disk.
-COMMENT_MAP_ARTIFACT_PATH = ".agents/pr-comments/PR-[number]/comments.md"
+COMMENT_MAP_ARTIFACT_PATH = ".project-toolkit/pr-comments/PR-[number]/comments.md"
 
 # Phase 8.3's append: the pipeline that turns the re-fetched payload into the
 # rows the gates count. Shipped as a bare ``# Fetch new comments`` comment
