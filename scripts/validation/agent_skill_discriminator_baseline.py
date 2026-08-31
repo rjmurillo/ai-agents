@@ -180,7 +180,9 @@ def full_corpus_agent_paths(
     )
 
 
-def refuse_dirty_scoring_inputs(repo_root: Path) -> bool:
+def refuse_dirty_scoring_inputs(
+    repo_root: Path, roots: tuple[str, ...] = SCORING_ROOTS
+) -> bool:
     """Refuse a baseline write when scoring inputs differ from HEAD.
 
     The path inventory comes from ``git ls-tree HEAD``, but ``score_agent``
@@ -190,11 +192,16 @@ def refuse_dirty_scoring_inputs(repo_root: Path) -> bool:
     recorded baseline describes a state that differs from HEAD and two
     checkouts of the same commit can produce different baselines.
 
+    ``roots`` defaults to this checker's own scoring roots. It is a parameter
+    because the property is not agent-specific: any ratchet that inventories
+    paths from a ref and then reads content from disk needs the same refusal,
+    and `check_memory_placement.py` passes ``.serena/memories/`` for it.
+
     Returns True (refuse) when dirty or untracked files exist under any
     scoring root, or when git cannot answer.
     """
     # Check for modified/deleted tracked files under scoring roots.
-    proc = run_git(repo_root, "diff", "--name-only", "HEAD", "--", *SCORING_ROOTS)
+    proc = run_git(repo_root, "diff", "--name-only", "HEAD", "--", *roots)
     if problem := git_timeout_problem(proc, "checking dirty scoring inputs"):
         print(problem, file=sys.stderr)
         return True  # fail closed
@@ -216,7 +223,7 @@ def refuse_dirty_scoring_inputs(repo_root: Path) -> bool:
 
     # Check for untracked files under scoring roots.
     proc = run_git(
-        repo_root, "ls-files", "--others", "--exclude-standard", "--", *SCORING_ROOTS
+        repo_root, "ls-files", "--others", "--exclude-standard", "--", *roots
     )
     if problem := git_timeout_problem(proc, "checking untracked scoring inputs"):
         print(problem, file=sys.stderr)
