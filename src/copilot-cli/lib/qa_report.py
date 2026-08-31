@@ -20,7 +20,7 @@ _REQUIRED_FIELDS = frozenset({"qaVerdict", "qaSessionLog", "qaCommit"})
 _SESSION_LOG_ROOT = PurePosixPath(".agents/sessions")
 QA_EVIDENCE_PREFIXES = (
     ".agents/memory/episodes/",
-    ".agents/qa/",
+    ".project-toolkit/qa/",
     ".agents/sessions/",
 )
 
