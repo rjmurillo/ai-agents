@@ -82,6 +82,7 @@ class WorkflowRun:
     contexts: tuple[str, ...]
     jobs_verified: bool = True
     workflow_path: str = ""
+    head_repo: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -214,6 +215,7 @@ def _classify(
     required: frozenset[str],
     workflow: WorkflowSubscriptions | None,
     recovery_event: str | None,
+    repository: str = "",
 ) -> RecoveryEntry:
     """Decide whether one run may be cancelled.
 
@@ -329,6 +331,28 @@ def _classify(
             ),
         )
 
+    # Fork-only head refs are not dispatchable in the base repository.
+    # workflow_dispatch requires a ref parameter that names a branch or tag in
+    # the repository that owns the workflow. A fork PR's head branch exists
+    # only in the fork, so dispatching against it fails with 422. The rerun
+    # API and pull_request events work from the merge ref, not the head ref,
+    # so they are unaffected.
+    if (
+        recovery_event not in (*PULL_REQUEST_RECOVERY_EVENTS, "rerun")
+        and run.head_repo
+        and repository
+        and run.head_repo.lower() != repository.lower()
+    ):
+        return verdict(
+            event=recovery_event,
+            verified=False,
+            reason=(
+                f"run originates from fork {run.head_repo!r}, but "
+                f"{recovery_event!r} requires a ref in {repository!r}; "
+                f"the head branch {run.branch!r} is not dispatchable there"
+            ),
+        )
+
     return verdict(
         event=recovery_event,
         verified=True,
@@ -386,6 +410,7 @@ def plan_recovery(
             required,
             resolve_workflow(run, subscriptions, subscriptions_by_run),
             recovery_event,
+            repository,
         )
         for run in unique
     )
