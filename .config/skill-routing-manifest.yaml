@@ -1,0 +1,216 @@
+# Canonical skill routing role manifest (issue #5384).
+#
+# This is the ONE reviewed source of truth that assigns every canonical skill
+# under `.claude/skills/<name>/` exactly one PRIMARY routing role. It is the
+# small reviewed override the issue asks for: the skill list, the invocation
+# graph (structural reachability), the derived `user_facing` flag, and the
+# expected activation-scenario path are all computed from the canonical tree by
+# `scripts/validation/skill_routing_manifest.py`. Do NOT duplicate this catalog
+# into `src/copilot-cli/` or any mirror; the validator reads this file directly.
+#
+# How to classify a new skill: see docs/skill-routing-manifest.md.
+#
+# Roles (exactly one primary per skill):
+#   front-door          directly selectable by /autoplan
+#   lifecycle           selected by /spec, /plan, /build, /test, /ship, or /review
+#   conditional-adjunct composed into another route only when a declared trigger matches
+#   nested-helper       intentionally invoked only by another skill or agent
+#   explicit-only       intentionally requires an explicit user request
+#   deprecated          retained temporarily with a replacement/removal reference
+#
+# Required per-entry fields:
+#   role   one of the roles above
+#   owner  the canonical invoker: a slash command (/autoplan, /spec, /plan,
+#          /build, /test, /ship, /review), the literal "user" for explicit-only,
+#          or a skill/agent name for conditional-adjunct and nested-helper.
+# Situational required fields:
+#   trigger      required for conditional-adjunct (the predicate that composes it)
+#   rationale    required for explicit-only (why auto-routing would be unsafe or noisy)
+#   replacement  required for deprecated (replacement or removal issue reference)
+# Optional:
+#   note   free-form context (e.g. the dependent issue that wires the route)
+
+skills:
+
+  # ---- front-door: directly selectable by /autoplan --------------------------
+  adr-generator: {role: front-door, owner: /autoplan}
+  agent-harness-reference: {role: front-door, owner: /autoplan}
+  ai-agents-portability-campaign: {role: front-door, owner: /autoplan}
+  analyze: {role: front-door, owner: /autoplan}
+  autoplan:
+    role: front-door
+    owner: /autoplan
+    note: The router itself; the /autoplan front door.
+  book-to-skill:
+    role: front-door
+    owner: /autoplan
+    note: 'Route added by issue #5385.'
+  business-strategy:
+    role: front-door
+    owner: /autoplan
+    note: 'Route added by issue #5385.'
+  buy-vs-build-framework: {role: front-door, owner: /autoplan}
+  context-gather: {role: front-door, owner: /autoplan}
+  github: {role: front-door, owner: /autoplan}
+  memory-search: {role: front-door, owner: /autoplan}
+  merge-resolver:
+    role: front-door
+    owner: /autoplan
+    note: 'Routed by /autoplan''s merge-conflict row as "Agent: merge-resolver".'
+  pr-comment-responder: {role: front-door, owner: /autoplan}
+  quality-grades: {role: front-door, owner: /autoplan}
+  reflect: {role: front-door, owner: /autoplan}
+  research-and-incorporate:
+    role: front-door
+    owner: /autoplan
+    note: Routed by /autoplan's research row ("context-gather, then research-and-incorporate").
+  security-detection: {role: front-door, owner: /autoplan}
+  security-review: {role: front-door, owner: /autoplan}
+  skillforge: {role: front-door, owner: /autoplan}
+  software-engineering-library: {role: front-door, owner: /autoplan}
+  world-model-diagnostic:
+    role: front-door
+    owner: /autoplan
+    note: 'Route added by issue #5385.'
+
+  # ---- lifecycle: selected by /spec /plan /build /test /ship /review ---------
+  adr-review: {role: lifecycle, owner: /spec}
+  ai-agents-generation-and-release: {role: lifecycle, owner: /build}
+  chestertons-fence: {role: lifecycle, owner: /spec}
+  code-qualities-assessment: {role: lifecycle, owner: /build}
+  cva-analysis: {role: lifecycle, owner: /spec}
+  cynefin-classifier: {role: lifecycle, owner: /spec}
+  decision-critic: {role: lifecycle, owner: /spec}
+  doc-accuracy: {role: lifecycle, owner: /build}
+  dx-review:
+    role: lifecycle
+    owner: /test
+    note: '/test Gate 5, developer-facing changes (issue #5386).'
+  execution-plans: {role: lifecycle, owner: /plan}
+  exploring-knowledge-graph: {role: lifecycle, owner: /spec}
+  golden-principles: {role: lifecycle, owner: /review}
+  memory: {role: lifecycle, owner: /spec}
+  memory-gate: {role: lifecycle, owner: /build}
+  orphan-ref-validator: {role: lifecycle, owner: /build}
+  pipeline-validator: {role: lifecycle, owner: /ship}
+  pre-mortem: {role: lifecycle, owner: /build}
+  programming-advisor: {role: lifecycle, owner: /spec}
+  requirements-interview: {role: lifecycle, owner: /spec}
+  review:
+    role: lifecycle
+    owner: /review
+    note: The /review command itself.
+  security-scan: {role: lifecycle, owner: /test}
+  slo-designer: {role: lifecycle, owner: /spec}
+  spec-generator: {role: lifecycle, owner: /spec}
+  taste-lints: {role: lifecycle, owner: /build}
+  threat-modeling: {role: lifecycle, owner: /spec}
+  work-operating-model: {role: lifecycle, owner: /spec}
+
+  # ---- conditional-adjunct: composed only when a trigger matches -------------
+  ai-agents-external-claims:
+    role: conditional-adjunct
+    owner: research-and-incorporate
+    trigger: External factual, vendor, numeric, or statistical claim entering a durable repo artifact.
+    note: 'Wired by issue #5388.'
+  analysis-provenance:
+    role: conditional-adjunct
+    owner: /build
+    trigger: Change can alter validation semantics.
+    note: 'Wired by issue #5387.'
+  validation-authority:
+    role: conditional-adjunct
+    owner: /build
+    trigger: Change can alter validation semantics; runs after analysis-provenance.
+    note: 'Wired by issue #5387.'
+
+  # ---- nested-helper: invoked only by another skill or agent -----------------
+  ai-agents-architecture-contract: {role: nested-helper, owner: ai-agents-portability-campaign}
+  ai-agents-build-and-env: {role: nested-helper, owner: ai-agents-portability-campaign}
+  ai-agents-change-control: {role: nested-helper, owner: ai-agents-portability-campaign}
+  ai-agents-config-catalog: {role: nested-helper, owner: ai-agents-portability-campaign}
+  ai-agents-debugging-playbook: {role: nested-helper, owner: ai-agents-portability-campaign}
+  ai-agents-diagnostics-toolkit: {role: nested-helper, owner: ai-agents-portability-campaign}
+  ai-agents-docs-of-record: {role: nested-helper, owner: ai-agents-portability-campaign}
+  ai-agents-empirical-probe-toolkit: {role: nested-helper, owner: ai-agents-portability-campaign}
+  ai-agents-failure-archaeology: {role: nested-helper, owner: ai-agents-portability-campaign}
+  ai-agents-research-frontier: {role: nested-helper, owner: ai-agents-portability-campaign}
+  ai-agents-research-methodology: {role: nested-helper, owner: ai-agents-portability-campaign}
+  ai-agents-validation-and-qa: {role: nested-helper, owner: ai-agents-portability-campaign}
+  avoiding-manufactured-work: {role: nested-helper, owner: ai-agents-external-claims}
+  context-optimizer: {role: nested-helper, owner: context-gather}
+  curating-memories: {role: nested-helper, owner: memory}
+  fix-markdown-fences: {role: nested-helper, owner: doc-accuracy}
+  github-url-intercept: {role: nested-helper, owner: github}
+  memory-consolidate: {role: nested-helper, owner: memory}
+  memory-documentary: {role: nested-helper, owner: memory}
+  memory-enhancement: {role: nested-helper, owner: memory}
+  memory-maintenance: {role: nested-helper, owner: memory}
+  memory-reflexion: {role: nested-helper, owner: memory}
+  panning-for-gold: {role: nested-helper, owner: research-and-incorporate}
+  prose-self-check: {role: nested-helper, owner: spec-generator}
+  reviewer-findings: {role: nested-helper, owner: pr-comment-responder}
+  serena-code-architecture: {role: nested-helper, owner: encode-repo-serena}
+  steering-matcher: {role: nested-helper, owner: context-gather}
+  stuck-detection: {role: nested-helper, owner: ai-agents-debugging-playbook}
+  style-enforcement: {role: nested-helper, owner: doc-accuracy}
+  using-forgetful-memory: {role: nested-helper, owner: memory}
+  using-serena-symbols: {role: nested-helper, owner: serena-code-architecture}
+
+  # ---- explicit-only: requires an explicit user request ---------------------
+  benchmark-models:
+    role: explicit-only
+    owner: user
+    rationale: Benchmarks models against fixtures; it spends tokens and wall-clock time, so it must be requested explicitly rather than auto-routed.
+  chaos-experiment:
+    role: explicit-only
+    owner: user
+    rationale: Injects failures to test resilience; auto-routing is unsafe because it perturbs a running system.
+  codebase-documenter:
+    role: explicit-only
+    owner: user
+    rationale: Generates codebase documentation on demand; auto-routing would produce unrequested docs.
+  codeql-scan:
+    role: explicit-only
+    owner: user
+    rationale: Runs the CodeQL engine, which is expensive and CI/explicit-triggered, so it is not auto-routed on every change.
+  encode-repo-serena:
+    role: explicit-only
+    owner: user
+    rationale: One-time Serena index setup invoked via /context-hub-setup; auto-running it on unrelated requests would be slow and noisy.
+  git-advanced-workflows:
+    role: explicit-only
+    owner: user
+    rationale: Advanced, potentially destructive git operations (rebase, history rewrite); must be requested explicitly for safety.
+  metrics:
+    role: explicit-only
+    owner: user
+    rationale: Collects usage metrics from git history to build dashboards; running it on ordinary requests would be noisy and spend time on unrequested reporting.
+  negotiation:
+    role: explicit-only
+    owner: user
+    rationale: Deal-analysis skill for offers and counter-proposals; irrelevant to code work, so it must be requested explicitly.
+  observability:
+    role: explicit-only
+    owner: user
+    rationale: Queries agent JSONL event logs for debugging; auto-routing on unrelated requests would be noisy.
+  planner:
+    role: explicit-only
+    owner: user
+    rationale: Interactive multi-step planning and execution; the /plan lifecycle command is the automatic route, so this heavyweight skill is invoked only on explicit request to avoid double-routing.
+  prompt-engineer:
+    role: explicit-only
+    owner: user
+    rationale: Human-in-the-loop prompt optimization; auto-editing prompts without an explicit request would be unsafe.
+  retrospective:
+    role: explicit-only
+    owner: user
+    rationale: Invoked explicitly via /retro after a milestone or correction; auto-running retrospection on every task would be noisy.
+  slashcommandcreator:
+    role: explicit-only
+    owner: user
+    rationale: Creates new slash commands; auto-routing would manufacture command scaffolding nobody requested.
+  windows-image-updater:
+    role: explicit-only
+    owner: user
+    rationale: Mutates Windows CI image infrastructure; unsafe to auto-route because it changes shared build infra.
