@@ -163,7 +163,7 @@ def _task_row(comment_id: str) -> list[str]:
         - [ ] **TASK-[id]**: [description]
           - Comment: [comment_id] by @[author]
           - File: [path]
-          - Plan: `.agents/pr-comments/PR-[number]/[comment_id]-plan.md`
+          - Plan: `.project-toolkit/pr-comments/PR-[number]/[comment_id]-plan.md`
 
     No ``pending`` token appears anywhere in it. An earlier fixture appended
     one, which made a Gate 3 step that matched on ``pending`` look correct
@@ -173,7 +173,7 @@ def _task_row(comment_id: str) -> list[str]:
         f"- [ ] **TASK-{comment_id}**: address comment {comment_id}",
         f"  - Comment: {comment_id} by @reviewer",
         "  - File: file.py",
-        f"  - Plan: `.agents/pr-comments/PR-5342/{comment_id}-plan.md`",
+        f"  - Plan: `.project-toolkit/pr-comments/PR-5342/{comment_id}-plan.md`",
     ]
 
 
