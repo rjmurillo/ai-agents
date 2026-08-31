@@ -431,7 +431,7 @@ def test_filters_session_evidence_from_post_qa_changes() -> None:
     assert non_evidence_paths(
         [
             "",
-            ".agents/qa/report.md",
+            ".project-toolkit/qa/report.md",
             ".agents/sessions/session.json",
             ".agents/memory/episodes/episode.json",
             "scripts/changed.py",
