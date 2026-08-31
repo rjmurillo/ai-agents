@@ -129,7 +129,6 @@ Gloss these terms on first use per skill invocation. If the user already glossed
 When you gloss, keep it to one short parenthetical. Five to twelve words. Do not lecture.
 
 - Good: `N+1 (one query per row instead of one query for all rows)`
-- Bad: `N+1, which is a database access pattern where the application issues a separate query for each item in a collection rather than batching them into a single query, leading to performance degradation that scales with the size of the collection`
 
 ## Completeness Principle: Boil the Lake
 
@@ -174,7 +173,7 @@ Format when triggered:
 
 1. **Name the ambiguity in one sentence.** What is unclear and why it matters. Example: `Unclear whether the new session-cleanup job should delete the log file or just mark it archived. Affects every downstream consumer that reads old sessions for analytics.`
 2. **Present 2 to 3 options with trade-offs.** Each option lands on a consequence the user can evaluate. Use the Completeness scoring rule above when the options differ in coverage.
-3. **Ask.** Single, specific question. Use `AskUserQuestion` when the answer is one of a small set; use plain prose when the answer is open-ended.
+3. **Ask.** Single, specific question. Use `AskUserQuestion` when the answer is one of a small set; use plain prose when the answer is open-ended. For a material user decision that blocks work, route to the `decision-question` skill rather than inlining the brief protocol here.
 
 Do not trigger this protocol for:
 
