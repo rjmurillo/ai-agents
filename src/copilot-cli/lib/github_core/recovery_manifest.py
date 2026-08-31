@@ -120,6 +120,7 @@ class RecoveryEntry:
     verification: str = "none"
     jobs_verified: bool = True
     workflow_path: str = ""
+    head_repo: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -261,6 +262,7 @@ def _classify(
             verification=verification,
             jobs_verified=run.jobs_verified,
             workflow_path=run.workflow_path,
+            head_repo=run.head_repo,
         )
 
     if workflow is None:
@@ -337,21 +339,29 @@ def _classify(
     # only in the fork, so dispatching against it fails with 422. The rerun
     # API and pull_request events work from the merge ref, not the head ref,
     # so they are unaffected.
-    if (
-        recovery_event not in (*PULL_REQUEST_RECOVERY_EVENTS, "rerun")
-        and run.head_repo
-        and repository
-        and run.head_repo.lower() != repository.lower()
-    ):
-        return verdict(
-            event=recovery_event,
-            verified=False,
-            reason=(
-                f"run originates from fork {run.head_repo!r}, but "
-                f"{recovery_event!r} requires a ref in {repository!r}; "
-                f"the head branch {run.branch!r} is not dispatchable there"
-            ),
-        )
+    #
+    # Unknown (empty) head_repo fails closed: without knowing which repository
+    # the run came from, the guard cannot confirm the ref is dispatchable.
+    if recovery_event not in (*PULL_REQUEST_RECOVERY_EVENTS, "rerun"):
+        if not run.head_repo or not repository:
+            return verdict(
+                event=recovery_event,
+                verified=False,
+                reason=(
+                    f"head repository identity is unknown for run {run.run_id}; "
+                    f"{recovery_event!r} requires a confirmed same-repository ref"
+                ),
+            )
+        if run.head_repo.lower() != repository.lower():
+            return verdict(
+                event=recovery_event,
+                verified=False,
+                reason=(
+                    f"run originates from fork {run.head_repo!r}, but "
+                    f"{recovery_event!r} requires a ref in {repository!r}; "
+                    f"the head branch {run.branch!r} is not dispatchable there"
+                ),
+            )
 
     return verdict(
         event=recovery_event,
@@ -449,6 +459,7 @@ def manifest_to_dict(manifest: RecoveryManifest) -> dict[str, Any]:
                 "branch": entry.branch,
                 "workflow": entry.workflow_name,
                 "workflow_path": entry.workflow_path,
+                "head_repo": entry.head_repo,
                 "event": entry.event,
                 "status": entry.status,
                 "required_contexts": list(entry.required_contexts),

@@ -183,6 +183,7 @@ def run_from_manifest_entry(entry: object) -> WorkflowRun:
                 "contexts": [*required, *other],
                 "jobs_verified": entry.get("jobs_verified"),
                 "workflow_path": entry.get("workflow_path"),
+                "head_repo": entry.get("head_repo"),
             }
         )
     except KeyError as exc:

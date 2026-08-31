@@ -272,6 +272,7 @@ def collect_runs_for_targets(
                     contexts=contexts,
                     jobs_verified=jobs_verified,
                     workflow_path=str(payload.get("path") or ""),
+                    head_repo=target.head_repository,
                 )
     return list(collected.values())
 
