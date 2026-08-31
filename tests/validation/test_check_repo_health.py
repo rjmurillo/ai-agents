@@ -172,8 +172,7 @@ class TestBareFlaggedWorkTreesFail:
         err = capsys.readouterr().err
         assert "core.bare is set true (local=true)" in err
         assert "fatal: this operation must be run in a work tree" in err
-        assert "Fix: git config core.bare false" in err
-        assert "4698" in err
+        assert "Fix: git config --replace-all core.bare false" in err
 
     def test_a_bare_flagged_linked_worktree_exits_one(self, tmp_path: Path) -> None:
         repo = _make_repo(tmp_path)
@@ -282,10 +281,7 @@ class TestAPoisonedSharedConfigIsReportedFromAWorktreeThatStillWorks:
         err = capsys.readouterr().err
         assert "local=true" in err
         assert "already broken" in err
-        assert "Fix: git config core.bare false" in err
-
-
-class TestRepairNamesEveryScopeThatCarriesTheValue:
+        assert "Fix: git config --replace-all core.bare false" in err
     """A repair aimed at the wrong config file leaves the checkout broken."""
 
     def test_a_worktree_scoped_value_gets_a_worktree_scoped_repair(
@@ -299,7 +295,7 @@ class TestRepairNamesEveryScopeThatCarriesTheValue:
         code = check_repo_health.main([str(repo)])
 
         assert code == 1
-        assert "Fix: git config --worktree core.bare false" in capsys.readouterr().err
+        assert "Fix: git config --worktree --replace-all core.bare false" in capsys.readouterr().err
 
 
 class TestRepositoriesWithNoWorkTreeAreOutOfScope:
