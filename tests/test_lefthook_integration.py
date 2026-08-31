@@ -52,8 +52,15 @@ HOOK_PAYLOADS = (
     PROJECT_ROOT / "scripts/hooks/pre-push",
     PROJECT_ROOT / "scripts/hooks/commit-msg",
 )
+# Every file a job under test imports, not only the file the job names. The
+# fixture repository holds nothing else, so a script that grows a sibling import
+# fails here with ModuleNotFoundError until that sibling is listed. That is the
+# roster working: it caught `check_repo_health_report.py` on the commit that
+# split it out.
 POLICY_SUPPORT_FILES = (
     "scripts/maintenance/repair_packed_refs.py",
+    "scripts/validation/check_repo_health.py",
+    "scripts/validation/check_repo_health_report.py",
     "scripts/validation/git_hook_policy.py",
     "scripts/validation/push_ref_staleness.py",
     "scripts/validation/sha_pinning.py",
@@ -715,6 +722,7 @@ def test_configuration_uses_named_native_jobs() -> None:
     assert "commands" not in config["pre-push"]
     assert set(_job_map(config, "commit-msg")) == {"commit-message-policy"}
     expected_pre_commit = {
+        "repo-health",
         "repair-packed-refs",
         "branch-policy",
         "push-lock-commit-guard",
@@ -756,6 +764,7 @@ def test_configuration_uses_named_native_jobs() -> None:
         "commit-file-count",
     }
     expected_pre_push = {
+        "repo-health",
         "repair-packed-refs",
         "push-ref-policy",
         "retrospective-policy",
@@ -791,7 +800,11 @@ def test_configuration_uses_named_native_jobs() -> None:
     assert str(pre_commit["push-lock-commit-guard"]["run"]).endswith(
         "check_push_lock_before_commit.py"
     )
-    assert pre_commit["push-lock-commit-guard"]["timeout"] == "30s"
+    # 20s, not the original 30s: repo-health's 10s cap is funded from this job's
+    # slack so the pre-commit declared worst case does not rise against the base
+    # ref (tests/ci/test_lefthook_declared_budget.py). The guard's own bound is a
+    # `timeout=10` subprocess plus a non-blocking flock probe, so 20s is twice it.
+    assert pre_commit["push-lock-commit-guard"]["timeout"] == "20s"
     assert str(pre_push["retrospective-policy"]["run"]).endswith("git_hook_policy.py retrospective")
     assert pre_push["retrospective-policy"]["use_stdin"] is True
     pre_commit_names = [str(job["name"]) for job in _flatten_jobs(config["pre-commit"]["jobs"])]
@@ -899,8 +912,16 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     assert pre_commit["piped"] is True
     assert pre_push["piped"] is True
     assert "files" not in pre_push
-    assert pre_commit["jobs"][0]["name"] == "repair-packed-refs"
-    assert pre_push["jobs"][0]["name"] == "repair-packed-refs"
+    # Issue #4698: repo-health precedes repair-packed-refs because a bare-flagged
+    # checkout makes later jobs fail for reasons that name the wrong component.
+    assert [job["name"] for job in pre_commit["jobs"][:2]] == [
+        "repo-health",
+        "repair-packed-refs",
+    ]
+    assert [job["name"] for job in pre_push["jobs"][:2]] == [
+        "repo-health",
+        "repair-packed-refs",
+    ]
     assert pre_commit_jobs["markdown-autofix"]["stage_fixed"] is True
     markdown_autofix_run = pre_commit_jobs["markdown-autofix"]["run"]
     markdown_check_run = pre_commit_jobs["markdown-check"]["run"]
@@ -957,6 +978,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     assert "glob" not in pre_push_jobs["pre-pr-validation"]
     assert "glob" not in pre_push_jobs["python-tests"]
     assert pre_push_jobs["pre-pr-validation"]["env"] == {
+        "AI_AGENTS_PRE_PR_FAST_STAGE_RAN": "1",
         "SKIP_AUTOFIX": "1",
         # The job's own timeout in seconds, consumed by the
         # generated-staleness gate's outer-cap clamp; the cross-check
@@ -1194,7 +1216,7 @@ def test_runtime_configuration_validates_with_pinned_lefthook() -> None:
     )
 
     assert config["lefthook"] == "uv run --frozen lefthook"
-    assert version.stdout.splitlines()[0] == "2.1.10"
+    assert version.stdout.splitlines()[0] == "2.1.11"
     assert validated.returncode == 0
     assert "All good" in validated.stdout
 
@@ -1297,7 +1319,73 @@ def test_install_resets_legacy_hooks_path(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("hook_name", ["pre-commit", "pre-push"])
-def test_packed_refs_repair_runs_as_a_native_first_job(
+def test_repo_health_runs_as_a_native_job(hook_name: str, tmp_path: Path) -> None:
+    """The healthy control for the bare-flagged case below (issue #4698)."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _copy_runtime_config(repo)
+    head_sha = _commit_file(repo, "tracked.txt", "content\n")
+    push_input = f"refs/heads/feature/test {head_sha} refs/heads/feature/test {head_sha}\n"
+
+    result = _run_lefthook(
+        repo,
+        "run",
+        hook_name,
+        "--job",
+        "repo-health",
+        "--force",
+        stdin=push_input if hook_name == "pre-push" else None,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "repo-health" in result.stdout
+
+
+@pytest.mark.parametrize("hook_name", ["pre-commit", "pre-push"])
+def test_repo_health_blocks_a_hook_when_the_shared_config_is_poisoned(
+    hook_name: str,
+    tmp_path: Path,
+) -> None:
+    """Issue #4698: the gate must stop the hook, not merely print a diagnosis.
+
+    The fixture is the mixed state, not a plainly bare-flagged checkout, and
+    that is not a softer case. Measured on lefthook 2.1.10: from a checkout
+    that resolves bare, lefthook runs ``git rev-parse --path-format=absolute
+    --show-toplevel ...`` before its first job and exits 128 on ``fatal: this
+    operation must be run in a work tree``, so no job of any kind runs there
+    and no hook can report anything. The worktree carrying the worktree-scoped
+    ``false`` that ``.agents/governance/GOTCHAS.md`` prescribes is the one
+    lefthook still runs in, and it is the one that has to raise the alarm for
+    the siblings the shared value has already killed.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _copy_runtime_config(repo)
+    head_sha = _commit_file(repo, "tracked.txt", "content\n")
+    push_input = f"refs/heads/feature/test {head_sha} refs/heads/feature/test {head_sha}\n"
+    _git(repo, "config", "extensions.worktreeConfig", "true")
+    _git(repo, "worktree", "add", "-q", str(tmp_path / "linked"), "-b", "linked")
+    _git(repo, "config", "--worktree", "core.bare", "false")
+    _git(repo, "config", "core.bare", "true")
+
+    result = _run_lefthook(
+        repo,
+        "run",
+        hook_name,
+        "--job",
+        "repo-health",
+        "--force",
+        stdin=push_input if hook_name == "pre-push" else None,
+        check=False,
+    )
+
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "core.bare" in result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("hook_name", ["pre-commit", "pre-push"])
+def test_packed_refs_repair_runs_as_a_native_job(
     hook_name: str,
     tmp_path: Path,
 ) -> None:
