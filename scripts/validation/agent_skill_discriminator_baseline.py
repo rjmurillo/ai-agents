@@ -40,6 +40,15 @@ DEFAULT_BASELINE_NAME = "agent_skill_discriminator_baseline.json"
 # agent definition whatever its name, so the corpus never leaves them.
 AGENT_CORPUS_ROOTS: tuple[str, ...] = (".claude/agents/", "templates/agents/")
 
+# Command roots searched for c1/c3 scoring. Dirty files under these roots
+# also contaminate a baseline because ``build_pipeline_index`` reads them
+# from disk.
+COMMAND_ROOTS: tuple[str, ...] = (".claude/commands/", "templates/commands/")
+
+# All roots whose on-disk content feeds into scoring. Used by the dirty-state
+# guard to refuse a baseline write when the working tree differs from HEAD.
+SCORING_ROOTS: tuple[str, ...] = AGENT_CORPUS_ROOTS + COMMAND_ROOTS
+
 # Closed range a recorded baseline score may occupy.
 #
 # Canonical source, ``check_agent_skill_discriminator.py`` ``AgentScore.score``,
@@ -69,12 +78,20 @@ def validate_baseline_scores(baseline: Mapping[str, int]) -> None:
     """
     for path, value in sorted(baseline.items()):
         if not MIN_BASELINE_SCORE <= value <= MAX_BASELINE_SCORE:
+            if value < MIN_BASELINE_SCORE:
+                effect = (
+                    "every valid score compares as above the baseline, so "
+                    "the ratchet fails this path on every run"
+                )
+            else:
+                effect = (
+                    "every valid score compares as at or below the baseline, "
+                    "so the ratchet silently disables itself for this path"
+                )
             raise ValueError(
                 f"Baseline score for {path!r} is {value}, outside the valid "
                 f"range {MIN_BASELINE_SCORE}..{MAX_BASELINE_SCORE}. A "
-                "discriminator score is the sum of three booleans; a value "
-                "outside that range disables the ratchet for this path "
-                "instead of moving it."
+                f"discriminator score is the sum of three booleans; {effect}."
             )
 
 
@@ -161,6 +178,62 @@ def full_corpus_agent_paths(
         for path in tracked
         if path.startswith(AGENT_CORPUS_ROOTS) and is_agent_path(path)
     )
+
+
+def refuse_dirty_scoring_inputs(repo_root: Path) -> bool:
+    """Refuse a baseline write when scoring inputs differ from HEAD.
+
+    The path inventory comes from ``git ls-tree HEAD``, but ``score_agent``
+    reads agent content with ``Path.read_text()`` and
+    ``build_pipeline_index`` walks command files on disk. If the working tree
+    has dirty tracked files or untracked files under any scoring root, the
+    recorded baseline describes a state that differs from HEAD and two
+    checkouts of the same commit can produce different baselines.
+
+    Returns True (refuse) when dirty or untracked files exist under any
+    scoring root, or when git cannot answer.
+    """
+    # Check for modified/deleted tracked files under scoring roots.
+    proc = run_git(repo_root, "diff", "--name-only", "HEAD", "--", *SCORING_ROOTS)
+    if problem := git_timeout_problem(proc, "checking dirty scoring inputs"):
+        print(problem, file=sys.stderr)
+        return True  # fail closed
+    if proc is None or proc.returncode != 0:
+        print(
+            "Cannot verify working-tree cleanliness: git diff failed.",
+            file=sys.stderr,
+        )
+        return True
+    dirty = proc.stdout.decode("utf-8", errors="replace").strip()
+    if dirty:
+        print(
+            f"Refusing baseline write: modified tracked files under scoring "
+            f"roots:\n{dirty}\n"
+            "Commit or stash changes before running --update-baseline.",
+            file=sys.stderr,
+        )
+        return True
+
+    # Check for untracked files under scoring roots.
+    proc = run_git(
+        repo_root, "ls-files", "--others", "--exclude-standard", "--", *SCORING_ROOTS
+    )
+    if problem := git_timeout_problem(proc, "checking untracked scoring inputs"):
+        print(problem, file=sys.stderr)
+        return True
+    if proc is None or proc.returncode != 0:
+        return True
+    untracked = proc.stdout.decode("utf-8", errors="replace").strip()
+    if untracked:
+        print(
+            f"Refusing baseline write: untracked files under scoring roots:\n"
+            f"{untracked}\n"
+            "Remove or commit untracked files before running --update-baseline.",
+            file=sys.stderr,
+        )
+        return True
+
+    return False
 
 
 def baseline_from_scores(scores: list[AgentScore]) -> dict[str, int]:

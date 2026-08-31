@@ -46,11 +46,14 @@ the shared ``portability_common.diff_against_baseline`` ratchet as is.
 
 Exit codes follow ADR-035:
     0 - Success: no changed agent fails the discriminator (or escape hatch set)
-    1 - Error: one or more changed agents score 2+ without an escape hatch
+    1 - Error: one or more changed agents fail the gate. Without ``--baseline``
+        this means score >= 2; with ``--baseline`` an agent also fails when
+        its score rises above its recorded baseline value, even from 0 to 1
     2 - Config error: repo root, commands directory, or baseline not found;
         a baseline score outside 0..3; a full-corpus scan that git could not
-        answer or that found no tracked agent; or a --update-baseline run
-        started from outside the repo root it was told to write into
+        answer or that found no tracked agent; a --update-baseline run
+        started from outside the repo root it was told to write into; or a
+        --update-baseline that would raise a recorded ceiling score
 
 Related: ADR-006 (thin workflows / testable modules), ADR-042 (Python-first),
 ADR-030 (Skills Pattern Superiority), ADR-036 (Two-Source Agent Templates).
@@ -59,6 +62,7 @@ ADR-030 (Skills Pattern Superiority), ADR-036 (Two-Source Agent Templates).
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -83,6 +87,7 @@ from scripts.validation.agent_skill_discriminator_baseline import (  # noqa: E40
     baseline_note,
     full_corpus_agent_paths,
     is_regression,
+    refuse_dirty_scoring_inputs,
     validate_baseline_scores,
 )
 from scripts.validation.portability_common import (  # noqa: E402
@@ -742,12 +747,49 @@ def _refuses_write_from_outside(repo_root: Path) -> bool:
 def _update_baseline(
     baseline_path: Path, result: CheckResult, *, repo_root: Path, allow_shrink: bool
 ) -> int:
-    """Write the full-corpus baseline for ``--update-baseline``."""
+    """Write the full-corpus baseline for ``--update-baseline``.
+
+    Rejects score increases: the discriminator baseline is a ceiling, so a
+    rising score is a regression the ratchet must block, not record. Without
+    this guard, ``--update-baseline`` silently forgives the exact condition
+    ``--baseline`` was built to catch.
+
+    Refuses dirty or untracked state under scoring roots: the path inventory
+    comes from HEAD but scoring reads content from disk, so uncommitted
+    changes produce a baseline that differs from what HEAD describes.
+    """
     if _refuses_write_from_outside(repo_root):
         return 2
+
+    if refuse_dirty_scoring_inputs(repo_root):
+        return 2
+
+    proposed = baseline_from_scores(result.scores)
+
+    # Refuse to raise any existing ceiling score.
+    if baseline_path.is_file():
+        try:
+            existing = load_baseline(baseline_path)
+        except (FileNotFoundError, ValueError, KeyError, json.JSONDecodeError):
+            existing = {}
+        increased = {
+            path: (existing[path], score)
+            for path, score in proposed.items()
+            if path in existing and score > existing[path]
+        }
+        if increased:
+            for path, (old, new) in sorted(increased.items()):
+                print(
+                    f"Refusing baseline update for {path}: score rose from "
+                    f"{old} to {new}. The discriminator baseline is a ceiling; "
+                    "a rising score is a regression, not a new floor.",
+                    file=sys.stderr,
+                )
+            return 2
+
     return write_baseline(
         baseline_path,
-        baseline_from_scores(result.scores),
+        proposed,
         (
             "Skill-shape discriminator full-corpus baseline (issue "
             "#4087). Per-path scores (0-3), one entry per agent "

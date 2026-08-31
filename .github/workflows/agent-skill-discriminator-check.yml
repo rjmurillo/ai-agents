@@ -57,6 +57,7 @@ jobs:
               - 'templates/agents/**.shared.md'
               - 'scripts/validation/check_agent_skill_discriminator.py'
               - 'scripts/validation/agent_skill_discriminator_baseline.py'
+              - 'scripts/validation/portability_*.py'
               - '.github/workflows/agent-skill-discriminator-check.yml'
 
   validate-discriminator:
