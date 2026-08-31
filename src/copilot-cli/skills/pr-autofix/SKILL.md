@@ -435,9 +435,11 @@ CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
 # (has_ci_failures or has_threads)`, and its `is_bot` parameter defaults to
 # False, so a producer call that omits --is-bot cannot return T5 at all: every
 # bot PR with a failing check or an unresolved thread came back T2, T3, or T4
-# and was pulled into the unattended thread-fix/round-cap loop that the tier
-# table below reserves for human handling ("| T5 | Bot PR with any failure or
-# threads | Handle individually |").
+# and was processed in the unattended loop. T5 is reached only when the
+# merge state passes the earlier gates (not BEHIND, BLOCKED, or DIRTY) AND
+# `is_bot and (has_ci_failures or has_threads)`. A bot PR whose merge state
+# is blocked by failing checks stays at its merge-state tier and does not
+# reach the T5 handoff, which is correct: the automated loop handles it.
 # This is the same get_pr_context.py call the disarm gate below already made;
 # it moved up rather than being added, so the PR still costs one context fetch.
 # AUTO_MERGE is still parsed at the gate that consumes it.

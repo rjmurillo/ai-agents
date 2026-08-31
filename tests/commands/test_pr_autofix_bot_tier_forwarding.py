@@ -287,8 +287,10 @@ def test_the_context_is_fetched_exactly_once_per_pr(tmp_path: Path, doc: str) ->
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
-def test_an_unreadable_context_still_skips_before_classifying(tmp_path: Path, doc: str) -> None:
-    """A context fetch that fails outright is a skip, not a bot guess.
+def test_an_unreadable_context_terminates_on_auto_merge_guard(
+    tmp_path: Path, doc: str
+) -> None:
+    """A context fetch that fails outright classifies the bot but terminates at the guard.
 
     `UNREADABLE` makes the fake `get_pr_context.py` exit 1 with no stdout, so
     both reads off `$CTX` come back empty. The author read falls to its closed
