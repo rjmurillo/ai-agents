@@ -75,7 +75,13 @@ _FIXTURE_FRAGMENTS = ("/fixtures/",)
 # Historical trees this gate exempts beyond stale_script_refs's tuple:
 # episode records are point-in-time captures, exactly like sessions and
 # retrospectives, and that tuple is another gate's contract to widen.
-_EXTRA_HISTORICAL_ROOTS = (".agents/memory/",)
+_EXTRA_HISTORICAL_ROOTS = (
+    ".agents/memory/",
+    ".project-toolkit/planning/",
+    ".project-toolkit/pr-comments/",
+    ".project-toolkit/qa/",
+    ".project-toolkit/retrospective/",
+)
 
 @dataclass(frozen=True)
 class Finding:
