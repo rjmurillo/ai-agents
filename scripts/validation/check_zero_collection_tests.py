@@ -299,7 +299,6 @@ def collect_files(repo_root: Path, testpaths: Sequence[str]) -> CollectionResult
                 sys.executable,
                 "-m",
                 "pytest",
-                *testpaths,
                 "--collect-only",
                 "-p",
                 _REPORT_PLUGIN_NAME,
@@ -308,6 +307,8 @@ def collect_files(repo_root: Path, testpaths: Sequence[str]) -> CollectionResult
                 "-q",
                 "-q",
                 "-q",
+                "--",
+                *testpaths,
             ],
             cwd=repo_root,
             capture_output=True,
@@ -351,6 +352,8 @@ def build_report(repo_root: Path) -> Report:
     """
     testpaths, _ = read_pytest_config(repo_root)
     collection = collect_files(repo_root, testpaths)
+    if not collection.candidates:
+        raise ValueError("pytest found no candidate modules under configured testpaths")
     examined = collection.candidates
 
     undeclared: list[str] = []

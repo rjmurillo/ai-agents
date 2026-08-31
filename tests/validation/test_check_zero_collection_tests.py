@@ -310,6 +310,36 @@ python_files = ["test_*.py"]
     assert _run(tmp_path) == 2
 
 
+def test_an_option_shaped_testpath_is_passed_as_a_path(tmp_path: Path) -> None:
+    """A repository path must not become a pytest command-line option."""
+    pyproject = """\
+[tool.pytest.ini_options]
+testpaths = ["--ignore=tests"]
+python_files = ["test_*.py"]
+"""
+    _make_repo(tmp_path, pyproject)
+    option_path = tmp_path / "--ignore=tests"
+    option_path.mkdir()
+    (option_path / "test_collects_nothing.py").write_text(_NO_TESTS, encoding="utf-8")
+
+    assert _run(tmp_path) == 1
+
+
+def test_a_testpath_with_no_candidate_modules_is_a_configuration_error(
+    tmp_path: Path,
+) -> None:
+    """A green gate must report at least one examined candidate."""
+    pyproject = """\
+[tool.pytest.ini_options]
+testpaths = ["empty"]
+python_files = ["test_*.py"]
+"""
+    _make_repo(tmp_path, pyproject)
+    (tmp_path / "empty").mkdir()
+
+    assert _run(tmp_path) == 2
+
+
 def test_a_missing_pyproject_is_a_configuration_error(tmp_path: Path) -> None:
     """No contract to read means no verdict to give."""
     (tmp_path / "tests").mkdir()
