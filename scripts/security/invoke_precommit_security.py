@@ -798,7 +798,7 @@ class PreCommitSecurityCheck:
 
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         report_name = f"SR-{branch}-{timestamp}.md"
-        report_path = self.repo_root / ".agents" / "security" / report_name
+        report_path = self.repo_root / ".project-toolkit" / "security" / report_name
 
         # Count findings by severity
         severity_counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
