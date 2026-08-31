@@ -55,7 +55,7 @@ Run `test_pr_merge_ready.py` for every open PR. Classify each into a tier (T1-T5
 
 ### Phase 2: Act per tier
 
-Walk the queue. For each PR, apply the tier's action set. T1 first (land-ready), then T2 (CI fix), then T3/T4 (threads). T5 is not processed by this loop: a bot-authored PR with a failure or unresolved threads is handed to a human, and the tier-dispatch block terminates the PR after the auto-merge disarm gate (issue #5208).
+Walk the queue. For each PR, apply the tier's action set. T1 first (land-ready), then T2 (CI fix), then T3/T4 (threads). T5 applies to bot-authored PRs that pass the merge-state gates (not BEHIND, BLOCKED, or DIRTY) but still have a failure or unresolved threads; the tier-dispatch block terminates such a PR after the auto-merge disarm gate so a human handles it (issue #5208). A bot PR whose merge state is blocked stays at that merge-state tier and the automated loop processes it.
 
 **Per-PR live-state gate (BLOCKING, issue #2455).** Before any action runs on a PR (any tier: arming auto-merge, pushing a CI fix, posting a thread reply), call `check_pr_live_state.py` and branch on the JSON envelope `Data.action` field. The session-start triage snapshot is stale by the time the walk reaches each row in a repo with heavy merge automation, and the consequences of acting on a stale row are concrete: armed auto-merge on a redundant PR, conflict merges into a closed branch, duplicate logic landed twice.
 
@@ -450,7 +450,13 @@ CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
 # bot_config.py maps `app/copilot-swe-agent`, the spelling `gh pr view --json
 # author` returns for the Copilot coding agent, onto `copilot-swe-agent[bot]`,
 # and neither that spelling nor `Copilot` carries a `[bot]` suffix.
-IS_BOT=$(printf '%s' "$CTX" | jq -r 'if (.Data | has("author_is_bot") | not) then "absent" elif (.Data.author_is_bot | type) == "boolean" then (.Data.author_is_bot | tostring) else "unknown" end')
+# jq can emit a valid first value then exit nonzero on a malformed suffix.
+# Capture the exit status and force unknown on any jq failure so the closed
+# branch below fails safe rather than retaining a stale IS_BOT=false.
+IS_BOT=$(printf '%s' "$CTX" | jq -r 'if (.Data | has("author_is_bot") | not) then "absent" elif (.Data.author_is_bot | type) == "boolean" then (.Data.author_is_bot | tostring) else "unknown" end' 2>/dev/null) && true
+if [ -z "$IS_BOT" ] || ! printf '%s' "$CTX" | jq -e '.Data' >/dev/null 2>&1; then
+  IS_BOT="unknown"
+fi
 # `absent` is a separate verdict from `unknown` because it has a separate cause
 # and a separate remedy. resolve_pr_scripts_dir above tries $COPILOT_PLUGIN_ROOT
 # then $CLAUDE_PLUGIN_ROOT, then $repo_root/.claude, and only after that the three
@@ -660,15 +666,16 @@ fi
 # behavior the flag was added to fix: the breaker is the circuit added for issue
 # #5056 after PR #1887 ran 11+ rounds over 46 hours, and T5 would have been the
 # one tier running the unattended loop with it switched off.
-# The tier table below reads "| T5 | Bot PR with any failure or threads | Handle
-# individually |", so the executable arm is a handoff rather than a capped loop.
+# The tier table reads "| T5 | Bot PR that passes merge-state gates but has
+# failures or threads | Handle individually |", so the executable arm is a
+# handoff rather than a capped loop.
 # Placed here rather than at the SKIP arm for the reason that arm records: SKIP
 # names a state where disarming is meaningless or destructive, while a T5 PR is
 # "armed but not provably T1", which is the disarm gate's own trigger condition.
 # It therefore falls through that gate first, exactly like the unknown-tier exit
 # one gate above, and stops before any tier action.
 if [ "$TIER" = "T5" ]; then
-    echo "Tier T5 for #$PR (bot-authored PR with a failure or unresolved threads); handing to a human, no unattended fix loop."
+    echo "Tier T5 for #$PR (bot-authored, passed merge-state gates, has failure or threads); handing to a human."
     cleanup_pr_autofix
     continue
 fi
@@ -791,7 +798,7 @@ the defect issue #5208 reports.
 | T2 | CI failures only (required or undisposed non-required), no threads | Fix CI, verify required checks pass |
 | T3 | Threads only (CI passing) | Walk full thread lifecycle, then merge |
 | T4 | Both CI failures + threads | Fix CI first, then lifecycle threads |
-| T5 | Bot PR with any failure or threads | Handle individually |
+| T5 | Bot PR that passes merge-state gates but has failures or threads | Handle individually |
 
 ### Merge-path states (not work tiers)
 

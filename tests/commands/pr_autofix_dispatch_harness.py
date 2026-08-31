@@ -174,7 +174,12 @@ data = {"auto_merge_method": payload}
 # JSON type and an absent key, not only true and false. "OMIT" is the shape a
 # get_pr_context.py predating the field emits (issue #5208).
 author = os.environ["FAKE_AUTHOR_IS_BOT"]
-if author.startswith("RAW:"):
+if author == "MALFORMED_SUFFIX":
+    # Emit valid JSON followed by garbage to simulate jq streaming failure.
+    data["author_is_bot"] = False
+    print(json.dumps({"Success": True, "Data": data}) + "\\n{GARBAGE")
+    raise SystemExit(0)
+elif author.startswith("RAW:"):
     data["author_is_bot"] = json.loads(author[4:])
 elif author != "OMIT":
     data["author_is_bot"] = author == "true"

@@ -211,6 +211,25 @@ def test_an_unreadable_author_fails_closed_to_bot(
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_a_malformed_suffix_forces_unknown_author(tmp_path: Path, doc: str) -> None:
+    """jq can emit a valid first value then exit nonzero on a malformed suffix.
+
+    The assignment captures jq output but must also check that jq succeeded.
+    A valid JSON prefix with trailing garbage (MALFORMED_SUFFIX) produces a
+    parseable author_is_bot=false from jq, but the jq exit status and the
+    validation check should force IS_BOT to unknown, which the closed branch
+    then treats as a bot (fail-closed).
+    """
+    run = run_dispatch(
+        tmp_path, doc, tier="T3", author_is_bot="MALFORMED_SUFFIX"
+    )
+
+    assert run.forwarded_is_bot, (
+        "a malformed jq response should fail closed to bot, not pass as human"
+    )
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
 def test_a_real_human_author_is_not_reported_as_unreadable(tmp_path: Path, doc: str) -> None:
     """The diagnostic must discriminate, or it is noise on every PR.
 
