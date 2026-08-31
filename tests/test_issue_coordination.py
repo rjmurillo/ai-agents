@@ -797,3 +797,149 @@ class TestClaimMain:
             except RuntimeError:
                 raised = True
         assert raised
+
+
+def _lsr(*branches: tuple[str, str]) -> subprocess.CompletedProcess[str]:
+    """Build a `git ls-remote --heads origin` result from (sha, branch) pairs."""
+    lines = "".join(f"{sha}\trefs/heads/{name}\n" for sha, name in branches)
+    return _proc(0, lines)
+
+
+class TestProbeCompetingBranches:
+    """Remote-branch probe for a pushed-work collision (issue #5428)."""
+
+    def test_no_matching_branch_no_warning(self):
+        # (a) branches exist but none reference the issue -> no warning.
+        runner = _lsr(("aaa", "codex/9999-other"), ("bbb", "main"))
+        with patch.object(_claim.subprocess, "run", return_value=runner):
+            in_flight, warnings = _claim.probe_competing_branches(5420)
+        assert in_flight == []
+        assert warnings == []
+
+    def test_numeric_near_miss_not_matched(self):
+        # (d) 54200 must not match a claim of 5420 (digit boundary).
+        runner = _lsr(("aaa", "codex/54200-x"), ("bbb", "codex/15420-y"))
+        with patch.object(_claim.subprocess, "run", return_value=runner):
+            in_flight, warnings = _claim.probe_competing_branches(5420)
+        assert in_flight == []
+        assert warnings == []
+
+    def test_ancestor_branch_excluded(self):
+        # (b) matching branch that is an ancestor of main (0 ahead) -> no warning.
+        def run(cmd, *a, **k):
+            argv = list(cmd)
+            if argv[:2] == ["git", "ls-remote"]:
+                return _lsr(("sha1", "codex/5420-a-paths"))
+            if argv[:3] == ["git", "rev-list", "--count"]:
+                return _proc(0, "0\n")
+            raise AssertionError(f"unexpected call: {argv}")
+
+        with patch.object(_claim.subprocess, "run", side_effect=run):
+            in_flight, warnings = _claim.probe_competing_branches(5420)
+        assert in_flight == []
+        assert warnings == []
+
+    def test_ahead_branch_warns_with_ref_and_count(self):
+        # (c) matching branch ahead of main (count > 0) -> warning with ref+count.
+        def run(cmd, *a, **k):
+            argv = list(cmd)
+            if argv[:2] == ["git", "ls-remote"]:
+                return _lsr(("sha1", "codex/5420-a-paths"))
+            if argv[:3] == ["git", "rev-list", "--count"]:
+                assert argv[3] == "sha1"
+                return _proc(0, "3\n")
+            raise AssertionError(f"unexpected call: {argv}")
+
+        with patch.object(_claim.subprocess, "run", side_effect=run):
+            in_flight, warnings = _claim.probe_competing_branches(5420)
+        assert warnings == []
+        assert in_flight == [
+            {"ref": "refs/heads/codex/5420-a-paths", "sha": "sha1", "commits_ahead": 3}
+        ]
+
+    def test_ls_remote_failure_degrades_to_warning(self):
+        # (e) ls-remote fails -> named warning, no in-flight branches, no raise.
+        with patch.object(
+            _claim.subprocess, "run", return_value=_proc(1, stderr="no remote")
+        ):
+            in_flight, warnings = _claim.probe_competing_branches(5420)
+        assert in_flight == []
+        assert len(warnings) == 1
+        assert "could not probe remote branches for issue #5420" in warnings[0]
+
+    def test_branch_matches_issue_boundaries(self):
+        assert _claim._branch_matches_issue("refs/heads/codex/5420-a", 5420) is True
+        assert _claim._branch_matches_issue("refs/heads/codex/fix-5420-a", 5420) is True
+        assert _claim._branch_matches_issue("refs/heads/codex/54200-a", 5420) is False
+        assert _claim._branch_matches_issue("refs/heads/codex/15420-a", 5420) is False
+
+
+class TestClaimMainBranchProbe:
+    """main() surfaces the branch probe on the successful-claim path (exit 0)."""
+
+    @staticmethod
+    def _claim_runner(*, login="alice", ls_remote, rev_list=None):
+        view = {"n": 0}
+
+        def run(cmd, *a, **k):
+            argv = list(cmd)
+            if argv[:3] == ["gh", "api", "user"]:
+                return _proc(0, login + "\n")
+            if argv[:2] == ["gh", "issue"] and "view" in argv:
+                view["n"] += 1
+                # First view: not yet claimed. Second: claimed by us.
+                payload = (
+                    {"assignees": []}
+                    if view["n"] == 1
+                    else {"assignees": [{"login": login}]}
+                )
+                return _proc(0, json.dumps(payload))
+            if argv[:2] == ["gh", "issue"] and "edit" in argv:
+                return _proc(0, "")
+            if argv[:2] == ["git", "ls-remote"]:
+                return ls_remote
+            if argv[:3] == ["git", "rev-list", "--count"]:
+                return rev_list
+            raise AssertionError(f"unexpected call: {argv}")
+
+        return run
+
+    def _run_main(self, runner, capsys):
+        with (
+            patch.object(_claim, "assert_gh_authenticated", return_value=None),
+            patch.object(_claim, "resolve_repo_params") as resolve,
+            patch.object(_claim.subprocess, "run", side_effect=runner),
+        ):
+            resolve.return_value.owner = "o"
+            resolve.return_value.repo = "r"
+            code = _claim.main(["--issue", "5420", "--output-format", "json"])
+        envelope = json.loads(capsys.readouterr().out.strip())
+        return code, envelope
+
+    def test_clean_claim_no_in_flight_branches(self, capsys):
+        runner = self._claim_runner(ls_remote=_lsr(("aaa", "codex/9999-x")))
+        code, envelope = self._run_main(runner, capsys)
+        assert code == 0
+        assert envelope["Success"] is True
+        assert envelope["Data"]["in_flight_branches"] == []
+
+    def test_claim_with_in_flight_branch_warns_but_succeeds(self, capsys):
+        runner = self._claim_runner(
+            ls_remote=_lsr(("sha1", "codex/5420-a-paths")),
+            rev_list=_proc(0, "3\n"),
+        )
+        code, envelope = self._run_main(runner, capsys)
+        # Warning path must still succeed (exit 0) so it cannot deadlock a resume.
+        assert code == 0
+        assert envelope["Success"] is True
+        assert envelope["Data"]["in_flight_branches"] == [
+            {"ref": "refs/heads/codex/5420-a-paths", "sha": "sha1", "commits_ahead": 3}
+        ]
+
+    def test_claim_survives_ls_remote_failure(self, capsys):
+        runner = self._claim_runner(ls_remote=_proc(1, stderr="offline"))
+        code, envelope = self._run_main(runner, capsys)
+        assert code == 0
+        assert envelope["Success"] is True
+        assert envelope["Data"]["in_flight_branches"] == []
+        assert len(envelope["Data"]["warnings"]) == 1
