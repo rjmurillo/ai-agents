@@ -426,8 +426,10 @@ fi
 # tests/commands/test_pr_autofix_tier_dispatch_runtime.py executes the block
 # between the tier-dispatch markers under bash with fake producers, so the two
 # gate directions below are asserted behavior rather than described behavior.
-CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
-    --output-format json 2>/dev/null)
+if ! AUTHOR_CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
+    --output-format json 2>/dev/null); then
+    AUTHOR_CTX=""
+fi
 # Bot-author lookup, read BEFORE the tier producer because the tier depends on
 # it (issue #5208). classify_tier only reaches T5 when `is_bot and
 # (has_ci_failures or has_threads)`, and its `is_bot` parameter defaults to
@@ -438,9 +440,9 @@ CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
 # `is_bot and (has_ci_failures or has_threads)`. A bot PR whose merge state
 # is blocked by failing checks stays at its merge-state tier and does not
 # reach the T5 handoff, which is correct: the automated loop handles it.
-# This is the same get_pr_context.py call the disarm gate below already made;
-# it moved up rather than being added, so the PR still costs one context fetch.
-# AUTO_MERGE is still parsed at the gate that consumes it.
+# Author identity is stable during one pass, so this answer is kept for tier
+# production. Auto-merge is mutation-sensitive and is fetched again at the
+# disarm gate below.
 # The classification itself is NOT made here. get_pr_context.py emits
 # `author_is_bot` from github_core.bot_config.is_bot, the repository's one
 # authoritative bot-author rule. Re-deriving it here as a `[bot]` suffix test
@@ -449,11 +451,10 @@ CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
 # author` returns for the Copilot coding agent, onto `copilot-swe-agent[bot]`,
 # and neither that spelling nor `Copilot` carries a `[bot]` suffix.
 # jq can emit a valid first value then exit nonzero on a malformed suffix.
-# Capture the exit status and force unknown on any jq failure so the closed
-# branch below fails safe rather than retaining a stale IS_BOT=false.
-IS_BOT=$(printf '%s' "$CTX" | jq -r 'if (.Data | has("author_is_bot") | not) then "absent" elif (.Data.author_is_bot | type) == "boolean" then (.Data.author_is_bot | tostring) else "unknown" end' 2>/dev/null) && true
-if [ -z "$IS_BOT" ] || ! printf '%s' "$CTX" | jq -e '.Data' >/dev/null 2>&1; then
-  IS_BOT="unknown"
+# The assignment must be the condition: checking the document with a second jq
+# call can succeed on a later value even when this filter failed.
+if ! IS_BOT=$(printf '%s' "$AUTHOR_CTX" | jq -r 'if (.Data | has("author_is_bot") | not) then "absent" elif (.Data.author_is_bot | type) == "boolean" then (.Data.author_is_bot | tostring) else "unknown" end' 2>/dev/null); then
+    IS_BOT="unknown"
 fi
 # `absent` is a separate verdict from `unknown` because it has a separate cause
 # and a separate remedy. resolve_pr_scripts_dir above tries $COPILOT_PLUGIN_ROOT
@@ -612,10 +613,16 @@ esac
 # If the PR has auto-merge armed but is not T1-ready, a conflict refresh or CI
 # fix push could immediately land a PR whose readiness was never explicitly
 # verified in this session.  Disable auto-merge now, before any commit or push.
-# TIER and PAGES_COMPLETE were both read from the single producer call above.
-# CTX was fetched before the tier producer, because the tier read needs the
-# author's bot state (issue #5208). One fetch still serves both reads.
-AUTO_MERGE=$(printf '%s' "$CTX" | jq -r '.Data.auto_merge_method // "null"' 2>/dev/null)
+# TIER and PAGES_COMPLETE were both read from the readiness producer above.
+# Refresh context here because auto-merge can be armed while readiness is being
+# fetched. Reusing the author lookup would let that stale null bypass disarm.
+if ! CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
+    --output-format json 2>/dev/null); then
+    CTX=""
+fi
+if ! AUTO_MERGE=$(printf '%s' "$CTX" | jq -r '.Data.auto_merge_method // "null"' 2>/dev/null); then
+    AUTO_MERGE=""
+fi
 # Empty stdin or a jq parse error yields an empty string, not "null". Treating
 # that as "armed" would fire the disarm path on no evidence, so skip instead.
 if [ -z "$AUTO_MERGE" ]; then
@@ -745,7 +752,7 @@ Dispatcher exit contract (CWE-829 trust boundary, Issue #5072): exit 0 all crite
 ## Workflow
 
 1. Triage all open PRs into tiers T1-T5 using `test_pr_merge_ready.py`.
-2. Process T1 (land-ready) first, then T2 (CI fix), then T3/T4 (threads). T5 is not processed by this loop: a bot-authored PR with a failure or unresolved threads is handed to a human, and the tier-dispatch block terminates the PR after the auto-merge disarm gate (issue #5208).
+2. Process T1 (land-ready) first, then T2 (CI fix), then T3/T4 (threads). T5 is not processed by this loop: a bot-authored PR that reaches work-tier classification with a failure or unresolved threads is handed to a human, and the tier-dispatch block terminates it after the auto-merge disarm gate (issue #5208). Bot PRs classified BEHIND, BLOCKED, or DIRTY retain that merge-state tier.
 3. **Before acting on any PR, call `check_pr_live_state.py`** and skip the row when it returns `Data.action=SKIP` (issue #2455). The triage snapshot from step 1 goes stale fast in a repo with heavy merge automation; the gate catches PRs merged/closed mid-walk and PRs whose diff is already on `main` via a sibling consolidated PR.
 4. **Before any branch mutation, acquire the branch lease** via `pr_autofix_lease.py acquire` (issue #3413). A SKIP result means another session holds the branch; exit before creating a worktree or pushing. Release the lease via `pr_autofix_lease.py release` when done or on error. The lease is advisory; the Force-Push Safety SHA gate is the hard backstop. For any remote mutation that can outlive the final pre-mutation poll, keep renewal supervision active through the whole critical section and re-verify lease ownership immediately before the mutation. If renewal ownership is lost, block the mutation and release the lease before continuing.
 5. **On every pass through a T3/T4 PR, call `check_pr_round_cap.py`** and stop working that PR when it returns `Data.action=ESCALATE` (issue #5056). It caps how many fix/review rounds and how many wall-clock hours the thread-fix loop may run before it hands the PR back to a human; PR #1887 ran 11+ rounds over 46 hours with no cap in place. The script posts the escalation reason as a PR comment itself; the agent does not need to.
@@ -768,7 +775,8 @@ The `Tier` field in `test_pr_merge_ready.py` output is the authoritative
 classifier.  Pass `--is-bot` when the PR author is a bot: `classify_tier`
 returns T5 only when `is_bot and (has_ci_failures or has_threads)`, and its
 `is_bot` parameter defaults to `False`, so a call that omits the flag can never
-return T5 and every bot PR lands in T2-T4 instead (issue #5208).
+return T5 and every bot PR that reaches work-tier classification lands in
+T2-T4 instead (issue #5208).
 
 Read the author's bot state from `get_pr_context.py`'s `author_is_bot` field,
 not from a `[bot]` login-suffix test. That field comes from
@@ -896,7 +904,13 @@ SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
 # refuses, for the reasons recorded there. The absent-versus-unknown split that
 # block makes is a diagnostic for the unattended loop and is deliberately not
 # repeated here; both take the closed branch either way.
-IS_BOT=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request {pr} --output-format json 2>/dev/null | jq -r 'if (.Data.author_is_bot | type) == "boolean" then (.Data.author_is_bot | tostring) else "unknown" end')
+if ! CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request {pr} --output-format json 2>/dev/null); then
+    CTX=""
+fi
+if ! IS_BOT=$(printf '%s' "$CTX" | jq -r 'if (.Data.author_is_bot | type) == "boolean" then (.Data.author_is_bot | tostring) else "unknown" end' 2>/dev/null); then
+    IS_BOT="unknown"
+fi
+IS_BOT=${IS_BOT:-unknown}
 if [ "${IS_BOT:-unknown}" = "false" ]; then
     IS_BOT_FLAG=""
 else

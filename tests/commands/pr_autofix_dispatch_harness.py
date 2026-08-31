@@ -32,6 +32,8 @@ DISPATCH_DOCS = (
 )
 _START = "# tier-dispatch:start"
 _END = "# tier-dispatch:end"
+_SCRIPTS_START = "# Check merge readiness."
+_SCRIPTS_END = "# Per-PR live-state gate"
 
 SHIPPED_TIER_READ = "jq -r '.Tier // \"UNKNOWN\"'"
 PREFIX_TIER_READ = "jq -r '.Data.Tier // \"UNKNOWN\"'"
@@ -77,6 +79,14 @@ def extract_dispatch(text: str) -> str:
     assert start >= 0, f"missing {_START}"
     assert end > start, f"missing {_END}"
     return text[start : end + len(_END)]
+
+
+def extract_scripts_readiness(text: str) -> str:
+    """Return the runnable readiness recipe from the Scripts fence."""
+    scripts = text.index("## Scripts")
+    start = text.index(_SCRIPTS_START, scripts)
+    end = text.index(_SCRIPTS_END, start)
+    return text[start:end]
 
 
 def write_fake_scripts(scripts_dir: Path) -> None:
@@ -158,14 +168,18 @@ from pathlib import Path
 # producer (issue #5208) put a second consumer on this fetch, and the block's
 # own comment claims "One fetch still serves both reads". Written before the
 # early exit below so an unreadable-context case still counts its call.
-Path(os.environ["CONTEXT_LOG"]).open("a", encoding="utf-8").write(
+context_log = Path(os.environ["CONTEXT_LOG"])
+context_log.open("a", encoding="utf-8").write(
     "context " + " ".join(sys.argv[1:]) + "\\n"
 )
+call_number = len(context_log.read_text(encoding="utf-8").splitlines())
 
 if os.environ["FAKE_AUTO_MERGE"] == "UNREADABLE":
     raise SystemExit(1)
 
 method = os.environ["FAKE_AUTO_MERGE"]
+if method == "ARMED_AFTER_AUTHOR":
+    method = "null" if call_number % 2 else "SQUASH"
 payload = None if method == "null" else method
 data = {"auto_merge_method": payload}
 
@@ -179,6 +193,15 @@ if author == "MALFORMED_SUFFIX":
     data["author_is_bot"] = False
     print(json.dumps({"Success": True, "Data": data}) + "\\n{GARBAGE")
     raise SystemExit(0)
+elif author == "SECOND_DATA_ARRAY":
+    data["author_is_bot"] = False
+    print(json.dumps({"Success": True, "Data": data}))
+    print(json.dumps({"Success": True, "Data": []}))
+    raise SystemExit(0)
+elif author == "FAILED_WITH_HUMAN":
+    data["author_is_bot"] = False
+    print(json.dumps({"Success": True, "Data": data}))
+    raise SystemExit(1)
 elif author.startswith("RAW:"):
     data["author_is_bot"] = json.loads(author[4:])
 elif author != "OMIT":
@@ -244,8 +267,14 @@ class DispatchRun:
         pass a block that forwarded the flag on the first pass and lost it on
         the second, which is a shape a per-PR variable reset produces.
         """
-        calls = [line for line in self.merge_ready_argv.splitlines() if line]
-        return bool(calls) and all("--is-bot" in line for line in calls)
+        calls = [shlex.split(line)[1:] for line in self.merge_ready_argv.splitlines() if line]
+        return bool(calls) and all("--is-bot" in call for call in calls)
+
+    @property
+    def did_not_forward_is_bot(self) -> bool:
+        """True when every tier-producer call omitted the exact flag token."""
+        calls = [shlex.split(line)[1:] for line in self.merge_ready_argv.splitlines() if line]
+        return bool(calls) and all("--is-bot" not in call for call in calls)
 
     @property
     def reached_end(self) -> bool:
@@ -399,3 +428,42 @@ done
     return DispatchRun(
         process, round_cap_log, disarm_log, cleanup_log, merge_ready_log, context_log
     )
+
+
+def run_scripts_readiness(tmp_path: Path, doc: str, *, author_is_bot: str) -> list[str]:
+    """Run the Scripts readiness recipe and return producer argv."""
+    scripts_dir = tmp_path / "scripts"
+    scripts_dir.mkdir(parents=True)
+    write_fake_scripts(scripts_dir)
+    merge_ready_log = tmp_path / "merge-ready"
+    context_log = tmp_path / "context"
+    block = extract_scripts_readiness((REPO_ROOT / doc).read_text(encoding="utf-8"))
+    block = block.replace("{pr}", "5176")
+    env = {k: os.environ[k] for k in _ENV_ALLOWLIST if k in os.environ}
+    env.update(
+        {
+            "CONTEXT_LOG": str(context_log),
+            "FAKE_AUTHOR_IS_BOT": author_is_bot,
+            "FAKE_AUTO_MERGE": "null",
+            "FAKE_PAGES_COMPLETE": "true",
+            "FAKE_TIER": "T1",
+            "MERGE_READY_LOG": str(merge_ready_log),
+        }
+    )
+    process = subprocess.run(
+        ["bash", "-c", f"set -u\nSCRIPTS_DIR={shlex.quote(scripts_dir.as_posix())}\n{block}"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+        check=False,
+    )
+    assert process.returncode == 0, (
+        f"the Scripts readiness recipe exited {process.returncode}: {process.stderr.strip()}"
+    )
+    calls = [line for line in merge_ready_log.read_text(encoding="utf-8").splitlines() if line]
+    assert len(calls) == 1, f"expected one readiness call, got {calls!r}"
+    return shlex.split(calls[0])[1:]

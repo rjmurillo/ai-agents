@@ -21,7 +21,11 @@ from pathlib import Path
 
 import pytest
 
-from tests.commands.pr_autofix_dispatch_harness import DISPATCH_DOCS, run_dispatch
+from tests.commands.pr_autofix_dispatch_harness import (
+    DISPATCH_DOCS,
+    run_dispatch,
+    run_scripts_readiness,
+)
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
@@ -61,7 +65,7 @@ def test_a_human_authored_pr_does_not_forward_is_bot(tmp_path: Path, doc: str) -
     """
     run = run_dispatch(tmp_path, doc, tier="T3", author_is_bot="false")
 
-    assert not run.forwarded_is_bot, (
+    assert run.did_not_forward_is_bot, (
         "--is-bot was forwarded for a human-authored PR, so every human PR with "
         f"a failure would classify T5; argv was {run.merge_ready_argv.strip()!r}"
     )
@@ -211,22 +215,56 @@ def test_an_unreadable_author_fails_closed_to_bot(
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
-def test_a_malformed_suffix_forces_unknown_author(tmp_path: Path, doc: str) -> None:
+def test_a_failed_context_producer_discards_its_human_output(
+    tmp_path: Path, doc: str
+) -> None:
+    """A producer failure cannot buy either the human or auto-merge path."""
+    run = run_dispatch(
+        tmp_path, doc, tier="T3", author_is_bot="FAILED_WITH_HUMAN"
+    )
+
+    assert run.forwarded_is_bot
+    assert "Cannot read auto-merge state" in run.stdout
+    assert not run.reached_end
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+@pytest.mark.parametrize(
+    "author_is_bot",
+    [
+        pytest.param("MALFORMED_SUFFIX", id="malformed-json"),
+        pytest.param("SECOND_DATA_ARRAY", id="later-value-breaks-filter"),
+    ],
+)
+def test_a_failed_jq_filter_forces_unknown_author(
+    tmp_path: Path, doc: str, author_is_bot: str
+) -> None:
     """jq can emit a valid first value then exit nonzero on a malformed suffix.
 
     The assignment captures jq output but must also check that jq succeeded.
-    A valid JSON prefix with trailing garbage (MALFORMED_SUFFIX) produces a
-    parseable author_is_bot=false from jq, but the jq exit status and the
-    validation check should force IS_BOT to unknown, which the closed branch
-    then treats as a bot (fail-closed).
+    Both inputs first emit a parseable author_is_bot=false. One then emits
+    malformed JSON; the other emits a valid value that breaks this jq filter.
+    Either nonzero exit must force unknown, which fails closed to bot.
     """
-    run = run_dispatch(
-        tmp_path, doc, tier="T3", author_is_bot="MALFORMED_SUFFIX"
-    )
+    run = run_dispatch(tmp_path, doc, tier="T3", author_is_bot=author_is_bot)
 
     assert run.forwarded_is_bot, (
         "a malformed jq response should fail closed to bot, not pass as human"
     )
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_a_flag_lookalike_is_not_the_is_bot_token(tmp_path: Path, doc: str) -> None:
+    """The argv check must reject strings argparse rejects."""
+    run = run_dispatch(
+        tmp_path,
+        doc,
+        tier="T3",
+        author_is_bot="true",
+        block_edit=('IS_BOT_FLAG="--is-bot"', 'IS_BOT_FLAG="--is-bot=false"'),
+    )
+
+    assert not run.forwarded_is_bot
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
@@ -253,9 +291,8 @@ def test_the_author_lookup_runs_before_the_tier_producer(tmp_path: Path, doc: st
     generic non-zero-exit assertion in `run_dispatch` would report a shell
     error rather than the ordering defect. This names it.
 
-    The disarm gate still reads `$AUTO_MERGE` from the same single fetch, which
-    the surviving disarm cases in this file cover, so the move did not cost the
-    PR a second API call.
+    The disarm gate performs a fresh context read after tier production. The
+    surviving disarm cases cover that second consumer.
     """
     run = run_dispatch(tmp_path, doc, tier="T3", auto_merge="SQUASH", author_is_bot="true")
 
@@ -265,44 +302,48 @@ def test_the_author_lookup_runs_before_the_tier_producer(tmp_path: Path, doc: st
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
-def test_the_context_is_fetched_exactly_once_per_pr(tmp_path: Path, doc: str) -> None:
-    """One fetch per PR, counted rather than claimed.
-
-    The case above proves the fetch moved ahead of the tier producer and that
-    the disarm gate still reads `$AUTO_MERGE`. Neither assertion can count: a
-    block that fetched once for the author read and a second time at the disarm
-    gate satisfies both, and its docstring's closing claim, "the move did not
-    cost the PR a second API call", would be the only thing saying otherwise.
-    The block itself claims it twice, at the fetch ("the PR still costs one
-    context fetch") and at the disarm gate ("One fetch still serves both
-    reads"), so it is a stated contract with no test behind it.
-
-    Cost is the whole point of the contract. `get_pr_context.py` runs `gh pr
-    view` plus a paginated `reviewThreads` GraphQL walk, so a duplicate is a
-    second round trip against the same rate limit for every PR in the queue,
-    every pass through the loop.
-
-    Exactly one, not at most one: a block that dropped the fetch entirely would
-    leave `$CTX` unset, and while `set -u` catches that today, an edit that
-    also gave `$CTX` a default would not be caught by an upper bound alone.
-
-    The harness walks two PRs, so the assertion is on the per-PR count. A
-    single-PR check could not tell one-per-PR from one-per-queue, and
-    one-per-queue is the shape a fetch hoisted above the loop produces: PR
-    5177 would then be classified off PR 5176's author and auto-merge state.
-    """
-    run = run_dispatch(tmp_path, doc, tier="T3", auto_merge="SQUASH", author_is_bot="true")
+def test_auto_merge_is_refetched_after_tier_production(tmp_path: Path, doc: str) -> None:
+    """A stale author lookup must not decide whether auto-merge is armed."""
+    run = run_dispatch(
+        tmp_path,
+        doc,
+        tier="T3",
+        auto_merge="ARMED_AFTER_AUTHOR",
+        author_is_bot="true",
+    )
 
     fetches = run.context_fetches
-    assert len(fetches) == 2, (
-        "the two-PR queue did not cost exactly one context fetch per PR; calls "
+    assert len(fetches) == 4, (
+        "the two-PR queue did not fetch author state and fresh auto-merge state; calls "
         f"were {fetches!r}"
     )
     for pr in ("5176", "5177"):
         matching = [line for line in fetches if f"--pull-request {pr}" in line]
-        assert len(matching) == 1, (
-            f"PR #{pr} was fetched {len(matching)} times, not once; calls were {fetches!r}"
+        assert len(matching) == 2, (
+            f"PR #{pr} was fetched {len(matching)} times, not twice; calls were {fetches!r}"
         )
+    assert run.disarmed, "auto-merge armed after author lookup bypassed the disarm gate"
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+@pytest.mark.parametrize(
+    ("author_is_bot", "expected_flag"),
+    [
+        pytest.param("true", True, id="bot"),
+        pytest.param("false", False, id="human"),
+        pytest.param("RAW:null", True, id="unreadable"),
+        pytest.param("MALFORMED_SUFFIX", True, id="malformed-json"),
+        pytest.param("SECOND_DATA_ARRAY", True, id="later-value-breaks-filter"),
+        pytest.param("FAILED_WITH_HUMAN", True, id="failed-producer"),
+    ],
+)
+def test_the_scripts_readiness_recipe_fails_closed(
+    tmp_path: Path, doc: str, author_is_bot: str, expected_flag: bool
+) -> None:
+    """The runnable reference must enforce the same author boundary."""
+    argv = run_scripts_readiness(tmp_path, doc, author_is_bot=author_is_bot)
+
+    assert ("--is-bot" in argv) is expected_flag
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
