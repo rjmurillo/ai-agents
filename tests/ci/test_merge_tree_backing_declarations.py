@@ -98,6 +98,23 @@ def test_merge_tree_backed_matches_registry_membership(module) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "module", RATCHET_MODULES, ids=lambda module: module.__name__.rsplit(".", 1)[-1]
+)
+def test_main_forwards_merge_tree_backing_declaration(module, monkeypatch) -> None:
+    """Each ratchet CLI must pass its declaration to the shared runner."""
+    forwarded: dict[str, object] = {}
+
+    def capture_run(_args, **kwargs) -> int:
+        forwarded.update(kwargs)
+        return count_ratchet.EXIT_OK
+
+    monkeypatch.setattr(module, "run", capture_run)
+
+    assert module.main([]) == count_ratchet.EXIT_OK
+    assert forwarded["merge_tree_backed"] is module.MERGE_TREE_BACKED
+
+
 def _git(repo: Path, *args: str) -> None:
     subprocess.run(["git", "-C", str(repo), *args], check=True)
 

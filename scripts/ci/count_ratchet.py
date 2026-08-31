@@ -713,13 +713,13 @@ def _verdict_for_fork_failure(
 
     Every branch here blocks; what differs is the diagnostic and the exit code
     it reports under, per the AGENTS.md contract this module's header quotes.
-    A baseline that is absent or malformed at the fork point is a config error
-    (2), the same class ``run`` already reports for a baseline missing or
-    malformed in the working tree. A fork point git could not name, and a git
-    read that failed outright, are external (3), the same class
-    ``_base_ref_verdict`` already reports for an unreadable baseline at the
-    base ref itself. Neither is a regression: nothing measured says this branch
-    widened an allowance, which is exactly the claim ``EXIT_REGRESSION`` makes.
+    A baseline absent at the fork point is a config error (2), the same class
+    ``run`` already reports for a missing working-tree baseline. A malformed
+    fork-point baseline, a fork point git could not name, and a git read that
+    failed outright are external (3), the same class ``_base_ref_verdict``
+    already reports for an unreadable baseline at the base ref itself. Neither
+    is a regression: nothing measured says this branch widened an allowance,
+    which is exactly the claim ``EXIT_REGRESSION`` makes.
 
     The ``fork is not None`` guards narrow the type and fail closed together:
     a future reason that forgets to carry its fork point falls through to the
