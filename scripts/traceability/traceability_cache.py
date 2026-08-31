@@ -8,7 +8,7 @@ Cache Strategy:
 - Per-file caching with modification time tracking
 - Automatic invalidation on file changes
 - In-memory cache for current session
-- Disk-based cache (.agents/.cache/traceability/) for cross-session persistence
+- Disk-based cache (.project-toolkit/.cache/traceability/) for cross-session persistence
 
 Performance Targets:
 - First run: Full parse (baseline)
@@ -25,7 +25,12 @@ from typing import Any
 
 _memory_cache: dict[str, dict[str, Any]] = {}
 
-_CACHE_DIR = Path(__file__).resolve().parent.parent.parent / ".agents" / ".cache" / "traceability"
+_CACHE_DIR = (
+    Path(__file__).resolve().parent.parent.parent
+    / ".project-toolkit"
+    / ".cache"
+    / "traceability"
+)
 
 
 def initialize_cache() -> None:
