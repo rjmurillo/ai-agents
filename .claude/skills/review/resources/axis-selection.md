@@ -11,15 +11,16 @@ phantom axis.
 
 ## Enrolling an axis
 
-Discovery is a runtime glob, so a new `references/{role}.md` file routes with no
-change to `select_axes.py`. Enrollment is not edit-free, though: the axis names
-and the counts stated in SKILL.md (the convergence contract, Process step 7,
-Output, Verification) document that directory rather than drive it, and
+Discovery is a runtime glob, so a new `references/{role}.md` file adds the
+axis to `canonical_candidates` with no change to `select_axes.py`. However,
+selection in risk mode depends on `_RISK_TABLE` and `_EFFECT_TABLE`, which
+hard-code every axis that can be selected. A new axis that appears only in
+`canonical_candidates` but not in either table will show as `skipped` on every
+normally classified run. Enrolling an axis is the prompt file, a risk/effect
+table entry, and a prose update: the axis names and counts stated in SKILL.md
+document the directory rather than drive it, and
 `tests/skills/review/test_select_axes_contract.py::TestSkillCountClaimsMatchTheCode`
-reds when they drift. Measured: copying `references/qa.md` to
-`references/perf.md` reds 5 tests in that suite, 4 of them count claims read
-straight out of SKILL.md. Enrolling an axis is the prompt file plus a prose
-update, never a routing-logic change.
+reds when they drift.
 
 ## Inputs
 

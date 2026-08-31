@@ -169,7 +169,8 @@ def _is_dependency_path(path: str) -> bool:
 
 
 def _is_ci_deploy_path(path: str) -> bool:
-    if any(token in path for token in _CI_PATH_TOKENS):
+    # startswith (not substring): trailing / ensures segment alignment.
+    if any(path.startswith(token) for token in _CI_PATH_TOKENS):
         return True
     name = path.rsplit("/", 1)[-1]
     if name in _CI_FILENAMES or name.startswith(_CI_FILENAME_PREFIXES):
@@ -200,7 +201,7 @@ def _is_agent_artifact_path(path: str) -> bool:
 
 
 def _is_toolkit_artifact_path(path: str) -> bool:
-    if _is_agent_artifact_path(path) or any(t in path for t in _CI_PATH_TOKENS):
+    if _is_agent_artifact_path(path) or any(path.startswith(t) for t in _CI_PATH_TOKENS):
         return True
     return bool(_TOOLKIT_DIRECTORIES & set(_segments(path)[:-1]))
 
