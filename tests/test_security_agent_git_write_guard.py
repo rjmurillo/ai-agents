@@ -58,7 +58,12 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SETTINGS = REPO_ROOT / ".claude" / "settings.json"
 
-# Separators the reference lists for compound commands.
+# Separators for compound commands. This regex is NOT shell-quote aware:
+# it splits at semicolons and pipes even inside single/double quotes. The
+# test commands in this file are deliberately kept free of quoted separators
+# so this limitation does not produce false results. A shell-aware parser
+# would be more correct but also more complex; the deny rules themselves
+# operate on the full command string, not on parsed subcommands.
 _SEPARATORS = re.compile(r"\|\&|\&\&|\|\||[;|&\n]")
 
 # Wrappers Claude Code strips before matching, each of which runs its argument

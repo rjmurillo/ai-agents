@@ -107,15 +107,31 @@ BARE_TOOL_NAME = re.compile(r"^[A-Z][A-Za-z0-9]*$")
 # The documented MCP forms: a whole server, or one tool on a server.
 MCP_TOOL_NAME = re.compile(r"^mcp__[a-z0-9_]+(__(\*|[a-z0-9_]+))?$")
 
-# GitHub MCP tools that mutate remote state.
-MUTATING_GITHUB_TOOLS = (
-    "mcp__github__create_or_update_file",
-    "mcp__github__push_files",
-    "mcp__github__delete_file",
-    "mcp__github__merge_pull_request",
-    "mcp__github__create_branch",
-    "mcp__github__create_pull_request",
-)
+# GitHub MCP tools that are confirmed read-only. Any GitHub tool granted to the
+# security agent MUST appear here. A tool absent from this list is treated as
+# potentially mutating, which is the fail-closed direction: refusing a read
+# costs one investigation, granting a write costs a compromised review.
+READONLY_GITHUB_TOOLS = frozenset({
+    "mcp__github__get_commit",
+    "mcp__github__get_file_contents",
+    "mcp__github__issue_read",
+    "mcp__github__list_commits",
+    "mcp__github__pull_request_read",
+    "mcp__github__search_code",
+    "mcp__github__search_issues",
+    "mcp__github__search_repositories",
+    "mcp__github__search_users",
+    "mcp__github__get_issue",
+    "mcp__github__list_issues",
+    "mcp__github__list_pull_requests",
+    "mcp__github__get_pull_request",
+    "mcp__github__get_pull_request_diff",
+    "mcp__github__get_pull_request_files",
+    "mcp__github__get_pull_request_reviews",
+    "mcp__github__get_pull_request_comments",
+    "mcp__github__list_branches",
+    "mcp__github__list_tags",
+})
 
 # Markers every surface must carry, whatever tools its harness grants.
 PROSE_MARKERS = (
@@ -241,9 +257,20 @@ def find_unparseable_tool_entries(tools: list[str]) -> list[str]:
 
 
 def find_mutating_github_grants(tools: list[str]) -> list[str]:
-    """Return declared GitHub tools that mutate remote state."""
-    normalized = {tool.strip().casefold() for tool in tools}
-    return [name for name in MUTATING_GITHUB_TOOLS if name.casefold() in normalized]
+    """Return declared GitHub tools that are NOT on the read-only allowlist.
+
+    Fail-closed: any GitHub MCP tool not explicitly allowlisted is treated as
+    potentially mutating. This catches tools like update_pull_request,
+    add_issue_comment, run_workflow, and rerun_failed_jobs that an incomplete
+    blacklist would miss.
+    """
+    readonly_lower = {name.casefold() for name in READONLY_GITHUB_TOOLS}
+    return [
+        tool.strip()
+        for tool in tools
+        if tool.strip().casefold().startswith("mcp__github__")
+        and tool.strip().casefold() not in readonly_lower
+    ]
 
 
 def find_missing_tools(tools: list[str], required: tuple[str, ...]) -> list[str]:
