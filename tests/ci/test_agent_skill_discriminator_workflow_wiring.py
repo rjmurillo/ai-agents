@@ -34,6 +34,7 @@ _WORKFLOW = (
 _DISCRIMINATOR_SOURCES = (
     "scripts/validation/check_agent_skill_discriminator.py",
     "scripts/validation/agent_skill_discriminator_baseline.py",
+    "scripts/validation/portability_*.py",
 )
 
 
@@ -103,11 +104,19 @@ class TestAgentFilterCoversTheCheckerSources:
         rename that misses it fails open rather than loudly.
         """
         for source in _DISCRIMINATOR_SOURCES:
-            assert (_REPO_ROOT / source).is_file(), (
-                f"{source} is named in _DISCRIMINATOR_SOURCES but is not a "
-                "file. Either the module moved and the filter is now stale, "
-                "or this list is."
-            )
+            if "*" in source:
+                matches = list(_REPO_ROOT.glob(source))
+                assert matches, (
+                    f"{source} is named in _DISCRIMINATOR_SOURCES but matches "
+                    "no files. Either the modules moved and the filter is now "
+                    "stale, or this glob is wrong."
+                )
+            else:
+                assert (_REPO_ROOT / source).is_file(), (
+                    f"{source} is named in _DISCRIMINATOR_SOURCES but is not a "
+                    "file. Either the module moved and the filter is now stale, "
+                    "or this list is."
+                )
 
     def test_the_agent_definition_roots_are_still_covered(self) -> None:
         """Control: the pre-existing agent-corpus patterns are untouched.

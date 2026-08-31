@@ -51,10 +51,15 @@ class TestBaselineCeilingEnforcement:
         )
         seed_repo(repo)
 
+        original_bytes = baseline_path.read_bytes()
+
         proc = run_update_baseline(repo, baseline_path)
 
         assert proc.returncode == 2, proc.stdout + proc.stderr
         assert "rose from" in proc.stderr or "regression" in proc.stderr
+        assert baseline_path.read_bytes() == original_bytes, (
+            "Baseline file was mutated despite the refusal."
+        )
 
     def test_update_baseline_accepts_score_decrease(self, tmp_path: Path) -> None:
         """A falling score tightens the ceiling, which is always safe."""
@@ -70,6 +75,39 @@ class TestBaselineCeilingEnforcement:
         proc = run_update_baseline(repo, baseline_path, "--allow-baseline-shrink")
 
         assert proc.returncode == 0, proc.stdout + proc.stderr
+
+    def test_update_baseline_rejects_new_candidate_at_threshold(
+        self, tmp_path: Path
+    ) -> None:
+        """A new agent scoring >= 2 cannot be grandfathered into the baseline.
+
+        Without this guard, --update-baseline records the candidate and later
+        --baseline runs accept it, bypassing the is_regression() threshold
+        that would catch new paths at score >= 2.
+        """
+        repo = _scaffold(tmp_path)
+        _write_agent(repo, "shaped", _reference_body())
+        _write_command(
+            repo,
+            "build",
+            'Task(subagent_type="shaped"): do work.\n'
+            'Invoke Skill(skill="pre-mortem") first.\n',
+        )
+        baseline_path = repo / "scripts" / "validation" / "baseline.json"
+        baseline_path.parent.mkdir(parents=True, exist_ok=True)
+        # Existing baseline has no entry for the shaped agent.
+        baseline_path.write_text(json.dumps({"files": {}}), encoding="utf-8")
+        seed_repo(repo)
+
+        original_bytes = baseline_path.read_bytes()
+
+        proc = run_update_baseline(repo, baseline_path, "--allow-baseline-shrink")
+
+        assert proc.returncode == 2, proc.stdout + proc.stderr
+        assert "grandfather" in proc.stderr.lower() or "new entry" in proc.stderr.lower()
+        assert baseline_path.read_bytes() == original_bytes, (
+            "Baseline file was mutated despite the new-candidate refusal."
+        )
 
 
 class TestBaselineDirtyStateGuard:

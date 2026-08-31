@@ -766,7 +766,11 @@ def _update_baseline(
 
     proposed = baseline_from_scores(result.scores)
 
-    # Refuse to raise any existing ceiling score.
+    # Refuse to raise any existing ceiling score, and refuse to record a new
+    # entry whose score already meets the candidate threshold. A new agent
+    # scoring 2 or 3 would be immediately grandfathered if recorded, so
+    # later --baseline runs accept it without the is_regression() threshold
+    # that would have caught it as a new path (thread PRRT_kwDOQoWRls6doW4x).
     if baseline_path.is_file():
         try:
             existing = load_baseline(baseline_path)
@@ -783,6 +787,24 @@ def _update_baseline(
                     f"Refusing baseline update for {path}: score rose from "
                     f"{old} to {new}. The discriminator baseline is a ceiling; "
                     "a rising score is a regression, not a new floor.",
+                    file=sys.stderr,
+                )
+            return 2
+
+        # New entries at the candidate threshold (score >= 2) bypass the
+        # is_regression() gate that would catch them as new paths. Reject
+        # them so --update-baseline cannot grandfather a candidate.
+        new_candidates = {
+            path: score
+            for path, score in proposed.items()
+            if path not in existing and score >= 2
+        }
+        if new_candidates:
+            for path, score in sorted(new_candidates.items()):
+                print(
+                    f"Refusing baseline update for {path}: new entry at "
+                    f"score {score} (>= 2) would grandfather a candidate. "
+                    "Fix the agent first, then re-run --update-baseline.",
                     file=sys.stderr,
                 )
             return 2

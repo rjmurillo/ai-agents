@@ -125,19 +125,25 @@ class TestFullCorpusRefusals:
     def test_an_untracked_agent_is_not_recorded_in_the_baseline(
         self, tmp_path: Path
     ) -> None:
-        """Two checkouts of one commit must record the same baseline."""
+        """Two checkouts of one commit must record the same baseline.
+
+        The dirty-state guard (refuse_dirty_scoring_inputs) rejects the write
+        when untracked files exist under a scoring root. This is the correct
+        behavior: an untracked agent would produce a baseline that differs
+        from what CI can reproduce from the same commit.
+        """
         repo, rel = _shaped_repo(tmp_path)
-        ghost = _write_agent(repo, "ghost", _reference_body())
+        _write_agent(repo, "ghost", _reference_body())
         baseline_path = repo / "scripts" / "validation" / "baseline.json"
 
         proc = run_update_baseline(repo, baseline_path)
 
-        assert proc.returncode == 0, proc.stdout + proc.stderr
-        recorded = json.loads(baseline_path.read_text(encoding="utf-8"))["files"]
-        assert rel in recorded
-        assert ghost not in recorded, (
-            f"{ghost} is untracked but was recorded. CI would never produce "
-            "this entry, so the baseline is not reproducible from the commit."
+        assert proc.returncode == 2, (
+            f"Expected config-error exit 2 (dirty-state refusal), "
+            f"got {proc.returncode}.\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
+        )
+        assert not baseline_path.exists(), (
+            "Baseline file was written despite untracked scoring inputs."
         )
 
 
