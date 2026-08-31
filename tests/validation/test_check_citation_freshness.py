@@ -21,6 +21,20 @@ from tests.validation.citation_freshness_helpers import (
 )
 
 
+@pytest.mark.parametrize(
+    "path",
+    (
+        ".project-toolkit/planning/impact-analysis.md",
+        ".project-toolkit/pr-comments/PR-42/comments.md",
+        ".project-toolkit/qa/pre-pr-validation.md",
+        ".project-toolkit/retrospective/2026-08-31-change.md",
+    ),
+)
+def test_generated_project_toolkit_artifacts_are_exempt(path: str) -> None:
+    """Generated reports retain the historical-artifact citation policy."""
+    assert checker._is_exempt_citing_file(path)
+
+
 class TestFreshCitationsPass:
     def test_anchored_citation_at_the_right_line_exits_0(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
