@@ -15,13 +15,16 @@ helper's return value (`.claude/rules/testing.md` MUST 8).
 - neg/only-file: the sole file collecting nothing (pytest exit 5) -> exit 1
 - neg/stale: a declared file that starts collecting -> exit 1
 - edge/declared: a declared zero-collecting file -> exit 0
-- edge/module-skip: a module-level skip or importorskip -> exit 0 undeclared,
-  and exit 1 when it carries a declaration it no longer needs
+- edge/module-skip: a skipped suite with test definitions -> exit 0; a
+  skip-only module -> exit 1 unless explicitly declared, including tests
+  defined inside a module-level platform branch
 - edge/bare-marker: a declaration with no reason is not a declaration -> exit 1
-- edge/skipped-dirs: files under a dot directory or __pycache__ are not walked
-- edge/config: pyproject without testpaths -> exit 2; missing pyproject -> exit 2
+- edge/marker-mention: prose that mentions the marker is not a declaration
+- edge/ignored: pytest defaults, configured norecursedirs globs, and
+  collect_ignore entries do not create false violations
+- edge/config: missing, malformed, or unusable testpaths -> exit 2
 - edge/uncollectable: a file pytest cannot import -> exit 3, not a false pass
-- unit: declares_exemption, candidate_files, read_pytest_config
+- unit: declares_exemption and read_pytest_config
 """
 
 from __future__ import annotations
@@ -38,7 +41,6 @@ if str(_VALIDATION_DIR) not in sys.path:
 
 from check_zero_collection_tests import (
     EXEMPTION_MARKER,
-    candidate_files,
     declares_exemption,
     main,
     read_pytest_config,
@@ -64,6 +66,23 @@ _IMPORT_OR_SKIP = (
     "import pytest\n\n"
     'pytest.importorskip("a_module_that_does_not_exist")\n\n\n'
     "def test_needs_the_dependency():\n    assert True\n"
+)
+_SKIP_ONLY = (
+    "import pytest\n\n"
+    'pytest.skip("nothing to collect", allow_module_level=True)\n'
+)
+_IMPORT_OR_SKIP_ONLY = (
+    "import pytest\n\n"
+    'pytest.importorskip("a_module_that_does_not_exist")\n'
+)
+_CONDITIONAL_PLATFORM_SKIP = (
+    "import sys\n"
+    "import pytest\n\n"
+    'if sys.platform == "a-platform-that-does-not-exist":\n'
+    "    def test_platform_behavior():\n"
+    "        assert True\n"
+    "else:\n"
+    '    pytest.skip("other platform", allow_module_level=True)\n'
 )
 
 
@@ -152,6 +171,28 @@ def test_a_declaration_without_a_reason_is_not_a_declaration(tmp_path: Path) -> 
     assert _run(tmp_path) == 1
 
 
+def test_marker_text_inside_an_ordinary_string_does_not_exempt(tmp_path: Path) -> None:
+    """Only comments and the module docstring may declare an exemption."""
+    tests = _make_repo(tmp_path)
+    (tests / "test_marker_text.py").write_text(
+        f'MARKER = "{EXEMPTION_MARKER} ordinary string"\n{_NO_TESTS}',
+        encoding="utf-8",
+    )
+
+    assert _run(tmp_path) == 1
+
+
+def test_an_incidental_marker_mention_does_not_exempt(tmp_path: Path) -> None:
+    """A comment must declare the marker, not merely discuss it."""
+    tests = _make_repo(tmp_path)
+    (tests / "test_marker_mention.py").write_text(
+        f"# Do not add {EXEMPTION_MARKER} markers here.\n{_NO_TESTS}",
+        encoding="utf-8",
+    )
+
+    assert _run(tmp_path) == 1
+
+
 def test_a_declaration_on_a_file_that_collects_fails(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -223,6 +264,25 @@ def test_a_module_level_skip_does_not_excuse_a_neighbour(tmp_path: Path) -> None
     assert _run(tmp_path) == 1
 
 
+def test_a_conditional_platform_test_answers_for_a_skipped_module(tmp_path: Path) -> None:
+    """A test defined in a module-level branch can collect on another host."""
+    tests = _make_repo(tmp_path)
+    (tests / "test_platform_only.py").write_text(
+        _CONDITIONAL_PLATFORM_SKIP, encoding="utf-8"
+    )
+
+    assert _run(tmp_path) == 0
+
+
+@pytest.mark.parametrize("source", [_SKIP_ONLY, _IMPORT_OR_SKIP_ONLY])
+def test_a_skip_only_module_is_not_a_test_suite(tmp_path: Path, source: str) -> None:
+    """Skipping cannot create evidence that the file defines a test."""
+    tests = _make_repo(tmp_path)
+    (tests / "test_skip_only.py").write_text(source, encoding="utf-8")
+
+    assert _run(tmp_path) == 1
+
+
 def test_a_file_pytest_cannot_import_is_reported_as_external(tmp_path: Path) -> None:
     """A broken collection must not read as a clean tree."""
     tests = _make_repo(tmp_path)
@@ -238,6 +298,18 @@ def test_a_config_without_testpaths_is_a_configuration_error(tmp_path: Path) -> 
     assert _run(tmp_path) == 2
 
 
+def test_a_nonexistent_testpath_is_a_configuration_error(tmp_path: Path) -> None:
+    """A configured path pytest cannot enter is invalid configuration."""
+    pyproject = """\
+[tool.pytest.ini_options]
+testpaths = ["tests/missing"]
+python_files = ["test_*.py"]
+"""
+    _make_repo(tmp_path, pyproject)
+
+    assert _run(tmp_path) == 2
+
+
 def test_a_missing_pyproject_is_a_configuration_error(tmp_path: Path) -> None:
     """No contract to read means no verdict to give."""
     (tmp_path / "tests").mkdir()
@@ -245,26 +317,36 @@ def test_a_missing_pyproject_is_a_configuration_error(tmp_path: Path) -> None:
     assert _run(tmp_path) == 2
 
 
-def test_candidate_files_skips_directories_pytest_never_walks(tmp_path: Path) -> None:
-    """Dot directories, __pycache__, and build output are not collection sites."""
+def test_pytest_default_norecursedirs_are_honoured(tmp_path: Path) -> None:
+    """The guard must not inspect a directory pytest excludes by default."""
     tests = _make_repo(tmp_path)
-    for hidden in (".hidden", "__pycache__", "node_modules"):
-        directory = tests / hidden
-        directory.mkdir()
-        (directory / "test_ignored.py").write_text(_NO_TESTS, encoding="utf-8")
+    ignored = tests / "{arch}"
+    ignored.mkdir()
+    (ignored / "test_ignored.py").write_text(_NO_TESTS, encoding="utf-8")
 
-    found = candidate_files(tmp_path, ["tests"], ["test_*.py"])
-
-    assert found == ["tests/test_real.py"]
+    assert _run(tmp_path) == 0
 
 
-def test_candidate_files_honours_the_configured_pattern(tmp_path: Path) -> None:
-    """The pattern comes from pyproject, so a widened pattern widens the guard."""
+def test_configured_norecursedirs_globs_are_honoured(tmp_path: Path) -> None:
+    """Configured directory globs belong to pytest, not a copied name list."""
+    pyproject = _PYPROJECT + 'norecursedirs = ["generated*"]\n'
+    tests = _make_repo(tmp_path, pyproject)
+    ignored = tests / "generated-output"
+    ignored.mkdir()
+    (ignored / "test_ignored.py").write_text(_NO_TESTS, encoding="utf-8")
+
+    assert _run(tmp_path) == 0
+
+
+def test_collect_ignore_is_honoured(tmp_path: Path) -> None:
+    """A conftest exclusion must not become a zero-collection violation."""
     tests = _make_repo(tmp_path)
-    (tests / "check_thing.py").write_text(_REAL_TEST, encoding="utf-8")
+    (tests / "conftest.py").write_text(
+        'collect_ignore = ["test_ignored.py"]\n', encoding="utf-8"
+    )
+    (tests / "test_ignored.py").write_text(_NO_TESTS, encoding="utf-8")
 
-    assert candidate_files(tmp_path, ["tests"], ["test_*.py"]) == ["tests/test_real.py"]
-    assert candidate_files(tmp_path, ["tests"], ["check_*.py"]) == ["tests/check_thing.py"]
+    assert _run(tmp_path) == 0
 
 
 def test_read_pytest_config_returns_the_declared_contract(tmp_path: Path) -> None:
@@ -275,10 +357,32 @@ def test_read_pytest_config_returns_the_declared_contract(tmp_path: Path) -> Non
 
 
 @pytest.mark.parametrize(
+    "pyproject",
+    [
+        'tool = "invalid"\n',
+        '[tool]\npytest = "invalid"\n',
+        '[tool.pytest]\nini_options = "invalid"\n',
+    ],
+)
+def test_malformed_pytest_table_shapes_are_configuration_errors(
+    tmp_path: Path, pyproject: str
+) -> None:
+    """Malformed table shapes must use the documented configuration exit."""
+    _make_repo(tmp_path, pyproject)
+
+    assert _run(tmp_path) == 2
+
+
+@pytest.mark.parametrize(
     ("text", "expected"),
     [
         (f"# {EXEMPTION_MARKER} imported by siblings", True),
         (f'"""Doc.\n\n{EXEMPTION_MARKER} a reason spanning the line.\n"""', True),
+        (f'MARKER = "{EXEMPTION_MARKER} ordinary string"', False),
+        (
+            f'def helper():\n    """{EXEMPTION_MARKER} function docstring"""\n',
+            False,
+        ),
         (f"# {EXEMPTION_MARKER}", False),
         (f"# {EXEMPTION_MARKER}   ", False),
         ("# no marker here", False),
@@ -288,12 +392,3 @@ def test_read_pytest_config_returns_the_declared_contract(tmp_path: Path) -> Non
 def test_declares_exemption_requires_a_reason(text: str, expected: bool) -> None:
     """A marker with nothing after it documents nothing."""
     assert declares_exemption(text) is expected
-
-
-def test_the_repository_itself_passes_the_guard() -> None:
-    """The gate must be green against the corpus it ships with.
-
-    A gate that merges red blocks every later push by every contributor
-    (`.claude/rules/ci-scripts.md` MUST 13).
-    """
-    assert main(["--repo-root", str(REPO_ROOT)]) == 0

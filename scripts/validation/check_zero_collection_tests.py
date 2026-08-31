@@ -24,17 +24,10 @@ a ``pytest-zero-collection:`` marker plus a reason. The declaration is checked
 in both directions: a declared file that starts collecting tests fails too, so
 a marker cannot outlive the reason it was written for.
 
-A module pytest skips during collection also answers for itself and needs no
-marker. ``pytest.skip(..., allow_module_level=True)`` and an import-scope
-``pytest.importorskip`` both raise Skipped before any item exists, so the file
-contributes nothing to ``session.items`` on the host that skips it and
-everything on the host that does not. Treating that as a violation is
-unsatisfiable rather than strict: undeclared, the file fails wherever it skips;
-declared, it fails as a stale declaration wherever it collects. This repository
-sanctions the pattern (``pyproject.toml`` carries a ``windows_path`` marker for
-"Tests that exercise Windows path handling and must run on a Windows runner"),
-and the ``zero-collection-tests`` lefthook job carries no OS gate, so it runs on
-every contributor's pre-push on every platform.
+A module pytest skips during collection answers for itself only when its source
+still defines a collectable test. That covers platform and optional-dependency
+tests without letting a skip-only helper bypass the gate. A skipped module with
+no test definition needs the same explicit exemption as any other helper.
 
 Exit codes (``AGENTS.md``): 0 ok, 1 violations found, 2 configuration unusable,
 3 pytest could not be run or its output could not be parsed.
@@ -43,13 +36,16 @@ Exit codes (``AGENTS.md``): 0 ok, 1 violations found, 2 configuration unusable,
 from __future__ import annotations
 
 import argparse
+import ast
 import fnmatch
+import io
 import json
 import os
 import subprocess
 import sys
 import tempfile
-from collections.abc import Sequence
+import tokenize
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -61,12 +57,6 @@ EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
 
 EXEMPTION_MARKER = "pytest-zero-collection:"
-
-# pytest's own default ``norecursedirs``, plus ``__pycache__``. A file under one
-# of these is never collected, so reporting it would be a false positive.
-_SKIPPED_DIRECTORY_NAMES = frozenset(
-    {"__pycache__", "build", "dist", "node_modules", "venv", "CVS", "_darcs"}
-)
 
 # Read the collected set from pytest's own session rather than from its
 # console output. ``--collect-only`` renders three different shapes depending
@@ -80,7 +70,18 @@ _REPORT_PLUGIN_SOURCE = '''"""Write the files pytest collected tests from to a J
 import json
 import os
 
+_candidate_modules = []
 _skipped_modules = []
+
+
+def pytest_pycollect_makemodule(module_path, parent):
+    """Record each Python module pytest decided to collect."""
+    try:
+        relative = module_path.relative_to(parent.config.rootpath)
+    except ValueError:
+        return None
+    _candidate_modules.append(relative.as_posix())
+    return None
 
 
 def pytest_collectreport(report):
@@ -109,8 +110,11 @@ def pytest_collection_finish(session):
     with open(target, "w", encoding="utf-8") as stream:
         json.dump(
             {
+                "candidate_modules": sorted(set(_candidate_modules)),
                 "files": files,
                 "items": len(session.items),
+                "python_classes": list(session.config.getini("python_classes")),
+                "python_functions": list(session.config.getini("python_functions")),
                 "skipped_modules": sorted(set(_skipped_modules)),
             },
             stream,
@@ -141,6 +145,17 @@ class Report:
     declared: tuple[str, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class CollectionResult:
+    """Python modules pytest considered and the items they produced."""
+
+    candidates: tuple[str, ...]
+    collected: frozenset[str]
+    skipped: frozenset[str]
+    python_classes: tuple[str, ...]
+    python_functions: tuple[str, ...]
+
+
 def read_pytest_config(repo_root: Path) -> tuple[list[str], list[str]]:
     """Return ``(testpaths, python_files)`` from ``pyproject.toml``."""
     pyproject = repo_root / "pyproject.toml"
@@ -151,38 +166,38 @@ def read_pytest_config(repo_root: Path) -> tuple[list[str], list[str]]:
     except tomllib.TOMLDecodeError as exc:
         raise ValueError(f"cannot parse {pyproject}: {exc}") from exc
 
-    options = data.get("tool", {}).get("pytest", {}).get("ini_options", {})
+    options: object = data
+    for section in ("tool", "pytest", "ini_options"):
+        if not isinstance(options, Mapping):
+            raise ValueError(f"{pyproject} [tool.pytest.ini_options] must be a table")
+        options = options.get(section)
+    if not isinstance(options, Mapping):
+        raise ValueError(f"{pyproject} [tool.pytest.ini_options] must be a table")
+
     testpaths = options.get("testpaths")
     python_files = options.get("python_files")
     if not isinstance(testpaths, list) or not testpaths:
         raise ValueError(f"{pyproject} has no [tool.pytest.ini_options] testpaths")
     if not isinstance(python_files, list) or not python_files:
         raise ValueError(f"{pyproject} has no [tool.pytest.ini_options] python_files")
-    return [str(path) for path in testpaths], [str(pattern) for pattern in python_files]
+    declared_testpaths = [str(path) for path in testpaths]
+    for testpath in declared_testpaths:
+        resolved = (repo_root / testpath).resolve()
+        if not resolved.is_relative_to(repo_root) or not resolved.exists():
+            raise ValueError(f"{pyproject} has unusable testpath: {testpath}")
+    return declared_testpaths, [str(pattern) for pattern in python_files]
 
 
-def _is_walked(relative: Path) -> bool:
-    return not any(
-        part.startswith(".") or part.endswith(".egg") or part in _SKIPPED_DIRECTORY_NAMES
-        for part in relative.parts[:-1]
-    )
-
-
-def candidate_files(
-    repo_root: Path, testpaths: Sequence[str], python_files: Sequence[str]
-) -> list[str]:
-    """Every path pytest would walk into and try to collect from."""
-    found: set[str] = set()
-    for testpath in testpaths:
-        base = repo_root / testpath
-        entries = [base] if base.is_file() else sorted(base.rglob("*.py"))
-        for entry in entries:
-            relative = entry.relative_to(repo_root)
-            if not _is_walked(relative):
-                continue
-            if any(fnmatch.fnmatch(entry.name, pattern) for pattern in python_files):
-                found.add(relative.as_posix())
-    return sorted(found)
+def _contains_exemption(text: str) -> bool:
+    for line in text.splitlines():
+        candidate = line.strip()
+        if candidate.startswith("#"):
+            candidate = candidate[1:].lstrip()
+        if not candidate.startswith(EXEMPTION_MARKER):
+            continue
+        if candidate.removeprefix(EXEMPTION_MARKER).strip():
+            return True
+    return False
 
 
 def declares_exemption(text: str) -> bool:
@@ -192,24 +207,75 @@ def declares_exemption(text: str) -> bool:
     suppression, which `.claude/rules/code-quality.md` rejects, so it does not
     count as a declaration.
     """
-    for line in text.splitlines():
-        _, separator, reason = line.partition(EXEMPTION_MARKER)
-        if separator and reason.strip():
+    try:
+        module = ast.parse(text)
+    except SyntaxError:
+        return False
+
+    docstring = ast.get_docstring(module, clean=False)
+    if docstring and _contains_exemption(docstring):
+        return True
+
+    try:
+        tokens = tokenize.generate_tokens(io.StringIO(text).readline)
+        return any(
+            token.type == tokenize.COMMENT and _contains_exemption(token.string)
+            for token in tokens
+        )
+    except tokenize.TokenError:
+        return False
+
+
+def _matches_test_name(name: str, patterns: Sequence[str]) -> bool:
+    for pattern in patterns:
+        if name.startswith(pattern):
+            return True
+        if any(character in pattern for character in "*?[") and fnmatch.fnmatch(
+            name, pattern
+        ):
             return True
     return False
 
 
-def collect_files(repo_root: Path, testpaths: Sequence[str]) -> set[str]:
-    """Return every path that answers the guard's question affirmatively.
+def _defines_collectable_test(
+    text: str,
+    python_classes: Sequence[str],
+    python_functions: Sequence[str],
+) -> bool:
+    module = ast.parse(text)
+    function_types = (ast.FunctionDef, ast.AsyncFunctionDef)
+    pending = list(reversed(module.body))
+    while pending:
+        node = pending.pop()
+        if isinstance(node, function_types) and _matches_test_name(
+            node.name, python_functions
+        ):
+            return True
+        if isinstance(node, ast.ClassDef):
+            if _matches_test_name(node.name, python_classes) and any(
+                isinstance(child, function_types)
+                and _matches_test_name(child.name, python_functions)
+                for child in node.body
+            ):
+                return True
+            continue
+        if isinstance(node, function_types):
+            continue
+        statements = [
+            child for child in ast.iter_child_nodes(node) if isinstance(child, ast.stmt)
+        ]
+        pending.extend(reversed(statements))
+    return False
 
-    That is a test file pytest collected at least one item from, plus a module
-    pytest skipped during collection. A module-level skip is a decision the file
-    makes about this host, not an empty file: undeclared it would fail wherever
-    it skips, and declared it would fail as stale wherever it collects, so no
-    single spelling could pass on both platforms. ``pyproject.toml`` sanctions
-    the pattern with the ``windows_path`` marker, and the ``zero-collection-tests``
-    lefthook job has no OS gate, so it runs on every contributor's pre-push on
-    every platform.
+
+def collect_files(repo_root: Path, testpaths: Sequence[str]) -> CollectionResult:
+    """Return pytest's candidate modules, collected files, and skipped modules.
+
+    Candidate discovery comes from ``pytest_pycollect_makemodule``. Pytest owns
+    directory ignores, configured ``norecursedirs`` globs, conftest
+    ``collect_ignore`` entries, and future collection rules. Reimplementing that
+    traversal beside pytest creates false violations for files pytest never
+    visits.
     """
     with tempfile.TemporaryDirectory(prefix="zero-collection-") as scratch:
         scratch_root = Path(scratch)
@@ -239,6 +305,9 @@ def collect_files(repo_root: Path, testpaths: Sequence[str]) -> set[str]:
                 _REPORT_PLUGIN_NAME,
                 "-p",
                 "no:cacheprovider",
+                "-q",
+                "-q",
+                "-q",
             ],
             cwd=repo_root,
             capture_output=True,
@@ -264,26 +333,41 @@ def collect_files(repo_root: Path, testpaths: Sequence[str]) -> set[str]:
                 f"pytest wrote no collection report ({exc}); "
                 f"exit was {completed.returncode}\n{completed.stdout[-2000:]}"
             ) from exc
-    return set(payload["files"]) | set(payload.get("skipped_modules") or [])
+    return CollectionResult(
+        candidates=tuple(payload["candidate_modules"]),
+        collected=frozenset(payload["files"]),
+        skipped=frozenset(payload["skipped_modules"]),
+        python_classes=tuple(payload["python_classes"]),
+        python_functions=tuple(payload["python_functions"]),
+    )
 
 
 def build_report(repo_root: Path) -> Report:
     """Compare what pytest walks against what answered for itself.
 
-    A path is satisfied when pytest collected a test from it or skipped it at
-    module level. The same set decides both directions, so a declaration on a
-    file that now collects (or now skips at module level) reads as stale.
+    A path is satisfied when pytest collected a test from it. A skipped module
+    is also satisfied when its source still defines a collectable test, which
+    distinguishes a platform-specific suite from a skip-only helper.
     """
-    testpaths, python_files = read_pytest_config(repo_root)
-    examined = candidate_files(repo_root, testpaths, python_files)
-    satisfied = collect_files(repo_root, testpaths)
+    testpaths, _ = read_pytest_config(repo_root)
+    collection = collect_files(repo_root, testpaths)
+    examined = collection.candidates
 
     undeclared: list[str] = []
     stale: list[str] = []
     declared: list[str] = []
     for relative in examined:
-        exempt = declares_exemption((repo_root / relative).read_text(encoding="utf-8"))
-        if relative in satisfied:
+        text = (repo_root / relative).read_text(encoding="utf-8")
+        exempt = declares_exemption(text)
+        satisfied = relative in collection.collected or (
+            relative in collection.skipped
+            and _defines_collectable_test(
+                text,
+                collection.python_classes,
+                collection.python_functions,
+            )
+        )
+        if satisfied:
             if exempt:
                 stale.append(relative)
             continue

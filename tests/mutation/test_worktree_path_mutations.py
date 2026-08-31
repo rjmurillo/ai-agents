@@ -165,36 +165,10 @@ def _run_tests(
 def _classify(proc: subprocess.CompletedProcess[str]) -> str:
     """Grade one pytest run, rejecting the runner's silent-nothing-ran signals.
 
-    `.claude/rules/testing.md` MUST 11 requires that a harness shelling out to a
-    test runner "reject the runner's silent-nothing-ran signals directly, at
-    minimum ``"no tests ran"`` absent from the output and a ``returncode`` that
-    is not pytest's usage-error 4". Grading every non-zero exit as DEAD reports a
-    kill for a spec whose ``test_paths`` no longer exist, having run zero tests.
-
-    Mirrors ``_classify`` in the sibling harness
-    ``tests/mutation/test_mutate_baseline_ratchet_integrity.py``, quoted verbatim
-    from its lines 67 to 75::
-
-        def _classify(proc: subprocess.CompletedProcess[str]) -> str:
-            if proc.returncode == 4:
-                return "HARNESS-ERROR: pytest exit 4 (no tests ran via path)"
-            if "no tests ran" in proc.stdout.lower() or "no tests ran" in proc.stderr.lower():
-                return "HARNESS-ERROR: no tests ran"
-            if proc.returncode == 0:
-                return "SURVIVED"
-            return "DEAD"
-
-    Stricter than the sibling, in two places. The sibling runs one fixed test
-    file and reads every non-zero exit other than 4 as DEAD; these specs name
-    several paths each, so this harness adds:
-
-    * pytest's exit 5 (nothing collected), because a path that stops collecting
-      is the failure this harness has to see; and
-    * a closed list for the kill itself. Only exit 1 means "tests failed", so
-      only exit 1 is DEAD. Exit 2 (interrupted) and exit 3 (internal error)
-      report that pytest stopped, not that the suite caught anything, and
-      grading them DEAD lets one crash satisfy every mutant's expected outcome
-      without a single test observing the mutation.
+    Only exit 1 means tests failed, so only exit 1 proves a mutant died. Exit 0
+    means the mutant survived. Exits 2, 3, 4, 5, signal deaths, and output that
+    says no tests ran are harness errors. A stopped runner cannot prove that a
+    test observed the mutation.
 
     Measured on pytest 8 while writing this: a ``pytest_runtest_teardown`` hook
     calling ``pytest.exit()`` returns 2 with ``1 passed`` on stdout and no
@@ -277,8 +251,8 @@ def mutation_specs(repo_root: Path) -> list[MutationSpec]:
 
     Issue #4161's three mutations targeted
     ``.claude/skills/session-end/scripts/complete_session_log.py`` and its test
-    at ``tests/skills/test_session_scripts.py``. Both were deleted with the
-    session-end skill (Issue #5138); the branch-aware session-log selection
+    at ``tests/skills/test_session_scripts.py``. Both were deleted by PR #5179;
+    the branch-aware session-log selection
     they guarded has no surviving implementation to mutate.
     """
     # Shared by the two halves of the #4194 retro mutant: the guard line that

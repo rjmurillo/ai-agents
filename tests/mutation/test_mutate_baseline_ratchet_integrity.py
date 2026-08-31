@@ -67,11 +67,15 @@ def _run_suite(repo_root: Path, *extra_paths: str) -> subprocess.CompletedProces
 def _classify(proc: subprocess.CompletedProcess[str]) -> str:
     if proc.returncode == 4:
         return "HARNESS-ERROR: pytest exit 4 (no tests ran via path)"
+    if proc.returncode == 5:
+        return "HARNESS-ERROR: no tests collected"
     if "no tests ran" in proc.stdout.lower() or "no tests ran" in proc.stderr.lower():
         return "HARNESS-ERROR: no tests ran"
     if proc.returncode == 0:
         return "SURVIVED"
-    return "DEAD"
+    if proc.returncode == 1:
+        return "DEAD"
+    return f"HARNESS-ERROR: pytest exit {proc.returncode} (run did not complete)"
 
 
 def _count_occurrences(path: Path, pattern: str) -> int:
@@ -226,6 +230,44 @@ def mutant_m4_inverted_control_benign(repo_root: Path) -> str:
     if result != "SURVIVED":
         return f"INVERTED-CONTROL-FAILED: expected SURVIVED, got {result}"
     return "SURVIVED"
+
+
+@pytest.mark.parametrize(
+    ("returncode", "expected"),
+    [
+        (0, "SURVIVED"),
+        (1, "DEAD"),
+        (2, "HARNESS-ERROR: pytest exit 2 (run did not complete)"),
+        (3, "HARNESS-ERROR: pytest exit 3 (run did not complete)"),
+        (4, "HARNESS-ERROR: pytest exit 4 (no tests ran via path)"),
+        (5, "HARNESS-ERROR: no tests collected"),
+        (-9, "HARNESS-ERROR: pytest exit -9 (run did not complete)"),
+    ],
+)
+def test_classify_rejects_pytest_failures_as_false_kills(
+    returncode: int, expected: str
+) -> None:
+    """Only pytest's test-failure exit proves that a mutant died."""
+    completed = subprocess.CompletedProcess(
+        args=["pytest"],
+        returncode=returncode,
+        stdout="1 passed",
+        stderr="",
+    )
+
+    assert _classify(completed) == expected
+
+
+def test_classify_rejects_a_silent_nothing_ran_message() -> None:
+    """The output sentinel outranks a nominal test-failure exit."""
+    completed = subprocess.CompletedProcess(
+        args=["pytest"],
+        returncode=1,
+        stdout="no tests ran",
+        stderr="",
+    )
+
+    assert _classify(completed) == "HARNESS-ERROR: no tests ran"
 
 
 @pytest.fixture()
