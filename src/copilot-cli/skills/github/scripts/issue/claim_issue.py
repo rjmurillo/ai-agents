@@ -118,15 +118,17 @@ def issue_assignees(owner: str, repo: str, issue: int) -> list[str]:
 
 
 def _branch_matches_issue(ref: str, issue: int) -> bool:
-    """True when a ref name references the issue with digit boundaries.
+    """True when a ref name references the issue with alphanumeric boundaries.
 
-    ``codex/5420-a-paths`` matches issue 5420; ``codex/54200-x`` and
-    ``codex/15420-x`` do not, because an adjacent digit means a different
-    issue number. Observed naming: ``<tool>/<issue>-<slug>`` and
-    ``<tool>/fix-<issue>-<slug>``.
+    ``codex/5420-a-paths`` matches issue 5420; a neighboring digit OR letter
+    means a different token, so ``codex/54200-x`` (larger number),
+    ``codex/15420-x`` (larger number), ``fix/deadbeef5420cafe`` (SHA fragment),
+    and ``fix/issue5420work`` (letter-glued) do NOT match. ``feature/pr-1234-
+    fixes-5420`` and ``5420`` DO match. Observed naming: ``<tool>/<issue>-
+    <slug>`` and ``<tool>/fix-<issue>-<slug>``.
     """
 
-    return re.search(rf"(?<!\d){issue}(?!\d)", ref) is not None
+    return re.search(rf"(?<![A-Za-z0-9]){issue}(?![A-Za-z0-9])", ref) is not None
 
 
 def remote_branches_for_issue(issue: int) -> list[tuple[str, str]]:
@@ -154,7 +156,9 @@ def commits_ahead_of_main(sha: str) -> int:
     """Return the commit count on ``sha`` that is not reachable from origin/main.
 
     A stale ancestor branch (already merged, not yet deleted) returns 0; live
-    unmerged work returns a positive count. Raises RuntimeError on git failure.
+    unmerged work returns a positive count. Raises RuntimeError on git failure
+    (including a ``bad object`` when the advertised SHA is not in the local
+    object store, e.g. a fresh clone or worktree).
     """
 
     result = _run(["git", "rev-list", "--count", sha, "^origin/main"])
@@ -167,16 +171,93 @@ def commits_ahead_of_main(sha: str) -> int:
         raise RuntimeError(f"git rev-list returned non-numeric count: {text!r}") from err
 
 
-def probe_competing_branches(issue: int) -> tuple[list[dict[str, object]], list[str]]:
-    """Probe remote heads for pushed, unmerged work on this issue.
+def _count_ahead_resilient(ref: str, sha: str) -> tuple[int | None, str | None]:
+    """Count commits ahead of origin/main, fetching the ref on demand once.
 
-    Returns (in_flight_branches, warnings). ``in_flight_branches`` holds only
-    branches carrying commits beyond origin/main; stale ancestor branches (0
-    commits ahead) are excluded so a merged-but-undeleted branch is not a false
-    alarm. Never raises: a git failure (offline, no remote, missing origin/main)
-    degrades to a named warning so the claim still proceeds (issue #5428).
+    ``git ls-remote`` advertises SHAs but does not fetch their objects, so
+    ``rev-list`` fails with ``bad object`` on a fresh clone/worktree. When the
+    first count fails, fetch just this ref (bounded: only issue-matching refs
+    reach here) and retry once. Returns ``(count, None)`` on success, or
+    ``(None, warning)`` when the count still cannot be determined, so the caller
+    surfaces the branch instead of silently dropping it (issue #5428).
     """
 
+    try:
+        return commits_ahead_of_main(sha), None
+    except RuntimeError as first_err:
+        error: RuntimeError = first_err
+    fetch = _run(["git", "fetch", "--quiet", "origin", ref])
+    if fetch.returncode == 0:
+        try:
+            return commits_ahead_of_main(sha), None
+        except RuntimeError as retry_err:
+            error = retry_err
+    return None, (
+        f"could not count commits on {ref}; the remote object may not be "
+        f"fetched: {error}"
+    )
+
+
+def _origin_owner_repo() -> tuple[str, str] | None:
+    """Return (owner, repo) for the checkout's ``origin`` remote, or None.
+
+    None means there is no ``origin`` (or this is not a git repo, or the URL is
+    unrecognized). Handles HTTPS (``https://github.com/o/r.git``) and SSH
+    (``git@github.com:o/r.git``) forms.
+    """
+
+    result = _run(["git", "remote", "get-url", "origin"])
+    if result.returncode != 0:
+        return None
+    match = re.search(r"[/:]([^/:]+)/([^/:]+?)(?:\.git)?/?$", result.stdout.strip())
+    if match is None:
+        return None
+    return match.group(1), match.group(2)
+
+
+def _probe_preconditions(owner: str, repo: str) -> str | None:
+    """Return a named degradation warning if the probe cannot trust the remote.
+
+    ``--owner``/``--repo`` select the GitHub issue, but ``origin`` comes from
+    whatever repo contains cwd. If the checkout's origin is a different repo
+    (or absent, or origin/main is missing) the probe would inspect the wrong
+    remote, so it degrades to a warning and is skipped rather than reporting
+    unrelated or missing branches (issue #5428). Returns None when safe.
+    """
+
+    origin = _origin_owner_repo()
+    if origin is None:
+        return (
+            f"skipped remote-branch probe: current checkout has no 'origin' remote "
+            f"(or is not a git repo); cannot verify in-flight work for {owner}/{repo}"
+        )
+    if (origin[0].lower(), origin[1].lower()) != (owner.lower(), repo.lower()):
+        return (
+            f"skipped remote-branch probe: checkout origin is {origin[0]}/{origin[1]}, "
+            f"not the requested {owner}/{repo}"
+        )
+    if _run(["git", "rev-parse", "--verify", "--quiet", "origin/main"]).returncode != 0:
+        return f"skipped remote-branch probe: origin/main not found for {owner}/{repo}"
+    return None
+
+
+def probe_competing_branches(
+    issue: int, owner: str, repo: str
+) -> tuple[list[dict[str, object]], list[str]]:
+    """Probe remote heads for pushed, unmerged work on this issue.
+
+    Returns (in_flight_branches, warnings). ``in_flight_branches`` holds
+    branches carrying commits beyond origin/main; a stale ancestor branch (0
+    commits ahead) is excluded so a merged-but-undeleted branch is not a false
+    alarm. A branch whose count cannot be determined is included with
+    ``commits_ahead: None`` and a ``reason`` so a collision is never silently
+    dropped. Never raises: an unusable remote (offline, wrong origin, missing
+    origin/main) degrades to a named warning so the claim still proceeds.
+    """
+
+    precondition_warning = _probe_preconditions(owner, repo)
+    if precondition_warning:
+        return [], [precondition_warning]
     try:
         refs = remote_branches_for_issue(issue)
     except RuntimeError as err:
@@ -184,12 +265,19 @@ def probe_competing_branches(issue: int) -> tuple[list[dict[str, object]], list[
     in_flight: list[dict[str, object]] = []
     warnings: list[str] = []
     for ref, sha in refs:
-        try:
-            ahead = commits_ahead_of_main(sha)
-        except RuntimeError as err:
-            warnings.append(f"could not count commits on {ref}: {err}")
-            continue
-        if ahead > 0:
+        ahead, warning = _count_ahead_resilient(ref, sha)
+        if warning:
+            warnings.append(warning)
+        if ahead is None:
+            in_flight.append(
+                {
+                    "ref": ref,
+                    "sha": sha,
+                    "commits_ahead": None,
+                    "reason": "commit count undetermined; remote object not fetched",
+                }
+            )
+        elif ahead > 0:
             in_flight.append({"ref": ref, "sha": sha, "commits_ahead": ahead})
     return in_flight, warnings
 
@@ -229,37 +317,63 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def write_claim_success(issue: int, claimant: str, fmt: str) -> None:
+def write_claim_success(
+    issue: int,
+    claimant: str,
+    owner: str,
+    repo: str,
+    fmt: str,
+    *,
+    already_held: bool = False,
+    assignees: list[str] | None = None,
+) -> None:
     """Emit the successful-claim envelope, warning on any in-flight remote work.
 
-    The branch probe is a warning, not a gate: status becomes WARNING when a
-    competing branch or a degraded probe is found, but the claim still exits 0
-    so it cannot deadlock an agent resuming its own pushed work (issue #5428).
+    Both exit-0 success paths route through here: a fresh claim and resuming an
+    issue already held by the current user (``already_held=True``). The branch
+    probe is a warning, not a gate: status becomes WARNING when a competing
+    branch or a degraded probe is found, but the claim still exits 0 so it
+    cannot deadlock an agent resuming its own pushed work (issue #5428). Wiring
+    the probe into only the fresh path left a resuming agent unqualified-green
+    while a different party held unmerged work.
     """
 
-    in_flight, warnings = probe_competing_branches(issue)
+    in_flight, warnings = probe_competing_branches(issue, owner, repo)
     status = "WARNING" if (in_flight or warnings) else "PASS"
-    summary = f"Claimed issue #{issue} for {claimant}."
+    if already_held:
+        summary = f"Issue #{issue} already held by {claimant}."
+    else:
+        summary = f"Claimed issue #{issue} for {claimant}."
     if in_flight:
-        refs = ", ".join(
-            f"{b['ref']} (+{b['commits_ahead']} commits ahead of main)"
-            for b in in_flight
-        )
+        refs = ", ".join(_describe_in_flight(b) for b in in_flight)
         summary += f" WARNING: unmerged pushed work already exists on {refs}."
     for warning in warnings:
         summary += f" WARNING: {warning}"
 
+    data: dict[str, object] = {
+        "issue": issue,
+        "claimed": claimant,
+        "in_flight_branches": in_flight,
+        "warnings": warnings,
+    }
+    if assignees is not None:
+        data["assignees"] = assignees
+
     write_skill_output(
-        {
-            "issue": issue,
-            "claimed": claimant,
-            "in_flight_branches": in_flight,
-            "warnings": warnings,
-        },
+        data,
         output_format=fmt,
         human_summary=summary,
         status=status, script_name="claim_issue.py",
     )
+
+
+def _describe_in_flight(branch: dict[str, object]) -> str:
+    """Human phrase for one in-flight branch, including the unknown-count case."""
+
+    ahead = branch["commits_ahead"]
+    if ahead is None:
+        return f"{branch['ref']} (commit count undetermined)"
+    return f"{branch['ref']} (+{ahead} commits ahead of main)"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -285,11 +399,9 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(1)
 
     if me and me in assignees:
-        write_skill_output(
-            {"issue": args.issue, "assignees": assignees, "claimed": me},
-            output_format=fmt,
-            human_summary=f"Issue #{args.issue} already held by {me}.",
-            status="PASS", script_name="claim_issue.py",
+        write_claim_success(
+            args.issue, me, owner, repo, fmt,
+            already_held=True, assignees=assignees,
         )
         return 0
 
@@ -342,7 +454,7 @@ def main(argv: list[str] | None = None) -> int:
         write_already_claimed(args.issue, assignees_after_claim, others_after_claim, fmt)
         raise SystemExit(1)
 
-    write_claim_success(args.issue, me or "@me", fmt)
+    write_claim_success(args.issue, me or "@me", owner, repo, fmt)
     return 0
 
 

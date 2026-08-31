@@ -805,80 +805,209 @@ def _lsr(*branches: tuple[str, str]) -> subprocess.CompletedProcess[str]:
     return _proc(0, lines)
 
 
+def _probe_run(
+    *,
+    ls_remote,
+    rev_list=None,
+    fetch=None,
+    origin_url="https://github.com/o/r.git",
+    origin_main_rc=0,
+    calls=None,
+):
+    """A `subprocess.run` fake covering every git call the probe makes.
+
+    Dispatches on the command (never on call order) and records each argv into
+    ``calls`` when provided, so a test can assert `ls-remote` runs exactly once
+    and `rev-list` carries ``^origin/main`` (issue #5428 requirement 1).
+    ``rev_list`` may be a CompletedProcess or a callable(sha) -> CompletedProcess.
+    """
+    fetch_result = _proc(0) if fetch is None else fetch
+
+    def run(cmd, *a, **k):
+        argv = list(cmd)
+        if calls is not None:
+            calls.append(argv)
+        if argv[:3] == ["git", "remote", "get-url"]:
+            if origin_url is None:
+                return _proc(1, stderr="no origin")
+            return _proc(0, origin_url + "\n")
+        if argv[:2] == ["git", "rev-parse"]:
+            return _proc(origin_main_rc, "" if origin_main_rc else "abc\n")
+        if argv[:2] == ["git", "ls-remote"]:
+            return ls_remote
+        if argv[:2] == ["git", "fetch"]:
+            return fetch_result
+        if argv[:3] == ["git", "rev-list", "--count"]:
+            if callable(rev_list):
+                return rev_list(argv[3])
+            return rev_list
+        raise AssertionError(f"unexpected call: {argv}")
+
+    return run
+
+
 class TestProbeCompetingBranches:
     """Remote-branch probe for a pushed-work collision (issue #5428)."""
 
     def test_no_matching_branch_no_warning(self):
         # (a) branches exist but none reference the issue -> no warning.
-        runner = _lsr(("aaa", "codex/9999-other"), ("bbb", "main"))
-        with patch.object(_claim.subprocess, "run", return_value=runner):
-            in_flight, warnings = _claim.probe_competing_branches(5420)
+        run = _probe_run(ls_remote=_lsr(("aaa", "codex/9999-other"), ("bbb", "main")))
+        with patch.object(_claim.subprocess, "run", side_effect=run):
+            in_flight, warnings = _claim.probe_competing_branches(5420, "o", "r")
         assert in_flight == []
         assert warnings == []
 
     def test_numeric_near_miss_not_matched(self):
-        # (d) 54200 must not match a claim of 5420 (digit boundary).
-        runner = _lsr(("aaa", "codex/54200-x"), ("bbb", "codex/15420-y"))
-        with patch.object(_claim.subprocess, "run", return_value=runner):
-            in_flight, warnings = _claim.probe_competing_branches(5420)
+        # (d) 54200 must not match a claim of 5420 (boundary).
+        run = _probe_run(ls_remote=_lsr(("aaa", "codex/54200-x"), ("bbb", "codex/15420-y")))
+        with patch.object(_claim.subprocess, "run", side_effect=run):
+            in_flight, warnings = _claim.probe_competing_branches(5420, "o", "r")
         assert in_flight == []
         assert warnings == []
 
     def test_ancestor_branch_excluded(self):
         # (b) matching branch that is an ancestor of main (0 ahead) -> no warning.
-        def run(cmd, *a, **k):
-            argv = list(cmd)
-            if argv[:2] == ["git", "ls-remote"]:
-                return _lsr(("sha1", "codex/5420-a-paths"))
-            if argv[:3] == ["git", "rev-list", "--count"]:
-                return _proc(0, "0\n")
-            raise AssertionError(f"unexpected call: {argv}")
-
+        run = _probe_run(
+            ls_remote=_lsr(("sha1", "codex/5420-a-paths")), rev_list=_proc(0, "0\n")
+        )
         with patch.object(_claim.subprocess, "run", side_effect=run):
-            in_flight, warnings = _claim.probe_competing_branches(5420)
+            in_flight, warnings = _claim.probe_competing_branches(5420, "o", "r")
         assert in_flight == []
         assert warnings == []
 
     def test_ahead_branch_warns_with_ref_and_count(self):
-        # (c) matching branch ahead of main (count > 0) -> warning with ref+count.
-        def run(cmd, *a, **k):
-            argv = list(cmd)
-            if argv[:2] == ["git", "ls-remote"]:
-                return _lsr(("sha1", "codex/5420-a-paths"))
-            if argv[:3] == ["git", "rev-list", "--count"]:
-                assert argv[3] == "sha1"
-                return _proc(0, "3\n")
-            raise AssertionError(f"unexpected call: {argv}")
-
+        # (c) matching branch ahead of main (count > 0) -> in-flight with ref+count.
+        calls: list[list[str]] = []
+        run = _probe_run(
+            ls_remote=_lsr(("sha1", "codex/5420-a-paths")),
+            rev_list=_proc(0, "3\n"),
+            calls=calls,
+        )
         with patch.object(_claim.subprocess, "run", side_effect=run):
-            in_flight, warnings = _claim.probe_competing_branches(5420)
+            in_flight, warnings = _claim.probe_competing_branches(5420, "o", "r")
         assert warnings == []
         assert in_flight == [
             {"ref": "refs/heads/codex/5420-a-paths", "sha": "sha1", "commits_ahead": 3}
         ]
+        # Issue requirement 1: ls-remote runs EXACTLY once.
+        ls_remote_calls = [c for c in calls if c[:2] == ["git", "ls-remote"]]
+        assert len(ls_remote_calls) == 1
+        # rev-list must carry the ^origin/main exclusion and the advertised sha.
+        rev_list_calls = [c for c in calls if c[:3] == ["git", "rev-list", "--count"]]
+        assert rev_list_calls == [["git", "rev-list", "--count", "sha1", "^origin/main"]]
+
+    def test_missing_object_fetches_then_counts(self):
+        # (Finding 1) ls-remote advertises a sha absent locally: first rev-list
+        # fails "bad object", we fetch the ref, retry once, and count succeeds.
+        attempts = {"n": 0}
+
+        def rev_list(sha):
+            attempts["n"] += 1
+            if attempts["n"] == 1:
+                return _proc(128, stderr=f"fatal: bad object {sha}")
+            return _proc(0, "2\n")
+
+        calls: list[list[str]] = []
+        run = _probe_run(
+            ls_remote=_lsr(("18488aff", "codex/5420-a-paths")),
+            rev_list=rev_list,
+            calls=calls,
+        )
+        with patch.object(_claim.subprocess, "run", side_effect=run):
+            in_flight, warnings = _claim.probe_competing_branches(5420, "o", "r")
+        assert warnings == []
+        assert in_flight == [
+            {"ref": "refs/heads/codex/5420-a-paths", "sha": "18488aff", "commits_ahead": 2}
+        ]
+        # The on-demand fetch targeted exactly the unresolved ref.
+        fetch_calls = [c for c in calls if c[:2] == ["git", "fetch"]]
+        assert fetch_calls == [
+            ["git", "fetch", "--quiet", "origin", "refs/heads/codex/5420-a-paths"]
+        ]
+
+    def test_unresolved_object_surfaces_branch_with_unknown_marker(self):
+        # (Finding 1) fetch does not resolve the object: never silently drop the
+        # branch. Surface it with commits_ahead=None + a reason AND a warning.
+        run = _probe_run(
+            ls_remote=_lsr(("18488aff", "codex/5420-a-paths")),
+            rev_list=_proc(128, stderr="fatal: bad object 18488aff"),
+            fetch=_proc(1, stderr="couldn't find remote ref"),
+        )
+        with patch.object(_claim.subprocess, "run", side_effect=run):
+            in_flight, warnings = _claim.probe_competing_branches(5420, "o", "r")
+        assert len(in_flight) == 1
+        assert in_flight[0]["ref"] == "refs/heads/codex/5420-a-paths"
+        assert in_flight[0]["commits_ahead"] is None
+        assert "undetermined" in in_flight[0]["reason"]
+        assert len(warnings) == 1
+        assert "could not count commits on refs/heads/codex/5420-a-paths" in warnings[0]
 
     def test_ls_remote_failure_degrades_to_warning(self):
         # (e) ls-remote fails -> named warning, no in-flight branches, no raise.
-        with patch.object(
-            _claim.subprocess, "run", return_value=_proc(1, stderr="no remote")
-        ):
-            in_flight, warnings = _claim.probe_competing_branches(5420)
+        run = _probe_run(ls_remote=_proc(1, stderr="no remote"))
+        with patch.object(_claim.subprocess, "run", side_effect=run):
+            in_flight, warnings = _claim.probe_competing_branches(5420, "o", "r")
         assert in_flight == []
         assert len(warnings) == 1
         assert "could not probe remote branches for issue #5420" in warnings[0]
 
+    def test_origin_mismatch_skips_probe(self):
+        # (Finding 4) checkout origin is a different repo than requested -> skip
+        # the probe entirely and degrade to a named warning (never use the data).
+        run = _probe_run(
+            ls_remote=_lsr(("sha1", "codex/5420-a-paths")),
+            rev_list=_proc(0, "3\n"),
+            origin_url="https://github.com/other/elsewhere.git",
+        )
+        with patch.object(_claim.subprocess, "run", side_effect=run):
+            in_flight, warnings = _claim.probe_competing_branches(5420, "o", "r")
+        assert in_flight == []
+        assert len(warnings) == 1
+        assert "checkout origin is other/elsewhere" in warnings[0]
+
+    def test_no_origin_remote_skips_probe(self):
+        # (Finding 4) not inside a git repo / no origin -> same named degradation.
+        run = _probe_run(ls_remote=_lsr(("sha1", "codex/5420-a-paths")), origin_url=None)
+        with patch.object(_claim.subprocess, "run", side_effect=run):
+            in_flight, warnings = _claim.probe_competing_branches(5420, "o", "r")
+        assert in_flight == []
+        assert len(warnings) == 1
+        assert "no 'origin' remote" in warnings[0]
+
+    def test_missing_origin_main_skips_probe(self):
+        # (Finding 4) origin/main absent (non-main default) -> named degradation.
+        run = _probe_run(
+            ls_remote=_lsr(("sha1", "codex/5420-a-paths")),
+            rev_list=_proc(0, "3\n"),
+            origin_main_rc=1,
+        )
+        with patch.object(_claim.subprocess, "run", side_effect=run):
+            in_flight, warnings = _claim.probe_competing_branches(5420, "o", "r")
+        assert in_flight == []
+        assert len(warnings) == 1
+        assert "origin/main not found" in warnings[0]
+
     def test_branch_matches_issue_boundaries(self):
         assert _claim._branch_matches_issue("refs/heads/codex/5420-a", 5420) is True
         assert _claim._branch_matches_issue("refs/heads/codex/fix-5420-a", 5420) is True
+        assert _claim._branch_matches_issue("refs/heads/5420", 5420) is True
+        assert _claim._branch_matches_issue(
+            "refs/heads/feature/pr-1234-fixes-5420", 5420
+        ) is True
         assert _claim._branch_matches_issue("refs/heads/codex/54200-a", 5420) is False
         assert _claim._branch_matches_issue("refs/heads/codex/15420-a", 5420) is False
+        # (Finding 3) letter-adjacent digits must NOT match.
+        assert _claim._branch_matches_issue("refs/heads/fix/deadbeef5420cafe", 5420) is False
+        assert _claim._branch_matches_issue("refs/heads/fix/issue5420work", 5420) is False
 
 
 class TestClaimMainBranchProbe:
-    """main() surfaces the branch probe on the successful-claim path (exit 0)."""
+    """main() surfaces the branch probe on both exit-0 success paths."""
 
     @staticmethod
-    def _claim_runner(*, login="alice", ls_remote, rev_list=None):
+    def _claim_runner(*, login="alice", ls_remote, rev_list=None, self_held=False):
+        """Fake for a full main() run. ``self_held=True`` makes the first issue
+        view already report the current user, exercising the resume path."""
         view = {"n": 0}
 
         def run(cmd, *a, **k):
@@ -887,24 +1016,26 @@ class TestClaimMainBranchProbe:
                 return _proc(0, login + "\n")
             if argv[:2] == ["gh", "issue"] and "view" in argv:
                 view["n"] += 1
-                # First view: not yet claimed. Second: claimed by us.
-                payload = (
-                    {"assignees": []}
-                    if view["n"] == 1
-                    else {"assignees": [{"login": login}]}
-                )
+                held = self_held or view["n"] > 1
+                payload = {"assignees": [{"login": login}]} if held else {"assignees": []}
                 return _proc(0, json.dumps(payload))
             if argv[:2] == ["gh", "issue"] and "edit" in argv:
                 return _proc(0, "")
+            if argv[:3] == ["git", "remote", "get-url"]:
+                return _proc(0, "https://github.com/o/r.git\n")
+            if argv[:2] == ["git", "rev-parse"]:
+                return _proc(0, "abc\n")
             if argv[:2] == ["git", "ls-remote"]:
                 return ls_remote
+            if argv[:2] == ["git", "fetch"]:
+                return _proc(0)
             if argv[:3] == ["git", "rev-list", "--count"]:
                 return rev_list
             raise AssertionError(f"unexpected call: {argv}")
 
         return run
 
-    def _run_main(self, runner, capsys):
+    def _run_main(self, runner, capsys, fmt="json"):
         with (
             patch.object(_claim, "assert_gh_authenticated", return_value=None),
             patch.object(_claim, "resolve_repo_params") as resolve,
@@ -912,13 +1043,16 @@ class TestClaimMainBranchProbe:
         ):
             resolve.return_value.owner = "o"
             resolve.return_value.repo = "r"
-            code = _claim.main(["--issue", "5420", "--output-format", "json"])
-        envelope = json.loads(capsys.readouterr().out.strip())
-        return code, envelope
+            code = _claim.main(["--issue", "5420", "--output-format", fmt])
+        return code, capsys.readouterr().out
+
+    def _run_main_json(self, runner, capsys):
+        code, out = self._run_main(runner, capsys)
+        return code, json.loads(out.strip())
 
     def test_clean_claim_no_in_flight_branches(self, capsys):
         runner = self._claim_runner(ls_remote=_lsr(("aaa", "codex/9999-x")))
-        code, envelope = self._run_main(runner, capsys)
+        code, envelope = self._run_main_json(runner, capsys)
         assert code == 0
         assert envelope["Success"] is True
         assert envelope["Data"]["in_flight_branches"] == []
@@ -928,7 +1062,7 @@ class TestClaimMainBranchProbe:
             ls_remote=_lsr(("sha1", "codex/5420-a-paths")),
             rev_list=_proc(0, "3\n"),
         )
-        code, envelope = self._run_main(runner, capsys)
+        code, envelope = self._run_main_json(runner, capsys)
         # Warning path must still succeed (exit 0) so it cannot deadlock a resume.
         assert code == 0
         assert envelope["Success"] is True
@@ -936,9 +1070,44 @@ class TestClaimMainBranchProbe:
             {"ref": "refs/heads/codex/5420-a-paths", "sha": "sha1", "commits_ahead": 3}
         ]
 
+    def test_self_held_path_surfaces_in_flight_branch(self, capsys):
+        # (Finding 2) resuming an issue we already hold must ALSO probe: a
+        # competing branch is ahead of main -> in_flight populated, still exit 0.
+        runner = self._claim_runner(
+            ls_remote=_lsr(("sha1", "codex/5420-a-paths")),
+            rev_list=_proc(0, "4\n"),
+            self_held=True,
+        )
+        code, envelope = self._run_main_json(runner, capsys)
+        assert code == 0
+        assert envelope["Success"] is True
+        assert envelope["Data"]["in_flight_branches"] == [
+            {"ref": "refs/heads/codex/5420-a-paths", "sha": "sha1", "commits_ahead": 4}
+        ]
+
+    def test_self_held_warning_status_surfaces_in_human_output(self, capsys):
+        # (Finding 5) write_skill_output drops status from JSON, so assert the
+        # WARNING status on the human channel where it is actually rendered.
+        runner = self._claim_runner(
+            ls_remote=_lsr(("sha1", "codex/5420-a-paths")),
+            rev_list=_proc(0, "4\n"),
+            self_held=True,
+        )
+        code, out = self._run_main(runner, capsys, fmt="human")
+        assert code == 0
+        assert "[WARNING]" in out
+
+    def test_clean_claim_reports_pass_status_in_human_output(self, capsys):
+        # (Finding 5) the negative case: no competing work -> PASS, not WARNING.
+        runner = self._claim_runner(ls_remote=_lsr(("aaa", "codex/9999-x")))
+        code, out = self._run_main(runner, capsys, fmt="human")
+        assert code == 0
+        assert "[PASS]" in out
+        assert "[WARNING]" not in out
+
     def test_claim_survives_ls_remote_failure(self, capsys):
         runner = self._claim_runner(ls_remote=_proc(1, stderr="offline"))
-        code, envelope = self._run_main(runner, capsys)
+        code, envelope = self._run_main_json(runner, capsys)
         assert code == 0
         assert envelope["Success"] is True
         assert envelope["Data"]["in_flight_branches"] == []
