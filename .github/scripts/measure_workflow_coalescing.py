@@ -622,8 +622,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--output-path",
-        default=".agents/metrics/workflow-coalescing.md",
-        help="Path to save report (default: .agents/metrics/workflow-coalescing.md)",
+        default=".project-toolkit/metrics/workflow-coalescing.md",
+        help="Path to save report (default: .project-toolkit/metrics/workflow-coalescing.md)",
     )
     return parser
 
