@@ -37,7 +37,6 @@ from tests.commands.pr_autofix_field_parser import (
     jq_programs,
     pathless_jq_programs,
     unparsed_jq_invocations,
-    unsupported_has_syntax,
 )
 
 # Coverage: the extractor must not go blind and silently pass.
@@ -91,9 +90,15 @@ def test_literal_has_keys_are_validated_exactly(program: str, expected: str) -> 
 
 def test_dynamic_has_key_fails_closed() -> None:
     """A key the parser cannot name must not pass unchecked."""
-    line = 'VALUE=$(echo "$CTX" | jq -r \'.Data | has($field)\')'
+    body = (
+        'VALUE=$(python3 "$SCRIPTS_DIR/get_pr_context.py" '
+        "--pull-request \"$PR\" | jq -r '.Data | has($field)')\n"
+    )
 
-    assert unsupported_has_syntax(line) == [".Data | has($field)"]
+    violations = contract_violations(body)
+
+    assert len(violations) == 1
+    assert "uses a `has` form the extractor cannot validate" in violations[0]
 
 
 @pytest.mark.parametrize("doc", [COMMAND_PATH, MIRROR_PATH])
