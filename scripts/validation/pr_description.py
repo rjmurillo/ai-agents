@@ -664,7 +664,7 @@ _AUTO_CLOSE_KW: re.Pattern[str] = re.compile(
 # here means this pattern can now also match all the way across a real
 # fenced block. That is handled at the call site, not in this pattern:
 # `validate_closing_links`/`references_issue` compute `fenced_ranges` first
-# and drop any code-span match whose start falls inside one, so a real
+# and drop any code-span match that overlaps one, so a real
 # fence still reports as "fenced code block", never relabeled as an inline
 # span (matching CommonMark's block-before-inline precedence, since nothing
 # inside a fenced block's raw content is inline-parsed in the first place).
@@ -820,6 +820,11 @@ def validate_closing_links(
     """
     if base_branch is not None:
         base_ref = base_branch
+
+    # Normalize CRLF to LF: the fence and span regexes use \n anchors, so
+    # CRLF input causes closers to go unrecognized and extends fenced blocks
+    # through EOF (Devin review on PR #5371).
+    body = body.replace("\r\n", "\n").replace("\r", "\n")
 
     issues: list[Issue] = []
     fenced_ranges = _fenced_code_block_ranges(body)

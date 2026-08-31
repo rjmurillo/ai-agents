@@ -108,7 +108,7 @@ _PullRequestPayload = dict[str, object]
 # a genuine bare claim (Copilot review on PR #5371, round 4). Letting that
 # branch go multiline means it can also match all the way across a real
 # fenced block; `_code_spans_outside_fences` below handles that at the call
-# site by dropping any span match that starts inside a real fence, so a
+# site by dropping any span match that overlaps a real fence, so a
 # fence still reports as fenced rather than relabeled as an inline span.
 #
 # The two `_FENCE_OPEN_LINE` alternatives are deliberately asymmetric.
@@ -216,6 +216,10 @@ def references_issue(text: str, issue: int, repo_slug: str = "") -> bool:
 
     if not text:
         return False
+    # Normalize CRLF to LF: the fence and span regexes use \n anchors, so
+    # CRLF input causes closers to go unrecognized and extends fenced blocks
+    # through EOF (Devin review on PR #5371).
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
     issue_ref = rf"#{issue}\b"
     if repo_slug:
         issue_ref = rf"(?:{re.escape(repo_slug)}#|#){issue}\b"
