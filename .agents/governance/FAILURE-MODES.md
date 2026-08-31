@@ -26,6 +26,7 @@ Trust-based compliance fails at scale. Instructions asking agents to "remember",
 | 9 | Confident-incorrectness recurrence | High | `2026-05-08-pr-1897-confident-incorrectness-recurrence.md` |
 | 10 | Silent defaults and guard-clause suppression | High | PR #1965 round-9/round-11 fixes; daniel.haxx.se 2026-05-11 |
 | 11 | Customer-facing generated artifact shipped without runtime verification | Critical | `2026-06-02-pr-2205-customer-wedge-incident.md`; ADR-071 |
+| 12 | Post-completion continuation / response reopening | High | Issue #5404 |
 
 ---
 
@@ -476,6 +477,55 @@ smoke MUST be loud.
 - `.claude/rules/generated-artifacts.md`
 - `.claude/rules/canonical-source-mirror.md` (self-referential test anti-pattern)
 - Issues #2205 (fix), #2223 (follow-up debt)
+
+---
+
+## 12. Post-Completion Continuation / Response Reopening
+
+### Description
+
+An agent satisfies the user's requested deliverable and then keeps working, or reports completion and then reopens the interaction. Two manifestations:
+
+1. **Execution continuation.** The execution loop lacks one authoritative completion contract, so after the frozen criteria are met the agent promotes later-discovered optional refinements, adjacent cleanup, or newly imagined criteria into active work. Retry limits, review rounds, and delegation budgets remain, but none of them proves the task is done, so leftover budget alone keeps the agent working.
+2. **Response reopening.** After a correct terminal result, the final response appends an unsolicited continuation prompt ("Want me to ...?", "I can also ...", "Would you like me to ...?"). No blocker and no requested decision remain, yet the tail creates a new implicit continuation edge.
+
+This is a control-flow defect, not mere verbosity: task execution fails to make verified satisfaction terminal, and response generation reports completion then reopens the interaction.
+
+### Trigger
+
+- No canonical terminal predicate: completion is inferred from budget or TODO state rather than from the frozen task contract.
+- Reward bias toward "keep helping": an optional enhancement or side quest is treated as if a consumer required it.
+- A response habit that ends helpful turns with an opt-in offer.
+
+### Evidence
+
+- Issue #5404: agents continue autonomously after the deliverable is met, and final responses append unsolicited continuation prompts.
+- `.claude/rules/voice.md` before this change required "Offer to fix proactively" and shipped flag examples ending in "Want me to fix ...?", "Cleanup or leave?", and "Want me to add them?" (the exact continuation edges).
+
+### Detection
+
+- Autonomous work continues after every frozen criterion is satisfied and no blocker is cited.
+- A finding is promoted to active work without classification (blocker / requested / optional / side quest) via the `avoiding-manufactured-work` skill.
+- A completed response ends on an offer, question, or invitation whose only function is to continue the interaction, and that tail is not a blocking decision, a user-requested question, a bounded deliverable choice, or a policy-required interaction.
+
+### Enforcement Pattern
+
+| Artifact | Verifier | Blocking |
+|----------|----------|----------|
+| Terminal predicate | `.claude/rules/builder-ethos.md` section 4: terminal when every deliverable satisfies the frozen contract and no blocker remains | Always-on rule |
+| Finding disposition | `avoiding-manufactured-work` skill classifies keep/shrink/defer/delete; optional and side-quest findings do not reactivate | Skill |
+| Completion-tail audit | `.claude/rules/voice.md` removes unsolicited continuation tails from completed responses | Always-on rule |
+| Behavioral proof | Runtime-parity response-tail scenarios grade whether a terminal response reopens interaction | CI (when runtime available) |
+
+Relationship to other modes: FM #4 (false completion) is the inverse error, claiming done when not done; FM #12 is reaching done and then not stopping. FM #10 (silent defaults) shares the reward-bias root but fires when an ambiguous branch is resolved silently, not when a completed task is reopened. Remediation is canonical semantics (the terminal predicate plus the completion-tail audit) with behavioral proof, not a phrase blacklist.
+
+### References
+
+- Issue #5404 (terminal-state invariant and completion-tail audit)
+- `.claude/rules/builder-ethos.md` section 4 (terminal predicate)
+- `.claude/rules/voice.md` (Completion-Tail Audit)
+- `.claude/skills/avoiding-manufactured-work/SKILL.md` (task completion contract)
+- Follow-up #5417 (persisted completion across compaction and handoff)
 
 ---
 
