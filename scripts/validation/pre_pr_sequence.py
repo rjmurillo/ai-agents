@@ -103,6 +103,7 @@ from checks_tooling import (
     validate_workflow_yaml,
     validate_yaml_style,
 )
+from skill_routing_manifest import validate_skill_routing_manifest
 from stale_script_refs import validate_stale_script_refs
 from validate_argument_hint import validate_argument_hint
 from validate_design_review import validate_design_review_frontmatter
@@ -329,6 +330,11 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Fails when a routing table in a shipped tree points at a skill that tree
     # does not ship. Issue #2026 coordination drift.
     _Gate("Shipped Skill Routes", _root_only(validate_shipped_skill_routes)),
+    # Every canonical skill under .claude/skills must carry exactly one primary
+    # routing role in .config/skill-routing-manifest.yaml (issue #5384). Fails on
+    # an unclassified new skill, a stale entry, an unknown invoker, a role/owner
+    # contradiction, or a missing explicit-only rationale / deprecation ref.
+    _Gate("Skill Routing Manifest", _root_only(validate_skill_routing_manifest)),
     # Heuristic; soft warn unless STRICT_CANONICAL_CHECK=1. PR #1887
     # retrospective, Layer 4.
     _Gate("Canonical Citation Check", _root_only(validate_canonical_citations)),

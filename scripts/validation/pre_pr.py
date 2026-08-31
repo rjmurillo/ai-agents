@@ -138,6 +138,13 @@ from checks_tooling import (
     validate_yaml_style,
 )
 from pre_pr_sequence import run_all_validations
+
+# Re-exported so ``from scripts.validation.pre_pr import
+# validate_skill_routing_manifest`` resolves the identical object
+# ``pre_pr_sequence`` wires into ``_SEQUENCE`` (issue #5384). The facade is not
+# exhaustive (see the module docstring and issue #5272), but the re-export
+# promise still binds validators actually run by the sequence.
+from skill_routing_manifest import validate_skill_routing_manifest
 from stale_script_refs import validate_stale_script_refs
 from validate_argument_hint import validate_argument_hint
 

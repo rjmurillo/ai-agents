@@ -84,6 +84,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Sync Registry Provenance',
     'Agent Catalog Drift',
     'Shipped Skill Routes',
+    'Skill Routing Manifest',
     'Canonical Citation Check',
     'Orchestrator Citation Check',
     'Em/en-dash Prohibition',
