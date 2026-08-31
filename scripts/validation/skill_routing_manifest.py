@@ -81,6 +81,11 @@ EXIT_OK = 0
 EXIT_VALIDATION = 1
 EXIT_CONFIG = 2
 
+# A manifest entry is a mapping of field name (role, owner, trigger, ...) to
+# value. ``Manifest`` maps a skill name to its entry.
+ManifestEntry = dict[str, object]
+Manifest = dict[str, ManifestEntry]
+
 MANIFEST_RELPATH = Path(".config") / "skill-routing-manifest.yaml"
 SKILLS_SUBDIR = Path(".claude") / "skills"
 AGENTS_SUBDIR = Path(".claude") / "agents"
@@ -225,7 +230,7 @@ def compute_inbound(repo_root: Path, skills: set[str]) -> dict[str, set[str]]:
 # ---------------------------------------------------------------------------
 
 
-def load_manifest(path: Path) -> dict[str, dict]:
+def load_manifest(path: Path) -> Manifest:
     """Parse the manifest and return its ``skills`` mapping.
 
     Raises ``ManifestError`` on any config-level fault.
@@ -278,7 +283,7 @@ def _owner_role_contradiction(role: str, owner: str, skills: set[str],
     return ""
 
 
-def _check_role_fields(name: str, role: str, entry: dict) -> list[Finding]:
+def _check_role_fields(name: str, role: str, entry: ManifestEntry) -> list[Finding]:
     """Situational required fields per role."""
     findings: list[Finding] = []
     if role == "conditional-adjunct" and not str(entry.get("trigger", "")).strip():
@@ -311,7 +316,7 @@ def _validate_entry(name: str, entry: object, valid_invokers: set[str],
     return findings
 
 
-def validate(manifest: dict[str, dict], canonical_skills: set[str],
+def validate(manifest: Manifest, canonical_skills: set[str],
              agents: set[str], commands: set[str]) -> list[Finding]:
     """Return every validation finding (empty means the manifest is valid)."""
     valid_invokers = (
@@ -345,7 +350,7 @@ def _scenario_present(repo_root: Path, name: str) -> bool:
     return (repo_root / SCENARIOS_SUBDIR / f"{name}.json").is_file()
 
 
-def build_report(repo_root: Path, manifest: dict[str, dict],
+def build_report(repo_root: Path, manifest: Manifest,
                  canonical_skills: set[str], inbound: dict[str, set[str]]) -> str:
     """Deterministic report: role totals, inbound-zero, scenario coverage."""
     lines: list[str] = ["=== Skill Routing Manifest Report ==="]
@@ -383,18 +388,18 @@ def build_report(repo_root: Path, manifest: dict[str, dict],
     return "\n".join(lines)
 
 
-def resolve_manifest(repo_root: Path, manifest: dict[str, dict],
-                     inbound: dict[str, set[str]]) -> dict[str, dict]:
+def resolve_manifest(repo_root: Path, manifest: Manifest,
+                     inbound: dict[str, set[str]]) -> Manifest:
     """Materialize the full machine-readable manifest (reviewed + derived).
 
     Each resolved entry carries the reviewed role/owner/trigger/rationale plus
     the derived ``user_facing`` flag, the expected activation-scenario path and
     whether it exists, and the structural inbound count and sources.
     """
-    resolved: dict[str, dict] = {}
+    resolved: Manifest = {}
     for name in sorted(manifest):
         entry = dict(manifest[name])
-        role = entry.get("role")
+        role = str(entry.get("role"))
         scenario = SCENARIOS_SUBDIR / f"{name}.json"
         resolved[name] = {
             **entry,
