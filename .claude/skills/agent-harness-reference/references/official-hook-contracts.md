@@ -250,7 +250,7 @@ Source: hook reference, Progress messages.
 | SubagentStart | `additionalContext` |
 | PostToolUseFailure exit 2 | stdout is appended as `additionalContext` |
 | PreCompact | DOCS SILENT: no config-file output field is documented |
-| UserPromptSubmitted / UserPromptSubmit | DOCS SILENT: no config-file output field is documented. Probed 1.0.79-6: a top-level `additionalContext` is consumed, plain stdout is not |
+| UserPromptSubmitted / UserPromptSubmit | DOCS SILENT: no config-file output field is documented |
 
 `suppressOutput` is not present in the official config-file hook reference.
 It appears in implementation-only SDK types. Status: DOCS SILENT for config
@@ -261,12 +261,8 @@ successful PostToolUse observers. It discards SessionStart and PreCompact stdout
 because current producers include branch-controlled repository prose that must
 not reach model-visible channels. Direct rollback commands suppress both stdout
 and stderr while retaining producer side effects. It also discards
-UserPromptSubmit stdout and stderr in dispatcher and direct rollback modes.
-That choice tracks the documentation, which names no model-context field for
-the event and leaves stderr reach silent. It does not track the runtime, which
-is now measured: a direct `UserPromptSubmit` producer that needs model reach
-emits the top-level `additionalContext` envelope itself, keyed on
-`COPILOT_CLI`, rather than relying on plain stdout.
+UserPromptSubmit stdout and stderr in dispatcher and direct rollback modes
+because no model-context field is documented and stderr reach is docs silent.
 PostToolUseFailure remains a direct host registration so exit-2 stdout keeps its
 documented recovery-context behavior. Unclassified events also remain direct
 until reviewed. Partial output from failed consolidated observers is discarded
@@ -316,52 +312,6 @@ Source: pinned Copilot CLI changelog.
 
 The hook reference does not list these variables in its cloud environment
 table, which is expected because installed plugins do not run in cloud agent.
-
-Note the scope: this entry covers **plugin** hooks and names three plugin-root
-variables. It does not put `CLAUDE_PROJECT_DIR` on any Copilot surface, and no
-vendor source does. See the environment inventory below.
-
-### Environment variables Copilot CLI sets
-
-| Variable | Contract | Status |
-|---|---|---|
-| `PLUGIN_ROOT`, `COPILOT_PLUGIN_ROOT`, `CLAUDE_PLUGIN_ROOT` | Plugin install directory, for plugin hooks | OFFICIAL, changelog quoted above |
-| `COPILOT_CLI` | Claimed: `1` in subprocesses Copilot spawns | **RETRACTED, see correction below** |
-| `CLAUDE_PROJECT_DIR` | Presence is CONTESTED: a live 1.0.79-6 hook (issue #4727) recorded it set; a static 1.0.80 byte search finds no reference | CONTESTED, see correction below |
-
-**Correction, 2026-08-27 (issue #5369).** An earlier revision cited a vendor
-changelog quote for `COPILOT_CLI` ("Git hooks can detect Copilot CLI
-subprocesses via the COPILOT_CLI=1 environment variable..."), attributed to
-`changelog.json` version `0.0.421`, pull request 4049. Re-verified against the
-installed package, that citation does not hold: no such version exists (only
-`0.0.421-0`), and no version's `changelog.json` contains the quote or the PR
-reference. A byte search of shipped `@github/copilot-linux-x64@1.0.80` `app.js`
-finds one bare `COPILOT_CLI` literal, `Fe.COPILOT_CLI="copilot_cli"`, an
-unrelated feature-flighting enum key, not an environment-variable read or
-write; every other hit is `COPILOT_CLI_*`-prefixed. Official GitHub docs and a
-community environment-variable reference for the CLI list no bare
-`COPILOT_CLI` either.
-
-**Status: UNVERIFIED.** No vendor-confirmed signal positively identifies a
-Copilot-spawned hook subprocess. The `UserPromptSubmit` recall hook still
-checks `COPILOT_CLI` as a best-effort heuristic, harmless when wrong since the
-confirmed Claude signal wins first, but whether it fires under real Copilot
-CLI is open; if not, recall stays silently inert per issue #4727. Needs a live
-Copilot probe (blocked here, section 8b below) to resolve either way.
-
-Two consequences, both keyed on Copilot also loading `.claude/settings.json` when trusted:
-
-- `cd "$CLAUDE_PROJECT_DIR"` expands to `cd ""` wherever unset, which dash and
-  bash accept as a no-op: exit 0, cwd unchanged, `&&` continues, so a relative
-  path resolves against the host's cwd. Anchor with a fallback; it is right
-  either way, since whether Copilot exposes the variable is CONTESTED (#4727).
-- If `COPILOT_CLI` does turn out to be real, it would identify the process
-  tree, not the consuming host: Copilot would export it into every shell it
-  spawns, so a Claude Code session started from inside a Copilot shell would
-  inherit it. A hook choosing an output shape must check a positive Claude
-  signal first regardless.
-
-Both are measured in `probe-evidence.md` section 8b, with positive controls.
 
 ## Claude Code
 
