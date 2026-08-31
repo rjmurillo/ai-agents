@@ -107,13 +107,30 @@ def run_from_mapping(payload: Mapping[str, Any]) -> WorkflowRun:
         # An absent key keeps the documented default of True. An explicit false
         # is honored so a manifest written for an unmaterialized run replays as
         # unverified instead of silently regaining trust on the round trip.
-        jobs_verified = _json_bool(
-            payload.get("jobs_verified"), "jobs_verified", default=True
-        )
+        # An explicit JSON null is treated as absent (default True), not as a
+        # third state, because the field's contract is boolean-or-absent.
+        _sentinel = object()
+        jv_raw = payload.get("jobs_verified", _sentinel)
+        if jv_raw is _sentinel or jv_raw is None:
+            jobs_verified = True
+        else:
+            jobs_verified = _json_bool(jv_raw, "jobs_verified", default=True)
+        run_id_raw = payload["run_id"]
+        if not isinstance(run_id_raw, int) or isinstance(run_id_raw, bool):
+            raise ValueError(
+                f"run_id must be a JSON integer, got {type(run_id_raw).__name__}: "
+                f"{run_id_raw!r}"
+            )
+        pr_number_raw = payload["pr_number"]
+        if not isinstance(pr_number_raw, int) or isinstance(pr_number_raw, bool):
+            raise ValueError(
+                f"pr_number must be a JSON integer, got {type(pr_number_raw).__name__}: "
+                f"{pr_number_raw!r}"
+            )
         return WorkflowRun(
-            run_id=int(payload["run_id"]),
+            run_id=run_id_raw,
             workflow_name=str(payload["workflow_name"]),
-            pr_number=int(payload["pr_number"]),
+            pr_number=pr_number_raw,
             branch=str(payload["branch"]),
             event=str(payload["event"]),
             status=str(payload["status"]),
