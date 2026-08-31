@@ -55,6 +55,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Test Working Tree Writes',
     'Push Lock Path Agreement',
     'Worktree Recipe Destinations',
+    'Legacy .agents Write Targets',
     'Temp-filesystem Worktrees (advisory)',
     'Session End Validation',
     'Mypy Changed Files (ratchet)',
