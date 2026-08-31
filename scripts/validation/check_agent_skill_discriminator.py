@@ -29,12 +29,31 @@ An agent scoring 2 or more FAILS the check unless one escape hatch is present:
 - Agent frontmatter contains ``isolation_required: true`` (with a rationale),
   or
 - The PR description carries the token ``[skill-discriminator: <rationale>]``
-  (passed via ``--pr-body`` / ``PR_BODY``).
+  (passed via ``--pr-body`` / ``PR_BODY``), or
+- ``--baseline`` names a recorded baseline (issue #4087) and the agent's
+  score has not risen above the value recorded there.
+
+Baseline mode (issue #4087): the check is change-triggered by default, so an
+agent that is already skill-shaped on ``main`` stays invisible until an
+unrelated edit happens to touch it, which makes the gate fire on PRs that
+cannot have caused the condition (PR #4067, PR #4063). ``--update-baseline``
+scores every agent in the repo (like ``--all``) and records each one's score
+in a checked-in JSON file. A later run with ``--baseline <path>`` then fails
+an agent only when its score has risen above the recorded value; a new agent
+absent from the baseline still uses the ordinary score>=2 threshold. See
+``is_regression`` below for the exact comparison and why it does not reuse
+the shared ``portability_common.diff_against_baseline`` ratchet as is.
 
 Exit codes follow ADR-035:
     0 - Success: no changed agent fails the discriminator (or escape hatch set)
-    1 - Error: one or more changed agents score 2+ without an escape hatch
-    2 - Config error (repo root or commands directory not found)
+    1 - Error: one or more changed agents fail the gate. Without ``--baseline``
+        this means score >= 2; with ``--baseline`` an agent also fails when
+        its score rises above its recorded baseline value, even from 0 to 1
+    2 - Config error: repo root, commands directory, or baseline not found;
+        a baseline score outside 0..3; a full-corpus scan that git could not
+        answer or that found no tracked agent; a --update-baseline run
+        started from outside the repo root it was told to write into; or a
+        --update-baseline that would raise a recorded ceiling score
 
 Related: ADR-006 (thin workflows / testable modules), ADR-042 (Python-first),
 ADR-030 (Skills Pattern Superiority), ADR-036 (Two-Source Agent Templates).
@@ -43,11 +62,39 @@ ADR-030 (Skills Pattern Superiority), ADR-036 (Two-Source Agent Templates).
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+
+# Bootstrap: this module is invoked both as a bare script
+# (`python3 scripts/validation/check_agent_skill_discriminator.py`, from CI
+# and from the test suite) and via `-m`. A bare-script invocation puts only
+# this file's own directory on sys.path, so the scripts.validation package
+# does not resolve without help. Mirrors the identical bootstrap block at
+# `scripts/validation/check_skill_portability.py:50-53`.
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_VALIDATION_PACKAGE_SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "models.py"
+if _VALIDATION_PACKAGE_SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.validation.agent_skill_discriminator_baseline import (  # noqa: E402
+    AGENT_CORPUS_ROOTS,
+    DEFAULT_BASELINE_NAME,
+    baseline_from_scores,
+    baseline_note,
+    full_corpus_agent_paths,
+    is_regression,
+    refuse_dirty_scoring_inputs,
+    validate_baseline_scores,
+)
+from scripts.validation.portability_common import (  # noqa: E402
+    load_baseline,
+    resolve_checked_baseline,
+    write_baseline,
+)
 
 AUDIT_PATH = ".agents/audits/2026-05-10-agent-skill-classification-audit.md"
 ADR_PATH = ".agents/architecture/ADR-030-skills-pattern-superiority.md"
@@ -108,13 +155,30 @@ class CheckResult:
 
     scores: list[AgentScore] = field(default_factory=list)
     override_rationale: str | None = None
+    baseline: dict[str, int] | None = None
+
+    def fails_gate(self, score: AgentScore) -> bool:
+        """True when ``score`` fails the discriminator before the override.
+
+        Threshold mode (``baseline`` unset) is the original score>=2 rule.
+        Baseline mode (issue #4087) makes this a ratchet instead: see
+        ``is_regression``.
+
+        Public because the report must label each agent by the gate that
+        actually ran. Labelling from ``is_candidate`` instead reported a
+        baseline regression from 0 to 1 as ``[ok]`` on the same run that
+        exited 1 because of it.
+        """
+        if score.isolation_required:
+            return False
+        if self.baseline is None:
+            return score.is_candidate
+        return is_regression(score, self.baseline)
 
     @property
     def candidates(self) -> list[AgentScore]:
-        """Candidates that lack the frontmatter escape hatch."""
-        return [
-            s for s in self.scores if s.is_candidate and not s.isolation_required
-        ]
+        """Scores that fail the gate, before the PR-description override."""
+        return [s for s in self.scores if self.fails_gate(s)]
 
     @property
     def failing(self) -> list[AgentScore]:
@@ -411,6 +475,21 @@ def _criteria_str(score: AgentScore) -> str:
     return " ".join(parts)
 
 
+def _status_label(result: CheckResult, score: AgentScore) -> str:
+    """Per-agent report label, named for the gate that actually ran.
+
+    ``ok`` is reserved for an agent that passes the gate in force. In baseline
+    mode that gate is the ratchet, so a rise from a recorded 0 to 1 fails and
+    must not read ``ok`` merely because 1 is below the score>=2 threshold. The
+    two failing labels are kept distinct because they mean different things to
+    the reader: ``CANDIDATE`` says the agent is skill-shaped, ``REGRESSION``
+    says only that it got more skill-shaped than the recorded floor.
+    """
+    if not result.fails_gate(score):
+        return "ok"
+    return "REGRESSION" if result.baseline is not None else "CANDIDATE"
+
+
 def print_report(result: CheckResult) -> None:
     """Print a human-readable summary of the scoring."""
     print("Agent-skill discriminator check (Issue #2008)")
@@ -421,12 +500,13 @@ def print_report(result: CheckResult) -> None:
         return
 
     for score in result.scores:
-        status = "CANDIDATE" if score.is_candidate else "ok"
+        status = _status_label(result, score)
         print(
             f"  [{status}] {score.name} "
             f"(score {score.score}/3: {_criteria_str(score)}, "
             f"pipelines={score.pipeline_count}, "
             f"isolation_required={'yes' if score.isolation_required else 'no'})"
+            f"{baseline_note(score, result.baseline)}"
         )
 
     if result.override_rationale:
@@ -434,14 +514,39 @@ def print_report(result: CheckResult) -> None:
         print(f"PR override present: {result.override_rationale}")
 
     failing = result.failing
+    scored = len(result.scores)
     print()
     if not failing:
-        print("PASS: no agent fails the discriminator.")
+        if result.baseline is not None:
+            print(
+                f"PASS: no agent regressed above its recorded baseline score "
+                f"({scored} scored)."
+            )
+        else:
+            print(f"PASS: no agent fails the discriminator ({scored} scored).")
         return
 
-    print("FAIL: the following agents are skill-shape candidates (score 2+):")
+    if result.baseline is not None:
+        # Baseline mode fails at any score, not only at 2+: an agent recorded
+        # at 0 fails on a rise to 1. Only an agent with no recorded floor
+        # falls back to the score>=2 threshold, and its annotation says so.
+        print(
+            f"FAIL: the following agents fail the baseline ratchet "
+            f"({len(failing)} of {scored} scored). An agent recorded in the "
+            "baseline fails when its score rises above the recorded value, at "
+            "any score. An agent marked 'baseline=new' has no recorded floor "
+            "and failed the ordinary score>=2 threshold instead:"
+        )
+    else:
+        print(
+            f"FAIL: the following agents are skill-shape candidates (score 2+) "
+            f"({len(failing)} of {scored} scored):"
+        )
     for score in failing:
-        print(f"  - {score.name} ({_criteria_str(score)})")
+        print(
+            f"  - {score.name} (score {score.score}/3: {_criteria_str(score)})"
+            f"{baseline_note(score, result.baseline)}"
+        )
     print()
     print("Each candidate must either:")
     print("  1. Be refactored into a skill before merge, or")
@@ -449,6 +554,11 @@ def print_report(result: CheckResult) -> None:
     print("     the agent frontmatter, or")
     print("  3. Carry the PR-description token")
     print("     '[skill-discriminator: <rationale>]' for a one-off override.")
+    if result.baseline is not None:
+        print()
+        print("Raising the recorded baseline score is not one of the options.")
+        print("A ratchet baseline may only fall")
+        print("(.claude/rules/ci-scripts.md, 'Count ratchets').")
     print()
     print(f"See {AUDIT_PATH}")
     print(f"and {ADR_PATH}")
@@ -495,7 +605,227 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("PR_BODY", ""),
         help="PR description text; scanned for the override token (env: PR_BODY).",
     )
+    parser.add_argument(
+        "--baseline",
+        type=Path,
+        default=None,
+        help=(
+            "Path to a skill-discriminator baseline JSON (issue #4087). "
+            "Passing it switches the gate from the plain score>=2 threshold "
+            "to a ratchet: an agent already recorded there fails only if its "
+            "score rose above the recorded value, while an agent absent from "
+            "it still uses the score>=2 threshold. There is no default in "
+            "gate mode. Omit this flag and the gate stays on the plain "
+            "threshold, reading no baseline at all. The only mode that falls "
+            "back to a default path is --update-baseline, which writes to "
+            f"scripts/validation/{DEFAULT_BASELINE_NAME} when this flag is "
+            "omitted."
+        ),
+    )
+    parser.add_argument(
+        "--update-baseline",
+        action="store_true",
+        help=(
+            "Score every agent in the repo (like --all) and write the "
+            "result to --baseline (or the default path) instead of gating. "
+            "Exits 0 on a successful write."
+        ),
+    )
+    parser.add_argument(
+        "--allow-baseline-shrink",
+        action="store_true",
+        help=(
+            "With --update-baseline, permit a rewrite that lowers or drops "
+            "a recorded score. Without it, a lower score requires this flag "
+            "so a decrease is a reviewable, deliberate act."
+        ),
+    )
     return parser
+
+
+def _refuse_incomplete_corpus(corpus: list[str] | None, repo_root: Path) -> int | None:
+    """Config-error code when a full-corpus scan did not produce a corpus.
+
+    Two refusals, both fail-closed, both ADR-035 exit 2:
+
+    ``None`` means ``git ls-tree HEAD`` could not answer, so what the commit
+    contains is unknown. Falling back to a directory walk here would restore
+    the defect the ref read exists to remove.
+
+    An empty list means git answered and no agent definition is tracked. That
+    is indistinguishable in outcome from a scan that examined nothing, and
+    `.claude/rules/ci-scripts.md` MUST-12 forbids reporting the two the same
+    way: a full-corpus run that scores zero agents would pass the gate and
+    write an empty baseline, which disables the ratchet for every path at
+    once. There is no legitimate full-corpus run over an empty corpus.
+    """
+    if corpus is None:
+        print(
+            f"Cannot list the files tracked at HEAD in {repo_root}. "
+            "Full-corpus mode scores what the commit contains and will not "
+            "fall back to a filesystem walk, which counts untracked files "
+            "and reads a partial checkout as an empty repository "
+            "(.claude/rules/ci-scripts.md MUST-9).",
+            file=sys.stderr,
+        )
+        return 2
+    if not corpus:
+        print(
+            f"No agent definitions are tracked at HEAD in {repo_root} "
+            f"(examined 0 of the paths under {', '.join(AGENT_CORPUS_ROOTS)}). "
+            "Refusing a full-corpus run over an empty corpus: it would pass "
+            "the gate and record a baseline that gates nothing.",
+            file=sys.stderr,
+        )
+        return 2
+    return None
+
+
+def _resolve_baseline_scope(
+    args: argparse.Namespace, repo_root: Path
+) -> tuple[list[str] | None, Path | None, int | None]:
+    """Resolve the baseline-mode changed-file scope and baseline path.
+
+    Returns ``(changed_override, baseline_path, error_code)``. ``error_code``
+    is ``None`` on success. ``changed_override`` is ``None`` when the ordinary
+    ``--changed-files``/``CHANGED_FILES`` scope applies unmodified; the caller
+    substitutes it for ``changed`` only when it is not ``None``.
+    """
+    changed_override: list[str] | None = None
+    if args.all or args.update_baseline:
+        # Full-corpus mode: score every agent tracked at HEAD (Issue #4087).
+        # Overrides --changed-files and CHANGED_FILES. --update-baseline
+        # always needs the full corpus: it has nothing else to record.
+        changed_override = full_corpus_agent_paths(repo_root, is_agent_path)
+        if error := _refuse_incomplete_corpus(changed_override, repo_root):
+            return None, None, error
+
+    if args.baseline is None and not args.update_baseline:
+        return changed_override, None, None
+
+    baseline_path = resolve_checked_baseline(
+        repo_root, args.baseline, DEFAULT_BASELINE_NAME
+    )
+    if baseline_path is None:
+        # resolve_checked_baseline already explained the refusal.
+        return changed_override, None, 2
+    return changed_override, baseline_path, None
+
+
+def _refuses_write_from_outside(repo_root: Path) -> bool:
+    """True when the process is not standing inside ``repo_root``.
+
+    ``.claude/rules/ci-scripts.md`` MUST-7, quoted verbatim: "A script that
+    resolves the repository root and then writes to it MUST confirm the
+    current directory is inside the resolved root before the first write
+    (``Path.cwd().resolve().is_relative_to(top_level)``)."
+
+    Different than canonical: the rule's worked example is a root taken from
+    ``git rev-parse --show-toplevel``, which ``GIT_WORK_TREE`` or a local
+    ``core.worktree`` can redirect to a directory the process is not in. The
+    root here comes from ``--repo-root``/``REPO_ROOT`` instead, so the
+    redirection is one argument rather than one environment variable, and the
+    failure it produces is the same: the baseline lands in a checkout other
+    than the one being worked in, recording scores nobody reviewed against a
+    tree nobody was looking at. The check is identical either way, and it runs
+    before the first write rather than after a partial one.
+    """
+    cwd = Path.cwd().resolve()
+    if cwd.is_relative_to(repo_root):
+        return False
+    print(
+        f"Refusing to write a baseline into {repo_root} while running from "
+        f"{cwd}. --update-baseline records the checkout it is run from; a "
+        "repo root that is not an ancestor of the current directory means "
+        "the two disagree about which tree is being recorded "
+        "(.claude/rules/ci-scripts.md MUST-7).",
+        file=sys.stderr,
+    )
+    return True
+
+
+def _update_baseline(
+    baseline_path: Path, result: CheckResult, *, repo_root: Path, allow_shrink: bool
+) -> int:
+    """Write the full-corpus baseline for ``--update-baseline``.
+
+    Rejects score increases: the discriminator baseline is a ceiling, so a
+    rising score is a regression the ratchet must block, not record. Without
+    this guard, ``--update-baseline`` silently forgives the exact condition
+    ``--baseline`` was built to catch.
+
+    Refuses dirty or untracked state under scoring roots: the path inventory
+    comes from HEAD but scoring reads content from disk, so uncommitted
+    changes produce a baseline that differs from what HEAD describes.
+    """
+    if _refuses_write_from_outside(repo_root):
+        return 2
+
+    if refuse_dirty_scoring_inputs(repo_root):
+        return 2
+
+    proposed = baseline_from_scores(result.scores)
+
+    # Refuse to raise any existing ceiling score, and refuse to record a new
+    # entry whose score already meets the candidate threshold. A new agent
+    # scoring 2 or 3 would be immediately grandfathered if recorded, so
+    # later --baseline runs accept it without the is_regression() threshold
+    # that would have caught it as a new path (thread PRRT_kwDOQoWRls6doW4x).
+    if baseline_path.is_file():
+        try:
+            existing = load_baseline(baseline_path)
+        except (FileNotFoundError, ValueError, KeyError, json.JSONDecodeError):
+            existing = {}
+        increased = {
+            path: (existing[path], score)
+            for path, score in proposed.items()
+            if path in existing and score > existing[path]
+        }
+        if increased:
+            for path, (old, new) in sorted(increased.items()):
+                print(
+                    f"Refusing baseline update for {path}: score rose from "
+                    f"{old} to {new}. The discriminator baseline is a ceiling; "
+                    "a rising score is a regression, not a new floor.",
+                    file=sys.stderr,
+                )
+            return 2
+
+        # New entries at the candidate threshold (score >= 2) bypass the
+        # is_regression() gate that would catch them as new paths. Reject
+        # them so --update-baseline cannot grandfather a candidate.
+        new_candidates = {
+            path: score
+            for path, score in proposed.items()
+            if path not in existing and score >= 2
+        }
+        if new_candidates:
+            for path, score in sorted(new_candidates.items()):
+                print(
+                    f"Refusing baseline update for {path}: new entry at "
+                    f"score {score} (>= 2) would grandfather a candidate. "
+                    "Fix the agent first, then re-run --update-baseline.",
+                    file=sys.stderr,
+                )
+            return 2
+
+    return write_baseline(
+        baseline_path,
+        proposed,
+        (
+            "Skill-shape discriminator full-corpus baseline (issue "
+            "#4087). Per-path scores (0-3), one entry per agent "
+            "definition under .claude/agents/ and templates/agents/. "
+            "Generated by check_agent_skill_discriminator.py "
+            "--update-baseline. A gate run with --baseline fails an "
+            "agent only when its score rises above the value recorded "
+            "here; a run with no --baseline uses the plain score>=2 "
+            "threshold instead."
+        ),
+        "score points",
+        repo_root=repo_root,
+        allow_shrink=allow_shrink,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -521,25 +851,37 @@ def main(argv: list[str] | None = None) -> int:
         args.changed_files, os.environ.get("CHANGED_FILES")
     )
 
-    if args.all:
-        # Full-corpus mode: score every agent in the repo (Issue #4087).
-        # Overrides --changed-files and CHANGED_FILES.
-        agents_dir = repo_root / ".claude" / "agents"
-        templates_dir = repo_root / "templates" / "agents"
-        corpus: list[str] = []
-        for directory in (agents_dir, templates_dir):
-            if directory.is_dir():
-                for p in sorted(directory.rglob("*.md")):
-                    rel = str(p.relative_to(repo_root))
-                    if is_agent_path(rel):
-                        corpus.append(rel)
-        changed = corpus
+    changed_override, baseline_path, error = _resolve_baseline_scope(args, repo_root)
+    if error is not None:
+        return error
+    if changed_override is not None:
+        changed = changed_override
 
     try:
         result = run_check(repo_root, changed, args.pr_body)
     except (OSError, UnicodeError, ValueError) as exc:
         print(f"Config error: {exc}", file=sys.stderr)
         return 2
+
+    if args.update_baseline:
+        if baseline_path is None:  # pragma: no cover - resolved above
+            return 2
+        return _update_baseline(
+            baseline_path, result, repo_root=repo_root, allow_shrink=args.allow_baseline_shrink
+        )
+
+    if baseline_path is not None:
+        try:
+            # load_baseline vets the JSON shape and the integer type; it is
+            # shared with the portability ratchets, whose values are unbounded
+            # counts. validate_baseline_scores adds the 0..3 bound this gate
+            # needs on top of it, in the same fail-closed path.
+            loaded = load_baseline(baseline_path)
+            validate_baseline_scores(loaded)
+        except (OSError, ValueError) as exc:
+            print(f"Could not read baseline {baseline_path}: {exc}", file=sys.stderr)
+            return 2
+        result.baseline = loaded
 
     print_report(result)
 
