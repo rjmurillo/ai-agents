@@ -30,7 +30,7 @@ Event shape (one JSON object per line, append-only)::
 ``ts`` is wall-clock UTC, used only for the 30-day rollover window, not
 for causal ordering.
 
-System of record: ``.agents/metrics/drift-events.jsonl`` is the SoR for
+System of record: ``.project-toolkit/metrics/drift-events.jsonl`` is the SoR for
 kill-criteria counts. The file is append-only; readers tally by ``kind``
 within the trailing 30 days. Real telemetry is git-ignored; only an empty
 seed (``.gitkeep``) is tracked so the directory exists on a fresh clone.
@@ -82,7 +82,7 @@ ORDERED_KINDS: Final[tuple[KillCriterion, ...]] = ("K1", "K2", "K3", "K4")
 SCHEMA_VERSION: Final[int] = 1
 
 # Path of the events file relative to the repository root.
-EVENTS_RELPATH: Final[str] = ".agents/metrics/drift-events.jsonl"
+EVENTS_RELPATH: Final[str] = ".project-toolkit/metrics/drift-events.jsonl"
 
 # Rollover window for the kill-criteria counts, in days. REQ-008-09 phrases
 # every limit as "within 30 days post-merge"; events older than this fall out
@@ -186,7 +186,7 @@ def emit_event(
         kind: One of ``K1``-``K4``.
         detail: Free-text describing the trigger (caller-controlled).
         events_path: Override for the events file. Defaults to
-            ``<repo-root>/.agents/metrics/drift-events.jsonl``. Tests
+            ``<repo-root>/.project-toolkit/metrics/drift-events.jsonl``. Tests
             pass a temp path here to mock the write boundary.
 
     Returns:
