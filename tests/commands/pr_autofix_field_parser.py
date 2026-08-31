@@ -43,7 +43,7 @@ PRODUCER_DIR = REPO_ROOT / ".claude" / "skills" / "github" / "scripts" / "pr"
 DATA_ENVELOPE_EMITTERS = frozenset({"write_skill_output", "write_skill_error"})
 
 _INVOKE = re.compile(r"\$SCRIPTS_DIR/([A-Za-z0-9_]+)\.py")
-_BIND = re.compile(r"^\s*(?:if\s+)?([A-Za-z_][A-Za-z0-9_]*)=\$\(")
+_BIND = re.compile(r"^\s*(?:if\s+!\s+|if\s+)?([A-Za-z_][A-Za-z0-9_]*)=\$\(")
 # A jq invocation and its single-quoted program. The program is matched whole so
 # every path inside it is seen, not just the first: `.Data.a // .Data.b` is two
 # reads, and checking only the leading one leaves the fallback unverified.
@@ -52,6 +52,12 @@ _JQ_PROGRAM = re.compile(r"jq\s[^|>']*'([^']*)'")
 # non-path character so `.b` in `.Data.a // .Data.b` starts a new match while
 # the `.a` inside `.Data.a` does not.
 _JQ_PATH = re.compile(r"(?:^|[^A-Za-z0-9_.])(\.[A-Za-z_][A-Za-z0-9_.]*)")
+# A literal key passed to `has` is a field read too. `_JQ_PATH` sees only the
+# containing object in `.Data | has("author_is_bot")`, so synthesize the full
+# path and let the existing schema checks validate the key.
+_JQ_HAS = re.compile(
+    r'(\.[A-Za-z_][A-Za-z0-9_.]*)\s*\|\s*has\(\s*"([^"]+)"\s*\)'
+)
 # Bracket-notation field access, which `_JQ_PATH` cannot see. Not parsed into a
 # path deliberately; see unsupported_path_syntax for why it is reported instead.
 # The leading alternation is the whole check. A first version anchored only on a
@@ -299,7 +305,7 @@ def extract_field_reads(text: str) -> list[FieldRead]:
         for source, program in _reads_by_invocation(line, bindings):
             reads.extend(
                 FieldRead(line=lineno, script=source, path=path)
-                for path in _JQ_PATH.findall(program)
+                for path in _program_paths(program)
             )
     return reads
 
@@ -352,7 +358,17 @@ def jq_paths(line: str) -> list[str]:
     can carry more than one jq invocation, so both are enumerated. Literal
     defaults (`// "UNKNOWN"`, `// empty`) carry no leading dot and drop out.
     """
-    return [path for program in _JQ_PROGRAM.findall(line) for path in _JQ_PATH.findall(program)]
+    return [path for program in _JQ_PROGRAM.findall(line) for path in _program_paths(program)]
+
+
+def _program_paths(program: str) -> list[str]:
+    """Dotted paths plus literal fields read through `has`."""
+    paths = list(_JQ_PATH.findall(program))
+    for container, key in _JQ_HAS.findall(program):
+        path = f"{container}.{key}"
+        if path not in paths:
+            paths.append(path)
+    return paths
 
 
 def jq_invocation_count(line: str) -> int:
@@ -385,7 +401,7 @@ def pathless_jq_programs(line: str) -> list[str]:
     A program the parser reads but cannot pull a path from is also unchecked,
     just one stage later than an unread one, so the guard needs both.
     """
-    return [program for program in jq_programs(line) if not _JQ_PATH.findall(program)]
+    return [program for program in jq_programs(line) if not _program_paths(program)]
 
 
 def unsupported_path_syntax(line: str) -> list[str]:
@@ -481,15 +497,10 @@ def contract_violations(text: str) -> list[str]:
     is right, so the envelope finding wins.
 
     A read of the envelope object itself, the exact path `.Data` on a wrapped
-    producer, is exempt from both checks. It is not a field read: `jq`'s only
-    way to ask whether a key is present is `has`, which needs the containing
-    object (`.Data | has("author_is_bot")`), and the command needs that
-    question to tell a stale helper that emits no `author_is_bot` key from a
-    current one that emits `null` (issue #5208). Judged as a field read it
-    fails both ways at once, reported as a missing `.Data` prefix and as a
-    `Data` field the producer never emits, neither of which is a defect. The
-    exemption is the exact path only, so `.Data.anything` still runs both
-    checks and a real mismatch inside the envelope is unaffected.
+    producer, is exempt from both checks. `has` needs that containing object,
+    while `_program_paths` separately turns its literal key into a normal field
+    read. The exemption is therefore limited to the container; a wrong
+    `has("nonesuch")` key still runs through the producer schema.
     """
     problems: list[str] = []
     for lineno, line in logical_lines(text):

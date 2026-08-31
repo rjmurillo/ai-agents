@@ -185,6 +185,16 @@ def test_reading_the_envelope_object_itself_is_not_a_violation() -> None:
     assert contract_violations(body) == []
 
 
+def test_detects_unknown_literal_has_key() -> None:
+    """A valid envelope container must not hide a misspelled key."""
+    body = _piped_read("get_pr_context", '.Data | has("nonesuch")')
+
+    violations = contract_violations(body)
+
+    assert len(violations) == 1
+    assert "emits no `nonesuch` field" in violations[0]
+
+
 def test_a_field_inside_the_envelope_is_still_checked_beside_a_has_read() -> None:
     """Discrimination probe for the exemption above.
 
