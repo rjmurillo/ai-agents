@@ -321,7 +321,7 @@ def _holds_checked_out_content(work_tree: Path) -> bool:
 
 
 def _has_main_work_tree_index(common_dir: Path) -> bool:
-    """Report whether git holds a staged index for the main work tree.
+    """Report whether git holds a non-empty staged index for the main work tree.
 
     Repository metadata, which a directory listing is not. Measured on git
     2.43.0::
@@ -337,9 +337,20 @@ def _has_main_work_tree_index(common_dir: Path) -> bool:
 
     An unreadable path answers ``False``, keeping ambiguity on the
     bare-by-design side the module docstring justifies.
+
+    Requires a non-trivial index size (> 12 bytes): a bare repository after
+    ``git read-tree`` has an index file, but with an empty entry table the
+    12-byte header is all it holds. A real checkout's index is always larger.
+    This prevents a false positive where ``_maybe_checkout_root`` would
+    otherwise suggest the destructive ``core.bare false`` repair for a bare
+    repository that merely had ``git read-tree`` run inside it.
     """
     try:
-        return (common_dir / "index").is_file()
+        index = common_dir / "index"
+        # The git index header is 12 bytes (4-byte magic + 4-byte version +
+        # 4-byte entry count). An empty index has exactly that + 20 bytes of
+        # SHA checksum = 32 bytes. Anything <= 32 bytes is effectively empty.
+        return index.is_file() and index.stat().st_size > 32
     except OSError:
         return False
 

@@ -38,8 +38,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _SCOPE_REPAIRS = {
-    "worktree": "git config --worktree core.bare false",
-    "local": "git config core.bare false",
+    "worktree": "git config --worktree --replace-all core.bare false",
+    "local": "git config --replace-all core.bare false",
     "global": "git config --global --unset-all core.bare",
     "system": "git config --system --unset-all core.bare",
     "command": (
@@ -49,7 +49,7 @@ _SCOPE_REPAIRS = {
 }
 _DEFAULT_REPAIR = _SCOPE_REPAIRS["local"]
 
-_IMMUNIZATION = "git config --worktree core.bare false"
+_IMMUNIZATION = "git config --worktree --replace-all core.bare false"
 
 _WORK_TREE_FATAL = "fatal: this operation must be run in a work tree"
 
