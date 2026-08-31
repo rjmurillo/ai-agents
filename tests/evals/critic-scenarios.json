@@ -83,6 +83,18 @@
       ],
       "expected_reason_contains": "mirror",
       "rationale": "Critic should flag generated-file and install-copy drift."
+    },
+    {
+      "id": "CLEAN-1",
+      "desc": "Approves a diff that survives exhaustive review with zero blocking findings",
+      "input": "Diff summary: added a null check at auth.ts:47 that redirects an expired session to /login. A regression test covers the expired-session path and the valid-session path. grep confirms auth.ts:47 is the only caller of the session guard. Rollback is a one-line revert. Review the diff.",
+      "expected_verdict": "APPROVE",
+      "verdict_options": [
+        "CHALLENGE",
+        "APPROVE"
+      ],
+      "expected_reason_contains": "examined",
+      "rationale": "After an exhaustive pass with positive, negative, and sole-caller coverage, no blocker remains. There is no minimum finding count: the critic must approve and state what was examined. Optional nits do not force a CHALLENGE. This clean case guards against a manufactured-finding quota without weakening the planted-defect scenarios above."
     }
   ]
 }
