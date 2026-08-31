@@ -86,15 +86,16 @@ def test_a_shallow_clone_is_told_to_unshallow(tmp_path, capsys) -> None:
     """
     origin, _, _ = _main_lowered_to_99(tmp_path)
     _git(origin, "checkout", "-q", "-b", "detached-work", "main~1")
+    origin_uri = origin.as_uri()
 
     clone = tmp_path / "shallow"
     subprocess.run(
         ["git", "clone", "-q", "--depth=1", "--branch", "detached-work",
-         f"file://{origin}", str(clone)],
+         origin_uri, str(clone)],
         check=True,
     )
     assert (clone / ".git" / "shallow").exists(), "clone was not shallow"
-    _git(clone, "fetch", "-q", "--depth=1", f"file://{origin}", "main:refs/heads/base")
+    _git(clone, "fetch", "-q", "--depth=1", origin_uri, "main:refs/heads/base")
 
     rc = _run_against(clone, clone / "baseline.txt", "base", count=99)
 

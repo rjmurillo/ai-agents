@@ -402,9 +402,10 @@ def build_parser(description: str, default_baseline: Path) -> argparse.ArgumentP
     parser.add_argument(
         "--base-ref",
         help=(
-            "Git ref to compare the baseline against. Fails when the working "
-            "baseline is higher than the one at this ref, which is what keeps "
-            "the ratchet one-directional."
+            "Git ref used to order baseline changes. A higher working baseline "
+            "fails when the fork-point comparison proves this branch raised "
+            "it. An unchanged stale value may pass for a ratchet with a "
+            "merge-tree backstop."
         ),
     )
     return parser
