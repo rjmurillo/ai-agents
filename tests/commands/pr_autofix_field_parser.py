@@ -56,8 +56,9 @@ _JQ_PATH = re.compile(r"(?:^|[^A-Za-z0-9_.])(\.[A-Za-z_][A-Za-z0-9_.]*)")
 # containing object in `.Data | has("author_is_bot")`, so synthesize the full
 # path and let the existing schema checks validate the key.
 _JQ_HAS = re.compile(
-    r'(\.[A-Za-z_][A-Za-z0-9_.]*)\s*\|\s*has\(\s*"([^"]+)"\s*\)'
+    r'\(?\s*(\.[A-Za-z_][A-Za-z0-9_.]*)\s*\)?\s*\|\s*has\(\s*"([^"]+)"\s*\)'
 )
+_JQ_HAS_TOKEN = re.compile(r"\bhas\s*\(")
 # Bracket-notation field access, which `_JQ_PATH` cannot see. Not parsed into a
 # path deliberately; see unsupported_path_syntax for why it is reported instead.
 # The leading alternation is the whole check. A first version anchored only on a
@@ -255,11 +256,13 @@ class FieldRead:
         script: Producer whose stdout the read consumes, or None when the read
             could not be bound to one.
         path: The jq path as written, for example `.Data.action`.
+        literal_key: Exact string key passed to `has`, when present.
     """
 
     line: int
     script: str | None
     path: str
+    literal_key: str | None = None
 
 
 def logical_lines(text: str) -> list[tuple[int, str]]:
@@ -306,6 +309,10 @@ def extract_field_reads(text: str) -> list[FieldRead]:
             reads.extend(
                 FieldRead(line=lineno, script=source, path=path)
                 for path in _program_paths(program)
+            )
+            reads.extend(
+                FieldRead(line=lineno, script=source, path=container, literal_key=key)
+                for container, key in _JQ_HAS.findall(program)
             )
     return reads
 
@@ -362,13 +369,8 @@ def jq_paths(line: str) -> list[str]:
 
 
 def _program_paths(program: str) -> list[str]:
-    """Dotted paths plus literal fields read through `has`."""
-    paths = list(_JQ_PATH.findall(program))
-    for container, key in _JQ_HAS.findall(program):
-        path = f"{container}.{key}"
-        if path not in paths:
-            paths.append(path)
-    return paths
+    """Dotted paths in one jq program."""
+    return list(_JQ_PATH.findall(program))
 
 
 def jq_invocation_count(line: str) -> int:
@@ -423,6 +425,15 @@ def unsupported_path_syntax(line: str) -> list[str]:
     return [program for program in jq_programs(line) if _JQ_BRACKET_PATH.search(program)]
 
 
+def unsupported_has_syntax(line: str) -> list[str]:
+    """Programs whose `has` call is not a literal key on a dotted container."""
+    return [
+        program
+        for program in jq_programs(line)
+        if len(_JQ_HAS_TOKEN.findall(program)) != len(_JQ_HAS.findall(program))
+    ]
+
+
 def jq_invocation_lines(text: str) -> list[tuple[int, str]]:
     """Logical lines that invoke jq, ignoring comments.
 
@@ -451,7 +462,9 @@ def jq_invocation_lines(text: str) -> list[tuple[int, str]]:
 
 def _envelope_violation(read: FieldRead, schema: ProducerSchema) -> str | None:
     """Report a read whose `Data.` prefix disagrees with the producer."""
-    has_prefix = read.path.startswith(".Data.")
+    has_prefix = read.path == ".Data" if read.literal_key is not None else read.path.startswith(
+        ".Data."
+    )
     if schema.wraps_in_data and not has_prefix:
         return (
             f"line {read.line}: reads `{read.path}` from {schema.script}.py, which "
@@ -477,8 +490,11 @@ def _field_violation(read: FieldRead, schema: ProducerSchema) -> str | None:
     """
     if schema.top_level_keys is None:
         return None
-    path = read.path[len(".Data") :] if read.path.startswith(".Data.") else read.path
-    field = path.lstrip(".").split(".")[0]
+    if read.literal_key is not None:
+        field = read.literal_key
+    else:
+        path = read.path[len(".Data") :] if read.path.startswith(".Data.") else read.path
+        field = path.lstrip(".").split(".")[0]
     if field in schema.top_level_keys:
         return None
     return (
@@ -513,11 +529,17 @@ def contract_violations(text: str) -> list[str]:
                 "that way is never checked against its producer. Teach `_JQ_PATH` "
                 "bracket notation before using it here."
             )
+        for program in unsupported_has_syntax(line):
+            problems.append(
+                f"line {lineno}: jq program `{program}` uses a `has` form the "
+                "extractor cannot validate. Use a literal string key on a dotted "
+                "container, or teach `_JQ_HAS` that syntax first."
+            )
     for read in extract_field_reads(text):
         if read.script is None:
             continue
         schema = derive_producer_schema(read.script)
-        if schema.wraps_in_data and read.path == ".Data":
+        if schema.wraps_in_data and read.path == ".Data" and read.literal_key is None:
             continue
         finding = _envelope_violation(read, schema) or _field_violation(read, schema)
         if finding:

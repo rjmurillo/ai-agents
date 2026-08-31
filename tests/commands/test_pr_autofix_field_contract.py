@@ -82,9 +82,10 @@ def test_copilot_mirror_has_no_contract_violations() -> None:
 
 def test_mirror_reads_match_source_reads(command_body: str) -> None:
     """The mirror is generated, so its reads must equal the source's reads."""
-    source = [(r.script, r.path) for r in extract_field_reads(command_body)]
+    source = [(r.script, r.path, r.literal_key) for r in extract_field_reads(command_body)]
     mirror = [
-        (r.script, r.path) for r in extract_field_reads(MIRROR_PATH.read_text(encoding="utf-8"))
+        (r.script, r.path, r.literal_key)
+        for r in extract_field_reads(MIRROR_PATH.read_text(encoding="utf-8"))
     ]
 
     assert source == mirror, (

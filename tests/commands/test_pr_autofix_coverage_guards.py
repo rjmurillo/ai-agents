@@ -37,6 +37,7 @@ from tests.commands.pr_autofix_field_parser import (
     jq_programs,
     pathless_jq_programs,
     unparsed_jq_invocations,
+    unsupported_has_syntax,
 )
 
 # Coverage: the extractor must not go blind and silently pass.
@@ -66,6 +67,33 @@ def test_every_read_binds_to_a_producer(doc: Path) -> None:
         f"{doc.name}: reads that bind to no producer are unchecked:\n"
         + "\n".join(f"line {r.line}: `{r.path}`" for r in unbound)
     )
+
+
+@pytest.mark.parametrize(
+    ("program", "expected"),
+    [
+        ('.Data | has("author_is_bot.nonesuch")', "author_is_bot.nonesuch"),
+        ('(.Data) | has("nonesuch")', "nonesuch"),
+    ],
+)
+def test_literal_has_keys_are_validated_exactly(program: str, expected: str) -> None:
+    """Dots and parentheses must not weaken literal-key checks."""
+    body = (
+        'VALUE=$(python3 "$SCRIPTS_DIR/get_pr_context.py" '
+        f"--pull-request \"$PR\" | jq -r '{program}')\n"
+    )
+
+    violations = contract_violations(body)
+
+    assert len(violations) == 1
+    assert f"emits no `{expected}` field" in violations[0]
+
+
+def test_dynamic_has_key_fails_closed() -> None:
+    """A key the parser cannot name must not pass unchecked."""
+    line = 'VALUE=$(echo "$CTX" | jq -r \'.Data | has($field)\')'
+
+    assert unsupported_has_syntax(line) == [".Data | has($field)"]
 
 
 @pytest.mark.parametrize("doc", [COMMAND_PATH, MIRROR_PATH])
