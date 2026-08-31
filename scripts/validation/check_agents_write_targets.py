@@ -43,21 +43,19 @@ class Finding:
 
 
 def scan_text(path: str, text: str) -> list[Finding]:
-    """Find explicit write verbs and legacy targets in one logical paragraph."""
+    """Find explicit write verbs and legacy targets on one prescriptive line."""
     findings: list[Finding] = []
-    lines = text.splitlines()
-    start = 0
-    for index in range(len(lines) + 1):
-        if index < len(lines) and lines[index].strip():
-            continue
-        block = "\n".join(lines[start:index])
-        if block and not _HISTORICAL.search(block) and _WRITE.search(block):
-            for match in _TARGET.finditer(block):
-                line = start + block[: match.start()].count("\n") + 1
+    for line_number, line in enumerate(text.splitlines(), 1):
+        if not _HISTORICAL.search(line) and _WRITE.search(line):
+            for match in _TARGET.finditer(line):
                 findings.append(
-                    Finding(path, line, match.group(), "live write contract targets .agents")
+                    Finding(
+                        path,
+                        line_number,
+                        match.group(),
+                        "live write contract targets .agents",
+                    )
                 )
-        start = index + 1
     return findings
 
 
@@ -72,6 +70,8 @@ def _constant_path(node: ast.AST) -> str | None:
         right = _constant_path(node.right)
         if left is not None and right is not None:
             return f"{left.rstrip('/')}/{right.lstrip('/')}"
+        if right is not None and _is_legacy(right):
+            return right
         return None
     return None
 
@@ -86,6 +86,15 @@ def _is_legacy(path: str | None) -> bool:
 def _open_mode(node: ast.Call) -> str:
     if len(node.args) > 1 and isinstance(node.args[1], ast.Constant):
         return str(node.args[1].value)
+    for keyword in node.keywords:
+        if keyword.arg == "mode" and isinstance(keyword.value, ast.Constant):
+            return str(keyword.value.value)
+    return "r"
+
+
+def _path_open_mode(node: ast.Call) -> str:
+    if node.args and isinstance(node.args[0], ast.Constant):
+        return str(node.args[0].value)
     for keyword in node.keywords:
         if keyword.arg == "mode" and isinstance(keyword.value, ast.Constant):
             return str(keyword.value.value)
@@ -107,6 +116,10 @@ class _PythonWrites(ast.NodeVisitor):
         if isinstance(func, ast.Attribute) and func.attr in _WRITE_METHODS:
             target = _constant_path(func.value)
             if _is_legacy(target):
+                self._add(node, target or ".agents")
+        elif isinstance(func, ast.Attribute) and func.attr == "open":
+            target = _constant_path(func.value)
+            if _is_legacy(target) and any(flag in _path_open_mode(node) for flag in "wax+"):
                 self._add(node, target or ".agents")
         elif isinstance(func, ast.Name) and func.id == "open" and node.args:
             target = _constant_path(node.args[0])
