@@ -14,30 +14,10 @@ from memory_enhancement.hooks.user_prompt_submit_memory import (
     _find_repo_root,
     _format_memory_context,
     _read_user_input,
-    _render_for_host,
     _search_and_format,
     main,
 )
 from memory_enhancement.search import SearchResult
-
-
-@pytest.fixture(autouse=True)
-def _neutral_harness_identity(monkeypatch):
-    """Clear both harness-identity signals before every test in this module.
-
-    pytest runs under Claude Code or Copilot CLI, and either variable can reach
-    the test process from the live harness or an ancestor shell. Claude Code
-    exports `CLAUDE_CODE_ENTRYPOINT`; `COPILOT_CLI` is an assumed Copilot
-    signal, not a vendor-confirmed one (see `_render_for_host`), so clearing it
-    guards against a stray inherited value rather than a known export.
-    `_render_for_host` branches on exactly those two variables, so an inherited
-    value decides the output shape for any case that does not pin it, and the
-    case then passes on one contributor's machine and fails on the other's.
-    Clearing here forces each case to name its own host. This is
-    `.claude/rules/testing.md` SHOULD-12 applied in-process.
-    """
-    monkeypatch.delenv("COPILOT_CLI", raising=False)
-    monkeypatch.delenv("CLAUDE_CODE_ENTRYPOINT", raising=False)
 
 
 class TestExtractQuery:
@@ -129,118 +109,8 @@ class TestFindRepoRoot:
             assert result is None
 
 
-class TestRenderForHost:
-    """The stdout envelope each harness consumes (issue #4727).
-
-    Copilot CLI 1.0.79-6 discards plain UserPromptSubmit stdout and reads a
-    top-level ``{"additionalContext": "..."}`` document. Claude Code reads the
-    plain text and never a top-level ``additionalContext`` key.
-
-    Two variables discriminate, and the order matters.
-    ``CLAUDE_CODE_ENTRYPOINT`` is the confirmed one: set by Claude Code, and 0
-    hits in the shipped Copilot CLI 1.0.80 artifacts. ``COPILOT_CLI`` is not
-    confirmed. No shipped Copilot CLI artifact, changelog entry, or official
-    doc names it as an environment variable, so the cases below simulate it
-    deliberately, pending a live-CLI probe (see ``_render_for_host`` and
-    probe-evidence.md section 8b). Even if it turns out to be real, its
-    presence alone would not identify the consuming host, because Copilot would
-    export it into every shell it spawns and a Claude session launched
-    underneath one would inherit it. Either way the Claude signal takes
-    precedence, which is the branch these cases pin.
-
-    Every case sets both variables explicitly rather than deleting one and
-    inheriting the other, because pytest itself runs under one of these two
-    harnesses and would otherwise supply the answer.
-    """
-
-    BLOCK = "<memory-context>\nhit\n</memory-context>"
-
-    @staticmethod
-    def _host(monkeypatch, *, copilot: str | None, claude: str | None) -> None:
-        """Pin both harness signals so nothing leaks in from the test runner."""
-        for name, value in (("COPILOT_CLI", copilot), ("CLAUDE_CODE_ENTRYPOINT", claude)):
-            if value is None:
-                monkeypatch.delenv(name, raising=False)
-            else:
-                monkeypatch.setenv(name, value)
-
-    @pytest.mark.unit
-    def test_copilot_gets_a_top_level_additional_context_envelope(self, monkeypatch):
-        self._host(monkeypatch, copilot="1", claude=None)
-
-        payload = json.loads(_render_for_host(self.BLOCK))
-
-        assert payload == {"additionalContext": self.BLOCK}
-
-    @pytest.mark.unit
-    def test_claude_gets_the_block_unwrapped(self, monkeypatch):
-        self._host(monkeypatch, copilot=None, claude=None)
-
-        assert _render_for_host(self.BLOCK) == self.BLOCK
-
-    @pytest.mark.unit
-    def test_an_inherited_copilot_cli_does_not_override_a_live_claude_session(
-        self, monkeypatch
-    ):
-        """Both signals set is read as Claude consuming with Copilot upstream.
-
-        The class docstring records that ``COPILOT_CLI`` is simulated rather
-        than vendor-confirmed; this case pins the precedence that must hold
-        whether or not it is ever real.
-
-        Claude reads a nested ``hookSpecificOutput`` envelope, so a top-level
-        ``additionalContext`` document parses as structured output with no
-        recognized field and the memory block is dropped with no error. Sending
-        the bare block instead fails safe in the other direction: Copilot merely
-        discards it, which is what it did before this hook existed.
-        """
-        self._host(monkeypatch, copilot="1", claude="cli")
-
-        assert _render_for_host(self.BLOCK) == self.BLOCK
-
-    @pytest.mark.unit
-    def test_copilot_alone_still_gets_the_envelope(self, monkeypatch):
-        """The control for the case above: without the Claude signal, the same
-        COPILOT_CLI value must still produce the envelope."""
-        self._host(monkeypatch, copilot="1", claude=None)
-
-        assert json.loads(_render_for_host(self.BLOCK)) == {
-            "additionalContext": self.BLOCK
-        }
-
-    @pytest.mark.unit
-    @pytest.mark.parametrize("value", ["", "   ", "\t"])
-    def test_a_blank_claude_entrypoint_does_not_suppress_the_envelope(
-        self, monkeypatch, value
-    ):
-        """An exported but empty Claude signal is indistinguishable from unset,
-        so it must not strip a real Copilot session's envelope."""
-        self._host(monkeypatch, copilot="1", claude=value)
-
-        assert json.loads(_render_for_host(self.BLOCK)) == {
-            "additionalContext": self.BLOCK
-        }
-
-    @pytest.mark.unit
-    @pytest.mark.parametrize("value", ["", "   ", "\t"])
-    def test_a_blank_copilot_cli_value_is_treated_as_absent(self, monkeypatch, value):
-        self._host(monkeypatch, copilot=value, claude=None)
-
-        assert _render_for_host(self.BLOCK) == self.BLOCK
-
-    @pytest.mark.unit
-    def test_the_envelope_is_one_json_document(self, monkeypatch):
-        """Copilot parses at most one final JSON document per command hook, so
-        a multi-line block must not become several."""
-        self._host(monkeypatch, copilot="true", claude=None)
-
-        rendered = _render_for_host(self.BLOCK)
-
-        assert "\n" not in rendered
-
-
 class TestFormatMemoryContext:
-    """Tests for the stdout output format."""
+    """Tests for the stderr output format."""
 
     @pytest.mark.unit
     def test_format_single_result(self):
@@ -327,7 +197,6 @@ class TestExitContract:
     @pytest.mark.unit
     def test_match_writes_stdout_and_returns_zero(self, tmp_path, monkeypatch, capsys):
         repo = self._repo(tmp_path)
-        monkeypatch.delenv("COPILOT_CLI", raising=False)
         monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"prompt": "dispatch groups"})))
         monkeypatch.setattr(
             "memory_enhancement.hooks.user_prompt_submit_memory._find_repo_root",
@@ -346,54 +215,8 @@ class TestExitContract:
         assert captured.err == ""
 
     @pytest.mark.unit
-    def test_copilot_match_writes_one_envelope_and_returns_zero(
-        self, tmp_path, monkeypatch, capsys
-    ):
-        repo = self._repo(tmp_path)
-        monkeypatch.setenv("COPILOT_CLI", "1")
-        monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"prompt": "dispatch groups"})))
-        monkeypatch.setattr(
-            "memory_enhancement.hooks.user_prompt_submit_memory._find_repo_root",
-            lambda start=None: repo,
-        )
-        monkeypatch.setattr(
-            "memory_enhancement.hooks.user_prompt_submit_memory._search_and_format",
-            lambda *_args: "<memory-context>hit</memory-context>",
-        )
-
-        exit_code = main()
-
-        captured = capsys.readouterr()
-        assert exit_code == 0
-        payload = json.loads(captured.out)
-        assert payload["additionalContext"] == "<memory-context>hit</memory-context>"
-        assert captured.err == ""
-
-    @pytest.mark.unit
-    def test_no_match_writes_nothing_under_copilot(self, tmp_path, monkeypatch, capsys):
-        """An empty recall must stay silent rather than send an empty
-        envelope, which would inject a blank context block every prompt."""
-        repo = self._repo(tmp_path)
-        monkeypatch.setenv("COPILOT_CLI", "1")
-        monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"prompt": "dispatch groups"})))
-        monkeypatch.setattr(
-            "memory_enhancement.hooks.user_prompt_submit_memory._find_repo_root",
-            lambda start=None: repo,
-        )
-        monkeypatch.setattr(
-            "memory_enhancement.hooks.user_prompt_submit_memory._search_and_format",
-            lambda *_args: "",
-        )
-
-        exit_code = main()
-
-        assert exit_code == 0
-        assert capsys.readouterr().out == ""
-
-    @pytest.mark.unit
     def test_no_match_returns_zero_and_writes_nothing(self, tmp_path, monkeypatch, capsys):
         repo = self._repo(tmp_path)
-        monkeypatch.delenv("COPILOT_CLI", raising=False)
         monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"prompt": "dispatch groups"})))
         monkeypatch.setattr(
             "memory_enhancement.hooks.user_prompt_submit_memory._find_repo_root",
