@@ -347,15 +347,25 @@ jobs:
         run: |
           # No --depth=1. The checkout above already used fetch-depth: 0, so a
           # depth-limited fetch saves nothing and writes .git/shallow, grafting
-          # the fetched tip parentless. This ratchet does need a merge base:
-          # count_ratchet.changed_files diffs `base_ref...HEAD` (three-dot) to
-          # sort branch-touched files first. That leg fails open, so a graft
-          # degrades the diagnostic instead of failing the step, which is the
-          # buried-violation problem the ordering exists to prevent, not a red
-          # check. The graft is written by whichever fetch runs first and a
-          # plain undepthed fetch does not clear it, only --unshallow does.
-          # In pr-validation.yml the same graft hits merge_tree_ratchet_check,
-          # which fails closed, and that is what cost a red required check.
+          # the fetched tip parentless. The graft is written by whichever fetch
+          # runs first and a plain undepthed fetch does not clear it; only
+          # --unshallow does.
+          #
+          # count_ratchet.py reads a merge base on two legs, and they fail in
+          # opposite directions. changed_files diffs `base_ref...HEAD`
+          # (three-dot) to sort branch-touched files first: that leg fails
+          # OPEN, so a graft degrades the diagnostic instead of failing the
+          # step, which is the buried-violation problem the ordering exists to
+          # prevent, not a red check. _base_ref_verdict reads `git merge-base`
+          # to decide whether THIS tree moved the baseline (issue #5065): that
+          # leg fails CLOSED. Under a graft it cannot name a fork point, the
+          # behind-base relief goes inert, and a legitimately-behind branch
+          # blocks again with a message that says the fork point is
+          # unreadable. So the no-shallow-fetch requirement here is
+          # load-bearing for the verdict, not only for the diagnostic, the
+          # same way it is at the merge-tree step in pr-validation.yml, where
+          # a graft hitting merge_tree_ratchet_check cost a red required
+          # check.
           git fetch origin "$BASE_REF"
           uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
 
@@ -373,6 +383,12 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
+          # No --depth=1: see the ruff count ratchet leg above. This ratchet
+          # is the one that needs it most. Its baseline is absent from
+          # scripts/ci/merge_tree_ratchet_registry.py, so it declares
+          # MERGE_TREE_BACKED = False and this --base-ref comparison is its
+          # only stale-branch guard; a graft turns that guard into a hard
+          # block rather than degrading it.
           git fetch origin "$BASE_REF"
           uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD
 
@@ -381,6 +397,7 @@ jobs:
         env:
           BASE_REF: ${{ github.event.repository.default_branch }}
         run: |
+          # No --depth=1: see the pull_request leg above.
           git fetch origin "$BASE_REF"
           uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD
 
@@ -632,7 +649,7 @@ jobs:
           always() &&
           (github.event_name != 'pull_request' ||
           github.event.pull_request.head.repo.full_name == github.repository)
-        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28  # v4
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938  # v4
         with:
           sarif_file: bandit.sarif
           category: bandit

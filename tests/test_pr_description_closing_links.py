@@ -127,6 +127,38 @@ class TestInlineCodeSpan:
         assert len(issues) == 1
         assert issues[0].severity == "CRITICAL"
 
+    def test_multiline_triple_backtick_inline_span_is_caught(self):
+        """CommonMark 0.31.2 6.1 allows a code span to cross lines for any
+        delimiter length, not just short runs; confining the 3+ backtick
+        branch to a single line missed this and read the keyword as a
+        genuine bare claim (Copilot, PR #5371 round 4)."""
+        body = "See ```example\nFixes #4965\nend``` for details."
+        issues = validate_closing_links(body, "main", "main")
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+        assert "inline code span" in issues[0].issue_type
+
+    def test_backtick_fence_opener_with_backtick_in_info_string_is_not_a_fence(self):
+        """CommonMark 0.31.2 4.5: a backtick fence's info string must not
+        itself contain a backtick; an opener that does isn't a fence at
+        all, so text after it is ordinary prose, not fenced content
+        (Copilot, PR #5371 round 4)."""
+        body = "```lang`x`\nFixes #4965\n"
+        assert validate_closing_links(body, "main", "main") == []
+
+    def test_span_crossing_a_real_fence_does_not_hide_a_claim_after_it(self):
+        """A 4-backtick run in the paragraph before a real 3-backtick fence
+        can pair with a later 4-backtick run after the fence closes,
+        producing a candidate inline-span match that STARTS before the
+        fence and ENDS after it. CommonMark ends the paragraph where the
+        fence starts, so nothing can be inline-parsed across that boundary;
+        rejecting a span only when its START falls inside the fence (round
+        4) missed this shape and let the span engulf both the real fence
+        and a real claim right after it. Rejecting on any overlap, not just
+        start-containment, is required (Copilot, PR #5371 round 5)."""
+        body = "See ````\n```\nhidden\n```\nFixes #4965 end````\n"
+        assert validate_closing_links(body, "main", "main") == []
+
 
 class TestFencedCodeBlock:
     """Closing keyword inside a fenced block should be CRITICAL."""
@@ -153,6 +185,60 @@ class TestFencedCodeBlock:
         issues = validate_closing_links(body, "main", "main")
         assert len(issues) == 1
         assert issues[0].severity == "CRITICAL"
+
+    def test_tilde_fence_info_string_may_contain_a_backtick(self):
+        """CommonMark 0.31.2 4.5 restricts backticks in the info string to
+        backtick fences only; a tilde fence's info string is unrestricted,
+        so this must still open a real fence (Copilot, PR #5371 round 4)."""
+        body = "~~~lang`x`\nFixes #42\n~~~\n"
+        issues = validate_closing_links(body, "main", "main")
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+        assert issues[0].issue_type == "Closing keyword in fenced code block"
+
+    def test_unclosed_backtick_fence_still_reports_the_keyword_as_fenced(self):
+        """CommonMark 0.31.2 4.5: an unclosed fence still runs to EOF (Copilot, PR #5371)."""
+        body = "```\nFixes #42"
+        issues = validate_closing_links(body, "main", "main")
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+        assert issues[0].issue_type == "Closing keyword in fenced code block"
+
+    def test_unclosed_tilde_fence_still_reports_the_keyword_as_fenced(self):
+        body = "~~~\nCloses #10"
+        issues = validate_closing_links(body, "main", "main")
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+
+    def test_fence_indented_up_to_three_spaces_is_still_a_fence(self):
+        """CommonMark 0.31.2 4.5 permits up to 3 spaces of indent on both
+        fences; the keyword inside must still be reported as fenced, not
+        read as ordinary un-indented text outside any span."""
+        body = "  ```\n  Fixes #42\n  ```\n"
+        issues = validate_closing_links(body, "main", "main")
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+        assert issues[0].issue_type == "Closing keyword in fenced code block"
+
+    def test_a_line_that_only_starts_with_the_fence_chars_does_not_close_it(self):
+        """A closing fence line must hold nothing but the fence run and
+        trailing whitespace. A line that merely starts with the same run
+        (e.g. a fence marker immediately followed by other text) is still
+        code to GitHub and must not end the block early (Copilot, PR #5371
+        round 2)."""
+        body = "```\n```not-a-closer\nFixes #42\n```\n"
+        issues = validate_closing_links(body, "main", "main")
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+
+    def test_closer_longer_than_opener_still_closes_the_fence(self):
+        """CommonMark 0.31.2 4.5: the closer must be the same character and
+        AT LEAST as long as the opener, not exactly as long. A 3-backtick
+        opener closes on a 4-backtick line, so a keyword after it is real,
+        unfenced text and must be reported as a genuine closing keyword, not
+        excused as still-fenced (Copilot, PR #5371 round 3)."""
+        body = "```\nignore this\n````\nFixes #42\n"
+        assert validate_closing_links(body, "main", "main") == []
 
 
 class TestStackedPR:

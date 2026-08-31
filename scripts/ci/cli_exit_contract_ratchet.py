@@ -65,6 +65,7 @@ __all__ = [
     "EXIT_EXTERNAL",
     "EXIT_OK",
     "EXIT_REGRESSION",
+    "MERGE_TREE_BACKED",
     "covered_stems",
     "current_count",
     "defines_main",
@@ -73,6 +74,15 @@ __all__ = [
 ]
 
 _BASELINE_PATH = Path(__file__).with_name("cli_exit_contract_baseline.txt")
+
+MERGE_TREE_BACKED = True
+"""This baseline is registered in ``merge_tree_ratchet_registry.py::RATCHETS``.
+
+Registration is what lets ``count_ratchet.run`` pass a branch that merely holds
+a number ``main`` lowered underneath it: the merged result is measured by
+``scripts/ci/merge_tree_ratchet_check.py`` instead. Pinned against the registry
+by ``tests/ci/test_merge_tree_backing_declarations.py``.
+"""
 
 # Both directories hold ADR-006 extraction output and both are invoked straight
 # from workflow ``run:`` blocks, so both carry the same exit contract.
@@ -147,6 +157,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "helper-level assertion cannot catch an exit-code defect "
             "(issue #4068)."
         ),
+        merge_tree_backed=MERGE_TREE_BACKED,
     )
 
 
