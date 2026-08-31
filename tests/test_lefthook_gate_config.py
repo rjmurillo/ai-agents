@@ -5,7 +5,6 @@ from pathlib import Path
 
 import yaml
 
-from scripts.ci.merge_tree_ratchet_registry import RATCHETS, trigger_globs
 from scripts.validation.checks_ratchet import RATCHETS as PRE_PUSH_RATCHETS
 
 LEFTHOOK_PATH = Path(__file__).parent.parent / "lefthook.yml"
@@ -68,22 +67,13 @@ class TestMemoryTierGateEnforcement:
         assert entry.script == "scripts/ci/memory_index_count_ratchet.py"
         assert entry.uses_base_ref is True
 
-    def test_merge_tree_ratchet_watches_memory_index_baseline(self) -> None:
-        assert "scripts/ci/memory_index_count_baseline.txt" in trigger_globs()
-
-    def test_merge_tree_ratchet_globs_equal_registry_union(self) -> None:
-        ratchets = {ratchet.job_name: ratchet for ratchet in PRE_PUSH_RATCHETS}
-        assert ratchets["merge-tree-ratchet"].script == (
-            "scripts/ci/merge_tree_ratchet_check.py"
-        )
+    def test_count_ratchets_job_has_no_glob_filter(self) -> None:
+        job = self._find_job("count-ratchets")
+        assert "glob" not in job
 
     def test_cli_exit_contract_ratchet_watches_baseline_only_changes(self) -> None:
         ratchets = {ratchet.job_name: ratchet for ratchet in PRE_PUSH_RATCHETS}
         assert ratchets["cli-exit-contract-ratchet"].uses_base_ref is True
-
-    def test_every_registered_baseline_triggers_the_merge_tree(self) -> None:
-        merge_globs = trigger_globs()
-        assert {ratchet.baseline_path for ratchet in RATCHETS} <= merge_globs
 
     def test_memory_index_job_has_ci_flag(self) -> None:
         job = self._find_job("memory-index")

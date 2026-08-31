@@ -32,6 +32,7 @@ _LEFTHOOK = _REPO_ROOT / "lefthook.yml"
 # fast parallel group.
 # The singleton guards that run ahead of both fast-stage groups, in order.
 SINGLETON_GUARDS = (
+    "repo-health",
     "repair-packed-refs",
     "mutation-safety",
     "push-ref-staleness",
