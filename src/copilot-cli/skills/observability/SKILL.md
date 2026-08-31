@@ -91,7 +91,6 @@ Agent event logs are stored at:
 | Script | Platform | Usage |
 |--------|----------|-------|
 | `scripts/query_logs.py` | Python 3.8+ | Cross-platform |
-| `scripts/check_event_logging.py` | Python 3.8+ | Checks a described scenario against the producer-side event-logging contract (references/event-logging-contract.md). Exit 0 compliant, 1 non-compliant, 2 malformed input. |
 
 | Exit Code | Meaning |
 |-----------|---------|
