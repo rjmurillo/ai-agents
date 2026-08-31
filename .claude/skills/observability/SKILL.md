@@ -91,6 +91,7 @@ Agent event logs are stored at:
 | Script | Platform | Usage |
 |--------|----------|-------|
 | `scripts/query_logs.py` | Python 3.8+ | Cross-platform |
+| `scripts/check_event_logging.py` | Python 3.8+ | Checks a described scenario against the producer-side event-logging contract (references/event-logging-contract.md). Exit 0 compliant, 1 non-compliant, 2 malformed input. |
 
 | Exit Code | Meaning |
 |-----------|---------|
@@ -143,6 +144,7 @@ Domain knowledge for observability analysis:
 
 | File | Content |
 |------|---------|
+| [event-logging-contract.md](references/event-logging-contract.md) | Producer-side contract: the MINIMUM operational events production code must emit, what it must NOT emit, and which pillar (log/metric/trace) is the right evidence. Reference this contract; do not copy it. |
 | [three-pillars-reference.md](references/three-pillars-reference.md) | Logs, metrics, traces definitions, correlation matrix, OpenTelemetry |
 | [prometheus-recording-rules.md](references/prometheus-recording-rules.md) | Recording rule patterns, CPU throttling, disk I/O, PSI, TCP metrics |
 | [otel-migration-reference.md](references/otel-migration-reference.md) | IFx to OTel migration phases, instrumentation best practices, standard metrics |
