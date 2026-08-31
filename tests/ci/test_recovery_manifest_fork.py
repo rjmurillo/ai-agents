@@ -100,7 +100,8 @@ class TestForkRecoveryBlocking:
 
         assert manifest.is_safe is True
 
-    def test_empty_head_repo_does_not_block_dispatch(self):
+    def test_empty_head_repo_blocks_dispatch_fail_closed(self):
+        """Unknown repository identity must fail closed for workflow_dispatch."""
         run = make_run(
             1,
             workflow=REQUIRED_WORKFLOW,
@@ -111,7 +112,8 @@ class TestForkRecoveryBlocking:
             [run], self._dispatch_subscriptions(), "workflow_dispatch"
         )
 
-        assert manifest.is_safe is True
+        assert manifest.is_safe is False
+        assert "unknown" in manifest.entries[0].blocked_reason.lower()
 
     def test_case_insensitive_repo_comparison(self):
         run = make_run(
@@ -125,3 +127,53 @@ class TestForkRecoveryBlocking:
         )
 
         assert manifest.is_safe is True
+
+
+class TestForkIdentityRoundTrip:
+    """head_repo survives serialization and manifest replay."""
+
+    def test_head_repo_appears_in_serialized_manifest(self):
+        from scripts.github_core.recovery_manifest import manifest_to_dict
+
+        run = make_run(
+            1,
+            workflow=REQUIRED_WORKFLOW,
+            context=REQUIRED_CONTEXT,
+            head_repo="contributor/ai-agents",
+        )
+        manifest = plan([run], healthy_subscriptions(), "rerun")
+        serialized = manifest_to_dict(manifest)
+
+        assert serialized["entries"][0]["head_repo"] == "contributor/ai-agents"
+
+    def test_head_repo_survives_manifest_round_trip(self):
+        from scripts.github_core.recovery_manifest import manifest_to_dict
+        from scripts.github_core.runs_file import run_from_manifest_entry
+
+        run = make_run(
+            1,
+            workflow=REQUIRED_WORKFLOW,
+            context=REQUIRED_CONTEXT,
+            head_repo="contributor/ai-agents",
+        )
+        manifest = plan([run], healthy_subscriptions(), "rerun")
+        serialized = manifest_to_dict(manifest)
+        restored = run_from_manifest_entry(serialized["entries"][0])
+
+        assert restored.head_repo == "contributor/ai-agents"
+
+    def test_same_repo_head_repo_round_trips(self):
+        from scripts.github_core.recovery_manifest import manifest_to_dict
+        from scripts.github_core.runs_file import run_from_manifest_entry
+
+        run = make_run(
+            1,
+            workflow=REQUIRED_WORKFLOW,
+            context=REQUIRED_CONTEXT,
+            head_repo="rjmurillo/ai-agents",
+        )
+        manifest = plan([run], healthy_subscriptions(), "rerun")
+        serialized = manifest_to_dict(manifest)
+        restored = run_from_manifest_entry(serialized["entries"][0])
+
+        assert restored.head_repo == "rjmurillo/ai-agents"
