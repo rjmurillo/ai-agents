@@ -474,74 +474,13 @@ pre-push:
     - group:
         parallel: true
         jobs:
-          - name: python-lint-ratchet
+          - name: count-ratchets
             timeout: 90s
-            run: uv run --frozen --extra dev python scripts/ci/ruff_ratchet.py
-            env:
-              RUFF_RATCHET_BASE_REF: origin/main
-            glob: "**/*.py"
+            run: uv run --frozen python scripts/validation/checks_ratchet.py
 
-          - name: python-lint-count-ratchet
-            timeout: 90s
-            run: uv run --frozen --extra dev python scripts/ci/ruff_count_ratchet.py --base-ref origin/main
-            glob:
-              - "**/*.py"
-              - "**/*.pyi"
-              - "**/*.ipynb"
-              - "**/pyproject.toml"
-              - "**/ruff.toml"
-              - "**/.ruff.toml"
-              - "uv.lock"
-              - "scripts/ci/ruff_count_baseline.txt"
-          - name: taste-count-ratchet
-            timeout: 90s
-            run: uv run --frozen python scripts/ci/taste_count_ratchet.py --base-ref origin/main
-            glob: ["**/*.{py,md,yml,yaml,json,ps1,psm1,sh}", "scripts/ci/taste_count_baseline.txt"]
-          - name: type-ignore-count-ratchet
-            timeout: 90s
-            run: uv run --frozen python scripts/ci/type_ignore_count_ratchet.py --base-ref origin/main
-            glob: ["**/*.py", "scripts/ci/type_ignore_count_baseline.txt"]
-          - name: memory-index-count-ratchet
-            timeout: 90s
-            run: uv run --frozen python scripts/ci/memory_index_count_ratchet.py --base-ref origin/main
-            glob: [".serena/memories/**/*.md", "scripts/ci/memory_index_count_baseline.txt"]
-          - name: cli-exit-contract-ratchet
-            timeout: 90s
-            run: uv run --frozen python scripts/ci/cli_exit_contract_ratchet.py --base-ref origin/main
-            glob: ["**/*.py", "scripts/ci/cli_exit_contract_baseline.txt"]
-          - name: memory-index-token-ratchet
-            timeout: 90s
-            run: uv run --frozen python scripts/ci/memory_index_token_ratchet.py
-            glob: [".serena/memories/**/*.md"]
           - name: python-unreachable-statements
             timeout: 90s
             run: uv run --frozen python scripts/validation/check_unreachable_code.py .
-            glob: "**/*.py"
-          - name: merge-tree-ratchet
-            timeout: 90s
-            run: uv run --frozen --extra dev python scripts/ci/merge_tree_ratchet_check.py --base-ref origin/main
-            glob:
-              - "**/*.py"
-              - "**/*.pyi"
-              - "**/*.ipynb"
-              - "**/pyproject.toml"
-              - "**/ruff.toml"
-              - "**/.ruff.toml"
-              - "uv.lock"
-              - "**/*.md"
-              - "**/*.yml"
-              - "**/*.yaml"
-              - "**/*.json"
-              - "**/*.ps1"
-              - "**/*.psm1"
-              - "**/*.sh"
-              - "**/*.bash"
-              - ".serena/memories/**/*.md"
-              - "scripts/ci/ruff_count_baseline.txt"
-              - "scripts/ci/taste_count_baseline.txt"
-              - "scripts/ci/type_ignore_count_baseline.txt"
-              - "scripts/ci/memory_index_count_baseline.txt"
-              - "scripts/ci/cli_exit_contract_baseline.txt"
 
           - name: path-normalization
             timeout: 90s
@@ -549,7 +488,6 @@ pre-push:
               uv run --frozen python
               build/scripts/validate_path_normalization.py
               --path . --fail-on-violation
-            glob: "**/*.md"
 
           - name: planning-artifacts
             timeout: 90s
@@ -557,7 +495,6 @@ pre-push:
               uv run --frozen python
               build/scripts/validate_planning_artifacts.py
               --path . --fail-on-error
-            glob: ".agents/planning/**/*.md"
 
           - name: branch-scope
             timeout: 90s
@@ -593,19 +530,10 @@ pre-push:
             run: uv run --frozen python scripts/validation/pre_pr.py
             env:
               SKIP_AUTOFIX: "1"
-              # This job deliberately re-runs four checks the fast stage also
-              # runs (the eight count ratchets, unreachable code, path
-              # normalization, planning artifacts). Skipping them here looks
-              # free because the hook is `piped: true`, but piping proves only
-              # that no earlier job FAILED, not that one RAN: every fast-stage
-              # counterpart carries a `glob:` and this job carries none, so on
-              # a Markdown-only push the Python-globbed jobs never execute and
-              # the skip would remove the gate entirely. Measured on lefthook
-              # 2.1.10 against a fixture repo: a glob-filtered job prints
-              # `(skip) no matching push files` and the hook still exits 0, so
-              # a skipped job is indistinguishable from a passed one. The four
-              # gates here are whole-tree scans and are the drift backstop.
-              # Refs #5317; see ADR-104 "Rejected: deferral by scheduler claim".
+              # The four deferral targets are unconditional fast-stage jobs.
+              # Because the hook is piped, this job starts only after they pass.
+              # Direct pre_pr.py and CI calls leave this unset and run all gates.
+              AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"
               # This job's own timeout (above) in seconds, so the
               # generated-staleness gate can clamp its deadline to the
               # process's remaining share; a test pins the two values.
