@@ -11,7 +11,7 @@ resolve_skill_resource (read path):
   - rejects empty skill, absolute relpath, and `..` traversal
 
 resolve_artifact_root (write path):
-  - default <cwd>/.agents/<subdir>, created lazily
+  - default <cwd>/.project-toolkit/<subdir>, created lazily
   - AI_AGENTS_ARTIFACT_ROOT override
   - idempotent when the directory already exists
   - rejects empty subdir, absolute subdir, and `..` traversal
@@ -206,7 +206,7 @@ def test_artifact_root_default_under_cwd(
 
     result = paths.resolve_artifact_root("analysis")
 
-    expected = (tmp_path / ".agents" / "analysis").resolve()
+    expected = (tmp_path / ".project-toolkit" / "analysis").resolve()
     assert result == expected
     assert result.is_dir()
 
@@ -218,7 +218,7 @@ def test_artifact_root_creates_nested_subdir(
 
     result = paths.resolve_artifact_root("sessions/logs")
 
-    assert result == (tmp_path / ".agents" / "sessions" / "logs").resolve()
+    assert result == (tmp_path / ".project-toolkit" / "sessions" / "logs").resolve()
     assert result.is_dir()
 
 
@@ -234,10 +234,10 @@ def test_artifact_root_base_anchors_under_base_not_cwd(
 
     result = paths.resolve_artifact_root("sessions", base=base_dir)
 
-    assert result == (base_dir / ".agents" / "sessions").resolve()
+    assert result == (base_dir / ".project-toolkit" / "sessions").resolve()
     assert result.is_dir()
     # The cwd default location must NOT be created when base is supplied.
-    assert not (cwd_dir / ".agents" / "sessions").exists()
+    assert not (cwd_dir / ".project-toolkit" / "sessions").exists()
 
 
 def test_artifact_root_relative_base_anchors_under_resolved_base(
@@ -251,9 +251,9 @@ def test_artifact_root_relative_base_anchors_under_resolved_base(
 
     result = paths.resolve_artifact_root("sessions", base="../repo")
 
-    assert result == (repo_dir / ".agents" / "sessions").resolve()
+    assert result == (repo_dir / ".project-toolkit" / "sessions").resolve()
     assert result.is_dir()
-    assert not (work_dir / ".agents" / "sessions").exists()
+    assert not (work_dir / ".project-toolkit" / "sessions").exists()
 
 
 def test_artifact_root_env_override_beats_base(
@@ -270,7 +270,7 @@ def test_artifact_root_env_override_beats_base(
     assert result == (override / "sessions").resolve()
     assert result.is_dir()
     # base location must NOT be used when the override is set.
-    assert not (base_dir / ".agents" / "sessions").exists()
+    assert not (base_dir / ".project-toolkit" / "sessions").exists()
 
 
 def test_artifact_root_rejects_missing_base(paths, tmp_path: Path) -> None:
@@ -296,7 +296,7 @@ def test_artifact_root_env_override(paths, tmp_path: Path, monkeypatch: pytest.M
     assert result == (override / "metrics").resolve()
     assert result.is_dir()
     # Default location must NOT be used when the override is set.
-    assert not (tmp_path / ".agents" / "metrics").exists()
+    assert not (tmp_path / ".project-toolkit" / "metrics").exists()
 
 
 def test_artifact_root_idempotent_when_exists(
@@ -324,7 +324,7 @@ def test_artifact_root_blank_override_falls_back_to_default(
 
     result = paths.resolve_artifact_root("analysis")
 
-    assert result == (tmp_path / ".agents" / "analysis").resolve()
+    assert result == (tmp_path / ".project-toolkit" / "analysis").resolve()
 
 
 def test_artifact_root_rejects_empty_subdir(paths) -> None:
