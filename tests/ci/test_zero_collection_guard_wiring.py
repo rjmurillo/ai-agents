@@ -1,5 +1,10 @@
 """The gates behind issue #4494 are wired, and the harnesses reach them.
 
+# taste-lint: ignore file-size -- one wiring proof for the pre-push job, the
+# CI job, the required-context aggregation, and the mutation-partition
+# routing; splitting these would let one gate's proof drift out of sync with
+# a sibling's while looking complete on its own.
+
 A guard proves only that the guard works. It cannot prove any caller reached
 it (`.claude/rules/testing.md` SHOULD 6), and issue #4494 is a report about
 exactly that gap: the baseline-ratchet mutation harness existed, ran nothing,
@@ -139,9 +144,22 @@ def _tokenized_lines(run_value: object) -> list[list[str]]:
 
 
 def _find_python_script_invocation(
-    run_value: object, script_path: str
+    run_value: object, script_path: str, *, require_no_trailing_args: bool = False
 ) -> list[str] | None:
-    """Return the invoking token list when a run line executes ``script_path``."""
+    """Return the invoking token list when a run line executes ``script_path``.
+
+    Copilot review (PR #5344): requiring ``script_path`` at a fixed index
+    (``tokens[1]`` or ``tokens[4]``) let a trailing token survive unchecked,
+    so ``... check_zero_collection_tests.py --help`` (exits 0 without
+    collecting anything) or ``... check_zero_collection_tests.py
+    --repo-root <other-tree>`` (validates a different tree) both matched.
+    ``require_no_trailing_args=True`` (the zero-collection guard, which takes
+    no arguments in its real invocation) demands ``script_path`` be the LAST
+    token. Other callers here invoke scripts that legitimately take trailing
+    flags (``require_job_results.py --check ...``,
+    ``run_pytest_selected.py --partition ...``), so the default stays
+    permissive about what follows the script path, only fixing its position.
+    """
     tokenized = _tokenized_lines(run_value)
     if len(tokenized) != 1:
         return None
@@ -153,13 +171,19 @@ def _find_python_script_invocation(
         for token in tokens
     ):
         return None
-    if len(tokens) >= 2 and _is_python_invocation(tokens[0]) and tokens[1] == script_path:
+
+    def _matches(index: int) -> bool:
+        if tokens[index] != script_path:
+            return False
+        return not require_no_trailing_args or index == len(tokens) - 1
+
+    if len(tokens) >= 2 and _is_python_invocation(tokens[0]) and _matches(1):
         return tokens
     if (
         len(tokens) >= 5
         and tokens[:3] == ["uv", "run", "--frozen"]
         and _is_python_invocation(tokens[3])
-        and tokens[4] == script_path
+        and _matches(4)
     ):
         return tokens
     return None
@@ -184,7 +208,12 @@ def _invokes_guard_script(run_value: object) -> bool:
     ``python`` or ``python3`` token after basename normalization, and that
     the line is not a comment.
     """
-    return _find_python_script_invocation(run_value, GUARD_SCRIPT) is not None
+    return (
+        _find_python_script_invocation(
+            run_value, GUARD_SCRIPT, require_no_trailing_args=True
+        )
+        is not None
+    )
 
 
 def test_a_named_pre_push_job_runs_the_zero_collection_guard() -> None:
@@ -204,14 +233,19 @@ def test_a_named_pre_push_job_runs_the_zero_collection_guard() -> None:
         f"echo python {GUARD_SCRIPT}",
         f"# uv run --frozen python {GUARD_SCRIPT}",
         f"echo running {GUARD_SCRIPT} now",
+        f"uv run --frozen python {GUARD_SCRIPT} --help",
+        f"uv run --frozen python {GUARD_SCRIPT} --repo-root /some/other/tree",
     ],
 )
 def test_invokes_guard_script_rejects_a_no_op_disguise(run_value: str) -> None:
-    """Copilot review round 11 (PR #5344): a mention is not an invocation.
+    """Copilot review rounds 11-13 (PR #5344): a mention is not an invocation.
 
-    ``GUARD_SCRIPT in run_value`` would have passed all three of these: an
-    ``echo``, a commented-out invocation, and the path embedded in ordinary
-    echoed text. None of them runs the guard.
+    ``GUARD_SCRIPT in run_value`` would have passed every one of these: an
+    ``echo``, a commented-out invocation, the path embedded in ordinary
+    echoed text, and (before the LAST-token fix) a real invocation with
+    ``--help`` or ``--repo-root <other-tree>`` appended, either of which lets
+    the wiring test stay green while the real gate becomes a no-op. None of
+    them runs the guard the way this job's own invocation does.
     """
     assert _invokes_guard_script(run_value) is False
 
