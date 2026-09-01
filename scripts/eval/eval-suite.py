@@ -49,6 +49,7 @@ import argparse
 import json
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, NamedTuple
@@ -407,6 +408,14 @@ def rule_id_for_path(path: str) -> str | None:
     return None
 
 
+class ScenarioConfigError(RuntimeError):
+    """A scenario file exists but cannot be read as a scenario.
+
+    Separate from "no scenario exists". A broken scenario file is an authoring
+    mistake that must surface, not be silently downgraded to `not_evaluated`.
+    """
+
+
 def find_rule_scenarios() -> dict[str, str]:
     """Map rule id -> scenario file, read from each scenario's `rule_path`.
 
@@ -414,6 +423,24 @@ def find_rule_scenarios() -> dict[str, str]:
     also holds skill-targeted scenarios (ADR-088 reference scenarios carry
     `skill_path` and no `rule_path`), so a stem convention would claim rule ids
     that do not exist.
+
+    Fails loudly on an unreadable or malformed scenario file, mirroring
+    `scripts/validation/check_rule_activation_coverage.py:_read_scenario_json`:
+
+        try:
+            ...
+        except OSError as exc:
+            raise CoverageConfigError(f"cannot read scenario file {path}: {exc}") from exc
+        ...
+            raise CoverageConfigError(f"invalid JSON in scenario file {path}: {exc}") from exc
+
+    Stricter/looser/different than canonical: the canonical reader also
+    validates scenario entries, target kinds, and traversal, and raises when a
+    file sets neither or both of `rule_path`/`skill_path`. This one validates
+    only readability and JSON object shape, because it is a lookup, not the
+    ratchet; a file carrying `skill_path` and no `rule_path` is a valid
+    ADR-088 scenario here and is skipped rather than refused. The canonical
+    checker owns the rest and runs in pre-PR validation.
     """
     scenarios: dict[str, str] = {}
     scenario_dir = REPO_ROOT / RULE_SCENARIO_DIR
@@ -422,14 +449,29 @@ def find_rule_scenarios() -> dict[str, str]:
 
     for candidate in sorted(scenario_dir.glob("*.json")):
         try:
-            data = json.loads(candidate.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
+            raw = candidate.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise ScenarioConfigError(
+                f"cannot read scenario file {candidate}: {exc}"
+            ) from exc
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ScenarioConfigError(
+                f"invalid JSON in scenario file {candidate}: {exc}"
+            ) from exc
         if not isinstance(data, dict):
-            continue
+            raise ScenarioConfigError(
+                f"scenario file must contain an object: {candidate}"
+            )
         rule_path = data.get("rule_path")
-        if not isinstance(rule_path, str) or not rule_path.strip():
+        if rule_path is None:
+            # A skill-targeted ADR-088 scenario. Not a rule; not an error.
             continue
+        if not isinstance(rule_path, str) or not rule_path.strip():
+            raise ScenarioConfigError(
+                f"rule_path must be a non-empty string in {candidate}"
+            )
         scenarios[Path(rule_path).stem] = str(candidate.relative_to(REPO_ROOT))
 
     return scenarios
@@ -464,12 +506,39 @@ def _rule_plan_entries(files: list[str]) -> tuple[list[str], list[str]]:
     return with_scenario, without_scenario
 
 
-def build_routing_plan(classified: dict[str, list[str]]) -> list[dict[str, Any]]:
+# Which --scope value enables each runner-backed category. Mirrors the gates in
+# `_run_evals`, so the dry-run plan cannot promise work the real path skips.
+SCOPE_BY_CATEGORY: dict[str, str] = {
+    "prompts": "prompts",
+    "structural_test_targets": "prompts",
+    "agents": "agents",
+    "skills": "skills",
+    "skill_references": "skills",
+    "rules": "rules",
+    "instructions": "rules",
+}
+
+
+def category_in_scope(category: str, scope: str) -> bool:
+    """Whether `--scope <scope>` runs this category, matching `_run_evals`."""
+    required = SCOPE_BY_CATEGORY.get(category)
+    if required is None:
+        return False
+    return scope in (required, "all")
+
+
+def build_routing_plan(
+    classified: dict[str, list[str]], scope: str = "all"
+) -> list[dict[str, Any]]:
     """Describe what each classified category routes to, and its evidence state.
 
     Deterministic: entries follow CATEGORIES order and files are sorted. This
     is what `--dry-run` prints, and it is produced without invoking any
     evaluator or parsing any model output.
+
+    Scope-aware: a category the current `--scope` excludes is reported
+    `not_evaluated` with that reason, so the plan describes what this
+    invocation will actually do rather than what some invocation could do.
     """
     plan: list[dict[str, Any]] = []
 
@@ -486,6 +555,16 @@ def build_routing_plan(classified: dict[str, list[str]]) -> list[dict[str, Any]]
                 "runner": None,
                 "evidence": EVIDENCE_NONE,
                 "reason": NOT_EVALUATED_REASONS[category],
+            })
+            continue
+
+        if not category_in_scope(category, scope):
+            plan.append({
+                "category": category,
+                "files": files,
+                "runner": None,
+                "evidence": EVIDENCE_NONE,
+                "reason": f"excluded by --scope {scope}",
             })
             continue
 
@@ -520,6 +599,51 @@ def build_routing_plan(classified: dict[str, list[str]]) -> list[dict[str, Any]]
     return plan
 
 
+def reconcile_routing_plan(
+    plan: list[dict[str, Any]], results: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Promote plan entries to `scored` once an evaluation actually ran.
+
+    `scored` means an evaluation ran and produced a verdict. A failing run is
+    still scored: the evidence exists, it is just negative. Only a run that
+    never happened stays at `scenario_defined_not_scored`.
+    """
+    rule_results = results.get("rules", {}).get("rules", {})
+    if not rule_results:
+        return plan
+
+    reconciled: list[dict[str, Any]] = []
+    for entry in plan:
+        if entry["category"] not in ("rules", "instructions"):
+            reconciled.append(entry)
+            continue
+        if entry["evidence"] != EVIDENCE_SCENARIO:
+            reconciled.append(entry)
+            continue
+
+        scored = []
+        unscored = []
+        for path in entry["files"]:
+            rule_id = rule_id_for_path(path)
+            outcome = rule_results.get(rule_id) if rule_id else None
+            if isinstance(outcome, dict) and "passed" in outcome:
+                scored.append(path)
+            else:
+                unscored.append(path)
+
+        if scored:
+            reconciled.append({
+                **entry,
+                "files": scored,
+                "evidence": EVIDENCE_SCORED,
+                "reason": "activation evaluated; verdict recorded in results",
+            })
+        if unscored:
+            reconciled.append({**entry, "files": unscored})
+
+    return reconciled
+
+
 def _print_routing_plan(plan: list[dict[str, Any]]) -> None:
     print("\n--- Routing Plan ---", file=sys.stderr)
     if not plan:
@@ -541,12 +665,36 @@ def _print_routing_plan(plan: list[dict[str, Any]]) -> None:
 # Individual eval runners
 # ---------------------------------------------------------------------------
 
+def _read_child_json_file(path: Path, context: str) -> tuple[dict[str, Any] | None, str | None]:
+    """Read a child evaluator's `--output` JSON file."""
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return None, f"no results file for {context}: {exc}"
+    return _parse_child_json(raw, context)
+
+
 def run_rule_activation(files: list[str], model: str) -> dict[str, Any]:
     """Score rule and instruction changes via eval-rule-activation.py.
 
     Reuses the existing activation evaluator rather than adding a parallel
     harness (issue #4882, required work item 6). A rule with no scenario file
     is reported `not_evaluated`, never silently passed.
+
+    Results come from `--output`, not stdout. Unlike the other three child
+    evaluators this suite calls, `eval-rule-activation.py` prints a
+    human-readable table to stdout and serializes JSON only to the output
+    path. Verified against the real CLI at
+    `scripts/eval/eval-rule-activation.py:2450-2452`:
+
+        if args.output:
+            Path(args.output).write_text(json.dumps(all_results, indent=2), encoding="utf-8")
+            print(f"\\nWrote results: {args.output}")
+
+    Parsing stdout here would fail on every real run. `--dry-run` is never
+    passed: the child returns at line 2442, before that write, so a dry run
+    produces no results file at all. This suite's own `--dry-run` short
+    circuits before reaching any runner instead.
     """
     scenarios = find_rule_scenarios()
     results: dict[str, Any] = {"rules": {}}
@@ -570,36 +718,45 @@ def run_rule_activation(files: list[str], model: str) -> dict[str, Any]:
             targets[rule_id] = scenarios[rule_id]
 
     for rule_id, scenario_path in sorted(targets.items()):
-        cmd = [
-            sys.executable, str(SCRIPT_DIR / "eval-rule-activation.py"),
-            "--scenarios", scenario_path, "--model", model,
-        ]
-        try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=600,
-                cwd=str(REPO_ROOT),
-            )
-            parsed, parse_error = _parse_child_json(result.stdout, f"rule {rule_id}")
+        with tempfile.TemporaryDirectory(prefix="eval-suite-rules-") as tmp_dir:
+            output_path = Path(tmp_dir) / f"{rule_id}-activation.json"
+            cmd = [
+                sys.executable, str(SCRIPT_DIR / "eval-rule-activation.py"),
+                "--scenarios", scenario_path, "--model", model,
+                "--output", str(output_path),
+            ]
+            try:
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=600,
+                    cwd=str(REPO_ROOT),
+                )
+            except subprocess.TimeoutExpired:
+                results["rules"][rule_id] = {"passed": False, "reason": "timeout (600s)"}
+                continue
+
+            parsed, parse_error = _read_child_json_file(output_path, f"rule {rule_id}")
             passed = result.returncode == 0 and parse_error is None
             exit_code = EXIT_EXTERNAL if parse_error is not None else result.returncode
             if parse_error is not None:
                 print(f"WARNING: {parse_error}", file=sys.stderr)
-                parsed = {"raw_output": result.stdout[:500], "error": parse_error}
+                parsed = {"stderr_preview": result.stderr[:500], "error": parse_error}
 
+            # `scored` records that an evaluation ran and produced a verdict.
+            # A failing run is scored; only a run that produced no verdict is
+            # not.
+            evidence = EVIDENCE_SCENARIO if parse_error is not None else EVIDENCE_SCORED
             results["rules"][rule_id] = {
                 "passed": passed,
                 "exit_code": exit_code,
-                "evidence": EVIDENCE_SCORED if passed else EVIDENCE_SCENARIO,
+                "evidence": evidence,
                 "scenarios": scenario_path,
                 "results": parsed,
             }
-        except subprocess.TimeoutExpired:
-            results["rules"][rule_id] = {"passed": False, "reason": "timeout (600s)"}
 
     scored = [r for r in results["rules"].values() if not r.get("skipped")]
     results["passed"] = all(r.get("passed", False) for r in scored)
@@ -863,10 +1020,17 @@ def _run_evals(
         if not result.get("passed"):
             any_failure = True
 
-    skill_files = classified["skills"] + classified["skill_references"]
-    if skill_files and args.scope in ("skills", "all"):
+    # A skill reference is part of its parent skill, so fold the two lists
+    # together once and leave the dispatch below unchanged. Rebound rather than
+    # mutated: `main` holds the original mapping for the routing plan.
+    classified = {
+        **classified,
+        "skills": classified["skills"] + classified["skill_references"],
+    }
+
+    if classified["skills"] and args.scope in ("skills", "all"):
         print("\n--- Skill Knowledge Assessment ---", file=sys.stderr)
-        result = run_skill_knowledge(skill_files, args.model, args.dry_run)
+        result = run_skill_knowledge(classified["skills"], args.model, args.dry_run)
         results["skills"] = result
         if not result.get("passed"):
             any_failure = True
@@ -936,7 +1100,11 @@ def main() -> None:
     except ChangeDetectionError as exc:
         print(f"error: {exc}", file=sys.stderr)
         sys.exit(EXIT_CONFIG)
-    plan = build_routing_plan(classified)
+    try:
+        plan = build_routing_plan(classified, args.scope)
+    except ScenarioConfigError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(EXIT_CONFIG)
 
     # A dry run validates routing and planned work only. It invokes no
     # evaluator and parses no model output (issue #4882, required work item 3).
@@ -945,7 +1113,12 @@ def main() -> None:
         results: dict[str, Any] = {}
         any_failure = False
     else:
-        results, any_failure = _run_evals(classified, args)
+        try:
+            results, any_failure = _run_evals(classified, args)
+        except ScenarioConfigError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            sys.exit(EXIT_CONFIG)
+        plan = reconcile_routing_plan(plan, results)
 
     elapsed = round(time.time() - start_time, 1)
     output: dict[str, Any] = {
