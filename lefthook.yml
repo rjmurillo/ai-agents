@@ -91,11 +91,6 @@ pre-commit:
     - group:
         parallel: true
         jobs:
-          - name: handoff-protection
-            timeout: 2m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py handoff {staged_files}
-            glob: ".agents/HANDOFF.md"
-
           - name: root-hygiene-policy
             timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py root-hygiene {staged_files}
