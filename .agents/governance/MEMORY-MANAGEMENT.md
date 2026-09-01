@@ -293,7 +293,7 @@ python3 .claude-mem/scripts/import_claude_mem_memories.py \
 ```
 
 The exit code is decided by `is_configured`, not by the absence itself. From
-`main` in the same file, lines 384 to 399, quoted verbatim:
+`main` in the same file, lines 401 to 416, quoted verbatim:
 
 ```python
     importer = resolution.path

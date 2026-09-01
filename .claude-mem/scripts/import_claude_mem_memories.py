@@ -311,11 +311,28 @@ def _run_imports(importer: Path, files: list[Path]) -> tuple[int, list[tuple[str
     import_count = 0
     failed_files: list[tuple[str, str]] = []
 
+    # tsx parses a leading dash as a flag, and a configured importer may be a
+    # RELATIVE path the caller chose. A file named "--experimental-foo" is legal
+    # and passes the existence check, so `str(importer)` would hand tsx a flag
+    # instead of a script and the configured importer would silently never run.
+    # An absolute path cannot start with a dash, which removes the ambiguity for
+    # every name rather than blacklisting the ones seen so far.
+    #
+    # Stricter/looser/different than canonical: os.path.abspath, NOT
+    # Path.resolve(). Both defeat the dash, but resolve() also collapses
+    # symlinks, and the importer is a script that may locate its own imports
+    # relative to itself. Measured: for "linked/importer.ts" where "linked" is a
+    # symlink to "real", abspath keeps the directory the caller named while
+    # resolve() reports ".../real", which changes the script's own base
+    # directory. Package managers install plugin trees behind symlinks, so that
+    # is a live difference and not a hypothetical one.
+    importer_arg = os.path.abspath(importer)
+
     for file_path in files:
         print(f"  {file_path.name}")
         try:
             result = subprocess.run(
-                ["npx", "tsx", str(importer), str(file_path)],
+                ["npx", "tsx", importer_arg, str(file_path)],
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
