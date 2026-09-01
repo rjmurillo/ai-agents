@@ -312,6 +312,13 @@ class TestCheckMergeReadiness:
         assert any("<missing>" in reason for reason in result["Reasons"]), (
             f"a missing merge state must name itself; reasons: {result['Reasons']}"
         )
+        # Closes the Validate Spec Coverage gap (issue #4899 reopen, PR #5359
+        # review): CanMerge False alone does not prove the missing value lands
+        # on the terminal UNSUPPORTED tier rather than some other work tier.
+        assert result["Tier"] == "UNSUPPORTED", (
+            f"a missing merge state has no verified merge path and must not "
+            f"reach a work tier; got {result['Tier']!r}"
+        )
 
     def test_unresolved_threads(self):
         pr_data = json.loads(json.dumps(_OPEN_PR))
