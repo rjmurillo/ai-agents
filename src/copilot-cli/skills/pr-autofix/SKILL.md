@@ -436,7 +436,7 @@ fi
 # it (issue #5208). classify_tier only reaches T5 when `is_bot and
 # (has_ci_failures or has_threads)`, and its `is_bot` parameter defaults to
 # False, so a producer call that omits --is-bot cannot return T5 at all: every
-# bot PR with a failing check or an unresolved thread came back T2, T3, or T4
+# affected bot PR that reached work-tier classification came back T2, T3, or T4
 # and was processed in the unattended loop. T5 is reached only when the
 # merge state passes the earlier gates (not BEHIND, BLOCKED, or DIRTY) AND
 # `is_bot and (has_ci_failures or has_threads)`. A bot PR whose merge state
@@ -444,7 +444,9 @@ fi
 # reach the T5 handoff, which is correct: the automated loop handles it.
 # Author identity is stable during one pass, so this answer is kept for tier
 # production. Auto-merge is mutation-sensitive and is fetched again at the
-# disarm gate below.
+# disarm gate below. That second read is deliberate: the old one-fetch contract
+# is retired because a stale auto-merge verdict fails open, while the extra
+# `get_pr_context.py` call costs only one more bounded API read in the same pass.
 # The classification itself is NOT made here. get_pr_context.py emits
 # `author_is_bot` from github_core.bot_config.is_bot, the repository's one
 # authoritative bot-author rule. Re-deriving it here as a `[bot]` suffix test
@@ -633,7 +635,8 @@ esac
 # verified in this session.  Disable auto-merge now, before any commit or push.
 # TIER and PAGES_COMPLETE were both read from the readiness producer above.
 # Refresh context here because auto-merge can be armed while readiness is being
-# fetched. Reusing the author lookup would let that stale null bypass disarm.
+# fetched. Reusing the author lookup would let that stale null bypass disarm,
+# so this gate deliberately spends a second context read for fresh evidence.
 if ! CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
     --output-format json 2>/dev/null); then
     CTX=""

@@ -359,6 +359,7 @@ def test_auto_merge_is_refetched_after_tier_production(tmp_path: Path, doc: str)
     [
         pytest.param("true", True, id="bot"),
         pytest.param("false", False, id="human"),
+        pytest.param("OMIT", True, id="field-absent"),
         pytest.param("RAW:null", True, id="unreadable"),
         pytest.param("MALFORMED_SUFFIX", True, id="malformed-json"),
         pytest.param("SECOND_DATA_ARRAY", True, id="later-value-breaks-filter"),
