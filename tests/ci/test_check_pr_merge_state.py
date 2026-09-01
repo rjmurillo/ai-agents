@@ -128,8 +128,10 @@ def test_unknown_pr_retries_and_resolves_to_clean(monkeypatch):
     assert prs[0].merge_state_status == "CLEAN"
 
 
-def test_unknown_pr_exhausts_retries_and_fails(monkeypatch):
-    """Test that UNKNOWN is retried and fails after exhausting retries."""
+def test_retry_exhausted_still_returns_ok_with_unknown_prs(monkeypatch):
+    """load_open_prs_with_retry returns EXIT_OK (the gh call succeeded);
+    it does not itself decide pass/fail on UNKNOWN. That decision belongs
+    to check_prs, exercised separately below via main()."""
     call_count = 0
 
     def fake_load_open_prs(repo, head_ref):
@@ -151,3 +153,26 @@ def test_unknown_pr_exhausts_retries_and_fails(monkeypatch):
     assert call_count == 3
     assert len(prs) == 1
     assert prs[0].merge_state_status == "UNKNOWN"
+
+
+def test_main_exits_external_after_retries_exhausted_on_unknown(monkeypatch):
+    """End-to-end: main() must route through load_open_prs_with_retry, not
+    the bare load_open_prs. Mocking load_open_prs (the retry loop's inner
+    call) and counting invocations catches a regression that wires main()
+    back to the un-retried call: call_count would drop from 3 to 1."""
+    call_count = 0
+
+    def fake_load_open_prs(repo, head_ref):
+        nonlocal call_count
+        call_count += 1
+        return checker.EXIT_OK, [_pr("UNKNOWN")]
+
+    monkeypatch.setattr(checker, "load_open_prs", fake_load_open_prs)
+    monkeypatch.setattr("time.sleep", lambda seconds: None)
+    monkeypatch.setenv("GITHUB_REPOSITORY", "rjmurillo/ai-agents")
+    monkeypatch.setenv("GITHUB_REF_NAME", "feature")
+
+    rc = checker.main([])
+
+    assert rc == checker.EXIT_EXTERNAL
+    assert call_count == 3

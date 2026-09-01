@@ -91,7 +91,6 @@ def load_open_prs(repo: str, head_ref: str) -> tuple[int, list[PullRequest]]:
     return EXIT_OK, prs
 
 
-
 def load_open_prs_with_retry(
     repo: str, head_ref: str, max_attempts: int = 3
 ) -> tuple[int, list[PullRequest]]:
@@ -102,7 +101,10 @@ def load_open_prs_with_retry(
     max_attempts times with random delays (10-20 seconds) between attempts,
     allowing GitHub time to compute mergeability.
 
-    Only returns EXIT_EXTERNAL if all attempts return UNKNOWN.
+    Returns whatever load_open_prs last returned: an early non-EXIT_OK on a
+    gh failure, or EXIT_OK with the PR list on the final attempt, UNKNOWN
+    merge state included if every attempt stayed UNKNOWN. Deciding whether
+    UNKNOWN should fail the run is check_prs's job, not this function's.
     """
     retry_delay_min = 10
     retry_delay_max = 20
@@ -127,6 +129,7 @@ def load_open_prs_with_retry(
 
     # Should not reach here, but return the last result just in case
     return rc, prs
+
 
 def check_prs(prs: Sequence[PullRequest]) -> int:
     if not prs:
