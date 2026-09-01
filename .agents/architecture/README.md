@@ -151,6 +151,7 @@ These bind today.
 | [ADR-099](ADR-099-remove-commit-limit-bypass-gate.md) | Remove the commit-count block and its commit-limit-bypass label | 2026-08-21 | Remove the commit-count block and the `commit-limit-bypass` label mechanism entirely, from both the CI workflow (`pr-validation.yml`, `scripts/ci/enforce_pr_validation.py`) and the local pre-push... |
 | [ADR-102](ADR-102-session-qa-binding-field-precedence.md) | Replace session_qa_binding()'s Field-Equality Raise with Documented Precedence and a Diagnostic | 2026-08-21 | Delete the equality raise. |
 | [ADR-103](ADR-103-skill-output-python-contract-correction.md) | Skill Output Format Standardization, Python Contract Correction | 2026-08-25 | Supersede ADR-056 items 2 and 6, and its enforcement scope, as follows. |
+| [ADR-105](ADR-105-terminal-state-completion-contract.md) | Terminal-State Completion Contract | 2026-08-31 | Adopt a four-file canonical-ownership split, each file owning one part of the contract and none duplicating another: |
 
 ## Proposed
 
@@ -187,7 +188,6 @@ Recorded, not yet binding. The last column is what each record says is holding i
 | [ADR-100](ADR-100-retire-pr-size-ceilings.md) | Retire the Pull Request Size Ceilings | 2026-08-20 | Retire both size ceilings as blocking gates. | - |
 | [ADR-101](ADR-101-enforcement-planes.md) | Enforcement Planes | 2026-08-20 | Adopt enforcement plane classification as this repository's rule for gate design, and treat the control plane's current gaps as prerequisites rather than as background. | - |
 | [ADR-104](ADR-104-gate-tier-placement-and-budgets.md) | Gate Tier Placement | 2026-08-25 | Three tiers, each with a stated job. | Six-seat adr-review debate held 2026-08-25; log at `.agents/critique/ADR-104-debate-log.md`. The first revision was blocked by two seats and this record is the rewrite. `implemented` stays false... |
-| [ADR-105](ADR-105-terminal-state-completion-contract.md) | Terminal-State Completion Contract | 2026-08-31 | Adopt a four-file canonical-ownership split, each file owning one part of the contract and none duplicating another: | - |
 
 ## Retired
 
