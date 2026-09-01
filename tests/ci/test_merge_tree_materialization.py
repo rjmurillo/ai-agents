@@ -35,6 +35,12 @@ def test_export_ignored_scored_file_is_still_materialized(tmp_path: Path) -> Non
         return 0
 
     with (
+        # Issue #5441: base_ref="HEAD" is trivially a clean fast-forward, which
+        # would skip materialization and read scored.py straight from repo_root,
+        # trivially satisfying the assertion without ever exercising
+        # export-ignore during a real checkout-index. Force the materialize
+        # path so this test still covers what it names.
+        patch.object(_m, "is_fast_forward_clean", return_value=False),
         patch("scripts.ci.ruff_count_ratchet.current_count", side_effect=count_materialized),
         patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
         patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
@@ -62,6 +68,11 @@ def test_merge_tree_ruff_count_matches_direct_count_on_windows(tmp_path: Path) -
         return count
 
     with (
+        # Issue #5441: force the materialize path. base_ref="HEAD" is a clean
+        # fast-forward, which would skip materialize_tree entirely, and this
+        # test exists specifically to prove the Windows path-separator patch
+        # does not break counting during materialization.
+        patch.object(_m, "is_fast_forward_clean", return_value=False),
         patch.object(_mat.os, "sep", "\\"),
         patch(
             "scripts.ci.ruff_count_ratchet.current_count",
@@ -108,8 +119,18 @@ def test_materialization_preserves_symlinks_when_git_config_disables_them(
 def test_materialization_or_scratch_init_failure_is_external(
     tmp_path: Path, failed_step: str
 ) -> None:
+    """Issue #5441: forces the materialize path.
+
+    base_ref="HEAD" is a clean fast-forward, which skips
+    ``_materialize_tree``/``_init_scratch_repo`` entirely and reads
+    ``repo_root`` directly, so without ``is_fast_forward_clean`` forced
+    False, ``failed_step``'s mock would never be consulted.
+    """
     repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
-    with patch.object(_m, failed_step, return_value=False):
+    with (
+        patch.object(_m, "is_fast_forward_clean", return_value=False),
+        patch.object(_m, failed_step, return_value=False),
+    ):
         rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
     assert rc == _m.EXIT_EXTERNAL
 
@@ -136,6 +157,10 @@ def test_cleanup_failure_does_not_mask_primary_failure(
 ) -> None:
     repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
     with (
+        # Issue #5441: base_ref="HEAD" is a clean fast-forward, which skips
+        # materialization (and so the scratch cleanup this test targets)
+        # entirely. Force the materialize path.
+        patch.object(_m, "is_fast_forward_clean", return_value=False),
         patch("scripts.ci.ruff_count_ratchet.current_count", return_value=ruff_count),
         patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
         patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),

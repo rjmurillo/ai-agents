@@ -56,7 +56,7 @@ LEFTHOOK = REPO_ROOT / "lefthook.yml"
 # `test_the_roster_matches_what_the_config_actually_routes` requires the two to
 # agree in both directions, so a job crossing the boundary fails a test that
 # names it instead of changing a number quietly. At the time of writing they
-# agree exactly, 14 clamped and 21 not.
+# agree exactly, 14 clamped and 22 not (issue #5441 added merge-tree-ratchet).
 CONTAINER_UNCLAMPED_JOBS = frozenset(
     {
         "repo-health",
@@ -65,6 +65,10 @@ CONTAINER_UNCLAMPED_JOBS = frozenset(
         "push-ref-staleness",
         "pre-pr-validation",
         "count-ratchets",
+        # Issue #5441. Split from count-ratchets; runs
+        # scripts/ci/merge_tree_ratchet_check.py directly, which does not
+        # invoke git_hook_policy.py either.
+        "merge-tree-ratchet",
         "python-unreachable-statements",
         "path-normalization",
         "planning-artifacts",
