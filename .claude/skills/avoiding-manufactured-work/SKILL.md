@@ -1,7 +1,7 @@
 ---
 name: avoiding-manufactured-work
 version: 1.0.0
-description: Detect and stop manufactured work after a deliverable appears done. Use when a worker has produced a plan, issue, PR, backlog item, research artifact, or follow-up task and you need to verify it was demanded by a real user, acceptance criterion, or blocked decision instead of reward-seeking activity.
+description: Form the task-completion contract before non-trivial execution, and detect and stop manufactured work after a deliverable appears done. Use before starting non-trivial work to derive the bounded contract and precedence order, and after a worker has produced a plan, issue, PR, backlog item, research artifact, or follow-up task to verify it was demanded by a real user, acceptance criterion, or blocked decision instead of reward-seeking activity.
 license: MIT
 ---
 
