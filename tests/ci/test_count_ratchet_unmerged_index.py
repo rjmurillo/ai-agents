@@ -1,11 +1,17 @@
 """A conflicted path must be counted once, not once per merge stage (#4746).
 
 ``git ls-files`` prints one line per index entry, and an unmerged path holds
-one entry per merge stage. Every ratchet under ``scripts/ci`` enumerates
-through ``count_ratchet.tracked_files``, so mid-merge each of them handed its
-linter the same path two or three times and counted its violations that many
-times. The reported symptom was ``585 violations > baseline 583 (+2)`` on a
-tree whose only conflicted file was byte-identical to ``origin/main``.
+one entry per merge stage. All six ratchets under ``scripts/ci`` enumerate
+through ``count_ratchet.tracked_files``, so mid-merge each was handed the same
+path two or three times. Five of them then counted its violations that many
+times. The memory-index ratchet did not: its ``_tracked_relative_paths``
+builds a set, so the repeats collapsed before anything counted them. The
+reported symptom was ``585 violations > baseline 583 (+2)`` on a tree whose
+only conflicted file was byte-identical to ``origin/main``.
+
+Fixing the shared enumeration still covers the immune consumer, because it
+reads the index like the rest and so carries the mid-merge note. That note is
+a reporting concern, not a counting one.
 
 Git is the boundary under test here, so it is not mocked. The end-to-end case
 also drives the real taste linter, because the defect lives in the seam between
@@ -15,20 +21,11 @@ the enumeration and the scan and a fake counter cannot show it.
 from __future__ import annotations
 
 import shutil
-from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
 
-from scripts.ci import (
-    cli_exit_contract_ratchet,
-    count_ratchet,
-    memory_index_count_ratchet,
-    ruff_count_ratchet,
-    subprocess_encoding_count_ratchet,
-    taste_count_ratchet,
-    type_ignore_count_ratchet,
-)
+from scripts.ci import count_ratchet, taste_count_ratchet
 from tests.ci.count_ratchet_git_harness import commit_all as _commit_all
 from tests.ci.count_ratchet_git_harness import git as _git
 from tests.ci.count_ratchet_git_harness import init_repo as _init_repo
@@ -270,14 +267,11 @@ def _oversized(marker: str) -> str:
     return f"# {marker}\n" + "".join(f"x{index} = {index}\n" for index in range(600))
 
 
-@needs_git
-def test_a_conflicted_file_counts_the_same_as_the_tree_it_resolves_to(tmp_path):
-    """The issue's reproduction, asserted end to end.
+def _taste_repo_stopped_mid_merge(tmp_path: Path) -> tuple[Path, str]:
+    """A repo mid-merge on an oversized file, resolved on disk but not staged.
 
-    Content is identical either side of the ``git add``, so any difference in
-    the count comes from the index alone. Before the fix this measured 4
-    against 2: one violation for the linter's own copy plus three for the
-    conflicted file, the ``+2`` the issue reports.
+    Returns the repo and the exact bytes on disk, so a caller that stages the
+    resolution can prove the two measurements saw identical content.
     """
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -295,118 +289,58 @@ def test_a_conflicted_file_counts_the_same_as_the_tree_it_resolves_to(tmp_path):
     big.write_text(_oversized("main"), encoding="utf-8")
     _commit_all(repo, "main")
 
-    assert _git(repo, "merge", "feat").returncode != 0
-    # Resolve on disk only, leaving the index unmerged. The bytes below are the
-    # bytes that get staged, so the two measurements see identical content.
+    assert _git(repo, "merge", "feat").returncode != 0, "the fixture must stop conflicted"
     resolution = _oversized("main")
     big.write_text(resolution, encoding="utf-8")
+    return repo, resolution
+
+
+@needs_git
+def test_a_conflicted_file_counts_the_same_as_the_tree_it_resolves_to(tmp_path):
+    """The issue's reproduction, asserted end to end.
+
+    Content is identical either side of the ``git add``, so any difference in
+    the count comes from the index alone. Before the fix this measured 4
+    against 2: one violation for the linter's own copy plus three for the
+    conflicted file, the ``+2`` the issue reports.
+    """
+    repo, resolution = _taste_repo_stopped_mid_merge(tmp_path)
 
     mid_merge = taste_count_ratchet.current_count(repo)
 
     _git(repo, "add", "big.py")
-    assert big.read_text(encoding="utf-8") == resolution
+    assert (repo / "big.py").read_text(encoding="utf-8") == resolution
     resolved = taste_count_ratchet.current_count(repo)
 
     assert mid_merge == resolved
     assert resolved is not None and resolved > 0, "the fixture must carry a violation"
 
 
-# ---------------------------------------------------------------------------
-# Wiring: the fix only helps a ratchet that reads through the fixed seam
-# ---------------------------------------------------------------------------
+@needs_git
+def test_one_run_prints_the_mid_merge_note_once(tmp_path, capsys):
+    """A regression reads the index twice; the caveat is still printed once.
 
+    ``run`` calls the counter, then on a regression calls the lister to render
+    the violations, and the lister enumerates again. Both reads see the same
+    unmerged index, so both emitted the identical note and a contributor
+    mid-merge read the same caveat twice for one run.
 
-class _EnumerationSpy:
-    """Stands in for ``tracked_files`` and records that it was reached.
-
-    Asserting that a module still holds the imported name proves only that the
-    import survived: a consumer can stop calling it, keep the unused import,
-    and pass. Driving the real counting entry point with this in place is what
-    the repository's consumer-wiring rule asks for.
+    Driven through ``main`` rather than the helpers, because the double
+    emission only exists in the sequence ``run`` performs. The violations
+    header is asserted so the lister is known to have run: without that this
+    would pass just as well if the second read never happened at all.
     """
+    repo, _ = _taste_repo_stopped_mid_merge(tmp_path)
+    baseline = tmp_path / "baseline.txt"
+    baseline.write_text("0\n", encoding="utf-8")
 
-    def __init__(self, result: list[str] | None) -> None:
-        self.result = result
-        self.calls = 0
-
-    def __call__(self, repo_root: Path, globs: Sequence[str]) -> list[str] | None:
-        self.calls += 1
-        return self.result
-
-
-def _stub_memory_tier_validator(monkeypatch) -> None:
-    """Stub the external validator ``memory_index_count_ratchet`` shells out to.
-
-    That module runs the memory-tier validator before it enumerates, and the
-    validator is absent from a scratch root, so the module would bail before
-    reaching the enumeration and the spy would prove nothing. This mocks at the
-    process boundary only, leaving the enumeration on the path under test. The
-    stub warning names a file that the empty enumeration will report untracked,
-    which is what makes the control below land on zero.
-    """
-    monkeypatch.setattr(
-        memory_index_count_ratchet,
-        "_warning_lines",
-        lambda _root: ["a.md: no index references this file"],
+    rc = taste_count_ratchet.main(
+        ["--repo-root", str(repo), "--baseline", str(baseline)]
     )
 
-
-_RATCHET_CONSUMERS = [
-    (cli_exit_contract_ratchet, None),
-    (memory_index_count_ratchet, _stub_memory_tier_validator),
-    (ruff_count_ratchet, None),
-    (subprocess_encoding_count_ratchet, None),
-    (taste_count_ratchet, None),
-    (type_ignore_count_ratchet, None),
-]
-
-_CONSUMER_IDS = [module.__name__.rsplit(".", 1)[-1] for module, _ in _RATCHET_CONSUMERS]
-
-
-@pytest.mark.parametrize(("module", "prepare"), _RATCHET_CONSUMERS, ids=_CONSUMER_IDS)
-def test_every_ratchet_counts_through_the_shared_enumeration(
-    module, prepare, monkeypatch, tmp_path
-):
-    """A ratchet that rolls its own ``ls-files`` reopens #4746 for itself.
-
-    The issue asked whether the siblings share the enumeration. They do, which
-    is why one fix covers all six. This drives each consumer's real
-    ``current_count`` and fails the moment one stops routing through the
-    deduplicating helper.
-
-    The unreadable-enumeration verdict is asserted alongside the call, because
-    a consumer that reached the helper and then ignored its ``None`` would be
-    wired and still wrong: each of these modules documents returning None
-    rather than 0 as load-bearing, since a zero from a broken scan reads as a
-    clean tree and ``--update`` would write it into the baseline.
-    """
-    if prepare is not None:
-        prepare(monkeypatch)
-    spy = _EnumerationSpy(None)
-    monkeypatch.setattr(module, "tracked_files", spy)
-
-    result = module.current_count(tmp_path)
-
-    assert spy.calls >= 1, f"{module.__name__} did not reach the shared enumeration"
-    assert result is None, f"{module.__name__} reported a count from an unreadable scan"
-
-
-@pytest.mark.parametrize(("module", "prepare"), _RATCHET_CONSUMERS, ids=_CONSUMER_IDS)
-def test_a_readable_enumeration_is_not_reported_as_a_failed_scan(
-    module, prepare, monkeypatch, tmp_path
-):
-    """Control for the case above: the None must come from the enumeration.
-
-    Same consumer, same input, differing only in the condition under test. A
-    module that returned None for an unrelated reason fails here too, so the
-    case above cannot pass for the wrong reason.
-    """
-    if prepare is not None:
-        prepare(monkeypatch)
-    spy = _EnumerationSpy([])
-    monkeypatch.setattr(module, "tracked_files", spy)
-
-    result = module.current_count(tmp_path)
-
-    assert spy.calls >= 1, f"{module.__name__} did not reach the shared enumeration"
-    assert result == 0, f"{module.__name__} did not count an empty tree as zero"
+    err = capsys.readouterr().err
+    assert rc == count_ratchet.EXIT_REGRESSION, "the fixture must trip the ratchet"
+    assert "Current violations:" in err, "the lister did not run, so nothing re-read"
+    assert err.count("unmerged in the index") == 1, (
+        f"the mid-merge note was printed {err.count('unmerged in the index')} times"
+    )

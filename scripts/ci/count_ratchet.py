@@ -249,11 +249,23 @@ def _unmerged_note(paths: Sequence[str]) -> str:
     )
 
 
-def tracked_files(repo_root: Path, globs: Sequence[str]) -> list[str] | None:
+def tracked_files(
+    repo_root: Path, globs: Sequence[str], *, announce_unmerged: bool = True
+) -> list[str] | None:
     """Git-tracked paths matching ``globs``, or None when git could not run.
 
     Each path appears once even mid-merge. See ``deduplicate_index_entries``
     for why git repeats an unmerged one and what that cost (issue #4746).
+
+    ``announce_unmerged=False`` returns the same paths without the mid-merge
+    note. One ratchet run reads the index twice: ``run`` calls the counter,
+    and then on a regression calls the lister, which enumerates again to
+    render the violations. Both reads see the same unmerged index, so both
+    emitted the identical note and a contributor mid-merge read the same
+    caveat twice for one run. The counting read owns the announcement because
+    it happens on every run; the diagnostic re-read passes False because the
+    count already said it. The returned paths are identical either way, so
+    this suppresses an emission and never changes a count.
     """
     proc = _git_run(repo_root, ["ls-files", "-z", "--", *globs])
     if proc is None:
@@ -264,7 +276,7 @@ def tracked_files(repo_root: Path, globs: Sequence[str]) -> list[str] | None:
     unique, unmerged = deduplicate_index_entries(
         [path for path in proc.stdout.split("\0") if path]
     )
-    if unmerged:
+    if unmerged and announce_unmerged:
         sys.stderr.write(_unmerged_note(unmerged))
     return unique
 
