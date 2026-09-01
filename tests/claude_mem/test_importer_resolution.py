@@ -137,6 +137,21 @@ class TestResolveImporter:
 
         assert resolution.path == Path("~someone/importer.ts")
 
+    def test_other_user_tilde_stays_relative_and_reaches_no_home(self, tmp_path: Path) -> None:
+        """The security-relevant half of the documented behavior.
+
+        expand_home documents this branch as a non-expansion, not a rejection.
+        What must hold is that the result stays relative and keeps the literal
+        segment, so it can never resolve against a stranger's home. Whether the
+        caller's existence check later fails depends on the process working
+        directory and is deliberately not asserted.
+        """
+        resolution = _import_mem.resolve_importer("~someone/importer.ts", {}, tmp_path)
+
+        assert resolution.path is not None
+        assert not resolution.path.is_absolute()
+        assert resolution.path.parts[0] == "~someone"
+
     def test_bare_tilde_resolves_to_home(self, tmp_path: Path) -> None:
         assert _import_mem.expand_home("~", tmp_path) == tmp_path
 
