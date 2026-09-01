@@ -313,7 +313,9 @@ def test_check_installed_plugins_reports_a_scan_it_could_not_finish(tmp_path, mo
     project_dir = _make_checkout(tmp_path / "repo", {})
     home = tmp_path / "home"
     _install_behind_decoys(home / ".claude" / "plugins")
-    monkeypatch.setattr(drift, "MAX_SCAN_DIRS", 2)
+    # ScanBudget reads the bound from the model at construction, so the
+    # bound has to be lowered where it lives.
+    monkeypatch.setattr(model, "MAX_SCAN_DIRS", 2)
 
     outcome = drift.check_installed_plugins(project_dir, home)
 
@@ -385,3 +387,44 @@ def test_check_installed_plugins_compares_an_install_under_a_custom_copilot_home
     assert outcome.reports[0].surface == "Copilot CLI"
     assert outcome.reports[0].error is None
     assert outcome.reports[0].has_drift
+
+
+# --- A surface that was never searched is inconclusive, not clean -----------
+
+
+def test_check_installed_plugins_marks_an_unreadable_source_surface_incomplete(tmp_path) -> None:
+    # No search ran for this surface, so "no installed copy found" would be a
+    # claim about a tree nothing ever looked at.
+    project_dir = tmp_path / "repo"
+    _make_plugin_root(project_dir / ".claude", None)
+    _make_plugin_root(project_dir / "src" / "copilot-cli", {})
+
+    outcome = drift.check_installed_plugins(project_dir, tmp_path / "home")
+
+    assert outcome.reports == []
+    assert len(outcome.notes) == 1
+    assert len(outcome.incomplete) == 1
+    assert "Claude Code" in outcome.incomplete[0]
+    assert "not searched" in outcome.incomplete[0]
+
+
+def test_check_installed_plugins_marks_a_missing_plugin_manifest_incomplete(tmp_path) -> None:
+    project_dir = tmp_path / "repo"
+    _make_plugin_root(project_dir / "src" / "copilot-cli", {})
+
+    outcome = drift.check_installed_plugins(project_dir, tmp_path / "home")
+
+    assert len(outcome.incomplete) == 1
+    assert "not searched" in outcome.incomplete[0]
+
+
+def test_check_installed_plugins_leaves_incomplete_empty_when_both_surfaces_read(tmp_path) -> None:
+    # Negative control: a fully readable checkout claims a complete pass.
+    project_dir = tmp_path / "repo"
+    _make_plugin_root(project_dir / ".claude", {})
+    _make_plugin_root(project_dir / "src" / "copilot-cli", {})
+
+    outcome = drift.check_installed_plugins(project_dir, tmp_path / "home")
+
+    assert outcome.incomplete == []
+    assert outcome.notes == []

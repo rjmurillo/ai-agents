@@ -341,47 +341,6 @@ def test_registrations_rejects_malformed_group_shapes(hooks) -> None:
     assert model.registrations(hooks) is None
 
 
-# --- A surface that was never searched is inconclusive, not clean -----------
-
-
-def test_check_installed_plugins_marks_an_unreadable_source_surface_incomplete(tmp_path) -> None:
-    # No search ran for this surface, so "no installed copy found" would be a
-    # claim about a tree nothing ever looked at.
-    project_dir = tmp_path / "repo"
-    _plugin_root(project_dir / ".claude", None)
-    _plugin_root(project_dir / "src" / "copilot-cli", {})
-
-    outcome = drift.check_installed_plugins(project_dir, tmp_path / "home")
-
-    assert outcome.reports == []
-    assert len(outcome.notes) == 1
-    assert len(outcome.incomplete) == 1
-    assert "Claude Code" in outcome.incomplete[0]
-    assert "not searched" in outcome.incomplete[0]
-
-
-def test_check_installed_plugins_marks_a_missing_plugin_manifest_incomplete(tmp_path) -> None:
-    project_dir = tmp_path / "repo"
-    _plugin_root(project_dir / "src" / "copilot-cli", {})
-
-    outcome = drift.check_installed_plugins(project_dir, tmp_path / "home")
-
-    assert len(outcome.incomplete) == 1
-    assert "not searched" in outcome.incomplete[0]
-
-
-def test_check_installed_plugins_leaves_incomplete_empty_when_both_surfaces_read(tmp_path) -> None:
-    # Negative control: a fully readable checkout claims a complete pass.
-    project_dir = tmp_path / "repo"
-    _plugin_root(project_dir / ".claude", {})
-    _plugin_root(project_dir / "src" / "copilot-cli", {})
-
-    outcome = drift.check_installed_plugins(project_dir, tmp_path / "home")
-
-    assert outcome.incomplete == []
-    assert outcome.notes == []
-
-
 # --- registrations(): shape handling, malformed is not "registers nothing" ---
 
 

@@ -36,7 +36,17 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
+
+# Bounds on the on-disk scan. Session start is not the place for an unbounded
+# walk: a marketplace clone can carry a full node_modules tree. Depth 5 reaches
+# `plugins/marketplaces/<marketplace>/src/copilot-cli`, the deepest plugin root
+# this repository publishes.
+MAX_SCAN_DEPTH = 5
+MAX_SCAN_DIRS = 4000
+PRUNED_DIR_NAMES = frozenset({".git", "node_modules", "__pycache__", ".venv", "venv"})
+
 
 PLUGIN_MANIFEST_REL = Path(".claude-plugin") / "plugin.json"
 HOOKS_MANIFEST_REL = Path("hooks") / "hooks.json"
@@ -110,6 +120,31 @@ def read_plugin_name(root: Path) -> str | None:
     return name if isinstance(name, str) and name else None
 
 
+def _is_named(value: object) -> bool:
+    """True for a non-empty string, the shape every named manifest field takes."""
+    return isinstance(value, str) and bool(value)
+
+
+def _shim_basenames(shims: object) -> list[str] | None:
+    """Sanitized shim basenames, or None for any shape the dispatcher rejects.
+
+    An empty list is None, not an empty result: `validate_group` raises
+    "group shims must not be empty", so a group with no shims is a malformed
+    manifest rather than a group that enforces nothing.
+    """
+    if not isinstance(shims, list) or not shims:
+        return None
+    names: list[str] = []
+    for shim in shims:
+        if not isinstance(shim, dict):
+            return None
+        name = shim.get("file")
+        if not _is_named(name):
+            return None
+        names.append(sanitize_label(PurePosixPath(str(name).replace("\\", "/")).name))
+    return names
+
+
 def dispatch_membership(groups: object, group_id: str) -> tuple[str, ...] | None:
     """What a dispatch group enforces, or None when it cannot be resolved.
 
@@ -148,24 +183,13 @@ def dispatch_membership(groups: object, group_id: str) -> tuple[str, ...] | None
         return None
     event = group.get("event")
     mode = group.get("mode")
-    if not isinstance(event, str) or not event:
+    if not _is_named(event) or not _is_named(mode):
         return None
-    if not isinstance(mode, str) or not mode:
-        return None
-    shims = group.get("shims")
-    if not isinstance(shims, list) or not shims:
+    names = _shim_basenames(group.get("shims"))
+    if names is None:
         return None
     prefix = f"{sanitize_label(event, 40)}/{sanitize_label(mode, 40)}"
-    files: list[str] = []
-    for shim in shims:
-        if not isinstance(shim, dict):
-            return None
-        name = shim.get("file")
-        if not isinstance(name, str) or not name:
-            return None
-        basename = PurePosixPath(name.replace("\\", "/")).name
-        files.append(f"{prefix}/{sanitize_label(basename)}")
-    return tuple(sorted(files))
+    return tuple(sorted(f"{prefix}/{name}" for name in names))
 
 
 def _expand_command(
@@ -185,6 +209,31 @@ def _expand_command(
         (event, matcher, f"{sanitize_label(group_id)}: {sanitize_label(member)}")
         for member in members
     }
+
+
+def _group_units(event: str, group: object, groups: object) -> set[tuple[str, str, str]] | None:
+    """Units one Claude matcher group enforces, or None if its shape is wrong.
+
+    A non-object group, a group whose "hooks" is missing or not a list, and a
+    non-object entry inside that list are all malformed shapes, not "this group
+    registers nothing". Skipping any of them would let a broken manifest read
+    as the deliberate empty state.
+    """
+    if not isinstance(group, dict):
+        return None
+    commands = group.get("hooks")
+    if not isinstance(commands, list):
+        return None
+    matcher = str(group.get("matcher") or "")
+    found: set[tuple[str, str, str]] = set()
+    for entry in commands:
+        if not isinstance(entry, dict):
+            return None
+        units = _expand_command(event, matcher, str(entry.get("command", "")), groups)
+        if units is None:
+            return None
+        found |= units
+    return found
 
 
 def registrations(hooks: object, groups: object = None) -> set[tuple[str, str, str]] | None:
@@ -208,27 +257,12 @@ def registrations(hooks: object, groups: object = None) -> set[tuple[str, str, s
         if not isinstance(entries, list):
             return None
         for group in entries:
-            # A non-object group and a group whose "hooks" is missing or not a
-            # list are both malformed shapes, not "this group registers
-            # nothing". Skipping them would let a broken manifest read as the
-            # deliberate empty state.
-            if not isinstance(group, dict):
+            units = _group_units(str(event), group, groups)
+            if units is None:
                 return None
-            matcher = group.get("matcher") or ""
-            commands = group.get("hooks")
-            if not isinstance(commands, list):
+            found |= units
+            if len(found) > MAX_REGISTRATIONS:
                 return None
-            for entry in commands:
-                if not isinstance(entry, dict):
-                    return None
-                units = _expand_command(
-                    str(event), str(matcher), str(entry.get("command", "")), groups
-                )
-                if units is None:
-                    return None
-                found |= units
-                if len(found) > MAX_REGISTRATIONS:
-                    return None
     return found
 
 
@@ -336,3 +370,57 @@ def root_registrations(
     return read_registrations(
         root / HOOKS_MANIFEST_REL, schema=schema, dispatch=root / DISPATCH_MANIFEST_REL
     )
+
+
+@dataclass(slots=True)
+class ScanBudget:
+    """Directory-visit budget for one bounded walk, and whether it ran out.
+
+    Exhausting the budget has to reach the reader. A walk that stopped early
+    may never have visited the stale install this hook exists to name, and
+    reporting that as "matches" or "no installed copy found" is precisely the
+    false-clean verdict the check is meant to prevent. Truncation is therefore
+    an outcome the caller reads, not an early ``return`` the caller cannot see.
+    """
+
+    # Read at construction, not at class creation, so the bound stays one
+    # number that tests and callers can lower.
+    remaining: int = field(default_factory=lambda: MAX_SCAN_DIRS)
+    truncated: bool = False
+
+    def spend(self) -> bool:
+        """Consume one directory visit; False once the budget is exhausted."""
+        if self.remaining <= 0:
+            self.truncated = True
+            return False
+        self.remaining -= 1
+        return True
+
+
+@dataclass(frozen=True, slots=True)
+class InstallReport:
+    """Comparison of one installed copy against its source manifest."""
+
+    surface: str
+    install_path: Path
+    only_in_install: tuple[str, ...]
+    only_in_source: tuple[str, ...]
+    error: str | None
+
+    @property
+    def has_drift(self) -> bool:
+        return bool(self.only_in_install or self.only_in_source or self.error)
+
+
+@dataclass(frozen=True, slots=True)
+class ScanOutcome:
+    """Everything one pass over the install trees established, and did not.
+
+    ``incomplete`` names each search root whose walk hit ``MAX_SCAN_DIRS``.
+    While it is non-empty, no verdict in ``reports`` is a statement about the
+    whole tree.
+    """
+
+    reports: list[InstallReport] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+    incomplete: list[str] = field(default_factory=list)

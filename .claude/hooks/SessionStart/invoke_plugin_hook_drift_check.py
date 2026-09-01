@@ -54,7 +54,7 @@ import os
 import sys
 from collections import deque
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 # --- Standard hook boilerplate: resolve lib directory ---
@@ -82,6 +82,12 @@ from plugin_hook_drift_model import (  # noqa: E402
     CLAUDE_SCHEMA,
     COPILOT_SCHEMA,
     MAX_PATH_CHARS,
+    MAX_SCAN_DEPTH,
+    MAX_SCAN_DIRS,
+    PRUNED_DIR_NAMES,
+    InstallReport,
+    ScanBudget,
+    ScanOutcome,
     read_plugin_name,
     root_registrations,
     sanitize_label,
@@ -108,14 +114,6 @@ except ImportError:
 
 HOOK_NAME = "plugin-hook-drift-check"
 
-# Bounds on the on-disk scan. Session start is not the place for an unbounded
-# walk: a marketplace clone can carry a full node_modules tree. Depth 5 reaches
-# `plugins/marketplaces/<marketplace>/src/copilot-cli`, the deepest plugin root
-# this repository publishes.
-MAX_SCAN_DEPTH = 5
-MAX_SCAN_DIRS = 4000
-PRUNED_DIR_NAMES = frozenset({".git", "node_modules", "__pycache__", ".venv", "venv"})
-
 # Ceilings on what is rendered into session context. The model caps how much of
 # a manifest is read and parsed; these cap how much of the result is printed,
 # so one install carrying hundreds of registrations cannot crowd out the rest
@@ -133,59 +131,6 @@ class PluginSurface:
     search_roots: tuple[Path, ...]
     schema: str = CLAUDE_SCHEMA
 
-
-@dataclass(slots=True)
-class ScanBudget:
-    """Directory-visit budget for one bounded walk, and whether it ran out.
-
-    Exhausting the budget has to reach the reader. A walk that stopped early
-    may never have visited the stale install this hook exists to name, and
-    reporting that as "matches" or "no installed copy found" is precisely the
-    false-clean verdict the check is meant to prevent. Truncation is therefore
-    an outcome the caller reads, not an early ``return`` the caller cannot see.
-    """
-
-    # Read at construction, not at class creation, so the bound stays one
-    # number that tests and callers can lower.
-    remaining: int = field(default_factory=lambda: MAX_SCAN_DIRS)
-    truncated: bool = False
-
-    def spend(self) -> bool:
-        """Consume one directory visit; False once the budget is exhausted."""
-        if self.remaining <= 0:
-            self.truncated = True
-            return False
-        self.remaining -= 1
-        return True
-
-
-@dataclass(frozen=True, slots=True)
-class InstallReport:
-    """Comparison of one installed copy against its source manifest."""
-
-    surface: str
-    install_path: Path
-    only_in_install: tuple[str, ...]
-    only_in_source: tuple[str, ...]
-    error: str | None
-
-    @property
-    def has_drift(self) -> bool:
-        return bool(self.only_in_install or self.only_in_source or self.error)
-
-
-@dataclass(frozen=True, slots=True)
-class ScanOutcome:
-    """Everything one pass over the install trees established, and did not.
-
-    ``incomplete`` names each search root whose walk hit ``MAX_SCAN_DIRS``.
-    While it is non-empty, no verdict in ``reports`` is a statement about the
-    whole tree.
-    """
-
-    reports: list[InstallReport] = field(default_factory=list)
-    notes: list[str] = field(default_factory=list)
-    incomplete: list[str] = field(default_factory=list)
 
 
 def copilot_home(home: Path) -> Path:
