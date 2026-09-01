@@ -111,6 +111,32 @@ class TestDoesNotOverFire:
     def test_leaves_verifiable_criteria_alone(self, criterion: str) -> None:
         assert find_nonexecutable_criteria(_body(criterion)) == []
 
+    @pytest.mark.parametrize(
+        "criterion",
+        [
+            # A command name and a result verb both appear, but the verb
+            # governs the code under review, not the command. Scanning for the
+            # two independently classified these away (PR #5451 review).
+            "- [ ] The wrapper succeeds when `pytest` returns malformed output",
+            "- [ ] The fallback passes when `ruff` reports an error",
+            "- [ ] The wrapper returns zero when `pytest` passes",
+            "- [ ] The gate stays green after `pytest` passes",
+            "- [ ] The runner exits 0 unless `go test ./...` is green",
+            "- [ ] `spec_prepare_context.py` is skipped if `pytest` passes",
+        ],
+    )
+    def test_leaves_behavioral_contracts_in_scope(self, criterion: str) -> None:
+        assert find_nonexecutable_criteria(_body(criterion)) == [], criterion
+
+    @pytest.mark.parametrize(
+        "heading",
+        ["## Acceptance Criteria Verification", "## Non-Acceptance Criteria"],
+    )
+    def test_ignores_a_heading_that_only_contains_the_title(self, heading: str) -> None:
+        body = f"{heading}\n\n- [x] `uv run python scripts/validation/pre_pr.py` passes\n"
+
+        assert find_nonexecutable_criteria(body) == []
+
     def test_ignores_command_claims_outside_the_acceptance_section(self) -> None:
         body = (
             "## Testing\n\n"
@@ -153,7 +179,12 @@ class TestDegradesQuietly:
 
     @pytest.mark.parametrize(
         "heading",
-        ["## acceptance criteria", "### Acceptance Criteria", "## Acceptance Criterion"],
+        [
+            "## acceptance criteria",
+            "### Acceptance Criteria",
+            "## Acceptance Criterion",
+            "## Acceptance Criteria ##",
+        ],
     )
     def test_matches_the_heading_case_insensitively(self, heading: str) -> None:
         body = f"{heading}\n\n- [ ] `pytest` passes\n"

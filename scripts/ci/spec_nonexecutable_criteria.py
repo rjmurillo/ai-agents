@@ -26,15 +26,30 @@ This repo's own PR template already puts that evidence elsewhere: the
 `## Author Pre-flight`, not under `## Acceptance criteria`.
 
 Stricter/looser/different than the prompt rule it feeds: this detector is
-deliberately narrower. It fires only when a criterion BOTH names a runnable
-command inside an inline code span AND asserts an execution result in
-intransitive position, so "the helper passes the flag to ``run_gh``" does not
-match. Under-firing is safe, because the prompt rule still tells the reviewer
-to treat an unexecutable criterion as N/A when no declaration names it.
-Over-firing is not safe: it would silently drop a real criterion from the gate.
+deliberately narrower. It fires only when the named command is itself the
+subject of the result verb, in the criterion's leading clause:
 
-Criterion text reaches the reviewer only after `_sanitize` strips control
-characters, collapses newlines, drops leading markdown structure, and truncates.
+    `pytest` passes                                   -> fires
+    the helper passes the flag to `run_gh`            -> no command as subject
+    `pre_pr.py` passes the changed-file list to ruff  -> transitive, not a run
+    the wrapper returns zero when `pytest` passes     -> subordinate clause
+    the fallback passes when `ruff` reports an error  -> subordinate clause
+
+The last two shapes are behavioral contracts on the code under review, which a
+diff reviewer can and must check. Scanning for a command and for a result verb
+independently anywhere in one bullet classified them as unverifiable and
+dropped them from the gate.
+
+Cutting at the first subordinator also costs a real claim written with a
+leading adverbial ("after the rename, `pytest` passes"). That trade is
+deliberate. Under-firing is safe, because the prompt rule still tells the
+reviewer to treat an unexecutable criterion as N/A when no declaration names
+it. Over-firing is not safe: it would silently drop a real criterion from the
+gate.
+
+Criterion text reaches the reviewer only after `_normalize` strips control
+characters and collapses newlines and `_sanitize` drops leading markdown
+structure and truncates.
 That bounds the shape of the injected block; it does not make the text
 trustworthy, and it does not need to, because
 `build_ai_review_context.py` already hands the reviewer the same PR body
@@ -51,7 +66,12 @@ _MAX_CRITERIA = 20
 _MAX_CRITERION_CHARS = 200
 
 _HEADING = re.compile(r"^(#{1,6})\s+(.*)$")
-_ACCEPTANCE_TITLE = re.compile(r"(?i)acceptance\s+criteri(?:a|on)")
+# The whole heading title, not a substring of it. A prefix or suffix word makes
+# a different section: "Acceptance Criteria Verification" holds evidence and
+# "Non-Acceptance Criteria" holds what the PR is not claiming, and treating
+# either one's bullets as requirements misreads the document. Trailing `#` is
+# Markdown's optional closing fence on an ATX heading.
+_ACCEPTANCE_TITLE = re.compile(r"(?i)acceptance\s+criteri(?:a|on)\s*:?\s*#*\s*")
 _BULLET = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX~-]\]\s*)?(?P<text>.*)$")
 _CODE_SPAN = re.compile(r"`([^`\n]+)`")
 _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
@@ -122,6 +142,21 @@ _RESULT_TAIL = re.compile(
     r")"
 )
 
+# What may sit between the command span and the result verb that governs it.
+# Only enough to carry "Run `make build` and it completes successfully"; any
+# wider and the verb stops belonging to the command.
+_RESULT_BRIDGE = re.compile(r"(?i)[\s,:;]*(?:(?:and|then|it|still)\s+)*")
+
+# A subordinator opens a clause that describes a condition, not the deliverable.
+# "The wrapper returns zero when `pytest` passes" asserts what the wrapper must
+# do; the `pytest` run is the premise. Only the leading clause can carry a
+# command-execution claim, so everything from the first subordinator on is cut
+# before the command is looked for.
+_SUBORDINATOR = re.compile(
+    r"(?i)\b(?:after|although|assuming|because|before|even|given|if|once"
+    r"|provided|since|so|though|unless|until|when|whenever|while)\b"
+)
+
 
 def _acceptance_lines(pr_body: str) -> list[str]:
     """Return the non-heading lines under every Acceptance Criteria heading."""
@@ -136,7 +171,7 @@ def _acceptance_lines(pr_body: str) -> list[str]:
                 collected.append(line)
             continue
         depth = len(heading.group(1))
-        if _ACCEPTANCE_TITLE.search(heading.group(2)):
+        if _ACCEPTANCE_TITLE.fullmatch(heading.group(2)):
             inside = True
             level = depth
         elif inside and depth <= level:
@@ -165,28 +200,60 @@ def _bullets(lines: list[str]) -> list[str]:
     return [bullet for bullet in bullets if bullet]
 
 
-def _names_command(text: str) -> bool:
-    """True when an inline code span in `text` reads as a runnable command."""
-    for span in _CODE_SPAN.findall(text):
-        token = span.strip().lstrip("$>").strip()
+def _leading_clause(text: str) -> str:
+    """Return `text` up to its first subordinator, where the deliverable is."""
+    subordinator = _SUBORDINATOR.search(text)
+    return text if subordinator is None else text[: subordinator.start()]
+
+
+def _command_span_ends(text: str) -> list[int]:
+    """Offsets just past each inline code span that reads as a runnable command."""
+    ends: list[int] = []
+    for span in _CODE_SPAN.finditer(text):
+        token = span.group(1).strip().lstrip("$>").strip()
         if not token:
             continue
         first = token.split()[0].lower().lstrip("./")
         if first in _COMMAND_LAUNCHERS or first.endswith(_SCRIPT_SUFFIXES):
-            return True
-    return False
+            ends.append(span.end())
+    return ends
 
 
-def _asserts_execution_result(text: str) -> bool:
+def _asserts_execution_result(text: str, command_end: int) -> bool:
+    """True when a result verb governs the command that ended at `command_end`.
+
+    The verb has to follow the command with nothing but a short bridge between
+    them, so that the command is the thing said to have passed. A verb sitting
+    anywhere else in the criterion belongs to some other subject.
+    """
+    bridge = _RESULT_BRIDGE.match(text, command_end)
+    if bridge is None:
+        return False
+    verb = _RESULT_VERB.match(text, bridge.end())
+    if verb is None:
+        return False
+    return _RESULT_TAIL.match(text, verb.end()) is not None
+
+
+def _is_command_execution_claim(text: str) -> bool:
     """True when `text` claims how a run turned out, not what the code does."""
-    return any(_RESULT_TAIL.match(text, match.end()) for match in _RESULT_VERB.finditer(text))
+    clause = _leading_clause(text)
+    return any(_asserts_execution_result(clause, end) for end in _command_span_ends(clause))
+
+
+def _normalize(text: str) -> str:
+    """Collapse a criterion to one line of printable characters.
+
+    Classification runs on the normalized text, not the raw bullet: a control
+    character between the command and its result verb would otherwise break the
+    adjacency `_asserts_execution_result` depends on.
+    """
+    return " ".join(_CONTROL_CHARS.sub(" ", text).split())
 
 
 def _sanitize(text: str) -> str:
-    """Flatten a criterion to one bounded, structure-free line."""
-    cleaned = _CONTROL_CHARS.sub(" ", text)
-    cleaned = " ".join(cleaned.split())
-    cleaned = _LEADING_MARKUP.sub("", cleaned)
+    """Flatten a normalized criterion to one bounded, structure-free line."""
+    cleaned = _LEADING_MARKUP.sub("", text)
     if len(cleaned) > _MAX_CRITERION_CHARS:
         cleaned = cleaned[: _MAX_CRITERION_CHARS - 3].rstrip() + "..."
     return cleaned
@@ -203,9 +270,10 @@ def find_nonexecutable_criteria(pr_body: str) -> list[str]:
 
     found: list[str] = []
     for bullet in _bullets(_acceptance_lines(pr_body)):
-        if not (_names_command(bullet) and _asserts_execution_result(bullet)):
+        normalized = _normalize(bullet)
+        if not _is_command_execution_claim(normalized):
             continue
-        cleaned = _sanitize(bullet)
+        cleaned = _sanitize(normalized)
         if cleaned and cleaned not in found:
             found.append(cleaned)
         if len(found) >= _MAX_CRITERIA:
