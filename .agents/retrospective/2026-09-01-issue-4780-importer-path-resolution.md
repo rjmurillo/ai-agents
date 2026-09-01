@@ -14,8 +14,13 @@
 - Observe: Issue #4780 reported that
   `.claude-mem/scripts/import_claude_mem_memories.py` builds one fixed path
   under `~/.claude/plugins/marketplaces/thedotmack/scripts/` and exits 1 when
-  that file is absent. `SESSION-PROTOCOL` recommends the command at session start
-  on every harness, so a Copilot CLI session reports a failure for an optional
+  that file is absent. The issue attributed the session-start recommendation to
+  `SESSION-PROTOCOL.md`; that file no longer exists, deleted with the session
+  skill cluster by PR #5135 on 2026-08-18, three weeks before this session and
+  after the issue was filed on 2026-08-09. The live publication surface is
+  `.agents/governance/MEMORY-MANAGEMENT.md`, which carries the command
+  unqualified by harness at lines 167, 306, and 339. The defect is unchanged by
+  the correction: a Copilot CLI session reports a failure for an optional
   dependency that is simply not installed.
 - Respond: read the script before trusting the issue's framing, then read the
   test file that covers it and the governance doc that publishes the command.
@@ -90,7 +95,7 @@ contract, and the test that nominally covered it could not fail. This is FM-11
 | Keep doing | Reading the existing test for the code under repair before writing the fix. `assert result in (0, 1)` reads like coverage and is worth zero; finding it first reframed the task from "add an override" to "the contract was never tested, so state it and pin it". |
 | Keep doing | Designing negative controls that flip one branch each rather than reverting the whole change. A whole-change revert produces import and signature errors that look like a passing control while proving nothing about behavior. |
 | Start doing | When a fix converts a failure into an intentional success, write the over-correction control too, forcing the *other* branch to succeed. Without it the suite cannot distinguish "skips when it should" from "skips always". |
-| Stop doing | Assuming a harness-specific default has a counterpart on the other harness. Claude-Mem ships only as a Claude Code plugin; inventing a plausible Copilot path would have been an unverifiable claim shipped as code. |
+| Stop doing | Assuming a harness-specific default has a counterpart on the other harness, and equally, asserting it has none. Upstream Claude-Mem does integrate with Copilot CLI, through an MCP-only installer (`MCP_IDE_INSTALLERS` in `src/services/integrations/McpIntegrations.ts`) that supplies no bulk-importer path. Inventing a Copilot importer path would have shipped an unverifiable claim as code; writing "no Copilot equivalent" shipped a different unverifiable claim as documentation, and Copilot review caught it. The checkable statement is the narrow one: no default bulk-importer path exists for that harness. |
 
 ## Phase 2: Diagnosis
 
@@ -106,19 +111,30 @@ exports, the process model). The artifact ships structurally valid and
 behaviorally broken."
 
 That is this defect. The script is published by
-`.agents/governance/MEMORY-MANAGEMENT.md` and by `SESSION-PROTOCOL` as a
-session-start command for every harness, which makes Copilot CLI a target host.
+`.agents/governance/MEMORY-MANAGEMENT.md` as a session-start command for every
+harness, which makes Copilot CLI a target host.
 The one test covering `main` asserted only that the return value was an integer
 in `(0, 1)`, so no gate ever executed the script on a host where
 `~/.claude/plugins/` does not exist.
 
-**Named divergence from FM-11 as written**: FM-11's first sentence scopes the
-pattern to "a generator produces an artifact". This script is hand-authored, not
-generator-produced, and it is installed by cloning the repository. The mechanism
+**Named divergence from FM-11 as written, and the required proposal**: FM-11's
+first sentence scopes the pattern to "a generator produces an artifact". This
+script is hand-authored and installed by cloning the repository. The mechanism
 FM-11 names (no gate runs the artifact under the target host's runtime contract)
-is what produced the defect; the generator premise is not satisfied. Recording
-the divergence rather than silently stretching the definition, per
-`.claude/rules/canonical-source-mirror.md`.
+is what produced the defect; the generator premise is not satisfied.
+
+`.claude/rules/retros.md` MUST-2 requires that when no existing class matches, a
+new class MUST be proposed in a linked ADR. An earlier draft of this
+retrospective recorded the divergence and stopped there, which is exactly the
+"stretch the nearest class" move the rule forbids. Corrected: **issue #5461**
+proposes the class (widen FM-11, add FM-12, or reject), with the three-way
+decision and the FM-9, FM-10, and FM-4 exclusions written out.
+
+The ADR itself is deliberately not authored here. `AGENTS.md` lists new ADRs
+under Ask First, and this was an unattended session, so the proposal is filed
+for a human to take to an ADR rather than guessed at. That is the halt-this-
+branch-and-continue-elsewhere path in `.claude/rules/voice.md` for unattended
+runs, not an omission.
 
 ### Near Misses Ruled Out (adjacent failure modes)
 
@@ -164,6 +180,11 @@ layer.
 | Decided the exit code from `path.exists()` alone, leaving `is_configured` asserted only by tests | Latent contract defect, reached commit `176e68873` | The exit-1 behavior rested on an unstated invariant inside `resolve_importer` (a default is returned only when it exists) instead of the stated contract | Branch on the classification the resolver already computed; never re-derive a decision the caller stored | 90% |
 | Loaded modules via `spec_from_file_location` without registering them in `sys.modules` | Collection error, caught before commit | Pre-existing test-loader helper; the omission is invisible until a module under test uses a dataclass | Register the module in `sys.modules` in the loader helper | 85% |
 | Wrote "`dataclasses.py`" in the PR body while explaining stdlib behavior | CI red on Validate PR | The gate treats any backtick-quoted `*.py` token in `## Changes` as a claimed changed file | Name stdlib modules without the `.py` extension in PR prose | 75% |
+| Used `Path.expanduser()` inside a function whose whole point was resolving against an injected `home` | Isolation defect, reached commit `0dbf3069d` | `expanduser` reads the process `HOME`, so the injected parameter was silently bypassed; the tell was that the test had to mutate global env to cover it | Treat "the test must mutate global state" as evidence the code under test is not actually isolated | 90% |
+| Let `--importer ""` fall through to a lower tier via a truthiness check | Precedence defect, reached commit `0dbf3069d` | `if explicit:` conflates "flag absent" (`None`) with "flag given, value blank" (`""`); the env tier's documented blank-is-unset rule was applied to the argument tier where it does not belong | Distinguish `None` from empty for any option whose absence and blankness mean different things | 88% |
+| Narrowed to `except OSError`, leaving `UnicodeDecodeError` from locale-dependent pipe decoding unhandled | Latent crash, reached commit `176e68873` | Narrowing the catch was correct, but the decode was never pinned; `subprocess-encoding` only scans `scripts/`, so `.claude-mem/scripts/` is outside the gate that would have caught it | Pin `encoding="utf-8", errors="replace"` whenever narrowing a subprocess catch, per the repo convention | 85% |
+| Asserted "Claude-Mem has no Copilot CLI equivalent" in four places | False external claim, reached commit `0dbf3069d` | Reasoned from the absence of a Copilot importer path to the absence of any Copilot integration; never checked upstream | Verify an external absence claim against the upstream source before writing it, per `.claude/rules/knowledge-persistence.md` MUST-NOT-4 | 92% |
+| Recorded an FM-11 divergence note instead of proposing a class | Governance gap, reached commit `0dbf3069d` | `.claude/rules/retros.md` MUST-2 requires a proposal when no class matches; the divergence note was the stretch the rule forbids | When a classification needs a divergence note to fit, that is the signal to propose, not to annotate | 88% |
 
 ### Near Misses
 
@@ -336,23 +357,29 @@ persisting them belongs in a campaign-level change that owns the index.
 
 #### Actionable Items Identified
 
-| Delta Item | Category | Priority | Destination | Reference |
-|------------|----------|----------|-------------|-----------|
-| `.agents/governance/MEMORY-MANAGEMENT.md` exceeds the 500-line taste-lint advisory (506 before this change, larger after the mandated verbatim quotes) | Process | P3 | Skip | Advisory only; pre-existing and enlarged by a competing rule |
-| Validate PR flags any backtick-quoted `*.py` token as a changed-file claim, including stdlib references | Tool Gap | P3 | Skip | Known false-positive class; worked around by rewording |
-| No gate detects an assertion accepting a function's full return range | Tool Gap | P2 | Memory | Learning 1 above; recorded here pending a campaign-level owner |
+Per `.claude/rules/retros.md` MUST-4, every item below carries an owner or a
+tracking reference. "Skip" is a decision with a stated reason, not a deferral
+without an owner.
+
+| Delta Item | Category | Priority | Destination | Owner / Tracking |
+|------------|----------|----------|-------------|------------------|
+| No FAILURE-MODES class covers a hand-authored cross-harness runtime-contract defect (FM-11's generator premise fails) | Governance | P3 | Issue | Issue #5461, owner: repository maintainer (ADR authoring is Ask First per `AGENTS.md`) |
+| No gate detects an assertion accepting a function's full return range | Tool Gap | P2 | Issue | Issue #5461, "Notes" section, owner: repository maintainer |
+| `.agents/governance/MEMORY-MANAGEMENT.md` exceeds the 500-line taste-lint advisory (506 lines before this change, larger after the mandated verbatim quotes) | Process | P3 | Skip | Owner: none required. Advisory only, pre-existing on `main`, and enlarged by `.claude/rules/canonical-source-mirror.md`, which is binding where the size lint is advisory. Splitting is out of scope for a bug fix. |
+| Validate PR reads any backtick-quoted `*.py` token in `## Changes` as a changed-file claim, including stdlib references | Tool Gap | P3 | Skip | Owner: none required. Known false-positive class; worked around by rewording in this PR, and the workaround is recorded under Delta Change. |
+| The `subprocess-encoding` lefthook job scans only `scripts/`, so `.claude-mem/scripts/` never gets the `errors="replace"` check that Copilot review had to catch by hand | Tool Gap | P2 | Flagged for maintainer | Raised on the PR #5459 review thread for the encoding finding, owner: repository maintainer. Not filed as an issue unilaterally, since widening a lefthook scan surfaces pre-existing debt across an unknown blast radius and that call belongs to whoever owns the ratchet. |
 
 #### Issues Created
 
 | Issue | Title | Priority | Labels |
 |-------|-------|----------|--------|
-| none | No P0 or P1 delta items surfaced | N/A | N/A |
+| #5461 | docs(governance): FAILURE-MODES has no class for a hand-authored cross-harness runtime-contract defect | P3 | documentation, area-infrastructure, priority:P3 |
 
 #### Backlog Items Stored
 
 | Item | Priority | Memory File |
 |------|----------|-------------|
-| Vacuous-assertion detection (Learning 1) | P2 | Not stored; see Memory Persistence note on shared-index contention |
+| Vacuous-assertion detection (Learning 1) | P2 | Not stored to memory; carried on issue #5461 instead, so it has a tracked owner rather than an unindexed memory entry |
 
 #### Skipped Items
 

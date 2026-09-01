@@ -169,20 +169,27 @@ python3 .claude-mem/scripts/import_claude_mem_memories.py
 
 **Locating the importer across harnesses**
 
-Claude-Mem is an optional Claude Code plugin with no Copilot CLI equivalent, so
-the bulk importer resolves its path from configuration before any harness
-default.
+Claude-Mem is an optional dependency, and its Copilot CLI integration is
+MCP-only: upstream `MCP_IDE_INSTALLERS` in
+`src/services/integrations/McpIntegrations.ts` maps `copilot-cli` to an MCP
+installer that writes `~/.github/copilot/mcp.json`. Copilot support therefore
+exists, but it supplies no bulk-importer script path, which is what this command
+needs. The bulk importer resolves its path from configuration before any
+harness default.
 
 Canonical source: `.claude-mem/scripts/import_claude_mem_memories.py`. The
-resolution order is `resolve_importer` at lines 89 to 100, quoted verbatim:
+resolution order is `resolve_importer` at lines 118 to 132, quoted verbatim:
 
 ```python
-    if explicit:
-        return ImporterResolution(Path(explicit).expanduser(), _SOURCE_ARGUMENT)
+    if explicit is not None:
+        candidate = explicit.strip()
+        if not candidate:
+            return ImporterResolution(None, _SOURCE_ARGUMENT_BLANK)
+        return ImporterResolution(expand_home(candidate, home), _SOURCE_ARGUMENT)
 
     env_value = env.get(IMPORTER_ENV_VAR, "").strip()
     if env_value:
-        return ImporterResolution(Path(env_value).expanduser(), _SOURCE_ENVIRONMENT)
+        return ImporterResolution(expand_home(env_value, home), _SOURCE_ENVIRONMENT)
 
     default = claude_default_importer(home)
     if default.exists():
@@ -192,9 +199,20 @@ resolution order is `resolve_importer` at lines 89 to 100, quoted verbatim:
 ```
 
 Read as: `--importer PATH` first, then the `CLAUDE_MEM_IMPORTER` environment
-variable (blank or whitespace-only counts as unset, because `.strip()` empties
-it), then the Claude Code plugin default, which is returned only when it already
-exists on disk.
+variable, then the Claude Code plugin default, which is returned only when it
+already exists on disk.
+
+The two blank cases are deliberately asymmetric, which the quoted code shows:
+
+| Input | Treated as | Exit | Why |
+|-------|-----------|------|-----|
+| `CLAUDE_MEM_IMPORTER=""` | unset, falls through | 0 or the next tier's outcome | `VAR=""` is the shell idiom for disabling an inherited value |
+| `--importer ""` | configured but invalid | 1 | The caller passed the highest-priority option and supplied nothing usable; falling through would disregard an explicit instruction |
+
+A leading `~` is expanded by `expand_home` against the resolved home rather than
+by `Path.expanduser`, so the expansion does not depend on the process `HOME`. A
+`~otheruser` prefix is left literal and fails the existence check with the
+literal path shown.
 
 ```bash
 # Point at an importer installed outside the Claude Code plugin root
@@ -207,7 +225,7 @@ python3 .claude-mem/scripts/import_claude_mem_memories.py \
 ```
 
 The exit code is decided by `is_configured`, not by the absence itself. From
-`main` in the same file, lines 168 to 183, quoted verbatim:
+`main` in the same file, lines 210 to 225, quoted verbatim:
 
 ```python
     importer = resolution.path
@@ -229,21 +247,22 @@ The exit code is decided by `is_configured`, not by the absence itself. From
 ```
 
 `is_configured` is true only for the argument and environment sources, per the
-property at lines 59 to 62 of the same file:
+property at lines 64 to 67 of the same file:
 
 ```python
+
     @property
     def is_configured(self) -> bool:
         """True when the caller named a path, so a miss is a real failure."""
-        return self.source in (_SOURCE_ARGUMENT, _SOURCE_ENVIRONMENT)
 ```
 
 | Situation | Exit | Reason |
 |-----------|------|--------|
 | Nothing configured, no plugin installed | 0 | Optional dependency absent; import skipped with a `SKIP:` line |
 | Configured path missing, or importer fails | 1 | The caller named an importer that does not work |
+| `--importer ""` | 1 | Highest-priority option supplied with nothing usable |
 
-A Copilot CLI session with no Claude-Mem installed therefore skips cleanly
+A Copilot CLI session with no bulk importer on disk therefore skips cleanly
 instead of reporting a false failure (issue #4780).
 
 **Stricter/looser/different than canonical**: no divergence. This section
