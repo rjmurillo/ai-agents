@@ -67,7 +67,15 @@ import check_repo_health
 
 GUARD = _VALIDATION_DIR / "check_repo_health.py"
 
+# The exact command the gate prints for a genuine local-scope repair.
 _REPAIR = "--replace-all core.bare false"
+
+# A broader marker for "no repair was printed" checks. Deliberately without
+# the `--replace-all` flag, so it still catches a regression to the older,
+# unsafe `git config core.bare false` spelling appearing where no repair
+# should print at all -- narrowing this to `_REPAIR` would let that
+# regression through by no longer matching the string it emits.
+_REPAIR_MARKER = "core.bare false"
 
 
 def _git_test_env() -> dict[str, str]:
@@ -177,7 +185,7 @@ class TestAGlobalTrueUnderALocalFalseIsNotTheIncident:
 
         assert code == 0
         captured = capsys.readouterr()
-        assert _REPAIR not in captured.out + captured.err
+        assert _REPAIR_MARKER not in captured.out + captured.err
         assert "Fix:" not in captured.err
 
     def test_the_usable_line_names_the_masked_value(
@@ -200,7 +208,7 @@ class TestAGlobalTrueUnderALocalFalseIsNotTheIncident:
         result = _run_cli(repo, env)
 
         assert result.returncode == 0, result.stdout + result.stderr
-        assert _REPAIR not in result.stdout + result.stderr
+        assert _REPAIR_MARKER not in result.stdout + result.stderr
 
     def test_a_local_true_over_the_same_global_still_exits_one(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -246,7 +254,7 @@ class TestARepeatedLocalKeyIsResolvedByOrderNotByPresence:
 
         assert code == 0
         captured = capsys.readouterr()
-        assert _REPAIR not in captured.out + captured.err
+        assert _REPAIR_MARKER not in captured.out + captured.err
         assert "local=true overridden by a later scope" in captured.out
 
     def test_a_trailing_true_still_exits_one(
@@ -277,7 +285,7 @@ class TestAWorktreeScopedFalseOverABareRepositoryIsStillBareByDesign:
         code = check_repo_health.main([str(bare)])
 
         assert code == 0
-        assert _REPAIR not in capsys.readouterr().err
+        assert _REPAIR_MARKER not in capsys.readouterr().err
 
 
 class TestTheResolverMatchesGitsPrecedenceRule:

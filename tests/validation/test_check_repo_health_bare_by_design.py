@@ -73,9 +73,16 @@ import check_repo_health
 
 GUARD = _VALIDATION_DIR / "check_repo_health.py"
 
-# The command the gate prints for a genuinely corrupted checkout. No stream may
-# carry it for any layout in this file.
+# The exact command the gate prints for a genuinely corrupted checkout.
 _REPAIR = "--replace-all core.bare false"
+
+# A broader marker for "no repair was printed" checks in this file. Without
+# the `--replace-all` flag, so it still catches a regression to the older,
+# unsafe `git config core.bare false` spelling appearing where no repair
+# should print at all -- narrowing this to `_REPAIR` would let that
+# regression through by no longer matching the string it emits. No stream
+# may carry either form for any layout in this file.
+_REPAIR_MARKER = "core.bare false"
 
 
 def _git_test_env() -> dict[str, str]:
@@ -196,8 +203,8 @@ class TestALinkedWorktreeOfABareRepositoryIsHealthy:
         check_repo_health.main([str(linked)])
 
         captured = capsys.readouterr()
-        assert _REPAIR not in captured.out
-        assert _REPAIR not in captured.err
+        assert _REPAIR_MARKER not in captured.out
+        assert _REPAIR_MARKER not in captured.err
         assert "Fix:" not in captured.err
 
     def test_the_cli_process_exits_zero_and_prints_no_repair(self, tmp_path: Path) -> None:
@@ -207,7 +214,7 @@ class TestALinkedWorktreeOfABareRepositoryIsHealthy:
         result = _run_cli(linked)
 
         assert result.returncode == 0, result.stdout + result.stderr
-        assert _REPAIR not in result.stdout + result.stderr
+        assert _REPAIR_MARKER not in result.stdout + result.stderr
 
     def test_the_classifier_reports_no_work_tree(self, tmp_path: Path) -> None:
         """``work_tree`` is what ``_report_corruption`` would name in the repair."""
@@ -272,7 +279,7 @@ class TestABareRepositoryStoredAtADotGitPath:
         assert code == 0
         captured = capsys.readouterr()
         assert "bare repository with no work tree" in captured.out
-        assert _REPAIR not in captured.out + captured.err
+        assert _REPAIR_MARKER not in captured.out + captured.err
 
     def test_an_unrelated_file_beside_the_bare_repository_still_exits_zero(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -291,7 +298,7 @@ class TestABareRepositoryStoredAtADotGitPath:
 
         assert code == 0
         captured = capsys.readouterr()
-        assert _REPAIR not in captured.out + captured.err
+        assert _REPAIR_MARKER not in captured.out + captured.err
 
     def test_the_listing_alone_would_have_called_that_layout_a_checkout(
         self, tmp_path: Path
